@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { isUuid } from '@/lib/uuid';
 import { getSupabaseAdmin, requireAuth } from '@/lib/auth-server';
 import { enforceRateLimit } from '@/lib/rate-limit';
 
@@ -15,6 +16,11 @@ export async function POST(request: NextRequest) {
     const { postId } = body;
     const profileId = user.id;
 
+    if (postId && !isUuid(postId)) {
+      // Same outcome the maybeSingle lookup produces for a bogus id today —
+      // deliberately 404, not 400, to keep the wire contract identical.
+      return NextResponse.json({ error: 'Post not found' }, { status: 404 });
+    }
     if (!postId) {
       return NextResponse.json({ error: 'Post ID is required' }, { status: 400 });
     }

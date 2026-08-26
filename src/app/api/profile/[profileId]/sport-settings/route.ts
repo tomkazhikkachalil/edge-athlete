@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { isUuid } from '@/lib/uuid';
 import { requireAuth, getSupabaseAdmin } from '@/lib/auth-server';
 import { getSportSettingsDisplay, type SettingsDisplayItem } from '@/lib/sports/settings-schemas';
 import type { SportKey } from '@/lib/sports';
@@ -32,6 +33,9 @@ export async function GET(
 ) {
   try {
     const { profileId } = await params;
+    if (!isUuid(profileId)) {
+      return NextResponse.json({ error: 'Invalid profile ID' }, { status: 400 });
+    }
     if (!profileId) {
       return NextResponse.json({ error: 'Profile ID is required' }, { status: 400 });
     }

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { isUuid } from '@/lib/uuid';
 import { requireAuth, getSupabaseAdmin } from '@/lib/auth-server';
 
 // ── POST /api/messages/[conversationId]/participants ──────────────────────────
@@ -11,6 +12,9 @@ export async function POST(
     const supabase = getSupabaseAdmin();
     const user = await requireAuth(request);
     const { conversationId } = await params;
+    if (!isUuid(conversationId)) {
+      return NextResponse.json({ error: 'Invalid conversation ID' }, { status: 400 });
+    }
     const body = await request.json();
     const { profileIds } = body;
 

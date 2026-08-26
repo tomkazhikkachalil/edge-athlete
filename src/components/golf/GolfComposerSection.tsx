@@ -21,6 +21,7 @@
 // toggle, so switching golf → general → golf must keep the scorecard.
 
 import { useState, useCallback, useRef, useEffect } from 'react';
+import { UUID_RE as UUID_SHAPE } from '@/lib/uuid';
 import { useAuth } from '@/lib/auth';
 import { hasAnyEnteredScore, resizePlayerScores } from '@/lib/golf/score-entry';
 import { localDayKey } from '@/lib/calendar/grid';
@@ -76,8 +77,6 @@ export interface GolfSharedRoundDetails {
 }
 
 /** Catalog course ids are golf_courses UUIDs; history rows use `history-*`. */
-const UUID_SHAPE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
 /** A sibling section row at a multi-course club (from ?id= hydration). */
 interface SectionSibling {
   id: string;

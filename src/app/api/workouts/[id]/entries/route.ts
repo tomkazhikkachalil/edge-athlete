@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { isUuid } from '@/lib/uuid';
 import { requireAuth, getSupabaseAdmin } from '@/lib/auth-server';
 import { validateEntriesPayload } from '@/lib/workouts/entries';
 
@@ -25,6 +26,9 @@ export async function PUT(
     const supabase = getSupabaseAdmin();
     const user = await requireAuth(request);
     const { id } = await params;
+    if (!isUuid(id)) {
+      return NextResponse.json({ error: 'Invalid workout ID' }, { status: 400 });
+    }
     const body = await request.json();
 
     const savedAt = Number(body.savedAt);

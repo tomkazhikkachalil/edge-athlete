@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { isUuid } from '@/lib/uuid';
 import { supabaseAdmin } from '@/lib/supabase';
 import { requireAuth, requireProfileRole } from '@/lib/auth-server';
 import { canViewProfile } from '@/lib/privacy';
@@ -33,7 +34,7 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const profileId = searchParams.get('id');
     
-    if (!profileId) {
+    if (!profileId || !isUuid(profileId)) {
       return NextResponse.json({ error: 'Profile ID is required' }, { status: 400 });
     }
 
@@ -286,10 +287,7 @@ export async function PUT(request: NextRequest) {
     if (error) {
       console.error('Profile API: Database error:', error);
       console.error('Profile API: Error details:', JSON.stringify(error, null, 2));
-      return NextResponse.json({ 
-        error: `Database error: ${error.message || 'Failed to update profile'}`,
-        details: error
-      }, { status: 500 });
+      return NextResponse.json({ error: 'Failed to update profile' }, { status: 500 });
     }
 
     // Round H: identity edits on a supervised profile bell the guardians —
@@ -323,9 +321,6 @@ export async function PUT(request: NextRequest) {
     if (error instanceof Response) return error;
     console.error('Profile API: Unexpected error:', error);
     console.error('Profile API: Error stack:', error instanceof Error ? error.stack : 'No stack trace');
-    return NextResponse.json({ 
-      error: `Internal server error: ${error instanceof Error ? error.message : 'Unknown error'}`,
-      details: error instanceof Error ? error.stack : error
-    }, { status: 500 });
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

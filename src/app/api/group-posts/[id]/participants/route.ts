@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { isUuid } from '@/lib/uuid';
 import { getServerAuth, getSupabaseAdmin } from '@/lib/auth-server';
 import { syncMirrorPostTags } from '@/lib/group-posts/mirror-tags';
 
@@ -18,6 +19,9 @@ export async function GET(
 
   try {
     const { id } = await params;
+    if (!isUuid(id)) {
+      return NextResponse.json({ error: 'Invalid group post ID' }, { status: 400 });
+    }
 
     // Fetch participants - RLS handles access control
     const { data: participants, error: fetchError } = await supabase
@@ -69,6 +73,9 @@ export async function POST(
 
   try {
     const { id } = await params;
+    if (!isUuid(id)) {
+      return NextResponse.json({ error: 'Invalid group post ID' }, { status: 400 });
+    }
     const body = await request.json();
     const { participant_ids, role } = body;
 
@@ -78,6 +85,9 @@ export async function POST(
         { error: 'participant_ids must be a non-empty array' },
         { status: 400 }
       );
+    }
+    if (participant_ids.some((pid: unknown) => !isUuid(typeof pid === 'string' ? pid : null))) {
+      return NextResponse.json({ error: 'Invalid participant ID' }, { status: 400 });
     }
 
     // Verify user is creator or organizer - check group post
@@ -196,6 +206,9 @@ export async function DELETE(
 
   try {
     const { id } = await params;
+    if (!isUuid(id)) {
+      return NextResponse.json({ error: 'Invalid group post ID' }, { status: 400 });
+    }
     const body = await request.json();
     const { participant_id } = body;
 

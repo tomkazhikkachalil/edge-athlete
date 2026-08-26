@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { UUID_RE } from '@/lib/uuid';
 import { requireAuth, getSupabaseAdmin } from '@/lib/auth-server';
 import { extractHandles } from '@/lib/mentions';
 import { notifyChatMentions } from '@/lib/mentions/notify';
@@ -91,7 +92,6 @@ export async function POST(
     if (!VALID_MESSAGE_TYPES.includes(type)) {
       return NextResponse.json({ error: 'Invalid message type' }, { status: 400 });
     }
-    const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
     for (const [field, value] of [['shared_post_id', shared_post_id], ['shared_profile_id', shared_profile_id], ['parent_message_id', parent_message_id]] as const) {
       if (value && (typeof value !== 'string' || !UUID_RE.test(value))) {
         return NextResponse.json({ error: `Invalid ${field}` }, { status: 400 });

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { isUuid } from '@/lib/uuid';
 import { requireAuth, getSupabaseAdmin } from '@/lib/auth-server';
 
 export async function POST(
@@ -9,6 +10,9 @@ export async function POST(
     const supabaseAdmin = getSupabaseAdmin();
     const user = await requireAuth(request);
     const { id } = await params;
+    if (!isUuid(id)) {
+      return NextResponse.json({ error: 'Invalid notification ID' }, { status: 400 });
+    }
     const body = await request.json();
     const { action } = body;
 
@@ -125,7 +129,7 @@ export async function POST(
     if (error instanceof Response) return error;
     console.error('[NOTIFICATION ACTION] Error:', error);
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Failed to process action' },
+      { error: 'Failed to process action' },
       { status: 500 }
     );
   }

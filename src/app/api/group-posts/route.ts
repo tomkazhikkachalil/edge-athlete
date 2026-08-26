@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { isUuid } from '@/lib/uuid';
 import { getSupabaseAdmin, getServerAuth } from '@/lib/auth-server';
 import { notifyGroupInvites } from '@/lib/golf/group-notifications';
 import { initialRoundStatus } from '@/lib/golf/round-status';
@@ -281,6 +282,9 @@ export async function POST(request: NextRequest) {
     // Every surface orders by position, so what the creator saw while
     // building the round is what everyone sees everywhere after.
     const rawIds = Array.isArray(participant_ids) ? [...new Set(participant_ids as string[])] : [];
+    if (rawIds.some(pid => !isUuid(pid))) {
+      return NextResponse.json({ error: 'Invalid participant ID' }, { status: 400 });
+    }
     const orderedIds = rawIds.includes(actorId) ? rawIds : [actorId, ...rawIds];
     const positionOf = (id: string) => orderedIds.indexOf(id);
 

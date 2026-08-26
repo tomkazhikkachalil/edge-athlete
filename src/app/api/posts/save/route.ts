@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { isUuid } from '@/lib/uuid';
 import { getServerAuth } from '@/lib/auth-server';
 
 export async function POST(request: NextRequest) {
@@ -13,7 +14,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { postId } = body;
 
-    if (!postId) {
+    if (!postId || !isUuid(postId)) {
       return NextResponse.json({ error: 'Post ID is required' }, { status: 400 });
     }
 

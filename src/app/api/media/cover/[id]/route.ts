@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { isUuid } from '@/lib/uuid';
 import { getSupabaseAdmin } from '@/lib/auth-server';
 import { enforceRateLimit } from '@/lib/rate-limit';
 import { parsePublicUrl } from '@/lib/media/proxy-url';
@@ -26,6 +27,9 @@ export async function GET(
     if (limited) return limited;
 
     const { id } = await params;
+    if (!isUuid(id)) {
+      return NextResponse.json({ error: 'Invalid cover ID' }, { status: 400 });
+    }
     const admin = getSupabaseAdmin();
 
     const { data: profile } = await admin

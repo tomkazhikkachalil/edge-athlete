@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { isUuid } from '@/lib/uuid';
 import { requireAuth, getSupabaseAdmin } from '@/lib/auth-server';
 import { isValidDateString, isNotFutureDate } from '@/lib/date-validation';
 import { validateEquipmentPatch } from '@/lib/equipment-validation';
@@ -16,6 +17,9 @@ export async function PATCH(
     const supabase = getSupabaseAdmin();
     const user = await requireAuth(request);
     const { id } = await params;
+    if (!isUuid(id)) {
+      return NextResponse.json({ error: 'Invalid equipment ID' }, { status: 400 });
+    }
     const body = await request.json();
 
     // Verify ownership (status/dates for date validation, sport_key for the
@@ -137,6 +141,9 @@ export async function DELETE(
     const supabase = getSupabaseAdmin();
     const user = await requireAuth(request);
     const { id } = await params;
+    if (!isUuid(id)) {
+      return NextResponse.json({ error: 'Invalid equipment ID' }, { status: 400 });
+    }
 
     // Verify ownership
     const { data: equipment, error: fetchError } = await supabase

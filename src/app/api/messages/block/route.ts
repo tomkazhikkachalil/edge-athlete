@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { UUID_RE } from '@/lib/uuid';
 import { requireAuth, requireProfileRole, getSupabaseAdmin } from '@/lib/auth-server';
-
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 // Round I: every method takes an optional targetProfileId — a guardian
 // managing their supervised athlete's block list. The role matrix gates it

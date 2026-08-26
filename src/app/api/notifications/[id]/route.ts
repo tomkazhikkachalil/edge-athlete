@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { isUuid } from '@/lib/uuid';
 import { requireAuth, getSupabaseAdmin } from '@/lib/auth-server';
 
 export async function PATCH(
@@ -9,6 +10,9 @@ export async function PATCH(
     const supabaseAdmin = getSupabaseAdmin();
     const user = await requireAuth(request);
     const { id } = await params;
+    if (!isUuid(id)) {
+      return NextResponse.json({ error: 'Invalid notification ID' }, { status: 400 });
+    }
     const body = await request.json();
     const { is_read } = body;
 
@@ -30,7 +34,7 @@ export async function PATCH(
 
     if (error) {
       console.error('[NOTIFICATIONS API] Error updating notification:', error);
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      return NextResponse.json({ error: 'Failed to update notification' }, { status: 500 });
     }
 
     return NextResponse.json({ success: true });
@@ -39,7 +43,7 @@ export async function PATCH(
     if (error instanceof Response) return error;
     console.error('[NOTIFICATIONS API] Error:', error);
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Failed to update notification' },
+      { error: 'Failed to update notification' },
       { status: 500 }
     );
   }
@@ -53,6 +57,9 @@ export async function DELETE(
     const supabaseAdmin = getSupabaseAdmin();
     const user = await requireAuth(request);
     const { id } = await params;
+    if (!isUuid(id)) {
+      return NextResponse.json({ error: 'Invalid notification ID' }, { status: 400 });
+    }
 
     const { error } = await supabaseAdmin
       .from('notifications')
@@ -62,7 +69,7 @@ export async function DELETE(
 
     if (error) {
       console.error('[NOTIFICATIONS API] Error deleting notification:', error);
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      return NextResponse.json({ error: 'Failed to delete notification' }, { status: 500 });
     }
 
     return NextResponse.json({ success: true });
@@ -71,7 +78,7 @@ export async function DELETE(
     if (error instanceof Response) return error;
     console.error('[NOTIFICATIONS API] Error:', error);
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Failed to delete notification' },
+      { error: 'Failed to delete notification' },
       { status: 500 }
     );
   }

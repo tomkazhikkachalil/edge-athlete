@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { UUID_RE } from '@/lib/uuid';
 import { getSupabaseAdmin, getServerAuth } from '@/lib/auth-server';
 import { extractHandles } from '@/lib/mentions';
 import { notifyCommentMentions } from '@/lib/mentions/notify';
@@ -12,7 +13,6 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const postId = searchParams.get('postId');
 
-    const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
     if (!postId || !UUID_RE.test(postId)) {
       return NextResponse.json(
         { error: 'Valid Post ID is required' },
@@ -115,6 +115,12 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { postId, content, parentCommentId, gif_url } = body;
 
+    if (postId && !UUID_RE.test(postId)) {
+      return NextResponse.json({ error: 'Invalid post ID' }, { status: 400 });
+    }
+    if (parentCommentId && !UUID_RE.test(parentCommentId)) {
+      return NextResponse.json({ error: 'Invalid comment ID' }, { status: 400 });
+    }
     if (!postId || (!content?.trim() && !gif_url)) {
       return NextResponse.json(
         { error: 'Post ID and content or GIF are required' },

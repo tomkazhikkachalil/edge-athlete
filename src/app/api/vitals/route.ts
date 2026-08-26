@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { isUuid } from '@/lib/uuid';
 import { requireAuth, getSupabaseAdmin } from '@/lib/auth-server';
 import { filterVitalsRows, aspectHidden } from '@/lib/vitals-privacy';
 import { fetchVitalsPrivacy } from '@/lib/vitals-privacy-server';
@@ -14,6 +15,9 @@ export async function GET(request: NextRequest) {
     const supabase = getSupabaseAdmin();
     const { searchParams } = new URL(request.url);
     const profileId = searchParams.get('profileId');
+    if (profileId && !isUuid(profileId)) {
+      return NextResponse.json({ error: 'Invalid profile ID' }, { status: 400 });
+    }
 
     if (!profileId) {
       return NextResponse.json({ error: 'profileId is required' }, { status: 400 });

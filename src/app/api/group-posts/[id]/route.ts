@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { isUuid } from '@/lib/uuid';
 import { getServerAuth, getSupabaseAdmin } from '@/lib/auth-server';
 import { toProxyUrl } from '@/lib/media/proxy-url';
 import { deleteRoundCascade } from '@/lib/golf/round-delete-server';
@@ -20,6 +21,9 @@ export async function GET(
 
   try {
     const { id } = await params;
+    if (!isUuid(id)) {
+      return NextResponse.json({ error: 'Invalid group post ID' }, { status: 400 });
+    }
 
     // Fetch group post with all related data - RLS handles access control
     const { data: groupPost, error: fetchError } = await supabase
@@ -113,6 +117,9 @@ export async function PATCH(
 
   try {
     const { id } = await params;
+    if (!isUuid(id)) {
+      return NextResponse.json({ error: 'Invalid group post ID' }, { status: 400 });
+    }
     const body = await request.json();
 
     // Extract allowed fields
@@ -249,6 +256,9 @@ export async function DELETE(
 
   try {
     const { id } = await params;
+    if (!isUuid(id)) {
+      return NextResponse.json({ error: 'Invalid group post ID' }, { status: 400 });
+    }
     const result = await deleteRoundCascade(getSupabaseAdmin(), id, user.id);
 
     switch (result.status) {

@@ -1,9 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { UUID_RE } from '@/lib/uuid';
 import { getServerAuth, getSupabaseAdmin } from '@/lib/auth-server';
 import { GROUP_SCORECARD_SELECT, transformGroupPostToScorecard } from '@/lib/golf/scorecard-transform';
 import { canViewSharedRound } from '@/lib/golf/round-access';
-
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /**
  * GET /api/group-posts/[id]/scorecard

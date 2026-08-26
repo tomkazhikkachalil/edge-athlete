@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { isUuid } from '@/lib/uuid';
 import { getServerAuth, getSupabaseAdmin } from '@/lib/auth-server';
 import { canViewProfile } from '@/lib/privacy';
 
@@ -20,7 +21,7 @@ export async function GET(
     const viewerId = user?.id || null;
 
     const { profileId } = await params;
-    if (!profileId) {
+    if (!profileId || !isUuid(profileId)) {
       return NextResponse.json({ error: 'Profile ID is required' }, { status: 400 });
     }
 

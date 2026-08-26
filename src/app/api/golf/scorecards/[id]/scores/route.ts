@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { isUuid } from '@/lib/uuid';
 import { getSupabaseAdmin, getServerAuth } from '@/lib/auth-server';
 import { notifyScoresPosted, groupPostActionUrl } from '@/lib/golf/group-notifications';
 import { validatePenalties } from '@/lib/golf/penalties';
@@ -25,6 +26,9 @@ export async function POST(
 
   try {
     const { id: participant_id } = await params;
+    if (!isUuid(participant_id)) {
+      return NextResponse.json({ error: 'Invalid participant ID' }, { status: 400 });
+    }
     const body = await request.json();
     const { scores } = body; // entered_by is always the session user
 
@@ -283,6 +287,9 @@ export async function GET(
 
   try {
     const { id: participant_id } = await params;
+    if (!isUuid(participant_id)) {
+      return NextResponse.json({ error: 'Invalid participant ID' }, { status: 400 });
+    }
 
     // Fetch golf participant scores with hole-by-hole data
     const { data: golfScores, error: fetchError } = await supabase
@@ -354,6 +361,9 @@ export async function PATCH(
 
   try {
     const { id: participant_id } = await params;
+    if (!isUuid(participant_id)) {
+      return NextResponse.json({ error: 'Invalid participant ID' }, { status: 400 });
+    }
     const body = await request.json();
     const { scores_confirmed } = body;
 

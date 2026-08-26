@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { UUID_RE } from '@/lib/uuid';
 import { getSupabaseAdmin, requireAuth } from '@/lib/auth-server';
 import { canViewProfile } from '@/lib/privacy';
-
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 // ── GET /api/golf/rounds/[roundId] ────────────────────────────────────────────
 // Round + hole-by-hole data. Visible to the owner, or to viewers permitted to

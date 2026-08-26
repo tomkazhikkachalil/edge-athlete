@@ -1,10 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { UUID_RE } from '@/lib/uuid';
 import { requireAuth, getSupabaseAdmin } from '@/lib/auth-server';
 import type { Conversation } from '@/types/messages';
 import { enforceRateLimit } from '@/lib/rate-limit';
 import { toProxyUrl } from '@/lib/media/proxy-url';
-
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 // ── GET /api/messages ─────────────────────────────────────────────────────────
 // List all active conversations for the current user, ordered by updated_at DESC.

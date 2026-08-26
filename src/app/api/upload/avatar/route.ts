@@ -105,13 +105,7 @@ export async function POST(request: NextRequest) {
 
     if (!successBucket) {
       console.error('Avatar API: All buckets failed, last error:', uploadError);
-      return NextResponse.json({
-        error: `Upload failed: No available storage bucket. Last error: ${uploadError && typeof uploadError === 'object' && 'message' in uploadError ? uploadError.message : 'Unknown storage error'}`,
-        details: {
-          triedBuckets: bucketNames,
-          lastError: uploadError
-        }
-      }, { status: 500 });
+      return NextResponse.json({ error: 'Avatar upload failed' }, { status: 500 });
     }
 
     // Get public URL using the successful bucket
@@ -167,9 +161,6 @@ export async function POST(request: NextRequest) {
     if (error instanceof Response) return error;
     console.error('Avatar API: Unexpected error:', error);
     console.error('Avatar API: Error details:', error instanceof Error ? error.stack : error);
-    return NextResponse.json({
-      error: `Internal server error: ${error instanceof Error ? error.message : 'Unknown error'}`,
-      details: error instanceof Error ? error.stack : error
-    }, { status: 500 });
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

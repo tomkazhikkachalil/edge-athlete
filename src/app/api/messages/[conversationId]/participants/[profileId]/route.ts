@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { isUuid } from '@/lib/uuid';
 import { requireAuth, getSupabaseAdmin } from '@/lib/auth-server';
 
 // ── DELETE /api/messages/[conversationId]/participants/[profileId] ────────────
@@ -11,6 +12,12 @@ export async function DELETE(
     const supabase = getSupabaseAdmin();
     const user = await requireAuth(request);
     const { conversationId, profileId } = await params;
+    if (!isUuid(conversationId)) {
+      return NextResponse.json({ error: 'Invalid conversation ID' }, { status: 400 });
+    }
+    if (!isUuid(profileId)) {
+      return NextResponse.json({ error: 'Invalid profile ID' }, { status: 400 });
+    }
 
     const isSelf = profileId === user.id;
 

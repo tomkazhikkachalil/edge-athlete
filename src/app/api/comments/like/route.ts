@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { isUuid } from '@/lib/uuid';
 import { getSupabaseAdmin, getServerAuth } from '@/lib/auth-server';
 import { enforceRateLimit } from '@/lib/rate-limit';
 
@@ -8,7 +9,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { commentId } = body;
 
-    if (!commentId) {
+    if (!commentId || !isUuid(commentId)) {
       return NextResponse.json({ error: 'Comment ID is required' }, { status: 400 });
     }
 

@@ -14,7 +14,7 @@ export async function GET(request: NextRequest) {
 
     if (error) {
       console.error('[NOTIFICATIONS API] Error getting unread count:', error);
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      return NextResponse.json({ error: 'Failed to get unread count' }, { status: 500 });
     }
 
     return NextResponse.json({ count: count || 0 });
@@ -23,7 +23,7 @@ export async function GET(request: NextRequest) {
     if (error instanceof Response) return error;
     console.error('[NOTIFICATIONS API] Error:', error);
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Failed to get unread count' },
+      { error: 'Failed to get unread count' },
       { status: 500 }
     );
   }

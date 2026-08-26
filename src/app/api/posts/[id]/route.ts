@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { isUuid } from '@/lib/uuid';
 import { getSupabaseAdmin, requireAuth } from '@/lib/auth-server';
 import { toProxyUrl } from '@/lib/media/proxy-url';
 import { canViewProfile } from '@/lib/privacy';
@@ -10,6 +11,9 @@ export async function GET(
   try {
     const supabase = getSupabaseAdmin();
     const { id: postId } = await params;
+    if (!isUuid(postId)) {
+      return NextResponse.json({ error: 'Invalid post ID' }, { status: 400 });
+    }
 
     // Optional auth — public posts are viewable by anyone; private posts are
     // gated below. (Admin client bypasses RLS, so we gate here.)

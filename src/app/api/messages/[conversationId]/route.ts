@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { isUuid } from '@/lib/uuid';
 import { requireAuth, getSupabaseAdmin } from '@/lib/auth-server';
 import { toProxyUrl } from '@/lib/media/proxy-url';
 
@@ -12,6 +13,9 @@ export async function GET(
     const supabase = getSupabaseAdmin();
     const user = await requireAuth(request);
     const { conversationId } = await params;
+    if (!isUuid(conversationId)) {
+      return NextResponse.json({ error: 'Invalid conversation ID' }, { status: 400 });
+    }
     const { searchParams } = new URL(request.url);
     const cursor = searchParams.get('cursor');
     // Honor ?limit= (clamped 1–50; default 50). ChatWindow's realtime handler
@@ -449,6 +453,9 @@ export async function PATCH(
     const supabase = getSupabaseAdmin();
     const user = await requireAuth(request);
     const { conversationId } = await params;
+    if (!isUuid(conversationId)) {
+      return NextResponse.json({ error: 'Invalid conversation ID' }, { status: 400 });
+    }
     const body = await request.json();
     const { name, avatar_url, is_muted } = body;
 

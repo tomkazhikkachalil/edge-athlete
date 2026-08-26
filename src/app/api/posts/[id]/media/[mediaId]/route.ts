@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { isUuid } from '@/lib/uuid';
 import { requireAuth, getSupabaseAdmin } from '@/lib/auth-server';
 import { toProxyUrl } from '@/lib/media/proxy-url';
 import { FEATURE_FLAGS } from '@/lib/features';
@@ -27,6 +28,12 @@ export async function PATCH(
   try {
     const user = await requireAuth(request);
     const { id, mediaId } = await params;
+    if (!isUuid(id)) {
+      return NextResponse.json({ error: 'Invalid post ID' }, { status: 400 });
+    }
+    if (!isUuid(mediaId)) {
+      return NextResponse.json({ error: 'Invalid media ID' }, { status: 400 });
+    }
     const admin = getSupabaseAdmin();
 
     const body = await request.json().catch(() => ({}));

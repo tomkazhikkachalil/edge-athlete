@@ -62,7 +62,7 @@ export async function GET(request: NextRequest) {
 
     if (error) {
       console.error('[NOTIFICATIONS API] Error fetching notifications:', error);
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      return NextResponse.json({ error: 'Failed to fetch notifications' }, { status: 500 });
     }
 
     // Check if there are more results
@@ -92,7 +92,7 @@ export async function GET(request: NextRequest) {
     if (error instanceof Response) return error;
     console.error('[NOTIFICATIONS API] Error:', error);
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Failed to fetch notifications' },
+      { error: 'Failed to fetch notifications' },
       { status: 500 }
     );
   }
@@ -114,7 +114,7 @@ export async function DELETE(request: NextRequest) {
 
       if (error) {
         console.error('[NOTIFICATIONS API] Error clearing all:', error);
-        return NextResponse.json({ error: error.message }, { status: 500 });
+        return NextResponse.json({ error: 'Failed to delete notifications' }, { status: 500 });
       }
 
       return NextResponse.json({
@@ -129,7 +129,7 @@ export async function DELETE(request: NextRequest) {
     if (error instanceof Response) return error;
     console.error('[NOTIFICATIONS API] Error:', error);
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Failed to delete notifications' },
+      { error: 'Failed to delete notifications' },
       { status: 500 }
     );
   }
