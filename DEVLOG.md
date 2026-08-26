@@ -1,5 +1,31 @@
 # Development Log
 
+## August 25, 2026 — fix: live-now count 500 (`last_score_activity_at` is derived, not a column)
+
+Post-deploy verification of the Tier-2 round caught `/api/golf/live-now/count`
+returning **500 on every authenticated poll**: #302's lean select asked
+Postgres for `group_posts.last_score_activity_at`, but that field is *not a
+column* — no migration defines it. The deep route derives it in
+`transformGroupPostToScorecard` (max `golf_participant_scores.updated_at`
+across the round's participants) and the optional-field typing in
+`round-status.ts` let the route compile against a phantom column; no test or
+probe exercised the endpoint authenticated before merge (route handlers aren't
+unit-testable in the node-only suite). Prod symptom: 42703 → 500, so the
+header's Live dot silently never lit.
+
+Fix keeps the endpoint lean: embed only the score timestamps
+(`participants:group_post_participants(scores:golf_participant_scores(updated_at))`
+— a handful of rows per round, none of the hole/media/course weight the
+endpoint exists to avoid) and derive `last_score_activity_at` in code with the
+same max-of-`updated_at` rule as the transform. `scores` handled as
+object-or-array (the `participant_id` UNIQUE constraint makes PostgREST return
+an object; the transform defends both ways, so this does too). Embed shape
+verified against the live schema before commit.
+
+Lesson for the file: **a select list is a schema claim — probe it against prod
+before shipping**, especially for fields the TypeScript types mark optional
+(optionality hides a missing column from the compiler).
+
 ## August 25, 2026 — Tier-2 efficiency round: no bottlenecks at scale (#302–#305)
 
 The efficiency/scale cluster from the `docs/HARDENING.md` Tier-2 backlog —
