@@ -83,6 +83,9 @@ export const RATE_LIMITS = {
   // parity; late adds are rarer but batched, 60/h never touches real use.
   'group-post-create': { max: 30, windowSeconds: 3600, keyBy: 'user' },
   'group-post-add': { max: 60, windowSeconds: 3600, keyBy: 'user' },
+  // CSP violation sink: anon-reachable, a broken page can fire dozens of
+  // reports per load. On limit the route still 204s (never 429 a reporter).
+  'csp-report': { max: 30, windowSeconds: 60, keyBy: 'ip' },
   // Authenticated media proxy (/api/media/[token]). IP-keyed (anon-reachable
   // for public content) and generous: an image-dense page pulls dozens of
   // media in one load. Forged tokens die on the HMAC check before any DB hit,
