@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { filterBlockedBidirectional } from '@/lib/blocks';
 import { isUuid } from '@/lib/uuid';
 import { getSupabaseAdmin, requireAuth, getServerClient } from '@/lib/auth-server';
 import { canViewProfile } from '@/lib/privacy';
@@ -51,13 +52,16 @@ export async function POST(request: NextRequest) {
     // already encodes owner/follower/guardian access, so tagging keeps
     // working inside real relationships (golf rounds tag participants via
     // their own server path, unaffected).
-    const taggedIds = [...new Set(
+    const rawTaggedIds = [...new Set(
       (tags as { taggedProfileId: string }[])
         .map(t => t.taggedProfileId)
         .filter(id => id && id !== user.id)
     )];
+    if (rawTaggedIds.some(id => !isUuid(id))) {
+      return NextResponse.json({ error: 'Invalid tagged profile ID' }, { status: 400 });
+    }
     const viewChecks = await Promise.all(
-      taggedIds.map(id => canViewProfile(id, user.id))
+      rawTaggedIds.map(id => canViewProfile(id, user.id))
     );
     if (viewChecks.some(check => !check.canView)) {
       return NextResponse.json(
@@ -66,8 +70,19 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Prepare tag records
-    const tagRecords = tags.map((tag: {
+    // Blocks gate tagging (Tom's product decision, Aug 2026): anyone with a
+    // user_blocks row in either direction vs the tagger is SILENTLY skipped
+    // (the group-add semantics — never reveal who blocked whom; the request
+    // still succeeds with the remaining tags). ids UUID-validated above.
+    const { allowed: taggableIds } = await filterBlockedBidirectional(supabase, user.id, rawTaggedIds);
+    const taggableSet = new Set(taggableIds);
+    const taggedIds = rawTaggedIds.filter(id => taggableSet.has(id));
+
+    // Prepare tag records (blocked targets already filtered out above; a
+    // self-tag entry passes through untouched, as before)
+    const tagRecords = tags.filter((tag: { taggedProfileId: string }) =>
+      tag.taggedProfileId === user.id || taggableSet.has(tag.taggedProfileId)
+    ).map((tag: {
       taggedProfileId: string;
       mediaId?: string;
       positionX?: number;
@@ -81,6 +96,11 @@ export async function POST(request: NextRequest) {
       position_y: tag.positionY || null,
       status: 'active'
     }));
+
+    if (tagRecords.length === 0) {
+      // Everything was filtered (all blocked) — succeed silently, no rows.
+      return NextResponse.json({ success: true, tags: [] });
+    }
 
     // Insert tags (upsert to handle duplicates)
     const { data: createdTags, error: tagError } = await supabase

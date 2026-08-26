@@ -101,8 +101,11 @@ Ranked, with the source finding. Fix deliberately; each is its own change.
   advisory; canonical `src/lib/uuid.ts` + ~45 routes now 400 on malformed ids;
   group adds silently skip blocked users via the shared
   `filterBlockedBidirectional` (`src/lib/blocks.ts`) — count-only responses,
-  post_tags propagation fixed, new group-post rate buckets. Flagged follow-up
-  (product): blocks do NOT yet gate follow/tags.
+  post_tags propagation fixed, new group-post rate buckets. The flagged
+  follow-up landed later the same day (Tom's product call): blocks now gate
+  follow (403 create-only; block creation severs existing edges both ways),
+  tagging (silent skip on posts create/edit + the tags endpoint), and
+  connection suggestions.
 
 **Efficiency / scale**
 - ~~**Feed keyset pagination**~~ — **DONE (Aug 2026, #319 + migration 126's

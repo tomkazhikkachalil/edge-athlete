@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { UUID_RE, isUuid } from '@/lib/uuid';
+import { filterBlockedBidirectional } from '@/lib/blocks';
 import { getEnabledSports } from '@/lib/sports/SportRegistry';
 import { requireAuth, getSupabaseAdmin } from '@/lib/auth-server';
 import { GROUP_SCORECARD_SELECT, transformGroupPostToScorecard } from '@/lib/golf/scorecard-transform';
@@ -104,7 +105,7 @@ export async function POST(request: NextRequest) {
       visibility = 'public',
       media = [],
       golfData = null,
-      taggedProfiles = [], // Array of profile IDs to tag in this post
+      taggedProfiles: rawTaggedProfiles = [], // Array of profile IDs to tag in this post
       stats_data: incomingStatsData = null, // Optional structured metadata (e.g. vitals_entry)
       sharedPostId = null, // Repost: the post being shared (075)
       postCategory: rawPostCategory = null, // Cross-cutting category (077): 'training'
@@ -132,6 +133,26 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: gate.error }, { status: gate.status });
     }
     const userId = gate.actorId;
+
+    // Tagged people: UUID-validate, then blocks gate tagging (Aug 2026) —
+    // anyone with a user_blocks row in either direction vs the author is
+    // SILENTLY dropped (group-add semantics; never reveal the block). The
+    // filtered list feeds BOTH posts.tags (the read store) and post_tags,
+    // so the two can't drift.
+    if (!Array.isArray(rawTaggedProfiles) ||
+        rawTaggedProfiles.some((id: unknown) => !isUuid(typeof id === 'string' ? id : null))) {
+      if (Array.isArray(rawTaggedProfiles) && rawTaggedProfiles.length > 0) {
+        return NextResponse.json({ error: 'Invalid tagged profile ID' }, { status: 400 });
+      }
+    }
+    const { allowed: allowedTagged } = Array.isArray(rawTaggedProfiles) && rawTaggedProfiles.length > 0
+      ? await filterBlockedBidirectional(getSupabaseAdmin(), userId, rawTaggedProfiles as string[])
+      : { allowed: [] as string[] };
+    // Filter IN PLACE (original order kept; a self-tag passes through — the
+    // helper drops the actor id by design, so re-admit it here).
+    const allowedTaggedSet = new Set(allowedTagged);
+    const taggedProfiles = (Array.isArray(rawTaggedProfiles) ? rawTaggedProfiles as string[] : [])
+      .filter(id => id === userId || allowedTaggedSet.has(id));
     if (!gate.actingAs && FEATURE_FLAGS.FEATURE_GUARDIAN_PROFILES) {
       // Supervised minors posting to their OWN profile: content queues for
       // guardian approval — they can write, never publish (resolver matrix).
@@ -1395,10 +1416,25 @@ export async function PUT(request: NextRequest) {
     const {
       postId,
       caption = '',
-      taggedProfiles,
+      taggedProfiles: rawTaggedProfilesPut,
       hashtags = [],
       visibility
     } = body;
+
+    // Blocks gate tagging on edit too (Aug 2026). undefined stays undefined
+    // (EditPostModal doesn't send the field and tags must be left alone).
+    let taggedProfiles: string[] | undefined = undefined;
+    if (Array.isArray(rawTaggedProfilesPut)) {
+      if (rawTaggedProfilesPut.some((id: unknown) => !isUuid(typeof id === 'string' ? id : null))) {
+        return NextResponse.json({ error: 'Invalid tagged profile ID' }, { status: 400 });
+      }
+      const { allowed } = rawTaggedProfilesPut.length > 0
+        ? await filterBlockedBidirectional(getSupabaseAdmin(), user.id, rawTaggedProfilesPut as string[])
+        : { allowed: [] as string[] };
+      const allowedSet = new Set(allowed);
+      taggedProfiles = (rawTaggedProfilesPut as string[])
+        .filter(id => id === user.id || allowedSet.has(id));
+    }
 
     if (!postId) {
       return NextResponse.json({ error: 'Post ID is required' }, { status: 400 });

@@ -1,5 +1,33 @@
 # Development Log
 
+## August 26, 2026 — Blocks now gate follows and tagging
+
+The flagged follow-up from the hardening round, green-lit by Tom as a product
+decision. Blocking someone previously stopped only DMs and group-round adds —
+a blocked user could still follow you (gaining feed presence and, on private
+profiles, a pending request you had to look at) and still be tagged into
+posts. Now, reusing `filterBlockedBidirectional` (src/lib/blocks.ts):
+
+- **Follow**: the CREATE branch rejects a blocked pair with the same
+  generic-403 shape as blocked DMs (`Unable to follow this user`);
+  **unfollow always works** whatever the block state (create-only gating).
+- **Creating a block severs existing follow edges in both directions** —
+  accepted edges and pending requests (messages/block POST). Without this a
+  blocked follower kept the access blocking exists to remove.
+- **Tagging**: silently skipped (the group-add semantics — the request
+  succeeds with the remaining tags, never revealing the block) on all three
+  paths: posts create, posts edit (the filtered list feeds BOTH `posts.tags`
+  and `post_tags`, so the stores can't drift), and the tags endpoint —
+  which also gained the UUID-400 guard it was missing. Historical tags are
+  deliberately untouched (removable via the existing tag-removal surfaces).
+- **Suggestions** never propose a blocked pair (silent filter).
+
+Verified with a 12/12 four-account probe on a local prod build: blocked
+follow 403s with no edge; blocking severs an accepted follow; unfollow
+works under a raw block; a blocked tag target vanishes silently from both
+stores while clean tags land; all-blocked tag requests succeed empty;
+suggestions exclude blocked pairs.
+
 ## August 26, 2026 — Tier-2 hardening round: security beefed up, app runs smoother (#316–#321, migrations 126/127)
 
 The deferred `docs/HARDENING.md` backlog, picked back up under one hard
