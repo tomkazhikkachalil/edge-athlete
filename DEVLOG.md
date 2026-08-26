@@ -21,7 +21,9 @@ empty state parallel to the orgs one.
 Verified 9/9 on a local prod build: followed-PRIVATE post visible to its
 accepted follower and to nobody else, own posts included, strangers
 excluded, 'all' untouched, noFollowing/anonymous envelopes, cursor fields
-riding the scoped response.
+riding the scoped response. **CLOSED: #325 merged and re-probed 9/9 against
+production** — with it, the last parked product decision is shipped and the
+entire audit-through-hardening backlog is prod-verified.
 
 ## August 26, 2026 — Blocks now gate follows and tagging
 
@@ -49,7 +51,8 @@ Verified with a 12/12 four-account probe on a local prod build: blocked
 follow 403s with no edge; blocking severs an accepted follow; unfollow
 works under a raw block; a blocked tag target vanishes silently from both
 stores while clean tags land; all-blocked tag requests succeed empty;
-suggestions exclude blocked pairs.
+suggestions exclude blocked pairs. **CLOSED: #324 merged and re-probed 9/9
+against production.**
 
 ## August 26, 2026 — Tier-2 hardening round: security beefed up, app runs smoother (#316–#321, migrations 126/127)
 
