@@ -1,6 +1,7 @@
 'use client';
 
 import { createContext, useContext, useEffect, useState, useCallback } from 'react';
+import '@/lib/zod-client-config';
 import { User, AuthChangeEvent, Session } from '@supabase/supabase-js';
 import { supabase } from './supabase';
 import type { Profile } from './supabase';
