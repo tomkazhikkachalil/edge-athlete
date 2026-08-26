@@ -1,7 +1,8 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef, useEffect } from 'react';
 import ConversationItem from './ConversationItem';
+import { useMessages } from '@/lib/messages';
 import type { Conversation } from '@/types/messages';
 
 interface Props {
@@ -36,6 +37,26 @@ export default function ConversationList({
   onNewConversation,
 }: Props) {
   const [search, setSearch] = useState('');
+  // Conversation-list pagination (migration 127). Sentinel + observer mirror
+  // ChatWindow's older-messages pattern. NOTE the documented nuance: search
+  // filters the LOADED pages only — most inboxes fit in page one; fetching
+  // everything on search would resurrect the unpaginated cost this removed.
+  const { hasMoreConversations, loadMoreConversations } = useMessages();
+  const sentinelRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (!hasMoreConversations) return;
+    const sentinel = sentinelRef.current;
+    if (!sentinel) return;
+    const observer = new IntersectionObserver(
+      entries => {
+        if (entries[0].isIntersecting) loadMoreConversations();
+      },
+      { threshold: 0.1 }
+    );
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [hasMoreConversations, loadMoreConversations]);
 
   const filtered = useMemo(
     () => searchConversations(conversations, search, currentUserId),
@@ -112,6 +133,11 @@ export default function ConversationList({
                 onClick={() => onSelect(conv.id)}
               />
             ))}
+            {hasMoreConversations && !search && (
+              <div ref={sentinelRef} className="flex items-center justify-center py-3">
+                <i className="fas fa-spinner fa-spin text-faint text-sm" aria-label="Loading more conversations"></i>
+              </div>
+            )}
           </div>
         )}
       </div>

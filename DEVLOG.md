@@ -1,5 +1,56 @@
 # Development Log
 
+## August 26, 2026 — Tier-2 hardening round: security beefed up, app runs smoother (#316–#321, migrations 126/127)
+
+The deferred `docs/HARDENING.md` backlog, picked back up under one hard
+constraint: zero feature-behavior change. Six stacked PRs, each verify-green
+and probe-verified on a local prod build before opening.
+
+- **#316 error bodies + UUID-400s.** ~40 API sites shipped raw Postgres error
+  internals to clients (followers alone leaked message+details+code+hint; two
+  routes shipped stack traces) — all now friendly strings with the raw error
+  in console/Sentry, plus a guardrail advisory. One canonical `src/lib/uuid.ts`
+  and ~45 routes 400 cleanly on malformed ids instead of 22P02→500 (the follow
+  route was live-leaking exactly this way). signup's auth-validation message
+  deliberately stays (user-facing form copy).
+- **#317 blocked-user group adds.** A creator could add someone who blocked
+  them — auto-confirmed, and the mirror sync then TAGGED the blocked user.
+  Shared `filterBlockedBidirectional` now silently skips them at creation and
+  late-add (count-only responses — the blocker never learns); notify.ts
+  delegates to it. New group-post rate buckets.
+- **#318 efficiency small wins + migration 126.** Viewer-scoped like lookup
+  replaces the single-post like-list embed; distinct-keys RPCs replace the
+  active-sports and golf-years full scans; golf/stats `?year=` filters in SQL
+  (which also fixed silent corruption past PostgREST's 1000-row cap);
+  GolfAdapter promise-cache collapses 3 identical profile-page fetches to 1;
+  the module-scope `supabaseAdmin` is gone (lazy factory everywhere); 126 also
+  wraps the 15 surviving bare `auth.uid()` policies as initplans.
+- **#319 feed keyset pagination.** Additive `?cursor=` contract on
+  `(created_at DESC, id DESC)` — exact hasMore via overfetch, frontier
+  advances past privacy-filtered rows, legacy offset path byte-identical, feed
+  composition unchanged (following-scope stays a product decision).
+- **#320 CSP: enforced, nonce-based, middleware-owned.** The report-only
+  policy reported to nowhere and omitted Sentry's ingest host. Now: per-request
+  nonce (Next auto-nonces its 27 inline scripts from the request header —
+  verified on 16.3.1), `unsafe-eval` gone in prod, `/api/csp-report` sink,
+  `CSP_ENFORCE=0` rollback env, dev always report-only. Deliberate cost:
+  `headers()` in the root layout makes every page dynamic. The enforced-CSP
+  e2e run caught the one real gap — the media editor fetches its own blob
+  URLs → `connect-src blob:`.
+- **#321 conversation-list pagination + migration 127.** `get_conversation_list`
+  extended IN PLACE with defaulted `p_limit`/`p_before` (deploy-skew safe);
+  route returns `has_more`/`next_cursor`; sentinel infinite scroll in
+  ConversationList; the 30s poll refreshes page one — wholesale replace until
+  the user actually paginates (pre-round semantics exactly), merge-by-id after.
+
+Ops order: merge the stack in order → run migrations 126 then 127 (SQL
+editor, check grids) → deploy → post-deploy probes (anon-key RPC negatives,
+CSP watch via /api/csp-report + Sentry for 24h, feed/messages pagination,
+golf-stats parity). Not done this round, on purpose: blocks on follow/tags and
+the following-scope feed (product calls), staging env / WAF rule / Resend DNS
+(ops), conversation search beyond loaded pages, the no-year golf aggregate's
+>1000-row residual.
+
 ## August 26, 2026 — Multi-course golf clubs: the nines + combos model (#311–#314, migration 125)
 
 Selecting Greensmere or Ottawa Hunt "failed" — not with an error, but with
