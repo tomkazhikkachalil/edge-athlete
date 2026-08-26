@@ -43,7 +43,13 @@ export async function GET(request: NextRequest) {
     );
 
     // Lean columns only — exactly what isRoundLive + the visibility rule read.
-    const LEAN_SELECT = 'id, visibility, status, date, last_score_activity_at';
+    // last_score_activity_at is NOT a group_posts column: the deep route
+    // derives it in transformGroupPostToScorecard as the max score updated_at.
+    // Selecting it here 42703'd every poll, so embed just the timestamps
+    // (a handful of rows per round — none of the hole/media/course weight
+    // this endpoint exists to avoid) and derive the same value below.
+    const LEAN_SELECT =
+      'id, visibility, status, date, participants:group_post_participants(scores:golf_participant_scores(updated_at))';
     const activeGolf = () =>
       supabase
         .from('group_posts')
@@ -66,7 +72,27 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Failed to load live rounds' }, { status: 500 });
     }
 
-    const rows = [...(publicRes.data || []), ...(viewerRes.data || [])];
+    // Same derivation as transformGroupPostToScorecard: newest score write
+    // across all participants. golf_participant_scores.participant_id is
+    // UNIQUE so PostgREST may return `scores` as an object or an array —
+    // handle both, like the transform does.
+    type LeanRow = {
+      id: string;
+      visibility: string | null;
+      status: string | null;
+      date: string | null;
+      participants?: Array<{ scores?: { updated_at: string | null } | Array<{ updated_at: string | null }> | null }> | null;
+    };
+    const rows = ([...(publicRes.data || []), ...(viewerRes.data || [])] as LeanRow[]).map(row => {
+      let lastActivityAt: string | null = null;
+      for (const p of row.participants || []) {
+        const scoreRec = Array.isArray(p.scores) ? p.scores[0] : p.scores;
+        if (scoreRec?.updated_at && (!lastActivityAt || scoreRec.updated_at > lastActivityAt)) {
+          lastActivityAt = scoreRec.updated_at;
+        }
+      }
+      return { ...row, last_score_activity_at: lastActivityAt };
+    });
     const count = countLiveVisibleRounds(rows, viewerRoundIds);
 
     return NextResponse.json({ count });
