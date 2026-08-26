@@ -2,10 +2,18 @@
 
 import { Star, Camera } from 'lucide-react';
 import VitalsOverlay from './VitalsOverlay';
+import VitalsTrendChart from '@/components/charts/VitalsTrendChart';
 import { parseDateLocal } from '@/lib/formatters';
 import { categoryAccent, metricCategory } from './category-colors';
 import { computeMetricStats, formatEntryValue, type VitalEntry } from './metric-stats';
-import { VITAL_CATEGORIES, getAgeAtDate } from '@/lib/vitals-config';
+import { VITAL_CATEGORIES, getAgeAtDate, formatSecondsToDisplay } from '@/lib/vitals-config';
+import { metricSeries } from '@/lib/workouts/dashboard';
+import { useTheme } from '@/lib/use-theme';
+
+// parseDateLocal, not new Date(): metric dates are DATE-column values and would
+// label the previous day in US timezones (matches ProgressSection).
+const chartDateLabel = (iso: string) =>
+  parseDateLocal(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: '2-digit' });
 
 /**
  * The "larger window" behind a metric bubble: the full story of one metric —
@@ -21,17 +29,32 @@ interface MetricDetailOverlayProps {
   athleteBirthday: string | null;
   onOpenPost: (postId: string) => void;
   onClose: () => void;
+  /** When provided (own-profile body metrics), shows an "Update" button that
+   *  opens the vitals editor. Absent for other metrics / other viewers. */
+  onEdit?: () => void;
 }
 
 export default function MetricDetailOverlay({
-  metricKey, entries, athleteBirthday, onOpenPost, onClose,
+  metricKey, entries, athleteBirthday, onOpenPost, onClose, onEdit,
 }: MetricDetailOverlayProps) {
+  const { theme } = useTheme();
   const stats = computeMetricStats(metricKey, entries);
   if (!stats) return null;
   const { metric, sorted, first, latest, best, isCurrentBest, deltaText, deltaGood, yearsTracked } = stats;
   const category = metricCategory(metricKey);
   const accent = categoryAccent(category);
   const categoryLabel = VITAL_CATEGORIES.find(c => c.key === category)?.label;
+
+  // Over-time chart — same construction as ProgressSection (canonical values,
+  // category color, no rolling window / milestones for a single-metric view).
+  const chartPoints = metricSeries(entries, metricKey).map(p => ({ label: chartDateLabel(p.date), value: p.value }));
+  const chartColor = theme === 'dark' ? accent.hexDark : accent.hex;
+  const formatChartValue =
+    metric.time_format === 'mm:ss'
+      ? (v: number) => formatSecondsToDisplay(v, 'mm:ss')
+      : metric.time_format === 'decimal_seconds'
+        ? (v: number) => `${Math.round(v * 100) / 100} sec`
+        : (v: number) => `${Math.round(v * 10) / 10}${metric.unit ? ` ${metric.unit}` : ''}`;
 
   // History grouped by (local) year, newest first
   const byYear: Record<string, VitalEntry[]> = {};
@@ -88,6 +111,30 @@ export default function MetricDetailOverlay({
         )}
         {yearsTracked && <div className="text-xs text-faint mt-0.5">{yearsTracked}</div>}
       </div>
+
+      {/* Update (own-profile body metrics) — opens the vitals editor */}
+      {onEdit && (
+        <button
+          type="button"
+          onClick={onEdit}
+          className="vt-pill w-full mb-5 rounded-xl px-4 py-2.5 text-sm font-bold bg-brand text-white hover:opacity-90 transition-opacity"
+        >
+          Update
+        </button>
+      )}
+
+      {/* Over-time chart — the progress story (needs ≥2 readings to plot) */}
+      {chartPoints.length >= 2 && (
+        <div className="mb-5">
+          <VitalsTrendChart
+            title={metric.label}
+            points={chartPoints}
+            color={chartColor}
+            rollingWindow={0}
+            formatValue={formatChartValue}
+          />
+        </div>
+      )}
 
       {/* History */}
       <p className="text-xs font-semibold text-muted uppercase tracking-wider mb-3">History</p>
