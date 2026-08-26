@@ -81,6 +81,23 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Failed to block user' }, { status: 500 });
     }
 
+    // Blocks gate follows (Aug 2026): sever any existing follow relationship
+    // in BOTH directions — accepted edges AND pending requests. Without this
+    // a blocked follower kept feed/private access, which is the actual harm
+    // blocking exists to stop. Best-effort: the block row is the contract.
+    try {
+      const { data: severed } = await supabase
+        .from('follows')
+        .delete()
+        .or(`and(follower_id.eq.${blockerId},following_id.eq.${blockedId}),and(follower_id.eq.${blockedId},following_id.eq.${blockerId})`)
+        .select('id');
+      if (severed && severed.length > 0) {
+        console.log(`[block] severed ${severed.length} follow edge(s)`);
+      }
+    } catch (severError) {
+      console.error('[block] follow teardown failed (non-fatal):', severError);
+    }
+
     // Find any DM conversation between these two users and close both participants
     const { data: myParticipants } = await supabase
       .from('conversation_participants')

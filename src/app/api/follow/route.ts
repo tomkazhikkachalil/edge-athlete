@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin, requireAuth, requireProfileRole } from '@/lib/auth-server';
 import { enforceRateLimit } from '@/lib/rate-limit';
 import { isUuid } from '@/lib/uuid';
+import { filterBlockedBidirectional } from '@/lib/blocks';
 
 export async function POST(request: NextRequest) {
   try {
@@ -104,6 +105,16 @@ export async function POST(request: NextRequest) {
       }
       if (!targetProfile) {
         return NextResponse.json({ error: 'Profile not found' }, { status: 404 });
+      }
+
+      // Blocks gate follows (Tom's product decision, Aug 2026): a user_blocks
+      // row in EITHER direction rejects the follow — same generic-403 shape
+      // as blocked DMs ('Cannot message this user'). Only the CREATE branch:
+      // unfollow above must always work, whatever the block state. Existing
+      // edges are torn down when the block is created (messages/block POST).
+      const { allowed } = await filterBlockedBidirectional(supabase, followerId, [followingId]);
+      if (allowed.length === 0) {
+        return NextResponse.json({ error: 'Unable to follow this user' }, { status: 403 });
       }
 
       const isPrivate = targetProfile.visibility === 'private';

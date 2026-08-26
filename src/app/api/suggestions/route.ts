@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { filterBlockedBidirectional } from '@/lib/blocks';
 import { isUuid } from '@/lib/uuid';
 import { getSupabaseAdmin, requireAuth } from '@/lib/auth-server';
 
@@ -97,6 +98,16 @@ export async function GET(request: NextRequest) {
     } else {
       // Use RPC results directly - they already match our interface
       suggestions = rpcSuggestions || [];
+    }
+
+    // Blocks gate suggestions (Aug 2026): a pair with a user_blocks row in
+    // either direction must never be suggested to each other. Silent filter
+    // (never reveal who blocked whom).
+    const candidateIds = suggestions.map(s => s.suggested_id).filter(Boolean);
+    if (candidateIds.length > 0) {
+      const { allowed } = await filterBlockedBidirectional(supabase, profileId, candidateIds);
+      const allowedSet = new Set(allowed);
+      suggestions = suggestions.filter(s => allowedSet.has(s.suggested_id));
     }
 
     return NextResponse.json({ suggestions });
