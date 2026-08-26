@@ -293,6 +293,25 @@ export default function VitalsTab({ profileId, currentUserId, isOwnProfile = fal
 
   const totalMetrics = Object.keys(vitalsByMetric).length;
 
+  // Height/weight for the hero — pre-formatted, null when unset (or privacy-
+  // hidden for a non-owner, since currentVitals is API-gated). Both null → the
+  // hero falls back to the greeting. Mirrors the Body metrics bubble formatting.
+  const heroHeightDisplay = currentVitals?.heightCm != null ? formatHeight(currentVitals.heightCm) : null;
+  const heroWeightDisplay = currentVitals
+    ? (currentVitals.weightDisplay != null && currentVitals.weightUnit
+        ? `${currentVitals.weightDisplay} ${currentVitals.weightUnit}`
+        : currentVitals.weightKg != null
+          ? formatWeightWithUnit(currentVitals.weightKg, currentVitals.weightUnit)
+          : null)
+    : null;
+
+  // Tap a hero value → its progress overlay when there's dated history; with no
+  // entries yet, an owner is sent to the editor to log the first one.
+  const openBodyMetric = (key: 'height' | 'weight') => {
+    if (vitalsByMetric[key]?.length) setMetricOverlayKey(key);
+    else if (isOwnProfile) setShowVitalsSettings(true);
+  };
+
   if (loading) {
     return (
       <div className="py-16 flex items-center justify-center">
@@ -433,6 +452,9 @@ export default function VitalsTab({ profileId, currentUserId, isOwnProfile = fal
         streak={streak}
         activeDays={activeDays}
         pb={pbSpotlight}
+        heightDisplay={heroHeightDisplay}
+        weightDisplay={heroWeightDisplay}
+        onOpenMetric={openBodyMetric}
       />
 
       {/* ── Bubble grid — tap a card for its larger window ───────────── */}
@@ -715,6 +737,13 @@ export default function VitalsTab({ profileId, currentUserId, isOwnProfile = fal
           athleteBirthday={athleteBirthday}
           onOpenPost={postId => setLinkedPostId(postId)}
           onClose={() => setMetricOverlayKey(null)}
+          // Own-profile body metrics get an Update button → the vitals editor
+          // (each save also appends a dated timeline entry).
+          onEdit={
+            isOwnProfile && (metricOverlayKey === 'height' || metricOverlayKey === 'weight')
+              ? () => { setMetricOverlayKey(null); setShowVitalsSettings(true); }
+              : undefined
+          }
         />
       )}
 

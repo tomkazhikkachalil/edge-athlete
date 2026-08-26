@@ -31,6 +31,12 @@ interface VitalsHeroProps {
   /** Distinct training days this week, 0..7 — the ring's fill. */
   activeDays: number;
   pb: LatestPB | null;
+  /** Pre-formatted current height/weight (null when unset or privacy-hidden).
+   *  When either is present they REPLACE the greeting beside the avatar and are
+   *  tappable to open that metric's progress. Both null → greeting fallback. */
+  heightDisplay?: string | null;
+  weightDisplay?: string | null;
+  onOpenMetric?: (key: 'height' | 'weight') => void;
 }
 
 function DeltaGlyph({ now, prior }: { now: number; prior: number }) {
@@ -60,12 +66,16 @@ function Stat({
 
 export default function VitalsHero({
   profile, isOwnProfile, summary, streak, activeDays, pb,
+  heightDisplay, weightDisplay, onOpenMetric,
 }: VitalsHeroProps) {
   const firstName = profile?.firstName?.trim() || null;
   const greeting = isOwnProfile
     ? `Let's go${firstName ? `, ${firstName}` : ''}!`
     : firstName ? `${firstName}'s training` : 'Training snapshot';
   const accent = categoryAccent(pb ? metricCategory(pb.metricKey) : undefined);
+  // Height/weight take the greeting's place when available (owner always;
+  // others only when their body metrics are visible). Otherwise the greeting.
+  const showBody = Boolean(heightDisplay || weightDisplay);
 
   return (
     <section className="vt-card vt-pop-in p-5 sm:p-6">
@@ -84,10 +94,37 @@ export default function VitalsHero({
             <Dumbbell className="w-6 h-6 text-brand-fg" />
           </div>
         )}
-        <div className="min-w-0 flex-1">
-          <h3 className="text-xl sm:text-2xl font-bold text-primary truncate">{greeting}</h3>
-          <p className="text-sm text-muted">This week at a glance</p>
-        </div>
+        {showBody ? (
+          <div className="min-w-0 flex-1 flex items-center gap-5 sm:gap-8">
+            {heightDisplay && (
+              <button
+                type="button"
+                onClick={() => onOpenMetric?.('height')}
+                aria-label={`Height ${heightDisplay}. View progress.`}
+                className="ea-interactive text-left rounded-xl px-2 -mx-2 py-1"
+              >
+                <div className="text-2xl sm:text-3xl font-bold text-primary tabular-nums leading-none">{heightDisplay}</div>
+                <div className="text-xs text-muted uppercase tracking-wide mt-1.5">Height</div>
+              </button>
+            )}
+            {weightDisplay && (
+              <button
+                type="button"
+                onClick={() => onOpenMetric?.('weight')}
+                aria-label={`Weight ${weightDisplay}. View progress.`}
+                className="ea-interactive text-left rounded-xl px-2 -mx-2 py-1"
+              >
+                <div className="text-2xl sm:text-3xl font-bold text-primary tabular-nums leading-none">{weightDisplay}</div>
+                <div className="text-xs text-muted uppercase tracking-wide mt-1.5">Weight</div>
+              </button>
+            )}
+          </div>
+        ) : (
+          <div className="min-w-0 flex-1">
+            <h3 className="text-xl sm:text-2xl font-bold text-primary truncate">{greeting}</h3>
+            <p className="text-sm text-muted">This week at a glance</p>
+          </div>
+        )}
         <div className="shrink-0 hidden sm:block">
           <StreakBadge weeks={streak} />
         </div>
