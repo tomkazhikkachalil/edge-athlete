@@ -587,6 +587,7 @@ export async function GET(request: NextRequest) {
     // peers, restricted to ALREADY anonymous-visible content. A scope, not
     // an access grant — main-feed only (ignored on profile/pinned modes).
     const orgScope = searchParams.get('scope') === 'orgs' && !userId && !pinnedOnly;
+    const followScope = searchParams.get('scope') === 'following' && !userId && !pinnedOnly;
     // Guard against NaN (e.g. ?limit=abc) which would produce an invalid
     // .range() and 500. Clamp to sane bounds.
     const limit = Math.min(Math.max(parseInt(searchParams.get('limit') || '20', 10) || 20, 1), 100);
@@ -901,6 +902,29 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    // Following lens (Tom's product call, Aug 2026): the viewer's accepted
+    // follows ∪ self. Resolved up front like the org lens — anonymous viewers
+    // and viewers who follow nobody get their empty envelope without touching
+    // posts. Unlike orgs this lens is NOT public-only: an accepted follow of
+    // a private profile SHOULD see that profile's posts here (the existing
+    // per-post privacy filter below enforces exactly that rule).
+    let followingPeerIds: string[] = [];
+    if (followScope) {
+      if (!currentUserId) {
+        return NextResponse.json({ posts: [], hasMore: false });
+      }
+      const { data: followRows } = await supabase
+        .from('follows')
+        .select('following_id')
+        .eq('follower_id', currentUserId)
+        .eq('status', 'accepted')
+        .limit(2000); // ORG_PEER_CAP parity; PostgREST would cap at 1000 silently
+      followingPeerIds = (followRows || []).map(r => r.following_id as string);
+      if (followingPeerIds.length === 0) {
+        return NextResponse.json({ posts: [], hasMore: false, noFollowing: true });
+      }
+    }
+
     // Fetch posts with profile and follow relationship info
     let query = supabase
       .from('posts')
@@ -971,6 +995,14 @@ export async function GET(request: NextRequest) {
       query = query.in('profile_id', orgPeerIds).eq('visibility', 'public');
     }
 
+    // Following lens: authors = follows ∪ SELF (your own posts belong in
+    // your following feed). No SQL visibility restriction — the privacy
+    // filter below grants private posts to accepted followers, which is the
+    // point of following someone.
+    if (followScope) {
+      query = query.in('profile_id', [currentUserId!, ...followingPeerIds]);
+    }
+
     // Approval queue: unpublished posts never reach list surfaces — EXCEPT
     // for their own author (Round D, mirroring the comments viewer clause):
     // a supervised child must see their pending/rejected posts on their own
@@ -1000,9 +1032,12 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Failed to fetch posts' }, { status: 500 });
     }
 
-    // Get follow relationships for current user (if authenticated)
+    // Get follow relationships for current user (if authenticated).
+    // The following lens already fetched exactly this set — reuse it.
     let followingIds: Set<string> = new Set();
-    if (currentUserId) {
+    if (followScope) {
+      followingIds = new Set(followingPeerIds);
+    } else if (currentUserId) {
       const { data: following } = await supabase
         .from('follows')
         .select('following_id')
