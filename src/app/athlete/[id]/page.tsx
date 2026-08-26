@@ -482,6 +482,11 @@ export default function AthleteProfilePage() {
           profileId={athleteId}
           currentUserId={user?.id}
           isOwnProfile={isOwnProfile}
+          initialTab={searchParams.get('tab') ?? undefined}
+          onTabChange={(tab) => {
+            // Shareable / refresh-stable tab state: /athlete/<id>?tab=vitals
+            window.history.replaceState(null, '', tab === 'all' ? `/athlete/${athleteId}` : `/athlete/${athleteId}?tab=${tab}`);
+          }}
           onCountsChange={(counts) => {
             setPostsCount(counts.all);
             setStatementsCount(counts.statements ?? 0);

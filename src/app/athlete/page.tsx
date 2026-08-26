@@ -208,6 +208,9 @@ export default function AthleteProfilePage() {
   const [mediaRefreshKey, setMediaRefreshKey] = useState(0);
   // ?post= deep link target (own-profile share links).
   const [openPostId, setOpenPostId] = useState<string | null>(null);
+  // ?tab= deep link (e.g. ?tab=vitals) — read before ProfileMediaTabs mounts
+  // (the loading gates above guarantee that), validated inside the component.
+  const [deepLinkTab, setDeepLinkTab] = useState<string | null>(null);
 
   // Follow stats
   const [followersCount, setFollowersCount] = useState(0);
@@ -236,8 +239,11 @@ export default function AthleteProfilePage() {
   // pattern as the feed's ?create=1, avoids useSearchParams' Suspense
   // requirement on this statically prerendered page.
   useEffect(() => {
-    const p = new URLSearchParams(window.location.search).get('post');
+    const sp = new URLSearchParams(window.location.search);
+    const p = sp.get('post');
     if (p) setOpenPostId(p);
+    const t = sp.get('tab');
+    if (t) setDeepLinkTab(t);
   }, []);
 
   // Load athlete data
@@ -951,6 +957,15 @@ export default function AthleteProfilePage() {
               profileId={user?.id || ''}
               currentUserId={user?.id}
               isOwnProfile={true}
+              initialTab={deepLinkTab ?? undefined}
+              onTabChange={(tab) => {
+                // Mirror the tab into the URL (no navigation) so the state is
+                // shareable / refresh-stable: /athlete?tab=vitals. Also keep it
+                // in deepLinkTab: key={mediaRefreshKey} remounts this component
+                // after a post-create, and initialTab is what survives that.
+                setDeepLinkTab(tab === 'all' ? null : tab);
+                window.history.replaceState(null, '', tab === 'all' ? '/athlete' : `/athlete?tab=${tab}`);
+              }}
               onCountsChange={(counts) => {
                 setPostsCount(counts.all);
                 setStatementsCount(counts.statements ?? 0);

@@ -35,11 +35,20 @@ export default defineConfig({
     baseURL: E2E_BASE_URL,
     // Layout must be measured with mobile emulation OFF — under emulation
     // Chrome expands the layout viewport and real overflows read as clean.
+    // That applies to the narrow `mobile` project too: it shrinks the
+    // VIEWPORT only, never turns emulation on.
     isMobile: false,
     viewport: { width: 1280, height: 800 },
     trace: 'on-first-retry',
     storageState: 'e2e/.auth/state.json',
   },
+  // Web & Mobile Ship Together (CLAUDE.md): specs tagged @mobile run at phone
+  // width; everything else keeps the desktop viewport. grep/grepInvert are
+  // complementary so each spec runs in exactly one project.
+  projects: [
+    { name: 'desktop', grepInvert: /@mobile/ },
+    { name: 'mobile', grep: /@mobile/, use: { viewport: { width: 390, height: 844 } } },
+  ],
   // Only build/serve locally. Targeting a real deployment (E2E_BASE_URL) must
   // NOT spin up a local server — it would be the wrong code under test and
   // would mask whatever is actually deployed.
