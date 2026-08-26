@@ -9,6 +9,7 @@ import LazyImage from '@/components/LazyImage';
 import SportSettingsRow from '@/components/SportSettingsRow';
 import AchievementPills from '@/components/achievements/AchievementPills';
 import OrgMembershipsStrip, { type OrgMembership } from '@/components/affiliations/OrgMembershipsStrip';
+import VitalsTab from '@/components/VitalsTab';
 import { topPills } from '@/lib/achievements/display';
 import type { SettingsDisplayItem } from '@/lib/sports/settings-schemas';
 import {
@@ -121,13 +122,38 @@ export default function PublicProfilePage() {
   const params = useParams();
   const router = useRouter();
   const { user } = useAuth();
-  const username = params.username as string;
+  // getProfileUrl links as /u/@handle, and useParams delivers the segment
+  // PERCENT-ENCODED ('%40handle'). Passing that straight to the API
+  // double-encoded it (handle=%2540…) and every @-prefixed profile link
+  // rendered "Profile Not Found". Decode, then strip the display '@'.
+  const username = decodeURIComponent(params.username as string).replace(/^@+/, '');
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isPrivate, setIsPrivate] = useState(false);
   const [privateProfileId, setPrivateProfileId] = useState<string | null>(null);
   const [profileData, setProfileData] = useState<ProfileData | null>(null);
+  // 'overview' = the classic single-scroll public profile; 'vitals' mounts the
+  // redesigned VitalsTab (same component the /athlete pages use) lazily, so
+  // anonymous visitors don't pay its fetches unless they open it.
+  // ?tab=vitals deep link read in the initializer (window-guarded): SSR
+  // renders the loading spinner regardless of this state, so the
+  // server/client initial DOM cannot diverge on it.
+  const [activeSection, setActiveSection] = useState<'overview' | 'vitals'>(() =>
+    typeof window !== 'undefined' &&
+    new URLSearchParams(window.location.search).get('tab') === 'vitals'
+      ? 'vitals'
+      : 'overview'
+  );
+
+  const switchSection = (section: 'overview' | 'vitals') => {
+    setActiveSection(section);
+    // Mirror into the URL (no navigation) so the state is shareable.
+    window.history.replaceState(
+      null, '',
+      section === 'vitals' ? `${window.location.pathname}?tab=vitals` : window.location.pathname
+    );
+  };
 
   useEffect(() => {
     // cancelled guard: navigating /u/a -> /u/b keeps this component mounted;
@@ -443,6 +469,42 @@ export default function PublicProfilePage() {
           </div>
         </div>
 
+        {/* Section switcher — Overview keeps the classic single-scroll page;
+            Vitals mounts the redesigned dashboard (same component as the
+            /athlete pages, privacy enforced server-side by /api/vitals).
+            Styled to match ProfileMediaTabs' segmented control. */}
+        <div className="mt-4">
+          <nav className="inline-flex gap-2 p-1 bg-surface-sunken rounded-xl" aria-label="Profile sections">
+            {([['overview', 'Overview'], ['vitals', 'Vitals']] as const).map(([section, label]) => (
+              <button
+                key={section}
+                onClick={() => switchSection(section)}
+                className={`min-h-[44px] px-4 py-2.5 rounded-lg font-semibold text-sm transition-all duration-200 whitespace-nowrap ${
+                  activeSection === section
+                    ? 'bg-surface text-primary shadow-sm'
+                    : 'text-tertiary hover:text-primary hover:bg-surface-muted/50'
+                }`}
+                aria-current={activeSection === section ? 'page' : undefined}
+              >
+                {label}
+              </button>
+            ))}
+          </nav>
+        </div>
+
+        {activeSection === 'vitals' && (
+          <div className="mt-4 bg-surface rounded-xl shadow-sm border border-border p-4 sm:p-6">
+            <VitalsTab
+              profileId={profile.id}
+              currentUserId={user?.id}
+              isOwnProfile={false}
+            />
+          </div>
+        )}
+
+        {activeSection === 'overview' && (
+          <>
+
         {/* Achievements — real athlete_achievements rows, podium-first */}
         {achievements.length > 0 && (
           <div className="mt-4 bg-surface rounded-xl shadow-sm border border-border p-4">
@@ -577,6 +639,9 @@ export default function PublicProfilePage() {
           <div className="mt-4 bg-surface rounded-xl shadow-sm border border-border p-8 text-center">
             <p className="text-muted">No public posts yet</p>
           </div>
+        )}
+
+          </>
         )}
 
         {/* Sign up CTA for logged out users */}

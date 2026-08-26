@@ -187,7 +187,31 @@ worse than no list. Read the migrations, or introspect the live schema.
 
 ---
 
-## 🎨 Design System
+## 📱 Web & Mobile Ship Together
+
+**A feature or fix is not complete until it works at phone width as well as desktop.**
+There is no separate mobile app: "mobile" means small-viewport rendering of the same
+pages, so parity is a verification duty, not a porting task. Standing rule (Tom,
+Aug 2026), prompted by the Vitals redesign shipping "invisible" on phones — the
+components were identical at every width, but the Vitals tab sat off-screen in the
+profile tab scroller and `/u/` (where most profile links land) had no Vitals at all.
+The lessons generalize:
+
+- **Every round's verification includes a phone-width (~375px) pass of the touched
+  surfaces** — alongside `npm run verify`, before calling the work done.
+- **Reachability is part of parity.** A surface that renders fine at 375px but sits
+  behind an overflow-hidden scroller, a hover-only affordance, or a desktop-only
+  entry point has NOT shipped on mobile. Check the path to the feature, not just
+  the feature.
+- **Route parity matters as much as viewport parity.** The same content often has
+  two routes (`/athlete/[id]` vs `/u/[username]`); a redesign that lands on one and
+  not the other reads as "missing on mobile" because phones arrive via different
+  links. When redesigning a surface, grep for every route that renders that data.
+- **Give important tabs/sections a deep link** (`?tab=…`) so they are addressable
+  from navigation, tests, and shares regardless of viewport.
+- e2e runs default to 1280×800 (`playwright.config.ts`); specs tagged `@mobile` run
+  in the narrow `mobile` project (390×844) — add one for any surface whose phone
+  behavior matters.
 
 ### Strict Spacing Rhythm
 - **12px** (`space-micro`) - Label-to-value, icon-to-text

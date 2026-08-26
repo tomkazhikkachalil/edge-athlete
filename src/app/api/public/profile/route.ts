@@ -7,11 +7,16 @@ import { buildSportStatsCard } from '@/lib/sports/server';
 import { getSupabaseAdmin } from '@/lib/auth-server';
 import { isStatementPost } from '@/lib/statements';
 import { toProxyUrl } from '@/lib/media/proxy-url';
+import { fetchVitalsPrivacy } from '@/lib/vitals-privacy-server';
+import { aspectHidden } from '@/lib/vitals-privacy';
 
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
-    const handle = searchParams.get('handle');
+    // Tolerate a display-form '@handle' (and defensive double-encoding from
+    // older clients passing the raw /u/@… route segment through).
+    const rawHandle = searchParams.get('handle');
+    const handle = rawHandle?.replace(/^(?:%40|@)+/i, '');
 
     if (!handle) {
       return NextResponse.json({ error: 'Handle is required' }, { status: 400 });
@@ -237,9 +242,19 @@ export async function GET(request: NextRequest) {
     // anonymous-cheap (the strip gets initialData, no client fetch).
     const organizations = await getProfileOrganizations(supabase, profile.id);
 
+    // Elective vitals privacy (migration 122): the body aspect hides
+    // height/weight here exactly as it does on /api/vitals — this route used
+    // to leak them regardless of the setting. Viewer-independence holds
+    // (isOwner=false for everyone; owners see their own data on /athlete),
+    // so the CDN cacheability below is unaffected. Fields stay in the shape
+    // as nulls — clients already treat them as optional.
+    const vitalsPrivacy = await fetchVitalsPrivacy(supabase, profile.id);
+    const bodyHidden = aspectHidden(vitalsPrivacy, 'body', false);
+
     return NextResponse.json({
       profile: {
         ...profile,
+        ...(bodyHidden ? { height_cm: null, weight_kg: null, weight_unit: null } : {}),
         followersCount: followersResult.count || 0,
         followingCount: followingResult.count || 0,
         postsCount: Math.max((postsCount || 0) - (statementsTotal || 0), 0)
