@@ -1,5 +1,28 @@
 # Development Log
 
+## August 26, 2026 — The Following feed lens
+
+The last parked product decision from the hardening round. The feed keeps its
+global-public default (never empty at MVP scale) and gains a third lens next
+to "My orgs": **Following** — accepted follows ∪ self. Server-side it mirrors
+the org lens's shape (`?scope=following`, up-front peer resolution, an empty
+`noFollowing` envelope for viewers who follow nobody, capped at 2000 follows
+— ORG_PEER_CAP parity, and PostgREST would silently cap at 1000 anyway), with
+one deliberate difference: **no SQL visibility restriction**. An accepted
+follow of a private profile sees that profile's posts here — that is the
+point of following someone — and the existing per-post privacy filter is
+what enforces it, unchanged. The lens composes with keyset pagination
+(cursor + scope), reuses its peer set for the privacy filter (no duplicate
+follows query), and keeps realtime prepends (the live handler already
+prepends only followed authors — exactly this lens's population; orgs still
+skips them). Client: third pill in the scope switcher, a Follow-someone
+empty state parallel to the orgs one.
+
+Verified 9/9 on a local prod build: followed-PRIVATE post visible to its
+accepted follower and to nobody else, own posts included, strangers
+excluded, 'all' untouched, noFollowing/anonymous envelopes, cursor fields
+riding the scoped response.
+
 ## August 26, 2026 — Blocks now gate follows and tagging
 
 The flagged follow-up from the hardening round, green-lit by Tom as a product

@@ -148,12 +148,14 @@ export default function FeedPage() {
   // "All" vs "My orgs" lens. The lens is a SCOPE over already-public posts
   // (server-enforced) — switching it swaps the whole list. Ref mirror for
   // the realtime closure, kept in sync in the click handler.
-  const [feedScope, setFeedScope] = useState<'all' | 'orgs'>('all');
-  const feedScopeRef = useRef<'all' | 'orgs'>('all');
+  const [feedScope, setFeedScope] = useState<'all' | 'following' | 'orgs'>('all');
+  const feedScopeRef = useRef<'all' | 'following' | 'orgs'>('all');
   // noOrgs distinguishes "you belong to nothing yet" from "your orgs are quiet".
   const [noOrgs, setNoOrgs] = useState(false);
+  // noFollowing: same distinction for the Following lens.
+  const [noFollowing, setNoFollowing] = useState(false);
 
-  const switchScope = (scope: 'all' | 'orgs') => {
+  const switchScope = (scope: 'all' | 'following' | 'orgs') => {
     if (scope === feedScope) return;
     feedScopeRef.current = scope;
     setFeedScope(scope);
@@ -161,6 +163,7 @@ export default function FeedPage() {
     nextCursorRef.current = null;
     setHasMore(true);
     setNoOrgs(false);
+    setNoFollowing(false);
     // The [user, feedScope] effect below refetches with the new scope.
   };
 
@@ -256,7 +259,9 @@ export default function FeedPage() {
         },
         async (payload: RealtimePostPayload) => {
           // Org lens: no live prepends — the follow-scoped stream is the
-          // wrong population, and the next load has anything new.
+          // wrong population, and the next load has anything new. The
+          // Following lens keeps them: this handler already prepends ONLY
+          // followed authors, which is exactly that lens's population.
           if (feedScopeRef.current === 'orgs') return;
           // Own posts are handled by handlePostCreated (with full data);
           // skip here to avoid a duplicate. Others: only followed authors.
@@ -309,7 +314,8 @@ export default function FeedPage() {
         setFeedLoading(true);
       }
 
-      const scopeParam = feedScope === 'orgs' ? '&scope=orgs' : '';
+      const scopeParam =
+        feedScope === 'orgs' ? '&scope=orgs' : feedScope === 'following' ? '&scope=following' : '';
       // Empty cursor on page one opts into keyset mode (the response then
       // carries nextCursor); Load More sends the stored frontier.
       const cursorParam = loadMore
@@ -323,7 +329,10 @@ export default function FeedPage() {
 
       const data = await response.json();
       const newPosts = data.posts || [];
-      if (!loadMore) setNoOrgs(Boolean(data.noOrgs));
+      if (!loadMore) {
+        setNoOrgs(Boolean(data.noOrgs));
+        setNoFollowing(Boolean(data.noFollowing));
+      }
       
       if (loadMore) {
         // Dedupe on append as a second line of defense
@@ -586,9 +595,11 @@ export default function FeedPage() {
                 ticker; opens the round via the existing deep-link modal) */}
             <LiveNowStrip />
 
-            {/* Feed scope: All vs My orgs (a lens over already-public posts) */}
+            {/* Feed scope lenses: All (global), Following (accepted follows
+                ∪ self — private posts included where the follow grants them),
+                My orgs (public posts from org peers) */}
             <div className="flex gap-2" role="tablist" aria-label="Feed scope">
-              {([['all', 'All'], ['orgs', 'My orgs']] as const).map(([value, label]) => (
+              {([['all', 'All'], ['following', 'Following'], ['orgs', 'My orgs']] as const).map(([value, label]) => (
                 <button
                   key={value}
                   type="button"
@@ -629,6 +640,29 @@ export default function FeedPage() {
                       <div className="h-4 bg-gray-200 dark:bg-stone-800 rounded w-3/4"></div>
                     </div>
                   ))}
+                </div>
+              ) : posts.length === 0 && feedScope === 'following' ? (
+                <div className="bg-surface rounded-lg shadow-md border-2 border-border-strong p-8 text-center">
+                  <div className="mb-4 text-violet-500">
+                    <i className="fas fa-user-group text-4xl"></i>
+                  </div>
+                  <h3 className="text-lg font-medium text-primary mb-2">
+                    {noFollowing ? 'Follow some athletes' : 'Your feed is quiet'}
+                  </h3>
+                  <p className="text-tertiary mb-6">
+                    {noFollowing
+                      ? 'Posts from athletes you follow show up here once you follow someone.'
+                      : 'No posts yet from the athletes you follow.'}
+                  </p>
+                  {noFollowing && (
+                    <Link
+                      href="/explore"
+                      className="inline-block bg-surface-sunken text-secondary px-6 py-3 rounded-lg hover:bg-gray-200 dark:hover:bg-stone-800 transition-colors font-medium"
+                    >
+                      <i className="fas fa-binoculars mr-2"></i>
+                      Find athletes
+                    </Link>
+                  )}
                 </div>
               ) : posts.length === 0 && feedScope === 'orgs' ? (
                 <div className="bg-surface rounded-lg shadow-md border-2 border-border-strong p-8 text-center">

@@ -111,7 +111,11 @@ Ranked, with the source finding. Fix deliberately; each is its own change.
 - ~~**Feed keyset pagination**~~ — **DONE (Aug 2026, #319 + migration 126's
   index).** Additive `?cursor=` contract ((created_at,id) keyset, overfetch
   hasMore, nextCursor past privacy-filtered rows); legacy offset path intact.
-  **Following-scope feed composition remains a product decision — still open.**
+  The following-scope lens landed later the same day (Tom's call):
+  `?scope=following` mirrors the org lens (accepted follows ∪ self, capped
+  2000, `noFollowing` envelope) with NO SQL visibility restriction — the
+  per-post privacy filter grants accepted-follower access to private posts,
+  which is the lens's point. The global-public default feed is unchanged.
 - ~~**live-now double-poll**~~ — **DONE (Aug 2026, #302).** Added a count-only
   `/api/golf/live-now/count` (lean 4-column query) and pointed `useLiveNow` at
   it; the deep embed now runs only on the 3 pages that render `LiveNowStrip`,
