@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin, getServerAuth } from '@/lib/auth-server';
 import { notifyGroupInvites } from '@/lib/golf/group-notifications';
 import { initialRoundStatus } from '@/lib/golf/round-status';
+import { parseComposition } from '@/lib/golf/course-sections';
 import { GROUP_TYPE_TO_SPORT, GROUP_POST_TYPES, type GroupPostType } from '@/types/group-posts';
 
 /**
@@ -182,6 +183,11 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Two-nine combo (migration 125): validate-if-present, drop-to-null on
+    // anything malformed — same defensive stance as hole_data below. A round
+    // without its composition is still a complete round.
+    const sanitizedComposition = parseComposition(golf_data?.course_composition);
+
     const sanitizedHoleData = Array.isArray(golf_data?.hole_data)
       ? (golf_data.hole_data as Array<{ hole?: unknown; par?: unknown; yardage?: unknown }>)
           .filter(h =>
@@ -357,6 +363,7 @@ export async function POST(request: NextRequest) {
           weather_conditions: golf_data.weather_conditions ?? null,
           temperature: golf_data.temperature ?? null,
           wind_speed: golf_data.wind_speed ?? null,
+          course_composition: sanitizedComposition,
         });
 
       if (golfDataError) {

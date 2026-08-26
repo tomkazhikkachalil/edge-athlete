@@ -66,6 +66,32 @@ export async function GET(request: NextRequest) {
         return NextResponse.json({ error: 'Course not found' }, { status: 404 });
       }
       const course = await hydrateCourse(admin, row);
+      // Multi-course clubs (migration 125): a row linked to a club also
+      // reports the club and its sibling sections, so the picker can prompt
+      // "which course/nines?". Additive — old clients ignore both fields.
+      if (row.club_id) {
+        const [{ data: club }, { data: siblingRows }] = await Promise.all([
+          admin.from('golf_clubs').select('id, name').eq('id', row.club_id).single(),
+          admin
+            .from('golf_courses')
+            .select('id, name, section_name, section_kind, holes_count')
+            .eq('club_id', row.club_id)
+            .neq('id', row.id)
+            .order('section_name', { ascending: true })
+            .limit(20),
+        ]);
+        return NextResponse.json({
+          course,
+          club: club ? { id: club.id, name: club.name } : undefined,
+          siblings: (siblingRows ?? []).map(s => ({
+            id: s.id,
+            name: s.name,
+            sectionName: s.section_name ?? undefined,
+            sectionKind: s.section_kind ?? undefined,
+            holesCount: s.holes_count ?? undefined,
+          })),
+        });
+      }
       return NextResponse.json({ course });
     }
 
@@ -90,6 +116,33 @@ export async function GET(request: NextRequest) {
       near,
       radiusKm: Number.isFinite(radiusRaw) && radiusRaw > 0 ? Math.min(radiusRaw, 500) : undefined,
     });
+
+    // Club/section fields for the page (migration 125). The search RPC's
+    // RETURNS TABLE predates the columns, so one indexed .in() select merges
+    // them rather than changing the RPC contract (DROP FUNCTION + re-grant).
+    // Non-fatal: without it the picker just doesn't group.
+    try {
+      const ids = catalogCourses.map(c => c.id);
+      if (ids.length) {
+        const { data: clubRows } = await admin
+          .from('golf_courses')
+          .select('id, club_id, section_name, section_kind')
+          .in('id', ids)
+          .not('club_id', 'is', null);
+        if (clubRows?.length) {
+          const byId = new Map(clubRows.map(r => [r.id, r]));
+          for (const c of catalogCourses) {
+            const r = byId.get(c.id);
+            if (!r) continue;
+            c.clubId = r.club_id ?? undefined;
+            c.sectionName = r.section_name ?? undefined;
+            c.sectionKind = r.section_kind ?? undefined;
+          }
+        }
+      }
+    } catch (clubJoinError) {
+      console.error('Club-field merge failed (non-fatal):', clubJoinError);
+    }
 
     // ── "Courses you've played" layer ────────────────────────────────────
     // Real courses from real rounds — the viewer's own first (repeat rounds
@@ -195,11 +248,24 @@ export async function GET(request: NextRequest) {
       };
     });
 
-    // Merge: history first, then catalog rows deduped against it by name.
-    const historyNames = new Set(enrichedHistory.map(c => c.name.toLowerCase()));
+    // Merge: history first, then catalog rows deduped against it. Dedupe by
+    // CATALOG ID where the history row adopted one — name-keyed dedupe also
+    // swallowed same-named SIBLING sections at multi-course clubs (both 18s
+    // at a club can share a base name); name remains the only key for
+    // history rows that never linked a catalog row.
+    const historyIds = new Set(
+      enrichedHistory.map(c => c.id).filter(id => !id.startsWith('history-'))
+    );
+    const unlinkedHistoryNames = new Set(
+      enrichedHistory
+        .filter(c => c.id.startsWith('history-'))
+        .map(c => c.name.toLowerCase())
+    );
     const mergedCourses = [
       ...enrichedHistory,
-      ...catalogCourses.filter(c => !historyNames.has(c.name.toLowerCase())),
+      ...catalogCourses.filter(
+        c => !historyIds.has(c.id) && !unlinkedHistoryNames.has(c.name.toLowerCase())
+      ),
     ].slice(0, limit);
 
     return NextResponse.json({

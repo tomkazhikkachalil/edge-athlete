@@ -115,12 +115,17 @@ describe('composeCourses', () => {
     expect(combo.slopeRating.red).toBeUndefined();
   });
 
-  it('returns null unless both sides carry a full nine', () => {
+  it('degrades to identity-only (no holes, default par) when a side lacks a full nine', () => {
     const front = nineCourse(FRONT_ID, 'North');
-    const back = nineCourse(BACK_ID, 'South', nine().slice(0, 8));
-    expect(composeCourses(front, back)).toBeNull();
-    const empty = nineCourse(BACK_ID, 'South', []);
-    expect(composeCourses(front, empty)).toBeNull();
+    const partial = composeCourses(front, nineCourse(BACK_ID, 'South', nine().slice(0, 8)));
+    expect(partial.holes).toEqual([]);
+    expect(partial.totalPar).toBe(72);
+    expect(partial.holesCount).toBe(18);
+    expect(partial.id).toBe(FRONT_ID);
+    // Ratings still combine when present — they come from the row, not holes
+    expect(partial.courseRating.white).toBeCloseTo(70.4, 5);
+    const thin = composeCourses(front, nineCourse(BACK_ID, 'South', []));
+    expect(thin.holes).toEqual([]);
   });
 
   it('ignores out-of-range hole numbers defensively', () => {

@@ -30,6 +30,7 @@ import { usePopoverDismiss } from '@/hooks/usePopoverDismiss';
 import TagPeopleModal from '@/components/TagPeopleModal';
 import MultiPlayerScorecardGrid, { type PlayerScoreData, type PlayerHoleScore } from '@/components/golf/MultiPlayerScorecardGrid';
 import type { GolfCourse } from '@/types/golf';
+import { composeCourses, buildComposition, type CourseComposition } from '@/lib/golf/course-sections';
 import type { SportComposerExtraProps } from '@/components/sport-composer-extras';
 import { GOLF_INPUT, GOLF_INPUT_COMPACT, GOLF_SELECT, GOLF_LABEL, GOLF_SECTION_CARD } from '@/components/golf/golf-form-styles';
 import CourseInfoCard from '@/components/golf/CourseInfoCard';
@@ -61,8 +62,14 @@ export interface GolfSharedRoundDetails {
   courseRating: string;
   slopeRating: string;
   /** golf_courses.id when the pick came from the catalog; null for custom
-   *  and courses-you've-played rows. Feeds golf_scorecard_data.course_id. */
+   *  and courses-you've-played rows. Feeds golf_scorecard_data.course_id.
+   *  For a two-nine combo this is the FRONT nine's row (the convention
+   *  course_composition documents). */
   courseId: string | null;
+  /** Two-nine combo at a multi-course club (migration 125): which nine is
+   *  holes 1–9 and which is 10–18. Null for every single-course round.
+   *  Feeds golf_scorecard_data.course_composition. */
+  courseComposition: CourseComposition | null;
   /** "Already played" rounds post as FINAL immediately (no LIVE badge, no
    *  resume banner) — for logging rounds after the fact */
   alreadyPlayed: boolean;
@@ -70,6 +77,17 @@ export interface GolfSharedRoundDetails {
 
 /** Catalog course ids are golf_courses UUIDs; history rows use `history-*`. */
 const UUID_SHAPE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** A sibling section row at a multi-course club (from ?id= hydration). */
+interface SectionSibling {
+  id: string;
+  name: string;
+  sectionName?: string;
+  sectionKind?: string;
+  holesCount?: number;
+}
+
+const isNineOption = (s: SectionSibling) => s.sectionKind === 'nine' || s.holesCount === 9;
 
 /** Everything CreatePostModal's submit paths, validation, footer hint and
  *  preview read — the section's one-way report up. */
@@ -109,6 +127,7 @@ export function defaultGolfComposerValue(): GolfComposerValue {
       courseRating: '',
       slopeRating: '',
       courseId: null,
+      courseComposition: null,
       alreadyPlayed: false,
     },
     sharedRoundParticipants: [],
@@ -161,6 +180,7 @@ export default function GolfComposerSection({
     courseRating: '',
     slopeRating: '',
     courseId: null,
+    courseComposition: null,
     // "Already played" rounds post as FINAL immediately (no LIVE badge, no
     // resume banner) — for logging rounds after the fact
     alreadyPlayed: false,
@@ -337,10 +357,37 @@ export default function GolfComposerSection({
     }
   }, [sharedRoundDetails, deriveCourseHoles]);
 
+  // ── Multi-course clubs (migration 125): section chooser ────────────────
+  // A selected row linked to a club with siblings prompts "which course /
+  // which nines?". comboFront holds the first nine of a two-nine 18 while
+  // the back nine is being picked.
+  const [sectionChoice, setSectionChoice] = useState<{
+    club: { id: string; name: string };
+    options: SectionSibling[];
+  } | null>(null);
+  const [comboFront, setComboFront] = useState<GolfCourse | null>(null);
+  const [sectionLoading, setSectionLoading] = useState(false);
+
+  /** Full row fetch for a section pick; null on any failure (non-fatal). */
+  const fetchFullCourse = useCallback(async (id: string): Promise<GolfCourse | null> => {
+    try {
+      const res = await fetch(`/api/golf/courses?id=${encodeURIComponent(id)}`);
+      if (!res.ok) return null;
+      const data = await res.json();
+      return (data?.course as GolfCourse) ?? null;
+    } catch {
+      return null;
+    }
+  }, []);
+
   const selectCourse = useCallback((course: GolfCourse) => {
     setSelectedCourse(course);
     selectedCourseIdRef.current = course.id;
     applyCourseData(course);
+    // A fresh selection is a single course until the chooser says otherwise.
+    setSharedRoundDetails(prev => ({ ...prev, courseComposition: null }));
+    setSectionChoice(null);
+    setComboFront(null);
     setCourseSearchOpen(false);
     setCourseSearchQuery('');
     // Cancel first: a response already in flight would otherwise land after
@@ -350,13 +397,16 @@ export default function GolfComposerSection({
 
     // Hydration: a provider row from a worldwide search is THIN (identity
     // only) until its first selection — one detail fetch fills ratings and
-    // holes server-side and returns the full course. Plain callback, not an
-    // effect; guarded so a stale response can't clobber a newer selection.
+    // holes server-side and returns the full course. Also the club/siblings
+    // touchpoint: a row at a multi-course club needs the sibling list to
+    // offer the section chooser, so those fetch too even when not thin.
+    // Plain callback, not an effect; guarded so a stale response can't
+    // clobber a newer selection.
     const isThin =
       course.holes.length === 0 &&
       Object.keys(course.courseRating ?? {}).length === 0 &&
       Object.keys(course.slopeRating ?? {}).length === 0;
-    if (isThin && UUID_SHAPE.test(course.id)) {
+    if ((isThin || course.clubId) && UUID_SHAPE.test(course.id)) {
       fetch(`/api/golf/courses?id=${encodeURIComponent(course.id)}`)
         .then(res => (res.ok ? res.json() : null))
         .then(data => {
@@ -364,10 +414,77 @@ export default function GolfComposerSection({
           if (!full || selectedCourseIdRef.current !== course.id) return;
           setSelectedCourse(full);
           applyCourseData(full);
+          // Section chooser rules: a proper 18 section is fully playable
+          // (no prompt); a NINE prompts for the back nine (or "just this
+          // nine"); a generic club row prompts for the section.
+          const club = data?.club as { id: string; name: string } | undefined;
+          const siblings = (data?.siblings as SectionSibling[] | undefined) ?? [];
+          const kind = full.sectionKind ?? course.sectionKind;
+          if (club && siblings.length > 0 && kind !== 'course_18') {
+            if (kind === 'nine') {
+              setComboFront(full);
+              setSectionChoice({ club, options: siblings.filter(isNineOption) });
+            } else {
+              setComboFront(null);
+              setSectionChoice({ club, options: siblings });
+            }
+          }
         })
         .catch(() => { /* thin data stands; the course is still usable */ });
     }
   }, [applyCourseData, cancelCourseSearch]);
+
+  /** Chooser tap on a section. An 18 becomes the selection outright; a nine
+   *  becomes the FRONT nine and the chooser switches to back-nine mode. */
+  const applySectionSelection = useCallback(async (sib: SectionSibling) => {
+    setSectionLoading(true);
+    try {
+      const full = await fetchFullCourse(sib.id);
+      if (!full) return;
+      setSelectedCourse(full);
+      selectedCourseIdRef.current = full.id;
+      applyCourseData(full);
+      setSharedRoundDetails(prev => ({ ...prev, courseComposition: null }));
+      if (isNineOption({ ...sib, sectionKind: full.sectionKind ?? sib.sectionKind })) {
+        setComboFront(full);
+        setSectionChoice(prev =>
+          prev
+            ? { ...prev, options: prev.options.filter(o => o.id !== full.id && isNineOption(o)) }
+            : prev
+        );
+      } else {
+        setSectionChoice(null);
+        setComboFront(null);
+      }
+    } finally {
+      setSectionLoading(false);
+    }
+  }, [applyCourseData, fetchFullCourse]);
+
+  /** Chooser tap on the BACK nine: compose front+back into one 18-hole
+   *  course (holes 1–18, WHS-combined ratings) and record the composition. */
+  const applyBackNine = useCallback(async (sib: SectionSibling) => {
+    const front = comboFront;
+    const club = sectionChoice?.club;
+    if (!front) return;
+    setSectionLoading(true);
+    try {
+      const back = await fetchFullCourse(sib.id);
+      if (!back) return;
+      const composed = composeCourses(front, back, club?.name);
+      setSelectedCourse(composed);
+      selectedCourseIdRef.current = composed.id;
+      applyCourseData(composed);
+      setSharedRoundDetails(prev => ({
+        ...prev,
+        courseComposition: buildComposition(front, back),
+      }));
+      setSectionChoice(null);
+      setComboFront(null);
+    } finally {
+      setSectionLoading(false);
+    }
+  }, [comboFront, sectionChoice, applyCourseData, fetchFullCourse]);
 
   // Initialize player scores when participants are added
   const initializePlayerScores = useCallback((participants: {id: string; name: string; avatar_url?: string}[], holes: number, start: number) => {
@@ -649,9 +766,12 @@ export default function GolfComposerSection({
                         if (selectedCourse && e.target.value !== selectedCourse.name) {
                           setSelectedCourse(null);
                           selectedCourseIdRef.current = null;
+                          setSectionChoice(null);
+                          setComboFront(null);
                           setSharedRoundDetails(prev => ({
                             ...prev,
                             courseId: null,
+                            courseComposition: null,
                             holesPlayed: 18,
                             // A course-specific tee name means nothing on a
                             // hand-typed course — keep only classic colors.
@@ -769,6 +889,54 @@ export default function GolfComposerSection({
                       {selectedCourse.city && selectedCourse.state && ` (${selectedCourse.city}, ${selectedCourse.state})`}
                     </div>
                   )}
+                  {/* Section chooser — a multi-course club prompts for the
+                      course/section (and, for nines, the back nine). Backing
+                      out ("keep as selected") is always available: the
+                      already-applied selection stands. */}
+                  {sectionChoice && (
+                    <div className="mt-2 p-3 bg-surface-raised border border-border-strong rounded-lg">
+                      <div className="flex items-start justify-between gap-2">
+                        <p className="text-sm font-semibold text-primary">
+                          {comboFront
+                            ? `Playing 18 at ${sectionChoice.club.name}? Pick your back nine`
+                            : `${sectionChoice.club.name} has more than one course — which are you playing?`}
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() => { setSectionChoice(null); setComboFront(null); }}
+                          className="text-xs text-tertiary hover:text-primary whitespace-nowrap"
+                        >
+                          {comboFront ? 'Just this nine' : 'Keep as selected'}
+                        </button>
+                      </div>
+                      {comboFront && (
+                        <p className="mt-1 text-xs text-muted">
+                          {comboFront.sectionName ?? comboFront.name} is your front nine (holes 1–9);
+                          the nine you pick next scores as holes 10–18.
+                        </p>
+                      )}
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        {sectionChoice.options.map(option => (
+                          <button
+                            key={option.id}
+                            type="button"
+                            disabled={sectionLoading}
+                            onClick={() => (comboFront ? applyBackNine(option) : applySectionSelection(option))}
+                            className="px-3 py-2 min-h-[44px] rounded-lg border border-border-strong bg-surface text-sm font-medium text-primary hover:bg-green-50 dark:hover:bg-green-950/40 transition-colors disabled:opacity-50"
+                          >
+                            {option.sectionName ?? option.name}
+                            <span className="ml-1.5 text-xs text-muted">
+                              {isNineOption(option) ? '9 holes' : '18 holes'}
+                            </span>
+                          </button>
+                        ))}
+                      </div>
+                      {sectionLoading && (
+                        <p className="mt-2 text-xs text-muted">Loading course…</p>
+                      )}
+                    </div>
+                  )}
+
                   {/* Keyed: a course swap remounts the card (and its Leaflet
                       map) cleanly instead of re-using one instance's state. */}
                   {selectedCourse && <CourseInfoCard key={selectedCourse.id} course={selectedCourse} />}

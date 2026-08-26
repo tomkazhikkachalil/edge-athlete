@@ -117,23 +117,23 @@ function nineHoles(course: GolfCourse): CourseHole[] {
  * 1–9 verbatim, back holes renumbered +9 (yardage/handicap carried as-is —
  * duplicate stroke indexes across the halves are fine, rankStrokeIndexes in
  * adjusted-gross.ts re-ranks by relative order). id = the FRONT nine's row,
- * matching the course_id convention for combo rounds. Returns null unless
- * both sides carry a full nine of hole data — a composed card with invented
- * holes would be worse than the manual par grid.
+ * matching the course_id convention for combo rounds. When either side lacks
+ * a full nine of hole data (thin/OSM sections), the compose degrades to an
+ * IDENTITY-ONLY course — empty holes, default par — exactly how a thin OSM
+ * row behaves today (manual par entry takes over); it never invents holes.
  */
 export function composeCourses(
   front: GolfCourse,
   back: GolfCourse,
   clubName?: string
-): GolfCourse | null {
+): GolfCourse {
   const frontHoles = nineHoles(front);
   const backHoles = nineHoles(back);
-  if (frontHoles.length !== 9 || backHoles.length !== 9) return null;
-  const holes: CourseHole[] = [
-    ...frontHoles,
-    ...backHoles.map(h => ({ ...h, number: h.number + 9 })),
-  ];
-  const totalPar = holes.reduce((sum, h) => sum + h.par, 0);
+  const fullData = frontHoles.length === 9 && backHoles.length === 9;
+  const holes: CourseHole[] = fullData
+    ? [...frontHoles, ...backHoles.map(h => ({ ...h, number: h.number + 9 }))]
+    : [];
+  const totalPar = fullData ? holes.reduce((sum, h) => sum + h.par, 0) : 72;
   const { courseRating, slopeRating } = combineTeeMaps(front, back);
   const frontLabel = front.sectionName ?? front.name;
   const backLabel = back.sectionName ?? back.name;

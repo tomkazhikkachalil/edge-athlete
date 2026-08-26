@@ -95,8 +95,20 @@ export async function submitSharedRound<M extends { type: 'image' | 'video' }>(
               })
             : undefined,
         // Catalog link — golf_courses.id when the pick came from the
-        // catalog; the server null-guards non-UUIDs before insert.
-        course_id: sharedRoundDetails.courseId || undefined,
+        // catalog; the server null-guards non-UUIDs before insert. A combo
+        // round that derived to BACK-nine-only (holes 10–18) was played on
+        // the second nine, so its course_id is that nine's row.
+        course_id:
+          (derived.startHole === 10
+            ? sharedRoundDetails.courseComposition?.[1]?.course_id
+            : undefined) ?? sharedRoundDetails.courseId ?? undefined,
+        // Two-nine combo at a multi-course club (migration 125). Only sent
+        // for a full-18 recording — a derived 9-hole round is one nine, and
+        // course_id already points at it.
+        course_composition:
+          derived.holesPlayed === 18 && sharedRoundDetails.courseComposition
+            ? sharedRoundDetails.courseComposition
+            : undefined,
         // Handicap-differential inputs — the server has always accepted
         // these; the composer just never sent them before unification.
         course_rating: sharedRoundDetails.courseRating

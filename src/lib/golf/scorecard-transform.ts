@@ -32,6 +32,7 @@ export const GROUP_SCORECARD_SELECT = `
     slope_rating,
     course_rating,
     hole_data,
+    course_composition,
     course:golf_courses (
       id, name, city, region, lat, lng, description, description_attribution,
       architect, year_built, course_type, website
