@@ -15,6 +15,7 @@
 //      the caller before it ever gets here).
 
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { filterBlockedBidirectional } from '@/lib/blocks';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Admin = SupabaseClient<any, 'public', any>;
@@ -33,7 +34,9 @@ async function actorName(supabase: Admin, profileId: string): Promise<string> {
   );
 }
 
-/** Recipients minus prefs-off and blocked pairs. */
+/** Recipients minus prefs-off and blocked pairs. The blocks half lives in
+ *  the shared filterBlockedBidirectional (src/lib/blocks.ts) since the Aug
+ *  2026 hardening round — behavior identical (same query, same fail-open). */
 async function filterNotifiable(
   supabase: Admin,
   actorId: string,
@@ -42,26 +45,19 @@ async function filterNotifiable(
   const unique = [...new Set(recipientIds)].filter(id => id && id !== actorId);
   if (unique.length === 0) return [];
 
-  const [{ data: prefRows }, { data: blockRows }] = await Promise.all([
+  const [{ data: prefRows }, { allowed }] = await Promise.all([
     supabase
       .from('notification_preferences')
       .select('user_id, mentions_enabled')
       .in('user_id', unique),
-    supabase
-      .from('user_blocks')
-      .select('blocker_id, blocked_id')
-      .or(
-        `and(blocked_id.eq.${actorId},blocker_id.in.(${unique.join(',')})),and(blocker_id.eq.${actorId},blocked_id.in.(${unique.join(',')}))`
-      ),
+    filterBlockedBidirectional(supabase, actorId, unique),
   ]);
 
   const optedOut = new Set(
     (prefRows || []).filter(p => p.mentions_enabled === false).map(p => p.user_id)
   );
-  const blocked = new Set(
-    (blockRows || []).flatMap(b => [b.blocker_id, b.blocked_id]).filter(id => id !== actorId)
-  );
-  return unique.filter(id => !optedOut.has(id) && !blocked.has(id));
+  const allowedSet = new Set(allowed);
+  return unique.filter(id => !optedOut.has(id) && allowedSet.has(id));
 }
 
 export async function notifyCommentMentions(

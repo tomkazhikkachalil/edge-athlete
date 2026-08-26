@@ -4,6 +4,8 @@ import { getSupabaseAdmin, getServerAuth } from '@/lib/auth-server';
 import { notifyGroupInvites } from '@/lib/golf/group-notifications';
 import { initialRoundStatus } from '@/lib/golf/round-status';
 import { parseComposition } from '@/lib/golf/course-sections';
+import { filterBlockedBidirectional } from '@/lib/blocks';
+import { enforceRateLimit } from '@/lib/rate-limit';
 import { GROUP_TYPE_TO_SPORT, GROUP_POST_TYPES, type GroupPostType } from '@/types/group-posts';
 
 /**
@@ -108,6 +110,10 @@ export async function POST(request: NextRequest) {
   }
 
   try {
+    // Creates a post + fans out to N participants — bucketed like posts.
+    const limited = await enforceRateLimit(request, 'group-post-create', { userId: user.id });
+    if (limited) return limited;
+
     const body = await request.json();
     const { type, title, description, date, location, visibility, participant_ids, golf_data, already_played } = body;
 
@@ -281,10 +287,20 @@ export async function POST(request: NextRequest) {
     // Myself" appends), or not at all (live flow, creator implicit → first).
     // Every surface orders by position, so what the creator saw while
     // building the round is what everyone sees everywhere after.
-    const rawIds = Array.isArray(participant_ids) ? [...new Set(participant_ids as string[])] : [];
-    if (rawIds.some(pid => !isUuid(pid))) {
+    const rawIdsUnfiltered = Array.isArray(participant_ids) ? [...new Set(participant_ids as string[])] : [];
+    if (rawIdsUnfiltered.some(pid => !isUuid(pid))) {
       return NextResponse.json({ error: 'Invalid participant ID' }, { status: 400 });
     }
+    // Block gate (hardening round, owner decision: SILENT SKIP). Anyone with
+    // a user_blocks row in either direction vs the actor is quietly excluded
+    // BEFORE positions are assigned, so orderedIds stays contiguous and the
+    // creator is never filtered. The response carries only a COUNT — the
+    // blocker must never learn they were targeted. ids are UUID-validated
+    // above (the .or() interpolation inside the helper requires it).
+    const { allowed: allowedInvitees, skipped: skippedBlocked } =
+      await filterBlockedBidirectional(getSupabaseAdmin(), actorId, rawIdsUnfiltered.filter(id => id !== actorId));
+    const allowedSet = new Set(allowedInvitees);
+    const rawIds = rawIdsUnfiltered.filter(id => id === actorId || allowedSet.has(id));
     const orderedIds = rawIds.includes(actorId) ? rawIds : [actorId, ...rawIds];
     const positionOf = (id: string) => orderedIds.indexOf(id);
 
@@ -496,6 +512,7 @@ export async function POST(request: NextRequest) {
     // backfill above, so its post_id is structurally null; when the re-fetch
     // fails, that null used to reach the client as if it were the truth.
     return NextResponse.json({
+      ...(skippedBlocked > 0 ? { skipped_blocked: skippedBlocked } : {}),
       group_post: { ...(completeGroupPost || groupPost), post_id: feedPost.id },
       message: 'Group post created successfully',
     }, { status: 201 });

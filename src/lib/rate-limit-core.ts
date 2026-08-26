@@ -79,6 +79,10 @@ export const RATE_LIMITS = {
   // Calendar event creation — org events fan a team_update out to every
   // member (uncapped membership), so creation gets post-create parity.
   'event-create': { max: 30, windowSeconds: 3600, keyBy: 'user' },
+  // Group rounds create a post + fan out to N participants — post-create
+  // parity; late adds are rarer but batched, 60/h never touches real use.
+  'group-post-create': { max: 30, windowSeconds: 3600, keyBy: 'user' },
+  'group-post-add': { max: 60, windowSeconds: 3600, keyBy: 'user' },
   // Authenticated media proxy (/api/media/[token]). IP-keyed (anon-reachable
   // for public content) and generous: an image-dense page pulls dozens of
   // media in one load. Forged tokens die on the HMAC check before any DB hit,
