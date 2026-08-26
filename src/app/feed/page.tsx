@@ -139,7 +139,10 @@ export default function FeedPage() {
   // Search-result deep link (/feed?post=)
   const [deepLinkPostId, setDeepLinkPostId] = useState<string | null>(null);
   const loadInFlightRef = useRef(false);
-  const [page, setPage] = useState(0);
+  // Keyset cursor (hardening round): the server's nextCursor is the ONLY
+  // pagination state — no more page-counter offset math (offset degraded on
+  // deep pages and could skip/duplicate across new-post inserts).
+  const nextCursorRef = useRef<string | null>(null);
   const { showError, showSuccess } = useToast();
 
   // "All" vs "My orgs" lens. The lens is a SCOPE over already-public posts
@@ -155,7 +158,7 @@ export default function FeedPage() {
     feedScopeRef.current = scope;
     setFeedScope(scope);
     setPosts([]);
-    setPage(0);
+    nextCursorRef.current = null;
     setHasMore(true);
     setNoOrgs(false);
     // The [user, feedScope] effect below refetches with the new scope.
@@ -306,11 +309,13 @@ export default function FeedPage() {
         setFeedLoading(true);
       }
 
-      const currentPage = loadMore ? page + 1 : 0;
-      const offset = currentPage * 20;
-
       const scopeParam = feedScope === 'orgs' ? '&scope=orgs' : '';
-      const response = await fetch(`/api/posts?limit=20&offset=${offset}${scopeParam}`);
+      // Empty cursor on page one opts into keyset mode (the response then
+      // carries nextCursor); Load More sends the stored frontier.
+      const cursorParam = loadMore
+        ? `&cursor=${encodeURIComponent(nextCursorRef.current ?? '')}`
+        : '&cursor=';
+      const response = await fetch(`/api/posts?limit=20${cursorParam}${scopeParam}`);
 
       if (!response.ok) {
         throw new Error('Failed to load feed');
@@ -326,11 +331,13 @@ export default function FeedPage() {
           const seen = new Set(prev.map(p => p.id));
           return [...prev, ...newPosts.filter((p: { id: string }) => !seen.has(p.id))];
         });
-        setPage(currentPage);
       } else {
         setPosts(newPosts);
-        setPage(0);
       }
+      // Advance the frontier from the response; a legacy response (no
+      // nextCursor — first page carries none either when it's the last)
+      // clears it, which correctly ends pagination alongside hasMore.
+      nextCursorRef.current = typeof data.nextCursor === 'string' ? data.nextCursor : null;
       
       // Prefer the API's hasMore (computed from the RAW pre-privacy-filter
       // page) — a filtered page can legitimately contain <20 visible posts
