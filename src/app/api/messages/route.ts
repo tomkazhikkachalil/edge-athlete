@@ -12,14 +12,39 @@ export async function GET(request: NextRequest) {
     const supabase = getSupabaseAdmin();
     const user = await requireAuth(request);
 
-    // One RPC assembles the whole list (migration 124), replacing the former
+    // Pagination (migration 127): ?limit (1-50, default 30) + ?cursor (an
+    // updated_at instant; conversations strictly OLDER are returned). The
+    // +1 overfetch answers has_more; next_cursor = the last returned
+    // conversation's updated_at. Additive — a client that sends nothing gets
+    // page one and can ignore the new fields.
+    const { searchParams } = new URL(request.url);
+    const limit = Math.min(Math.max(parseInt(searchParams.get('limit') || '30', 10) || 30, 1), 50);
+    const cursorParam = searchParams.get('cursor');
+    if (cursorParam && Number.isNaN(Date.parse(cursorParam))) {
+      return NextResponse.json({ error: 'Invalid cursor' }, { status: 400 });
+    }
+
+    // One RPC assembles the page (migrations 124 + 127), replacing the former
     // O(2N) pattern — a last-message query and an unread-count query PER
     // conversation. It returns a jsonb array already ordered updated_at DESC,
     // with participants (+ profiles), last_message (+ sender), unread_count and
     // my_participant. Called with the admin client (the RPC is service_role-only
     // to prevent an IDOR — it trusts its p_user_id, so it must never be
     // reachable directly), always passing the authed caller's OWN id.
-    const { data, error } = await supabase.rpc('get_conversation_list', { p_user_id: user.id });
+    let { data, error } = await supabase.rpc('get_conversation_list', {
+      p_user_id: user.id,
+      p_limit: limit + 1,
+      p_before: cursorParam ?? null,
+    });
+    let legacyUnpaginated = false;
+    if (error && error.code === 'PGRST202') {
+      // Pre-127 DB (migrate/deploy skew or CI against the live project): the
+      // single-arg 124 shape. Deliver EXACT pre-round behavior — the whole
+      // list, has_more false — never a trimmed page whose cursor this
+      // function shape can't honor (the sentinel would loop on it).
+      ({ data, error } = await supabase.rpc('get_conversation_list', { p_user_id: user.id }));
+      legacyUnpaginated = true;
+    }
     if (error) {
       console.error('GET /api/messages rpc error:', error);
       return NextResponse.json({ error: 'Failed to load conversations' }, { status: 500 });
@@ -28,7 +53,11 @@ export async function GET(request: NextRequest) {
     // Proxy the last-message preview media so a private conversation's
     // thumbnail is never a raw public URL. The RPC returns the RAW stored URL;
     // the crypto stays here in app code (as before).
-    const conversations = ((data as unknown as Conversation[] | null) || []).map(c =>
+    const page = (data as unknown as Conversation[] | null) || [];
+    const hasMore = legacyUnpaginated ? false : page.length > limit;
+    const trimmed = hasMore ? page.slice(0, limit) : page;
+
+    const conversations = trimmed.map(c =>
       c.last_message
         ? {
             ...c,
@@ -40,7 +69,13 @@ export async function GET(request: NextRequest) {
         : c
     );
 
-    return NextResponse.json({ conversations });
+    return NextResponse.json({
+      conversations,
+      has_more: hasMore,
+      next_cursor: hasMore && conversations.length
+        ? conversations[conversations.length - 1].updated_at
+        : null,
+    });
   } catch (error) {
     if (error instanceof Response) return error;
     console.error('GET /api/messages error:', error);

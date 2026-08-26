@@ -17,6 +17,8 @@ interface MessagesContextType {
   conversations: Conversation[];
   totalUnreadCount: number;
   loading: boolean;
+  hasMoreConversations: boolean;
+  loadMoreConversations: () => Promise<void>;
   fetchConversations: () => Promise<void>;
   refreshUnreadCount: () => Promise<void>;
   markConversationRead: (conversationId: string) => Promise<void>;
@@ -35,6 +37,17 @@ export function MessagesProvider({ children }: { children: ReactNode }) {
   const conversationsRef = useRef<Conversation[]>([]);
   const [totalUnreadCount, setTotalUnreadCount] = useState(0);
   const [loading, setLoading] = useState(false);
+  // Conversation-list pagination (migration 127): the server frontier is
+  // updated ONLY by the initial load and loadMore — never by the 30s poll,
+  // which refreshes PAGE ONE and merges by id (see fetchConversations).
+  const [hasMoreConversations, setHasMoreConversations] = useState(false);
+  const nextConvCursorRef = useRef<string | null>(null);
+  const loadMoreInFlightRef = useRef(false);
+  // True once the user has actually paginated. Until then a page-1 refresh
+  // REPLACES the list wholesale (the exact pre-pagination semantics — cross-
+  // device deletions disappear on the next poll); after, it merges by id so
+  // deep-loaded items survive.
+  const deepLoadedRef = useRef(false);
 
   // Track subscribed channel refs so we can clean them up
   const channelRefs = useRef<Map<string, ReturnType<typeof supabase.channel>>>(new Map());
@@ -74,11 +87,32 @@ export function MessagesProvider({ children }: { children: ReactNode }) {
   const fetchConversations = useCallback(async (signal?: AbortSignal) => {
     if (!user) return;
     try {
-      const res = await fetch('/api/messages', { signal });
+      const res = await fetch('/api/messages?limit=30', { signal });
       if (res.status === 401) return;
       if (res.ok) {
         const data = await res.json();
-        setConversations(data.conversations || []);
+        const page1: Conversation[] = data.conversations || [];
+        // Merge-by-id: a conversation bumped to the top by a new message
+        // arrives in page 1 — its stale deep copy is dropped by the id
+        // filter (no duplicates); deep-loaded items that slid out of page 1
+        // survive via `beyond`, re-sorted by updated_at. The pagination
+        // frontier is deliberately NOT touched here: load-more continues
+        // from where it was, and its own dedupe absorbs any overlap.
+        if (!deepLoadedRef.current) {
+          // Not paginated yet: page 1 IS the list (pre-pagination semantics).
+          nextConvCursorRef.current =
+            typeof data.next_cursor === 'string' ? data.next_cursor : null;
+          setHasMoreConversations(Boolean(data.has_more));
+          setConversations(page1);
+        } else {
+          setConversations(prev => {
+            const pageIds = new Set(page1.map(c => c.id));
+            const beyond = prev.filter(c => !pageIds.has(c.id));
+            return [...page1, ...beyond].sort(
+              (a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()
+            );
+          });
+        }
       } else {
         console.error('Failed to fetch conversations — status:', res.status);
       }
@@ -89,6 +123,35 @@ export function MessagesProvider({ children }: { children: ReactNode }) {
       // poll is not an error — data stands, the 30s cycle retries.
       if (e instanceof TypeError) return;
       console.error('Failed to fetch conversations:', e);
+    }
+  }, [user]);
+
+  const loadMoreConversations = useCallback(async () => {
+    if (!user || loadMoreInFlightRef.current) return;
+    const cursor = nextConvCursorRef.current;
+    if (!cursor) return;
+    loadMoreInFlightRef.current = true;
+    try {
+      const res = await fetch(
+        `/api/messages?limit=30&cursor=${encodeURIComponent(cursor)}`
+      );
+      if (!res.ok) return;
+      const data = await res.json();
+      const older: Conversation[] = data.conversations || [];
+      setConversations(prev => {
+        const seen = new Set(prev.map(c => c.id));
+        // Skip anything already loaded (a poll may have pulled a bumped
+        // conversation forward) — dedupe absorbs the fuzzy cursor.
+        return [...prev, ...older.filter(c => !seen.has(c.id))];
+      });
+      nextConvCursorRef.current =
+        typeof data.next_cursor === 'string' ? data.next_cursor : null;
+      setHasMoreConversations(Boolean(data.has_more));
+      deepLoadedRef.current = true;
+    } catch (e) {
+      console.error('Failed to load more conversations:', e);
+    } finally {
+      loadMoreInFlightRef.current = false;
     }
   }, [user]);
 
@@ -208,6 +271,9 @@ export function MessagesProvider({ children }: { children: ReactNode }) {
       setConversations([]);
       setTotalUnreadCount(0);
       setLoading(false);
+      setHasMoreConversations(false);
+      nextConvCursorRef.current = null;
+      deepLoadedRef.current = false;
       // Unsubscribe all channels
       for (const [, ch] of channelRefs.current) {
         ch.unsubscribe();
@@ -281,6 +347,8 @@ export function MessagesProvider({ children }: { children: ReactNode }) {
         conversations,
         totalUnreadCount,
         loading,
+        hasMoreConversations,
+        loadMoreConversations,
         fetchConversations,
         refreshUnreadCount,
         markConversationRead,
