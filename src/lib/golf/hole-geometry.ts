@@ -341,6 +341,240 @@ export function resolveHoleGeometry(
   return parseHoleGeometry(payload);
 }
 
+// ── Multi-course clubs (migration 125): cluster-splitting + combos ──────────
+// A club whose one boundary holds DUPLICATE refs (Ottawa Hunt: 1–9 twice) is
+// exactly the case parseHoleGeometry refuses. The refs still encode K clean
+// loops; what's missing is which way belongs to which loop, and which loop is
+// which SECTION. clusterHoleLoops recovers the loops geometrically (a nine
+// chains green → next tee at walking distance); assignClustersToSections
+// labels them ONLY on positive OSM evidence (a section-named sub-boundary or
+// section-named hole ways). No evidence → null, never a guess — a wrong hole
+// overlay is worse than none, and the 30-day retry picks up OSM improvements.
+
+/** A hole way with its optional OSM name tag (evidence for section labeling). */
+export interface NamedHoleLine extends HoleLine {
+  name?: string;
+}
+
+/** parseHoleGeometry's trust rules MINUS the duplicate-ref rejection — the
+ *  input to clustering. Null on unlabeled ways or unusable lines (the set
+ *  still can't be trusted then). Exported pure for tests. */
+export function parseHoleWaysLenient(payload: unknown): NamedHoleLine[] | null {
+  const elements = (payload as { elements?: OverpassElement[] } | null)?.elements;
+  if (!Array.isArray(elements)) return null;
+  const holes: NamedHoleLine[] = [];
+  for (const el of elements) {
+    const tags = el?.tags ?? {};
+    if (tags.golf !== 'hole') continue;
+    const ref = tags.ref ?? '';
+    if (!/^\d+$/.test(ref)) return null;
+    const line = (el.geometry ?? [])
+      .filter(g => Number.isFinite(g?.lat) && Number.isFinite(g?.lon))
+      .map(g => [Number(g.lat.toFixed(6)), Number(g.lon.toFixed(6))] as [number, number]);
+    if (line.length < 2) return null;
+    const par = /^\d+$/.test(tags.par ?? '') ? Number(tags.par) : null;
+    holes.push({ hole: Number(ref), par, line, ...(tags.name ? { name: tags.name } : {}) });
+  }
+  return holes.length ? holes : null;
+}
+
+/** Walking distance green → next tee within one loop. Measured expectation is
+ *  well under 300 m on real courses; anything past it means the chain jumped
+ *  to another loop — give up rather than guess. */
+const MAX_GREEN_TO_TEE_M = 300;
+/** A chosen assignment must beat every rival loop by this factor (or be
+ *  near-touching) — near-ties are ambiguity, not evidence. */
+const ASSIGNMENT_DOMINANCE = 0.8;
+const NEAR_TOUCH_M = 30;
+
+const metresBetween = (a: [number, number], b: [number, number]) =>
+  haversineKm({ lat: a[0], lng: a[1] }, { lat: b[0], lng: b[1] }) * 1000;
+
+/** Split duplicate-ref hole ways into K coherent loops, or null when the
+ *  geometry is ambiguous. Requires every ref to appear exactly K times
+ *  (K ≥ 2) across N ≥ 9 refs; grows each loop by nearest green→tee chaining
+ *  with a global non-conflicting assignment per ref, failing to null on any
+ *  over-distance link or near-tie. Exported pure for tests. */
+export function clusterHoleLoops(ways: NamedHoleLine[]): NamedHoleLine[][] | null {
+  const byRef = new Map<number, NamedHoleLine[]>();
+  for (const w of ways) {
+    const arr = byRef.get(w.hole) ?? [];
+    arr.push(w);
+    byRef.set(w.hole, arr);
+  }
+  const refs = [...byRef.keys()].sort((a, b) => a - b);
+  if (refs.length < 9) return null;
+  const k = byRef.get(refs[0])!.length;
+  if (k < 2) return null;
+  if (refs.some(r => byRef.get(r)!.length !== k)) return null;
+
+  // Seed K loops from the first ref's ways.
+  const loops: NamedHoleLine[][] = byRef.get(refs[0])!.map(w => [w]);
+
+  for (const ref of refs.slice(1)) {
+    const candidates = byRef.get(ref)!;
+    // Distance from each loop's current green to each candidate's tee.
+    const dist = loops.map(loop => {
+      const green = loop[loop.length - 1].line[loop[loop.length - 1].line.length - 1];
+      return candidates.map(c => metresBetween(green, c.line[0]));
+    });
+    // Global greedy: accept the smallest non-conflicting pairs.
+    const pairs: Array<{ li: number; ci: number; d: number }> = [];
+    for (let li = 0; li < loops.length; li++) {
+      for (let ci = 0; ci < candidates.length; ci++) {
+        pairs.push({ li, ci, d: dist[li][ci] });
+      }
+    }
+    pairs.sort((a, b) => a.d - b.d);
+    const loopTaken = new Set<number>();
+    const candTaken = new Set<number>();
+    const chosen: Array<{ li: number; ci: number; d: number }> = [];
+    for (const p of pairs) {
+      if (loopTaken.has(p.li) || candTaken.has(p.ci)) continue;
+      loopTaken.add(p.li);
+      candTaken.add(p.ci);
+      chosen.push(p);
+    }
+    for (const p of chosen) {
+      // Over-distance: the chain broke — this is not one loop's next hole.
+      if (p.d > MAX_GREEN_TO_TEE_M) return null;
+      // Dominance: the way must clearly belong to ITS loop, not almost-
+      // equally to another (near-touching links are exempt — nines that
+      // share a clubhouse green/tee cluster can sit close).
+      if (p.d > NEAR_TOUCH_M) {
+        for (let li = 0; li < loops.length; li++) {
+          if (li === p.li) continue;
+          if (p.d > dist[li][p.ci] * ASSIGNMENT_DOMINANCE) return null;
+        }
+      }
+      loops[p.li].push(candidates[p.ci]);
+    }
+  }
+
+  // Each loop must be a full, clean run of every ref.
+  if (loops.some(l => l.length !== refs.length)) return null;
+  return loops.map(l => l.slice().sort((a, b) => a.hole - b.hole));
+}
+
+/** Tokens of a SECTION discriminator ("Premier", "North Nine"). */
+function sectionTokens(sectionName: string | null | undefined): Set<string> {
+  if (!sectionName) return new Set();
+  return new Set(
+    sectionName
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase()
+      .split(/[^\p{L}\p{N}]+/u)
+      .filter(t => t && !GENERIC_NAME_TOKENS.has(t))
+  );
+}
+
+interface SectionRowLite {
+  id: string;
+  name: string;
+  section_name?: string | null;
+}
+
+/** Bind split loops to section rows on POSITIVE evidence only: a boundary
+ *  whose name carries the section's discriminator and contains the loop's
+ *  majority of vertices, or hole-way name tags carrying it. Every loop must
+ *  bind to a DISTINCT section or the whole answer is null. Exported pure for
+ *  tests. */
+export function assignClustersToSections(
+  clusters: NamedHoleLine[][],
+  sections: SectionRowLite[],
+  payload: unknown
+): Map<string, HoleGeometry> | null {
+  const elements = (payload as { elements?: OverpassElement[] } | null)?.elements ?? [];
+  const out = new Map<string, HoleGeometry>();
+  const usedSections = new Set<string>();
+  for (const cluster of clusters) {
+    let matchId: string | null = null;
+    for (const section of sections) {
+      const disc = sectionTokens(section.section_name);
+      if (!disc.size) continue;
+      // Evidence 1: a sub-boundary named for THIS section containing the
+      // cluster's majority of vertices.
+      let boundaryHit = false;
+      for (const el of elements) {
+        const tags = el?.tags ?? {};
+        if (tags.leisure !== 'golf_course' || !tags.name) continue;
+        const bTokens = sectionTokens(tags.name);
+        if (![...disc].every(t => bTokens.has(t))) continue;
+        const rings =
+          el.type === 'way' && Array.isArray(el.geometry)
+            ? assembleRings([el.geometry.filter(validPt).map(g => [g.lat, g.lon] as [number, number])])
+            : el.type === 'relation' && Array.isArray(el.members)
+              ? assembleRings(
+                  el.members
+                    .filter(m => m?.type === 'way' && (!m.role || m.role === 'outer') && Array.isArray(m.geometry))
+                    .map(m => m.geometry!.filter(validPt).map(g => [g.lat, g.lon] as [number, number]))
+                )
+              : [];
+        if (!rings.length) continue;
+        const pts = cluster.flatMap(w => w.line);
+        const inside = pts.filter(pt => rings.some(r => pointInRing(pt, r))).length;
+        if (inside * 2 >= pts.length) {
+          boundaryHit = true;
+          break;
+        }
+      }
+      // Evidence 2: hole-way name tags carrying the discriminator on the
+      // cluster's majority of ways.
+      const named = cluster.filter(w => {
+        const wTokens = sectionTokens(w.name);
+        return [...disc].every(t => wTokens.has(t));
+      }).length;
+      const nameHit = named * 2 >= cluster.length && named > 0;
+      if (boundaryHit || nameHit) {
+        if (matchId) return null; // two sections claim one loop — ambiguous
+        matchId = section.id;
+      }
+    }
+    if (!matchId || usedSections.has(matchId)) return null; // no/duplicate evidence
+    usedSections.add(matchId);
+    out.set(matchId, {
+      holes: cluster.map(({ hole, par, line }) => ({ hole, par, line })),
+      source: 'osm',
+    });
+  }
+  return out.size === clusters.length ? out : null;
+}
+
+/** The whole section-splitting decision for one payload: lenient parse →
+ *  cluster → evidence-label. Null at ANY uncertainty; a non-null map holds
+ *  one clean per-section geometry per split loop. Exported pure for tests. */
+export function resolveSectionGeometries(
+  payload: unknown,
+  sections: SectionRowLite[]
+): Map<string, HoleGeometry> | null {
+  if (!sections.length) return null;
+  const ways = parseHoleWaysLenient(payload);
+  if (!ways) return null;
+  const clusters = clusterHoleLoops(ways);
+  if (!clusters) return null;
+  return assignClustersToSections(clusters, sections, payload);
+}
+
+/** Merge two nine-hole geometries into one 18-hole geometry for a combo
+ *  round's live map: front holes 1–9, back renumbered +9. Null unless BOTH
+ *  sides are exactly nine holes numbered 1–9 — a half-right map lies. Pure. */
+export function composeHoleGeometry(
+  front: HoleGeometry | null | undefined,
+  back: HoleGeometry | null | undefined
+): HoleGeometry | null {
+  const isNine = (g: HoleGeometry | null | undefined): g is HoleGeometry =>
+    !!g && g.holes.length === 9 && g.holes.every(h => h.hole >= 1 && h.hole <= 9);
+  if (!isNine(front) || !isNine(back)) return null;
+  return {
+    holes: [
+      ...front.holes,
+      ...back.holes.map(h => ({ ...h, hole: h.hole + 9 })),
+    ].sort((a, b) => a.hole - b.hole),
+    source: 'osm',
+  };
+}
+
 /** Live yardage from the player's GPS fix to a hole's green — the OSM way
  *  runs tee→green, so the LAST point is the green (its center/front,
  *  approximately — this is "to green", never "to pin"; no pin data exists).
@@ -441,6 +675,9 @@ export interface HoleGeometryFetch {
    *  = OSM genuinely has no unambiguous data here — cache THAT for 30 days. */
   reached: boolean;
   geometry: HoleGeometry | null;
+  /** The raw Overpass payload the answer came from — lets the cache layer
+   *  attempt the multi-course section split without a second fetch. */
+  payload?: unknown;
 }
 
 /** Fetch golf=hole ways around a course location, plus the course boundary
@@ -479,7 +716,7 @@ export async function fetchHoleGeometry(
       // so nothing is stamped and a later request retries.
       if (isOverpassPartial(payload)) continue;
       const geometry = resolveHoleGeometry(payload, courseName, [lat, lng]);
-      return { reached: true, geometry };
+      return { reached: true, geometry, payload };
     } catch {
       // Timeout/network — next mirror.
     }
@@ -499,7 +736,7 @@ export async function getCourseHoleGeometry(
 ): Promise<HoleGeometry | null> {
   const { data } = await admin
     .from('golf_courses')
-    .select('id, name, lat, lng, hole_geometry, hole_geometry_at')
+    .select('id, name, lat, lng, hole_geometry, hole_geometry_at, club_id')
     .eq('id', courseId)
     .maybeSingle();
   const row = data as {
@@ -508,6 +745,7 @@ export async function getCourseHoleGeometry(
     lng: number | null;
     hole_geometry: HoleGeometry | null;
     hole_geometry_at: string | null;
+    club_id?: string | null;
   } | null;
   if (!row) return null;
   if (
@@ -520,9 +758,40 @@ export async function getCourseHoleGeometry(
   if (!(await consumeBudget())) return row.hole_geometry; // no stamp — retry later
   const result = await fetchHoleGeometry(row.lat, row.lng, row.name);
   if (!result.reached) return row.hole_geometry; // transport-only failure — no stamp
+  let geometry = result.geometry;
+
+  // Multi-course club whose payload the strict/scoped parse refused
+  // (duplicate refs inside one boundary): try the section split. One fetch
+  // labels EVERY sibling it can prove, each written to its own row — and a
+  // null stays a real, stamped "ambiguous" answer, retried in 30 days.
+  if (!geometry && row.club_id && result.payload) {
+    try {
+      const { data: siblingRows } = await admin
+        .from('golf_courses')
+        .select('id, name, section_name')
+        .eq('club_id', row.club_id)
+        .not('section_name', 'is', null);
+      const sections = (siblingRows ?? []) as Array<{ id: string; name: string; section_name: string | null }>;
+      const assigned = resolveSectionGeometries(result.payload, sections);
+      if (assigned) {
+        const stamp = new Date().toISOString();
+        for (const [sectionId, geo] of assigned) {
+          if (sectionId === courseId) continue; // this row is stamped below
+          await admin
+            .from('golf_courses')
+            .update({ hole_geometry: geo, hole_geometry_at: stamp })
+            .eq('id', sectionId);
+        }
+        geometry = assigned.get(courseId) ?? null;
+      }
+    } catch (sectionError) {
+      console.error('Section geometry split failed (non-fatal):', sectionError);
+    }
+  }
+
   await admin
     .from('golf_courses')
-    .update({ hole_geometry: result.geometry, hole_geometry_at: new Date().toISOString() })
+    .update({ hole_geometry: geometry, hole_geometry_at: new Date().toISOString() })
     .eq('id', courseId);
-  return result.geometry;
+  return geometry;
 }
