@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabaseAdmin } from '@/lib/supabase';
-import { requireAuth } from '@/lib/auth-server';
+import { requireAuth, getSupabaseAdmin } from '@/lib/auth-server';
 import { enforceRateLimit } from '@/lib/rate-limit';
 
 // Server is the security boundary: explicit allowlist (no SVG — it can carry
@@ -60,10 +59,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'File size must be less than 5MB' }, { status: 400 });
     }
 
-    if (!supabaseAdmin) {
-      console.error('Avatar API: supabaseAdmin not available');
-      return NextResponse.json({ error: 'Server configuration error' }, { status: 500 });
-    }
+    const supabaseAdmin = getSupabaseAdmin();
 
     // Remember the previous avatar so we can clean it up after a successful
     // swap (every upload used to orphan the prior file forever).

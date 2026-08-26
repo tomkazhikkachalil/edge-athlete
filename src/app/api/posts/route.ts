@@ -427,9 +427,6 @@ export async function POST(request: NextRequest) {
           last_name,
           full_name,
           handle
-        ),
-        post_likes (
-          profile_id
         )
       `)
       .eq('id', post.id)
@@ -513,7 +510,8 @@ export async function POST(request: NextRequest) {
           // in the app rendered a black first frame.
           thumbnail_url: toProxyUrl(media.thumbnail_url, { type: 'post', id: completePost.id })
         })),
-      likes: completePost.post_likes || [],
+      // A just-created post cannot have likes — no embed, no query.
+      likes: [],
       golf_round: golfRound,
       tagged_profiles: taggedProfilesList,
       shared_post_id: completePost.shared_post_id ?? null,
@@ -620,9 +618,6 @@ export async function GET(request: NextRequest) {
             last_name,
             full_name,
             handle
-          ),
-          post_likes (
-            profile_id
           )
         `)
         .eq('id', postId)
@@ -768,6 +763,21 @@ export async function GET(request: NextRequest) {
         );
       }
 
+      // Viewer-scoped like membership (the feed's pattern, :~1000): consumers
+      // only ever test `likes.some(l => l.profile_id === viewer)`, so the
+      // full per-post like list was pure payload (silently capped at 1000
+      // rows by PostgREST on a viral post). Wire shape unchanged.
+      let viewerLikedPost = false;
+      if (currentUserId) {
+        const { data: likeRow } = await supabase
+          .from('post_likes')
+          .select('post_id')
+          .eq('post_id', post.id)
+          .eq('profile_id', currentUserId)
+          .maybeSingle();
+        viewerLikedPost = !!likeRow;
+      }
+
       // Fetch tagged profiles if exists
       let taggedProfiles: TaggedProfile[] = [];
       if (post.tags && post.tags.length > 0) {
@@ -823,7 +833,7 @@ export async function GET(request: NextRequest) {
             // in the app rendered a black first frame.
             thumbnail_url: toProxyUrl(media.thumbnail_url, { type: 'post', id: post.id })
           })),
-        likes: post.post_likes || [],
+        likes: viewerLikedPost && currentUserId ? [{ profile_id: currentUserId }] : [],
         golf_round: golfRound,
         group_scorecard: groupScorecard,
         tagged_profiles: taggedProfiles,

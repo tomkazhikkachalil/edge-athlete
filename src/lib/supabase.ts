@@ -3,7 +3,6 @@ import { createBrowserClient } from '@supabase/ssr';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
-const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 if (!supabaseUrl || !supabaseAnonKey) {
   console.error('Missing required Supabase environment variables. Please set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY');
@@ -51,15 +50,12 @@ export const supabase = (() => {
   }
 })();
 
-// Server-side Supabase client with service role key (bypasses RLS)
-export const supabaseAdmin = supabaseServiceRoleKey 
-  ? createClient(supabaseUrl, supabaseServiceRoleKey, {
-      auth: {
-        autoRefreshToken: false,
-        persistSession: false
-      }
-    })
-  : null;
+// The module-scope service-role client is GONE (Aug 2026 hardening round).
+// This module is imported by client components (browser client + types), so
+// an admin client at module scope sat one refactor away from a client
+// bundle. Server code uses the lazy factory instead:
+//   import { getSupabaseAdmin } from '@/lib/auth-server'
+// — created inside the handler, never at import time (api/CLAUDE.md rule).
 
 // Browser client for client-side operations
 export function createSupabaseBrowserClient() {

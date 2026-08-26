@@ -34,8 +34,20 @@ export async function GET(request: NextRequest) {
 
     const supabase = getSupabaseAdmin();
 
-    // Fetch golf rounds for this profile
-    const { data: rounds, error: roundsError } = await supabase
+    // Optional ?year= filter, validated BEFORE the query so it can scope the
+    // fetch in SQL (the old JS filter fetched the ENTIRE history — 14 columns
+    // per round — and silently corrupted past PostgREST's 1000-row cap).
+    const yearParam = searchParams.get('year');
+    let year: number | null = null;
+    if (yearParam) {
+      year = parseInt(yearParam, 10);
+      if (!Number.isFinite(year) || year < 1900 || year > 2200) {
+        return NextResponse.json({ error: 'Invalid year' }, { status: 400 });
+      }
+    }
+
+    // Fetch golf rounds for this profile (year-scoped in SQL when asked)
+    let roundsQuery = supabase
       .from('golf_rounds')
       .select(`
         id,
@@ -55,34 +67,29 @@ export async function GET(request: NextRequest) {
       `)
       .eq('profile_id', profileId)
       .order('date', { ascending: false });
+    if (year !== null) {
+      roundsQuery = roundsQuery
+        .gte('date', `${year}-01-01`)
+        .lt('date', `${year + 1}-01-01`);
+    }
+    const { data: rounds, error: roundsError } = await roundsQuery;
 
     if (roundsError) {
       console.error('Error fetching golf rounds:', roundsError);
       return NextResponse.json({ error: 'Failed to fetch golf data' }, { status: 500 });
     }
 
-    // Years present across all rounds (unfiltered) — powers the profile-page
-    // year selector. String-sliced from the DATE column (timezone-safe).
-    const years = Array.from(
-      new Set(
-        (rounds || [])
-          .map(r => parseInt(String(r.date ?? '').slice(0, 4), 10))
-          .filter(Number.isFinite)
-      )
-    ).sort((a, b) => b - a);
+    // Years present across ALL rounds (always unfiltered) — powers the
+    // profile-page year selector. One aggregate RPC (migration 126, string-
+    // sliced from the DATE column exactly like the old JS derivation) instead
+    // of deriving from a full-history fetch.
+    const { data: yearsData, error: yearsError } = await supabase.rpc('get_golf_round_years', {
+      p_profile_id: profileId,
+    });
+    if (yearsError) console.error('[golf/stats] get_golf_round_years failed:', yearsError);
+    const years = (yearsData as number[] | null) ?? [];
 
-    // Optional ?year= filter — highlights/recent/totals scope to that year
-    const yearParam = searchParams.get('year');
-    let scopedRounds = rounds || [];
-    if (yearParam) {
-      const year = parseInt(yearParam, 10);
-      if (!Number.isFinite(year) || year < 1900 || year > 2200) {
-        return NextResponse.json({ error: 'Invalid year' }, { status: 400 });
-      }
-      scopedRounds = scopedRounds.filter(
-        r => parseInt(String(r.date ?? '').slice(0, 4), 10) === year
-      );
-    }
+    const scopedRounds = rounds || [];
 
     // Solo completed rounds (posted via the scorecard form) — 9-hole rounds
     // count too; the aggregator decides which tiles each length may feed
