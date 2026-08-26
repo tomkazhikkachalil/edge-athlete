@@ -104,15 +104,26 @@ interface TabCounts {
 
 type MediaCountsResponse = TabCounts;
 
+const TAB_IDS: TabType[] = ['all', 'stats', 'tagged', 'equipment', 'vitals', 'achievements'];
+
+/** `?tab=` values arrive from the URL, so anything unrecognised degrades to 'all'. */
+export function parseProfileTab(value: string | null | undefined): TabType {
+  return TAB_IDS.includes(value as TabType) ? (value as TabType) : 'all';
+}
+
 interface ProfileMediaTabsProps {
   profileId: string;
   currentUserId?: string;
   isOwnProfile?: boolean;
   onCountsChange?: (counts: TabCounts) => void;
+  /** Deep-linked tab (`?tab=vitals`); validated, bad values fall back to 'all'. */
+  initialTab?: string;
+  /** Fires after a user-initiated tab switch — callers mirror it into the URL. */
+  onTabChange?: (tab: TabType) => void;
 }
 
-export default function ProfileMediaTabs({ profileId, currentUserId, isOwnProfile = false, onCountsChange }: ProfileMediaTabsProps) {
-  const [activeTab, setActiveTab] = useState<TabType>('all');
+export default function ProfileMediaTabs({ profileId, currentUserId, isOwnProfile = false, onCountsChange, initialTab, onTabChange }: ProfileMediaTabsProps) {
+  const [activeTab, setActiveTab] = useState<TabType>(() => parseProfileTab(initialTab));
   const [sort, setSort] = useState<SortType>('newest');
   const [mediaFilter, setMediaFilter] = useState<MediaFilterType>('all');
   const [selectedSports, setSelectedSports] = useState<string[]>([]);
@@ -311,6 +322,7 @@ export default function ProfileMediaTabs({ profileId, currentUserId, isOwnProfil
     setOffset(0);
     setSelectedPostIndex(null);
     setIsModalOpen(false);
+    onTabChange?.(tab);
   };
 
   const handleEdit = async (postId: string) => {
@@ -395,6 +407,17 @@ export default function ProfileMediaTabs({ profileId, currentUserId, isOwnProfil
     };
   }, [measureTabOverflow]);
 
+  // Keep the active tab visible inside the phone-width scroller — without this
+  // a deep-linked `?tab=vitals` (5th of 6) selects a button that sits
+  // off-screen and the page looks like the old design never loaded.
+  useEffect(() => {
+    const scroller = tabScrollerRef.current;
+    if (!scroller) return;
+    const btn = scroller.querySelector<HTMLElement>(`[data-tab="${activeTab}"]`);
+    // block:'nearest' so the page never jumps vertically on mount.
+    btn?.scrollIntoView({ inline: 'nearest', block: 'nearest' });
+  }, [activeTab]);
+
   // Tab configuration with icons
   const tabs = [
     { id: 'all' as TabType, label: 'Media', icon: Camera, count: counts.all },
@@ -430,6 +453,7 @@ export default function ProfileMediaTabs({ profileId, currentUserId, isOwnProfil
                 return (
                   <button
                     key={tab.id}
+                    data-tab={tab.id}
                     onClick={() => handleTabChange(tab.id)}
                     className={`
                       relative flex min-h-[44px] items-center gap-2 px-4 py-2.5 rounded-lg

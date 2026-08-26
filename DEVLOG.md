@@ -1,5 +1,46 @@
 # Development Log
 
+## August 26, 2026 — Vitals mobile parity + the Web & Mobile Ship Together rule
+
+Tom reported the Vitals redesign "not showing in the mobile app." Exploration
+proved the components render pixel-identically at every viewport — there is no
+mobile fork anywhere in the vitals tree. What actually diverged was
+**reachability and routes**, which is the lesson now codified in CLAUDE.md
+(§ 📱 Web & Mobile Ship Together): a feature isn't shipped on mobile until the
+*path* to it works at phone width, and until every route that renders the same
+data carries it.
+
+- **Tab deep-linking + discoverability.** `ProfileMediaTabs` gained
+  `initialTab`/`onTabChange` (validated via `parseProfileTab`) and a
+  scroll-active-tab-into-view effect; `/athlete` and `/athlete/[id]` read
+  `?tab=` (mount-only `window.location` idiom on the static page,
+  `useSearchParams` on the dynamic one) and mirror changes with
+  `history.replaceState`. `/athlete?tab=vitals` is now a stable address; on a
+  375px phone the Vitals tab scrolls into view instead of sitting off-screen
+  5th in an overflow scroller.
+- **Vitals on `/u/[username]`.** The public profile — where `getProfileUrl`
+  sends most profile links — had no Vitals surface at all. It now has an
+  Overview | Vitals segmented control; Vitals lazy-mounts the same `VitalsTab`
+  the athlete pages use (server-side privacy via `/api/vitals`, optional-auth,
+  anonymous-safe). Deliberately NOT the whole ProfileMediaTabs strip — that
+  would duplicate the page's posts/statements cards and is a separate product
+  decision.
+- **`/u/@handle` was broken outright** (found by browser-probing prod during
+  this work): `useParams` delivers the segment percent-encoded (`%40…`), the
+  page re-encoded it, and the API looked up a handle that could never match —
+  every @-form profile link rendered "Profile Not Found". Fixed by decoding +
+  stripping the display `@` in the page, with a defensive strip in the API.
+- **Privacy gap closed:** `/api/public/profile` served `height_cm`/`weight_kg`
+  ignoring the migration-122 body aspect. It now applies
+  `aspectHidden(privacy,'body',false)` — viewer-independent, so the route's
+  CDN cacheability is unchanged. `dob` stays exposed by design (matches
+  `/api/vitals`).
+- **e2e gets a phone-width lane:** `playwright.config.ts` now has `desktop`
+  (grepInvert `@mobile`) and `mobile` (390×844, grep `@mobile`) projects —
+  viewport-only, `isMobile` stays false (the layout-measurement trap).
+  `e2e/vitals-mobile.spec.ts` is the seed: deep link lands on the dashboard on
+  both routes at phone width, including the `/u/@handle` regression shape.
+
 ## August 25, 2026 — fix: live-now count 500 (`last_score_activity_at` is derived, not a column)
 
 Post-deploy verification of the Tier-2 round caught `/api/golf/live-now/count`
