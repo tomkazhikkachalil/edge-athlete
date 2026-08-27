@@ -1,5 +1,66 @@
 # Development Log
 
+## August 27, 2026 — Resend domain verification: parked
+
+All four DNS records for `edgeathlete.ca` (DKIM `resend._domainkey`, SPF and
+MX on `send`, `_dmarc`) are byte-perfect at GoDaddy's authoritative
+nameservers AND at public resolvers — yet Resend's checker stayed on
+"partially verified" for hours, including after a "Restart the process"
+click (which may have re-keyed DKIM; unconfirmed — the dashboard's value
+tail was never compared against the served `…pS8hQwIDAQAB`). Tom's call:
+**park it.** Nothing blocks on it — every send site is guarded by
+`if (SMTP_USER && SMTP_PASS)` and silently skips, Supabase auth email uses
+Supabase's built-in mailer regardless, and guardian invites carry a
+copyable-link fallback (#201). Off until verified: calendar invite emails,
+guardian/transfer notices, the notification digest, contact-form delivery.
+
+Resume recipe (pre-launch runbook item stays open): compare the Resend
+dashboard's DKIM value ending against `…pS8hQwIDAQAB` — different → paste
+Resend's new value into the GoDaddy `resend._domainkey` TXT; identical →
+support ticket (the records provably resolve worldwide). Standing hazards,
+learned the hard way this round: GoDaddy silently rewrites SPF into its
+`_spfm` indirection (Resend literal-checks — keep the row literal), the
+Name field auto-appends the domain, and Resend's optional receiving MX must
+NEVER be added at the root — it would hijack the Microsoft 365 mailbox.
+Verification signal when we return: `POST /emails` from
+`noreply@edgeathlete.ca` flipping 403→200.
+
+## August 26, 2026 — Universal height/weight hero (#327)
+
+The vitals hero (#308) rendered height/weight beside the avatar only when
+the profile had values saved; everyone else got the "Let's go, NAME"
+greeting. Tom's report — "the update isn't showing on mobile" — turned into
+a long red-herring chase (CDN caching, then deployment URLs: the Vercel
+mobile app's deployment taps open IMMUTABLE per-build URLs, so a phone can
+be pinned to an old build forever; only edge-athlete.vercel.app tracks
+production) before the real issue surfaced: he was comparing *accounts*,
+not devices. The hero was data-conditional, and the account on his phone
+had no vitals saved. Lesson now in the parity triage memory: ask early,
+"does it work for ANY account on this device?"
+
+The fix makes the block universal: an owner always sees both metric slots
+(`showBody = isOwnProfile || hasData`); an empty slot renders a muted `—`
+as an add-affordance whose tap opens the vitals settings editor, with
+`aria-label="Add your height."` parity. Visitors are unchanged — values
+only when present and privacy-visible, greeting otherwise — because
+placeholder slots for a stranger's hidden data would be meaningless or
+misleading. Prod-probed after merge with a fresh empty-data account at
+375px: empty slots shown, greeting gone, tap opens the editor.
+
+## August 26, 2026 — Killing the two order-dependent e2e flakes (#326)
+
+The CSP round's full-suite runs kept failing two specs that passed in
+isolation. Root cause: the suite's SHARED QA user. Four specs
+(achievements, equipment, tagged, vitals) flip that profile public without
+restoring it — vitals also leaves `vitals_privacy.hidden=true` — and the
+victims (media-proxy-equipment's private-by-default 404 assertion,
+vitals-mobile's visitor half) only met the polluted state in full-suite
+order. Fixed at both layers: polluters restore profile state on exit,
+victims pin their preconditions explicitly instead of assuming ambient
+state. 73/73 in natural order afterwards. Standing e2e convention, recorded
+in the specs: **any spec that mutates the shared QA user's state must
+restore it; any spec that asserts on that state must pin it first.**
+
 ## August 26, 2026 — The Following feed lens
 
 The last parked product decision from the hardening round. The feed keeps its
