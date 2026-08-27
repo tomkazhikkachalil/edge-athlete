@@ -13,6 +13,7 @@ import ProfileMediaTabs from '@/components/ProfileMediaTabs';
 import FeaturedPosts from '@/components/FeaturedPosts';
 import StatementsRail from '@/components/StatementsRail';
 import SportQuickLinks from '@/components/SportQuickLinks';
+import SportSkillCards from '@/components/SportSkillCards';
 import AvatarUploader from '@/components/AvatarUploader';
 import CoverPhotoUploader from '@/components/CoverPhotoUploader';
 import { usePopoverDismiss } from '@/hooks/usePopoverDismiss';
@@ -836,6 +837,20 @@ export default function AthleteProfilePage() {
                   {profile?.sport && (
                     <div className="mb-4">
                       <SportQuickLinks sport={profile.sport} />
+                    </div>
+                  )}
+
+                  {/* Per-sport skill cards (route parity with /u/ and
+                      /athlete/[id]). Owner view: the golf card links to the
+                      trends page, and with nothing to show yet the section
+                      becomes an add-affordance into Edit Profile. */}
+                  {profile?.id && (
+                    <div className="mb-4">
+                      <SportSkillCards
+                        profileId={profile.id}
+                        isOwner
+                        onAddDetails={() => setIsEditModalOpen(true)}
+                      />
                     </div>
                   )}
 

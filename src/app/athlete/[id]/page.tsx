@@ -17,6 +17,7 @@ import FollowersModal from '@/components/FollowersModal';
 import type { Profile } from '@/lib/supabase';
 import AchievementPills from '@/components/achievements/AchievementPills';
 import OrgMembershipsStrip from '@/components/affiliations/OrgMembershipsStrip';
+import SportSkillCards from '@/components/SportSkillCards';
 import { topPills } from '@/lib/achievements/display';
 import type { Achievement } from '@/lib/achievements';
 // Privacy checks moved to API route
@@ -368,6 +369,12 @@ export default function AthleteProfilePage() {
             {/* Clubs & Leagues memberships — same slot as the owner page. */}
             <div className="mb-4">
               <OrgMembershipsStrip profileId={profile.id} />
+            </div>
+
+            {/* Per-sport skill cards (route parity with /u/ and the owner
+                page). Visitor view: non-interactive, endpoint-gated. */}
+            <div className="mb-4">
+              <SportSkillCards profileId={profile.id} isOwner={false} />
             </div>
 
             {profile.bio && (

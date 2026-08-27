@@ -87,4 +87,12 @@ export const golfServerModule: ServerSportModule = {
     ]);
     return buildGolfSkillContribution(handicap, stats);
   },
+
+  async hasActivity(profileId, supabase) {
+    const { count } = await supabase
+      .from('golf_rounds')
+      .select('id', { count: 'exact', head: true })
+      .eq('profile_id', profileId);
+    return (count ?? 0) > 0;
+  },
 };
