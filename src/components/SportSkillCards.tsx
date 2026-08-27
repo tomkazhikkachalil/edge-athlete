@@ -40,6 +40,9 @@ interface SportSkillCardsProps {
    *  show, the owner gets an add-affordance card instead of nothing (the
    *  vitals-hero empty-slot pattern) — visitors still get nothing. */
   onAddDetails?: () => void;
+  /** Section anchor id. Override when embedding a second instance on a page
+   *  that already carries the profile-body `#sports` section. */
+  sectionId?: string;
 }
 
 const PROVENANCE_TITLE: Record<SkillProvenance, string> = {
@@ -47,7 +50,7 @@ const PROVENANCE_TITLE: Record<SkillProvenance, string> = {
   entered: 'Entered by the athlete — not verified',
 };
 
-function ProvenanceChip({ provenance }: { provenance: SkillProvenance }) {
+export function ProvenanceChip({ provenance }: { provenance: SkillProvenance }) {
   const tracked = provenance === 'tracked';
   return (
     <span
@@ -62,7 +65,7 @@ function ProvenanceChip({ provenance }: { provenance: SkillProvenance }) {
   );
 }
 
-function TileGrid({ tiles }: { tiles: SkillTile[] }) {
+export function TileGrid({ tiles }: { tiles: SkillTile[] }) {
   if (tiles.length === 0) return null;
   return (
     // 2-up below sm: three narrow columns wrap labels into the values.
@@ -137,6 +140,7 @@ export default function SportSkillCards({
   isOwner,
   initialCards,
   onAddDetails,
+  sectionId = 'sports',
 }: SportSkillCardsProps) {
   const [cards, setCards] = useState<SportSkillCard[]>(initialCards ?? []);
   // The add-affordance must wait for the fetch to settle, or it would flash
@@ -166,7 +170,7 @@ export default function SportSkillCards({
   if (cards.length === 0) {
     if (!isOwner || !loaded || !onAddDetails) return null;
     return (
-      <section id="sports" aria-label="Sports">
+      <section id={sectionId} aria-label="Sports">
         <button
           type="button"
           onClick={onAddDetails}
@@ -186,7 +190,7 @@ export default function SportSkillCards({
   }
 
   return (
-    <section id="sports" aria-label="Sports">
+    <section id={sectionId} aria-label="Sports">
       {cards.map(card => {
         const shell = 'mt-4 bg-surface rounded-xl shadow-sm border border-border p-4';
         const body = <CardBody card={card} />;
