@@ -21,6 +21,12 @@
 //   1. Next ships edge-runtime support for `proxy`, or
 //   2. this middleware no longer needs a per-request network call.
 //
+// Re-verified 2026-08-27 against the Next 16.3.3 upgrade guide (installed:
+// 16.3.1): edge is still unsupported in `proxy` and the guide itself says
+// "If you want to continue using the edge runtime, keep using middleware."
+// Neither trigger is met; the deprecation warning remains the project's one
+// accepted build warning.
+//
 // Migrating is also three changes, not one: rename the file, rename the export,
 // and prune sentry.edge.config.ts plus the NEXT_RUNTIME === 'edge' branch in
 // instrumentation.ts, which go dead once middleware runs on Node.
