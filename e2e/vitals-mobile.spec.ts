@@ -10,6 +10,12 @@ import { loadQaUser, adminClient } from './helpers/qa-user';
 test('vitals @mobile: deep links reach the dashboard at phone width', async ({ page, browser }) => {
   test.setTimeout(120_000);
 
+  // Pin preconditions instead of assuming them: a leaked
+  // vitals_privacy.hidden=true from an earlier spec turned the visitor half
+  // into a lock card (the Aug 2026 order flake). Clear it up front.
+  const userA0 = loadQaUser('user.json');
+  await adminClient().from('profiles').update({ vitals_privacy: null }).eq('id', userA0.id);
+
   // /athlete?tab=vitals — the URL alone must land on Vitals, no taps: the
   // tab button is scrolled into the strip's view and the dashboard renders.
   await page.goto('/athlete?tab=vitals');
