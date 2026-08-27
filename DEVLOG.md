@@ -1,5 +1,19 @@
 # Development Log
 
+## August 27, 2026 — Single-warning builds (#335)
+
+Tom asked why the middleware-deprecation caution keeps appearing. Answer:
+it's the project's one deliberate build warning (see the `src/middleware.ts`
+header), and #335 makes the build output match that stance — the entire
+verify log now carries exactly one warning, documented at its source.
+Re-verified against the Next 16.3.3 upgrade guide (2026-08-25 edition):
+`proxy` still forces the Node runtime, and the guide itself says to keep
+using `middleware` for edge — neither revisit trigger is met, and migrating
+would pin the per-navigation auth call to iad1 (100–300ms for far users).
+The OTHER warning — vitest's config-as-CommonJS notice — is gone:
+`vitest.config.ts` → `.mts` with `fileURLToPath` replacing `__dirname`
+(chosen over `import.meta.dirname` for Node <20.11 compat).
+
 ## August 27, 2026 — Multi-sport skill profiles (#329–#333, all merged + prod-probed)
 
 One athlete, many sports, different skill levels — each now expressed in its
