@@ -418,6 +418,43 @@ export default function ProfileMediaTabs({ profileId, currentUserId, isOwnProfil
     btn?.scrollIntoView({ inline: 'nearest', block: 'nearest' });
   }, [activeTab]);
 
+  // A ?tab= DEEP LINK must land the tab strip on screen from the URL alone —
+  // nothing else scrolls the page vertically, so at phone width the strip
+  // only appeared when the content above it happened to be short. Content
+  // above and beside the strip (skill cards, featured posts, statements)
+  // streams in after mount and shifts layout, so a single mount-time scroll
+  // can land anywhere: hold the section pinned through the settle window,
+  // releasing early on the first user input so we never fight a real scroll.
+  const rootRef = useRef<HTMLDivElement>(null);
+  const deepLinkedRef = useRef(parseProfileTab(initialTab) !== 'all');
+  useEffect(() => {
+    if (!deepLinkedRef.current) return;
+    const root = rootRef.current;
+    if (!root) return;
+    let active = true;
+    const pin = () => {
+      if (active) root.scrollIntoView({ block: 'start' });
+    };
+    const stop = () => {
+      active = false;
+      observer.disconnect();
+      window.removeEventListener('wheel', stop);
+      window.removeEventListener('touchstart', stop);
+      window.removeEventListener('keydown', stop);
+    };
+    const observer = new ResizeObserver(pin);
+    pin();
+    observer.observe(document.body);
+    window.addEventListener('wheel', stop, { passive: true });
+    window.addEventListener('touchstart', stop, { passive: true });
+    window.addEventListener('keydown', stop);
+    const timer = setTimeout(stop, 1600);
+    return () => {
+      clearTimeout(timer);
+      stop();
+    };
+  }, []);
+
   // Tab configuration with icons
   const tabs = [
     { id: 'all' as TabType, label: 'Media', icon: Camera, count: counts.all },
@@ -429,7 +466,9 @@ export default function ProfileMediaTabs({ profileId, currentUserId, isOwnProfil
   ];
 
   return (
-    <div className="w-full space-y-6">
+    // scroll-mt clears the sticky AppHeader when the deep-link pin scrolls
+    // this section to the viewport top.
+    <div ref={rootRef} className="w-full space-y-6 scroll-mt-20">
       {/* Modern Segmented Control Tabs */}
       <div className="relative">
         {/* Scrollable container with gradient fade on the edge that has more content */}
