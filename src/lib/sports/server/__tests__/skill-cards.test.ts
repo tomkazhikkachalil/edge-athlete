@@ -45,20 +45,29 @@ describe('buildGolfSkillContribution', () => {
     expect(c.headline?.value).toBe('+1.5');
   });
 
-  it('locked: n-of-3 progress instead of a headline', () => {
-    const c = buildGolfSkillContribution(emptyHandicap(1), golfStats);
-    expect(c.headline).toBeNull();
-    expect(c.progress).toEqual(
-      expect.objectContaining({ count: 1, needed: 3, label: 'rated rounds' })
-    );
-    expect(c.progress?.hint).toContain('course rating');
+  it('a single rated round yields a provisional headline, not a wait state', () => {
+    const provisional: HandicapSeriesResult = {
+      diffs: [8.0],
+      series: [{ date: '2026-08-01', index: 6, provisional: true }],
+      current: { index: 6, roundsCounted: 1, diffsUsed: 1, provisional: true },
+    };
+    const c = buildGolfSkillContribution(provisional, golfStats);
+    expect(c.headline).toEqual({
+      value: '6.0',
+      label: 'Handicap est.',
+      provenance: 'tracked',
+      detail: '· 1 rd · provisional',
+    });
+    expect(c.progress).toBeNull();
   });
 
-  it('zero eligible rounds: progress starts at 0, never an error state', () => {
+  it('zero eligible rounds: progress toward the first rated round, never an error state', () => {
     const c = buildGolfSkillContribution(emptyHandicap(0), null);
+    expect(c.headline).toBeNull();
     expect(c.progress).toEqual(
-      expect.objectContaining({ count: 0, needed: 3, label: 'rated rounds' })
+      expect.objectContaining({ count: 0, needed: 1, label: 'rated rounds' })
     );
+    expect(c.progress?.hint).toContain('course rating');
     expect(c.tiles).toEqual([]);
   });
 

@@ -30,38 +30,38 @@ export function buildGolfStatsTiles(rounds: GolfRoundSlice[]): SportStatsCard | 
   };
 }
 
-// Mirrors handicapIndex()'s null-below-3 gate (handicap.ts) so the card can
-// show progress toward the unlock instead of nothing.
-const HANDICAP_UNLOCK_DIFFS = 3;
-
 /**
- * Pure skill-card math: computed handicap as the tracked headline, or an
- * n-of-3 progress state; stats tiles ride along as tracked.
+ * Pure skill-card math: computed handicap as the tracked headline — shown
+ * from the FIRST rated round (marked provisional below 3, per
+ * provisionalIndex); stats tiles ride along as tracked. Progress renders
+ * only when no rated round exists at all.
  */
 export function buildGolfSkillContribution(
   handicap: HandicapSeriesResult,
   stats: SportStatsCard | null
 ): SkillCardContribution {
-  const { current, diffs } = handicap;
+  const { current } = handicap;
   return {
     headline: current
       ? {
           value: formatHandicapIndex(current.index),
           label: 'Handicap est.',
           provenance: 'tracked',
-          detail: `· ${current.roundsCounted} rds`,
+          detail: `· ${current.roundsCounted} rd${current.roundsCounted === 1 ? '' : 's'}${
+            current.provisional ? ' · provisional' : ''
+          }`,
         }
       : null,
     progress: current
       ? null
       : {
-          count: diffs.length,
-          needed: HANDICAP_UNLOCK_DIFFS,
+          count: 0,
+          needed: 1,
           label: 'rated rounds',
-          // Mirrors the trends page's unlock explainer.
+          // Mirrors the trends page's explainer.
           hint:
-            'Log rounds with a course rating and slope to unlock your estimate. ' +
-            '18-hole rounds count first; 9-hole rounds join once your estimate exists.',
+            'Log a round with a course rating and slope to start your handicap ' +
+            'estimate — it appears from your very first rated round.',
         },
     tiles: (stats?.tiles ?? []).map(t => ({ ...t, provenance: 'tracked' as const })),
     detailHref: '/app/sport/golf/trends',

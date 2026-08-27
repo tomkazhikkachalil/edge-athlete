@@ -34,6 +34,7 @@ interface TrendsSummary {
   avgGirPct: number | null;
   handicapIndex: number | null;
   handicapRounds: number;
+  handicapProvisional?: boolean;
 }
 
 interface TrendsResponse {
@@ -94,7 +95,7 @@ export default function GolfBreakdown({ profileId }: { profileId: string }) {
             {summary.handicapIndex !== null ? formatHandicapIndex(summary.handicapIndex) : '—'}
           </div>
           <div className="text-xs text-muted uppercase mt-1">
-            Handicap est.{summary.handicapIndex !== null ? ` · ${summary.handicapRounds} rds` : ''}
+            Handicap est.{summary.handicapIndex !== null ? ` · ${summary.handicapRounds} rd${summary.handicapRounds === 1 ? '' : 's'}${summary.handicapProvisional ? ' · provisional' : ''}` : ''}
           </div>
         </div>
         <div className="bg-surface-sunken rounded-lg border border-border p-3 text-center">
