@@ -7,7 +7,8 @@ import { useAuth } from '@/lib/auth';
 import AppHeader from '@/components/AppHeader';
 import LazyImage from '@/components/LazyImage';
 import SportSettingsRow from '@/components/SportSettingsRow';
-import SportSkillCards from '@/components/SportSkillCards';
+import SportSkillStrip from '@/components/SportSkillStrip';
+import StatsHub from '@/components/stats/StatsHub';
 import type { SportSkillCard } from '@/lib/sports/server/types';
 import AchievementPills from '@/components/achievements/AchievementPills';
 import OrgMembershipsStrip, { type OrgMembership } from '@/components/affiliations/OrgMembershipsStrip';
@@ -146,20 +147,30 @@ export default function PublicProfilePage() {
   // ?tab=vitals deep link read in the initializer (window-guarded): SSR
   // renders the loading spinner regardless of this state, so the
   // server/client initial DOM cannot diverge on it.
-  const [activeSection, setActiveSection] = useState<'overview' | 'vitals'>(() =>
-    typeof window !== 'undefined' &&
-    new URLSearchParams(window.location.search).get('tab') === 'vitals'
-      ? 'vitals'
-      : 'overview'
+  const [activeSection, setActiveSection] = useState<'overview' | 'stats' | 'vitals'>(() => {
+    if (typeof window === 'undefined') return 'overview';
+    const tab = new URLSearchParams(window.location.search).get('tab');
+    return tab === 'vitals' || tab === 'stats' ? tab : 'overview';
+  });
+  // ?sport= companion for ?tab=stats — the hub's sport layer (validated
+  // against the athlete's active sports inside the hub).
+  const [statsSport, setStatsSport] = useState<string | null>(() =>
+    typeof window !== 'undefined'
+      ? new URLSearchParams(window.location.search).get('sport')
+      : null
   );
 
-  const switchSection = (section: 'overview' | 'vitals') => {
+  const switchSection = (section: 'overview' | 'stats' | 'vitals', sport?: string | null) => {
     setActiveSection(section);
+    if (section === 'stats') setStatsSport(sport ?? null);
     // Mirror into the URL (no navigation) so the state is shareable.
-    window.history.replaceState(
-      null, '',
-      section === 'vitals' ? `${window.location.pathname}?tab=vitals` : window.location.pathname
-    );
+    const url =
+      section === 'overview'
+        ? window.location.pathname
+        : section === 'stats' && (sport ?? null)
+        ? `${window.location.pathname}?tab=stats&sport=${sport}`
+        : `${window.location.pathname}?tab=${section}`;
+    window.history.replaceState(null, '', url);
   };
 
   useEffect(() => {
@@ -482,7 +493,7 @@ export default function PublicProfilePage() {
             Styled to match ProfileMediaTabs' segmented control. */}
         <div className="mt-4">
           <nav className="inline-flex gap-2 p-1 bg-surface-sunken rounded-xl" aria-label="Profile sections">
-            {([['overview', 'Overview'], ['vitals', 'Vitals']] as const).map(([section, label]) => (
+            {([['overview', 'Overview'], ['stats', 'Stats'], ['vitals', 'Vitals']] as const).map(([section, label]) => (
               <button
                 key={section}
                 onClick={() => switchSection(section)}
@@ -509,6 +520,35 @@ export default function PublicProfilePage() {
           </div>
         )}
 
+        {/* Stats — the performance hub (Stats Hub round), lazily mounted so
+            anonymous visitors pay its per-viewer media fetches only when
+            they open it; the CDN-cached aggregate stays untouched. Chips
+            come from the aggregate's skillCards. Keyed on the sport so a
+            strip-tap from Overview lands on that sport's layer. */}
+        {activeSection === 'stats' && (
+          <div className="mt-4">
+            <StatsHub
+              key={statsSport ?? 'all'}
+              profileId={profile.id}
+              currentUserId={user?.id}
+              isOwnProfile={false}
+              skillCards={profileData.skillCards}
+              initialSport={statsSport}
+              onSportChange={(sportKey) => {
+                // URL mirror ONLY — statsSport is the mount seed (strip taps
+                // and deep links); updating it here would remount the hub on
+                // every chip flip and lose its filter state.
+                window.history.replaceState(
+                  null, '',
+                  sportKey
+                    ? `${window.location.pathname}?tab=stats&sport=${sportKey}`
+                    : `${window.location.pathname}?tab=stats`
+                );
+              }}
+            />
+          </div>
+        )}
+
         {activeSection === 'overview' && (
           <>
 
@@ -520,16 +560,18 @@ export default function PublicProfilePage() {
           </div>
         )}
 
-        {/* Sports — one skill card per active sport (headline metric with
-            provenance, tiles, declared details). isOwner is deliberately
-            false: this page renders even the owner as a visitor, and the
-            payload must stay viewer-independent for the CDN. */}
+        {/* Sports — the compact strip (Stats Hub round); a row tap opens the
+            Stats section on that sport's layer. isOwner false deliberately:
+            this page renders even the owner as a visitor, and the payload
+            stays viewer-independent for the CDN. */}
         {profileData.skillCards !== undefined && (
-          <SportSkillCards
-            profileId={profile.id}
-            isOwner={false}
-            initialCards={profileData.skillCards}
-          />
+          <div className="mt-4">
+            <SportSkillStrip
+              cards={profileData.skillCards}
+              isOwner={false}
+              onOpenSport={(sportKey) => switchSection('stats', sportKey)}
+            />
+          </div>
         )}
 
         {/* LEGACY fallback for stale CDN responses cached before skillCards
