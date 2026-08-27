@@ -208,7 +208,9 @@ test('equipment: seed → In the Bag → search → retire → History', async (
 
   // Owner view after save: Soccer first, compact hides the spec line,
   // History still visible to the owner despite the visitor setting.
-  await expect(page.locator('section').first().getByRole('heading', { name: 'Soccer', exact: true }))
+  // :not(#sports) — the skill-cards section renders above the equipment
+  // sections; this assertion is about EQUIPMENT ordering (Soccer moved up).
+  await expect(page.locator('section:not(#sports)').first().getByRole('heading', { name: 'Soccer', exact: true }))
     .toBeVisible({ timeout: 15_000 });
   await expect(page.getByText('10.5 deg')).toHaveCount(0);
   await expect(page.locator('section').getByRole('button', { name: /history/i }).first()).toBeVisible();
@@ -225,7 +227,7 @@ test('equipment: seed → In the Bag → search → retire → History', async (
     const pageB = await ctxB.newPage();
     await pageB.goto(`/athlete/${userA.id}`);
     await pageB.getByRole('button', { name: /equipment/i }).first().click();
-    await expect(pageB.locator('section').first().getByRole('heading', { name: 'Soccer', exact: true }))
+    await expect(pageB.locator('section:not(#sports)').first().getByRole('heading', { name: 'Soccer', exact: true }))
       .toBeVisible({ timeout: 15_000 });
     await expect(pageB.locator('section').getByRole('button', { name: /history/i })).toHaveCount(0);
   } finally {

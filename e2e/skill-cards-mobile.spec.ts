@@ -21,7 +21,14 @@ test.beforeAll(async () => {
   const admin = adminClient();
   const u = user();
   await admin.from('profiles').update({ visibility: 'public', handle: probeHandle() }).eq('id', u.id);
-  const { data: existing } = await admin.from('golf_rounds').select('id').eq('profile_id', u.id);
+  // Guard on THIS spec's rounds, not any rounds: earlier suite specs leave
+  // unrated rounds behind, and skipping our rated seed on their account left
+  // no computable handicap in full-suite order (the Aug 2026 flake class).
+  const { data: existing } = await admin
+    .from('golf_rounds')
+    .select('id')
+    .eq('profile_id', u.id)
+    .like('course', 'Skill QA%');
   if ((existing?.length ?? 0) === 0) {
     await admin.from('golf_rounds').insert([
       { profile_id: u.id, date: '2026-08-01', course: 'Skill QA National', holes: 18, par: 72, gross_score: 92, course_rating: 71.4, slope_rating: 128 },

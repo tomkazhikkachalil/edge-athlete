@@ -14,6 +14,7 @@ import FeaturedPosts from '@/components/FeaturedPosts';
 import StatementsRail from '@/components/StatementsRail';
 import SportQuickLinks from '@/components/SportQuickLinks';
 import SportSkillCards from '@/components/SportSkillCards';
+import type { SportSkillCard } from '@/lib/sports/server/types';
 import AvatarUploader from '@/components/AvatarUploader';
 import CoverPhotoUploader from '@/components/CoverPhotoUploader';
 import { usePopoverDismiss } from '@/hooks/usePopoverDismiss';
@@ -188,6 +189,12 @@ export default function AthleteProfilePage() {
   const router = useRouter();
   const [achievements, setAchievements] = useState<Achievement[]>([]);
   const [dataLoading, setDataLoading] = useState(true);
+  // null = not yet resolved. The skill-cards section renders ABOVE the media
+  // tabs, so it must be in the layout before ProfileMediaTabs mounts — its
+  // ?tab= deep-link scroll runs at mount, and content appearing above it
+  // afterwards pushed the strip out of the phone viewport (caught by
+  // vitals-mobile.spec).
+  const [skillCards, setSkillCards] = useState<SportSkillCard[] | null>(null);
   
   // Modal states
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -270,11 +277,14 @@ export default function AthleteProfilePage() {
       }
 
       // Use Promise.allSettled for better error handling and faster responses
-      const [achievementsResult, highlightsResult] = await Promise.allSettled([
+      const [achievementsResult, highlightsResult, skillCardsResult] = await Promise.allSettled([
         fetch(`/api/achievements?profileId=${profileId}`, { credentials: 'include' })
           .then(res => (res.ok ? res.json() : { achievements: [] }))
           .then(data => (data.achievements || []) as Achievement[]),
-        AthleteService.getSeasonHighlights(profileId)
+        AthleteService.getSeasonHighlights(profileId),
+        fetch(`/api/profile/${profileId}/skill-cards`)
+          .then(res => (res.ok ? res.json() : { skillCards: [] }))
+          .then(data => (data.skillCards || []) as SportSkillCard[]),
       ]);
 
       // Update each piece of data as it becomes available
@@ -285,6 +295,8 @@ export default function AthleteProfilePage() {
         // Calculate athletic score based on highlights
         calculateAthleticScore(highlightsResult.value);
       }
+      // Empty on failure, never stuck at null: the media tabs wait for this.
+      setSkillCards(skillCardsResult.status === 'fulfilled' ? skillCardsResult.value : []);
     } catch (e) {
       console.error('Failed to load athlete profile data:', e);
       showError('Failed to load profile data', 'Some information may not be displayed correctly.');
@@ -843,12 +855,15 @@ export default function AthleteProfilePage() {
                   {/* Per-sport skill cards (route parity with /u/ and
                       /athlete/[id]). Owner view: the golf card links to the
                       trends page, and with nothing to show yet the section
-                      becomes an add-affordance into Edit Profile. */}
-                  {profile?.id && (
+                      becomes an add-affordance into Edit Profile. Cards are
+                      resolved by loadAthleteData (initialCards), never
+                      self-fetched here — see the skillCards state note. */}
+                  {profile?.id && skillCards !== null && (
                     <div className="mb-4">
                       <SportSkillCards
                         profileId={profile.id}
                         isOwner
+                        initialCards={skillCards}
                         onAddDetails={() => setIsEditModalOpen(true)}
                       />
                     </div>
@@ -967,7 +982,11 @@ export default function AthleteProfilePage() {
               totalCount={statementsCount}
               refreshKey={mediaRefreshKey}
             />
-            <ProfileMediaTabs
+            {/* Mounted only after the skill-cards section above has resolved:
+                the ?tab= deep-link scroll runs at THIS component's mount, and
+                any content inserted above it later shifts the strip out of
+                the phone viewport (vitals-mobile.spec pins this). */}
+            {skillCards !== null && <ProfileMediaTabs
               key={mediaRefreshKey}
               profileId={user?.id || ''}
               currentUserId={user?.id}
@@ -985,7 +1004,7 @@ export default function AthleteProfilePage() {
                 setPostsCount(counts.all);
                 setStatementsCount(counts.statements ?? 0);
               }}
-            />
+            />}
           </div>
         </div>
       </div>
