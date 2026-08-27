@@ -1,4 +1,6 @@
-import type { ServerSportModule, SportStatsCard } from './types';
+import { formatHandicapIndex, type HandicapSeriesResult } from '@/lib/golf/handicap';
+import { fetchHandicapComputation } from '@/lib/golf/handicap-server';
+import type { ServerSportModule, SkillCardContribution, SportStatsCard } from './types';
 
 interface GolfRoundSlice {
   gross_score: number | null;
@@ -28,6 +30,36 @@ export function buildGolfStatsTiles(rounds: GolfRoundSlice[]): SportStatsCard | 
   };
 }
 
+// Mirrors handicapIndex()'s null-below-3 gate (handicap.ts) so the card can
+// show progress toward the unlock instead of nothing.
+const HANDICAP_UNLOCK_DIFFS = 3;
+
+/**
+ * Pure skill-card math: computed handicap as the tracked headline, or an
+ * n-of-3 progress state; stats tiles ride along as tracked.
+ */
+export function buildGolfSkillContribution(
+  handicap: HandicapSeriesResult,
+  stats: SportStatsCard | null
+): SkillCardContribution {
+  const { current, diffs } = handicap;
+  return {
+    headline: current
+      ? {
+          value: formatHandicapIndex(current.index),
+          label: 'Handicap est.',
+          provenance: 'tracked',
+          detail: `· ${current.roundsCounted} rds`,
+        }
+      : null,
+    progress: current
+      ? null
+      : { count: diffs.length, needed: HANDICAP_UNLOCK_DIFFS, label: 'rated rounds' },
+    tiles: (stats?.tiles ?? []).map(t => ({ ...t, provenance: 'tracked' as const })),
+    detailHref: '/app/sport/golf/trends',
+  };
+}
+
 export const golfServerModule: ServerSportModule = {
   async buildStatsCard(profileId, supabase) {
     const { data: rounds } = await supabase
@@ -38,5 +70,13 @@ export const golfServerModule: ServerSportModule = {
       .limit(10);
 
     return buildGolfStatsTiles(rounds || []);
+  },
+
+  async buildSkillCard(profileId, supabase) {
+    const [handicap, stats] = await Promise.all([
+      fetchHandicapComputation(profileId, supabase),
+      golfServerModule.buildStatsCard(profileId, supabase),
+    ]);
+    return buildGolfSkillContribution(handicap, stats);
   },
 };

@@ -12,7 +12,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 export function statLineServerModule(sportKey: SportKey): ServerSportModule | null {
   const schema = getStatSchema(sportKey);
   if (!schema) return null;
-  return {
+  const mod: ServerSportModule = {
     async buildStatsCard(profileId: string, supabase: SupabaseClient): Promise<SportStatsCard | null> {
       const { data: statPosts } = await supabase
         .from('posts')
@@ -50,5 +50,16 @@ export function statLineServerModule(sportKey: SportKey): ServerSportModule | nu
         ].slice(0, 3),
       };
     },
+
+    // Stat-line sports have no computed headline metric — the level played is
+    // self-reported and the dispatcher promotes it from settings. Tracked
+    // contribution = the public-post aggregates as tiles.
+    async buildSkillCard(profileId: string, supabase: SupabaseClient) {
+      const card = await mod.buildStatsCard(profileId, supabase);
+      return {
+        tiles: (card?.tiles ?? []).map(t => ({ ...t, provenance: 'tracked' as const })),
+      };
+    },
   };
+  return mod;
 }

@@ -32,6 +32,14 @@
 
 import type { SportKey } from './SportRegistry';
 
+/**
+ * The reserved key for a sport's self-reported competitive level. The skill
+ * card promotes this item to its headline when the sport has no computed
+ * (tracked) metric. Declared here ahead of the fields themselves — the
+ * competitive-profile field group lands in the intake round.
+ */
+export const COMPETITIVE_LEVEL_KEY = 'competitive_level';
+
 /** A choice in a `select` field. */
 export interface SettingsSelectOption {
   value: string;
