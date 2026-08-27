@@ -219,6 +219,9 @@ export default function AthleteProfilePage() {
   // ?tab= deep link (e.g. ?tab=vitals) — read before ProfileMediaTabs mounts
   // (the loading gates above guarantee that), validated inside the component.
   const [deepLinkTab, setDeepLinkTab] = useState<string | null>(null);
+  // ?sport= companion for ?tab=stats — the hub's sport layer. Kept in state
+  // so the key={mediaRefreshKey} remounts restore the current chip.
+  const [deepLinkSport, setDeepLinkSport] = useState<string | null>(null);
 
   // Follow stats
   const [followersCount, setFollowersCount] = useState(0);
@@ -252,6 +255,8 @@ export default function AthleteProfilePage() {
     if (p) setOpenPostId(p);
     const t = sp.get('tab');
     if (t) setDeepLinkTab(t);
+    const s = sp.get('sport');
+    if (s) setDeepLinkSport(s);
   }, []);
 
   // Load athlete data
@@ -992,12 +997,26 @@ export default function AthleteProfilePage() {
               currentUserId={user?.id}
               isOwnProfile={true}
               initialTab={deepLinkTab ?? undefined}
+              skillCards={skillCards ?? undefined}
+              initialSport={deepLinkSport}
+              onSportChange={(sportKey) => {
+                // Same mirror discipline as tabs: shareable, refresh-stable,
+                // remount-stable (/athlete?tab=stats&sport=golf).
+                setDeepLinkSport(sportKey);
+                window.history.replaceState(
+                  null,
+                  '',
+                  sportKey ? `/athlete?tab=stats&sport=${sportKey}` : '/athlete?tab=stats'
+                );
+              }}
               onTabChange={(tab) => {
                 // Mirror the tab into the URL (no navigation) so the state is
                 // shareable / refresh-stable: /athlete?tab=vitals. Also keep it
                 // in deepLinkTab: key={mediaRefreshKey} remounts this component
                 // after a post-create, and initialTab is what survives that.
+                // Leaving stats drops the sport param with the tab.
                 setDeepLinkTab(tab === 'all' ? null : tab);
+                if (tab !== 'stats') setDeepLinkSport(null);
                 window.history.replaceState(null, '', tab === 'all' ? '/athlete' : `/athlete?tab=${tab}`);
               }}
               onCountsChange={(counts) => {

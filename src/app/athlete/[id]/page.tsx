@@ -505,6 +505,18 @@ export default function AthleteProfilePage() {
           currentUserId={user?.id}
           isOwnProfile={isOwnProfile}
           initialTab={searchParams.get('tab') ?? undefined}
+          skillCards={skillCards}
+          initialSport={searchParams.get('sport')}
+          onSportChange={(sportKey) => {
+            // Shareable / refresh-stable: /athlete/<id>?tab=stats&sport=golf
+            window.history.replaceState(
+              null,
+              '',
+              sportKey
+                ? `/athlete/${athleteId}?tab=stats&sport=${sportKey}`
+                : `/athlete/${athleteId}?tab=stats`
+            );
+          }}
           onTabChange={(tab) => {
             // Shareable / refresh-stable tab state: /athlete/<id>?tab=vitals
             window.history.replaceState(null, '', tab === 'all' ? `/athlete/${athleteId}` : `/athlete/${athleteId}?tab=${tab}`);

@@ -11,6 +11,7 @@ import SportYearFilter from './SportYearFilter';
 import FilterBar from './filters/FilterBar';
 import MediaGridItem, { type MediaItem } from './media/MediaGridItem';
 import StatsHub from './stats/StatsHub';
+import type { SportSkillCard } from '@/lib/sports/server/types';
 import { useToast } from './Toast';
 import VitalsTab from './VitalsTab';
 import { getAllSports, SPORT_NAMES } from '@/lib/config/sports-config';
@@ -72,9 +73,15 @@ interface ProfileMediaTabsProps {
   initialTab?: string;
   /** Fires after a user-initiated tab switch — callers mirror it into the URL. */
   onTabChange?: (tab: TabType) => void;
+  /** The athlete's skill cards — the Stats hub's sport chips. */
+  skillCards?: SportSkillCard[];
+  /** Deep-linked sport for the Stats hub (`?sport=`). */
+  initialSport?: string | null;
+  /** Fires on hub chip flips — callers mirror the sport into the URL. */
+  onSportChange?: (sportKey: string | null) => void;
 }
 
-export default function ProfileMediaTabs({ profileId, currentUserId, isOwnProfile = false, onCountsChange, initialTab, onTabChange }: ProfileMediaTabsProps) {
+export default function ProfileMediaTabs({ profileId, currentUserId, isOwnProfile = false, onCountsChange, initialTab, onTabChange, skillCards, initialSport, onSportChange }: ProfileMediaTabsProps) {
   const [activeTab, setActiveTab] = useState<TabType>(() => parseProfileTab(initialTab));
   const [sort, setSort] = useState<SortType>('newest');
   const [mediaFilter, setMediaFilter] = useState<MediaFilterType>('all');
@@ -525,6 +532,9 @@ export default function ProfileMediaTabs({ profileId, currentUserId, isOwnProfil
           currentUserId={currentUserId}
           isOwnProfile={isOwnProfile}
           onCountsChanged={() => fetchCountsRef.current()}
+          skillCards={skillCards}
+          initialSport={initialSport}
+          onSportChange={onSportChange}
         />
       )}
 

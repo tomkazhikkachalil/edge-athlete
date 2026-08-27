@@ -16,20 +16,14 @@ import { BarChart3 } from 'lucide-react';
 import MediaGridItem, { type MediaItem } from '../media/MediaGridItem';
 import PostDetailModal from '../PostDetailModal';
 import EditPostModal from '../EditPostModal';
-import SportYearFilter from '../SportYearFilter';
+import MultiSelectDropdown from '../filters/MultiSelectDropdown';
 import FilterBar from '../filters/FilterBar';
 import { useToast } from '../Toast';
-import { getAllSports, SPORT_NAMES } from '@/lib/config/sports-config';
+import type { SportSkillCard } from '@/lib/sports/server/types';
 
-// Static filter catalogs — the dropdowns are aspirational (show the whole
-// platform's sport list and a wide year range, not just what this athlete
-// has posted). Picking a sport/year with no posts simply yields the empty
-// state, which is acceptable.
+// Aspirational year catalog (whole range, not just posted years) — same
+// stance as the Media tab; an empty year simply yields the empty state.
 const FILTER_START_YEAR = 2000;
-
-const ALL_SPORT_KEYS: string[] = getAllSports()
-  .slice()
-  .sort((a, b) => (SPORT_NAMES[a] ?? a).localeCompare(SPORT_NAMES[b] ?? b));
 
 const ALL_YEARS: number[] = (() => {
   const now = new Date().getFullYear();
@@ -41,12 +35,45 @@ const ALL_YEARS: number[] = (() => {
 type SortType = 'newest' | 'most_engaged';
 type MediaFilterType = 'all' | 'photos' | 'videos' | 'posts';
 
+/** `?sport=` arrives from the URL; anything not among the athlete's active
+ *  sports degrades to null — the All layer. */
+export function parseStatsSport(
+  value: string | null | undefined,
+  cards: SportSkillCard[] | undefined
+): string | null {
+  if (!value || !cards) return null;
+  return cards.some(c => c.sportKey === value) ? value : null;
+}
+
+/** Search matches are computed over what the hub has LOADED. */
+function matchesQuery(item: MediaItem, q: string, sportLabels: Map<string, string>): boolean {
+  const needle = q.toLowerCase();
+  if (item.caption?.toLowerCase().includes(needle)) return true;
+  if (item.hashtags?.some(h => h.toLowerCase().includes(needle))) return true;
+  if (item.tags?.some(t => t.toLowerCase().includes(needle))) return true;
+  const label = item.sport_key ? sportLabels.get(item.sport_key) : undefined;
+  if (label?.toLowerCase().includes(needle)) return true;
+  return false;
+}
+
+// While a query is active, keep paging until the whole profile is loaded or
+// this many items are in memory — client-side search must converge on the
+// full set, not just the first page.
+const SEARCH_FILL_CAP = 200;
+
 interface StatsHubProps {
   profileId: string;
   currentUserId?: string;
   isOwnProfile?: boolean;
   /** Fires after a mutation here changes what the tab badges should show. */
   onCountsChanged?: () => void;
+  /** The athlete's per-sport skill cards — the source of the sport chips.
+   *  Absent/empty ⇒ no chip row, just the All grid. */
+  skillCards?: SportSkillCard[];
+  /** Deep-linked sport (`?sport=`); invalid values fall back to All. */
+  initialSport?: string | null;
+  /** Fires on chip flips — callers mirror the sport into the URL. */
+  onSportChange?: (sportKey: string | null) => void;
 }
 
 export default function StatsHub({
@@ -54,10 +81,16 @@ export default function StatsHub({
   currentUserId,
   isOwnProfile = false,
   onCountsChanged,
+  skillCards,
+  initialSport,
+  onSportChange,
 }: StatsHubProps) {
   const [sort, setSort] = useState<SortType>('newest');
   const [mediaFilter, setMediaFilter] = useState<MediaFilterType>('all');
-  const [selectedSports, setSelectedSports] = useState<string[]>([]);
+  const [selectedSport, setSelectedSport] = useState<string | null>(() =>
+    parseStatsSport(initialSport, skillCards)
+  );
+  const [query, setQuery] = useState('');
   const [selectedYears, setSelectedYears] = useState<number[]>([]);
   const [items, setItems] = useState<MediaItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -91,14 +124,18 @@ export default function StatsHub({
         }
 
         const currentOffset = resetItems ? 0 : offsetRef.current;
+        // tab=all, deliberately (Tom's call): the hub shows ALL of a sport's
+        // media — every hockey clip together, stats or not. The numbers live
+        // in the breakdown headers; the grid carries the story. The Stats
+        // tab's count badge keeps its stat-posts meaning.
         const params = new URLSearchParams({
-          tab: 'stats',
+          tab: 'all',
           sort,
           mediaType: mediaFilter,
           limit: '20',
           offset: currentOffset.toString(),
         });
-        if (selectedSports.length > 0) params.set('sportKeys', selectedSports.join(','));
+        if (selectedSport) params.set('sportKeys', selectedSport);
         if (selectedYears.length > 0) params.set('years', selectedYears.join(','));
 
         const response = await fetch(`/api/profile/${profileId}/media?${params}`);
@@ -133,7 +170,7 @@ export default function StatsHub({
     };
     fetchMediaRef.current = run;
     run(true);
-  }, [sort, mediaFilter, profileId, selectedSports, selectedYears]);
+  }, [sort, mediaFilter, profileId, selectedSport, selectedYears]);
 
   // Infinite scroll observer
   useEffect(() => {
@@ -152,6 +189,29 @@ export default function StatsHub({
     };
   }, [hasMore, loadingMore]);
 
+  // Search runs client-side over LOADED items, so while a query is active
+  // keep paging (bounded) until the profile's set is in memory — otherwise
+  // "search" would silently mean "search the first 20".
+  useEffect(() => {
+    if (!query.trim() || !hasMore || loading || loadingMore) return;
+    if (items.length >= SEARCH_FILL_CAP) return;
+    fetchMediaRef.current(false);
+  }, [query, hasMore, loading, loadingMore, items.length]);
+
+  const sportLabels = new Map((skillCards ?? []).map(c => [c.sportKey as string, c.sportLabel]));
+  const trimmedQuery = query.trim();
+  const visibleItems = trimmedQuery
+    ? items.filter(item => matchesQuery(item, trimmedQuery, sportLabels))
+    : items;
+
+  const handleSportChip = (sportKey: string | null) => {
+    if (sportKey === selectedSport) return;
+    setSelectedSport(sportKey);
+    setSelectedPostIndex(null);
+    setIsModalOpen(false);
+    onSportChange?.(sportKey);
+  };
+
   const handleCloseModal = () => {
     setIsModalOpen(false);
     setSelectedPostIndex(null);
@@ -161,7 +221,7 @@ export default function StatsHub({
     if (selectedPostIndex === null) return;
     if (direction === 'prev' && selectedPostIndex > 0) {
       setSelectedPostIndex(selectedPostIndex - 1);
-    } else if (direction === 'next' && selectedPostIndex < items.length - 1) {
+    } else if (direction === 'next' && selectedPostIndex < visibleItems.length - 1) {
       setSelectedPostIndex(selectedPostIndex + 1);
     }
   };
@@ -208,18 +268,69 @@ export default function StatsHub({
     showSuccess('Success', 'Post updated successfully!');
   };
 
+  const activeSportLabel = selectedSport ? sportLabels.get(selectedSport) ?? selectedSport : null;
+
   return (
-    <div>
-      {/* Filter rows — Sort + Media Type + Sport/Year in the shared FilterBar
-          (controls + count pill + the active-filter strip with Clear all). */}
+    <div data-testid="stats-hub">
+      {/* Layered navigation: All + one chip per sport the athlete plays —
+          flipping between sports is one tap, no menus (explore-page chip
+          pattern). Chips are NAVIGATION, so they sit above the FilterBar and
+          are not part of its clear-all. */}
+      {(skillCards?.length ?? 0) > 0 && (
+        <div
+          className="flex gap-2 overflow-x-auto scrollbar-hide pb-2 mb-4 -mx-4 px-4 sm:mx-0 sm:px-0"
+          role="tablist"
+          aria-label="Sport"
+        >
+          <button
+            role="tab"
+            aria-selected={selectedSport === null}
+            onClick={() => handleSportChip(null)}
+            className={`shrink-0 min-h-[44px] px-4 py-2 rounded-full text-sm font-semibold border transition-colors ${
+              selectedSport === null
+                ? 'bg-brand text-white border-brand'
+                : 'bg-surface text-secondary border-border-strong hover:bg-surface-sunken'
+            }`}
+          >
+            All Sports
+          </button>
+          {(skillCards ?? []).map(card => (
+            <button
+              key={card.sportKey}
+              role="tab"
+              aria-selected={selectedSport === card.sportKey}
+              onClick={() => handleSportChip(card.sportKey)}
+              className={`shrink-0 min-h-[44px] px-4 py-2 rounded-full text-sm font-semibold border transition-colors ${
+                selectedSport === card.sportKey
+                  ? 'bg-brand text-white border-brand'
+                  : 'bg-surface text-secondary border-border-strong hover:bg-surface-sunken'
+              }`}
+            >
+              {card.sportLabel}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* Filter row — search + sort + media type + years in the shared
+          FilterBar (controls + count pill + Clear all strip). */}
       <FilterBar
-        resultCount={items.length}
-        activeCount={selectedSports.length + selectedYears.length}
+        resultCount={visibleItems.length}
+        activeCount={selectedYears.length + (trimmedQuery ? 1 : 0)}
         onClearAll={() => {
-          setSelectedSports([]);
           setSelectedYears([]);
+          setQuery('');
         }}
       >
+        <input
+          type="search"
+          value={query}
+          onChange={e => setQuery(e.target.value)}
+          placeholder="Search captions, tags…"
+          aria-label="Search this athlete's media and stats"
+          className="px-3 py-2 border border-border-strong rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-violet-500 min-w-0 w-44"
+        />
+
         <select
           value={sort}
           onChange={e => setSort(e.target.value as SortType)}
@@ -240,13 +351,13 @@ export default function StatsHub({
           <option value="posts">Posts Only</option>
         </select>
 
-        <SportYearFilter
-          availableSports={ALL_SPORT_KEYS}
-          availableYears={ALL_YEARS}
-          selectedSports={selectedSports}
-          selectedYears={selectedYears}
-          onSportsChange={setSelectedSports}
-          onYearsChange={setSelectedYears}
+        <MultiSelectDropdown<number>
+          allLabel="All Years"
+          itemNounPlural="years"
+          searchPlaceholder="Search years..."
+          options={ALL_YEARS.map(year => ({ value: year, label: String(year) }))}
+          selected={selectedYears}
+          onChange={setSelectedYears}
         />
       </FilterBar>
 
@@ -258,24 +369,32 @@ export default function StatsHub({
       )}
 
       {/* Empty state */}
-      {!loading && items.length === 0 && (
+      {!loading && visibleItems.length === 0 && (
         <div className="text-center py-16 px-4">
           <div className="w-20 h-20 mx-auto mb-6 rounded-full bg-surface-sunken flex items-center justify-center">
             <BarChart3 className="w-10 h-10 text-faint" />
           </div>
-          <h3 className="text-xl font-bold text-primary mb-2">No performance stats</h3>
+          <h3 className="text-xl font-bold text-primary mb-2">
+            {trimmedQuery
+              ? 'No matches'
+              : activeSportLabel
+              ? `No ${activeSportLabel} content yet`
+              : 'Nothing here yet'}
+          </h3>
           <p className="text-tertiary mb-6 max-w-md mx-auto">
-            {isOwnProfile
-              ? 'Add performance stats to your posts to track your progress over time'
-              : 'No performance statistics available for this athlete'}
+            {trimmedQuery
+              ? 'Nothing matches that search — try different words or clear the filters.'
+              : isOwnProfile
+              ? 'Share posts and log activity and your performance story builds here.'
+              : 'This athlete has nothing to show here yet.'}
           </p>
         </div>
       )}
 
-      {/* Stats grid */}
-      {!loading && items.length > 0 && (
+      {/* Media grid — the sport's story, dominant below the numbers */}
+      {!loading && visibleItems.length > 0 && (
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2">
-          {items.map((item, index) => (
+          {visibleItems.map((item, index) => (
             <MediaGridItem
               key={item.id}
               item={item}
@@ -301,12 +420,12 @@ export default function StatsHub({
 
       {/* Post Detail Modal */}
       <PostDetailModal
-        postId={selectedPostIndex !== null ? items[selectedPostIndex]?.id : null}
+        postId={selectedPostIndex !== null ? visibleItems[selectedPostIndex]?.id : null}
         isOpen={isModalOpen}
         onClose={handleCloseModal}
         onNavigate={handleNavigate}
         currentUserId={currentUserId}
-        showNavigation={items.length > 1}
+        showNavigation={visibleItems.length > 1}
         onEdit={handleEdit}
         onDelete={handleDelete}
       />
