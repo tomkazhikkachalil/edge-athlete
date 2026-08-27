@@ -3,8 +3,13 @@
  * volleyball, …). Schema-driven sibling of golf/GolfRoundCard.
  */
 
-import { getStatSchema, formatResult, type StatLineData } from '@/lib/sports/stat-schemas';
+import { getStatSchema, formatResult, formatRaceTime, type StatLineData } from '@/lib/sports/stat-schemas';
 import { getSportDefinition, type SportKey } from '@/lib/sports/SportRegistry';
+
+/** Race times read as times ("11.85s", "4:05.30"), not bare numbers. Every
+ *  other sport's chips stay raw values. */
+const formatChipValue = (sportKey: string, key: string, value: number): string =>
+  sportKey === 'track_field' && key.startsWith('time_') ? formatRaceTime(value) : String(value);
 
 const RESULT_STYLES: Record<string, string> = {
   W: 'bg-green-600 text-white',
@@ -65,7 +70,7 @@ export default function StatLineCard({ line }: { line: StatLineData }) {
               title={f.label}
             >
               <div className="text-base font-black text-slate-900 dark:text-primary leading-none">
-                {line.stats[f.key]}
+                {formatChipValue(line.sport_key, f.key, line.stats[f.key])}
               </div>
               <div className="text-[10px] font-semibold text-slate-500 dark:text-muted mt-0.5">
                 {f.shortLabel}

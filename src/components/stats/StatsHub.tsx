@@ -21,6 +21,10 @@ import FilterBar from '../filters/FilterBar';
 import SportSkillCards from '../SportSkillCards';
 import SportBreakdownHeader from './SportBreakdownHeader';
 import GolfBreakdown from './GolfBreakdown';
+import StatLineBreakdown from './StatLineBreakdown';
+import TrackBreakdown from './TrackBreakdown';
+import { getStatSchema } from '@/lib/sports/stat-schemas';
+import type { SportKey } from '@/lib/sports/SportRegistry';
 import { useToast } from '../Toast';
 import type { SportSkillCard } from '@/lib/sports/server/types';
 
@@ -320,11 +324,18 @@ export default function StatsHub({
       {selectedSport && (() => {
         const card = (skillCards ?? []).find(c => c.sportKey === selectedSport);
         if (!card) return null;
-        return (
-          <SportBreakdownHeader card={card}>
-            {card.sportKey === 'golf' ? <GolfBreakdown profileId={profileId} /> : undefined}
-          </SportBreakdownHeader>
-        );
+        // Every sport with data gets a full breakdown: golf → embedded
+        // trends; track → PB table + race log; other stat-line sports →
+        // season totals + game log.
+        const breakdown =
+          card.sportKey === 'golf' ? (
+            <GolfBreakdown profileId={profileId} />
+          ) : card.sportKey === 'track_field' ? (
+            <TrackBreakdown profileId={profileId} card={card} />
+          ) : getStatSchema(card.sportKey as SportKey) ? (
+            <StatLineBreakdown profileId={profileId} sportKey={card.sportKey as SportKey} />
+          ) : undefined;
+        return <SportBreakdownHeader card={card}>{breakdown}</SportBreakdownHeader>;
       })()}
 
       {/* All layer: the per-sport summary intros above the combined grid. */}
