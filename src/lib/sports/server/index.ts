@@ -118,6 +118,22 @@ export async function buildSportSkillCards(
     settingsSportKeys: (settingsRows || []).map(s => s.sport_key as string),
   });
 
+  // Widen the union with non-post activity: computeActiveSports only sees
+  // declared ∪ posted ∪ settings rows, so a golfer with logged rounds but
+  // none of those would get no golf card despite a computable handicap.
+  // Named modules with their own activity tables opt in via hasActivity
+  // (one head-count each, and only when the sport isn't already active).
+  const activityChecks = await Promise.all(
+    (Object.entries(SERVER_SPORT_MODULES) as Array<[SportKey, ServerSportModule]>)
+      .filter(([key, mod]) => !!mod.hasActivity && !ordered.includes(key))
+      .map(async ([key, mod]) =>
+        (await mod.hasActivity!(profileId, supabase)) ? key : null
+      )
+  );
+  for (const key of activityChecks) {
+    if (key) ordered.push(key);
+  }
+
   const settingsBySport = new Map<string, Record<string, unknown> | null>(
     (settingsRows || []).map(s => [s.sport_key as string, s.settings as Record<string, unknown> | null])
   );

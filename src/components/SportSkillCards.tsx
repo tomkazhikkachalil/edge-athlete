@@ -36,6 +36,10 @@ interface SportSkillCardsProps {
   isOwner: boolean;
   /** When provided (the /u/ aggregate), no client fetch happens. */
   initialCards?: SportSkillCard[];
+  /** Owner-only: opens the competitive-details editor. With no cards to
+   *  show, the owner gets an add-affordance card instead of nothing (the
+   *  vitals-hero empty-slot pattern) — visitors still get nothing. */
+  onAddDetails?: () => void;
 }
 
 const PROVENANCE_TITLE: Record<SkillProvenance, string> = {
@@ -128,8 +132,16 @@ function CardBody({ card }: { card: SportSkillCard }) {
   );
 }
 
-export default function SportSkillCards({ profileId, isOwner, initialCards }: SportSkillCardsProps) {
+export default function SportSkillCards({
+  profileId,
+  isOwner,
+  initialCards,
+  onAddDetails,
+}: SportSkillCardsProps) {
   const [cards, setCards] = useState<SportSkillCard[]>(initialCards ?? []);
+  // The add-affordance must wait for the fetch to settle, or it would flash
+  // at every owner while their real cards load.
+  const [loaded, setLoaded] = useState(initialCards !== undefined);
 
   useEffect(() => {
     if (initialCards) return;
@@ -137,18 +149,41 @@ export default function SportSkillCards({ profileId, isOwner, initialCards }: Sp
     fetch(`/api/profile/${profileId}/skill-cards`)
       .then(res => (res.ok ? res.json() : null))
       .then(body => {
-        if (!cancelled && body?.skillCards) setCards(body.skillCards);
+        if (cancelled) return;
+        if (body?.skillCards) setCards(body.skillCards);
+        setLoaded(true);
       })
       .catch(() => {
         // A profile section that can't load renders nothing rather than an
-        // error card (the OrgMembershipsStrip convention).
+        // error card (the OrgMembershipsStrip convention). `loaded` stays
+        // false on purpose: no data is not the same as no sports.
       });
     return () => {
       cancelled = true;
     };
   }, [profileId, initialCards]);
 
-  if (cards.length === 0) return null;
+  if (cards.length === 0) {
+    if (!isOwner || !loaded || !onAddDetails) return null;
+    return (
+      <section id="sports" aria-label="Sports">
+        <button
+          type="button"
+          onClick={onAddDetails}
+          className="ea-interactive mt-4 w-full text-left bg-surface rounded-xl shadow-sm border border-dashed border-border p-4"
+        >
+          <h2 className="text-sm font-semibold text-secondary flex items-center gap-2">
+            <i className="fas fa-medal" aria-hidden="true"></i>
+            Sports
+          </h2>
+          <p className="mt-2 text-sm text-muted">
+            Add your competitive details — level, team, league — and they show here
+            alongside stats tracked from your activity.
+          </p>
+        </button>
+      </section>
+    );
+  }
 
   return (
     <section id="sports" aria-label="Sports">

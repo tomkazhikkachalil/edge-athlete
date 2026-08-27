@@ -84,4 +84,13 @@ export interface ServerSportModule {
     supabase: SupabaseClient,
     ctx: SkillCardContext
   ): Promise<SkillCardContribution | null>;
+  /**
+   * Whether the profile has real activity in this sport OUTSIDE posts —
+   * golf rounds live in their own tables, so a golfer who logged rounds but
+   * never posted, declared the sport, or filled its settings would otherwise
+   * not count as playing it. Only sports with non-post activity implement
+   * this; the skill-card dispatcher uses it to widen the active-sports
+   * union.
+   */
+  hasActivity?(profileId: string, supabase: SupabaseClient): Promise<boolean>;
 }
