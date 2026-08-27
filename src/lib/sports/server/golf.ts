@@ -54,7 +54,15 @@ export function buildGolfSkillContribution(
       : null,
     progress: current
       ? null
-      : { count: diffs.length, needed: HANDICAP_UNLOCK_DIFFS, label: 'rated rounds' },
+      : {
+          count: diffs.length,
+          needed: HANDICAP_UNLOCK_DIFFS,
+          label: 'rated rounds',
+          // Mirrors the trends page's unlock explainer.
+          hint:
+            'Log rounds with a course rating and slope to unlock your estimate. ' +
+            '18-hole rounds count first; 9-hole rounds join once your estimate exists.',
+        },
     tiles: (stats?.tiles ?? []).map(t => ({ ...t, provenance: 'tracked' as const })),
     detailHref: '/app/sport/golf/trends',
   };

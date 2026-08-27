@@ -3,7 +3,7 @@ import { getSportDefinition, type SportKey } from '@/lib/sports/SportRegistry';
 import { getProfileOrganizations } from '@/lib/affiliations/server';
 import { getSportSettingsDisplay } from '@/lib/sports/settings-schemas';
 import { resolveSportKey } from '@/lib/sports/resolve-sport-key';
-import { buildSportStatsCard } from '@/lib/sports/server';
+import { buildSportSkillCards, buildSportStatsCard } from '@/lib/sports/server';
 import { getSupabaseAdmin } from '@/lib/auth-server';
 import { isStatementPost } from '@/lib/statements';
 import { toProxyUrl } from '@/lib/media/proxy-url';
@@ -217,6 +217,15 @@ export async function GET(request: NextRequest) {
     const profileSportKey = resolveSportKey(profile.sport);
     const sportStats = await buildSportStatsCard(profileSportKey, profile.id, supabase);
 
+    // Skill cards — one per ACTIVE sport (not just the declared one), each
+    // with provenance-tagged tracked metrics (golf: the computed handicap)
+    // and self-reported credentials. Viewer-independent like everything else
+    // here, so the CDN cacheability below is unaffected; the golf handicap
+    // recompute is the accepted cost, amortized by s-maxage. Supersedes
+    // `sportStats` + `sportSettings`, which stay one release for stale
+    // cached clients.
+    const skillCards = await buildSportSkillCards(profile.id, supabase);
+
     // Declared per-sport details (position, jersey, handedness, handicap...).
     // No extra privacy gate is needed: this route already 403s anything that
     // is not `visibility === 'public'`, which is exactly the agreed rule.
@@ -267,6 +276,7 @@ export async function GET(request: NextRequest) {
       badges: [],
       sportStats,
       sportSettings,
+      skillCards,
       organizations,
       // Deprecated alias — kept one release so cached clients keep working
       golfStats: null

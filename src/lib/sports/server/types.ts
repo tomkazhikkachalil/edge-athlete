@@ -32,6 +32,8 @@ export interface SkillProgress {
   needed: number;
   /** What is being counted, e.g. "rated rounds". */
   label: string;
+  /** How to make progress, e.g. "Log rounds with a course rating & slope…". */
+  hint?: string;
 }
 
 export interface SkillTile {
