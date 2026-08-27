@@ -6,7 +6,6 @@ import Link from 'next/link';
 import { useRouter, usePathname } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
 import { formatDisplayName, getInitials } from '@/lib/formatters';
-import { getHandle } from '@/lib/profile-display';
 import { AvatarImage } from '@/components/OptimizedImage';
 import NotificationBell from '@/components/NotificationBell';
 import MessagesBell from '@/components/messages/MessagesBell';
@@ -471,14 +470,30 @@ export default function AppHeader({ onCreatePost, onEditProfile }: AppHeaderProp
                 {isProfileDropdownOpen && (
                   <>
                     <div className="absolute right-0 mt-2 w-64 bg-surface-raised rounded-lg shadow-lg border border-border py-2 z-20">
-                      <div className="px-4 py-3 border-b border-border-subtle">
-                        <p className="text-sm font-semibold text-primary">
-                          {formatDisplayName(profile?.first_name, null, profile?.last_name, profile?.full_name)}
-                        </p>
-                        <p className="text-xs text-muted mt-0.5">
-                          {getHandle(profile || {})}
-                        </p>
-                      </div>
+                      {/* Identity block IS the View Profile entry (mirrors the
+                          mobile drawer's profile block) — not a static header. */}
+                      <button
+                        onClick={() => {
+                          router.push('/athlete');
+                          setIsProfileDropdownOpen(false);
+                        }}
+                        className="w-full text-left px-4 py-3 border-b border-border-subtle flex items-center gap-3 hover:bg-surface-muted transition-colors"
+                      >
+                        <AvatarImage
+                          src={profile?.avatar_url}
+                          alt="Profile"
+                          size={32}
+                          fallbackInitials={getInitials(
+                            formatDisplayName(profile?.first_name, null, profile?.last_name, profile?.full_name)
+                          )}
+                        />
+                        <div className="min-w-0">
+                          <p className="text-sm font-semibold text-primary truncate">
+                            {formatDisplayName(profile?.first_name, null, profile?.last_name, profile?.full_name)}
+                          </p>
+                          <p className="text-xs text-muted mt-0.5">View Profile</p>
+                        </div>
+                      </button>
 
                       {/* Guardian-profiles: in-session switching to managed
                           athletes. Authorization is the profile_access row,
@@ -537,16 +552,6 @@ export default function AppHeader({ onCreatePost, onEditProfile }: AppHeaderProp
                       )}
 
                       <div className="py-1">
-                        <button
-                          onClick={() => {
-                            router.push('/athlete');
-                            setIsProfileDropdownOpen(false);
-                          }}
-                          className="w-full text-left px-4 py-2 text-sm text-secondary hover:bg-surface-muted flex items-center gap-3"
-                        >
-                          <i className="fas fa-user w-4"></i>
-                          <span>View Profile</span>
-                        </button>
                         <button
                           onClick={() => {
                             if (onEditProfile) {
