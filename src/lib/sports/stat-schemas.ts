@@ -44,7 +44,8 @@ export interface StatFieldDef {
 export type ProfileTileComputation =
   | { kind: 'count' }                          // number of entries (Games/Matches)
   | { kind: 'sum'; keys: string[] }            // total across entries (Goals, Points)
-  | { kind: 'avg'; keys: string[]; decimals?: number }; // per-entry average (PPG, AVG)
+  | { kind: 'avg'; keys: string[]; decimals?: number }  // per-entry average (PPG, AVG)
+  | { kind: 'min'; keys: string[]; decimals?: number }; // best-is-lowest (race PBs)
 
 export interface ProfileTileDef {
   label: string;                 // matches the registry metric label
@@ -128,6 +129,31 @@ const goalsAssistsHeadline = (schema: () => SportStatSchema) =>
     if (g > 0 || a > 0) return `${g} G • ${a} A`;
     return compactLine(stats, schema().fields);
   };
+
+/**
+ * Track events, shortest first — the order decides which PB headlines a
+ * card. One list shared by the stat schema, the settings PB fields, and the
+ * track server module, so an event can never exist in one and not another.
+ */
+export const TRACK_EVENTS = [
+  { key: 'time_100m', label: '100m', meters: 100 },
+  { key: 'time_200m', label: '200m', meters: 200 },
+  { key: 'time_400m', label: '400m', meters: 400 },
+  { key: 'time_800m', label: '800m', meters: 800 },
+  { key: 'time_1500m', label: '1500m', meters: 1500 },
+] as const;
+
+/** 11.85 → "11.85s"; 245.3 → "4:05.30" (≥60s races read as m:ss.xx). */
+export const formatRaceTime = (seconds: number): string => {
+  if (seconds < 60) return `${seconds.toFixed(2)}s`;
+  const m = Math.floor(seconds / 60);
+  const s = seconds - m * 60;
+  return `${m}:${s.toFixed(2).padStart(5, '0')}`;
+};
+
+/** Shortest-distance event with a recorded time, or null. */
+const firstTrackEvent = (stats: Record<string, number>) =>
+  TRACK_EVENTS.find(e => typeof stats[e.key] === 'number' && stats[e.key] > 0) ?? null;
 
 export const STAT_SCHEMAS: Partial<Record<SportKey, SportStatSchema>> = {
   ice_hockey: {
@@ -260,6 +286,40 @@ export const STAT_SCHEMAS: Partial<Record<SportKey, SportStatSchema>> = {
     heroStat: { label: 'Hits', compute: heroFromKey('hits') },
     supportKeys: ['home_runs', 'rbis', 'runs'],
   },
+
+  track_field: {
+    sport_key: 'track_field',
+    activityNoun: 'Race',
+    opponentLabel: 'Meet',
+    // Times in SECONDS (11.85, or 245.30 for a 4:05.30 1500m). One race post
+    // usually fills exactly one event.
+    fields: TRACK_EVENTS.map(e => ({
+      key: e.key,
+      label: `${e.label} time (s)`,
+      shortLabel: e.label,
+      min: 0,
+      max: 3600,
+    })),
+    profileTiles: [
+      { label: '100m PB', compute: { kind: 'min', keys: ['time_100m'] } },
+      { label: '200m PB', compute: { kind: 'min', keys: ['time_200m'] } },
+      { label: 'Races', compute: { kind: 'count' } },
+    ],
+    headline: stats => {
+      const event = firstTrackEvent(stats);
+      return event ? `${event.label} — ${formatRaceTime(stats[event.key])}` : null;
+    },
+    // Best-is-lowest, so the hero is the shortest-distance recorded time —
+    // the number itself, with the event named by the headline above.
+    heroStat: {
+      label: 'Time',
+      compute: stats => {
+        const event = firstTrackEvent(stats);
+        return event ? stats[event.key] : null;
+      },
+    },
+    supportKeys: TRACK_EVENTS.map(e => e.key),
+  },
 };
 
 export const getStatSchema = (sportKey: string): SportStatSchema | null =>
@@ -298,6 +358,20 @@ export const computeProfileTile = (
       }
     }
     return String(total);
+  }
+
+  if (c.kind === 'min') {
+    // Best-is-lowest (race times). Zero/absent = not recorded, never a PB.
+    let best: number | null = null;
+    for (const line of lines) {
+      for (const key of c.keys) {
+        const v = line.stats[key];
+        if (typeof v === 'number' && Number.isFinite(v) && v > 0 && (best === null || v < best)) {
+          best = v;
+        }
+      }
+    }
+    return best === null ? '-' : best.toFixed(c.decimals ?? 2);
   }
 
   // avg: mean per entry across the summed keys

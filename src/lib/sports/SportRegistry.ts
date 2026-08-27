@@ -149,13 +149,13 @@ export const SPORT_REGISTRY: Record<SportKey, SportDefinition> = {
     primary_action: 'Add Match'
   },
 
-  // === TRACK & FIELD (Future Implementation) ===
+  // === TRACK & FIELD ===
   track_field: {
     sport_key: 'track_field',
     display_name: 'Track & Field',
     brand_color_token: 'red',
     icon_id: 'fas fa-running',
-    enabled: false,
+    enabled: true,
     metric_labels: {
       tile1: '100m PR',
       tile2: '200m PR',

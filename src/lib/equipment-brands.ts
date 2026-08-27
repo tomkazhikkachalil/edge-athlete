@@ -284,6 +284,16 @@ const BASEBALL_BRANDS: EquipmentBrand[] = [
  * items are free text with no dropdown, matching how the category field
  * already behaves for them in equipment-config.ts.
  */
+const TRACK_FIELD_BRANDS: EquipmentBrand[] = [
+  // Spikes & running footwear
+  ...UNIVERSAL.filter(b => ['nike', 'adidas', 'new-balance', 'asics', 'puma', 'under-armour'].includes(b.id)),
+  { id: 'brooks', name: 'Brooks', domain: 'brooksrunning.com' },
+  { id: 'saucony', name: 'Saucony', domain: 'saucony.com' },
+  { id: 'hoka', name: 'HOKA', domain: 'hoka.com' },
+  { id: 'on-running', name: 'On', domain: 'on.com' },
+  { id: 'other', name: 'Other' },
+];
+
 export const BRAND_SEEDS: Record<string, EquipmentBrand[]> = {
   golf: GOLF_BRANDS,
   ice_hockey: ICE_HOCKEY_BRANDS,
@@ -291,6 +301,7 @@ export const BRAND_SEEDS: Record<string, EquipmentBrand[]> = {
   basketball: BASKETBALL_BRANDS,
   volleyball: VOLLEYBALL_BRANDS,
   baseball: BASEBALL_BRANDS,
+  track_field: TRACK_FIELD_BRANDS,
 };
 
 /**

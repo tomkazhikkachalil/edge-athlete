@@ -67,6 +67,10 @@ export interface SkillCardContribution {
   progress?: SkillProgress | null;
   tiles?: SkillTile[];
   detailHref?: string | null;
+  /** Settings keys this contribution already rendered (e.g. a self-reported
+   *  PB lifted into a tile) — the assembler drops them from the chips so the
+   *  same fact never shows twice. */
+  consumedEnteredKeys?: string[];
 }
 
 /**

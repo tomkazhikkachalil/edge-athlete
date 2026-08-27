@@ -114,6 +114,16 @@ export const EQUIPMENT_SPEC_FIELDS: Record<string, SpecFieldDef[]> = {
     { key: 'colorway', label: 'Colorway', placeholder: 'e.g., Bred', categories: ['shoes'] },
   ],
 
+  track_field: [
+    { key: 'size', label: 'Size', placeholder: 'e.g., 10.5 / M', categories: ['spikes', 'trainers', 'apparel'] },
+    {
+      key: 'spike_type',
+      label: 'Spike Type',
+      options: ['Sprint', 'Middle Distance', 'Distance', 'Jumps', 'Throws', 'Multi-event'],
+      categories: ['spikes'],
+    },
+    { key: 'pin_size', label: 'Pin Size', placeholder: 'e.g., 6mm', categories: ['spikes'] },
+  ],
   volleyball: [
     {
       key: 'size',
