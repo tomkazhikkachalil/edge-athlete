@@ -1,9 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getSportDefinition, type SportKey } from '@/lib/sports/SportRegistry';
 import { getProfileOrganizations } from '@/lib/affiliations/server';
-import { getSportSettingsDisplay } from '@/lib/sports/settings-schemas';
-import { resolveSportKey } from '@/lib/sports/resolve-sport-key';
-import { buildSportSkillCards, buildSportStatsCard } from '@/lib/sports/server';
+import { buildSportSkillCards } from '@/lib/sports/server';
 import { getSupabaseAdmin } from '@/lib/auth-server';
 import { isStatementPost } from '@/lib/statements';
 import { toProxyUrl } from '@/lib/media/proxy-url';
@@ -211,40 +208,14 @@ export async function GET(request: NextRequest) {
       .order('achieved_on', { ascending: false })
       .limit(12);
 
-    // Sport stats card — per-sport server modules (src/lib/sports/server/):
-    // golf reads golf_rounds, stat-line sports aggregate public posts, and a
-    // sport with neither contributes null. Generic output shape either way.
-    const profileSportKey = resolveSportKey(profile.sport);
-    const sportStats = await buildSportStatsCard(profileSportKey, profile.id, supabase);
-
     // Skill cards — one per ACTIVE sport (not just the declared one), each
     // with provenance-tagged tracked metrics (golf: the computed handicap)
     // and self-reported credentials. Viewer-independent like everything else
     // here, so the CDN cacheability below is unaffected; the golf handicap
-    // recompute is the accepted cost, amortized by s-maxage. Supersedes
-    // `sportStats` + `sportSettings`, which stay one release for stale
-    // cached clients.
+    // recompute is the accepted cost, amortized by s-maxage. (The legacy
+    // sportStats/sportSettings fields these superseded were removed
+    // Aug 2026, one release after skillCards shipped.)
     const skillCards = await buildSportSkillCards(profile.id, supabase);
-
-    // Declared per-sport details (position, jersey, handedness, handicap...).
-    // No extra privacy gate is needed: this route already 403s anything that
-    // is not `visibility === 'public'`, which is exactly the agreed rule.
-    // Shaped here rather than on the client so legacy keys no schema declares
-    // and the empty rows onboarding writes never cross the wire.
-    const { data: settingsRows } = await supabase
-      .from('sport_settings')
-      .select('sport_key, settings')
-      .eq('profile_id', profile.id);
-
-    const sportSettings = (settingsRows || [])
-      .map(row => {
-        const sportKey = row.sport_key as SportKey;
-        const items = getSportSettingsDisplay(sportKey, row.settings);
-        if (items.length === 0) return null;
-        // Only resolve the label once the schema lookup has succeeded.
-        return { sportKey, sportLabel: getSportDefinition(sportKey).display_name, items };
-      })
-      .filter((entry): entry is NonNullable<typeof entry> => entry !== null);
 
     // Org memberships (org connections round) — public data by the
     // membership-is-public decision; rides the aggregate so /u/ stays
@@ -274,8 +245,6 @@ export async function GET(request: NextRequest) {
       // Deprecated: athlete_badges no longer render anywhere. Kept one
       // release so cached clients keep working.
       badges: [],
-      sportStats,
-      sportSettings,
       skillCards,
       organizations,
       // Deprecated alias — kept one release so cached clients keep working

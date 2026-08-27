@@ -2,7 +2,7 @@
 
 A multi-sport athlete social network and performance-tracking platform — currently a **golf-first MVP**. Athletes log rounds, track stats and trends, share posts, and connect with other players.
 
-Built with **Next.js 15** (App Router) · **React 19** · **Supabase** (Postgres, Auth, Storage) · **TypeScript** (strict) · **Tailwind CSS 4**.
+Built with **Next.js 16** (App Router) · **React 19** · **Supabase** (Postgres, Auth, Storage) · **TypeScript** (strict) · **Tailwind CSS 4**.
 
 ## Quick start
 

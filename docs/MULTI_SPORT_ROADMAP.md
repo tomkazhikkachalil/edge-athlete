@@ -140,10 +140,14 @@ Ordered by size. Each item = a seam the adapter interface needs before "drop in 
 - ~~hardcoded "Golf Stats" card on `/u/[username]`~~ ✅ DONE earlier — sport-aware.
 - ~~golf hashtag/tag catalogs in Create/EditPostModal~~ ✅ DONE earlier — `SportDefinition.tag_options`/`.hashtag_suggestions` + `src/lib/sports/post-tags.ts`.
 
-## sport_settings — current truth
+## sport_settings — current truth (updated Aug 2026)
 
-- Schema is correct and generic. **Written** only by EditProfileTabs' golf tab (`?sport=golf`). **Read by no rendering code** — feed/profile/highlights all read `golf_rounds` directly. 0 rows in production as of this audit (nothing forces a write; there's no onboarding write).
-- When wiring sport #2 settings, also add a *read* path or the table stays decorative.
+- ~~Read by no rendering code~~ **STALE — this section predated the fix.** As
+  of Aug 2026: written by every sport tab in EditProfileTabs (schema-driven,
+  incl. the competitive-profile group), onboarding writes an empty row per
+  declared sport, and it is READ by the skill-card pipeline
+  (`src/lib/sports/server/` → the profile strip + Stats hub on all three
+  profile routes). The section above marked ✅ DONE is the current truth.
 
 ## Database conventions going forward
 

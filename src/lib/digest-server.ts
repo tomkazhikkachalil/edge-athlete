@@ -19,6 +19,10 @@ type DigestPref = { user_id: string; last_digest_at: string | null };
 // guardian(s) rather than mailed directly.
 export async function runNotificationDigest(supabase: SupabaseClient, appUrl: string) {
   if (!process.env.SMTP_USER || !process.env.SMTP_PASS) {
+    // Loud on purpose: a green cron run that silently sent nothing is
+    // indistinguishable from a healthy one in logs otherwise (the digest was
+    // dark for weeks before anyone noticed the launch-runbook gate).
+    console.warn('[digest] SKIPPED — SMTP not configured; no digest emails were sent.');
     return { ok: true, skipped: 'SMTP not configured', sent: 0, considered: 0 };
   }
 

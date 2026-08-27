@@ -134,9 +134,41 @@ export function truncateDisplayName(displayName: string, maxLength: number = 50)
   return displayName.substring(0, maxLength - 1) + '…';
 }
 
+/** Max emoji/pictographs allowed in a display name — decoration, not a
+ *  canvas. Counted via Unicode property escapes; flags/ZWJ sequences count
+ *  per visible pictograph, which errs strict (the safe direction). */
+export const MAX_DISPLAY_NAME_EMOJI = 3;
+
+// Bidi controls (RLO/LRO/embeddings/isolates) reverse rendered text — the
+// classic "gpj.exe" trick. They are impersonation tools, never names.
+const BIDI_CONTROLS_RE = /[\u202A-\u202E\u2066-\u2069]/g;
+
 /**
- * Sanitize display name (prevent spoofing, normalize unicode)
- * TODO: Add confusables detection and emoji limits
+ * Homoglyph normalization for the LOOK-ALIKE core: Cyrillic/Greek letters
+ * that render identically to Latin. NFKC folds fullwidth/compatibility
+ * forms but deliberately leaves these alone (distinct letters, not
+ * compatibility variants). Genuinely non-Latin names (no Latin letters and
+ * real non-confusable letters) pass through untouched — "José 山田" stays a
+ * name; "Тom" (Cyrillic Т) can no longer impersonate "Tom".
+ */
+const CONFUSABLE_MAP: Record<string, string> = {
+  'а': 'a', 'е': 'e', 'о': 'o', 'р': 'p', 'с': 'c', 'х': 'x', 'у': 'y', 'і': 'i', 'ѕ': 's', 'ј': 'j',
+  'А': 'A', 'В': 'B', 'Е': 'E', 'К': 'K', 'М': 'M', 'Н': 'H', 'О': 'O', 'Р': 'P', 'С': 'C', 'Т': 'T', 'Х': 'X', 'І': 'I', 'Ѕ': 'S', 'Ј': 'J',
+  'Α': 'A', 'Β': 'B', 'Ε': 'E', 'Ζ': 'Z', 'Η': 'H', 'Ι': 'I', 'Κ': 'K', 'Μ': 'M', 'Ν': 'N', 'Ο': 'O', 'Ρ': 'P', 'Τ': 'T', 'Υ': 'Y', 'Χ': 'X', 'ο': 'o', 'ν': 'v',
+};
+const CONFUSABLE_RE = new RegExp(`[${Object.keys(CONFUSABLE_MAP).join('')}]`, 'g');
+
+/** Count pictographic characters (emoji) in a string. */
+export function countEmoji(value: string): number {
+  const matches = value.match(/\p{Extended_Pictographic}/gu);
+  return matches ? matches.length : 0;
+}
+
+/**
+ * Sanitize display name (prevent spoofing, normalize unicode).
+ * Layers: NFKC → strip controls/zero-widths → strip bidi overrides → fold
+ * single-script confusables in visually-Latin names → cap emoji count →
+ * length cap.
  */
 export function sanitizeDisplayName(displayName: string): string {
   if (!displayName?.trim()) return '';
@@ -149,6 +181,29 @@ export function sanitizeDisplayName(displayName: string): string {
 
   // Remove control characters and zero-width spaces
   sanitized = sanitized.replace(/[\u0000-\u001F\u007F-\u009F\u200B-\u200D\uFEFF]/g, '');
+
+  // Remove bidi overrides/isolates (text-direction spoofing)
+  sanitized = sanitized.replace(BIDI_CONTROLS_RE, '');
+
+  // Fold Cyrillic/Greek lookalikes into their Latin twins when the name is
+  // visually Latin (has Latin letters, or has no genuine non-Latin letters
+  // beyond the confusables themselves).
+  const hasLatin = /[A-Za-z]/.test(sanitized);
+  const hasGenuineNonLatin = /\p{L}/u.test(
+    sanitized.replace(CONFUSABLE_RE, '').replace(/[A-Za-z]/g, '')
+  );
+  if (hasLatin || !hasGenuineNonLatin) {
+    sanitized = sanitized.replace(CONFUSABLE_RE, ch => CONFUSABLE_MAP[ch] ?? ch);
+  }
+
+  // Cap emoji: keep the first MAX_DISPLAY_NAME_EMOJI pictographs.
+  let emojiSeen = 0;
+  sanitized = sanitized.replace(/\p{Extended_Pictographic}/gu, m =>
+    ++emojiSeen > MAX_DISPLAY_NAME_EMOJI ? '' : m
+  );
+
+  // Collapse whitespace runs left behind by removals
+  sanitized = sanitized.replace(/\s{2,}/g, ' ').trim();
 
   // Limit length
   if (sanitized.length > 100) {
