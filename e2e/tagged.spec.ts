@@ -191,4 +191,9 @@ test('tagged: tag → round auto-tag → hero → untag → privacy pins', async
     .eq('tagged_profile_id', userA.id);
   expect(markerErr).toBeNull();
   expect(markers?.map(m => m.status)).toEqual(['removed']);
+
+  // Restore the shared QA user's default state — later specs (the media-
+  // proxy privacy pins, the @mobile suite) assert against it. Leaked state
+  // here was the root of the Aug 2026 order-dependent flakes.
+  await admin.from('profiles').update({ visibility: 'private' }).eq('id', userA.id);
 });

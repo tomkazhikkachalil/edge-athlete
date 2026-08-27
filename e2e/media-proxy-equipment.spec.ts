@@ -8,6 +8,10 @@ import { apiAs, loadQaUser, readErrorBody, adminClient, E2E_BASE_URL } from './h
 test('media proxy: equipment media is profile-scoped at the byte layer', async () => {
   test.setTimeout(120_000);
   const userA = loadQaUser('user.json');
+  // Pin the precondition instead of assuming it: "A is private by default"
+  // was ambient state, and any earlier spec that flipped A public without
+  // restoring broke the anon-404 assertion (the Aug 2026 order flake).
+  await adminClient().from('profiles').update({ visibility: 'private' }).eq('id', userA.id);
   const png = readFileSync(path.join(__dirname, 'fixtures', 'photo.png'));
   const apiA = await apiAs('state.json');
   const apiB = await apiAs('state-b.json');

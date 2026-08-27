@@ -231,4 +231,9 @@ test('equipment: seed → In the Bag → search → retire → History', async (
   } finally {
     await ctxB.close();
   }
+
+  // Restore the shared QA user's default state — later specs (the media-
+  // proxy privacy pins, the @mobile suite) assert against it. Leaked state
+  // here was the root of the Aug 2026 order-dependent flakes.
+  await adminClient().from('profiles').update({ visibility: 'private' }).eq('id', userA.id);
 });
