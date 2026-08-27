@@ -65,14 +65,25 @@ test('@mobile /u/ shows the sports skill cards to an anonymous phone viewer', as
   await context.close();
 });
 
-test('@mobile own /athlete page shows the section and the golf card opens trends', async ({ page }) => {
+test('@mobile own /athlete strip row opens the Stats hub, whose golf breakdown links to trends', async ({ page }) => {
   await page.goto('/athlete');
 
+  // Compact strip (Stats Hub round): headline metric on the golf row.
   const sports = page.locator('#sports');
   await sports.scrollIntoViewIfNeeded();
   await expect(sports.getByText('Handicap est.')).toBeVisible({ timeout: 15_000 });
 
-  // Owner interactivity: the golf card is a link into the trends page.
-  await sports.getByText('Handicap est.').click();
+  // Tap the row: the Stats hub opens pinned with the golf chip active.
+  await sports.getByRole('button', { name: 'Golf stats' }).click();
+  await expect(page).toHaveURL(/tab=stats&sport=golf/);
+  const tablist = page.getByRole('tablist', { name: 'Sport' });
+  await expect(tablist.getByRole('tab', { name: 'Golf' })).toHaveAttribute('aria-selected', 'true', { timeout: 15_000 });
+  await expect(tablist.getByRole('tab', { name: 'Golf' })).toBeInViewport();
+
+  // Owner path to the full trends page now lives inside the expanded
+  // breakdown.
+  const header = page.getByRole('region', { name: 'Golf stats' });
+  await header.getByRole('button', { name: 'Full breakdown' }).click();
+  await header.getByRole('link', { name: /Open full trends/ }).click();
   await page.waitForURL('**/app/sport/golf/trends', { timeout: 20_000 });
 });

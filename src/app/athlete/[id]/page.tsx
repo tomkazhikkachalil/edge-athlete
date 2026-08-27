@@ -17,7 +17,7 @@ import FollowersModal from '@/components/FollowersModal';
 import type { Profile } from '@/lib/supabase';
 import AchievementPills from '@/components/achievements/AchievementPills';
 import OrgMembershipsStrip from '@/components/affiliations/OrgMembershipsStrip';
-import SportSkillCards from '@/components/SportSkillCards';
+import SportSkillStrip from '@/components/SportSkillStrip';
 import type { SportSkillCard } from '@/lib/sports/server/types';
 import { topPills } from '@/lib/achievements/display';
 import type { Achievement } from '@/lib/achievements';
@@ -52,6 +52,12 @@ export default function AthleteProfilePage() {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [achievements, setAchievements] = useState<Achievement[]>([]);
   const [skillCards, setSkillCards] = useState<SportSkillCard[]>([]);
+  // Strip-tap → hub navigation: initialTab/initialSport are mount-time
+  // props, so opening the hub from the strip remounts the tabs (epoch key)
+  // with these overriding the URL-read values.
+  const [hubTab, setHubTab] = useState<string | null>(null);
+  const [hubSport, setHubSport] = useState<string | null>(null);
+  const [tabsEpoch, setTabsEpoch] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [followStats, setFollowStats] = useState({
@@ -384,12 +390,23 @@ export default function AthleteProfilePage() {
               <OrgMembershipsStrip profileId={profile.id} />
             </div>
 
-            {/* Per-sport skill cards (route parity with /u/ and the owner
-                page). Visitor view: non-interactive, endpoint-gated; cards
-                resolved with the page load (no post-mount layout shift above
-                the media tabs' deep-link scroll). */}
+            {/* Compact per-sport strip (Stats Hub round) — a row tap opens
+                that sport's hub layer below. Cards resolved with the page
+                load (no post-mount layout shift above the media tabs'
+                deep-link scroll). */}
             <div className="mb-4">
-              <SportSkillCards profileId={profile.id} isOwner={false} initialCards={skillCards} />
+              <SportSkillStrip
+                cards={skillCards}
+                isOwner={false}
+                onOpenSport={(sportKey) => {
+                  setHubTab('stats');
+                  setHubSport(sportKey);
+                  window.history.replaceState(null, '', `/athlete/${athleteId}?tab=stats&sport=${sportKey}`);
+                  // Remount the tabs: a deep-linked mount runs the #334 pin
+                  // scroll, landing the viewer on the hub.
+                  setTabsEpoch(e => e + 1);
+                }}
+              />
             </div>
 
             {profile.bio && (
@@ -501,12 +518,13 @@ export default function AthleteProfilePage() {
           totalCount={statementsCount}
         />
         <ProfileMediaTabs
+          key={tabsEpoch}
           profileId={athleteId}
           currentUserId={user?.id}
           isOwnProfile={isOwnProfile}
-          initialTab={searchParams.get('tab') ?? undefined}
+          initialTab={hubTab ?? searchParams.get('tab') ?? undefined}
           skillCards={skillCards}
-          initialSport={searchParams.get('sport')}
+          initialSport={hubSport ?? searchParams.get('sport')}
           onSportChange={(sportKey) => {
             // Shareable / refresh-stable: /athlete/<id>?tab=stats&sport=golf
             window.history.replaceState(
