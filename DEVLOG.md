@@ -1,5 +1,25 @@
 # Development Log
 
+## August 27, 2026 — Desktop dropdown: identity block IS View Profile (#328)
+
+Tom's report: on desktop the account dropdown's top block (name + @handle)
+was static and View Profile sat several rows down, below the whole "Your
+athletes" section — while the mobile drawer already had the right flow (its
+avatar + name + "View Profile" block is the tappable entry). #328 mirrors
+that on desktop: the identity block becomes a button (avatar + name +
+"View Profile" subtitle, hover tint matching the other rows) navigating to
+`/athlete`, and the redundant standalone row is removed. The @handle line
+went with it — Tom's pick of three options (exact mobile match, over
+keep-handle and move-row-up) — which made `getHandle` unused in the file.
+
+Verified via a throwaway Playwright spec driven twice — local prod build,
+then re-run against production after merge (desktop + @mobile projects,
+both green): exactly one View Profile affordance inside the panel, block
+navigates and the menu unmounts, mobile drawer unaffected. Probe-writing
+trap reconfirmed: the off-canvas drawer is always mounted, so page-wide
+`getByText('View Profile')` counts 2 — scope assertions to the panel
+(same class of trap as the auth-login.spec.ts heading note).
+
 ## August 27, 2026 — Resend domain verification: parked
 
 All four DNS records for `edgeathlete.ca` (DKIM `resend._domainkey`, SPF and
