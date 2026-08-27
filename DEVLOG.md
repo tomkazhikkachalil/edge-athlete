@@ -1,5 +1,57 @@
 # Development Log
 
+## August 27, 2026 — The Stats Hub (#336–#341, all merged + prod-probed)
+
+Same-day successor to the skill-profile program: the profile's performance
+content moved into a dedicated, layered Stats section. Tom's spec — profile
+stays clean; Stats is the home for media + stats + a professional per-sport
+breakdown; per sport a SHORT expandable stat intro with MEDIA the bigger
+presence; one-tap flips between sports. Six stacked PRs, zero DDL:
+
+- **#336** — extraction (zero UX change): `MediaGridItem` shared, the stats
+  tab becomes `StatsHub` with its own state; ProfileMediaTabs 1017→661 lines.
+- **#337** — layered navigation: All + per-sport chips (sourced from the
+  skillCards payload — zero new fetches), server-side sportKeys filtering,
+  `?tab=stats&sport=` deep links on both /athlete routes, client-side text
+  search with bounded auto page-fill. Tom's call: hub grids show ALL of a
+  sport's media (`tab=all`), not just stat posts.
+- **#338** — `SportBreakdownHeader` (compact intro, chevron-expandable) +
+  `GolfBreakdown` (the trends tiles/charts EMBEDDED in the hub);
+  `/api/golf/trends` moved to optional auth with the skill-cards gate ladder
+  — golf trends visible to any allowed viewer, including logged-out, for the
+  first time. Own-view JSON proven byte-identical across the auth change.
+- **#339** — `StatLineBreakdown`: season-totals table for every schema field
+  + game log + real-years select (the stat-lines API computed all of it
+  since the multi-sport round; first UI to use it). `TrackBreakdown`:
+  all-event PB table with per-row provenance (tracked beats claimed);
+  race-time chips formatted (`11.85s` / `4:05.30`).
+- **#340** — the relocation: profile body's cards → compact
+  `SportSkillStrip` (headline metric or n-of-N progress per row; taps land
+  on that sport's hub layer via a remount-keyed deep link that rides the
+  #334 pin scroll).
+- **#341** — `/u/` gains Overview | Stats | Vitals; the hub ships to
+  visitors (lazy mount, CDN aggregate untouched; chips from its
+  skillCards). Chip flips deliberately never remount the hub (sport seed ≠
+  URL mirror) so flipping stays instant with filters intact. Permanent
+  `stats-hub-mobile.spec` pins anonymous deep-link + strip-tap reachability
+  at 390×844.
+
+Gates: verify green every round; R5 full suite 75/75; R6 program-exit
+77/77. Prod-probed after merge (4/4): anonymous /u/ strip→hub→expanded
+golf breakdown; hockey game log + track PB provenance for an anonymous
+viewer; own /athlete strip→chips; @mobile deep link.
+
+Traps recorded (memory has the full list): page-wide caption assertions
+match FeaturedPosts/rail copies — scope to `data-testid="stats-hub"`;
+text-only posts are statements (074), never grid content; grid tiles render
+schema summaries over captions; `handicapSeries` needs ≥2 points (seed ≥4
+rated rounds); playwright `request.newContext()` INHERITS the config
+storageState — pass an empty one for anonymous checks; never
+`git checkout <branch> -- file` to "restore" uncommitted work; three
+late-day playwright webServer-spawn stalls were environmental (build 8s,
+server Ready-in-93ms manually — start the server detached and let
+`reuseExistingServer` attach).
+
 ## August 27, 2026 — Single-warning builds (#335)
 
 Tom asked why the middleware-deprecation caution keeps appearing. Answer:
