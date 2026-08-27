@@ -25,18 +25,49 @@ interface TrendPoint {
 // Filters: ?holes=9|18   Range: ?limit= last N rounds (default 50, max 200)
 export async function GET(request: NextRequest) {
   try {
-    const user = await requireAuth(request);
+    // Optional auth (Stats Hub round): the profile skill breakdown embeds
+    // these trends, and a public profile is viewable logged-out — same gate
+    // ladder as the skill-cards route. Own-view behavior (no ?profileId=,
+    // or your own id) is unchanged.
+    let currentUserId: string | null = null;
+    try {
+      const user = await requireAuth(request);
+      currentUserId = user.id;
+    } catch {
+      currentUserId = null;
+    }
     const supabase = getSupabaseAdmin();
     const { searchParams } = new URL(request.url);
 
-    const profileId = searchParams.get('profileId') || user.id;
+    const profileId = searchParams.get('profileId') || currentUserId;
+    if (!profileId) {
+      // Anonymous with no target: nothing to show.
+      return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
+    }
     if (!UUID_RE.test(profileId)) {
       return NextResponse.json({ error: 'Invalid profileId' }, { status: 400 });
     }
-    if (profileId !== user.id) {
-      const { canView } = await canViewProfile(profileId, user.id);
-      if (!canView) {
-        return NextResponse.json({ error: 'This profile is private' }, { status: 403 });
+    if (profileId !== currentUserId) {
+      if (currentUserId) {
+        const { canView } = await canViewProfile(profileId, currentUserId);
+        if (!canView) {
+          return NextResponse.json({ error: 'This profile is private' }, { status: 403 });
+        }
+      } else {
+        // canViewProfile returns false for a null viewer even on public
+        // profiles, so the anonymous branch checks visibility directly —
+        // modeled on the skill-cards sibling gate.
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('id, visibility')
+          .eq('id', profileId)
+          .single();
+        if (!profile) {
+          return NextResponse.json({ error: 'Profile not found' }, { status: 404 });
+        }
+        if (profile.visibility !== 'public') {
+          return NextResponse.json({ error: 'This profile is private' }, { status: 403 });
+        }
       }
     }
 
@@ -114,7 +145,7 @@ export async function GET(request: NextRequest) {
       handicapRounds: currentHandicap?.roundsCounted ?? diffs.length,
     };
 
-    return NextResponse.json({ series, summary, handicapSeries, isOwner: profileId === user.id });
+    return NextResponse.json({ series, summary, handicapSeries, isOwner: profileId === currentUserId });
   } catch (error) {
     if (error instanceof Response) return error;
     console.error('GET /api/golf/trends error:', error);

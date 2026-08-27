@@ -18,6 +18,9 @@ import PostDetailModal from '../PostDetailModal';
 import EditPostModal from '../EditPostModal';
 import MultiSelectDropdown from '../filters/MultiSelectDropdown';
 import FilterBar from '../filters/FilterBar';
+import SportSkillCards from '../SportSkillCards';
+import SportBreakdownHeader from './SportBreakdownHeader';
+import GolfBreakdown from './GolfBreakdown';
 import { useToast } from '../Toast';
 import type { SportSkillCard } from '@/lib/sports/server/types';
 
@@ -309,6 +312,30 @@ export default function StatsHub({
               {card.sportLabel}
             </button>
           ))}
+        </div>
+      )}
+
+      {/* Sport layer: the compact expandable breakdown header — the short
+          intro on top; the media grid below stays the bigger presence. */}
+      {selectedSport && (() => {
+        const card = (skillCards ?? []).find(c => c.sportKey === selectedSport);
+        if (!card) return null;
+        return (
+          <SportBreakdownHeader card={card}>
+            {card.sportKey === 'golf' ? <GolfBreakdown profileId={profileId} /> : undefined}
+          </SportBreakdownHeader>
+        );
+      })()}
+
+      {/* All layer: the per-sport summary intros above the combined grid. */}
+      {!selectedSport && (skillCards?.length ?? 0) > 0 && (
+        <div className="mb-4">
+          <SportSkillCards
+            profileId={profileId}
+            isOwner={false}
+            initialCards={skillCards}
+            sectionId="stats-hub-sports"
+          />
         </div>
       )}
 
