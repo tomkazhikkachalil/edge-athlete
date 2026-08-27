@@ -48,12 +48,17 @@ describe('buildGolfSkillContribution', () => {
   it('locked: n-of-3 progress instead of a headline', () => {
     const c = buildGolfSkillContribution(emptyHandicap(1), golfStats);
     expect(c.headline).toBeNull();
-    expect(c.progress).toEqual({ count: 1, needed: 3, label: 'rated rounds' });
+    expect(c.progress).toEqual(
+      expect.objectContaining({ count: 1, needed: 3, label: 'rated rounds' })
+    );
+    expect(c.progress?.hint).toContain('course rating');
   });
 
   it('zero eligible rounds: progress starts at 0, never an error state', () => {
     const c = buildGolfSkillContribution(emptyHandicap(0), null);
-    expect(c.progress).toEqual({ count: 0, needed: 3, label: 'rated rounds' });
+    expect(c.progress).toEqual(
+      expect.objectContaining({ count: 0, needed: 3, label: 'rated rounds' })
+    );
     expect(c.tiles).toEqual([]);
   });
 
