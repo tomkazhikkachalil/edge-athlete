@@ -48,11 +48,14 @@ needing fresh data use a cold context); a section that self-fetches ABOVE
 viewport — both /athlete pages now resolve cards in their load path and
 gate the tabs mount on it; `equipment.spec` anchors are `section:not(#sports)`.
 Known residual (pre-existing, exposed by the added section height): NOTHING
-scrolls the page vertically for `?tab=` deep links — the strip only landed
+scrolled the page vertically for `?tab=` deep links — the strip only landed
 in the phone viewport when the content above happened to be short, so
-`vitals-mobile.spec` is state-flaky in full-suite order. Real fix (scroll
-the section into view on deep link, hold through the content-settle window)
-is the immediate follow-up.
+`vitals-mobile.spec` was state-flaky in full-suite order. **CLOSED same day
+(#334, merged + prod-probed)**: on a deep-linked mount, `ProfileMediaTabs`
+pins its section to the viewport top and re-pins on layout shifts through a
+1.6s settle window (ResizeObserver, released on the first user input).
+Full suite 75/75 in natural order — the exact condition that flickered —
+and both @mobile specs re-verified against production.
 
 ## August 27, 2026 — Desktop dropdown: identity block IS View Profile (#328)
 
