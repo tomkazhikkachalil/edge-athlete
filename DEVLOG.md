@@ -1,5 +1,38 @@
 # Development Log
 
+## August 27, 2026 — WHS engine completed: ESR, Low-HI caps, handicap from round one (#342)
+
+Tom's ask: make the in-house handicap as close to perfect as possible, and
+show it from the first round. The engine (`src/lib/golf/handicap.ts`) now
+implements every World Handicap System rule computable from the player's own
+record: the existing differential/best-8/net-double-bogey/9-hole machinery,
+PLUS Exceptional Score Reductions (Rule 5.9 — a 7.0+/10.0+ better score
+applies −1/−2 across the last 20 differentials, persisting in the record)
+and the Low Handicap Index soft/hard caps (Rules 5.7–5.8 — rises beyond the
+365-day low +3.0 are halved, hard ceiling at +5.0, engaged once 20
+differentials exist; provisional entries never anchor the Low HI). The
+published-index chain now feeds NDB caps, the 9-hole conversion, and the
+ESR baseline.
+
+New: a **provisional index from the very first rated round** — the WHS
+small-sample table's own most-conservative row extended down (lowest − 2.0),
+labeled "provisional" on every surface until 3 differentials establish the
+standard estimate; 9-hole conversion unlocks after a single 18. The strict
+`handicapIndex()` stays strict; only zero-rated-round profiles show a
+progress state now ("0 of 1").
+
+The one thing deliberately NOT computed — stated plainly in the methodology
+notes — is PCC, the daily playing-conditions adjustment, which requires
+every player's scores at the course that day (association-network data), and
+officialness itself, which is a credential (GHIN/Golf Canada via the GPA
+license, see docs/GHIN_GPA_PREP.md), not arithmetic. Anti-conflation ladder
+holds: provisional → Handicap est. → Official (self-reported).
+
+Verified: 2030 tests green incl. hand-computed ESR/cap sequences, cap
+engagement at exactly 20, 365-day window expiry, provisional publishing;
+UI probe local + PROD — a single rated round renders "Handicap est. ·
+1 rd · provisional" on the public strip, hub header, and expanded breakdown.
+
 ## August 27, 2026 — The Stats Hub (#336–#341, all merged + prod-probed)
 
 Same-day successor to the skill-profile program: the profile's performance
