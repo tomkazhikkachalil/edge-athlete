@@ -13,7 +13,7 @@ import ProfileMediaTabs from '@/components/ProfileMediaTabs';
 import FeaturedPosts from '@/components/FeaturedPosts';
 import StatementsRail from '@/components/StatementsRail';
 import SportQuickLinks from '@/components/SportQuickLinks';
-import SportSkillCards from '@/components/SportSkillCards';
+import SportSkillStrip from '@/components/SportSkillStrip';
 import type { SportSkillCard } from '@/lib/sports/server/types';
 import AvatarUploader from '@/components/AvatarUploader';
 import CoverPhotoUploader from '@/components/CoverPhotoUploader';
@@ -857,18 +857,24 @@ export default function AthleteProfilePage() {
                     </div>
                   )}
 
-                  {/* Per-sport skill cards (route parity with /u/ and
-                      /athlete/[id]). Owner view: the golf card links to the
-                      trends page, and with nothing to show yet the section
-                      becomes an add-affordance into Edit Profile. Cards are
-                      resolved by loadAthleteData (initialCards), never
-                      self-fetched here — see the skillCards state note. */}
+                  {/* Compact per-sport strip (Stats Hub round) — the full
+                      cards live inside the Stats tab now; a row tap opens
+                      that sport's hub layer. Data resolved by
+                      loadAthleteData, same load path as before, so the
+                      ProfileMediaTabs layout-settle gate is unchanged. */}
                   {profile?.id && skillCards !== null && (
                     <div className="mb-4">
-                      <SportSkillCards
-                        profileId={profile.id}
+                      <SportSkillStrip
+                        cards={skillCards}
                         isOwner
-                        initialCards={skillCards}
+                        onOpenSport={(sportKey) => {
+                          setDeepLinkTab('stats');
+                          setDeepLinkSport(sportKey);
+                          window.history.replaceState(null, '', `/athlete?tab=stats&sport=${sportKey}`);
+                          // Remount the tabs: a deep-linked mount runs the
+                          // #334 pin scroll, landing the viewer on the hub.
+                          setMediaRefreshKey(k => k + 1);
+                        }}
                         onAddDetails={() => setIsEditModalOpen(true)}
                       />
                     </div>
