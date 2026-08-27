@@ -1,5 +1,59 @@
 # Development Log
 
+## August 27, 2026 — Multi-sport skill profiles (#329–#333, all merged + prod-probed)
+
+One athlete, many sports, different skill levels — each now expressed in its
+sport's native language on all three profile routes, as a "Sports" card
+section (`SportSkillCards`, `id="sports"`). Five stacked PRs, zero DDL:
+
+- **#329** — server framework: `SportSkillCard` types (headline / n-of-needed
+  progress / tiles / entered chips, every metric carrying `tracked` vs
+  `entered` provenance), `buildSkillCard` on the sport server modules, the
+  pure `assembleSkillCard`, and the trends route's handicap fetch+compute
+  extracted verbatim into `src/lib/golf/handicap-server.ts` (trends JSON
+  probe-verified byte-identical before/after).
+- **#330** — competitive intake: every enabled sport's Edit Profile tab gains
+  a "Competitive profile" group — a PER-SPORT-worded level ladder (Tom's
+  call over one shared ladder; values stable snake_case), team, league.
+- **#331** — the cards on `/u/` + a privacy-gated
+  `/api/profile/[id]/skill-cards` endpoint; the computed handicap finally
+  reaches the profile, with "Handicap est. + Tracked" and "Official index
+  (self-reported)" coexisting under the standing anti-conflation rule, and
+  a "1 of 3 rated rounds" progress state below the unlock. Absorbs the old
+  Sport Stats + settings-chips blocks (legacy fallback one release).
+- **#332** — `/athlete` route parity (owner card links to trends; empty
+  state = add-affordance into Edit Profile) + `ServerSportModule.hasActivity`
+  (probes caught a real gap: active sports = declared ∪ posted ∪ settings,
+  so logged rounds ALONE produced no golf card despite a computable
+  handicap) + a permanent @mobile spec.
+- **#333** — Track & Field enabled end to end: `min` tile computation (PB =
+  fastest), shortest-first `TRACK_EVENTS`, per-event self-reported PBs in
+  settings, and a named server module where the tracked PB (min over public
+  race posts) beats a self-reported claim — even a FASTER claim — and the
+  superseded chip is consumed so a fact never renders twice.
+
+Tom's product calls, asked and answered: per-sport ladder wording; track &
+field in this program; STRONG provenance treatment (Tracked = check + brand
+chip; Self-reported = muted chip + explainer) rather than light labels.
+
+Prod-probed after merge (6/6 incl. one accepted CDN-staleness retry): golf
+card chips coexisting, track card, endpoint gates (anon-public 200 /
+anon-private 403 / malformed 400), progress state, two phone-width passes.
+
+Traps for next time, all hit live: `/u/` redirects signed-in OWNERS to
+`/athlete` — probes must view as a stranger; profile payloads are ≤60s
+stale by design (`s-maxage` + SWR — Chrome serves stale on reload; probes
+needing fresh data use a cold context); a section that self-fetches ABOVE
+`ProfileMediaTabs` shifts the `?tab=` deep-link scroll out of the phone
+viewport — both /athlete pages now resolve cards in their load path and
+gate the tabs mount on it; `equipment.spec` anchors are `section:not(#sports)`.
+Known residual (pre-existing, exposed by the added section height): NOTHING
+scrolls the page vertically for `?tab=` deep links — the strip only landed
+in the phone viewport when the content above happened to be short, so
+`vitals-mobile.spec` is state-flaky in full-suite order. Real fix (scroll
+the section into view on deep link, hold through the content-settle window)
+is the immediate follow-up.
+
 ## August 27, 2026 — Desktop dropdown: identity block IS View Profile (#328)
 
 Tom's report: on desktop the account dropdown's top block (name + @handle)
