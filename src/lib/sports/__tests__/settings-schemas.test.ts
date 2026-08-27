@@ -57,6 +57,59 @@ describe('SPORT_SETTINGS_SCHEMAS coverage', () => {
   });
 });
 
+describe('competitive profile fields', () => {
+  /**
+   * The skill card promotes `competitive_level` to a sport card's headline
+   * when nothing tracked exists, so every enabled sport must offer it — an
+   * enabled sport without the trio would silently have no skill entry point.
+   */
+  it('every feature-enabled sport has level + team + league in the competitive group', () => {
+    for (const key of FEATURE_FLAGS.FEATURE_SPORTS) {
+      const schema = getSportSettingsSchema(key)!;
+      for (const fieldKey of ['competitive_level', 'team_name', 'league_name']) {
+        const field = schema.fields.find(f => f.key === fieldKey);
+        expect(field, `${key}.${fieldKey}`).toBeDefined();
+        expect(field!.group, `${key}.${fieldKey} group`).toBe('competitive');
+      }
+    }
+  });
+
+  it('every level ladder starts at "not specified" so an untouched select saves nothing', () => {
+    for (const key of FEATURE_FLAGS.FEATURE_SPORTS) {
+      const schema = getSportSettingsSchema(key)!;
+      const level = schema.fields.find(f => f.key === 'competitive_level')!;
+      expect(level.kind).toBe('select');
+      if (level.kind !== 'select') continue;
+      expect(level.options[0].value).toBe('');
+      expect(level.defaultValue).toBe('');
+      // A real ladder, not a stub — and per-sport wording means at least one
+      // sport-specific rung beyond the shared endpoints.
+      expect(level.options.length).toBeGreaterThanOrEqual(6);
+    }
+  });
+
+  it('the level chip self-describes as self-reported (anti-conflation rule)', () => {
+    for (const key of FEATURE_FLAGS.FEATURE_SPORTS) {
+      const schema = getSportSettingsSchema(key)!;
+      const level = schema.fields.find(f => f.key === 'competitive_level')!;
+      expect(level.displayLabel).toBe('Level (self-reported)');
+    }
+  });
+
+  it('a stored level renders its native label through the display pipeline', () => {
+    const items = getSportSettingsDisplay('ice_hockey', { competitive_level: 'aaa' });
+    expect(items).toEqual([
+      { key: 'competitive_level', label: 'Level (self-reported)', value: 'AAA' },
+    ]);
+  });
+
+  it('fields without a group stay in preferences (backward compatibility)', () => {
+    const golf = getSportSettingsSchema('golf')!;
+    const handicap = golf.fields.find(f => f.key === 'handicap')!;
+    expect(handicap.group).toBeUndefined();
+  });
+});
+
 describe('emptySettingsValues', () => {
   it('leaves every field blank — selects default to "not specified"', () => {
     // Selects deliberately do NOT preselect a real value. See NOT_SPECIFIED.
@@ -66,6 +119,9 @@ describe('emptySettingsValues', () => {
       home_course: '',
       tee_preference: '',
       dominant_hand: '',
+      competitive_level: '',
+      team_name: '',
+      league_name: '',
     });
   });
 
@@ -95,6 +151,9 @@ describe('settingsToFormValues', () => {
       home_course: 'Eagle Creek',
       tee_preference: 'blue',
       dominant_hand: 'left',
+      competitive_level: '',
+      team_name: '',
+      league_name: '',
     });
   });
 

@@ -91,9 +91,29 @@ export default function SportSettingsForm({
     );
   };
 
+  // Preferences vs competitive profile: same schema, two visually separated
+  // sections. Competitive entries are self-reported credentials that render
+  // on the public profile, and the athlete should know that while typing.
+  const preferenceFields = schema.fields.filter(f => (f.group ?? 'preferences') === 'preferences');
+  const competitiveFields = schema.fields.filter(f => f.group === 'competitive');
+
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-      {schema.fields.map(renderField)}
+    <div>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {preferenceFields.map(renderField)}
+      </div>
+
+      {competitiveFields.length > 0 && (
+        <div className="mt-6 pt-6 border-t border-border-subtle">
+          <h3 className="text-lg font-semibold text-primary">Competitive profile</h3>
+          <p className="mt-1 mb-6 text-sm text-muted">
+            Shown on your profile, labeled as self-reported.
+          </p>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {competitiveFields.map(renderField)}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

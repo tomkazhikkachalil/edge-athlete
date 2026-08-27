@@ -54,7 +54,15 @@ export function buildGolfSkillContribution(
       : null,
     progress: current
       ? null
-      : { count: diffs.length, needed: HANDICAP_UNLOCK_DIFFS, label: 'rated rounds' },
+      : {
+          count: diffs.length,
+          needed: HANDICAP_UNLOCK_DIFFS,
+          label: 'rated rounds',
+          // Mirrors the trends page's unlock explainer.
+          hint:
+            'Log rounds with a course rating and slope to unlock your estimate. ' +
+            '18-hole rounds count first; 9-hole rounds join once your estimate exists.',
+        },
     tiles: (stats?.tiles ?? []).map(t => ({ ...t, provenance: 'tracked' as const })),
     detailHref: '/app/sport/golf/trends',
   };
@@ -78,5 +86,13 @@ export const golfServerModule: ServerSportModule = {
       golfServerModule.buildStatsCard(profileId, supabase),
     ]);
     return buildGolfSkillContribution(handicap, stats);
+  },
+
+  async hasActivity(profileId, supabase) {
+    const { count } = await supabase
+      .from('golf_rounds')
+      .select('id', { count: 'exact', head: true })
+      .eq('profile_id', profileId);
+    return (count ?? 0) > 0;
   },
 };

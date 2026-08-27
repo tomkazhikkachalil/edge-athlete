@@ -8,6 +8,7 @@ import {
 } from '../settings-schemas';
 import { golfServerModule } from './golf';
 import { statLineServerModule } from './stat-line';
+import { trackFieldServerModule } from './track-field';
 import type { ServerSportModule, SkillCardContribution, SportSkillCard, SportStatsCard } from './types';
 
 export type {
@@ -29,6 +30,9 @@ export type {
  */
 const SERVER_SPORT_MODULES: Partial<Record<SportKey, ServerSportModule>> = {
   golf: golfServerModule,
+  // Named because the generic stat-line card SUMS values — nonsense for race
+  // times, where the aggregate that matters is the per-event minimum (PB).
+  track_field: trackFieldServerModule,
 };
 
 export function getServerSportModule(sportKey: SportKey | null): ServerSportModule | null {
@@ -65,13 +69,14 @@ export function assembleSkillCard(
   displayItems: SettingsDisplayItem[]
 ): SportSkillCard | null {
   let headline = contribution?.headline ?? null;
-  let entered = displayItems;
+  const consumed = new Set(contribution?.consumedEnteredKeys ?? []);
+  let entered = displayItems.filter(i => !consumed.has(i.key));
 
   if (!headline) {
-    const level = displayItems.find(i => i.key === COMPETITIVE_LEVEL_KEY);
+    const level = entered.find(i => i.key === COMPETITIVE_LEVEL_KEY);
     if (level) {
       headline = { value: level.value, label: level.label, provenance: 'entered' };
-      entered = displayItems.filter(i => i.key !== COMPETITIVE_LEVEL_KEY);
+      entered = entered.filter(i => i.key !== COMPETITIVE_LEVEL_KEY);
     }
   }
 
@@ -117,6 +122,22 @@ export async function buildSportSkillCards(
     postSportKeys: (postSportKeys as string[] | null) ?? [],
     settingsSportKeys: (settingsRows || []).map(s => s.sport_key as string),
   });
+
+  // Widen the union with non-post activity: computeActiveSports only sees
+  // declared ∪ posted ∪ settings rows, so a golfer with logged rounds but
+  // none of those would get no golf card despite a computable handicap.
+  // Named modules with their own activity tables opt in via hasActivity
+  // (one head-count each, and only when the sport isn't already active).
+  const activityChecks = await Promise.all(
+    (Object.entries(SERVER_SPORT_MODULES) as Array<[SportKey, ServerSportModule]>)
+      .filter(([key, mod]) => !!mod.hasActivity && !ordered.includes(key))
+      .map(async ([key, mod]) =>
+        (await mod.hasActivity!(profileId, supabase)) ? key : null
+      )
+  );
+  for (const key of activityChecks) {
+    if (key) ordered.push(key);
+  }
 
   const settingsBySport = new Map<string, Record<string, unknown> | null>(
     (settingsRows || []).map(s => [s.sport_key as string, s.settings as Record<string, unknown> | null])

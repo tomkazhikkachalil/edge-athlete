@@ -19,11 +19,13 @@
  * ADDING A SPORT'S SETTINGS = 1 edit: add an entry to SPORT_SETTINGS_SCHEMAS.
  * No component, API, type or migration changes.
  *
- * These schemas describe INTAKE-DECLARED preferences (position, jersey
- * number, handedness). They are deliberately NOT performance stats — those
- * are computed from real activity (see `/api/golf/trends`, which derives a
- * WHS-style handicap from logged rounds and is what the app actually
- * displays). A number typed here is a self-reported preference, nothing more.
+ * These schemas describe SELF-DECLARED facts: intake preferences (position,
+ * jersey number, handedness) and, in the 'competitive' field group, the
+ * athlete's competitive credentials (level played, team, league). They are
+ * deliberately NOT computed performance stats — those stay read-time (see
+ * `/api/golf/trends` and the skill-card modules in `src/lib/sports/server/`,
+ * which derive tracked metrics from logged activity). Anything typed here is
+ * self-reported, and every surface that renders it must say so.
  *
  * Gear does NOT belong here. Equipment is a first-class, sport-agnostic
  * feature backed by the `athlete_equipment` table — see
@@ -31,6 +33,7 @@
  */
 
 import type { SportKey } from './SportRegistry';
+import { TRACK_EVENTS } from './stat-schemas';
 
 /**
  * The reserved key for a sport's self-reported competitive level. The skill
@@ -57,6 +60,12 @@ interface SettingsFieldBase {
    * profile chip has to read alone.
    */
   displayLabel?: string;
+  /**
+   * Which section of the sport tab the field renders in. Absent means
+   * 'preferences' (everything predating the group existed there), so adding
+   * the property changed no stored data and no existing schema entry.
+   */
+  group?: 'preferences' | 'competitive';
 }
 
 export type SettingsFieldDef =
@@ -128,6 +137,52 @@ const dominantHandField = (label = 'Dominant Hand'): SettingsFieldDef => ({
 });
 
 /**
+ * The competitive-profile field trio, appended to every enabled sport's
+ * schema. The level ladder is PER-SPORT WORDING by design (Tom's call): a
+ * hockey athlete says "AAA", a golfer says "Junior tour" — a shared generic
+ * ladder reads native to nobody. Values are stable snake_case; only labels
+ * carry the sport's dialect. Team/league are per-sport too — a multi-sport
+ * athlete has a different team in each.
+ *
+ * `competitive_level` is the reserved COMPETITIVE_LEVEL_KEY: the skill card
+ * promotes it to the card headline when the sport has no computed metric.
+ * The "(self-reported)" display suffix is load-bearing — these chips render
+ * on public profiles through the same pipeline as everything else here, and
+ * a claimed level must never read as a measured one (the same anti-conflation
+ * rule as the golf handicap pair).
+ */
+const competitiveFields = (levelOptions: SettingsSelectOption[]): SettingsFieldDef[] => [
+  {
+    key: COMPETITIVE_LEVEL_KEY,
+    label: 'Competitive Level',
+    displayLabel: 'Level (self-reported)',
+    kind: 'select',
+    defaultValue: NOT_SPECIFIED.value,
+    options: [NOT_SPECIFIED, ...levelOptions],
+    group: 'competitive',
+    hint: 'The highest level you currently play at.',
+  },
+  {
+    key: 'team_name',
+    label: 'Team',
+    kind: 'text',
+    placeholder: 'Toronto Titans U16',
+    maxLength: 80,
+    group: 'competitive',
+  },
+  {
+    key: 'league_name',
+    label: 'League',
+    kind: 'text',
+    placeholder: 'GTHL',
+    maxLength: 80,
+    group: 'competitive',
+  },
+];
+
+// Explicit value/label pairs, never derived from the label: labels are free
+// to be reworded, stored values are forever.
+/**
  * Schemas by sport key. A sport absent from this map is not broken — its tab
  * renders an explicit "coming soon" panel (see `SportSettingsForm`'s caller).
  */
@@ -174,6 +229,16 @@ export const SPORT_SETTINGS_SCHEMAS: Partial<Record<SportKey, SportSettingsSchem
         ],
       },
       dominantHandField(),
+      ...competitiveFields([
+        { value: 'recreational', label: 'Recreational' },
+        { value: 'club_events', label: 'Club events' },
+        { value: 'junior_tour', label: 'Junior tour' },
+        { value: 'regional_am', label: 'Regional amateur' },
+        { value: 'provincial_state_am', label: 'Provincial/State amateur' },
+        { value: 'national_am', label: 'National amateur' },
+        { value: 'collegiate', label: 'Collegiate' },
+        { value: 'pro', label: 'Professional' },
+      ]),
     ],
   },
 
@@ -206,6 +271,16 @@ export const SPORT_SETTINGS_SCHEMAS: Partial<Record<SportKey, SportSettingsSchem
           { value: 'right', label: 'Right' },
         ],
       },
+      ...competitiveFields([
+        { value: 'house', label: 'House league' },
+        { value: 'select', label: 'Select' },
+        { value: 'aa', label: 'AA' },
+        { value: 'aaa', label: 'AAA' },
+        { value: 'junior', label: 'Junior' },
+        { value: 'hs_varsity', label: 'High school varsity' },
+        { value: 'collegiate', label: 'Collegiate' },
+        { value: 'pro', label: 'Professional' },
+      ]),
     ],
   },
 
@@ -228,6 +303,15 @@ export const SPORT_SETTINGS_SCHEMAS: Partial<Record<SportKey, SportSettingsSchem
       },
       jerseyNumberField(),
       dominantHandField(),
+      ...competitiveFields([
+        { value: 'recreational', label: 'Recreational' },
+        { value: 'house', label: 'House league' },
+        { value: 'rep_travel', label: 'Rep/Travel' },
+        { value: 'aau_club', label: 'AAU/Club' },
+        { value: 'hs_varsity', label: 'High school varsity' },
+        { value: 'collegiate', label: 'Collegiate' },
+        { value: 'pro', label: 'Professional' },
+      ]),
     ],
   },
 
@@ -260,6 +344,18 @@ export const SPORT_SETTINGS_SCHEMAS: Partial<Record<SportKey, SportSettingsSchem
           { value: 'both', label: 'Both' },
         ],
       },
+      ...competitiveFields([
+        { value: 'recreational', label: 'Recreational' },
+        { value: 'house', label: 'House league' },
+        { value: 'club_travel', label: 'Club/Travel' },
+        { value: 'regional_league', label: 'Regional league' },
+        { value: 'provincial_state', label: 'Provincial/State league' },
+        { value: 'academy', label: 'Academy' },
+        { value: 'hs_varsity', label: 'High school varsity' },
+        { value: 'collegiate', label: 'Collegiate' },
+        { value: 'semi_pro', label: 'Semi-professional' },
+        { value: 'pro', label: 'Professional' },
+      ]),
     ],
   },
 
@@ -309,6 +405,16 @@ export const SPORT_SETTINGS_SCHEMAS: Partial<Record<SportKey, SportSettingsSchem
           { value: 'left', label: 'Left' },
         ],
       },
+      ...competitiveFields([
+        { value: 'recreational', label: 'Recreational' },
+        { value: 'house', label: 'House league' },
+        { value: 'select', label: 'Select' },
+        { value: 'travel_aa', label: 'Travel/AA' },
+        { value: 'aaa', label: 'AAA' },
+        { value: 'hs_varsity', label: 'High school varsity' },
+        { value: 'collegiate', label: 'Collegiate' },
+        { value: 'pro', label: 'Professional' },
+      ]),
     ],
   },
 
@@ -332,6 +438,47 @@ export const SPORT_SETTINGS_SCHEMAS: Partial<Record<SportKey, SportSettingsSchem
       },
       jerseyNumberField(),
       dominantHandField('Hitting Arm'),
+      ...competitiveFields([
+        { value: 'recreational', label: 'Recreational' },
+        { value: 'house', label: 'House league' },
+        { value: 'club', label: 'Club' },
+        { value: 'provincial_regional', label: 'Provincial/Regional' },
+        { value: 'national_club', label: 'National-level club' },
+        { value: 'hs_varsity', label: 'High school varsity' },
+        { value: 'collegiate', label: 'Collegiate' },
+        { value: 'pro', label: 'Professional' },
+      ]),
+    ],
+  },
+
+  track_field: {
+    sport_key: 'track_field',
+    fields: [
+      ...competitiveFields([
+        { value: 'recreational', label: 'Recreational' },
+        { value: 'school_team', label: 'School team' },
+        { value: 'club', label: 'Club' },
+        { value: 'regional', label: 'Regional' },
+        { value: 'provincial_state', label: 'Provincial/State' },
+        { value: 'national', label: 'National' },
+        { value: 'collegiate', label: 'Collegiate' },
+        { value: 'pro', label: 'Professional' },
+      ]),
+      // Self-reported PBs, in seconds. The tracked PB (min over posted race
+      // times) wins on the skill card whenever both exist — same
+      // anti-conflation stance as the golf handicap pair. Bounds are
+      // generous sanity rails, not records.
+      ...TRACK_EVENTS.map((e): SettingsFieldDef => ({
+        key: `pb_${e.label}`,
+        label: `${e.label} PB (seconds)`,
+        displayLabel: `${e.label} PB (self-reported)`,
+        kind: 'number',
+        placeholder: e.meters <= 400 ? '11.85' : '245.30',
+        step: 0.01,
+        min: e.meters / 12,
+        max: e.meters * 2,
+        group: 'competitive',
+      })),
     ],
   },
 };

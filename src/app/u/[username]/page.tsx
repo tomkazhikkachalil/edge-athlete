@@ -7,6 +7,8 @@ import { useAuth } from '@/lib/auth';
 import AppHeader from '@/components/AppHeader';
 import LazyImage from '@/components/LazyImage';
 import SportSettingsRow from '@/components/SportSettingsRow';
+import SportSkillCards from '@/components/SportSkillCards';
+import type { SportSkillCard } from '@/lib/sports/server/types';
 import AchievementPills from '@/components/achievements/AchievementPills';
 import OrgMembershipsStrip, { type OrgMembership } from '@/components/affiliations/OrgMembershipsStrip';
 import VitalsTab from '@/components/VitalsTab';
@@ -116,6 +118,11 @@ interface ProfileData {
     sportLabel: string;
     items: SettingsDisplayItem[];
   }>;
+  /** Per-sport skill cards; supersedes sportStats + sportSettings. Optional
+   *  so a stale CDN response from before this field existed still parses —
+   *  when absent, the two legacy blocks render instead (removed next
+   *  release). */
+  skillCards?: SportSkillCard[];
 }
 
 export default function PublicProfilePage() {
@@ -513,8 +520,21 @@ export default function PublicProfilePage() {
           </div>
         )}
 
-        {/* Sport Stats — sport-aware (golf, ice hockey, volleyball, …) */}
-        {sportStats && (
+        {/* Sports — one skill card per active sport (headline metric with
+            provenance, tiles, declared details). isOwner is deliberately
+            false: this page renders even the owner as a visitor, and the
+            payload must stay viewer-independent for the CDN. */}
+        {profileData.skillCards !== undefined && (
+          <SportSkillCards
+            profileId={profile.id}
+            isOwner={false}
+            initialCards={profileData.skillCards}
+          />
+        )}
+
+        {/* LEGACY fallback for stale CDN responses cached before skillCards
+            existed (the field is absent there). Remove next release. */}
+        {profileData.skillCards === undefined && sportStats && (
           <div className="mt-4 bg-surface rounded-xl shadow-sm border border-border p-4">
             <h2 className="text-sm font-semibold text-secondary mb-3">{sportStats.label}</h2>
             {/* 2-up below sm: three ~85px columns wrapped labels like
@@ -530,9 +550,9 @@ export default function PublicProfilePage() {
           </div>
         )}
 
-        {/* Declared per-sport details. Same card shell as Sport Stats above so
-            the two surfaces cannot drift apart. */}
-        {sportSettings.length > 0 && (
+        {/* Declared per-sport details — LEGACY twin of the block above, same
+            stale-cache fallback. Remove next release. */}
+        {profileData.skillCards === undefined && sportSettings.length > 0 && (
           <div className="mt-4 bg-surface rounded-xl shadow-sm border border-border p-4 space-y-4">
             {sportSettings.map(group => (
               <div key={group.sportKey}>

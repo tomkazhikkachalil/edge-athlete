@@ -17,6 +17,8 @@ import FollowersModal from '@/components/FollowersModal';
 import type { Profile } from '@/lib/supabase';
 import AchievementPills from '@/components/achievements/AchievementPills';
 import OrgMembershipsStrip from '@/components/affiliations/OrgMembershipsStrip';
+import SportSkillCards from '@/components/SportSkillCards';
+import type { SportSkillCard } from '@/lib/sports/server/types';
 import { topPills } from '@/lib/achievements/display';
 import type { Achievement } from '@/lib/achievements';
 // Privacy checks moved to API route
@@ -49,6 +51,7 @@ export default function AthleteProfilePage() {
   // Profile data
   const [profile, setProfile] = useState<Profile | null>(null);
   const [achievements, setAchievements] = useState<Achievement[]>([]);
+  const [skillCards, setSkillCards] = useState<SportSkillCard[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [followStats, setFollowStats] = useState({
@@ -111,10 +114,15 @@ export default function AthleteProfilePage() {
       // Load profile + achievements in parallel. The achievements API's own
       // gate ladder (owner → public → accepted follow → 403) is exactly this
       // page's privacy model, so a 403/error simply means "show none".
-      const [response, achievementsResponse] = await Promise.all([
+      const [response, achievementsResponse, skillCardsResponse] = await Promise.all([
         fetch(`/api/profile?id=${athleteId}`),
         fetch(`/api/achievements?profileId=${athleteId}`, { credentials: 'include' })
           .catch(() => null),
+        // Resolved with the page load so the sports section is in the layout
+        // before ProfileMediaTabs mounts (its ?tab= deep-link scroll must run
+        // against final layout). Endpoint owns the privacy gate; a 403 just
+        // means no cards.
+        fetch(`/api/profile/${athleteId}/skill-cards`).catch(() => null),
       ]);
       if (seq !== requestSeqRef.current) return; // stale response
       if (!response.ok) {
@@ -131,9 +139,15 @@ export default function AthleteProfilePage() {
         const payload = await achievementsResponse.json();
         achievementsData = payload.achievements || [];
       }
+      let skillCardsData: SportSkillCard[] = [];
+      if (skillCardsResponse?.ok) {
+        const payload = await skillCardsResponse.json();
+        skillCardsData = payload.skillCards || [];
+      }
       if (seq !== requestSeqRef.current) return; // stale response
       setProfile(profileData.profile);
       setAchievements(achievementsData);
+      setSkillCards(skillCardsData);
       // Note: seasonHighlights and performances are fetched by API but not displayed yet
       // Can be added to UI in future: setSeasonHighlights(profileData.seasonHighlights || []);
       // Can be added to UI in future: setPerformances(profileData.performances || []);
@@ -368,6 +382,14 @@ export default function AthleteProfilePage() {
             {/* Clubs & Leagues memberships — same slot as the owner page. */}
             <div className="mb-4">
               <OrgMembershipsStrip profileId={profile.id} />
+            </div>
+
+            {/* Per-sport skill cards (route parity with /u/ and the owner
+                page). Visitor view: non-interactive, endpoint-gated; cards
+                resolved with the page load (no post-mount layout shift above
+                the media tabs' deep-link scroll). */}
+            <div className="mb-4">
+              <SportSkillCards profileId={profile.id} isOwner={false} initialCards={skillCards} />
             </div>
 
             {profile.bio && (
