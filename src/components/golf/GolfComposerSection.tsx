@@ -206,6 +206,9 @@ export default function GolfComposerSection({
 
   // Shared round score entry
   const [playerScores, setPlayerScores] = useState<PlayerScoreData[]>([]);
+  // Counter prop for the grid's hole-by-hole stepper — each bump opens it
+  // (resume mode) for the first player. See the Score Entry header button.
+  const [quickEntryRequest, setQuickEntryRequest] = useState(0);
 
   // Search for golf courses (for shared rounds). Debounced + abortable: it is
   // called straight out of the input's onChange, so undebounced it fired one
@@ -1351,13 +1354,29 @@ export default function GolfComposerSection({
               For "Already played" this IS the one-pass manual entry. */}
           <div className="mb-6">
             <div className={GOLF_SECTION_CARD}>
-              <h3 className="text-lg font-semibold text-primary mb-4 flex items-center">
-                <i className="fas fa-list-ol mr-2 text-green-600 dark:text-green-400"></i>
-                Score Entry
-              </h3>
+              <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
+                <h3 className="text-lg font-semibold text-primary flex items-center">
+                  <i className="fas fa-list-ol mr-2 text-green-600 dark:text-green-400"></i>
+                  Score Entry
+                </h3>
+                {/* One-tap path into the hole-by-hole stepper (ScoreEntryModal
+                    in batch mode) — the phone-first alternative to the full
+                    grid. The seam (quickEntryRequest) existed in the grid all
+                    along; this is its first headline entry point: before this,
+                    the stepper was reachable only through the per-cell
+                    penalties badge. */}
+                <button
+                  type="button"
+                  onClick={() => setQuickEntryRequest(n => n + 1)}
+                  className="ea-interactive inline-flex min-h-[44px] items-center gap-2 rounded-lg border border-border-strong px-3 py-2 text-sm font-semibold text-secondary"
+                >
+                  <i className="fas fa-bolt text-amber-500" aria-hidden="true"></i>
+                  Quick entry
+                </button>
+              </div>
               <p className="text-sm text-tertiary mb-4">
                 {sharedRoundDetails.alreadyPlayed
-                  ? 'Enter the finished round below — the post publishes once, complete.'
+                  ? 'Enter the finished round below — the post publishes once, complete. Quick entry walks it hole by hole.'
                   : 'Enter scores below or leave blank - participants can add them later'}
               </p>
 
@@ -1370,6 +1389,7 @@ export default function GolfComposerSection({
                     courseName={sharedRoundDetails.courseName || undefined}
                     editable={true}
                     showDetailedStats={false}
+                    quickEntryRequest={quickEntryRequest}
                     onScoreChange={handlePlayerScoreChange}
                     holeData={
                       // Use course data if available, otherwise manual entry
