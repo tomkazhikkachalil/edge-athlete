@@ -143,6 +143,9 @@ export async function GET(request: NextRequest) {
       avgGirPct: avg(girValues),
       handicapIndex: currentHandicap?.index ?? null,
       handicapRounds: currentHandicap?.roundsCounted ?? diffs.length,
+      // Below 3 differentials the index is our conservative extension of the
+      // WHS table (lowest − 2.0), surfaced so every display can label it.
+      handicapProvisional: currentHandicap?.provisional ?? false,
     };
 
     return NextResponse.json({ series, summary, handicapSeries, isOwner: profileId === currentUserId });
