@@ -42,13 +42,13 @@ class AdapterRegistry {
       'volleyball',
       'basketball',
       'soccer',
-      'baseball'
+      'baseball',
+      'track_field'
     ];
     statLineSports.forEach(sportKey => this.register(new StatLinePostAdapter(sportKey)));
 
     // Other Sports - Disabled (Coming Soon)
     const disabledSports: SportKey[] = [
-      'track_field',
       'tennis',
       'swimming',
       'football'

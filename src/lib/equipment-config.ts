@@ -44,6 +44,13 @@ export const EQUIPMENT_CATEGORIES: Record<string, EquipmentCategoryDef[]> = {
     { value: 'bag', label: 'Bag', icon: '🎒', color: 'bg-teal-100 dark:bg-teal-950/60 text-teal-700 dark:text-teal-300' },
     { value: 'other', label: 'Other', icon: '🔧', color: GRAY },
   ],
+  track_field: [
+    { value: 'spikes', label: 'Spikes', icon: '👟', color: 'bg-red-100 dark:bg-red-950/60 text-red-700 dark:text-red-300' },
+    { value: 'trainers', label: 'Trainers', icon: '🏃', color: 'bg-blue-100 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300' },
+    { value: 'apparel', label: 'Apparel', icon: '👕', color: 'bg-green-100 dark:bg-green-950/60 text-green-700 dark:text-green-300' },
+    { value: 'accessories', label: 'Accessories', icon: '⏱️', color: 'bg-teal-100 dark:bg-teal-950/60 text-teal-700 dark:text-teal-300' },
+    { value: 'other', label: 'Other', icon: '🔧', color: GRAY },
+  ],
   volleyball: [
     { value: 'shoes', label: 'Shoes', icon: '👟', color: 'bg-red-100 dark:bg-red-950/60 text-red-700 dark:text-red-300' },
     { value: 'knee_pads', label: 'Knee Pads', icon: '🦵', color: 'bg-orange-100 dark:bg-orange-950/60 text-orange-700 dark:text-orange-300' },

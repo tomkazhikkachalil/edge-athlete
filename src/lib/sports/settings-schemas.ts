@@ -33,6 +33,7 @@
  */
 
 import type { SportKey } from './SportRegistry';
+import { TRACK_EVENTS } from './stat-schemas';
 
 /**
  * The reserved key for a sport's self-reported competitive level. The skill
@@ -447,6 +448,37 @@ export const SPORT_SETTINGS_SCHEMAS: Partial<Record<SportKey, SportSettingsSchem
         { value: 'collegiate', label: 'Collegiate' },
         { value: 'pro', label: 'Professional' },
       ]),
+    ],
+  },
+
+  track_field: {
+    sport_key: 'track_field',
+    fields: [
+      ...competitiveFields([
+        { value: 'recreational', label: 'Recreational' },
+        { value: 'school_team', label: 'School team' },
+        { value: 'club', label: 'Club' },
+        { value: 'regional', label: 'Regional' },
+        { value: 'provincial_state', label: 'Provincial/State' },
+        { value: 'national', label: 'National' },
+        { value: 'collegiate', label: 'Collegiate' },
+        { value: 'pro', label: 'Professional' },
+      ]),
+      // Self-reported PBs, in seconds. The tracked PB (min over posted race
+      // times) wins on the skill card whenever both exist — same
+      // anti-conflation stance as the golf handicap pair. Bounds are
+      // generous sanity rails, not records.
+      ...TRACK_EVENTS.map((e): SettingsFieldDef => ({
+        key: `pb_${e.label}`,
+        label: `${e.label} PB (seconds)`,
+        displayLabel: `${e.label} PB (self-reported)`,
+        kind: 'number',
+        placeholder: e.meters <= 400 ? '11.85' : '245.30',
+        step: 0.01,
+        min: e.meters / 12,
+        max: e.meters * 2,
+        group: 'competitive',
+      })),
     ],
   },
 };
