@@ -15243,16 +15243,12 @@ Implemented bidirectional relationship management in the Fans modal:
 
 ## Project Status
 
-**Build:** Passing (63 static pages, 0 errors)
-**Lint:** No warnings or errors
-**Deployment:** Vercel (auto-deploy on push to main)
-**Last Verified:** April 11, 2026
+Point-in-time status lines rot — the newest entries at the TOP of this file
+are the current state, and `npm run verify` is the ground truth for build
+health. (This footer once pinned an April 2026 snapshot: Next 15.5.7, 63
+static pages. Removed Aug 2026 when it had drifted two majors stale.)
 
 ---
 
 ## Tech Stack
-- Next.js 15.5.7 (App Router)
-- React 19
-- Supabase (Auth, Database, Storage)
-- TypeScript (strict mode)
-- Tailwind CSS 4
+See `package.json` (source of truth) and the README's one-line stack summary.

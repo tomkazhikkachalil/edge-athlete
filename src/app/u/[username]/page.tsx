@@ -6,7 +6,6 @@ import Link from 'next/link';
 import { useAuth } from '@/lib/auth';
 import AppHeader from '@/components/AppHeader';
 import LazyImage from '@/components/LazyImage';
-import SportSettingsRow from '@/components/SportSettingsRow';
 import SportSkillStrip from '@/components/SportSkillStrip';
 import StatsHub from '@/components/stats/StatsHub';
 import type { SportSkillCard } from '@/lib/sports/server/types';
@@ -14,7 +13,6 @@ import AchievementPills from '@/components/achievements/AchievementPills';
 import OrgMembershipsStrip, { type OrgMembership } from '@/components/affiliations/OrgMembershipsStrip';
 import VitalsTab from '@/components/VitalsTab';
 import { topPills } from '@/lib/achievements/display';
-import type { SettingsDisplayItem } from '@/lib/sports/settings-schemas';
 import {
   formatHeight,
   formatWeightWithUnit,
@@ -75,11 +73,6 @@ interface RecentPost {
   post_media: PostMedia[];
 }
 
-interface SportStats {
-  label: string;
-  tiles: Array<{ label: string; value: string }>;
-}
-
 /** Text-only posts (the statements split, migration 074). */
 interface PublicStatement {
   id: string;
@@ -107,22 +100,14 @@ interface ProfileData {
     placement: string | null;
     achieved_on: string;
   }>;
-  sportStats: SportStats | null;
   /** Org memberships (org connections round). Optional so cached responses
    *  from before this field existed still parse. */
   organizations?: OrgMembership[];
-  /** Declared per-sport details. Already filtered server-side, so a sport
-   *  with nothing to show is simply absent. Optional so a cached client
-   *  response from before this field existed still parses. */
-  sportSettings?: Array<{
-    sportKey: string;
-    sportLabel: string;
-    items: SettingsDisplayItem[];
-  }>;
-  /** Per-sport skill cards; supersedes sportStats + sportSettings. Optional
-   *  so a stale CDN response from before this field existed still parses —
-   *  when absent, the two legacy blocks render instead (removed next
-   *  release). */
+  /** Per-sport skill cards (the strip + Stats hub chips). Optional so a
+   *  stale CDN response from before this field existed still parses — when
+   *  absent, the section simply doesn't render (the legacy sportStats/
+   *  sportSettings fallbacks were removed Aug 2026 after the CDN TTL
+   *  rolled over). */
   skillCards?: SportSkillCard[];
 }
 
@@ -296,10 +281,9 @@ export default function PublicProfilePage() {
 
   if (!profileData) return null;
 
-  const { profile, recentPosts, sportStats } = profileData;
+  const { profile, recentPosts } = profileData;
   const statements = profileData.statements ?? [];
   // Defaults so a response predating these fields renders normally.
-  const sportSettings = profileData.sportSettings ?? [];
   const achievements = profileData.achievements ?? [];
   const displayName = formatDisplayName(profile.first_name, profile.middle_name, profile.last_name, profile.full_name);
 
@@ -574,36 +558,6 @@ export default function PublicProfilePage() {
           </div>
         )}
 
-        {/* LEGACY fallback for stale CDN responses cached before skillCards
-            existed (the field is absent there). Remove next release. */}
-        {profileData.skillCards === undefined && sportStats && (
-          <div className="mt-4 bg-surface rounded-xl shadow-sm border border-border p-4">
-            <h2 className="text-sm font-semibold text-secondary mb-3">{sportStats.label}</h2>
-            {/* 2-up below sm: three ~85px columns wrapped labels like
-                "Greens in Reg" to three lines and collided the values. */}
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-              {sportStats.tiles.map(tile => (
-                <div key={tile.label} className="text-center">
-                  <span className="block text-2xl font-bold text-primary">{tile.value}</span>
-                  <span className="text-xs text-muted">{tile.label}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Declared per-sport details — LEGACY twin of the block above, same
-            stale-cache fallback. Remove next release. */}
-        {profileData.skillCards === undefined && sportSettings.length > 0 && (
-          <div className="mt-4 bg-surface rounded-xl shadow-sm border border-border p-4 space-y-4">
-            {sportSettings.map(group => (
-              <div key={group.sportKey}>
-                <h2 className="text-sm font-semibold text-secondary mb-1">{group.sportLabel}</h2>
-                <SportSettingsRow items={group.items} className="border-t-0 px-0 py-0" />
-              </div>
-            ))}
-          </div>
-        )}
 
         {/* Statements — text-only posts, split out of Recent Posts (074).
             Non-interactive tiles, matching this page's Recent Posts treatment

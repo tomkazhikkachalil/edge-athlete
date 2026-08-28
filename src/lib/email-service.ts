@@ -27,6 +27,16 @@ function escapeHtml(input: string): string {
  * Simple email service for contact forms
  * No auth or database required - just sends emails
  */
+/**
+ * Sender address for every outbound mail. EMAIL_FROM when set; otherwise the
+ * SMTP account itself — a real, deliverable address. The old fallback was a
+ * literal 'noreply@yourdomain.com', which would have leaked a placeholder
+ * domain into real headers the moment EMAIL_FROM was unset.
+ */
+function fromAddress(): string {
+  return process.env.EMAIL_FROM || process.env.SMTP_USER || 'noreply@invalid.local';
+}
+
 export class EmailService {
   private transporter: nodemailer.Transporter;
 
@@ -104,7 +114,7 @@ This email was sent from your website's contact form.
     `;
 
     return this.deliver('contact', {
-      from: process.env.EMAIL_FROM || 'noreply@yourdomain.com',
+      from: fromAddress(),
       to: process.env.CONTACT_EMAIL || process.env.EMAIL_FROM,
       subject: `Contact Form: Message from ${name}`,
       text: textContent,
@@ -119,7 +129,7 @@ This email was sent from your website's contact form.
    */
   async sendWaitlistNotification(email: string, userType: string): Promise<void> {
     await this.transporter.sendMail({
-      from: process.env.EMAIL_FROM || 'noreply@yourdomain.com',
+      from: fromAddress(),
       to: process.env.CONTACT_EMAIL || process.env.EMAIL_FROM,
       subject: `Waitlist signup: ${userType}`,
       text: `New waitlist signup\n\nEmail: ${email}\nInterested as: ${userType}\n\n— Edge Athlete`,
@@ -167,7 +177,7 @@ This email was sent from your website's contact form.
       </div>
     `;
     return this.deliver('guardian_invite', {
-      from: process.env.EMAIL_FROM || 'noreply@yourdomain.com',
+      from: fromAddress(),
       to,
       subject: `Action needed: ${athleteFirstName || 'a young athlete'} wants to join Edge Athlete`,
       html: htmlContent,
@@ -203,7 +213,7 @@ This email was sent from your website's contact form.
       data.description ? `<p style="color:#333;font-size:15px;margin:4px 0;"><strong>Details:</strong> ${escapeHtml(data.description)}</p>` : '',
     ].join('');
     await this.transporter.sendMail({
-      from: process.env.EMAIL_FROM || 'noreply@yourdomain.com',
+      from: fromAddress(),
       to,
       subject: `Invitation: ${data.title}`,
       html: `
@@ -237,7 +247,7 @@ This email was sent from your website's contact form.
     appUrl: string
   ): Promise<void> {
     await this.transporter.sendMail({
-      from: process.env.EMAIL_FROM || 'noreply@yourdomain.com',
+      from: fromAddress(),
       to,
       subject: `Cancelled: ${data.title}`,
       html: `
@@ -295,7 +305,7 @@ This email was sent from your website's contact form.
       </div>
     `;
     return this.deliver('co_guardian_invite', {
-      from: process.env.EMAIL_FROM || 'noreply@yourdomain.com',
+      from: fromAddress(),
       to,
       subject: `You've been invited to help manage ${athleteFirstName || 'a young athlete'}'s Edge Athlete profile`,
       html: htmlContent,
@@ -310,7 +320,7 @@ This email was sent from your website's contact form.
    */
   async sendAccountActivation(to: string, activationUrl: string, appUrl: string): Promise<boolean> {
     return this.deliver('account_activation', {
-      from: process.env.EMAIL_FROM || 'noreply@yourdomain.com',
+      from: fromAddress(),
       to,
       subject: 'Your Edge Athlete account is now yours',
       html: `
@@ -345,7 +355,7 @@ This email was sent from your website's contact form.
    */
   async sendTransferCode(to: string, code: string, appUrl: string): Promise<boolean> {
     return this.deliver('transfer_code', {
-      from: process.env.EMAIL_FROM || 'noreply@yourdomain.com',
+      from: fromAddress(),
       to,
       subject: `${code} is your Edge Athlete verification code`,
       html: `
@@ -405,7 +415,7 @@ This email was sent from your website's contact form.
       `\n\nView: ${appUrl}/app/notifications\n\nTurn off digests in Settings → Notifications.`;
 
     await this.transporter.sendMail({
-      from: process.env.EMAIL_FROM || 'noreply@yourdomain.com',
+      from: fromAddress(),
       to,
       subject: `You have ${count} new notification${count === 1 ? '' : 's'} on Edge Athlete`,
       text: textContent,
@@ -465,7 +475,7 @@ This email was sent from your website's contact form.
     // land in digest-server's per-user catch, freeze the watermark, and
     // re-send this digest to every guardian on every subsequent run.
     return this.deliver('child_digest', {
-      from: process.env.EMAIL_FROM || 'noreply@yourdomain.com',
+      from: fromAddress(),
       to,
       subject: `${childFirstName || 'Your athlete'} has ${count} new notification${count === 1 ? '' : 's'} on Edge Athlete`,
       text: textContent,
