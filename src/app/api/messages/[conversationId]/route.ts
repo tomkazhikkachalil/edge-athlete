@@ -60,6 +60,7 @@ export async function GET(
         is_muted,
         joined_at,
         left_at,
+        held_at,
         profile:profiles (
           id,
           first_name,
