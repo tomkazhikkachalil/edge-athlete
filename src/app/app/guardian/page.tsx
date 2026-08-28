@@ -22,6 +22,9 @@ import {
 } from '@/lib/guardian-rollup';
 import { AGING_BADGE_MS, type QueueItem } from '@/lib/guardian-queue';
 import GuardianWeekStrip from '@/components/calendar/GuardianWeekStrip';
+import { useFamilyWeek } from '@/lib/calendar/use-family-week';
+import { nextEventPerChild } from '@/lib/calendar/next-event';
+import { format } from 'date-fns';
 import type { ConsentState } from '@/lib/consent';
 
 // ── Family console ────────────────────────────────────────────────────────────
@@ -55,6 +58,9 @@ interface ConsoleAthlete {
   deletion_requested_at: string | null;
   /** Fields differing from the guardian's household defaults (Wave 4). */
   deviations?: string[];
+  /** Season snapshot for the payoff line (Wave 5) — null when the athlete's
+   *  sport has nothing to show (or the stats query hiccuped). */
+  statsCard?: { label: string; tiles: Array<{ label: string; value: string }> } | null;
 }
 
 const CHIP_TONES = {
@@ -184,6 +190,17 @@ export default function FamilyConsolePage() {
           name: formatDisplayName(a.first_name, null, a.last_name, a.display_name),
         })),
     [athletes]
+  );
+
+  // One 14-day family-calendar fetch feeds BOTH the week strip and the
+  // per-child "Next:" payoff line (Wave 5) — never two fetches of the same
+  // per-child events.
+  const familyWeek = useFamilyWeek(stripAthletes);
+  // nowMs is the page's existing mount stamp — a minutes-stale cutoff only
+  // matters to an event that ENDED while the tab sat open.
+  const nextByChild = useMemo(
+    () => nextEventPerChild(familyWeek.events, nowMs),
+    [familyWeek.events, nowMs]
   );
 
   useEffect(() => {
@@ -585,7 +602,15 @@ export default function FamilyConsolePage() {
               </section>
             )}
 
-            {stripAthletes.length > 0 && <GuardianWeekStrip athletes={stripAthletes} />}
+            {stripAthletes.length > 0 && (
+              <GuardianWeekStrip
+                athletes={stripAthletes}
+                events={familyWeek.events}
+                loaded={familyWeek.loaded}
+                failed={familyWeek.failed}
+                onRetry={familyWeek.retry}
+              />
+            )}
 
             {athletes.length === 0 ? (
               // All-parked rosters skip this card — the restore section above
@@ -662,6 +687,40 @@ export default function FamilyConsolePage() {
                         </>
                       )}
                     </div>
+
+                    {/* Payoff line (Wave 5): what's next + the season so far,
+                        composed from the shared family-week fetch and the
+                        roster's statsCard. Deliberately a NON-chip line — the
+                        chip row above is a safety vocabulary. Omitted when
+                        there's nothing to say. */}
+                    {!transferred && (() => {
+                      const next = nextByChild.get(a.id);
+                      const tiles = (a.statsCard?.tiles ?? []).slice(0, 2);
+                      if (!next && tiles.length === 0) return null;
+                      return (
+                        <p className="flex flex-wrap items-center gap-x-2 gap-y-1 mt-3 text-xs text-secondary min-w-0">
+                          {next && (
+                            <span className="inline-flex items-center gap-1.5 min-w-0">
+                              <i className="fas fa-calendar-day text-[10px] text-brand-fg" aria-hidden="true"></i>
+                              <span className="font-semibold">Next:</span>
+                              <span className="min-w-0 truncate">
+                                {next.allDay
+                                  ? format(next.startMs, 'EEE MMM d')
+                                  : format(next.startMs, 'EEE h:mma')}
+                                {' — '}
+                                {next.title}
+                              </span>
+                            </span>
+                          )}
+                          {tiles.map((t, i) => (
+                            <span key={t.label} className="text-tertiary whitespace-nowrap">
+                              {(next || i > 0) && <span aria-hidden="true">· </span>}
+                              {t.value} {t.label.toLowerCase()}
+                            </span>
+                          ))}
+                        </p>
+                      );
+                    })()}
 
                     <div className="flex flex-wrap items-center gap-2 mt-3">
                       {!transferred && managed && (
