@@ -1,5 +1,75 @@
 # Development Log
 
+## August 28, 2026 — Family Console Wave 2: the two spines (#348–#351 + migration 129)
+
+Second round of the Family Console program: the console reorganized around
+one action queue and one calendar surface, per the approved program plan.
+Round decisions (Tom): send-back covers posts AND comments (a scoped
+comment-edit path was built for it); the queue lives on the hub itself, with
+the approvals page kept as the full-detail review surface.
+
+- **Unified action queue (#348).** GET /api/guardian/queue — one roster
+  query plus batched IN-queries reduced by a pure shaper
+  (src/lib/guardian-queue.ts), constant query count however large the
+  roster. Typed items: approve_post / release_comment (deep-link into
+  approvals, consent-blocked hint when approving would 403), follow_request
+  and calendar_invite (inline actions), transfer_step / consent_gap /
+  credentials_gap (links), waiting_on_child (gray, non-actionable). The
+  hub's old attention list is deleted; roster badges deep-link to the new
+  ?athlete= filter on approvals. Approval cards gained the audience chip,
+  registry-only sport label, and tagged people read from posts.tags (NOT
+  post_tags — its read gate assumes a published post and its inserts fire
+  the notify trigger).
+- **Send back with a note (#349 + migration 129).** The middle path between
+  one-tap approve and the terminal reject: status 'changes_requested' +
+  review_note on posts and post_comments (full-list re-ADD of the 051/095
+  auto-named CHECKs). Ungated like reject — nothing publishes; guardian
+  pending lists deliberately keep filtering pending_approval so a sent-back
+  item never looks actionable. The child sees an amber banner/chip with the
+  note; their edit IS the resubmit — PUT /api/posts flips back to
+  pending_approval, clears the note, re-bells guardians (actor excluded).
+  Comments had NO edit path, so one was built scoped to exactly this loop:
+  a PATCH 'edit' action, author-only, only from changes_requested —
+  published words stay immutable — which re-resolves @mentions via the
+  newly-extracted shared resolver so the approve-time deferred fan-out
+  never notifies people an edit no longer names. Phone-parity catch at
+  375px: the sent-back chip carried the note in a truncated span inside the
+  non-wrapping comment action bar and collapsed to zero width — the note
+  now renders on its own wrapping line. Same pass caught the feed's
+  deep-link PostDetailModal wiring onDelete but not onEdit (the send-back
+  notification lands exactly there; the pencil silently no-opped — the
+  documented onDelete bug class, one prop over).
+- **48h nudge (#350).** Daily-cron phase 6: pending items older than 48h
+  re-bell the guardians ONCE — one aggregated notification per child, then
+  the approval_nudged_at stamp (mig 129) retires the item from the sweep.
+  The queue's aging badge derives from the same AGING_BADGE_MS constant, so
+  badge and bell can't disagree. A source-tripwire test asserts the module
+  writes no status anywhere: the nudge can never publish. Never
+  auto-publish stays structural, not aspirational.
+- **Family calendar surface (#351).** GuardianWeekStrip on the hub: every
+  child's next seven days, fetched per child (Promise.allSettled — one
+  failure never blanks the strip), deduped by event id with childIds merged
+  (siblings sharing an event is one commitment, not a conflict). Pure
+  findConflicts (src/lib/calendar/conflicts.ts): timed overlap with
+  touching endpoints excluded; any all-day pair collides on shared day
+  labels via allDayDayLabels/localDayKey — naive Date.parse overlap
+  manufactures false conflicts across zones. Conflict days get an amber
+  ring + banner. notifyEventUpdated and notifyEventCancelled gained the
+  supervised→guardian fan-out notifyEventInvites already had (extracted to
+  a shared helper so the three can't drift) — a changed time or place now
+  reaches the parent, not just the original invite. The EXISTING household
+  ICS feed (buildFeedIcs has merged supervised children since the fan-out
+  round) finally got its console surface: "Add to your calendar" opens
+  CalendarSyncModal on the hub.
+
+Verification: verify green per PR; guardian-console e2e grew from 6 to 8
+tests (full send-back loop incl. guardian-blocked-from-child-edit-path 403
+and re-decide 400; calendar invite → strip + queue row → inline decline as
+the child; co-guardian calendar_alert on event update — the actor is
+excluded, so only a co-guardian can observe it); 375px passes on hub queue,
+approvals cards + send-back modal, child banner, comment editor, week
+strip. Prod-probed after each merge.
+
 ## August 28, 2026 — Family Console Wave 1: the safety rail (#347 + migration 128, merged + prod-probed)
 
 First round of the Family Console program — Tom brought a 43-item proposal
