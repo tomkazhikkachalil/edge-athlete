@@ -203,6 +203,25 @@ export async function mintStorageState(user: QaUser): Promise<{
 export async function deleteQaUser(userId: string): Promise<void> {
   const admin = adminClient();
 
+  // ── Managed athletes first (Wave 1 soft delete made this load-bearing) ────
+  // Child deletion via the guardian route PARKS the profile (30-day soft
+  // delete), so it outlives the run. Deleting the guardian then cascades
+  // their profile_access row, and 048's deferred zero-access trigger REFUSES
+  // when the parked child would be left with no rows — which silently no-oped
+  // the profiles delete and made the auth delete fail. (It slipped through
+  // whenever the child had a credentials SELF row: one row remained, the
+  // trigger stayed quiet, and the parked child + shadow user leaked instead.)
+  // Recursively deleting managed athletes first fixes both shapes; children
+  // are never guardians, so the recursion is one level deep.
+  const { data: managed } = await admin
+    .from('profile_access')
+    .select('profile_id')
+    .eq('user_id', userId)
+    .eq('role', 'guardian');
+  for (const m of managed ?? []) {
+    await deleteQaUser(m.profile_id);
+  }
+
   // ── Social cleanup ────────────────────────────────────────────────────────
   // Conversations this user touches, as participant or creator.
   const { data: partRows } = await admin
@@ -283,7 +302,12 @@ export async function deleteQaUser(userId: string): Promise<void> {
   // supabase_auth_admin, which 112 shipped without privileges for (fixed in
   // 114 via SECURITY DEFINER) — profile-first keeps teardown independent of
   // that, exactly like hardDeleteAccount.
-  await admin.from('profiles').delete().eq('id', userId);
+  // Error-CHECKED: a silent failure here (the zero-access trigger above) is
+  // exactly how parked children and stranded guardians leaked for a day.
+  const { error: profileError } = await admin.from('profiles').delete().eq('id', userId);
+  if (profileError) {
+    throw new Error(`profiles delete(${userId}) failed: ${profileError.message}`);
+  }
 
   const { error } = await admin.auth.admin.deleteUser(userId);
   if (error) throw new Error(`deleteUser(${userId}) failed: ${error.message}`);

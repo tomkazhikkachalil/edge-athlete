@@ -57,6 +57,7 @@ export const RATE_LIMITS = {
   'conversation-create': { max: 20, windowSeconds: 3600, keyBy: 'user' },
   'message-send': { max: 120, windowSeconds: 600, keyBy: 'user' },
   'message-report': { max: 10, windowSeconds: 3600, keyBy: 'user' },
+  'guardian-escalate': { max: 10, windowSeconds: 3600, keyBy: 'user' },
   'guardian-athlete-create': { max: 5, windowSeconds: 86400, keyBy: 'user' },
   'co-guardian-invite': { max: 10, windowSeconds: 86400, keyBy: 'user' },
   'credentials-set': { max: 10, windowSeconds: 3600, keyBy: 'user' },

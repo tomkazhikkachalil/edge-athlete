@@ -32,6 +32,7 @@ import type { ConsentState } from '@/lib/consent';
 
 const EditProfileTabs = dynamic(() => import('@/components/EditProfileTabs'), { ssr: false });
 const BlockedUsersList = dynamic(() => import('@/components/settings/BlockedUsersList'), { ssr: false });
+const ContactsSection = dynamic(() => import('@/components/guardian/ContactsSection'), { ssr: false });
 
 interface GuardianRow {
   user_id: string;
@@ -177,6 +178,14 @@ export default function GuardianAthletePage() {
   const [loadError, setLoadError] = useState(false);
   const [retryKey, setRetryKey] = useState(0);
   const [saving, setSaving] = useState(false);
+  // ?contact= highlight for the escalation deep-link (Wave 3). Mount-only
+  // window.location read — the feed ?create precedent, no Suspense wrap.
+  const [highlightContactId, setHighlightContactId] = useState<string | null>(null);
+  useEffect(() => {
+    const id = new URLSearchParams(window.location.search).get('contact');
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (id) setHighlightContactId(id);
+  }, []);
   // Danger zone (consent withdrawal = permanent deletion) — inline typed
   // confirm; this page used to send guardians to the credentials screen.
   const [deleteOpen, setDeleteOpen] = useState(false);
@@ -1011,6 +1020,14 @@ export default function GuardianAthletePage() {
                     </ul>
                   )}
                 </section>
+
+                {/* Contacts roster (Wave 3): who they talk to — before the
+                    block list, so the narrative reads "who → who's blocked". */}
+                <ContactsSection
+                  profileId={athlete.id}
+                  subjectName={athlete.first_name || 'this athlete'}
+                  highlightId={highlightContactId}
+                />
 
                 {/* Blocked users (Round I): per-contact protection */}
                 <section className="bg-surface border border-border rounded-lg p-5 mb-4">
