@@ -34,7 +34,7 @@ export async function GET(request: NextRequest) {
     const admin = getSupabaseAdmin();
     const { data, error } = await admin
       .from('profile_access')
-      .select('granted_at, profiles!profile_access_profile_id_fkey(id, first_name, last_name, display_name, handle, avatar_url, dob, jurisdiction, supervision_state, visibility, messaging_permission, comment_moderation, deletion_requested_at)')
+      .select('granted_at, profiles!profile_access_profile_id_fkey(id, first_name, last_name, display_name, handle, avatar_url, dob, jurisdiction, sport, supervision_state, visibility, messaging_permission, comment_moderation, deletion_requested_at)')
       .eq('user_id', user.id)
       .eq('role', 'guardian')
       .order('granted_at', { ascending: true });
@@ -101,11 +101,29 @@ export async function GET(request: NextRequest) {
       .maybeSingle();
     const policy = parseHouseholdPolicy(guardianRow?.household_policy);
 
+    // Payoff line (Wave 5): the cheapest per-sport season snapshot — ONE
+    // query per athlete via buildSportStatsCard, each failure degrading to
+    // null (the roster must never break on a stats hiccup). Deliberately
+    // NEVER buildSportSkillCards or the handicap computation here — those
+    // are multi-query surfaces with their own cached routes.
+    const { buildSportStatsCard } = await import('@/lib/sports/server');
+    const { resolveSportKey } = await import('@/lib/sports/resolve-sport-key');
+    const statsCards = await Promise.all(
+      athletes.map(a =>
+        buildSportStatsCard(
+          resolveSportKey((a as unknown as { sport: string | null }).sport),
+          a.id,
+          admin
+        ).catch(() => null)
+      )
+    );
+
     return NextResponse.json({
       policy,
-      athletes: athletes.map(a => ({
+      athletes: athletes.map((a, i) => ({
         ...a,
         ...summaries[a.id],
+        statsCard: statsCards[i],
         deviations: deviationFields(
           a as unknown as Parameters<typeof deviationFields>[0],
           policy

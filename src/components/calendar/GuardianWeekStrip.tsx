@@ -1,32 +1,23 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import { format } from 'date-fns';
 import { FEATURE_FLAGS } from '@/lib/features';
 import { weekDays, localDayKey, eventOverlapsDay } from '@/lib/calendar/grid';
 import { findConflicts, conflictDayKeys, type ConflictEvent } from '@/lib/calendar/conflicts';
-import type { EventListItem } from './types';
+import type { FamilyEvent, FamilyWeekAthlete } from '@/lib/calendar/use-family-week';
 
 const CalendarSyncModal = dynamic(() => import('./CalendarSyncModal'), { ssr: false });
 
 // ── Family week strip (Wave 2) ───────────────────────────────────────────────
 // The console's merged calendar surface: every child's next seven days in one
 // place, with schedule conflicts flagged where a parent is double-booked as a
-// driver. Fetches per child (the events API is per-profile) via
-// Promise.allSettled — one child's failure never blanks the strip
-// (athlete-page informational-section doctrine). The sync button surfaces the
+// driver. PRESENTATIONAL since Wave 5 — the hub owns the fetch via
+// useFamilyWeek (a 14-day window shared with the roster payoff line; this
+// strip still renders only its 7 days). The sync button surfaces the
 // EXISTING household ICS feed, which already merges supervised children.
-
-interface StripAthlete {
-  id: string;
-  name: string;
-}
-
-/** Event tagged with the roster children it belongs to (deduped by id —
- *  siblings sharing an event is one commitment, not a conflict). */
-type StripEvent = EventListItem & { childIds: string[] };
 
 /** Static per-child dot classes — indexed by roster order, cycled. */
 const CHILD_DOTS = [
@@ -37,11 +28,19 @@ const CHILD_DOTS = [
   'bg-amber-500',
 ];
 
-export default function GuardianWeekStrip({ athletes }: { athletes: StripAthlete[] }) {
-  const [events, setEvents] = useState<StripEvent[]>([]);
-  const [loaded, setLoaded] = useState(false);
-  const [failed, setFailed] = useState(false);
-  const [refetchKey, setRefetchKey] = useState(0);
+export default function GuardianWeekStrip({
+  athletes,
+  events,
+  loaded,
+  failed,
+  onRetry,
+}: {
+  athletes: FamilyWeekAthlete[];
+  events: FamilyEvent[];
+  loaded: boolean;
+  failed: boolean;
+  onRetry: () => void;
+}) {
   const [selectedDay, setSelectedDay] = useState<string>(() => localDayKey(new Date()));
   const [syncOpen, setSyncOpen] = useState(false);
 
@@ -50,63 +49,6 @@ export default function GuardianWeekStrip({ athletes }: { athletes: StripAthlete
     () => new Map(athletes.map((a, i) => [a.id, i])),
     [athletes]
   );
-
-  useEffect(() => {
-    if (!FEATURE_FLAGS.FEATURE_CALENDAR || athletes.length === 0) return;
-    let cancelled = false;
-    (async () => {
-      try {
-        const from = new Date(days[0]);
-        from.setHours(0, 0, 0, 0);
-        const to = new Date(from.getTime() + 7 * 86_400_000);
-        const results = await Promise.allSettled(
-          athletes.map(async a => {
-            const res = await fetch(
-              `/api/calendar/events?from=${encodeURIComponent(from.toISOString())}&to=${encodeURIComponent(
-                to.toISOString()
-              )}&targetProfileId=${a.id}`
-            );
-            if (!res.ok) throw new Error(`status ${res.status}`);
-            const data = await res.json();
-            return { childId: a.id, events: (data.events ?? []) as EventListItem[] };
-          })
-        );
-        if (cancelled) return;
-        const merged = new Map<string, StripEvent>();
-        let anyOk = false;
-        for (const result of results) {
-          if (result.status !== 'fulfilled') continue;
-          anyOk = true;
-          for (const ev of result.value.events) {
-            // Real commitments only: the activity overlay has no my_status
-            // key at all (established filter), and cancelled events are
-            // history, not schedule.
-            if (ev.my_status === undefined || ev.status === 'cancelled') continue;
-            const existing = merged.get(ev.id);
-            if (existing) {
-              if (!existing.childIds.includes(result.value.childId)) {
-                existing.childIds.push(result.value.childId);
-              }
-            } else {
-              merged.set(ev.id, { ...ev, childIds: [result.value.childId] });
-            }
-          }
-        }
-        setEvents([...merged.values()]);
-        setFailed(!anyOk);
-        setLoaded(true);
-      } catch (e) {
-        if (cancelled) return;
-        console.error('[GUARDIAN WEEK] load failed:', e);
-        setFailed(true);
-        setLoaded(true);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-    // days is derived from mount time and stable; athletes identity drives refetch.
-  }, [athletes, days, refetchKey]);
 
   const conflicts = useMemo(
     () =>
@@ -166,7 +108,7 @@ export default function GuardianWeekStrip({ athletes }: { athletes: StripAthlete
             Couldn&apos;t load the family calendar.{' '}
             <button
               type="button"
-              onClick={() => { setFailed(false); setLoaded(false); setRefetchKey(k => k + 1); }}
+              onClick={onRetry}
               className="text-brand-fg hover:underline"
             >
               Retry

@@ -975,6 +975,37 @@ test('batch upload (Wave 5): multi-assign copies bytes per athlete; confirmed ev
   }
 });
 
+test('payoff line (Wave 5): a seeded future event surfaces as Next: on the roster card; actions survive an empty snapshot', async ({ page }) => {
+  test.skip(!flagOn, 'guardian flag off');
+  const api = await apiAs('state.json');
+  try {
+    // Tomorrow, well inside the 14-day family-week window.
+    const start = new Date(Date.now() + 86_400_000);
+    const seeded = await api.post('/api/calendar/events', {
+      data: {
+        title: `QA payoff event ${stamp}`,
+        starts_at: start.toISOString(),
+        ends_at: new Date(start.getTime() + 3_600_000).toISOString(),
+        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+        guests: { profile_ids: [childId] },
+      },
+    });
+    test.skip(seeded.status() === 404, 'calendar flag off in this environment');
+    expect(seeded.ok(), await readErrorBody(seeded)).toBe(true);
+
+    await page.goto('/app/guardian');
+    const main = page.locator('main');
+    // The payoff line is the only 'Next:' on the hub; the child has no sport,
+    // so the line renders event-only (a null statsCard must never blank it).
+    await expect(main.getByText('Next:').first()).toBeVisible({ timeout: 15_000 });
+    await expect(main.getByText(`QA payoff event ${stamp}`).first()).toBeVisible();
+    // Card actions render regardless of snapshot content.
+    await expect(main.getByRole('link', { name: 'View profile' }).first()).toBeVisible();
+  } finally {
+    await api.dispose();
+  }
+});
+
 // afterAll, not a test: serial mode skips remaining TESTS after a failure,
 // which would orphan the child's @minors.invalid shadow user. Hooks run
 // regardless.
