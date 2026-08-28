@@ -859,6 +859,16 @@ export default function FeedPage() {
             setDeepLinkPostId(null);
             window.history.replaceState(null, '', '/feed');
           }}
+          // Same silent-no-op class for the pencil (Wave 2): the send-back
+          // notification deep-links here, and "Edit and resend" IS the edit
+          // modal — without onEdit the banner CTA vanished and the pencil
+          // no-opped. Close the detail modal first so EditPostModal isn't
+          // stacked under its z-[60] overlay.
+          onEdit={(postId) => {
+            setDeepLinkPostId(null);
+            window.history.replaceState(null, '', '/feed');
+            handleEdit(postId);
+          }}
         />
       )}
 

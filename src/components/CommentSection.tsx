@@ -610,6 +610,14 @@ export default function CommentSection({
             )}
           </div>
 
+          {/* Guardian send-back note (129) — its own wrapping line; only the
+              author ever receives changes_requested rows. */}
+          {comment.status === 'changes_requested' && comment.review_note && (
+            <p className="mt-1 px-3 text-xs text-amber-700 dark:text-amber-300 whitespace-pre-wrap break-words">
+              Your guardian: “{comment.review_note}”
+            </p>
+          )}
+
           {/* Action bar */}
           <div className="mt-1 px-3 flex items-center gap-3 text-xs text-muted">
             <span>{formatTimeAgo(comment.created_at)}</span>
@@ -628,13 +636,14 @@ export default function CommentSection({
                 Not approved
               </span>
             )}
-            {/* Send-back (129): author-only by construction, same as above. */}
+            {/* Send-back (129): author-only by construction, same as above.
+                The note itself renders on its own line above this bar — a
+                truncated span in this non-wrapping row collapsed to zero
+                width at 375px (phone-parity catch). */}
             {comment.status === 'changes_requested' && (
-              <span className="inline-flex items-center gap-1 text-amber-600 dark:text-amber-400 min-w-0">
+              <span className="inline-flex items-center gap-1 text-amber-600 dark:text-amber-400 shrink-0">
                 <i className="fas fa-rotate-left" aria-hidden="true"></i>
-                <span className="truncate">
-                  Sent back by your guardian{comment.review_note ? `: “${comment.review_note}”` : ''}
-                </span>
+                Sent back
                 {user?.id === comment.profile_id && sendBackEdit?.id !== comment.id && (
                   <button
                     type="button"
