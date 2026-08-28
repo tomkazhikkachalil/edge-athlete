@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/lib/auth';
@@ -17,6 +18,8 @@ import { loadDraft, saveDraft } from '@/components/chat-dock/drafts';
 import type { Message, Conversation, AggregatedReaction } from '@/types/messages';
 import { FEATURE_FLAGS } from '@/lib/features';
 import { requestDockConversation } from '@/lib/chat-dock-open';
+import { useToast } from '@/components/Toast';
+import ConfirmModal from '@/components/ConfirmModal';
 
 interface Props {
   conversationId: string;
@@ -24,7 +27,7 @@ interface Props {
 }
 
 export default function ChatWindow({ conversationId, onBack }: Props) {
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const router = useRouter();
   const { markConversationRead, addOptimisticMessage, removeConversation } = useMessages();
 
@@ -576,6 +579,29 @@ export default function ChatWindow({ conversationId, onBack }: Props) {
   // hasn't approved this conversation yet. Sender may keep writing.
   const otherHeld = Boolean(otherParticipant?.held_at);
 
+  // "Show this to my guardian" (Wave 3): the child's escalation lever —
+  // sends a conversation REF to the guardians, never content. Render only
+  // for supervised viewers; the server 403 is the backstop.
+  const viewerSupervised = profile?.supervision_state === 'supervised';
+  const [showEscalateConfirm, setShowEscalateConfirm] = useState(false);
+  const [escalating, setEscalating] = useState(false);
+  const { showSuccess, showError } = useToast();
+  const handleEscalate = async () => {
+    if (escalating) return;
+    setEscalating(true);
+    try {
+      const res = await fetch(`/api/messages/${conversationId}/escalate`, { method: 'POST' });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'Could not notify your guardian');
+      setShowEscalateConfirm(false);
+      showSuccess('Your guardian was notified', 'Nothing from this chat was shared.');
+    } catch (e) {
+      showError('Could not notify your guardian', e instanceof Error ? e.message : undefined);
+    } finally {
+      setEscalating(false);
+    }
+  };
+
   // Determine if sender name should be shown for each message
   // Show sender name in group chats for consecutive messages from different senders
   const shouldShowSender = (msg: Message, index: number): boolean => {
@@ -746,6 +772,16 @@ export default function ChatWindow({ conversationId, onBack }: Props) {
                   Leave Conversation
                 </button>
 
+                {viewerSupervised && (
+                  <button
+                    onClick={() => { setShowMenu(false); setShowEscalateConfirm(true); }}
+                    className="w-full text-left px-4 py-2.5 text-sm text-brand-fg-strong hover:bg-brand-soft flex items-center gap-3"
+                  >
+                    <i className="fas fa-shield-halved w-4 text-center"></i>
+                    Show this to my guardian
+                  </button>
+                )}
+
                 {isDM && (
                   <button
                     onClick={handleBlock}
@@ -876,6 +912,24 @@ export default function ChatWindow({ conversationId, onBack }: Props) {
           onClose={() => setGifReactingMessageId(null)}
         />
       )}
+
+      {/* Escalation confirm — portaled (messages surfaces are scroll/stacking
+          traps; the MessageBubble delete-confirm precedent), ConfirmModal not
+          the legacy native confirm(). */}
+      {showEscalateConfirm &&
+        createPortal(
+          <ConfirmModal
+            isOpen
+            title="Show this to my guardian?"
+            message="Your guardian gets a note that you want them to look at this conversation. They'll see who it's with — never what was said."
+            confirmText={escalating ? 'Sending…' : 'Notify my guardian'}
+            confirmButtonClass="bg-brand hover:bg-brand-hover"
+            cancelText="Cancel"
+            onConfirm={() => void handleEscalate()}
+            onCancel={() => setShowEscalateConfirm(false)}
+          />,
+          document.body
+        )}
     </div>
   );
 }

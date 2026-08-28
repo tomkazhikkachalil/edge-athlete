@@ -525,6 +525,72 @@ test('first-contact hold (131): tiers first → hold → invisible to child → 
   }
 });
 
+test('contact roster + escalation: metadata-only rows; child escalates a thread to the guardian bell', async ({ page }) => {
+  test.skip(!flagOn, 'guardian flag off');
+  const api = await apiAs('state.json');
+  const apiB = await apiAs('state-b.json');
+  const child = await request.newContext({ baseURL: E2E_BASE_URL });
+  try {
+    // Fixture state from the hold test: user-b's retry left a HELD thread.
+    // Approve it so the child can see (and escalate) the conversation.
+    const userB = loadQaUser('user-b.json');
+    const approve = await api.post(`/api/guardian/athletes/${childId}/contacts`, {
+      data: { contactProfileId: userB.id, decision: 'approve' },
+    });
+    expect(approve.ok(), await readErrorBody(approve)).toBe(true);
+
+    // Roster: one row for user-b, approved, metadata ONLY — the payload must
+    // carry no message content anywhere.
+    const roster = await api.get(`/api/guardian/athletes/${childId}/contacts`);
+    expect(roster.ok(), await readErrorBody(roster)).toBe(true);
+    const { contacts } = await roster.json();
+    const row = contacts.find((c: { profileId: string }) => c.profileId === userB.id);
+    expect(row, 'user-b appears on the roster').toBeTruthy();
+    expect(row.state).toBe('approved');
+    expect(['few', 'regular', 'frequent']).toContain(row.volumeBand);
+    expect(JSON.stringify(contacts)).not.toContain('qa held hello');
+
+    // Non-guardian access is refused.
+    const stranger = await apiB.get(`/api/guardian/athletes/${childId}/contacts`);
+    expect(stranger.status()).toBe(403);
+
+    // Child escalates the (now visible) conversation.
+    const login = await child.post('/api/auth/username-login', {
+      data: { username: HANDLE, secret: PIN },
+    });
+    expect(login.ok(), await readErrorBody(login)).toBe(true);
+    const childList = await child.get('/api/messages');
+    const conv = ((await childList.json()).conversations ?? []).find(
+      (c: { type: string }) => c.type === 'direct'
+    );
+    expect(conv, 'the approved conversation is visible to the child').toBeTruthy();
+    const escalate = await child.post(`/api/messages/${conv.id}/escalate`);
+    expect(escalate.ok(), await readErrorBody(escalate)).toBe(true);
+
+    // Adults can't use the child's lever.
+    const adultEscalate = await apiB.post(`/api/messages/${conv.id}/escalate`);
+    expect(adultEscalate.status()).toBe(403);
+
+    // The guardian bell carries the escalation with the ?contact= deep link.
+    const bell = await api.get('/api/notifications');
+    const alert = ((await bell.json()).notifications ?? []).find(
+      (n: { type?: string; title?: string }) =>
+        n.type === 'safety_alert' && (n.title ?? '').includes('wants you to see a conversation')
+    );
+    expect(alert, 'escalation safety_alert reaches the guardian').toBeTruthy();
+    expect(alert.action_url).toContain(`/app/guardian/athlete/${childId}?contact=`);
+
+    // The deep link lands on a highlighted roster row.
+    await page.goto(alert.action_url);
+    await expect(page.getByRole('heading', { name: 'Contacts' })).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByText('never what was said')).toBeVisible();
+  } finally {
+    await child.dispose();
+    await apiB.dispose();
+    await api.dispose();
+  }
+});
+
 // afterAll, not a test: serial mode skips remaining TESTS after a failure,
 // which would orphan the child's @minors.invalid shadow user. Hooks run
 // regardless.
