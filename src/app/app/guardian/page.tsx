@@ -351,6 +351,12 @@ export default function FamilyConsolePage() {
               Add athlete
             </Link>
             <Link
+              href="/app/guardian/upload"
+              className="px-3 py-2 min-h-[44px] inline-flex items-center border border-border-strong rounded-lg text-sm font-semibold text-secondary hover:bg-surface-muted transition-colors"
+            >
+              Upload
+            </Link>
+            <Link
               href="/app/guardian/approvals"
               className="px-3 py-2 min-h-[44px] inline-flex items-center border border-border-strong rounded-lg text-sm font-semibold text-secondary hover:bg-surface-muted transition-colors"
             >

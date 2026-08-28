@@ -834,6 +834,159 @@ test('household blocks: one action covers guardian + athletes; unblock clears bo
   }
 });
 
+test('batch upload (Wave 5): multi-assign copies bytes per athlete; confirmed event suggestion stamps event_id', async ({ page }) => {
+  test.skip(!flagOn, 'guardian flag off');
+  test.setTimeout(120_000); // editor pass + sequential uploads + two posts
+  const api = await apiAs('state.json');
+  const guardian = loadQaUser('user.json');
+  const { requireEnv } = await import('./helpers/qa-user');
+  const { url, serviceKey } = requireEnv();
+  const sibHandle = `eaqa_sib_${stamp}`; // ≤20 chars (handle cap)
+  let sibId = '';
+  try {
+    // The guardian-athlete-create bucket (5/day) is SHARED with the Wave-4
+    // household routes (apply-to-all, blocks), so by this point in the
+    // serial run the flag probe + two creates + apply + block/unblock have
+    // spent it. Clear the QA guardian's bucket (service REST truth — a
+    // test-sequencing artifact, never a reason to loosen the prod limit).
+    await fetch(
+      `${url}/rest/v1/rate_limits?key=eq.${encodeURIComponent(
+        `guardian-athlete-create:${guardian.id}`
+      )}`,
+      { method: 'DELETE', headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}` } }
+    );
+
+    // Second athlete — multi-assign needs a household of two.
+    const dob = new Date(Date.UTC(new Date().getUTCFullYear() - 10, 5, 15))
+      .toISOString().split('T')[0];
+    const created = await api.post('/api/guardian/athletes', {
+      data: { first_name: 'Sibling', last_name: 'Console', dob, handle: sibHandle },
+    });
+    expect(created.status(), await readErrorBody(created)).toBe(201);
+    sibId = (await created.json()).profileId;
+
+    // Acting-as PUBLISHING requires APPROVED consent (the resolver matrix) —
+    // approve both children via the append-only ledger (service REST truth;
+    // latest action wins, so this supersedes the earlier typed-signature
+    // submission without touching its row).
+    const consent = await fetch(`${url}/rest/v1/consent_records`, {
+      method: 'POST',
+      headers: {
+        apikey: serviceKey,
+        Authorization: `Bearer ${serviceKey}`,
+        'Content-Type': 'application/json',
+        Prefer: 'return=minimal',
+      },
+      body: JSON.stringify(
+        [childId, sibId].map(profileId => ({
+          profile_id: profileId,
+          subject_dob_year: new Date().getUTCFullYear() - 10,
+          guardian_user_id: guardian.id,
+          guardian_email_snapshot: guardian.email,
+          method: 'signed_form',
+          action: 'review_approved',
+          policy_version: 'qa-e2e',
+          jurisdiction: 'US',
+          threshold_age: 13,
+        }))
+      ),
+    });
+    expect(consent.ok, `consent seed ${consent.status}`).toBe(true);
+
+    // An event around NOW for child A only — buffer-payload setInputFiles
+    // stamps File.lastModified ≈ now, so containment matches this and
+    // nothing else (the earlier tests' events sit days out).
+    const evStart = new Date(Date.now() - 30 * 60_000);
+    const seeded = await api.post('/api/calendar/events', {
+      data: {
+        title: `QA batch event ${stamp}`,
+        starts_at: evStart.toISOString(),
+        ends_at: new Date(evStart.getTime() + 3_600_000).toISOString(),
+        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+        guests: { profile_ids: [childId] },
+      },
+    });
+    const calendarOn = seeded.status() !== 404;
+    const seededEventId = calendarOn ? (await seeded.json()).event?.id : null;
+    if (calendarOn) expect(seededEventId, 'seeded event id').toBeTruthy();
+
+    await page.goto('/app/guardian/upload');
+    const main = page.locator('main');
+    await expect(main.getByRole('heading', { name: 'Family upload' })).toBeVisible({ timeout: 15_000 });
+
+    // Buffer payload (NOT a path): a path would carry the fixture's on-disk
+    // mtime and never match the seeded event window.
+    const fs = await import('fs');
+    const path = await import('path');
+    const buffer = fs.readFileSync(path.join(__dirname, 'fixtures', 'photo.png'));
+    await page
+      .locator('input[type="file"][multiple]')
+      .setInputFiles({ name: 'photo.png', mimeType: 'image/png', buffer });
+
+    // Every pick goes through the shared editor — Done accepts as-is.
+    await page.getByRole('button', { name: 'Done', exact: true }).click();
+
+    // Assign BOTH athletes on the one item (44px pills).
+    await main.getByRole('button', { name: 'Junior Console', exact: true }).click();
+    await main.getByRole('button', { name: 'Sibling Console', exact: true }).click();
+
+    if (calendarOn) {
+      // The suggestion is an OFFER — nothing attaches until the tap.
+      await expect(main.getByText(`QA batch event ${stamp}`).first()).toBeVisible({ timeout: 15_000 });
+      await main.getByRole('button', { name: 'Attach', exact: true }).click();
+    }
+
+    await main.getByLabel(/Caption/).fill(`qa batch ${stamp}`);
+    await expect(main.getByText('Will create 2 posts across 2 athletes.')).toBeVisible();
+    await main.getByRole('button', { name: 'Post the batch' }).click();
+    await expect(main.getByRole('heading', { name: 'Batch posted' })).toBeVisible({ timeout: 60_000 });
+    await expect(
+      main.getByText(calendarOn ? '2 posts created, 1 attached to a calendar event.' : '2 posts created.')
+    ).toBeVisible();
+
+    // Service REST truth (children are private — the list GET hides them
+    // from a non-following viewer): one post per child, each child's media
+    // under their OWN storage prefix (the copy endpoint, not a shared
+    // object), guardian attributed, event stamped on child A only.
+    const restHeaders = { apikey: serviceKey, Authorization: `Bearer ${serviceKey}` };
+    const fetchPost = async (profileId: string) =>
+      (await (
+        await fetch(
+          `${url}/rest/v1/posts?profile_id=eq.${profileId}&caption=eq.${encodeURIComponent(
+            `qa batch ${stamp}`
+          )}&select=id,event_id,created_by_user_id,post_media(media_url)`,
+          { headers: restHeaders }
+        )
+      ).json()) as Array<{
+        id: string;
+        event_id: string | null;
+        created_by_user_id: string | null;
+        post_media: Array<{ media_url: string }>;
+      }>;
+
+    const postsA = await fetchPost(childId);
+    const postsB = await fetchPost(sibId);
+    expect(postsA.length).toBe(1);
+    expect(postsB.length).toBe(1);
+    expect(postsA[0].created_by_user_id).toBe(guardian.id);
+    expect(postsB[0].created_by_user_id).toBe(guardian.id);
+    expect(postsA[0].post_media[0]?.media_url).toContain(`/posts/${childId}/`);
+    expect(postsB[0].post_media[0]?.media_url).toContain(`/posts/${sibId}/`);
+    expect(postsA[0].post_media[0]?.media_url).not.toBe(postsB[0].post_media[0]?.media_url);
+    if (calendarOn) {
+      expect(postsA[0].event_id).toBe(seededEventId);
+    }
+    expect(postsB[0].event_id).toBeNull();
+  } finally {
+    if (sibId) {
+      await api.delete(`/api/guardian/athletes/${sibId}`, {
+        data: { confirmHandle: sibHandle },
+      }).catch(() => {});
+    }
+    await api.dispose();
+  }
+});
+
 // afterAll, not a test: serial mode skips remaining TESTS after a failure,
 // which would orphan the child's @minors.invalid shadow user. Hooks run
 // regardless.
