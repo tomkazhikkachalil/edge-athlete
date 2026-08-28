@@ -15,6 +15,7 @@ import {
   consentChip,
   loginChip,
   messagingChip,
+  policyChip,
   visibilityChip,
   type Chip,
 } from '@/lib/guardian-rollup';
@@ -51,6 +52,8 @@ interface ConsoleAthlete {
   // Soft-delete park stamp (migration 128) — parked athletes render in the
   // restore section instead of the roster cards.
   deletion_requested_at: string | null;
+  /** Fields differing from the guardian's household defaults (Wave 4). */
+  deviations?: string[];
 }
 
 const CHIP_TONES = {
@@ -574,6 +577,10 @@ export default function FamilyConsolePage() {
                           <ChipPill chip={loginChip(a.hasLogin)} />
                           <ChipPill chip={visibilityChip(a.visibility)} />
                           <ChipPill chip={messagingChip(a.messaging_permission)} />
+                          {(() => {
+                            const chip = policyChip(a.deviations?.length ?? 0);
+                            return chip ? <ChipPill chip={chip} /> : null;
+                          })()}
                           {a.activeTransfer && (
                             <ChipPill chip={transferStateChip(a.activeTransfer.state as Parameters<typeof transferStateChip>[0])} />
                           )}

@@ -172,6 +172,13 @@ export function visibilityChip(visibility: string | null | undefined): Chip {
     : { label: 'Private', tone: 'gray' };
 }
 
+/** "Differs from household defaults" (Wave 4). GRAY deliberately — the
+ *  standing line is visibility + veto, not must-act; amber is reserved for
+ *  items that need the guardian. Null when nothing deviates. */
+export function policyChip(deviationCount: number): Chip | null {
+  return deviationCount > 0 ? { label: 'Differs from household', tone: 'gray' } : null;
+}
+
 /** Who may message the athlete (Round D — the one safety control the console
  *  card didn't surface). Values mirror MESSAGING_OPTIONS in profile-privacy.
  *  'everyone' is the only state a guardian should glance twice at → amber;

@@ -3,7 +3,6 @@ import * as Sentry from '@sentry/nextjs';
 import { requireAuth, getSupabaseAdmin, getProfileRole, requireProfileRole } from '@/lib/auth-server';
 import { FEATURE_FLAGS } from '@/lib/features';
 import { parkAccount, PARK_WINDOW_DAYS } from '@/lib/account-park';
-import { getConsentState } from '@/lib/consent';
 import { getClientIp } from '@/lib/rate-limit';
 import {
   COMMENT_MODERATION_VALUES,
@@ -65,53 +64,25 @@ export async function PATCH(
       return NextResponse.json({ error: 'Nothing to update' }, { status: 400 });
     }
 
+    // Shared semantics (Wave 4): applySafetyPatch is the one code path that
+    // changes a child's posture — this route, apply-to-all, and the
+    // age-preset decision all use it. Reason→response mapping keeps this
+    // route's contract byte-identical to pre-extraction.
     const admin = getSupabaseAdmin();
-    const { data: child } = await admin
-      .from('profiles')
-      .select('supervision_state, visibility, messaging_permission, comment_moderation')
-      .eq('id', profileId)
-      .maybeSingle();
-    if (!child || child.supervision_state !== 'supervised') {
-      return NextResponse.json({
-        error: 'Only supervised athlete profiles can be managed here. Transferred accounts belong to their owner.'
-      }, { status: 409 });
-    }
-
-    // Going public requires approved consent — same promise the publish gate
-    // enforces (posts/route.ts): nothing is visible until consent approves.
-    if (update.visibility === 'public') {
-      const consent = await getConsentState(admin, profileId);
-      if (consent !== 'approved') {
+    const { applySafetyPatch } = await import('@/lib/safety-settings');
+    const result = await applySafetyPatch(admin, actor.id, profileId, update);
+    if (!result.ok) {
+      if (result.reason === 'not_supervised') {
+        return NextResponse.json({
+          error: 'Only supervised athlete profiles can be managed here. Transferred accounts belong to their owner.'
+        }, { status: 409 });
+      }
+      if (result.reason === 'consent_required') {
         return NextResponse.json({
           error: 'Complete the consent review before making this profile public.'
         }, { status: 403 });
       }
-    }
-
-    const { error: updateError } = await admin
-      .from('profiles')
-      .update({ ...update, updated_at: new Date().toISOString() })
-      .eq('id', profileId);
-    if (updateError) {
-      console.error('[GUARDIAN] safety update failed:', updateError);
       return NextResponse.json({ error: 'Could not save the change. Please try again.' }, { status: 500 });
-    }
-
-    // Audit trail (091): who changed the safety posture, old → new. One row
-    // per changed field; best-effort (a missing table pre-091, or any insert
-    // failure, must never fail the change itself).
-    const auditRows = Object.entries(update)
-      .filter(([field, value]) => (child as Record<string, unknown>)[field] !== value)
-      .map(([field, value]) => ({
-        profile_id: profileId,
-        actor_id: actor.id,
-        field,
-        old_value: ((child as Record<string, unknown>)[field] as string | null) ?? null,
-        new_value: value,
-      }));
-    if (auditRows.length > 0) {
-      const { error: auditError } = await admin.from('safety_settings_audit').insert(auditRows);
-      if (auditError) console.error('[GUARDIAN] safety audit insert failed:', auditError);
     }
 
     return NextResponse.json({ ok: true });
@@ -226,7 +197,7 @@ export async function DELETE(
     // restore action on the family console; the daily cron hard-deletes
     // after it. The withdrawn consent row above still records the decision;
     // a restore writes a fresh 'granted' row back through admin review.
-    await parkAccount(admin, profileId);
+    await parkAccount(admin, profileId, user.id);
     return NextResponse.json({ ok: true, parkWindowDays: PARK_WINDOW_DAYS });
   } catch (error) {
     if (error instanceof Response) return error;

@@ -135,7 +135,7 @@ export async function DELETE(request: NextRequest) {
     // deletion is the single most catastrophic irreversible action in the
     // product and it used to sit one panicked evening away.
     try {
-      await parkAccount(supabaseAdmin, userId);
+      await parkAccount(supabaseAdmin, userId, userId);
     } catch (dbError) {
       console.error('[Account Deletion] park error:', dbError);
       return NextResponse.json({ error: 'Failed to delete account data' }, { status: 500 });

@@ -34,7 +34,7 @@ export async function GET(request: NextRequest) {
     const admin = getSupabaseAdmin();
     const { data, error } = await admin
       .from('profile_access')
-      .select('granted_at, profiles!profile_access_profile_id_fkey(id, first_name, last_name, display_name, handle, avatar_url, dob, supervision_state, visibility, messaging_permission, comment_moderation, deletion_requested_at)')
+      .select('granted_at, profiles!profile_access_profile_id_fkey(id, first_name, last_name, display_name, handle, avatar_url, dob, jurisdiction, supervision_state, visibility, messaging_permission, comment_moderation, deletion_requested_at)')
       .eq('user_id', user.id)
       .eq('role', 'guardian')
       .order('granted_at', { ascending: true });
@@ -90,8 +90,27 @@ export async function GET(request: NextRequest) {
       pendingCommentQ.data ?? [],
       followReqQ.data ?? []
     );
+
+    // Household policy (Wave 4): one constant query — the roster already
+    // carries the three safety fields, so deviations are a pure comparison.
+    const { parseHouseholdPolicy, deviationFields } = await import('@/lib/household-policy');
+    const { data: guardianRow } = await admin
+      .from('profiles')
+      .select('household_policy')
+      .eq('id', user.id)
+      .maybeSingle();
+    const policy = parseHouseholdPolicy(guardianRow?.household_policy);
+
     return NextResponse.json({
-      athletes: athletes.map(a => ({ ...a, ...summaries[a.id] })),
+      policy,
+      athletes: athletes.map(a => ({
+        ...a,
+        ...summaries[a.id],
+        deviations: deviationFields(
+          a as unknown as Parameters<typeof deviationFields>[0],
+          policy
+        ),
+      })),
     });
   } catch (error) {
     if (error instanceof Response) return error;
