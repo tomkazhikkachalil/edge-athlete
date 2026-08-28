@@ -20,12 +20,35 @@ export function parkPurgeDate(parkedAtIso: string): Date {
   return new Date(new Date(parkedAtIso).getTime() + PARK_WINDOW_DAYS * 86_400_000);
 }
 
-export async function parkAccount(admin: SupabaseClient, profileId: string): Promise<void> {
+export async function parkAccount(
+  admin: SupabaseClient,
+  profileId: string,
+  /** Audit attribution (Wave 4) — the acting user; null = system. */
+  actorId: string | null = null
+): Promise<void> {
+  const { data: before } = await admin
+    .from('profiles')
+    .select('visibility')
+    .eq('id', profileId)
+    .maybeSingle();
   const { error } = await admin
     .from('profiles')
     .update({ deletion_requested_at: new Date().toISOString(), visibility: 'private' })
     .eq('id', profileId);
   if (error) throw new Error(`park failed: ${error.message}`);
+  // The forced-private write is a safety change like any other — record it
+  // so the console's safety feed never shows a phantom flip (Wave 4; the
+  // field is in 091's CHECK — zero DDL). Best-effort, changed-only.
+  if (before && before.visibility !== 'private') {
+    const { error: auditError } = await admin.from('safety_settings_audit').insert({
+      profile_id: profileId,
+      actor_id: actorId,
+      field: 'visibility',
+      old_value: before.visibility ?? null,
+      new_value: 'private',
+    });
+    if (auditError) console.error('[account-park] audit insert failed:', auditError);
+  }
 }
 
 export async function restoreAccount(admin: SupabaseClient, profileId: string): Promise<void> {

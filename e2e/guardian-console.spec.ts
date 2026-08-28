@@ -641,6 +641,60 @@ test('household policy (132): defaults save on the settings page; a new athlete 
   }
 });
 
+test('apply-to-all + deviation + safety feed: chips appear, one confirm reverts, the audit feed names the actor', async ({ page }) => {
+  test.skip(!flagOn, 'guardian flag off');
+  const api = await apiAs('state.json');
+  try {
+    // Adopt a policy (fans_only messaging), then push the child OFF it.
+    const adopt = await api.patch('/api/guardian/household', {
+      data: { defaults: { messaging_permission: 'fans_only' } },
+    });
+    expect(adopt.ok(), await readErrorBody(adopt)).toBe(true);
+    const push = await api.patch(`/api/guardian/athletes/${childId}`, {
+      data: { messaging_permission: 'nobody' },
+    });
+    expect(push.ok(), await readErrorBody(push)).toBe(true);
+
+    // Deviation chips: hub roster + athlete-page per-field.
+    await page.goto('/app/guardian');
+    await expect(
+      page.locator('main').getByText('Differs from household').first()
+    ).toBeVisible({ timeout: 15_000 });
+    await page.goto(`/app/guardian/athlete/${childId}`);
+    await expect(page.getByText('Differs from household').first()).toBeVisible({ timeout: 15_000 });
+
+    // Apply-to-all: one confirm, then the child matches and chips clear.
+    await page.goto('/app/guardian/settings');
+    await expect(page.getByRole('heading', { name: 'Apply to your athletes' })).toBeVisible({ timeout: 15_000 });
+    await page.getByRole('button', { name: 'Apply to all athletes' }).click();
+    await expect(page.getByText('Apply household defaults to all athletes?')).toBeVisible();
+    await page.getByRole('button', { name: 'Apply to all' }).click();
+    await expect(page.getByText(/Updated 1 athlete|Already matching/).first()).toBeVisible({ timeout: 10_000 });
+
+    const roster = await api.get('/api/guardian/athletes');
+    const child = ((await roster.json()).athletes ?? []).find(
+      (a: { id: string }) => a.id === childId
+    );
+    expect(child.messaging_permission).toBe('fans_only');
+    expect(child.deviations).toEqual([]);
+
+    // The safety feed (first reader of 091) names the actor and the flip.
+    const audit = await api.get('/api/guardian/audit');
+    expect(audit.ok(), await readErrorBody(audit)).toBe(true);
+    const { events } = await audit.json();
+    const applied = events.find(
+      (e: { field: string; oldValue: string | null; newValue: string }) =>
+        e.field === 'messaging_permission' && e.oldValue === 'nobody' && e.newValue === 'fans_only'
+    );
+    expect(applied, 'apply-to-all change recorded in the feed').toBeTruthy();
+    expect(applied.actor?.name, 'actor attributed').toBeTruthy();
+    await expect(page.getByRole('heading', { name: 'Recent safety changes' })).toBeVisible();
+  } finally {
+    await api.patch('/api/guardian/household', { data: null }).catch(() => {});
+    await api.dispose();
+  }
+});
+
 // afterAll, not a test: serial mode skips remaining TESTS after a failure,
 // which would orphan the child's @minors.invalid shadow user. Hooks run
 // regardless.

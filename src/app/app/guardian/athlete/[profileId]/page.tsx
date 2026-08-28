@@ -13,6 +13,7 @@ import AppHeader from '@/components/AppHeader';
 import ConfirmModal from '@/components/ConfirmModal';
 import { FEATURE_FLAGS } from '@/lib/features';
 import RadioCard from '@/components/guardian/RadioCard';
+import { deviationFields, parseHouseholdPolicy, type HouseholdPolicy } from '@/lib/household-policy';
 import { formatDisplayName, getInitials, formatAge } from '@/lib/formatters';
 import { transferStateChip } from '@/lib/transfer-ui';
 import {
@@ -105,6 +106,7 @@ interface ConsoleAthlete {
   handle: string | null;
   avatar_url: string | null;
   dob: string | null;
+  jurisdiction: string | null;
   supervision_state: string | null;
   visibility: string | null;
   messaging_permission: string | null;
@@ -138,6 +140,9 @@ export default function GuardianAthletePage() {
   const { showSuccess, showError } = useToast();
   const [state, setState] = useState<'loading' | 'ready'>('loading');
   const [athlete, setAthlete] = useState<ConsoleAthlete | null>(null);
+  // Household policy (Wave 4) — deviations recompute from LIVE athlete state
+  // so the per-field chips track optimistic safety edits.
+  const [householdPolicy, setHouseholdPolicy] = useState<HouseholdPolicy | null>(null);
   // Round D: a failed roster fetch is an ERROR, not "not one of your
   // athletes" — the two used to collapse into the same screen.
   const [loadError, setLoadError] = useState(false);
@@ -296,6 +301,7 @@ export default function GuardianAthletePage() {
         if (cancelled) return;
         const found = (data.athletes ?? []).find((a: ConsoleAthlete) => a.id === profileId) ?? null;
         setAthlete(found);
+        setHouseholdPolicy(parseHouseholdPolicy(data.policy));
         setLoadError(false);
       } catch {
         if (!cancelled) { setAthlete(null); setLoadError(true); }
@@ -606,6 +612,19 @@ export default function GuardianAthletePage() {
     ? formatDisplayName(athlete.first_name, null, athlete.last_name, athlete.display_name)
     : '';
   const transferred = athlete?.supervision_state === 'self';
+  // Live deviation set (Wave 4): recomputed per render from current state.
+  const deviating: string[] = athlete
+    ? deviationFields(
+        {
+          visibility: athlete.visibility,
+          messaging_permission: athlete.messaging_permission,
+          comment_moderation: athlete.comment_moderation,
+          dob: athlete.dob,
+          jurisdiction: athlete.jurisdiction,
+        },
+        householdPolicy
+      )
+    : [];
 
   return (
     <div className="min-h-screen bg-canvas">
@@ -782,7 +801,14 @@ export default function GuardianAthletePage() {
                     How the outside world can reach {athlete.first_name || 'this athlete'}.
                     Changes apply immediately.
                   </p>
-                  <h3 className="text-sm font-semibold text-secondary mb-2">Profile visibility</h3>
+                  <div className="flex flex-wrap items-center gap-2 mb-2">
+                    <h3 className="text-sm font-semibold text-secondary">Profile visibility</h3>
+                    {deviating.includes('visibility') && (
+                      <span className="text-[11px] font-medium px-2 py-0.5 rounded-full bg-surface-sunken text-tertiary">
+                        Differs from household
+                      </span>
+                    )}
+                  </div>
                   <div className="space-y-2 mb-5">
                     {VISIBILITY_OPTIONS.map(option => (
                       <RadioCard
@@ -794,7 +820,14 @@ export default function GuardianAthletePage() {
                       />
                     ))}
                   </div>
-                  <h3 className="text-sm font-semibold text-secondary mb-2">Who can send messages</h3>
+                  <div className="flex flex-wrap items-center gap-2 mb-2">
+                    <h3 className="text-sm font-semibold text-secondary">Who can send messages</h3>
+                    {deviating.includes('messaging_permission') && (
+                      <span className="text-[11px] font-medium px-2 py-0.5 rounded-full bg-surface-sunken text-tertiary">
+                        Differs from household
+                      </span>
+                    )}
+                  </div>
                   <div className="space-y-2 mb-5">
                     {MESSAGING_OPTIONS.map(option => (
                       <RadioCard
@@ -806,7 +839,14 @@ export default function GuardianAthletePage() {
                       />
                     ))}
                   </div>
-                  <h3 className="text-sm font-semibold text-secondary mb-2">Comments they write</h3>
+                  <div className="flex flex-wrap items-center gap-2 mb-2">
+                    <h3 className="text-sm font-semibold text-secondary">Comments they write</h3>
+                    {deviating.includes('comment_moderation') && (
+                      <span className="text-[11px] font-medium px-2 py-0.5 rounded-full bg-surface-sunken text-tertiary">
+                        Differs from household
+                      </span>
+                    )}
+                  </div>
                   <div className="space-y-2">
                     {COMMENT_MODERATION_OPTIONS.map(option => (
                       <RadioCard

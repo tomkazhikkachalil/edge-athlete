@@ -6,7 +6,9 @@ import Link from 'next/link';
 import { useAuth } from '@/lib/auth';
 import AppHeader from '@/components/AppHeader';
 import RadioCard from '@/components/guardian/RadioCard';
+import ConfirmModal from '@/components/ConfirmModal';
 import { useToast } from '@/components/Toast';
+import { formatDisplayName } from '@/lib/formatters';
 import { FEATURE_FLAGS } from '@/lib/features';
 import {
   COMMENT_MODERATION_OPTIONS,
@@ -41,6 +43,34 @@ const FIELD_TITLES: Record<SafetyField, string> = {
   comment_moderation: 'Comments they write',
 };
 
+/** Human label for a stored value, for the safety feed. */
+function valueLabel(field: string, value: string | null): string {
+  if (value === null) return '—';
+  const options = FIELD_OPTIONS[field as SafetyField];
+  return options?.find(o => o.value === value)?.label ?? value;
+}
+
+interface RosterAthlete {
+  id: string;
+  first_name: string | null;
+  last_name: string | null;
+  display_name: string | null;
+  handle: string | null;
+  supervision_state: string | null;
+  deletion_requested_at: string | null;
+  deviations?: string[];
+}
+
+interface AuditEvent {
+  id: string;
+  createdAt: string;
+  field: string;
+  oldValue: string | null;
+  newValue: string;
+  athlete: { id: string; name: string; handle: string | null };
+  actor: { id: string; name: string } | null;
+}
+
 export default function HouseholdSettingsPage() {
   const router = useRouter();
   const { user, loading, initialAuthCheckComplete } = useAuth();
@@ -49,6 +79,69 @@ export default function HouseholdSettingsPage() {
   const [policy, setPolicy] = useState<HouseholdPolicy | null>(null);
   const [saving, setSaving] = useState(false);
   const [retryKey, setRetryKey] = useState(0);
+  const [athletes, setAthletes] = useState<RosterAthlete[]>([]);
+  const [events, setEvents] = useState<AuditEvent[]>([]);
+  const [confirmingApply, setConfirmingApply] = useState(false);
+  const [applying, setApplying] = useState(false);
+
+  // Informational sections — never break the page (athlete-page doctrine).
+  useEffect(() => {
+    if (!user) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const [rosterRes, auditRes] = await Promise.all([
+          fetch('/api/guardian/athletes'),
+          fetch('/api/guardian/audit'),
+        ]);
+        if (cancelled) return;
+        if (rosterRes.ok) {
+          const data = await rosterRes.json().catch(() => ({}));
+          setAthletes(
+            (data.athletes ?? []).filter(
+              (a: RosterAthlete) => a.supervision_state === 'supervised' && !a.deletion_requested_at
+            )
+          );
+        }
+        if (auditRes.ok) {
+          const data = await auditRes.json().catch(() => ({}));
+          setEvents(data.events ?? []);
+        }
+      } catch {
+        // informational only
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [user, retryKey, saving, applying]);
+
+  const applyToAll = async () => {
+    setApplying(true);
+    try {
+      const res = await fetch('/api/guardian/household/apply', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'Could not apply household defaults');
+      const results: Array<{ ok: boolean; changed?: string[]; skipped?: string[] }> = data.results ?? [];
+      const changedCount = results.filter(r => r.ok && (r.changed?.length ?? 0) > 0).length;
+      const skippedVisibility = results.some(r => r.ok && r.skipped?.includes('visibility'));
+      showSuccess(
+        changedCount > 0 ? `Updated ${changedCount} athlete${changedCount === 1 ? '' : 's'}` : 'Already matching',
+        skippedVisibility
+          ? 'Athletes without a completed consent review stay private.'
+          : 'Every change is recorded in the safety log.'
+      );
+      setConfirmingApply(false);
+    } catch (e) {
+      showError('Could not apply', e instanceof Error ? e.message : undefined);
+    } finally {
+      setApplying(false);
+    }
+  };
 
   useEffect(() => {
     if (!loading && initialAuthCheckComplete && !user) router.replace('/');
@@ -256,9 +349,97 @@ export default function HouseholdSettingsPage() {
                 </>
               )}
             </section>
+
+            {/* Apply-to-all (Wave 4 PR B): loops the per-athlete PATCH
+                semantics server-side — consent-pending athletes stay
+                private, every change lands in the safety log below. */}
+            {athletes.length > 0 && (
+              <section className="bg-surface border border-border rounded-lg p-5 mb-4">
+                <h2 className="text-base font-bold text-primary mb-1">Apply to your athletes</h2>
+                <p className="text-xs text-tertiary mb-3">
+                  {(() => {
+                    const differing = athletes.filter(a => (a.deviations?.length ?? 0) > 0).length;
+                    return differing > 0
+                      ? `${differing} of ${athletes.length} athlete${athletes.length === 1 ? '' : 's'} differ${differing === 1 ? 's' : ''} from these defaults.`
+                      : `All ${athletes.length} athlete${athletes.length === 1 ? '' : 's'} match your defaults.`;
+                  })()}
+                </p>
+                <button
+                  type="button"
+                  disabled={applying || policy === null}
+                  onClick={() => setConfirmingApply(true)}
+                  className="px-4 py-2 min-h-[44px] inline-flex items-center gap-2 bg-brand hover:bg-brand-hover text-white rounded-lg text-sm font-semibold transition-colors disabled:opacity-50"
+                >
+                  <i className="fas fa-wand-magic-sparkles text-xs"></i>
+                  Apply to all athletes
+                </button>
+                {policy === null && (
+                  <p className="text-xs text-muted mt-2">Adopt a default above first.</p>
+                )}
+              </section>
+            )}
+
+            {/* Recent safety changes — the household's accountability mirror
+                (the first reader of the append-only safety audit). */}
+            <section className="bg-surface border border-border rounded-lg p-5 mb-4">
+              <h2 className="text-base font-bold text-primary mb-1">Recent safety changes</h2>
+              <p className="text-xs text-tertiary mb-4">
+                Every change to your athletes&apos; safety settings — who changed
+                what, and what it was before.
+              </p>
+              {events.length === 0 ? (
+                <p className="text-sm text-muted">No safety changes recorded yet.</p>
+              ) : (
+                (() => {
+                  const grouped = new Map<string, AuditEvent[]>();
+                  for (const event of events) {
+                    const day = new Date(event.createdAt).toLocaleDateString(undefined, {
+                      weekday: 'long', month: 'long', day: 'numeric',
+                    });
+                    grouped.set(day, [...(grouped.get(day) ?? []), event]);
+                  }
+                  return [...grouped.entries()].map(([day, dayEvents]) => (
+                    <div key={day} className="mb-4 last:mb-0">
+                      <h3 className="text-xs font-semibold text-muted uppercase tracking-wider mb-2">{day}</h3>
+                      <ul className="divide-y divide-border">
+                        {dayEvents.map(event => (
+                          <li key={event.id} className="py-2 text-sm">
+                            <span className="text-primary font-medium">
+                              {event.actor?.name ?? 'A guardian'}
+                            </span>{' '}
+                            <span className="text-secondary">
+                              changed {event.athlete.name}&apos;s {FIELD_TITLES[event.field as SafetyField]?.toLowerCase() ?? event.field}
+                            </span>
+                            {/* Old → new on its OWN line (375px chip rule). */}
+                            <span className="block text-xs text-muted mt-0.5">
+                              {valueLabel(event.field, event.oldValue)} → {valueLabel(event.field, event.newValue)}
+                              {' · '}
+                              {new Date(event.createdAt).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  ));
+                })()
+              )}
+            </section>
           </>
         )}
       </main>
+
+      <ConfirmModal
+        isOpen={confirmingApply}
+        title="Apply household defaults to all athletes?"
+        message={`This will update safety settings for ${athletes
+          .map(a => formatDisplayName(a.first_name, null, a.last_name, a.display_name))
+          .join(', ')} to match your household defaults. Athletes without a completed consent review stay private. Every change is recorded in the safety log.`}
+        confirmText={applying ? 'Applying…' : 'Apply to all'}
+        confirmButtonClass="bg-brand hover:bg-brand-hover"
+        cancelText="Cancel"
+        onConfirm={() => void applyToAll()}
+        onCancel={() => setConfirmingApply(false)}
+      />
     </div>
   );
 }
