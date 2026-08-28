@@ -6,6 +6,45 @@ import { notifyCommentMentions } from '@/lib/mentions/notify';
 import { canViewProfile } from '@/lib/privacy';
 import { enforceRateLimit } from '@/lib/rate-limit';
 
+// Resolve @mentions SERVER-SIDE from the text (unforgeable — the client sends
+// nothing extra). Taggable by the author = public OR someone the author
+// follows (accepted, one-directional: canViewProfile semantics). The admin
+// client bypasses RLS, so this filter IS the privacy boundary. Shared by the
+// POST create path and the scoped send-back 'edit' action, which must
+// RE-resolve — the approve-time deferred fan-out reads the stored mentions,
+// and stale ones would notify people the edited text no longer names.
+async function resolveMentions(
+  admin: ReturnType<typeof getSupabaseAdmin>,
+  authorId: string,
+  content: string | null
+): Promise<{ id: string; handle: string }[]> {
+  if (!content) return [];
+  const handles = extractHandles(content);
+  if (handles.length === 0) return [];
+  const { data: profs } = await admin
+    .from('profiles')
+    .select('id, handle, visibility')
+    .in('handle', handles)
+    // The AUTHOR is the mentioner — acting-as makes that the athlete, so the
+    // taggable set is the athlete's follow graph (the comment is theirs).
+    .neq('id', authorId);
+  if (!profs || profs.length === 0) return [];
+  const privateIds = profs.filter(p => p.visibility !== 'public').map(p => p.id);
+  let followed = new Set<string>();
+  if (privateIds.length > 0) {
+    const { data: fRows } = await admin
+      .from('follows')
+      .select('following_id')
+      .eq('follower_id', authorId)
+      .eq('status', 'accepted')
+      .in('following_id', privateIds);
+    followed = new Set((fRows ?? []).map(r => r.following_id));
+  }
+  return profs
+    .filter(p => p.visibility === 'public' || followed.has(p.id))
+    .map(p => ({ id: p.id, handle: p.handle as string }));
+}
+
 // GET - Fetch comments for a post
 export async function GET(request: NextRequest) {
   try {
@@ -208,42 +247,10 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Resolve @mentions SERVER-SIDE from the text (unforgeable — the client
-    // sends nothing extra). Taggable by the author = public OR someone the
-    // author follows (accepted, one-directional: canViewProfile semantics).
-    // The admin client bypasses RLS, so this filter IS the privacy boundary.
+    // @mentions — shared resolver (see resolveMentions above).
     const trimmedContent: string | null = content?.trim() || null;
     const admin = getSupabaseAdmin();
-    let mentionProfiles: { id: string; handle: string }[] = [];
-    if (trimmedContent) {
-      const handles = extractHandles(trimmedContent);
-      if (handles.length > 0) {
-        const { data: profs } = await admin
-          .from('profiles')
-          .select('id, handle, visibility')
-          .in('handle', handles)
-          // The AUTHOR is the mentioner — acting-as makes that the athlete,
-          // so the taggable set is the athlete's follow graph (the comment
-          // is theirs).
-          .neq('id', authorId);
-        if (profs && profs.length > 0) {
-          const privateIds = profs.filter(p => p.visibility !== 'public').map(p => p.id);
-          let followed = new Set<string>();
-          if (privateIds.length > 0) {
-            const { data: fRows } = await admin
-              .from('follows')
-              .select('following_id')
-              .eq('follower_id', authorId)
-              .eq('status', 'accepted')
-              .in('following_id', privateIds);
-            followed = new Set((fRows ?? []).map(r => r.following_id));
-          }
-          mentionProfiles = profs
-            .filter(p => p.visibility === 'public' || followed.has(p.id))
-            .map(p => ({ id: p.id, handle: p.handle as string }));
-        }
-      }
-    }
+    const mentionProfiles = await resolveMentions(admin, authorId, trimmedContent);
 
     // Create comment. The acting-as branch writes via ADMIN: post_comments'
     // INSERT policy is auth.uid() = profile_id and the table isn't in 052's
@@ -479,16 +486,18 @@ export async function DELETE(request: NextRequest) {
   }
 }
 
-// PATCH - Pin/unpin a comment (post owner), or approve/reject a held
-// comment (guardian of the comment's author — 095 moderation queue)
+// PATCH - Pin/unpin a comment (post owner), approve/reject/request_changes on
+// a held comment (guardian of the comment's author — 095 moderation queue),
+// or the scoped 'edit' resubmit (the comment's author, only from
+// changes_requested — published comments stay immutable).
 export async function PATCH(request: NextRequest) {
   try {
     const body = await request.json();
     const { commentId, postId, action } = body;
 
-    if (!commentId || !postId || !['pin', 'unpin', 'approve', 'reject'].includes(action)) {
+    if (!commentId || !postId || !['pin', 'unpin', 'approve', 'reject', 'request_changes', 'edit'].includes(action)) {
       return NextResponse.json(
-        { error: "commentId, postId, and action (pin/unpin/approve/reject) are required" },
+        { error: "commentId, postId, and action (pin/unpin/approve/reject/request_changes/edit) are required" },
         { status: 400 }
       );
     }
@@ -503,16 +512,61 @@ export async function PATCH(request: NextRequest) {
     // ── Moderation-queue actions (guardian-profiles, 095) ────────────────────
     // Not flag-gated: the held pipeline runs unconditionally (Wave 1
     // inversion), so its release valve must too — role checks are the gate.
-    if (action === 'approve' || action === 'reject') {
+    if (action === 'approve' || action === 'reject' || action === 'request_changes' || action === 'edit') {
       const { data: heldComment } = await admin
         .from('post_comments')
-        .select('id, post_id, profile_id, status, content, mentions')
+        .select('id, post_id, profile_id, status, content, gif_url, mentions')
         .eq('id', commentId)
         .eq('post_id', postId)
         .maybeSingle();
       if (!heldComment) {
         return NextResponse.json({ error: 'Comment not found' }, { status: 404 });
       }
+
+      // Scoped edit = the send-back resubmit (Wave 2, mig 129). Author-only
+      // and ONLY from changes_requested: this is the child's "fix and resend"
+      // path, not a general comment editor — published words stay immutable.
+      if (action === 'edit') {
+        if (heldComment.profile_id !== user.id) {
+          return NextResponse.json({ error: 'Only the comment author can edit it' }, { status: 403 });
+        }
+        if (heldComment.status !== 'changes_requested') {
+          return NextResponse.json({ error: 'Only sent-back comments can be edited' }, { status: 400 });
+        }
+        const newContent = typeof body.content === 'string' ? body.content.trim() : '';
+        if (!newContent && !heldComment.gif_url) {
+          return NextResponse.json({ error: 'Write something before resending.' }, { status: 400 });
+        }
+        // Re-resolve mentions from the NEW text — the approve-time deferred
+        // fan-out reads the stored list, and stale entries would notify
+        // people the edit no longer names.
+        const mentionProfiles = await resolveMentions(admin, heldComment.profile_id, newContent || null);
+        const { error: editError } = await admin
+          .from('post_comments')
+          .update({
+            content: newContent || null,
+            mentions: mentionProfiles.map(m => m.id),
+            status: 'pending_approval',
+            review_note: null,
+          })
+          .eq('id', commentId);
+        if (editError) {
+          return NextResponse.json({ error: 'Failed to update comment' }, { status: 500 });
+        }
+        {
+          const { notifyGuardians, profileFirstName } = await import('@/lib/guardian-notify');
+          const childName = await profileFirstName(admin, heldComment.profile_id);
+          await notifyGuardians(admin, heldComment.profile_id, {
+            type: 'comment_pending_approval',
+            title: `${childName} edited a comment for your review`,
+            actionUrl: '/app/guardian/approvals',
+            actorId: user.id,
+            metadata: { comment_id: commentId, post_id: heldComment.post_id, resubmitted: true },
+          }, user.id);
+        }
+        return NextResponse.json({ ok: true, status: 'pending_approval' });
+      }
+
       const { getProfileRole } = await import('@/lib/auth-server');
       const { resolveProfileAction } = await import('@/lib/profile-roles');
       const role = await getProfileRole(user.id, heldComment.profile_id);
@@ -521,6 +575,34 @@ export async function PATCH(request: NextRequest) {
       }
       if (heldComment.status !== 'pending_approval') {
         return NextResponse.json({ error: 'This comment is not awaiting approval' }, { status: 400 });
+      }
+
+      // Send back with a note — ungated like reject (nothing publishes); the
+      // child edits and resubmits via the scoped 'edit' action above.
+      if (action === 'request_changes') {
+        const note = typeof body.note === 'string' ? body.note.trim() : '';
+        if (note.length > 500) {
+          return NextResponse.json({ error: 'Keep the note under 500 characters.' }, { status: 400 });
+        }
+        const { error: sendBackError } = await admin
+          .from('post_comments')
+          .update({ status: 'changes_requested', review_note: note || null })
+          .eq('id', commentId);
+        if (sendBackError) {
+          return NextResponse.json({ error: 'Failed to update comment' }, { status: 500 });
+        }
+        {
+          const { notifyUser } = await import('@/lib/guardian-notify');
+          await notifyUser(admin, heldComment.profile_id, {
+            type: 'comment_approval_result',
+            title: 'Your guardian asked for changes to your comment',
+            message: note || null,
+            actionUrl: `/feed?post=${heldComment.post_id}`,
+            actorId: user.id,
+            metadata: { comment_id: commentId, post_id: heldComment.post_id, result: 'changes_requested' },
+          });
+        }
+        return NextResponse.json({ ok: true, status: 'changes_requested' });
       }
       // Publishing a child's words requires approved consent — same gate as
       // post approval (A4). Rejection is data minimization and stays open.

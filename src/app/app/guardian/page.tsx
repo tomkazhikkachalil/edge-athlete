@@ -81,6 +81,8 @@ function queueLabel(item: QueueItem): string {
         : `Finish consent for ${item.athlete.name}`;
     case 'credentials_gap':
       return `${item.athlete.name} has no login yet`;
+    case 'waiting_on_child':
+      return `Sent back to ${item.athlete.name} — waiting on their edit`;
   }
 }
 
@@ -91,6 +93,7 @@ const QUEUE_ICONS: Record<QueueItem['kind'], string> = {
   transfer_step: 'fa-right-left',
   consent_gap: 'fa-file-signature',
   credentials_gap: 'fa-key',
+  waiting_on_child: 'fa-hourglass-half',
 };
 
 function ChipPill({ chip }: { chip: Chip }) {
@@ -300,7 +303,12 @@ export default function FamilyConsolePage() {
                 ) : (
                   <div className="bg-surface border border-border rounded-lg divide-y divide-border">
                     {queueItems.map(item => {
-                      const aging = 'createdAt' in item ? waitingLabel(item.createdAt, nowMs) : null;
+                      // No aging badge on waiting_on_child rows — the badge
+                      // means "the GUARDIAN is late", and those aren't theirs.
+                      const aging =
+                        'createdAt' in item && item.kind !== 'waiting_on_child'
+                          ? waitingLabel(item.createdAt, nowMs)
+                          : null;
                       const detail =
                         item.kind === 'approve_post'
                           ? item.caption || (item.mediaCount > 0 ? `${item.mediaCount} photo${item.mediaCount === 1 ? '' : 's'} or video${item.mediaCount === 1 ? '' : 's'}` : null)
@@ -309,13 +317,18 @@ export default function FamilyConsolePage() {
                           : item.kind === 'follow_request'
                           ? item.message
                           : null;
+                      const waitingOnChild = item.kind === 'waiting_on_child';
                       const body = (
                         <>
-                          <span className="w-8 h-8 rounded-full bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 inline-flex items-center justify-center shrink-0">
+                          <span className={`w-8 h-8 rounded-full inline-flex items-center justify-center shrink-0 ${
+                            waitingOnChild
+                              ? 'bg-surface-sunken text-tertiary'
+                              : 'bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300'
+                          }`}>
                             <i className={`fas ${QUEUE_ICONS[item.kind]} text-xs`}></i>
                           </span>
                           <span className="flex-grow min-w-0">
-                            <span className="block text-sm font-medium text-primary">
+                            <span className={`block text-sm font-medium ${waitingOnChild ? 'text-tertiary' : 'text-primary'}`}>
                               {queueLabel(item)}
                             </span>
                             {detail && (
@@ -360,6 +373,15 @@ export default function FamilyConsolePage() {
                                 Decline
                               </button>
                             </span>
+                          </div>
+                        );
+                      }
+                      if (item.kind === 'waiting_on_child') {
+                        // The ball is in the child's court — informational
+                        // only, nothing here for the guardian to click.
+                        return (
+                          <div key={item.id} className="flex items-center gap-3 px-4 py-3 min-h-[44px]">
+                            {body}
                           </div>
                         );
                       }

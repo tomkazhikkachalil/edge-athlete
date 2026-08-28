@@ -78,10 +78,13 @@ interface Post {
     full_name: string | null;
     handle: string | null;
   } | null;
-  /** Approval pipeline (051): 'published' | 'pending_approval' | 'rejected'.
-   *  Non-published posts only ever reach their own author (or a guardian via
-   *  the single-post gate), so the banner below needs no viewer check. */
+  /** Approval pipeline (051/129): 'published' | 'pending_approval' |
+   *  'rejected' | 'changes_requested'. Non-published posts only ever reach
+   *  their own author (or a guardian via the single-post gate), so the
+   *  banners below need no viewer check. */
   status?: string;
+  /** Guardian send-back note (129) — only non-null while changes_requested. */
+  review_note?: string | null;
   media: PostMedia[];
   likes?: { profile_id: string }[];
   saved_posts?: { profile_id: string }[];
@@ -440,6 +443,28 @@ function PostCard({
         <div className="px-4 py-2 bg-surface-sunken border-b border-border text-xs font-medium text-tertiary flex items-center gap-2">
           <i className="fas fa-circle-minus" aria-hidden="true"></i>
           Not approved by a guardian — not visible to anyone else.
+        </div>
+      )}
+      {/* Send-back (129): the guardian asked for edits — saving an edit IS
+          the resubmit, so the CTA is just the existing edit modal. */}
+      {post.status === 'changes_requested' && (
+        <div className="px-4 py-2 bg-amber-50 dark:bg-amber-950/40 border-b border-amber-200 dark:border-amber-900 text-xs font-medium text-amber-800 dark:text-amber-200">
+          <div className="flex items-center gap-2">
+            <i className="fas fa-rotate-left" aria-hidden="true"></i>
+            A guardian asked for changes — not visible to anyone else.
+            {onEdit && (
+              <button
+                type="button"
+                onClick={() => onEdit(post.id)}
+                className="ml-auto shrink-0 font-semibold underline min-h-[44px] -my-2 px-1"
+              >
+                Edit and resend
+              </button>
+            )}
+          </div>
+          {post.review_note && (
+            <p className="mt-1 font-normal whitespace-pre-wrap">“{post.review_note}”</p>
+          )}
         </div>
       )}
       {/* Header. p-4 below sm: 24px padding each side cost a 390px card a

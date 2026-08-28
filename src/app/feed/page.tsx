@@ -36,9 +36,10 @@ interface Post {
   sport_key: string | null;
   stats_data: Record<string, unknown> | null;
   visibility: string;
-  /** Approval pipeline (051) — present so PostCard can badge the author's
-   *  own pending/rejected posts (Round D). */
+  /** Approval pipeline (051/129) — present so PostCard can badge the author's
+   *  own pending/rejected/sent-back posts (Round D, Wave 2). */
   status?: string;
+  review_note?: string | null;
   created_at: string;
   likes_count: number;
   comments_count: number;
@@ -857,6 +858,16 @@ export default function FeedPage() {
             handleDelete(postId);
             setDeepLinkPostId(null);
             window.history.replaceState(null, '', '/feed');
+          }}
+          // Same silent-no-op class for the pencil (Wave 2): the send-back
+          // notification deep-links here, and "Edit and resend" IS the edit
+          // modal — without onEdit the banner CTA vanished and the pencil
+          // no-opped. Close the detail modal first so EditPostModal isn't
+          // stacked under its z-[60] overlay.
+          onEdit={(postId) => {
+            setDeepLinkPostId(null);
+            window.history.replaceState(null, '', '/feed');
+            handleEdit(postId);
           }}
         />
       )}

@@ -82,6 +82,16 @@ export type QueueItem =
       id: string;
       athlete: QueueAthlete;
       href: string;
+    }
+  | {
+      /** A sent-back item (status = changes_requested, mig 129): the ball is
+       *  in the CHILD's court — non-actionable, gray, sorted last, shown so
+       *  the parent never wonders where the post went. */
+      kind: 'waiting_on_child';
+      id: string;
+      athlete: QueueAthlete;
+      createdAt: string;
+      contentKind: 'post' | 'comment';
     };
 
 // ── Route row shapes ─────────────────────────────────────────────────────────
@@ -103,6 +113,7 @@ export interface QueuePostRow {
   profile_id: string;
   caption: string | null;
   created_at: string;
+  status: string;
   mediaCount: number;
   thumbnailUrl: string | null;
 }
@@ -112,6 +123,7 @@ export interface QueueCommentRow {
   profile_id: string;
   content: string | null;
   created_at: string;
+  status: string;
 }
 
 export interface QueueFollowRow {
@@ -175,9 +187,22 @@ export function buildQueueItems(
   }
 
   const content: QueueItem[] = [];
+  // Sent-back items (changes_requested, mig 129) are the CHILD's to act on —
+  // they render as muted informational rows after everything actionable.
+  const waiting: QueueItem[] = [];
   for (const post of posts) {
     const athlete = athletesById.get(post.profile_id);
     if (!athlete) continue;
+    if (post.status === 'changes_requested') {
+      waiting.push({
+        kind: 'waiting_on_child',
+        id: post.id,
+        athlete: toQueueAthlete(athlete),
+        createdAt: post.created_at,
+        contentKind: 'post',
+      });
+      continue;
+    }
     content.push({
       kind: 'approve_post',
       id: post.id,
@@ -193,6 +218,16 @@ export function buildQueueItems(
   for (const comment of comments) {
     const athlete = athletesById.get(comment.profile_id);
     if (!athlete) continue;
+    if (comment.status === 'changes_requested') {
+      waiting.push({
+        kind: 'waiting_on_child',
+        id: comment.id,
+        athlete: toQueueAthlete(athlete),
+        createdAt: comment.created_at,
+        contentKind: 'comment',
+      });
+      continue;
+    }
     content.push({
       kind: 'release_comment',
       id: comment.id,
@@ -267,5 +302,8 @@ export function buildQueueItems(
     });
   }
 
-  return [...content, ...followItems, ...tail];
+  waiting.sort((a, b) =>
+    ('createdAt' in a ? a.createdAt : '').localeCompare('createdAt' in b ? b.createdAt : '')
+  );
+  return [...content, ...followItems, ...tail, ...waiting];
 }

@@ -45,17 +45,19 @@ export async function GET(request: NextRequest) {
     }
 
     const [postsQ, commentsQ, followsQ, consentQ, supervisedQ, transferQ] = await Promise.all([
+      // changes_requested rows (mig 129) ride along as the muted
+      // "waiting on their edit" rows — the shaper splits them out.
       admin
         .from('posts')
-        .select('id, profile_id, caption, created_at, post_media (media_url, thumbnail_url, media_type, display_order)')
+        .select('id, profile_id, caption, created_at, status, post_media (media_url, thumbnail_url, media_type, display_order)')
         .in('profile_id', ids)
-        .eq('status', 'pending_approval')
+        .in('status', ['pending_approval', 'changes_requested'])
         .order('created_at', { ascending: true }),
       admin
         .from('post_comments')
-        .select('id, profile_id, content, created_at')
+        .select('id, profile_id, content, created_at, status')
         .in('profile_id', ids)
-        .eq('status', 'pending_approval')
+        .in('status', ['pending_approval', 'changes_requested'])
         .order('created_at', { ascending: true }),
       admin
         .from('follows')
@@ -91,6 +93,7 @@ export async function GET(request: NextRequest) {
         profile_id: string;
         caption: string | null;
         created_at: string;
+        status: string;
         post_media?: Array<{ media_url: string; thumbnail_url: string | null; display_order: number }>;
       };
       const media = [...(row.post_media ?? [])].sort((a, b) => a.display_order - b.display_order);
@@ -100,6 +103,7 @@ export async function GET(request: NextRequest) {
         profile_id: row.profile_id,
         caption: row.caption,
         created_at: row.created_at,
+        status: row.status,
         mediaCount: media.length,
         thumbnailUrl: first
           ? toProxyUrl(first.thumbnail_url ?? first.media_url, { type: 'post', id: row.id }) ??
