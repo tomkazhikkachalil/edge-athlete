@@ -162,10 +162,10 @@ export default function GuardianBatchUploadPage() {
   useEffect(() => {
     if (!FEATURE_FLAGS.FEATURE_CALENDAR || !range || !assignedIdsKey) return;
     const athleteIds = assignedIdsKey.split(',').filter(Boolean);
-    let cancelled = false;
+    const rangeKey = range.key;
     for (const athleteId of athleteIds) {
-      if (fetchedRangesRef.current.get(athleteId) === range.key) continue;
-      fetchedRangesRef.current.set(athleteId, range.key);
+      if (fetchedRangesRef.current.get(athleteId) === rangeKey) continue;
+      fetchedRangesRef.current.set(athleteId, rangeKey);
       (async () => {
         try {
           const from = new Date(range.fromMs).toISOString();
@@ -177,7 +177,14 @@ export default function GuardianBatchUploadPage() {
           );
           if (!res.ok) throw new Error(`status ${res.status}`);
           const data = await res.json();
-          if (cancelled) return;
+          // Superseded by a newer range while in flight → drop. NO
+          // effect-scoped cancelled flag: assigning a second athlete
+          // re-runs this effect, and a cleanup flag DISCARDED the first
+          // athlete's still-in-flight events (the ref already marked them
+          // fetched, so their chips never appeared — caught by e2e, but
+          // two quick pill taps reproduce it by hand). The fetch is
+          // idempotent per (athlete, range); landing late is harmless.
+          if (fetchedRangesRef.current.get(athleteId) !== rangeKey) return;
           // Real commitments only — overlay rows (no my_status key) and
           // cancelled events never suggest (the week strip's filter).
           const events = ((data.events ?? []) as Array<{
@@ -194,15 +201,12 @@ export default function GuardianBatchUploadPage() {
           // Suggestions are an offer, never a blocker — a failed fetch just
           // means no chips for this athlete. Allow a retry on range change.
           console.warn('[BATCH UPLOAD] events fetch failed:', e);
-          if (!cancelled && fetchedRangesRef.current.get(athleteId) === range.key) {
+          if (fetchedRangesRef.current.get(athleteId) === rangeKey) {
             fetchedRangesRef.current.delete(athleteId);
           }
         }
       })();
     }
-    return () => {
-      cancelled = true;
-    };
   }, [range, assignedIdsKey]);
 
   const handleFiles = (fileList: FileList | null) => {
