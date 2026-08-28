@@ -372,34 +372,55 @@ This email was sent from your website's contact form.
   }
 
   /**
-   * Notification digest — a summary of a user's recent unread activity.
-   * Sent to the user's own email (opt-in via notification_preferences).
+   * Notification digest, grouped per athlete (Wave 5 — replaces the old
+   * flat sendNotificationDigest). A guardian's digest leads with each
+   * child's section ("For Junior"), their own activity under "For you"; a
+   * user with a SINGLE unnamed group gets the flat classic rendering, so
+   * ordinary adults share this template unchanged. Each group caps at 10
+   * titles + "…and N more". deliver()-backed — the caller gates the
+   * watermark on the boolean (the old adult path was a raw sendMail that
+   * only worked by accidental throw-unwind).
    */
-  async sendNotificationDigest(
+  async sendGuardianDigest(
     to: string,
     displayName: string,
-    items: Array<{ title: string; created_at: string }>,
+    groups: Array<{ childName: string | null; items: Array<{ title: string }> }>,
     appUrl: string
-  ): Promise<void> {
-    const count = items.length;
-    const rows = items
-      .slice(0, 10)
-      .map(
-        i => `<tr><td style="padding:8px 0;border-bottom:1px solid #eee;color:#333;font-size:14px;">${escapeHtml(i.title)}</td></tr>`
-      )
-      .join('');
-    const more = count > 10 ? `<p style="color:#888;font-size:13px;">…and ${count - 10} more.</p>` : '';
+  ): Promise<boolean> {
+    const count = groups.reduce((sum, g) => sum + g.items.length, 0);
+    const flat = groups.length === 1 && groups[0].childName === null;
 
+    const renderRows = (items: Array<{ title: string }>) =>
+      items
+        .slice(0, 10)
+        .map(
+          i => `<tr><td style="padding:8px 0;border-bottom:1px solid #eee;color:#333;font-size:14px;">${escapeHtml(i.title)}</td></tr>`
+        )
+        .join('');
+    const renderMore = (n: number) =>
+      n > 10 ? `<p style="color:#888;font-size:13px;">…and ${n - 10} more.</p>` : '';
+
+    const sections = flat
+      ? `<table style="width:100%;border-collapse:collapse;margin:16px 0;">${renderRows(groups[0].items)}</table>${renderMore(groups[0].items.length)}`
+      : groups
+          .map(
+            g => `
+        <h3 style="color:#111;font-size:15px;margin:20px 0 4px;">${g.childName ? `For ${escapeHtml(g.childName)}` : 'For you'}</h3>
+        <table style="width:100%;border-collapse:collapse;margin:4px 0;">${renderRows(g.items)}</table>
+        ${renderMore(g.items.length)}`
+          )
+          .join('');
+
+    const cta = flat ? `${appUrl}/app/notifications` : `${appUrl}/app/guardian`;
     const htmlContent = `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
         ${logoHeader(appUrl)}
         <h2 style="color:#6d28d9;">Hi ${escapeHtml(displayName || 'there')},</h2>
         <p style="color:#333;font-size:15px;">You have ${count} new notification${count === 1 ? '' : 's'} on Edge Athlete:</p>
-        <table style="width:100%;border-collapse:collapse;margin:16px 0;">${rows}</table>
-        ${more}
-        <a href="${appUrl}/app/notifications"
+        ${sections}
+        <a href="${cta}"
            style="display:inline-block;background:#7c3aed;color:#fff;text-decoration:none;padding:10px 20px;border-radius:6px;font-size:14px;margin-top:8px;">
-          View on Edge Athlete
+          ${flat ? 'View on Edge Athlete' : 'Open the family console'}
         </a>
         <p style="color:#aaa;font-size:12px;margin-top:24px;border-top:1px solid #eee;padding-top:16px;">
           You're receiving this because email digests are on. Turn them off any time in
@@ -408,16 +429,94 @@ This email was sent from your website's contact form.
       </div>
     `;
 
+    const textSections = groups
+      .map(g => {
+        const header = flat ? '' : `${g.childName ? `For ${g.childName}` : 'For you'}:\n`;
+        return (
+          header +
+          g.items.slice(0, 10).map(i => `• ${i.title}`).join('\n') +
+          (g.items.length > 10 ? `\n…and ${g.items.length - 10} more.` : '')
+        );
+      })
+      .join('\n\n');
     const textContent =
       `Hi ${displayName || 'there'},\n\nYou have ${count} new notification${count === 1 ? '' : 's'} on Edge Athlete:\n\n` +
-      items.slice(0, 10).map(i => `• ${i.title}`).join('\n') +
-      (count > 10 ? `\n…and ${count - 10} more.` : '') +
-      `\n\nView: ${appUrl}/app/notifications\n\nTurn off digests in Settings → Notifications.`;
+      textSections +
+      `\n\nView: ${cta}\n\nTurn off digests in Settings → Notifications.`;
 
-    await this.transporter.sendMail({
+    return this.deliver('guardian_digest', {
       from: fromAddress(),
       to,
       subject: `You have ${count} new notification${count === 1 ? '' : 's'} on Edge Athlete`,
+      text: textContent,
+      html: htmlContent,
+    });
+  }
+
+  /**
+   * Urgent safety alert (Wave 5, mig 135) — safety_alert/consent_result
+   * rows mailed within ~10 minutes by /api/cron/urgent-emails, one email
+   * per guardian per sweep. Links are pre-filtered to app-internal paths
+   * by the caller (safeInternalPath); the footer names the toggle.
+   */
+  async sendUrgentAlert(
+    to: string,
+    displayName: string,
+    items: Array<{ title: string; message?: string | null; path?: string | null }>,
+    appUrl: string
+  ): Promise<boolean> {
+    const count = items.length;
+    const subject =
+      count === 1
+        ? `Safety alert: ${items[0].title}`
+        : `${count} safety alerts on Edge Athlete`;
+    const rows = items
+      .slice(0, 10)
+      .map(i => {
+        const title = i.path
+          ? `<a href="${appUrl}${i.path}" style="color:#6d28d9;text-decoration:none;font-weight:bold;">${escapeHtml(i.title)}</a>`
+          : `<strong>${escapeHtml(i.title)}</strong>`;
+        const message = i.message
+          ? `<br /><span style="color:#555;font-size:13px;">${escapeHtml(i.message)}</span>`
+          : '';
+        return `<tr><td style="padding:10px 0;border-bottom:1px solid #eee;color:#333;font-size:14px;">${title}${message}</td></tr>`;
+      })
+      .join('');
+    const more = count > 10 ? `<p style="color:#888;font-size:13px;">…and ${count - 10} more.</p>` : '';
+
+    const htmlContent = `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        ${logoHeader(appUrl)}
+        <h2 style="color:#6d28d9;">Hi ${escapeHtml(displayName || 'there')},</h2>
+        <p style="color:#333;font-size:15px;">
+          Something on your family console needs your attention:
+        </p>
+        <table style="width:100%;border-collapse:collapse;margin:16px 0;">${rows}</table>
+        ${more}
+        <a href="${appUrl}/app/guardian"
+           style="display:inline-block;background:#7c3aed;color:#fff;text-decoration:none;padding:10px 20px;border-radius:6px;font-size:14px;margin-top:8px;">
+          Open the family console
+        </a>
+        <p style="color:#aaa;font-size:12px;margin-top:24px;border-top:1px solid #eee;padding-top:16px;">
+          You're receiving this because urgent safety emails are on. Turn them
+          off any time in Settings → Notifications ("Urgent safety emails").
+          The daily digest still summarizes everything either way.
+        </p>
+      </div>
+    `;
+    const textContent =
+      `Hi ${displayName || 'there'},\n\nSomething on your family console needs your attention:\n\n` +
+      items
+        .slice(0, 10)
+        .map(i => `• ${i.title}${i.message ? ` — ${i.message}` : ''}${i.path ? `\n  ${appUrl}${i.path}` : ''}`)
+        .join('\n') +
+      (count > 10 ? `\n…and ${count - 10} more.` : '') +
+      `\n\nFamily console: ${appUrl}/app/guardian\n\nTurn off urgent safety emails in Settings → Notifications.`;
+
+    return this.deliver('urgent_alert', {
+      from: fromAddress(),
+      to,
+      subject,
       text: textContent,
       html: htmlContent,
     });

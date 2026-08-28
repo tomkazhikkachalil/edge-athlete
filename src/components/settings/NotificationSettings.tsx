@@ -19,6 +19,7 @@ interface Preferences {
   system_announcements_enabled: boolean;
   club_updates_enabled: boolean;
   email_enabled: boolean;
+  urgent_email_enabled: boolean;
 }
 
 type PrefKey = keyof Preferences;
@@ -162,7 +163,7 @@ export default function NotificationSettings() {
         <h3 className="text-sm font-semibold text-secondary uppercase tracking-wide mb-3">
           Email
         </h3>
-        <div className="border border-border rounded-lg">
+        <div className="divide-y divide-border-subtle border border-border rounded-lg">
           <div className="flex items-center justify-between gap-4 p-4">
             <div className="min-w-0">
               <p className="text-sm font-medium text-primary">Daily email digest</p>
@@ -186,6 +187,24 @@ export default function NotificationSettings() {
                 label="Daily email digest"
               />
             )}
+          </div>
+          {/* Urgent tier (135) — independent of the digest opt-in: safety
+              alerts within ~10 minutes. ON by default, never locked
+              (children are never urgent recipients). */}
+          <div className="flex items-center justify-between gap-4 p-4">
+            <div className="min-w-0">
+              <p className="text-sm font-medium text-primary">Urgent safety emails</p>
+              <p className="text-xs text-muted">
+                Safety alerts and consent decisions about athletes you manage,
+                within minutes instead of the nightly summary. Recommended on.
+              </p>
+            </div>
+            <Toggle
+              on={prefs.urgent_email_enabled}
+              disabled={savingKey === 'urgent_email_enabled'}
+              onChange={() => toggle('urgent_email_enabled')}
+              label="Urgent safety emails"
+            />
           </div>
         </div>
       </div>

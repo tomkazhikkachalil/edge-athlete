@@ -1018,6 +1018,42 @@ test('payoff line (Wave 5): a seeded future event surfaces as Next: on the roste
   }
 });
 
+test('urgent safety emails (135): settings toggle round-trips both directions via server echo', async ({ page }) => {
+  test.skip(!flagOn, 'guardian flag off');
+  const api = await apiAs('state.json');
+  try {
+    // Baseline: ON by default (the mig-135 column default).
+    const before = await api.get('/api/notifications/preferences');
+    expect(before.ok(), await readErrorBody(before)).toBe(true);
+    expect((await before.json()).preferences?.urgent_email_enabled).toBe(true);
+
+    await page.goto('/settings?tab=notifications');
+    const toggle = page.getByRole('switch', { name: 'Urgent safety emails' });
+    await expect(toggle).toBeVisible({ timeout: 15_000 });
+    await expect(toggle).toHaveAttribute('aria-checked', 'true');
+
+    // OFF — poll the SERVER echo (saves are optimistic; the UI flips first).
+    await toggle.click();
+    await expect
+      .poll(async () => {
+        const echo = await api.get('/api/notifications/preferences');
+        return (await echo.json()).preferences?.urgent_email_enabled;
+      }, { timeout: 10_000 })
+      .toBe(false);
+
+    // Back ON.
+    await toggle.click();
+    await expect
+      .poll(async () => {
+        const echo = await api.get('/api/notifications/preferences');
+        return (await echo.json()).preferences?.urgent_email_enabled;
+      }, { timeout: 10_000 })
+      .toBe(true);
+  } finally {
+    await api.dispose();
+  }
+});
+
 // afterAll, not a test: serial mode skips remaining TESTS after a failure,
 // which would orphan the child's @minors.invalid shadow user. Hooks run
 // regardless.

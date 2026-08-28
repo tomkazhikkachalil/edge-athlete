@@ -89,6 +89,10 @@ const PreferencesSchema = z
     club_updates_enabled: z.boolean(),
     push_enabled: z.boolean(),
     email_enabled: z.boolean(),
+    // Urgent safety emails (135) — safety_alert/consent_result within ~10
+    // minutes. ON by default; never locked (children are never urgent
+    // recipients — their synthetic address is structurally unmailed).
+    urgent_email_enabled: z.boolean(),
   })
   .partial()
   .strict();

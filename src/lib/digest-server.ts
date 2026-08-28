@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { emailService } from './email-service';
 import { isSyntheticEmail } from './config/minors-config';
+import { buildDigestGroups } from './digest-groups';
 import { chunk } from './chunk';
 
 // How many users a single cron run processes concurrently. The per-user work
@@ -26,10 +27,14 @@ export async function runNotificationDigest(supabase: SupabaseClient, appUrl: st
     return { ok: true, skipped: 'SMTP not configured', sent: 0, considered: 0 };
   }
 
+  // Ordered least-recently-digested first (nulls = never digested, first):
+  // the un-ordered LIMIT used to starve everyone past row 200 FOREVER — the
+  // same 200 arbitrary users each night (Wave 5 fix).
   const { data: prefs, error: prefsError } = await supabase
     .from('notification_preferences')
     .select('user_id, last_digest_at')
     .eq('email_enabled', true)
+    .order('last_digest_at', { ascending: true, nullsFirst: true })
     .limit(200);
   if (prefsError) {
     console.error('[DIGEST] preferences query failed:', prefsError);
@@ -43,9 +48,12 @@ export async function runNotificationDigest(supabase: SupabaseClient, appUrl: st
   // failure is logged and counts as 0, so it can't sink the rest of its batch.
   const processOne = async (pref: DigestPref): Promise<number> => {
     try {
+      // metadata carries notifyGuardians' profile_id stamp — the digest's
+      // per-athlete grouping key (Wave 5; the old select was title-only,
+      // which is why every digest read as an undifferentiated title list).
       let notifQuery = supabase
         .from('notifications')
-        .select('title, created_at')
+        .select('title, message, type, action_url, metadata, created_at')
         .eq('user_id', pref.user_id)
         .eq('is_read', false)
         .order('created_at', { ascending: false })
@@ -98,6 +106,18 @@ export async function runNotificationDigest(supabase: SupabaseClient, appUrl: st
         const guardianEmails = (guardianRows ?? [])
           .map(r => (r.profiles as unknown as { email: string | null })?.email)
           .filter((e): e is string => !!e && !isSyntheticEmail(e));
+        // Zero deliverable guardians used to fall through `[].every → true`
+        // and advance the watermark SILENTLY — same outcome, but now loud
+        // (Wave 5): this is a supervised child whose activity reaches no
+        // adult inbox, which an operator needs to see.
+        if (guardianEmails.length === 0) {
+          console.warn(
+            '[DIGEST] supervised child has NO deliverable guardian email — digest dropped:',
+            pref.user_id
+          );
+          await advanceWatermark();
+          return 0;
+        }
         // One child's guardians are independent recipients — fan the sends out.
         const results = await Promise.all(
           guardianEmails.map(guardianEmail => emailService.sendChildDigest(
@@ -116,9 +136,35 @@ export async function runNotificationDigest(supabase: SupabaseClient, appUrl: st
       const displayName =
         [profile.first_name, profile.last_name].filter(Boolean).join(' ') ||
         profile.full_name || '';
-      await emailService.sendNotificationDigest(profile.email, displayName, notifs, appUrl);
-      await advanceWatermark();
-      return 1;
+
+      // Per-athlete grouping (Wave 5): guardian fan-out rows carry
+      // metadata.profile_id — lead with each child's section, the
+      // recipient's own activity under "For you". A user with only
+      // ungrouped rows renders the flat classic template.
+      const groups = buildDigestGroups(notifs);
+      const childIds = groups.map(g => g.profileId).filter((id): id is string => !!id);
+      const namesById = new Map<string, string>();
+      if (childIds.length > 0) {
+        const { data: childRows } = await supabase
+          .from('profiles')
+          .select('id, first_name, display_name, full_name')
+          .in('id', childIds);
+        for (const c of childRows ?? []) {
+          namesById.set(c.id, c.first_name || c.display_name || c.full_name || 'Your athlete');
+        }
+      }
+      const namedGroups = groups.map(g => ({
+        childName: g.profileId ? namesById.get(g.profileId) ?? 'Your athlete' : null,
+        items: g.items,
+      }));
+
+      // Boolean-gated watermark (Wave 5): the old adult path was a raw
+      // sendMail that only held the watermark by accidental throw-unwind.
+      const ok = await emailService.sendGuardianDigest(
+        profile.email, displayName, namedGroups, appUrl
+      );
+      if (ok) await advanceWatermark();
+      return ok ? 1 : 0;
     } catch (userError) {
       // One user's failure never stops the batch
       console.error('[DIGEST] failed for user', pref.user_id, userError);
