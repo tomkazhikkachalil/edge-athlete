@@ -23,14 +23,21 @@ async function resolveBlocker(
 }
 
 // ── GET /api/messages/block ───────────────────────────────────────────────────
-// The block list (own, or a managed athlete's via ?profileId=). Until Round I
-// there was NO list surface anywhere — DELETE was dead code.
+// The block list (own, or a managed athlete's). Until Round I there was NO
+// list surface anywhere — DELETE was dead code.
+// Param name: `targetProfileId` is canonical across all three methods (it
+// shipped as ?profileId= on GET only; both spellings stay accepted so
+// existing callers keep working).
 export async function GET(request: NextRequest) {
   try {
     const supabase = getSupabaseAdmin();
     const user = await requireAuth(request);
     const { searchParams } = new URL(request.url);
-    const blockerId = await resolveBlocker(request, user.id, searchParams.get('profileId'));
+    const blockerId = await resolveBlocker(
+      request,
+      user.id,
+      searchParams.get('targetProfileId') ?? searchParams.get('profileId')
+    );
 
     const { data, error } = await supabase
       .from('user_blocks')
