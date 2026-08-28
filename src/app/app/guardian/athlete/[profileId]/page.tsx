@@ -583,7 +583,7 @@ export default function GuardianAthletePage() {
       const data = await res.json().catch(() => ({}));
       if (!res.ok) { setDeleteError(data.error || 'Could not delete the profile.'); return; }
       await refreshManagedProfiles();
-      showSuccess('Profile deleted', 'The profile and its content are permanently gone.');
+      showSuccess('Deletion scheduled', 'The profile is hidden now and permanently deleted in 30 days. Restore it from the console until then.');
       router.replace('/app/guardian');
     } catch {
       setDeleteError('Could not delete the profile. Please try again.');
@@ -1240,8 +1240,8 @@ export default function GuardianAthletePage() {
                 <section className="border border-red-200 dark:border-red-900 rounded-lg p-5">
                   <h2 className="text-base font-bold text-red-600 dark:text-red-400 mb-1">Danger zone</h2>
                   <p className="text-xs text-tertiary mb-3">
-                    Withdrawing consent permanently deletes this profile and all
-                    of its content.
+                    Withdrawing consent deletes this profile and all of its
+                    content, after a 30-day window in which you can restore it.
                   </p>
                   {!deleteOpen ? (
                     <button
@@ -1254,8 +1254,9 @@ export default function GuardianAthletePage() {
                   ) : (
                     <div>
                       <p className="text-sm text-secondary mb-2">
-                        This permanently deletes {athlete.first_name ?? 'this athlete'}&apos;s profile,
-                        posts, media, and login. <span className="font-medium">It cannot be undone.</span>
+                        This hides {athlete.first_name ?? 'this athlete'}&apos;s profile immediately and
+                        permanently deletes the profile, posts, media, and login after 30 days.
+                        <span className="font-medium"> You can restore it from the console during that window; after it, deletion cannot be undone.</span>
                       </p>
                       <p className="text-xs text-muted mb-3">
                         Signed consent records are retained as required for compliance.

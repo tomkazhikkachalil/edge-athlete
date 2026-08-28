@@ -10,6 +10,7 @@ import AppHeader from '@/components/AppHeader';
 import { FEATURE_FLAGS } from '@/lib/features';
 import { formatDisplayName, getInitials, formatAge } from '@/lib/formatters';
 import { transferStateChip } from '@/lib/transfer-ui';
+import { parkPurgeDate } from '@/lib/account-park';
 import {
   consentChip,
   loginChip,
@@ -45,6 +46,9 @@ interface ConsoleAthlete {
   pendingCommentCount: number;
   pendingFollowRequestCount: number;
   activeTransfer: { state: string } | null;
+  // Soft-delete park stamp (migration 128) — parked athletes render in the
+  // restore section instead of the roster cards.
+  deletion_requested_at: string | null;
 }
 
 const CHIP_TONES = {
@@ -128,6 +132,25 @@ export default function FamilyConsolePage() {
   const [athletes, setAthletes] = useState<ConsoleAthlete[]>([]);
   const [error, setError] = useState('');
   const [retryKey, setRetryKey] = useState(0);
+  const [restoringId, setRestoringId] = useState<string | null>(null);
+
+  const restoreAthlete = async (profileId: string) => {
+    setRestoringId(profileId);
+    try {
+      const res = await fetch('/api/account/restore', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ targetProfileId: profileId }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(body.error || 'Could not restore the profile');
+      setRetryKey(k => k + 1); // refetch the roster — the athlete rejoins it
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not restore the profile');
+    } finally {
+      setRestoringId(null);
+    }
+  };
 
   useEffect(() => {
     if (!loading && initialAuthCheckComplete && !user) router.replace('/');
@@ -163,7 +186,11 @@ export default function FamilyConsolePage() {
     );
   }
 
-  const attention = buildAttentionItems(athletes);
+  // Parked athletes (30-day soft delete) get the restore section, not the
+  // roster cards — nothing else on the console applies to a parked profile.
+  const parked = athletes.filter(a => a.deletion_requested_at);
+  const activeAthletes = athletes.filter(a => !a.deletion_requested_at);
+  const attention = buildAttentionItems(activeAthletes);
 
   return (
     <div className="min-h-screen bg-canvas">
@@ -216,6 +243,35 @@ export default function FamilyConsolePage() {
           </div>
         ) : (
           <>
+            {parked.length > 0 && (
+              <section aria-label="Scheduled for deletion" className="mb-6">
+                <h2 className="text-xs font-bold uppercase tracking-wide text-red-700 dark:text-red-300 mb-2">
+                  Scheduled for deletion
+                </h2>
+                <div className="bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900 rounded-lg divide-y divide-red-200 dark:divide-red-900">
+                  {parked.map(a => {
+                    const name = formatDisplayName(a.first_name, null, a.last_name, a.display_name);
+                    const purge = parkPurgeDate(a.deletion_requested_at!).toLocaleDateString(undefined, { month: 'long', day: 'numeric' });
+                    return (
+                      <div key={a.id} className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 text-sm">
+                        <span className="text-red-800 dark:text-red-200 font-medium">
+                          {name}&apos;s profile will be permanently deleted on {purge}.
+                        </span>
+                        <button
+                          type="button"
+                          disabled={restoringId === a.id}
+                          onClick={() => restoreAthlete(a.id)}
+                          className="inline-flex min-h-[44px] items-center px-3 -my-1 rounded-lg font-semibold text-red-700 dark:text-red-300 hover:bg-red-100 active:bg-red-100 dark:hover:bg-red-950/60 dark:active:bg-red-950/60 transition-colors disabled:opacity-60"
+                        >
+                          {restoringId === a.id ? 'Restoring…' : 'Restore'}
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              </section>
+            )}
+
             {attention.length > 0 && (
               <section aria-label="Needs your attention" className="mb-6">
                 <h2 className="text-xs font-bold uppercase tracking-wide text-amber-700 dark:text-amber-300 mb-2">
@@ -237,6 +293,8 @@ export default function FamilyConsolePage() {
             )}
 
             {athletes.length === 0 ? (
+              // All-parked rosters skip this card — the restore section above
+              // is the whole story then.
               <div className="bg-surface border border-border rounded-lg p-8 text-center">
                 <p className="text-sm text-muted mb-4">
                   You&apos;re not managing any athlete profiles yet.
@@ -250,7 +308,7 @@ export default function FamilyConsolePage() {
                 </Link>
               </div>
             ) : (
-              athletes.map(a => {
+              activeAthletes.map(a => {
                 const name = formatDisplayName(a.first_name, null, a.last_name, a.display_name);
                 const transferred = a.supervision_state === 'self';
                 const isActive = activeProfile?.id === a.id;

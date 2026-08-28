@@ -7,6 +7,7 @@ import { MessagesProvider } from "@/lib/messages";
 import { GlobalToasts } from "@/components/Toast";
 import ActingAsBanner from "@/components/ActingAsBanner";
 import TransferBanner from "@/components/TransferBanner";
+import DeletionScheduledBanner from "@/components/DeletionScheduledBanner";
 import ChatDock from "@/components/chat-dock/ChatDock";
 import ThemeApplier from "@/components/ThemeApplier";
 import { THEME_INIT_SCRIPT } from "@/lib/theme-script";
@@ -110,6 +111,7 @@ export default async function RootLayout({
             <MessagesProvider>
               <ActingAsBanner />
               <TransferBanner />
+              <DeletionScheduledBanner />
               {children}
               {/* Persistent chat dock (big screens; flag-gated internally).
                   Root-level = survives every client navigation untouched. */}

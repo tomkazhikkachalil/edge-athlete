@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerClient, getSupabaseAdmin } from '@/lib/auth-server';
-import { hardDeleteAccount } from '@/lib/account-deletion';
+import { parkAccount, PARK_WINDOW_DAYS } from '@/lib/account-park';
 import { formatDisplayName } from '@/lib/formatters';
 import { enforceRateLimit } from '@/lib/rate-limit';
 
@@ -129,36 +129,24 @@ export async function DELETE(request: NextRequest) {
       }
     }
 
-    // 6-8. Delete everything (shared engine: DB rows in order, storage
-    // best-effort, then the auth user).
-    let warnings: string[] = [];
+    // 6. PARK, don't destroy (Wave 1e, migration 128): the account is
+    // stamped + forced private for 30 days; the daily cron runs the hard
+    // delete after the window. Signing back in shows a restore banner —
+    // deletion is the single most catastrophic irreversible action in the
+    // product and it used to sit one panicked evening away.
     try {
-      ({ warnings } = await hardDeleteAccount(supabaseAdmin, userId));
+      await parkAccount(supabaseAdmin, userId);
     } catch (dbError) {
-      console.error('[Account Deletion] deletion error:', dbError);
-      const message = dbError instanceof Error ? dbError.message : 'Unknown error';
-      if (message.startsWith('Failed to delete authentication user')) {
-        // CRITICAL - if auth deletion fails, the email remains registered
-        return NextResponse.json({
-          error: 'Failed to delete authentication user',
-          // Friendly guidance, not a DB detail — deliberate.
-          hint: 'Account data deleted but email may still be reserved. Contact support.'
-        }, { status: 500 });
-      }
+      console.error('[Account Deletion] park error:', dbError);
       return NextResponse.json({ error: 'Failed to delete account data' }, { status: 500 });
     }
 
-    // 9. Sign out the user
+    // 7. Sign out the user
     await supabase.auth.signOut();
-
-    if (warnings.length > 0) {
-      console.warn('[Account Deletion] Storage cleanup warnings:', warnings);
-    }
 
     return NextResponse.json({
       success: true,
-      message: 'Account deleted successfully',
-      warnings: warnings.length > 0 ? warnings : undefined
+      message: `Account scheduled for deletion. Sign back in within ${PARK_WINDOW_DAYS} days to restore it.`,
     });
 
   } catch (error) {
