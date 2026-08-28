@@ -22,15 +22,16 @@ test('log an already-played round and see the scorecard post', async ({ page }) 
   await page.getByRole('button', { name: /already played/i }).click();
 
   // Typing sets courseName directly — no suggestion needs to exist for a
-  // manual course. Do NOT press Escape to dismiss the suggestions dropdown:
-  // Escape closes the whole composer.
+  // manual course. (Earlier revisions of this comment claimed Escape closes
+  // the whole composer — no Escape handler exists in the composer chain
+  // today, but a click is still how the dropdown is dismissed for real.)
   const courseInput = page.getByPlaceholder(/search for a golf course/i);
   await courseInput.fill(courseName);
 
   // Blur the course-suggestions dropdown shut by clicking the already-selected
   // "Outdoor" round-type button — a state no-op (the 9/18 holes selector this
   // used to click was removed: hole count is now DERIVED from the scores
-  // entered). Do NOT use Escape (closes the whole composer).
+  // entered).
   await page.getByRole('button', { name: /outdoor/i }).click();
   await page.waitForTimeout(300);
 
@@ -80,4 +81,57 @@ test('shared golf round: the creator is on the scorecard before any partner', as
   // closing an untouched composer must not ask to discard anything.
   await page.getByRole('button', { name: 'Close modal' }).click();
   await expect(page.getByText(/discard/i)).toHaveCount(0);
+});
+
+// The phone-first path (#345 + phone polish pass): the composer's headline
+// "Quick entry" button opens the hole-by-hole stepper, and a score committed
+// there lands back in the grid. Asserted at 375px — the tightest mainstream
+// phone — because the mobile project's 390px viewport leaves ~15px of slack
+// in exactly the header row this button lives in.
+test('@mobile Quick entry opens the stepper and writes back to the grid', async ({ page }) => {
+  await page.setViewportSize({ width: 375, height: 812 });
+  await page.goto('/feed');
+  await page.getByRole('button', { name: /what's on your mind/i }).click();
+  await page.getByRole('button', { name: /general post/i }).click();
+  const sportSelector = page.locator('div[class*="z-[60]"]');
+  await sportSelector.getByPlaceholder('Search sports...').fill('golf');
+  await sportSelector.getByRole('button', { name: /golf/i }).first().click();
+
+  await expect(page.getByRole('heading', { name: 'Score Entry' })).toBeVisible({ timeout: 15_000 });
+
+  const quickEntry = page.getByRole('button', { name: 'Quick entry' });
+  await expect(quickEntry).toBeVisible();
+  // 44px touch floor, held at 375px.
+  const box = await quickEntry.boundingBox();
+  expect(box!.height).toBeGreaterThanOrEqual(44);
+
+  await quickEntry.click();
+
+  // Stepper is open: hole context line plus both wheels.
+  const strokes = page.getByRole('spinbutton', { name: 'Strokes' });
+  await expect(strokes).toBeVisible();
+  await expect(page.getByRole('spinbutton', { name: 'Putts' })).toBeVisible();
+
+  // Nothing may overflow the 375px viewport with the stepper open.
+  const overflow = await page.evaluate(
+    () => document.documentElement.scrollWidth - document.documentElement.clientWidth
+  );
+  expect(overflow).toBeLessThanOrEqual(0);
+
+  // Commit hole 1: typing a digit on the wheel commits it (same contract the
+  // AT/keyboard path uses).
+  await strokes.press('5');
+  await expect(strokes).toHaveAttribute('aria-valuenow', '5');
+
+  // "Save Scores" is the LAST hole's footer button (every other hole shows
+  // Next) — jump straight there. The stepper overlay is the only z-[60]
+  // layer open, which scopes the numeric button away from the page behind.
+  const stepper = page.locator('div[class*="z-[60]"]');
+  await stepper.getByRole('button', { name: '18', exact: true }).click();
+  await stepper.getByRole('button', { name: 'Save Scores' }).click();
+
+  // Modal closed; the grid's hole-1 cell now carries the committed score.
+  await expect(strokes).toBeHidden();
+  const holeInputs = page.getByPlaceholder('-', { exact: true });
+  await expect(holeInputs.first()).toHaveValue('5');
 });
