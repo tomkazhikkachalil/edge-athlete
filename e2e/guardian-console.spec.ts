@@ -844,6 +844,18 @@ test('batch upload (Wave 5): multi-assign copies bytes per athlete; confirmed ev
   const sibHandle = `eaqa_sib_${stamp}`; // ≤20 chars (handle cap)
   let sibId = '';
   try {
+    // The guardian-athlete-create bucket (5/day) is SHARED with the Wave-4
+    // household routes (apply-to-all, blocks), so by this point in the
+    // serial run the flag probe + two creates + apply + block/unblock have
+    // spent it. Clear the QA guardian's bucket (service REST truth — a
+    // test-sequencing artifact, never a reason to loosen the prod limit).
+    await fetch(
+      `${url}/rest/v1/rate_limits?key=eq.${encodeURIComponent(
+        `guardian-athlete-create:${guardian.id}`
+      )}`,
+      { method: 'DELETE', headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}` } }
+    );
+
     // Second athlete — multi-assign needs a household of two.
     const dob = new Date(Date.UTC(new Date().getUTCFullYear() - 10, 5, 15))
       .toISOString().split('T')[0];
