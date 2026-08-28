@@ -360,6 +360,60 @@ test('co-guardian lifecycle: invite → claim → roster of two → revoke → l
   }
 });
 
+test('consent signature (130): method cards swap the statement; typed signature submits to review', async ({ page }) => {
+  test.skip(!flagOn, 'guardian flag off');
+
+  // UI: three method cards; picking one swaps the statement's closing.
+  await page.goto(`/app/guardian/consent/${childId}`);
+  await expect(page.getByRole('radio', { name: /Sign on screen/ })).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByRole('radio', { name: /Type your name/ })).toBeVisible();
+  await expect(page.getByRole('radio', { name: /Upload a signed form/ })).toBeVisible();
+  // Default = drawn.
+  await expect(page.getByText('sign in the box below')).toBeVisible();
+  await page.getByRole('radio', { name: /Type your name/ }).click();
+  await expect(page.getByText('type your full legal name below')).toBeVisible();
+  await page.getByRole('radio', { name: /Upload a signed form/ }).click();
+  await expect(page.getByText('print or write this statement')).toBeVisible();
+
+  // API: a typed-signature submission (signature-card PNG) enters review.
+  const api = await apiAs('state.json');
+  try {
+    // 1x1 transparent PNG.
+    const png = Buffer.from(
+      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
+      'base64'
+    );
+    const bogus = await api.post(`/api/guardian/athletes/${childId}/consent`, {
+      multipart: {
+        method: 'card_charge', // DB-only value — the API must refuse it
+        evidence: { name: 'signature.png', mimeType: 'image/png', buffer: png },
+      },
+    });
+    expect(bogus.status()).toBe(400);
+
+    const res = await api.post(`/api/guardian/athletes/${childId}/consent`, {
+      multipart: {
+        method: 'typed_signature',
+        evidence: { name: 'signature.png', mimeType: 'image/png', buffer: png },
+      },
+    });
+    expect(res.status(), await readErrorBody(res)).toBe(201);
+    expect((await res.json()).state).toBe('pending_review');
+
+    // Idempotency short-circuit.
+    const again = await api.post(`/api/guardian/athletes/${childId}/consent`, {
+      multipart: {
+        method: 'typed_signature',
+        evidence: { name: 'signature.png', mimeType: 'image/png', buffer: png },
+      },
+    });
+    expect(again.ok(), await readErrorBody(again)).toBe(true);
+    expect((await again.json()).already).toBe(true);
+  } finally {
+    await api.dispose();
+  }
+});
+
 // afterAll, not a test: serial mode skips remaining TESTS after a failure,
 // which would orphan the child's @minors.invalid shadow user. Hooks run
 // regardless.

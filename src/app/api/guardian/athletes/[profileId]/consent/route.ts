@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import * as Sentry from '@sentry/nextjs';
 import { requireAuth, getSupabaseAdmin, getProfileRole } from '@/lib/auth-server';
 import { FEATURE_FLAGS } from '@/lib/features';
-import { getConsentState, CONSENT_POLICY_VERSION } from '@/lib/consent';
+import { getConsentState, parseConsentMethod, CONSENT_POLICY_VERSION } from '@/lib/consent';
 import { getClientIp } from '@/lib/rate-limit';
 
 // ── /api/guardian/athletes/[profileId]/consent ────────────────────────────────
@@ -59,15 +59,30 @@ export async function POST(
     }
 
     const formData = await request.formData();
+    // Wave 3 (mig 130): the page offers three signature methods. typed/drawn
+    // arrive as a client-rendered signature-card PNG in the SAME evidence
+    // field — one review path for every method. Absent field = the pre-Wave-3
+    // client → signed_form.
+    const rawMethod = formData.get('method');
+    const method = parseConsentMethod(typeof rawMethod === 'string' ? rawMethod : 'signed_form');
+    if (!method) {
+      return NextResponse.json({ error: 'Unknown consent method.' }, { status: 400 });
+    }
     const file = formData.get('evidence');
     if (!(file instanceof File) || file.size === 0) {
-      return NextResponse.json({ error: 'Please attach the signed consent form.' }, { status: 400 });
+      return NextResponse.json(
+        { error: method === 'signed_form' ? 'Please attach the signed consent form.' : 'Please add your signature.' },
+        { status: 400 }
+      );
     }
     if (file.size > MAX_BYTES) {
       return NextResponse.json({ error: 'File too large (10 MB max).' }, { status: 400 });
     }
-    if (!ALLOWED.has(file.type)) {
-      return NextResponse.json({ error: 'Please upload a photo (JPG/PNG/WebP) or PDF.' }, { status: 400 });
+    if (!ALLOWED.has(file.type) || (method !== 'signed_form' && file.type !== 'image/png')) {
+      return NextResponse.json(
+        { error: method === 'signed_form' ? 'Please upload a photo (JPG/PNG/WebP) or PDF.' : 'Signature must be a PNG image.' },
+        { status: 400 }
+      );
     }
 
     const ext = file.type === 'application/pdf' ? 'pdf' : file.type.split('/')[1];
@@ -94,7 +109,7 @@ export async function POST(
       subject_dob_year: athlete?.dob ? new Date(athlete.dob).getUTCFullYear() : 0,
       guardian_user_id: user.id,
       guardian_email_snapshot: user.email ?? '',
-      method: 'signed_form',
+      method,
       action: 'granted',
       policy_version: CONSENT_POLICY_VERSION,
       jurisdiction: athlete?.jurisdiction ?? 'DEFAULT',

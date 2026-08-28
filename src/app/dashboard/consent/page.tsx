@@ -121,6 +121,18 @@ export default function ConsentReviewPage() {
                 <p className="text-sm text-tertiary mt-1">
                   Guardian: {item.guardianEmail} · {item.jurisdiction} (under {item.thresholdAge}) · {item.policyVersion}
                 </p>
+                {/* Method chip (Wave 3, mig 130): the reviewer should know
+                    whether they're looking at a photographed paper form or an
+                    in-product signature card. */}
+                <span className="inline-flex mt-1 text-xs font-medium px-2.5 py-1 rounded-full bg-surface-sunken text-tertiary">
+                  {item.method === 'typed_signature'
+                    ? 'Typed signature'
+                    : item.method === 'drawn_signature'
+                    ? 'Drawn signature'
+                    : item.method === 'signed_form'
+                    ? 'Signed form'
+                    : item.method}
+                </span>
                 <p className="text-xs text-faint mt-1">
                   Submitted {new Date(item.submittedAt).toLocaleString()}
                 </p>
@@ -131,7 +143,10 @@ export default function ConsentReviewPage() {
                     rel="noopener noreferrer"
                     className="inline-flex min-h-[44px] items-center mt-1 text-sm text-brand-fg hover:underline active:underline"
                   >
-                    <i className="fas fa-file-signature mr-1"></i> View signed form
+                    <i className="fas fa-file-signature mr-1"></i>{' '}
+                    {item.method === 'typed_signature' || item.method === 'drawn_signature'
+                      ? 'View signature'
+                      : 'View signed form'}
                   </a>
                 ) : (
                   <p className="mt-2 text-sm text-red-600 dark:text-red-400">No evidence file attached</p>

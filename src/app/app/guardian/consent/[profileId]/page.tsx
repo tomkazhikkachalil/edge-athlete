@@ -6,11 +6,34 @@ import Link from 'next/link';
 import { useAuth } from '@/lib/auth';
 import BrandBar from '@/components/BrandBar';
 import { FEATURE_FLAGS } from '@/lib/features';
-import { CONSENT_STATEMENT } from '@/lib/consent';
+import { consentStatementFor, type ConsentMethod } from '@/lib/consent';
+import {
+  renderSignatureCard,
+  SIGNATURE_CARD_HEIGHT,
+  SIGNATURE_CARD_WIDTH,
+  type SignatureStroke,
+} from '@/lib/consent-signature';
+import SignatureCanvas from '@/components/guardian/SignatureCanvas';
 
-// Guardian consent capture (Phase 3b): read the statement, sign it on paper,
-// upload a photo/scan. The profile stays locked (private, unpublishable)
-// until an admin review approves the submission.
+// Guardian consent capture (Phase 3b + Wave 3): read the statement, then
+// sign it — on screen (drawn), by typing your legal name, or the original
+// paper path (sign + photograph + upload). Typed/drawn render a signature
+// card PNG client-side that travels the same evidence path, so admin review
+// is identical for every method. The profile stays locked (private,
+// unpublishable) until the review approves.
+
+const METHOD_CARDS: Array<{ key: ConsentMethod; label: string; hint: string; icon: string }> = [
+  { key: 'drawn_signature', label: 'Sign on screen', hint: 'Sign with your finger or mouse', icon: 'fa-signature' },
+  { key: 'typed_signature', label: 'Type your name', hint: 'Your typed legal name is your signature', icon: 'fa-keyboard' },
+  { key: 'signed_form', label: 'Upload a signed form', hint: 'Print, sign, photograph, upload', icon: 'fa-file-arrow-up' },
+];
+
+/** Local yyyy-mm-dd — never toISOString for a local date (house TZ rule). */
+function localDateIso(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
 export default function ConsentPage() {
   const params = useParams();
   const router = useRouter();
@@ -22,6 +45,9 @@ export default function ConsentPage() {
   const [error, setError] = useState('');
   const [retryKey, setRetryKey] = useState(0);
   const fileRef = useRef<HTMLInputElement>(null);
+  const [method, setMethod] = useState<ConsentMethod>('drawn_signature');
+  const [typedName, setTypedName] = useState('');
+  const [strokes, setStrokes] = useState<SignatureStroke[]>([]);
 
   useEffect(() => {
     if (!loading && initialAuthCheckComplete && !user) router.replace('/');
@@ -55,12 +81,42 @@ export default function ConsentPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
-    const file = fileRef.current?.files?.[0];
-    if (!file) { setError('Please attach the signed form.'); return; }
+
+    const fd = new FormData();
+    fd.append('method', method);
+    if (method === 'signed_form') {
+      const file = fileRef.current?.files?.[0];
+      if (!file) { setError('Please attach the signed form.'); return; }
+      fd.append('evidence', file);
+    } else {
+      if (method === 'typed_signature') {
+        const name = typedName.trim();
+        if (name.length < 2 || name.length > 120) {
+          setError('Please type your full legal name.');
+          return;
+        }
+      } else if (strokes.length === 0) {
+        setError('Please sign in the box.');
+        return;
+      }
+      // Render the signature card — same evidence path as a photographed form.
+      const canvas = document.createElement('canvas');
+      canvas.width = SIGNATURE_CARD_WIDTH;
+      canvas.height = SIGNATURE_CARD_HEIGHT;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) { setError('Your browser could not render the signature.'); return; }
+      renderSignatureCard(ctx, {
+        meta: { guardianEmail: user?.email ?? '', dateIso: localDateIso() },
+        ...(method === 'typed_signature' ? { typedName: typedName.trim() } : { strokes }),
+      });
+      const blob = await new Promise<Blob | null>(r => canvas.toBlob(r, 'image/png'));
+      canvas.width = canvas.height = 0; // release memory (CropStage pattern)
+      if (!blob) { setError('Your browser could not render the signature.'); return; }
+      fd.append('evidence', blob, 'signature.png');
+    }
+
     setSubmitting(true);
     try {
-      const fd = new FormData();
-      fd.append('evidence', file);
       const res = await fetch(`/api/guardian/athletes/${profileId}/consent`, {
         method: 'POST',
         body: fd,
@@ -143,11 +199,40 @@ export default function ConsentPage() {
               <h2 className="text-xl sm:text-2xl font-bold text-violet-800 dark:text-violet-200 mb-1">Parental consent</h2>
               <p className="text-sm text-tertiary mb-4">
                 {state === 'rejected'
-                  ? 'Your previous submission couldn’t be verified — please re-submit a clear photo or scan of the signed statement.'
-                  : 'One last step to activate your athlete’s profile: sign the statement below and upload a photo or scan of it.'}
+                  ? 'Your previous submission couldn’t be verified — please sign and submit again.'
+                  : 'One last step to activate your athlete’s profile: read the statement below, then sign it.'}
               </p>
+
+              {/* Method choice (Wave 3). Stacked — a chip row collapses at
+                  375px (the Wave-2 lesson). */}
+              <div className="flex flex-col gap-2 mb-4" role="radiogroup" aria-label="How would you like to sign?">
+                {METHOD_CARDS.map(card => (
+                  <button
+                    key={card.key}
+                    type="button"
+                    role="radio"
+                    aria-checked={method === card.key}
+                    onClick={() => { setMethod(card.key); setError(''); }}
+                    className={`flex items-center gap-3 px-4 py-3 min-h-[44px] rounded-lg border text-left transition-colors ${
+                      method === card.key
+                        ? 'border-brand bg-brand-soft'
+                        : 'border-border-strong hover:bg-surface-muted'
+                    }`}
+                  >
+                    <i className={`fas ${card.icon} text-sm ${method === card.key ? 'text-brand-fg-strong' : 'text-muted'}`}></i>
+                    <span className="min-w-0">
+                      <span className="block text-sm font-semibold text-primary">{card.label}</span>
+                      <span className="block text-xs text-muted">{card.hint}</span>
+                    </span>
+                    {method === card.key && (
+                      <i className="fas fa-circle-check text-brand-fg-strong ml-auto shrink-0"></i>
+                    )}
+                  </button>
+                ))}
+              </div>
+
               <pre className="whitespace-pre-wrap bg-surface-muted border border-border rounded-md p-4 text-xs text-secondary mb-4 max-h-64 overflow-y-auto">
-                {CONSENT_STATEMENT}
+                {consentStatementFor(method)}
               </pre>
               {error && (
                 <div role="alert" className="bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 px-4 py-3 rounded-md text-sm mb-4">
@@ -155,6 +240,33 @@ export default function ConsentPage() {
                 </div>
               )}
               <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+                {method === 'drawn_signature' && (
+                  <SignatureCanvas strokes={strokes} onChange={setStrokes} />
+                )}
+
+                {method === 'typed_signature' && (
+                  <div>
+                    <label htmlFor="consent-typed-name" className="block text-sm font-medium text-secondary mb-1">
+                      Your full legal name
+                    </label>
+                    <input
+                      type="text"
+                      id="consent-typed-name"
+                      value={typedName}
+                      onChange={e => setTypedName(e.target.value.slice(0, 120))}
+                      autoComplete="name"
+                      className="w-full border border-border-strong rounded-lg px-3 py-2 text-sm text-primary bg-surface"
+                      required
+                    />
+                    {typedName.trim().length >= 2 && (
+                      <p className="mt-2 text-2xl text-primary italic font-serif" aria-hidden="true">
+                        {typedName.trim()}
+                      </p>
+                    )}
+                  </div>
+                )}
+
+                {method === 'signed_form' && (
                 <div>
                   <label htmlFor="consent-file" className="block text-sm font-medium text-secondary mb-1">
                     Signed form (photo or PDF, 10 MB max)
@@ -192,13 +304,14 @@ export default function ConsentPage() {
                     />
                   </label>
                 </div>
+                )}
                 <button
                   type="submit"
                   disabled={submitting}
                   className="w-full bg-brand text-white py-3 px-4 rounded-md hover:bg-brand-hover transition duration-300 flex items-center justify-center text-sm font-medium disabled:opacity-50"
                 >
                   {submitting ? (
-                    <><i className="fas fa-spinner fa-spin mr-2"></i> Uploading...</>
+                    <><i className="fas fa-spinner fa-spin mr-2"></i> {method === 'signed_form' ? 'Uploading...' : 'Signing...'}</>
                   ) : (
                     'Submit signed consent'
                   )}
