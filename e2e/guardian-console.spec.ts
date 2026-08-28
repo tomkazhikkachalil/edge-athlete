@@ -593,8 +593,9 @@ test('contact roster + escalation: metadata-only rows; child escalates a thread 
 
 test('household policy (132): defaults save on the settings page; a new athlete inherits with the visibility clamp', async ({ page }) => {
   test.skip(!flagOn, 'guardian flag off');
+  test.setTimeout(120_000); // settings UI + polls + a full athlete create
   const api = await apiAs('state.json');
-  const inheritHandle = `eaqa_inherit_${stamp}`;
+  const inheritHandle = `eaqa_h_${stamp}`; // ≤20 chars (handle cap)
   let inheritedId = '';
   try {
     // Settings page: adopt fans_only messaging + a PUBLIC default (the clamp
@@ -606,12 +607,15 @@ test('household policy (132): defaults save on the settings page; a new athlete 
     await page.getByRole('button', { name: /^Public/ }).first().click();
     await expect(page.getByText('New athletes still start private')).toBeVisible({ timeout: 10_000 });
 
-    // Server echo carries the sanitized policy.
-    const echo = await api.get('/api/guardian/household');
-    expect(echo.ok(), await readErrorBody(echo)).toBe(true);
-    const { policy } = await echo.json();
-    expect(policy.defaults.messaging_permission).toBe('fans_only');
-    expect(policy.defaults.visibility).toBe('public');
+    // Server echo carries the sanitized policy. Poll — the helper text
+    // renders optimistically, so the PATCH may still be in flight.
+    await expect
+      .poll(async () => {
+        const echo = await api.get('/api/guardian/household');
+        const { policy } = await echo.json();
+        return [policy?.defaults?.messaging_permission, policy?.defaults?.visibility];
+      }, { timeout: 10_000 })
+      .toEqual(['fans_only', 'public']);
 
     // A new athlete inherits messaging — and visibility clamps to private.
     const dob = new Date(Date.UTC(new Date().getUTCFullYear() - 10, 5, 15))
@@ -655,6 +659,18 @@ test('apply-to-all + deviation + safety feed: chips appear, one confirm reverts,
     });
     expect(push.ok(), await readErrorBody(push)).toBe(true);
 
+    // Deviation surfaces server-side first (poll — writes may still be
+    // settling), then the chips.
+    await expect
+      .poll(async () => {
+        const roster = await api.get('/api/guardian/athletes');
+        const me = ((await roster.json()).athletes ?? []).find(
+          (a: { id: string }) => a.id === childId
+        );
+        return me?.deviations ?? [];
+      }, { timeout: 10_000 })
+      .toContain('messaging_permission');
+
     // Deviation chips: hub roster + athlete-page per-field.
     await page.goto('/app/guardian');
     await expect(
@@ -668,7 +684,7 @@ test('apply-to-all + deviation + safety feed: chips appear, one confirm reverts,
     await expect(page.getByRole('heading', { name: 'Apply to your athletes' })).toBeVisible({ timeout: 15_000 });
     await page.getByRole('button', { name: 'Apply to all athletes' }).click();
     await expect(page.getByText('Apply household defaults to all athletes?')).toBeVisible();
-    await page.getByRole('button', { name: 'Apply to all' }).click();
+    await page.getByRole('button', { name: 'Apply to all', exact: true }).click();
     await expect(page.getByText(/Updated 1 athlete|Already matching/).first()).toBeVisible({ timeout: 10_000 });
 
     const roster = await api.get('/api/guardian/athletes');
