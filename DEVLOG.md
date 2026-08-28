@@ -1,5 +1,80 @@
 # Development Log
 
+## August 28, 2026 — Family Console Wave 5: media day + the payoff (#358–#360 + migrations 134/135) — PROGRAM COMPLETE
+
+Final round of the five-wave Family Console program. Round decision (Tom):
+the urgent safety-email tier ships — safety_alert and consent_result reach
+a guardian's inbox within ~10 minutes, ON by default with a settings
+opt-out. Everything else rides the rebuilt daily digest.
+
+- **Batch upload + household multi-assign (#358 + migration 134).** New
+  `/app/guardian/upload`: one camera roll → N posts across the household.
+  Every pick goes through the shared MediaEditor (no skip path), each item
+  gets 44px athlete toggle pills, and the run loop is SEQUENTIAL with
+  partial-success counters — never Promise.all-fail-all on a phone. An
+  item assigned to several athletes is uploaded once and then
+  server-COPIED per extra athlete (`POST /api/upload/post-media/copy`,
+  double acting-as gate, honest upload rate token) so every athlete owns
+  bytes under their own prefix — never a shared object, because
+  hardDeleteAccount and the upload DELETE remove objects with no
+  cross-reference checks. Budget guard (Σ uploads ≤45, posts ≤20) keeps a
+  batch inside the server's rate windows instead of dying to a mid-run 429.
+- **Event auto-attach (134's column).** Pure `event-autotag.ts` clones the
+  golf segment matcher's discipline: containment wins, 90-minute pad for
+  timed events, all-day is containment-only, ambiguity is a REFUSAL, and
+  the answer is always a chip the guardian taps — Attach or No thanks —
+  never a silent assignment (File.lastModified is not reliably capture
+  time). posts POST validates the eventId against the CONTENT OWNER's
+  calendar (organizer or event_guests row), so a guardian can't stamp
+  sibling A's post with sibling B's event. PostCard renders one null-safe
+  meta line. Two bugs the round's own e2e caught: the events effect's
+  cleanup flag discarded the first athlete's in-flight fetch when a second
+  pill was tapped quickly (fixed by per-(athlete,range) idempotency instead
+  of effect-scoped cancellation), and the serial suite exhausted the
+  guardian-athlete-create bucket — which Wave 4 shares with the household
+  routes — before the batch test (the spec clears the QA guardian's bucket;
+  the prod limit stands).
+- **The payoff line (#359, no DDL).** Roster cards now answer "what's next
+  for this kid" without a tap: `useFamilyWeek` lifts the week strip's
+  per-child fetch to the hub at a 14-day window (the strip is now
+  presentational, rendering its same 7 days from the shared set), pure
+  `nextEventPerChild` picks the soonest not-yet-ended event per child, and
+  the athletes GET adds a per-athlete season snapshot via
+  buildSportStatsCard — one query each, failure degrades to nothing, and
+  deliberately never the skill-cards/handicap machinery. Rendered as a 4th
+  NON-chip line (the chip row is a safety vocabulary), omitted when empty.
+- **Urgent email tier + digest rebuild (#360 + migration 135).** A new
+  pg_cron job (both Vercel slots are taken) hits /api/cron/urgent-emails
+  every 10 minutes: CRON_SECRET-authed, NEVER feature-flag-gated (the
+  reminders route's flag 200-skip is exactly the trap — flags are surface
+  switches, not safety switches), one email per guardian per sweep, rows
+  stamped emailed_at BEFORE the send (with a 10-minute loop double-send is
+  the dominant risk, and the nightly digest is the backstop — it keys on
+  its own watermark and ignores the stamp entirely). Structural skips are
+  never stamped, so they age out of the 24h lookback and still ride the
+  digest. The digest itself finally got its five standing edges fixed:
+  prefs ordered last_digest_at-nullsFirst (the un-ordered LIMIT 200 starved
+  everyone past row 200 forever), a widened select (it was literally
+  titles-only), the adult path deliver()-backed with a boolean-gated
+  watermark (raw sendMail worked by accidental throw-unwind), the
+  zero-guardian child made loud, and per-athlete grouping on
+  metadata.profile_id — "For Junior" sections first, "For you" always last,
+  a single unnamed group rendering the flat classic template so ordinary
+  adults are unchanged.
+- **Verification.** 18/18 guardian e2e locally AND against prod (batch
+  probe asserts two posts with DISTINCT storage URLs under each child's own
+  prefix, guardian attribution, event_id on the right child only); 390px
+  phone pass of all three surfaces (no horizontal scroll; chip and payoff
+  lines wrap); urgent route 401 unauthed / {ok} with the secret; a real
+  safety_alert inserted at 22:13:58Z was stamped and mailed at 22:20:02Z —
+  six minutes. Migration-gate note for the record: until 134 ran, every
+  posts read 500'd with PGRST200 on the new `event:event_id` embed — the
+  e2e halting at the first posts-read was the gate working, not a code bug.
+
+That closes the Family Console program: five waves, #347–#360, migrations
+128–135, every wave prod-probed. What remains is Tom's — device passes over
+the Waves 3–5 surfaces, and confirming the probe email landed.
+
 ## August 28, 2026 — Family Console Wave 4: the household policy layer (#355–#357 + migrations 132/133)
 
 Fourth round of the Family Console program: the retire-the-toggles round.
