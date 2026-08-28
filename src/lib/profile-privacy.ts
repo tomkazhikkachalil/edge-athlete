@@ -31,3 +31,11 @@ export const COMMENT_MODERATION_OPTIONS: PrivacyOption<CommentModeration>[] = [
   { value: 'held', label: 'Held for your review', description: 'Comments they write stay invisible until you approve them in the approvals queue.' },
   { value: 'instant', label: 'Instant', description: 'Comments they write appear immediately, like posts from any other athlete.' },
 ];
+
+// Value lists DERIVED from the option arrays (Wave 4) — the one source both
+// the UI options and every server-side whitelist validate against, so the
+// two can never diverge. (The athlete-safety PATCH and the household-policy
+// parser both consume these; the PATCH's former local copies are gone.)
+export const VISIBILITY_VALUES: Visibility[] = VISIBILITY_OPTIONS.map(o => o.value);
+export const MESSAGING_VALUES: MessagingPermission[] = MESSAGING_OPTIONS.map(o => o.value);
+export const COMMENT_MODERATION_VALUES: CommentModeration[] = COMMENT_MODERATION_OPTIONS.map(o => o.value);

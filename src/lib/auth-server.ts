@@ -143,6 +143,49 @@ export async function requireProfileRole(
 }
 
 /**
+ * Gate for HOUSEHOLD-scoped guardian surfaces (Wave 4) — routes with no
+ * profileId to role-check (household policy, apply-to-all, household
+ * blocks). Session + at least one profile_access guardian row, else 403.
+ *
+ * Returns the athleteIds every household loop must scope to: supervised,
+ * non-parked children only. A transferred child's guardian row became
+ * 'viewer' and a parked child is restore-only, so both exit household scope
+ * by construction — policy features need zero cleanup on either transition.
+ *
+ * Throws a Response (401/403) in the requireAuth style.
+ */
+export async function requireGuardianAccount(
+  request: NextRequest
+): Promise<{ user: User; athleteIds: string[] }> {
+  const user = await requireAuth(request);
+  const admin = getSupabaseAdmin();
+  const { data: rows } = await admin
+    .from('profile_access')
+    .select('profiles!profile_access_profile_id_fkey(id, supervision_state, deletion_requested_at)')
+    .eq('user_id', user.id)
+    .eq('role', 'guardian');
+  const athleteIds = (rows ?? [])
+    .map(r => {
+      const raw = (r as { profiles: unknown }).profiles;
+      return (Array.isArray(raw) ? raw[0] : raw) as
+        | { id: string; supervision_state: string | null; deletion_requested_at: string | null }
+        | null;
+    })
+    .filter(
+      (p): p is NonNullable<typeof p> =>
+        Boolean(p) && p!.supervision_state === 'supervised' && !p!.deletion_requested_at
+    )
+    .map(p => p.id);
+  if ((rows ?? []).length === 0) {
+    throw new Response(
+      JSON.stringify({ error: 'Guardian access required' }),
+      { status: 403, headers: { 'Content-Type': 'application/json' } }
+    );
+  }
+  return { user, athleteIds };
+}
+
+/**
  * Is this email on the admin allowlist?
  *
  * Pure and exported ONLY so the fail-closed property is testable — it is the

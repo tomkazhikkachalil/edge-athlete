@@ -171,6 +171,23 @@ export async function POST(request: NextRequest) {
     );
     const fullName = [first_name, last_name].filter(Boolean).join(' ');
 
+    // Household defaults (Wave 4, mig 132): a new athlete inherits the
+    // creating guardian's policy — band-aware, since an athlete can be added
+    // past the legal threshold. No policy = the original restrictive
+    // literals. The pending-profile funnel converges on this POST, so
+    // inheritance covers both paths.
+    const { parseHouseholdPolicy, effectivePresets, ageBand, RESTRICTIVE_PRESETS } =
+      await import('@/lib/household-policy');
+    const { data: guardianRow } = await admin
+      .from('profiles')
+      .select('household_policy')
+      .eq('id', user.id)
+      .maybeSingle();
+    const policy = parseHouseholdPolicy(guardianRow?.household_policy);
+    const presets = policy
+      ? effectivePresets(policy, ageBand(dob, jurisdiction, new Date().toISOString().slice(0, 10)))
+      : RESTRICTIVE_PRESETS;
+
     const { data: profileId, error: rpcError } = await admin.rpc('create_managed_profile', {
       p_profile: {
         id: childId,
@@ -184,13 +201,17 @@ export async function POST(request: NextRequest) {
         birthday: dob,
         user_type: 'athlete',
         sport,
-        // Minor-safety defaults — restrictive until consent approves more:
+        // Minor-safety defaults — the guardian's household policy when one
+        // exists (Wave 4), else the original restrictive literals. Visibility
+        // is ALWAYS clamped private at creation: consent cannot exist before
+        // the profile does, and an inherited 'public' would bypass the
+        // consent gate the safety PATCH enforces.
         visibility: 'private',
-        messaging_permission: 'nobody',
+        messaging_permission: presets.messaging_permission,
         // Explicit for the same reason as created_at below: the RPC's
         // jsonb_populate_record turns absent fields into explicit NULLs,
         // which bypass column defaults — and this column is NOT NULL (095).
-        comment_moderation: 'held',
+        comment_moderation: presets.comment_moderation,
         supervision_state: 'supervised',
         dob_locked: true,
         jurisdiction,
