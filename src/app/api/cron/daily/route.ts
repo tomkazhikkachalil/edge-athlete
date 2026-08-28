@@ -6,6 +6,7 @@ import { extendRecurringSeries } from '@/lib/calendar/series-server';
 import { runReminderSweep } from '@/lib/calendar/reminders-server';
 import { runRoundSweep } from '@/lib/golf/round-sweep';
 import { runDeletionPurge } from '@/lib/account-park';
+import { runPendingNudge } from '@/lib/guardian-nudge';
 import { FEATURE_FLAGS } from '@/lib/features';
 
 export const maxDuration = 60;
@@ -28,6 +29,11 @@ export const maxDuration = 60;
 //      re-evaluates them.
 //   5. Soft-delete purge: hard-delete accounts whose 30-day park expired
 //      (migration 128).
+//   6. 48h approval nudge: re-bell guardians once per overdue pending
+//      post/comment (approval_nudged_at stamp, mig 129), one notification
+//      per child per run. Never auto-publishes. No-op while the guardian
+//      flag is off — a nudge into a dark console is noise, and the safety
+//      behavior (held content stays held) doesn't depend on it.
 export async function GET(request: NextRequest) {
   const cronSecret = process.env.CRON_SECRET;
   const authHeader = request.headers.get('authorization');
@@ -90,6 +96,16 @@ export async function GET(request: NextRequest) {
   } catch (e) {
     console.error('[DAILY] deletion purge phase failed:', e);
     summary.deletionPurge = { ok: false };
+  }
+
+  // 6. 48h approval nudge (Wave 2, mig 129): "nudge, never auto-publish".
+  try {
+    summary.pendingNudge = FEATURE_FLAGS.FEATURE_GUARDIAN_PROFILES
+      ? await runPendingNudge(admin)
+      : { skipped: 'flag off' };
+  } catch (e) {
+    console.error('[DAILY] pending nudge phase failed:', e);
+    summary.pendingNudge = { ok: false };
   }
 
   console.log('[DAILY]', JSON.stringify(summary));
