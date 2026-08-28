@@ -241,6 +241,46 @@ test('send-back loop (129): request_changes with note → child edits → back t
   }
 });
 
+test('calendar surface: invite → hub week strip + queue row → inline decline as child', async ({ page }) => {
+  test.skip(!flagOn, 'guardian flag off');
+  const api = await apiAs('state.json');
+  try {
+    // Probe the calendar flag the same way the suite probes guardian.
+    const start = new Date(Date.now() + 2 * 86_400_000);
+    const end = new Date(start.getTime() + 3_600_000);
+    const created = await api.post('/api/calendar/events', {
+      data: {
+        title: `QA family practice ${stamp}`,
+        starts_at: start.toISOString(),
+        ends_at: end.toISOString(),
+        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+        guests: { profile_ids: [childId] },
+      },
+    });
+    if (created.status() === 404) {
+      test.skip(true, 'calendar flag off in this environment');
+      return;
+    }
+    expect(created.ok(), await readErrorBody(created)).toBe(true);
+
+    await page.goto('/app/guardian');
+    const main = page.locator('main');
+    // The merged week strip and the queue's calendar_invite row.
+    await expect(main.getByText('This week')).toBeVisible({ timeout: 15_000 });
+    const inviteRow = main
+      .getByText(`Junior Console was invited: QA family practice ${stamp}`);
+    await expect(inviteRow).toBeVisible();
+
+    // Inline decline responds AS THE CHILD (guest row stays the child's).
+    // The invite row is the only Decline button in this scenario (no fan
+    // requests exist at this point in the serial flow).
+    await main.getByRole('button', { name: 'Decline' }).click();
+    await expect(inviteRow).toHaveCount(0, { timeout: 10_000 });
+  } finally {
+    await api.dispose();
+  }
+});
+
 test('co-guardian lifecycle: invite → claim → roster of two → revoke → last-guardian block', async () => {
   test.skip(!flagOn, 'guardian flag off');
   const userB = loadQaUser('user-b.json');
@@ -268,6 +308,37 @@ test('co-guardian lifecycle: invite → claim → roster of two → revoke → l
       data: { email: 'edgeqa-third@example.com' },
     });
     expect(third.status()).toBe(409);
+
+    // While B is a co-guardian: an event UPDATE touching the child bells
+    // co-guardians (Wave 2 fan-out — the actor is excluded, so only B can
+    // observe it; a solo guardian updating their own event alerts nobody).
+    const evStart = new Date(Date.now() + 3 * 86_400_000);
+    const ev = await apiA.post('/api/calendar/events', {
+      data: {
+        title: `QA co-guardian event ${stamp}`,
+        starts_at: evStart.toISOString(),
+        ends_at: new Date(evStart.getTime() + 3_600_000).toISOString(),
+        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+        guests: { profile_ids: [childId] },
+      },
+    });
+    if (ev.ok()) {
+      const evId = (await ev.json()).event?.id;
+      const moved = await apiA.patch(`/api/calendar/events/${evId}`, {
+        data: { title: `QA co-guardian event ${stamp} (moved)` },
+      });
+      expect(moved.ok(), await readErrorBody(moved)).toBe(true);
+      const bell = await apiB.get('/api/notifications');
+      expect(bell.ok(), await readErrorBody(bell)).toBe(true);
+      const rows = (await bell.json()).notifications ?? [];
+      expect(
+        rows.some(
+          (n: { type?: string; title?: string }) =>
+            n.type === 'calendar_alert' && (n.title ?? '').includes('changed an event')
+        ),
+        'co-guardian should get the calendar_alert for the event update'
+      ).toBe(true);
+    }
 
     // A revokes B; roster back to one.
     const revoke = await apiA.delete(`/api/guardian/athletes/${childId}/guardians`, {

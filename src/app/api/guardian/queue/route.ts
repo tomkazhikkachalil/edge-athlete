@@ -5,7 +5,9 @@ import { toProxyUrl } from '@/lib/media/proxy-url';
 import { ACTIVE_TRANSFER_STATES } from '@/lib/transfers';
 import {
   buildQueueItems,
+  flattenInviteRows,
   type QueuePostRow,
+  type RawInviteRow,
   type RosterRow,
 } from '@/lib/guardian-queue';
 
@@ -44,7 +46,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ items: [] });
     }
 
-    const [postsQ, commentsQ, followsQ, consentQ, supervisedQ, transferQ] = await Promise.all([
+    const [postsQ, commentsQ, followsQ, consentQ, supervisedQ, transferQ, invitesQ] = await Promise.all([
       // changes_requested rows (mig 129) ride along as the muted
       // "waiting on their edit" rows — the shaper splits them out.
       admin
@@ -80,8 +82,19 @@ export async function GET(request: NextRequest) {
         .select('profile_id, state')
         .in('profile_id', ids)
         .in('state', [...ACTIVE_TRANSFER_STATES]),
+      // Pending event invites (guest status 'invited') — flag-gated with the
+      // calendar feature; future/cancelled filtering happens in the pure
+      // flattener (embed shape guarded there too).
+      FEATURE_FLAGS.FEATURE_CALENDAR
+        ? admin
+            .from('event_guests')
+            .select('id, profile_id, created_at, events!inner(id, title, starts_at, ends_at, all_day, timezone, status)')
+            .in('profile_id', ids)
+            .eq('status', 'invited')
+            .order('created_at', { ascending: true })
+        : Promise.resolve({ data: [], error: null }),
     ]);
-    for (const q of [postsQ, commentsQ, followsQ, consentQ, supervisedQ, transferQ]) {
+    for (const q of [postsQ, commentsQ, followsQ, consentQ, supervisedQ, transferQ, invitesQ]) {
       if (q.error) throw q.error;
     }
 
@@ -119,7 +132,8 @@ export async function GET(request: NextRequest) {
       followsQ.data ?? [],
       consentQ.data ?? [],
       supervisedQ.data ?? [],
-      transferQ.data ?? []
+      transferQ.data ?? [],
+      flattenInviteRows((invitesQ.data ?? []) as unknown as RawInviteRow[], Date.now())
     );
     return NextResponse.json({ items });
   } catch (error) {

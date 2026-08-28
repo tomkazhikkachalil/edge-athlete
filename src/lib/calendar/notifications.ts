@@ -40,6 +40,36 @@ const eventUrl = (eventId: string) => `/calendar?event=${eventId}`;
 const seriesMeta = (ctx: EventNotifyContext) =>
   ctx.seriesId ? { series_id: ctx.seriesId } : {};
 
+// Round I / Wave 2: calendar changes touching a SUPERVISED athlete also bell
+// their guardians — real-world times and places are exactly what a parent
+// wants to know about. Actor excluded, so a guardian's own action reaches
+// only co-guardians. Best-effort; shared by invite, update and cancel so the
+// three fan-outs can't drift apart.
+async function notifySupervisedGuardians(
+  ctx: EventNotifyContext,
+  actorId: string,
+  recipients: string[],
+  titleFor: (childFirstName: string) => string
+): Promise<void> {
+  const { data: supervised } = await ctx.supabase
+    .from('profiles')
+    .select('id, first_name')
+    .in('id', recipients)
+    .eq('supervision_state', 'supervised');
+  if (!supervised || supervised.length === 0) return;
+  const { notifyGuardians } = await import('@/lib/guardian-notify');
+  for (const child of supervised) {
+    await notifyGuardians(ctx.supabase, child.id, {
+      type: 'calendar_alert',
+      title: titleFor(child.first_name || 'your athlete'),
+      message: ctx.title,
+      actionUrl: `/app/guardian/athlete/${child.id}`,
+      actorId,
+      metadata: { event_id: ctx.eventId, ...seriesMeta(ctx) },
+    }, actorId);
+  }
+}
+
 /** Invitations: notify every invited registered guest (never the organizer). */
 export async function notifyEventInvites(
   ctx: EventNotifyContext,
@@ -65,30 +95,10 @@ export async function notifyEventInvites(
     const { error } = await ctx.supabase.from('notifications').insert(rows);
     if (error) console.error('[CALENDAR NOTIFY] invite fan-out failed:', error);
 
-    // Round I: an event invite reaching a SUPERVISED athlete also bells
-    // their guardians — real-world times and places are exactly what a
-    // parent wants to know about. The inviter already passed the family's
-    // messaging tier (checkSupervisedInviteGate); this is the awareness
-    // half. Actor excluded, so a guardian's own invite reaches only
-    // co-guardians. Best-effort.
-    const { data: supervisedInvitees } = await ctx.supabase
-      .from('profiles')
-      .select('id, first_name')
-      .in('id', recipients)
-      .eq('supervision_state', 'supervised');
-    if (supervisedInvitees && supervisedInvitees.length > 0) {
-      const { notifyGuardians } = await import('@/lib/guardian-notify');
-      for (const child of supervisedInvitees) {
-        await notifyGuardians(ctx.supabase, child.id, {
-          type: 'calendar_alert',
-          title: `${name} invited ${child.first_name || 'your athlete'} to an event`,
-          message: ctx.title,
-          actionUrl: `/app/guardian/athlete/${child.id}`,
-          actorId: organizerId,
-          metadata: { event_id: ctx.eventId, ...seriesMeta(ctx) },
-        }, organizerId);
-      }
-    }
+    // The inviter already passed the family's messaging tier
+    // (checkSupervisedInviteGate); this is the awareness half.
+    await notifySupervisedGuardians(ctx, organizerId, recipients,
+      childName => `${name} invited ${childName} to an event`);
   } catch (e) {
     console.error('[CALENDAR NOTIFY] invite fan-out failed:', e);
   }
@@ -118,6 +128,12 @@ export async function notifyEventUpdated(
     }));
     const { error } = await ctx.supabase.from('notifications').insert(rows);
     if (error) console.error('[CALENDAR NOTIFY] update fan-out failed:', error);
+
+    // Wave 2: updates were the one calendar change a parent DIDN'T hear
+    // about (invites already fanned out) — a changed time or place matters
+    // at least as much as the original invite.
+    await notifySupervisedGuardians(ctx, organizerId, recipients,
+      childName => `${name} changed an event ${childName} is going to`);
   } catch (e) {
     console.error('[CALENDAR NOTIFY] update fan-out failed:', e);
   }
@@ -147,6 +163,9 @@ export async function notifyEventCancelled(
     }));
     const { error } = await ctx.supabase.from('notifications').insert(rows);
     if (error) console.error('[CALENDAR NOTIFY] cancel fan-out failed:', error);
+
+    await notifySupervisedGuardians(ctx, organizerId, recipients,
+      childName => `${name} cancelled an event ${childName} was going to`);
   } catch (e) {
     console.error('[CALENDAR NOTIFY] cancel fan-out failed:', e);
   }

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
@@ -19,6 +19,7 @@ import {
   type Chip,
 } from '@/lib/guardian-rollup';
 import { AGING_BADGE_MS, type QueueItem } from '@/lib/guardian-queue';
+import GuardianWeekStrip from '@/components/calendar/GuardianWeekStrip';
 import type { ConsentState } from '@/lib/consent';
 
 // ── Family console ────────────────────────────────────────────────────────────
@@ -83,7 +84,20 @@ function queueLabel(item: QueueItem): string {
       return `${item.athlete.name} has no login yet`;
     case 'waiting_on_child':
       return `Sent back to ${item.athlete.name} — waiting on their edit`;
+    case 'calendar_invite':
+      return `${item.athlete.name} was invited: ${item.event.title}`;
   }
+}
+
+/** "Sat, Aug 29 · 3:00 PM" (or date only for all-day) for invite rows. */
+function inviteWhen(event: Extract<QueueItem, { kind: 'calendar_invite' }>['event']): string {
+  const start = new Date(Date.parse(event.starts_at));
+  return start.toLocaleDateString(undefined, {
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+    ...(event.all_day ? {} : { hour: 'numeric', minute: '2-digit' }),
+  });
 }
 
 const QUEUE_ICONS: Record<QueueItem['kind'], string> = {
@@ -94,6 +108,7 @@ const QUEUE_ICONS: Record<QueueItem['kind'], string> = {
   consent_gap: 'fa-file-signature',
   credentials_gap: 'fa-key',
   waiting_on_child: 'fa-hourglass-half',
+  calendar_invite: 'fa-calendar-day',
 };
 
 function ChipPill({ chip }: { chip: Chip }) {
@@ -141,6 +156,19 @@ export default function FamilyConsolePage() {
     if (!loading && initialAuthCheckComplete && !user) router.replace('/');
   }, [user, loading, initialAuthCheckComplete, router]);
 
+  // Memoized so the week strip's fetch effect keys on roster CONTENT, not on
+  // a fresh array identity every render.
+  const stripAthletes = useMemo(
+    () =>
+      athletes
+        .filter(a => !a.deletion_requested_at && a.supervision_state === 'supervised')
+        .map(a => ({
+          id: a.id,
+          name: formatDisplayName(a.first_name, null, a.last_name, a.display_name),
+        })),
+    [athletes]
+  );
+
   useEffect(() => {
     if (!user) return;
     let cancelled = false;
@@ -175,6 +203,31 @@ export default function FamilyConsolePage() {
       cancelled = true;
     };
   }, [user, retryKey]);
+
+  // Inline respond-as-child on a calendar invite — the same endpoint the
+  // athlete page's decline uses; the guest row stays the CHILD's (attribution
+  // doctrine: the organizer sees the child's response).
+  const decideInvite = async (
+    item: Extract<QueueItem, { kind: 'calendar_invite' }>,
+    status: 'accepted' | 'declined'
+  ) => {
+    setQueueActing(item.id);
+    setQueueError('');
+    try {
+      const res = await fetch(`/api/calendar/events/${item.event.id}/respond`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status, scope: 'this', targetProfileId: item.athlete.id }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'Could not respond to the invite');
+      setQueueItems(prev => prev.filter(i => i.id !== item.id));
+    } catch (e) {
+      setQueueError(e instanceof Error ? e.message : 'Could not respond to the invite');
+    } finally {
+      setQueueActing('');
+    }
+  };
 
   // Inline decide on a fan request — the same POST the athlete page's fans
   // section fires; decline is a repeatable non-notifying delete, so neither
@@ -316,6 +369,8 @@ export default function FamilyConsolePage() {
                           ? item.excerpt
                           : item.kind === 'follow_request'
                           ? item.message
+                          : item.kind === 'calendar_invite'
+                          ? inviteWhen(item.event)
                           : null;
                       const waitingOnChild = item.kind === 'waiting_on_child';
                       const body = (
@@ -351,7 +406,11 @@ export default function FamilyConsolePage() {
                           </span>
                         </>
                       );
-                      if (item.kind === 'follow_request') {
+                      if (item.kind === 'follow_request' || item.kind === 'calendar_invite') {
+                        const decide =
+                          item.kind === 'follow_request'
+                            ? (yes: boolean) => decideFollow(item, yes ? 'accept' : 'reject')
+                            : (yes: boolean) => decideInvite(item, yes ? 'accepted' : 'declined');
                         return (
                           <div key={item.id} className="flex flex-wrap items-center gap-3 px-4 py-3 min-h-[44px]">
                             {body}
@@ -359,7 +418,7 @@ export default function FamilyConsolePage() {
                               <button
                                 type="button"
                                 disabled={queueActing === item.id}
-                                onClick={() => decideFollow(item, 'accept')}
+                                onClick={() => decide(true)}
                                 className="px-3 py-2 min-h-[44px] inline-flex items-center bg-brand hover:bg-brand-hover text-white rounded-lg text-sm font-semibold transition-colors disabled:opacity-50"
                               >
                                 Accept
@@ -367,7 +426,7 @@ export default function FamilyConsolePage() {
                               <button
                                 type="button"
                                 disabled={queueActing === item.id}
-                                onClick={() => decideFollow(item, 'reject')}
+                                onClick={() => decide(false)}
                                 className="px-3 py-2 min-h-[44px] inline-flex items-center border border-border-strong rounded-lg text-sm font-semibold text-secondary hover:bg-surface-muted transition-colors disabled:opacity-50"
                               >
                                 Decline
@@ -400,6 +459,8 @@ export default function FamilyConsolePage() {
                 )}
               </section>
             )}
+
+            {stripAthletes.length > 0 && <GuardianWeekStrip athletes={stripAthletes} />}
 
             {athletes.length === 0 ? (
               // All-parked rosters skip this card — the restore section above
