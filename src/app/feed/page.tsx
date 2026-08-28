@@ -19,6 +19,7 @@ import { getSportDefinition, type SportKey } from '@/lib/sports/SportRegistry';
 import { getEmptyStateMessage, getActivityEncouragement, COPY } from '@/lib/copy';
 import LiveNowStrip from '@/components/LiveNowStrip';
 import SportQuickLinks from '@/components/SportQuickLinks';
+import GetStartedCard from '@/components/GetStartedCard';
 import FeedCalendarWidget from '@/components/calendar/FeedCalendarWidget';
 import { FEATURE_FLAGS } from '@/lib/features';
 
@@ -598,6 +599,10 @@ export default function FeedPage() {
             {/* Feed scope lenses: All (global), Following (accepted follows
                 ∪ self — private posts included where the follow grants them),
                 My orgs (public posts from org peers) */}
+            {/* First-run checklist for new accounts — the day-one golfer's
+                guidance (self-hiding: age gate, dismissal, all-steps-done). */}
+            <GetStartedCard onLogRound={() => setIsCreatePostModalOpen(true)} />
+
             <div className="flex gap-2" role="tablist" aria-label="Feed scope">
               {([['all', 'All'], ['following', 'Following'], ['orgs', 'My orgs']] as const).map(([value, label]) => (
                 <button
