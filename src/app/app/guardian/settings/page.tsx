@@ -5,8 +5,11 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/lib/auth';
 import AppHeader from '@/components/AppHeader';
+import dynamic from 'next/dynamic';
 import RadioCard from '@/components/guardian/RadioCard';
 import ConfirmModal from '@/components/ConfirmModal';
+
+const BlockedUsersList = dynamic(() => import('@/components/settings/BlockedUsersList'), { ssr: false });
 import { useToast } from '@/components/Toast';
 import { formatDisplayName } from '@/lib/formatters';
 import { FEATURE_FLAGS } from '@/lib/features';
@@ -423,6 +426,18 @@ export default function HouseholdSettingsPage() {
                   ));
                 })()
               )}
+            </section>
+
+            {/* Household block list (Wave 4 PR C): one action blocks a person
+                for you AND every athlete you manage. */}
+            <section className="bg-surface border border-border rounded-lg p-5 mb-4">
+              <h2 className="text-base font-bold text-primary mb-1">Household block list</h2>
+              <p className="text-xs text-tertiary mb-4">
+                Blocking here covers your whole household — you and every
+                athlete you manage. Per-athlete blocks stay on each
+                athlete&apos;s page.
+              </p>
+              <BlockedUsersList scope="household" canAdd subjectName="your household" />
             </section>
           </>
         )}

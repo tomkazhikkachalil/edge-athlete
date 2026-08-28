@@ -71,6 +71,71 @@ describe('buildHeldContactRows', () => {
   });
 });
 
+describe('age_preset_prompt queue derivation', () => {
+  const kid = (id: string): RosterRow => ({
+    id,
+    first_name: 'Maya',
+    last_name: 'Test',
+    full_name: null,
+    handle: `${id}-handle`,
+    avatar_url: null,
+    supervision_state: 'supervised',
+    visibility: 'private',
+    messaging_permission: 'nobody',
+    comment_moderation: 'held',
+  });
+  const pendingRow = {
+    id: 'tr-1',
+    profile_id: 'a',
+    state: 'eligible_notified',
+    created_at: '2026-08-28T10:00:00Z',
+    age_preset_prompt: 'pending' as string | null,
+  };
+  const differingPolicy = {
+    defaults: { visibility: 'private', messaging_permission: 'nobody', comment_moderation: 'held' },
+    olderDefaults: { messaging_permission: 'everyone' },
+  } as const;
+
+  it('derives only when rider=pending AND the caller has differing older overrides', () => {
+    const items = buildQueueItems(
+      [kid('a')], [], [], [], [{ profile_id: 'a', action: 'review_approved' }],
+      [{ user_id: 'a', profile_id: 'a' }], [pendingRow], [], [],
+      structuredClone(differingPolicy)
+    );
+    const item = items.find(i => i.kind === 'age_preset_prompt');
+    expect(item).toMatchObject({
+      id: 'tr-1',
+      createdAt: '2026-08-28T10:00:00Z',
+      changes: [{ field: 'messaging_permission', from: 'nobody', to: 'everyone' }],
+    });
+  });
+
+  it('a co-guardian WITHOUT differing overrides sees nothing; NULL rider (pre-wave) never prompts', () => {
+    const noOverrides = buildQueueItems(
+      [kid('a')], [], [], [], [{ profile_id: 'a', action: 'review_approved' }],
+      [{ user_id: 'a', profile_id: 'a' }], [pendingRow], [], [],
+      { defaults: { visibility: 'private', messaging_permission: 'nobody', comment_moderation: 'held' }, olderDefaults: null }
+    );
+    expect(noOverrides.find(i => i.kind === 'age_preset_prompt')).toBeUndefined();
+
+    const preWave = buildQueueItems(
+      [kid('a')], [], [], [], [{ profile_id: 'a', action: 'review_approved' }],
+      [{ user_id: 'a', profile_id: 'a' }],
+      [{ ...pendingRow, age_preset_prompt: null }], [], [],
+      structuredClone(differingPolicy)
+    );
+    expect(preWave.find(i => i.kind === 'age_preset_prompt')).toBeUndefined();
+
+    const decided = buildQueueItems(
+      [kid('a')], [], [], [], [{ profile_id: 'a', action: 'review_approved' }],
+      [{ user_id: 'a', profile_id: 'a' }],
+      [{ ...pendingRow, age_preset_prompt: 'kept' }], [], [],
+      structuredClone(differingPolicy)
+    );
+    expect(decided.find(i => i.kind === 'age_preset_prompt')).toBeUndefined();
+  });
+});
+
 describe('contact_request queue splice', () => {
   const kid = (id: string): RosterRow => ({
     id,

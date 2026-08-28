@@ -33,7 +33,7 @@ export async function GET(request: NextRequest) {
 
     const { data: accessRows, error: accessError } = await admin
       .from('profile_access')
-      .select('profiles!profile_access_profile_id_fkey(id, first_name, last_name, full_name, handle, avatar_url, supervision_state, deletion_requested_at)')
+      .select('profiles!profile_access_profile_id_fkey(id, first_name, last_name, full_name, handle, avatar_url, supervision_state, deletion_requested_at, visibility, messaging_permission, comment_moderation, dob, jurisdiction)')
       .eq('user_id', user.id)
       .eq('role', 'guardian')
       .order('granted_at', { ascending: true });
@@ -82,7 +82,7 @@ export async function GET(request: NextRequest) {
         .eq('role', 'supervised'),
       admin
         .from('profile_transfers')
-        .select('profile_id, state')
+        .select('id, profile_id, state, created_at, age_preset_prompt')
         .in('profile_id', ids)
         .in('state', [...ACTIVE_TRANSFER_STATES]),
       // Pending event invites (guest status 'invited') — flag-gated with the
@@ -151,6 +151,15 @@ export async function GET(request: NextRequest) {
       };
     });
 
+    // Household policy (Wave 4): one constant query — age-preset prompt
+    // items derive only when the CALLER's own older overrides differ.
+    const { parseHouseholdPolicy } = await import('@/lib/household-policy');
+    const { data: guardianRow } = await admin
+      .from('profiles')
+      .select('household_policy')
+      .eq('id', user.id)
+      .maybeSingle();
+
     const items = buildQueueItems(
       roster,
       posts,
@@ -160,7 +169,8 @@ export async function GET(request: NextRequest) {
       supervisedQ.data ?? [],
       transferQ.data ?? [],
       flattenInviteRows((invitesQ.data ?? []) as unknown as RawInviteRow[], Date.now()),
-      buildHeldContactRows(heldRows, counterpartRows)
+      buildHeldContactRows(heldRows, counterpartRows),
+      parseHouseholdPolicy(guardianRow?.household_policy)
     );
     return NextResponse.json({ items });
   } catch (error) {

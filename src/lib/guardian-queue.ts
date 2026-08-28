@@ -8,6 +8,7 @@
 
 import { stateFromAction, type ConsentState } from './consent';
 import { formatDisplayName } from './formatters';
+import { agePresetChanges, type HouseholdPolicy } from './household-policy';
 
 /** Queue items older than this get the amber "waiting N days" badge, and the
  *  48h cron nudge (PR 3) re-bells guardians past the same threshold — one
@@ -106,6 +107,17 @@ export type QueueItem =
       conversationId: string;
     }
   | {
+      /** Age-preset prompt (Wave 4, mig 133): the child crossed the legal
+       *  threshold and the CALLER's older overrides would change something.
+       *  `id` is the eligible_notified transfer row; Apply/Keep POST to the
+       *  age-preset decision route. */
+      kind: 'age_preset_prompt';
+      id: string;
+      athlete: QueueAthlete;
+      createdAt: string;
+      changes: Array<{ field: string; from: string; to: string }>;
+    }
+  | {
       /** Pending event invite for a child — inline respond-as-child via
        *  POST /api/calendar/events/<event.id>/respond. `id` is the guest
        *  row (unique per child+event). */
@@ -135,6 +147,12 @@ export interface RosterRow {
   handle: string | null;
   avatar_url: string | null;
   supervision_state: string | null;
+  /** Wave 4 (age-preset prompts) — present when the route selects them. */
+  visibility?: string | null;
+  messaging_permission?: string | null;
+  comment_moderation?: string | null;
+  dob?: string | null;
+  jurisdiction?: string | null;
 }
 
 export interface QueuePostRow {
@@ -307,9 +325,17 @@ export function buildQueueItems(
   follows: QueueFollowRow[],
   consentRows: Array<{ profile_id: string; action: string }>,
   supervisedRows: Array<{ user_id: string; profile_id: string }>,
-  transferRows: Array<{ profile_id: string; state: string }>,
+  transferRows: Array<{
+    profile_id: string;
+    state: string;
+    /** Wave 4: eligible_notified rows carry the age-preset rider. */
+    id?: string;
+    created_at?: string;
+    age_preset_prompt?: string | null;
+  }>,
   invites: QueueInviteRow[] = [],
-  heldContacts: QueueHeldContactRow[] = []
+  heldContacts: QueueHeldContactRow[] = [],
+  policy: HouseholdPolicy | null = null
 ): QueueItem[] {
   const athletesById = new Map<string, RosterRow>();
   for (const row of roster) athletesById.set(row.id, row);
@@ -425,6 +451,35 @@ export function buildQueueItems(
     ('createdAt' in a ? a.createdAt : '').localeCompare('createdAt' in b ? b.createdAt : '')
   );
 
+  // Age-preset prompts (Wave 4): derived from the eligible_notified row's
+  // rider, but only when the CALLER's own older overrides would actually
+  // change something — a co-guardian without a differing preset sees nothing.
+  const ageItems: QueueItem[] = [];
+  for (const row of transferRows) {
+    if (row.state !== 'eligible_notified' || row.age_preset_prompt !== 'pending' || !row.id) continue;
+    const athlete = athletesById.get(row.profile_id);
+    if (!athlete) continue;
+    const changes = agePresetChanges(
+      {
+        visibility: athlete.visibility ?? null,
+        messaging_permission: athlete.messaging_permission ?? null,
+        comment_moderation: athlete.comment_moderation ?? null,
+      },
+      policy
+    );
+    if (changes.length === 0) continue;
+    ageItems.push({
+      kind: 'age_preset_prompt',
+      id: row.id,
+      athlete: toQueueAthlete(athlete),
+      createdAt: row.created_at ?? '',
+      changes,
+    });
+  }
+  ageItems.sort((a, b) =>
+    ('createdAt' in a ? a.createdAt : '').localeCompare('createdAt' in b ? b.createdAt : '')
+  );
+
   const inviteItems: QueueItem[] = [];
   for (const row of invites) {
     const athlete = athletesById.get(row.profile_id);
@@ -479,5 +534,5 @@ export function buildQueueItems(
   waiting.sort((a, b) =>
     ('createdAt' in a ? a.createdAt : '').localeCompare('createdAt' in b ? b.createdAt : '')
   );
-  return [...content, ...followItems, ...contactItems, ...inviteItems, ...tail, ...waiting];
+  return [...content, ...followItems, ...contactItems, ...ageItems, ...inviteItems, ...tail, ...waiting];
 }

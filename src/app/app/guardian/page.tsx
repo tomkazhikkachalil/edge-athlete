@@ -7,6 +7,7 @@ import Image from 'next/image';
 import { isOptimizableImageSrc } from '@/lib/media/image-src';
 import { useAuth } from '@/lib/auth';
 import AppHeader from '@/components/AppHeader';
+import ConfirmModal from '@/components/ConfirmModal';
 import { FEATURE_FLAGS } from '@/lib/features';
 import { formatDisplayName, getInitials, formatAge } from '@/lib/formatters';
 import { transferStateChip } from '@/lib/transfer-ui';
@@ -91,8 +92,17 @@ function queueLabel(item: QueueItem): string {
       return `${item.athlete.name} was invited: ${item.event.title}`;
     case 'contact_request':
       return `${item.requester.name} wants to message ${item.athlete.name}`;
+    case 'age_preset_prompt':
+      return `${item.athlete.name} is old enough for your older-athlete settings`;
   }
 }
+
+/** "Messaging: Nobody → Everyone" lines for the age-preset card. */
+const AGE_FIELD_LABELS: Record<string, string> = {
+  visibility: 'Visibility',
+  messaging_permission: 'Messaging',
+  comment_moderation: 'Comments',
+};
 
 /** "Sat, Aug 29 · 3:00 PM" (or date only for all-day) for invite rows. */
 function inviteWhen(event: Extract<QueueItem, { kind: 'calendar_invite' }>['event']): string {
@@ -115,6 +125,7 @@ const QUEUE_ICONS: Record<QueueItem['kind'], string> = {
   waiting_on_child: 'fa-hourglass-half',
   calendar_invite: 'fa-calendar-day',
   contact_request: 'fa-user-clock',
+  age_preset_prompt: 'fa-cake-candles',
 };
 
 function ChipPill({ chip }: { chip: Chip }) {
@@ -253,6 +264,35 @@ export default function FamilyConsolePage() {
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || 'Could not record the decision');
       setQueueItems(prev => prev.filter(i => i.id !== item.id));
+    } catch (e) {
+      setQueueError(e instanceof Error ? e.message : 'Could not record the decision');
+    } finally {
+      setQueueActing('');
+    }
+  };
+
+  // Age-preset decision (Wave 4): Apply routes through the shared safety
+  // semantics server-side; Keep just stamps. Apply gets a one-confirm modal
+  // (never silent — the standing line), Keep is direct.
+  const [confirmingAgeApply, setConfirmingAgeApply] = useState<
+    Extract<QueueItem, { kind: 'age_preset_prompt' }> | null
+  >(null);
+  const decideAgePreset = async (
+    item: Extract<QueueItem, { kind: 'age_preset_prompt' }>,
+    decision: 'apply' | 'keep'
+  ) => {
+    setQueueActing(item.id);
+    setQueueError('');
+    try {
+      const res = await fetch('/api/guardian/age-preset', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ transferId: item.id, decision }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'Could not record the decision');
+      setQueueItems(prev => prev.filter(i => i.id !== item.id));
+      setConfirmingAgeApply(null);
     } catch (e) {
       setQueueError(e instanceof Error ? e.message : 'Could not record the decision');
     } finally {
@@ -413,6 +453,10 @@ export default function FamilyConsolePage() {
                           ? item.requester.handle
                             ? `@${item.requester.handle} — held until you decide`
                             : 'Held until you decide'
+                          : item.kind === 'age_preset_prompt'
+                          ? item.changes
+                              .map(c => `${AGE_FIELD_LABELS[c.field] ?? c.field}: ${c.from} → ${c.to}`)
+                              .join(' · ')
                           : null;
                       const waitingOnChild = item.kind === 'waiting_on_child';
                       const body = (
@@ -480,6 +524,31 @@ export default function FamilyConsolePage() {
                                 className="px-3 py-2 min-h-[44px] inline-flex items-center border border-border-strong rounded-lg text-sm font-semibold text-secondary hover:bg-surface-muted transition-colors disabled:opacity-50"
                               >
                                 {noLabel}
+                              </button>
+                            </span>
+                          </div>
+                        );
+                      }
+                      if (item.kind === 'age_preset_prompt') {
+                        return (
+                          <div key={item.id} className="flex flex-wrap items-center gap-3 px-4 py-3 min-h-[44px]">
+                            {body}
+                            <span className="flex items-center gap-2 shrink-0">
+                              <button
+                                type="button"
+                                disabled={queueActing === item.id}
+                                onClick={() => setConfirmingAgeApply(item)}
+                                className="px-3 py-2 min-h-[44px] inline-flex items-center bg-brand hover:bg-brand-hover text-white rounded-lg text-sm font-semibold transition-colors disabled:opacity-50"
+                              >
+                                Apply
+                              </button>
+                              <button
+                                type="button"
+                                disabled={queueActing === item.id}
+                                onClick={() => decideAgePreset(item, 'keep')}
+                                className="px-3 py-2 min-h-[44px] inline-flex items-center border border-border-strong rounded-lg text-sm font-semibold text-secondary hover:bg-surface-muted transition-colors disabled:opacity-50"
+                              >
+                                Keep current
                               </button>
                             </span>
                           </div>
@@ -626,6 +695,21 @@ export default function FamilyConsolePage() {
           </>
         )}
       </main>
+
+      <ConfirmModal
+        isOpen={confirmingAgeApply !== null}
+        title="Apply your older-athlete settings?"
+        message={`${confirmingAgeApply?.athlete.name ?? 'Your athlete'} gets: ${(confirmingAgeApply?.changes ?? [])
+          .map(c => `${AGE_FIELD_LABELS[c.field] ?? c.field} ${c.from} → ${c.to}`)
+          .join(', ')}. The change is recorded in the safety log.`}
+        confirmText="Apply"
+        confirmButtonClass="bg-brand hover:bg-brand-hover"
+        cancelText="Not now"
+        onConfirm={() => {
+          if (confirmingAgeApply) void decideAgePreset(confirmingAgeApply, 'apply');
+        }}
+        onCancel={() => setConfirmingAgeApply(null)}
+      />
     </div>
   );
 }

@@ -695,6 +695,129 @@ test('apply-to-all + deviation + safety feed: chips appear, one confirm reverts,
   }
 });
 
+test('age-preset prompt (133): seeded crossing → queue card with change list → Apply confirm updates + stamps', async ({ page }) => {
+  test.skip(!flagOn, 'guardian flag off');
+  const api = await apiAs('state.json');
+  let transferId = '';
+  try {
+    // Differing older overrides (the prompt's precondition).
+    const adopt = await api.patch('/api/guardian/household', {
+      data: {
+        defaults: { messaging_permission: 'fans_only' },
+        olderDefaults: { messaging_permission: 'everyone' },
+      },
+    });
+    expect(adopt.ok(), await readErrorBody(adopt)).toBe(true);
+
+    // Seed the crossing row directly (cron isn't triggered from e2e) —
+    // service-role REST via the e2e env (transfer-ceremony precedent).
+    const { requireEnv } = await import('./helpers/qa-user');
+    const { url, serviceKey } = requireEnv();
+    const seed = await fetch(`${url}/rest/v1/profile_transfers`, {
+      method: 'POST',
+      headers: {
+        apikey: serviceKey,
+        Authorization: `Bearer ${serviceKey}`,
+        'Content-Type': 'application/json',
+        Prefer: 'return=representation',
+      },
+      body: JSON.stringify({
+        profile_id: childId,
+        state: 'eligible_notified',
+        initiated_by: 'system',
+        dob_snapshot: '2012-06-15',
+        age_preset_prompt: 'pending',
+      }),
+    });
+    expect(seed.ok, JSON.stringify(await seed.clone().json().catch(() => ({})))).toBe(true);
+    transferId = (await seed.json())[0].id;
+
+    // The queue derives the card with the change list; Apply → one confirm.
+    await page.goto('/app/guardian');
+    const main = page.locator('main');
+    await expect(
+      main.getByText('Junior Console is old enough for your older-athlete settings')
+    ).toBeVisible({ timeout: 15_000 });
+    await expect(main.getByText(/Messaging: .* → everyone/).first()).toBeVisible();
+    await main.getByRole('button', { name: 'Apply', exact: true }).click();
+    await expect(page.getByText('Apply your older-athlete settings?')).toBeVisible();
+    await page.getByRole('button', { name: 'Apply', exact: true }).last().click();
+    await expect(
+      main.getByText('Junior Console is old enough for your older-athlete settings')
+    ).toHaveCount(0, { timeout: 10_000 });
+
+    // Settings applied + stamped; a second decision is refused.
+    const roster = await api.get('/api/guardian/athletes');
+    const child = ((await roster.json()).athletes ?? []).find(
+      (a: { id: string }) => a.id === childId
+    );
+    expect(child.messaging_permission).toBe('everyone');
+    const again = await api.post('/api/guardian/age-preset', {
+      data: { transferId, decision: 'keep' },
+    });
+    expect(again.status()).toBe(400);
+  } finally {
+    if (transferId) {
+      const { requireEnv } = await import('./helpers/qa-user');
+      const { url, serviceKey } = requireEnv();
+      await fetch(`${url}/rest/v1/profile_transfers?id=eq.${transferId}`, {
+        method: 'DELETE',
+        headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}` },
+      }).catch(() => {});
+    }
+    await api.patch('/api/guardian/household', { data: null }).catch(() => {});
+    await api.dispose();
+  }
+});
+
+test('household blocks: one action covers guardian + athletes; unblock clears both', async ({ page }) => {
+  test.skip(!flagOn, 'guardian flag off');
+  const api = await apiAs('state.json');
+  const userB = loadQaUser('user-b.json');
+  try {
+    const block = await api.post('/api/guardian/blocks', {
+      data: { blockedId: userB.id },
+    });
+    expect(block.ok(), await readErrorBody(block)).toBe(true);
+    expect((await block.json()).appliedTo.length).toBeGreaterThanOrEqual(2);
+
+    const list = await api.get('/api/guardian/blocks');
+    const row = ((await list.json()).blocks ?? []).find(
+      (b: { blocked: { id: string } }) => b.blocked.id === userB.id
+    );
+    expect(row, 'household block listed').toBeTruthy();
+    expect(row.full).toBe(true);
+
+    // The CHILD's own user_blocks row exists (service REST truth).
+    const { requireEnv } = await import('./helpers/qa-user');
+    const { url, serviceKey } = requireEnv();
+    const childRows = await (
+      await fetch(
+        `${url}/rest/v1/user_blocks?blocker_id=eq.${childId}&blocked_id=eq.${userB.id}&select=blocker_id`,
+        { headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}` } }
+      )
+    ).json();
+    expect(childRows.length).toBe(1);
+
+    // Settings page renders the section.
+    await page.goto('/app/guardian/settings');
+    await expect(page.getByRole('heading', { name: 'Household block list' })).toBeVisible({ timeout: 15_000 });
+
+    const unblock = await api.delete(`/api/guardian/blocks?blockedId=${userB.id}`);
+    expect(unblock.ok(), await readErrorBody(unblock)).toBe(true);
+    const after = await (
+      await fetch(
+        `${url}/rest/v1/user_blocks?blocker_id=eq.${childId}&blocked_id=eq.${userB.id}&select=blocker_id`,
+        { headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}` } }
+      )
+    ).json();
+    expect(after.length).toBe(0);
+  } finally {
+    await api.delete(`/api/guardian/blocks?blockedId=${userB.id}`).catch(() => {});
+    await api.dispose();
+  }
+});
+
 // afterAll, not a test: serial mode skips remaining TESTS after a failure,
 // which would orphan the child's @minors.invalid shadow user. Hooks run
 // regardless.
