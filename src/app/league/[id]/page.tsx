@@ -351,7 +351,7 @@ export default function LeaguePage() {
                         type="button"
                         onClick={() => setRemoveTarget(member)}
                         aria-label={`Remove ${name}`}
-                        className="ea-icon-btn text-muted hover:text-red-600"
+                        className="ea-icon-btn inline-flex items-center justify-center shrink-0 text-muted hover:text-red-600"
                       >
                         <i className="fas fa-times" aria-hidden="true"></i>
                       </button>

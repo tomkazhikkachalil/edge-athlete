@@ -464,7 +464,31 @@ export default function ScoreEntryModal({
   // participant so the next player's card seeds fresh.
   const handleSwitchPlayer = async (nextParticipantId: string) => {
     if (!onSwitchPlayer || nextParticipantId === participantId) return;
-    if (isLive && !(await persistHole(currentHole))) return;
+    if (isLive) {
+      if (!(await persistHole(currentHole))) return;
+    } else {
+      // Batch mode (composer grid): the parent only receives scores through
+      // onSave, and the switch remounts the modal — flush everything entered
+      // first, with the same resting-wheel commit rules as Save Scores.
+      const committed = commitRestingScores();
+      const effective = committed
+        ? holeData.map((h, idx) => (idx === currentHole - 1 ? committed : h))
+        : holeData;
+      const scores = collectCompletedScores(effective);
+      if (scores.length > 0) {
+        setSaving(true);
+        setError(null);
+        try {
+          await onSave(scores);
+          clearDraft(participantId);
+        } catch (err) {
+          setError(err instanceof Error ? err.message : 'Failed to save scores');
+          return;
+        } finally {
+          setSaving(false);
+        }
+      }
+    }
     onSwitchPlayer(nextParticipantId);
   };
 
@@ -553,6 +577,20 @@ export default function ScoreEntryModal({
   const activePlayer = players?.find(p => p.participantId === participantId) ?? null;
   const enteringForOther = activePlayer ? !activePlayer.isSelf : !!playerName;
 
+  /** Batch-mode payload: every hole with a recorded stroke count, in the
+   *  shape onSave expects. Shared by Save Scores and the player switch. */
+  const collectCompletedScores = (effective: HoleData[]) =>
+    effective
+      .filter(h => h.strokes !== null)
+      .map(h => ({
+        hole_number: h.hole_number!,
+        strokes: h.strokes!,
+        putts: h.putts ?? undefined,
+        fairway_hit: h.fairway_hit ?? undefined,
+        green_in_regulation: h.green_in_regulation ?? undefined,
+        penalties: h.penalties?.length ? h.penalties : undefined,
+      }));
+
   const handleSave = async () => {
     // "Save Scores" is the explicit finish in batch mode, so it commits the
     // current hole's resting wheels like the live Done button does. Work from
@@ -576,16 +614,7 @@ export default function ScoreEntryModal({
 
     try {
       // Filter out holes with no strokes entered
-      const scores = effective
-        .filter(h => h.strokes !== null)
-        .map(h => ({
-          hole_number: h.hole_number!,
-          strokes: h.strokes!,
-          putts: h.putts ?? undefined,
-          fairway_hit: h.fairway_hit ?? undefined,
-          green_in_regulation: h.green_in_regulation ?? undefined,
-          penalties: h.penalties?.length ? h.penalties : undefined,
-        }));
+      const scores = collectCompletedScores(effective);
 
       await onSave(scores);
       clearDraft(participantId);
@@ -602,7 +631,10 @@ export default function ScoreEntryModal({
   const holesCompleted = holeData.filter(h => h.strokes !== null).length;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+    // z-[60] — the house convention for overlays that stack above a z-50
+    // modal (ConfirmModal, TagPeopleModal): this opens over CreatePostModal
+    // from the composer path. MediaEditor inside stays above at z-[65].
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4">
       <div className="bg-surface-raised rounded-lg shadow-2xl max-w-md w-full max-h-modal overflow-hidden flex flex-col">
         {/* Header — color signals WHOSE card is open: green for your own,
             amber when entering for someone else (unmissable identity) */}
@@ -704,10 +736,10 @@ export default function ScoreEntryModal({
                   key={p.participantId}
                   onClick={() => handleSwitchPlayer(p.participantId)}
                   disabled={savingHole !== null}
-                  className={`flex shrink-0 items-center gap-1.5 px-2.5 py-1.5 min-h-[40px] rounded-full text-xs font-bold whitespace-nowrap transition-all border-2 disabled:opacity-60 ${
+                  className={`flex shrink-0 items-center gap-1.5 px-2.5 py-1.5 min-h-[44px] rounded-full text-xs font-bold whitespace-nowrap transition-all border-2 disabled:opacity-60 ${
                     active
                       ? 'bg-green-600 text-white border-green-700 shadow'
-                      : 'bg-surface text-secondary border-border-strong hover:border-green-400'
+                      : 'bg-surface text-secondary border-border-strong hover:border-green-400 active:border-green-400'
                   }`}
                 >
                   {p.avatarUrl ? (
@@ -801,10 +833,10 @@ export default function ScoreEntryModal({
             <div className="flex gap-2">
               <button
                 onClick={() => updateCurrentHole('fairway_hit', !currentHoleData.fairway_hit)}
-                className={`flex-1 py-2 px-3 min-h-[40px] rounded-lg text-sm font-semibold transition-colors ${
+                className={`flex-1 py-2 px-3 min-h-[44px] rounded-lg text-sm font-semibold transition-colors ${
                   currentHoleData.fairway_hit
                     ? 'bg-green-600 text-white'
-                    : 'bg-surface-sunken text-secondary hover:bg-border'
+                    : 'bg-surface-sunken text-secondary hover:bg-border active:bg-border'
                 }`}
               >
                 <i className="fas fa-check mr-1"></i>
@@ -812,10 +844,10 @@ export default function ScoreEntryModal({
               </button>
               <button
                 onClick={() => updateCurrentHole('green_in_regulation', !currentHoleData.green_in_regulation)}
-                className={`flex-1 py-2 px-3 min-h-[40px] rounded-lg text-sm font-semibold transition-colors ${
+                className={`flex-1 py-2 px-3 min-h-[44px] rounded-lg text-sm font-semibold transition-colors ${
                   currentHoleData.green_in_regulation
                     ? 'bg-green-600 text-white'
-                    : 'bg-surface-sunken text-secondary hover:bg-border'
+                    : 'bg-surface-sunken text-secondary hover:bg-border active:bg-border'
                 }`}
               >
                 <i className="fas fa-check mr-1"></i>
@@ -826,18 +858,23 @@ export default function ScoreEntryModal({
             {/* Penalties — type + count entry; rows below aggregate per type */}
             <div className="mt-4" ref={penaltiesSectionRef}>
               <label className={GOLF_LABEL} htmlFor="penalty-type-select">Penalties</label>
-              <div className="flex items-center gap-2">
-                <select
-                  id="penalty-type-select"
-                  value={penaltyType}
-                  onChange={e => setPenaltyType(e.target.value)}
-                  className={GOLF_SELECT}
-                >
-                  <option value="">Add penalty…</option>
-                  {PENALTY_TYPES.map(type => (
-                    <option key={type} value={type}>{PENALTY_LABELS[type]}</option>
-                  ))}
-                </select>
+              {/* flex-wrap + basis-full wrapper: at ~311px of body the select
+                  landed at ~161px with a forced 16px font (iOS zoom guard) —
+                  "Out of bounds" truncated. Phones give it the full row. */}
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="basis-full sm:basis-0 sm:flex-1 min-w-0">
+                  <select
+                    id="penalty-type-select"
+                    value={penaltyType}
+                    onChange={e => setPenaltyType(e.target.value)}
+                    className={GOLF_SELECT}
+                  >
+                    <option value="">Add penalty…</option>
+                    {PENALTY_TYPES.map(type => (
+                      <option key={type} value={type}>{PENALTY_LABELS[type]}</option>
+                    ))}
+                  </select>
+                </div>
                 {/* w-16 wrapper (not on the input): GOLF_INPUT_COMPACT carries
                     w-full, and utility precedence comes from stylesheet order,
                     so a sibling w-16 on the input can't reliably win. */}
@@ -848,6 +885,9 @@ export default function ScoreEntryModal({
                     max={9}
                     value={penaltyCount}
                     onChange={e => setPenaltyCount(e.target.value ? Number(e.target.value) : 1)}
+                    // Mid-body input in a dvh-clamped panel: the iOS keyboard
+                    // shrinks the panel and can cover the field — recenter it.
+                    onFocus={e => e.currentTarget.scrollIntoView({ block: 'center' })}
                     className={GOLF_INPUT_COMPACT}
                     aria-label="How many times"
                   />
@@ -855,7 +895,7 @@ export default function ScoreEntryModal({
                 <button
                   onClick={handleAddPenalty}
                   disabled={!isPenaltyType(penaltyType)}
-                  className="shrink-0 py-2 px-3 min-h-[40px] rounded-lg text-sm font-semibold bg-surface-sunken text-secondary hover:bg-border transition-colors disabled:opacity-50"
+                  className="shrink-0 py-2 px-3 min-h-[44px] rounded-lg text-sm font-semibold bg-surface-sunken text-secondary hover:bg-border active:bg-border transition-colors disabled:opacity-50"
                 >
                   <i className="fas fa-plus mr-1"></i>
                   Add
@@ -983,12 +1023,12 @@ export default function ScoreEntryModal({
                     key={holeNum}
                     onClick={() => handleJumpToHole(holeNum)}
                     disabled={savingHole !== null}
-                    className={`relative py-2 px-1 min-h-[40px] rounded text-xs font-bold transition-colors disabled:opacity-60 ${
+                    className={`relative py-2 px-1 min-h-[44px] rounded text-xs font-bold transition-colors disabled:opacity-60 ${
                       isCurrent
                         ? 'bg-green-600 text-white ring-2 ring-green-800'
                         : hasScore
-                        ? 'bg-violet-100 text-violet-900 hover:bg-violet-200 dark:bg-violet-950/60 dark:text-violet-200 dark:hover:bg-violet-900/60'
-                        : 'bg-surface-sunken text-tertiary hover:bg-border'
+                        ? 'bg-violet-100 text-violet-900 hover:bg-violet-200 active:bg-violet-200 dark:bg-violet-950/60 dark:text-violet-200 dark:hover:bg-violet-900/60 dark:active:bg-violet-900/60'
+                        : 'bg-surface-sunken text-tertiary hover:bg-border active:bg-border'
                     }`}
                     title={isSaved ? 'Saved' : undefined}
                   >
