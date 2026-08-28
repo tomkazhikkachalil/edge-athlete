@@ -253,6 +253,7 @@ test('calendar surface: invite → hub week strip + queue row → inline decline
         title: `QA family practice ${stamp}`,
         starts_at: start.toISOString(),
         ends_at: end.toISOString(),
+        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
         guests: { profile_ids: [childId] },
       },
     });
@@ -271,11 +272,9 @@ test('calendar surface: invite → hub week strip + queue row → inline decline
     await expect(inviteRow).toBeVisible();
 
     // Inline decline responds AS THE CHILD (guest row stays the child's).
-    await main
-      .locator('div', { has: inviteRow })
-      .getByRole('button', { name: 'Decline' })
-      .last()
-      .click();
+    // The invite row is the only Decline button in this scenario (no fan
+    // requests exist at this point in the serial flow).
+    await main.getByRole('button', { name: 'Decline' }).click();
     await expect(inviteRow).toHaveCount(0, { timeout: 10_000 });
   } finally {
     await api.dispose();
@@ -319,6 +318,7 @@ test('co-guardian lifecycle: invite → claim → roster of two → revoke → l
         title: `QA co-guardian event ${stamp}`,
         starts_at: evStart.toISOString(),
         ends_at: new Date(evStart.getTime() + 3_600_000).toISOString(),
+        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
         guests: { profile_ids: [childId] },
       },
     });
