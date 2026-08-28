@@ -1,5 +1,83 @@
 # Development Log
 
+## August 28, 2026 — Family Console Wave 3: consent signature + messaging oversight (#352–#354 + migrations 130/131)
+
+Third round of the Family Console program: the consent funnel goes
+in-product and messaging gets its oversight layer. Round decisions (Tom):
+existing DM threads are GRANDFATHERED into the contact ledger at migration
+time; deny is a QUIET REMOVAL — sever the thread like a leave, tell nobody,
+repeatable.
+
+- **In-product consent signatures (#352 + migration 130).** The paper-only
+  flow (print, sign, photograph, upload) gains two siblings: sign on screen
+  (new SignatureCanvas — the media editor's pointer-capture/normalized-
+  coords conventions) and type your legal name. Both render a signature-card
+  PNG client-side (statement header, name or strokes, signer email + local
+  date — never toISOString for a local date) that travels the EXISTING
+  evidence path: same private bucket, same admin signed-URL review, same
+  sweep/deletion exclusions, and park/restore/review forward-copy the new
+  method values with zero code changes. The statement's closing paragraph
+  branches per method (policy bumped to minors-consent-v2); manual admin
+  review stays for every method, with a method chip on the dashboard so the
+  reviewer knows what they're looking at. DB-only method values 400 at the
+  API.
+- **First-contact hold (#353 + migration 131).** Tom's locked decision ③
+  realized: the first message from ANY account with no approved contact and
+  no accepted follow reaches a supervised child only after a guardian
+  approves. This also closed the audit's known hole — send-time re-checks
+  keyed on the SENDER being supervised, so an adult sending into an
+  existing DM with a child was never re-checked; every direct send touching
+  a supervised profile now re-passes blocks, the child's inbound tier, and
+  the first-contact gate. The held state is PARTICIPANT-level
+  (conversation_participants.held_at): one predicate in
+  get_conversation_list's my_convs CTE hides the thread, preview and unread
+  pills from the child; is_conversation_participant gains the same clause,
+  closing browser realtime in one place (grants untouched — RLS evaluates
+  it as the querying role); get_unread_message_count was filtered AND
+  tightened to service-role (its 026 'authenticated' grant let any
+  logged-in user count another user's unread by id); the JS fallback and
+  all nine self-participant viewer guards carry the filter. Held messages
+  still insert — they DELIVER on approval, appearing with their unread
+  count; no retro notifications. The gate is a pure decider: guardian and
+  accepted-follow-either-direction auto-approve (follows touching children
+  already pass the guardian queue), child-initiated contact is allowed and
+  ledger-visible (visibility, not lockdown) but never overwrites a
+  guardian's denial. Guardians get a safety_alert once per hold transition
+  and a contact_request queue item with inline Approve/Deny. The sender
+  keeps a normal view plus an honest banner ("You can keep writing —
+  messages deliver once approved"). safety_alert and calendar_alert finally
+  joined the notification icon maps and System tab.
+- **Contact roster + child escalation (#354).** The guardian athlete page
+  gains Contacts, immediately before Blocked users: who the child has
+  direct conversations with, first contact date, and a volume BAND
+  (few/regular/frequent) — never counts, never content; the e2e asserts the
+  payload carries no message text. Held rows decide inline; Deny's confirm
+  restates the quiet-removal contract and points at Block for permanence.
+  In-thread, a supervised child gets "Show this to my guardian" (ChatWindow
+  ⋯ menu, portaled ConfirmModal — not the legacy native confirm): a
+  safety_alert with a ?contact= deep link that lands on the highlighted
+  roster row. "Nothing from this chat was shared." is the literal truth.
+- **Teardown lesson (e2e helper).** Wave 1's soft delete made guardian-route
+  child deletion a PARK, so QA children outlived their runs; deleting the
+  guardian then tripped 048's deferred zero-access trigger, which silently
+  no-oped the profiles delete — or, when the child had a credentials SELF
+  row, slipped past and leaked the parked child + shadow user instead.
+  deleteQaUser now recursively deletes managed athletes first and
+  error-checks the profiles delete; the accumulated leak (19 children, 4
+  stranded guardians) was swept against the live DB.
+
+Verification: verify green per PR (2103 unit tests — first-contact truth
+table incl. the denial-preservation case, roster bands/precedence, consent
+closings); guardian e2e grew from 8 to 11 (consent-signature loop; the full
+hold lifecycle: tier-403 first → hold → child sees nothing across
+list/thread/badge → sender's held chip → bell + hub Approve → thread
+appears with unread → no re-hold → deny severs → retry re-holds; roster
+content-absence + escalate 200/403 + deep-link highlight); 375px passes on
+the consent method cards/canvas, queue contact row, sender banner and list
+chip, and the Contacts section (which caught the thread GET omitting
+held_at — the sender banner keyed on a field only the list RPC carried).
+Prod-probed per merge; full e2e-vs-prod run closed the wave.
+
 ## August 28, 2026 — Family Console Wave 2: the two spines (#348–#351 + migration 129)
 
 Second round of the Family Console program: the console reorganized around
