@@ -1,5 +1,67 @@
 # Development Log
 
+## August 28, 2026 — Family Console Wave 1: the safety rail (#347 + migration 128, merged + prod-probed)
+
+First round of the Family Console program — Tom brought a 43-item proposal
+to rebuild the guardian portal around "the parent's Saturday" (one action
+queue, one policy layer, one calendar). A three-explorer audit endorsed the
+structure, corrected its facts (the household ICS feed it called the
+biggest win already exists; guardian RSVP-for-child, recurrence, and
+multi-select upload too), and found defects it missed. Program decisions
+(Tom): safety rail ships first; approval SLA is nudge-never-auto-publish;
+the first-contact DM hold will apply to ALL unknown accounts; consent gets
+in-product signature capture with manual review retained.
+
+Wave 1 shipped the rail:
+
+- **Flag-off inversion.** FEATURE_GUARDIAN_PROFILES began as a migration
+  guard and was never redefined after launch: turning it off REMOVED the
+  posts.status publish filters — every pending/rejected minor post would
+  have published to feed, explore, and all three search paths — while
+  locking supervised children out of their only sign-in and dropping the
+  deletion rails. Publish filters, the pending/held pipelines and their
+  approve/reject valves, role resolution (getProfileRole's flag fast-path
+  deleted), the invite gate, deletion preflight, and username-login now run
+  unconditionally; the flag only hides guardian surfaces. Semantics are
+  documented at the flag definition: never reintroduce a flag check on a
+  safety behavior. Probed empirically with a flag-unset build: seeded
+  pending post stayed hidden while its published sibling showed; child
+  login answered 401, not 404.
+- **Opt-out authorization.** 151 API routes, 133 on the service-role client
+  — the app layer is the security boundary and it was opt-in per route.
+  api-route-authz.test.ts now walks every route file and fails the build
+  unless it matches a known gate or carries an allowlist entry with a
+  written reason (public routes / reviewed self-scoped); stale entries fail
+  too. Plus guardian-parity on five guardian-blind reads (vitals, workouts,
+  achievements, skill-cards, sport-settings).
+- **Media privacy.** Acting-as uploads landed under the guardian's storage
+  prefix — post-media now takes targetProfileId through the acting-as gate
+  and keys storage to the athlete. A lossless byte-level JPEG metadata
+  strip (APP1/APP13 dropped, decode/color segments kept, unit-tested) runs
+  in uploadPostMedia — the chokepoint of all 12 upload surfaces — so
+  un-edited photos and the non-destructive originals no longer ship GPS;
+  the composer says so, and says honestly that video isn't scrubbed yet.
+- **30-day soft delete (migration 128).** Both deletion flows park the
+  account (stamp + forced private) instead of destroying it; the daily
+  cron purges via the existing hardDeleteAccount after the window. Restore
+  is a root-layout banner for a returning owner and a per-athlete section
+  on the console hub for guardians; a child restore appends a fresh
+  'granted' consent row so consent re-enters admin review. Deletion copy
+  now names the window, including that accepted followers can still see
+  previously-published content until purge.
+
+Prod-probed after merge: 10/10 scripted (pending hidden on live explore
+with a visible published control; park → stamp + private → content off
+explore → sign back in → restore → stamp cleared, visibility stays
+private → double-restore 400) — one false negative on the way was explore's
+s-maxage=30 CDN cache, cache-busted; plus 9/9 e2e-vs-prod including the
+full guardian-console lifecycle over the widened roster select. Merge
+friction recurred (GitHub's two-step confirm while checks ran); auto-merge
+is now enabled for future PRs.
+
+Wave 2 next: the unified cross-athlete action queue and the family
+calendar surface.
+
 ## August 28, 2026 — Phone-width polish on the Launch Polish surfaces (#346, merged + prod-probed)
 
 The standing ~375px pass, run on the two newest surfaces (#344's checklist,
