@@ -1287,7 +1287,9 @@ export default function GolfComposerSection({
                   {sharedRoundDetails.alreadyPlayed ? 'Round Participants' : 'Playing partners'}
                 </h3>
                 <div>
-                  <div className="flex items-center justify-between mb-3">
+                  {/* flex-wrap: the label is long and dynamic — at ~279px of
+                      card width it must wrap rather than squeeze the button. */}
+                  <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
                     <label className="text-sm font-semibold text-primary">
                       {`Playing with anyone? Optional (${sharedRoundParticipants.length})`}
                     </label>
@@ -1298,7 +1300,7 @@ export default function GolfComposerSection({
                           partners were required. */}
                       <button
                         onClick={() => setShowParticipantModal(true)}
-                        className="flex items-center gap-2 px-3 py-1.5 text-sm text-green-700 dark:text-green-300 hover:text-green-800 dark:hover:text-green-200 hover:bg-green-100 dark:hover:bg-green-950/60 rounded-lg transition-colors font-semibold"
+                        className="flex min-h-[44px] items-center gap-2 px-3 py-1.5 -my-1.5 text-sm text-green-700 dark:text-green-300 hover:text-green-800 active:text-green-800 dark:hover:text-green-200 dark:active:text-green-200 hover:bg-green-100 active:bg-green-100 dark:hover:bg-green-950/60 dark:active:bg-green-950/60 rounded-lg transition-colors font-semibold"
                       >
                         <i className="fas fa-users"></i>
                         Add Others
@@ -1318,7 +1320,7 @@ export default function GolfComposerSection({
                           {participant.name}
                           <button
                             onClick={() => removeParticipant(participant.id)}
-                            className="ml-1 hover:text-green-900 dark:hover:text-green-200 min-w-[32px] min-h-[32px] -my-1.5 -mr-2 flex items-center justify-center rounded-full hover:bg-green-200"
+                            className="ml-1 hover:text-green-900 active:text-green-900 dark:hover:text-green-200 dark:active:text-green-200 min-w-[44px] min-h-[44px] -my-2.5 -mr-2.5 flex items-center justify-center rounded-full hover:bg-green-200"
                             aria-label={`Remove ${participant.name}`}
                           >
                             <i className="fas fa-times text-xs"></i>
@@ -1365,10 +1367,14 @@ export default function GolfComposerSection({
                     along; this is its first headline entry point: before this,
                     the stepper was reachable only through the per-cell
                     penalties badge. */}
+                {/* grow + justify-center: when the flex-wrap header wraps
+                    (font scaling, 320px), the button becomes a full-width
+                    centered CTA instead of a stray left-aligned link. */}
                 <button
                   type="button"
                   onClick={() => setQuickEntryRequest(n => n + 1)}
-                  className="ea-interactive inline-flex min-h-[44px] items-center gap-2 rounded-lg border border-border-strong px-3 py-2 text-sm font-semibold text-secondary"
+                  disabled={playerScores.length === 0}
+                  className="ea-interactive inline-flex min-h-[44px] items-center justify-center gap-2 whitespace-nowrap grow sm:grow-0 rounded-lg border border-border-strong px-3 py-2 text-sm font-semibold text-primary disabled:opacity-50"
                 >
                   <i className="fas fa-bolt text-amber-500" aria-hidden="true"></i>
                   Quick entry

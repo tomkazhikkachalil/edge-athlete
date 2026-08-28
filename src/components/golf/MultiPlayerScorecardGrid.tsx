@@ -520,6 +520,23 @@ function MultiPlayerScorecardGrid({
             playerName={players.length > 1
               ? formatDisplayName(entryPlayer.profile.first_name, null, entryPlayer.profile.last_name, entryPlayer.profile.full_name)
               : undefined}
+            {...(players.length > 1
+              ? {
+                  // Switcher chips (phone path): before this, a partner's card
+                  // was reachable only via a 24px penalty badge in their grid
+                  // row. players[0] is always the creator/session user here —
+                  // the composer seeds that row (see GolfComposerSection).
+                  players: players.map((p, idx) => ({
+                    participantId: p.participant_id,
+                    name: formatDisplayName(p.profile.first_name, null, p.profile.last_name, p.profile.full_name),
+                    avatarUrl: p.profile.avatar_url ?? null,
+                    holesCompleted: p.hole_scores.filter(s => typeof s.strokes === 'number').length,
+                    isSelf: idx === 0,
+                  })),
+                  onSwitchPlayer: (pid: string) =>
+                    setEntrySession(s => (s ? { playerId: pid, hole: null, focusPenalties: false } : s)),
+                }
+              : {})}
             existingScores={entryPlayer.hole_scores.filter(s => typeof s.strokes === 'number') as unknown as GolfHoleScore[]}
             initialHole={entrySession.hole ?? undefined}
             focusSection={entrySession.focusPenalties ? 'penalties' : undefined}
