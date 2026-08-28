@@ -2,8 +2,10 @@ import { describe, it, expect } from 'vitest';
 import {
   AGING_BADGE_MS,
   buildQueueItems,
+  flattenInviteRows,
   TRANSFER_NEEDS_GUARDIAN,
   type QueueFollowRow,
+  type RawInviteRow,
   type RosterRow,
 } from '../guardian-queue';
 
@@ -262,6 +264,62 @@ describe('changes_requested → waiting_on_child rows', () => {
       []
     );
     expect(items.map(i => i.kind)).toEqual(['consent_gap', 'credentials_gap', 'waiting_on_child']);
+  });
+});
+
+describe('flattenInviteRows + calendar_invite items', () => {
+  const NOW = Date.parse('2026-08-28T12:00:00Z');
+  const inviteEvent = (id: string, over: Partial<RawInviteRow['events'] & object> = {}) => ({
+    id,
+    title: `event ${id}`,
+    starts_at: '2026-08-29T15:00:00Z',
+    ends_at: '2026-08-29T17:00:00Z',
+    all_day: false,
+    timezone: 'UTC',
+    status: 'active',
+    ...over,
+  });
+
+  it('unwraps object OR array embeds, drops cancelled and already-ended events', () => {
+    const rows: RawInviteRow[] = [
+      { id: 'g1', profile_id: 'a', created_at: '2026-08-27T10:00:00Z', events: inviteEvent('e1') },
+      { id: 'g2', profile_id: 'a', created_at: '2026-08-27T11:00:00Z', events: [inviteEvent('e2')] },
+      { id: 'g3', profile_id: 'a', created_at: '2026-08-27T12:00:00Z', events: inviteEvent('e3', { status: 'cancelled' }) },
+      {
+        id: 'g4', profile_id: 'a', created_at: '2026-08-27T13:00:00Z',
+        events: inviteEvent('e4', { starts_at: '2026-08-20T15:00:00Z', ends_at: '2026-08-20T17:00:00Z' }),
+      },
+      { id: 'g5', profile_id: 'a', created_at: '2026-08-27T14:00:00Z', events: null },
+    ];
+    const flat = flattenInviteRows(rows, NOW);
+    expect(flat.map(r => r.id)).toEqual(['g1', 'g2']);
+    expect(flat[0].event).not.toHaveProperty('status');
+  });
+
+  it('calendar_invite items slot after follow requests and before the gap tail', () => {
+    const follower = {
+      id: 'fan-1', first_name: 'Fan', last_name: null, full_name: null, handle: null, avatar_url: null,
+    };
+    const items = buildQueueItems(
+      [kid('a')],
+      [],
+      [],
+      [{ id: 'f1', following_id: 'a', message: null, created_at: '2026-08-27T10:00:00Z', follower }],
+      [], // consent none → gaps
+      [],
+      [],
+      flattenInviteRows(
+        [{ id: 'g1', profile_id: 'a', created_at: '2026-08-27T10:00:00Z', events: inviteEvent('e1') }],
+        NOW
+      )
+    );
+    expect(items.map(i => i.kind)).toEqual([
+      'follow_request',
+      'calendar_invite',
+      'consent_gap',
+      'credentials_gap',
+    ]);
+    expect(items[1]).toMatchObject({ id: 'g1', event: { id: 'e1', title: 'event e1' } });
   });
 });
 

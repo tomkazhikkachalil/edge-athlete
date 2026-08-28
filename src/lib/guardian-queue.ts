@@ -92,6 +92,23 @@ export type QueueItem =
       athlete: QueueAthlete;
       createdAt: string;
       contentKind: 'post' | 'comment';
+    }
+  | {
+      /** Pending event invite for a child — inline respond-as-child via
+       *  POST /api/calendar/events/<event.id>/respond. `id` is the guest
+       *  row (unique per child+event). */
+      kind: 'calendar_invite';
+      id: string;
+      athlete: QueueAthlete;
+      createdAt: string;
+      event: {
+        id: string;
+        title: string;
+        starts_at: string;
+        ends_at: string;
+        all_day: boolean;
+        timezone: string;
+      };
     };
 
 // ── Route row shapes ─────────────────────────────────────────────────────────
@@ -142,6 +159,58 @@ function unwrapEmbed<T>(value: T | T[] | null | undefined): T | null {
   return value ?? null;
 }
 
+// ── Calendar invites (Wave 2 PR 4) ───────────────────────────────────────────
+
+interface InviteEventEmbed {
+  id: string;
+  title: string;
+  starts_at: string;
+  ends_at: string;
+  all_day: boolean;
+  timezone: string;
+  status: string;
+}
+
+export interface RawInviteRow {
+  id: string;
+  profile_id: string;
+  created_at: string;
+  events: InviteEventEmbed | InviteEventEmbed[] | null;
+}
+
+export interface QueueInviteRow {
+  id: string;
+  profile_id: string;
+  created_at: string;
+  event: Omit<InviteEventEmbed, 'status'>;
+}
+
+/** Unwrap the events!inner embed (object OR array) and keep only invites a
+ *  guardian can still act on: event active and not already over. */
+export function flattenInviteRows(rows: RawInviteRow[], nowMs: number): QueueInviteRow[] {
+  const out: QueueInviteRow[] = [];
+  for (const row of rows) {
+    const event = unwrapEmbed(row.events);
+    if (!event) continue;
+    if (event.status === 'cancelled') continue;
+    if (Date.parse(event.ends_at) <= nowMs) continue;
+    out.push({
+      id: row.id,
+      profile_id: row.profile_id,
+      created_at: row.created_at,
+      event: {
+        id: event.id,
+        title: event.title,
+        starts_at: event.starts_at,
+        ends_at: event.ends_at,
+        all_day: event.all_day,
+        timezone: event.timezone,
+      },
+    });
+  }
+  return out;
+}
+
 function toQueueAthlete(row: RosterRow): QueueAthlete {
   return {
     id: row.id,
@@ -168,7 +237,8 @@ export function buildQueueItems(
   follows: QueueFollowRow[],
   consentRows: Array<{ profile_id: string; action: string }>,
   supervisedRows: Array<{ user_id: string; profile_id: string }>,
-  transferRows: Array<{ profile_id: string; state: string }>
+  transferRows: Array<{ profile_id: string; state: string }>,
+  invites: QueueInviteRow[] = []
 ): QueueItem[] {
   const athletesById = new Map<string, RosterRow>();
   for (const row of roster) athletesById.set(row.id, row);
@@ -267,6 +337,22 @@ export function buildQueueItems(
     ('createdAt' in a ? a.createdAt : '').localeCompare('createdAt' in b ? b.createdAt : '')
   );
 
+  const inviteItems: QueueItem[] = [];
+  for (const row of invites) {
+    const athlete = athletesById.get(row.profile_id);
+    if (!athlete) continue;
+    inviteItems.push({
+      kind: 'calendar_invite',
+      id: row.id,
+      athlete: toQueueAthlete(athlete),
+      createdAt: row.created_at,
+      event: row.event,
+    });
+  }
+  inviteItems.sort((a, b) =>
+    ('createdAt' in a ? a.createdAt : '').localeCompare('createdAt' in b ? b.createdAt : '')
+  );
+
   const tail: QueueItem[] = [];
   for (const row of transferRows) {
     const athlete = athletesById.get(row.profile_id);
@@ -305,5 +391,5 @@ export function buildQueueItems(
   waiting.sort((a, b) =>
     ('createdAt' in a ? a.createdAt : '').localeCompare('createdAt' in b ? b.createdAt : '')
   );
-  return [...content, ...followItems, ...tail, ...waiting];
+  return [...content, ...followItems, ...inviteItems, ...tail, ...waiting];
 }
