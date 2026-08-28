@@ -7,6 +7,7 @@ import Image from 'next/image';
 import { useAuth } from '@/lib/auth';
 import AppHeader from '@/components/AppHeader';
 import ConfirmModal from '@/components/ConfirmModal';
+import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
 import { FEATURE_FLAGS } from '@/lib/features';
 import { formatDisplayName } from '@/lib/formatters';
 import { SPORT_REGISTRY, type SportKey } from '@/lib/sports/SportRegistry';
@@ -76,6 +77,73 @@ function sportLabel(sportKey: string | null): string | null {
   return SPORT_REGISTRY[sportKey as SportKey]?.display_name ?? null;
 }
 
+const SEND_BACK_NOTE_MAX = 500;
+
+/** Send-back modal (Wave 2): the middle path between approve and the terminal
+ *  reject — an optional note rides to the child's bell and their banner. */
+function SendBackModal({
+  isOpen,
+  athleteName,
+  busy,
+  onSend,
+  onCancel,
+}: {
+  isOpen: boolean;
+  athleteName: string;
+  busy: boolean;
+  onSend: (note: string) => void;
+  onCancel: () => void;
+}) {
+  // The mount gives this modal a per-target `key`, so a fresh opening starts
+  // with clean state — no reset effect needed.
+  const [note, setNote] = useState('');
+  useBodyScrollLock(isOpen);
+  if (!isOpen) return null;
+  return (
+    <div className="fixed inset-0 bg-black/50 z-[60] flex items-center justify-center p-4">
+      <div className="bg-surface-raised rounded-lg shadow-xl max-w-md w-full max-h-modal overflow-y-auto">
+        <div className="p-4 sm:p-6 border-b border-border">
+          <h2 className="text-xl font-bold text-primary">Send back for changes?</h2>
+        </div>
+        <div className="p-4 sm:p-6">
+          <p className="text-sm text-secondary mb-3">
+            {athleteName} can edit and resend it for your review. Nothing is
+            visible to anyone else in the meantime.
+          </p>
+          <label htmlFor="send-back-note" className="block text-sm font-medium text-secondary mb-1">
+            Note for {athleteName} <span className="text-muted font-normal">(optional)</span>
+          </label>
+          <textarea
+            id="send-back-note"
+            value={note}
+            onChange={e => setNote(e.target.value.slice(0, SEND_BACK_NOTE_MAX))}
+            rows={3}
+            placeholder="What should they change?"
+            className="w-full border border-border-strong rounded-lg px-3 py-2 text-sm text-primary bg-surface resize-none"
+          />
+          <p className="text-xs text-muted text-right mt-1">{note.length}/{SEND_BACK_NOTE_MAX}</p>
+        </div>
+        <div className="p-4 sm:p-6 border-t border-border flex flex-col-reverse sm:flex-row sm:justify-end gap-3">
+          <button
+            onClick={onCancel}
+            disabled={busy}
+            className="px-4 py-2 border border-border-strong rounded-lg text-secondary hover:bg-surface-muted transition-colors font-medium disabled:opacity-50"
+          >
+            Keep reviewing
+          </button>
+          <button
+            onClick={() => onSend(note)}
+            disabled={busy}
+            className="px-4 py-2 rounded-lg text-white bg-brand hover:bg-brand-hover transition-colors font-medium disabled:opacity-50"
+          >
+            {busy ? 'Sending…' : 'Send back'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function GuardianApprovalsPage() {
   const router = useRouter();
   const { user, loading, initialAuthCheckComplete } = useAuth();
@@ -140,6 +208,50 @@ export default function GuardianApprovalsPage() {
     | { kind: 'comment'; comment: PendingComment }
     | null
   >(null);
+
+  // Send-back target (Wave 2). The modal collects the optional note; the
+  // PATCH is the same endpoint pair approve/reject use.
+  const [pendingSendBack, setPendingSendBack] = useState<
+    | { kind: 'post'; postId: string; athleteName: string }
+    | { kind: 'comment'; comment: PendingComment; athleteName: string }
+    | null
+  >(null);
+  const [sendingBack, setSendingBack] = useState(false);
+
+  const sendBack = async (note: string) => {
+    if (!pendingSendBack) return;
+    setSendingBack(true);
+    setError('');
+    try {
+      const isPost = pendingSendBack.kind === 'post';
+      const res = await fetch(isPost ? '/api/posts' : '/api/comments', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(
+          isPost
+            ? { postId: pendingSendBack.postId, action: 'request_changes', note }
+            : {
+                commentId: pendingSendBack.comment.id,
+                postId: pendingSendBack.comment.post_id,
+                action: 'request_changes',
+                note,
+              }
+        ),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'Could not send it back');
+      if (isPost) {
+        setPosts(prev => prev.filter(p => p.id !== pendingSendBack.postId));
+      } else {
+        setComments(prev => prev.filter(c => c.id !== pendingSendBack.comment.id));
+      }
+      setPendingSendBack(null);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not send it back');
+    } finally {
+      setSendingBack(false);
+    }
+  };
 
   const decide = async (postId: string, action: 'approve' | 'reject') => {
     setActing(postId);
@@ -339,7 +451,7 @@ export default function GuardianApprovalsPage() {
                   </div>
                 )}
 
-                <div className="flex gap-3">
+                <div className="flex flex-wrap gap-3">
                   <button
                     onClick={() => decide(post.id, 'approve')}
                     disabled={acting === post.id}
@@ -351,6 +463,14 @@ export default function GuardianApprovalsPage() {
                       <i className="fas fa-check mr-2"></i>
                     )}
                     Approve
+                  </button>
+                  <button
+                    onClick={() => setPendingSendBack({ kind: 'post', postId: post.id, athleteName })}
+                    disabled={acting === post.id}
+                    className="border border-violet-300 dark:border-violet-800 text-brand-fg-strong px-4 py-2 rounded-md text-sm font-medium hover:bg-brand-soft transition disabled:opacity-50"
+                  >
+                    <i className="fas fa-rotate-left mr-2"></i>
+                    Send back
                   </button>
                   <button
                     onClick={() => setPendingReject({ kind: 'post', postId: post.id })}
@@ -397,7 +517,7 @@ export default function GuardianApprovalsPage() {
                         On: “{comment.post.caption}”
                       </p>
                     )}
-                    <div className="flex gap-3">
+                    <div className="flex flex-wrap gap-3">
                       <button
                         onClick={() => decideComment(comment, 'approve')}
                         disabled={acting === comment.id}
@@ -409,6 +529,14 @@ export default function GuardianApprovalsPage() {
                           <i className="fas fa-check mr-2"></i>
                         )}
                         Approve
+                      </button>
+                      <button
+                        onClick={() => setPendingSendBack({ kind: 'comment', comment, athleteName })}
+                        disabled={acting === comment.id}
+                        className="border border-violet-300 dark:border-violet-800 text-brand-fg-strong px-4 py-2 rounded-md text-sm font-medium hover:bg-brand-soft transition disabled:opacity-50"
+                      >
+                        <i className="fas fa-rotate-left mr-2"></i>
+                        Send back
                       </button>
                       <button
                         onClick={() => setPendingReject({ kind: 'comment', comment })}
@@ -433,8 +561,8 @@ export default function GuardianApprovalsPage() {
         title={pendingReject?.kind === 'comment' ? 'Reject this comment?' : 'Reject this post?'}
         message={
           pendingReject?.kind === 'comment'
-            ? "Rejecting is permanent — a rejected comment can never be approved later. Your athlete will see that it wasn't approved."
-            : "Rejecting is permanent — a rejected post can never be approved later. Your athlete keeps it on their own profile, marked as not approved."
+            ? "Rejecting is permanent — a rejected comment can never be approved later. Your athlete will see that it wasn't approved. If you want edits instead, use Send back."
+            : "Rejecting is permanent — a rejected post can never be approved later. Your athlete keeps it on their own profile, marked as not approved. If you want edits instead, use Send back."
         }
         confirmText="Reject"
         cancelText="Keep reviewing"
@@ -444,6 +572,21 @@ export default function GuardianApprovalsPage() {
           setPendingReject(null);
         }}
         onCancel={() => setPendingReject(null)}
+      />
+
+      <SendBackModal
+        key={
+          pendingSendBack
+            ? pendingSendBack.kind === 'post'
+              ? pendingSendBack.postId
+              : pendingSendBack.comment.id
+            : 'closed'
+        }
+        isOpen={pendingSendBack !== null}
+        athleteName={pendingSendBack?.athleteName ?? 'Your athlete'}
+        busy={sendingBack}
+        onSend={note => void sendBack(note)}
+        onCancel={() => setPendingSendBack(null)}
       />
     </div>
   );

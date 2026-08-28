@@ -150,6 +150,97 @@ test('queue + richer cards: hub action row with consent hint; approvals audience
   await expect(page.getByText('Showing only Junior Console')).toHaveCount(0);
 });
 
+test('send-back loop (129): request_changes with note → child edits → back to pending; comments via scoped edit', async ({ page }) => {
+  test.skip(!flagOn, 'guardian flag off');
+  const api = await apiAs('state.json');
+  const child = await request.newContext({ baseURL: E2E_BASE_URL });
+  try {
+    const login = await child.post('/api/auth/username-login', {
+      data: { username: HANDLE, secret: PIN },
+    });
+    expect(login.ok(), await readErrorBody(login)).toBe(true);
+
+    // The pending post from the earlier test: find it as the child.
+    const feed = await child.get('/api/posts?limit=10');
+    expect(feed.ok(), await readErrorBody(feed)).toBe(true);
+    const pending = (await feed.json()).posts?.find(
+      (p: { status?: string; caption?: string }) =>
+        p.status === 'pending_approval' && p.caption?.includes('qa pending')
+    );
+    expect(pending, 'the pending post from the earlier test should be visible to its author').toBeTruthy();
+
+    // Guardian sends it back with a note.
+    const sendBack = await api.patch('/api/posts', {
+      data: { postId: pending.id, action: 'request_changes', note: 'Crop out the street sign please' },
+    });
+    expect(sendBack.ok(), await readErrorBody(sendBack)).toBe(true);
+    expect((await sendBack.json()).status).toBe('changes_requested');
+
+    // Terminal-state guard: a sent-back post is no longer decidable.
+    const reDecide = await api.patch('/api/posts', {
+      data: { postId: pending.id, action: 'request_changes' },
+    });
+    expect(reDecide.status()).toBe(400);
+
+    // The child sees the state + note; their edit IS the resubmit.
+    const asChild = await child.get(`/api/posts?postId=${pending.id}`);
+    expect(asChild.ok(), await readErrorBody(asChild)).toBe(true);
+    const childView = (await asChild.json()).post;
+    expect(childView.status).toBe('changes_requested');
+    expect(childView.review_note).toBe('Crop out the street sign please');
+
+    const edit = await child.put('/api/posts', {
+      data: { postId: pending.id, caption: `qa pending ${stamp} (edited)` },
+    });
+    expect(edit.ok(), await readErrorBody(edit)).toBe(true);
+    expect((await edit.json()).resubmitted).toBe(true);
+
+    const after = await child.get(`/api/posts?postId=${pending.id}`);
+    const afterView = (await after.json()).post;
+    expect(afterView.status).toBe('pending_approval');
+    expect(afterView.review_note).toBeNull();
+
+    // Guardian bell carries the resubmit notification.
+    await page.goto('/app/notifications');
+    await expect(
+      page.getByText('Junior updated a post for your review').first()
+    ).toBeVisible({ timeout: 15_000 });
+
+    // Comment loop: held comment → send back → scoped edit resubmit.
+    const commentRes = await child.post('/api/comments', {
+      data: { postId: pending.id, content: `qa held comment ${stamp}` },
+    });
+    expect(commentRes.status(), await readErrorBody(commentRes)).toBe(201);
+    const heldComment = (await commentRes.json()).comment;
+
+    const sendBackComment = await api.patch('/api/comments', {
+      data: { commentId: heldComment.id, postId: pending.id, action: 'request_changes', note: 'Kinder words please' },
+    });
+    expect(sendBackComment.ok(), await readErrorBody(sendBackComment)).toBe(true);
+
+    // Guardian cannot use the child's edit path...
+    const guardianEdit = await api.patch('/api/comments', {
+      data: { commentId: heldComment.id, postId: pending.id, action: 'edit', content: 'nope' },
+    });
+    expect(guardianEdit.status()).toBe(403);
+
+    // ...the author can, and only from changes_requested.
+    const commentEdit = await child.patch('/api/comments', {
+      data: { commentId: heldComment.id, postId: pending.id, action: 'edit', content: `qa kinder comment ${stamp}` },
+    });
+    expect(commentEdit.ok(), await readErrorBody(commentEdit)).toBe(true);
+    expect((await commentEdit.json()).status).toBe('pending_approval');
+
+    const reEdit = await child.patch('/api/comments', {
+      data: { commentId: heldComment.id, postId: pending.id, action: 'edit', content: 'twice' },
+    });
+    expect(reEdit.status()).toBe(400);
+  } finally {
+    await child.dispose();
+    await api.dispose();
+  }
+});
+
 test('co-guardian lifecycle: invite → claim → roster of two → revoke → last-guardian block', async () => {
   test.skip(!flagOn, 'guardian flag off');
   const userB = loadQaUser('user-b.json');

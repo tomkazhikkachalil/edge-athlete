@@ -356,6 +356,43 @@ export default function CommentSection({
     }
   };
 
+  // Send-back resubmit (129): the author of a sent-back comment fixes the
+  // text inline; the scoped 'edit' PATCH flips it back to pending_approval.
+  const [sendBackEdit, setSendBackEdit] = useState<{ id: string; text: string } | null>(null);
+  const [resending, setResending] = useState(false);
+
+  const resendComment = async (comment: Comment) => {
+    if (!sendBackEdit || resending) return;
+    setResending(true);
+    setError('');
+    try {
+      const response = await fetch('/api/comments', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          commentId: comment.id,
+          postId: comment.post_id,
+          action: 'edit',
+          content: sendBackEdit.text,
+        }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || 'Could not resend the comment');
+      setComments(prev =>
+        prev.map(c =>
+          c.id === comment.id
+            ? { ...c, content: sendBackEdit.text.trim() || null, status: 'pending_approval', review_note: null }
+            : c
+        )
+      );
+      setSendBackEdit(null);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not resend the comment');
+    } finally {
+      setResending(false);
+    }
+  };
+
   const handleLikeComment = async (commentId: string) => {
     if (!user || likingComments.has(commentId)) return;
 
@@ -523,10 +560,40 @@ export default function CommentSection({
                 )}
               </div>
             </div>
-            {comment.content && (
-              <p className="text-sm text-primary whitespace-pre-wrap break-words">
-                <MentionText text={comment.content} resolve={resolveMention} />
-              </p>
+            {sendBackEdit?.id === comment.id ? (
+              <div className="mt-1">
+                <textarea
+                  value={sendBackEdit.text}
+                  onChange={e => setSendBackEdit({ id: comment.id, text: e.target.value })}
+                  rows={3}
+                  className="w-full border border-border-strong rounded-lg px-3 py-2 text-sm text-primary bg-surface resize-none"
+                  aria-label="Edit your comment"
+                />
+                <div className="flex gap-2 mt-1">
+                  <button
+                    type="button"
+                    disabled={resending}
+                    onClick={() => void resendComment(comment)}
+                    className="px-3 py-2 min-h-[44px] bg-brand hover:bg-brand-hover text-white rounded-lg text-xs font-semibold transition-colors disabled:opacity-50"
+                  >
+                    {resending ? 'Sending…' : 'Send for review'}
+                  </button>
+                  <button
+                    type="button"
+                    disabled={resending}
+                    onClick={() => setSendBackEdit(null)}
+                    className="px-3 py-2 min-h-[44px] border border-border-strong rounded-lg text-xs font-semibold text-secondary hover:bg-surface-muted transition-colors disabled:opacity-50"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            ) : (
+              comment.content && (
+                <p className="text-sm text-primary whitespace-pre-wrap break-words">
+                  <MentionText text={comment.content} resolve={resolveMention} />
+                </p>
+              )
             )}
             {comment.gif_url && (
               // Raw <img>: animated Giphy GIF. The optimizer streams animated
@@ -559,6 +626,24 @@ export default function CommentSection({
               <span className="inline-flex items-center gap-1 text-red-500 dark:text-red-400">
                 <i className="fas fa-ban" aria-hidden="true"></i>
                 Not approved
+              </span>
+            )}
+            {/* Send-back (129): author-only by construction, same as above. */}
+            {comment.status === 'changes_requested' && (
+              <span className="inline-flex items-center gap-1 text-amber-600 dark:text-amber-400 min-w-0">
+                <i className="fas fa-rotate-left" aria-hidden="true"></i>
+                <span className="truncate">
+                  Sent back by your guardian{comment.review_note ? `: “${comment.review_note}”` : ''}
+                </span>
+                {user?.id === comment.profile_id && sendBackEdit?.id !== comment.id && (
+                  <button
+                    type="button"
+                    onClick={() => setSendBackEdit({ id: comment.id, text: comment.content ?? '' })}
+                    className="font-semibold underline shrink-0 min-h-[44px] -my-3 px-1"
+                  >
+                    Edit and resend
+                  </button>
+                )}
               </span>
             )}
 

@@ -20,20 +20,22 @@ const kid = (id: string, over: Partial<RosterRow> = {}): RosterRow => ({
 
 const approvedConsent = (id: string) => [{ profile_id: id, action: 'review_approved' }];
 
-const post = (id: string, profileId: string, createdAt: string) => ({
+const post = (id: string, profileId: string, createdAt: string, status = 'pending_approval') => ({
   id,
   profile_id: profileId,
   caption: `post ${id}`,
   created_at: createdAt,
+  status,
   mediaCount: 0,
   thumbnailUrl: null,
 });
 
-const comment = (id: string, profileId: string, createdAt: string) => ({
+const comment = (id: string, profileId: string, createdAt: string, status = 'pending_approval') => ({
   id,
   profile_id: profileId,
   content: `comment ${id}`,
   created_at: createdAt,
+  status,
 });
 
 describe('buildQueueItems', () => {
@@ -223,6 +225,43 @@ describe('buildQueueItems', () => {
       'consent_gap',
       'credentials_gap',
     ]);
+  });
+});
+
+describe('changes_requested → waiting_on_child rows', () => {
+  it('sent-back posts and comments become gray waiting rows sorted LAST, never action items', () => {
+    const items = buildQueueItems(
+      [kid('a')],
+      [
+        post('p1', 'a', '2026-08-22T10:00:00Z'),
+        post('p2', 'a', '2026-08-20T10:00:00Z', 'changes_requested'),
+      ],
+      [comment('c1', 'a', '2026-08-21T10:00:00Z', 'changes_requested')],
+      [],
+      approvedConsent('a'),
+      [{ user_id: 'a', profile_id: 'a' }],
+      []
+    );
+    expect(items.map(i => [i.kind, i.id])).toEqual([
+      ['approve_post', 'p1'],
+      ['waiting_on_child', 'p2'],
+      ['waiting_on_child', 'c1'],
+    ]);
+    expect(items[1]).toMatchObject({ contentKind: 'post' });
+    expect(items[2]).toMatchObject({ contentKind: 'comment' });
+  });
+
+  it('waiting rows sort after gap items too', () => {
+    const items = buildQueueItems(
+      [kid('a')],
+      [post('p1', 'a', '2026-08-20T10:00:00Z', 'changes_requested')],
+      [],
+      [],
+      [], // consent none → consent_gap
+      [],
+      []
+    );
+    expect(items.map(i => i.kind)).toEqual(['consent_gap', 'credentials_gap', 'waiting_on_child']);
   });
 });
 

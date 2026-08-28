@@ -504,6 +504,9 @@ export async function POST(request: NextRequest) {
       stats_data: completePost.stats_data,
       visibility: completePost.visibility,
       status: completePost.status ?? 'published',
+      // Only non-null while status='changes_requested', and those rows only
+      // reach their author — resubmit clears it before anything publishes.
+      review_note: completePost.review_note ?? null,
       tags: completePost.tags || [],
       hashtags: completePost.hashtags || [],
       created_at: completePost.created_at,
@@ -843,6 +846,7 @@ export async function GET(request: NextRequest) {
         stats_data: post.stats_data,
         visibility: post.visibility,
         status: post.status ?? 'published',
+        review_note: post.review_note ?? null,
         tags: post.tags || [],
         hashtags: post.hashtags || [],
         created_at: post.created_at,
@@ -1229,6 +1233,7 @@ export async function GET(request: NextRequest) {
           stats_data: post.stats_data,
           visibility: post.visibility,
           status: post.status ?? 'published',
+          review_note: post.review_note ?? null,
           tags: post.tags || [],
           hashtags: post.hashtags || [],
           created_at: post.created_at,
@@ -1318,8 +1323,8 @@ export async function PATCH(request: NextRequest) {
     if (!postId || typeof postId !== 'string') {
       return NextResponse.json({ error: 'Post ID is required' }, { status: 400 });
     }
-    if (!['pin', 'unpin', 'approve', 'reject'].includes(action)) {
-      return NextResponse.json({ error: "action must be 'pin', 'unpin', 'approve', or 'reject'" }, { status: 400 });
+    if (!['pin', 'unpin', 'approve', 'reject', 'request_changes'].includes(action)) {
+      return NextResponse.json({ error: "action must be 'pin', 'unpin', 'approve', 'reject', or 'request_changes'" }, { status: 400 });
     }
 
     const { data: post, error: fetchError } = await supabase
@@ -1339,7 +1344,7 @@ export async function PATCH(request: NextRequest) {
     // profile publish or reject a supervised author's pending post. Not
     // flag-gated: the pending pipeline runs unconditionally (Wave 1
     // inversion), so its release valve must too — role checks are the gate.
-    if (action === 'approve' || action === 'reject') {
+    if (action === 'approve' || action === 'reject' || action === 'request_changes') {
       const { getProfileRole } = await import('@/lib/auth-server');
       const { resolveProfileAction } = await import('@/lib/profile-roles');
       const role = await getProfileRole(user.id, post.profile_id);
@@ -1348,6 +1353,35 @@ export async function PATCH(request: NextRequest) {
       }
       if (post.status !== 'pending_approval') {
         return NextResponse.json({ error: 'This post is not awaiting approval' }, { status: 400 });
+      }
+      // Send back with a note (Wave 2, mig 129): the middle path between the
+      // one-tap approve and the terminal reject. Ungated like reject — nothing
+      // publishes; the ball moves to the child's court (PUT resubmit flips it
+      // back to pending_approval and clears the note).
+      if (action === 'request_changes') {
+        const note = typeof body.note === 'string' ? body.note.trim() : '';
+        if (note.length > 500) {
+          return NextResponse.json({ error: 'Keep the note under 500 characters.' }, { status: 400 });
+        }
+        const { error: sendBackError } = await supabase
+          .from('posts')
+          .update({ status: 'changes_requested', review_note: note || null })
+          .eq('id', postId);
+        if (sendBackError) {
+          return NextResponse.json({ error: 'Failed to update post' }, { status: 500 });
+        }
+        {
+          const { notifyUser } = await import('@/lib/guardian-notify');
+          await notifyUser(supabase, post.profile_id, {
+            type: 'post_approval_result',
+            title: 'Your guardian asked for changes before this post goes live',
+            message: note || null,
+            actionUrl: `/feed?post=${postId}`,
+            actorId: user.id,
+            metadata: { post_id: postId, result: 'changes_requested' },
+          });
+        }
+        return NextResponse.json({ ok: true, status: 'changes_requested' });
       }
       // Publishing a child's content requires approved consent — the same
       // promise the acting-as branch and the go-public gate enforce. The
@@ -1481,7 +1515,7 @@ export async function PUT(request: NextRequest) {
     // First, verify the post belongs to the authenticated user
     const { data: existingPost, error: fetchError } = await supabase
       .from('posts')
-      .select('profile_id, sport_key')
+      .select('profile_id, sport_key, status')
       .eq('id', postId)
       .single();
 
@@ -1494,6 +1528,11 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized to edit this post' }, { status: 403 });
     }
 
+    // Send-back resubmit (Wave 2, mig 129): saving an edit of a sent-back
+    // post IS the resubmit — back to pending_approval, note cleared, and the
+    // guardians re-belled below. No separate "resend" concept.
+    const resubmitting = existingPost.status === 'changes_requested';
+
     // Update the post
     const { data: updatedPost, error: updateError } = await supabase
       .from('posts')
@@ -1505,7 +1544,8 @@ export async function PUT(request: NextRequest) {
         // tags = tagged people IDs. Only overwrite when the caller explicitly
         // sends taggedProfiles — EditPostModal doesn't, and defaulting to []
         // used to silently wipe every post's tagged people on edit.
-        ...(Array.isArray(taggedProfiles) ? { tags: taggedProfiles } : {})
+        ...(Array.isArray(taggedProfiles) ? { tags: taggedProfiles } : {}),
+        ...(resubmitting ? { status: 'pending_approval', review_note: null } : {})
       })
       .eq('id', postId)
       .select()
@@ -1514,6 +1554,20 @@ export async function PUT(request: NextRequest) {
     if (updateError) {
       console.error('[PUT] Post update error:', updateError);
       return NextResponse.json({ error: 'Failed to update post' }, { status: 500 });
+    }
+
+    if (resubmitting) {
+      // Best-effort, exclude the acting editor (a guardian editing on the
+      // child's behalf shouldn't ring their own bell).
+      const { notifyGuardians, profileFirstName } = await import('@/lib/guardian-notify');
+      const childName = await profileFirstName(supabase, existingPost.profile_id);
+      await notifyGuardians(supabase, existingPost.profile_id, {
+        type: 'post_pending_approval',
+        title: `${childName} updated a post for your review`,
+        actionUrl: '/app/guardian/approvals',
+        actorId: user.id,
+        metadata: { post_id: postId, resubmitted: true },
+      }, user.id);
     }
 
     // Reconcile post_tags with the new tagged-people list. This used to be
@@ -1548,6 +1602,7 @@ export async function PUT(request: NextRequest) {
     return NextResponse.json({
       success: true,
       post: updatedPost,
+      resubmitted: resubmitting,
       message: 'Post updated successfully!'
     });
 
