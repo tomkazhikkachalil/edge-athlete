@@ -241,6 +241,31 @@ export async function POST(request: NextRequest) {
       repostTargetId = original.id;
     }
 
+    // Calendar-event link (134, Wave 5 batch upload). Guardian-CONFIRMED
+    // suggestion only — the client never sends this without an explicit
+    // Attach tap. Validated against the CONTENT OWNER's calendar: the target
+    // athlete must be the organizer or hold an event_guests row, so a
+    // guardian can't stamp sibling A's post with sibling B's event.
+    let eventId: string | null = null;
+    if (body.eventId != null) {
+      if (typeof body.eventId !== 'string' || !isUuid(body.eventId)) {
+        return NextResponse.json({ error: 'Invalid event' }, { status: 400 });
+      }
+      const admin = getSupabaseAdmin();
+      const [{ data: eventRow }, { data: guestRow }] = await Promise.all([
+        admin.from('events').select('id, organizer_id').eq('id', body.eventId).maybeSingle(),
+        admin.from('event_guests').select('id')
+          .eq('event_id', body.eventId).eq('profile_id', userId).maybeSingle(),
+      ]);
+      if (!eventRow || (eventRow.organizer_id !== userId && !guestRow)) {
+        return NextResponse.json(
+          { error: "That event isn't on this athlete's calendar" },
+          { status: 400 }
+        );
+      }
+      eventId = body.eventId;
+    }
+
     // Create the post record
     const postData: {
       profile_id: string;
@@ -257,6 +282,7 @@ export async function POST(request: NextRequest) {
       shared_post_id?: string;
       post_category?: string;
       created_by_user_id?: string;
+      event_id?: string;
     } = {
       profile_id: userId,
       sport_key: postType, // Use postType as sport_key for our unified approach
@@ -274,6 +300,7 @@ export async function POST(request: NextRequest) {
       ...(incomingStatsData && postType !== 'golf' ? { stats_data: incomingStatsData } : {}),
       ...(repostTargetId ? { shared_post_id: repostTargetId } : {}),
       ...(postCategory ? { post_category: postCategory } : {}),
+      ...(eventId ? { event_id: eventId } : {}),
     };
 
     let roundId: string | null = null;
@@ -449,6 +476,11 @@ export async function POST(request: NextRequest) {
           last_name,
           full_name,
           handle
+        ),
+        event:event_id (
+          id,
+          title,
+          starts_at
         )
       `)
       .eq('id', post.id)
@@ -501,6 +533,8 @@ export async function POST(request: NextRequest) {
       caption: completePost.caption,
       sport_key: completePost.sport_key,
       post_category: completePost.post_category ?? null,
+      event_id: completePost.event_id ?? null,
+      event: completePost.event ?? null,
       stats_data: completePost.stats_data,
       visibility: completePost.visibility,
       status: completePost.status ?? 'published',
@@ -665,6 +699,11 @@ export async function GET(request: NextRequest) {
             last_name,
             full_name,
             handle
+          ),
+          event:event_id (
+            id,
+            title,
+            starts_at
           )
         `)
         .eq('id', postId)
@@ -843,6 +882,8 @@ export async function GET(request: NextRequest) {
         caption: post.caption,
         sport_key: post.sport_key,
         post_category: post.post_category ?? null,
+        event_id: post.event_id ?? null,
+        event: post.event ?? null,
         stats_data: post.stats_data,
         visibility: post.visibility,
         status: post.status ?? 'published',
@@ -957,6 +998,11 @@ export async function GET(request: NextRequest) {
           last_name,
           full_name,
           handle
+        ),
+        event:event_id (
+          id,
+          title,
+          starts_at
         )
       `)
       // NB: post_likes is deliberately NOT embedded here. It used to pull the
@@ -1230,6 +1276,8 @@ export async function GET(request: NextRequest) {
           caption: post.caption,
           sport_key: post.sport_key,
           post_category: post.post_category ?? null,
+          event_id: post.event_id ?? null,
+          event: post.event ?? null,
           stats_data: post.stats_data,
           visibility: post.visibility,
           status: post.status ?? 'published',

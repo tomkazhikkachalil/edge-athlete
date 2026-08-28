@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef, memo, createElement } from 'react';
-import { formatDistanceToNow } from 'date-fns';
+import { format, formatDistanceToNow } from 'date-fns';
 import { useRouter } from 'next/navigation';
 import { useSharedRound } from '@/hooks/useSharedRound';
 import LazyImage from './LazyImage';
@@ -98,6 +98,10 @@ interface Post {
   shared_post?: QuotedPost | null; // Gated server-side; null = unavailable to this viewer
   reposts_count?: number;
   post_category?: string | null; // Cross-cutting category (077): 'training'
+  /** Calendar-event link (134): guardian-confirmed attach from the batch
+   *  upload. Null/absent for the overwhelming majority of posts. */
+  event_id?: string | null;
+  event?: { id: string; title: string; starts_at: string } | null;
 }
 
 // Module scope, so the component identity is stable across renders.
@@ -687,6 +691,21 @@ function PostCard({
             athlete typed survives. */}
         {post.caption && !isAutoRoundCaption(post.caption, postHeadline?.moment) && (
           <p className="text-primary text-base font-medium leading-relaxed mb-3 break-words">{post.caption}</p>
+        )}
+
+        {/* Calendar-event link (134) — present only when a guardian confirmed
+            the batch upload's attach suggestion. starts_at is an absolute
+            TIMESTAMPTZ, so local-TZ rendering via new Date() is correct here
+            (the parseDateLocal rule is for date-ONLY strings). */}
+        {post.event && (
+          <p className="flex items-center gap-1.5 text-sm text-gray-500 mb-3 min-w-0">
+            <i className="fas fa-calendar-day text-xs" aria-hidden="true"></i>
+            <span className="truncate">
+              {post.event.title}
+              {' · '}
+              {format(new Date(post.event.starts_at), 'MMM d')}
+            </span>
+          </p>
         )}
 
         {/* Quoted original (repost) — the caption above is the reposter's
