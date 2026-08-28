@@ -284,10 +284,12 @@ export async function runTransferSweep(admin: SupabaseClient, appUrl?: string) {
   const today = new Date().toISOString().slice(0, 10);
   const summary = { flagged: 0, expired: 0, executed: 0, failed: 0 };
 
-  // 1. Eligibility: supervised profiles past their threshold, no active transfer.
+  // 1. Eligibility: supervised profiles past their threshold, no active
+  // transfer. The select carries the three safety fields (Wave 4) so the
+  // age-preset check needs no extra scan — both cron slots are taken.
   const { data: supervised } = await admin
     .from('profiles')
-    .select('id, dob, jurisdiction, minor_threshold_age')
+    .select('id, dob, jurisdiction, minor_threshold_age, visibility, messaging_permission, comment_moderation')
     .eq('supervision_state', 'supervised')
     .not('dob', 'is', null);
   for (const p of supervised ?? []) {
@@ -299,11 +301,36 @@ export async function runTransferSweep(admin: SupabaseClient, appUrl?: string) {
       .in('state', [...ACTIVE_TRANSFER_STATES])
       .maybeSingle();
     if (existing) continue;
+
+    // Age-preset rider (Wave 4, mig 133): does any guardian's older-preset
+    // differ from the child's current settings? Rare path — a crossing
+    // happens once per child — so the two small lookups stay off the hot
+    // loop. Decision computed ONCE, here: later olderDefaults definitions
+    // never retro-prompt (NULL/none stays).
+    const { agePresetChanges, parseHouseholdPolicy } = await import('./household-policy');
+    const { data: guardianRows } = await admin
+      .from('profile_access')
+      .select('user_id')
+      .eq('profile_id', p.id)
+      .eq('role', 'guardian');
+    const guardianIds = (guardianRows ?? []).map(g => g.user_id);
+    let affectedGuardians: string[] = [];
+    if (guardianIds.length > 0) {
+      const { data: policies } = await admin
+        .from('profiles')
+        .select('id, household_policy')
+        .in('id', guardianIds);
+      affectedGuardians = (policies ?? [])
+        .filter(g => agePresetChanges(p, parseHouseholdPolicy(g.household_policy)).length > 0)
+        .map(g => g.id);
+    }
+
     const { error } = await admin.from('profile_transfers').insert({
       profile_id: p.id,
       state: 'eligible_notified',
       initiated_by: 'system',
       dob_snapshot: p.dob,
+      age_preset_prompt: affectedGuardians.length > 0 ? 'pending' : 'none',
     });
     if (!error) {
       summary.flagged++;
@@ -323,6 +350,18 @@ export async function runTransferSweep(admin: SupabaseClient, appUrl?: string) {
         message: 'Ask your guardian to start the handover whenever you like.',
         actionUrl: `/app/transfer/${p.id}`,
       });
+      // Age-preset bell (Wave 4): only guardians whose older overrides would
+      // actually change something. The console queue carries the Apply/Keep
+      // decision — nothing changes until a guardian confirms.
+      for (const guardianId of affectedGuardians) {
+        await notifyUser(admin, guardianId, {
+          type: 'safety_alert',
+          title: `${await profileFirstName(admin, p.id)} is now old enough for your older-athlete settings`,
+          message: 'Review and apply them from the family console — nothing changes until you confirm.',
+          actionUrl: '/app/guardian',
+          metadata: { profile_id: p.id, age_preset: true },
+        });
+      }
     }
   }
 

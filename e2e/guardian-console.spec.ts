@@ -593,8 +593,9 @@ test('contact roster + escalation: metadata-only rows; child escalates a thread 
 
 test('household policy (132): defaults save on the settings page; a new athlete inherits with the visibility clamp', async ({ page }) => {
   test.skip(!flagOn, 'guardian flag off');
+  test.setTimeout(120_000); // settings UI + polls + a full athlete create
   const api = await apiAs('state.json');
-  const inheritHandle = `eaqa_inherit_${stamp}`;
+  const inheritHandle = `eaqa_h_${stamp}`; // ≤20 chars (handle cap)
   let inheritedId = '';
   try {
     // Settings page: adopt fans_only messaging + a PUBLIC default (the clamp
@@ -606,12 +607,15 @@ test('household policy (132): defaults save on the settings page; a new athlete 
     await page.getByRole('button', { name: /^Public/ }).first().click();
     await expect(page.getByText('New athletes still start private')).toBeVisible({ timeout: 10_000 });
 
-    // Server echo carries the sanitized policy.
-    const echo = await api.get('/api/guardian/household');
-    expect(echo.ok(), await readErrorBody(echo)).toBe(true);
-    const { policy } = await echo.json();
-    expect(policy.defaults.messaging_permission).toBe('fans_only');
-    expect(policy.defaults.visibility).toBe('public');
+    // Server echo carries the sanitized policy. Poll — the helper text
+    // renders optimistically, so the PATCH may still be in flight.
+    await expect
+      .poll(async () => {
+        const echo = await api.get('/api/guardian/household');
+        const { policy } = await echo.json();
+        return [policy?.defaults?.messaging_permission, policy?.defaults?.visibility];
+      }, { timeout: 10_000 })
+      .toEqual(['fans_only', 'public']);
 
     // A new athlete inherits messaging — and visibility clamps to private.
     const dob = new Date(Date.UTC(new Date().getUTCFullYear() - 10, 5, 15))
@@ -655,6 +659,18 @@ test('apply-to-all + deviation + safety feed: chips appear, one confirm reverts,
     });
     expect(push.ok(), await readErrorBody(push)).toBe(true);
 
+    // Deviation surfaces server-side first (poll — writes may still be
+    // settling), then the chips.
+    await expect
+      .poll(async () => {
+        const roster = await api.get('/api/guardian/athletes');
+        const me = ((await roster.json()).athletes ?? []).find(
+          (a: { id: string }) => a.id === childId
+        );
+        return me?.deviations ?? [];
+      }, { timeout: 10_000 })
+      .toContain('messaging_permission');
+
     // Deviation chips: hub roster + athlete-page per-field.
     await page.goto('/app/guardian');
     await expect(
@@ -668,7 +684,7 @@ test('apply-to-all + deviation + safety feed: chips appear, one confirm reverts,
     await expect(page.getByRole('heading', { name: 'Apply to your athletes' })).toBeVisible({ timeout: 15_000 });
     await page.getByRole('button', { name: 'Apply to all athletes' }).click();
     await expect(page.getByText('Apply household defaults to all athletes?')).toBeVisible();
-    await page.getByRole('button', { name: 'Apply to all' }).click();
+    await page.getByRole('button', { name: 'Apply to all', exact: true }).click();
     await expect(page.getByText(/Updated 1 athlete|Already matching/).first()).toBeVisible({ timeout: 10_000 });
 
     const roster = await api.get('/api/guardian/athletes');
@@ -691,6 +707,129 @@ test('apply-to-all + deviation + safety feed: chips appear, one confirm reverts,
     await expect(page.getByRole('heading', { name: 'Recent safety changes' })).toBeVisible();
   } finally {
     await api.patch('/api/guardian/household', { data: null }).catch(() => {});
+    await api.dispose();
+  }
+});
+
+test('age-preset prompt (133): seeded crossing → queue card with change list → Apply confirm updates + stamps', async ({ page }) => {
+  test.skip(!flagOn, 'guardian flag off');
+  const api = await apiAs('state.json');
+  let transferId = '';
+  try {
+    // Differing older overrides (the prompt's precondition).
+    const adopt = await api.patch('/api/guardian/household', {
+      data: {
+        defaults: { messaging_permission: 'fans_only' },
+        olderDefaults: { messaging_permission: 'everyone' },
+      },
+    });
+    expect(adopt.ok(), await readErrorBody(adopt)).toBe(true);
+
+    // Seed the crossing row directly (cron isn't triggered from e2e) —
+    // service-role REST via the e2e env (transfer-ceremony precedent).
+    const { requireEnv } = await import('./helpers/qa-user');
+    const { url, serviceKey } = requireEnv();
+    const seed = await fetch(`${url}/rest/v1/profile_transfers`, {
+      method: 'POST',
+      headers: {
+        apikey: serviceKey,
+        Authorization: `Bearer ${serviceKey}`,
+        'Content-Type': 'application/json',
+        Prefer: 'return=representation',
+      },
+      body: JSON.stringify({
+        profile_id: childId,
+        state: 'eligible_notified',
+        initiated_by: 'system',
+        dob_snapshot: '2012-06-15',
+        age_preset_prompt: 'pending',
+      }),
+    });
+    expect(seed.ok, JSON.stringify(await seed.clone().json().catch(() => ({})))).toBe(true);
+    transferId = (await seed.json())[0].id;
+
+    // The queue derives the card with the change list; Apply → one confirm.
+    await page.goto('/app/guardian');
+    const main = page.locator('main');
+    await expect(
+      main.getByText('Junior Console is old enough for your older-athlete settings')
+    ).toBeVisible({ timeout: 15_000 });
+    await expect(main.getByText(/Messaging: .* → everyone/).first()).toBeVisible();
+    await main.getByRole('button', { name: 'Apply', exact: true }).click();
+    await expect(page.getByText('Apply your older-athlete settings?')).toBeVisible();
+    await page.getByRole('button', { name: 'Apply', exact: true }).last().click();
+    await expect(
+      main.getByText('Junior Console is old enough for your older-athlete settings')
+    ).toHaveCount(0, { timeout: 10_000 });
+
+    // Settings applied + stamped; a second decision is refused.
+    const roster = await api.get('/api/guardian/athletes');
+    const child = ((await roster.json()).athletes ?? []).find(
+      (a: { id: string }) => a.id === childId
+    );
+    expect(child.messaging_permission).toBe('everyone');
+    const again = await api.post('/api/guardian/age-preset', {
+      data: { transferId, decision: 'keep' },
+    });
+    expect(again.status()).toBe(400);
+  } finally {
+    if (transferId) {
+      const { requireEnv } = await import('./helpers/qa-user');
+      const { url, serviceKey } = requireEnv();
+      await fetch(`${url}/rest/v1/profile_transfers?id=eq.${transferId}`, {
+        method: 'DELETE',
+        headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}` },
+      }).catch(() => {});
+    }
+    await api.patch('/api/guardian/household', { data: null }).catch(() => {});
+    await api.dispose();
+  }
+});
+
+test('household blocks: one action covers guardian + athletes; unblock clears both', async ({ page }) => {
+  test.skip(!flagOn, 'guardian flag off');
+  const api = await apiAs('state.json');
+  const userB = loadQaUser('user-b.json');
+  try {
+    const block = await api.post('/api/guardian/blocks', {
+      data: { blockedId: userB.id },
+    });
+    expect(block.ok(), await readErrorBody(block)).toBe(true);
+    expect((await block.json()).appliedTo.length).toBeGreaterThanOrEqual(2);
+
+    const list = await api.get('/api/guardian/blocks');
+    const row = ((await list.json()).blocks ?? []).find(
+      (b: { blocked: { id: string } }) => b.blocked.id === userB.id
+    );
+    expect(row, 'household block listed').toBeTruthy();
+    expect(row.full).toBe(true);
+
+    // The CHILD's own user_blocks row exists (service REST truth).
+    const { requireEnv } = await import('./helpers/qa-user');
+    const { url, serviceKey } = requireEnv();
+    const childRows = await (
+      await fetch(
+        `${url}/rest/v1/user_blocks?blocker_id=eq.${childId}&blocked_id=eq.${userB.id}&select=blocker_id`,
+        { headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}` } }
+      )
+    ).json();
+    expect(childRows.length).toBe(1);
+
+    // Settings page renders the section.
+    await page.goto('/app/guardian/settings');
+    await expect(page.getByRole('heading', { name: 'Household block list' })).toBeVisible({ timeout: 15_000 });
+
+    const unblock = await api.delete(`/api/guardian/blocks?blockedId=${userB.id}`);
+    expect(unblock.ok(), await readErrorBody(unblock)).toBe(true);
+    const after = await (
+      await fetch(
+        `${url}/rest/v1/user_blocks?blocker_id=eq.${childId}&blocked_id=eq.${userB.id}&select=blocker_id`,
+        { headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}` } }
+      )
+    ).json();
+    expect(after.length).toBe(0);
+  } finally {
+    await api.delete(`/api/guardian/blocks?blockedId=${userB.id}`).catch(() => {});
     await api.dispose();
   }
 });

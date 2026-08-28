@@ -25,9 +25,12 @@ interface BlockedProfile {
 }
 
 interface BlockRow {
-  id: string;
+  /** Absent in household scope (rows are grouped per blocked person). */
+  id?: string;
   created_at: string;
   blocked: BlockedProfile;
+  /** Household scope: true = every household member blocks this person. */
+  full?: boolean;
 }
 
 interface SearchPerson {
@@ -69,6 +72,7 @@ export default function BlockedUsersList({
   profileId,
   canAdd = false,
   subjectName,
+  scope = 'self',
 }: {
   /** Set = a guardian managing this managed athlete's list. Unset = self. */
   profileId?: string;
@@ -76,6 +80,9 @@ export default function BlockedUsersList({
   canAdd?: boolean;
   /** Whose list this is, for copy ("Emma" / undefined = "you"). */
   subjectName?: string;
+  /** 'household' (Wave 4) switches every call to /api/guardian/blocks —
+   *  one action covers the guardian and every supervised athlete. */
+  scope?: 'self' | 'household';
 }) {
   const { showSuccess, showError } = useToast();
   const [blocks, setBlocks] = useState<BlockRow[]>([]);
@@ -87,12 +94,14 @@ export default function BlockedUsersList({
   const [results, setResults] = useState<SearchPerson[]>([]);
   const [searching, setSearching] = useState(false);
 
+  const household = scope === 'household';
   const target = profileId ? `?profileId=${profileId}` : '';
   const targetBody = profileId ? { targetProfileId: profileId } : {};
+  const listUrl = household ? '/api/guardian/blocks' : `/api/messages/block${target}`;
 
   const refetch = useCallback(async () => {
     try {
-      const res = await fetch(`/api/messages/block${target}`);
+      const res = await fetch(listUrl);
       const data = await res.json().catch(() => ({}));
       if (res.ok) setBlocks(data.blocks ?? []);
     } catch {
@@ -100,7 +109,7 @@ export default function BlockedUsersList({
     } finally {
       setLoaded(true);
     }
-  }, [target]);
+  }, [listUrl]);
 
   useEffect(() => {
     // Async hop (house pattern) — no synchronous setState on the effect path.
@@ -134,10 +143,10 @@ export default function BlockedUsersList({
     if (busy) return;
     setBusy(true);
     try {
-      const res = await fetch('/api/messages/block', {
+      const res = await fetch(household ? '/api/guardian/blocks' : '/api/messages/block', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ blockedId: person.id, ...targetBody }),
+        body: JSON.stringify(household ? { blockedId: person.id } : { blockedId: person.id, ...targetBody }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || 'Could not block this user');
@@ -156,8 +165,11 @@ export default function BlockedUsersList({
     setBusy(true);
     try {
       const params = new URLSearchParams({ blockedId: unblockTarget.blocked.id });
-      if (profileId) params.set('targetProfileId', profileId);
-      const res = await fetch(`/api/messages/block?${params}`, { method: 'DELETE' });
+      if (!household && profileId) params.set('targetProfileId', profileId);
+      const res = await fetch(
+        household ? `/api/guardian/blocks?${params}` : `/api/messages/block?${params}`,
+        { method: 'DELETE' }
+      );
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || 'Could not unblock this user');
       showSuccess('Unblocked');
@@ -228,12 +240,17 @@ export default function BlockedUsersList({
           {blocks.map(row => {
             const name = personName(row.blocked);
             return (
-              <li key={row.id} className="flex items-center gap-3 border border-border rounded-lg p-3">
+              <li key={row.id ?? row.blocked.id} className="flex items-center gap-3 border border-border rounded-lg p-3">
                 <Avatar src={row.blocked.avatar_url} name={name} />
                 <div className="flex-grow min-w-0">
                   <p className="text-sm font-medium text-primary truncate">{name}</p>
                   {row.blocked.handle && (
                     <p className="text-xs text-muted truncate">@{row.blocked.handle}</p>
+                  )}
+                  {household && row.full === false && (
+                    <p className="text-[11px] text-amber-700 dark:text-amber-300">
+                      Blocked by part of the household — Block again to cover everyone.
+                    </p>
                   )}
                 </div>
                 <button

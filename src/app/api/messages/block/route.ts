@@ -78,63 +78,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Cannot block yourself' }, { status: 400 });
     }
 
-    // Insert block (ignore if already blocked)
-    const { error: blockError } = await supabase
-      .from('user_blocks')
-      .upsert({ blocker_id: blockerId, blocked_id: blockedId }, { onConflict: 'blocker_id,blocked_id' });
-
-    if (blockError) {
-      console.error('POST /api/messages/block insert error:', blockError);
+    // Shared semantics (Wave 4 extraction): upsert + follow-sever + DM close
+    // live in lib/blocks.ts, shared with the household blocks loop.
+    const { applyBlock } = await import('@/lib/blocks');
+    const result = await applyBlock(supabase, blockerId, blockedId);
+    if (!result.ok) {
       return NextResponse.json({ error: 'Failed to block user' }, { status: 500 });
-    }
-
-    // Blocks gate follows (Aug 2026): sever any existing follow relationship
-    // in BOTH directions — accepted edges AND pending requests. Without this
-    // a blocked follower kept feed/private access, which is the actual harm
-    // blocking exists to stop. Best-effort: the block row is the contract.
-    try {
-      const { data: severed } = await supabase
-        .from('follows')
-        .delete()
-        .or(`and(follower_id.eq.${blockerId},following_id.eq.${blockedId}),and(follower_id.eq.${blockedId},following_id.eq.${blockerId})`)
-        .select('id');
-      if (severed && severed.length > 0) {
-        console.log(`[block] severed ${severed.length} follow edge(s)`);
-      }
-    } catch (severError) {
-      console.error('[block] follow teardown failed (non-fatal):', severError);
-    }
-
-    // Find any DM conversation between these two users and close both participants
-    const { data: myParticipants } = await supabase
-      .from('conversation_participants')
-      .select(`
-        conversation_id,
-        conversation:conversations!inner (type)
-      `)
-      .eq('profile_id', blockerId)
-      .eq('conversation.type', 'direct')
-      .is('left_at', null);
-
-    if (myParticipants && myParticipants.length > 0) {
-      const convIds = myParticipants.map(p => p.conversation_id);
-
-      // Check which of those also contains the blocked user
-      const { data: sharedConvs } = await supabase
-        .from('conversation_participants')
-        .select('conversation_id')
-        .in('conversation_id', convIds)
-        .eq('profile_id', blockedId)
-        .is('left_at', null);
-
-      if (sharedConvs && sharedConvs.length > 0) {
-        const dmConvIds = sharedConvs.map(p => p.conversation_id);
-        await supabase
-          .from('conversation_participants')
-          .update({ left_at: new Date().toISOString() })
-          .in('conversation_id', dmConvIds)
-          .in('profile_id', [blockerId, blockedId]);
-      }
     }
 
     return NextResponse.json({ success: true });

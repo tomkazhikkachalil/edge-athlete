@@ -54,3 +54,70 @@ export async function filterBlockedBidirectional(
   const allowed = unique.filter(id => !blocked.has(id));
   return { allowed, skipped: unique.length - allowed.length };
 }
+
+/**
+ * Block blockedId for blockerId (Wave 4 extraction — the messages block
+ * route's semantics verbatim, shared with the household blocks loop):
+ * idempotent upsert, then best-effort follow-sever in both directions and
+ * left_at on both rows of any shared direct conversation. The block row is
+ * the contract; teardown failures never fail the block.
+ */
+export async function applyBlock(admin: Admin, blockerId: string, blockedId: string): Promise<{ ok: boolean }> {
+  const { error: blockError } = await admin
+    .from('user_blocks')
+    .upsert({ blocker_id: blockerId, blocked_id: blockedId }, { onConflict: 'blocker_id,blocked_id' });
+  if (blockError) {
+    console.error('[blocks] insert failed:', blockError);
+    return { ok: false };
+  }
+
+  // Blocks gate follows (Aug 2026): sever any existing follow relationship
+  // in BOTH directions — accepted edges AND pending requests.
+  try {
+    await admin
+      .from('follows')
+      .delete()
+      .or(`and(follower_id.eq.${blockerId},following_id.eq.${blockedId}),and(follower_id.eq.${blockedId},following_id.eq.${blockerId})`);
+  } catch (severError) {
+    console.error('[blocks] follow teardown failed (non-fatal):', severError);
+  }
+
+  // Close any shared direct conversation: left_at on both participant rows.
+  const { data: myParticipants } = await admin
+    .from('conversation_participants')
+    .select('conversation_id, conversation:conversations!inner (type)')
+    .eq('profile_id', blockerId)
+    .eq('conversation.type', 'direct')
+    .is('left_at', null);
+  if (myParticipants && myParticipants.length > 0) {
+    const convIds = myParticipants.map(p => p.conversation_id);
+    const { data: sharedConvs } = await admin
+      .from('conversation_participants')
+      .select('conversation_id')
+      .in('conversation_id', convIds)
+      .eq('profile_id', blockedId)
+      .is('left_at', null);
+    if (sharedConvs && sharedConvs.length > 0) {
+      await admin
+        .from('conversation_participants')
+        .update({ left_at: new Date().toISOString() })
+        .in('conversation_id', sharedConvs.map(p => p.conversation_id))
+        .in('profile_id', [blockerId, blockedId]);
+    }
+  }
+  return { ok: true };
+}
+
+/** Remove a block (no side effects — severed follows/threads stay severed). */
+export async function removeBlock(admin: Admin, blockerId: string, blockedId: string): Promise<{ ok: boolean }> {
+  const { error } = await admin
+    .from('user_blocks')
+    .delete()
+    .eq('blocker_id', blockerId)
+    .eq('blocked_id', blockedId);
+  if (error) {
+    console.error('[blocks] delete failed:', error);
+    return { ok: false };
+  }
+  return { ok: true };
+}
