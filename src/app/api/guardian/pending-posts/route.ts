@@ -38,6 +38,9 @@ export async function GET(request: NextRequest) {
         caption,
         sport_key,
         created_at,
+        visibility,
+        tags,
+        hashtags,
         post_media (
           id,
           media_url,
@@ -59,12 +62,28 @@ export async function GET(request: NextRequest) {
       .order('created_at', { ascending: true });
     if (postsError) throw postsError;
 
+    // Tagged people, for the approval card (Wave 2 richer cards). posts.tags
+    // is the read store (string[] of profile ids) — post_tags rows are the
+    // notification-trigger side and their read gate assumes a published post.
+    const taggedIds = [...new Set((posts ?? []).flatMap(p => (p as { tags?: string[] | null }).tags ?? []))];
+    const taggedById = new Map<string, { id: string; first_name: string | null; last_name: string | null; full_name: string | null; handle: string | null }>();
+    if (taggedIds.length > 0) {
+      const { data: taggedProfiles } = await admin
+        .from('profiles')
+        .select('id, first_name, last_name, full_name, handle')
+        .in('id', taggedIds);
+      for (const t of taggedProfiles ?? []) taggedById.set(t.id, t);
+    }
+
     // Proxy media of the minor's pending posts (guardian access is granted by
     // the post resolver's hasManagedAccess branch).
     const proxiedPosts = (posts ?? []).map((p) => {
-      const post = p as { id: string; post_media?: Array<{ media_url: string; thumbnail_url: string | null }> };
+      const post = p as { id: string; tags?: string[] | null; post_media?: Array<{ media_url: string; thumbnail_url: string | null }> };
       return {
         ...post,
+        taggedPeople: (post.tags ?? [])
+          .map(id => taggedById.get(id))
+          .filter((t): t is NonNullable<typeof t> => Boolean(t)),
         post_media: (post.post_media || []).map(m => ({
           ...m,
           media_url: toProxyUrl(m.media_url, { type: 'post', id: post.id }) ?? m.media_url,

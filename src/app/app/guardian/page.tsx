@@ -18,6 +18,7 @@ import {
   visibilityChip,
   type Chip,
 } from '@/lib/guardian-rollup';
+import { AGING_BADGE_MS, type QueueItem } from '@/lib/guardian-queue';
 import type { ConsentState } from '@/lib/consent';
 
 // ── Family console ────────────────────────────────────────────────────────────
@@ -57,65 +58,40 @@ const CHIP_TONES = {
   gray: 'bg-surface-sunken text-tertiary',
 } as const;
 
-/** Transfer states where the ball is in the guardian's court. */
-const TRANSFER_NEEDS_GUARDIAN = new Set(['requested', 'dual_confirm']);
-
-interface AttentionItem {
-  key: string;
-  label: string;
-  href: string;
+/** Coarse "how long has this been waiting" label for the aging badge. */
+function waitingLabel(createdAt: string, nowMs: number): string | null {
+  const days = Math.floor((nowMs - Date.parse(createdAt)) / 86_400_000);
+  return days >= AGING_BADGE_MS / 86_400_000 ? `Waiting ${days} day${days === 1 ? '' : 's'}` : null;
 }
 
-function buildAttentionItems(athletes: ConsoleAthlete[]): AttentionItem[] {
-  const items: AttentionItem[] = [];
-  const totalPosts = athletes.reduce((n, a) => n + a.pendingPostCount, 0);
-  const totalComments = athletes.reduce((n, a) => n + (a.pendingCommentCount ?? 0), 0);
-  if (totalPosts > 0 || totalComments > 0) {
-    // One review line for both content queues — the approvals page shows them
-    // together (comments were invisible here until Round G).
-    const parts: string[] = [];
-    if (totalPosts > 0) parts.push(`${totalPosts} post${totalPosts === 1 ? '' : 's'}`);
-    if (totalComments > 0) parts.push(`${totalComments} comment${totalComments === 1 ? '' : 's'}`);
-    items.push({
-      key: 'pending',
-      label: `${parts.join(' and ')} waiting for your review`,
-      href: '/app/guardian/approvals',
-    });
+/** One-line description per queue item kind (the row's main text). */
+function queueLabel(item: QueueItem): string {
+  switch (item.kind) {
+    case 'approve_post':
+      return `${item.athlete.name} shared a post for your review`;
+    case 'release_comment':
+      return `${item.athlete.name} wrote a comment for your review`;
+    case 'follow_request':
+      return `${item.follower.name} wants to follow ${item.athlete.name}`;
+    case 'transfer_step':
+      return `${item.athlete.name}'s account transfer needs you`;
+    case 'consent_gap':
+      return item.consentState === 'rejected'
+        ? `Consent for ${item.athlete.name} was rejected — resubmit the form`
+        : `Finish consent for ${item.athlete.name}`;
+    case 'credentials_gap':
+      return `${item.athlete.name} has no login yet`;
   }
-  for (const a of athletes) {
-    const name = formatDisplayName(a.first_name, null, a.last_name, a.display_name);
-    if ((a.pendingFollowRequestCount ?? 0) > 0) {
-      const n = a.pendingFollowRequestCount;
-      items.push({
-        key: `follows-${a.id}`,
-        label: `${n} fan request${n === 1 ? '' : 's'} waiting for ${name}`,
-        href: `/app/guardian/athlete/${a.id}`,
-      });
-    }
-    if (a.activeTransfer && TRANSFER_NEEDS_GUARDIAN.has(a.activeTransfer.state)) {
-      items.push({
-        key: `transfer-${a.id}`,
-        label: `${name}'s account transfer needs you`,
-        href: `/app/transfer/${a.id}`,
-      });
-    }
-    if (a.supervision_state === 'supervised' && (a.consentState === 'none' || a.consentState === 'rejected')) {
-      items.push({
-        key: `consent-${a.id}`,
-        label: `Finish consent for ${name}`,
-        href: `/app/guardian/consent/${a.id}`,
-      });
-    }
-    if (a.supervision_state === 'supervised' && !a.hasLogin) {
-      items.push({
-        key: `login-${a.id}`,
-        label: `${name} has no login yet`,
-        href: `/app/guardian/credentials/${a.id}`,
-      });
-    }
-  }
-  return items;
 }
+
+const QUEUE_ICONS: Record<QueueItem['kind'], string> = {
+  approve_post: 'fa-image',
+  release_comment: 'fa-comment',
+  follow_request: 'fa-user-plus',
+  transfer_step: 'fa-right-left',
+  consent_gap: 'fa-file-signature',
+  credentials_gap: 'fa-key',
+};
 
 function ChipPill({ chip }: { chip: Chip }) {
   return (
@@ -133,6 +109,12 @@ export default function FamilyConsolePage() {
   const [error, setError] = useState('');
   const [retryKey, setRetryKey] = useState(0);
   const [restoringId, setRestoringId] = useState<string | null>(null);
+  const [queueItems, setQueueItems] = useState<QueueItem[]>([]);
+  const [queueError, setQueueError] = useState('');
+  const [queueActing, setQueueActing] = useState('');
+  // Stamped once per load — the aging badge is coarse (whole days), so it
+  // doesn't need a ticking clock.
+  const [nowMs] = useState(() => Date.now());
 
   const restoreAthlete = async (profileId: string) => {
     setRestoringId(profileId);
@@ -161,11 +143,24 @@ export default function FamilyConsolePage() {
     let cancelled = false;
     (async () => {
       try {
-        const res = await fetch('/api/guardian/athletes');
-        const data = await res.json().catch(() => ({}));
-        if (!res.ok) throw new Error(data.error || 'Could not load your athletes');
+        // Queue failure is section-scoped: the roster must render even when
+        // the action queue can't (and vice versa is impossible — the queue
+        // section only shows once the page is up).
+        const [rosterRes, queueRes] = await Promise.all([
+          fetch('/api/guardian/athletes'),
+          fetch('/api/guardian/queue'),
+        ]);
+        const data = await rosterRes.json().catch(() => ({}));
+        const queueData = await queueRes.json().catch(() => ({}));
+        if (!rosterRes.ok) throw new Error(data.error || 'Could not load your athletes');
         if (cancelled) return;
         setAthletes(data.athletes ?? []);
+        if (queueRes.ok) {
+          setQueueItems(queueData.items ?? []);
+          setQueueError('');
+        } else {
+          setQueueError(queueData.error || 'Could not load the action queue');
+        }
         setError('');
       } catch (e) {
         if (!cancelled) setError(e instanceof Error ? e.message : 'Could not load your athletes');
@@ -177,6 +172,28 @@ export default function FamilyConsolePage() {
       cancelled = true;
     };
   }, [user, retryKey]);
+
+  // Inline decide on a fan request — the same POST the athlete page's fans
+  // section fires; decline is a repeatable non-notifying delete, so neither
+  // direction needs a confirm step.
+  const decideFollow = async (item: Extract<QueueItem, { kind: 'follow_request' }>, action: 'accept' | 'reject') => {
+    setQueueActing(item.id);
+    setQueueError('');
+    try {
+      const res = await fetch('/api/followers', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action, followId: item.id, profileId: item.athlete.id }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'Could not update the request');
+      setQueueItems(prev => prev.filter(i => i.id !== item.id));
+    } catch (e) {
+      setQueueError(e instanceof Error ? e.message : 'Could not update the request');
+    } finally {
+      setQueueActing('');
+    }
+  };
 
   if (!FEATURE_FLAGS.FEATURE_GUARDIAN_PROFILES || loading || !initialAuthCheckComplete || !user) {
     return (
@@ -190,7 +207,6 @@ export default function FamilyConsolePage() {
   // roster cards — nothing else on the console applies to a parked profile.
   const parked = athletes.filter(a => a.deletion_requested_at);
   const activeAthletes = athletes.filter(a => !a.deletion_requested_at);
-  const attention = buildAttentionItems(activeAthletes);
 
   return (
     <div className="min-h-screen bg-canvas">
@@ -272,23 +288,94 @@ export default function FamilyConsolePage() {
               </section>
             )}
 
-            {attention.length > 0 && (
+            {(queueItems.length > 0 || queueError) && (
               <section aria-label="Needs your attention" className="mb-6">
                 <h2 className="text-xs font-bold uppercase tracking-wide text-amber-700 dark:text-amber-300 mb-2">
                   Needs you
                 </h2>
-                <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900 rounded-lg divide-y divide-amber-200 dark:divide-amber-900">
-                  {attention.map(item => (
-                    <Link
-                      key={item.key}
-                      href={item.href}
-                      className="flex items-center justify-between gap-3 px-4 py-3 min-h-[44px] text-sm font-medium text-amber-800 dark:text-amber-200 hover:bg-amber-100 dark:hover:bg-amber-950/60 transition-colors first:rounded-t-lg last:rounded-b-lg"
-                    >
-                      <span>{item.label}</span>
-                      <i className="fas fa-chevron-right text-xs text-amber-400 shrink-0"></i>
-                    </Link>
-                  ))}
-                </div>
+                {queueError ? (
+                  <div role="alert" className="bg-surface border border-border rounded-lg px-4 py-3 text-sm text-red-600 dark:text-red-400">
+                    {queueError}
+                  </div>
+                ) : (
+                  <div className="bg-surface border border-border rounded-lg divide-y divide-border">
+                    {queueItems.map(item => {
+                      const aging = 'createdAt' in item ? waitingLabel(item.createdAt, nowMs) : null;
+                      const detail =
+                        item.kind === 'approve_post'
+                          ? item.caption || (item.mediaCount > 0 ? `${item.mediaCount} photo${item.mediaCount === 1 ? '' : 's'} or video${item.mediaCount === 1 ? '' : 's'}` : null)
+                          : item.kind === 'release_comment'
+                          ? item.excerpt
+                          : item.kind === 'follow_request'
+                          ? item.message
+                          : null;
+                      const body = (
+                        <>
+                          <span className="w-8 h-8 rounded-full bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 inline-flex items-center justify-center shrink-0">
+                            <i className={`fas ${QUEUE_ICONS[item.kind]} text-xs`}></i>
+                          </span>
+                          <span className="flex-grow min-w-0">
+                            <span className="block text-sm font-medium text-primary">
+                              {queueLabel(item)}
+                            </span>
+                            {detail && (
+                              <span className="block text-xs text-muted truncate">{detail}</span>
+                            )}
+                            {(aging || (('consentBlocked' in item) && item.consentBlocked)) && (
+                              <span className="flex flex-wrap gap-1.5 mt-1">
+                                {aging && (
+                                  <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300">
+                                    {aging}
+                                  </span>
+                                )}
+                                {'consentBlocked' in item && item.consentBlocked && (
+                                  <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-surface-sunken text-tertiary">
+                                    Consent needed before you can approve
+                                  </span>
+                                )}
+                              </span>
+                            )}
+                          </span>
+                        </>
+                      );
+                      if (item.kind === 'follow_request') {
+                        return (
+                          <div key={item.id} className="flex flex-wrap items-center gap-3 px-4 py-3 min-h-[44px]">
+                            {body}
+                            <span className="flex items-center gap-2 shrink-0">
+                              <button
+                                type="button"
+                                disabled={queueActing === item.id}
+                                onClick={() => decideFollow(item, 'accept')}
+                                className="px-3 py-2 min-h-[44px] inline-flex items-center bg-brand hover:bg-brand-hover text-white rounded-lg text-sm font-semibold transition-colors disabled:opacity-50"
+                              >
+                                Accept
+                              </button>
+                              <button
+                                type="button"
+                                disabled={queueActing === item.id}
+                                onClick={() => decideFollow(item, 'reject')}
+                                className="px-3 py-2 min-h-[44px] inline-flex items-center border border-border-strong rounded-lg text-sm font-semibold text-secondary hover:bg-surface-muted transition-colors disabled:opacity-50"
+                              >
+                                Decline
+                              </button>
+                            </span>
+                          </div>
+                        );
+                      }
+                      return (
+                        <Link
+                          key={item.id}
+                          href={item.href}
+                          className="flex items-center gap-3 px-4 py-3 min-h-[44px] hover:bg-surface-muted transition-colors first:rounded-t-lg last:rounded-b-lg"
+                        >
+                          {body}
+                          <i className="fas fa-chevron-right text-xs text-muted shrink-0"></i>
+                        </Link>
+                      );
+                    })}
+                  </div>
+                )}
               </section>
             )}
 
@@ -339,7 +426,7 @@ export default function FamilyConsolePage() {
                       </div>
                       {a.pendingPostCount + (a.pendingCommentCount ?? 0) > 0 && (
                         <Link
-                          href="/app/guardian/approvals"
+                          href={`/app/guardian/approvals?athlete=${a.id}`}
                           className="shrink-0 min-w-[24px] h-6 px-2 inline-flex items-center justify-center rounded-full bg-red-600 text-white text-xs font-bold"
                           aria-label={`${a.pendingPostCount + (a.pendingCommentCount ?? 0)} items pending review`}
                         >

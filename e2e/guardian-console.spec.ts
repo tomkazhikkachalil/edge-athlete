@@ -126,6 +126,30 @@ test('athlete side: child login sees their guardian; a pending post rings the gu
   }
 });
 
+test('queue + richer cards: hub action row with consent hint; approvals audience chip and athlete filter', async ({ page }) => {
+  test.skip(!flagOn, 'guardian flag off');
+
+  // Wave 2 queue: the pending post from the previous test surfaces as a
+  // typed hub row, with the consent coupling made visible (approve will 403
+  // until the consent review completes).
+  await page.goto('/app/guardian');
+  const main = page.locator('main');
+  await expect(
+    main.getByText('Junior Console shared a post for your review')
+  ).toBeVisible({ timeout: 15_000 });
+  await expect(
+    main.getByText('Consent needed before you can approve').first()
+  ).toBeVisible();
+
+  // Richer approval card: audience chip (the post was created private) and
+  // the ?athlete= deep-link filter the hub rows and roster badges use.
+  await page.goto(`/app/guardian/approvals?athlete=${childId}`);
+  await expect(page.getByText('Showing only Junior Console')).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByText('Private — fans only').first()).toBeVisible();
+  await page.getByRole('button', { name: 'Show all' }).click();
+  await expect(page.getByText('Showing only Junior Console')).toHaveCount(0);
+});
+
 test('co-guardian lifecycle: invite → claim → roster of two → revoke → last-guardian block', async () => {
   test.skip(!flagOn, 'guardian flag off');
   const userB = loadQaUser('user-b.json');
