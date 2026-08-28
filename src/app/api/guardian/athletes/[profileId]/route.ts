@@ -5,6 +5,11 @@ import { FEATURE_FLAGS } from '@/lib/features';
 import { parkAccount, PARK_WINDOW_DAYS } from '@/lib/account-park';
 import { getConsentState } from '@/lib/consent';
 import { getClientIp } from '@/lib/rate-limit';
+import {
+  COMMENT_MODERATION_VALUES,
+  MESSAGING_VALUES,
+  VISIBILITY_VALUES,
+} from '@/lib/profile-privacy';
 
 // ── PATCH /api/guardian/athletes/[profileId] ──────────────────────────────────
 // Family console: a guardian adjusts a managed athlete's safety posture.
@@ -20,9 +25,8 @@ import { getClientIp } from '@/lib/rate-limit';
 // the acting guardian, appended best-effort in the PATCH below.
 // (profile_access_audit stays scoped to access-ROLE changes.)
 
-const VISIBILITY_VALUES = ['public', 'private'] as const;
-const MESSAGING_VALUES = ['everyone', 'fans_only', 'mutual_fans', 'nobody'] as const;
-const COMMENT_MODERATION_VALUES = ['instant', 'held'] as const;
+// Value whitelists come from profile-privacy.ts (Wave 4 collapse) — the one
+// source the UI options, this route, and the household policy all share.
 
 export async function PATCH(
   request: NextRequest,

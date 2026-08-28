@@ -298,7 +298,8 @@ export default function FamilyConsolePage() {
       <main className="max-w-3xl mx-auto px-4 py-8">
         <div className="flex flex-wrap items-center justify-between gap-3 mb-1">
           <h1 className="text-2xl font-bold text-primary">Family console</h1>
-          <div className="flex items-center gap-2">
+          {/* flex-wrap (Wave 4): four action links overflow 375px without it. */}
+          <div className="flex flex-wrap items-center gap-2">
             <Link
               href="/app/guardian/add-athlete"
               className="px-3 py-2 min-h-[44px] inline-flex items-center gap-2 bg-brand hover:bg-brand-hover text-white rounded-lg text-sm font-semibold transition-colors"
@@ -317,6 +318,12 @@ export default function FamilyConsolePage() {
               className="px-3 py-2 min-h-[44px] inline-flex items-center border border-border-strong rounded-lg text-sm font-semibold text-secondary hover:bg-surface-muted transition-colors"
             >
               Transfers
+            </Link>
+            <Link
+              href="/app/guardian/settings"
+              className="px-3 py-2 min-h-[44px] inline-flex items-center border border-border-strong rounded-lg text-sm font-semibold text-secondary hover:bg-surface-muted transition-colors"
+            >
+              Household
             </Link>
           </div>
         </div>

@@ -591,6 +591,56 @@ test('contact roster + escalation: metadata-only rows; child escalates a thread 
   }
 });
 
+test('household policy (132): defaults save on the settings page; a new athlete inherits with the visibility clamp', async ({ page }) => {
+  test.skip(!flagOn, 'guardian flag off');
+  const api = await apiAs('state.json');
+  const inheritHandle = `eaqa_inherit_${stamp}`;
+  let inheritedId = '';
+  try {
+    // Settings page: adopt fans_only messaging + a PUBLIC default (the clamp
+    // proof) via the RadioCards.
+    await page.goto('/app/guardian/settings');
+    await expect(page.getByRole('heading', { name: 'Household defaults' })).toBeVisible({ timeout: 15_000 });
+    await page.getByRole('button', { name: /Fans only/ }).first().click();
+    await expect(page.getByText('Household defaults saved').first()).toBeVisible({ timeout: 10_000 });
+    await page.getByRole('button', { name: /^Public/ }).first().click();
+    await expect(page.getByText('New athletes still start private')).toBeVisible({ timeout: 10_000 });
+
+    // Server echo carries the sanitized policy.
+    const echo = await api.get('/api/guardian/household');
+    expect(echo.ok(), await readErrorBody(echo)).toBe(true);
+    const { policy } = await echo.json();
+    expect(policy.defaults.messaging_permission).toBe('fans_only');
+    expect(policy.defaults.visibility).toBe('public');
+
+    // A new athlete inherits messaging — and visibility clamps to private.
+    const dob = new Date(Date.UTC(new Date().getUTCFullYear() - 10, 5, 15))
+      .toISOString().split('T')[0];
+    const created = await api.post('/api/guardian/athletes', {
+      data: { first_name: 'Heir', last_name: 'Console', dob, handle: inheritHandle },
+    });
+    expect(created.status(), await readErrorBody(created)).toBe(201);
+    inheritedId = (await created.json()).profileId;
+
+    const roster = await api.get('/api/guardian/athletes');
+    const heir = ((await roster.json()).athletes ?? []).find(
+      (a: { id: string }) => a.id === inheritedId
+    );
+    expect(heir, 'inherited athlete on the roster').toBeTruthy();
+    expect(heir.messaging_permission).toBe('fans_only');
+    expect(heir.visibility).toBe('private');
+  } finally {
+    if (inheritedId) {
+      await api.delete(`/api/guardian/athletes/${inheritedId}`, {
+        data: { confirmHandle: inheritHandle },
+      }).catch(() => {});
+    }
+    // Reset the policy so earlier-test assumptions hold on re-runs.
+    await api.patch('/api/guardian/household', { data: null }).catch(() => {});
+    await api.dispose();
+  }
+});
+
 // afterAll, not a test: serial mode skips remaining TESTS after a failure,
 // which would orphan the child's @minors.invalid shadow user. Hooks run
 // regardless.
