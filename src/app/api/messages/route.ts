@@ -184,6 +184,13 @@ export async function POST(request: NextRequest) {
         }
       }
 
+      // First-contact hold (Wave 3, mig 131) — runs AFTER the tier and block
+      // gates: an unknown account reaching a supervised child gets a held
+      // conversation the child can't see until a guardian approves.
+      const { applyFirstContactGate, holdChildRow, notifyContactHold } =
+        await import('@/lib/first-contact');
+      const firstContact = await applyFirstContactGate(supabase, user.id, participantId);
+
       // Check if a DM already exists between these two users — INCLUDING ones
       // either side previously left (block→unblock, manual leave). Requiring
       // both sides active here used to create a second parallel DM while the
@@ -221,6 +228,24 @@ export async function POST(request: NextRequest) {
               .eq('conversation_id', match.conversation_id)
               .in('profile_id', [user.id, participantId]);
           }
+          if (firstContact.hold && firstContact.childId) {
+            // Revival re-gates (a denied contact's retry lands here): re-hold
+            // the child's row, belling the guardians only on the NULL→held
+            // transition.
+            const { held } = await holdChildRow(
+              supabase, match.conversation_id, firstContact.childId, user.id
+            );
+            return NextResponse.json({
+              conversationId: match.conversation_id, existing: true, held,
+            });
+          }
+          // The contact is known (approved/guardian/follow/child-initiated):
+          // clear any stale hold so the approval materializes for the child.
+          await supabase
+            .from('conversation_participants')
+            .update({ held_at: null })
+            .eq('conversation_id', match.conversation_id)
+            .not('held_at', 'is', null);
           return NextResponse.json({ conversationId: match.conversation_id, existing: true });
         }
       }
@@ -237,12 +262,19 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'Failed to create conversation' }, { status: 500 });
       }
 
-      // Add both participants
+      // Add both participants. A fresh hold can only be on the RECIPIENT
+      // (a supervised sender never holds their own conversation — D8).
+      const holdRecipient = firstContact.hold && firstContact.childId === participantId;
       const { error: partError } = await supabase
         .from('conversation_participants')
         .insert([
           { conversation_id: conv.id, profile_id: user.id, role: 'admin' },
-          { conversation_id: conv.id, profile_id: participantId, role: 'member' },
+          {
+            conversation_id: conv.id,
+            profile_id: participantId,
+            role: 'member',
+            ...(holdRecipient ? { held_at: new Date().toISOString() } : {}),
+          },
         ]);
 
       if (partError) {
@@ -251,6 +283,10 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'Failed to create conversation' }, { status: 500 });
       }
 
+      if (holdRecipient) {
+        await notifyContactHold(supabase, participantId, user.id, conv.id);
+        return NextResponse.json({ conversationId: conv.id, existing: false, held: true }, { status: 201 });
+      }
       return NextResponse.json({ conversationId: conv.id, existing: false }, { status: 201 });
 
     } else if (type === 'group') {

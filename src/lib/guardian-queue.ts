@@ -94,6 +94,18 @@ export type QueueItem =
       contentKind: 'post' | 'comment';
     }
   | {
+      /** First-contact hold (mig 131): someone new wants to message the
+       *  child. Inline Approve/Deny via the contacts POST; `requester.id`
+       *  is the contactProfileId the decision takes. */
+      kind: 'contact_request';
+      id: string;
+      athlete: QueueAthlete;
+      /** The child's held_at — drives the aging badge. */
+      createdAt: string;
+      requester: QueuePerson;
+      conversationId: string;
+    }
+  | {
       /** Pending event invite for a child — inline respond-as-child via
        *  POST /api/calendar/events/<event.id>/respond. `id` is the guest
        *  row (unique per child+event). */
@@ -157,6 +169,64 @@ export interface QueueFollowRow {
 function unwrapEmbed<T>(value: T | T[] | null | undefined): T | null {
   if (Array.isArray(value)) return value[0] ?? null;
   return value ?? null;
+}
+
+// ── First-contact holds (Wave 3, mig 131) ────────────────────────────────────
+
+export interface RawHeldRow {
+  conversation_id: string;
+  profile_id: string;
+  held_at: string;
+  conversations:
+    | { type: string }
+    | Array<{ type: string }>
+    | null;
+}
+
+export interface RawCounterpartRow {
+  conversation_id: string;
+  profile_id: string;
+  profiles:
+    | { id: string; first_name: string | null; last_name: string | null; full_name: string | null; handle: string | null; avatar_url: string | null }
+    | Array<{ id: string; first_name: string | null; last_name: string | null; full_name: string | null; handle: string | null; avatar_url: string | null }>
+    | null;
+}
+
+export interface QueueHeldContactRow {
+  childProfileId: string;
+  heldAt: string;
+  conversationId: string;
+  requester: QueuePerson;
+}
+
+/** Join the held child rows to their conversation counterparts — pure,
+ *  embed-guarded; non-direct conversations and orphan rows drop. */
+export function buildHeldContactRows(
+  heldRows: RawHeldRow[],
+  counterpartRows: RawCounterpartRow[]
+): QueueHeldContactRow[] {
+  const counterpartByConv = new Map<string, RawCounterpartRow>();
+  for (const row of counterpartRows) counterpartByConv.set(row.conversation_id, row);
+  const out: QueueHeldContactRow[] = [];
+  for (const held of heldRows) {
+    const conv = unwrapEmbed(held.conversations);
+    if (conv?.type !== 'direct') continue;
+    const counterpart = counterpartByConv.get(held.conversation_id);
+    const profile = counterpart ? unwrapEmbed(counterpart.profiles) : null;
+    if (!counterpart || !profile) continue;
+    out.push({
+      childProfileId: held.profile_id,
+      heldAt: held.held_at,
+      conversationId: held.conversation_id,
+      requester: {
+        id: profile.id,
+        name: formatDisplayName(profile.first_name, null, profile.last_name, profile.full_name),
+        handle: profile.handle,
+        avatarUrl: profile.avatar_url,
+      },
+    });
+  }
+  return out;
 }
 
 // ── Calendar invites (Wave 2 PR 4) ───────────────────────────────────────────
@@ -238,7 +308,8 @@ export function buildQueueItems(
   consentRows: Array<{ profile_id: string; action: string }>,
   supervisedRows: Array<{ user_id: string; profile_id: string }>,
   transferRows: Array<{ profile_id: string; state: string }>,
-  invites: QueueInviteRow[] = []
+  invites: QueueInviteRow[] = [],
+  heldContacts: QueueHeldContactRow[] = []
 ): QueueItem[] {
   const athletesById = new Map<string, RosterRow>();
   for (const row of roster) athletesById.set(row.id, row);
@@ -337,6 +408,23 @@ export function buildQueueItems(
     ('createdAt' in a ? a.createdAt : '').localeCompare('createdAt' in b ? b.createdAt : '')
   );
 
+  const contactItems: QueueItem[] = [];
+  for (const row of heldContacts) {
+    const athlete = athletesById.get(row.childProfileId);
+    if (!athlete) continue;
+    contactItems.push({
+      kind: 'contact_request',
+      id: `contact-${row.childProfileId}-${row.requester.id}`,
+      athlete: toQueueAthlete(athlete),
+      createdAt: row.heldAt,
+      requester: row.requester,
+      conversationId: row.conversationId,
+    });
+  }
+  contactItems.sort((a, b) =>
+    ('createdAt' in a ? a.createdAt : '').localeCompare('createdAt' in b ? b.createdAt : '')
+  );
+
   const inviteItems: QueueItem[] = [];
   for (const row of invites) {
     const athlete = athletesById.get(row.profile_id);
@@ -391,5 +479,5 @@ export function buildQueueItems(
   waiting.sort((a, b) =>
     ('createdAt' in a ? a.createdAt : '').localeCompare('createdAt' in b ? b.createdAt : '')
   );
-  return [...content, ...followItems, ...inviteItems, ...tail, ...waiting];
+  return [...content, ...followItems, ...contactItems, ...inviteItems, ...tail, ...waiting];
 }

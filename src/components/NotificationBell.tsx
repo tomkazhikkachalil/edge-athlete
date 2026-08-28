@@ -139,6 +139,10 @@ export default function NotificationBell() {
       case 'club_update':
       case 'team_update':
         return 'fa-users';
+      case 'safety_alert':
+        return 'fa-shield-halved';
+      case 'calendar_alert':
+        return 'fa-calendar-day';
       default:
         return 'fa-bell';
     }

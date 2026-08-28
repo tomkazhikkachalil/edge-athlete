@@ -572,6 +572,9 @@ export default function ChatWindow({ conversationId, onBack }: Props) {
   const otherParticipant = isDM
     ? conversation?.participants.find(p => p.profile_id !== currentUserId)
     : null;
+  // First-contact hold (131): the counterpart's row is held → their guardian
+  // hasn't approved this conversation yet. Sender may keep writing.
+  const otherHeld = Boolean(otherParticipant?.held_at);
 
   // Determine if sender name should be shown for each message
   // Show sender name in group chats for consecutive messages from different senders
@@ -757,6 +760,16 @@ export default function ChatWindow({ conversationId, onBack }: Props) {
           )}
         </div>
       </div>
+
+      {/* First-contact hold (131): the counterpart's guardian hasn't approved
+          this conversation yet — say so honestly; composing stays open. */}
+      {otherHeld && (
+        <div className="px-4 py-2 bg-amber-50 dark:bg-amber-950/40 border-b border-amber-200 dark:border-amber-900 text-xs font-medium text-amber-800 dark:text-amber-200 flex items-center gap-2">
+          <i className="fas fa-user-clock" aria-hidden="true"></i>
+          Waiting for their guardian to approve this conversation. You can keep
+          writing — messages deliver once approved.
+        </div>
+      )}
 
       {/* Messages (flex-col-reverse: newest at DOM top = visual bottom) */}
       <div className="flex-1 overflow-y-auto flex flex-col-reverse px-4 py-4 gap-0">

@@ -58,6 +58,9 @@ export default function NotificationsPage() {
         'post_pending_approval', 'post_approval_result',
         'comment_pending_approval', 'comment_approval_result',
         'transfer_update', 'consent_result', 'athlete_added',
+        // Wave 3: safety escalations + guardian calendar awareness were
+        // reachable only through "All".
+        'safety_alert', 'calendar_alert',
       ].includes(notification.type);
     }
     return true; // 'all'
@@ -139,6 +142,10 @@ export default function NotificationsPage() {
         return 'fa-right-left';
       case 'athlete_added':
         return 'fa-child-reaching';
+      case 'safety_alert':
+        return 'fa-shield-halved';
+      case 'calendar_alert':
+        return 'fa-calendar-day';
       default:
         return 'fa-bell';
     }

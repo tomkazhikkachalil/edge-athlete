@@ -21,7 +21,8 @@ export async function PATCH(
       .update({ last_read_at: new Date().toISOString() })
       .eq('conversation_id', conversationId)
       .eq('profile_id', user.id)
-      .is('left_at', null);
+      .is('left_at', null)
+      .is('held_at', null);
 
     if (error) {
       console.error('PATCH /api/messages/[id]/read error:', error);

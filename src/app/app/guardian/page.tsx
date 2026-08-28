@@ -86,6 +86,8 @@ function queueLabel(item: QueueItem): string {
       return `Sent back to ${item.athlete.name} — waiting on their edit`;
     case 'calendar_invite':
       return `${item.athlete.name} was invited: ${item.event.title}`;
+    case 'contact_request':
+      return `${item.requester.name} wants to message ${item.athlete.name}`;
   }
 }
 
@@ -109,6 +111,7 @@ const QUEUE_ICONS: Record<QueueItem['kind'], string> = {
   credentials_gap: 'fa-key',
   waiting_on_child: 'fa-hourglass-half',
   calendar_invite: 'fa-calendar-day',
+  contact_request: 'fa-user-clock',
 };
 
 function ChipPill({ chip }: { chip: Chip }) {
@@ -224,6 +227,31 @@ export default function FamilyConsolePage() {
       setQueueItems(prev => prev.filter(i => i.id !== item.id));
     } catch (e) {
       setQueueError(e instanceof Error ? e.message : 'Could not respond to the invite');
+    } finally {
+      setQueueActing('');
+    }
+  };
+
+  // Inline decide on a held first contact (Wave 3) — approve makes the
+  // thread appear for the child; deny is Tom's quiet removal (sever, tell
+  // nobody, repeatable).
+  const decideContact = async (
+    item: Extract<QueueItem, { kind: 'contact_request' }>,
+    decision: 'approve' | 'deny'
+  ) => {
+    setQueueActing(item.id);
+    setQueueError('');
+    try {
+      const res = await fetch(`/api/guardian/athletes/${item.athlete.id}/contacts`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ contactProfileId: item.requester.id, decision }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'Could not record the decision');
+      setQueueItems(prev => prev.filter(i => i.id !== item.id));
+    } catch (e) {
+      setQueueError(e instanceof Error ? e.message : 'Could not record the decision');
     } finally {
       setQueueActing('');
     }
@@ -371,6 +399,10 @@ export default function FamilyConsolePage() {
                           ? item.message
                           : item.kind === 'calendar_invite'
                           ? inviteWhen(item.event)
+                          : item.kind === 'contact_request'
+                          ? item.requester.handle
+                            ? `@${item.requester.handle} — held until you decide`
+                            : 'Held until you decide'
                           : null;
                       const waitingOnChild = item.kind === 'waiting_on_child';
                       const body = (
@@ -406,11 +438,19 @@ export default function FamilyConsolePage() {
                           </span>
                         </>
                       );
-                      if (item.kind === 'follow_request' || item.kind === 'calendar_invite') {
+                      if (
+                        item.kind === 'follow_request' ||
+                        item.kind === 'calendar_invite' ||
+                        item.kind === 'contact_request'
+                      ) {
                         const decide =
                           item.kind === 'follow_request'
                             ? (yes: boolean) => decideFollow(item, yes ? 'accept' : 'reject')
-                            : (yes: boolean) => decideInvite(item, yes ? 'accepted' : 'declined');
+                            : item.kind === 'calendar_invite'
+                            ? (yes: boolean) => decideInvite(item, yes ? 'accepted' : 'declined')
+                            : (yes: boolean) => decideContact(item, yes ? 'approve' : 'deny');
+                        const [yesLabel, noLabel] =
+                          item.kind === 'contact_request' ? ['Approve', 'Deny'] : ['Accept', 'Decline'];
                         return (
                           <div key={item.id} className="flex flex-wrap items-center gap-3 px-4 py-3 min-h-[44px]">
                             {body}
@@ -421,7 +461,7 @@ export default function FamilyConsolePage() {
                                 onClick={() => decide(true)}
                                 className="px-3 py-2 min-h-[44px] inline-flex items-center bg-brand hover:bg-brand-hover text-white rounded-lg text-sm font-semibold transition-colors disabled:opacity-50"
                               >
-                                Accept
+                                {yesLabel}
                               </button>
                               <button
                                 type="button"
@@ -429,7 +469,7 @@ export default function FamilyConsolePage() {
                                 onClick={() => decide(false)}
                                 className="px-3 py-2 min-h-[44px] inline-flex items-center border border-border-strong rounded-lg text-sm font-semibold text-secondary hover:bg-surface-muted transition-colors disabled:opacity-50"
                               >
-                                Decline
+                                {noLabel}
                               </button>
                             </span>
                           </div>

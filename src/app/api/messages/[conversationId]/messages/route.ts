@@ -39,26 +39,30 @@ export async function POST(
       return NextResponse.json({ error: GUARDIAN_BLOCK_COPY }, { status: 403 });
     }
 
-    // Guard: verify user is an active participant
+    // Guard: verify user is an active, unheld participant (a held child
+    // can't see the conversation, so they can't send into it either).
     const { data: myParticipant } = await supabase
       .from('conversation_participants')
       .select('id, conversation:conversations!inner (type)')
       .eq('conversation_id', conversationId)
       .eq('profile_id', user.id)
       .is('left_at', null)
+      .is('held_at', null)
       .maybeSingle();
 
     if (!myParticipant) {
       return NextResponse.json({ error: 'Conversation not found' }, { status: 404 });
     }
 
-    // Round I (was deferred backlog): a SUPERVISED sender's tier is re-checked
-    // on every DIRECT send, not just at conversation-create — a guardian
-    // tightening the dial mid-conversation takes effect on the next message.
-    // Blocks between the pair bite here too. Groups stay create-side-gated
+    // Round I + Wave 3: EVERY direct send touching a supervised profile is
+    // re-checked — a guardian tightening the dial mid-conversation takes
+    // effect on the next message. Wave 3 closed the audit hole where this
+    // block keyed only on the SENDER being supervised: an adult sending into
+    // an existing DM with a child now re-passes blocks, the child's inbound
+    // tier, and the first-contact gate. Groups stay create-side-gated
     // (their membership is fixed by people who passed the gate).
     const conversationType = (myParticipant as unknown as { conversation: { type: string } }).conversation?.type;
-    if (senderSupervised && conversationType === 'direct') {
+    if (conversationType === 'direct') {
       const { data: others } = await supabase
         .from('conversation_participants')
         .select('profile_id')
@@ -67,21 +71,53 @@ export async function POST(
         .is('left_at', null);
       const otherId = others?.[0]?.profile_id;
       if (otherId) {
-        const permission = (senderProfile?.messaging_permission || 'everyone') as
-          import('@/lib/supervised-gates').MessagingPermission;
-        const [{ data: iFollowRow }, { data: followsMeRow }, { data: blockRow }] = await Promise.all([
-          supabase.from('follows').select('id').eq('follower_id', user.id).eq('following_id', otherId).eq('status', 'accepted').maybeSingle(),
-          supabase.from('follows').select('id').eq('follower_id', otherId).eq('following_id', user.id).eq('status', 'accepted').maybeSingle(),
-          supabase.from('user_blocks').select('id')
-            .or(`and(blocker_id.eq.${user.id},blocked_id.eq.${otherId}),and(blocker_id.eq.${otherId},blocked_id.eq.${user.id})`)
-            .maybeSingle(),
-        ]);
-        if (blockRow) {
-          return NextResponse.json({ error: 'Cannot message this user' }, { status: 403 });
-        }
-        const { outboundAllowed } = await import('@/lib/supervised-gates');
-        if (!outboundAllowed(permission, !!iFollowRow, !!followsMeRow)) {
-          return NextResponse.json({ error: GUARDIAN_BLOCK_COPY }, { status: 403 });
+        const { data: otherProfile } = await supabase
+          .from('profiles')
+          .select('supervision_state, messaging_permission')
+          .eq('id', otherId)
+          .maybeSingle();
+        const otherSupervised = otherProfile?.supervision_state === 'supervised';
+
+        if (senderSupervised || otherSupervised) {
+          const [{ data: iFollowRow }, { data: followsMeRow }, { data: blockRow }] = await Promise.all([
+            supabase.from('follows').select('id').eq('follower_id', user.id).eq('following_id', otherId).eq('status', 'accepted').maybeSingle(),
+            supabase.from('follows').select('id').eq('follower_id', otherId).eq('following_id', user.id).eq('status', 'accepted').maybeSingle(),
+            supabase.from('user_blocks').select('id')
+              .or(`and(blocker_id.eq.${user.id},blocked_id.eq.${otherId}),and(blocker_id.eq.${otherId},blocked_id.eq.${user.id})`)
+              .maybeSingle(),
+          ]);
+          if (blockRow) {
+            return NextResponse.json({ error: 'Cannot message this user' }, { status: 403 });
+          }
+          if (senderSupervised) {
+            const permission = (senderProfile?.messaging_permission || 'everyone') as
+              import('@/lib/supervised-gates').MessagingPermission;
+            const { outboundAllowed } = await import('@/lib/supervised-gates');
+            if (!outboundAllowed(permission, !!iFollowRow, !!followsMeRow)) {
+              return NextResponse.json({ error: GUARDIAN_BLOCK_COPY }, { status: 403 });
+            }
+          }
+          if (otherSupervised) {
+            // The child's inbound tier, re-applied per send (create-POST rules).
+            const perm = otherProfile?.messaging_permission || 'everyone';
+            if (perm === 'nobody') {
+              return NextResponse.json({ error: 'This user is not accepting messages' }, { status: 403 });
+            }
+            if (perm === 'fans_only' && !iFollowRow) {
+              return NextResponse.json({ error: 'This user only accepts messages from their fans' }, { status: 403 });
+            }
+            if (perm === 'mutual_fans' && !(iFollowRow && followsMeRow)) {
+              return NextResponse.json({ error: 'This user only accepts messages from mutual fans' }, { status: 403 });
+            }
+            // First-contact hold (mig 131): an unknown sender's message still
+            // inserts — it DELIVERS on approval — but the child's row is held
+            // and the guardians belled (once, on the transition).
+            const { applyFirstContactGate, holdChildRow } = await import('@/lib/first-contact');
+            const gate = await applyFirstContactGate(supabase, user.id, otherId);
+            if (gate.hold && gate.childId) {
+              await holdChildRow(supabase, conversationId, gate.childId, user.id);
+            }
+          }
         }
       }
     }
@@ -178,14 +214,17 @@ export async function POST(
       return NextResponse.json({ error: 'Failed to send message' }, { status: 500 });
     }
 
-    // Fan out notifications to non-muted, non-sender active participants
+    // Fan out notifications to non-muted, non-sender active participants.
+    // Held children (131) are excluded — their bell rings on approval, via
+    // the conversation simply appearing with its unread count.
     const { data: recipients } = await supabase
       .from('conversation_participants')
       .select('profile_id')
       .eq('conversation_id', conversationId)
       .neq('profile_id', user.id)
       .eq('is_muted', false)
-      .is('left_at', null);
+      .is('left_at', null)
+      .is('held_at', null);
 
     if (recipients && recipients.length > 0) {
       // Get conversation name for notification context
@@ -258,7 +297,8 @@ export async function POST(
           .select('profile_id, profile:profiles(id, handle)')
           .eq('conversation_id', conversationId)
           .neq('profile_id', user.id)
-          .is('left_at', null);
+          .is('left_at', null)
+          .is('held_at', null);
         const handleSet = new Set(handles);
         const mentionedIds = (mentionables ?? [])
           .filter(r => {

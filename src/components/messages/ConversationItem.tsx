@@ -107,6 +107,16 @@ export default function ConversationItem({ conversation, currentUserId, isActive
             <span className="text-xs text-faint">{getRelativeTime(timestamp)}</span>
           </div>
         </div>
+        {/* First-contact hold (131): the other side's guardian hasn't
+            approved yet. Its OWN line — a chip in the truncating row above
+            collapses at 375px (the Wave-2 lesson). */}
+        {conversation.type === 'direct' &&
+          conversation.participants.some(p => p.held_at) && (
+            <p className="text-[11px] font-semibold text-amber-700 dark:text-amber-300 mt-0.5">
+              <i className="fas fa-user-clock mr-1" style={{ fontSize: '9px' }}></i>
+              Pending guardian approval
+            </p>
+          )}
         <div className="flex items-center justify-between gap-2 mt-0.5">
           <p className={`text-xs truncate ${conversation.unread_count > 0 ? 'text-primary font-medium' : 'text-muted'}`}>
             {preview}
