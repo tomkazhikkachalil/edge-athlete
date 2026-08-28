@@ -1,5 +1,40 @@
 # Development Log
 
+## August 27, 2026 — Launch Polish (#343–#345, all merged + prod-probed)
+
+Tom asked what's left to make the golf MVP as polished and complete as
+possible. A full gap sweep answered: the codebase carried exactly ONE TODO,
+and **nothing in code blocks launch** — the real blockers are the
+`docs/LAUNCH_RUNBOOK.md` console gates (Resend DNS first: every app email
+silently no-ops until it's done). Three code rounds closed what remained:
+
+- **#343 — subtraction & honesty**: the /u/ legacy sportStats/sportSettings
+  fallbacks and their API fields deleted (overdue "remove next release");
+  the email digest now WARNS when SMTP is unset instead of reporting a
+  green no-op; ten `noreply@yourdomain.com` placeholder from-fallbacks
+  collapsed into one helper; name-spoofing defenses landed (bidi-override
+  stripping, Cyrillic/Greek homoglyph folding so "Тom" can't impersonate
+  "Tom", emoji cap) closing src/'s only TODO; four stale-doc fixes.
+- **#344 — the day-one golfer**: GetStartedCard on /feed for accounts under
+  14 days — log first round (opens the composer), photo, follow 3 (live
+  counter), competitive level — from real data via the new no-store
+  getting-started endpoint (probes caught a 60s cache making done steps
+  look stuck). Age-gated, dismissible, auto-gone when complete. The feed
+  rail's "coming soon" needed NO code: FEATURE_CALENDAR is set in prod, so
+  the real calendar widget was already live.
+- **#345 — the missing doorway**: the hole-by-hole quick-entry stepper had
+  existed since the wheels round (ScoreEntryModal batch mode, wired via the
+  grid's quickEntryRequest seam) but no caller passed the prop — its only
+  entrance was the per-cell penalties badge. The composer's Score Entry
+  header now carries a one-tap "Quick entry" button. Zero payload changes.
+
+Prod-probed after merge in one flow: legacy API fields absent → fresh
+account sees the checklist → its CTA opens the composer → golf → Quick
+entry → "Hole 1 of 18" wheels, live on production.
+
+Deliberately parked for post-launch: service worker (offline scoring +
+push), the multi-sport pipeline refactors, GOLF_COURSE_API_KEY, GHIN/GPA.
+
 ## August 27, 2026 — WHS engine completed: ESR, Low-HI caps, handicap from round one (#342)
 
 Tom's ask: make the in-house handicap as close to perfect as possible, and
