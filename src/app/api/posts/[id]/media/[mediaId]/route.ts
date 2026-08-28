@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import { isUuid } from '@/lib/uuid';
 import { requireAuth, getSupabaseAdmin } from '@/lib/auth-server';
 import { toProxyUrl } from '@/lib/media/proxy-url';
-import { FEATURE_FLAGS } from '@/lib/features';
 import { recipeEnvelope, parseRecipeEnvelope } from '@/lib/media/recipes';
 import { mayManagePostMedia } from '../authz';
 
@@ -93,7 +92,6 @@ export async function PATCH(
     // approval queue (best-effort bell; the media update itself stands).
     let statusChanged = false;
     if (
-      FEATURE_FLAGS.FEATURE_GUARDIAN_PROFILES &&
       user.id === post.profile_id &&
       post.status === 'published'
     ) {

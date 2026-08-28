@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import * as Sentry from '@sentry/nextjs';
 import { requireAuth, getSupabaseAdmin, getProfileRole, requireProfileRole } from '@/lib/auth-server';
 import { FEATURE_FLAGS } from '@/lib/features';
-import { hardDeleteAccount } from '@/lib/account-deletion';
+import { parkAccount, PARK_WINDOW_DAYS } from '@/lib/account-park';
 import { getConsentState } from '@/lib/consent';
 import { getClientIp } from '@/lib/rate-limit';
 
@@ -218,8 +218,12 @@ export async function DELETE(
       }
     }
 
-    const { warnings } = await hardDeleteAccount(admin, profileId);
-    return NextResponse.json({ ok: true, warnings: warnings.length ? warnings : undefined });
+    // PARK, don't destroy (Wave 1e, migration 128): 30-day window with a
+    // restore action on the family console; the daily cron hard-deletes
+    // after it. The withdrawn consent row above still records the decision;
+    // a restore writes a fresh 'granted' row back through admin review.
+    await parkAccount(admin, profileId);
+    return NextResponse.json({ ok: true, parkWindowDays: PARK_WINDOW_DAYS });
   } catch (error) {
     if (error instanceof Response) return error;
     console.error('[GUARDIAN] delete athlete error:', error);

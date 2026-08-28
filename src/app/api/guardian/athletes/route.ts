@@ -34,7 +34,7 @@ export async function GET(request: NextRequest) {
     const admin = getSupabaseAdmin();
     const { data, error } = await admin
       .from('profile_access')
-      .select('granted_at, profiles!profile_access_profile_id_fkey(id, first_name, last_name, display_name, handle, avatar_url, dob, supervision_state, visibility, messaging_permission, comment_moderation)')
+      .select('granted_at, profiles!profile_access_profile_id_fkey(id, first_name, last_name, display_name, handle, avatar_url, dob, supervision_state, visibility, messaging_permission, comment_moderation, deletion_requested_at)')
       .eq('user_id', user.id)
       .eq('role', 'guardian')
       .order('granted_at', { ascending: true });

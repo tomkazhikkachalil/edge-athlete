@@ -245,11 +245,12 @@ export default function DeleteAccountModal({ isOpen, onClose }: DeleteAccountMod
             <div className="space-y-6">
               <div className="bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800 rounded-lg p-4">
                 <h3 className="font-semibold text-red-900 dark:text-red-200 mb-2">
-                  ⚠️ This action cannot be undone
+                  ⚠️ Your account will be permanently deleted in 30 days
                 </h3>
                 <p className="text-red-800 dark:text-red-200 text-sm">
-                  Deleting your account will permanently remove all your data from Edge Athlete.
-                  This includes your profile, posts, stats, connections, and all other content.
+                  Your account is hidden immediately and permanently deleted after 30 days —
+                  profile, posts, stats, connections, and all other content. Sign back in
+                  during those 30 days to restore it; after that, deletion cannot be undone.
                 </p>
               </div>
 

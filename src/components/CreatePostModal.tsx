@@ -138,7 +138,7 @@ export default function CreatePostModal({
 }: CreatePostModalProps) {
   const { showSuccess, showError } = useToast();
   const router = useRouter();
-  const { activeProfile } = useAuth();
+  const { activeProfile, profile } = useAuth();
   const captionRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   // Native-camera capture lives in the shared <CaptureInputs> (capture-
@@ -442,12 +442,15 @@ export default function CreatePostModal({
     mediaFile: MediaFile
   ): Promise<{ url: string; thumbnailUrl?: string; sourceUrl?: string }> => {
     if (!mediaFile.file) return { url: mediaFile.url };
-    const { url } = await uploadPostMedia(mediaFile.file);
+    // Acting-as: media belongs to the athlete's post, so it must land under
+    // the ATHLETE's storage prefix (server validates via the acting-as gate).
+    const targetId = activeProfile?.id;
+    const { url } = await uploadPostMedia(mediaFile.file, targetId);
     let thumbnailUrl: string | undefined;
     if (mediaFile.posterBlob) {
       try {
         const poster = new File([mediaFile.posterBlob], 'poster.jpg', { type: 'image/jpeg' });
-        thumbnailUrl = (await uploadPostMedia(poster)).url;
+        thumbnailUrl = (await uploadPostMedia(poster, targetId)).url;
       } catch (err) {
         // A poster is a nice-to-have — never fail the post over it
         console.warn('Poster upload failed:', err);
@@ -456,7 +459,7 @@ export default function CreatePostModal({
     let sourceUrl: string | undefined;
     if (mediaFile.edited && mediaFile.sourceFile) {
       try {
-        sourceUrl = (await uploadPostMedia(mediaFile.sourceFile)).url;
+        sourceUrl = (await uploadPostMedia(mediaFile.sourceFile, targetId)).url;
       } catch (err) {
         console.warn('Original upload failed (render still posts):', err);
       }
@@ -792,6 +795,17 @@ export default function CreatePostModal({
                 ? 'Drop to add'
                 : 'Up to 50MB each — crop, adjust, and filter before posting'}
             </p>
+
+            {/* Visible privacy care for minors' media (Family Console Wave 1):
+                photo GPS/EXIF is stripped on upload — say so, and be honest
+                that video containers are not scrubbed yet. */}
+            {mediaFiles.length > 0 && (activeProfile || profile?.supervision_state === 'supervised') && (
+              <p className="mt-1 text-xs text-muted">
+                <i className="fas fa-shield-alt mr-1" aria-hidden="true"></i>
+                Location data is removed from photos before upload.
+                {mediaFiles.some(f => f.type === 'video') && ' Video location data is not removed yet.'}
+              </p>
+            )}
 
             {/* Media preview grid */}
             {mediaFiles.length > 0 && (

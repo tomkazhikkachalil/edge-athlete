@@ -77,7 +77,9 @@ try {
 > in a route.
 
 `requireProfileRole(request, profileId, action)` is the guardian-profiles
-authorization gate (feature-flagged; see `src/lib/profile-roles.ts`).
+authorization gate (see `src/lib/profile-roles.ts`). NOT feature-flagged —
+role resolution runs unconditionally since the Wave 1 flag-off inversion
+(the flag only hides guardian surfaces, never safety behavior).
 
 ## When to Use the Admin Client
 

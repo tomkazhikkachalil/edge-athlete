@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { createServerClient } from '@supabase/ssr';
 import { getSupabaseAdmin } from '@/lib/auth-server';
-import { FEATURE_FLAGS } from '@/lib/features';
 import { isPinShaped, derivePinPassword } from '@/lib/supervised-credentials';
 import { enforceRateLimit } from '@/lib/rate-limit';
 
@@ -14,9 +13,10 @@ import { enforceRateLimit } from '@/lib/rate-limit';
 // the ssr adapter (same pattern as the OAuth callback). Errors are uniform
 // ("Invalid username or password") — no account-existence leaks.
 export async function POST(request: NextRequest) {
-  if (!FEATURE_FLAGS.FEATURE_GUARDIAN_PROFILES) {
-    return NextResponse.json({ error: 'Not available' }, { status: 404 });
-  }
+  // Not flag-gated (Wave 1 inversion): this is the ONLY sign-in path a
+  // supervised minor has — flag-off must freeze guardianship management,
+  // never lock children out of their accounts. The route is supervised-only
+  // and state-driven either way.
   const invalid = () =>
     NextResponse.json({ error: 'Invalid username or password' }, { status: 401 });
 

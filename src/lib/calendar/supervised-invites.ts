@@ -29,9 +29,8 @@ export async function checkSupervisedInviteGate(
   inviteeProfileIds: string[],
   emailGuestCount: number
 ): Promise<InviteGateResult> {
-  const { FEATURE_FLAGS } = await import('@/lib/features');
-  if (!FEATURE_FLAGS.FEATURE_GUARDIAN_PROFILES) return { ok: true };
-
+  // Unconditional (Wave 1 inversion): this gate protects supervised minors
+  // and reads only their own profile state — no flag may open it.
   if (emailGuestCount > 0) {
     const { data: inviter } = await admin
       .from('profiles')

@@ -120,6 +120,9 @@ export interface Profile {
   // 'self' after the transfer of control completes.
   supervision_state?: 'self' | 'supervised' | string;
   dob_locked?: boolean;
+  // Soft-delete park stamp (migration 128): non-null = scheduled for hard
+  // deletion 30 days later; the root-layout banner offers restore.
+  deletion_requested_at?: string | null;
   // Account-level theme preference (migration 069). Deliberately `unknown`:
   // always read through sanitizeThemePrefs (src/lib/theme-prefs.ts).
   theme_prefs?: unknown;

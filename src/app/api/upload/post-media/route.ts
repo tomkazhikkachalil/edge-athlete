@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { requireAuth, getSupabaseAdmin } from '@/lib/auth-server';
+import { requireAuth, getSupabaseAdmin, getProfileRole } from '@/lib/auth-server';
+import { resolveActingProfile } from '@/lib/guardian-gate';
 import { enforceRateLimit } from '@/lib/rate-limit';
+import { isUuid } from '@/lib/uuid';
 
 export async function POST(request: NextRequest) {
   try {
@@ -13,10 +15,22 @@ export async function POST(request: NextRequest) {
 
     const formData = await request.formData();
     const file = formData.get('file') as File;
-    // Owner comes from the authenticated session — never from the client.
-    // (A redundant userId form field used to be required here; AddVitalModal
-    // sent '' and got "User ID is required". DELETE below always did this.)
-    const userId = user.id;
+    // Owner defaults to the authenticated session. A guardian uploading for
+    // a managed athlete passes targetProfileId, validated by the SAME gate
+    // the content routes use — before this, acting-as media landed under the
+    // GUARDIAN's storage prefix, mis-attributing the child's bytes to the
+    // guardian for DELETE ownership, sweeps, and account deletion.
+    const rawTarget = formData.get('targetProfileId');
+    const targetProfileId = typeof rawTarget === 'string' && rawTarget ? rawTarget : null;
+    const gate = await resolveActingProfile(
+      user.id,
+      targetProfileId,
+      'Only a guardian may upload media for this profile.'
+    );
+    if (!gate.ok) {
+      return NextResponse.json({ error: gate.error }, { status: gate.status });
+    }
+    const userId = gate.actorId;
 
     if (!file) {
       return NextResponse.json({ error: 'No file provided' }, { status: 400 });
@@ -107,9 +121,16 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: 'File path is required' }, { status: 400 });
     }
 
-    // Verify the file belongs to the session user
+    // Verify the file belongs to the session user — or to a profile the
+    // session user guards (acting-as uploads are keyed to the CHILD's
+    // prefix, so the guardian who just uploaded must be able to undo it).
     if (!filePath.includes(`posts/${userId}/`)) {
-      return NextResponse.json({ error: 'Unauthorized file access' }, { status: 403 });
+      const m = filePath.match(/posts\/([0-9a-f-]{36})\//);
+      const prefixOwner = m && isUuid(m[1]) ? m[1] : null;
+      const role = prefixOwner ? await getProfileRole(userId, prefixOwner) : null;
+      if (role !== 'guardian') {
+        return NextResponse.json({ error: 'Unauthorized file access' }, { status: 403 });
+      }
     }
 
     // Delete file from Supabase Storage

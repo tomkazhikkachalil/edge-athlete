@@ -19,6 +19,16 @@ export const FEATURE_FLAGS = {
   // pattern as the OAuth provider flags). LAUNCHED to prod Aug 19 2026 —
   // the flag is SET in Vercel; keep it set. Migrations 048-051 must be run
   // before this is ever enabled in a fresh environment.
+  //
+  // SEMANTICS (Family Console Wave 1, Aug 2026): this is a SURFACE switch,
+  // never a safety switch. Flag off hides the guardian pages, funnels and
+  // acting-as entry points; it must NEVER disable a publish filter, the
+  // supervised pending/held pipelines, the deletion rails, supervised login,
+  // or the invite gate — those run unconditionally and are role/state-driven.
+  // (The flag started life as a migration guard for 048-051; turning it off
+  // used to REMOVE the posts.status filters, which would have published
+  // minors' unapproved content. Never reintroduce a flag check on a safety
+  // behavior.)
   FEATURE_GUARDIAN_PROFILES: process.env.NEXT_PUBLIC_FEATURE_GUARDIAN_PROFILES === '1',
 
   // Personal calendar (events + invite loop). Build-time env flag: set
