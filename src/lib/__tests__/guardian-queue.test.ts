@@ -1,0 +1,233 @@
+import { describe, it, expect } from 'vitest';
+import {
+  AGING_BADGE_MS,
+  buildQueueItems,
+  TRANSFER_NEEDS_GUARDIAN,
+  type QueueFollowRow,
+  type RosterRow,
+} from '../guardian-queue';
+
+const kid = (id: string, over: Partial<RosterRow> = {}): RosterRow => ({
+  id,
+  first_name: id === 'a' ? 'Maya' : 'Jonah',
+  last_name: 'Test',
+  full_name: null,
+  handle: `${id}-handle`,
+  avatar_url: null,
+  supervision_state: 'supervised',
+  ...over,
+});
+
+const approvedConsent = (id: string) => [{ profile_id: id, action: 'review_approved' }];
+
+const post = (id: string, profileId: string, createdAt: string) => ({
+  id,
+  profile_id: profileId,
+  caption: `post ${id}`,
+  created_at: createdAt,
+  mediaCount: 0,
+  thumbnailUrl: null,
+});
+
+const comment = (id: string, profileId: string, createdAt: string) => ({
+  id,
+  profile_id: profileId,
+  content: `comment ${id}`,
+  created_at: createdAt,
+});
+
+describe('buildQueueItems', () => {
+  it('empty everything → empty queue', () => {
+    expect(buildQueueItems([], [], [], [], [], [], [])).toEqual([]);
+  });
+
+  it('interleaves posts and comments oldest-first ahead of everything else', () => {
+    const items = buildQueueItems(
+      [kid('a')],
+      [post('p1', 'a', '2026-08-20T10:00:00Z'), post('p2', 'a', '2026-08-22T10:00:00Z')],
+      [comment('c1', 'a', '2026-08-21T10:00:00Z')],
+      [],
+      approvedConsent('a'),
+      [{ user_id: 'a', profile_id: 'a' }],
+      []
+    );
+    expect(items.map(i => i.id)).toEqual(['p1', 'c1', 'p2']);
+    expect(items.map(i => i.kind)).toEqual(['approve_post', 'release_comment', 'approve_post']);
+  });
+
+  it('gap derivation matches the old attention rules: supervised + consent none/rejected + no SELF row', () => {
+    const items = buildQueueItems(
+      [kid('a')],
+      [],
+      [],
+      [],
+      [{ profile_id: 'a', action: 'review_rejected' }],
+      [],
+      []
+    );
+    expect(items).toEqual([
+      expect.objectContaining({ kind: 'consent_gap', consentState: 'rejected', href: '/app/guardian/consent/a' }),
+      expect.objectContaining({ kind: 'credentials_gap', href: '/app/guardian/credentials/a' }),
+    ]);
+  });
+
+  it('transferred (self) athletes get no consent/credentials gaps', () => {
+    const items = buildQueueItems(
+      [kid('a', { supervision_state: 'self' })],
+      [],
+      [],
+      [],
+      [],
+      [],
+      []
+    );
+    expect(items).toEqual([]);
+  });
+
+  it('a supervised SELF row counts as login; a supervised row pointing elsewhere does not', () => {
+    const items = buildQueueItems(
+      [kid('a')],
+      [],
+      [],
+      [],
+      approvedConsent('a'),
+      [{ user_id: 'other', profile_id: 'a' }],
+      []
+    );
+    expect(items).toEqual([expect.objectContaining({ kind: 'credentials_gap' })]);
+  });
+
+  it('consentBlocked is set on content until consent is approved', () => {
+    const blocked = buildQueueItems(
+      [kid('a')],
+      [post('p1', 'a', '2026-08-20T10:00:00Z')],
+      [],
+      [],
+      [{ profile_id: 'a', action: 'granted' }], // pending_review
+      [{ user_id: 'a', profile_id: 'a' }],
+      []
+    );
+    expect(blocked[0]).toMatchObject({ kind: 'approve_post', consentBlocked: true });
+
+    const clear = buildQueueItems(
+      [kid('a')],
+      [post('p1', 'a', '2026-08-20T10:00:00Z')],
+      [],
+      [],
+      approvedConsent('a'),
+      [{ user_id: 'a', profile_id: 'a' }],
+      []
+    );
+    expect(clear[0]).toMatchObject({ consentBlocked: false });
+  });
+
+  it('latest consent action wins — rows arrive created_at DESC', () => {
+    const items = buildQueueItems(
+      [kid('a')],
+      [],
+      [],
+      [],
+      [
+        { profile_id: 'a', action: 'review_approved' }, // newest
+        { profile_id: 'a', action: 'review_rejected' },
+      ],
+      [{ user_id: 'a', profile_id: 'a' }],
+      []
+    );
+    expect(items.find(i => i.kind === 'consent_gap')).toBeUndefined();
+  });
+
+  it('follow requests unwrap object OR array follower embeds; missing follower rows drop', () => {
+    const follower = {
+      id: 'fan-1',
+      first_name: 'Fan',
+      last_name: 'One',
+      full_name: null,
+      handle: 'fan1',
+      avatar_url: null,
+    };
+    const rows: QueueFollowRow[] = [
+      { id: 'f1', following_id: 'a', message: 'hi', created_at: '2026-08-20T10:00:00Z', follower },
+      { id: 'f2', following_id: 'a', message: null, created_at: '2026-08-21T10:00:00Z', follower: [follower] },
+      { id: 'f3', following_id: 'a', message: null, created_at: '2026-08-22T10:00:00Z', follower: null },
+    ];
+    const items = buildQueueItems(
+      [kid('a')],
+      [],
+      [],
+      rows,
+      approvedConsent('a'),
+      [{ user_id: 'a', profile_id: 'a' }],
+      []
+    );
+    expect(items.map(i => i.id)).toEqual(['f1', 'f2']);
+    expect(items[0]).toMatchObject({
+      kind: 'follow_request',
+      follower: { id: 'fan-1', name: 'Fan One', handle: 'fan1' },
+      message: 'hi',
+    });
+  });
+
+  it('only guardian-court transfer states surface', () => {
+    const items = buildQueueItems(
+      [kid('a'), kid('b')],
+      [],
+      [],
+      [],
+      [...approvedConsent('a'), ...approvedConsent('b')],
+      [
+        { user_id: 'a', profile_id: 'a' },
+        { user_id: 'b', profile_id: 'b' },
+      ],
+      [
+        { profile_id: 'a', state: 'requested' },
+        { profile_id: 'b', state: 'cooling_off' },
+      ]
+    );
+    expect(items).toEqual([
+      expect.objectContaining({ kind: 'transfer_step', state: 'requested', href: '/app/transfer/a' }),
+    ]);
+    expect(TRANSFER_NEEDS_GUARDIAN.has('cooling_off')).toBe(false);
+  });
+
+  it('rows for athletes outside the roster are ignored (parked athletes are filtered by the route)', () => {
+    const items = buildQueueItems(
+      [kid('a')],
+      [post('p1', 'ghost', '2026-08-20T10:00:00Z')],
+      [comment('c1', 'ghost', '2026-08-20T10:00:00Z')],
+      [],
+      approvedConsent('a'),
+      [{ user_id: 'a', profile_id: 'a' }],
+      [{ profile_id: 'ghost', state: 'requested' }]
+    );
+    expect(items).toEqual([]);
+  });
+
+  it('full ordering: content → follows → transfers → consent gaps → credentials gaps', () => {
+    const follower = {
+      id: 'fan-1', first_name: 'Fan', last_name: null, full_name: null, handle: null, avatar_url: null,
+    };
+    const items = buildQueueItems(
+      [kid('a'), kid('b', { supervision_state: 'supervised' })],
+      [post('p1', 'a', '2026-08-20T10:00:00Z')],
+      [],
+      [{ id: 'f1', following_id: 'a', message: null, created_at: '2026-08-19T10:00:00Z', follower }],
+      approvedConsent('a'), // b has none → consent gap
+      [{ user_id: 'a', profile_id: 'a' }], // b has no login → credentials gap
+      [{ profile_id: 'a', state: 'dual_confirm' }]
+    );
+    expect(items.map(i => i.kind)).toEqual([
+      'approve_post',
+      'follow_request',
+      'transfer_step',
+      'consent_gap',
+      'credentials_gap',
+    ]);
+  });
+});
+
+describe('AGING_BADGE_MS', () => {
+  it('is exactly 48 hours — the badge and the PR-3 cron nudge must agree', () => {
+    expect(AGING_BADGE_MS).toBe(48 * 3_600_000);
+  });
+});

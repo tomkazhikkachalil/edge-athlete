@@ -9,6 +9,7 @@ import AppHeader from '@/components/AppHeader';
 import ConfirmModal from '@/components/ConfirmModal';
 import { FEATURE_FLAGS } from '@/lib/features';
 import { formatDisplayName } from '@/lib/formatters';
+import { SPORT_REGISTRY, type SportKey } from '@/lib/sports/SportRegistry';
 
 // ── Guardian approval queue ──────────────────────────────────────────────────
 // Pending posts across all of the guardian's managed athletes, oldest first.
@@ -47,6 +48,16 @@ interface PendingPost {
   caption: string | null;
   sport_key: string | null;
   created_at: string;
+  // Richer cards (Wave 2): what the guardian is actually deciding about —
+  // who will see it and who is named in it.
+  visibility: string | null;
+  taggedPeople: Array<{
+    id: string;
+    first_name: string | null;
+    last_name: string | null;
+    full_name: string | null;
+    handle: string | null;
+  }>;
   post_media: PendingMedia[];
   profiles: {
     id: string;
@@ -58,6 +69,13 @@ interface PendingPost {
   } | null;
 }
 
+function sportLabel(sportKey: string | null): string | null {
+  if (!sportKey) return null;
+  // Registry-only: non-sport keys ('general', legacy values) are noise on an
+  // approval card, not information.
+  return SPORT_REGISTRY[sportKey as SportKey]?.display_name ?? null;
+}
+
 export default function GuardianApprovalsPage() {
   const router = useRouter();
   const { user, loading, initialAuthCheckComplete } = useAuth();
@@ -66,7 +84,18 @@ export default function GuardianApprovalsPage() {
   const [comments, setComments] = useState<PendingComment[]>([]);
   const [acting, setActing] = useState('');
   const [error, setError] = useState('');
-
+  // ?athlete=<id> filter — the console's roster badges and queue rows deep-link
+  // here per athlete. Mount-only window.location read (the feed ?create
+  // pattern): arrivals always mount this page fresh, and skipping
+  // useSearchParams keeps the page free of a Suspense wrap.
+  const [athleteFilter, setAthleteFilter] = useState<string | null>(null);
+  // Effect-owned deliberately (the feed ?create precedent): window.location
+  // can't be read during render on a statically prerendered page.
+  useEffect(() => {
+    const id = new URLSearchParams(window.location.search).get('athlete');
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (id) setAthleteFilter(id);
+  }, []);
 
   useEffect(() => {
     if (!loading && initialAuthCheckComplete && !user) router.replace('/');
@@ -158,6 +187,14 @@ export default function GuardianApprovalsPage() {
     );
   }
 
+  const visiblePosts = athleteFilter ? posts.filter(p => p.profile_id === athleteFilter) : posts;
+  const visibleComments = athleteFilter ? comments.filter(c => c.profile_id === athleteFilter) : comments;
+  const filteredProfile =
+    visiblePosts[0]?.profiles ?? visibleComments[0]?.profile ?? null;
+  const filterName = filteredProfile
+    ? formatDisplayName(filteredProfile.first_name, null, filteredProfile.last_name, filteredProfile.full_name)
+    : 'this athlete';
+
   return (
     <div className="min-h-screen flex flex-col bg-canvas">
       {/* Console chrome (Round D): approvals/transfers are recurring signed-in
@@ -186,17 +223,32 @@ export default function GuardianApprovalsPage() {
           </div>
         )}
 
+        {athleteFilter && state === 'ready' && (
+          <div className="flex flex-wrap items-center justify-between gap-2 bg-violet-50 dark:bg-violet-950/30 border border-violet-200 dark:border-violet-900 rounded-lg px-4 py-2.5 text-sm text-brand-fg-strong mb-4">
+            <span>Showing only {filterName}</span>
+            <button
+              type="button"
+              onClick={() => setAthleteFilter(null)}
+              className="font-semibold min-h-[44px] inline-flex items-center hover:underline"
+            >
+              Show all
+            </button>
+          </div>
+        )}
+
         {state === 'loading' ? (
           <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-brand mx-auto my-12"></div>
-        ) : posts.length === 0 && comments.length === 0 ? (
+        ) : visiblePosts.length === 0 && visibleComments.length === 0 ? (
           <div className="text-sm text-muted bg-surface border border-border rounded-lg p-6 text-center">
             <i className="fas fa-circle-check text-violet-400 text-2xl mb-2 block"></i>
-            All caught up — nothing is waiting for approval.
+            {athleteFilter
+              ? 'Nothing from this athlete is waiting for approval.'
+              : 'All caught up — nothing is waiting for approval.'}
           </div>
         ) : (
           <>
           {
-          posts.map(post => {
+          visiblePosts.map(post => {
             const athleteName = formatDisplayName(
               post.profiles?.first_name, null, post.profiles?.last_name, post.profiles?.full_name
             );
@@ -218,6 +270,36 @@ export default function GuardianApprovalsPage() {
                     })}
                   </p>
                 </div>
+
+                {/* What approving means: the audience it publishes to, the
+                    sport surface it lands on, and who is named in it. */}
+                <div className="flex flex-wrap items-center gap-1.5 mb-3">
+                  {post.visibility === 'public' ? (
+                    <span className="text-xs font-medium px-2.5 py-1 rounded-full bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300">
+                      <i className="fas fa-globe mr-1"></i>
+                      Public — anyone can see this
+                    </span>
+                  ) : (
+                    <span className="text-xs font-medium px-2.5 py-1 rounded-full bg-surface-sunken text-tertiary">
+                      <i className="fas fa-lock mr-1"></i>
+                      Private — fans only
+                    </span>
+                  )}
+                  {sportLabel(post.sport_key) && (
+                    <span className="text-xs font-medium px-2.5 py-1 rounded-full bg-surface-sunken text-tertiary">
+                      {sportLabel(post.sport_key)}
+                    </span>
+                  )}
+                </div>
+
+                {(post.taggedPeople ?? []).length > 0 && (
+                  <p className="text-xs text-muted mb-3">
+                    <i className="fas fa-user-tag mr-1"></i>
+                    Tagged: {post.taggedPeople
+                      .map(t => formatDisplayName(t.first_name, null, t.last_name, t.full_name))
+                      .join(', ')}
+                  </p>
+                )}
 
                 {post.caption && (
                   <p className="text-sm text-primary whitespace-pre-wrap mb-3">{post.caption}</p>
@@ -283,12 +365,12 @@ export default function GuardianApprovalsPage() {
             );
           })}
 
-          {comments.length > 0 && (
+          {visibleComments.length > 0 && (
             <>
               <h2 className="text-base font-bold text-violet-800 dark:text-violet-200 mt-8 mb-3">
                 Comments
               </h2>
-              {comments.map(comment => {
+              {visibleComments.map(comment => {
                 const athleteName = formatDisplayName(
                   comment.profile?.first_name, null, comment.profile?.last_name, comment.profile?.full_name
                 );
