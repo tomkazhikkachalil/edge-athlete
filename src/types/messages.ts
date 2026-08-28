@@ -21,6 +21,9 @@ export interface ConversationParticipant {
   is_muted: boolean;
   joined_at: string;
   left_at: string | null;
+  /** First-contact hold (131): non-null on a supervised child's row while a
+   *  guardian decision is pending — the SENDER reads this for the chip. */
+  held_at?: string | null;
   profile: ParticipantProfile;
 }
 

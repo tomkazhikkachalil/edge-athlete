@@ -414,6 +414,117 @@ test('consent signature (130): method cards swap the statement; typed signature 
   }
 });
 
+test('first-contact hold (131): tiers first → hold → invisible to child → approve → visible → deny → re-hold', async ({ page }) => {
+  test.skip(!flagOn, 'guardian flag off');
+  const api = await apiAs('state.json');
+  const apiB = await apiAs('state-b.json'); // revoked co-guardian = a genuine stranger now
+  const child = await request.newContext({ baseURL: E2E_BASE_URL });
+  try {
+    // Tiers run FIRST: the safety test left messaging at fans_only — a
+    // stranger's create must 403 before the hold is ever consulted.
+    const tierBlocked = await apiB.post('/api/messages', {
+      data: { type: 'direct', participantId: childId },
+    });
+    expect(tierBlocked.status(), await readErrorBody(tierBlocked)).toBe(403);
+
+    // Guardian opens the tier; the stranger's create now HOLDS.
+    const open = await api.patch(`/api/guardian/athletes/${childId}`, {
+      data: { messaging_permission: 'everyone' },
+    });
+    expect(open.ok(), await readErrorBody(open)).toBe(true);
+
+    const created = await apiB.post('/api/messages', {
+      data: { type: 'direct', participantId: childId },
+    });
+    expect(created.status(), await readErrorBody(created)).toBe(201);
+    const { conversationId, held } = await created.json();
+    expect(held).toBe(true);
+    const sent = await apiB.post(`/api/messages/${conversationId}/messages`, {
+      data: { type: 'text', content: `qa held hello ${stamp}` },
+    });
+    expect(sent.status(), await readErrorBody(sent)).toBe(201);
+
+    // The child sees NOTHING: list excludes it, thread 404s, badge is zero.
+    const login = await child.post('/api/auth/username-login', {
+      data: { username: HANDLE, secret: PIN },
+    });
+    expect(login.ok(), await readErrorBody(login)).toBe(true);
+    const childList = await child.get('/api/messages');
+    expect(
+      ((await childList.json()).conversations ?? []).some(
+        (c: { id: string }) => c.id === conversationId
+      )
+    ).toBe(false);
+    expect((await child.get(`/api/messages/${conversationId}`)).status()).toBe(404);
+    expect((await (await child.get('/api/messages/unread-count')).json()).count ?? 0).toBe(0);
+
+    // The SENDER still sees it, with the child's row held.
+    const senderList = await apiB.get('/api/messages');
+    const senderConv = ((await senderList.json()).conversations ?? []).find(
+      (c: { id: string }) => c.id === conversationId
+    );
+    expect(senderConv, 'sender keeps their view of the held conversation').toBeTruthy();
+    expect(
+      senderConv.participants.some(
+        (p: { profile_id: string; held_at?: string | null }) => p.profile_id === childId && p.held_at
+      )
+    ).toBe(true);
+
+    // Guardian bell + hub queue row → inline Approve.
+    const bell = await api.get('/api/notifications');
+    expect(
+      ((await bell.json()).notifications ?? []).some(
+        (n: { type?: string; title?: string }) =>
+          n.type === 'safety_alert' && (n.title ?? '').includes('Someone new wants to message')
+      )
+    ).toBe(true);
+    await page.goto('/app/guardian');
+    const main = page.locator('main');
+    await expect(main.getByText(/wants to message Junior Console/)).toBeVisible({ timeout: 15_000 });
+    await main.getByRole('button', { name: 'Approve' }).click();
+    await expect(main.getByText(/wants to message Junior Console/)).toHaveCount(0, { timeout: 10_000 });
+
+    // Approved: the thread appears for the child with its unread count.
+    const afterList = await child.get('/api/messages');
+    const childConv = ((await afterList.json()).conversations ?? []).find(
+      (c: { id: string }) => c.id === conversationId
+    );
+    expect(childConv, 'approved conversation appears for the child').toBeTruthy();
+    expect(childConv.unread_count).toBeGreaterThanOrEqual(1);
+
+    // Approved contacts stay open: another send does not re-hold.
+    const sent2 = await apiB.post(`/api/messages/${conversationId}/messages`, {
+      data: { type: 'text', content: `qa hello again ${stamp}` },
+    });
+    expect(sent2.status(), await readErrorBody(sent2)).toBe(201);
+    const stillVisible = await child.get(`/api/messages/${conversationId}`);
+    expect(stillVisible.ok()).toBe(true);
+
+    // Deny (quiet removal): both rows sever; the sender's list drops it.
+    const deny = await api.post(`/api/guardian/athletes/${childId}/contacts`, {
+      data: { contactProfileId: loadQaUser('user-b.json').id, decision: 'deny' },
+    });
+    expect(deny.ok(), await readErrorBody(deny)).toBe(true);
+    const senderAfterDeny = await apiB.get('/api/messages');
+    expect(
+      ((await senderAfterDeny.json()).conversations ?? []).some(
+        (c: { id: string }) => c.id === conversationId
+      )
+    ).toBe(false);
+
+    // Repeatable: a retry revives the thread — held again.
+    const retry = await apiB.post('/api/messages', {
+      data: { type: 'direct', participantId: childId },
+    });
+    expect(retry.ok(), await readErrorBody(retry)).toBe(true);
+    expect((await retry.json()).held).toBe(true);
+  } finally {
+    await child.dispose();
+    await apiB.dispose();
+    await api.dispose();
+  }
+});
+
 // afterAll, not a test: serial mode skips remaining TESTS after a failure,
 // which would orphan the child's @minors.invalid shadow user. Hooks run
 // regardless.

@@ -4,9 +4,12 @@ import { FEATURE_FLAGS } from '@/lib/features';
 import { toProxyUrl } from '@/lib/media/proxy-url';
 import { ACTIVE_TRANSFER_STATES } from '@/lib/transfers';
 import {
+  buildHeldContactRows,
   buildQueueItems,
   flattenInviteRows,
   type QueuePostRow,
+  type RawCounterpartRow,
+  type RawHeldRow,
   type RawInviteRow,
   type RosterRow,
 } from '@/lib/guardian-queue';
@@ -46,7 +49,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ items: [] });
     }
 
-    const [postsQ, commentsQ, followsQ, consentQ, supervisedQ, transferQ, invitesQ] = await Promise.all([
+    const [postsQ, commentsQ, followsQ, consentQ, supervisedQ, transferQ, invitesQ, heldQ] = await Promise.all([
       // changes_requested rows (mig 129) ride along as the muted
       // "waiting on their edit" rows — the shaper splits them out.
       admin
@@ -93,9 +96,32 @@ export async function GET(request: NextRequest) {
             .eq('status', 'invited')
             .order('created_at', { ascending: true })
         : Promise.resolve({ data: [], error: null }),
+      // First-contact holds (mig 131): the children's held rows. The
+      // counterpart batch below is the only follow-up query — still constant
+      // count regardless of roster size.
+      admin
+        .from('conversation_participants')
+        .select('conversation_id, profile_id, held_at, conversations!inner(type)')
+        .in('profile_id', ids)
+        .not('held_at', 'is', null)
+        .order('held_at', { ascending: true }),
     ]);
-    for (const q of [postsQ, commentsQ, followsQ, consentQ, supervisedQ, transferQ, invitesQ]) {
+    for (const q of [postsQ, commentsQ, followsQ, consentQ, supervisedQ, transferQ, invitesQ, heldQ]) {
       if (q.error) throw q.error;
+    }
+
+    // Counterpart batch for the held conversations (one query, however many).
+    const heldRows = (heldQ.data ?? []) as unknown as RawHeldRow[];
+    const heldConvIds = [...new Set(heldRows.map(r => r.conversation_id))];
+    let counterpartRows: RawCounterpartRow[] = [];
+    if (heldConvIds.length > 0) {
+      const { data: counterparts, error: counterpartError } = await admin
+        .from('conversation_participants')
+        .select('conversation_id, profile_id, profiles:profile_id (id, first_name, last_name, full_name, handle, avatar_url)')
+        .in('conversation_id', heldConvIds)
+        .not('profile_id', 'in', `(${ids.join(',')})`);
+      if (counterpartError) throw counterpartError;
+      counterpartRows = (counterparts ?? []) as unknown as RawCounterpartRow[];
     }
 
     // Flatten each post's media to a count + first proxied thumbnail — the
@@ -133,7 +159,8 @@ export async function GET(request: NextRequest) {
       consentQ.data ?? [],
       supervisedQ.data ?? [],
       transferQ.data ?? [],
-      flattenInviteRows((invitesQ.data ?? []) as unknown as RawInviteRow[], Date.now())
+      flattenInviteRows((invitesQ.data ?? []) as unknown as RawInviteRow[], Date.now()),
+      buildHeldContactRows(heldRows, counterpartRows)
     );
     return NextResponse.json({ items });
   } catch (error) {

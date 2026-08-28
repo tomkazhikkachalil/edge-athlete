@@ -18,7 +18,8 @@ export async function GET(request: NextRequest) {
         .from('conversation_participants')
         .select('conversation_id, last_read_at, joined_at')
         .eq('profile_id', user.id)
-        .is('left_at', null);
+        .is('left_at', null)
+        .is('held_at', null);
 
       if (!participants || participants.length === 0) {
         return NextResponse.json({ count: 0 });

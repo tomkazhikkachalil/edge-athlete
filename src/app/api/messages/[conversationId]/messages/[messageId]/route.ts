@@ -38,6 +38,7 @@ export async function PATCH(
       .eq('conversation_id', conversationId)
       .eq('profile_id', user.id)
       .is('left_at', null)
+      .is('held_at', null)
       .maybeSingle();
 
     if (!myParticipant) {
