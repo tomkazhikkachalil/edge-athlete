@@ -1,5 +1,61 @@
 # Development Log
 
+## August 28, 2026 — Phone-width polish on the Launch Polish surfaces (#346, merged + prod-probed)
+
+The standing ~375px pass, run on the two newest surfaces (#344's checklist,
+#345's Quick entry flow) — they had shipped prod-probed but never got the
+narrow-viewport audit the parity rule mandates. The audit found real
+defects, all against rules this repo already documents:
+
+- **GetStartedCard**: the four CTAs were ~20px bare text links squeezing
+  the step label to ~160px at 375px — now the globals.css bare-text-link
+  recipe (44px targets, `active:` paired with `hover:`), stacked below the
+  hint on phones. The dismiss button was missing the `.ea-icon-btn` caller
+  display contract (glyph off-center, circle flex-compressible) — fixed
+  here and on the two other call sites with the same omission (club/league
+  member removal). Steps 2/4 shared one label ("Open profile →") for two
+  different jobs; and "Set level →" now deep-links to `/athlete?edit=sport`
+  — a new `initialTab` prop on EditProfileTabs opens Edit Profile directly
+  on the primary sport tab, replacing a hint that was literally navigation
+  instructions three levels deep.
+- **Quick entry flow**: the stepper overlay moved `z-50 → z-[60]` (it
+  stacks above the z-50 composer and was correct only by DOM-nesting
+  accident — the house convention exists for exactly this); a 44px-floor
+  sweep over Jump-to-Hole's 18 dense cells, FIR/GIR, Add-penalty, the
+  switcher chips, "Add Others" and the participant-chip ×; the penalty
+  select takes the full row on phones (its iOS-zoom-guard 16px font
+  truncated "Out of bounds" at ~161px); the count input recenters on focus
+  so the iOS keyboard can't cover it; the header button survives wrapping
+  as a full-width CTA instead of a stray left-aligned link.
+- **The switcher gap**: the stepper's player-switcher chips never rendered
+  from the composer path — the grid didn't pass `players`, so a partner's
+  card was reachable only via a 24px penalty badge inside a scrolling
+  table. Wired through, with one addition the live path never needed:
+  batch mode flushes entered scores through `onSave` before the keyed
+  remount (Save Scores' resting-wheel commit rules), because without it a
+  mid-entry switch silently dropped typed input.
+- **e2e**: first coverage for either surface — two `@mobile` specs at an
+  explicit 375px inside the test (the mobile project's 390px viewport has
+  slack exactly where these layouts are tight; config untouched). Spec
+  trap for the future: batch mode's "Save Scores" renders ONLY on the last
+  hole — every other footer is Previous/Next — so a saving spec jumps to
+  hole 18 first. Also corrected the stale golf-quick-entry comments
+  claiming Escape closes the composer (no Escape handler exists in that
+  chain).
+
+Deliberately not done: full-bleed composer sheet on phones (Tom kept the
+centered card), portaling the stepper (no transform/backdrop-filter
+ancestors today — nesting verified safe), the back-9 "Hole 1 of 9"
+position-vs-number header nit.
+
+Prod-probed after merge: all four touched specs green against the live
+deployment, including the full phone flow — checklist CTAs at 44px, the
+?edit=sport deep link opening the Edit Profile dialog, dismiss persisting
+across reload, and Quick entry → wheels → jump to 18 → Save → score in the
+grid cell. The multi-player switch flush is code-reviewed but not
+e2e-driven (partner setup needs the participant modal); it joins Tom's
+device pass.
+
 ## August 27, 2026 — Launch Polish (#343–#345, all merged + prod-probed)
 
 Tom asked what's left to make the golf MVP as polished and complete as
