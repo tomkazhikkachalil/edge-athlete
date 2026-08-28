@@ -41,6 +41,10 @@ interface EditProfileTabsProps {
    *  sport tabs + sports picker + visibility toggle are hidden — sports are
    *  session-anchored surfaces and safety posture belongs to the console. */
   targetProfileId?: string;
+  /** Deep-link tab (e.g. /athlete?edit=sport → the primary sport tab).
+   *  Applied on the open transition only; invalid or hidden ids fall back to
+   *  the default 'basic'. */
+  initialTab?: string;
 }
 
 /**
@@ -105,7 +109,8 @@ export default function EditProfileTabs({
   onClose,
   profile,
   onSave,
-  targetProfileId
+  targetProfileId,
+  initialTab
 }: EditProfileTabsProps) {
   const { user } = useAuth();
   const { showSuccess, showError, showInfo } = useToast();
@@ -118,6 +123,17 @@ export default function EditProfileTabs({
   const [activeTab, setActiveTab] = useState<TabId>('basic');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
+
+  // Deep-link tab, applied on the open transition only. Render-phase state
+  // sync (house idiom — see the profile seeding below), so the deep-linked
+  // tab never paints a frame of 'basic' first.
+  const [syncedOpen, setSyncedOpen] = useState(isOpen);
+  if (syncedOpen !== isOpen) {
+    setSyncedOpen(isOpen);
+    if (isOpen && initialTab && visibleTabs.some(t => t.id === initialTab && t.enabled)) {
+      setActiveTab(initialTab as TabId);
+    }
+  }
 
   // Form states - Initialize with empty strings to prevent controlled/uncontrolled warnings
   const [basicForm, setBasicForm] = useState({

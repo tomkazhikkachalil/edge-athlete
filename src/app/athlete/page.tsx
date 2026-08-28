@@ -222,6 +222,11 @@ export default function AthleteProfilePage() {
   // ?sport= companion for ?tab=stats — the hub's sport layer. Kept in state
   // so the key={mediaRefreshKey} remounts restore the current chip.
   const [deepLinkSport, setDeepLinkSport] = useState<string | null>(null);
+  // ?edit=sport deep link (GetStartedCard "Set level →"): opens Edit Profile
+  // on the primary sport tab. Held pending until the profile is known so the
+  // right tab can be resolved.
+  const [pendingEditDeepLink, setPendingEditDeepLink] = useState(false);
+  const [editInitialTab, setEditInitialTab] = useState<string | null>(null);
 
   // Follow stats
   const [followersCount, setFollowersCount] = useState(0);
@@ -257,7 +262,17 @@ export default function AthleteProfilePage() {
     if (t) setDeepLinkTab(t);
     const s = sp.get('sport');
     if (s) setDeepLinkSport(s);
+    if (sp.get('edit') === 'sport') setPendingEditDeepLink(true);
   }, []);
+
+  // Consume the ?edit=sport deep link once the profile has loaded — the sport
+  // tab id comes from profiles.sport, which isn't known at mount. Render-phase
+  // state sync (house idiom, cf. EditProfileTabs' profile seeding).
+  if (pendingEditDeepLink && profile) {
+    setPendingEditDeepLink(false);
+    setEditInitialTab(resolveSportKey(profile.sport) ?? 'basic');
+    setIsEditModalOpen(true);
+  }
 
   // Load athlete data
   useEffect(() => {
@@ -1037,7 +1052,11 @@ export default function AthleteProfilePage() {
       {/* Edit Profile Modal */}
       <EditProfileTabs
         isOpen={isEditModalOpen}
-        onClose={() => setIsEditModalOpen(false)}
+        onClose={() => {
+          setIsEditModalOpen(false);
+          setEditInitialTab(null); // deep-link tab applies to that open only
+        }}
+        initialTab={editInitialTab ?? undefined}
         profile={profile}
         onSave={async () => {
           // Refresh all data after save
