@@ -2,9 +2,12 @@
 // feature). No I/O — the matrix below IS the spec and the test fixture.
 // The DB-aware wrapper (requireProfileRole) lives in auth-server.ts.
 //
-// Enforcement context: 72/85 API routes use the service-role client, so RLS
-// is bypassed on the main HTTP surface — THIS layer is the primary gate.
-// RLS (has_profile_access) is defense-in-depth; the UI only reflects it.
+// Enforcement context: the vast majority of API routes (133 of 151 as of
+// Aug 2026) use the service-role client, so RLS is bypassed on the main HTTP
+// surface — THIS layer is the primary gate. RLS (has_profile_access) is
+// defense-in-depth; the UI only reflects it. A CI test
+// (src/lib/__tests__/api-route-authz.test.ts) enumerates every route and
+// fails the build if a handler has no declared gate or allowlist entry.
 
 export type ProfileRole = 'owner' | 'guardian' | 'supervised' | 'viewer';
 

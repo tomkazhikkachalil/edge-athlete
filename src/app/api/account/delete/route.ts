@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerClient, getSupabaseAdmin } from '@/lib/auth-server';
-import { FEATURE_FLAGS } from '@/lib/features';
 import { hardDeleteAccount } from '@/lib/account-deletion';
 import { formatDisplayName } from '@/lib/formatters';
 import { enforceRateLimit } from '@/lib/rate-limit';
@@ -55,7 +54,9 @@ export async function DELETE(request: NextRequest) {
     // the zero-access constraint MID-deletion (500 with the guardian's
     // data half gone), and a child WITH credentials would be silently
     // orphaned. Both are refused up front, before anything is deleted.
-    if (FEATURE_FLAGS.FEATURE_GUARDIAN_PROFILES) {
+    // UNCONDITIONAL — deletion rails are safety behavior, never flag-gated
+    // (Wave 1 inversion).
+    {
       // Supervised minors never self-delete — deletion is the guardian's
       // consent-withdrawal decision.
       const { data: ownProfile } = await supabaseAdmin

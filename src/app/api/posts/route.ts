@@ -8,7 +8,6 @@ import { isActiveParticipant, effectiveRoundStatus } from '@/lib/golf/round-stat
 import { canPin, MAX_PINNED_POSTS } from '@/lib/posts/pinning';
 import { deletePostCascade } from '@/lib/posts/delete-post-server';
 import { deleteRoundCascade } from '@/lib/golf/round-delete-server';
-import { FEATURE_FLAGS } from '@/lib/features';
 import { resolveRepostTarget, canViewSharedPost, validateRepostBody } from '@/lib/reposts';
 import { normalizePostIdentity } from '@/lib/posts/post-category';
 import { createGolfRoundEntities } from '@/lib/golf/post-write';
@@ -54,9 +53,10 @@ function gateSharedPost(orig: any, currentUserId: string | null, followingIds: S
   const owner = Array.isArray(orig.profile) ? orig.profile[0] : orig.profile;
   if (!owner?.id) return null;
   // Approval queue: unpublished originals stay hidden from everyone but
-  // their author (flag-gated — posts.status needs migration 051).
+  // their author. UNCONDITIONAL — never flag-gate a publish filter (Wave 1
+  // inversion: the flag hides surfaces, it must never unhide minors'
+  // pending content). posts.status exists since migration 051.
   if (
-    FEATURE_FLAGS.FEATURE_GUARDIAN_PROFILES &&
     orig.status && orig.status !== 'published' &&
     orig.profile_id !== currentUserId
   ) {
@@ -153,9 +153,11 @@ export async function POST(request: NextRequest) {
     const allowedTaggedSet = new Set(allowedTagged);
     const taggedProfiles = (Array.isArray(rawTaggedProfiles) ? rawTaggedProfiles as string[] : [])
       .filter(id => id === userId || allowedTaggedSet.has(id));
-    if (!gate.actingAs && FEATURE_FLAGS.FEATURE_GUARDIAN_PROFILES) {
+    if (!gate.actingAs) {
       // Supervised minors posting to their OWN profile: content queues for
       // guardian approval — they can write, never publish (resolver matrix).
+      // Unconditional (Wave 1 inversion): the pending pipeline is a safety
+      // behavior, not a feature surface, so no flag can disable it.
       const { getProfileRole } = await import('@/lib/auth-server');
       const selfRole = await getProfileRole(user.id, user.id);
       if (selfRole === 'supervised') {
@@ -210,7 +212,6 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'Post not found' }, { status: 404 });
       }
       if (
-        FEATURE_FLAGS.FEATURE_GUARDIAN_PROFILES &&
         original.status && original.status !== 'published' &&
         original.profile_id !== userId
       ) {
@@ -690,7 +691,7 @@ export async function GET(request: NextRequest) {
       let guardianAllowed: boolean | null = null;
       const viewerIsGuardian = async (): Promise<boolean> => {
         if (guardianAllowed === null) {
-          if (FEATURE_FLAGS.FEATURE_GUARDIAN_PROFILES && currentUserId && !isOwnPost) {
+          if (currentUserId && !isOwnPost) {
             const { getProfileRole } = await import('@/lib/auth-server');
             const { resolveProfileAction } = await import('@/lib/profile-roles');
             const role = await getProfileRole(currentUserId, post.profile_id);
@@ -702,10 +703,9 @@ export async function GET(request: NextRequest) {
         return guardianAllowed;
       };
       // Pending/rejected posts are visible only to their author and their
-      // guardians. Flag-gated: posts.status doesn't exist until migration
-      // 051 runs.
+      // guardians. UNCONDITIONAL — publish filters are never flag-gated
+      // (Wave 1 inversion); posts.status exists since migration 051.
       if (
-        FEATURE_FLAGS.FEATURE_GUARDIAN_PROFILES &&
         post.status && post.status !== 'published' && !isOwnPost &&
         !(await viewerIsGuardian())
       ) {
@@ -1007,14 +1007,13 @@ export async function GET(request: NextRequest) {
     // for their own author (Round D, mirroring the comments viewer clause):
     // a supervised child must see their pending/rejected posts on their own
     // surfaces instead of watching them silently vanish.
-    // Flag-gated — posts.status doesn't exist until migration 051 runs.
+    // UNCONDITIONAL — never flag-gate a publish filter (Wave 1 inversion);
+    // posts.status exists since migration 051.
     // The org lens takes the strict published-only arm even for the author —
     // pending posts have no place in an org schedule of public content.
-    if (FEATURE_FLAGS.FEATURE_GUARDIAN_PROFILES) {
-      query = currentUserId && !orgScope
-        ? query.or(`status.eq.published,profile_id.eq.${currentUserId}`)
-        : query.eq('status', 'published');
-    }
+    query = currentUserId && !orgScope
+      ? query.or(`status.eq.published,profile_id.eq.${currentUserId}`)
+      : query.eq('status', 'published');
 
     if (pinnedOnly) {
       query = query.eq('is_pinned', true);
@@ -1303,7 +1302,6 @@ export async function GET(request: NextRequest) {
 // made "Post as" a one-way door.
 async function sessionMayManagePostContent(userId: string, ownerId: string): Promise<boolean> {
   if (userId === ownerId) return true;
-  if (!FEATURE_FLAGS.FEATURE_GUARDIAN_PROFILES) return false;
   const { getProfileRole } = await import('@/lib/auth-server');
   const { resolveProfileAction } = await import('@/lib/profile-roles');
   return resolveProfileAction(await getProfileRole(userId, ownerId), 'write_content');
@@ -1338,11 +1336,10 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: 'Post not found' }, { status: 404 });
     }
     // Approval-queue actions (guardian-profiles): guardians of the post's
-    // profile publish or reject a supervised author's pending post.
+    // profile publish or reject a supervised author's pending post. Not
+    // flag-gated: the pending pipeline runs unconditionally (Wave 1
+    // inversion), so its release valve must too — role checks are the gate.
     if (action === 'approve' || action === 'reject') {
-      if (!FEATURE_FLAGS.FEATURE_GUARDIAN_PROFILES) {
-        return NextResponse.json({ error: 'Not available' }, { status: 404 });
-      }
       const { getProfileRole } = await import('@/lib/auth-server');
       const { resolveProfileAction } = await import('@/lib/profile-roles');
       const role = await getProfileRole(user.id, post.profile_id);

@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/auth-server';
 import { getSportDefinition, SPORT_REGISTRY, type SportKey } from '@/lib/sports/SportRegistry';
-import { FEATURE_FLAGS } from '@/lib/features';
 import { searchPeople } from '@/lib/search/people-server';
 import { hasLocationFilter, readLocationParams } from '@/lib/geo/params';
 import { enforceRateLimit } from '@/lib/rate-limit';
@@ -71,10 +70,9 @@ export async function GET(request: NextRequest) {
       postQuery = postQuery.eq('sport_key', sportKey);
     }
 
-    // Flag-gated: posts.status doesn't exist until migration 051 runs.
-    if (FEATURE_FLAGS.FEATURE_GUARDIAN_PROFILES) {
-      postQuery = postQuery.eq('status', 'published');
-    }
+    // UNCONDITIONAL — never flag-gate a publish filter (Wave 1 inversion);
+    // posts.status exists since migration 051.
+    postQuery = postQuery.eq('status', 'published');
 
     const athletesPromise = searching
       ? searchPeople({ query: q, visibleIds: [], includePublic: true, limit, location }).then(people => {

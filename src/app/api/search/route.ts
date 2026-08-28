@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin, requireAuth } from '@/lib/auth-server';
 import { toProxyUrl } from '@/lib/media/proxy-url';
-import { FEATURE_FLAGS } from '@/lib/features';
 import { searchPeople } from '@/lib/search/people-server';
 import { hasLocationFilter, readLocationParams, rpcLocationArgs } from '@/lib/geo/params';
 import { CATALOG_ROW_COLUMNS, rowToCourse, searchCatalog, type CatalogRow } from '@/lib/golf/course-catalog';
@@ -185,10 +184,9 @@ export async function GET(request: NextRequest) {
               )
             `)
             .in('id', ids);
-          // Flag-gated: posts.status doesn't exist until migration 051.
-          if (FEATURE_FLAGS.FEATURE_GUARDIAN_PROFILES) {
-            postQuery = postQuery.eq('status', 'published');
-          }
+          // UNCONDITIONAL — never flag-gate a publish filter (Wave 1
+          // inversion); posts.status exists since migration 051.
+          postQuery = postQuery.eq('status', 'published');
           if (sport) {
             postQuery = postQuery.eq('sport_key', sport);
           }
@@ -339,10 +337,9 @@ export async function GET(request: NextRequest) {
                 `)
                 .in('id', postIds);
 
-              // Flag-gated: posts.status doesn't exist until migration 051.
-              if (FEATURE_FLAGS.FEATURE_GUARDIAN_PROFILES) {
-                postQuery = postQuery.eq('status', 'published');
-              }
+              // UNCONDITIONAL — never flag-gate a publish filter (Wave 1
+              // inversion); posts.status exists since migration 051.
+              postQuery = postQuery.eq('status', 'published');
 
               // Apply filters
               if (sport) {
@@ -394,10 +391,9 @@ export async function GET(request: NextRequest) {
           .eq('visibility', 'public')
           .ilike('caption', searchPattern);
 
-        // Flag-gated: posts.status doesn't exist until migration 051.
-        if (FEATURE_FLAGS.FEATURE_GUARDIAN_PROFILES) {
-          postQuery = postQuery.eq('status', 'published');
-        }
+        // UNCONDITIONAL — never flag-gate a publish filter (Wave 1
+        // inversion); posts.status exists since migration 051.
+        postQuery = postQuery.eq('status', 'published');
 
         if (sport) {
           postQuery = postQuery.eq('sport_key', sport);

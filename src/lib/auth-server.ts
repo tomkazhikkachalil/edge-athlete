@@ -2,7 +2,6 @@ import { NextRequest } from 'next/server';
 import { createServerClient } from '@supabase/ssr';
 import { createClient, type User } from '@supabase/supabase-js';
 import { parseCookieHeader } from './cookies';
-import { FEATURE_FLAGS } from './features';
 import {
   resolveProfileAction,
   type ProfileAction,
@@ -88,22 +87,23 @@ export async function requireAuth(request: NextRequest) {
 /**
  * Resolve the caller's role on a target profile (guardian-profiles feature).
  *
- * Fast path preserves historical behavior exactly: with the feature flag off,
- * self (userId === profileId) is 'owner' and everyone else is null — identical
- * to the `=== user.id` checks this replaces, and it never queries
- * profile_access (which doesn't exist until migration 048 runs).
+ * DELIBERATELY NOT flag-gated (Family Console Wave 1): the role lookup is a
+ * safety primitive, not a feature surface. The old flag fast-path returned
+ * 'owner' for self with the flag off, which silently disabled the
+ * supervised-pending pipeline — a flag flip would have published minors'
+ * content. FEATURE_GUARDIAN_PROFILES now only hides feature SURFACES
+ * (guardian pages/funnels); everything role- or status-driven runs
+ * unconditionally. profile_access exists since migration 048; migrations are
+ * the schema source of truth.
  *
- * With the flag on, the role comes from profile_access: the self row may be
- * 'supervised' (minor with their own login), and non-self users may hold
- * guardian/viewer rows.
+ * The role comes from profile_access: the self row may be 'supervised'
+ * (minor with their own login), and non-self users may hold guardian/viewer
+ * rows.
  */
 export async function getProfileRole(
   userId: string,
   profileId: string
 ): Promise<ProfileRole | null> {
-  if (!FEATURE_FLAGS.FEATURE_GUARDIAN_PROFILES) {
-    return userId === profileId ? 'owner' : null;
-  }
   const admin = getSupabaseAdmin();
   const { data, error } = await admin
     .from('profile_access')
@@ -123,7 +123,8 @@ export async function getProfileRole(
 /**
  * Primary server-side authorization gate for profile-scoped actions.
  * Throws a Response (401/403) in the requireAuth style. RLS is defense-in-
- * depth only — 72/85 routes use the admin client, which bypasses it.
+ * depth only — the vast majority of routes (133 of 151 as of Aug 2026) use
+ * the admin client, which bypasses it.
  */
 export async function requireProfileRole(
   request: NextRequest,

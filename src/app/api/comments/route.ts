@@ -4,7 +4,6 @@ import { getSupabaseAdmin, getServerAuth } from '@/lib/auth-server';
 import { extractHandles } from '@/lib/mentions';
 import { notifyCommentMentions } from '@/lib/mentions/notify';
 import { canViewProfile } from '@/lib/privacy';
-import { FEATURE_FLAGS } from '@/lib/features';
 import { enforceRateLimit } from '@/lib/rate-limit';
 
 // GET - Fetch comments for a post
@@ -178,8 +177,10 @@ export async function POST(request: NextRequest) {
     // Keyed on the GATE result, not on raw targetProfileId (Round E): the old
     // `!targetProfileId` check let a child send targetProfileId = their own
     // id and skip moderation entirely.
+    // Unconditional (Wave 1 inversion): the held pipeline is a safety
+    // behavior, not a feature surface — no flag can disable it.
     let commentStatus: 'published' | 'pending_approval' = 'published';
-    if (!gate.actingAs && FEATURE_FLAGS.FEATURE_GUARDIAN_PROFILES) {
+    if (!gate.actingAs) {
       const { getProfileRole } = await import('@/lib/auth-server');
       const selfRole = await getProfileRole(user.id, user.id);
       if (selfRole === 'supervised') {
@@ -425,7 +426,6 @@ export async function DELETE(request: NextRequest) {
     // this path goes through the admin client AFTER the role check.
     let deleter = supabase;
     if (
-      FEATURE_FLAGS.FEATURE_GUARDIAN_PROFILES &&
       commentData &&
       commentData.profile_id !== user.id
     ) {
@@ -501,10 +501,9 @@ export async function PATCH(request: NextRequest) {
     const admin = getSupabaseAdmin();
 
     // ── Moderation-queue actions (guardian-profiles, 095) ────────────────────
+    // Not flag-gated: the held pipeline runs unconditionally (Wave 1
+    // inversion), so its release valve must too — role checks are the gate.
     if (action === 'approve' || action === 'reject') {
-      if (!FEATURE_FLAGS.FEATURE_GUARDIAN_PROFILES) {
-        return NextResponse.json({ error: 'Not available' }, { status: 404 });
-      }
       const { data: heldComment } = await admin
         .from('post_comments')
         .select('id, post_id, profile_id, status, content, mentions')
