@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { isUuid } from '@/lib/uuid';
-import { requireAuth, getSupabaseAdmin } from '@/lib/auth-server';
+import { requireAuth, getSupabaseAdmin, getProfileRole } from '@/lib/auth-server';
 import { getSportSettingsDisplay, type SettingsDisplayItem } from '@/lib/sports/settings-schemas';
 import type { SportKey } from '@/lib/sports';
 
@@ -61,7 +61,12 @@ export async function GET(
       return NextResponse.json({ error: 'Profile not found' }, { status: 404 });
     }
 
-    const isOwner = currentUserId === profileId;
+    // Guardian parity (Family Console Wave 1): a guardian reads their managed
+    // athlete's data exactly as the owner does. This check used to be
+    // owner-only, which sent guardians down the follower/privacy path —
+    // "guardian-blind". Lazy: the role lookup only runs for non-owners.
+    const isOwner = currentUserId === profileId ||
+      (!!currentUserId && (await getProfileRole(currentUserId, profileId)) === 'guardian');
     const isPublic = profile.visibility === 'public';
 
     if (!isOwner && !isPublic) {
