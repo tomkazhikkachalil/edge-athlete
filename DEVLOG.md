@@ -1,5 +1,72 @@
 # Development Log
 
+## August 28, 2026 — Family Console Wave 4: the household policy layer (#355–#357 + migrations 132/133)
+
+Fourth round of the Family Console program: the retire-the-toggles round.
+Round decisions (Tom): the household is PER-GUARDIAN — policy lives on each
+guardian's own profiles row as schema-less jsonb (the vitals_privacy
+pattern), co-guardians may differ and the audit feed makes any overwrite
+visible (visibility + veto, not arbitration); the age trigger is the LEGAL
+consent threshold — the exact crossing the transfer sweep already detects,
+jurisdiction-correct by construction.
+
+- **Household policy object (#355 + migration 132).** `{defaults,
+  olderDefaults}`: a complete base plus SPARSE per-field older overrides —
+  null means not configured, so age prompts never fire and defining
+  overrides later never retro-prompts. `ageBand` delegates to the sweep's
+  own `isUnderThreshold`, so the two crossings can never disagree. A new
+  named gate, `requireGuardianAccount`, covers household-scoped surfaces
+  (no profileId to role-check) and joined the CI route-audit's gate list.
+  New athletes inherit the creating guardian's presets — with visibility
+  ALWAYS clamped private at creation, since consent cannot exist before the
+  profile does; the pending-profile funnel converges on the same POST, so
+  both paths inherit. The new /app/guardian/settings page carries the
+  defaults and the "When they're older" overrides (each field can be "Same
+  as household default" — and the age prompt later proposes ONLY the fields
+  the overrides name, never dragging an unrelated deliberate per-child
+  choice back to base). The three safety value lists collapsed to one
+  source in profile-privacy.ts.
+- **Apply-to-all, deviation view, and the first audit reader (#356).**
+  `applySafetyPatch` extracted as the ONE code path that changes a child's
+  posture (supervised gate, consent gate only on going public, changed-only
+  audit rows); the athlete PATCH refactored onto it byte-identically.
+  Apply-to-all loops it per athlete — never a bulk update — and a
+  consent-pending child still gets messaging/moderation with visibility
+  honestly reported as skipped. The gray "Differs from household" chip
+  rides the hub roster and each Safety heading on the athlete page
+  (recomputed from live state, so it tracks optimistic edits). And
+  safety_settings_audit finally got its first reader — 091's header
+  anticipated exactly this — as the date-grouped "Recent safety changes"
+  feed beside apply-to-all: who changed what, old → new, with parkAccount
+  now auditing its forced-private write so the feed never shows a phantom
+  flip.
+- **Age-crossing prompts + household blocks (#357 + migration 133).** The
+  prompt state rides the eligible_notified transfer row (a NAMED-constraint
+  rider: pending/applied/kept/none; NULL = pre-wave, never retro-prompt) —
+  the sweep's existing supervised scan gained three columns instead of an
+  eighth full scan (both Vercel cron slots are taken). At crossing time the
+  sweep evaluates each guardian's older overrides ONCE, stamps the rider in
+  the insert, and bells only affected guardians. Never silent: the console
+  queue derives an Apply/Keep card with the explicit change list, Apply
+  gets a one-confirm modal, and the decision endpoint applies + stamps in
+  the SAME request (pending-guarded — the first guardian decides, per
+  child; the other sees the outcome in the feed). Household blocking:
+  applyBlock/removeBlock extracted to lib (the messages route refactored
+  onto them), and /api/guardian/blocks loops the guardian plus every
+  supervised athlete — one household, one list, with a full/partial flag
+  when only part of the household blocks someone.
+
+Verification: verify green per PR (2118 unit tests — policy parse
+tolerance, band parity across jurisdictions, the never-drag-unrelated-
+fields rule, deviation matrices, queue derivations incl. the NULL-rider
+never-prompt case); guardian e2e grew from 11 to 15 (inheritance with the
+clamp proven end-to-end; apply-to-all one-confirm reverting a pushed
+deviation with the feed naming the actor; a seeded crossing driving the
+queue card through Apply to stamped-and-refused-twice; household block
+covering the child's own user_blocks row and unblocking clean); 375px
+passes on the settings page, the four-link hub header, the age card, and
+the deviation chips. Prod-probed after each merge.
+
 ## August 28, 2026 — Family Console Wave 3: consent signature + messaging oversight (#352–#354 + migrations 130/131)
 
 Third round of the Family Console program: the consent funnel goes
