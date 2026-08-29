@@ -1,5 +1,60 @@
 # Development Log
 
+## August 29, 2026 — Family Console follow-on, Wave 8: autonomy (#369–#371 + migration 138)
+
+Third wave of the follow-on program: all three autonomy items, one small
+migration (two rider columns, one run).
+
+- **View-only co-guardian seats (#369).** A guardian invites up to two
+  view-only members (the grandparent seat) through the SAME invite
+  ceremony; `guardian_invites.grant_role` (mig 138) carries the intent and
+  the claim grants 048's *existing* `viewer` role — the tier already
+  existed in the role CHECK, identity constraint, read-only RLS and the
+  permission matrix, so the structural cost was zero. The claim writes the
+  profile_access row + audit directly (the grant RPC stays guardian-only);
+  viewer caps (≤2) are route-layer by design since the DB trigger counts
+  guardians only. Reads opted in: athletes GET (`.in role` + a `readOnly`
+  flag) and calendar events `targetProfileId`; `requireGuardianAccount`
+  gained a roles param for Wave 9's archive. Every write keeps its guardian
+  gate and `guardian-gate.ts`'s literal compare is now correct by design
+  (viewers can never act-as). Honest surfaces end to end: viewer-specific
+  invite email and landing copy ("view-only seat… without any of the
+  guardian controls"), a read-only hub (chip, no action links, no Manage),
+  role chips + free viewer revoke on the guardians section, and guardians
+  get notified when a viewer joins. Accepted tradeoff (recorded): a
+  post-transfer ex-guardian and a view-only seat are the same DB fact —
+  the audit trail disambiguates; a future capability-splitting tier would
+  force the full CHECK/matrix/RLS pass, deferred until actually demanded.
+- **Autonomy ladder (#370, zero DDL).** `AgeBand` widened to
+  child (<13) / younger / older / adult; the younger/older boundary still
+  delegates to the SAME `isUnderThreshold` the transfer sweep uses. Policy
+  jsonb gained sparse `childDefaults` (stricter under-13 overrides, null
+  semantics identical to olderDefaults); `effectivePresets` cascades
+  most-specific → defaults; existing stored policies parse unchanged and
+  creation inheritance/apply-to-all picked the bands up automatically.
+  Settings grew a "For younger kids" section. Deliberately NO prompt at
+  the 13-crossing — turning 13 relaxes back to household defaults, which
+  is never a safety downgrade a guardian must be asked about.
+- **Handover moment (#371).** Sweep pass 1b: an athlete who reaches 18
+  (LADDER_AGES.adult) with the transfer still parked at eligible_notified
+  gets ONE celebration — guardians and the athlete both belled, dedup'd by
+  the mig-138 `handover_prompted_at` stamp (conditional update wins races).
+  The queue renders the stamped row as a standing celebratory
+  transfer_step ("time to hand over the keys 🎉") into the existing
+  ceremony. Nothing auto-transfers, ever — the state machine is untouched.
+- **Verification.** 19/19 guardian e2e locally against the migrated DB
+  (new: the full viewer loop — invite → claim → reads OK, safety PATCH +
+  household apply 403 → revoke). Prod probes in the mobile project (390px
+  throughout, zero horizontal overflow): ladder childDefaults round-trip +
+  younger-kids section live; viewer landing copy → claim (`role:
+  'viewer'`) → read-only hub (chip, no Add athlete/Manage) → write 403 →
+  revoke; seeded adult parked transfer → the DEPLOYED cron stamped it
+  (state unchanged — nothing auto-transferred), the 🎉 bell landed, and
+  the hub carried the standing handover row. Migration 138 grid all-true
+  (Tom). Merge train #369 → #370 → #371, bases retargeted before deletes.
+  One probe flake was a strict-mode locator ambiguity (the View-only chip
+  vs the read-only subtitle both matching) — the surface was correct.
+
 ## August 29, 2026 — Family Console follow-on, Wave 7: channel dispatcher + risk signals (#366–#368 + migration 137)
 
 Second wave of the follow-on program. Scope decisions (Tom): channels =
