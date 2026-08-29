@@ -1,5 +1,68 @@
 # Development Log
 
+## August 29, 2026 — Family Console follow-on, Wave 6: hardening (#361–#365 + migration 136)
+
+First wave of the follow-on program (Waves 6–9: the entire deferred backlog,
+Tom's call — plan in the session plan file, scope decisions recorded there).
+Four planned PRs plus one hotfix the prod probe forced:
+
+- **Rate-budget split (#361, zero DDL).** Household block-adds and
+  apply-to-all no longer share athlete-creation's 5/day budget — a real
+  setup evening could starve it. New buckets: `guardian-block` 20/day
+  (blocking is a safety action, must never starve mid-incident) and
+  `guardian-household-apply` 10/day. The guardian e2e clears all three QA
+  day buckets.
+- **Consent auto-approves at submission (#362, zero DDL — Tom's decision:
+  ALL methods).** The guardian consent POST appends a `review_approved` row
+  (`reviewed_by` NULL = system) right after the `granted` row; append-only
+  preserved, same `consent_result` notification the admin path sends (rides
+  the urgent email tier). If the approval insert fails the submission stays
+  `pending_review` and lands in the admin queue — the pre-Wave-6 path, so
+  degradation is safe. `/dashboard/consent` is now the after-the-fact audit
+  surface: a "Recent auto-approvals" section with evidence links and
+  retro-reject (which re-locks the profile). Compliance posture noted for
+  the record: no human reviews consent evidence before approval anymore;
+  the audit trail + retro-reject are the compensating controls.
+- **DB last-guardian backstop (#363 + migration 136).** The route-layer 409
+  was the only guard; 048's zero-access trigger never fires because a child
+  keeps its self row. New deferred constraint trigger
+  `profile_access_last_guardian` refuses the last guardian's departure from
+  a supervised, un-parked child at the DB. Load-bearing exemptions: an
+  `executing` profile_transfers row (executeTransfer's flip_access →
+  finalize steps are SEPARATE transactions, so DEFERRABLE gives no cover),
+  cascade deletes (either profiles row already gone), parked children.
+  Verified live in BOTH directions with disposable fixtures: a raw
+  service-role last-guardian DELETE is refused with the trigger's message,
+  and the same statement is ALLOWED with an executing transfer row seeded.
+  Transfer-ceremony e2e 4/4 (note for honesty: that spec stops at
+  cooling-off/cancel and never reaches flip_access — the seeded-row probe
+  is what actually exercised the exemption).
+- **Video GPS scrub (#364 + hotfix #365).** MP4/MOV now pass through a
+  mediabunny stream-copy re-mux (dynamic import, no WebCodecs, no
+  re-encode) in the ONE upload funnel, so un-edited uploads, editor
+  pass-throughs, mig-120 sourceFile originals and message attachments all
+  shed container metadata; fail-open like the JPEG path, and a conversion
+  that would DROP a track uploads the original instead. Composer caveat
+  now says photos AND videos. **The prod probe caught #364 being a privacy
+  no-op**: an injected ©xyz GPS atom survived, because mediabunny's
+  Conversion COPIES the input's metadata tags unless overridden — the fix
+  is `tags: () => ({})` (#365), confirmed first in a node repro, then
+  end-to-end: a GPS-tagged MP4 through the live composer stored clean
+  (valid ftyp, coordinate marker absent).
+- **Verification.** 18/18 guardian e2e locally AND vs prod (consent test
+  now asserts instant `approved` against the live route); 390px prod pass
+  of the consent page (full typed-signature loop at phone width, no
+  horizontal overflow); migration 136 check grid all-true (Tom) plus the
+  two live trigger probes above; every PR verify-green; merge train with
+  bases retargeted before branch deletes.
+
+Probe-artifact note for future teardown archaeology: one probe flipped a
+child's only guardian row to viewer on a child with NO credentials (so no
+self row) — deleting that guardian then trips 048's zero-access trigger and
+fails the QA teardown's profiles delete. That's 048 working as designed on
+a state only a probe creates; real transfers rotate credentials (creating
+the self row) before flip_access.
+
 ## August 28, 2026 — Family Console Wave 5: media day + the payoff (#358–#360 + migrations 134/135) — PROGRAM COMPLETE
 
 Final round of the five-wave Family Console program. Round decision (Tom):
