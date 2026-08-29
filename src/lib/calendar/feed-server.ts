@@ -105,11 +105,14 @@ export async function buildFeedIcs(
   // gets the family schedule into their own calendar app — the child's own
   // feed stays disabled (mint 403 + serve 404), so the parent-held
   // capability URL is the only sync path a supervised schedule has.
+  // Guardian-parity round: view-only seats (the grandparent) get the same
+  // children — the feed is a pure read, and viewers already see these
+  // schedules in-app; excluding them here was a parity gap, not a gate.
   const { data: managed } = await admin
     .from('profile_access')
     .select('profile_id, profiles!profile_access_profile_id_fkey(first_name, supervision_state)')
     .eq('user_id', profileId)
-    .eq('role', 'guardian');
+    .in('role', ['guardian', 'viewer']);
   const children = (managed ?? [])
     .map(r => ({
       id: r.profile_id as string,

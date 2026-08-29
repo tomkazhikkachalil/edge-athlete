@@ -17,6 +17,7 @@ import { COPY } from '@/lib/copy';
 import { formatDisplayName } from '@/lib/formatters';
 import type { WorkoutRoutine } from '@/lib/workouts/routines';
 import { useAuth } from '@/lib/auth';
+import { FEATURE_FLAGS } from '@/lib/features';
 import type { EditScope, EventDetail } from './types';
 
 // Quick-create by default (title + when), everything else behind
@@ -41,6 +42,11 @@ interface FormState {
   /** Org linkage (119): at most one of these. */
   leagueId: string | null;
   clubId: string | null;
+  /** "Who is this for?" — supervised children to add as guests on create.
+   *  A guest row is what makes the event visible to EVERY guardian (the
+   *  parity contract), so this is sugar over guests.profile_ids, not a new
+   *  mechanism; the organizer stays the caller (attribution doctrine). */
+  forChildIds: string[];
 }
 
 type RepeatFreq = 'none' | 'daily' | 'weekly' | 'monthly' | 'yearly';
@@ -100,6 +106,7 @@ function emptyForm(defaultDay?: Date, defaultRange?: { start: Date; end: Date })
     routineId: null,
     leagueId: null,
     clubId: null,
+    forChildIds: [],
   };
 }
 
@@ -120,6 +127,9 @@ function formFromEvent(event: EventDetail): FormState {
     routineId: event.routine_id ?? null,
     leagueId: event.league_id ?? null,
     clubId: event.club_id ?? null,
+    // Edit mode: children already on the event are ordinary GuestPicker
+    // chips (chipsFromEvent); the create-only "for" row stays empty.
+    forChildIds: [],
   };
 }
 
@@ -197,6 +207,44 @@ export default function EventFormModal({
       cancelled = true;
     };
   }, [isOpen, moreOpen, routines]);
+
+  // "Who is this for?" roster — the caller's supervised children (guardian
+  // seats only; a readOnly viewer account gets an empty list and the row
+  // hides itself). Same lazy cancellable-IIFE pattern; fetched when the
+  // CREATE form opens (the row lives in quick create, not More options).
+  const [familyRoster, setFamilyRoster] = useState<{ id: string; name: string }[] | null>(null);
+  useEffect(() => {
+    if (!isOpen || editing || familyRoster !== null || !FEATURE_FLAGS.FEATURE_GUARDIAN_PROFILES) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch('/api/guardian/athletes', { credentials: 'include' });
+        if (!res.ok) throw new Error(String(res.status));
+        const data = await res.json();
+        if (!cancelled) {
+          if (data.readOnly) {
+            setFamilyRoster([]); // view-only seats never place children on events
+            return;
+          }
+          const athletes = (data.athletes ?? []) as {
+            id: string;
+            first_name: string | null;
+            display_name: string | null;
+            supervision_state: string | null;
+            deletion_requested_at: string | null;
+          }[];
+          setFamilyRoster(
+            athletes
+              .filter(a => a.supervision_state === 'supervised' && !a.deletion_requested_at)
+              .map(a => ({ id: a.id, name: a.first_name || a.display_name || 'Athlete' }))
+          );
+        }
+      } catch {
+        if (!cancelled) setFamilyRoster([]); // row hides; guests still work via the picker
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [isOpen, editing, familyRoster]);
 
   useEffect(() => {
     if (!isOpen || !moreOpen || managedOrgs !== null || !authUser?.id) return;
@@ -360,7 +408,12 @@ export default function EventFormModal({
                 }
               : {}),
             guests: {
-              profile_ids: chips.filter(c => c.kind === 'profile').map(c => c.id),
+              // "For" children ride the same guest mechanism — one deduped
+              // list; the server treats them like any invited profile.
+              profile_ids: [...new Set([
+                ...chips.filter(c => c.kind === 'profile').map(c => c.id),
+                ...form.forChildIds,
+              ])],
               emails: chips.filter(c => c.kind === 'email').map(c => c.id),
             },
           }),
@@ -677,6 +730,47 @@ export default function EventFormModal({
                     </label>
                   </div>
                 </div>
+              )}
+            </div>
+          )}
+
+          {/* Who is this for? — create-only, hides itself for non-guardians.
+              A child chip = a guest row = the event on the child's calendar,
+              which is exactly what makes it visible to every co-guardian. */}
+          {!editing && familyRoster !== null && familyRoster.length > 0 && (
+            <div>
+              <label className="block text-sm font-semibold text-primary mb-1">Who is this for?</label>
+              <div className="flex flex-wrap gap-2">
+                {familyRoster.map(child => {
+                  const active = form.forChildIds.includes(child.id);
+                  return (
+                    <button
+                      key={child.id}
+                      type="button"
+                      onClick={() =>
+                        set(
+                          'forChildIds',
+                          active
+                            ? form.forChildIds.filter(id => id !== child.id)
+                            : [...form.forChildIds, child.id]
+                        )
+                      }
+                      className={`inline-flex min-h-[44px] items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium border transition ${
+                        active
+                          ? 'border-brand bg-brand-soft text-brand-fg-strong'
+                          : 'border-border-strong text-tertiary hover:border-violet-300 dark:hover:border-violet-700'
+                      }`}
+                    >
+                      {active && <i className="fas fa-check text-xs"></i>}
+                      {child.name}
+                    </button>
+                  );
+                })}
+              </div>
+              {form.forChildIds.length > 0 && (
+                <p className="text-xs text-muted mt-1">
+                  Adds them as a guest — every guardian sees it on their schedule.
+                </p>
               )}
             </div>
           )}
