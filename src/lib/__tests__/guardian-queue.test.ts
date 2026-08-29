@@ -45,6 +45,34 @@ describe('buildQueueItems', () => {
     expect(buildQueueItems([], [], [], [], [], [], [])).toEqual([]);
   });
 
+  it('risk signals (Wave 7) shape after content, oldest first, roster-scoped', () => {
+    const items = buildQueueItems(
+      [kid('a')],
+      [post('p1', 'a', '2026-08-20T10:00:00Z')],
+      [],
+      [],
+      approvedConsent('a'),
+      [{ user_id: 'a', profile_id: 'a' }],
+      [],
+      [],
+      [],
+      null,
+      [
+        { id: 'r2', profile_id: 'a', kind: 'message_volume_spike', created_at: '2026-08-29T09:00:00Z' },
+        { id: 'r1', profile_id: 'a', kind: 'new_contact_burst', created_at: '2026-08-28T09:00:00Z' },
+        // Not on this guardian's roster — must vanish, never leak.
+        { id: 'rx', profile_id: 'stranger', kind: 'report_filed', created_at: '2026-08-29T09:00:00Z' },
+      ]
+    );
+    expect(items.map(i => i.id)).toEqual(['p1', 'r1', 'r2']);
+    const r1 = items[1];
+    expect(r1.kind).toBe('risk_signal');
+    if (r1.kind === 'risk_signal') {
+      expect(r1.signalKind).toBe('new_contact_burst');
+      expect(r1.athlete.name).toContain('Maya');
+    }
+  });
+
   it('interleaves posts and comments oldest-first ahead of everything else', () => {
     const items = buildQueueItems(
       [kid('a')],

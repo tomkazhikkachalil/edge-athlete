@@ -118,6 +118,17 @@ export type QueueItem =
       changes: Array<{ field: string; from: string; to: string }>;
     }
   | {
+      /** Risk signal (Wave 7, mig 137): a heuristic, metadata-only "worth a
+       *  look" row. Non-accusatory by contract — the hub renders it with
+       *  signalCopy()'s calm phrasing and a single Got-it acknowledge via
+       *  PATCH /api/guardian/risk-signals/<id>. */
+      kind: 'risk_signal';
+      id: string;
+      athlete: QueueAthlete;
+      createdAt: string;
+      signalKind: 'new_contact_burst' | 'message_volume_spike' | 'report_filed' | 'late_night_activity';
+    }
+  | {
       /** Pending event invite for a child — inline respond-as-child via
        *  POST /api/calendar/events/<event.id>/respond. `id` is the guest
        *  row (unique per child+event). */
@@ -299,6 +310,14 @@ export function flattenInviteRows(rows: RawInviteRow[], nowMs: number): QueueInv
   return out;
 }
 
+/** Unacknowledged risk_signals rows as the route selects them (Wave 7). */
+export interface QueueRiskRow {
+  id: string;
+  profile_id: string;
+  kind: 'new_contact_burst' | 'message_volume_spike' | 'report_filed' | 'late_night_activity';
+  created_at: string;
+}
+
 function toQueueAthlete(row: RosterRow): QueueAthlete {
   return {
     id: row.id,
@@ -335,7 +354,8 @@ export function buildQueueItems(
   }>,
   invites: QueueInviteRow[] = [],
   heldContacts: QueueHeldContactRow[] = [],
-  policy: HouseholdPolicy | null = null
+  policy: HouseholdPolicy | null = null,
+  riskRows: QueueRiskRow[] = []
 ): QueueItem[] {
   const athletesById = new Map<string, RosterRow>();
   for (const row of roster) athletesById.set(row.id, row);
@@ -451,6 +471,25 @@ export function buildQueueItems(
     ('createdAt' in a ? a.createdAt : '').localeCompare('createdAt' in b ? b.createdAt : '')
   );
 
+  // Risk signals (Wave 7): safety-adjacent, so they sit right after the
+  // contact requests — but they are observations, not requests, and the
+  // only action is acknowledging.
+  const riskItems: QueueItem[] = [];
+  for (const row of riskRows) {
+    const athlete = athletesById.get(row.profile_id);
+    if (!athlete) continue;
+    riskItems.push({
+      kind: 'risk_signal',
+      id: row.id,
+      athlete: toQueueAthlete(athlete),
+      createdAt: row.created_at,
+      signalKind: row.kind,
+    });
+  }
+  riskItems.sort((a, b) =>
+    ('createdAt' in a ? a.createdAt : '').localeCompare('createdAt' in b ? b.createdAt : '')
+  );
+
   // Age-preset prompts (Wave 4): derived from the eligible_notified row's
   // rider, but only when the CALLER's own older overrides would actually
   // change something — a co-guardian without a differing preset sees nothing.
@@ -534,5 +573,5 @@ export function buildQueueItems(
   waiting.sort((a, b) =>
     ('createdAt' in a ? a.createdAt : '').localeCompare('createdAt' in b ? b.createdAt : '')
   );
-  return [...content, ...followItems, ...contactItems, ...ageItems, ...inviteItems, ...tail, ...waiting];
+  return [...content, ...followItems, ...contactItems, ...riskItems, ...ageItems, ...inviteItems, ...tail, ...waiting];
 }

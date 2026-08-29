@@ -21,6 +21,7 @@ import {
   type Chip,
 } from '@/lib/guardian-rollup';
 import { AGING_BADGE_MS, type QueueItem } from '@/lib/guardian-queue';
+import { signalCopy } from '@/lib/risk-signals';
 import GuardianWeekStrip from '@/components/calendar/GuardianWeekStrip';
 import { useFamilyWeek } from '@/lib/calendar/use-family-week';
 import { nextEventPerChild } from '@/lib/calendar/next-event';
@@ -100,6 +101,8 @@ function queueLabel(item: QueueItem): string {
       return `${item.requester.name} wants to message ${item.athlete.name}`;
     case 'age_preset_prompt':
       return `${item.athlete.name} is old enough for your older-athlete settings`;
+    case 'risk_signal':
+      return signalCopy(item.signalKind, item.athlete.name).title;
   }
 }
 
@@ -132,6 +135,8 @@ const QUEUE_ICONS: Record<QueueItem['kind'], string> = {
   calendar_invite: 'fa-calendar-day',
   contact_request: 'fa-user-clock',
   age_preset_prompt: 'fa-cake-candles',
+  // Observational, deliberately not alarm-shaped (no triangles, no sirens).
+  risk_signal: 'fa-binoculars',
 };
 
 function ChipPill({ chip }: { chip: Chip }) {
@@ -283,6 +288,23 @@ export default function FamilyConsolePage() {
       setQueueItems(prev => prev.filter(i => i.id !== item.id));
     } catch (e) {
       setQueueError(e instanceof Error ? e.message : 'Could not record the decision');
+    } finally {
+      setQueueActing('');
+    }
+  };
+
+  // Acknowledge a risk signal (Wave 7) — "Got it" is the only action; the
+  // signal is an observation, not a request, and never accuses.
+  const acknowledgeSignal = async (item: Extract<QueueItem, { kind: 'risk_signal' }>) => {
+    setQueueActing(item.id);
+    setQueueError('');
+    try {
+      const res = await fetch(`/api/guardian/risk-signals/${item.id}`, { method: 'PATCH' });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'Could not acknowledge the signal');
+      setQueueItems(prev => prev.filter(i => i.id !== item.id));
+    } catch (e) {
+      setQueueError(e instanceof Error ? e.message : 'Could not acknowledge the signal');
     } finally {
       setQueueActing('');
     }
@@ -480,6 +502,8 @@ export default function FamilyConsolePage() {
                           ? item.changes
                               .map(c => `${AGE_FIELD_LABELS[c.field] ?? c.field}: ${c.from} → ${c.to}`)
                               .join(' · ')
+                          : item.kind === 'risk_signal'
+                          ? signalCopy(item.signalKind, item.athlete.name).message
                           : null;
                       const waitingOnChild = item.kind === 'waiting_on_child';
                       const body = (
@@ -549,6 +573,21 @@ export default function FamilyConsolePage() {
                                 {noLabel}
                               </button>
                             </span>
+                          </div>
+                        );
+                      }
+                      if (item.kind === 'risk_signal') {
+                        return (
+                          <div key={item.id} className="flex flex-wrap items-center gap-3 px-4 py-3 min-h-[44px]">
+                            {body}
+                            <button
+                              type="button"
+                              disabled={queueActing === item.id}
+                              onClick={() => acknowledgeSignal(item)}
+                              className="px-3 py-2 min-h-[44px] inline-flex items-center border border-border-strong rounded-lg text-sm font-semibold text-secondary hover:bg-surface-muted transition-colors disabled:opacity-50 shrink-0"
+                            >
+                              Got it
+                            </button>
                           </div>
                         );
                       }
