@@ -128,6 +128,18 @@ export async function POST(request: NextRequest) {
         actorId: user.id,
         metadata: { report_id: inserted.id, reason },
       }, user.id);
+      // Wave 7 (mig 137): also file a risk_signals row so the event shows
+      // in the hub's signals list, not just the bell. window_start = the
+      // report's own moment (each report is its own row); best-effort.
+      const nowIso = new Date().toISOString();
+      const { error: signalError } = await supabase.from('risk_signals').insert({
+        profile_id: user.id,
+        kind: 'report_filed',
+        window_start: nowIso,
+        window_end: nowIso,
+        magnitude: { report_id: inserted.id },
+      });
+      if (signalError) console.error('[REPORTS] risk_signals insert failed:', signalError);
     }
 
     return NextResponse.json({ id: inserted.id });
