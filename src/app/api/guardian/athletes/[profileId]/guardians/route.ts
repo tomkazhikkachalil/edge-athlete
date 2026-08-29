@@ -13,9 +13,11 @@ import { enforceRateLimit } from '@/lib/rate-limit';
 // (its second-ever real call site).
 //
 // INVARIANT (profile-roles.ts documents it): a supervised profile must never
-// drop to zero guardians. The DB backstop is partial — with a credentials
-// self-row the delete would succeed and orphan the child — so the route
-// blocks removing the last guardian outright.
+// drop to zero guardians. The route blocks removing the last guardian
+// outright (409 with copy), and since migration 136 the DB also enforces it
+// (profile_access_last_guardian trigger — exempts the transfer executor's
+// flip_access window and cascade deletes). Route first: the DB error is a
+// generic 500 to the client, the 409 is the explanation.
 //
 // The claim side needs nothing: /api/invites/[token]/claim already validates
 // (supervised, not-self, not-already-guardian, cap<2), grants via RPC, and
