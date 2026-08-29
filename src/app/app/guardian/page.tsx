@@ -152,6 +152,10 @@ export default function FamilyConsolePage() {
   const { user, loading, initialAuthCheckComplete, managedProfiles, activeProfile, setActiveProfile } = useAuth();
   const [state, setState] = useState<'loading' | 'ready'>('loading');
   const [athletes, setAthletes] = useState<ConsoleAthlete[]>([]);
+  // Wave 8: a view-only seat (role=viewer) renders the console without any
+  // action affordance — the server refuses viewer writes regardless; this
+  // just keeps the UI honest.
+  const [readOnly, setReadOnly] = useState(false);
   const [error, setError] = useState('');
   const [retryKey, setRetryKey] = useState(0);
   const [restoringId, setRestoringId] = useState<string | null>(null);
@@ -225,6 +229,7 @@ export default function FamilyConsolePage() {
         if (!rosterRes.ok) throw new Error(data.error || 'Could not load your athletes');
         if (cancelled) return;
         setAthletes(data.athletes ?? []);
+        setReadOnly(data.readOnly === true);
         if (queueRes.ok) {
           setQueueItems(queueData.items ?? []);
           setQueueError('');
@@ -380,7 +385,13 @@ export default function FamilyConsolePage() {
       <main className="max-w-3xl mx-auto px-4 py-8">
         <div className="flex flex-wrap items-center justify-between gap-3 mb-1">
           <h1 className="text-2xl font-bold text-primary">Family console</h1>
+          {readOnly && (
+            <span className="text-xs font-medium px-2.5 py-1 rounded-full bg-surface-sunken text-tertiary">
+              View only
+            </span>
+          )}
           {/* flex-wrap (Wave 4): four action links overflow 375px without it. */}
+          {!readOnly && (
           <div className="flex flex-wrap items-center gap-2">
             <Link
               href="/app/guardian/add-athlete"
@@ -414,10 +425,12 @@ export default function FamilyConsolePage() {
               Household
             </Link>
           </div>
+          )}
         </div>
         <p className="text-sm text-tertiary mb-6">
-          The athletes you&apos;re responsible for — what&apos;s happening, what needs you,
-          and what each profile is allowed to do.
+          {readOnly
+            ? 'The athletes whose journey you follow — schedules and family updates, view only.'
+            : "The athletes you're responsible for — what's happening, what needs you, and what each profile is allowed to do."}
         </p>
 
         {state === 'loading' ? (
@@ -782,7 +795,7 @@ export default function FamilyConsolePage() {
                       >
                         View profile
                       </Link>
-                      {!transferred && (
+                      {!transferred && !readOnly && (
                         <Link
                           href={`/app/guardian/athlete/${a.id}`}
                           className="px-3 py-2 min-h-[44px] inline-flex items-center gap-2 border border-violet-300 dark:border-violet-800 rounded-lg text-sm font-semibold text-brand-fg-strong hover:bg-brand-soft transition-colors"

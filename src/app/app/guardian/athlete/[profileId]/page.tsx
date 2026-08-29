@@ -38,6 +38,8 @@ const ContactsSection = dynamic(() => import('@/components/guardian/ContactsSect
 
 interface GuardianRow {
   user_id: string;
+  /** 'guardian' or 'viewer' (view-only seat, Wave 8). */
+  role: 'guardian' | 'viewer';
   first_name: string | null;
   last_name: string | null;
   full_name: string | null;
@@ -49,6 +51,7 @@ interface PendingInvite {
   id: string;
   invited_email: string;
   expires_at: string;
+  grant_role?: 'guardian' | 'viewer';
 }
 
 interface FanProfile {
@@ -167,6 +170,7 @@ export default function GuardianAthletePage() {
   const [guardians, setGuardians] = useState<GuardianRow[]>([]);
   const [pendingInvites, setPendingInvites] = useState<PendingInvite[]>([]);
   const [inviteEmail, setInviteEmail] = useState('');
+  const [inviteRole, setInviteRole] = useState<'guardian' | 'viewer'>('guardian');
   const [inviteBusy, setInviteBusy] = useState(false);
   // Cancelling breaks a link that may already be in the other parent's
   // hands, and it sits one tap from "Get new link" — confirm it
@@ -431,7 +435,7 @@ export default function GuardianAthletePage() {
       const res = await fetch(`/api/guardian/athletes/${profileId}/guardians`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: inviteEmail.trim() }),
+        body: JSON.stringify({ email: inviteEmail.trim(), role: inviteRole }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || 'Could not send the invite');
@@ -1132,7 +1136,9 @@ export default function GuardianAthletePage() {
                   <h2 className="text-base font-bold text-primary mb-1">Guardians</h2>
                   <p className="text-xs text-tertiary mb-3">
                     Who manages this profile. An athlete can have up to two
-                    guardians; there must always be at least one.
+                    guardians; there must always be at least one. View-only
+                    members (up to two) see schedules and family updates but
+                    can&apos;t change anything.
                   </p>
                   <ul className="space-y-2 mb-3">
                     {guardians.map(g => {
@@ -1158,6 +1164,11 @@ export default function GuardianAthletePage() {
                             <p className="text-sm font-semibold text-primary truncate">
                               {gName}
                               {isSelf && <span className="font-normal text-muted"> (you)</span>}
+                              {g.role === 'viewer' && (
+                                <span className="ml-2 align-middle text-[11px] font-medium px-2 py-0.5 rounded-full bg-surface-sunken text-tertiary">
+                                  View only
+                                </span>
+                              )}
                             </p>
                             {g.since && (
                               <p className="text-xs text-muted">
@@ -1165,9 +1176,11 @@ export default function GuardianAthletePage() {
                               </p>
                             )}
                           </div>
-                          {/* Removing is only offered while a second guardian
-                              remains — a supervised profile never drops to zero. */}
-                          {guardians.length >= 2 && (
+                          {/* A GUARDIAN is only removable while a second one
+                              remains — a supervised profile never drops to
+                              zero. Viewers remove freely (Wave 8). */}
+                          {(g.role === 'viewer' ||
+                            guardians.filter(x => x.role === 'guardian').length >= 2) && (
                             <button
                               type="button"
                               onClick={() => setRemoveTarget(g)}
@@ -1186,7 +1199,9 @@ export default function GuardianAthletePage() {
                       <p className="text-sm text-secondary min-w-0 truncate">
                         <i className="fas fa-envelope text-xs mr-2 text-muted"></i>
                         {inv.invited_email}
-                        <span className="text-xs text-muted"> · invited, expires {new Date(inv.expires_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
+                        <span className="text-xs text-muted">
+                          {' '}· {inv.grant_role === 'viewer' ? 'view-only, ' : ''}invited, expires {new Date(inv.expires_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                        </span>
                       </p>
                       <button
                         type="button"
@@ -1206,24 +1221,35 @@ export default function GuardianAthletePage() {
                     </div>
                   ))}
 
-                  {guardians.length < 2 && (
+                  {(guardians.filter(g => g.role === 'guardian').length < 2 ||
+                    guardians.filter(g => g.role === 'viewer').length < 2) && (
                     <form onSubmit={submitInvite} className="flex flex-wrap items-center gap-2 mt-3">
                       <input
                         type="email"
                         value={inviteEmail}
                         onChange={e => setInviteEmail(e.target.value)}
-                        placeholder="Co-guardian's email"
-                        aria-label="Co-guardian's email"
+                        placeholder="Their email"
+                        aria-label="Invitee's email"
                         disabled={inviteBusy}
                         className="flex-grow min-w-[180px] px-3 py-2 min-h-[44px] border border-border-strong rounded-lg text-sm bg-surface text-primary"
                       />
+                      <select
+                        value={inviteRole}
+                        onChange={e => setInviteRole(e.target.value === 'viewer' ? 'viewer' : 'guardian')}
+                        aria-label="Invite as"
+                        disabled={inviteBusy}
+                        className="px-3 py-2 min-h-[44px] border border-border-strong rounded-lg text-sm bg-surface text-primary"
+                      >
+                        <option value="guardian">Co-guardian</option>
+                        <option value="viewer">View only</option>
+                      </select>
                       <button
                         type="submit"
                         disabled={inviteBusy || !inviteEmail.trim()}
                         className="px-3 py-2 min-h-[44px] inline-flex items-center gap-2 border border-violet-300 dark:border-violet-800 rounded-lg text-sm font-semibold text-brand-fg-strong hover:bg-brand-soft disabled:opacity-60 transition-colors"
                       >
                         <i className={`fas ${inviteBusy ? 'fa-spinner fa-spin' : 'fa-user-plus'} text-xs`}></i>
-                        Invite co-guardian
+                        Invite
                       </button>
                     </form>
                   )}

@@ -48,12 +48,14 @@ export async function GET(request: NextRequest) {
 
     // Round I: a guardian may READ a managed athlete's calendar via
     // ?targetProfileId= — role check only, not the consent gate (reads
-    // follow the pending-posts precedent). Everyone else reads their own.
+    // follow the pending-posts precedent). Wave 8: view-only seats read
+    // too (the family week strip is exactly what a viewer is for); writes
+    // everywhere stay guardian-gated. Everyone else reads their own.
     let readAs = user.id;
     const targetProfileId = searchParams.get('targetProfileId');
     if (targetProfileId && targetProfileId !== user.id) {
       const role = await getProfileRole(user.id, targetProfileId);
-      if (role !== 'guardian') {
+      if (role !== 'guardian' && role !== 'viewer') {
         return NextResponse.json(
           { error: 'You do not have permission to view this calendar' },
           { status: 403 }

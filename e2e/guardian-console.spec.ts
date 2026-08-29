@@ -360,6 +360,66 @@ test('co-guardian lifecycle: invite → claim → roster of two → revoke → l
   }
 });
 
+test('view-only seat (W8, mig 138): viewer invite → claim → reads roster+calendar, writes 403 → revoke', async () => {
+  test.skip(!flagOn, 'guardian flag off');
+  const userB = loadQaUser('user-b.json');
+  const apiA = await apiAs('state.json');
+  const apiB = await apiAs('state-b.json');
+  try {
+    // A invites B as VIEW ONLY (B's guardian link from the previous test was
+    // revoked; any existing link would 409 the claim).
+    const invite = await apiA.post(`/api/guardian/athletes/${childId}/guardians`, {
+      data: { email: userB.email, role: 'viewer' },
+    });
+    expect(invite.ok(), await readErrorBody(invite)).toBe(true);
+    const inviteBody = await invite.json();
+    expect(inviteBody.role).toBe('viewer');
+    const token = String(inviteBody.inviteUrl).split('/invite/')[1];
+
+    const claim = await apiB.post(`/api/invites/${token}/claim`);
+    expect(claim.ok(), await readErrorBody(claim)).toBe(true);
+    expect((await claim.json()).role).toBe('viewer');
+
+    // B READS: roster (readOnly flag set) and the child's calendar.
+    const roster = await apiB.get('/api/guardian/athletes');
+    expect(roster.ok(), await readErrorBody(roster)).toBe(true);
+    const rosterBody = await roster.json();
+    expect(rosterBody.readOnly).toBe(true);
+    expect(rosterBody.athletes.some((a: { id: string }) => a.id === childId)).toBe(true);
+    const from = new Date().toISOString();
+    const to = new Date(Date.now() + 7 * 86_400_000).toISOString();
+    const cal = await apiB.get(
+      `/api/calendar/events?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}&targetProfileId=${childId}`
+    );
+    expect(cal.ok(), await readErrorBody(cal)).toBe(true);
+
+    // B WRITES: every guardian action gate refuses a viewer.
+    const patch = await apiB.patch(`/api/guardian/athletes/${childId}`, {
+      data: { messaging_permission: 'everyone' },
+    });
+    expect(patch.status()).toBe(403);
+    const household = await apiB.post('/api/guardian/household/apply', { data: {} });
+    expect(household.status()).toBe(403);
+
+    // The guardians list shows the seat with its role; A revokes it freely
+    // (no last-guardian coupling for viewers).
+    const list = await apiA.get(`/api/guardian/athletes/${childId}/guardians`);
+    const seats = (await list.json()).guardians as Array<{ user_id: string; role: string }>;
+    expect(seats.find(s => s.user_id === userB.id)?.role).toBe('viewer');
+    const revoke = await apiA.delete(`/api/guardian/athletes/${childId}/guardians`, {
+      data: { guardianUserId: userB.id },
+    });
+    expect(revoke.ok(), await readErrorBody(revoke)).toBe(true);
+    // No link at all → the roster comes back empty for B.
+    const after = await apiB.get('/api/guardian/athletes');
+    expect(after.ok(), await readErrorBody(after)).toBe(true);
+    expect((await after.json()).athletes.length).toBe(0);
+  } finally {
+    await apiB.dispose();
+    await apiA.dispose();
+  }
+});
+
 test('consent signature (130 + W6 auto-approve): method cards swap the statement; typed signature approves instantly', async ({ page }) => {
   test.skip(!flagOn, 'guardian flag off');
 

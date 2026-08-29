@@ -32,14 +32,18 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ athletes: [] });
     }
     const admin = getSupabaseAdmin();
+    // Wave 8: viewers (view-only seats) read the roster too; readOnly tells
+    // the hub to render without any action affordances. Writes everywhere
+    // stay guardian-gated, so listing here never over-grants.
     const { data, error } = await admin
       .from('profile_access')
-      .select('granted_at, profiles!profile_access_profile_id_fkey(id, first_name, last_name, display_name, handle, avatar_url, dob, jurisdiction, sport, supervision_state, visibility, messaging_permission, comment_moderation, deletion_requested_at)')
+      .select('role, granted_at, profiles!profile_access_profile_id_fkey(id, first_name, last_name, display_name, handle, avatar_url, dob, jurisdiction, sport, supervision_state, visibility, messaging_permission, comment_moderation, deletion_requested_at)')
       .eq('user_id', user.id)
-      .eq('role', 'guardian')
+      .in('role', ['guardian', 'viewer'])
       .order('granted_at', { ascending: true });
     if (error) throw error;
 
+    const readOnly = !(data ?? []).some(r => r.role === 'guardian');
     const athletes = (data ?? []).map(r => r.profiles as unknown as { id: string });
     const ids = athletes.map(a => a.id);
 
@@ -47,7 +51,7 @@ export async function GET(request: NextRequest) {
     // many athletes a guardian manages (the transfers page used to fan out
     // one /api/transfers call per athlete instead).
     if (ids.length === 0) {
-      return NextResponse.json({ athletes: [] });
+      return NextResponse.json({ athletes: [], readOnly });
     }
     const [consentQ, supervisedQ, pendingQ, transferQ, pendingCommentQ, followReqQ] = await Promise.all([
       admin
@@ -120,6 +124,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({
       policy,
+      readOnly,
       athletes: athletes.map((a, i) => ({
         ...a,
         ...summaries[a.id],

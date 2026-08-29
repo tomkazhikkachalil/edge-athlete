@@ -17,8 +17,12 @@ import { enforceRateLimit } from '@/lib/rate-limit';
 // DECISION: the pending child_email is DISCARDED — the child has no email.
 //
 // guardian_additional — co-guardian / support takeover: grants the caller
-// guardian access to an existing supervised profile via the
-// grant_guardian_access RPC (which writes its own audit row).
+// access to an existing supervised profile. The invite's grant_role
+// (migration 138) decides which role: 'guardian' goes through the
+// grant_guardian_access RPC (which writes its own audit row); 'viewer' —
+// the view-only co-guardian (Wave 8) — is a direct service-role insert plus
+// an explicit audit row, since 048's role vocabulary already carries viewer
+// end-to-end (identity check, read-only RLS, `read`-only matrix row).
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ token: string }> }
@@ -61,20 +65,31 @@ export async function POST(
           { status: 403 }
         );
       }
-      const { data: guardianRows } = await admin
+      const grantRole = peeked.grant_role === 'viewer' ? 'viewer' : 'guardian';
+      const { data: accessRows } = await admin
         .from('profile_access')
-        .select('user_id')
+        .select('user_id, role')
         .eq('profile_id', childId)
-        .eq('role', 'guardian');
-      if ((guardianRows ?? []).some(g => g.user_id === user.id)) {
+        .in('role', ['guardian', 'viewer']);
+      const rows = accessRows ?? [];
+      // Any existing link blocks — role changes are not a claim's job.
+      if (rows.some(g => g.user_id === user.id)) {
         return NextResponse.json(
-          { error: 'You already manage this athlete.' },
+          { error: 'You already have access to this athlete.' },
           { status: 409 }
         );
       }
-      if ((guardianRows ?? []).length >= 2) {
+      if (grantRole === 'guardian' && rows.filter(g => g.role === 'guardian').length >= 2) {
         return NextResponse.json(
           { error: 'This athlete already has two guardians.' },
+          { status: 409 }
+        );
+      }
+      // Viewer cap is route-layer by design — 048's cap trigger counts only
+      // role='guardian' (deliberate, see migration 138).
+      if (grantRole === 'viewer' && rows.filter(g => g.role === 'viewer').length >= 2) {
+        return NextResponse.json(
+          { error: 'This athlete already has two view-only members.' },
           { status: 409 }
         );
       }
@@ -86,11 +101,31 @@ export async function POST(
           { status: 410 }
         );
       }
-      const { error: grantError } = await admin.rpc('grant_guardian_access', {
-        p_profile: childId,
-        p_new_guardian: user.id,
-        p_actor: consumed.created_by ?? user.id,
-      });
+      let grantError: { message: string } | null = null;
+      if (grantRole === 'guardian') {
+        ({ error: grantError } = await admin.rpc('grant_guardian_access', {
+          p_profile: childId,
+          p_new_guardian: user.id,
+          p_actor: consumed.created_by ?? user.id,
+        }));
+      } else {
+        ({ error: grantError } = await admin.from('profile_access').insert({
+          user_id: user.id,
+          profile_id: childId,
+          role: 'viewer',
+          granted_by: consumed.created_by ?? user.id,
+        }));
+        if (!grantError) {
+          // Mirror the RPC's audit discipline (append-only, best-effort).
+          await admin.from('profile_access_audit').insert({
+            profile_id: childId,
+            user_id: user.id,
+            action: 'granted',
+            new_role: 'viewer',
+            actor_id: consumed.created_by ?? user.id,
+          });
+        }
+      }
       if (grantError) {
         // Best-effort un-consume so the link can be retried (guardian_invites
         // has no immutability trigger).
@@ -99,17 +134,20 @@ export async function POST(
           .update({ consumed_at: null })
           .eq('id', consumed.id);
         Sentry.captureException(new Error(`invite claim: grant failed: ${grantError.message}`), {
-          extra: { childId },
+          extra: { childId, grantRole },
         });
         return NextResponse.json({ error: 'Could not grant access. Please try again.' }, { status: 500 });
       }
-      // Tell the EXISTING guardian(s) a co-guardian joined (best-effort; the
-      // new guardian is excluded — they just did it).
+      // Tell the EXISTING guardian(s) someone joined (best-effort; the new
+      // member is excluded — they just did it). Viewers are never safety
+      // recipients, but guardians hearing about a new viewer IS safety.
       {
         const { notifyGuardians } = await import('@/lib/guardian-notify');
         await notifyGuardians(admin, childId, {
           type: 'athlete_added',
-          title: `A co-guardian now manages ${child.first_name ?? 'your athlete'} with you`,
+          title: grantRole === 'viewer'
+            ? `Someone can now view ${child.first_name ?? 'your athlete'}'s family updates`
+            : `A co-guardian now manages ${child.first_name ?? 'your athlete'} with you`,
           actionUrl: `/app/guardian/athlete/${childId}`,
           actorId: user.id,
         }, user.id);
@@ -117,6 +155,7 @@ export async function POST(
       return NextResponse.json({
         ok: true,
         granted: true,
+        role: grantRole,
         profileId: childId,
         athleteFirstName: child.first_name ?? null,
       });

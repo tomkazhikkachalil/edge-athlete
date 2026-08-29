@@ -30,6 +30,9 @@ export function normalizeInviteEmail(email: string): string {
   return email.trim().toLowerCase();
 }
 
+/** Role a guardian_additional claim grants (migration 138). */
+export type InviteGrantRole = 'guardian' | 'viewer';
+
 interface CreateInviteParams {
   admin: SupabaseClient;
   inviteType: InviteType;
@@ -37,6 +40,8 @@ interface CreateInviteParams {
   pendingProfileId?: string;
   profileId?: string;
   createdBy?: string;
+  /** Only meaningful for guardian_additional; DB defaults to 'guardian'. */
+  grantRole?: InviteGrantRole;
 }
 
 /** Inserts the invite row; returns the RAW token (for the email) or null. */
@@ -53,6 +58,7 @@ export async function createGuardianInvite(
       pending_profile_id: params.pendingProfileId ?? null,
       profile_id: params.profileId ?? null,
       created_by: params.createdBy ?? null,
+      grant_role: params.grantRole ?? 'guardian',
       expires_at: new Date(
         Date.now() + GUARDIAN_INVITE_EXPIRY_DAYS * 86_400_000
       ).toISOString(),
@@ -73,6 +79,7 @@ export interface RedeemedInvite {
   pending_profile_id: string | null;
   profile_id: string | null;
   created_by: string | null;
+  grant_role: InviteGrantRole;
 }
 
 /**
@@ -94,7 +101,7 @@ export async function redeemGuardianInvite(
     .gt('expires_at', new Date().toISOString());
   if (inviteType) query = query.eq('invite_type', inviteType);
   const { data, error } = await query
-    .select('id, invite_type, invited_email, pending_profile_id, profile_id, created_by')
+    .select('id, invite_type, invited_email, pending_profile_id, profile_id, created_by, grant_role')
     .maybeSingle();
   if (error) {
     console.error('[INVITES] redemption failed:', error);
@@ -110,7 +117,7 @@ export async function peekGuardianInvite(
 ): Promise<RedeemedInvite | null> {
   const { data, error } = await admin
     .from('guardian_invites')
-    .select('id, invite_type, invited_email, pending_profile_id, profile_id, created_by')
+    .select('id, invite_type, invited_email, pending_profile_id, profile_id, created_by, grant_role')
     .eq('token_hash', hashInviteToken(rawToken))
     .is('consumed_at', null)
     .gt('expires_at', new Date().toISOString())

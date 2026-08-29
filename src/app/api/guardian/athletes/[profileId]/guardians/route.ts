@@ -53,15 +53,17 @@ export async function GET(
     const { admin } = await requireSupervised(profileId);
 
     const [guardiansQ, invitesQ] = await Promise.all([
+      // Wave 8: viewers (view-only seats) list alongside guardians, with the
+      // role carried so the UI can chip them apart.
       admin
         .from('profile_access')
-        .select('user_id, granted_at, profiles!profile_access_user_id_fkey(id, first_name, last_name, full_name, avatar_url)')
+        .select('user_id, role, granted_at, profiles!profile_access_user_id_fkey(id, first_name, last_name, full_name, avatar_url)')
         .eq('profile_id', profileId)
-        .eq('role', 'guardian')
+        .in('role', ['guardian', 'viewer'])
         .order('granted_at', { ascending: true }),
       admin
         .from('guardian_invites')
-        .select('id, invited_email, expires_at')
+        .select('id, invited_email, expires_at, grant_role')
         .eq('profile_id', profileId)
         .eq('invite_type', 'guardian_additional')
         .is('consumed_at', null)
@@ -77,6 +79,7 @@ export async function GET(
         };
         return {
           user_id: r.user_id,
+          role: r.role,
           first_name: p?.first_name ?? null,
           last_name: p?.last_name ?? null,
           full_name: p?.full_name ?? null,
@@ -113,15 +116,25 @@ export async function POST(
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       return NextResponse.json({ error: 'Please enter a valid email.' }, { status: 400 });
     }
+    // Wave 8 (mig 138): a view-only seat rides the same invite ceremony.
+    const grantRole = body.role === 'viewer' ? 'viewer' as const : 'guardian' as const;
 
-    const { data: guardianRows } = await admin
+    const { data: accessRows } = await admin
       .from('profile_access')
-      .select('user_id')
+      .select('user_id, role')
       .eq('profile_id', profileId)
-      .eq('role', 'guardian');
-    if ((guardianRows ?? []).length >= 2) {
+      .in('role', ['guardian', 'viewer']);
+    const rows = accessRows ?? [];
+    if (grantRole === 'guardian' && rows.filter(r => r.role === 'guardian').length >= 2) {
       return NextResponse.json(
         { error: 'This athlete already has two guardians.' },
+        { status: 409 }
+      );
+    }
+    // Viewer cap is route-layer by design (048's trigger counts guardians only).
+    if (grantRole === 'viewer' && rows.filter(r => r.role === 'viewer').length >= 2) {
+      return NextResponse.json(
+        { error: 'This athlete already has two view-only members.' },
         { status: 409 }
       );
     }
@@ -132,6 +145,7 @@ export async function POST(
       invitedEmail: email,
       profileId,
       createdBy: user.id,
+      grantRole,
     });
     if (!invite) {
       return NextResponse.json({ error: 'Could not create the invite.' }, { status: 500 });
@@ -143,9 +157,9 @@ export async function POST(
     let emailSent = false;
     if (process.env.SMTP_USER && process.env.SMTP_PASS) {
       // deliver() catches + Sentry-tags internally and returns the truth.
-      emailSent = await emailService.sendCoGuardianInvite(email, child.first_name ?? '', inviteUrl, appUrl);
+      emailSent = await emailService.sendCoGuardianInvite(email, child.first_name ?? '', inviteUrl, appUrl, grantRole);
     }
-    return NextResponse.json({ ok: true, inviteUrl, emailSent });
+    return NextResponse.json({ ok: true, inviteUrl, emailSent, role: grantRole });
   } catch (error) {
     if (error instanceof Response) return error;
     console.error('[CO-GUARDIANS] invite error:', error);
@@ -185,23 +199,25 @@ export async function DELETE(
       return NextResponse.json({ ok: true });
     }
 
-    // Revoke a guardian.
+    // Revoke a guardian or a view-only seat (Wave 8: viewers revoke freely —
+    // the last-guardian invariant is about guardians only).
     const guardianUserId =
       typeof body.guardianUserId === 'string' ? body.guardianUserId : '';
     if (!guardianUserId) {
       return NextResponse.json({ error: 'guardianUserId or inviteId required' }, { status: 400 });
     }
 
-    const { data: guardianRows } = await admin
+    const { data: accessRows } = await admin
       .from('profile_access')
-      .select('user_id')
+      .select('user_id, role')
       .eq('profile_id', profileId)
-      .eq('role', 'guardian');
-    const rows = guardianRows ?? [];
-    if (!rows.some(g => g.user_id === guardianUserId)) {
+      .in('role', ['guardian', 'viewer']);
+    const rows = accessRows ?? [];
+    const target = rows.find(g => g.user_id === guardianUserId);
+    if (!target) {
       return NextResponse.json({ error: 'That person is not a guardian of this athlete.' }, { status: 404 });
     }
-    if (rows.length <= 1) {
+    if (target.role === 'guardian' && rows.filter(g => g.role === 'guardian').length <= 1) {
       return NextResponse.json({
         error: 'A supervised profile must always have a guardian. Invite a co-guardian first, or withdraw consent to delete the profile.'
       }, { status: 409 });
@@ -212,7 +228,7 @@ export async function DELETE(
       profile_id: profileId,
       user_id: guardianUserId,
       action: 'revoked',
-      old_role: 'guardian',
+      old_role: target.role,
       actor_id: user.id,
     });
     if (auditError) {
@@ -224,7 +240,7 @@ export async function DELETE(
       .delete({ count: 'exact' })
       .eq('profile_id', profileId)
       .eq('user_id', guardianUserId)
-      .eq('role', 'guardian');
+      .eq('role', target.role);
     if (deleteError || !count) {
       console.error('[CO-GUARDIANS] revoke delete failed:', deleteError);
       return NextResponse.json({ error: 'Could not remove the guardian. Please try again.' }, { status: 500 });

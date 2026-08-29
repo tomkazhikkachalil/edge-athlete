@@ -22,6 +22,7 @@ export default function InvitePage() {
   const [invitedEmail, setInvitedEmail] = useState('');
   const [hasAccount, setHasAccount] = useState(false);
   const [inviteType, setInviteType] = useState('');
+  const [grantRole, setGrantRole] = useState('');
 
   useEffect(() => {
     let cancelled = false;
@@ -38,6 +39,7 @@ export default function InvitePage() {
         setInvitedEmail(data.invitedEmail ?? '');
         setHasAccount(!!data.guardianHasAccount);
         setInviteType(data.inviteType ?? '');
+        setGrantRole(data.grantRole ?? 'guardian');
         setState('valid');
       } catch {
         if (!cancelled) setState('invalid');
@@ -47,8 +49,11 @@ export default function InvitePage() {
   }, [token]);
 
   // Co-guardian invite (support takeover / second guardian): the athlete
-  // profile already exists — claiming grants guardian access directly.
+  // profile already exists — claiming grants access directly. Wave 8: the
+  // invite's grantRole decides guardian vs a view-only seat, and the copy
+  // must promise exactly what the claim grants.
   const isCoGuardian = inviteType === 'guardian_additional';
+  const isViewer = isCoGuardian && grantRole === 'viewer';
 
   return (
     <div className="min-h-screen flex flex-col bg-brand-soft">
@@ -83,21 +88,27 @@ export default function InvitePage() {
           {state === 'valid' && (
             <>
               <h2 className="text-xl sm:text-2xl font-bold text-violet-800 dark:text-violet-200 mb-2">
-                {isCoGuardian
+                {isViewer
+                  ? `You're invited to follow ${athleteFirstName ?? 'a young athlete'}'s journey`
+                  : isCoGuardian
                   ? `You're invited to become ${athleteFirstName ?? 'a young athlete'}'s guardian`
                   : athleteFirstName
                     ? `${athleteFirstName} wants to join Edge Athlete`
                     : 'A young athlete wants to join Edge Athlete'}
               </h2>
               <p className="text-sm text-tertiary mb-4">
-                {isCoGuardian
+                {isViewer
+                  ? `A guardian of ${athleteFirstName ?? 'this athlete'} is offering you a view-only seat on their family console: you'll see ${athleteFirstName ?? 'the athlete'}'s schedule and family updates, without any of the guardian controls.`
+                  : isCoGuardian
                   ? `${athleteFirstName ?? 'This athlete'} already has a profile on Edge Athlete that needs a guardian. As their guardian you control the profile's privacy, approve what gets posted, and decide who can contact them.`
                   : 'Edge Athlete requires a parent or guardian to set up and manage accounts for young athletes. As their guardian you control the profile’s privacy, approve what gets posted, and decide who can contact them.'}
               </p>
               <div className="bg-brand-soft border border-violet-100 dark:border-violet-900 rounded-md p-4 mb-6">
                 <p className="text-sm text-secondary">
                   <i className="fas fa-shield-halved text-brand-fg mr-2"></i>
-                  {isCoGuardian
+                  {isViewer
+                    ? 'Accepting adds the athlete to your account in view-only mode — you can look, cheer, and stay in the loop; the guardians stay in charge.'
+                    : isCoGuardian
                     ? 'Accepting adds the athlete to your account — you can review their profile, approve posts, and manage their settings right away.'
                     : "Setting this up takes a few minutes: create your own account (or log in), review your athlete's details, and give your consent. Nothing about your athlete is published until you approve it."}
                 </p>
@@ -160,7 +171,7 @@ export default function InvitePage() {
                 {claiming
                   ? 'One moment…'
                   : user
-                    ? (isCoGuardian ? 'Accept and manage their profile' : 'Review and set up their profile')
+                    ? (isViewer ? 'Accept and follow along' : isCoGuardian ? 'Accept and manage their profile' : 'Review and set up their profile')
                     : hasAccount
                       ? 'Log in to continue'
                       : 'Create your account'}
