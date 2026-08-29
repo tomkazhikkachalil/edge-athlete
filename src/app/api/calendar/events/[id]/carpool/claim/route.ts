@@ -70,7 +70,7 @@ export async function POST(
       await notifyUser(admin, offer.driver_profile_id as string, {
         type: 'carpool_update',
         title: `${riderName} claimed ${rawSeats} seat${rawSeats === 1 ? '' : 's'} in your carpool`,
-        actionUrl: `/app/calendar?event=${id}`,
+        actionUrl: `/calendar?event=${id}`,
         actorId: user.id,
         metadata: { event_id: id, offer_id: offerId },
       });
@@ -124,7 +124,7 @@ export async function DELETE(
         await notifyUser(admin, offer.driver_profile_id as string, {
           type: 'carpool_update',
           title: `${riderName} released their carpool seats`,
-          actionUrl: `/app/calendar?event=${id}`,
+          actionUrl: `/calendar?event=${id}`,
           actorId: user.id,
           metadata: { event_id: id, offer_id: offerId },
         });
