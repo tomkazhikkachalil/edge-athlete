@@ -97,6 +97,26 @@ describe('RATE_LIMITS shape guards', () => {
     );
   });
 
+  it('guardian day-window buckets are split per route family', () => {
+    // Wave 6: athlete-create, block-add and household-apply each get their
+    // own budget — one setup evening must never starve athlete creation.
+    for (const action of [
+      'guardian-athlete-create',
+      'guardian-block',
+      'guardian-household-apply',
+    ] as const) {
+      expect(RATE_LIMITS[action].keyBy).toBe('user');
+      expect(RATE_LIMITS[action].windowSeconds).toBe(86400);
+    }
+    // Blocking is a safety action; its budget stays the loosest of the three.
+    expect(RATE_LIMITS['guardian-block'].max).toBeGreaterThan(
+      RATE_LIMITS['guardian-household-apply'].max
+    );
+    expect(RATE_LIMITS['guardian-household-apply'].max).toBeGreaterThan(
+      RATE_LIMITS['guardian-athlete-create'].max
+    );
+  });
+
   it('unauthenticated actions are IP-keyed', () => {
     for (const action of ['contact', 'waitlist', 'signup', 'activate', 'reauth'] as const) {
       expect(RATE_LIMITS[action].keyBy).toBe('ip');

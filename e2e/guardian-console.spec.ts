@@ -844,15 +844,17 @@ test('batch upload (Wave 5): multi-assign copies bytes per athlete; confirmed ev
   const sibHandle = `eaqa_sib_${stamp}`; // ≤20 chars (handle cap)
   let sibId = '';
   try {
-    // The guardian-athlete-create bucket (5/day) is SHARED with the Wave-4
-    // household routes (apply-to-all, blocks), so by this point in the
-    // serial run the flag probe + two creates + apply + block/unblock have
-    // spent it. Clear the QA guardian's bucket (service REST truth — a
-    // test-sequencing artifact, never a reason to loosen the prod limit).
+    // Day-window guardian buckets fill across serial runs: the flag probe +
+    // two creates spend guardian-athlete-create (5/day), and since Wave 6
+    // split the household routes off it, apply/block spend their own
+    // guardian-household-apply / guardian-block buckets. Clear all three for
+    // the QA guardian (service REST truth — a test-sequencing artifact,
+    // never a reason to loosen the prod limits).
+    const dayBuckets = ['guardian-athlete-create', 'guardian-household-apply', 'guardian-block']
+      .map(action => `"${action}:${guardian.id}"`)
+      .join(',');
     await fetch(
-      `${url}/rest/v1/rate_limits?key=eq.${encodeURIComponent(
-        `guardian-athlete-create:${guardian.id}`
-      )}`,
+      `${url}/rest/v1/rate_limits?key=in.(${encodeURIComponent(dayBuckets)})`,
       { method: 'DELETE', headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}` } }
     );
 
