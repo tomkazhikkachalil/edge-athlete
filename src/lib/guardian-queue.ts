@@ -69,6 +69,9 @@ export type QueueItem =
       id: string;
       athlete: QueueAthlete;
       state: string;
+      /** Handover moment (Wave 8, mig 138): the athlete is an adult and the
+       *  transfer is still parked — celebratory framing, same link. */
+      handover?: boolean;
       href: string;
     }
   | {
@@ -351,6 +354,8 @@ export function buildQueueItems(
     id?: string;
     created_at?: string;
     age_preset_prompt?: string | null;
+    /** Wave 8: set once the athlete hit adulthood still parked. */
+    handover_prompted_at?: string | null;
   }>,
   invites: QueueInviteRow[] = [],
   heldContacts: QueueHeldContactRow[] = [],
@@ -538,12 +543,17 @@ export function buildQueueItems(
   const tail: QueueItem[] = [];
   for (const row of transferRows) {
     const athlete = athletesById.get(row.profile_id);
-    if (!athlete || !TRANSFER_NEEDS_GUARDIAN.has(row.state)) continue;
+    if (!athlete) continue;
+    // Handover moment (Wave 8): an adult athlete's parked transfer gets a
+    // standing celebratory row until the ceremony actually starts.
+    const handover = row.state === 'eligible_notified' && !!row.handover_prompted_at;
+    if (!handover && !TRANSFER_NEEDS_GUARDIAN.has(row.state)) continue;
     tail.push({
       kind: 'transfer_step',
       id: `transfer-${row.profile_id}`,
       athlete: toQueueAthlete(athlete),
       state: row.state,
+      ...(handover ? { handover: true } : {}),
       href: `/app/transfer/${row.profile_id}`,
     });
   }

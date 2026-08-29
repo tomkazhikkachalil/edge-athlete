@@ -86,7 +86,9 @@ function queueLabel(item: QueueItem): string {
     case 'follow_request':
       return `${item.follower.name} wants to follow ${item.athlete.name}`;
     case 'transfer_step':
-      return `${item.athlete.name}'s account transfer needs you`;
+      return item.handover
+        ? `${item.athlete.name} is an adult — time to hand over the keys 🎉`
+        : `${item.athlete.name}'s account transfer needs you`;
     case 'consent_gap':
       return item.consentState === 'rejected'
         ? `Consent for ${item.athlete.name} was rejected — resubmit the form`

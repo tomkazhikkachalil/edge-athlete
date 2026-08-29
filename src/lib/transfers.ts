@@ -282,7 +282,7 @@ export async function executeTransfer(
  */
 export async function runTransferSweep(admin: SupabaseClient, appUrl?: string) {
   const today = new Date().toISOString().slice(0, 10);
-  const summary = { flagged: 0, expired: 0, executed: 0, failed: 0 };
+  const summary = { flagged: 0, handoverPrompted: 0, expired: 0, executed: 0, failed: 0 };
 
   // 1. Eligibility: supervised profiles past their threshold, no active
   // transfer. The select carries the three safety fields (Wave 4) so the
@@ -362,6 +362,53 @@ export async function runTransferSweep(admin: SupabaseClient, appUrl?: string) {
           metadata: { profile_id: p.id, age_preset: true },
         });
       }
+    }
+  }
+
+  // 1b. Handover moment (Wave 8, mig 138): a supervised athlete has reached
+  // adulthood and the transfer is STILL parked at eligible_notified — one
+  // celebratory nudge to everyone, once (dedup = the stamp). Nothing
+  // auto-transfers, ever; the human ceremony remains the only handover.
+  {
+    const { LADDER_AGES, ageOn } = await import('./config/minors-config');
+    const { data: parked } = await admin
+      .from('profile_transfers')
+      .select('id, profile_id, dob_snapshot')
+      .eq('state', 'eligible_notified')
+      .is('handover_prompted_at', null);
+    for (const t of parked ?? []) {
+      if (!t.dob_snapshot || ageOn(t.dob_snapshot, today) < LADDER_AGES.adult) continue;
+      // A parked row can outlive supervision oddities — re-check the profile.
+      const { data: still } = await admin
+        .from('profiles')
+        .select('id')
+        .eq('id', t.profile_id)
+        .eq('supervision_state', 'supervised')
+        .is('deletion_requested_at', null)
+        .maybeSingle();
+      if (!still) continue;
+      const { data: stamped } = await admin
+        .from('profile_transfers')
+        .update({ handover_prompted_at: new Date().toISOString() })
+        .eq('id', t.id)
+        .is('handover_prompted_at', null)
+        .select('id');
+      if (!stamped?.length) continue; // raced another run — they notified
+      summary.handoverPrompted++;
+      const { notifyGuardians, notifyUser, profileFirstName } = await import('./guardian-notify');
+      const first = await profileFirstName(admin, t.profile_id);
+      await notifyGuardians(admin, t.profile_id, {
+        type: 'transfer_update',
+        title: `${first} is an adult now — time to hand over the keys 🎉`,
+        message: `${first} is 18. The handover takes a few minutes and everything they've built comes with them. Start it together whenever you're ready.`,
+        actionUrl: `/app/transfer/${t.profile_id}`,
+      });
+      await notifyUser(admin, t.profile_id, {
+        type: 'transfer_update',
+        title: "You're 18 — your account is ready to be fully yours 🎉",
+        message: 'Ask your guardian to start the handover. Everything you\'ve built comes with you.',
+        actionUrl: `/app/transfer/${t.profile_id}`,
+      });
     }
   }
 
