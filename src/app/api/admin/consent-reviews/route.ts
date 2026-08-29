@@ -5,8 +5,12 @@ import { stateFromAction } from '@/lib/consent';
 import { getClientIp } from '@/lib/rate-limit';
 
 // ── /api/admin/consent-reviews ────────────────────────────────────────────────
-// Admin review queue for signed-form parental consent. Reviews are NEW
-// append-only rows (review_approved / review_rejected) — never edits.
+// Admin consent surface. Since Wave 6 consent AUTO-approves at submission
+// (reviewed_by NULL = system), so this is primarily an after-the-fact audit:
+// GET returns the pending queue (now only auto-approve-degradation cases)
+// plus the recent auto-approved records for spot-checking. POST still
+// appends review_approved / review_rejected rows — never edits — and a
+// retro-reject downgrades an auto-approved profile exactly as before.
 // Evidence is served via short-lived signed URLs from the private bucket.
 
 export async function GET(request: NextRequest) {
@@ -17,7 +21,7 @@ export async function GET(request: NextRequest) {
 
     const { data: rows, error } = await admin
       .from('consent_records')
-      .select('id, profile_id, guardian_user_id, guardian_email_snapshot, action, method, policy_version, jurisdiction, threshold_age, evidence_path, created_at')
+      .select('id, profile_id, guardian_user_id, guardian_email_snapshot, action, method, policy_version, jurisdiction, threshold_age, evidence_path, reviewed_by, created_at')
       .order('created_at', { ascending: false })
       .limit(500);
     if (error) throw error;
@@ -32,38 +36,46 @@ export async function GET(request: NextRequest) {
     const pending = [...latestByProfile.values()].filter(
       r => stateFromAction(r.action) === 'pending_review'
     );
+    // Wave 6 audit list: profiles whose current state is an AUTO approval
+    // (reviewed_by NULL). Capped — this is a spot-check surface, not a log.
+    const autoApproved = [...latestByProfile.values()]
+      .filter(r => r.action === 'review_approved' && r.reviewed_by === null)
+      .slice(0, 25);
 
-    const items = await Promise.all(
-      pending.map(async r => {
-        const { data: athlete } = await admin
-          .from('profiles')
-          .select('display_name, handle, dob')
-          .eq('id', r.profile_id!)
-          .maybeSingle();
-        let evidenceUrl: string | null = null;
-        if (r.evidence_path) {
-          const { data: signed } = await admin.storage
-            .from('consent-evidence')
-            .createSignedUrl(r.evidence_path, 600);
-          evidenceUrl = signed?.signedUrl ?? null;
-        }
-        return {
-          recordId: r.id,
-          profileId: r.profile_id,
-          athleteName: athlete?.display_name ?? 'Unknown',
-          athleteHandle: athlete?.handle ?? null,
-          guardianEmail: r.guardian_email_snapshot,
-          method: r.method,
-          policyVersion: r.policy_version,
-          jurisdiction: r.jurisdiction,
-          thresholdAge: r.threshold_age,
-          submittedAt: r.created_at,
-          evidenceUrl,
-        };
-      })
-    );
+    const toItem = async (r: (typeof rows)[number]) => {
+      const { data: athlete } = await admin
+        .from('profiles')
+        .select('display_name, handle, dob')
+        .eq('id', r.profile_id!)
+        .maybeSingle();
+      let evidenceUrl: string | null = null;
+      if (r.evidence_path) {
+        const { data: signed } = await admin.storage
+          .from('consent-evidence')
+          .createSignedUrl(r.evidence_path, 600);
+        evidenceUrl = signed?.signedUrl ?? null;
+      }
+      return {
+        recordId: r.id,
+        profileId: r.profile_id,
+        athleteName: athlete?.display_name ?? 'Unknown',
+        athleteHandle: athlete?.handle ?? null,
+        guardianEmail: r.guardian_email_snapshot,
+        method: r.method,
+        policyVersion: r.policy_version,
+        jurisdiction: r.jurisdiction,
+        thresholdAge: r.threshold_age,
+        submittedAt: r.created_at,
+        evidenceUrl,
+      };
+    };
 
-    return NextResponse.json({ pending: items });
+    const [items, autoItems] = await Promise.all([
+      Promise.all(pending.map(toItem)),
+      Promise.all(autoApproved.map(toItem)),
+    ]);
+
+    return NextResponse.json({ pending: items, autoApproved: autoItems });
   } catch (error) {
     if (error instanceof Response) return error;
     console.error('[CONSENT-REVIEW] list error:', error);

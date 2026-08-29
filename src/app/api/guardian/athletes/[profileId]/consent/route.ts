@@ -6,11 +6,19 @@ import { getConsentState, parseConsentMethod, CONSENT_POLICY_VERSION } from '@/l
 import { getClientIp } from '@/lib/rate-limit';
 
 // ── /api/guardian/athletes/[profileId]/consent ────────────────────────────────
-// Signed-form parental consent (Phase 3b). GUARDIAN-ONLY — consent is a
-// guardian act; owners/supervised/viewers are refused. Evidence lands in the
-// PRIVATE consent-evidence bucket; the append-only consent_records row
-// carries the full audit (method, policy version, jurisdiction snapshot,
-// guardian identity + email snapshot, ip, user agent).
+// Parental consent submission. GUARDIAN-ONLY — consent is a guardian act;
+// owners/supervised/viewers are refused. Evidence lands in the PRIVATE
+// consent-evidence bucket; the append-only consent_records rows carry the
+// full audit (method, policy version, jurisdiction snapshot, guardian
+// identity + email snapshot, ip, user agent).
+//
+// AUTO-APPROVE (Wave 6, Tom's call): every method approves at submission —
+// the `granted` row is immediately followed by a `review_approved` row with
+// reviewed_by NULL (null = system; admin rows carry the admin's id). The
+// admin /dashboard/consent queue remains the after-the-fact audit surface,
+// and its retro-reject still appends review_rejected and downgrades state.
+// If the second insert fails the record stays pending_review and lands in
+// the admin queue — the pre-Wave-6 path, so degradation is safe.
 
 const MAX_BYTES = 10 * 1024 * 1024;
 const ALLOWED = new Set(['image/jpeg', 'image/png', 'image/webp', 'application/pdf']);
@@ -104,26 +112,59 @@ export async function POST(
       .eq('id', profileId)
       .maybeSingle();
 
-    const { error: insertError } = await admin.from('consent_records').insert({
+    const snapshot = {
       profile_id: profileId,
       subject_dob_year: athlete?.dob ? new Date(athlete.dob).getUTCFullYear() : 0,
       guardian_user_id: user.id,
       guardian_email_snapshot: user.email ?? '',
       method,
-      action: 'granted',
       policy_version: CONSENT_POLICY_VERSION,
       jurisdiction: athlete?.jurisdiction ?? 'DEFAULT',
       threshold_age: athlete?.minor_threshold_age ?? 16,
       evidence_path: evidencePath,
       ip: getClientIp(request),
       user_agent: request.headers.get('user-agent'),
+    };
+
+    const { error: insertError } = await admin.from('consent_records').insert({
+      ...snapshot,
+      action: 'granted',
     });
     if (insertError) {
       Sentry.captureException(new Error(`consent: record insert failed: ${insertError.message}`));
       return NextResponse.json({ error: 'Could not record consent. Please try again.' }, { status: 500 });
     }
 
-    return NextResponse.json({ ok: true, state: 'pending_review' }, { status: 201 });
+    // Auto-approve: a second awaited append-only row, never an edit. A
+    // failure here leaves the submission pending_review for the admin queue.
+    const { error: approveError } = await admin.from('consent_records').insert({
+      ...snapshot,
+      action: 'review_approved',
+      reviewed_by: null,
+    });
+    if (approveError) {
+      Sentry.captureException(new Error(`consent: auto-approve insert failed: ${approveError.message}`));
+      return NextResponse.json({ ok: true, state: 'pending_review' }, { status: 201 });
+    }
+
+    // Same notification the admin approve path sends — approved unlocks
+    // publishing and the go-public toggle (best-effort; consent_result also
+    // rides the urgent email tier, so a consent recorded by a co-guardian
+    // reaches the other guardian's inbox within minutes).
+    try {
+      const { notifyGuardians, profileFirstName } = await import('@/lib/guardian-notify');
+      const childName = await profileFirstName(admin, profileId);
+      await notifyGuardians(admin, profileId, {
+        type: 'consent_result',
+        title: `Consent approved — ${childName}'s profile can now publish`,
+        actionUrl: `/app/guardian/athlete/${profileId}`,
+        metadata: { decision: 'review_approved', auto: true },
+      });
+    } catch (notifyError) {
+      Sentry.captureException(notifyError, { tags: { area: 'consent' } });
+    }
+
+    return NextResponse.json({ ok: true, state: 'approved' }, { status: 201 });
   } catch (error) {
     if (error instanceof Response) return error;
     console.error('[CONSENT] error:', error);
