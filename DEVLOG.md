@@ -1,5 +1,63 @@
 # Development Log
 
+## August 29, 2026 — Family Console follow-on, Wave 9: family features (#372–#374 + migration 139) — PROGRAM COMPLETE
+
+Final wave of the follow-on program (Waves 6–9, the entire deferred
+backlog from the original Family Console rebuild, all in one day).
+
+- **Household archive (#372, zero DDL).** `GET /api/guardian/archive`: one
+  keyset-paginated household-wide posts query — a DEDICATED route,
+  deliberately not a multi-profile mode on posts GET (the app's most
+  privacy-sensitive query surface stays untouched); the scoping IS the
+  authorization. Unpublished work rides along with its status — seeing the
+  whole pipeline is the point, nothing publishes. The plan's verify-first
+  item caught a real gap: the media proxy's household branch was
+  guardian-only (`approve_content`), so view-only seats couldn't fetch a
+  private child's media — it now admits `role === 'viewer'` beside the
+  matrix check. `/app/guardian/archive`: child chips, month grouping,
+  phone-first grid, load-older; the hub's Archive link renders in BOTH
+  modes (viewers included — reachability parity). e2e also pins the
+  stronger exclusion property: parked children leave the archive.
+- **Carpool (#373 + migration 139, #374).** Offers (1–8 seats, 200-char
+  note, one per driver+event) and claims (1–4 seats) in their OWN table
+  pair by design — events.description/location flow verbatim into ICS
+  feeds and invite emails, and ride details are structurally unable to
+  follow (pinned by an e2e assertion that the note never reaches the ICS
+  payload). RLS SELECT references event_guests, never the carpool tables
+  (the 42P17 lesson); writes are service-role only. Access = guest OR
+  household member of a guest — parents drive for kids' events without
+  being invitees; the driver/rider is always the CALLER, first-person by
+  design (no acting-as: a real adult drives a real car). Capacity is
+  route-enforced; new offers notify going guests (a supervised child's
+  carpool news goes to their guardians); claims/releases/cancellations
+  tell the driver. 139 carries the program's only notifications CHECK
+  re-ADD, based on 117's exact live list + carpool_offer/carpool_update.
+  UI: a self-contained Carpool section in the event modal (offer form,
+  seats tally, rider list, first-person claim/release), self-hiding for
+  non-participants; the set-state-in-effect recipe (loader inside the
+  effect on a ref + syncedTarget render reset) applied verbatim. Caught
+  pre-merge: the notification actionUrls pointed at /app/calendar — the
+  calendar lives at /calendar, which DOES consume the ?event= deep link.
+  Deferred, recorded: the week-strip "carpool set" chip + the conflicts
+  "driving for two events" tie-in.
+- **Verification.** 20/20 guardian e2e locally (archive test included);
+  carpool e2e 3/3 locally AND 3/3 against prod (capacity/dup 409s, driver
+  bell, ICS leak check, non-participant 404); archive prod probe at 390px
+  (child → instant consent → acting-as post → page renders, no overflow);
+  carpool modal prod probe at 390px through the real ?event= deep link
+  (offer form → seats tally). Migration 139 grid all-true (Tom). Merge
+  trains with bases retargeted before deletes throughout.
+
+**That closes the follow-on program: Waves 6–9, #361–#374, migrations
+136–139, every wave prod-probed at phone width the day it shipped.** The
+deferred backlog from the original program is now empty except the items
+deliberately recorded as future work: SMS provisioning (the dispatcher
+seam is ready), late-night risk signals (need a profiles timezone), a
+capability-splitting guardian tier, the week-strip carpool chip, and the
+scale-premature list (per-cohort rollout, offline queue, org
+generalization). What remains before launch is unchanged: Tom's runbook
+console gates, not code.
+
 ## August 29, 2026 — Family Console follow-on, Wave 8: autonomy (#369–#371 + migration 138)
 
 Third wave of the follow-on program: all three autonomy items, one small
