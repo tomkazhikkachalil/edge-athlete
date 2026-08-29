@@ -55,6 +55,12 @@ export function EventChip({
       <span className="font-medium">{event.title}</span>
       {event.series_id && <i className="fas fa-arrows-rotate ml-1 text-[9px] opacity-70"></i>}
       {event.is_org_event && <i className="fas fa-people-group ml-1 text-[9px] opacity-70" title={event.org_name ?? undefined}></i>}
+      {event.personDots?.map((dot, i) => (
+        <span
+          key={i}
+          className={`inline-block w-1.5 h-1.5 rounded-full ml-1 align-middle ring-1 ring-white/70 ${dot}`}
+        />
+      ))}
     </button>
   );
 }
@@ -101,6 +107,12 @@ export function EventBlock({
         {event.title}
         {event.series_id && <i className="fas fa-arrows-rotate ml-1 text-[9px] opacity-70"></i>}
         {event.is_org_event && <i className="fas fa-people-group ml-1 text-[9px] opacity-70"></i>}
+        {event.personDots?.map((dot, i) => (
+          <span
+            key={i}
+            className={`inline-block w-1.5 h-1.5 rounded-full ml-1 align-middle ring-1 ring-white/70 ${dot}`}
+          />
+        ))}
       </span>
       {!event.all_day && (
         <span className={`block truncate ${pending ? '' : 'text-white/80'}`}>

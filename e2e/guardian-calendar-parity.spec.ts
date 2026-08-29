@@ -1,5 +1,7 @@
 import { test, expect } from '@playwright/test';
-import { apiAs, adminClient, loadQaUser, readErrorBody } from './helpers/qa-user';
+import {
+  apiAs, adminClient, createQaChild, deleteQaUser, guardianFlagOn, loadQaUser, readErrorBody,
+} from './helpers/qa-user';
 
 // Guardian schedule parity (calendar round, PR 2): every guardian of a
 // child — and a view-only seat — sees the child's schedule identically,
@@ -22,21 +24,17 @@ let eventId = '';
 test('setup: child + co-guardian seat + an event the child attends', async () => {
   const apiA = await apiAs('state.json');
   try {
-    const probe = await apiA.post('/api/guardian/athletes', { data: {} });
-    if (probe.status() === 404) {
+    if (!guardianFlagOn()) {
       flagOn = false;
       test.skip(true, 'guardian flag off in this environment');
       return;
     }
-    expect(probe.status()).toBe(400);
-
-    const dob = new Date(Date.UTC(new Date().getUTCFullYear() - 10, 5, 15))
-      .toISOString().split('T')[0];
-    const created = await apiA.post('/api/guardian/athletes', {
-      data: { first_name: 'Junior', last_name: 'Parity', dob, handle: HANDLE },
+    // Seeded via service role — this spec's subject is schedule parity, not
+    // the creation route (whose 5/day rate limit is a safety rail; probing
+    // it consumed slots and 429'd multi-spec batteries).
+    childId = await createQaChild(loadQaUser('user.json').id, {
+      firstName: 'Junior', lastName: 'Parity', handle: HANDLE,
     });
-    expect(created.status(), await readErrorBody(created)).toBe(201);
-    childId = (await created.json()).profileId;
     expect(childId).toBeTruthy();
 
     // Seed user B as the co-guardian directly (the invite ceremony has its
@@ -163,12 +161,7 @@ test.afterAll(async () => {
   const apiA = await apiAs('state.json');
   try {
     if (eventId) await apiA.delete(`/api/calendar/events/${eventId}?scope=this`);
-    const res = await apiA.delete(`/api/guardian/athletes/${childId}`, {
-      data: { confirmHandle: HANDLE },
-    });
-    if (!res.ok()) {
-      console.error('[e2e] parity cleanup failed:', await readErrorBody(res));
-    }
+    await deleteQaUser(childId).catch(e => console.error('[e2e] parity cleanup failed:', e));
   } finally {
     await apiA.dispose();
   }
@@ -183,15 +176,10 @@ test('the create form offers "Who is this for?" and places the child on the even
   let mobileEventId = '';
   const mobileHandle = `eaqa_calm_${stamp}`;
   try {
-    const probe = await api.post('/api/guardian/athletes', { data: {} });
-    test.skip(probe.status() === 404, 'guardian flag off in this environment');
-    const dob = new Date(Date.UTC(new Date().getUTCFullYear() - 11, 2, 3))
-      .toISOString().split('T')[0];
-    const created = await api.post('/api/guardian/athletes', {
-      data: { first_name: 'Kiddo', last_name: 'Mobile', dob, handle: mobileHandle },
+    test.skip(!guardianFlagOn(), 'guardian flag off in this environment');
+    mobileChildId = await createQaChild(loadQaUser('user.json').id, {
+      firstName: 'Kiddo', lastName: 'Mobile', handle: mobileHandle, ageYears: 11,
     });
-    expect(created.status(), await readErrorBody(created)).toBe(201);
-    mobileChildId = (await created.json()).profileId;
 
     await page.goto('/calendar');
     await page.getByRole('button', { name: /^New( event)?$/ }).click();
@@ -225,9 +213,9 @@ test('the create form offers "Who is this for?" and places the child on the even
   } finally {
     if (mobileEventId) await api.delete(`/api/calendar/events/${mobileEventId}?scope=this`);
     if (mobileChildId) {
-      await api.delete(`/api/guardian/athletes/${mobileChildId}`, {
-        data: { confirmHandle: mobileHandle },
-      });
+      await deleteQaUser(mobileChildId).catch(e =>
+        console.error('[e2e] parity mobile cleanup failed:', e)
+      );
     }
     await api.dispose();
   }

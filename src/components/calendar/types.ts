@@ -48,6 +48,12 @@ export interface EventListItem {
    *  they deep-link to their home surface instead. */
   kind?: 'activity';
   activity?: ActivityPayload;
+  /** Present on layered /calendar items (calendar round): the 'me' sentinel
+   *  and/or child profile ids this event belongs to — see lib/calendar/layers. */
+  personIds?: string[];
+  /** Pre-computed person dot classes (children only) so chips render the
+   *  color channel without knowing the roster. */
+  personDots?: string[];
 }
 
 export interface EventGuest {

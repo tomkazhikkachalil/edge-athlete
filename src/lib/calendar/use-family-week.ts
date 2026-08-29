@@ -10,6 +10,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { FEATURE_FLAGS } from '@/lib/features';
+import { mergeLayeredEvents } from '@/lib/calendar/layers';
 import type { EventListItem } from '@/components/calendar/types';
 
 export interface FamilyWeekAthlete {
@@ -55,28 +56,15 @@ export function useFamilyWeek(athletes: FamilyWeekAthlete[]): {
           })
         );
         if (cancelled) return;
-        const merged = new Map<string, FamilyEvent>();
-        let anyOk = false;
-        for (const result of results) {
-          if (result.status !== 'fulfilled') continue;
-          anyOk = true;
-          for (const ev of result.value.events) {
-            // Real commitments only: the activity overlay has no my_status
-            // key at all (established filter), and cancelled events are
-            // history, not schedule.
-            if (ev.my_status === undefined || ev.status === 'cancelled') continue;
-            const existing = merged.get(ev.id);
-            if (existing) {
-              if (!existing.childIds.includes(result.value.childId)) {
-                existing.childIds.push(result.value.childId);
-              }
-            } else {
-              merged.set(ev.id, { ...ev, childIds: [result.value.childId] });
-            }
-          }
-        }
-        setEvents([...merged.values()]);
-        setFailed(!anyOk);
+        // Shared merge core (calendar round): child sets drop overlay items
+        // and cancelled events — real commitments only, as before.
+        const sets = results
+          .filter((r): r is PromiseFulfilledResult<{ childId: string; events: EventListItem[] }> => r.status === 'fulfilled')
+          .map(r => ({ personId: r.value.childId, events: r.value.events }));
+        setEvents(
+          mergeLayeredEvents(sets).map(({ personIds, ...ev }) => ({ ...ev, childIds: personIds }))
+        );
+        setFailed(sets.length === 0);
         setLoaded(true);
       } catch (e) {
         if (cancelled) return;
