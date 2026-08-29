@@ -1055,13 +1055,15 @@ test('household archive (Wave 9): household-wide feed, child filter scopes, prox
   test.skip(!flagOn, 'guardian flag off');
   const api = await apiAs('state.json');
   try {
-    // The batch-upload test left posts for BOTH children — the archive
-    // reads them household-wide, newest first, with proxied media.
+    // The suite's earlier tests left the child several posts (self pending,
+    // send-back loop, the batch upload). The SIBLING the batch test created
+    // was PARKED in its cleanup — the archive must exclude parked children,
+    // which is the stronger property to pin.
     const all = await api.get('/api/guardian/archive');
     expect(all.ok(), await readErrorBody(all)).toBe(true);
     const { items } = await all.json();
     expect(items.length).toBeGreaterThanOrEqual(2);
-    expect(new Set(items.map((i: { profileId: string }) => i.profileId)).size).toBeGreaterThanOrEqual(2);
+    expect(items.every((i: { profileId: string }) => i.profileId === childId)).toBe(true);
     const withMedia = items.find((i: { media: Array<{ url: string }> }) => i.media.length > 0);
     expect(withMedia, 'expected at least one archived post with media').toBeTruthy();
     expect(withMedia.media[0].url).toContain('/api/media/');
