@@ -1,5 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { emailService } from './email-service';
+import { dispatch, emailDelivered } from './notify/dispatch';
 import { isSyntheticEmail } from './config/minors-config';
 import { buildDigestGroups } from './digest-groups';
 import { chunk } from './chunk';
@@ -118,19 +118,30 @@ export async function runNotificationDigest(supabase: SupabaseClient, appUrl: st
           await advanceWatermark();
           return 0;
         }
-        // One child's guardians are independent recipients — fan the sends out.
+        // One child's guardians are independent recipients — fan the sends
+        // out through the dispatcher (Wave 7). The gating pref here is the
+        // CHILD's email_enabled (already true by the query), not each
+        // guardian's own digest pref — Round 4 design, preserved.
         const results = await Promise.all(
-          guardianEmails.map(guardianEmail => emailService.sendChildDigest(
-            guardianEmail, profile.first_name || 'Your athlete', notifs, appUrl
-          ))
+          guardianEmails.map(guardianEmail => dispatch({
+            tier: 'digest',
+            payload: {
+              kind: 'child_digest',
+              childFirstName: profile.first_name || 'Your athlete',
+              items: notifs,
+            },
+            recipient: { email: guardianEmail, displayName: '' },
+            prefs: { emailEnabled: true },
+            appUrl,
+          }))
         );
         // Watermark advances only when EVERY guardian send succeeded (Round E,
         // mirroring the main digest's rule). On partial failure it holds
         // without throwing, so this digest retries next run — accepted
         // tradeoff: a persistently bouncing co-guardian re-sends to the
         // healthy one until fixed, which beats silently dropping the digest.
-        if (results.every(Boolean)) await advanceWatermark();
-        return results.filter(Boolean).length;
+        if (results.every(emailDelivered)) await advanceWatermark();
+        return results.filter(emailDelivered).length;
       }
 
       const displayName =
@@ -160,9 +171,15 @@ export async function runNotificationDigest(supabase: SupabaseClient, appUrl: st
 
       // Boolean-gated watermark (Wave 5): the old adult path was a raw
       // sendMail that only held the watermark by accidental throw-unwind.
-      const ok = await emailService.sendGuardianDigest(
-        profile.email, displayName, namedGroups, appUrl
-      );
+      // Wave 7: through the dispatcher; email_enabled true by the query.
+      const results = await dispatch({
+        tier: 'digest',
+        payload: { kind: 'guardian_digest', groups: namedGroups },
+        recipient: { email: profile.email, displayName },
+        prefs: { emailEnabled: true },
+        appUrl,
+      });
+      const ok = emailDelivered(results);
       if (ok) await advanceWatermark();
       return ok ? 1 : 0;
     } catch (userError) {

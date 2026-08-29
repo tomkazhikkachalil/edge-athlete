@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/auth-server';
-import { emailService } from '@/lib/email-service';
+import { dispatch, emailDelivered } from '@/lib/notify/dispatch';
 import { isSyntheticEmail } from '@/lib/config/minors-config';
 import {
   buildUrgentBatches,
@@ -100,17 +100,24 @@ export async function GET(request: NextRequest) {
         console.error('[URGENT] stamp failed — batch skipped:', stampError);
         continue;
       }
-      const ok = await emailService.sendUrgentAlert(
-        batch.email,
-        batch.displayName,
-        batch.items.map(i => ({
-          title: i.title,
-          message: i.message ?? null,
-          path: safeInternalPath(i.action_url),
-        })),
-        appUrl
-      );
-      if (ok) sent += 1;
+      const results = await dispatch({
+        tier: 'urgent',
+        payload: {
+          kind: 'urgent_alert',
+          items: batch.items.map(i => ({
+            title: i.title,
+            message: i.message ?? null,
+            path: safeInternalPath(i.action_url),
+          })),
+        },
+        recipient: { email: batch.email, displayName: batch.displayName },
+        // Batches are pre-filtered by buildUrgentBatches (urgentEnabled), so
+        // this is true by construction; real per-channel prefs plumb through
+        // the batch shape when SMS is provisioned.
+        prefs: { urgentEmailEnabled: true },
+        appUrl,
+      });
+      if (emailDelivered(results)) sent += 1;
     }
 
     if (batches.length > 0) {
