@@ -545,6 +545,11 @@ export default function EventDetailModal({
               </div>
             </div>
 
+            {/* Carpool (Wave 9, mig 139): rides its own tables so nothing
+                leaks into ICS/emails; the section self-hides for viewers
+                the API 404s (non-participants). */}
+            {!cancelled && <CarpoolSection eventId={event.id} viewerId={user?.id ?? null} />}
+
             {/* Organizer controls */}
             {isOrganizer && !cancelled && (
               <div className="border-t border-border-subtle pt-3 flex gap-3">
@@ -614,6 +619,217 @@ export default function EventDetailModal({
         }}
         onCancel={() => setPendingResponse(null)}
       />
+    </div>
+  );
+}
+
+// ── Carpool section (Wave 9) ─────────────────────────────────────────────────
+// Self-contained: fetches its own offers (a 404 means the viewer isn't a
+// participant — render nothing), claims/releases first-person, and offers
+// seats via a two-field inline form. Deliberately no acting-as: the driver
+// is whoever is holding the phone.
+
+interface CarpoolOffer {
+  id: string;
+  driverProfileId: string;
+  driverName: string;
+  seatsTotal: number;
+  seatsLeft: number;
+  note: string | null;
+  claims: Array<{ id: string; riderProfileId: string; riderName: string; seats: number }>;
+}
+
+function CarpoolSection({ eventId, viewerId }: { eventId: string; viewerId: string | null }) {
+  const [offers, setOffers] = useState<CarpoolOffer[] | null>(null);
+  const [visible, setVisible] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const [offering, setOffering] = useState(false);
+  const [seats, setSeats] = useState(2);
+  const [note, setNote] = useState('');
+
+  // Event switches reset synchronously DURING render (the modal's own
+  // syncedTarget idiom) so stale offers never paint; the fetch stays an
+  // effect and only sets state post-await.
+  const [syncedEventId, setSyncedEventId] = useState(eventId);
+  if (syncedEventId !== eventId) {
+    setSyncedEventId(eventId);
+    setOffers(null);
+    setVisible(false);
+  }
+
+  // Loader defined INSIDE the effect (what clears set-state-in-effect) and
+  // published on a ref so act() can await a refresh — the consent page's
+  // documented pattern.
+  const reloadRef = useRef<() => Promise<void>>(async () => {});
+  useEffect(() => {
+    const run = async () => {
+      try {
+        const res = await fetch(`/api/calendar/events/${eventId}/carpool`);
+        if (!res.ok) { setVisible(false); return; }
+        const data = await res.json();
+        setOffers(data.offers ?? []);
+        setVisible(true);
+      } catch {
+        setVisible(false);
+      }
+    };
+    reloadRef.current = run;
+    run();
+  }, [eventId]);
+
+  const act = async (fn: () => Promise<Response>) => {
+    setBusy(true);
+    setError('');
+    try {
+      const res = await fn();
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'Something went wrong');
+      await reloadRef.current();
+      setOffering(false);
+      setNote('');
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Something went wrong');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (!visible || offers === null) return null;
+  const myOffer = offers.find(o => o.driverProfileId === viewerId) ?? null;
+
+  return (
+    <div className="border-t border-border-subtle pt-3">
+      <div className="flex items-center justify-between mb-2">
+        <p className="text-sm font-semibold text-primary">
+          <i className="fas fa-car-side text-xs mr-1.5 text-muted"></i>
+          Carpool
+        </p>
+        {!myOffer && !offering && (
+          <button
+            type="button"
+            onClick={() => setOffering(true)}
+            className="text-xs font-semibold text-brand-fg hover:underline min-h-[32px]"
+          >
+            Offer seats
+          </button>
+        )}
+      </div>
+      {error && (
+        <p role="alert" className="text-xs text-red-600 dark:text-red-400 mb-2">{error}</p>
+      )}
+      {offers.length === 0 && !offering && (
+        <p className="text-xs text-muted">No rides offered yet.</p>
+      )}
+      <div className="space-y-2">
+        {offers.map(o => {
+          const mine = o.driverProfileId === viewerId;
+          const myClaim = o.claims.find(c => c.riderProfileId === viewerId) ?? null;
+          return (
+            <div key={o.id} className="flex items-start justify-between gap-2 flex-wrap bg-surface-sunken rounded-lg px-3 py-2">
+              <div className="min-w-0">
+                <p className="text-sm text-primary">
+                  {o.driverName}{mine && <span className="text-muted"> (you)</span>} · {o.seatsLeft} of {o.seatsTotal} seat{o.seatsTotal === 1 ? '' : 's'} free
+                </p>
+                {o.note && <p className="text-xs text-muted">{o.note}</p>}
+                {o.claims.length > 0 && (
+                  <p className="text-xs text-tertiary mt-0.5">
+                    Riding: {o.claims.map(c => `${c.riderName}${c.seats > 1 ? ` (${c.seats})` : ''}`).join(', ')}
+                  </p>
+                )}
+              </div>
+              <span className="shrink-0">
+                {mine ? (
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() => act(() => fetch(`/api/calendar/events/${eventId}/carpool`, { method: 'DELETE' }))}
+                    className="text-xs font-semibold text-red-600 dark:text-red-400 hover:underline min-h-[32px] disabled:opacity-50"
+                  >
+                    Remove offer
+                  </button>
+                ) : myClaim ? (
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() => act(() => fetch(`/api/calendar/events/${eventId}/carpool/claim`, {
+                      method: 'DELETE',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ offerId: o.id }),
+                    }))}
+                    className="text-xs font-semibold text-secondary hover:underline min-h-[32px] disabled:opacity-50"
+                  >
+                    Release seat{myClaim.seats > 1 ? 's' : ''}
+                  </button>
+                ) : o.seatsLeft > 0 ? (
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() => act(() => fetch(`/api/calendar/events/${eventId}/carpool/claim`, {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ offerId: o.id, seats: 1 }),
+                    }))}
+                    className="text-xs font-semibold text-brand-fg hover:underline min-h-[32px] disabled:opacity-50"
+                  >
+                    Claim a seat
+                  </button>
+                ) : (
+                  <span className="text-xs text-muted">Full</span>
+                )}
+              </span>
+            </div>
+          );
+        })}
+      </div>
+      {offering && (
+        <form
+          onSubmit={e => {
+            e.preventDefault();
+            void act(() => fetch(`/api/calendar/events/${eventId}/carpool`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ seatsTotal: seats, note: note.trim() || undefined }),
+            }));
+          }}
+          className="mt-2 flex flex-wrap items-center gap-2"
+        >
+          <label className="text-xs text-secondary" htmlFor="carpool-seats">Seats</label>
+          <select
+            id="carpool-seats"
+            value={seats}
+            onChange={e => setSeats(Number(e.target.value))}
+            disabled={busy}
+            className="px-2 py-2 min-h-[44px] border border-border-strong rounded-lg text-sm bg-surface text-primary"
+          >
+            {[1, 2, 3, 4, 5, 6, 7, 8].map(n => <option key={n} value={n}>{n}</option>)}
+          </select>
+          <input
+            type="text"
+            value={note}
+            onChange={e => setNote(e.target.value.slice(0, 200))}
+            placeholder="Note (e.g. leaving from the north lot)"
+            aria-label="Carpool note"
+            disabled={busy}
+            className="flex-grow min-w-[160px] px-3 py-2 min-h-[44px] border border-border-strong rounded-lg text-sm bg-surface text-primary"
+          />
+          <button
+            type="submit"
+            disabled={busy}
+            className="px-3 py-2 min-h-[44px] inline-flex items-center bg-brand hover:bg-brand-hover text-white rounded-lg text-sm font-semibold transition-colors disabled:opacity-50"
+          >
+            Offer
+          </button>
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => setOffering(false)}
+            className="px-3 py-2 min-h-[44px] inline-flex items-center border border-border-strong rounded-lg text-sm font-semibold text-secondary hover:bg-surface-muted transition-colors disabled:opacity-50"
+          >
+            Cancel
+          </button>
+        </form>
+      )}
     </div>
   );
 }
