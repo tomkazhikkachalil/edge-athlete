@@ -52,7 +52,12 @@ async function withoutVideoMetadata(file: File): Promise<File> {
       await import('mediabunny');
     const input = new Input({ source: new BlobSource(file), formats: ALL_FORMATS });
     const output = new Output({ format: new Mp4OutputFormat(), target: new BufferTarget() });
-    const conversion = await Conversion.init({ input, output });
+    // `tags` is load-bearing: without it Conversion COPIES the input's
+    // descriptive metadata — GPS ©xyz included — into the fresh container,
+    // making the re-mux a privacy no-op (caught by the Wave-6 prod probe:
+    // an injected coordinate atom survived). Empty tags = write none;
+    // rotation is track-matrix data, not a tag, and still carries over.
+    const conversion = await Conversion.init({ input, output, tags: () => ({}) });
     // A dropped track (codec the container can't carry and this browser
     // can't transcode) would lose CONTENT to save metadata — wrong trade;
     // upload the original and let the composer's caveat stand for it.
