@@ -78,4 +78,7 @@ export interface EventDetail extends Omit<EventListItem, 'my_status' | 'is_organ
 
 /** How the detail route admitted the viewer — org_member means "no guest
  *  row yet; offer RSVP" (their first response creates one). */
-export type ViewerAccess = 'organizer' | 'guest' | 'org_member';
+// 'household' = guardian/viewer seat of a guest (or org-member) profile —
+// read-only by construction: RSVP keys off own guest row / org_member and
+// Edit/Cancel off organizer, so this value lights no affordance.
+export type ViewerAccess = 'organizer' | 'guest' | 'org_member' | 'household';
