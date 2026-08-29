@@ -16,7 +16,7 @@ import {
   type MessagingPermission,
   type Visibility,
 } from './profile-privacy';
-import { isUnderThreshold } from './config/minors-config';
+import { ageOn, isUnderThreshold, LADDER_AGES } from './config/minors-config';
 
 export interface HouseholdPresets {
   /** 'public' is storable but ALWAYS clamped to private at athlete creation
@@ -28,7 +28,17 @@ export interface HouseholdPresets {
 
 export type SafetyField = keyof HouseholdPresets;
 
-export type AgeBand = 'younger' | 'older';
+/**
+ * Wave 8 widened the two-band model to the 4-step ladder:
+ *   child   — under LADDER_AGES.childMax (13): defaults + childDefaults
+ *   younger — 13 up to the jurisdiction consent threshold: defaults
+ *   older   — threshold up to LADDER_AGES.adult (18): defaults + olderDefaults
+ *   adult   — 18+ while still supervised: same as older (the policy answer
+ *             for an 18-year-old is the handover prompt, not more presets)
+ * The younger/older boundary still delegates to the SAME isUnderThreshold
+ * the transfer sweep uses — the deliberate-agreement invariant holds.
+ */
+export type AgeBand = 'child' | 'younger' | 'older' | 'adult';
 
 export interface HouseholdPolicy {
   /** Complete after parse — missing/invalid fields fill from RESTRICTIVE_PRESETS. */
@@ -37,6 +47,12 @@ export interface HouseholdPolicy {
    *  null = not configured: age-crossing prompts never fire, and defining it
    *  later never retro-prompts (mig 133's NULL-rider rule). */
   olderDefaults: Partial<HouseholdPresets> | null;
+  /** Sparse per-field STRICTER overrides for under-13s (Wave 8). Same
+   *  null-semantics as olderDefaults; there is no crossing prompt in this
+   *  direction — leaving the child band relaxes back to defaults, which is
+   *  never a safety downgrade a guardian must be asked about (chips still
+   *  surface any deviation). */
+  childDefaults: Partial<HouseholdPresets> | null;
 }
 
 /** The pre-Wave-4 creation literals, verbatim (athletes POST). */
@@ -92,23 +108,38 @@ export function parseHouseholdPolicy(raw: unknown): HouseholdPolicy | null {
     Object.keys(older).length > 0
       ? older
       : null;
-  return { defaults, olderDefaults };
+  const child = pickPresets(source.childDefaults);
+  const childDefaults =
+    source.childDefaults !== null &&
+    source.childDefaults !== undefined &&
+    Object.keys(child).length > 0
+      ? child
+      : null;
+  return { defaults, olderDefaults, childDefaults };
 }
 
 /**
- * Which side of the legal threshold the child is on. Delegates to the SAME
- * isUnderThreshold the transfer sweep uses — the age-crossing prompt and
- * transfer eligibility are one event and can never disagree.
+ * Which ladder step the child is on. The younger/older boundary delegates
+ * to the SAME isUnderThreshold the transfer sweep uses — the age-crossing
+ * prompt and transfer eligibility are one event and can never disagree; the
+ * child/adult anchors are product steps (LADDER_AGES), not legal ones.
  */
 export function ageBand(dob: string, jurisdiction: string | null | undefined, asOf: string): AgeBand {
+  const age = ageOn(dob, asOf);
+  if (age < LADDER_AGES.childMax) return 'child';
+  if (age >= LADDER_AGES.adult) return 'adult';
   return isUnderThreshold(dob, jurisdiction, asOf) ? 'younger' : 'older';
 }
 
-/** The presets that apply to a child in a band. */
+/** The presets that apply to a child in a band (most-specific wins). */
 export function effectivePresets(policy: HouseholdPolicy, band: AgeBand): HouseholdPresets {
-  return band === 'older' && policy.olderDefaults
-    ? { ...policy.defaults, ...policy.olderDefaults }
-    : policy.defaults;
+  if (band === 'child' && policy.childDefaults) {
+    return { ...policy.defaults, ...policy.childDefaults };
+  }
+  if ((band === 'older' || band === 'adult') && policy.olderDefaults) {
+    return { ...policy.defaults, ...policy.olderDefaults };
+  }
+  return policy.defaults;
 }
 
 interface AthleteSettings {

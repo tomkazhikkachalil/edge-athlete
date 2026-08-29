@@ -49,6 +49,19 @@ export function ageOn(dob: string, asOf: string): number {
   return age;
 }
 
+/**
+ * Autonomy-ladder anchors (Wave 8). The jurisdiction consent threshold
+ * (13–16 above) stays the ONE legally meaningful boundary — these two are
+ * product steps around it: under childMax = the stricter "younger kids"
+ * policy band; at adult = the handover-moment prompt (nothing automatic).
+ */
+export const LADDER_AGES = {
+  /** Below this = the 'child' policy band (childDefaults). */
+  childMax: 13,
+  /** At/after this = the 'adult' band + the handover prompt (8C). */
+  adult: 18,
+} as const;
+
 /** Under the jurisdiction's consent age on the given date? */
 export function isUnderThreshold(
   dob: string,

@@ -16,10 +16,11 @@ describe('parseHouseholdPolicy', () => {
     }
   });
 
-  it('empty object → restrictive defaults, older null', () => {
+  it('empty object → restrictive defaults, older + child null', () => {
     expect(parseHouseholdPolicy({})).toEqual({
       defaults: RESTRICTIVE_PRESETS,
       olderDefaults: null,
+      childDefaults: null,
     });
   });
 
@@ -36,6 +37,7 @@ describe('parseHouseholdPolicy', () => {
         comment_moderation: 'held',
       },
       olderDefaults: { comment_moderation: 'instant' }, // bad visibility dropped
+      childDefaults: null,
     });
   });
 
@@ -43,19 +45,38 @@ describe('parseHouseholdPolicy', () => {
     expect(parseHouseholdPolicy({ olderDefaults: {} })?.olderDefaults).toBeNull();
     expect(parseHouseholdPolicy({ olderDefaults: { visibility: 'nope' } })?.olderDefaults).toBeNull();
   });
+
+  it('childDefaults (Wave 8) parse with the same sparse/null semantics', () => {
+    expect(
+      parseHouseholdPolicy({ childDefaults: { messaging_permission: 'nobody', bogus: 1 } })?.childDefaults
+    ).toEqual({ messaging_permission: 'nobody' });
+    expect(parseHouseholdPolicy({ childDefaults: {} })?.childDefaults).toBeNull();
+    // Pre-Wave-8 stored policies (no key at all) parse unchanged.
+    expect(parseHouseholdPolicy({ defaults: {} })?.childDefaults).toBeNull();
+  });
 });
 
-describe('ageBand — delegates to the transfer sweep predicate', () => {
-  const cases: Array<[string, string, string, 'younger' | 'older']> = [
-    ['2015-06-01', 'US', '2026-08-28', 'younger'], // 11 in a 13 jurisdiction
+describe('ageBand — 4-step ladder (Wave 8), threshold boundary still the sweep predicate', () => {
+  const cases: Array<[string, string, string, 'child' | 'younger' | 'older' | 'adult']> = [
+    ['2015-06-01', 'US', '2026-08-28', 'child'],   // 11 — under-13 band everywhere
+    ['2013-06-01', 'US', '2026-08-28', 'older'],   // 13 in a threshold-13 jurisdiction: over already
+    ['2013-06-01', 'DE', '2026-08-28', 'younger'], // 13 in a 16 jurisdiction
     ['2012-06-01', 'US', '2026-08-28', 'older'],   // 14 in a 13 jurisdiction
     ['2012-06-01', 'DE', '2026-08-28', 'younger'], // 14 in a 16 jurisdiction
     ['2012-06-01', 'CA-QC', '2026-08-28', 'older'], // 14 in a 14 jurisdiction
+    ['2008-06-01', 'US', '2026-08-28', 'adult'],   // 18 — handover band
   ];
-  it('bands match isUnderThreshold across jurisdictions', () => {
+  it('bands cover the ladder across jurisdictions', () => {
     for (const [dob, jur, asOf, expected] of cases) {
-      expect(ageBand(dob, jur, asOf)).toBe(expected);
-      expect(ageBand(dob, jur, asOf) === 'younger').toBe(isUnderThreshold(dob, jur, asOf));
+      expect(ageBand(dob, jur, asOf), `${dob} ${jur}`).toBe(expected);
+    }
+  });
+  it('between the anchors, younger/older still agrees with isUnderThreshold exactly', () => {
+    for (const [dob, jur, asOf] of cases) {
+      const band = ageBand(dob, jur, asOf);
+      if (band === 'younger' || band === 'older') {
+        expect(band === 'younger').toBe(isUnderThreshold(dob, jur, asOf));
+      }
     }
   });
 });
@@ -76,6 +97,20 @@ describe('effectivePresets', () => {
   it('older with no overrides configured = defaults', () => {
     const bare = parseHouseholdPolicy({ defaults: { messaging_permission: 'fans_only' } })!;
     expect(effectivePresets(bare, 'older').messaging_permission).toBe('fans_only');
+  });
+  it('Wave 8 cascade: child merges childDefaults; adult rides olderDefaults; younger stays base', () => {
+    const full = parseHouseholdPolicy({
+      defaults: { messaging_permission: 'fans_only' },
+      childDefaults: { messaging_permission: 'nobody' },
+      olderDefaults: { messaging_permission: 'everyone' },
+    })!;
+    expect(effectivePresets(full, 'child').messaging_permission).toBe('nobody');
+    expect(effectivePresets(full, 'younger').messaging_permission).toBe('fans_only');
+    expect(effectivePresets(full, 'older').messaging_permission).toBe('everyone');
+    expect(effectivePresets(full, 'adult').messaging_permission).toBe('everyone');
+    // No childDefaults configured → the child band is just the defaults.
+    const noChild = parseHouseholdPolicy({ defaults: { messaging_permission: 'fans_only' } })!;
+    expect(effectivePresets(noChild, 'child').messaging_permission).toBe('fans_only');
   });
 });
 

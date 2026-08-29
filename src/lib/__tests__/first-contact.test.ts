@@ -94,6 +94,7 @@ describe('age_preset_prompt queue derivation', () => {
   const differingPolicy = {
     defaults: { visibility: 'private', messaging_permission: 'nobody', comment_moderation: 'held' },
     olderDefaults: { messaging_permission: 'everyone' },
+    childDefaults: null,
   } as const;
 
   it('derives only when rider=pending AND the caller has differing older overrides', () => {
@@ -114,7 +115,7 @@ describe('age_preset_prompt queue derivation', () => {
     const noOverrides = buildQueueItems(
       [kid('a')], [], [], [], [{ profile_id: 'a', action: 'review_approved' }],
       [{ user_id: 'a', profile_id: 'a' }], [pendingRow], [], [],
-      { defaults: { visibility: 'private', messaging_permission: 'nobody', comment_moderation: 'held' }, olderDefaults: null }
+      { defaults: { visibility: 'private', messaging_permission: 'nobody', comment_moderation: 'held' }, olderDefaults: null, childDefaults: null }
     );
     expect(noOverrides.find(i => i.kind === 'age_preset_prompt')).toBeUndefined();
 
