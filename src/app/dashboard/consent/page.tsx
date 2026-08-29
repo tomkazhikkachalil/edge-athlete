@@ -19,12 +19,15 @@ interface PendingItem {
   evidenceUrl: string | null;
 }
 
-// Admin consent-review queue (Phase 3b). Authorization lives in the API
-// (requireAdmin / ADMIN_EMAILS) — this page just renders it.
+// Admin consent surface (Phase 3b; reframed by Wave 6 auto-approve): the
+// pending queue now only holds degradation cases, and the page's main job
+// is the after-the-fact audit of auto-approvals, with retro-reject.
+// Authorization lives in the API (requireAdmin / ADMIN_EMAILS).
 export default function ConsentReviewPage() {
   const { user, loading } = useAuth();
   const router = useRouter();
   const [items, setItems] = useState<PendingItem[]>([]);
+  const [autoItems, setAutoItems] = useState<PendingItem[]>([]);
   const [state, setState] = useState<'loading' | 'ready' | 'forbidden' | 'error'>('loading');
   const [acting, setActing] = useState('');
   const [retryKey, setRetryKey] = useState(0);
@@ -48,6 +51,7 @@ export default function ConsentReviewPage() {
         const data = await res.json();
         if (cancelled) return;
         setItems(data.pending ?? []);
+        setAutoItems(data.autoApproved ?? []);
         setState('ready');
       } catch {
         if (!cancelled) setState('error');
@@ -110,70 +114,100 @@ export default function ConsentReviewPage() {
             No consent submissions waiting for review.
           </p>
         )}
-        {items.map(item => (
-          <div key={item.recordId} className="bg-surface border border-border rounded-lg p-5 mb-4">
-            <div className="flex items-start justify-between gap-4 flex-wrap">
-              <div>
-                <p className="font-bold text-black dark:text-primary">
-                  {item.athleteName}
-                  {item.athleteHandle && <span className="text-muted font-normal ml-2">@{item.athleteHandle}</span>}
-                </p>
-                <p className="text-sm text-tertiary mt-1">
-                  Guardian: {item.guardianEmail} · {item.jurisdiction} (under {item.thresholdAge}) · {item.policyVersion}
-                </p>
-                {/* Method chip (Wave 3, mig 130): the reviewer should know
-                    whether they're looking at a photographed paper form or an
-                    in-product signature card. */}
-                <span className="inline-flex mt-1 text-xs font-medium px-2.5 py-1 rounded-full bg-surface-sunken text-tertiary">
-                  {item.method === 'typed_signature'
-                    ? 'Typed signature'
-                    : item.method === 'drawn_signature'
-                    ? 'Drawn signature'
-                    : item.method === 'signed_form'
-                    ? 'Signed form'
-                    : item.method}
-                </span>
-                <p className="text-xs text-faint mt-1">
-                  Submitted {new Date(item.submittedAt).toLocaleString()}
-                </p>
-                {item.evidenceUrl ? (
-                  <a
-                    href={item.evidenceUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex min-h-[44px] items-center mt-1 text-sm text-brand-fg hover:underline active:underline"
-                  >
-                    <i className="fas fa-file-signature mr-1"></i>{' '}
-                    {item.method === 'typed_signature' || item.method === 'drawn_signature'
-                      ? 'View signature'
-                      : 'View signed form'}
-                  </a>
-                ) : (
-                  <p className="mt-2 text-sm text-red-600 dark:text-red-400">No evidence file attached</p>
-                )}
-              </div>
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  disabled={acting === item.profileId}
-                  onClick={() => decide(item.profileId, 'approve')}
-                  className="bg-brand text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-brand-hover disabled:opacity-50"
-                >
-                  Approve
-                </button>
-                <button
-                  type="button"
-                  disabled={acting === item.profileId}
-                  onClick={() => decide(item.profileId, 'reject')}
-                  className="border border-red-300 dark:border-red-700 text-red-600 dark:text-red-400 px-4 py-2 rounded-md text-sm font-medium hover:bg-red-50 dark:hover:bg-red-950/40 disabled:opacity-50"
-                >
-                  Reject
-                </button>
-              </div>
-            </div>
-          </div>
-        ))}
+        {items.map(item => renderCard(item, false))}
+
+        {/* Wave 6: consent auto-approves at submission, so the standing job
+            here is spot-checking recent auto-approvals; Reject retroactively
+            appends review_rejected and re-locks the profile. */}
+        {state === 'ready' && (
+          <>
+            <h2 className="text-lg font-bold text-primary mt-10 mb-1">Recent auto-approvals</h2>
+            <p className="text-sm text-tertiary mb-4">
+              Approved automatically at submission. Spot-check the evidence;
+              rejecting re-locks the profile.
+            </p>
+            {autoItems.length === 0 && (
+              <p className="text-sm text-muted bg-surface border border-border rounded-lg p-6 text-center">
+                No auto-approved consents yet.
+              </p>
+            )}
+            {autoItems.map(item => renderCard(item, true))}
+          </>
+        )}
       </main>
     </div>
   );
+
+  function renderCard(item: PendingItem, auto: boolean) {
+    return (
+      <div key={item.recordId} className="bg-surface border border-border rounded-lg p-5 mb-4">
+        <div className="flex items-start justify-between gap-4 flex-wrap">
+          <div>
+            <p className="font-bold text-black dark:text-primary">
+              {item.athleteName}
+              {item.athleteHandle && <span className="text-muted font-normal ml-2">@{item.athleteHandle}</span>}
+            </p>
+            <p className="text-sm text-tertiary mt-1">
+              Guardian: {item.guardianEmail} · {item.jurisdiction} (under {item.thresholdAge}) · {item.policyVersion}
+            </p>
+            {/* Method chip (Wave 3, mig 130): the reviewer should know
+                whether they're looking at a photographed paper form or an
+                in-product signature card. */}
+            <span className="inline-flex mt-1 text-xs font-medium px-2.5 py-1 rounded-full bg-surface-sunken text-tertiary">
+              {item.method === 'typed_signature'
+                ? 'Typed signature'
+                : item.method === 'drawn_signature'
+                ? 'Drawn signature'
+                : item.method === 'signed_form'
+                ? 'Signed form'
+                : item.method}
+            </span>
+            {auto && (
+              <span className="inline-flex mt-1 ml-2 text-xs font-medium px-2.5 py-1 rounded-full bg-brand-soft text-brand-fg">
+                Auto-approved
+              </span>
+            )}
+            <p className="text-xs text-faint mt-1">
+              {auto ? 'Approved' : 'Submitted'} {new Date(item.submittedAt).toLocaleString()}
+            </p>
+            {item.evidenceUrl ? (
+              <a
+                href={item.evidenceUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex min-h-[44px] items-center mt-1 text-sm text-brand-fg hover:underline active:underline"
+              >
+                <i className="fas fa-file-signature mr-1"></i>{' '}
+                {item.method === 'typed_signature' || item.method === 'drawn_signature'
+                  ? 'View signature'
+                  : 'View signed form'}
+              </a>
+            ) : (
+              <p className="mt-2 text-sm text-red-600 dark:text-red-400">No evidence file attached</p>
+            )}
+          </div>
+          <div className="flex gap-2">
+            {!auto && (
+              <button
+                type="button"
+                disabled={acting === item.profileId}
+                onClick={() => decide(item.profileId, 'approve')}
+                className="bg-brand text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-brand-hover disabled:opacity-50"
+              >
+                Approve
+              </button>
+            )}
+            <button
+              type="button"
+              disabled={acting === item.profileId}
+              onClick={() => decide(item.profileId, 'reject')}
+              className="border border-red-300 dark:border-red-700 text-red-600 dark:text-red-400 px-4 py-2 rounded-md text-sm font-medium hover:bg-red-50 dark:hover:bg-red-950/40 disabled:opacity-50"
+            >
+              Reject
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 }

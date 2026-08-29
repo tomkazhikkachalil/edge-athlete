@@ -360,7 +360,7 @@ test('co-guardian lifecycle: invite → claim → roster of two → revoke → l
   }
 });
 
-test('consent signature (130): method cards swap the statement; typed signature submits to review', async ({ page }) => {
+test('consent signature (130 + W6 auto-approve): method cards swap the statement; typed signature approves instantly', async ({ page }) => {
   test.skip(!flagOn, 'guardian flag off');
 
   // UI: three method cards; picking one swaps the statement's closing.
@@ -375,7 +375,9 @@ test('consent signature (130): method cards swap the statement; typed signature 
   await page.getByRole('radio', { name: /Upload a signed form/ }).click();
   await expect(page.getByText('print or write this statement')).toBeVisible();
 
-  // API: a typed-signature submission (signature-card PNG) enters review.
+  // API: a typed-signature submission (signature-card PNG) auto-approves
+  // (Wave 6 — the second append-only review_approved row rides the same
+  // request; the admin queue is now the after-the-fact audit).
   const api = await apiAs('state.json');
   try {
     // 1x1 transparent PNG.
@@ -398,7 +400,7 @@ test('consent signature (130): method cards swap the statement; typed signature 
       },
     });
     expect(res.status(), await readErrorBody(res)).toBe(201);
-    expect((await res.json()).state).toBe('pending_review');
+    expect((await res.json()).state).toBe('approved');
 
     // Idempotency short-circuit.
     const again = await api.post(`/api/guardian/athletes/${childId}/consent`, {

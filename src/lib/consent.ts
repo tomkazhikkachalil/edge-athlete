@@ -1,9 +1,11 @@
 // Verifiable-parental-consent state (guardian-profiles, Phase 3b).
 // consent_records is APPEND-ONLY: current state = the latest row's action.
 // Methods: signed_form upload, plus the in-product typed/drawn signatures
-// (Wave 3, migration 130) — every method lands in the same manual admin
-// review (approved COPPA path; card-charge is the designated upgrade once
-// billing exists).
+// (Wave 3, migration 130). Since Wave 6 every method AUTO-approves at
+// submission (Tom's call, Aug 2026): the guardian route appends granted +
+// review_approved (reviewed_by NULL = system); the admin dashboard is the
+// after-the-fact audit with retro-reject. pending_review survives as the
+// degraded path when the approval row fails to write.
 
 import type { SupabaseClient } from '@supabase/supabase-js';
 

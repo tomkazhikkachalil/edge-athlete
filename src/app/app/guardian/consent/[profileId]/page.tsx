@@ -18,9 +18,10 @@ import SignatureCanvas from '@/components/guardian/SignatureCanvas';
 // Guardian consent capture (Phase 3b + Wave 3): read the statement, then
 // sign it — on screen (drawn), by typing your legal name, or the original
 // paper path (sign + photograph + upload). Typed/drawn render a signature
-// card PNG client-side that travels the same evidence path, so admin review
-// is identical for every method. The profile stays locked (private,
-// unpublishable) until the review approves.
+// card PNG client-side that travels the same evidence path, so the audit
+// record is identical for every method. Since Wave 6 consent auto-approves
+// at submission (admin dashboard is the after-the-fact audit surface); the
+// profile stays locked (private, unpublishable) until consent is recorded.
 
 const METHOD_CARDS: Array<{ key: ConsentMethod; label: string; hint: string; icon: string }> = [
   { key: 'drawn_signature', label: 'Sign on screen', hint: 'Sign with your finger or mouse', icon: 'fa-signature' },
@@ -123,7 +124,10 @@ export default function ConsentPage() {
       });
       const data = await res.json();
       if (!res.ok) { setError(data.error || 'Upload failed. Please try again.'); return; }
-      setState('pending_review');
+      // Wave 6: consent auto-approves, so the server normally answers
+      // 'approved'; 'pending_review' survives as the degraded path (the
+      // approval row failed to write and an admin will review).
+      setState(data.state === 'approved' ? 'approved' : 'pending_review');
     } catch {
       setError('Upload failed. Please try again.');
     } finally {
@@ -177,7 +181,7 @@ export default function ConsentPage() {
               <p className="text-sm text-tertiary max-w-md mx-auto mb-6">
                 {state === 'approved'
                   ? "You're all set — you can now choose what to share from their profile."
-                  : "We've received your signed form. Review typically takes up to 2 days — the profile stays private until then, and you'll get a notification either way."}
+                  : "We've received your consent and it's being confirmed. The profile stays private until then, and you'll get a notification either way."}
               </p>
               {state === 'approved' && (
                 <button
