@@ -41,13 +41,17 @@ async function isAcceptedFollower(
   return !!data;
 }
 
-/** Guardian/owner of the target profile may view its content. */
+/** Household access to the target profile's content: a guardian (via the
+ *  matrix) — or, since Wave 9, a view-only seat (role 'viewer', mig 138).
+ *  Viewers exist precisely to follow the child's content, and the archive
+ *  reads through this proxy; a stranger has no profile_access row and never
+ *  reaches either branch. */
 async function hasManagedAccess(
   viewerId: string,
   ownerId: string
 ): Promise<boolean> {
   const role = await getProfileRole(viewerId, ownerId);
-  return resolveProfileAction(role, 'approve_content');
+  return role === 'viewer' || resolveProfileAction(role, 'approve_content');
 }
 
 /** Post media: owner || (post public AND owner public) || follower || guardian. */

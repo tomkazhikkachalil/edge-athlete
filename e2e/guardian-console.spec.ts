@@ -1051,6 +1051,33 @@ test('batch upload (Wave 5): multi-assign copies bytes per athlete; confirmed ev
   }
 });
 
+test('household archive (Wave 9): household-wide feed, child filter scopes, proxy media URLs', async () => {
+  test.skip(!flagOn, 'guardian flag off');
+  const api = await apiAs('state.json');
+  try {
+    // The batch-upload test left posts for BOTH children — the archive
+    // reads them household-wide, newest first, with proxied media.
+    const all = await api.get('/api/guardian/archive');
+    expect(all.ok(), await readErrorBody(all)).toBe(true);
+    const { items } = await all.json();
+    expect(items.length).toBeGreaterThanOrEqual(2);
+    expect(new Set(items.map((i: { profileId: string }) => i.profileId)).size).toBeGreaterThanOrEqual(2);
+    const withMedia = items.find((i: { media: Array<{ url: string }> }) => i.media.length > 0);
+    expect(withMedia, 'expected at least one archived post with media').toBeTruthy();
+    expect(withMedia.media[0].url).toContain('/api/media/');
+
+    // Child filter scopes to one athlete; a foreign id yields nothing.
+    const one = await api.get(`/api/guardian/archive?child=${childId}`);
+    expect(one.ok(), await readErrorBody(one)).toBe(true);
+    const oneBody = await one.json();
+    expect(oneBody.items.every((i: { profileId: string }) => i.profileId === childId)).toBe(true);
+    const foreign = await api.get('/api/guardian/archive?child=00000000-0000-0000-0000-000000000000');
+    expect((await foreign.json()).items.length).toBe(0);
+  } finally {
+    await api.dispose();
+  }
+});
+
 test('payoff line (Wave 5): a seeded future event surfaces as Next: on the roster card; actions survive an empty snapshot', async ({ page }) => {
   test.skip(!flagOn, 'guardian flag off');
   const api = await apiAs('state.json');
