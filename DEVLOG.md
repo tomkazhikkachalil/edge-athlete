@@ -1,5 +1,80 @@
 # Development Log
 
+## August 29, 2026 — Calendar round: timezones, guardian parity, layered multi-person view (#375–#377, zero DDL)
+
+Three-PR round scoped by Tom (carpool explicitly dropped): events correct
+across time zones, every guardian seeing the same child schedule, and the
+child schedules layered onto the guardian's own /calendar with quick
+filters. Zero migrations — `events.timezone` (IANA, 057) plus UTC-instant
+bounds already modeled storage correctly; the round was UI/display/authz.
+
+- **Venue-anchored timezones (#375).** Decision (Tom): venue entry, dual
+  display. The form gains a collapsed zone picker (default = browser
+  zone); the typed wall clock is anchored in the picked zone via
+  `zonedWallClockToUtc` (new pure `form-times.ts`), replacing
+  `buildTimestamps`' browser-local Date constructors — which had also
+  meant every PATCH from another zone silently rewrote `events.timezone`
+  to the editor's browser zone. Editing shows the event's wall clock in
+  its OWN zone; all-day bounds are zone-midnights. The grid keeps
+  viewer-local positioning (one coherent timeline — a PT parent sees the
+  ET game at 7am); chips, week blocks, the guardian strip and the feed
+  widget append the venue time ("· 7:00 PM MDT", new pure
+  `venue-time.ts`, suppressed when an alias/equal-offset zone would just
+  repeat the visible time). Series zones are immutable server-side
+  (400 on change): `extendRecurringSeries` anchors stepping on the FIRST
+  occurrence's zone while stamping the template's, and scoped
+  `applyWallTime` edits re-anchor — either desyncs label from instant.
+  **ICS deliberately stays UTC-instant**: occurrences are materialized
+  DST-correct instants and the feed emits no RRULE, so TZID/VTIMEZONE
+  would be pure risk for zero behavior change.
+- **Guardian schedule parity (#376).** `loadEventForViewer` gains a
+  HOUSEHOLD branch (carpoolAccess precedent): a guardian or view-only
+  seat of a guest profile — or, for org events, of an org-member child
+  (org-merged events have no guest row) — reads the event. Before this a
+  co-guardian 404'd on any child event they didn't organize, so bell
+  deep links were dead ends. Ordered after the org branch (an org-member
+  guardian keeps org_member + its RSVP affordance); read-only by
+  construction (PATCH/DELETE hard-check organizer_id; the modal's
+  RSVP/Edit key off own guest row / organizer). The create form gains a
+  create-only "Who is this for?" chip row that merges supervised
+  children into `guests.profile_ids` — the guest row IS what makes an
+  event visible to every co-guardian, organizer stays the caller (no
+  acting-as), and the co-guardian bell already rings via
+  notifySupervisedGuardians. The ICS family feed now enumerates children
+  for viewer seats too (pure read; viewers already see these schedules
+  in-app).
+- **Layered /calendar + filter chips (#377).** Own range + one
+  authorized `targetProfileId` request per supervised child
+  (Promise.allSettled; a child's failure never blanks the calendar),
+  merged by the new pure `lib/calendar/layers` — own rows win field-wise
+  so the caller's my_status drives pending styling; `use-family-week`
+  now delegates to the same core. Chips (households only): You + each
+  child + the categories; AND across groups, OR within; per-user
+  localStorage persistence with stale-id pruning (a departed child's
+  persisted filter must never silently hide the calendar). Person color
+  is a DOT, never the fill (category owns fill): sorted-roster indexing,
+  collision-free up to the palette and identical on the hub strip and
+  /calendar — replacing the roster-order CHILD_DOTS that diverged
+  between surfaces.
+- **Traps caught.** (a) The always-mounted off-canvas drawer carries the
+  child's name and Playwright counts its translated-off-screen buttons
+  "visible" — form/main-scoped locators, now encoded in the specs.
+  (b) Phone month cells render dot markers, not chips — @mobile
+  assertions live in the agenda view. (c) The athlete-create rate limit
+  (5/day/user) runs BEFORE validation, so the old POST-probe pattern
+  consumed slots and a multi-spec battery 429'd real creates: new
+  `createQaChild` (service-role `create_managed_profile`) +
+  `guardianFlagOn` (env mirror) helpers; specs whose subject isn't the
+  creation route seed directly, guardian-console keeps the real POST.
+- **Verification.** `npm run verify` green per PR (2190 tests, +29 new:
+  DST-pinned form-times/venue-time, layers merge/filter/color). Local
+  battery of the 3 new specs + guardian-console + org-calendar: 34/34
+  (desktop + @mobile at 390×844). Prod probes: all three new specs run 13/13 against the live
+  deployment (desktop + the three @mobile 390×844 passes — venue-anchored
+  form, create-for-child chips, layered filter chips), covering the API
+  round-trips, the series-zone 400, co-guardian/viewer detail parity, the
+  viewer ICS child VEVENT, and the layered month with filters against prod.
+
 ## August 29, 2026 — Family Console follow-on, Wave 9: family features (#372–#374 + migration 139) — PROGRAM COMPLETE
 
 Final wave of the follow-on program (Waves 6–9, the entire deferred
