@@ -796,14 +796,13 @@ export default function CreatePostModal({
                 : 'Up to 50MB each — crop, adjust, and filter before posting'}
             </p>
 
-            {/* Visible privacy care for minors' media (Family Console Wave 1):
-                photo GPS/EXIF is stripped on upload — say so, and be honest
-                that video containers are not scrubbed yet. */}
+            {/* Visible privacy care for minors' media (Family Console Wave 1;
+                video joined in Wave 6 — MP4/MOV re-muxed on upload, fail-open
+                like photos, so the plain claim is honest). */}
             {mediaFiles.length > 0 && (activeProfile || profile?.supervision_state === 'supervised') && (
               <p className="mt-1 text-xs text-muted">
                 <i className="fas fa-shield-alt mr-1" aria-hidden="true"></i>
-                Location data is removed from photos before upload.
-                {mediaFiles.some(f => f.type === 'video') && ' Video location data is not removed yet.'}
+                Location data is removed from photos and videos before upload.
               </p>
             )}
 
