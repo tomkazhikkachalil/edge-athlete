@@ -392,6 +392,13 @@ export default function FamilyConsolePage() {
               View only
             </span>
           )}
+          {/* The archive is a READ surface — reachable in both modes (Wave 9). */}
+          <Link
+            href="/app/guardian/archive"
+            className="px-3 py-2 min-h-[44px] inline-flex items-center border border-border-strong rounded-lg text-sm font-semibold text-secondary hover:bg-surface-muted transition-colors"
+          >
+            Archive
+          </Link>
           {/* flex-wrap (Wave 4): four action links overflow 375px without it. */}
           {!readOnly && (
           <div className="flex flex-wrap items-center gap-2">
