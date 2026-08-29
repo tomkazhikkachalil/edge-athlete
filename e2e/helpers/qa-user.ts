@@ -2,6 +2,7 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { request, type APIRequestContext } from '@playwright/test';
 import { readFileSync, existsSync } from 'fs';
 import { join } from 'path';
+import { randomBytes } from 'crypto';
 
 /**
  * Disposable QA user machinery for the smoke suite.
@@ -83,6 +84,85 @@ export interface QaUserOptions {
   displayName?: string;
   firstName?: string;
   lastName?: string;
+}
+
+/**
+ * Whether the guardian feature is on for the target build. Mirrors
+ * features.ts (a plain env read) after loadEnv(), so it matches what the
+ * local webServer baked in; CI leaves the flag unset → specs green-skip.
+ * Use this instead of probing POST /api/guardian/athletes — the rate limit
+ * runs before validation there, so every probe consumed one of the 5/day
+ * athlete-create slots and a multi-spec battery 429'd real creates.
+ */
+export function guardianFlagOn(): boolean {
+  loadEnv();
+  return process.env.NEXT_PUBLIC_FEATURE_GUARDIAN_PROFILES === '1';
+}
+
+/**
+ * Seed a supervised child directly (service role): shadow @minors.invalid
+ * auth user + the SAME create_managed_profile RPC the guardian route calls,
+ * with the restrictive safety literals. For specs that need a child to
+ * EXIST but aren't testing the creation route — the route's 5/day/user rate
+ * limit is a safety rail, not test budget (guardian-console keeps
+ * exercising the real POST). Delete with deleteQaUser(childId) — children
+ * are never guardians, so its recursion terminates.
+ */
+export async function createQaChild(
+  guardianUserId: string,
+  opts: { firstName: string; lastName?: string; handle: string; ageYears?: number }
+): Promise<string> {
+  const admin = adminClient();
+  const { data: created, error: createError } = await admin.auth.admin.createUser({
+    email: `pending-${randomBytes(8).toString('hex')}@minors.invalid`,
+    password: randomBytes(32).toString('base64url'),
+    email_confirm: true,
+  });
+  if (createError || !created?.user) {
+    throw new Error(`qa child shadow user failed: ${createError?.message}`);
+  }
+  const childId = created.user.id;
+  const syntheticEmail = `${childId}@minors.invalid`;
+  await admin.auth.admin.updateUserById(childId, { email: syntheticEmail, email_confirm: true });
+
+  const now = new Date().toISOString();
+  const dob = new Date(Date.UTC(new Date().getUTCFullYear() - (opts.ageYears ?? 10), 5, 15))
+    .toISOString().split('T')[0];
+  const fullName = [opts.firstName, opts.lastName].filter(Boolean).join(' ');
+  const { error: rpcError } = await admin.rpc('create_managed_profile', {
+    p_profile: {
+      id: childId,
+      email: syntheticEmail,
+      first_name: opts.firstName,
+      last_name: opts.lastName ?? null,
+      full_name: fullName || null,
+      display_name: fullName || opts.firstName,
+      handle: opts.handle,
+      dob,
+      birthday: dob,
+      user_type: 'athlete',
+      sport: null,
+      // Restrictive safety literals (household-policy RESTRICTIVE_PRESETS).
+      visibility: 'private',
+      messaging_permission: 'nobody',
+      comment_moderation: 'held',
+      supervision_state: 'supervised',
+      dob_locked: true,
+      jurisdiction: null,
+      minor_threshold_age: 18,
+      // jsonb_populate_record turns absent fields into explicit NULLs, which
+      // bypass column defaults — NOT NULL columns must be supplied.
+      created_at: now,
+      updated_at: now,
+      handle_change_count: 0,
+    },
+    p_guardian: guardianUserId,
+  });
+  if (rpcError) {
+    await admin.auth.admin.deleteUser(childId).catch(() => {});
+    throw new Error(`qa child create_managed_profile failed: ${rpcError.message}`);
+  }
+  return childId;
 }
 
 export async function createQaUser(opts: QaUserOptions = {}): Promise<QaUser> {

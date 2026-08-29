@@ -7,6 +7,10 @@ import { addDays, addMonths, addWeeks, format, startOfDay } from 'date-fns';
 import { useAuth } from '@/lib/auth';
 import { useToast } from '@/components/Toast';
 import { monthMatrix, weekDays } from '@/lib/calendar/grid';
+import { ME, mergeLayeredEvents, filterLayeredEvents, personDotClass, type LayeredEvent } from '@/lib/calendar/layers';
+import { EVENT_CATEGORIES } from '@/lib/calendar/events';
+import { CATEGORY_LABELS, categoryColor } from '@/lib/calendar/categories';
+import { FEATURE_FLAGS } from '@/lib/features';
 import type { ActivityPayload } from '@/lib/calendar/activity-overlay';
 import MonthView from './MonthView';
 import TimeGridView from './TimeGridView';
@@ -38,7 +42,7 @@ export default function CalendarPage({
   const { showError } = useToast();
   const [view, setView] = useState<CalendarViewKind>('month');
   const [focusDate, setFocusDate] = useState<Date>(() => new Date());
-  const [events, setEvents] = useState<EventListItem[]>([]);
+  const [events, setEvents] = useState<LayeredEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [refetchKey, setRefetchKey] = useState(0);
   const [detailEventId, setDetailEventId] = useState<string | null>(deepLinkEventId);
@@ -65,21 +69,73 @@ export default function CalendarPage({
     };
   }, [view, focusDate]);
 
+  // Household roster for the layered view (guardian OR view-only seats;
+  // supervised, non-deleted — hub-strip semantics). Failure → empty roster,
+  // the caller's own calendar is never hostage to this fetch. Deliberately
+  // its own effect: the roster must not refetch on every range navigation.
+  const [people, setPeople] = useState<{ id: string; name: string }[] | null>(null);
+  useEffect(() => {
+    if (!FEATURE_FLAGS.FEATURE_GUARDIAN_PROFILES || !user?.id || people !== null) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch('/api/guardian/athletes', { credentials: 'include' });
+        if (!res.ok) throw new Error(String(res.status));
+        const data = await res.json();
+        if (!cancelled) {
+          const athletes = (data.athletes ?? []) as {
+            id: string;
+            first_name: string | null;
+            display_name: string | null;
+            supervision_state: string | null;
+            deletion_requested_at: string | null;
+          }[];
+          setPeople(
+            athletes
+              .filter(a => a.supervision_state === 'supervised' && !a.deletion_requested_at)
+              .map(a => ({ id: a.id, name: a.first_name || a.display_name || 'Athlete' }))
+          );
+        }
+      } catch {
+        if (!cancelled) setPeople([]);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [user?.id, people]);
+
   // Inlined cancellable IIFE rather than a useCallback called from an effect:
   // the lint rule flags the CALL SITE of any function containing setState, and
   // the guard also stops a slow response for an old range (rapid month paging)
   // from overwriting a newer one. Handlers refetch by bumping refetchKey.
+  // Layered fetch (calendar round): the caller's own range PLUS one request
+  // per household child (targetProfileId — the authorized read the hub
+  // already uses), merged and tagged by lib/calendar/layers. Own failure is
+  // the error path; a child's failure never blanks the calendar
+  // (family-week doctrine).
   useEffect(() => {
     let cancelled = false;
     (async () => {
       setLoading(true);
-      try {
-        const res = await fetch(
-          `/api/calendar/events?from=${encodeURIComponent(range.from.toISOString())}&to=${encodeURIComponent(range.to.toISOString())}`
-        );
+      const base = `/api/calendar/events?from=${encodeURIComponent(range.from.toISOString())}&to=${encodeURIComponent(range.to.toISOString())}`;
+      const fetchSet = async (personId: string, url: string) => {
+        const res = await fetch(url);
         const data = await res.json().catch(() => ({}));
         if (!res.ok) throw new Error(data.error || 'Could not load your calendar');
-        if (!cancelled) setEvents(data.events ?? []);
+        return { personId, events: (data.events ?? []) as EventListItem[] };
+      };
+      try {
+        const [own, ...childResults] = await Promise.allSettled([
+          fetchSet(ME, base),
+          ...(people ?? []).map(p => fetchSet(p.id, `${base}&targetProfileId=${p.id}`)),
+        ]);
+        if (cancelled) return;
+        if (own.status !== 'fulfilled') throw own.reason;
+        const sets = [own.value];
+        for (const r of childResults) {
+          if (r.status === 'fulfilled') sets.push(r.value);
+          else console.error('[CALENDAR] child layer failed:', r.reason);
+        }
+        setEvents(mergeLayeredEvents(sets));
       } catch (e) {
         if (!cancelled) {
           showError('Calendar unavailable', e instanceof Error ? e.message : 'Please try again.');
@@ -91,9 +147,79 @@ export default function CalendarPage({
     return () => {
       cancelled = true;
     };
-  }, [range, refetchKey, showError]);
+  }, [range, refetchKey, showError, people]);
 
   const refetch = () => setRefetchKey(k => k + 1);
+
+  // Person/category chip filters — AND across groups, OR within (layers.ts).
+  // Persisted per user as a lightweight convenience (localStorage, try/catch
+  // everywhere: private mode must not break the calendar).
+  const [selectedPeople, setSelectedPeople] = useState<Set<string>>(() => new Set());
+  const [selectedCategories, setSelectedCategories] = useState<Set<string>>(() => new Set());
+  useEffect(() => {
+    if (!user?.id) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const raw = localStorage.getItem(`calendar:filters:v1:${user.id}`);
+        if (!raw || cancelled) return;
+        const parsed = JSON.parse(raw) as { people?: unknown[]; categories?: unknown[] };
+        setSelectedPeople(new Set((parsed.people ?? []).filter((x): x is string => typeof x === 'string')));
+        setSelectedCategories(new Set((parsed.categories ?? []).filter((x): x is string => typeof x === 'string')));
+      } catch {
+        // unreadable storage or bad JSON — start with no filters
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [user?.id]);
+
+  const persistFilters = (nextPeople: Set<string>, nextCategories: Set<string>) => {
+    if (!user?.id) return;
+    try {
+      localStorage.setItem(
+        `calendar:filters:v1:${user.id}`,
+        JSON.stringify({ people: [...nextPeople], categories: [...nextCategories] })
+      );
+    } catch {
+      // storage unavailable — the toggle still works for this visit
+    }
+  };
+  const togglePerson = (id: string) => {
+    const next = new Set(selectedPeople);
+    if (next.has(id)) next.delete(id); else next.add(id);
+    setSelectedPeople(next);
+    persistFilters(next, selectedCategories);
+  };
+  const toggleCategory = (cat: string) => {
+    const next = new Set(selectedCategories);
+    if (next.has(cat)) next.delete(cat); else next.add(cat);
+    setSelectedCategories(next);
+    persistFilters(selectedPeople, next);
+  };
+  const clearFilters = () => {
+    setSelectedPeople(new Set());
+    setSelectedCategories(new Set());
+    persistFilters(new Set(), new Set());
+  };
+
+  // A persisted person id that left the roster (transfer, parking) must not
+  // silently hide the calendar — prune to known ids at filter time.
+  const rosterIds = useMemo(() => (people ?? []).map(p => p.id), [people]);
+  const visibleEvents = useMemo(() => {
+    const known = new Set([ME, ...rosterIds]);
+    const effectivePeople = new Set([...selectedPeople].filter(id => known.has(id)));
+    const filtered = filterLayeredEvents(events, { people: effectivePeople, categories: selectedCategories });
+    // Decorate with pre-computed dot classes (children only, cap 3) so the
+    // chips render the person channel without roster plumbing.
+    if (rosterIds.length === 0) return filtered;
+    return filtered.map(ev => {
+      const kids = ev.personIds.filter(id => id !== ME);
+      return kids.length > 0
+        ? { ...ev, personDots: kids.slice(0, 3).map(id => personDotClass(id, rosterIds)) }
+        : ev;
+    });
+  }, [events, selectedPeople, selectedCategories, rosterIds]);
+  const anyFilterActive = selectedPeople.size > 0 || selectedCategories.size > 0;
 
   const navigate = (direction: -1 | 1) => {
     setFocusDate(prev => {
@@ -245,18 +371,81 @@ export default function CalendarPage({
         </button>
       </div>
 
+      {/* Person + category chip filters — rendered only for households (a
+          solo calendar keeps today's clean toolbar). AND across the two
+          groups, OR within one; an empty group filters nothing. */}
+      {(people?.length ?? 0) > 0 && (
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={() => togglePerson(ME)}
+            aria-pressed={selectedPeople.has(ME)}
+            className={`inline-flex min-h-[44px] items-center gap-1.5 px-3 py-1 rounded-full text-sm font-medium border transition ${
+              selectedPeople.has(ME)
+                ? 'border-brand bg-brand-soft text-brand-fg-strong'
+                : 'border-border-strong text-tertiary hover:border-violet-300 dark:hover:border-violet-700'
+            }`}
+          >
+            <span className="w-2 h-2 rounded-full bg-brand" />
+            You
+          </button>
+          {(people ?? []).map(p => (
+            <button
+              key={p.id}
+              type="button"
+              onClick={() => togglePerson(p.id)}
+              aria-pressed={selectedPeople.has(p.id)}
+              className={`inline-flex min-h-[44px] items-center gap-1.5 px-3 py-1 rounded-full text-sm font-medium border transition ${
+                selectedPeople.has(p.id)
+                  ? 'border-brand bg-brand-soft text-brand-fg-strong'
+                  : 'border-border-strong text-tertiary hover:border-violet-300 dark:hover:border-violet-700'
+              }`}
+            >
+              <span className={`w-2 h-2 rounded-full ${personDotClass(p.id, rosterIds)}`} />
+              {p.name}
+            </button>
+          ))}
+          <span className="h-5 w-px bg-border-strong mx-1" aria-hidden="true" />
+          {EVENT_CATEGORIES.map(cat => (
+            <button
+              key={cat}
+              type="button"
+              onClick={() => toggleCategory(cat)}
+              aria-pressed={selectedCategories.has(cat)}
+              className={`inline-flex min-h-[44px] items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium border transition ${
+                selectedCategories.has(cat)
+                  ? 'border-brand bg-brand-soft text-brand-fg-strong'
+                  : 'border-border-strong text-tertiary hover:border-violet-300 dark:hover:border-violet-700'
+              }`}
+            >
+              <span className={`w-2 h-2 rounded-full ${categoryColor(cat).dot}`} />
+              {CATEGORY_LABELS[cat] ?? cat}
+            </button>
+          ))}
+          {anyFilterActive && (
+            <button
+              type="button"
+              onClick={clearFilters}
+              className="inline-flex min-h-[44px] items-center text-sm text-brand-fg hover:underline active:underline px-1"
+            >
+              Clear
+            </button>
+          )}
+        </div>
+      )}
+
       {/* Active view */}
       {view === 'month' && (
-        <MonthView focusDate={focusDate} events={events} onSelectDay={openFromMonth} onOpenDay={openDay} onSelectEvent={selectEvent} />
+        <MonthView focusDate={focusDate} events={visibleEvents} onSelectDay={openFromMonth} onOpenDay={openDay} onSelectEvent={selectEvent} />
       )}
       {view === 'week' && (
-        <TimeGridView days={weekDays(focusDate)} events={events} onSelectEvent={selectEvent} onCreateRange={handleCreateRange} onSelectDay={openDay} />
+        <TimeGridView days={weekDays(focusDate)} events={visibleEvents} onSelectEvent={selectEvent} onCreateRange={handleCreateRange} onSelectDay={openDay} />
       )}
       {view === 'day' && (
-        <TimeGridView days={[focusDate]} events={events} onSelectEvent={selectEvent} onCreateRange={handleCreateRange} />
+        <TimeGridView days={[focusDate]} events={visibleEvents} onSelectEvent={selectEvent} onCreateRange={handleCreateRange} />
       )}
       {view === 'agenda' && (
-        <AgendaView focusDate={focusDate} events={events} onSelectEvent={selectEvent} />
+        <AgendaView focusDate={focusDate} events={visibleEvents} onSelectEvent={selectEvent} />
       )}
 
       {/* Legend for the pending style */}

@@ -8,6 +8,7 @@ import { FEATURE_FLAGS } from '@/lib/features';
 import { weekDays, localDayKey, eventOverlapsDay } from '@/lib/calendar/grid';
 import { findConflicts, conflictDayKeys, type ConflictEvent } from '@/lib/calendar/conflicts';
 import { venueTimeLabel } from '@/lib/calendar/venue-time';
+import { personDotClass } from '@/lib/calendar/layers';
 import type { FamilyEvent, FamilyWeekAthlete } from '@/lib/calendar/use-family-week';
 
 const CalendarSyncModal = dynamic(() => import('./CalendarSyncModal'), { ssr: false });
@@ -20,14 +21,10 @@ const CalendarSyncModal = dynamic(() => import('./CalendarSyncModal'), { ssr: fa
 // strip still renders only its 7 days). The sync button surfaces the
 // EXISTING household ICS feed, which already merges supervised children.
 
-/** Static per-child dot classes — indexed by roster order, cycled. */
-const CHILD_DOTS = [
-  'bg-violet-500',
-  'bg-sky-500',
-  'bg-emerald-500',
-  'bg-rose-500',
-  'bg-amber-500',
-];
+// Per-child dot colors come from the shared sorted-roster helper
+// (lib/calendar/layers) so this strip and the layered /calendar always
+// agree on a child's color — the old local roster-order palette diverged
+// between surfaces whenever the rosters ordered differently.
 
 export default function GuardianWeekStrip({
   athletes,
@@ -46,10 +43,7 @@ export default function GuardianWeekStrip({
   const [syncOpen, setSyncOpen] = useState(false);
 
   const days = useMemo(() => weekDays(new Date()), []);
-  const childIndex = useMemo(
-    () => new Map(athletes.map((a, i) => [a.id, i])),
-    [athletes]
-  );
+  const rosterIds = useMemo(() => athletes.map(a => a.id), [athletes]);
 
   const conflicts = useMemo(
     () =>
@@ -147,9 +141,7 @@ export default function GuardianWeekStrip({
                       {[...new Set(dots)].slice(0, 4).map(childId => (
                         <span
                           key={childId}
-                          className={`w-1 h-1 rounded-full ${
-                            CHILD_DOTS[(childIndex.get(childId) ?? 0) % CHILD_DOTS.length]
-                          }`}
+                          className={`w-1 h-1 rounded-full ${personDotClass(childId, rosterIds)}`}
                         />
                       ))}
                       {hasConflict && (
@@ -211,9 +203,7 @@ export default function GuardianWeekStrip({
                               className="inline-flex items-center gap-1 text-xs text-secondary hover:text-brand-fg-strong"
                             >
                               <span
-                                className={`w-1.5 h-1.5 rounded-full ${
-                                  CHILD_DOTS[(childIndex.get(childId) ?? 0) % CHILD_DOTS.length]
-                                }`}
+                                className={`w-1.5 h-1.5 rounded-full ${personDotClass(childId, rosterIds)}`}
                               />
                               {athlete.name.split(' ')[0]}
                             </Link>
