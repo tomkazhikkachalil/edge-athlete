@@ -130,7 +130,7 @@ export async function POST(
       const payload = {
         type: 'carpool_offer' as const,
         title: `${driverName} is offering ${seatsTotal} seat${seatsTotal === 1 ? '' : 's'} to ${event?.title ?? 'an event'}`,
-        actionUrl: `/app/calendar?event=${id}`,
+        actionUrl: `/calendar?event=${id}`,
         actorId: user.id,
         metadata: { event_id: id, offer_id: offer?.id },
       };
@@ -191,7 +191,7 @@ export async function DELETE(
         await notifyUser(admin, rider, {
           type: 'carpool_update',
           title: `${driverName} can no longer drive — find another ride`,
-          actionUrl: `/app/calendar?event=${id}`,
+          actionUrl: `/calendar?event=${id}`,
           actorId: user.id,
           metadata: { event_id: id },
         });
