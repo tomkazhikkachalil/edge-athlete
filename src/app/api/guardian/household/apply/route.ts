@@ -18,7 +18,7 @@ export async function POST(request: NextRequest) {
     if (!FEATURE_FLAGS.FEATURE_GUARDIAN_PROFILES) {
       return NextResponse.json({ error: 'Not available' }, { status: 404 });
     }
-    const limited = await enforceRateLimit(request, 'guardian-athlete-create', { userId: user.id });
+    const limited = await enforceRateLimit(request, 'guardian-household-apply', { userId: user.id });
     if (limited) return limited;
 
     const body = await request.json().catch(() => ({}));

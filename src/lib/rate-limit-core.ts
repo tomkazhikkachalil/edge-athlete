@@ -58,7 +58,17 @@ export const RATE_LIMITS = {
   'message-send': { max: 120, windowSeconds: 600, keyBy: 'user' },
   'message-report': { max: 10, windowSeconds: 3600, keyBy: 'user' },
   'guardian-escalate': { max: 10, windowSeconds: 3600, keyBy: 'user' },
+  // Athlete creation only. Household block-adds and apply-to-all used to
+  // share this 5/day bucket (Wave 4/5), which meant a parent doing a normal
+  // setup evening — add two kids, apply defaults, block one account — could
+  // starve athlete creation. Each family now has its own bucket below.
   'guardian-athlete-create': { max: 5, windowSeconds: 86400, keyBy: 'user' },
+  // Household block-adds: a safety action, so the budget must never starve a
+  // guardian mid-incident; 20/day is far past real use while still capping a
+  // runaway client.
+  'guardian-block': { max: 20, windowSeconds: 86400, keyBy: 'user' },
+  // Apply-to-all household defaults: idempotent bulk write, rare by nature.
+  'guardian-household-apply': { max: 10, windowSeconds: 86400, keyBy: 'user' },
   'co-guardian-invite': { max: 10, windowSeconds: 86400, keyBy: 'user' },
   'credentials-set': { max: 10, windowSeconds: 3600, keyBy: 'user' },
   'invite-claim': { max: 10, windowSeconds: 3600, keyBy: 'user' },
