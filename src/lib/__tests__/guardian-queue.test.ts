@@ -45,6 +45,26 @@ describe('buildQueueItems', () => {
     expect(buildQueueItems([], [], [], [], [], [], [])).toEqual([]);
   });
 
+  it('handover moment (Wave 8): a stamped adult eligible_notified row surfaces; unstamped stays silent', () => {
+    const base = { profile_id: 'a', id: 'tr-h', created_at: '2026-08-28T10:00:00Z' };
+    const stamped = buildQueueItems(
+      [kid('a')], [], [], [], approvedConsent('a'),
+      [{ user_id: 'a', profile_id: 'a' }],
+      [{ ...base, state: 'eligible_notified', handover_prompted_at: '2026-08-29T10:00:00Z' }]
+    );
+    const item = stamped.find(i => i.kind === 'transfer_step');
+    expect(item).toMatchObject({ handover: true, state: 'eligible_notified' });
+
+    // Pre-adult parked rows (no stamp) never show — eligible_notified was
+    // never a guardian action item before Wave 8, and stays quiet.
+    const unstamped = buildQueueItems(
+      [kid('a')], [], [], [], approvedConsent('a'),
+      [{ user_id: 'a', profile_id: 'a' }],
+      [{ ...base, state: 'eligible_notified', handover_prompted_at: null }]
+    );
+    expect(unstamped.find(i => i.kind === 'transfer_step')).toBeUndefined();
+  });
+
   it('risk signals (Wave 7) shape after content, oldest first, roster-scoped', () => {
     const items = buildQueueItems(
       [kid('a')],

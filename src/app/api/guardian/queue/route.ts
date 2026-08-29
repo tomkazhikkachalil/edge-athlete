@@ -83,7 +83,7 @@ export async function GET(request: NextRequest) {
         .eq('role', 'supervised'),
       admin
         .from('profile_transfers')
-        .select('id, profile_id, state, created_at, age_preset_prompt')
+        .select('id, profile_id, state, created_at, age_preset_prompt, handover_prompted_at')
         .in('profile_id', ids)
         .in('state', [...ACTIVE_TRANSFER_STATES]),
       // Pending event invites (guest status 'invited') — flag-gated with the
