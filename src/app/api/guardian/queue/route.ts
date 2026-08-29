@@ -8,6 +8,7 @@ import {
   buildQueueItems,
   flattenInviteRows,
   type QueuePostRow,
+  type QueueRiskRow,
   type RawCounterpartRow,
   type RawHeldRow,
   type RawInviteRow,
@@ -49,7 +50,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ items: [] });
     }
 
-    const [postsQ, commentsQ, followsQ, consentQ, supervisedQ, transferQ, invitesQ, heldQ] = await Promise.all([
+    const [postsQ, commentsQ, followsQ, consentQ, supervisedQ, transferQ, invitesQ, heldQ, riskQ] = await Promise.all([
       // changes_requested rows (mig 129) ride along as the muted
       // "waiting on their edit" rows — the shaper splits them out.
       admin
@@ -105,8 +106,17 @@ export async function GET(request: NextRequest) {
         .in('profile_id', ids)
         .not('held_at', 'is', null)
         .order('held_at', { ascending: true }),
+      // Unacknowledged risk signals (Wave 7, mig 137) — metadata-only rows;
+      // the pure shaper turns them into calm "worth a look" items.
+      admin
+        .from('risk_signals')
+        .select('id, profile_id, kind, created_at')
+        .in('profile_id', ids)
+        .is('acknowledged_at', null)
+        .order('created_at', { ascending: true })
+        .limit(20),
     ]);
-    for (const q of [postsQ, commentsQ, followsQ, consentQ, supervisedQ, transferQ, invitesQ, heldQ]) {
+    for (const q of [postsQ, commentsQ, followsQ, consentQ, supervisedQ, transferQ, invitesQ, heldQ, riskQ]) {
       if (q.error) throw q.error;
     }
 
@@ -170,7 +180,8 @@ export async function GET(request: NextRequest) {
       transferQ.data ?? [],
       flattenInviteRows((invitesQ.data ?? []) as unknown as RawInviteRow[], Date.now()),
       buildHeldContactRows(heldRows, counterpartRows),
-      parseHouseholdPolicy(guardianRow?.household_policy)
+      parseHouseholdPolicy(guardianRow?.household_policy),
+      (riskQ.data ?? []) as QueueRiskRow[]
     );
     return NextResponse.json({ items });
   } catch (error) {
