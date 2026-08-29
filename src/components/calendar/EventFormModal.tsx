@@ -6,6 +6,8 @@ import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
 import { useToast } from '@/components/Toast';
 import { EVENT_CATEGORIES } from '@/lib/calendar/events';
 import { describeRecurrence, MAX_OCCURRENCES } from '@/lib/calendar/recurrence';
+import { buildEventTimestamps, formPartsFromEvent } from '@/lib/calendar/form-times';
+import { listTimeZones, viewerTimeZone, zoneShortName } from '@/lib/calendar/venue-time';
 import { CATEGORY_LABELS, categoryColor } from '@/lib/calendar/categories';
 import GuestPicker, { type GuestChip } from './GuestPicker';
 import ScopeChooserModal from './ScopeChooserModal';
@@ -27,6 +29,9 @@ interface FormState {
   startTime: string; // HH:mm
   endTime: string;   // HH:mm
   allDay: boolean;
+  /** IANA zone the typed wall clock is anchored in — the VENUE's zone, not
+   *  necessarily the browser's (venue-entry contract, form-times.ts). */
+  timezone: string;
   description: string;
   location: string;
   category: string;
@@ -88,6 +93,7 @@ function emptyForm(defaultDay?: Date, defaultRange?: { start: Date; end: Date })
     startTime: `${pad(start.getHours())}:${pad(start.getMinutes())}`,
     endTime: `${pad(end.getHours())}:${pad(end.getMinutes())}`,
     allDay: false,
+    timezone: viewerTimeZone(),
     description: '',
     location: '',
     category: 'general',
@@ -98,14 +104,16 @@ function emptyForm(defaultDay?: Date, defaultRange?: { start: Date; end: Date })
 }
 
 function formFromEvent(event: EventDetail): FormState {
-  const start = new Date(Date.parse(event.starts_at));
-  const end = new Date(Date.parse(event.ends_at));
+  // Venue-anchored editing: show the wall clock in the EVENT's zone (an
+  // event created courtside stays "10:00" for a parent editing from home).
+  const parts = formPartsFromEvent(event);
   return {
     title: event.title,
-    date: `${start.getFullYear()}-${pad(start.getMonth() + 1)}-${pad(start.getDate())}`,
-    startTime: `${pad(start.getHours())}:${pad(start.getMinutes())}`,
-    endTime: `${pad(end.getHours())}:${pad(end.getMinutes())}`,
+    date: parts.date,
+    startTime: parts.startTime,
+    endTime: parts.endTime,
     allDay: event.all_day,
+    timezone: event.timezone,
     description: event.description ?? '',
     location: event.location ?? '',
     category: event.category,
@@ -156,6 +164,9 @@ export default function EventFormModal({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [scopeOpen, setScopeOpen] = useState(false);
+  // Zone select is collapsed behind a text affordance — most events are in
+  // the creator's own zone. UI state only; not part of the dirty snapshot.
+  const [tzOpen, setTzOpen] = useState(false);
   const snapRef = useRef<string | null>(null);
   useBodyScrollLock(isOpen);
 
@@ -230,6 +241,7 @@ export default function EventFormModal({
       }
       setRepeat(emptyRepeat());
       setScopeOpen(false);
+      setTzOpen(false);
       setError('');
     }
   }
@@ -265,25 +277,10 @@ export default function EventFormModal({
   const set = <K extends keyof FormState>(key: K, value: FormState[K]) =>
     setForm(prev => ({ ...prev, [key]: value }));
 
-  const buildTimestamps = (): { starts_at: string; ends_at: string } | null => {
-    const [y, m, d] = form.date.split('-').map(Number);
-    if (!y || !m || !d) return null;
-    if (form.allDay) {
-      const start = new Date(y, m - 1, d, 0, 0, 0, 0);
-      const end = new Date(y, m - 1, d + 1, 0, 0, 0, 0); // exclusive midnight
-      return { starts_at: start.toISOString(), ends_at: end.toISOString() };
-    }
-    const [sh, sm] = form.startTime.split(':').map(Number);
-    const [eh, em] = form.endTime.split(':').map(Number);
-    if ([sh, sm, eh, em].some(n => !Number.isFinite(n))) return null;
-    const start = new Date(y, m - 1, d, sh, sm, 0, 0);
-    let end = new Date(y, m - 1, d, eh, em, 0, 0);
-    // An end time at/before the start means "past midnight" (10pm–1am).
-    if (end.getTime() <= start.getTime()) {
-      end = new Date(y, m - 1, d + 1, eh, em, 0, 0);
-    }
-    return { starts_at: start.toISOString(), ends_at: end.toISOString() };
-  };
+  // Wall clock → instants anchored in the PICKED zone (form-times.ts owns
+  // the math, including the past-midnight roll and all-day zone-midnights).
+  const buildTimestamps = (): { starts_at: string; ends_at: string } | null =>
+    buildEventTimestamps(form, form.timezone);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -309,7 +306,7 @@ export default function EventFormModal({
       location: form.location,
       ...times,
       all_day: form.allDay,
-      timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+      timezone: form.timezone,
       category: form.category,
       routine_id: form.routineId,
       league_id: form.leagueId,
@@ -481,6 +478,56 @@ export default function EventFormModal({
             />
             All day
           </label>
+
+          {/* Time zone — venue-anchored: the typed wall clock lives in this
+              zone (a 10am game is 10am AT the venue). Collapsed by default;
+              immutable on series events (the cron re-anchors stepping on the
+              stored zone — see the PATCH guard). */}
+          {editing?.series_id ? (
+            <p className="text-xs text-muted">
+              Times are in {form.timezone.replace(/_/g, ' ')}. A repeating
+              event&apos;s time zone can&apos;t be changed.
+            </p>
+          ) : (
+            !tzOpen ? (
+              <button
+                type="button"
+                onClick={() => setTzOpen(true)}
+                className="inline-flex min-h-[44px] items-center text-sm text-brand-fg hover:underline active:underline"
+              >
+                {(() => {
+                  // Short name at the EVENT's date (MDT vs MST); the zone id
+                  // itself when the date field is momentarily unparseable.
+                  const [y, m, d] = form.date.split('-').map(Number);
+                  return y && m && d
+                    ? zoneShortName(form.timezone, Date.UTC(y, m - 1, d, 12, 0))
+                    : form.timezone.replace(/_/g, ' ');
+                })()}{' '}
+                — change time zone
+              </button>
+            ) : (
+              <div>
+                <label htmlFor="ev-tz" className="block text-sm font-semibold text-primary mb-1">
+                  Time zone
+                </label>
+                <p className="text-xs text-muted mb-2">
+                  The times above are local to this zone — pick the venue&apos;s.
+                </p>
+                <select
+                  id="ev-tz"
+                  value={form.timezone}
+                  onChange={e => set('timezone', e.target.value)}
+                  className="w-full px-3 py-2 border border-border-strong rounded-lg text-base focus:ring-2 focus:ring-violet-500 focus:outline-none"
+                >
+                  {listTimeZones(form.timezone).map(z => (
+                    <option key={z} value={z}>
+                      {z.replace(/_/g, ' ')}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )
+          )}
 
           {/* Repeat — create only; the rule can't change after creation. */}
           {editing ? (

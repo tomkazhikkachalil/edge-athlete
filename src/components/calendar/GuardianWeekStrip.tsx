@@ -7,6 +7,7 @@ import { format } from 'date-fns';
 import { FEATURE_FLAGS } from '@/lib/features';
 import { weekDays, localDayKey, eventOverlapsDay } from '@/lib/calendar/grid';
 import { findConflicts, conflictDayKeys, type ConflictEvent } from '@/lib/calendar/conflicts';
+import { venueTimeLabel } from '@/lib/calendar/venue-time';
 import type { FamilyEvent, FamilyWeekAthlete } from '@/lib/calendar/use-family-week';
 
 const CalendarSyncModal = dynamic(() => import('./CalendarSyncModal'), { ssr: false });
@@ -186,6 +187,12 @@ export default function GuardianWeekStrip({
                     >
                       <span className="text-xs text-muted w-16 shrink-0">
                         {ev.all_day ? 'All day' : format(new Date(Date.parse(ev.starts_at)), 'h:mm a')}
+                        {(() => {
+                          const venue = venueTimeLabel(ev);
+                          return venue ? (
+                            <span className="block text-[10px] text-faint">{venue}</span>
+                          ) : null;
+                        })()}
                       </span>
                       <span className="text-primary font-medium min-w-0 truncate">
                         {ev.title}
