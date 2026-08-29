@@ -155,7 +155,11 @@ export async function requireProfileRole(
  * Throws a Response (401/403) in the requireAuth style.
  */
 export async function requireGuardianAccount(
-  request: NextRequest
+  request: NextRequest,
+  // Wave 8: read-only surfaces opt in with ['guardian','viewer'] so a
+  // view-only seat can see household state; every WRITE route keeps the
+  // default — viewers must never pass an action gate.
+  roles: Array<'guardian' | 'viewer'> = ['guardian']
 ): Promise<{ user: User; athleteIds: string[] }> {
   const user = await requireAuth(request);
   const admin = getSupabaseAdmin();
@@ -163,7 +167,7 @@ export async function requireGuardianAccount(
     .from('profile_access')
     .select('profiles!profile_access_profile_id_fkey(id, supervision_state, deletion_requested_at)')
     .eq('user_id', user.id)
-    .eq('role', 'guardian');
+    .in('role', roles);
   const athleteIds = (rows ?? [])
     .map(r => {
       const raw = (r as { profiles: unknown }).profiles;

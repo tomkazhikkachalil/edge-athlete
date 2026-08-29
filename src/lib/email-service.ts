@@ -277,18 +277,29 @@ This email was sent from your website's contact form.
     to: string,
     athleteFirstName: string,
     inviteUrl: string,
-    appUrl: string
+    appUrl: string,
+    // Wave 8 (mig 138): 'viewer' invites grant a view-only seat — the copy
+    // must promise exactly that, never guardian powers.
+    role: 'guardian' | 'viewer' = 'guardian'
   ): Promise<boolean> {
     const name = athleteFirstName ? escapeHtml(athleteFirstName) : 'a young athlete';
+    const heading = role === 'viewer'
+      ? `You've been invited to follow ${name}'s journey`
+      : `You've been invited to help manage ${name}'s profile`;
+    const bodyHtml = role === 'viewer'
+      ? `A guardian of ${name} invited you to a view-only seat on their
+          family console: you'll see ${name}'s schedule and family updates,
+          without any of the guardian controls.`
+      : `${name} has an athlete profile on Edge Athlete that needs a parent
+          or guardian. Accepting makes you their guardian — you'll review
+          their profile, approve what gets posted, and manage their privacy
+          and who can contact them.`;
     const htmlContent = `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
         ${logoHeader(appUrl)}
-        <h2 style="color:#6d28d9;">You've been invited to help manage ${name}'s profile</h2>
+        <h2 style="color:#6d28d9;">${heading}</h2>
         <p style="color:#333;font-size:15px;line-height:1.6;">
-          ${name} has an athlete profile on Edge Athlete that needs a parent
-          or guardian. Accepting makes you their guardian — you'll review
-          their profile, approve what gets posted, and manage their privacy
-          and who can contact them.
+          ${bodyHtml}
         </p>
         <a href="${inviteUrl}"
            style="display:inline-block;background:#7c3aed;color:#fff;text-decoration:none;padding:10px 20px;border-radius:6px;font-size:14px;margin-top:8px;">
@@ -304,12 +315,17 @@ This email was sent from your website's contact form.
         </div>
       </div>
     `;
+    const plainName = athleteFirstName || 'a young athlete';
     return this.deliver('co_guardian_invite', {
       from: fromAddress(),
       to,
-      subject: `You've been invited to help manage ${athleteFirstName || 'a young athlete'}'s Edge Athlete profile`,
+      subject: role === 'viewer'
+        ? `You've been invited to follow ${plainName}'s Edge Athlete journey`
+        : `You've been invited to help manage ${plainName}'s Edge Athlete profile`,
       html: htmlContent,
-      text: `${athleteFirstName || 'A young athlete'} has an athlete profile on Edge Athlete that needs a parent or guardian.\n\nAccepting makes you their guardian — you'll review their profile, approve what gets posted, and manage their privacy. Accept here (single-use link, expires in 7 days):\n\n${inviteUrl}\n\nIf you weren't expecting this email, you can ignore it — nothing changes without your acceptance.\n\n— Edge Athlete`,
+      text: role === 'viewer'
+        ? `A guardian of ${plainName} invited you to a view-only seat on their family console: you'll see their schedule and family updates, without any guardian controls. Accept here (single-use link, expires in 7 days):\n\n${inviteUrl}\n\nIf you weren't expecting this email, you can ignore it — nothing changes without your acceptance.\n\n— Edge Athlete`
+        : `${athleteFirstName || 'A young athlete'} has an athlete profile on Edge Athlete that needs a parent or guardian.\n\nAccepting makes you their guardian — you'll review their profile, approve what gets posted, and manage their privacy. Accept here (single-use link, expires in 7 days):\n\n${inviteUrl}\n\nIf you weren't expecting this email, you can ignore it — nothing changes without your acceptance.\n\n— Edge Athlete`,
     });
   }
 

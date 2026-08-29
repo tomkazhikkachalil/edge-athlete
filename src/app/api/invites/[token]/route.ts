@@ -70,6 +70,7 @@ export async function GET(
   return NextResponse.json({
     valid: true,
     inviteType: invite.invite_type,
+    grantRole: invite.grant_role,
     invitedEmail: invite.invited_email,
     athleteFirstName,
     guardianHasAccount: !!existingGuardian,
