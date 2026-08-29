@@ -32,7 +32,10 @@ export type GuardianNotificationType =
   | 'profile_change'
   | 'tag_alert'
   | 'safety_alert'
-  | 'calendar_alert';
+  | 'calendar_alert'
+  // Wave 9 (mig 139): carpool coordination on calendar events.
+  | 'carpool_offer'
+  | 'carpool_update';
 
 export interface GuardianNotification {
   type: GuardianNotificationType;

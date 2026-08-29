@@ -90,6 +90,10 @@ export const RATE_LIMITS = {
   // Calendar event creation — org events fan a team_update out to every
   // member (uncapped membership), so creation gets post-create parity.
   'event-create': { max: 30, windowSeconds: 3600, keyBy: 'user' },
+  // Carpool offers/claims (Wave 9, mig 139): each fans a notification out
+  // to the event's guests or the driver; 20/h never touches real use.
+  'carpool-offer': { max: 20, windowSeconds: 3600, keyBy: 'user' },
+  'carpool-claim': { max: 20, windowSeconds: 3600, keyBy: 'user' },
   // Group rounds create a post + fan out to N participants — post-create
   // parity; late adds are rarer but batched, 60/h never touches real use.
   'group-post-create': { max: 30, windowSeconds: 3600, keyBy: 'user' },
