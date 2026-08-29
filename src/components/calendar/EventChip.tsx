@@ -2,6 +2,7 @@
 
 import { format } from 'date-fns';
 import { categoryColor } from '@/lib/calendar/categories';
+import { venueTimeLabel } from '@/lib/calendar/venue-time';
 import type { EventListItem } from './types';
 
 // Visual-state rules (Google/Outlook convention, per the product brief):
@@ -30,11 +31,14 @@ export function EventChip({
   const color = categoryColor(event.category);
   const pending = event.my_status === 'invited';
   const maybe = event.my_status === 'maybe';
+  // Dual display: position/time are viewer-local, but a cross-zone event
+  // also names the venue's wall clock ("the 10am game" stays recognizable).
+  const venue = venueTimeLabel(event);
   return (
     <button
       type="button"
       onClick={onClick}
-      title={event.title}
+      title={venue ? `${event.title} · ${venue}` : event.title}
       className={`w-full text-left rounded px-1.5 py-0.5 text-xs leading-tight truncate transition border ${
         pending
           ? `bg-surface border-dashed ${color.border} ${color.text} opacity-70`
@@ -43,7 +47,10 @@ export function EventChip({
     >
       {maybe && <span className="font-bold mr-0.5">?</span>}
       {showTime && !event.all_day && (
-        <span className={`mr-1 ${pending ? '' : 'text-white/80'}`}>{eventTimeLabel(event)}</span>
+        <span className={`mr-1 ${pending ? '' : 'text-white/80'}`}>
+          {eventTimeLabel(event)}
+          {venue && <span className="opacity-80"> · {venue}</span>}
+        </span>
       )}
       <span className="font-medium">{event.title}</span>
       {event.series_id && <i className="fas fa-arrows-rotate ml-1 text-[9px] opacity-70"></i>}
@@ -71,11 +78,12 @@ export function EventBlock({
   const color = categoryColor(event.category);
   const pending = event.my_status === 'invited';
   const maybe = event.my_status === 'maybe';
+  const venue = venueTimeLabel(event);
   return (
     <button
       type="button"
       onClick={onClick}
-      title={event.title}
+      title={venue ? `${event.title} · ${venue}` : event.title}
       style={{
         top: `${topPct}%`,
         height: `${Math.max(heightPct, 1.5)}%`,
@@ -97,6 +105,7 @@ export function EventBlock({
       {!event.all_day && (
         <span className={`block truncate ${pending ? '' : 'text-white/80'}`}>
           {format(new Date(Date.parse(event.starts_at)), 'h:mm a')}
+          {venue && <span className="opacity-80"> · {venue}</span>}
         </span>
       )}
     </button>

@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { addDays, addMonths, format, isSameMonth, startOfDay } from 'date-fns';
 import { monthMatrix, eventOverlapsDay, localDayKey } from '@/lib/calendar/grid';
 import { categoryColor } from '@/lib/calendar/categories';
+import { venueTimeLabel } from '@/lib/calendar/venue-time';
 import { useAuth } from '@/lib/auth';
 import type { ActivityPayload } from '@/lib/calendar/activity-overlay';
 import type { EventListItem } from './types';
@@ -48,6 +49,10 @@ function EventRow({ event, onClick }: { event: EventListItem; onClick: () => voi
         </span>
         <span className="block text-xs text-muted">
           {event.all_day ? format(start, 'EEE, MMM d') : format(start, 'EEE, MMM d · h:mm a')}
+          {(() => {
+            const venue = venueTimeLabel(event);
+            return venue ? <span className="text-faint"> · {venue}</span> : null;
+          })()}
           {pending && <span className="text-brand-fg ml-1">· needs reply</span>}
         </span>
       </span>

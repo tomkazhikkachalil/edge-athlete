@@ -194,6 +194,20 @@ export async function PATCH(
       return NextResponse.json({ error: validated.error }, { status: 400 });
     }
 
+    // A series' zone is immutable: extendRecurringSeries anchors stepping on
+    // the FIRST occurrence's zone while stamping the template's, and scoped
+    // wall-time edits (applyWallTime below) re-anchor in the new zone —
+    // either way the label desyncs from the instants. Single events edit
+    // freely. Refuse on CHANGE, not presence: the form echoes the stored
+    // zone. (Also stops the pre-picker latent bug where every cross-zone
+    // edit silently rewrote events.timezone to the editor's browser zone.)
+    if (event.series_id && validated.event.timezone !== event.timezone) {
+      return NextResponse.json(
+        { error: "A repeating event's time zone can't be changed — cancel the series and create a new one instead." },
+        { status: 400 }
+      );
+    }
+
     // Org linkage (119): whenever the FINAL value carries an org, the editor
     // must be that org's owner/manager — covers attach, keep, and re-home.
     if (validated.event.league_id || validated.event.club_id) {
