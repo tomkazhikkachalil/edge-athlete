@@ -7,6 +7,7 @@ import { runReminderSweep } from '@/lib/calendar/reminders-server';
 import { runRoundSweep } from '@/lib/golf/round-sweep';
 import { runDeletionPurge } from '@/lib/account-park';
 import { runPendingNudge } from '@/lib/guardian-nudge';
+import { runRiskSweep } from '@/lib/risk-sweep';
 import { FEATURE_FLAGS } from '@/lib/features';
 
 export const maxDuration = 60;
@@ -106,6 +107,17 @@ export async function GET(request: NextRequest) {
   } catch (e) {
     console.error('[DAILY] pending nudge phase failed:', e);
     summary.pendingNudge = { ok: false };
+  }
+
+  // 7. Risk-signal sweep (Wave 7, mig 137): heuristic metadata-only guardian
+  //    signals; day-anchored dedup makes re-runs silent.
+  try {
+    summary.riskSweep = FEATURE_FLAGS.FEATURE_GUARDIAN_PROFILES
+      ? await runRiskSweep(admin)
+      : { skipped: 'flag off' };
+  } catch (e) {
+    console.error('[DAILY] risk sweep phase failed:', e);
+    summary.riskSweep = { ok: false };
   }
 
   console.log('[DAILY]', JSON.stringify(summary));
