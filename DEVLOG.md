@@ -1,5 +1,53 @@
 # Development Log
 
+## August 29, 2026 — Family Console follow-on, Wave 7: channel dispatcher + risk signals (#366–#368 + migration 137)
+
+Second wave of the follow-on program. Scope decisions (Tom): channels =
+abstraction now with email the only live channel (no SMS provider, no
+speculative prefs columns); risk signals = heuristic and METADATA-ONLY —
+the no-DM-transcripts line holds absolutely.
+
+- **Channel dispatch layer (#366, zero DDL).** Notification-driven sends
+  (the urgent sweep, both digest paths) now describe a typed payload and
+  `src/lib/notify/dispatch` decides the channels: email follows the tier's
+  preference boolean (urgent defaults ON per mig 135, digest stays opt-in),
+  SMS is an honest typed stub (`reason: 'unprovisioned'`). Provisioning SMS
+  later = one migration (prefs columns + Zod allowlist) + one adapter, zero
+  send-site changes — that's the whole point of the seam. Transactional
+  mail (invites, activation, transfer codes, contact) deliberately stays on
+  emailService. Watermark/stamp semantics unchanged (`emailDelivered()`
+  answers the same question the old booleans did). Pure core node-tested
+  (rate-limit-core pattern).
+- **Risk signals (#367 + migration 137, #368).** `risk_signals` table: kind
+  CHECK (including a deliberately writer-less `late_night_activity` —
+  profiles carry no timezone yet; 098's allowed-but-unsent stance), UNIQUE
+  (profile_id, kind, window_start) day-anchored dedup, RLS on with zero
+  policies. Pure detectors, thresholds conservative on purpose: new-contact
+  burst = ≥4 conversation joins in 48h; volume spike = ≥30 sent in 24h AND
+  ≥4× the child's own 7-day average (a chatty kid with a matching baseline
+  never fires — pinned in the node suite). Daily cron phase 7 sweeps
+  supervised, un-parked children reading ONLY `messages.created_at` and
+  `conversation_participants.joined_at` — adding a select column to either
+  query is a review flag. Upserts ignore duplicates and only genuinely new
+  rows ring `notifyGuardians` (`safety_alert` → the 10-minute urgent tier
+  via the new dispatcher, for free). The reports route also files a
+  `report_filed` row beside its existing alert. Surface: a calm
+  "Worth a look" queue row (binoculars icon — deliberately not
+  alarm-shaped), one **Got it** acknowledge via the new guardian-only,
+  idempotent `PATCH /api/guardian/risk-signals/[id]`; no un-acknowledge by
+  design.
+- **Verification.** 18/18 guardian e2e locally against the stack; live
+  end-to-end probe against prod IN THE MOBILE PROJECT (390px): seeded 4
+  fresh conversation joins on a disposable child → fired the deployed
+  daily cron with the secret → exactly one `new_contact_burst` filed →
+  guardian bell carried the calm safety_alert → hub rendered the row with
+  zero horizontal overflow → Got it stamped acknowledged_at/by and cleared
+  it. Dispatcher send-path proven live the Wave-5 way: a probe
+  safety_alert inserted for Tom at 16:36:24Z was stamped (and mailed
+  through dispatch → emailService) at 16:40:02Z — under four minutes.
+  Migration 137 check grid all-true (Tom). Merge train #366 → #367 → #368
+  with bases retargeted before deletes.
+
 ## August 29, 2026 — Family Console follow-on, Wave 6: hardening (#361–#365 + migration 136)
 
 First wave of the follow-on program (Waves 6–9: the entire deferred backlog,
