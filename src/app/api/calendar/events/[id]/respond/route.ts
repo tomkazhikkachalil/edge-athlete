@@ -81,7 +81,7 @@ export async function POST(
       }
       const side = orgEvent.league_id ? 'league' : 'club';
       const orgId = (orgEvent.league_id ?? orgEvent.club_id) as string;
-      const { getOrgRole } = await import('@/lib/affiliations/authz');
+      const { getOrgRole } = await import('@/lib/orgs/authz');
       const { data: org } = await admin
         .from(side === 'league' ? 'leagues' : 'clubs')
         .select('owner_profile_id')

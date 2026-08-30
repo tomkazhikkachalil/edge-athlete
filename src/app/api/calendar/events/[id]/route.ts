@@ -211,7 +211,7 @@ export async function PATCH(
     // Org linkage (119): whenever the FINAL value carries an org, the editor
     // must be that org's owner/manager — covers attach, keep, and re-home.
     if (validated.event.league_id || validated.event.club_id) {
-      const { getOrgRole, isOwnerOrManager } = await import('@/lib/affiliations/authz');
+      const { getOrgRole, isOwnerOrManager } = await import('@/lib/orgs/authz');
       const side = validated.event.league_id ? 'league' : 'club';
       const orgId = (validated.event.league_id ?? validated.event.club_id) as string;
       const { data: org } = await admin

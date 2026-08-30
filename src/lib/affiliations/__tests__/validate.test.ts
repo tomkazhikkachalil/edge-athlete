@@ -4,7 +4,6 @@ import {
   AffiliationLeagueTargetSchema,
   AffiliationAcceptClubSchema,
 } from '../validate';
-import { isOwnerOrManager } from '../authz';
 
 const ID = '2f1b46c8-2964-4139-9689-d1c3f736ed93';
 
@@ -20,14 +19,5 @@ describe('affiliation schemas', () => {
     expect(AffiliationAcceptClubSchema.safeParse({ clubId: ID, action: 'accept' }).success).toBe(true);
     expect(AffiliationAcceptClubSchema.safeParse({ clubId: ID, action: 'decline' }).success).toBe(false);
     expect(AffiliationAcceptClubSchema.safeParse({ clubId: ID }).success).toBe(false);
-  });
-});
-
-describe('isOwnerOrManager', () => {
-  it('owner and manager pass; member and null do not', () => {
-    expect(isOwnerOrManager('owner')).toBe(true);
-    expect(isOwnerOrManager('manager')).toBe(true);
-    expect(isOwnerOrManager('member')).toBe(false);
-    expect(isOwnerOrManager(null)).toBe(false);
   });
 });

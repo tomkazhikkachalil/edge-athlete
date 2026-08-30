@@ -134,7 +134,7 @@ export async function POST(request: NextRequest) {
     let orgContext: { side: 'league' | 'club'; orgId: string; orgName: string } | null = null;
     if (validated.ok && (validated.event.league_id || validated.event.club_id)) {
       // Org linkage (119): only the org's owner/manager may attach it.
-      const { getOrgRole, isOwnerOrManager } = await import('@/lib/affiliations/authz');
+      const { getOrgRole, isOwnerOrManager } = await import('@/lib/orgs/authz');
       const admin0 = getSupabaseAdmin();
       const side = validated.event.league_id ? 'league' : 'club';
       const orgId = (validated.event.league_id ?? validated.event.club_id) as string;
