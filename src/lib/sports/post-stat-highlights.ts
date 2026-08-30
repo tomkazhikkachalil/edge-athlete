@@ -25,6 +25,10 @@ import { buildPostHeadline } from './post-headline';
 import { asGameFormat, GAME_FORMAT_LABELS } from '../golf/formats';
 import { holePar } from '../golf/scoring';
 import { formatDisplayName, formatShortName } from '../formatters';
+// round-display is a leaf module (no imports of its own), so the round detail
+// surfaces and this feed builder can share one hole-count vocabulary without
+// risking the sports/copy import cycle.
+import { holeCountLabel, playedHoleCount } from '../golf/round-display';
 
 export interface StatTile {
   value: string;
@@ -143,7 +147,11 @@ interface SharedScores {
   course: string;
   total: number;
   toPar: number | null;
+  /** The round's CONFIGURED length (golf_scorecard_data.holes_played). */
   holes?: number | null;
+  /** Holes the group actually scored. Union across participants, so the same
+   *  public post reads the same number to everyone who sees it. */
+  playedHoles: number;
   /** Already run through GAME_FORMAT_LABELS — the raw column value is
    *  "stroke", which must never reach the card. */
   formatLabel?: string | null;
@@ -232,6 +240,9 @@ function sharedRoundScores(
     total: chosen.scores!.total_score as number,
     toPar: typeof chosen.scores?.to_par === 'number' ? chosen.scores.to_par : null,
     holes: golfData.holes_played,
+    // Union over the scored participants — `scored` already excludes anyone
+    // without a total, so a declined player's stale rows can't inflate it.
+    playedHoles: playedHoleCount(scored.flatMap(p => p.scores?.hole_scores ?? [])),
     formatLabel: GAME_FORMAT_LABELS[asGameFormat(golfData.game_format)],
     date: groupPost?.date ?? null,
     players,
@@ -292,7 +303,8 @@ export function buildStatHighlights(input: BuildInput): StatHighlights | null {
       // The roster replaces the support tiles: with player rows showing each
       // score, a "Score / Holes / Format" strip would just say it again.
       const meta: string[] = [];
-      if (typeof shared.holes === 'number') meta.push(`${shared.holes} holes`);
+      if (typeof shared.holes === 'number')
+        meta.push(holeCountLabel(shared.playedHoles, shared.holes));
       if (shared.formatLabel) meta.push(shared.formatLabel);
       return {
         moment: shared.course,
@@ -325,8 +337,12 @@ export function buildStatHighlights(input: BuildInput): StatHighlights | null {
 
     const support = golfSupport(golfRound);
 
+    // Hoisted: the same rows answer "how many holes" and fill the player row.
+    const soloHoles = soloPlayerHoles(golfRound);
+
     const meta: string[] = [];
-    if (typeof golfRound?.holes === 'number') meta.push(`${golfRound.holes} holes`);
+    if (typeof golfRound?.holes === 'number')
+      meta.push(holeCountLabel(soloHoles.length, golfRound.holes));
 
     // A solo round has no participant rows — the player is the post author.
     const players: StatPlayer[] =
@@ -340,7 +356,7 @@ export function buildStatHighlights(input: BuildInput): StatHighlights | null {
               score: gross,
               toPar,
               isViewer: !!viewerId && author.id === viewerId,
-              holes: soloPlayerHoles(golfRound),
+              holes: soloHoles,
             },
           ]
         : [];

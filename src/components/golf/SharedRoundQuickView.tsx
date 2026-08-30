@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { formatDisplayName, getInitials, parseDateLocal } from '@/lib/formatters';
 import { isRoundLive, isActiveParticipant, effectiveRoundStatus } from '@/lib/golf/round-status';
+import { holeCountLabel, playedHoleCount } from '@/lib/golf/round-display';
 import { asGameFormat, calcStablefordTotal, calcMatchStatus, GAME_FORMAT_LABELS } from '@/lib/golf/formats';
 import { useEndRound } from '@/hooks/useEndRound';
 import { useDeleteRound } from '@/hooks/useDeleteRound';
@@ -42,6 +43,15 @@ export default function SharedRoundQuickView({
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const { endRound, ending } = useEndRound(group_post.id, onStatusChange);
   const { deleteRound, deleting } = useDeleteRound(group_post.id, onDeleted);
+
+  // What the GROUP actually played — the header must not claim 18 holes on a
+  // round that stopped at 13. Same union rule as the full card, so the two
+  // surfaces can never disagree.
+  const holesActuallyPlayed = playedHoleCount(
+    participants
+      .filter(p => isActiveParticipant(p.participant.status))
+      .flatMap(p => p.scores.hole_scores ?? [])
+  );
 
   // Filter confirmed participants with scores
   const confirmedWithScores = participants.filter(
@@ -164,7 +174,7 @@ export default function SharedRoundQuickView({
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-tertiary font-semibold">
             <span>{formattedDate}</span>
             <span>•</span>
-            <span>{golf_data.holes_played} Holes</span>
+            <span>{holeCountLabel(holesActuallyPlayed, golf_data.holes_played)}</span>
             {golf_data.tee_color && (
               <>
                 <span>•</span>

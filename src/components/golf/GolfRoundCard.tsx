@@ -10,6 +10,7 @@ import { useState } from 'react';
 import type { GolfRound } from '@/types/golf';
 import { coursePar } from '@/lib/sports/post-stat-highlights';
 import { classifyScore, SCORE_CELL_RING } from '@/lib/golf/scoring';
+import { holeCountLabel, playedHoleCount } from '@/lib/golf/round-display';
 
 export default function GolfRoundCard({
   round,
@@ -22,6 +23,10 @@ export default function GolfRoundCard({
   defaultOpenScorecard?: boolean;
 }) {
   const [scorecardOpen, setScorecardOpen] = useState(defaultOpenScorecard);
+  // What was PLAYED. round.holes is the configured {9,18} taxonomy, so a round
+  // abandoned after 13 still calls itself 18. Strokes-filtered, because
+  // golf_holes.strokes is nullable.
+  const holesPlayed = playedHoleCount(round.golf_holes);
 
   return (
     <>
@@ -52,7 +57,7 @@ export default function GolfRoundCard({
               <span>{new Date(round.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
             )}
             {round.tee && <span>• {round.tee.charAt(0).toUpperCase() + round.tee.slice(1)} Tees</span>}
-            {round.holes && <span>• {round.holes} Holes</span>}
+            {round.holes && <span>• {holeCountLabel(holesPlayed, round.holes)}</span>}
           </div>
         </div>
 
@@ -62,7 +67,6 @@ export default function GolfRoundCard({
           // par COLUMN for a complete round, recorded-hole pars for a partial
           // one — the two cards must never disagree about the same round.
           const par = coursePar(round);
-          const holesPlayed = round.golf_holes?.length || 0;
           const toPar = par !== null ? round.gross_score - par : null;
 
           return (
@@ -74,7 +78,7 @@ export default function GolfRoundCard({
                     {toPar >= 0 ? '+' : ''}{toPar}
                   </div>
                 )}
-                {holesPlayed > 0 && holesPlayed < 18 && (
+                {holesPlayed > 0 && holesPlayed < (round.holes ?? 18) && (
                   <div className="text-[10px] text-green-700 dark:text-green-300 font-medium mt-0.5">
                     Through {holesPlayed}
                   </div>
