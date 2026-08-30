@@ -224,7 +224,7 @@ export async function PATCH(
       }
       const role = await getOrgRole(
         admin,
-        side === 'league' ? 'league_members' : 'club_members',
+        side,
         orgId,
         user.id,
         org.owner_profile_id

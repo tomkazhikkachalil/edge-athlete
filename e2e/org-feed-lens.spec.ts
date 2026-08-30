@@ -13,8 +13,8 @@ test('org feed lens: peer public post shows, private peer post hidden, anon empt
   const userB = loadQaUser('user-b.json');
   const admin = adminClient();
 
-  const probe = await admin.from('club_members').select('club_id').limit(1);
-  test.skip(!!probe.error, `club_members missing — run migration 117 (${probe.error?.message})`);
+  const probe = await admin.from('memberships').select('club_id').limit(1);
+  test.skip(!!probe.error, `memberships missing — run migration 140 (${probe.error?.message})`);
 
   const stamp = Date.now();
   const clubName = `QA Lens Club ${stamp}`;
@@ -28,7 +28,7 @@ test('org feed lens: peer public post shows, private peer post hidden, anon empt
     .single();
   expect(error, error?.message).toBeNull();
   const clubId = club!.id as string;
-  await admin.from('club_members').insert([
+  await admin.from('memberships').insert([
     { club_id: clubId, profile_id: userB.id, role: 'owner' },
     { club_id: clubId, profile_id: userA.id, role: 'member' },
   ]);
@@ -73,7 +73,7 @@ test('org feed lens: peer public post shows, private peer post hidden, anon empt
 
     // A viewer with no orgs gets the noOrgs marker: user B leaves no orgs
     // to check against, so probe by removing A's membership.
-    await admin.from('club_members').delete().eq('club_id', clubId).eq('profile_id', userA.id);
+    await admin.from('memberships').delete().eq('club_id', clubId).eq('profile_id', userA.id);
     const apiA2 = await apiAs('state.json');
     try {
       const res3 = await apiA2.get('/api/posts?limit=10&scope=orgs');

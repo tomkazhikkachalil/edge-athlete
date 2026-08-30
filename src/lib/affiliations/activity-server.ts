@@ -8,6 +8,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/auth-server';
 import { isMissingTableError } from '@/lib/leagues/validate';
+import { memberProfileIds } from '@/lib/orgs/members';
 import { UUID_RE } from '@/lib/golf/course-catalog';
 
 const LIMIT = 10;
@@ -22,19 +23,15 @@ export async function orgActivityGET(
     return NextResponse.json({ error: 'Not found' }, { status: 404 });
   }
   const admin = getSupabaseAdmin();
-  const memberTable = side === 'league' ? 'league_members' : 'club_members';
-  const idColumn = side === 'league' ? 'league_id' : 'club_id';
-
-  const { data: memberRows, error: memberError } = await admin
-    .from(memberTable)
-    .select('profile_id')
-    .eq(idColumn, orgId);
+  const { profileIds: memberIds, error: memberError } = await memberProfileIds(admin, {
+    side,
+    orgId,
+  });
   if (memberError) {
     if (isMissingTableError(memberError.code)) return NextResponse.json({ activity: [] });
     console.error('[ORG ACTIVITY] members error:', memberError);
     return NextResponse.json({ error: 'Failed to load activity' }, { status: 500 });
   }
-  const memberIds = (memberRows ?? []).map(r => r.profile_id as string);
   if (memberIds.length === 0) return NextResponse.json({ activity: [] });
 
   // Public posts by members, newest first — over-fetch a little, the

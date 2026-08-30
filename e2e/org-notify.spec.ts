@@ -25,7 +25,7 @@ test('org notify: member belled on schedule and cancel, organizer never', async 
     .single();
   expect(error, error?.message).toBeNull();
   const leagueId = league!.id as string;
-  await admin.from('league_members').insert([
+  await admin.from('memberships').insert([
     { league_id: leagueId, profile_id: userB.id, role: 'owner' },
     { league_id: leagueId, profile_id: userA.id, role: 'member' },
   ]);

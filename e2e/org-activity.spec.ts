@@ -11,8 +11,8 @@ test('org activity: public member post shows, private member post does not', asy
   const userB = loadQaUser('user-b.json');
   const admin = adminClient();
 
-  const probe = await admin.from('club_members').select('club_id').limit(1);
-  test.skip(!!probe.error, `club_members missing — run migration 117 (${probe.error?.message})`);
+  const probe = await admin.from('memberships').select('club_id').limit(1);
+  test.skip(!!probe.error, `memberships missing — run migration 140 (${probe.error?.message})`);
 
   const stamp = Date.now();
   const clubName = `QA Activity Club ${stamp}`;
@@ -26,7 +26,7 @@ test('org activity: public member post shows, private member post does not', asy
     .single();
   expect(error, error?.message).toBeNull();
   const clubId = club!.id as string;
-  await admin.from('club_members').insert([
+  await admin.from('memberships').insert([
     { club_id: clubId, profile_id: userB.id, role: 'owner' },
     { club_id: clubId, profile_id: userA.id, role: 'member' },
   ]);

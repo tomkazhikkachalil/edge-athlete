@@ -12,6 +12,7 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { chunk } from '@/lib/chunk';
+import { memberProfileIds } from '@/lib/orgs/members';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Admin = SupabaseClient<any, 'public', any>;
@@ -94,12 +95,10 @@ async function sendOrgEventNotification(
       .limit(1);
     if (existing && existing.length > 0) return;
 
-    const memberTable = side === 'league' ? 'league_members' : 'club_members';
-    const idColumn = side === 'league' ? 'league_id' : 'club_id';
-    const { data: members, error: memberError } = await supabase
-      .from(memberTable)
-      .select('profile_id')
-      .eq(idColumn, orgId);
+    const { profileIds: memberIds, error: memberError } = await memberProfileIds(supabase, {
+      side,
+      orgId,
+    });
     if (memberError) {
       console.error('[ORG EVENT NOTIFY] member fetch failed:', memberError);
       return;
@@ -112,7 +111,7 @@ async function sendOrgEventNotification(
           ? `${input.orgName} scheduled a recurring event: ${input.eventTitle}`
           : `${input.orgName} scheduled: ${input.eventTitle}`;
     const rows = buildOrgEventNotificationRows(
-      (members ?? []).map(m => m.profile_id as string),
+      memberIds,
       new Set([input.organizerId, ...(input.excludeProfileIds ?? [])]),
       {
         title,

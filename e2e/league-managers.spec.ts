@@ -23,7 +23,7 @@ test('league managers: owner promotes and demotes; non-owners see no controls', 
     .single();
   expect(error, error?.message).toBeNull();
   const leagueId = league!.id as string;
-  const { error: memberError } = await admin.from('league_members').insert([
+  const { error: memberError } = await admin.from('memberships').insert([
     { league_id: leagueId, profile_id: userB.id, role: 'owner' },
     { league_id: leagueId, profile_id: userA.id, role: 'member' },
   ]);

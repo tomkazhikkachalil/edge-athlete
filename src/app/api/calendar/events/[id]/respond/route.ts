@@ -91,7 +91,7 @@ export async function POST(
       // member; the guardian only relays their response).
       const role = await getOrgRole(
         admin,
-        side === 'league' ? 'league_members' : 'club_members',
+        side,
         orgId,
         respondAs,
         (org?.owner_profile_id as string | null) ?? null

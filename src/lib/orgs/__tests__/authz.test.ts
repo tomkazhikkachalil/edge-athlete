@@ -33,25 +33,25 @@ function mockAdmin(results: Partial<Record<string, MockResult>>) {
 }
 
 describe('getOrgRole', () => {
-  it('owner column short-circuits without touching the members table', async () => {
+  it('owner column short-circuits without touching memberships', async () => {
     const { admin, queried } = mockAdmin({});
-    const role = await getOrgRole(admin, 'league_members', 'org-1', 'me', 'me');
+    const role = await getOrgRole(admin, 'league', 'org-1', 'me', 'me');
     expect(role).toBe('owner');
     expect(queried).toEqual([]);
   });
 
-  it('falls back to the member row role when the owner column is someone else', async () => {
+  it('falls back to the memberships row role when the owner column is someone else', async () => {
     const { admin, queried } = mockAdmin({
-      club_members: { data: { role: 'manager' }, error: null },
+      memberships: { data: { role: 'manager' }, error: null },
     });
-    const role = await getOrgRole(admin, 'club_members', 'org-1', 'me', 'someone-else');
+    const role = await getOrgRole(admin, 'club', 'org-1', 'me', 'someone-else');
     expect(role).toBe('manager');
-    expect(queried).toEqual(['club_members']);
+    expect(queried).toEqual(['memberships']);
   });
 
   it('returns null for a non-member (and for a null owner column)', async () => {
     const { admin } = mockAdmin({});
-    expect(await getOrgRole(admin, 'league_members', 'org-1', 'me', null)).toBeNull();
+    expect(await getOrgRole(admin, 'league', 'org-1', 'me', null)).toBeNull();
   });
 });
 
@@ -89,7 +89,7 @@ describe('getOrgAndRole', () => {
   it('found: returns the org row and the resolved role', async () => {
     const { admin } = mockAdmin({
       clubs: { data: ORG, error: null },
-      club_members: { data: { role: 'member' }, error: null },
+      memberships: { data: { role: 'member' }, error: null },
     });
     const out = await getOrgAndRole(admin, 'club', 'org-1', 'me');
     expect(out).toEqual({ status: 'found', org: ORG, role: 'member' });

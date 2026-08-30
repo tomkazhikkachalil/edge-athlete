@@ -10,8 +10,8 @@ test('club: join and leave from the club page', async ({ page }) => {
   const userB = loadQaUser('user-b.json');
   const admin = adminClient();
 
-  const probe = await admin.from('club_members').select('club_id').limit(1);
-  test.skip(!!probe.error, `club_members missing — run migration 117 (${probe.error?.message})`);
+  const probe = await admin.from('memberships').select('club_id').limit(1);
+  test.skip(!!probe.error, `memberships missing — run migration 140 (${probe.error?.message})`);
 
   const stamp = Date.now();
   const name = `QA Club ${stamp}`;
@@ -24,7 +24,7 @@ test('club: join and leave from the club page', async ({ page }) => {
   expect(error, error?.message).toBeNull();
   const clubId = club!.id as string;
   const { error: memberError } = await admin
-    .from('club_members')
+    .from('memberships')
     .insert({ club_id: clubId, profile_id: userB.id, role: 'owner' });
   expect(memberError, memberError?.message).toBeNull();
 

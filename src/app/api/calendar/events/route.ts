@@ -148,7 +148,7 @@ export async function POST(request: NextRequest) {
       }
       const role = await getOrgRole(
         admin0,
-        side === 'league' ? 'league_members' : 'club_members',
+        side,
         orgId,
         user.id,
         org.owner_profile_id
