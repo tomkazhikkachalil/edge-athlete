@@ -21,7 +21,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth, getServerAuth, getSupabaseAdmin } from '@/lib/auth-server';
 import { enforceRateLimit } from '@/lib/rate-limit';
-import { getOrgRole, isOwnerOrManager, type OrgMemberTable } from './authz';
+import { getOrgRole, isOwnerOrManager, type OrgMemberTable } from '@/lib/orgs/authz';
 import { isMissingTableError } from '@/lib/leagues/validate';
 import { UUID_RE } from '@/lib/golf/course-catalog';
 

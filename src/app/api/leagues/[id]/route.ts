@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerAuth, requireAuth, getSupabaseAdmin } from '@/lib/auth-server';
 import { parseBody } from '@/lib/validation';
 import { LeagueUpdateSchema, placeToLeagueColumns, isMissingTableError } from '@/lib/leagues/validate';
+import { getOrgAndRole, roleAllows } from '@/lib/orgs/authz';
 import { UUID_RE } from '@/lib/golf/course-catalog';
 
 // ── /api/leagues/[id] — the public league read + owner/manager edit ──────────
@@ -97,33 +98,15 @@ export async function PATCH(
     }
     const supabase = getSupabaseAdmin();
 
-    const { data: league, error } = await supabase
-      .from('leagues')
-      .select('id, owner_profile_id')
-      .eq('id', id)
-      .maybeSingle();
-    if (error) {
-      if (isMissingTableError(error.code)) {
-        return NextResponse.json({ error: 'League not found' }, { status: 404 });
-      }
-      console.error('[LEAGUES] PATCH fetch error:', error);
+    const loaded = await getOrgAndRole(supabase, 'league', id, user.id);
+    if (loaded.status === 'error') {
+      console.error('[LEAGUES] PATCH fetch error:', loaded.error);
       return NextResponse.json({ error: 'Failed to load league' }, { status: 500 });
     }
-    if (!league) {
+    if (loaded.status === 'not_found') {
       return NextResponse.json({ error: 'League not found' }, { status: 404 });
     }
-
-    const { data: membership } = await supabase
-      .from('league_members')
-      .select('role')
-      .eq('league_id', id)
-      .eq('profile_id', user.id)
-      .maybeSingle();
-    const canEdit =
-      user.id === league.owner_profile_id ||
-      membership?.role === 'owner' ||
-      membership?.role === 'manager';
-    if (!canEdit) {
+    if (!roleAllows(loaded.role, 'manage_org')) {
       return NextResponse.json({ error: 'Not authorized to edit this league' }, { status: 403 });
     }
 

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth, getSupabaseAdmin } from '@/lib/auth-server';
 import { enforceRateLimit } from '@/lib/rate-limit';
 import { ClubMemberRoleSchema, isMissingTableError } from '@/lib/clubs/validate';
+import { getOrgAndRole, roleAllows } from '@/lib/orgs/authz';
 import { parseBody } from '@/lib/validation';
 import { UUID_RE } from '@/lib/golf/course-catalog';
 
@@ -112,30 +113,16 @@ export async function PATCH(
     }
 
     const supabase = getSupabaseAdmin();
-    const { data: club, error: clubError } = await supabase
-      .from('clubs')
-      .select('id, name, owner_profile_id')
-      .eq('id', id)
-      .maybeSingle();
-    if (clubError) {
-      if (isMissingTableError(clubError.code)) {
-        return NextResponse.json({ error: 'Club not found' }, { status: 404 });
-      }
-      console.error('[CLUB MEMBERS] club fetch error:', clubError);
+    const loaded = await getOrgAndRole(supabase, 'club', id, user.id);
+    if (loaded.status === 'error') {
+      console.error('[CLUB MEMBERS] club fetch error:', loaded.error);
       return NextResponse.json({ error: 'Failed to load club' }, { status: 500 });
     }
-    if (!club) {
+    if (loaded.status === 'not_found') {
       return NextResponse.json({ error: 'Club not found' }, { status: 404 });
     }
-
-    const { data: callerRow } = await supabase
-      .from('club_members')
-      .select('role')
-      .eq('club_id', id)
-      .eq('profile_id', user.id)
-      .maybeSingle();
-    const isOwner = user.id === club.owner_profile_id || callerRow?.role === 'owner';
-    if (!isOwner) {
+    const club = loaded.org;
+    if (!roleAllows(loaded.role, 'change_roles')) {
       return NextResponse.json({ error: 'Only the owner can change roles' }, { status: 403 });
     }
 
@@ -203,33 +190,15 @@ export async function DELETE(
     }
 
     const supabase = getSupabaseAdmin();
-    const { data: club, error: clubError } = await supabase
-      .from('clubs')
-      .select('id, owner_profile_id')
-      .eq('id', id)
-      .maybeSingle();
-    if (clubError) {
-      if (isMissingTableError(clubError.code)) {
-        return NextResponse.json({ error: 'Club not found' }, { status: 404 });
-      }
-      console.error('[CLUB MEMBERS] club fetch error:', clubError);
+    const loaded = await getOrgAndRole(supabase, 'club', id, user.id);
+    if (loaded.status === 'error') {
+      console.error('[CLUB MEMBERS] club fetch error:', loaded.error);
       return NextResponse.json({ error: 'Failed to load club' }, { status: 500 });
     }
-    if (!club) {
+    if (loaded.status === 'not_found') {
       return NextResponse.json({ error: 'Club not found' }, { status: 404 });
     }
-
-    const { data: callerRow } = await supabase
-      .from('club_members')
-      .select('role')
-      .eq('club_id', id)
-      .eq('profile_id', user.id)
-      .maybeSingle();
-    const canManage =
-      user.id === club.owner_profile_id ||
-      callerRow?.role === 'owner' ||
-      callerRow?.role === 'manager';
-    if (!canManage) {
+    if (!roleAllows(loaded.role, 'manage_members')) {
       return NextResponse.json({ error: 'Not authorized to manage members' }, { status: 403 });
     }
 

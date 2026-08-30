@@ -17,7 +17,7 @@
 // deep link needs the banner, not a 404).
 
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { getOrgRole } from '@/lib/affiliations/authz';
+import { getOrgRole } from '@/lib/orgs/authz';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Admin = SupabaseClient<any, 'public', any>;

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth, getSupabaseAdmin } from '@/lib/auth-server';
 import { enforceRateLimit } from '@/lib/rate-limit';
 import { LeagueMemberRoleSchema, isMissingTableError } from '@/lib/leagues/validate';
+import { getOrgAndRole, roleAllows } from '@/lib/orgs/authz';
 import { parseBody } from '@/lib/validation';
 import { UUID_RE } from '@/lib/golf/course-catalog';
 
@@ -116,30 +117,16 @@ export async function PATCH(
     }
 
     const supabase = getSupabaseAdmin();
-    const { data: league, error: leagueError } = await supabase
-      .from('leagues')
-      .select('id, name, owner_profile_id')
-      .eq('id', id)
-      .maybeSingle();
-    if (leagueError) {
-      if (isMissingTableError(leagueError.code)) {
-        return NextResponse.json({ error: 'League not found' }, { status: 404 });
-      }
-      console.error('[LEAGUE MEMBERS] league fetch error:', leagueError);
+    const loaded = await getOrgAndRole(supabase, 'league', id, user.id);
+    if (loaded.status === 'error') {
+      console.error('[LEAGUE MEMBERS] league fetch error:', loaded.error);
       return NextResponse.json({ error: 'Failed to load league' }, { status: 500 });
     }
-    if (!league) {
+    if (loaded.status === 'not_found') {
       return NextResponse.json({ error: 'League not found' }, { status: 404 });
     }
-
-    const { data: callerRow } = await supabase
-      .from('league_members')
-      .select('role')
-      .eq('league_id', id)
-      .eq('profile_id', user.id)
-      .maybeSingle();
-    const isOwner = user.id === league.owner_profile_id || callerRow?.role === 'owner';
-    if (!isOwner) {
+    const league = loaded.org;
+    if (!roleAllows(loaded.role, 'change_roles')) {
       return NextResponse.json({ error: 'Only the owner can change roles' }, { status: 403 });
     }
 
@@ -209,33 +196,15 @@ export async function DELETE(
     }
 
     const supabase = getSupabaseAdmin();
-    const { data: league, error: leagueError } = await supabase
-      .from('leagues')
-      .select('id, owner_profile_id')
-      .eq('id', id)
-      .maybeSingle();
-    if (leagueError) {
-      if (isMissingTableError(leagueError.code)) {
-        return NextResponse.json({ error: 'League not found' }, { status: 404 });
-      }
-      console.error('[LEAGUE MEMBERS] league fetch error:', leagueError);
+    const loaded = await getOrgAndRole(supabase, 'league', id, user.id);
+    if (loaded.status === 'error') {
+      console.error('[LEAGUE MEMBERS] league fetch error:', loaded.error);
       return NextResponse.json({ error: 'Failed to load league' }, { status: 500 });
     }
-    if (!league) {
+    if (loaded.status === 'not_found') {
       return NextResponse.json({ error: 'League not found' }, { status: 404 });
     }
-
-    const { data: callerRow } = await supabase
-      .from('league_members')
-      .select('role')
-      .eq('league_id', id)
-      .eq('profile_id', user.id)
-      .maybeSingle();
-    const canManage =
-      user.id === league.owner_profile_id ||
-      callerRow?.role === 'owner' ||
-      callerRow?.role === 'manager';
-    if (!canManage) {
+    if (!roleAllows(loaded.role, 'manage_members')) {
       return NextResponse.json({ error: 'Not authorized to manage members' }, { status: 403 });
     }
 
