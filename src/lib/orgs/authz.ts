@@ -32,16 +32,26 @@ type Admin = SupabaseClient<any, 'public', any>;
 export type OrgRole = 'owner' | 'manager' | 'member';
 export type OrgSide = 'league' | 'club';
 
+const ROLE_RANK: Record<OrgRole, number> = { owner: 3, manager: 2, member: 1 };
+
+/** The decided rule (0.3): a profile's org role is the MAX across all their
+ *  memberships rows for the org — owner > manager > member. Kind is
+ *  orthogonal to role, so a follow row and a roster row coexisting can
+ *  never demote anyone, and row order never matters. Unknown strings are
+ *  ignored; no rows → null. */
+export function maxOrgRole(roles: Array<string | null | undefined>): OrgRole | null {
+  let best: OrgRole | null = null;
+  for (const role of roles) {
+    if (role !== 'owner' && role !== 'manager' && role !== 'member') continue;
+    if (!best || ROLE_RANK[role] > ROLE_RANK[best]) best = role;
+  }
+  return best;
+}
+
 /** The profile's role in an org, from `memberships` + the org row's owner
  *  column (owners hold power even without a member row). A failed
  *  membership read yields null — deliberately: authorization degrades to
- *  "no role", never to a 500 here (routes 500 on the ORG fetch instead).
- *
- *  0.3 LANDMINE — resolve BEFORE minting any kind='roster' row: this
- *  .maybeSingle() is safe only while (org, profile) has at most one
- *  memberships row. A coexisting roster row makes it error (PGRST116) →
- *  role null → managers silently lose power. 0.3 must decide the role
- *  source (roster row wins? max of rows?) and change this query first. */
+ *  "no role", never to a 500 here (routes 500 on the ORG fetch instead). */
 export async function getOrgRole(
   admin: Admin,
   side: OrgSide,
@@ -55,9 +65,8 @@ export async function getOrgRole(
     .from('memberships')
     .select('role')
     .eq(idColumn, orgId)
-    .eq('profile_id', profileId)
-    .maybeSingle();
-  return (data?.role as OrgRole | undefined) ?? null;
+    .eq('profile_id', profileId);
+  return maxOrgRole((data ?? []).map(r => r.role as string));
 }
 
 export function isOwnerOrManager(role: OrgRole | null): boolean {

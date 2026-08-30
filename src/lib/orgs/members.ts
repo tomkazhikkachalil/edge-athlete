@@ -13,7 +13,7 @@
 // paths (a roster edge gets its own gated creation flow in 0.3/0.10).
 
 import type { PostgrestError, SupabaseClient } from '@supabase/supabase-js';
-import type { OrgRole, OrgSide } from './authz';
+import { maxOrgRole, type OrgRole, type OrgSide } from './authz';
 import { isMissingTableError } from '@/lib/leagues/validate';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- matches the authz.ts Admin alias; schema-agnostic helper
@@ -74,15 +74,17 @@ export function removeMember(admin: Admin, ref: OrgRef, profileId: string): Prom
 }
 
 // ── Reads (the enumeration layer promised by orgs/authz.ts) ─────────────────
-// All read from `memberships` with NO kind/status/scope predicate — 0.2 is
-// behavior-identical (every row is follow/active/org anyway). 0.10 adds the
-// kind='roster' predicate to the CALENDAR MERGE's caller only. Functions own
-// the query; callers keep their own error mapping unless every caller shares
-// one policy (noted per function). The 0.3 maybeSingle landmine documented
-// on getOrgRole applies to getMemberRole identically.
+// Multi-row aware (0.3): a profile may hold BOTH a follow row and a roster
+// row per org, so role reads reduce with maxOrgRole and enumeration reads
+// dedupe. Enumeration keeps NO kind predicate — 0.10 adds the kind='roster'
+// predicate to the CALENDAR MERGE's caller only. The member-list/count
+// queries filter kind='follow' (roster ⊆ follow: one row per person).
+// Functions own the query; callers keep their own error mapping unless
+// every caller shares one policy (noted per function).
 
-/** Point read of a profile's member row. Callers treat role===null as "not a
- *  member"; the error is surfaced for the join-toggle's 500 branch. */
+/** A profile's role in the org: MAX across their rows (kind is orthogonal
+ *  to role). Callers treat role===null as "not a member"; the error is
+ *  surfaced for the join-toggle's 500 branch. */
 export async function getMemberRole(
   admin: Admin,
   ref: OrgRef,
@@ -92,9 +94,8 @@ export async function getMemberRole(
     .from('memberships')
     .select('role')
     .eq(orgColumn(ref.side), ref.orgId)
-    .eq('profile_id', profileId)
-    .maybeSingle();
-  return { role: (data?.role as OrgRole | undefined) ?? null, error };
+    .eq('profile_id', profileId);
+  return { role: maxOrgRole((data ?? []).map(r => r.role as string)), error };
 }
 
 /** Every org the profile belongs to, one query. Shared policy of both
@@ -114,8 +115,8 @@ export async function memberOrgIds(
   }
   const rows = (data ?? []) as Array<{ league_id: string | null; club_id: string | null }>;
   return {
-    leagueIds: rows.map(r => r.league_id).filter((id): id is string => !!id),
-    clubIds: rows.map(r => r.club_id).filter((id): id is string => !!id),
+    leagueIds: [...new Set(rows.map(r => r.league_id).filter((id): id is string => !!id))],
+    clubIds: [...new Set(rows.map(r => r.club_id).filter((id): id is string => !!id))],
   };
 }
 
@@ -135,7 +136,7 @@ export async function memberProfileIdsForOrgs(
     if (isMissingTableError(error.code)) return [];
     throw error;
   }
-  return (data ?? []).map(r => r.profile_id as string);
+  return [...new Set((data ?? []).map(r => r.profile_id as string))];
 }
 
 /** Every member of one org (unbounded — callers accept that today). Raw
@@ -149,7 +150,7 @@ export async function memberProfileIds(
     .from('memberships')
     .select('profile_id')
     .eq(orgColumn(ref.side), ref.orgId);
-  return { profileIds: (data ?? []).map(r => r.profile_id as string), error };
+  return { profileIds: [...new Set((data ?? []).map(r => r.profile_id as string))], error };
 }
 
 /** Does ANY of these profiles hold a member row in the org? Errors read as
@@ -182,9 +183,15 @@ export async function profileMembershipRows(
     .from('memberships')
     .select(`${col}, role`)
     .eq('profile_id', profileId);
-  const rows = ((data ?? []) as unknown as Array<Record<string, string>>).map(r => ({
-    orgId: r[col],
-    role: r.role,
+  // One entry per org: a dual-edge profile reduces to their max role.
+  const byOrg = new Map<string, string[]>();
+  for (const r of (data ?? []) as unknown as Array<Record<string, string>>) {
+    if (!byOrg.has(r[col])) byOrg.set(r[col], []);
+    byOrg.get(r[col])!.push(r.role);
+  }
+  const rows = [...byOrg.entries()].map(([orgId, roles]) => ({
+    orgId,
+    role: (maxOrgRole(roles) ?? 'member') as string,
   }));
   return { rows, error };
 }
@@ -196,9 +203,11 @@ export interface MemberPreviewRow {
   profile: unknown;
 }
 
-/** The org page's member panel: exact count, first `limit` rows with the
- *  embedded profile, and the viewer's own role. Errors read as empty/null —
- *  matching the caller, which uses `data ?? []` with no error branches. */
+/** The org page's member panel: exact count and first `limit` rows over the
+ *  kind='follow' edges (roster ⊆ follow: exactly one follow row per person,
+ *  so count and limit mean people), plus the viewer's own role reduced with
+ *  maxOrgRole across all their rows. Errors read as empty/null — matching
+ *  the caller, which uses `data ?? []` with no error branches. */
 export async function orgMemberPreview(
   admin: Admin,
   ref: OrgRef,
@@ -210,11 +219,13 @@ export async function orgMemberPreview(
     admin
       .from('memberships')
       .select('profile_id', { count: 'exact', head: true })
-      .eq(col, ref.orgId),
+      .eq(col, ref.orgId)
+      .eq('kind', 'follow'),
     admin
       .from('memberships')
       .select('profile_id, role, joined_at, profile:profile_id (id, handle, first_name, last_name, full_name, avatar_url)')
       .eq(col, ref.orgId)
+      .eq('kind', 'follow')
       .order('joined_at', { ascending: true })
       .limit(limit),
     viewerId
@@ -223,13 +234,13 @@ export async function orgMemberPreview(
           .select('role')
           .eq(col, ref.orgId)
           .eq('profile_id', viewerId)
-          .maybeSingle()
       : Promise.resolve({ data: null }),
   ]);
+  const viewerRows = (viewerRes.data ?? []) as Array<{ role: string }>;
   return {
     count: countRes.count ?? 0,
     members: (membersRes.data ?? []) as unknown as MemberPreviewRow[],
-    viewerRole: (viewerRes.data as { role?: string } | null)?.role ?? null,
+    viewerRole: maxOrgRole(viewerRows.map(r => r.role)),
   };
 }
 
@@ -243,10 +254,17 @@ export async function memberCountsByOrg(
   const counts = new Map<string, number>();
   if (orgIds.length === 0) return counts;
   const col = orgColumn(side);
-  const { data } = await admin.from('memberships').select(col).in(col, orgIds);
+  const { data } = await admin
+    .from('memberships')
+    .select(`${col}, profile_id`)
+    .in(col, orgIds);
+  // Distinct people per org — a dual-edge profile counts once.
+  const seen = new Map<string, Set<string>>();
   for (const row of (data ?? []) as unknown as Array<Record<string, string>>) {
-    counts.set(row[col], (counts.get(row[col]) ?? 0) + 1);
+    if (!seen.has(row[col])) seen.set(row[col], new Set());
+    seen.get(row[col])!.add(row.profile_id);
   }
+  for (const [orgId, profiles] of seen) counts.set(orgId, profiles.size);
   return counts;
 }
 
