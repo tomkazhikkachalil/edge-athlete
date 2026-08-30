@@ -1,5 +1,76 @@
 # Development Log
 
+## August 30, 2026 — Step 0.2: one `memberships` table replaces the mirrored pair (mig 140, #387–#389)
+
+The load-bearing step of the org-platform phase 0: `league_members` (113) and
+`club_members` (117) collapse into ONE `memberships` table shaped for the
+master plan — and the transition ran the full dual-write discipline even
+though prod held zero member rows, because the discipline is the deliverable:
+0.5/0.8/0.10 all build on this table and on the layer that now fronts it.
+
+- **Migration 140.** Two-FK org discriminator (the events-119 pattern —
+  FKs can't span the two org tables), `kind` (follow|roster), `role`, inert
+  `status` (active|pending), `scope_type` CHECK ('org') + `scope_id` for
+  0.5's sub-org scopes, `season_id` (no FK until seasons exist), `joined_at`
+  keeping the old name. Tom's three locked decisions baked into
+  `memberships_uniq UNIQUE NULLS NOT DISTINCT (league_id, club_id,
+  profile_id, kind, scope_type, scope_id, season_id)`: follow and roster are
+  SEPARATE edges, status ships now, seasons never re-key the table.
+  Surrogate uuid PK is FORCED (the natural key has nullable columns).
+  Convergent backfill (`ON CONFLICT … DO UPDATE`) — re-running 140 repairs
+  gap drift; the header carries the divergence probe and a window-only
+  repair DELETE as documentation, never in the body, so 140 stays
+  re-runnable forever. PG15+ pre-flight guard for NULLS NOT DISTINCT.
+- **#387 — dual-write.** New `src/lib/orgs/members.ts`: all ten write sites
+  (join/leave/promote/remove ×2 routes + the two owner-row inserts in
+  createLeagueWithOwner/createClubWithOwner) moved behind
+  joinOrg/leaveOrg/setMemberRole/removeMember/insertOwnerRow. Legacy table
+  first and authoritative; the memberships mirror swallowed 23505 and logged
+  `[MEMBERSHIPS DUAL-WRITE]` without ever failing a request. Mirror
+  update/delete filtered `kind='follow' AND scope_type='org'` so 0.3's
+  roster rows are structurally unreachable from legacy-shaped paths (the
+  filters survive into the single-write code).
+- **#388 — read-switch.** `getOrgRole(admin, side, …)` — deleting the
+  `OrgMemberTable` union was the ONE type-level net in this untyped-client
+  codebase, and it flushed all four calendar literal call sites plus the
+  affiliations SIDES config. Every direct read moved behind members.ts
+  (orgMemberPreview with the embedded profile join, getMemberRole,
+  memberCountsByOrg, memberOrgIds — one query replacing two per-side
+  probes — memberProfileIds(ForOrgs), anyMembershipExists,
+  profileMembershipRows). Read functions own the QUERIES; callers keep
+  their exact error mapping (raw {data,error} where callers differ, baked
+  policy where all agree). No read filters kind/status/scope — 0.10's
+  `kind='roster'` predicate site is annotated at the calendar merge's read,
+  and only there. **All 11 org e2e specs flipped their service-role seeding
+  and skip-probes to memberships in the same commit** — after the switch,
+  old-table seeding is invisible, so a split here would have made the suite
+  read empty.
+- **#389 — single-write (MERGED, Tom waived the soak — prod org data was
+  zero outside QA windows and probes A/B were green).** Write layer drops
+  the legacy writes; league_members/club_members are frozen. **Probe C
+  10/10 vs the live deploy**: join via the app landed in memberships ONLY
+  (legacy row count stayed zero through join/promote/leave), row shape
+  follow/active/org, cascade cleanup verified. The DROP migration stays
+  deferred per 140's header criteria (single-write live 1–2 weeks, final
+  divergence pass for the record).
+- **The 0.3 landmine, fused in code.** `getOrgRole`/`getMemberRole` use
+  `.maybeSingle()`, which is safe only while (org, profile) has at most one
+  row. The day 0.3 mints a roster row beside a follow row, that errors →
+  role null → managers silently lose power. 0.3 must decide the role source
+  and change those queries BEFORE creating any roster row. Commented at
+  both functions.
+- **Verification.** Verify green per PR (#387: 2244, +8; #388: 2246; #389:
+  2242). Ops ran in order: Tom ran 140 (grid 14× true) → #387 merged →
+  **probe A 13/13** (QA join/promote/demote/leave/remove via the live APIs,
+  SQL-verifying BOTH tables mirrored each step, row shape
+  follow/active/org, org-delete cascade cleaning both) → divergence CLEAN →
+  #388 merged → **probe B 11/11** (the full org e2e suite vs prod:
+  affiliation, joins, managers, activity, calendar merge + RSVP, events,
+  feed lens, notify, profile strip — all now reading memberships) →
+  divergence CLEAN again. The gap-convergence 140 re-run was a no-op at
+  current volume (zero standing member rows outside QA windows); the
+  discipline is recorded for when volume exists.
+
 ## August 30, 2026 — Org platform phase 0 opens: role checks centralized, notification mapping data-driven (#384–#386, zero DDL)
 
 Tom reviewed the shipped org flow against the org-platform master plan and
