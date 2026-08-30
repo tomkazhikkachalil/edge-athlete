@@ -15,7 +15,7 @@ import { buildStatHighlights, type StatPlayerHole } from '@/lib/sports/post-stat
 import { classifyScore, SCORE_CELL_RING, toParColorClass } from '@/lib/golf/scoring';
 import { getSportDefinition, type SportKey } from '@/lib/sports/SportRegistry';
 import { AvatarImage } from '@/components/OptimizedImage';
-import { getInitials } from '@/lib/formatters';
+import { getInitials, parseDateLocal } from '@/lib/formatters';
 
 const RESULT_STYLES: Record<string, string> = {
   W: 'bg-green-600 text-white',
@@ -28,9 +28,15 @@ const RESULT_STYLES: Record<string, string> = {
  *  are already invariant. Golf's "To Par" and non-numeric heroes ("E", "+3")
  *  fall through untouched. */
 /** "2026-08-01" → "Aug 1". Kept dumb: the card wants a glanceable date, not
- *  a locale-complete one. */
-function formatCardDate(raw: string): string {
-  const d = new Date(raw);
+ *  a locale-complete one.
+ *
+ *  parseDateLocal, NOT `new Date(raw)`: group_posts.date and golf_rounds.date
+ *  are DATE columns, and a bare `new Date("2026-08-30")` parses as UTC
+ *  midnight, so every US timezone renders the PREVIOUS day. That made this
+ *  card say "Aug 29" while the detail modal — which already used the helper —
+ *  said "August 30" for the same round. */
+export function formatCardDate(raw: string): string {
+  const d = parseDateLocal(raw);
   if (Number.isNaN(d.getTime())) return raw;
   return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
