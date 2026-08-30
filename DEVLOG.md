@@ -1,5 +1,87 @@
 # Development Log
 
+## August 29, 2026 — Round post: overview flow, a top way in, and an honest hole count (#378–#379, zero DDL)
+
+Tom's three complaints about how a posted golf round reads. Zero migrations:
+the schema was never the problem — one number was being read from the wrong
+place, and one screen was ordered reference-material-first.
+
+- **The hole count always said 18 (#378).** Not a formatting slip.
+  `golf_scorecard_data.holes_played` is written ONCE at round creation and
+  never recomputed — a repo-wide grep finds zero updates to that table — and
+  a live round is created *before a single score exists*, so
+  `deriveRecordedRound` falls through to its 18 default (`derive-round.ts:36`)
+  and the round carries that number forever. The stale value then propagates
+  into `golf_rounds.holes` via `round-mirror.ts`, which is part of why
+  `handicap.ts` carries "mislabeled data" plausibility guards. Fixed at the
+  DISPLAY layer, reusing the vocabulary that already existed for exactly this
+  bug class: `holeCountLabel` in `round-display.ts`, whose own doc comment
+  names it. New pure `playedHoleCount` counts DISTINCT hole numbers with a
+  recorded stroke. **Union across participants, never the viewer's row** —
+  these are public posts, and a viewer-relative count would make one post read
+  three ways; per-player progress keeps its own surfaces (the full card's
+  "N of M holes", the quick view's "thru N"), untouched. Strokes-filtered
+  rather than row-counted, because solo `golf_holes.strokes` is NULLABLE.
+  Falls back to the configured length when nothing per-hole was recorded, so
+  quick-entry gross-only rounds are byte-identical to before and nothing ever
+  renders "0 holes". Explicitly NOT `deriveRecordedRound`, which buckets to
+  {9,18} for the write path by design and can never return 13. `holeCountValue`
+  also kills "20 of 18 holes", reachable on the solo detail page. Drive-by,
+  same bug: GolfRoundCard gated its "Through N" badge on a hardcoded `< 18`,
+  so a COMPLETE 9-hole round claimed "Through 9". The local run made the scale
+  visible — historical rounds across the feed flipped from a flat "18 holes"
+  to "2 of 18", "3 of 18", "9 of 18".
+- **The detail opened on the course map (#379).** Overview reordered to
+  media → scores → course details, the last collapsed. The media teaser and
+  leaderboard move unchanged; new is a `<details>` holding the CourseInfoCard
+  AND the Round Details grid (same class of reference material — leaving it
+  dangling under the leaderboard would defeat the collapse). **State-backed
+  `open`**, the reason GolfRoundCard already documents: the modal re-renders
+  on every refetch and PostCard on every like, either of which would
+  re-assert an uncontrolled attribute and snap a user-closed section back
+  open. **CourseInfoCard is mounted only while open** — a closed `<details>`
+  still MOUNTS its children in React (the UA only `display:none`s them), so
+  an always-mounted card would fire the hole-geometry fetch and instantiate
+  Leaflet on every modal open, and a Leaflet map built at `display:none`
+  sizes itself to 0×0. Gating the mount also lets it keep `defaultOpen`,
+  putting the GPS map one tap away rather than two. Rounds with no catalog
+  course still get the section — the grid is its content, so it never opens
+  onto nothing. Both mount sites inherit it (feed modal + `/live`).
+- **One way in, at the bottom (#379).** On a four-player round the only entry
+  sat a long scroll below the header. "View details" added to the header's
+  right slot on the same `onExpand` the bottom button uses — no new plumbing,
+  because the existing prop contract already carries the right semantics for
+  both post types. `aria-expanded` rides along only for solo posts (a real
+  disclosure); shared posts open a modal and get `aria-haspopup="dialog"`,
+  where `aria-expanded` would be a lie. Deliberately NOT behind the roster
+  gate that wraps the bottom button — that gate is incidental layout,
+  `onExpand` is the capability signal. Two intents, two names; the bottom
+  button is unchanged. `data-testid="post-card"` added to PostCard, which had
+  no test hook at all.
+- **The Aug 10 "feed golf rendering is frozen" rule was lifted for this round
+  by Tom** (it named post-stat-highlights.ts, GolfRoundCard and the feed card
+  as untouchable). It stands again now, minus these three changes.
+- **Traps caught.** (a) `/feed?post=<id>` opens PostDetailModal OVER the feed:
+  the card behind it still reports *visible*, so the expect passes and the
+  following `click()` retries to the test deadline — surfacing as a bare
+  timeout with no assertion error to point at. The new spec uses plain
+  `/feed`; the finding is encoded in a comment there. (b) A `finally` doing
+  API cleanup masks the body's real error when the test has already burned
+  its budget — instrument before believing a timeout.
+- **Verification.** `npm run verify` green per PR (2206 tests, +16 new:
+  played-hole union, null/zero strokes, back-nine numbering, the
+  viewer-independence guarantee, the no-hole-rows fallback). New
+  `e2e/round-details.spec.ts` 3/3 locally (desktop + @mobile at 375×812);
+  golf regression suite 9/9 (lifecycle, quick-entry ×2, delete ×3, feed-post).
+  Prod probe owed after deploy.
+
+**Recorded, not done:** recomputing the stored `holes_played` at round end
+(in `advanceRoundStatus`) would fix the count at the source and propagate
+through stats, trends and the rounds list — and would let handicap.ts's
+plausibility guards become belt-and-braces rather than load-bearing. It moves
+**WHS handicap eligibility for existing rounds**, so it needs its own round
+and Tom's sign-off.
+
 ## August 29, 2026 — Calendar round: timezones, guardian parity, layered multi-person view (#375–#377, zero DDL)
 
 Three-PR round scoped by Tom (carpool explicitly dropped): events correct
