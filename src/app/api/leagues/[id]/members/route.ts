@@ -3,6 +3,7 @@ import { requireAuth, getSupabaseAdmin } from '@/lib/auth-server';
 import { enforceRateLimit } from '@/lib/rate-limit';
 import { LeagueMemberRoleSchema, isMissingTableError } from '@/lib/leagues/validate';
 import { getOrgAndRole, roleAllows } from '@/lib/orgs/authz';
+import { joinOrg, leaveOrg, removeMember, setMemberRole } from '@/lib/orgs/members';
 import { parseBody } from '@/lib/validation';
 import { UUID_RE } from '@/lib/golf/course-catalog';
 
@@ -59,11 +60,7 @@ export async function POST(
       if (existing.role === 'owner') {
         return NextResponse.json({ error: "Owners can't leave their league" }, { status: 400 });
       }
-      const { error: deleteError } = await supabase
-        .from('league_members')
-        .delete()
-        .eq('league_id', id)
-        .eq('profile_id', user.id);
+      const { error: deleteError } = await leaveOrg(supabase, { side: 'league', orgId: id }, user.id);
       if (deleteError) {
         console.error('[LEAGUE MEMBERS] leave error:', deleteError);
         return NextResponse.json({ error: 'Failed to leave league' }, { status: 500 });
@@ -71,9 +68,7 @@ export async function POST(
       return NextResponse.json({ action: 'left' });
     }
 
-    const { error: insertError } = await supabase
-      .from('league_members')
-      .insert({ league_id: id, profile_id: user.id });
+    const { error: insertError } = await joinOrg(supabase, { side: 'league', orgId: id }, user.id);
     if (insertError) {
       console.error('[LEAGUE MEMBERS] join error:', insertError);
       return NextResponse.json({ error: 'Failed to join league' }, { status: 500 });
@@ -150,11 +145,7 @@ export async function PATCH(
       return NextResponse.json({ action: 'unchanged', role });
     }
 
-    const { error: updateError } = await supabase
-      .from('league_members')
-      .update({ role })
-      .eq('league_id', id)
-      .eq('profile_id', profileId);
+    const { error: updateError } = await setMemberRole(supabase, { side: 'league', orgId: id }, profileId, role);
     if (updateError) {
       console.error('[LEAGUE MEMBERS] role update error:', updateError);
       return NextResponse.json({ error: 'Failed to change role' }, { status: 500 });
@@ -221,11 +212,7 @@ export async function DELETE(
       return NextResponse.json({ error: 'Only member rows can be removed' }, { status: 400 });
     }
 
-    const { error: deleteError } = await supabase
-      .from('league_members')
-      .delete()
-      .eq('league_id', id)
-      .eq('profile_id', profileId);
+    const { error: deleteError } = await removeMember(supabase, { side: 'league', orgId: id }, profileId);
     if (deleteError) {
       console.error('[LEAGUE MEMBERS] remove error:', deleteError);
       return NextResponse.json({ error: 'Failed to remove member' }, { status: 500 });
