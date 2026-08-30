@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useNotifications, getNotificationText } from '@/lib/notifications';
+import { getNotificationIcon } from '@/lib/notification-registry';
 import { formatDisplayName, getInitials } from '@/lib/formatters';
 import { AvatarImage } from '@/components/OptimizedImage';
 import { usePopoverDismiss } from '@/hooks/usePopoverDismiss';
@@ -112,41 +113,6 @@ export default function NotificationBell() {
     return time.toLocaleDateString();
   };
 
-  const getNotificationIcon = (type: string) => {
-    switch (type) {
-      case 'group_invite':
-        // Group posts are sport-agnostic — a golf ball here mislabeled every
-        // non-golf invite.
-        return 'fa-users';
-      case 'group_update':
-        return 'fa-trophy';
-      case 'follow_request':
-      case 'follow_accepted':
-      case 'new_follower':
-        return 'fa-user-plus';
-      case 'like':
-        return 'fa-heart';
-      case 'comment':
-      case 'comment_reply':
-        return 'fa-comment';
-      case 'mention':
-      case 'tag':
-        return 'fa-at';
-      case 'achievement':
-        return 'fa-trophy';
-      case 'system_announcement':
-        return 'fa-bullhorn';
-      case 'club_update':
-      case 'team_update':
-        return 'fa-users';
-      case 'safety_alert':
-        return 'fa-shield-halved';
-      case 'calendar_alert':
-        return 'fa-calendar-day';
-      default:
-        return 'fa-bell';
-    }
-  };
 
   return (
     <div className="relative shrink-0" ref={dropdownRef}>

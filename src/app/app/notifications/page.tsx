@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { useAuth } from '@/lib/auth';
 import { useNotifications, getNotificationText } from '@/lib/notifications';
+import { getNotificationIcon, notificationTab } from '@/lib/notification-registry';
 import { formatDisplayName, getInitials } from '@/lib/formatters';
 import AppHeader from '@/components/AppHeader';
 
@@ -40,30 +41,13 @@ export default function NotificationsPage() {
     }
   }, [user, authLoading, router]);
 
-  // Filter notifications based on active tab
+  // Filter notifications based on active tab. Tab membership lives in the
+  // registry (src/lib/notification-registry.ts); a type the registry doesn't
+  // know yet maps to no named tab, so it stays reachable via All/Unread.
   const filteredNotifications = notifications.filter(notification => {
     if (activeTab === 'unread') return !notification.is_read;
-    if (activeTab === 'follow') {
-      return ['follow_request', 'follow_accepted', 'new_follower'].includes(notification.type);
-    }
-    if (activeTab === 'engagement') {
-      return ['like', 'comment', 'comment_reply', 'mention', 'tag'].includes(notification.type);
-    }
-    if (activeTab === 'system') {
-      return [
-        'achievement', 'system_announcement', 'club_update', 'team_update',
-        'event_invite', 'event_update', 'event_cancelled', 'event_response',
-        // Guardian/custody events (Round D — these used to fall through to
-        // "All" only): approvals traffic, transfer progress, consent results.
-        'post_pending_approval', 'post_approval_result',
-        'comment_pending_approval', 'comment_approval_result',
-        'transfer_update', 'consent_result', 'athlete_added',
-        // Wave 3: safety escalations + guardian calendar awareness were
-        // reachable only through "All".
-        'safety_alert', 'calendar_alert',
-      ].includes(notification.type);
-    }
-    return true; // 'all'
+    if (activeTab === 'all') return true;
+    return notificationTab(notification.type) === activeTab;
   });
 
   // Group notifications by date
@@ -105,51 +89,6 @@ export default function NotificationsPage() {
   };
 
   const groupedNotifications = groupNotificationsByDate();
-
-  const getNotificationIcon = (type: string) => {
-    switch (type) {
-      case 'group_invite':
-        return 'fa-users';
-      case 'group_update':
-        return 'fa-trophy';
-      case 'follow_request':
-      case 'follow_accepted':
-      case 'new_follower':
-        return 'fa-user-plus';
-      case 'like':
-        return 'fa-heart';
-      case 'comment':
-      case 'comment_reply':
-        return 'fa-comment';
-      case 'mention':
-      case 'tag':
-        return 'fa-at';
-      case 'achievement':
-        return 'fa-trophy';
-      case 'system_announcement':
-        return 'fa-bullhorn';
-      case 'club_update':
-      case 'team_update':
-        return 'fa-users';
-      case 'post_pending_approval':
-      case 'comment_pending_approval':
-        return 'fa-hourglass-half';
-      case 'post_approval_result':
-      case 'comment_approval_result':
-      case 'consent_result':
-        return 'fa-user-shield';
-      case 'transfer_update':
-        return 'fa-right-left';
-      case 'athlete_added':
-        return 'fa-child-reaching';
-      case 'safety_alert':
-        return 'fa-shield-halved';
-      case 'calendar_alert':
-        return 'fa-calendar-day';
-      default:
-        return 'fa-bell';
-    }
-  };
 
   const getRelativeTime = (timestamp: string) => {
     const now = new Date();
