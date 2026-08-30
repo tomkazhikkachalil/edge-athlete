@@ -1,5 +1,64 @@
 # Development Log
 
+## August 30, 2026 — Step 0.3: roster offers, and the follow/roster split becomes real (#391–#393, zero DDL)
+
+Migration 140's front-loaded `kind='roster'` / `status='pending'` CHECKs paid
+off exactly as designed: the whole step shipped without touching the schema.
+Tom's decisions: role = MAX across a profile's rows (owner > manager >
+member — kind is orthogonal to role); roster is an OFFER the athlete accepts
+(decline DELETEs the row, the 118 precedent); notifications ride
+league_update/club_update with metadata.roster disambiguation (the dedicated
+type arrives with 0.10). V1 invariant, server-enforced both ways:
+**roster ⊆ follow** — offers only go to existing members, and leaving or
+being removed ends roster participation too.
+
+- **#391 — multi-row reads defused FIRST (pure refactor).** The landmine 0.2
+  fused in comments: every `.maybeSingle()` membership read breaks the moment
+  a profile holds two rows in one org. New pure `maxOrgRole`; getOrgRole /
+  getMemberRole / the org-page viewer reduce across all rows; member
+  list/count filter kind='follow' (one row per person, so the React key and
+  the count keep meaning people); enumerations dedupe; admin counts are
+  distinct people; profileMembershipRows reduces per org. Revert rule stated
+  in the PR: safe only while zero roster rows exist.
+- **#392 — the feature.** `orgs/roster-server.ts` holds the authorization
+  matrix once behind thin `/roster` routes on both sides (POST offer by
+  roleAllows('manage_members'), PATCH self-accept, DELETE =
+  declined/left/cancelled/removed from one pure outcome fn — only active
+  removal notifies; cancel and self-leave are quiet). Pending offers are
+  server-redacted to managers + the invitee; active Roster chips are public.
+  Org pages get the invite/cancel/remove controls, chips beside the role
+  badge, the athlete's accept/decline banner, and softened leave copy.
+  New 'roster-offer' rate bucket 30/h. **The route-authz audit caught the
+  new routes taking a profileId with no profile gate — working exactly as
+  built — and they're allowlisted with the members-routes org-role reason.**
+- **THE GUARDIAN GATE, verified live.** Supervised targets 403 at POST and a
+  supervised session 403s at PATCH accept — without this, a pending row a
+  child could self-accept would bypass 0.10's future guardian queue. Probed
+  on prod with a seeded supervised child fixture: offer → 403 with the exact
+  message and NO row minted; a directly-seeded pending row + child accept →
+  403 and the row stayed pending. 5/5.
+- **#393 — what LOOKING at the phone screenshots caught.** The e2e's 375px
+  visibility assertions passed, but the manager-view screenshot showed the
+  member name column collapsed to zero (flex-1 = basis 0 never forces a
+  wrap under flex-wrap) with the un-truncated roster chip painting under
+  the Make-manager button. `grow basis-48 min-w-0` gives the name a real
+  12rem base so the three controls wrap below it. Visibility ≠ legibility —
+  the screenshot habit is the net.
+- **Probe traps for the file:** PostgREST BATCH inserts require homogeneous
+  object keys (PGRST102) — seeding follow rows and a roster row in one array
+  fails; and the first screenshot probe seeded nothing and rendered an
+  empty league that LOOKED fine, caught only because the picture contradicted
+  the just-passed e2e (assert every fixture step; the vacuous-pass rule).
+- **Verification.** Verify green per PR (#391: 2245; #392: 2249 — 191 files;
+  #393: 2249). Prod probes: roster e2e spec 1/1 vs the live deploy twice
+  (post-#392 and post-#393) — invite → banner → accept → remove with
+  metadata-matched notifications, the API decline path, and an inline
+  375×667 block; the supervised 5/5; and screenshot passes of both member
+  views at 375px, zero horizontal overflow, defect fixed and re-verified.
+- **For 0.10:** the merge's kind='roster' predicate site is annotated in
+  org-merge-server; the pending row + guardian queue is the designed
+  mechanism; accept/decline notifications move to a dedicated type there.
+
 ## August 30, 2026 — Step 0.2: one `memberships` table replaces the mirrored pair (mig 140, #387–#389)
 
 The load-bearing step of the org-platform phase 0: `league_members` (113) and
