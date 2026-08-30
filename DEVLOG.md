@@ -45,9 +45,13 @@ though prod held zero member rows, because the discipline is the deliverable:
   and skip-probes to memberships in the same commit** — after the switch,
   old-table seeding is invisible, so a split here would have made the suite
   read empty.
-- **#389 — single-write (OPEN, merge = Tom's soak call).** Write layer drops
-  the legacy writes; league_members/club_members freeze. The DROP migration
-  stays deferred per 140's header criteria (C soaked 1–2 weeks, final
+- **#389 — single-write (MERGED, Tom waived the soak — prod org data was
+  zero outside QA windows and probes A/B were green).** Write layer drops
+  the legacy writes; league_members/club_members are frozen. **Probe C
+  10/10 vs the live deploy**: join via the app landed in memberships ONLY
+  (legacy row count stayed zero through join/promote/leave), row shape
+  follow/active/org, cascade cleanup verified. The DROP migration stays
+  deferred per 140's header criteria (single-write live 1–2 weeks, final
   divergence pass for the record).
 - **The 0.3 landmine, fused in code.** `getOrgRole`/`getMemberRole` use
   `.maybeSingle()`, which is safe only while (org, profile) has at most one
