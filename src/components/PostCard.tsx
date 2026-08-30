@@ -434,7 +434,10 @@ function PostCard({
   };
 
   return (
-    <div className="bg-surface rounded-lg shadow-md border-2 border-border-strong overflow-hidden mb-6">
+    <div
+      data-testid="post-card"
+      className="bg-surface rounded-lg shadow-md border-2 border-border-strong overflow-hidden mb-6"
+    >
       {/* Round D: a held/rejected post is visible to its author — say what
           state it's in instead of letting it look published. */}
       {post.status === 'pending_approval' && (
