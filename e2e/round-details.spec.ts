@@ -20,14 +20,16 @@ const stamp = () => Date.now();
  *  derived rather than echoed back from the configured length. */
 async function createPartialRound(
   api: APIRequestContext,
-  userId: string
+  userId: string,
+  /** Pin the round's date when the test is ABOUT the date. Defaults to today. */
+  date = new Date().toISOString().split('T')[0]
 ): Promise<{ groupPostId: string; postId: string; courseName: string }> {
   const courseName = `QA Details Course ${stamp()}`;
   const created = await api.post('/api/group-posts', {
     data: {
       type: 'golf_round',
       title: `QA Details Round ${stamp()}`,
-      date: new Date().toISOString().split('T')[0],
+      date,
       visibility: 'public',
       participant_ids: [],
       golf_data: { course_name: courseName, round_type: 'outdoor', holes_played: 18 },
@@ -156,6 +158,47 @@ test.describe('round post — details', () => {
 
       // The detail agrees with the card about the round's length.
       await expect(overview.getByText('13 of 18', { exact: true })).toBeVisible();
+    } finally {
+      if (groupPostId) await api.delete(`/api/group-posts/${groupPostId}`);
+      await api.dispose();
+    }
+  });
+
+  test('the card and the detail agree on the round date', async ({ page }) => {
+    // group_posts.date is a DATE column. Parsed with a bare `new Date()` it
+    // lands on UTC midnight and reads as the PREVIOUS day in any UTC- zone —
+    // which is exactly how the card came to say "Aug 29" while the detail
+    // modal said "August 30, 2026" for the same round (found by a prod probe,
+    // fixed in #380/#381). The two surfaces must never disagree again.
+    //
+    // A FIXED date, not today's: the assertion must not depend on when the
+    // suite runs, and "today" is the one date where a one-day shift is
+    // hardest to notice.
+    const ROUND_DATE = '2026-03-15';
+    const userA = loadQaUser('user.json');
+    const api = await apiAs('state.json');
+    let groupPostId: string | null = null;
+    try {
+      const round = await createPartialRound(api, userA.id, ROUND_DATE);
+      groupPostId = round.groupPostId;
+
+      await page.goto('/feed');
+      const card = cardFor(page, round.courseName);
+      await expect(card).toBeVisible({ timeout: 20_000 });
+
+      // The stored calendar day, and NOT the day before it.
+      await expect(card.getByText(/Mar 15/)).toBeVisible();
+      await expect(card.getByText(/Mar 14/)).toHaveCount(0);
+
+      await card.getByRole('button', { name: /view details/i }).click();
+      const overview = page.locator('#round-panel-overview');
+      await expect(overview).toBeVisible({ timeout: 15_000 });
+
+      // The detail header renders the same day in its own longer format…
+      await expect(page.getByText('March 15, 2026').first()).toBeVisible();
+      // …and so does the Round Details grid inside the collapsed section.
+      await overview.getByText('Course details', { exact: true }).click();
+      await expect(overview.getByText('March 15, 2026').first()).toBeVisible();
     } finally {
       if (groupPostId) await api.delete(`/api/group-posts/${groupPostId}`);
       await api.dispose();
