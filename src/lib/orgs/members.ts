@@ -53,12 +53,14 @@ export function insertOwnerRow(admin: Admin, ref: OrgRef, profileId: string): Pr
 }
 
 async function deleteMembership(admin: Admin, ref: OrgRef, profileId: string): Promise<WriteResult> {
+  // Leaving (or being removed) ends roster participation too — the
+  // roster ⊆ follow invariant's exit half. scope_type stays pinned.
   const { error } = await admin
     .from('memberships')
     .delete()
     .eq(orgColumn(ref.side), ref.orgId)
     .eq('profile_id', profileId)
-    .eq('kind', 'follow')
+    .in('kind', ['follow', 'roster'])
     .eq('scope_type', 'org');
   return { error };
 }
@@ -71,6 +73,100 @@ export function leaveOrg(admin: Admin, ref: OrgRef, profileId: string): Promise<
 /** DELETE route: owner/manager removes a plain member. */
 export function removeMember(admin: Admin, ref: OrgRef, profileId: string): Promise<WriteResult> {
   return deleteMembership(admin, ref, profileId);
+}
+
+// ── Roster edges (0.3) — explicit kind, NEVER touch follow rows ─────────────
+
+export type RosterStatus = 'pending' | 'active';
+
+/** Manager mints the offer. Explicit kind+status — never the defaults. */
+export async function insertRosterOffer(
+  admin: Admin,
+  ref: OrgRef,
+  profileId: string
+): Promise<WriteResult> {
+  const { error } = await admin.from('memberships').insert({
+    [orgColumn(ref.side)]: ref.orgId,
+    profile_id: profileId,
+    kind: 'roster',
+    status: 'pending',
+  });
+  return { error };
+}
+
+/** Athlete accepts their own pending offer. accepted=false → no pending
+ *  row existed (already accepted, cancelled, or never offered). */
+export async function acceptRosterOffer(
+  admin: Admin,
+  ref: OrgRef,
+  profileId: string
+): Promise<{ accepted: boolean; error: PostgrestError | null }> {
+  const { data, error } = await admin
+    .from('memberships')
+    .update({ status: 'active' })
+    .eq(orgColumn(ref.side), ref.orgId)
+    .eq('profile_id', profileId)
+    .eq('kind', 'roster')
+    .eq('status', 'pending')
+    .eq('scope_type', 'org')
+    .select('id');
+  return { accepted: (data ?? []).length > 0, error };
+}
+
+/** Decline / cancel / remove — DELETE the roster row (the 118
+ *  decline-erases precedent; re-inviting stays possible). */
+export async function deleteRosterRow(
+  admin: Admin,
+  ref: OrgRef,
+  profileId: string
+): Promise<{ deleted: boolean; error: PostgrestError | null }> {
+  const { data, error } = await admin
+    .from('memberships')
+    .delete()
+    .eq(orgColumn(ref.side), ref.orgId)
+    .eq('profile_id', profileId)
+    .eq('kind', 'roster')
+    .eq('scope_type', 'org')
+    .select('id');
+  return { deleted: (data ?? []).length > 0, error };
+}
+
+/** One read powering the roster routes' decision tree: the target's follow
+ *  role (the roster ⊆ follow gate) and roster status. */
+export async function membershipEdges(
+  admin: Admin,
+  ref: OrgRef,
+  profileId: string
+): Promise<{
+  followRole: OrgRole | null;
+  rosterStatus: RosterStatus | null;
+  error: PostgrestError | null;
+}> {
+  const { data, error } = await admin
+    .from('memberships')
+    .select('role, kind, status')
+    .eq(orgColumn(ref.side), ref.orgId)
+    .eq('profile_id', profileId);
+  const rows = (data ?? []) as Array<{ role: string; kind: string; status: string }>;
+  const rosterRow = rows.find(r => r.kind === 'roster');
+  return {
+    followRole: maxOrgRole(rows.filter(r => r.kind === 'follow').map(r => r.role)),
+    rosterStatus: rosterRow ? ((rosterRow.status as RosterStatus) ?? null) : null,
+    error,
+  };
+}
+
+/** Pending offers are private to managers and the invitee; active roster
+ *  membership is public. Pure — exported for the routes and unit tests. */
+export function redactPendingRoster(
+  members: MemberPreviewRow[],
+  canManage: boolean,
+  viewerId: string | null
+): MemberPreviewRow[] {
+  if (canManage) return members;
+  return members.map(m =>
+    m.roster === 'pending' && m.profile_id !== viewerId ? { ...m, roster: null } : m
+  );
 }
 
 // ── Reads (the enumeration layer promised by orgs/authz.ts) ─────────────────
@@ -201,6 +297,8 @@ export interface MemberPreviewRow {
   role: string;
   joined_at: string;
   profile: unknown;
+  /** 0.3: the member's roster edge, merged onto their follow row. */
+  roster: 'pending' | 'active' | null;
 }
 
 /** The org page's member panel: exact count and first `limit` rows over the
@@ -213,9 +311,14 @@ export async function orgMemberPreview(
   ref: OrgRef,
   viewerId: string | null,
   limit: number
-): Promise<{ count: number; members: MemberPreviewRow[]; viewerRole: string | null }> {
+): Promise<{
+  count: number;
+  members: MemberPreviewRow[];
+  viewerRole: string | null;
+  viewerRoster: 'pending' | 'active' | null;
+}> {
   const col = orgColumn(ref.side);
-  const [countRes, membersRes, viewerRes] = await Promise.all([
+  const [countRes, membersRes, rosterRes, viewerRes] = await Promise.all([
     admin
       .from('memberships')
       .select('profile_id', { count: 'exact', head: true })
@@ -228,19 +331,36 @@ export async function orgMemberPreview(
       .eq('kind', 'follow')
       .order('joined_at', { ascending: true })
       .limit(limit),
+    admin
+      .from('memberships')
+      .select('profile_id, status')
+      .eq(col, ref.orgId)
+      .eq('kind', 'roster'),
     viewerId
       ? admin
           .from('memberships')
-          .select('role')
+          .select('role, kind, status')
           .eq(col, ref.orgId)
           .eq('profile_id', viewerId)
       : Promise.resolve({ data: null }),
   ]);
-  const viewerRows = (viewerRes.data ?? []) as Array<{ role: string }>;
+  const rosterByProfile = new Map(
+    ((rosterRes.data ?? []) as Array<{ profile_id: string; status: string }>).map(r => [
+      r.profile_id,
+      r.status as 'pending' | 'active',
+    ])
+  );
+  const members = ((membersRes.data ?? []) as unknown as MemberPreviewRow[]).map(m => ({
+    ...m,
+    roster: rosterByProfile.get(m.profile_id) ?? null,
+  }));
+  const viewerRows = (viewerRes.data ?? []) as Array<{ role: string; kind: string; status: string }>;
+  const viewerRosterRow = viewerRows.find(r => r.kind === 'roster');
   return {
     count: countRes.count ?? 0,
-    members: (membersRes.data ?? []) as unknown as MemberPreviewRow[],
+    members,
     viewerRole: maxOrgRole(viewerRows.map(r => r.role)),
+    viewerRoster: viewerRosterRow ? ((viewerRosterRow.status as 'pending' | 'active') ?? null) : null,
   };
 }
 

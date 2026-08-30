@@ -3,7 +3,8 @@ import { getServerAuth, requireAuth, getSupabaseAdmin } from '@/lib/auth-server'
 import { parseBody } from '@/lib/validation';
 import { ClubUpdateSchema, placeToClubColumns, isMissingTableError } from '@/lib/clubs/validate';
 import { getOrgAndRole, roleAllows } from '@/lib/orgs/authz';
-import { orgMemberPreview } from '@/lib/orgs/members';
+import { orgMemberPreview, redactPendingRoster } from '@/lib/orgs/members';
+import type { OrgRole } from '@/lib/orgs/authz';
 import { UUID_RE } from '@/lib/golf/course-catalog';
 
 // ── /api/clubs/[id] — the public club read + owner/manager edit ─────────────
@@ -42,14 +43,18 @@ export async function GET(
       return NextResponse.json({ error: 'Club not found' }, { status: 404 });
     }
 
-    const { count, members: memberRows, viewerRole } = await orgMemberPreview(
+    const { count, members: memberRows, viewerRole, viewerRoster } = await orgMemberPreview(
       supabase,
       { side: 'club', orgId: id },
       viewerId,
       MEMBER_PREVIEW
     );
 
-    const members = [...memberRows].sort(
+    // Pending roster offers are private to managers and the invitee.
+    const canManage =
+      roleAllows((viewerRole as OrgRole | null) ?? null, 'manage_members') ||
+      (!!viewerId && viewerId === club.owner_profile_id);
+    const members = redactPendingRoster([...memberRows], canManage, viewerId).sort(
       (a, b) => (ROLE_ORDER[a.role] ?? 9) - (ROLE_ORDER[b.role] ?? 9)
     );
 
@@ -58,6 +63,7 @@ export async function GET(
       memberCount: count,
       members,
       viewerRole,
+      viewerRoster,
     });
   } catch (error) {
     if (error instanceof Response) return error;

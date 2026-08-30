@@ -11,7 +11,7 @@ import { z } from 'zod';
 import { boundedText, optionalText, uuid } from '@/lib/validation';
 import { PlaceValueSchema, type LeaguePlace } from '@/lib/leagues/validate';
 
-export { PlaceValueSchema, isMissingTableError } from '@/lib/leagues/validate';
+export { PlaceValueSchema, RosterAcceptSchema, isMissingTableError } from '@/lib/leagues/validate';
 export type ClubPlace = LeaguePlace;
 
 export const ClubCreateSchema = z.object({
