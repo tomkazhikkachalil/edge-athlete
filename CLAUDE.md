@@ -377,6 +377,9 @@ addition below as a promise to keep it true.
 - `docs/MEDIA_PRIVACY_FLIP.md` — the owner-run runbook for the final step of the
   media-proxy arc: flipping the `uploads` bucket to private. Verify with
   `npm run verify:media-privacy` (`scripts/verify-media-privacy.mjs`).
+- `docs/ORG_PLATFORM_MASTERPLAN.md` — the org-platform master plan (status:
+  design). The ten-step "revised phase 0" that executes it against the current
+  two-table org schema is recorded in `DEVLOG.md` (Aug 30 2026).
 - `docs/` — roadmaps (`docs/ROADMAP_2026-07.md`, `docs/MULTI_SPORT_ROADMAP.md`), a
   security audit, and feature write-ups. **`docs/devlog/` is the OLD devlog** (entries
   001–010, superseded by `DEVLOG.md` at the repo root) — history, not current
