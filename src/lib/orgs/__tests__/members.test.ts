@@ -4,7 +4,10 @@ import {
   insertOwnerRow,
   joinOrg,
   leaveOrg,
+  memberCountsByOrg,
   memberOrgIds,
+  orgMemberPreview,
+  profileMembershipRows,
   removeMember,
   setMemberRole,
 } from '../members';
@@ -131,14 +134,67 @@ describe('write filters keep legacy-shaped paths off future roster rows', () => 
     expect(calls[1].payload).toEqual({ role: 'member' });
   });
 
-  it('reads hit only memberships: getMemberRole surfaces the row role and the error', async () => {
-    const ok = mockAdmin({ memberships: { data: { role: 'manager' }, error: null } });
-    expect(await getMemberRole(ok.admin, REF, 'me')).toEqual({ role: 'manager', error: null });
+  it('getMemberRole reduces multi-row to max and surfaces the error', async () => {
+    const ok = mockAdmin({
+      memberships: { data: [{ role: 'member' }, { role: 'owner' }], error: null },
+    });
+    expect(await getMemberRole(ok.admin, REF, 'me')).toEqual({ role: 'owner', error: null });
     expect(ok.calls.map(c => c.table)).toEqual(['memberships']);
     const bad = mockAdmin({ memberships: { data: null, error: { code: '57014' } } });
     const res = await getMemberRole(bad.admin, REF, 'me');
     expect(res.role).toBeNull();
     expect(res.error).toEqual({ code: '57014' });
+  });
+
+  it('enumerations dedupe a dual-edge profile; counts are distinct people', async () => {
+    const orgs = mockAdmin({
+      memberships: {
+        data: [
+          { league_id: 'l1', club_id: null },
+          { league_id: 'l1', club_id: null }, // roster twin
+          { league_id: null, club_id: 'c1' },
+        ],
+        error: null,
+      },
+    });
+    expect(await memberOrgIds(orgs.admin, 'me')).toEqual({ leagueIds: ['l1'], clubIds: ['c1'] });
+
+    const counts = mockAdmin({
+      memberships: {
+        data: [
+          { league_id: 'l1', profile_id: 'p1' },
+          { league_id: 'l1', profile_id: 'p1' },
+          { league_id: 'l1', profile_id: 'p2' },
+        ],
+        error: null,
+      },
+    });
+    const map = await memberCountsByOrg(counts.admin, 'league', ['l1']);
+    expect(map.get('l1')).toBe(2);
+
+    const prof = mockAdmin({
+      memberships: {
+        data: [
+          { league_id: 'l1', role: 'member' },
+          { league_id: 'l1', role: 'manager' },
+        ],
+        error: null,
+      },
+    });
+    const { rows } = await profileMembershipRows(prof.admin, 'league', 'me');
+    expect(rows).toEqual([{ orgId: 'l1', role: 'manager' }]);
+  });
+
+  it('orgMemberPreview filters kind=follow for count+list and max-reduces the viewer', async () => {
+    const { admin, calls } = mockAdmin({
+      memberships: { data: [{ role: 'member' }, { role: 'manager' }], error: null },
+    });
+    const out = await orgMemberPreview(admin, REF, 'viewer', 12);
+    expect(calls).toHaveLength(3);
+    expect(calls[0].filters).toMatchObject({ kind: 'follow' });
+    expect(calls[1].filters).toMatchObject({ kind: 'follow' });
+    expect(calls[2].filters).not.toHaveProperty('kind'); // viewer reads ALL rows
+    expect(out.viewerRole).toBe('manager');
   });
 
   it('memberOrgIds splits the pair, degrades missing-table to empty, throws otherwise', async () => {

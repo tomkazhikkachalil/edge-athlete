@@ -3,6 +3,7 @@ import {
   getOrgRole,
   getOrgAndRole,
   isOwnerOrManager,
+  maxOrgRole,
   roleAllows,
   type OrgIntent,
   type OrgRole,
@@ -12,8 +13,9 @@ type Admin = Parameters<typeof getOrgRole>[0];
 
 type MockResult = { data: unknown; error: { code: string } | null };
 
-/** Minimal chain mock: from(...).select(...).eq(...)...maybeSingle() resolves
- *  the canned result for the table; records which tables were queried so the
+/** Minimal chain mock: the builder is thenable (role reads await the eq
+ *  chain directly since the multi-row change) and still offers maybeSingle
+ *  for the org-row fetch; records which tables were queried so the
  *  owner-column short-circuit is assertable. */
 function mockAdmin(results: Partial<Record<string, MockResult>>) {
   const queried: string[] = [];
@@ -25,12 +27,27 @@ function mockAdmin(results: Partial<Record<string, MockResult>>) {
         select: () => builder,
         eq: () => builder,
         maybeSingle: async () => result,
+        then(onFulfilled: (v: unknown) => unknown, onRejected?: (e: unknown) => unknown) {
+          return Promise.resolve(result).then(onFulfilled, onRejected);
+        },
       };
       return builder;
     },
   };
   return { admin: admin as unknown as Admin, queried };
 }
+
+describe('maxOrgRole', () => {
+  it('reduces to the highest role, order-free', () => {
+    expect(maxOrgRole([])).toBeNull();
+    expect(maxOrgRole(['member'])).toBe('member');
+    expect(maxOrgRole(['member', 'manager'])).toBe('manager');
+    expect(maxOrgRole(['manager', 'member'])).toBe('manager');
+    expect(maxOrgRole(['member', 'owner', 'manager'])).toBe('owner');
+    expect(maxOrgRole(['garbage', null, undefined])).toBeNull();
+    expect(maxOrgRole(['garbage', 'member'])).toBe('member');
+  });
+});
 
 describe('getOrgRole', () => {
   it('owner column short-circuits without touching memberships', async () => {
@@ -40,9 +57,9 @@ describe('getOrgRole', () => {
     expect(queried).toEqual([]);
   });
 
-  it('falls back to the memberships row role when the owner column is someone else', async () => {
+  it('reduces multiple rows (follow + roster) to the max role', async () => {
     const { admin, queried } = mockAdmin({
-      memberships: { data: { role: 'manager' }, error: null },
+      memberships: { data: [{ role: 'member' }, { role: 'manager' }], error: null },
     });
     const role = await getOrgRole(admin, 'club', 'org-1', 'me', 'someone-else');
     expect(role).toBe('manager');
@@ -89,7 +106,7 @@ describe('getOrgAndRole', () => {
   it('found: returns the org row and the resolved role', async () => {
     const { admin } = mockAdmin({
       clubs: { data: ORG, error: null },
-      memberships: { data: { role: 'member' }, error: null },
+      memberships: { data: [{ role: 'member' }], error: null },
     });
     const out = await getOrgAndRole(admin, 'club', 'org-1', 'me');
     expect(out).toEqual({ status: 'found', org: ORG, role: 'member' });
