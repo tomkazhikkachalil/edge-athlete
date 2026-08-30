@@ -50,7 +50,12 @@ export async function POST(request: NextRequest) {
     const targetSupervised = target?.supervision_state === 'supervised';
     if (targetSupervised) {
       const { validateSupervisedHandle } = await import('@/lib/supervised-credentials');
-      const dobYear = target?.dob ? new Date(target.dob).getFullYear() : null;
+      // getUTCFullYear, matching the sibling guardian routes: dob is a DATE
+      // column, so new Date() lands on UTC midnight and a LOCAL getter would
+      // report the previous year for a Jan 1 dob whenever the runtime is not
+      // UTC. This feeds the handle spoofing guard — it must not depend on
+      // where the process happens to run.
+      const dobYear = target?.dob ? new Date(target.dob).getUTCFullYear() : null;
       const guard = validateSupervisedHandle(
         handle,
         target?.first_name || '',

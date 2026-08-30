@@ -51,7 +51,11 @@ export const formatAge = (dob: string | null | undefined): string => {
   if (!dob) return "—";
   
   try {
-    const birthDate = new Date(dob);
+    // parseDateLocal, not new Date(dob): a DATE column parsed as UTC midnight
+    // then read with LOCAL getters below is off by a day in any UTC- zone —
+    // which crosses a YEAR boundary for a Jan 1 birthday and reports the wrong
+    // age. Local parse + local getters is the only self-consistent pairing.
+    const birthDate = parseDateLocal(dob);
     if (isNaN(birthDate.getTime())) return "—";
     
     const today = new Date();

@@ -9,6 +9,9 @@
  */
 
 import { BaseSportAdapter, type HighlightTile, type ActivityRow, type ActivityResult, type PostContext } from '../SportAdapter';
+// formatters is a LEAF module (zero imports), so this cannot feed the
+// copy.ts <-> SportAdapter cycle the no-runtime-sports-imports rule guards.
+import { parseDateLocal } from '@/lib/formatters';
 
 interface GolfStatsResponse {
   highlights: Array<{
@@ -114,7 +117,7 @@ export class GolfAdapter extends BaseSportAdapter {
       // Format rounds for activity display
       const rows: ActivityRow[] = data.recentRounds.slice(0, limit).map(round => {
         // Format date
-        const dateStr = new Date(round.date).toLocaleDateString('en-US', {
+        const dateStr = parseDateLocal(round.date).toLocaleDateString('en-US', {
           month: 'short',
           day: 'numeric',
           year: 'numeric'

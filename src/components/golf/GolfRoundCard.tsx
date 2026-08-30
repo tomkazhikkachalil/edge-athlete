@@ -11,6 +11,7 @@ import type { GolfRound } from '@/types/golf';
 import { coursePar } from '@/lib/sports/post-stat-highlights';
 import { classifyScore, SCORE_CELL_RING } from '@/lib/golf/scoring';
 import { holeCountLabel, playedHoleCount } from '@/lib/golf/round-display';
+import { parseDateLocal } from '@/lib/formatters';
 
 export default function GolfRoundCard({
   round,
@@ -54,7 +55,7 @@ export default function GolfRoundCard({
           </div>
           <div className="flex items-center gap-3 text-sm text-green-800 dark:text-green-200 font-semibold flex-wrap">
             {round.date && (
-              <span>{new Date(round.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
+              <span>{parseDateLocal(round.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
             )}
             {round.tee && <span>• {round.tee.charAt(0).toUpperCase() + round.tee.slice(1)} Tees</span>}
             {round.holes && <span>• {holeCountLabel(holesPlayed, round.holes)}</span>}
