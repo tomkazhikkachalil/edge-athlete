@@ -24,7 +24,7 @@ test('org events: owner schedules, org page lists, non-manager 403', async ({ pa
     .single();
   expect(error, error?.message).toBeNull();
   const leagueId = league!.id as string;
-  await admin.from('league_members').insert({ league_id: leagueId, profile_id: userB.id, role: 'owner' });
+  await admin.from('memberships').insert({ league_id: leagueId, profile_id: userB.id, role: 'owner' });
 
   const starts = new Date(Date.now() + 3 * 86_400_000);
   const ends = new Date(starts.getTime() + 3_600_000);

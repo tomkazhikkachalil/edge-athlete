@@ -1,11 +1,19 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { insertOwnerRow, joinOrg, leaveOrg, removeMember, setMemberRole } from '../members';
+import {
+  getMemberRole,
+  insertOwnerRow,
+  joinOrg,
+  leaveOrg,
+  memberOrgIds,
+  removeMember,
+  setMemberRole,
+} from '../members';
 
 type Admin = Parameters<typeof joinOrg>[0];
 
 interface RecordedCall {
   table: string;
-  op: 'insert' | 'update' | 'delete' | '';
+  op: 'insert' | 'update' | 'delete' | 'select' | '';
   payload?: unknown;
   filters: Record<string, unknown>;
 }
@@ -13,18 +21,27 @@ interface RecordedCall {
 /** Chain mock recording every from() call in order, with per-table canned
  *  results — the mechanical net for the dual-write contract, since no typed
  *  client exists to catch a wrong table or missing filter. */
-function mockAdmin(results: Partial<Record<string, { error: { code: string } | null }>>) {
+function mockAdmin(
+  results: Partial<Record<string, { data?: unknown; error: { code: string } | null }>>
+) {
   const calls: RecordedCall[] = [];
   const admin = {
     from(table: string) {
       const call: RecordedCall = { table, op: '', filters: {} };
       calls.push(call);
-      const result = results[table] ?? { error: null };
+      const result = { data: null, error: null, ...(results[table] ?? {}) };
       const chain = {
         eq(col: string, val: unknown) {
           call.filters[col] = val;
           return chain;
         },
+        in(col: string, vals: unknown) {
+          call.filters[col] = vals;
+          return chain;
+        },
+        limit: () => chain,
+        order: () => chain,
+        maybeSingle: async () => result,
         then(onFulfilled: (v: unknown) => unknown, onRejected?: (e: unknown) => unknown) {
           return Promise.resolve(result).then(onFulfilled, onRejected);
         },
@@ -42,6 +59,10 @@ function mockAdmin(results: Partial<Record<string, { error: { code: string } | n
         },
         delete() {
           call.op = 'delete';
+          return chain;
+        },
+        select() {
+          call.op = call.op || 'select';
           return chain;
         },
       };
@@ -135,6 +156,33 @@ describe('mirror filters keep legacy paths off future roster rows', () => {
     }
     expect(roleMirror.payload).toEqual({ role: 'member' });
     expect(calls[2].payload).toEqual({ role: 'member' });
+  });
+
+  it('reads hit only memberships: getMemberRole surfaces the row role and the error', async () => {
+    const ok = mockAdmin({ memberships: { data: { role: 'manager' }, error: null } });
+    expect(await getMemberRole(ok.admin, REF, 'me')).toEqual({ role: 'manager', error: null });
+    expect(ok.calls.map(c => c.table)).toEqual(['memberships']);
+    const bad = mockAdmin({ memberships: { data: null, error: { code: '57014' } } });
+    const res = await getMemberRole(bad.admin, REF, 'me');
+    expect(res.role).toBeNull();
+    expect(res.error).toEqual({ code: '57014' });
+  });
+
+  it('memberOrgIds splits the pair, degrades missing-table to empty, throws otherwise', async () => {
+    const ok = mockAdmin({
+      memberships: {
+        data: [
+          { league_id: 'l1', club_id: null },
+          { league_id: null, club_id: 'c1' },
+        ],
+        error: null,
+      },
+    });
+    expect(await memberOrgIds(ok.admin, 'me')).toEqual({ leagueIds: ['l1'], clubIds: ['c1'] });
+    const missing = mockAdmin({ memberships: { data: null, error: { code: '42P01' } } });
+    expect(await memberOrgIds(missing.admin, 'me')).toEqual({ leagueIds: [], clubIds: [] });
+    const broken = mockAdmin({ memberships: { data: null, error: { code: '57014' } } });
+    await expect(memberOrgIds(broken.admin, 'me')).rejects.toEqual({ code: '57014' });
   });
 
   it('legacy update/delete filters stay byte-identical to the pre-layer queries', async () => {

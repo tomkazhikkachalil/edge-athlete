@@ -3,6 +3,7 @@ import { getServerAuth, requireAuth, getSupabaseAdmin } from '@/lib/auth-server'
 import { parseBody } from '@/lib/validation';
 import { ClubUpdateSchema, placeToClubColumns, isMissingTableError } from '@/lib/clubs/validate';
 import { getOrgAndRole, roleAllows } from '@/lib/orgs/authz';
+import { orgMemberPreview } from '@/lib/orgs/members';
 import { UUID_RE } from '@/lib/golf/course-catalog';
 
 // ── /api/clubs/[id] — the public club read + owner/manager edit ─────────────
@@ -41,36 +42,22 @@ export async function GET(
       return NextResponse.json({ error: 'Club not found' }, { status: 404 });
     }
 
-    const [countRes, membersRes, viewerRes] = await Promise.all([
-      supabase
-        .from('club_members')
-        .select('profile_id', { count: 'exact', head: true })
-        .eq('club_id', id),
-      supabase
-        .from('club_members')
-        .select('profile_id, role, joined_at, profile:profile_id (id, handle, first_name, last_name, full_name, avatar_url)')
-        .eq('club_id', id)
-        .order('joined_at', { ascending: true })
-        .limit(MEMBER_PREVIEW),
-      viewerId
-        ? supabase
-            .from('club_members')
-            .select('role')
-            .eq('club_id', id)
-            .eq('profile_id', viewerId)
-            .maybeSingle()
-        : Promise.resolve({ data: null }),
-    ]);
+    const { count, members: memberRows, viewerRole } = await orgMemberPreview(
+      supabase,
+      { side: 'club', orgId: id },
+      viewerId,
+      MEMBER_PREVIEW
+    );
 
-    const members = (membersRes.data ?? []).sort(
+    const members = [...memberRows].sort(
       (a, b) => (ROLE_ORDER[a.role] ?? 9) - (ROLE_ORDER[b.role] ?? 9)
     );
 
     return NextResponse.json({
       club,
-      memberCount: countRes.count ?? 0,
+      memberCount: count,
       members,
-      viewerRole: viewerRes.data?.role ?? null,
+      viewerRole,
     });
   } catch (error) {
     if (error instanceof Response) return error;

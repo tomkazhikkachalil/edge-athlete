@@ -18,6 +18,7 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { getOrgRole } from '@/lib/orgs/authz';
+import { anyMembershipExists } from '@/lib/orgs/members';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Admin = SupabaseClient<any, 'public', any>;
@@ -81,7 +82,7 @@ export async function loadEventForViewer(
       .maybeSingle();
     const role = await getOrgRole(
       admin,
-      side === 'league' ? 'league_members' : 'club_members',
+      side,
       orgId,
       viewerId,
       (org?.owner_profile_id as string | null) ?? null
@@ -133,14 +134,7 @@ async function householdReadAccess(
       .eq('id', orgId)
       .maybeSingle();
     if (org?.owner_profile_id && childIds.includes(org.owner_profile_id as string)) return true;
-    const { data: childMember } = await admin
-      .from(side === 'league' ? 'league_members' : 'club_members')
-      .select('profile_id')
-      .eq(side === 'league' ? 'league_id' : 'club_id', orgId)
-      .in('profile_id', childIds)
-      .limit(1)
-      .maybeSingle();
-    if (childMember) return true;
+    if (await anyMembershipExists(admin, { side, orgId }, childIds)) return true;
   }
   return false;
 }

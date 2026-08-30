@@ -10,6 +10,7 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { isMissingTableError } from '@/lib/leagues/validate';
+import { memberOrgIds } from '@/lib/orgs/members';
 import { EVENT_FIELDS } from './detail-server';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -78,15 +79,9 @@ export async function fetchOrgEventsForViewer(
 ): Promise<OrgMergedEvent[]> {
   const fields = options.fields ?? EVENT_FIELDS;
 
-  const memberships = await Promise.all([
-    admin.from('league_members').select('league_id').eq('profile_id', profileId),
-    admin.from('club_members').select('club_id').eq('profile_id', profileId),
-  ]);
-  for (const { error } of memberships) {
-    if (error && !isMissingTableError(error.code)) throw error;
-  }
-  const leagueIds = (memberships[0].data ?? []).map(r => r.league_id as string);
-  const clubIds = (memberships[1].data ?? []).map(r => r.club_id as string);
+  // 0.10 puts the kind='roster' predicate on THIS membership read (via a
+  // roster-only variant in orgs/members.ts) — and nowhere else.
+  const { leagueIds, clubIds } = await memberOrgIds(admin, profileId);
   if (leagueIds.length === 0 && clubIds.length === 0) return [];
 
   const fromIso = new Date(fromMs).toISOString();

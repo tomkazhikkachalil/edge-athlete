@@ -3,7 +3,7 @@ import { requireAuth, getSupabaseAdmin } from '@/lib/auth-server';
 import { enforceRateLimit } from '@/lib/rate-limit';
 import { ClubMemberRoleSchema, isMissingTableError } from '@/lib/clubs/validate';
 import { getOrgAndRole, roleAllows } from '@/lib/orgs/authz';
-import { joinOrg, leaveOrg, removeMember, setMemberRole } from '@/lib/orgs/members';
+import { getMemberRole, joinOrg, leaveOrg, removeMember, setMemberRole } from '@/lib/orgs/members';
 import { parseBody } from '@/lib/validation';
 import { UUID_RE } from '@/lib/golf/course-catalog';
 
@@ -44,19 +44,18 @@ export async function POST(
       return NextResponse.json({ error: 'Club not found' }, { status: 404 });
     }
 
-    const { data: existing, error: checkError } = await supabase
-      .from('club_members')
-      .select('role')
-      .eq('club_id', id)
-      .eq('profile_id', user.id)
-      .maybeSingle();
+    const { role: existingRole, error: checkError } = await getMemberRole(
+      supabase,
+      { side: 'club', orgId: id },
+      user.id
+    );
     if (checkError) {
       console.error('[CLUB MEMBERS] membership check error:', checkError);
       return NextResponse.json({ error: 'Failed to check membership' }, { status: 500 });
     }
 
-    if (existing) {
-      if (existing.role === 'owner') {
+    if (existingRole) {
+      if (existingRole === 'owner') {
         return NextResponse.json({ error: "Owners can't leave their club" }, { status: 400 });
       }
       const { error: deleteError } = await leaveOrg(supabase, { side: 'club', orgId: id }, user.id);
@@ -125,19 +124,14 @@ export async function PATCH(
     if (!parsed.success) return parsed.response;
     const { role } = parsed.data;
 
-    const { data: target } = await supabase
-      .from('club_members')
-      .select('role')
-      .eq('club_id', id)
-      .eq('profile_id', profileId)
-      .maybeSingle();
-    if (!target) {
+    const { role: targetRole } = await getMemberRole(supabase, { side: 'club', orgId: id }, profileId);
+    if (!targetRole) {
       return NextResponse.json({ error: 'Not a member' }, { status: 404 });
     }
-    if (target.role === 'owner') {
+    if (targetRole === 'owner') {
       return NextResponse.json({ error: "The owner's role can't be changed" }, { status: 400 });
     }
-    if (target.role === role) {
+    if (targetRole === role) {
       return NextResponse.json({ action: 'unchanged', role });
     }
 
@@ -193,16 +187,11 @@ export async function DELETE(
       return NextResponse.json({ error: 'Not authorized to manage members' }, { status: 403 });
     }
 
-    const { data: target } = await supabase
-      .from('club_members')
-      .select('role')
-      .eq('club_id', id)
-      .eq('profile_id', profileId)
-      .maybeSingle();
-    if (!target) {
+    const { role: targetRole } = await getMemberRole(supabase, { side: 'club', orgId: id }, profileId);
+    if (!targetRole) {
       return NextResponse.json({ error: 'Not a member' }, { status: 404 });
     }
-    if (target.role !== 'member') {
+    if (targetRole !== 'member') {
       return NextResponse.json({ error: 'Only member rows can be removed' }, { status: 400 });
     }
 

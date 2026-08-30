@@ -3,6 +3,7 @@ import { requireAdmin, getSupabaseAdmin } from '@/lib/auth-server';
 import { parseBody } from '@/lib/validation';
 import { LeagueCreateSchema, placeToLeagueColumns, isMissingTableError } from '@/lib/leagues/validate';
 import { createLeagueWithOwner } from '@/lib/leagues/create';
+import { memberCountsByOrg } from '@/lib/orgs/members';
 import { isSportEnabled } from '@/lib/features';
 import type { SportKey } from '@/lib/sports/SportRegistry';
 
@@ -77,19 +78,12 @@ export async function GET(request: NextRequest) {
     const leagueIds = list.map(l => l.id);
     const ownerIds = [...new Set(list.map(l => l.owner_profile_id).filter((id): id is string => !!id))];
 
-    const [membersRes, ownersRes] = await Promise.all([
-      leagueIds.length
-        ? supabase.from('league_members').select('league_id').in('league_id', leagueIds)
-        : Promise.resolve({ data: [] as Array<{ league_id: string }> }),
+    const [counts, ownersRes] = await Promise.all([
+      memberCountsByOrg(supabase, 'league', leagueIds),
       ownerIds.length
         ? supabase.from('profiles').select('id, first_name, last_name, full_name').in('id', ownerIds)
         : Promise.resolve({ data: [] as Array<{ id: string; first_name: string | null; last_name: string | null; full_name: string | null }> }),
     ]);
-
-    const counts = new Map<string, number>();
-    for (const row of membersRes.data ?? []) {
-      counts.set(row.league_id, (counts.get(row.league_id) ?? 0) + 1);
-    }
     const owners = new Map((ownersRes.data ?? []).map(o => [o.id, o]));
 
     return NextResponse.json({

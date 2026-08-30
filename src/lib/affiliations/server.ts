@@ -21,7 +21,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth, getServerAuth, getSupabaseAdmin } from '@/lib/auth-server';
 import { enforceRateLimit } from '@/lib/rate-limit';
-import { getOrgRole, isOwnerOrManager, type OrgMemberTable } from '@/lib/orgs/authz';
+import { getOrgRole, isOwnerOrManager } from '@/lib/orgs/authz';
+import { profileMembershipRows } from '@/lib/orgs/members';
 import { isMissingTableError } from '@/lib/leagues/validate';
 import { UUID_RE } from '@/lib/golf/course-catalog';
 
@@ -31,7 +32,6 @@ interface SideConfig {
   side: AffSide;
   otherSide: AffSide;
   orgTable: 'leagues' | 'clubs';
-  memberTable: OrgMemberTable;
   rowKey: 'league_id' | 'club_id';
   otherRowKey: 'league_id' | 'club_id';
   otherOrgTable: 'leagues' | 'clubs';
@@ -44,7 +44,6 @@ const SIDES: Record<AffSide, SideConfig> = {
     side: 'league',
     otherSide: 'club',
     orgTable: 'leagues',
-    memberTable: 'league_members',
     rowKey: 'league_id',
     otherRowKey: 'club_id',
     otherOrgTable: 'clubs',
@@ -55,7 +54,6 @@ const SIDES: Record<AffSide, SideConfig> = {
     side: 'club',
     otherSide: 'league',
     orgTable: 'clubs',
-    memberTable: 'club_members',
     rowKey: 'club_id',
     otherRowKey: 'league_id',
     otherOrgTable: 'leagues',
@@ -141,7 +139,7 @@ export async function affiliationGET(request: NextRequest, side: AffSide, orgId:
   });
 
   const viewerRole = user
-    ? await getOrgRole(admin, cfg.memberTable, orgId, user.id, org.owner_profile_id)
+    ? await getOrgRole(admin, cfg.side, orgId, user.id, org.owner_profile_id)
     : null;
   const manager = isOwnerOrManager(viewerRole);
 
@@ -175,7 +173,7 @@ export async function affiliationPOST(
 
   const { org } = await loadOrg(admin, cfg.orgTable, orgId);
   if (!org) return NextResponse.json({ error: 'Not found' }, { status: 404 });
-  const role = await getOrgRole(admin, cfg.memberTable, orgId, user.id, org.owner_profile_id);
+  const role = await getOrgRole(admin, cfg.side, orgId, user.id, org.owner_profile_id);
   if (!isOwnerOrManager(role)) {
     return NextResponse.json({ error: 'Only owners and managers can affiliate' }, { status: 403 });
   }
@@ -234,7 +232,7 @@ export async function affiliationAccept(
 
   const { org } = await loadOrg(admin, cfg.orgTable, orgId);
   if (!org) return NextResponse.json({ error: 'Not found' }, { status: 404 });
-  const role = await getOrgRole(admin, cfg.memberTable, orgId, user.id, org.owner_profile_id);
+  const role = await getOrgRole(admin, cfg.side, orgId, user.id, org.owner_profile_id);
   if (!isOwnerOrManager(role)) {
     return NextResponse.json({ error: 'Only owners and managers can accept' }, { status: 403 });
   }
@@ -311,7 +309,7 @@ export async function affiliationDELETE(
 
   const { org } = await loadOrg(admin, cfg.orgTable, orgId);
   if (!org) return NextResponse.json({ error: 'Not found' }, { status: 404 });
-  const role = await getOrgRole(admin, cfg.memberTable, orgId, user.id, org.owner_profile_id);
+  const role = await getOrgRole(admin, cfg.side, orgId, user.id, org.owner_profile_id);
   if (!isOwnerOrManager(role)) {
     return NextResponse.json({ error: 'Only owners and managers can do that' }, { status: 403 });
   }
@@ -398,19 +396,15 @@ export async function getProfileOrganizations(
   const out: ProfileOrganization[] = [];
   for (const side of ['league', 'club'] as const) {
     const cfg = SIDES[side];
-    const { data: memberRows, error } = await admin
-      .from(cfg.memberTable)
-      .select(`${cfg.rowKey}, role`)
-      .eq('profile_id', profileId);
+    const { rows, error } = await profileMembershipRows(admin, side, profileId);
     if (error) {
-      // Pre-113/117 database: an empty strip, never an error.
+      // Pre-140 database: an empty strip, never an error.
       if (isMissingTableError(error.code)) continue;
-      console.error(`[AFFILIATIONS] ${cfg.memberTable} fetch error:`, error);
+      console.error('[AFFILIATIONS] memberships fetch error:', error);
       continue;
     }
-    const rows = (memberRows ?? []) as unknown as Array<Record<string, string>>;
     if (rows.length === 0) continue;
-    const orgIds = rows.map(r => r[cfg.rowKey]);
+    const orgIds = rows.map(r => r.orgId);
     const selectCols = side === 'league'
       ? 'id, name, sport_key, city, region, country'
       : 'id, name, city, region, country';
@@ -421,7 +415,7 @@ export async function getProfileOrganizations(
     }>;
     const byId = new Map(orgRows.map(o => [o.id, o]));
     for (const row of rows) {
-      const org = byId.get(row[cfg.rowKey]);
+      const org = byId.get(row.orgId);
       if (!org) continue;
       out.push({
         kind: side,

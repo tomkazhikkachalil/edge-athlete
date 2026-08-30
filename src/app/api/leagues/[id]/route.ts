@@ -3,6 +3,7 @@ import { getServerAuth, requireAuth, getSupabaseAdmin } from '@/lib/auth-server'
 import { parseBody } from '@/lib/validation';
 import { LeagueUpdateSchema, placeToLeagueColumns, isMissingTableError } from '@/lib/leagues/validate';
 import { getOrgAndRole, roleAllows } from '@/lib/orgs/authz';
+import { orgMemberPreview } from '@/lib/orgs/members';
 import { UUID_RE } from '@/lib/golf/course-catalog';
 
 // ── /api/leagues/[id] — the public league read + owner/manager edit ──────────
@@ -43,38 +44,24 @@ export async function GET(
       return NextResponse.json({ error: 'League not found' }, { status: 404 });
     }
 
-    const [countRes, membersRes, viewerRes] = await Promise.all([
-      supabase
-        .from('league_members')
-        .select('profile_id', { count: 'exact', head: true })
-        .eq('league_id', id),
-      supabase
-        .from('league_members')
-        .select('profile_id, role, joined_at, profile:profile_id (id, handle, first_name, last_name, full_name, avatar_url)')
-        .eq('league_id', id)
-        .order('joined_at', { ascending: true })
-        .limit(MEMBER_PREVIEW),
-      viewerId
-        ? supabase
-            .from('league_members')
-            .select('role')
-            .eq('league_id', id)
-            .eq('profile_id', viewerId)
-            .maybeSingle()
-        : Promise.resolve({ data: null }),
-    ]);
+    const { count, members: memberRows, viewerRole } = await orgMemberPreview(
+      supabase,
+      { side: 'league', orgId: id },
+      viewerId,
+      MEMBER_PREVIEW
+    );
 
     // Owner first, then managers, then members by join date (SQL can't order
     // by this role ranking without a CASE PostgREST won't emit).
-    const members = (membersRes.data ?? []).sort(
+    const members = [...memberRows].sort(
       (a, b) => (ROLE_ORDER[a.role] ?? 9) - (ROLE_ORDER[b.role] ?? 9)
     );
 
     return NextResponse.json({
       league,
-      memberCount: countRes.count ?? 0,
+      memberCount: count,
       members,
-      viewerRole: viewerRes.data?.role ?? null,
+      viewerRole,
     });
   } catch (error) {
     if (error instanceof Response) return error;

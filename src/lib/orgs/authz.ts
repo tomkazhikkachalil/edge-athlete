@@ -31,24 +31,29 @@ import { isMissingTableError } from '@/lib/leagues/validate';
 type Admin = SupabaseClient<any, 'public', any>;
 
 export type OrgRole = 'owner' | 'manager' | 'member';
-export type OrgMemberTable = 'league_members' | 'club_members';
 export type OrgSide = 'league' | 'club';
 
-/** The profile's role in an org, from its members table + the org row's
- *  owner column (owners hold power even without a member row). A failed
+/** The profile's role in an org, from `memberships` + the org row's owner
+ *  column (owners hold power even without a member row). A failed
  *  membership read yields null — deliberately: authorization degrades to
- *  "no role", never to a 500 here (routes 500 on the ORG fetch instead). */
+ *  "no role", never to a 500 here (routes 500 on the ORG fetch instead).
+ *
+ *  0.3 LANDMINE — resolve BEFORE minting any kind='roster' row: this
+ *  .maybeSingle() is safe only while (org, profile) has at most one
+ *  memberships row. A coexisting roster row makes it error (PGRST116) →
+ *  role null → managers silently lose power. 0.3 must decide the role
+ *  source (roster row wins? max of rows?) and change this query first. */
 export async function getOrgRole(
   admin: Admin,
-  table: OrgMemberTable,
+  side: OrgSide,
   orgId: string,
   profileId: string,
   ownerProfileId: string | null
 ): Promise<OrgRole | null> {
   if (ownerProfileId && ownerProfileId === profileId) return 'owner';
-  const idColumn = table === 'league_members' ? 'league_id' : 'club_id';
+  const idColumn = side === 'league' ? 'league_id' : 'club_id';
   const { data } = await admin
-    .from(table)
+    .from('memberships')
     .select('role')
     .eq(idColumn, orgId)
     .eq('profile_id', profileId)
@@ -92,7 +97,6 @@ export async function getOrgAndRole(
   profileId: string
 ): Promise<OrgAndRole> {
   const orgTable = side === 'league' ? 'leagues' : 'clubs';
-  const memberTable: OrgMemberTable = side === 'league' ? 'league_members' : 'club_members';
 
   const { data: org, error } = await admin
     .from(orgTable)
@@ -105,6 +109,6 @@ export async function getOrgAndRole(
   }
   if (!org) return { status: 'not_found' };
 
-  const role = await getOrgRole(admin, memberTable, orgId, profileId, org.owner_profile_id);
+  const role = await getOrgRole(admin, side, orgId, profileId, org.owner_profile_id);
   return { status: 'found', org, role };
 }

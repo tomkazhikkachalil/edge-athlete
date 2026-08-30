@@ -11,8 +11,8 @@ test('profile orgs: strip on own page, card in feed sidebar', async ({ page }) =
   const userB = loadQaUser('user-b.json');
   const admin = adminClient();
 
-  const probe = await admin.from('club_members').select('club_id').limit(1);
-  test.skip(!!probe.error, `club_members missing — run migration 117 (${probe.error?.message})`);
+  const probe = await admin.from('memberships').select('club_id').limit(1);
+  test.skip(!!probe.error, `memberships missing — run migration 140 (${probe.error?.message})`);
 
   const name = `QA Strip Club ${Date.now()}`;
   const { data: club, error } = await admin
@@ -22,7 +22,7 @@ test('profile orgs: strip on own page, card in feed sidebar', async ({ page }) =
     .single();
   expect(error, error?.message).toBeNull();
   const clubId = club!.id as string;
-  const { error: memberError } = await admin.from('club_members').insert([
+  const { error: memberError } = await admin.from('memberships').insert([
     { club_id: clubId, profile_id: userB.id, role: 'owner' },
     { club_id: clubId, profile_id: userA.id, role: 'member' },
   ]);

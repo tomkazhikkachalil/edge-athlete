@@ -33,7 +33,7 @@ test('league: join and leave from the league page', async ({ page }) => {
   expect(error, error?.message).toBeNull();
   const leagueId = league!.id as string;
   const { error: memberError } = await admin
-    .from('league_members')
+    .from('memberships')
     .insert({ league_id: leagueId, profile_id: userB.id, role: 'owner' });
   expect(memberError, memberError?.message).toBeNull();
 

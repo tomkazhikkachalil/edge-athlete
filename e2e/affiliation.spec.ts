@@ -32,8 +32,8 @@ test('affiliation: league invites, club accepts, both pages cross-list', async (
     .single();
   expect(leagueError, leagueError?.message).toBeNull();
   const leagueId = league!.id as string;
-  await admin.from('club_members').insert({ club_id: clubId, profile_id: userA.id, role: 'owner' });
-  await admin.from('league_members').insert({ league_id: leagueId, profile_id: userB.id, role: 'owner' });
+  await admin.from('memberships').insert({ club_id: clubId, profile_id: userA.id, role: 'owner' });
+  await admin.from('memberships').insert({ league_id: leagueId, profile_id: userB.id, role: 'owner' });
 
   try {
     // B (league owner) invites the club from the league page.

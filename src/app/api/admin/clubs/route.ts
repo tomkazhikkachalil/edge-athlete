@@ -3,6 +3,7 @@ import { requireAdmin, getSupabaseAdmin } from '@/lib/auth-server';
 import { parseBody } from '@/lib/validation';
 import { ClubCreateSchema, placeToClubColumns, isMissingTableError } from '@/lib/clubs/validate';
 import { createClubWithOwner } from '@/lib/clubs/create';
+import { memberCountsByOrg } from '@/lib/orgs/members';
 
 // ── /api/admin/clubs — direct admin club creation + console list ─────────────
 // Mirror of /api/admin/leagues (117): clubs are born from this route or from
@@ -68,19 +69,12 @@ export async function GET(request: NextRequest) {
     const clubIds = list.map(c => c.id);
     const ownerIds = [...new Set(list.map(c => c.owner_profile_id).filter((id): id is string => !!id))];
 
-    const [membersRes, ownersRes] = await Promise.all([
-      clubIds.length
-        ? supabase.from('club_members').select('club_id').in('club_id', clubIds)
-        : Promise.resolve({ data: [] as Array<{ club_id: string }> }),
+    const [counts, ownersRes] = await Promise.all([
+      memberCountsByOrg(supabase, 'club', clubIds),
       ownerIds.length
         ? supabase.from('profiles').select('id, first_name, last_name, full_name').in('id', ownerIds)
         : Promise.resolve({ data: [] as Array<{ id: string; first_name: string | null; last_name: string | null; full_name: string | null }> }),
     ]);
-
-    const counts = new Map<string, number>();
-    for (const row of membersRes.data ?? []) {
-      counts.set(row.club_id, (counts.get(row.club_id) ?? 0) + 1);
-    }
     const owners = new Map((ownersRes.data ?? []).map(o => [o.id, o]));
 
     return NextResponse.json({
