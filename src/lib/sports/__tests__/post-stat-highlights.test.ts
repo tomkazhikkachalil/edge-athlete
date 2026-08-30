@@ -291,6 +291,66 @@ describe('buildStatHighlights — golf players and round metadata', () => {
     expect(h.players![0].holes).toEqual([{ hole: 1, strokes: 5, par: 4 }]);
   });
 
+  describe('hole count — what was PLAYED, not what was configured', () => {
+    // holes_played is written once at round creation and never recomputed, so
+    // a live round that ended after 13 holes still claims 18. The meta line
+    // must report the holes the group actually scored.
+    const scored = (id: string, holes: number[]) => {
+      const p = player(id, id.toUpperCase(), 'One', null, holes.length * 4, 0);
+      p.scores = {
+        ...p.scores,
+        hole_scores: holes.map(n => ({ hole_number: n, strokes: 4 })),
+      } as typeof p.scores;
+      return p;
+    };
+
+    it('a 13-hole round on an 18-hole card says so', () => {
+      const h = buildStatHighlights({
+        sportKey: 'golf',
+        groupScorecard: card([scored('a', Array.from({ length: 13 }, (_, i) => i + 1))]),
+      })!;
+      expect(h.meta![0]).toBe('13 of 18 holes');
+    });
+
+    it('a complete round still names its length', () => {
+      const h = buildStatHighlights({
+        sportKey: 'golf',
+        groupScorecard: card([scored('a', Array.from({ length: 18 }, (_, i) => i + 1))]),
+      })!;
+      expect(h.meta![0]).toBe('18 holes');
+    });
+
+    it('no hole rows falls back to the configured length — never "0 holes"', () => {
+      // The quick-entry round: a gross score and no hole detail at all.
+      const h = buildStatHighlights({
+        sportKey: 'golf',
+        groupScorecard: card([player('a', 'A', 'One', null, 72, 0)]),
+      })!;
+      expect(h.meta![0]).toBe('18 holes');
+    });
+
+    it('unions across the group, and reads the SAME to every viewer', () => {
+      // A public post must not report a different length depending on who is
+      // looking, so the count is the round's extent, not the viewer's row.
+      const group = card([
+        scored('a', Array.from({ length: 9 }, (_, i) => i + 1)),
+        scored('b', Array.from({ length: 13 }, (_, i) => i + 1)),
+      ]);
+      for (const viewerId of ['a', 'b', 'stranger', undefined]) {
+        const h = buildStatHighlights({ sportKey: 'golf', groupScorecard: group, viewerId })!;
+        expect(h.meta![0]).toBe('13 of 18 holes');
+      }
+    });
+
+    it('a back nine is 9 holes, not 18 — holes are numbered 10-18', () => {
+      const h = buildStatHighlights({
+        sportKey: 'golf',
+        groupScorecard: card([scored('a', Array.from({ length: 9 }, (_, i) => i + 10))], { holes_played: 9 }),
+      })!;
+      expect(h.meta![0]).toBe('9 holes');
+    });
+  });
+
   it('score-only participants get an empty preview, not a crash', () => {
     const h = buildStatHighlights({ sportKey: 'golf', groupScorecard: card([player('a','A','One',null,72,0)]) })!;
     expect(h.players![0].holes).toEqual([]);
@@ -306,6 +366,33 @@ describe('buildStatHighlights — golf players and round metadata', () => {
       const h = buildStatHighlights({ sportKey: 'golf', golfRound: solo(), author, viewerId: 'tom' })!;
       expect(h.hero).toEqual({ value: '+17', label: 'To Par' });
       expect(h.heroToPar).toBe(17);
+    });
+
+    it('counts the holes actually recorded, not the configured length', () => {
+      // Same bug class as the shared round: golf_rounds.holes is a {9,18}
+      // taxonomy, so a 13-hole round posts as "18 holes" without this.
+      const thirteen = Array.from({ length: 13 }, (_, i) => ({ hole_number: i + 1, par: 4, strokes: 4 }));
+      const h = buildStatHighlights({
+        sportKey: 'golf',
+        golfRound: solo({ golf_holes: thirteen }),
+        author,
+      })!;
+      expect(h.meta).toEqual(['13 of 18 holes']);
+    });
+
+    it('a hole row with no strokes is not a played hole', () => {
+      // golf_holes.strokes is NULLABLE — a row can exist for an unscored hole.
+      const h = buildStatHighlights({
+        sportKey: 'golf',
+        golfRound: solo({
+          golf_holes: [
+            { hole_number: 1, par: 4, strokes: 4 },
+            { hole_number: 2, par: 4, strokes: null },
+          ],
+        }),
+        author,
+      })!;
+      expect(h.meta).toEqual(['1 of 18 holes']);
     });
 
     it('uses `holes`, not `holes_played`, for the meta line', () => {

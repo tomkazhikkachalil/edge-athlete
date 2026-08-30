@@ -34,6 +34,50 @@ export function trackedStatLabel(values: Array<boolean | null | undefined>): str
  * the detail badge said "9 holes" for the same partial round.)
  */
 export function holeCountLabel(played: number, configured: number): string {
-  if (played > 0 && played !== configured) return `${played} of ${configured} holes`;
-  return `${configured} holes`;
+  return `${holeCountValue(played, configured)} holes`;
+}
+
+/** The bare count, for a tile that already carries its own "Holes" label. */
+export function holeCountValue(played: number, configured: number): string {
+  // Nothing recorded — the configured length is all we know.
+  if (played <= 0) return String(configured);
+  // More holes than the round claims to be: the count is the honest number,
+  // and "20 of 18" is nonsense. Reachable on the solo detail page, where hole
+  // rows can outnumber golf_rounds.holes.
+  if (played >= configured) return String(played);
+  return `${played} of ${configured}`;
+}
+
+/**
+ * How many holes were ACTUALLY played, from hole rows.
+ *
+ * The configured length is not an answer: `golf_scorecard_data.holes_played`
+ * is written once at round creation and never recomputed, and a live round is
+ * created before a single score exists — so it says 18 for a round that ended
+ * after 13. Pair this with holeCountLabel, which falls back to the configured
+ * length when nothing was recorded (a quick-entry round posts a gross score
+ * and no hole rows at all; "0 holes" would be a lie in the other direction).
+ *
+ * DISTINCT hole numbers, because the group case unions rows across every
+ * participant — the round's extent is what the group played, and a count that
+ * differed per viewer would make one post read two ways.
+ *
+ * Filters on STROKES, not row presence: solo `golf_holes.strokes` is nullable,
+ * so a row can exist for a hole nobody scored. (Shared `golf_hole_scores`
+ * declares strokes NOT NULL CHECK > 0; the same filter is simply free there.)
+ *
+ * NOT deriveRecordedRound — that buckets to {9,18} for the write path, by
+ * design, and can never return 13.
+ */
+export function playedHoleCount(
+  holeRows: ReadonlyArray<{ hole_number?: number | null; strokes?: number | null }> | null | undefined
+): number {
+  if (!Array.isArray(holeRows)) return 0;
+  const played = new Set<number>();
+  for (const row of holeRows) {
+    if (typeof row?.hole_number !== 'number') continue;
+    if (typeof row?.strokes !== 'number' || row.strokes <= 0) continue;
+    played.add(row.hole_number);
+  }
+  return played.size;
 }

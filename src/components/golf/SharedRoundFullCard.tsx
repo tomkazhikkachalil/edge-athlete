@@ -6,6 +6,7 @@ import { totalPenalties, formatPenaltySummary } from '@/lib/golf/penalties';
 import { classifyScore, SCORE_CELL_RING, holePar, bestHoleFor, placements, ordinalLabel } from '@/lib/golf/scoring';
 import { pickOverviewMedia } from '@/lib/media/hero';
 import { isRoundLive, isActiveParticipant, effectiveRoundStatus } from '@/lib/golf/round-status';
+import { holeCountLabel, holeCountValue, playedHoleCount } from '@/lib/golf/round-display';
 import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
 import { asGameFormat, calcStablefordTotal, calcMatchStatus, GAME_FORMAT_LABELS } from '@/lib/golf/formats';
 import { useDeleteRound } from '@/hooks/useDeleteRound';
@@ -124,6 +125,16 @@ export default function SharedRoundFullCard({
   const mediaBySegment = useMemo(() => groupMediaBySegment(roundMediaItems), [roundMediaItems]);
   const roundLive = isRoundLive(group_post);
   const isCreator = currentUserId === group_post.creator_id;
+
+  // What the GROUP actually played. golf_data.holes_played is written once at
+  // round creation and never recomputed, so a live round created before any
+  // score exists claims 18 forever. Union across ACTIVE participants only —
+  // a declined player's stale rows must not inflate the round's length.
+  const holesActuallyPlayed = playedHoleCount(
+    participants
+      .filter(p => isActiveParticipant(p.participant.status))
+      .flatMap(p => p.scores.hole_scores ?? [])
+  );
 
   // Game format drives the leaderboard: stroke (lowest strokes), stableford
   // (highest points), match (head-to-head status banner, 2 scorers).
@@ -548,7 +559,7 @@ export default function SharedRoundFullCard({
               <div className="flex items-center gap-4 text-sm font-semibold flex-wrap">
                 <span>{formattedDate}</span>
                 <span>•</span>
-                <span>{golf_data.holes_played} Holes</span>
+                <span>{holeCountLabel(holesActuallyPlayed, golf_data.holes_played)}</span>
                 {golf_data.tee_color && (
                   <>
                     <span>•</span>
@@ -919,7 +930,7 @@ export default function SharedRoundFullCard({
                   </div>
                   <div>
                     <div className="text-xs font-semibold text-tertiary mb-1">Holes</div>
-                    <div className="font-bold text-primary">{golf_data.holes_played}</div>
+                    <div className="font-bold text-primary">{holeCountValue(holesActuallyPlayed, golf_data.holes_played)}</div>
                   </div>
                   {golf_data.tee_color && (
                     <div>
