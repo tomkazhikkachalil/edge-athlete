@@ -117,3 +117,95 @@ export async function notifyLeagueRequestResult(
     console.error('[LEAGUE NOTIFY] request result notify failed:', e);
   }
 }
+
+export interface RosterOfferNotification {
+  /** The invited athlete. */
+  profileId: string;
+  leagueId: string;
+  leagueName: string;
+}
+
+/** Tell an athlete the league invited them to its roster (0.3). Rides the
+ *  'league_update' type on purpose — the dedicated roster type arrives with
+ *  0.10's guardian queue; metadata.roster is the disambiguator. */
+export async function notifyRosterOffer(admin: Admin, n: RosterOfferNotification): Promise<void> {
+  try {
+    const { error } = await admin.from('notifications').insert({
+      user_id: n.profileId,
+      type: 'league_update',
+      actor_id: null,
+      title: `${n.leagueName} invited you to its roster`,
+      message: null,
+      action_url: `/league/${n.leagueId}`,
+      is_read: false,
+      metadata: { league_id: n.leagueId, roster: 'offer' },
+    });
+    if (error) console.error('[LEAGUE NOTIFY] roster offer notify failed:', error);
+  } catch (e) {
+    console.error('[LEAGUE NOTIFY] roster offer notify failed:', e);
+  }
+}
+
+export interface RosterResultNotification {
+  /** The league's owner — the accept/decline audience (the offering
+   *  manager's id isn't on the row; 0.10's dedicated type can do better). */
+  ownerProfileId: string;
+  /** The athlete who accepted/declined. */
+  actorId: string;
+  leagueId: string;
+  leagueName: string;
+  result: 'accepted' | 'declined';
+}
+
+/** Tell the owner an athlete answered a roster invitation. */
+export async function notifyRosterResult(admin: Admin, n: RosterResultNotification): Promise<void> {
+  try {
+    const { data: actor } = await admin
+      .from('profiles')
+      .select('first_name, full_name, display_name')
+      .eq('id', n.actorId)
+      .maybeSingle();
+    const actorName = actor?.first_name || actor?.display_name || actor?.full_name || 'Someone';
+    const { error } = await admin.from('notifications').insert({
+      user_id: n.ownerProfileId,
+      type: 'league_update',
+      actor_id: n.actorId,
+      title: `${actorName} ${n.result} the roster invitation to ${n.leagueName}`,
+      message: null,
+      action_url: `/league/${n.leagueId}`,
+      is_read: false,
+      metadata: { league_id: n.leagueId, roster: n.result },
+    });
+    if (error) console.error('[LEAGUE NOTIFY] roster result notify failed:', error);
+  } catch (e) {
+    console.error('[LEAGUE NOTIFY] roster result notify failed:', e);
+  }
+}
+
+export interface RosterRemovedNotification {
+  /** The removed athlete. */
+  profileId: string;
+  leagueId: string;
+  leagueName: string;
+}
+
+/** Tell an athlete a manager removed them from the roster. Cancelled
+ *  pending offers and self-leaves are deliberately quiet (the affiliation
+ *  withdraw-quiet precedent). */
+export async function notifyRosterRemoved(admin: Admin, n: RosterRemovedNotification): Promise<void> {
+  try {
+    const { error } = await admin.from('notifications').insert({
+      user_id: n.profileId,
+      type: 'league_update',
+      actor_id: null,
+      title: `You were removed from the ${n.leagueName} roster`,
+      message: null,
+      action_url: `/league/${n.leagueId}`,
+      is_read: false,
+      metadata: { league_id: n.leagueId, roster: 'removed' },
+    });
+    if (error) console.error('[LEAGUE NOTIFY] roster removed notify failed:', error);
+  } catch (e) {
+    console.error('[LEAGUE NOTIFY] roster removed notify failed:', e);
+  }
+}

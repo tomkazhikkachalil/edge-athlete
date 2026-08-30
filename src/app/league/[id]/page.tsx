@@ -51,6 +51,7 @@ interface MemberRow {
   role: string;
   joined_at: string;
   profile: MemberProfile | null;
+  roster: 'pending' | 'active' | null;
 }
 
 interface LeagueResponse {
@@ -58,6 +59,7 @@ interface LeagueResponse {
   memberCount: number;
   members: MemberRow[];
   viewerRole: string | null;
+  viewerRoster: 'pending' | 'active' | null;
 }
 
 export default function LeaguePage() {
@@ -76,6 +78,10 @@ export default function LeaguePage() {
   // drops the member row INCLUDING a manager role, and only the owner can
   // hand that back. Joining stays one-tap (harmlessly reversible).
   const [confirmLeave, setConfirmLeave] = useState(false);
+  // Roster (0.3): removal and decline both ERASE the offer trail (re-invite
+  // required), so they confirm; invite and cancel-invite are one-tap.
+  const [rosterRemoveTarget, setRosterRemoveTarget] = useState<MemberRow | null>(null);
+  const [confirmDeclineRoster, setConfirmDeclineRoster] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
@@ -152,6 +158,48 @@ export default function LeaguePage() {
     }
   };
 
+  // Roster actions (0.3). All refetch on success — no optimistic updates.
+  const rosterAction = async (
+    method: 'POST' | 'PATCH' | 'DELETE',
+    profileId: string | null,
+    successMessage: string,
+    failMessage: string
+  ) => {
+    try {
+      const qs = profileId ? `?profileId=${encodeURIComponent(profileId)}` : '';
+      const response = await fetch(`/api/leagues/${encodeURIComponent(leagueId)}/roster${qs}`, {
+        method,
+        ...(method === 'PATCH'
+          ? {
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ action: 'accept' }),
+            }
+          : {}),
+      });
+      const body = await response.json();
+      if (!response.ok) {
+        showError('League', body.error || failMessage);
+        return;
+      }
+      showSuccess('League', successMessage);
+      refresh();
+    } catch (e) {
+      console.error('Roster action failed:', e);
+      showError('League', failMessage);
+    }
+  };
+
+  const inviteToRoster = (target: MemberRow) =>
+    rosterAction('POST', target.profile_id, 'Roster invitation sent', 'Failed to send the invitation');
+  const cancelRosterInvite = (target: MemberRow) =>
+    rosterAction('DELETE', target.profile_id, 'Invitation cancelled', 'Failed to cancel the invitation');
+  const removeFromRoster = (target: MemberRow) =>
+    rosterAction('DELETE', target.profile_id, 'Removed from the roster', 'Failed to update the roster');
+  const acceptRoster = () =>
+    rosterAction('PATCH', null, "You're on the roster", 'Failed to accept the invitation');
+  const declineRoster = () =>
+    rosterAction('DELETE', null, 'Invitation declined', 'Failed to decline the invitation');
+
   const removeMember = async (target: MemberRow) => {
     try {
       const response = await fetch(
@@ -210,7 +258,7 @@ export default function LeaguePage() {
     );
   }
 
-  const { league, memberCount, members, viewerRole } = data;
+  const { league, memberCount, members, viewerRole, viewerRoster } = data;
   const sportLabel =
     SPORT_REGISTRY[league.sport_key as keyof typeof SPORT_REGISTRY]?.display_name ?? league.sport_key;
   const placeLine = formatPlace({ city: league.city, region: league.region, country: league.country });
@@ -289,6 +337,34 @@ export default function LeaguePage() {
           </div>
         </div>
 
+        {/* Roster invitation banner (0.3) */}
+        {viewerRoster === 'pending' && (
+          <div className="mt-6 bg-surface rounded-xl shadow-sm border border-brand p-4 sm:p-6">
+            <p className="font-medium text-primary">
+              You&apos;ve been invited to the {league.name} roster
+            </p>
+            <p className="mt-1 text-sm text-secondary">
+              Roster membership is the real record — it&apos;s what future stats and schedules attach to.
+            </p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => void acceptRoster()}
+                className="px-4 py-2 text-sm min-h-[40px] rounded-lg bg-brand text-white hover:bg-brand-hover font-medium transition-colors"
+              >
+                Accept
+              </button>
+              <button
+                type="button"
+                onClick={() => setConfirmDeclineRoster(true)}
+                className="px-4 py-2 text-sm min-h-[40px] rounded-lg border border-border-strong text-secondary hover:bg-surface-sunken transition-colors"
+              >
+                Decline
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Members */}
         <div className="mt-6 bg-surface rounded-xl shadow-sm border border-border p-4 sm:p-6">
           <h2 className="text-lg font-semibold text-primary mb-4">Members</h2>
@@ -302,7 +378,7 @@ export default function LeaguePage() {
                   ? formatDisplayName(profile.first_name, null, profile.last_name, profile.full_name)
                   : 'Unknown athlete';
                 return (
-                  <li key={member.profile_id} className="flex items-center gap-3 p-2 rounded-lg hover:bg-surface-muted">
+                  <li key={member.profile_id} className="flex flex-wrap items-center gap-3 p-2 rounded-lg hover:bg-surface-muted">
                     <Link
                       href={user?.id === member.profile_id ? '/athlete' : `/athlete/${member.profile_id}`}
                       className="flex items-center gap-3 flex-1 min-w-0"
@@ -320,8 +396,15 @@ export default function LeaguePage() {
                       )}
                       <div className="min-w-0">
                         <p className="font-medium text-primary truncate">{name}</p>
-                        {member.role !== 'member' && (
-                          <p className="text-xs text-brand-fg capitalize">{member.role}</p>
+                        {(member.role !== 'member' || member.roster) && (
+                          <p className="text-xs">
+                            {member.role !== 'member' && (
+                              <span className="text-brand-fg capitalize">{member.role}</span>
+                            )}
+                            {member.role !== 'member' && member.roster && <span className="text-muted"> · </span>}
+                            {member.roster === 'active' && <span className="text-brand-fg">Roster</span>}
+                            {member.roster === 'pending' && <span className="text-muted">Roster invited</span>}
+                          </p>
                         )}
                       </div>
                     </Link>
@@ -344,6 +427,35 @@ export default function LeaguePage() {
                         className="px-2 py-1 text-xs rounded-md border border-border-strong text-secondary hover:bg-surface-sunken transition-colors shrink-0"
                       >
                         Remove manager
+                      </button>
+                    )}
+                    {/* Roster controls (0.3): invite/cancel are one-tap and
+                        reversible; removal from an ACTIVE roster confirms. */}
+                    {canManage && !member.roster && member.profile_id !== user?.id && (
+                      <button
+                        type="button"
+                        onClick={() => void inviteToRoster(member)}
+                        className="px-2 py-1 text-xs rounded-md border border-border-strong text-secondary hover:bg-surface-sunken transition-colors shrink-0"
+                      >
+                        Invite to roster
+                      </button>
+                    )}
+                    {canManage && member.roster === 'pending' && (
+                      <button
+                        type="button"
+                        onClick={() => void cancelRosterInvite(member)}
+                        className="px-2 py-1 text-xs rounded-md border border-border-strong text-secondary hover:bg-surface-sunken transition-colors shrink-0"
+                      >
+                        Cancel invite
+                      </button>
+                    )}
+                    {canManage && member.roster === 'active' && member.profile_id !== user?.id && (
+                      <button
+                        type="button"
+                        onClick={() => setRosterRemoveTarget(member)}
+                        className="px-2 py-1 text-xs rounded-md border border-border-strong text-secondary hover:bg-surface-sunken transition-colors shrink-0"
+                      >
+                        Remove from roster
                       </button>
                     )}
                     {canManage && member.role === 'member' && member.profile_id !== user?.id && (
@@ -408,9 +520,10 @@ export default function LeaguePage() {
         isOpen={confirmLeave}
         title="Leave this league?"
         message={
-          viewerRole === 'manager'
+          (viewerRole === 'manager'
             ? `You'll lose your manager role — only the owner can restore it. You can rejoin as a member anytime.`
-            : `You can rejoin anytime.`
+            : `You can rejoin anytime.`) +
+          (viewerRoster === 'active' ? ` You'll also leave the roster.` : '')
         }
         confirmText="Leave"
         cancelText="Stay"
@@ -419,6 +532,33 @@ export default function LeaguePage() {
           void toggleMembership();
         }}
         onCancel={() => setConfirmLeave(false)}
+      />
+
+      <ConfirmModal
+        isOpen={!!rosterRemoveTarget}
+        title="Remove from the roster?"
+        message="They stay a member of the league, but their roster spot is removed. Re-inviting needs a new invitation."
+        confirmText="Remove"
+        confirmButtonClass="bg-red-600 hover:bg-red-700 text-white"
+        onConfirm={() => {
+          const target = rosterRemoveTarget;
+          setRosterRemoveTarget(null);
+          if (target) void removeFromRoster(target);
+        }}
+        onCancel={() => setRosterRemoveTarget(null)}
+      />
+
+      <ConfirmModal
+        isOpen={confirmDeclineRoster}
+        title="Decline the roster invitation?"
+        message="The invitation is removed — a manager would need to invite you again."
+        confirmText="Decline"
+        cancelText="Keep it"
+        onConfirm={() => {
+          setConfirmDeclineRoster(false);
+          void declineRoster();
+        }}
+        onCancel={() => setConfirmDeclineRoster(false)}
       />
     </div>
   );

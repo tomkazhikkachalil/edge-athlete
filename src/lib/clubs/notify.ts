@@ -107,3 +107,89 @@ export async function notifyClubRequestResult(
     console.error('[CLUB NOTIFY] request result notify failed:', e);
   }
 }
+
+export interface ClubRosterOfferNotification {
+  /** The invited athlete. */
+  profileId: string;
+  clubId: string;
+  clubName: string;
+}
+
+/** Mirror of leagues/notify.notifyRosterOffer — 'club_update' type,
+ *  metadata.roster disambiguates (dedicated type arrives with 0.10). */
+export async function notifyRosterOffer(admin: Admin, n: ClubRosterOfferNotification): Promise<void> {
+  try {
+    const { error } = await admin.from('notifications').insert({
+      user_id: n.profileId,
+      type: 'club_update',
+      actor_id: null,
+      title: `${n.clubName} invited you to its roster`,
+      message: null,
+      action_url: `/club/${n.clubId}`,
+      is_read: false,
+      metadata: { club_id: n.clubId, roster: 'offer' },
+    });
+    if (error) console.error('[CLUB NOTIFY] roster offer notify failed:', error);
+  } catch (e) {
+    console.error('[CLUB NOTIFY] roster offer notify failed:', e);
+  }
+}
+
+export interface ClubRosterResultNotification {
+  ownerProfileId: string;
+  actorId: string;
+  clubId: string;
+  clubName: string;
+  result: 'accepted' | 'declined';
+}
+
+/** Tell the owner an athlete answered a roster invitation. */
+export async function notifyRosterResult(admin: Admin, n: ClubRosterResultNotification): Promise<void> {
+  try {
+    const { data: actor } = await admin
+      .from('profiles')
+      .select('first_name, full_name, display_name')
+      .eq('id', n.actorId)
+      .maybeSingle();
+    const actorName = actor?.first_name || actor?.display_name || actor?.full_name || 'Someone';
+    const { error } = await admin.from('notifications').insert({
+      user_id: n.ownerProfileId,
+      type: 'club_update',
+      actor_id: n.actorId,
+      title: `${actorName} ${n.result} the roster invitation to ${n.clubName}`,
+      message: null,
+      action_url: `/club/${n.clubId}`,
+      is_read: false,
+      metadata: { club_id: n.clubId, roster: n.result },
+    });
+    if (error) console.error('[CLUB NOTIFY] roster result notify failed:', error);
+  } catch (e) {
+    console.error('[CLUB NOTIFY] roster result notify failed:', e);
+  }
+}
+
+export interface ClubRosterRemovedNotification {
+  profileId: string;
+  clubId: string;
+  clubName: string;
+}
+
+/** Tell an athlete a manager removed them from the roster (cancels and
+ *  self-leaves stay quiet). */
+export async function notifyRosterRemoved(admin: Admin, n: ClubRosterRemovedNotification): Promise<void> {
+  try {
+    const { error } = await admin.from('notifications').insert({
+      user_id: n.profileId,
+      type: 'club_update',
+      actor_id: null,
+      title: `You were removed from the ${n.clubName} roster`,
+      message: null,
+      action_url: `/club/${n.clubId}`,
+      is_read: false,
+      metadata: { club_id: n.clubId, roster: 'removed' },
+    });
+    if (error) console.error('[CLUB NOTIFY] roster removed notify failed:', error);
+  } catch (e) {
+    console.error('[CLUB NOTIFY] roster removed notify failed:', e);
+  }
+}

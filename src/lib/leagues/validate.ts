@@ -106,6 +106,13 @@ export const LeagueMemberRoleSchema = z.object({
 });
 export type LeagueMemberRoleInput = z.infer<typeof LeagueMemberRoleSchema>;
 
+/** Roster accept (0.3). Accept is the only PATCH action; decline is a
+ *  DELETE (the row is erased, the 118 precedent). Shared by both sides —
+ *  clubs/validate re-exports it. */
+export const RosterAcceptSchema = z.object({
+  action: z.literal('accept'),
+});
+
 /** Postgres 42P01 / PostgREST PGRST205 — the leagues tables don't exist yet
  *  (migration 113 not run). Routes degrade to 404/empty rather than 500. */
 export function isMissingTableError(code: string | undefined | null): boolean {
