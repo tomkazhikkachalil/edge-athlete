@@ -135,16 +135,43 @@ export default function StatHighlightCard({
             )}
           </div>
         </div>
-        {result && (
-          <span
-            className={`shrink-0 px-2.5 py-1 rounded-full text-xs font-black tracking-wide ${
-              RESULT_STYLES[result] ?? RESULT_STYLES.T
-            }`}
-          >
-            {result}
-            {resultScore ? ` ${resultScore}` : ''}
-          </span>
-        )}
+        <div className="flex items-center gap-2 shrink-0">
+          {result && (
+            <span
+              className={`shrink-0 px-2.5 py-1 rounded-full text-xs font-black tracking-wide ${
+                RESULT_STYLES[result] ?? RESULT_STYLES.T
+              }`}
+            >
+              {result}
+              {resultScore ? ` ${resultScore}` : ''}
+            </span>
+          )}
+          {/* The SECOND way into the detail, at the top of the card. The one
+              under the roster is a long scroll away on a round with four
+              players, so someone scanning the header had no way through
+              (Tom, Aug 2026). Deliberately NOT behind the roster gate that
+              wraps the bottom button: `onExpand` is the real capability
+              signal, and the header always renders.
+
+              Distinct label from the bottom button on purpose — two intents,
+              two names, and never two same-named controls on one card.
+              `-my-2` buys the 44px target without inflating the header, and
+              active: because hover: does nothing on touch. */}
+          {onExpand && (
+            <button
+              type="button"
+              onClick={onExpand}
+              /* Solo posts toggle an inline disclosure, so aria-expanded is
+                 the truth; shared posts open a modal, where it would be a lie
+                 — undefined is omitted by React, and haspopup takes over. */
+              aria-expanded={expanded}
+              aria-haspopup={expanded === undefined ? 'dialog' : undefined}
+              className="-my-2 flex min-h-[44px] shrink-0 items-center text-xs font-semibold text-brand-fg hover:text-brand-fg-strong active:text-brand-fg-strong"
+            >
+              {expanded ? 'Hide details ‹' : 'View details ›'}
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Hero: the one number worth reading from a scrolling feed — but ONLY

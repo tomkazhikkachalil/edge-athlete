@@ -118,6 +118,7 @@ export default function SharedRoundFullCard({
   const [endRoundError, setEndRoundError] = useState<string | null>(null);
   const { deleteRound, deleting } = useDeleteRound(group_post.id, onDeleted);
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
+  const [courseOpen, setCourseOpen] = useState(false);
 
   // Flat, view-ready list — ordered by hole so the lightbox's prev/next walks
   // the round the way it was played, not the order rows happen to come back in.
@@ -674,15 +675,13 @@ export default function SharedRoundFullCard({
           {/* Overview Tab */}
           {activeTab === 'overview' && (
             <div className="space-y-4" id="round-panel-overview" role="tabpanel" aria-labelledby="round-tab-overview">
-              {/* Course info + map — catalog-linked rounds only (the embed
-                  rides GROUP_SCORECARD_SELECT; older/custom rounds have no
-                  course row and render nothing here). */}
-              {(() => {
-                const info = embeddedCourseToInfo(golf_data.course);
-                return info ? <CourseInfoCard course={info} defaultOpen /> : null;
-              })()}
-              {/* A TEASER, not the gallery. The page used to get longer and
-                  messier the more someone posted; the rest lives in Media. */}
+              {/* MEDIA LEADS. The round's own content — the photos and who
+                  played — comes before the reference material; the course
+                  details sit collapsed at the bottom (Tom, Aug 2026).
+                  Still a TEASER, not the gallery: the page used to get longer
+                  and messier the more someone posted, so the rest lives in
+                  the Media tab. Self-hides when empty, so a round with no
+                  photos opens straight onto the scores. */}
               {roundMediaItems.length > 0 && (
                 <div>
                   <MediaCollage
@@ -913,33 +912,65 @@ export default function SharedRoundFullCard({
                 </div>
               </div>
 
-              {/* Round Details */}
-              <div className="bg-surface rounded-lg border-2 border-border-strong p-4">
-                <h3 className="text-lg font-black text-primary mb-3">
-                  <i className="fas fa-info-circle mr-2"></i>
-                  Round Details
-                </h3>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  <div>
-                    <div className="text-xs font-semibold text-tertiary mb-1">Course</div>
-                    <div className="font-bold text-primary">{golf_data.course_name}</div>
-                  </div>
-                  <div>
-                    <div className="text-xs font-semibold text-tertiary mb-1">Date</div>
-                    <div className="font-bold text-primary">{formattedDate}</div>
-                  </div>
-                  <div>
-                    <div className="text-xs font-semibold text-tertiary mb-1">Holes</div>
-                    <div className="font-bold text-primary">{holeCountValue(holesActuallyPlayed, golf_data.holes_played)}</div>
-                  </div>
-                  {golf_data.tee_color && (
+              {/* COURSE DETAILS — collapsed by default. Reference material,
+                  not the round's content, so it sits last and folded; opening
+                  it reveals the club info and, one tap further, the GPS map.
+                  The Round Details grid lives INSIDE it: it is the same class
+                  of information, and leaving one metadata card dangling under
+                  the leaderboard would defeat the collapse.
+
+                  <details> is state-backed on purpose, exactly as
+                  GolfRoundCard documents it: this modal re-renders on every
+                  refetch (onStatusChange/onMediaChanged) and PostCard
+                  re-renders on every like, either of which would re-assert an
+                  uncontrolled `open` and snap a user-closed section back
+                  open. onToggle is an event handler, so no set-state-in-effect. */}
+              <details
+                className="group bg-surface rounded-lg border-2 border-border-strong"
+                open={courseOpen}
+                onToggle={e => setCourseOpen(e.currentTarget.open)}
+              >
+                <summary className="flex cursor-pointer items-center gap-2 px-4 min-h-[44px] text-lg font-black text-primary">
+                  <i className="fas fa-chevron-right group-open:rotate-90 transition-transform text-sm" aria-hidden="true"></i>
+                  Course details
+                </summary>
+                <div className="px-4 pb-4 space-y-4">
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                     <div>
-                      <div className="text-xs font-semibold text-tertiary mb-1">Tees</div>
-                      <div className="font-bold text-primary">{golf_data.tee_color.charAt(0).toUpperCase() + golf_data.tee_color.slice(1)}</div>
+                      <div className="text-xs font-semibold text-tertiary mb-1">Course</div>
+                      <div className="font-bold text-primary">{golf_data.course_name}</div>
                     </div>
-                  )}
+                    <div>
+                      <div className="text-xs font-semibold text-tertiary mb-1">Date</div>
+                      <div className="font-bold text-primary">{formattedDate}</div>
+                    </div>
+                    <div>
+                      <div className="text-xs font-semibold text-tertiary mb-1">Holes</div>
+                      <div className="font-bold text-primary">{holeCountValue(holesActuallyPlayed, golf_data.holes_played)}</div>
+                    </div>
+                    {golf_data.tee_color && (
+                      <div>
+                        <div className="text-xs font-semibold text-tertiary mb-1">Tees</div>
+                        <div className="font-bold text-primary">{golf_data.tee_color.charAt(0).toUpperCase() + golf_data.tee_color.slice(1)}</div>
+                      </div>
+                    )}
+                  </div>
+                  {/* MOUNTED ONLY WHILE OPEN — do not "simplify" this to an
+                      unconditional render. A closed <details> still MOUNTS its
+                      children in React (the UA only display:none's them), so an
+                      always-mounted card would fire the hole-geometry fetch and
+                      instantiate Leaflet on every modal open — and a Leaflet map
+                      built at display:none sizes itself to 0x0. Gating the mount
+                      keeps `defaultOpen`, so the GPS map is one tap from here
+                      rather than two. Catalog-linked rounds only: older/custom
+                      rounds have no course row, and the grid above is then the
+                      whole section (never an expander that opens onto nothing). */}
+                  {courseOpen && (() => {
+                    const info = embeddedCourseToInfo(golf_data.course);
+                    return info ? <CourseInfoCard course={info} defaultOpen /> : null;
+                  })()}
                 </div>
-              </div>
+              </details>
             </div>
           )}
 
