@@ -1,4 +1,5 @@
 import { supabase } from './supabase';
+import { parseDateLocal } from './formatters';
 import type {
   Profile,
   Sport,
@@ -173,7 +174,10 @@ export class AthleteService {
 
   static formatAge(dob?: string): string {
     if (!dob) return '—';
-    const birthDate = new Date(dob);
+    // Local parse to pair with the LOCAL getters below — a UTC-midnight parse
+    // is off by a day in any UTC- zone, which crosses a year boundary for a
+    // Jan 1 birthday. Same fix as formatters.formatAge.
+    const birthDate = parseDateLocal(dob);
     const today = new Date();
     const age = today.getFullYear() - birthDate.getFullYear();
     const monthDiff = today.getMonth() - birthDate.getMonth();

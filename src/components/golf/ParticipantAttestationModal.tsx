@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { formatDisplayName } from '@/lib/formatters';
+import { formatDisplayName, parseDateLocal } from '@/lib/formatters';
 import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
 import type { GroupPost, GolfScorecardData, Profile } from '@/types/group-posts';
 
@@ -35,7 +35,7 @@ export default function ParticipantAttestationModal({
       )
     : 'Unknown';
 
-  const formattedDate = new Date(groupPost.date).toLocaleDateString('en-US', {
+  const formattedDate = parseDateLocal(groupPost.date).toLocaleDateString('en-US', {
     weekday: 'long',
     month: 'long',
     day: 'numeric',

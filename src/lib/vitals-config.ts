@@ -4,6 +4,8 @@
  * No sport-specific fields — this works for any athlete.
  */
 
+import { parseDateLocal } from './formatters';
+
 export interface VitalMetricConfig {
   key: string;
   label: string;
@@ -95,8 +97,11 @@ export function getAgeAtDate(
 ): string | null {
   if (!birthday) return null;
   try {
-    const birth = new Date(birthday);
-    const recorded = new Date(recordedAt);
+    // Both are DATE columns (profiles.birthday, vitals_entries.recorded_at),
+    // and the getters below are local — so parse local, or a UTC- zone shifts
+    // both a day earlier and can report the wrong age at a year boundary.
+    const birth = parseDateLocal(birthday);
+    const recorded = parseDateLocal(recordedAt);
     let age = recorded.getFullYear() - birth.getFullYear();
     const monthDiff = recorded.getMonth() - birth.getMonth();
     if (monthDiff < 0 || (monthDiff === 0 && recorded.getDate() < birth.getDate())) {

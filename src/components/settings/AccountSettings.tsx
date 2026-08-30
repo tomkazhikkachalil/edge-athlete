@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useAuth } from '@/lib/auth';
 import DeleteAccountModal from './DeleteAccountModal';
-import { formatDisplayName, formatHeight } from '@/lib/formatters';
+import { formatDisplayName, formatHeight, parseDateLocal } from '@/lib/formatters';
 
 interface AccountSettingsProps {
   onEditProfile?: () => void;
@@ -109,7 +109,7 @@ export default function AccountSettings({ onEditProfile }: AccountSettingsProps)
                 </label>
                 <p className="text-base font-medium text-primary">
                   {profile?.dob
-                    ? new Date(profile.dob).toLocaleDateString('en-US', {
+                    ? parseDateLocal(profile.dob).toLocaleDateString('en-US', {
                         year: 'numeric',
                         month: 'long',
                         day: 'numeric'
