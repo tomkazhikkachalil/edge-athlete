@@ -381,7 +381,7 @@ export default function LeaguePage() {
                   <li key={member.profile_id} className="flex flex-wrap items-center gap-3 p-2 rounded-lg hover:bg-surface-muted">
                     <Link
                       href={user?.id === member.profile_id ? '/athlete' : `/athlete/${member.profile_id}`}
-                      className="flex items-center gap-3 flex-1 min-w-0"
+                      className="flex items-center gap-3 grow basis-48 min-w-0"
                     >
                       {profile?.avatar_url ? (
                         <LazyImage
