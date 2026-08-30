@@ -1,6 +1,78 @@
 # Development Log
 
-## August 29, 2026 — Date-only columns: the sweep the round-post probe forced (#380–#382, zero DDL)
+## August 30, 2026 — Org platform phase 0 opens: role checks centralized, notification mapping data-driven (#384–#386, zero DDL)
+
+Tom reviewed the shipped org flow against the org-platform master plan and
+produced a ten-step "revised phase 0" that reuses the existing build instead
+of rewriting it. This round shipped step 0.1 — deliberately first and alone,
+because every later step multiplies authorization call sites and notification
+types — plus the master plan document itself.
+
+- **The premise correction that shapes everything after.** The review assumed
+  one `membership(user, org, role)` table; the build actually has TWO mirrored
+  tables (`league_members` 113, `club_members` 117), ownership DUAL-ENCODED
+  (`owner_profile_id` column AND a role='owner' row — `getOrgRole` treats the
+  column as authoritative), and org `clubs` carrying almost no facility data
+  (golf facilities are the separate public-SELECT `golf_clubs`/`golf_courses`,
+  zero FK/code between them). So 0.2 is "create the unified membership
+  concept," not "add two columns."
+- **#384 — org authz centralized.** `src/lib/affiliations/authz.ts` →
+  `src/lib/orgs/authz.ts` (no re-export shim; its affiliation-scoped charter
+  was already fictional — calendar imported past it). New header states two
+  charters: authorization only (membership ENUMERATION — merge, peers,
+  profile-orgs — stays at call sites until 0.2's members layer), and org
+  authority NEVER implies guardian authority. `getOrgAndRole` is a LOADER not
+  a gate (routes keep their exact 403/404/500 bodies and log tags);
+  `roleAllows(role, intent)` is the one seam the masterplan's ~10-role ladder
+  widens through (`change_roles` owner-only, the rest owner-or-manager). The
+  six hand-rolled checks (league/club `[id]` PATCH, members PATCH/DELETE)
+  replaced; only observable delta = one fewer query on an owner-column match.
+  Known quirk carried to 0.8, documented not fixed: a column-only owner who
+  POSTs the join toggle joins as `role='member'`.
+- **#385 — notification registry.** `src/lib/notification-registry.ts` holds
+  all 43 types (tab + icon); the page's three inline arrays and BOTH icon
+  switches deleted. The 18 types no named tab listed get `tab: null` —
+  All/Unread-only reachability preserved structurally, unknown types included.
+  **The parity test parses the latest `notifications_type_check` migration**
+  and asserts set-equality with the registry, so a future migration adding a
+  type fails `npm run verify` until registered. One deliberate behavior
+  change: the bell's icon switch had drifted behind the page's (guardian types
+  → generic fa-bell); unification fixes it.
+- **#386 — `docs/ORG_PLATFORM_MASTERPLAN.md` lands** with the review's three
+  edits folded in: §3.4 is ONE scoped membership table with `kind`
+  (org_membership/team_membership/staff_role_grant collapse into it), §4 runs
+  the onboarding wizard INSIDE the existing approval queue (draft org,
+  approval flips it live), §8 gains the follow-vs-roster invariant (follow =
+  community edge; roster = record edge; only roster carries stats, media
+  attribution, calendar writes).
+- **The program map (0.2–0.10), corrected for the real schema — the order is
+  the decision:** 0.2 unified `memberships` table (two-FK org discriminator
+  per events 119; kind/scope_type/season_id/status columns front-loaded;
+  dual-write → read-switch → drop; re-sized M→L) → {0.3 kind semantics
+  (S — DDL absorbed), 0.8 owners (M — rows become authoritative, column
+  becomes cache, owner-less invariant enforced in one app-layer helper)} →
+  0.5 season/division/team → {0.6b sport derivation, 0.9 event scope
+  polymorphism (EXTEND the FK pattern, don't go generic)}. 0.4 venue/facility
+  (greenfield; FK-link golf_clubs, don't unify), 0.6a capability flags, 0.7
+  affiliation type (keep one-edge-per-pair; the PK doubles as
+  duplicate-authority + re-invite eraser) are parallel-anytime. **0.10
+  (guardian gate on roster + roster-implies-schedule) depends on 0.3, NOT
+  0.9**, and rolls out on TWO flags — roster creation first, merge predicate
+  (`kind='roster'`) only after orgs convert members, or day one empties every
+  org calendar. The bypass it closes is real and verified: the calendar merge
+  checks zero supervision state, merged org events can never appear in the
+  guardian queue (no guest row), child org join is fully ungated, and the
+  org broadcast bells children directly.
+- **Verification.** `npm run verify` green per PR (#384: 2228 tests, +12;
+  #385: 2224, +8; lint 0). Prod probes after each deploy: #384 — e2e
+  affiliation + league-managers + club-managers + org-events **4/4** vs the
+  live deploy, plus an API probe on a seeded owner-less fixture league
+  pinning BOTH exact 403 bodies ('Not authorized to edit this league',
+  'Only the owner can change roles'), fixture cleaned and confirmed gone.
+  #385 — e2e org-notify + messaging-notifications **3/3** vs prod, plus a
+  375px browser pass of `/app/notifications` and the bell (zero horizontal
+  overflow, tab membership exact, and the SCREENSHOTS confirm the bell's
+  transfer row now shows fa-right-left instead of the drifted fa-bell).
 
 Found by EYE, not by a test. The prod probe of the round-post round below
 seeded a real round and screenshotted both surfaces; the feed card said
