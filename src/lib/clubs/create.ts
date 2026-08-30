@@ -7,6 +7,7 @@
 // 001 demo rows are the grandfathered exception, reassignable later).
 
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { insertOwnerRow } from '@/lib/orgs/members';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- matches the notify.ts Admin alias; schema-agnostic helper
 type Admin = SupabaseClient<any, 'public', any>;
@@ -49,9 +50,11 @@ export async function createClubWithOwner(
     return { error: 'insert_failed' };
   }
 
-  const { error: memberError } = await admin
-    .from('club_members')
-    .insert({ club_id: club.id, profile_id: input.ownerProfileId, role: 'owner' });
+  const { error: memberError } = await insertOwnerRow(
+    admin,
+    { side: 'club', orgId: club.id },
+    input.ownerProfileId
+  );
   if (memberError) {
     console.error('[CLUBS CREATE] owner member insert error:', memberError);
     // The rollback delete also fires the 112 doc-delete trigger — search

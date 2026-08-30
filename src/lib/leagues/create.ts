@@ -6,6 +6,7 @@
 // must never exist.
 
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { insertOwnerRow } from '@/lib/orgs/members';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- matches the notify.ts Admin alias; schema-agnostic helper
 type Admin = SupabaseClient<any, 'public', any>;
@@ -51,9 +52,11 @@ export async function createLeagueWithOwner(
     return { error: 'insert_failed' };
   }
 
-  const { error: memberError } = await admin
-    .from('league_members')
-    .insert({ league_id: league.id, profile_id: input.ownerProfileId, role: 'owner' });
+  const { error: memberError } = await insertOwnerRow(
+    admin,
+    { side: 'league', orgId: league.id },
+    input.ownerProfileId
+  );
   if (memberError) {
     console.error('[LEAGUES CREATE] owner member insert error:', memberError);
     await admin.from('leagues').delete().eq('id', league.id);
