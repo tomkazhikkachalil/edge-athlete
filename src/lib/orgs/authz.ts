@@ -10,9 +10,8 @@
 //
 // 1. AUTHORIZATION ONLY. One profile, one org, one decision. Membership
 //    ENUMERATION — org lists, member lists, calendar-merge candidate sets —
-//    stays at its call sites (org-merge-server, org-peers,
-//    getProfileOrganizations) and will move behind a membership data-access
-//    layer (src/lib/orgs/members.ts) in 0.2, never behind authz.
+//    lives behind the data-access layer (src/lib/orgs/members.ts), never
+//    behind authz.
 // 2. SAFETY BOUNDARY (policy, not convention): org authority NEVER implies
 //    family/guardian authority, and vice versa. Guardian checks live in
 //    guardian-gate.ts / profile-roles.ts / profile_access reads, forever

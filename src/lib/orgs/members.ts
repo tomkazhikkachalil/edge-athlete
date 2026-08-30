@@ -3,18 +3,14 @@
 // read). Routes keep their own authorization (orgs/authz.ts) and their own
 // response bodies; this module owns the queries.
 //
-// DUAL-WRITE TRANSITION (temporary — removed in the cleanup PR): every write
-// goes to the LEGACY table (league_members/club_members) first and to the new
-// `memberships` table second. The legacy write is authoritative: its error is
-// what callers receive, and it alone can fail a request. The memberships
-// mirror never fails a request — a duplicate (23505, backfill overlap) is
-// swallowed silently, anything else logs with the greppable tag
-// [MEMBERSHIPS DUAL-WRITE] and is repaired by re-running migration 140.
+// `memberships` (migration 140) is the ONLY store. The legacy
+// league_members/club_members tables are frozen and dropped by a later
+// migration once the soak criteria in 140's header are met.
 //
-// Mirror UPDATE/DELETE writes filter kind='follow' AND scope_type='org'
-// explicitly: during the transition every row is a follow/org row anyway, but
-// the filter makes 0.3's future roster rows structurally unreachable from
-// these legacy-shaped paths.
+// UPDATE/DELETE writes filter kind='follow' AND scope_type='org' explicitly:
+// every open-join-era row is a follow/org row, and the filter makes 0.3's
+// future roster rows structurally unreachable from these legacy-shaped
+// paths (a roster edge gets its own gated creation flow in 0.3/0.10).
 
 import type { PostgrestError, SupabaseClient } from '@supabase/supabase-js';
 import type { OrgRole, OrgSide } from './authz';
@@ -34,67 +30,47 @@ function orgColumn(side: OrgSide): 'league_id' | 'club_id' {
   return side === 'league' ? 'league_id' : 'club_id';
 }
 
-function legacyTable(side: OrgSide): 'league_members' | 'club_members' {
-  return side === 'league' ? 'league_members' : 'club_members';
-}
-
-function logMirrorError(op: string, error: PostgrestError): void {
-  if (error.code === '23505') return; // backfill/re-run overlap — expected
-  console.error(`[MEMBERSHIPS DUAL-WRITE] ${op} mirror failed:`, error);
-}
-
-async function insertBoth(admin: Admin, ref: OrgRef, profileId: string, role?: 'owner'): Promise<WriteResult> {
-  const col = orgColumn(ref.side);
-  const row: Record<string, unknown> = { [col]: ref.orgId, profile_id: profileId };
+async function insertMembership(
+  admin: Admin,
+  ref: OrgRef,
+  profileId: string,
+  role?: 'owner'
+): Promise<WriteResult> {
+  const row: Record<string, unknown> = { [orgColumn(ref.side)]: ref.orgId, profile_id: profileId };
   if (role) row.role = role;
-
-  const { error } = await admin.from(legacyTable(ref.side)).insert(row);
-  if (error) return { error };
-
-  const { error: mirrorError } = await admin.from('memberships').insert(row);
-  if (mirrorError) logMirrorError(role ? 'owner insert' : 'join', mirrorError);
-  return { error: null };
+  const { error } = await admin.from('memberships').insert(row);
+  return { error };
 }
 
 /** POST join branch: the session user joins as a plain member (role default). */
 export function joinOrg(admin: Admin, ref: OrgRef, profileId: string): Promise<WriteResult> {
-  return insertBoth(admin, ref, profileId);
+  return insertMembership(admin, ref, profileId);
 }
 
 /** Org creation: the owner's role='owner' member row. */
 export function insertOwnerRow(admin: Admin, ref: OrgRef, profileId: string): Promise<WriteResult> {
-  return insertBoth(admin, ref, profileId, 'owner');
+  return insertMembership(admin, ref, profileId, 'owner');
 }
 
-async function deleteBoth(admin: Admin, ref: OrgRef, profileId: string, op: string): Promise<WriteResult> {
-  const col = orgColumn(ref.side);
-
+async function deleteMembership(admin: Admin, ref: OrgRef, profileId: string): Promise<WriteResult> {
   const { error } = await admin
-    .from(legacyTable(ref.side))
-    .delete()
-    .eq(col, ref.orgId)
-    .eq('profile_id', profileId);
-  if (error) return { error };
-
-  const { error: mirrorError } = await admin
     .from('memberships')
     .delete()
-    .eq(col, ref.orgId)
+    .eq(orgColumn(ref.side), ref.orgId)
     .eq('profile_id', profileId)
     .eq('kind', 'follow')
     .eq('scope_type', 'org');
-  if (mirrorError) logMirrorError(op, mirrorError);
-  return { error: null };
+  return { error };
 }
 
 /** POST leave branch: the session user leaves. */
 export function leaveOrg(admin: Admin, ref: OrgRef, profileId: string): Promise<WriteResult> {
-  return deleteBoth(admin, ref, profileId, 'leave');
+  return deleteMembership(admin, ref, profileId);
 }
 
 /** DELETE route: owner/manager removes a plain member. */
 export function removeMember(admin: Admin, ref: OrgRef, profileId: string): Promise<WriteResult> {
-  return deleteBoth(admin, ref, profileId, 'remove');
+  return deleteMembership(admin, ref, profileId);
 }
 
 // ── Reads (the enumeration layer promised by orgs/authz.ts) ─────────────────
@@ -281,22 +257,12 @@ export async function setMemberRole(
   profileId: string,
   role: 'manager' | 'member'
 ): Promise<WriteResult> {
-  const col = orgColumn(ref.side);
-
   const { error } = await admin
-    .from(legacyTable(ref.side))
-    .update({ role })
-    .eq(col, ref.orgId)
-    .eq('profile_id', profileId);
-  if (error) return { error };
-
-  const { error: mirrorError } = await admin
     .from('memberships')
     .update({ role })
-    .eq(col, ref.orgId)
+    .eq(orgColumn(ref.side), ref.orgId)
     .eq('profile_id', profileId)
     .eq('kind', 'follow')
     .eq('scope_type', 'org');
-  if (mirrorError) logMirrorError('role update', mirrorError);
-  return { error: null };
+  return { error };
 }

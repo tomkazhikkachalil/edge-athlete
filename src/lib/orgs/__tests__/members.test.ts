@@ -78,61 +78,35 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-describe('dual-write order and authority', () => {
-  it('joinOrg writes the legacy table FIRST, then mirrors to memberships', async () => {
-    const { admin, calls } = mockAdmin({});
-    const { error } = await joinOrg(admin, REF, 'me');
+describe('single-write to memberships', () => {
+  it('joinOrg writes ONLY memberships and surfaces its error', async () => {
+    const ok = mockAdmin({});
+    const { error } = await joinOrg(ok.admin, REF, 'me');
     expect(error).toBeNull();
-    expect(calls.map(c => c.table)).toEqual(['league_members', 'memberships']);
-    expect(calls[0].payload).toEqual({ league_id: 'org-1', profile_id: 'me' });
-    expect(calls[1].payload).toEqual({ league_id: 'org-1', profile_id: 'me' });
-  });
+    expect(ok.calls.map(c => c.table)).toEqual(['memberships']);
+    expect(ok.calls[0].payload).toEqual({ league_id: 'org-1', profile_id: 'me' });
 
-  it('a legacy-write failure is returned and the mirror is never attempted', async () => {
     const failure = { code: '23503' };
-    const { admin, calls } = mockAdmin({ league_members: { error: failure } });
-    const { error } = await joinOrg(admin, REF, 'me');
-    expect(error).toBe(failure);
-    expect(calls.map(c => c.table)).toEqual(['league_members']);
+    const bad = mockAdmin({ memberships: { error: failure } });
+    expect((await joinOrg(bad.admin, REF, 'me')).error).toBe(failure);
   });
 
-  it('insertOwnerRow carries role owner to BOTH tables', async () => {
+  it('insertOwnerRow carries role owner', async () => {
     const { admin, calls } = mockAdmin({});
     await insertOwnerRow(admin, CLUB_REF, 'owner-1');
-    expect(calls.map(c => c.table)).toEqual(['club_members', 'memberships']);
-    for (const call of calls) {
-      expect(call.payload).toEqual({ club_id: 'club-1', profile_id: 'owner-1', role: 'owner' });
-    }
+    expect(calls.map(c => c.table)).toEqual(['memberships']);
+    expect(calls[0].payload).toEqual({ club_id: 'club-1', profile_id: 'owner-1', role: 'owner' });
   });
 });
 
-describe('mirror failure policy', () => {
-  it('a mirror 23505 (backfill overlap) is swallowed with no error log', async () => {
-    const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
-    const { admin } = mockAdmin({ memberships: { error: { code: '23505' } } });
-    const { error } = await joinOrg(admin, REF, 'me');
-    expect(error).toBeNull();
-    expect(spy).not.toHaveBeenCalled();
-  });
-
-  it('any other mirror failure logs the greppable tag but never fails the request', async () => {
-    const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
-    const { admin } = mockAdmin({ memberships: { error: { code: '57014' } } });
-    const { error } = await setMemberRole(admin, REF, 'them', 'manager');
-    expect(error).toBeNull();
-    expect(spy).toHaveBeenCalledOnce();
-    expect(String(spy.mock.calls[0][0])).toContain('[MEMBERSHIPS DUAL-WRITE]');
-  });
-});
-
-describe('mirror filters keep legacy paths off future roster rows', () => {
-  it('leaveOrg mirror delete filters org + profile + kind=follow + scope_type=org', async () => {
+describe('write filters keep legacy-shaped paths off future roster rows', () => {
+  it('leaveOrg deletes with org + profile + kind=follow + scope_type=org', async () => {
     const { admin, calls } = mockAdmin({});
     await leaveOrg(admin, REF, 'me');
-    const mirror = calls[1];
-    expect(mirror.table).toBe('memberships');
-    expect(mirror.op).toBe('delete');
-    expect(mirror.filters).toEqual({
+    expect(calls).toHaveLength(1);
+    expect(calls[0].table).toBe('memberships');
+    expect(calls[0].op).toBe('delete');
+    expect(calls[0].filters).toEqual({
       league_id: 'org-1',
       profile_id: 'me',
       kind: 'follow',
@@ -140,22 +114,21 @@ describe('mirror filters keep legacy paths off future roster rows', () => {
     });
   });
 
-  it('removeMember and setMemberRole mirrors carry the same filters (club side)', async () => {
+  it('removeMember and setMemberRole carry the same filters (club side)', async () => {
     const { admin, calls } = mockAdmin({});
     await removeMember(admin, CLUB_REF, 'them');
     await setMemberRole(admin, CLUB_REF, 'them', 'member');
-    const [, removeMirror, , roleMirror] = calls;
-    for (const mirror of [removeMirror, roleMirror]) {
-      expect(mirror.table).toBe('memberships');
-      expect(mirror.filters).toEqual({
+    expect(calls.map(c => c.table)).toEqual(['memberships', 'memberships']);
+    for (const call of calls) {
+      expect(call.filters).toEqual({
         club_id: 'club-1',
         profile_id: 'them',
         kind: 'follow',
         scope_type: 'org',
       });
     }
-    expect(roleMirror.payload).toEqual({ role: 'member' });
-    expect(calls[2].payload).toEqual({ role: 'member' });
+    expect(calls[1].op).toBe('update');
+    expect(calls[1].payload).toEqual({ role: 'member' });
   });
 
   it('reads hit only memberships: getMemberRole surfaces the row role and the error', async () => {
@@ -183,15 +156,5 @@ describe('mirror filters keep legacy paths off future roster rows', () => {
     expect(await memberOrgIds(missing.admin, 'me')).toEqual({ leagueIds: [], clubIds: [] });
     const broken = mockAdmin({ memberships: { data: null, error: { code: '57014' } } });
     await expect(memberOrgIds(broken.admin, 'me')).rejects.toEqual({ code: '57014' });
-  });
-
-  it('legacy update/delete filters stay byte-identical to the pre-layer queries', async () => {
-    const { admin, calls } = mockAdmin({});
-    await setMemberRole(admin, REF, 'them', 'manager');
-    const legacy = calls[0];
-    expect(legacy.table).toBe('league_members');
-    expect(legacy.op).toBe('update');
-    expect(legacy.payload).toEqual({ role: 'manager' });
-    expect(legacy.filters).toEqual({ league_id: 'org-1', profile_id: 'them' });
   });
 });
