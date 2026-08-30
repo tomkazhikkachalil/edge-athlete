@@ -1,5 +1,72 @@
 # Development Log
 
+## August 29, 2026 — Date-only columns: the sweep the round-post probe forced (#380–#382, zero DDL)
+
+Found by EYE, not by a test. The prod probe of the round-post round below
+seeded a real round and screenshotted both surfaces; the feed card said
+"Aug 29" while the detail modal said "August 30, 2026" for the same round.
+Every check was green — the suite asserted the hole count and never looked at
+the date. The lesson generalises past this bug: a passing suite proves the
+tests agree with themselves, which is why the house habit is to LOOK at the
+prod probe rather than read its exit code.
+
+- **The bug class.** `group_posts.date`, `golf_rounds.date`, `profiles.dob`
+  and friends are **DATE columns**. A bare `new Date("2026-08-30")` parses as
+  UTC midnight, so LOCAL getters read the PREVIOUS day in any US timezone.
+  `parseDateLocal` (`src/lib/formatters.ts`) already existed for exactly this
+  — its own test comment names "round cards" as the victim — and
+  `SharedRoundFullCard` already used it. The card was simply missed when that
+  sweep went through, in **da030a3, Aug 8**. Fixed in #380, one line.
+- **The full sweep (#381).** Started from the SCHEMA rather than grepping
+  `new Date(` and guessing: enumerated all **nine** DATE columns
+  (`profiles.birthday`, `golf_rounds.date`, `group_posts.date`,
+  `vitals_entries.recorded_at` — note the `_at` name on a DATE —, guardian
+  `dob`, `achievements.achieved_on`, `profile_transfers.dob_snapshot`,
+  `athlete_equipment.acquired_on`/`retired_on`), then traced every consumer.
+  Fixed four more DISPLAY sites (GolfRoundCard, ParticipantAttestationModal,
+  GolfAdapter.getActivityRows, and AccountSettings — the user's own DOB), the
+  AGE math in `formatters.formatAge` + `AthleteService.formatAge`, and one
+  robustness gap where `/api/handles/update` used `getFullYear()` off a
+  UTC-midnight dob while its sibling guardian routes use `getUTCFullYear()`
+  (correct only because the runtime happens to be UTC; it feeds the handle
+  spoofing guard, so it must not depend on where the process runs).
+- **The age bug is narrower than it looks, and that is why it survived.** A
+  year-diff with a month/day adjustment ABSORBS a uniform one-day shift. The
+  asymmetry is that `dob` shifted while `today` (a real local Date) did not —
+  so the age ticks over exactly ONE DAY EARLY: the day before the birthday,
+  plus Dec 31 for a Jan 1 dob and Feb 28 for a Mar 1 dob. It renders on the
+  guardian console.
+- **What was checked and deliberately NOT changed.** `ageOn()` in
+  `minors-config` — the legally meaningful minor gate — was already
+  UTC-correct on BOTH sides; **the guardian safety rail was never at risk**.
+  Also untouched: every sorting comparison (a uniform shift cannot reorder),
+  the `+ 'T00:00:00'` sites, the string-slicing sites
+  (`achievements/display`, `formatMonthYear`), and the guardian/consent routes
+  (already `getUTCFullYear()`). `PerformanceModal`'s `toISOString` round-trip
+  looked like a bug in triage and was DISPROVED — UTC in, UTC out, it cancels.
+  `vitals-config.getAgeAtDate` changed for CONSISTENCY only, not as a fix:
+  both its inputs are DATE columns that shift together, and a 462-case sweep
+  found zero differing results. Recorded here so nobody later cites it as one.
+- **The trap, which cost a whole test file.** **Age tests must fake the
+  clock.** The first draft of them passed against the BROKEN code — they would
+  have been green 364 days out of 365 — and that only surfaced because every
+  regression test here was revert-tested before being trusted. With
+  `vi.setSystemTime` they fail 3/6 without the fix, with the exact production
+  symptom. **A regression test nobody has watched fail is not evidence.**
+- **The missing assertion (#382).** `round-details.spec.ts` never looked at a
+  date, which is precisely how the bug reached production. It now pins that
+  the card shows the stored calendar day (and NOT the day before it) and that
+  the detail header and the Round Details grid render the same day. Seeds a
+  FIXED date (2026-03-15), never today's: the assertion must not depend on
+  when the suite runs, and "today" is the one date where a one-day shift is
+  hardest to notice. Revert-tested — restoring the raw `new Date(raw)` fails
+  it on `getByText(/Mar 15/)`.
+- **Verification.** `npm run verify` green per PR (2216 tests, +10). Prod
+  probes after each deploy: round-details 4/4 (desktop + @mobile 375×812) and
+  the golf/achievements/equipment regression 9/9, plus a VISUAL confirmation
+  on production that card and detail now agree — card "Mar 15", detail
+  "March 15, 2026".
+
 ## August 29, 2026 — Round post: overview flow, a top way in, and an honest hole count (#378–#379, zero DDL)
 
 Tom's three complaints about how a posted golf round reads. Zero migrations:
@@ -73,7 +140,12 @@ place, and one screen was ordered reference-material-first.
   viewer-independence guarantee, the no-hole-rows fallback). New
   `e2e/round-details.spec.ts` 3/3 locally (desktop + @mobile at 375×812);
   golf regression suite 9/9 (lifecycle, quick-entry ×2, delete ×3, feed-post).
-  Prod probe owed after deploy.
+  **Prod-probed after deploy:** the three new specs 3/3 against the live
+  deployment (desktop + @mobile 375×812) plus the regression suite 9/9, and a
+  visual pass on production confirming the card meta reads "13 of 18 holes",
+  both entry points render with their distinct labels, and the Overview opens
+  media → scores → collapsed Course details. That probe is also what surfaced
+  the date bug recorded in the entry above.
 
 **Recorded, not done:** recomputing the stored `holes_played` at round end
 (in `advanceRoundStatus`) would fix the count at the source and propagate
