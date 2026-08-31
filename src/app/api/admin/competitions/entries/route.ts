@@ -1,21 +1,34 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin, getSupabaseAdmin } from '@/lib/auth-server';
 import { parseBody } from '@/lib/validation';
-import { EntryAddSchema } from '@/lib/competitions/validate';
-import { entryAddPOST, entryDELETE } from '@/lib/orgs/competition-server';
+import { EntryAddSchema, EntryDecideSchema } from '@/lib/competitions/validate';
+import { entryAddPOST, entryDecidePATCH, entryDELETE } from '@/lib/orgs/competition-server';
 import { UUID_RE } from '@/lib/golf/course-catalog';
 
 // ── /api/admin/competitions/entries — thin wrapper over competition-server ──
 
 export async function POST(request: NextRequest) {
   try {
-    await requireAdmin(request);
+    const user = await requireAdmin(request);
     const parsed = await parseBody(request, EntryAddSchema);
     if (!parsed.success) return parsed.response;
-    return await entryAddPOST(getSupabaseAdmin(), parsed.data, null);
+    return await entryAddPOST(getSupabaseAdmin(), parsed.data, null, user.id);
   } catch (error) {
     if (error instanceof Response) return error;
     console.error('[ADMIN COMPETITIONS] entries POST error:', error);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+  }
+}
+
+export async function PATCH(request: NextRequest) {
+  try {
+    const user = await requireAdmin(request);
+    const parsed = await parseBody(request, EntryDecideSchema);
+    if (!parsed.success) return parsed.response;
+    return await entryDecidePATCH(getSupabaseAdmin(), parsed.data, null, user.id);
+  } catch (error) {
+    if (error instanceof Response) return error;
+    console.error('[ADMIN COMPETITIONS] entries PATCH error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

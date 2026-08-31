@@ -85,6 +85,10 @@ export const NOTIFICATION_TYPE_META = {
   // 0.10 (mig 147): guardian-facing roster bell — sits with its guardian
   // siblings in the All/Unread-only bucket.
   roster_invite: { tab: null, icon: 'fa-clipboard-list' },
+  // Phase 2 R4 (mig 154): cross-org rep entry flow — manager-facing,
+  // All/Unread-only like their org siblings.
+  competition_entry_pending: { tab: null, icon: 'fa-clipboard-check' },
+  competition_entry_decided: { tab: null, icon: 'fa-clipboard-check' },
 } as const satisfies Record<string, NotificationTypeMeta>;
 
 export type KnownNotificationType = keyof typeof NOTIFICATION_TYPE_META;

@@ -154,12 +154,46 @@ export async function competitionsAggregateGET(
     });
   }
 
+  // R4 (league side): teams of ACTIVE member_of/sanctioned_by clubs —
+  // the console's rep-entry picker. Reads NOTHING inside the member club
+  // beyond team + club names (§5's competition-scope line).
+  let affiliatedTeams: { id: string; name: string; club_name: string }[] = [];
+  if (scope.side === 'league') {
+    const { data: edges } = await admin
+      .from('league_clubs')
+      .select('club_id, status, affiliation_type')
+      .eq('league_id', scope.orgId)
+      .eq('status', 'active')
+      .in('affiliation_type', ['member_of', 'sanctioned_by'])
+      .limit(100);
+    const clubIds = [...new Set((edges ?? []).map(e => e.club_id as string))];
+    if (clubIds.length) {
+      const [clubTeamsRes, clubsRes] = await Promise.all([
+        admin
+          .from('teams')
+          .select('id, name, display_name, club_id')
+          .in('club_id', clubIds)
+          .eq('status', 'active')
+          .order('name')
+          .limit(500),
+        admin.from('clubs').select('id, name').in('id', clubIds),
+      ]);
+      const clubName = new Map((clubsRes.data ?? []).map(c => [c.id, c.name as string]));
+      affiliatedTeams = (clubTeamsRes.data ?? []).map(t => ({
+        id: t.id as string,
+        name: (t.display_name || t.name) as string,
+        club_name: clubName.get(t.club_id) ?? 'Club',
+      }));
+    }
+  }
+
   return NextResponse.json({
     competitions: (competitions ?? []).map(c => ({
       ...c,
       season_label: seasonLabel.get(c.season_id) ?? null,
       entries: entriesByCompetition.get(c.id) ?? [],
     })),
+    affiliatedTeams,
   });
 }
 
@@ -268,11 +302,12 @@ export async function competitionDELETE(
 export async function entryAddPOST(
   admin: Admin,
   input: EntryAddInput,
-  scope: CompetitionScope | null
+  scope: CompetitionScope | null,
+  actorId?: string
 ): Promise<NextResponse> {
   const { data: competition } = await admin
     .from('competitions')
-    .select('id, league_id, club_id, division_id, entrant_type, status')
+    .select('id, name, league_id, club_id, division_id, entrant_type, status')
     .eq('id', input.competitionId)
     .maybeSingle();
   const comp =
@@ -284,18 +319,44 @@ export async function entryAddPOST(
     return NextResponse.json({ error: 'This competition is closed to entries' }, { status: 400 });
   }
 
+  let crossOrg: { clubId: string; teamName: string } | null = null;
   if (comp.entrant_type === 'team') {
     if (!input.teamId) {
       return NextResponse.json({ error: 'This competition takes team entries' }, { status: 400 });
     }
     const { data: team } = await admin
       .from('teams')
-      .select('id, league_id, club_id, status')
+      .select('id, name, display_name, league_id, club_id, status')
       .eq('id', input.teamId)
       .maybeSingle();
-    // v1: own-org teams only (R4 widens to affiliated orgs as 'pending').
-    if (!team || team.league_id !== comp.league_id || team.club_id !== comp.club_id) {
-      return NextResponse.json({ error: 'Team not found' }, { status: 404 });
+    if (!team) return NextResponse.json({ error: 'Team not found' }, { status: 404 });
+    const sameOrg = team.league_id === comp.league_id && team.club_id === comp.club_id;
+    if (!sameOrg) {
+      // R4 REP: a foreign team enters IFF the owner is a LEAGUE and an
+      // ACTIVE member_of/sanctioned_by edge links it to the team's CLUB
+      // (league_clubs is league↔club only). Cross-org authority stays
+      // competition-scoped — this reads NOTHING inside the member club
+      // beyond the team row (§5's line clubs won't join without).
+      if (!comp.league_id || !team.club_id) {
+        return NextResponse.json({ error: 'Team not found' }, { status: 404 });
+      }
+      const { data: edge } = await admin
+        .from('league_clubs')
+        .select('status, affiliation_type')
+        .eq('league_id', comp.league_id)
+        .eq('club_id', team.club_id)
+        .maybeSingle();
+      if (
+        !edge ||
+        edge.status !== 'active' ||
+        !['member_of', 'sanctioned_by'].includes(edge.affiliation_type as string)
+      ) {
+        return NextResponse.json(
+          { error: 'Only teams from affiliated member clubs can be entered' },
+          { status: 400 }
+        );
+      }
+      crossOrg = { clubId: team.club_id as string, teamName: (team.display_name || team.name) as string };
     }
     if (team.status === 'archived') {
       return NextResponse.json(
@@ -303,7 +364,9 @@ export async function entryAddPOST(
         { status: 400 }
       );
     }
-    if (comp.division_id) {
+    // The division-entry rule is HOUSE play only — a rep team has no
+    // team_entry under the owner league by construction.
+    if (comp.division_id && !crossOrg) {
       const { data: teamEntry } = await admin
         .from('team_entries')
         .select('id')
@@ -349,6 +412,9 @@ export async function entryAddPOST(
       competition_id: input.competitionId,
       team_id: input.teamId ?? null,
       profile_id: input.profileId ?? null,
+      // Cross-org entries await the owner's decision (the §5 eligibility
+      // step); own-org entries are approved at birth.
+      status: crossOrg ? 'pending' : 'approved',
     })
     .select()
     .single();
@@ -359,8 +425,79 @@ export async function entryAddPOST(
     console.error(`${TAG} entry insert error:`, error);
     return NextResponse.json({ error: 'Failed to add the entry' }, { status: 500 });
   }
+  if (crossOrg && comp.league_id) {
+    const { notifyEntryPending } = await import('@/lib/competitions/notify');
+    await notifyEntryPending(admin, {
+      ownerSide: 'league',
+      ownerOrgId: comp.league_id,
+      competitionId: comp.id,
+      competitionName: comp.name as string,
+      teamName: crossOrg.teamName,
+      actorId: actorId ?? '',
+    });
+  }
   await recomputeStandingsBestEffort(admin, input.competitionId);
   return NextResponse.json({ entry });
+}
+
+/** R4: the owner decides a pending entry. Pinned through the competition
+ *  join; only pending rows transition; the entering club's managers get
+ *  the decided bell. */
+export async function entryDecidePATCH(
+  admin: Admin,
+  input: { entryId: string; decision: 'approved' | 'rejected' },
+  scope: CompetitionScope | null,
+  actorId: string
+): Promise<NextResponse> {
+  const { data: row } = await admin
+    .from('competition_entries')
+    .select(
+      'id, status, team_id, competition:competition_id (id, name, league_id, club_id)'
+    )
+    .eq('id', input.entryId)
+    .maybeSingle();
+  const comp = row?.competition as
+    | { id: string; name: string; league_id: string | null; club_id: string | null }
+    | { id: string; name: string; league_id: string | null; club_id: string | null }[]
+    | null
+    | undefined;
+  const compRow = Array.isArray(comp) ? comp[0] : comp;
+  if (!row || !compRow || (scope && compRow[orgColumn(scope.side)] !== scope.orgId)) {
+    return NextResponse.json({ error: 'Entry not found' }, { status: 404 });
+  }
+  if (row.status !== 'pending') {
+    return NextResponse.json({ error: 'Only pending entries can be decided' }, { status: 400 });
+  }
+  const { data: updated, error } = await admin
+    .from('competition_entries')
+    .update({ status: input.decision })
+    .eq('id', input.entryId)
+    .eq('status', 'pending')
+    .select('id');
+  if (error || !updated || updated.length === 0) {
+    if (error) console.error(`${TAG} entry decide error:`, error);
+    return NextResponse.json({ error: 'Failed to decide the entry' }, { status: 500 });
+  }
+  if (row.team_id) {
+    const { data: team } = await admin
+      .from('teams')
+      .select('name, display_name, club_id')
+      .eq('id', row.team_id)
+      .maybeSingle();
+    if (team?.club_id) {
+      const { notifyEntryDecided } = await import('@/lib/competitions/notify');
+      await notifyEntryDecided(admin, {
+        clubId: team.club_id as string,
+        competitionId: compRow.id,
+        competitionName: compRow.name,
+        teamName: (team.display_name || team.name) as string,
+        decision: input.decision,
+        actorId,
+      });
+    }
+  }
+  await recomputeStandingsBestEffort(admin, compRow.id);
+  return NextResponse.json({ action: input.decision });
 }
 
 export async function entryDELETE(
