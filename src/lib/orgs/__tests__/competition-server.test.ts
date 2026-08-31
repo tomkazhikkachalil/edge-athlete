@@ -4,9 +4,12 @@ import {
   competitionCreatePOST,
   competitionPATCH,
   competitionsAggregateGET,
+  contestCreatePOST,
+  contestDELETE,
   entryAddPOST,
   entryDELETE,
   requireCompetitionManager,
+  resultsUpsertPOST,
 } from '../competition-server';
 
 type Admin = Parameters<typeof requireCompetitionManager>[0];
@@ -56,6 +59,12 @@ function mockAdmin(results: Partial<Record<string, unknown>>) {
         insert(payload: unknown) {
           call.op = 'insert';
           call.payload = payload;
+          return chain;
+        },
+        upsert(payload: unknown, opts?: unknown) {
+          call.op = 'upsert';
+          call.payload = payload;
+          call.filters.onConflict = (opts as { onConflict?: string })?.onConflict;
           return chain;
         },
         update(payload: unknown) {
@@ -338,5 +347,193 @@ describe('competitionsAggregateGET', () => {
     const body = await (await competitionsAggregateGET(admin, SCOPE)).json();
     expect(body.competitions[0].season_label).toBe('2026-27');
     expect(body.competitions[0].entries[0].entrant_name).toBe('Blazers');
+  });
+});
+
+describe('contestCreatePOST (R2)', () => {
+  const comp = {
+    id: 'c1',
+    league_id: 'org-1',
+    club_id: null,
+    division_id: null,
+    format: 'fixture',
+    entrant_type: 'team',
+    status: 'active',
+    name: 'House',
+  };
+
+  it('foreign-org competition 404s when scoped', async () => {
+    const { admin } = mockAdmin({ competitions: { data: { ...comp, league_id: 'OTHER' } } });
+    const res = await contestCreatePOST(
+      admin,
+      { competitionId: 'c1', homeEntryId: 'e1', awayEntryId: 'e2' },
+      SCOPE
+    );
+    expect(res.status).toBe(404);
+  });
+
+  it('fixture without both sides 400s', async () => {
+    const { admin } = mockAdmin({ competitions: { data: comp } });
+    const res = await contestCreatePOST(admin, { competitionId: 'c1', homeEntryId: 'e1' }, SCOPE);
+    expect(res.status).toBe(400);
+  });
+
+  it('unapproved or foreign entries 400', async () => {
+    const { admin } = mockAdmin({
+      competitions: { data: comp },
+      competition_entries: { data: [{ id: 'e1', status: 'approved' }, { id: 'e2', status: 'pending' }] },
+    });
+    const res = await contestCreatePOST(
+      admin,
+      { competitionId: 'c1', homeEntryId: 'e1', awayEntryId: 'e2' },
+      SCOPE
+    );
+    expect(res.status).toBe(400);
+  });
+
+  it('creates the contest + one homogeneous participants batch; compensates on failure', async () => {
+    const ok = mockAdmin({
+      competitions: { data: comp },
+      competition_entries: { data: [{ id: 'e1', status: 'approved' }, { id: 'e2', status: 'approved' }] },
+      contests: { data: { id: 'g1' } },
+      contest_participants: { data: null },
+    });
+    const res = await contestCreatePOST(
+      ok.admin,
+      { competitionId: 'c1', homeEntryId: 'e1', awayEntryId: 'e2' },
+      SCOPE
+    );
+    expect(res.status).toBe(200);
+    const batch = ok.calls.find(c => c.table === 'contest_participants');
+    expect(batch?.payload).toEqual([
+      { contest_id: 'g1', entry_id: 'e1', side: 'home' },
+      { contest_id: 'g1', entry_id: 'e2', side: 'away' },
+    ]);
+
+    const failing = mockAdmin({
+      competitions: { data: comp },
+      competition_entries: { data: [{ id: 'e1', status: 'approved' }, { id: 'e2', status: 'approved' }] },
+      contests: [{ data: { id: 'g1' } }, { data: [{ id: 'g1' }] }],
+      contest_participants: { data: null, error: { code: '23503' } },
+    });
+    const failed = await contestCreatePOST(
+      failing.admin,
+      { competitionId: 'c1', homeEntryId: 'e1', awayEntryId: 'e2' },
+      SCOPE
+    );
+    expect(failed.status).toBe(500);
+    const contestCalls = failing.calls.filter(c => c.table === 'contests');
+    expect(contestCalls[1].op).toBe('delete');
+  });
+
+  it('composite facility↔venue FK violation maps to 400', async () => {
+    const { admin } = mockAdmin({
+      competitions: { data: { ...comp, format: 'leaderboard' } },
+      contests: { data: null, error: { code: '23503' } },
+    });
+    const res = await contestCreatePOST(
+      admin,
+      { competitionId: 'c1', venueId: 'v1', facilityId: 'f1' },
+      SCOPE
+    );
+    expect(res.status).toBe(400);
+  });
+});
+
+describe('contestDELETE (R2)', () => {
+  it('scoped verifies through the competition join', async () => {
+    const foreign = mockAdmin({
+      contests: { data: { id: 'g1', competition: { league_id: 'OTHER', club_id: null } } },
+    });
+    expect((await contestDELETE(foreign.admin, 'g1', SCOPE)).status).toBe(404);
+
+    const ok = mockAdmin({
+      contests: [
+        { data: { id: 'g1', competition: { league_id: 'org-1', club_id: null } } },
+        { data: [{ id: 'g1', event_id: null }] },
+      ],
+    });
+    expect((await contestDELETE(ok.admin, 'g1', SCOPE)).status).toBe(200);
+  });
+});
+
+describe('resultsUpsertPOST (R2)', () => {
+  const contestRow = {
+    id: 'g1',
+    status: 'scheduled',
+    competition: { id: 'c1', league_id: 'org-1', club_id: null, format: 'fixture' },
+  };
+  const twoSides = { data: [{ id: 'p1', side: 'home' }, { id: 'p2', side: 'away' }] };
+
+  it('foreign-org contest 404s; canceled 400s', async () => {
+    const foreign = mockAdmin({
+      contests: { data: { ...contestRow, competition: { ...contestRow.competition, league_id: 'OTHER' } } },
+    });
+    expect(
+      (await resultsUpsertPOST(foreign.admin, { contestId: 'g1', results: [{ participantId: 'p1', score: 3 }] }, SCOPE, 'u1')).status
+    ).toBe(404);
+
+    const canceled = mockAdmin({ contests: { data: { ...contestRow, status: 'canceled' } } });
+    expect(
+      (await resultsUpsertPOST(canceled.admin, { contestId: 'g1', results: [{ participantId: 'p1', score: 3 }] }, SCOPE, 'u1')).status
+    ).toBe(400);
+  });
+
+  it('rejects results for participants outside the game', async () => {
+    const { admin } = mockAdmin({ contests: { data: contestRow }, contest_participants: twoSides });
+    const res = await resultsUpsertPOST(
+      admin,
+      { contestId: 'g1', results: [{ participantId: 'STRANGER', score: 3 }] },
+      SCOPE,
+      'u1'
+    );
+    expect(res.status).toBe(400);
+  });
+
+  it('fixture demands exactly home + away sides', async () => {
+    const { admin } = mockAdmin({
+      contests: { data: contestRow },
+      contest_participants: { data: [{ id: 'p1', side: 'home' }] },
+    });
+    const res = await resultsUpsertPOST(
+      admin,
+      { contestId: 'g1', results: [{ participantId: 'p1', score: 3 }] },
+      SCOPE,
+      'u1'
+    );
+    expect(res.status).toBe(400);
+  });
+
+  it('stamps provenance league_verified + entered_by SERVER-side and auto-completes', async () => {
+    const { admin, calls } = mockAdmin({
+      contests: [{ data: contestRow }, { data: [{ id: 'g1' }] }],
+      contest_participants: twoSides,
+      contest_results: [
+        { data: null },
+        { data: [{ participant_id: 'p1' }, { participant_id: 'p2' }] },
+      ],
+    });
+    const res = await resultsUpsertPOST(
+      admin,
+      {
+        contestId: 'g1',
+        results: [
+          { participantId: 'p1', score: 3 },
+          { participantId: 'p2', score: 2 },
+        ],
+      },
+      SCOPE,
+      'manager-1'
+    );
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({ ok: true, completed: true, competitionId: 'c1' });
+    const upsert = calls.find(c => c.op === 'upsert');
+    expect(upsert?.filters.onConflict).toBe('participant_id');
+    for (const row of upsert?.payload as Array<Record<string, unknown>>) {
+      expect(row.provenance).toBe('league_verified');
+      expect(row.entered_by).toBe('manager-1');
+    }
+    const complete = calls.filter(c => c.table === 'contests' && c.op === 'update');
+    expect(complete[0]?.payload).toEqual({ status: 'completed' });
   });
 });

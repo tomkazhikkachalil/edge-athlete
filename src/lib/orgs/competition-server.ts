@@ -29,7 +29,10 @@ import {
   isMissingTableError,
   type CompetitionCreateInput,
   type CompetitionPatchInput,
+  type ContestCreateInput,
+  type ContestPatchInput,
   type EntryAddInput,
+  type ResultUpsertInput,
 } from '@/lib/competitions/validate';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- matches the authz.ts Admin alias; schema-agnostic helper
@@ -389,4 +392,373 @@ export async function entryDELETE(
     return NextResponse.json({ error: 'Entry not found' }, { status: 404 });
   }
   return NextResponse.json({ action: 'deleted' });
+}
+
+// ── Contests (R2) ────────────────────────────────────────────────────────────
+
+/** Load a competition with the org pin applied. A foreign org's
+ *  competition is indistinguishable from a missing one. */
+async function pinCompetition(
+  admin: Admin,
+  competitionId: string,
+  scope: CompetitionScope | null
+): Promise<{
+  id: string;
+  league_id: string | null;
+  club_id: string | null;
+  division_id: string | null;
+  format: string;
+  entrant_type: string;
+  status: string;
+  name: string;
+} | null> {
+  const { data } = await admin
+    .from('competitions')
+    .select('id, league_id, club_id, division_id, format, entrant_type, status, name')
+    .eq('id', competitionId)
+    .maybeSingle();
+  if (!data) return null;
+  if (scope && data[orgColumn(scope.side)] !== scope.orgId) return null;
+  return data;
+}
+
+/** The competition detail aggregate: entries (with names) + contests
+ *  (with participants + results). Feeds the console detail subpage and,
+ *  filtered to public, R3's surfaces. Pre-152 the contests read degrades
+ *  to an empty schedule. */
+export async function competitionDetailGET(
+  admin: Admin,
+  competitionId: string,
+  scope: CompetitionScope | null
+): Promise<NextResponse> {
+  const comp = await pinCompetition(admin, competitionId, scope);
+  if (!comp) return NextResponse.json({ error: 'Competition not found' }, { status: 404 });
+  const { data: full } = await admin
+    .from('competitions')
+    .select(
+      'id, league_id, club_id, season_id, division_id, sport_key, name, format, entrant_type, scoring_rule, status, visibility, created_at'
+    )
+    .eq('id', competitionId)
+    .single();
+
+  const { data: entries } = await admin
+    .from('competition_entries')
+    .select('id, team_id, profile_id, status, seed, pool')
+    .eq('competition_id', competitionId);
+
+  const teamIds = [...new Set((entries ?? []).map(e => e.team_id).filter(Boolean))] as string[];
+  const profileIds = [...new Set((entries ?? []).map(e => e.profile_id).filter(Boolean))] as string[];
+  const [teamsRes, profilesRes] = await Promise.all([
+    teamIds.length
+      ? admin.from('teams').select('id, name, display_name').in('id', teamIds)
+      : Promise.resolve({ data: [] as never[] }),
+    profileIds.length
+      ? admin.from('profiles').select('id, first_name, last_name, full_name').in('id', profileIds)
+      : Promise.resolve({ data: [] as never[] }),
+  ]);
+  const teamName = new Map((teamsRes.data ?? []).map(t => [t.id, (t.display_name || t.name) as string]));
+  const profileName = new Map(
+    (profilesRes.data ?? []).map(p => [
+      p.id,
+      ([p.first_name, p.last_name].filter(Boolean).join(' ') || p.full_name || 'Athlete') as string,
+    ])
+  );
+  const entryName = new Map(
+    (entries ?? []).map(e => [
+      e.id,
+      e.team_id ? (teamName.get(e.team_id) ?? 'Team') : (profileName.get(e.profile_id) ?? 'Athlete'),
+    ])
+  );
+
+  const { data: contests, error: contestsError } = await admin
+    .from('contests')
+    .select('id, event_id, venue_id, facility_id, scheduled_at, round, status, created_at')
+    .eq('competition_id', competitionId)
+    .order('scheduled_at', { ascending: true, nullsFirst: false });
+  if (contestsError && !isMissingTableError(contestsError.code)) {
+    console.error(`${TAG} contests error:`, contestsError);
+    return NextResponse.json({ error: 'Failed to load contests' }, { status: 500 });
+  }
+
+  const contestIds = (contests ?? []).map(c => c.id);
+  const [participantsRes, resultsRes] = contestIds.length
+    ? await Promise.all([
+        admin
+          .from('contest_participants')
+          .select('id, contest_id, entry_id, side, start_position')
+          .in('contest_id', contestIds),
+        admin
+          .from('contest_results')
+          .select('participant_id, score, payload, provenance, dispute_status')
+          .in('contest_id', contestIds),
+      ])
+    : [{ data: [] }, { data: [] }];
+
+  const resultByParticipant = new Map(
+    (resultsRes.data ?? []).map(r => [r.participant_id, r])
+  );
+  const participantsByContest = new Map<string, unknown[]>();
+  for (const p of participantsRes.data ?? []) {
+    if (!participantsByContest.has(p.contest_id)) participantsByContest.set(p.contest_id, []);
+    participantsByContest.get(p.contest_id)!.push({
+      ...p,
+      entrant_name: entryName.get(p.entry_id) ?? 'Entrant',
+      result: resultByParticipant.get(p.id) ?? null,
+    });
+  }
+
+  return NextResponse.json({
+    competition: full,
+    entries: (entries ?? []).map(e => ({ ...e, entrant_name: entryName.get(e.id) })),
+    contests: (contests ?? []).map(c => ({
+      ...c,
+      participants: participantsByContest.get(c.id) ?? [],
+    })),
+  });
+}
+
+export async function contestCreatePOST(
+  admin: Admin,
+  input: ContestCreateInput,
+  scope: CompetitionScope | null
+): Promise<NextResponse> {
+  const comp = await pinCompetition(admin, input.competitionId, scope);
+  if (!comp) return NextResponse.json({ error: 'Competition not found' }, { status: 404 });
+  if (comp.status === 'completed' || comp.status === 'archived') {
+    return NextResponse.json({ error: 'This competition is closed' }, { status: 400 });
+  }
+
+  // Fixture contests carry both sides at birth.
+  let sides: { entry_id: string; side: 'home' | 'away' }[] = [];
+  if (comp.format === 'fixture') {
+    if (!input.homeEntryId || !input.awayEntryId) {
+      return NextResponse.json(
+        { error: 'A fixture needs a home and an away entry' },
+        { status: 400 }
+      );
+    }
+    const { data: entryRows } = await admin
+      .from('competition_entries')
+      .select('id, status')
+      .eq('competition_id', input.competitionId)
+      .in('id', [input.homeEntryId, input.awayEntryId]);
+    const approved = new Set(
+      (entryRows ?? []).filter(e => e.status === 'approved').map(e => e.id)
+    );
+    if (!approved.has(input.homeEntryId) || !approved.has(input.awayEntryId)) {
+      return NextResponse.json(
+        { error: 'Both sides must be approved entries of this competition' },
+        { status: 400 }
+      );
+    }
+    sides = [
+      { entry_id: input.homeEntryId, side: 'home' },
+      { entry_id: input.awayEntryId, side: 'away' },
+    ];
+  }
+
+  const { data: contest, error } = await admin
+    .from('contests')
+    .insert({
+      competition_id: input.competitionId,
+      scheduled_at: input.scheduledAt ?? null,
+      round: input.round ?? null,
+      venue_id: input.venueId ?? null,
+      facility_id: input.facilityId ?? null,
+    })
+    .select()
+    .single();
+  if (error || !contest) {
+    if (error?.code === '23503') {
+      // The composite facility↔venue FK: a facility outside that venue.
+      return NextResponse.json(
+        { error: 'That facility does not belong to the chosen venue' },
+        { status: 400 }
+      );
+    }
+    console.error(`${TAG} contest insert error:`, error);
+    return NextResponse.json({ error: 'Failed to create the game' }, { status: 500 });
+  }
+
+  if (sides.length) {
+    // One homogeneous-key batch (the PGRST102 rule).
+    const { error: pError } = await admin.from('contest_participants').insert(
+      sides.map(s => ({ contest_id: contest.id, entry_id: s.entry_id, side: s.side }))
+    );
+    if (pError) {
+      // Compensate: a contest without its sides is a broken fixture.
+      await admin.from('contests').delete().eq('id', contest.id);
+      console.error(`${TAG} participants insert error:`, pError);
+      return NextResponse.json({ error: 'Failed to create the game' }, { status: 500 });
+    }
+  }
+  return NextResponse.json({ contest });
+}
+
+export async function contestPATCH(
+  admin: Admin,
+  input: ContestPatchInput,
+  scope: CompetitionScope | null
+): Promise<NextResponse> {
+  if (scope) {
+    const { data: row } = await admin
+      .from('contests')
+      .select('id, competition:competition_id (league_id, club_id)')
+      .eq('id', input.id)
+      .maybeSingle();
+    const comp = row?.competition as
+      | { league_id: string | null; club_id: string | null }
+      | { league_id: string | null; club_id: string | null }[]
+      | null
+      | undefined;
+    const compRow = Array.isArray(comp) ? comp[0] : comp;
+    if (!row || !compRow || compRow[orgColumn(scope.side)] !== scope.orgId) {
+      return NextResponse.json({ error: 'Game not found' }, { status: 404 });
+    }
+  }
+  const patch: Record<string, unknown> = {};
+  if (input.status !== undefined) patch.status = input.status;
+  if (input.scheduledAt !== undefined) patch.scheduled_at = input.scheduledAt;
+  if (input.round !== undefined) patch.round = input.round;
+  if (input.venueId !== undefined) patch.venue_id = input.venueId;
+  if (input.facilityId !== undefined) patch.facility_id = input.facilityId;
+  const { data: updated, error } = await admin
+    .from('contests')
+    .update(patch)
+    .eq('id', input.id)
+    .select('id, event_id, status, scheduled_at');
+  if (error) {
+    if (error.code === '23503') {
+      return NextResponse.json(
+        { error: 'That facility does not belong to the chosen venue' },
+        { status: 400 }
+      );
+    }
+    console.error(`${TAG} contest patch error:`, error);
+    return NextResponse.json({ error: 'Failed to update the game' }, { status: 500 });
+  }
+  if (!updated || updated.length === 0) {
+    return NextResponse.json({ error: 'Game not found' }, { status: 404 });
+  }
+  return NextResponse.json({ action: 'updated', contest: updated[0] });
+}
+
+export async function contestDELETE(
+  admin: Admin,
+  contestId: string,
+  scope: CompetitionScope | null
+): Promise<NextResponse> {
+  if (scope) {
+    const { data: row } = await admin
+      .from('contests')
+      .select('id, competition:competition_id (league_id, club_id)')
+      .eq('id', contestId)
+      .maybeSingle();
+    const comp = row?.competition as
+      | { league_id: string | null; club_id: string | null }
+      | { league_id: string | null; club_id: string | null }[]
+      | null
+      | undefined;
+    const compRow = Array.isArray(comp) ? comp[0] : comp;
+    if (!row || !compRow || compRow[orgColumn(scope.side)] !== scope.orgId) {
+      return NextResponse.json({ error: 'Game not found' }, { status: 404 });
+    }
+  }
+  const { data: deleted, error } = await admin
+    .from('contests')
+    .delete()
+    .eq('id', contestId)
+    .select('id, event_id');
+  if (error) {
+    console.error(`${TAG} contest delete error:`, error);
+    return NextResponse.json({ error: 'Failed to delete the game' }, { status: 500 });
+  }
+  if (!deleted || deleted.length === 0) {
+    return NextResponse.json({ error: 'Game not found' }, { status: 404 });
+  }
+  return NextResponse.json({ action: 'deleted', contest: deleted[0] });
+}
+
+// ── Results (R2) ─────────────────────────────────────────────────────────────
+
+/** Batch result upsert for one contest. Provenance is stamped HERE
+ *  ('league_verified' — the entering manager IS the competition owner;
+ *  the masterplan ladder's other rungs arrive with their phases). A
+ *  fixture completes automatically once both sides hold a result. */
+export async function resultsUpsertPOST(
+  admin: Admin,
+  input: ResultUpsertInput,
+  scope: CompetitionScope | null,
+  enteredBy: string
+): Promise<NextResponse> {
+  const { data: contestRow } = await admin
+    .from('contests')
+    .select('id, status, competition:competition_id (id, league_id, club_id, format)')
+    .eq('id', input.contestId)
+    .maybeSingle();
+  const comp = contestRow?.competition as
+    | { id: string; league_id: string | null; club_id: string | null; format: string }
+    | { id: string; league_id: string | null; club_id: string | null; format: string }[]
+    | null
+    | undefined;
+  const compRow = Array.isArray(comp) ? comp[0] : comp;
+  if (!contestRow || !compRow || (scope && compRow[orgColumn(scope.side)] !== scope.orgId)) {
+    return NextResponse.json({ error: 'Game not found' }, { status: 404 });
+  }
+  if (contestRow.status === 'canceled') {
+    return NextResponse.json({ error: 'This game was canceled' }, { status: 400 });
+  }
+
+  const { data: participants } = await admin
+    .from('contest_participants')
+    .select('id, side')
+    .eq('contest_id', input.contestId);
+  const participantIds = new Set((participants ?? []).map(p => p.id));
+  for (const r of input.results) {
+    if (!participantIds.has(r.participantId)) {
+      return NextResponse.json(
+        { error: 'A result references a participant outside this game' },
+        { status: 400 }
+      );
+    }
+  }
+  if (compRow.format === 'fixture') {
+    const sides = new Set((participants ?? []).map(p => p.side));
+    if ((participants ?? []).length !== 2 || !sides.has('home') || !sides.has('away')) {
+      return NextResponse.json(
+        { error: 'A fixture needs exactly one home and one away side' },
+        { status: 400 }
+      );
+    }
+  }
+
+  // One homogeneous-key batch upsert on the participant unique.
+  const { error } = await admin.from('contest_results').upsert(
+    input.results.map(r => ({
+      contest_id: input.contestId,
+      participant_id: r.participantId,
+      score: r.score,
+      payload: r.payload ?? {},
+      provenance: 'league_verified',
+      entered_by: enteredBy,
+    })),
+    { onConflict: 'participant_id' }
+  );
+  if (error) {
+    console.error(`${TAG} results upsert error:`, error);
+    return NextResponse.json({ error: 'Failed to save the result' }, { status: 500 });
+  }
+
+  // Auto-complete once every participant holds a result.
+  const { data: resultRows } = await admin
+    .from('contest_results')
+    .select('participant_id')
+    .eq('contest_id', input.contestId);
+  const complete =
+    (participants ?? []).length > 0 &&
+    (resultRows ?? []).length >= (participants ?? []).length;
+  if (complete && contestRow.status !== 'completed') {
+    await admin.from('contests').update({ status: 'completed' }).eq('id', input.contestId);
+  }
+  return NextResponse.json({ ok: true, completed: complete, competitionId: compRow.id });
 }

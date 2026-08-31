@@ -58,6 +58,66 @@ export const CompetitionPatchSchema = z
   });
 export type CompetitionPatchInput = z.infer<typeof CompetitionPatchSchema>;
 
+/** Contest creation (R2). Fixture contests carry BOTH sides at birth
+ *  (home/away entry ids); leaderboard contests (R5) are born bare and
+ *  gain participants separately. Entry membership in the competition is
+ *  the server lib's job. */
+export const ContestCreateSchema = z
+  .object({
+    competitionId: uuid,
+    scheduledAt: z.string().datetime({ offset: true }).optional(),
+    round: optionalText(40),
+    venueId: uuid.optional(),
+    facilityId: uuid.optional(),
+    homeEntryId: uuid.optional(),
+    awayEntryId: uuid.optional(),
+  })
+  .superRefine((val, ctx) => {
+    if (val.facilityId && !val.venueId) {
+      ctx.addIssue({ code: 'custom', path: ['facilityId'], message: 'A facility needs its venue' });
+    }
+    if ((val.homeEntryId || val.awayEntryId) && val.homeEntryId === val.awayEntryId) {
+      ctx.addIssue({ code: 'custom', path: ['awayEntryId'], message: 'Home and away must differ' });
+    }
+  });
+export type ContestCreateInput = z.infer<typeof ContestCreateSchema>;
+
+export const ContestPatchSchema = z
+  .object({
+    id: uuid,
+    status: z.enum(['scheduled', 'in_progress', 'completed', 'canceled', 'postponed']).optional(),
+    scheduledAt: z.string().datetime({ offset: true }).nullable().optional(),
+    round: optionalText(40).nullable().optional(),
+    venueId: uuid.nullable().optional(),
+    facilityId: uuid.nullable().optional(),
+  })
+  .superRefine((val, ctx) => {
+    const changes = [val.status, val.scheduledAt, val.round, val.venueId, val.facilityId];
+    if (changes.every(v => v === undefined)) {
+      ctx.addIssue({ code: 'custom', path: ['status'], message: 'Nothing to change' });
+    }
+  });
+export type ContestPatchInput = z.infer<typeof ContestPatchSchema>;
+
+/** Result entry (R2): one batch per contest — a fixture's "3 – 2" is one
+ *  submit. payload is the adapter-typed blob (stats_data precedent);
+ *  score is the adapter-derived sort key. Provenance is stamped
+ *  SERVER-side, never accepted from the client. */
+export const ResultUpsertSchema = z.object({
+  contestId: uuid,
+  results: z
+    .array(
+      z.object({
+        participantId: uuid,
+        score: z.number().finite(),
+        payload: z.record(z.string(), z.unknown()).optional(),
+      })
+    )
+    .min(1)
+    .max(50),
+});
+export type ResultUpsertInput = z.infer<typeof ResultUpsertSchema>;
+
 /** One entrant, kind-matched to the competition's entrant_type in the
  *  server lib (never trusted from the client). */
 export const EntryAddSchema = z
