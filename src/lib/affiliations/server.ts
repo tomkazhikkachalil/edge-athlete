@@ -24,6 +24,7 @@ import { enforceRateLimit } from '@/lib/rate-limit';
 import { getOrgRole, isOwnerOrManager } from '@/lib/orgs/authz';
 import { profileMembershipRows } from '@/lib/orgs/members';
 import { isMissingTableError } from '@/lib/leagues/validate';
+import type { AffiliationType } from './validate';
 import { UUID_RE } from '@/lib/golf/course-catalog';
 
 export type AffSide = 'league' | 'club';
@@ -110,7 +111,7 @@ export async function affiliationGET(request: NextRequest, side: AffSide, orgId:
 
   const { data: rows, error } = await admin
     .from('league_clubs')
-    .select('league_id, club_id, status, initiated_by, requested_by_profile_id, created_at')
+    .select('league_id, club_id, status, initiated_by, requested_by_profile_id, created_at, affiliation_type')
     .eq(cfg.rowKey, orgId);
   if (error) {
     // Pre-118 database: an empty section, never an error.
@@ -160,7 +161,8 @@ export async function affiliationPOST(
   request: NextRequest,
   side: AffSide,
   orgId: string,
-  targetId: string
+  targetId: string,
+  affiliationType: AffiliationType = 'partner_of'
 ) {
   const cfg = SIDES[side];
   const user = await requireAuth(request);
@@ -192,6 +194,7 @@ export async function affiliationPOST(
     status: 'pending',
     initiated_by: cfg.side,
     requested_by_profile_id: user.id,
+    affiliation_type: affiliationType,
   });
   if (error) {
     if (error.code === '23505') {
@@ -209,6 +212,7 @@ export async function affiliationPOST(
     recipientProfileId: other.owner_profile_id,
     ...orgNames(cfg, org, other),
     initiatedBy: cfg.side,
+    affiliationType,
     // The recipient accepts from THEIR OWN page.
     actionUrl: cfg.otherPagePath(targetId),
   });
@@ -239,7 +243,7 @@ export async function affiliationAccept(
 
   const { data: row, error } = await admin
     .from('league_clubs')
-    .select('league_id, club_id, status, initiated_by, requested_by_profile_id')
+    .select('league_id, club_id, status, initiated_by, requested_by_profile_id, affiliation_type')
     .eq(cfg.rowKey, orgId)
     .eq(cfg.otherRowKey, targetId)
     .maybeSingle();
@@ -286,6 +290,7 @@ export async function affiliationAccept(
       recipientProfileId: row.requested_by_profile_id,
       ...orgNames(cfg, org, other),
       outcome: 'accepted',
+      affiliationType: (row.affiliation_type as AffiliationType | null) ?? 'partner_of',
       actionUrl: cfg.otherPagePath(targetId),
     });
   }
@@ -316,7 +321,7 @@ export async function affiliationDELETE(
 
   const { data: row, error } = await admin
     .from('league_clubs')
-    .select('league_id, club_id, status, initiated_by, requested_by_profile_id')
+    .select('league_id, club_id, status, initiated_by, requested_by_profile_id, affiliation_type')
     .eq(cfg.rowKey, orgId)
     .eq(cfg.otherRowKey, targetId)
     .maybeSingle();
@@ -354,6 +359,7 @@ export async function affiliationDELETE(
         recipientProfileId: row.requested_by_profile_id,
         ...names,
         outcome: 'declined',
+        affiliationType: (row.affiliation_type as AffiliationType | null) ?? 'partner_of',
         actionUrl: cfg.otherPagePath(targetId),
       });
     }
@@ -365,6 +371,7 @@ export async function affiliationDELETE(
       recipientProfileId: other.owner_profile_id,
       ...names,
       outcome: 'dissolved',
+      affiliationType: (row.affiliation_type as AffiliationType | null) ?? 'partner_of',
       actionUrl: cfg.otherPagePath(targetId),
     });
   }

@@ -30,7 +30,7 @@ export async function POST(
     const { id } = await params;
     const parsed = await parseBody(request, AffiliationLeagueTargetSchema);
     if (!parsed.success) return parsed.response;
-    return await affiliationPOST(request, 'club', id, parsed.data.leagueId);
+    return await affiliationPOST(request, 'club', id, parsed.data.leagueId, parsed.data.affiliationType);
   } catch (error) {
     if (error instanceof Response) return error;
     console.error('[CLUB LEAGUES] POST error:', error);

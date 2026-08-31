@@ -43,9 +43,14 @@ test('affiliation: league invites, club accepts, both pages cross-list', async (
       await pageB.goto(`/league/${leagueId}`);
       const inviteBox = pageB.getByPlaceholder('Search clubs to affiliate…');
       await expect(inviteBox).toBeVisible({ timeout: 15_000 });
+      // 143: pick a non-default type BEFORE clicking the candidate (the
+      // click POSTs immediately).
+      await pageB.getByLabel('Affiliation type').selectOption('member_of');
       await inviteBox.fill(clubName);
       await pageB.getByRole('button', { name: new RegExp(clubName) }).click();
       await expect(pageB.getByRole('button', { name: 'Withdraw' })).toBeVisible({ timeout: 15_000 });
+      // The pending row carries the type chip (league-side label).
+      await expect(pageB.getByText('Member club', { exact: true })).toBeVisible();
     } finally {
       await ctxB.close();
     }
@@ -76,25 +81,31 @@ test('affiliation: league invites, club accepts, both pages cross-list', async (
     // A (club owner, the default page context) accepts from the club page.
     await page.goto(`/club/${clubId}`);
     await expect(page.getByText(leagueName)).toBeVisible({ timeout: 15_000 });
+    // Incoming row shows the club-side type label.
+    await expect(page.getByText('Member of', { exact: true })).toBeVisible();
     await page.getByRole('button', { name: 'Accept' }).click();
     await expect(page.getByRole('button', { name: 'End affiliation' })).toBeVisible({ timeout: 15_000 });
+    // The chip survives onto the active row.
+    await expect(page.getByText('Member of', { exact: true })).toBeVisible();
 
     // Server truth both ways.
     const { data: row } = await admin
       .from('league_clubs')
-      .select('status, initiated_by')
+      .select('status, initiated_by, affiliation_type')
       .eq('league_id', leagueId)
       .eq('club_id', clubId)
       .maybeSingle();
     expect(row?.status).toBe('active');
     expect(row?.initiated_by).toBe('league');
+    expect(row?.affiliation_type).toBe('member_of');
 
     // Notifications: invite reached A (club owner), acceptance reached B.
     const { data: inviteNotif } = await admin
       .from('notifications')
       .select('id')
       .eq('user_id', userA.id)
-      .eq('type', 'affiliation_invite');
+      .eq('type', 'affiliation_invite')
+      .contains('metadata', { affiliation_type: 'member_of' });
     expect((inviteNotif ?? []).length).toBeGreaterThan(0);
     const { data: updateNotif } = await admin
       .from('notifications')
