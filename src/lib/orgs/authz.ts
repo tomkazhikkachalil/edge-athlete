@@ -88,7 +88,8 @@ export type OrgIntent =
   | 'manage_members'
   | 'change_roles'
   | 'schedule_events'
-  | 'manage_owners';
+  | 'manage_owners'
+  | 'manage_competitions';
 
 export function roleAllows(role: OrgRole | null, intent: OrgIntent): boolean {
   if (intent === 'change_roles' || intent === 'manage_owners') return role === 'owner';
