@@ -47,3 +47,30 @@ export function buildCsp(nonce: string, opts?: { dev?: boolean }): string {
     `report-to csp`,
   ].join('; ');
 }
+
+/** The NONCE-FREE variant for the PUBLIC_STANDINGS_CACHE carve-out (R3
+ *  spike experiment): identical policy minus the nonce and
+ *  'strict-dynamic', so the CSP2 fallbacks ('unsafe-inline' + https:)
+ *  become the ACTIVE script policy. That is a deliberate, measured
+ *  relaxation on ONE anonymous read-only path (public standings — no
+ *  session, no user data on the page), behind an env kill switch;
+ *  default-src/frame-ancestors/base-uri/form-action keep their teeth.
+ *  Whether this ships beyond the experiment is the spike's DEVLOG
+ *  verdict. */
+export function buildStaticCsp(opts?: { dev?: boolean }): string {
+  const dev = opts?.dev === true;
+  return [
+    `default-src 'self'`,
+    `script-src 'self' 'unsafe-inline' https:${dev ? " 'unsafe-eval'" : ''}`,
+    `style-src 'self' 'unsafe-inline'`,
+    `img-src 'self' data: blob: https:`,
+    `media-src 'self' blob: https:`,
+    `font-src 'self' data:`,
+    `connect-src 'self' blob: https://*.supabase.co wss://*.supabase.co https://api.giphy.com https://*.ingest.sentry.io https://*.ingest.us.sentry.io${dev ? ' ws://localhost:* http://localhost:*' : ''}`,
+    `frame-ancestors 'none'`,
+    `base-uri 'self'`,
+    `form-action 'self'`,
+    `report-uri ${CSP_REPORT_PATH}`,
+    `report-to csp`,
+  ].join('; ');
+}

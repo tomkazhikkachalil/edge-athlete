@@ -33,11 +33,42 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
-import { buildCsp, CSP_REPORT_PATH } from '@/lib/csp'
+import { buildCsp, buildStaticCsp, CSP_REPORT_PATH } from '@/lib/csp'
 import { THEME_COOKIE, THEME_COOKIE_MAX_AGE, encodeThemeCookie } from '@/lib/theme-cookie'
 import { sanitizeThemePrefs } from '@/lib/theme-prefs'
 
+// The R3 spike's measured experiment (see the phase-2 plan + DEVLOG):
+// with PUBLIC_STANDINGS_CACHE=1, the anonymous public-standings path
+// skips this middleware's per-request work ENTIRELY — no auth round
+// trip, no per-request nonce — and gets a static CSP (buildStaticCsp:
+// a deliberate relaxation on this one read-only path) plus a CDN
+// Cache-Control on the DOCUMENT. That is the only way a document can
+// ever be a CDN HIT through middleware; the experiment records whether
+// x-vercel-cache: HIT is actually reachable. Default OFF = today's
+// behavior byte-for-byte. Kill switch: unset the env + redeploy.
+const STANDINGS_PATH_RE =
+  /^\/league\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\/standings\/?$/i
+
 export async function middleware(request: NextRequest) {
+  if (
+    process.env.PUBLIC_STANDINGS_CACHE === '1' &&
+    STANDINGS_PATH_RE.test(request.nextUrl.pathname)
+  ) {
+    const response = NextResponse.next()
+    const staticCsp = buildStaticCsp({ dev: process.env.NODE_ENV !== 'production' })
+    const enforceStatic =
+      process.env.NODE_ENV === 'production' && process.env.CSP_ENFORCE !== '0'
+    response.headers.set(
+      enforceStatic ? 'Content-Security-Policy' : 'Content-Security-Policy-Report-Only',
+      staticCsp
+    )
+    response.headers.set('Reporting-Endpoints', `csp="${CSP_REPORT_PATH}"`)
+    response.headers.set(
+      'Cache-Control',
+      'public, s-maxage=300, stale-while-revalidate=600'
+    )
+    return response
+  }
   // Per-request CSP nonce (hardening round). It rides a REQUEST header so
   // Next auto-nonces its own inline bootstrap scripts, and x-nonce lets the
   // root layout stamp the theme script. Both response constructions below

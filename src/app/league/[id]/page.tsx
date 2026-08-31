@@ -10,6 +10,7 @@ import ConfirmModal from '@/components/ConfirmModal';
 import LeagueEditModal from '@/components/leagues/LeagueEditModal';
 import AffiliationSection from '@/components/affiliations/AffiliationSection';
 import OrgUpcomingEvents from '@/components/affiliations/OrgUpcomingEvents';
+import OrgStandings from '@/components/orgs/OrgStandings';
 import OrgRecentActivity from '@/components/affiliations/OrgRecentActivity';
 import { useToast } from '@/components/Toast';
 import { formatDisplayName, getInitials } from '@/lib/formatters';
@@ -609,6 +610,8 @@ export default function LeaguePage() {
             <p className="mt-3 text-xs text-muted">Showing {members.length} of {memberCount} members.</p>
           )}
         </div>
+
+        <OrgStandings side="league" orgId={league.id} />
 
         <OrgUpcomingEvents side="league" orgId={league.id} />
 
