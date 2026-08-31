@@ -1,5 +1,62 @@
 # Development Log
 
+## August 31, 2026 — PHASE 1 COMPLETE — round 3: roster stubs + the athlete claim (mig 150, #420–#423)
+
+The masterplan's phase-1 exit condition ("an association can self-onboard
+and roster a team") and its growth loop close together: a manager pastes
+a roster, each line becomes a CLAIMABLE stub profile already holding the
+roster spot, and the claim link hands the whole thing to the athlete or
+their guardian. Tom's R3 decisions: import mints org follow + org roster
++ TEAM-scoped roster, all active — the FIRST sub-org membership rows;
+the guardian claim keeps roster active (the claim IS the consent act);
+stubs live on a new `@stubs.invalid` domain so `@minors.invalid` keeps
+meaning "supervised minor".
+
+- **Stub = a real supervised profile (mig 150, #420).** `create_stub_profile`
+  mints the profiles row + a supervised SELF `profile_access` row in one
+  transaction — 048-legal, zero trigger surgery, and "history merges at
+  claim" is free because the row IS the profile. Two traps defused in the
+  SQL: named-columns INSERT (not `jsonb_populate_record`, the 053
+  explicit-NULL trap) and **`visibility='private'` mandatory** — the
+  search trigger COALESCEs a missing visibility to 'public'.
+  `athlete_claim_invites` copies the 149 shape (hashed, atomic redeem,
+  restore-on-lost-race); org/team columns are display provenance
+  (SET NULL — the invite is about the PERSON). Digest + urgent-email
+  guards landed BEFORE any stub could exist.
+- **Import (#421).** Console per-team expander, `First Last[, email]`
+  lines, per-row best-effort report with claim URL + Copy; per-row
+  compensation unwinds profile→access→invites→shadow user. The batch
+  membership insert uses ONE homogeneous key set across all three rows
+  (the PGRST102 lesson, hit three times before it stuck).
+  `deleteMembership` widened to also delete sub-org roster rows — leave/
+  remove must end team placement. Public pages grew `Unclaimed` chips
+  (detector: `isStubEmail`, derived server-side and the email STRIPPED
+  in-function; redacted from non-managers).
+- **The claim (#422), two paths.** ADULT is ACCOUNTLESS — no merge
+  machinery exists, so "this is me" activates the stub AS your account:
+  real email (collision → 409 with the token restored) + password onto
+  the shadow user, the supervised self row flips to owner in place, then
+  an inline cookie sign-in (documented `createServerClient` exception).
+  GUARDIAN (signed-in) grants access and **DELETES the supervised self
+  row** — it is the app-wide has-login marker; keeping it would suppress
+  the guardian queue's `credentials_gap` item — then re-keys the email to
+  `@minors.invalid` so digest→guardian routing takes over. Roster rows
+  untouched on both paths.
+- **#423** closes the round's own screenshot-pass catch: the re-mint API
+  branch had no UI caller — managers now get "New claim link" beside the
+  Unclaimed chip.
+- **Verification.** Verify green ×4; e2e 2/2 locally AND vs prod — the
+  adult claim ran end-to-end ON PROD (signed in as the claimed stub) and
+  the guardian claim proved `credentials_gap` surfaces in the live queue.
+  Probes: live-stub mint on prod → private + supervised + PRIVATE search
+  doc; zero public `stubs.invalid` search docs; peek-404 uniformity
+  (short and well-formed bogus tokens identical); the digest cron ran
+  against a seeded stub — watermark advanced with `sent: 0` (an actual
+  send to the unroutable domain would have failed and HELD it, so the
+  advance proves the drop branch). 375px screenshots inspected: import
+  expander + results, all claim-page states, Unclaimed chips.
+- Phase 2 (competition model) is a new program — not opened here.
+
 ## August 31, 2026 — Phase 1 round 2: the onboarding wizard (mig 149, #415–#418)
 
 The acquisition surface. A volunteer registrar now builds their org in one
