@@ -12,7 +12,7 @@ import ChatDock from "@/components/chat-dock/ChatDock";
 import ThemeApplier from "@/components/ThemeApplier";
 import { THEME_INIT_SCRIPT } from "@/lib/theme-script";
 import { THEME_COLOR } from "@/lib/theme-colors";
-import "./globals.css";
+import "../globals.css";
 import "@fortawesome/fontawesome-free/css/all.min.css";
 
 const inter = Inter({

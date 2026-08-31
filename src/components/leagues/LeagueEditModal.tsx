@@ -8,7 +8,7 @@ import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
 import { useToast } from '@/components/Toast';
 import { profileToPlace } from '@/lib/geo/profile-place';
 import { COPY } from '@/lib/copy';
-import type { LeagueInfo } from '@/app/league/[id]/page';
+import type { LeagueInfo } from '@/app/(app)/league/[id]/page';
 
 interface LeagueEditModalProps {
   league: LeagueInfo;

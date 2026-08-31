@@ -80,14 +80,14 @@ describe('attribution placement', () => {
   it('appears on a public page — the picker is behind login', () => {
     // Presence, not exact JSX — the call site may pass className (it does,
     // since the touch-target pass grew the footer link to a 44px row).
-    expect(read('src/app/page.tsx')).toContain('<LogoDevAttribution');
+    expect(read('src/app/(app)/page.tsx')).toContain('<LogoDevAttribution');
   });
 
   it('appears on a page rendered WITHOUT JavaScript', () => {
     // `/` is a client component, so its footer credit only exists after
     // hydration — a verifier that does not run JS would see nothing. Terms is
     // a server component and statically prerendered, so it lands in the HTML.
-    const terms = read('src/app/terms/page.tsx');
+    const terms = read('src/app/(app)/terms/page.tsx');
     expect(terms).toContain('<LogoDevCredits />');
     expect(terms).not.toContain("'use client'");
   });

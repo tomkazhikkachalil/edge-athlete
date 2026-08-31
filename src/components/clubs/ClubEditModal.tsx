@@ -8,7 +8,7 @@ import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
 import { useToast } from '@/components/Toast';
 import { profileToPlace } from '@/lib/geo/profile-place';
 import { COPY } from '@/lib/copy';
-import type { ClubInfo } from '@/app/club/[id]/page';
+import type { ClubInfo } from '@/app/(app)/club/[id]/page';
 
 interface ClubEditModalProps {
   club: ClubInfo;
