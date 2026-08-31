@@ -26,6 +26,9 @@ export interface CreateLeagueInput {
    *  value, or a league_requests row's nine columns verbatim — no PlaceValue
    *  round-trip on the approval path. */
   placeColumns: Record<string, string | number | null>;
+  /** Capability flags (142) — absent ⇒ the column DEFAULTs apply (the
+   *  wizard's tristate: NULL request columns pass nothing through). */
+  capabilities?: { operatesCompetitions: boolean; operatesTeams: boolean };
 }
 
 export type CreateLeagueResult =
@@ -44,6 +47,12 @@ export async function createLeagueWithOwner(
       sport_key: input.sportKey,
       owner_profile_id: input.ownerProfileId,
       ...input.placeColumns,
+      ...(input.capabilities
+        ? {
+            operates_competitions: input.capabilities.operatesCompetitions,
+            operates_teams: input.capabilities.operatesTeams,
+          }
+        : {}),
     })
     .select()
     .single();

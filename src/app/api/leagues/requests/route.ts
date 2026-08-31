@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth, getSupabaseAdmin } from '@/lib/auth-server';
 import { enforceRateLimit } from '@/lib/rate-limit';
 import { parseBody } from '@/lib/validation';
-import { LeagueRequestSchema, placeToLeagueColumns, isMissingTableError } from '@/lib/leagues/validate';
+import { placeToLeagueColumns, isMissingTableError } from '@/lib/leagues/validate';
+import { LeagueRequestWizardSchema } from '@/lib/orgs/wizard-validate';
 import { isSportEnabled } from '@/lib/features';
 import type { SportKey } from '@/lib/sports/SportRegistry';
 
@@ -20,13 +21,18 @@ export async function POST(request: NextRequest) {
     const limited = await enforceRateLimit(request, 'league-request', { userId: user.id });
     if (limited) return limited;
 
-    const parsed = await parseBody(request, LeagueRequestSchema);
+    const parsed = await parseBody(request, LeagueRequestWizardSchema);
     if (!parsed.success) return parsed.response;
-    const { name, sportKey, description, place } = parsed.data;
+    const { name, sportKey, description, place, capabilities, structure, connections } = parsed.data;
 
     if (!isSportEnabled(sportKey as SportKey)) {
       return NextResponse.json({ error: `Unknown or disabled sport: ${sportKey}` }, { status: 400 });
     }
+    // Server-truth stamp: a league's divisions ARE its sport — client
+    // values are untrusted (the 113 route-gates-sport convention).
+    const structureDraft = structure
+      ? { ...structure, divisions: structure.divisions.map(d => ({ ...d, sportKey })) }
+      : null;
 
     const supabase = getSupabaseAdmin();
     const { data: row, error } = await supabase
@@ -37,6 +43,10 @@ export async function POST(request: NextRequest) {
         description: description ?? null,
         sport_key: sportKey,
         ...placeToLeagueColumns(place),
+        operates_competitions: capabilities?.operatesCompetitions ?? null,
+        operates_teams: capabilities?.operatesTeams ?? null,
+        structure_draft: structureDraft,
+        connections_draft: connections ?? null,
       })
       .select()
       .single();
