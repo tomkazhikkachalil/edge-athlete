@@ -96,6 +96,10 @@ export const RATE_LIMITS = {
   // affiliation's 20/h would starve that, the guardian-split lesson.
   // 120/h still caps a runaway client.
   'org-structure': { max: 120, windowSeconds: 3600, keyBy: 'user' },
+  // Org claim (phase 1 R2) — the invite-peek/claim mirror: peeks IP-keyed
+  // to keep token guessing costly; claims user-keyed and rare.
+  'org-claim-peek': { max: 30, windowSeconds: 60, keyBy: 'ip' },
+  'org-claim': { max: 10, windowSeconds: 3600, keyBy: 'user' },
   // Calendar event creation — org events fan a team_update out to every
   // member (uncapped membership), so creation gets post-create parity.
   'event-create': { max: 30, windowSeconds: 3600, keyBy: 'user' },
