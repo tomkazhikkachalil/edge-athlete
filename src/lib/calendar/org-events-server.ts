@@ -12,9 +12,11 @@ import { UUID_RE } from '@/lib/golf/course-catalog';
 
 const LIMIT = 10;
 
-/** Public columns only — deliberately no organizer/guest data. */
+/** Public columns only — deliberately no organizer/guest data. venue_id/
+ *  facility_id (141) are included DELIBERATELY: harmless ids on a public
+ *  schedule, and the future venue picker must not silently drop here. */
 const ORG_EVENT_FIELDS =
-  'id, title, description, location, starts_at, ends_at, all_day, timezone, category';
+  'id, title, description, location, starts_at, ends_at, all_day, timezone, category, venue_id, facility_id';
 
 export async function orgEventsGET(
   request: NextRequest,

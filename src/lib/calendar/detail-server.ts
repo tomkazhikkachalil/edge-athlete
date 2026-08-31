@@ -24,7 +24,7 @@ import { anyMembershipExists } from '@/lib/orgs/members';
 type Admin = SupabaseClient<any, 'public', any>;
 
 export const EVENT_FIELDS =
-  'id, organizer_id, title, description, location, starts_at, ends_at, all_day, timezone, category, status, cancelled_at, series_id, series_override, routine_id, routine_snapshot, league_id, club_id';
+  'id, organizer_id, title, description, location, starts_at, ends_at, all_day, timezone, category, status, cancelled_at, series_id, series_override, routine_id, routine_snapshot, league_id, club_id, venue_id, facility_id';
 
 export interface CalendarEventRow {
   id: string;
@@ -45,6 +45,8 @@ export interface CalendarEventRow {
   routine_snapshot: unknown;
   league_id?: string | null;
   club_id?: string | null;
+  venue_id?: string | null;
+  facility_id?: string | null;
   updated_at?: string;
 }
 

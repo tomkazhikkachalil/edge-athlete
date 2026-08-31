@@ -26,7 +26,7 @@ import type { ServerRoutineRow } from '@/lib/workouts/routines';
 const MAX_RANGE_DAYS = 62;
 
 const EVENT_FIELDS =
-  'id, organizer_id, title, description, location, starts_at, ends_at, all_day, timezone, category, status, cancelled_at, series_id, series_override, routine_id, routine_snapshot, league_id, club_id';
+  'id, organizer_id, title, description, location, starts_at, ends_at, all_day, timezone, category, status, cancelled_at, series_id, series_override, routine_id, routine_snapshot, league_id, club_id, venue_id, facility_id';
 
 export async function GET(request: NextRequest) {
   if (!FEATURE_FLAGS.FEATURE_CALENDAR) {

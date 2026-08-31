@@ -220,6 +220,17 @@ export default function AdminDashboardPage() {
             </p>
             <p className="text-xs text-muted mt-1">Create clubs, assign owners, review requests.</p>
           </button>
+          <button
+            type="button"
+            onClick={() => router.push('/dashboard/venues')}
+            className="bg-surface rounded-lg shadow-sm border border-border p-4 text-left hover:border-violet-300 transition"
+          >
+            <p className="text-sm font-semibold text-primary">
+              <i className="fas fa-map-marker-alt text-brand-fg mr-2"></i>
+              Venues
+            </p>
+            <p className="text-xs text-muted mt-1">Create venues and their facilities.</p>
+          </button>
         </section>
 
         {/* Message reports queue */}
