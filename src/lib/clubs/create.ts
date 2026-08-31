@@ -25,6 +25,9 @@ export interface CreateClubInput {
   /** Pre-built location columns: placeToClubColumns(place), or a
    *  club_requests row's nine columns verbatim on the approval path. */
   placeColumns: Record<string, string | number | null>;
+  /** Capability flags (142) — absent ⇒ the column DEFAULTs apply (the
+   *  wizard's tristate: NULL request columns pass nothing through). */
+  capabilities?: { operatesCompetitions: boolean; operatesTeams: boolean };
 }
 
 export type CreateClubResult =
@@ -42,6 +45,12 @@ export async function createClubWithOwner(
       description: input.description,
       owner_profile_id: input.ownerProfileId,
       ...input.placeColumns,
+      ...(input.capabilities
+        ? {
+            operates_competitions: input.capabilities.operatesCompetitions,
+            operates_teams: input.capabilities.operatesTeams,
+          }
+        : {}),
     })
     .select()
     .single();

@@ -18,7 +18,7 @@ export async function GET(request: NextRequest) {
 
     const { data: rows, error } = await supabase
       .from('club_requests')
-      .select('id, requester_profile_id, name, description, city, region, country, created_at')
+      .select('id, requester_profile_id, name, description, city, region, country, created_at, operates_competitions, operates_teams, structure_draft, connections_draft')
       .eq('status', 'pending')
       .order('created_at', { ascending: true });
     if (error) {
