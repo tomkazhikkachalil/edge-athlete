@@ -84,18 +84,7 @@ export async function loadEventForViewer(
   // sub-org scope grants read even without an org row.
   const scope = await resolveEventScope(admin, event as CalendarEventRow);
   if (scope) {
-    const { data: org } = await admin
-      .from(scope.side === 'league' ? 'leagues' : 'clubs')
-      .select('owner_profile_id')
-      .eq('id', scope.orgId)
-      .maybeSingle();
-    const role = await getOrgRole(
-      admin,
-      scope.side,
-      scope.orgId,
-      viewerId,
-      (org?.owner_profile_id as string | null) ?? null
-    );
+    const role = await getOrgRole(admin, scope.side, scope.orgId, viewerId);
     if (role) return { event: event as CalendarEventRow, access: 'org_member' };
     if (
       scope.scopeType !== 'org' &&
@@ -142,12 +131,9 @@ async function householdReadAccess(
 
   const scope = await resolveEventScope(admin, event);
   if (scope) {
-    const { data: org } = await admin
-      .from(scope.side === 'league' ? 'leagues' : 'clubs')
-      .select('owner_profile_id')
-      .eq('id', scope.orgId)
-      .maybeSingle();
-    if (org?.owner_profile_id && childIds.includes(org.owner_profile_id as string)) return true;
+    // Post-0.8-cleanup: owners always hold membership rows, so the
+    // anyMembershipExists probe covers a child owner too — the old cache
+    // check died with the soak fallback.
     if (await anyMembershipExists(admin, { side: scope.side, orgId: scope.orgId }, childIds)) return true;
     if (
       scope.scopeType !== 'org' &&

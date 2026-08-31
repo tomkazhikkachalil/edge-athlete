@@ -140,7 +140,7 @@ export async function affiliationGET(request: NextRequest, side: AffSide, orgId:
   });
 
   const viewerRole = user
-    ? await getOrgRole(admin, cfg.side, orgId, user.id, org.owner_profile_id)
+    ? await getOrgRole(admin, cfg.side, orgId, user.id)
     : null;
   const manager = isOwnerOrManager(viewerRole);
 
@@ -175,7 +175,7 @@ export async function affiliationPOST(
 
   const { org } = await loadOrg(admin, cfg.orgTable, orgId);
   if (!org) return NextResponse.json({ error: 'Not found' }, { status: 404 });
-  const role = await getOrgRole(admin, cfg.side, orgId, user.id, org.owner_profile_id);
+  const role = await getOrgRole(admin, cfg.side, orgId, user.id);
   if (!isOwnerOrManager(role)) {
     return NextResponse.json({ error: 'Only owners and managers can affiliate' }, { status: 403 });
   }
@@ -236,7 +236,7 @@ export async function affiliationAccept(
 
   const { org } = await loadOrg(admin, cfg.orgTable, orgId);
   if (!org) return NextResponse.json({ error: 'Not found' }, { status: 404 });
-  const role = await getOrgRole(admin, cfg.side, orgId, user.id, org.owner_profile_id);
+  const role = await getOrgRole(admin, cfg.side, orgId, user.id);
   if (!isOwnerOrManager(role)) {
     return NextResponse.json({ error: 'Only owners and managers can accept' }, { status: 403 });
   }
@@ -314,7 +314,7 @@ export async function affiliationDELETE(
 
   const { org } = await loadOrg(admin, cfg.orgTable, orgId);
   if (!org) return NextResponse.json({ error: 'Not found' }, { status: 404 });
-  const role = await getOrgRole(admin, cfg.side, orgId, user.id, org.owner_profile_id);
+  const role = await getOrgRole(admin, cfg.side, orgId, user.id);
   if (!isOwnerOrManager(role)) {
     return NextResponse.json({ error: 'Only owners and managers can do that' }, { status: 403 });
   }

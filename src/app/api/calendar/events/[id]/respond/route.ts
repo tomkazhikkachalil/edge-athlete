@@ -86,20 +86,9 @@ export async function POST(
       const eventScope = await resolveEventScope(admin, orgEvent);
       if (!eventScope) return NextResponse.json({ error: 'Event not found' }, { status: 404 });
       const { getOrgRole } = await import('@/lib/orgs/authz');
-      const { data: org } = await admin
-        .from(eventScope.side === 'league' ? 'leagues' : 'clubs')
-        .select('owner_profile_id')
-        .eq('id', eventScope.orgId)
-        .maybeSingle();
       // Membership must be respondAs's OWN (guardian path: the child is the
       // member; the guardian only relays their response).
-      const role = await getOrgRole(
-        admin,
-        eventScope.side,
-        eventScope.orgId,
-        respondAs,
-        (org?.owner_profile_id as string | null) ?? null
-      );
+      const role = await getOrgRole(admin, eventScope.side, eventScope.orgId, respondAs);
       let mayRespond = !!role;
       if (!mayRespond && eventScope.scopeType !== 'org') {
         const { scopedMembershipExists } = await import('@/lib/orgs/scoped-members');

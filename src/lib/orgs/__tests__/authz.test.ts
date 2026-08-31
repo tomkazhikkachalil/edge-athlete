@@ -54,15 +54,15 @@ describe('getOrgRole (rows-first since 0.8)', () => {
     const { admin, queried } = mockAdmin({
       memberships: { data: [{ role: 'owner' }], error: null },
     });
-    const role = await getOrgRole(admin, 'league', 'org-1', 'me', 'me');
+    const role = await getOrgRole(admin, 'league', 'org-1', 'me');
     expect(role).toBe('owner');
     expect(queried).toEqual(['memberships']);
   });
 
-  it('zero rows + column match → owner via the soak fallback', async () => {
+  it('zero rows + column match → null (the soak fallback is GONE — the cache grants nothing)', async () => {
     const { admin, queried } = mockAdmin({ memberships: { data: [], error: null } });
-    const role = await getOrgRole(admin, 'league', 'org-1', 'me', 'me');
-    expect(role).toBe('owner');
+    const role = await getOrgRole(admin, 'league', 'org-1', 'me');
+    expect(role).toBeNull();
     expect(queried).toEqual(['memberships']);
   });
 
@@ -72,21 +72,21 @@ describe('getOrgRole (rows-first since 0.8)', () => {
     const { admin } = mockAdmin({
       memberships: { data: [{ role: 'manager' }], error: null },
     });
-    expect(await getOrgRole(admin, 'league', 'org-1', 'me', 'me')).toBe('manager');
+    expect(await getOrgRole(admin, 'league', 'org-1', 'me')).toBe('manager');
   });
 
   it('reduces multiple rows (follow + roster) to the max role', async () => {
     const { admin, queried } = mockAdmin({
       memberships: { data: [{ role: 'member' }, { role: 'manager' }], error: null },
     });
-    const role = await getOrgRole(admin, 'club', 'org-1', 'me', 'someone-else');
+    const role = await getOrgRole(admin, 'club', 'org-1', 'me');
     expect(role).toBe('manager');
     expect(queried).toEqual(['memberships']);
   });
 
   it('returns null for a non-member (and for a null owner column)', async () => {
     const { admin } = mockAdmin({});
-    expect(await getOrgRole(admin, 'league', 'org-1', 'me', null)).toBeNull();
+    expect(await getOrgRole(admin, 'league', 'org-1', 'me')).toBeNull();
   });
 });
 
@@ -131,13 +131,14 @@ describe('getOrgAndRole', () => {
     expect(out).toEqual({ status: 'found', org: ORG, role: 'member' });
   });
 
-  it('found: rows are read even for the cached owner (0.8 rows-first)', async () => {
-    // memberships resolves empty here → the soak fallback answers 'owner'.
+  it('found: the cached owner with no rows resolves to NO role (rows-only)', async () => {
+    // memberships resolves empty here — post-cleanup the cache grants
+    // nothing; a real owner always holds their insertOwnerRow row.
     const { admin, queried } = mockAdmin({
       leagues: { data: ORG, error: null },
     });
     const out = await getOrgAndRole(admin, 'league', 'org-1', 'owner-1');
-    expect(out).toEqual({ status: 'found', org: ORG, role: 'owner' });
+    expect(out).toEqual({ status: 'found', org: ORG, role: null });
     expect(queried).toEqual(['leagues', 'memberships']);
   });
 
