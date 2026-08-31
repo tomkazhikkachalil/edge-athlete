@@ -1,5 +1,36 @@
 # Development Log
 
+## September 1, 2026 — Phase 2 round 4: cross-org rep entries (mig 154, #439–#440)
+
+The rep half of the phase-2 exit, one PR. A foreign team enters an owner
+LEAGUE's competition iff an ACTIVE member_of/sanctioned_by edge links it
+to the team's CLUB — landing as status='pending' (§5's eligibility step;
+own-org entries stay approved at birth; the division-pin rule stays
+house-play; unknown ids 404, unaffiliated known teams 400; cross-org
+reads NOTHING inside the member club beyond team+club names — the line
+clubs won't join without). entryDecidePATCH (owner managers,
+competition-join pinned, guarded pending-only transition) approves or
+rejects and bells the entering club's managers.
+
+- Mig 154: competition_entry_pending/decided join the notifications
+  CHECK; the 0.1 registry parity gate forced registry + frozen bucket
+  updates in the same round, as designed. competitions/notify.ts follows
+  the leagues/notify charter; the actor is excluded from the pending
+  bell (v1 adds are owner-initiated; club-initiated requests reuse the
+  flow unchanged — deferred).
+- Console: the entries select grows an "Affiliated clubs (enter as
+  pending)" optgroup (aggregate's affiliatedTeams, league side); pending
+  chips carry approve/decline.
+- **#440 — two 375px un-shrinkables the spec's close caught**: an
+  inline-flex pill can't wrap (max-w-full + truncating name span once
+  the badge and buttons joined it), and a `<select>`'s intrinsic width
+  is its LONGEST OPTION (~550px with a "Team — Club" label) — selects
+  never shrink below it without max-w-full. New entry in the un-
+  shrinkable-element catalogue beside R1's shrink-0 container.
+- Verification: verify green ×2; e2e 1/1 local + 1/1 vs prod (both
+  bells pinned by metadata — pending reached only the OTHER manager;
+  approved flip; unaffiliated 400; 375px); screenshot inspected.
+
 ## September 1, 2026 — Phase 2 round 3: standings + THE PROJECTION SPIKE (mig 153, #434–#437)
 
 Standings materialize (Tom's decision: §3.3's "(materialized)" over the
