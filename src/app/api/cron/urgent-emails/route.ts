@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/auth-server';
 import { dispatch, emailDelivered } from '@/lib/notify/dispatch';
 import { isSyntheticEmail } from '@/lib/config/minors-config';
+import { isStubEmail } from '@/lib/config/stubs-config';
 import {
   buildUrgentBatches,
   safeInternalPath,
@@ -82,7 +83,7 @@ export async function GET(request: NextRequest) {
           [p.first_name, p.last_name].filter(Boolean).join(' ') || p.full_name || '',
         // Missing prefs row = never opted out (the column defaults true).
         urgentEnabled: pref ? pref.urgent_email_enabled !== false : true,
-        synthetic: !!p.email && isSyntheticEmail(p.email),
+        synthetic: !!p.email && (isSyntheticEmail(p.email) || isStubEmail(p.email)),
       });
     }
 

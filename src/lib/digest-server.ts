@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { dispatch, emailDelivered } from './notify/dispatch';
 import { isSyntheticEmail } from './config/minors-config';
+import { isStubEmail } from './config/stubs-config';
 import { buildDigestGroups } from './digest-groups';
 import { chunk } from './chunk';
 
@@ -85,6 +86,15 @@ export async function runNotificationDigest(supabase: SupabaseClient, appUrl: st
         .maybeSingle();
       if (!profile?.email) {
         // Structurally undeliverable — don't retry forever.
+        await advanceWatermark();
+        return 0;
+      }
+
+      if (isStubEmail(profile.email)) {
+        // An UNCLAIMED roster stub (phase 1 R3): the domain is unroutable
+        // and no guardians exist to route to — advance and drop. After a
+        // guardian claim the email is @minors.invalid (the branch below);
+        // after an adult claim it's real.
         await advanceWatermark();
         return 0;
       }
