@@ -1,47 +1,66 @@
 import { test, expect } from '@playwright/test';
-import { adminClient, apiAs, loadQaUser, readErrorBody } from './helpers/qa-user';
+import { adminClient, loadQaUser } from './helpers/qa-user';
 
-// The "Start a club" flow (117) — mirror of league-request.spec.ts. The
-// admin decision path is probed via the local-ADMIN_EMAILS recipe, not e2e.
-test('club request: submit via UI, pending banner, duplicate 409', async ({ page }) => {
+// The club onboarding WIZARD — the multi-sport path: no sport step, the
+// template buttons ARE the sport pickers (each adds a per-sport grid
+// section), and a stub-LEAGUE row carries an explicit sport (leagues'
+// sport_key is NOT NULL).
+test('club wizard: two sport sections + sported stub league → pending + draft truth', async ({
+  page,
+}) => {
   test.setTimeout(120_000);
-  const userA = loadQaUser('user.json');
+  const userB = loadQaUser('user-b.json');
   const admin = adminClient();
 
-  const probe = await admin.from('club_requests').select('id').limit(1);
-  test.skip(!!probe.error, `club_requests missing — run migration 117 (${probe.error?.message})`);
+  const probe = await admin.from('club_requests').select('structure_draft').limit(1);
+  test.skip(!!probe.error, `wizard columns missing — run migration 149 (${probe.error?.message})`);
 
-  const stamp = Date.now();
-  const name = `QA Club Request ${stamp}`;
-
+  const name = 'QA Wizard Club ' + Date.now();
+  const ctx = await page.context().browser()!.newContext({ storageState: 'e2e/.auth/state-b.json' });
+  const pageB = await ctx.newPage();
   try {
-    await page.goto('/club/start');
-    await expect(page.getByRole('heading', { name: 'Start a club' })).toBeVisible({ timeout: 15_000 });
+    await pageB.goto('/club/start');
+    await expect(pageB.getByRole('heading', { name: 'Start a club' })).toBeVisible({
+      timeout: 15_000,
+    });
 
-    await page.getByLabel('Name').fill(name);
-    await page.getByLabel('Description').fill('e2e club request probe');
-    await page.getByRole('button', { name: 'Submit request' }).click();
+    // Identity (teams pre-checked on the club side).
+    await pageB.getByLabel('Name').fill(name);
+    await pageB.getByRole('button', { name: 'Continue' }).click();
 
-    await expect(page.getByText(`${name} is waiting for review`)).toBeVisible({ timeout: 15_000 });
+    // Structure: two sport sections via the template buttons.
+    await pageB.getByRole('button', { name: '+ Ice hockey' }).click();
+    await pageB.getByRole('button', { name: '+ Soccer' }).click();
+    await expect(pageB.getByText('Ice Hockey', { exact: true })).toBeVisible();
+    await expect(pageB.getByText('Soccer', { exact: true })).toBeVisible();
+    await pageB.getByRole('button', { name: 'Continue' }).click();
 
+    // Connections: a stub LEAGUE with its required sport.
+    await pageB.getByLabel('New league name').fill('QA Stub League');
+    await pageB.getByLabel('New league sport').selectOption('ice_hockey');
+    await pageB.getByRole('button', { name: 'Add', exact: true }).click();
+    await pageB.getByRole('button', { name: 'Continue' }).click();
+
+    // Review → submit → pinned banner.
+    await pageB.getByRole('button', { name: 'Submit request' }).click();
+    await expect(pageB.getByText(`${name} is waiting for review`)).toBeVisible({ timeout: 15_000 });
+
+    // DB truth: two sports among divisions; the stub carries its sport.
     const { data: rows } = await admin
       .from('club_requests')
-      .select('id, status')
-      .eq('requester_profile_id', userA.id)
+      .select('status, operates_teams, structure_draft, connections_draft')
+      .eq('requester_profile_id', userB.id)
       .eq('name', name);
-    expect(rows?.length).toBe(1);
-    expect(rows?.[0].status).toBe('pending');
-
-    const api = await apiAs('state.json');
-    try {
-      const res = await api.post('/api/clubs/requests', {
-        data: { name: `${name} again` },
-      });
-      expect(res.status(), await readErrorBody(res)).toBe(409);
-    } finally {
-      await api.dispose();
-    }
+    expect(rows).toHaveLength(1);
+    expect(rows![0].status).toBe('pending');
+    expect(rows![0].operates_teams).toBe(true);
+    const draft = rows![0].structure_draft as { divisions: { sportKey: string }[] };
+    const sports = new Set(draft.divisions.map(d => d.sportKey));
+    expect(sports).toEqual(new Set(['ice_hockey', 'soccer']));
+    const conns = rows![0].connections_draft as { stubs: { name: string; sportKey?: string }[] };
+    expect(conns.stubs).toEqual([{ name: 'QA Stub League', sportKey: 'ice_hockey' }]);
   } finally {
-    await admin.from('club_requests').delete().eq('requester_profile_id', userA.id);
+    await admin.from('club_requests').delete().eq('requester_profile_id', userB.id);
+    await ctx.close();
   }
 });

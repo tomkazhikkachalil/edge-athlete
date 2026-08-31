@@ -4,10 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/lib/auth';
 import AppHeader from '@/components/AppHeader';
-import PlacePicker, { type PlaceValue } from '@/components/PlacePicker';
-import { useToast } from '@/components/Toast';
-import { FEATURE_FLAGS } from '@/lib/features';
-import { SPORT_REGISTRY } from '@/lib/sports/SportRegistry';
+import OrgStartWizard from '@/components/orgs/OrgStartWizard';
 import { Clock, Trophy } from 'lucide-react';
 
 // "Start a league" — the self-service half of org signup (116). Submissions
@@ -32,18 +29,11 @@ interface MyRequest {
 
 export default function StartLeaguePage() {
   const { user, loading: authLoading } = useAuth();
-  const { showSuccess, showError } = useToast();
 
   const [requests, setRequests] = useState<MyRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [reloadKey, setReloadKey] = useState(0);
 
-  const [name, setName] = useState('');
-  const [sportKey, setSportKey] = useState('golf');
-  const [description, setDescription] = useState('');
-  const [place, setPlace] = useState<PlaceValue | null>(null);
-  const [placeText, setPlaceText] = useState('');
-  const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     if (!user?.id) return;
@@ -64,43 +54,6 @@ export default function StartLeaguePage() {
     return () => { cancelled = true; };
   }, [user?.id, reloadKey]);
 
-  const submit = async () => {
-    if (submitting) return;
-    if (!name.trim()) {
-      showError('League request', 'A league name is required');
-      return;
-    }
-    setSubmitting(true);
-    try {
-      const response = await fetch('/api/leagues/requests', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: name.trim(),
-          sportKey,
-          description: description.trim() || undefined,
-          place,
-        }),
-      });
-      const data = await response.json();
-      if (!response.ok) {
-        showError('League request', data.error || 'Failed to submit request');
-        if (response.status === 409) setReloadKey(k => k + 1);
-        return;
-      }
-      showSuccess('League request', "Submitted — we'll notify you when it's reviewed");
-      setName('');
-      setDescription('');
-      setPlace(null);
-      setPlaceText('');
-      setReloadKey(k => k + 1);
-    } catch (e) {
-      console.error('League request submit failed:', e);
-      showError('League request', 'Failed to submit request');
-    } finally {
-      setSubmitting(false);
-    }
-  };
 
   if (authLoading) {
     return (
@@ -185,80 +138,7 @@ export default function StartLeaguePage() {
               </div>
             )}
 
-            <div className="bg-surface rounded-xl shadow-sm border border-border p-5 space-y-4">
-              <div>
-                <label htmlFor="start-name" className="block text-sm font-medium text-secondary mb-1">
-                  Name
-                </label>
-                <input
-                  id="start-name"
-                  type="text"
-                  value={name}
-                  maxLength={120}
-                  onChange={e => setName(e.target.value)}
-                  placeholder="e.g., Ottawa Junior Golf League"
-                  className="w-full px-3 py-2 border border-border-strong rounded-md outline-none"
-                />
-              </div>
-              <div>
-                <label htmlFor="start-sport" className="block text-sm font-medium text-secondary mb-1">
-                  Sport
-                </label>
-                <select
-                  id="start-sport"
-                  value={sportKey}
-                  onChange={e => setSportKey(e.target.value)}
-                  className="w-full px-3 py-2 border border-border-strong rounded-md outline-none"
-                >
-                  {FEATURE_FLAGS.FEATURE_SPORTS.map(key => (
-                    <option key={key} value={key}>
-                      {SPORT_REGISTRY[key]?.display_name ?? key}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label htmlFor="start-description" className="block text-sm font-medium text-secondary mb-1">
-                  Description
-                </label>
-                <textarea
-                  id="start-description"
-                  value={description}
-                  maxLength={2000}
-                  rows={4}
-                  onChange={e => setDescription(e.target.value)}
-                  placeholder="Who plays, where, and how often?"
-                  className="w-full px-3 py-2 border border-border-strong rounded-md outline-none resize-y"
-                />
-              </div>
-              <div>
-                <label htmlFor="start-place" className="block text-sm font-medium text-secondary mb-1">
-                  Location
-                </label>
-                <PlacePicker
-                  id="start-place"
-                  value={place}
-                  text={placeText}
-                  allowFreeText={false}
-                  placeholder="City or town"
-                  onChange={(nextPlace, text) => {
-                    setPlace(nextPlace);
-                    setPlaceText(text);
-                  }}
-                  className="w-full px-3 py-2 border border-border-strong rounded-md outline-none"
-                />
-              </div>
-              <div className="flex justify-end">
-                <button
-                  type="button"
-                  onClick={submit}
-                  disabled={submitting}
-                  className="px-4 py-2 text-sm min-h-[40px] rounded-lg bg-brand text-white font-medium hover:bg-brand-hover transition-colors disabled:opacity-60"
-                >
-                  {submitting ? 'Submitting…' : 'Submit request'}
-                </button>
-              </div>
-            </div>
+            <OrgStartWizard side="league" onSubmitted={() => setReloadKey(k => k + 1)} />
           </>
         )}
 
