@@ -2,66 +2,26 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin, getSupabaseAdmin } from '@/lib/auth-server';
 import { parseBody } from '@/lib/validation';
 import { DivisionCreateSchema } from '@/lib/structure/validate';
+import { divisionCreatePOST, divisionDELETE } from '@/lib/orgs/structure-server';
 import { isSportEnabled } from '@/lib/features';
-import { refreshLeagueSportCache } from '@/lib/orgs/sports';
 import type { SportKey } from '@/lib/sports/SportRegistry';
 import { UUID_RE } from '@/lib/golf/course-catalog';
 
-// ── /api/admin/structure/divisions — per-season divisions (0.5) ─────────────
-// The division inherits its org from the season (the app-layer
-// division.org == season.org rule lives HERE, once — no cross-row CHECKs).
-// Division writes refresh the league's primary-sport cache (0.6b) —
-// warn-and-continue: a stale sport chip never fails a division write.
+// ── /api/admin/structure/divisions — thin wrapper over structure-server ─────
+// The division.org == season.org rule lives in the shared lib, once.
 
 export async function POST(request: NextRequest) {
   try {
     await requireAdmin(request);
-    const supabase = getSupabaseAdmin();
-
     const parsed = await parseBody(request, DivisionCreateSchema);
     if (!parsed.success) return parsed.response;
-    const { seasonId, sportKey, name, ageBand, genderStream, tier, capacityEstimate } = parsed.data;
-
-    if (!isSportEnabled(sportKey as SportKey)) {
-      return NextResponse.json({ error: `Unknown or disabled sport: ${sportKey}` }, { status: 400 });
+    if (!isSportEnabled(parsed.data.sportKey as SportKey)) {
+      return NextResponse.json(
+        { error: `Unknown or disabled sport: ${parsed.data.sportKey}` },
+        { status: 400 }
+      );
     }
-    const { data: season } = await supabase
-      .from('seasons')
-      .select('id, league_id, club_id')
-      .eq('id', seasonId)
-      .maybeSingle();
-    if (!season) {
-      return NextResponse.json({ error: 'Season not found' }, { status: 404 });
-    }
-
-    const { data: division, error } = await supabase
-      .from('divisions')
-      .insert({
-        // Org inherited from the season — the one place the rule is enforced.
-        league_id: season.league_id,
-        club_id: season.club_id,
-        season_id: seasonId,
-        sport_key: sportKey,
-        name,
-        age_band: ageBand ?? null,
-        gender_stream: genderStream ?? null,
-        tier: tier ?? null,
-        capacity_estimate: capacityEstimate ?? null,
-      })
-      .select()
-      .single();
-    if (error || !division) {
-      if (error?.code === '23505') {
-        return NextResponse.json({ error: 'A division with that name already exists in this season' }, { status: 409 });
-      }
-      console.error('[ADMIN STRUCTURE] division insert error:', error);
-      return NextResponse.json({ error: 'Failed to create division' }, { status: 500 });
-    }
-    if (season.league_id) {
-      const { error: cacheError } = await refreshLeagueSportCache(supabase, season.league_id as string);
-      if (cacheError) console.warn('[ADMIN STRUCTURE] sport cache refresh failed:', cacheError.message);
-    }
-    return NextResponse.json({ division });
+    return await divisionCreatePOST(getSupabaseAdmin(), parsed.data, null);
   } catch (error) {
     if (error instanceof Response) return error;
     console.error('[ADMIN STRUCTURE] divisions POST error:', error);
@@ -78,24 +38,7 @@ export async function DELETE(request: NextRequest) {
     if (!id || !UUID_RE.test(id)) {
       return NextResponse.json({ error: 'id is required' }, { status: 400 });
     }
-    const supabase = getSupabaseAdmin();
-    const { data: deleted, error } = await supabase
-      .from('divisions')
-      .delete()
-      .eq('id', id)
-      .select('id, league_id');
-    if (error) {
-      console.error('[ADMIN STRUCTURE] division delete error:', error);
-      return NextResponse.json({ error: 'Failed to delete division' }, { status: 500 });
-    }
-    if (!deleted || deleted.length === 0) {
-      return NextResponse.json({ error: 'Division not found' }, { status: 404 });
-    }
-    if (deleted[0].league_id) {
-      const { error: cacheError } = await refreshLeagueSportCache(supabase, deleted[0].league_id as string);
-      if (cacheError) console.warn('[ADMIN STRUCTURE] sport cache refresh failed:', cacheError.message);
-    }
-    return NextResponse.json({ action: 'deleted' });
+    return await divisionDELETE(getSupabaseAdmin(), id, null);
   } catch (error) {
     if (error instanceof Response) return error;
     console.error('[ADMIN STRUCTURE] divisions DELETE error:', error);
