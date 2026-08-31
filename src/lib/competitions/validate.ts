@@ -99,6 +99,15 @@ export const ContestPatchSchema = z
   });
 export type ContestPatchInput = z.infer<typeof ContestPatchSchema>;
 
+/** Publish-to-calendar (R2). timezone rides from the publishing manager's
+ *  browser (events.timezone is NOT NULL); UTC when absent — the calendar
+ *  grid renders viewer-local regardless. */
+export const ContestPublishSchema = z.object({
+  contestId: uuid,
+  timezone: boundedText(64).default('UTC'),
+});
+export type ContestPublishInput = z.infer<typeof ContestPublishSchema>;
+
 /** Result entry (R2): one batch per contest — a fixture's "3 – 2" is one
  *  submit. payload is the adapter-typed blob (stats_data precedent);
  *  score is the adapter-derived sort key. Provenance is stamped

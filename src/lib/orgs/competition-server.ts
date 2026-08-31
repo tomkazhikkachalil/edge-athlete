@@ -34,6 +34,11 @@ import {
   type EntryAddInput,
   type ResultUpsertInput,
 } from '@/lib/competitions/validate';
+import {
+  mirrorContestChange,
+  mirrorContestDelete,
+  publishContestToCalendar,
+} from '@/lib/competitions/calendar-mirror';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- matches the authz.ts Admin alias; schema-agnostic helper
 type Admin = SupabaseClient<any, 'public', any>;
@@ -640,6 +645,8 @@ export async function contestPATCH(
   if (!updated || updated.length === 0) {
     return NextResponse.json({ error: 'Game not found' }, { status: 404 });
   }
+  // One-way calendar mirror (best-effort — never fails the write).
+  await mirrorContestChange(admin, updated[0]);
   return NextResponse.json({ action: 'updated', contest: updated[0] });
 }
 
@@ -676,7 +683,43 @@ export async function contestDELETE(
   if (!deleted || deleted.length === 0) {
     return NextResponse.json({ error: 'Game not found' }, { status: 404 });
   }
+  // The mirror event dies with its contest (best-effort).
+  await mirrorContestDelete(admin, deleted[0].event_id as string | null);
   return NextResponse.json({ action: 'deleted', contest: deleted[0] });
+}
+
+/** Publish a contest to the calendar (idempotent via contests.event_id).
+ *  The minted event is division-scoped when the competition is pinned,
+ *  org-scoped otherwise — it rides the read-time merge, RSVP, and ICS
+ *  rails with zero new plumbing. */
+export async function contestPublishPOST(
+  admin: Admin,
+  contestId: string,
+  scope: CompetitionScope | null,
+  organizerId: string,
+  timezone: string
+): Promise<NextResponse> {
+  const { data: row } = await admin
+    .from('contests')
+    .select(
+      'id, event_id, scheduled_at, venue_id, facility_id, round, competition:competition_id (id, name, league_id, club_id, division_id)'
+    )
+    .eq('id', contestId)
+    .maybeSingle();
+  const comp = row?.competition as
+    | { id: string; name: string; league_id: string | null; club_id: string | null; division_id: string | null }
+    | { id: string; name: string; league_id: string | null; club_id: string | null; division_id: string | null }[]
+    | null
+    | undefined;
+  const compRow = Array.isArray(comp) ? comp[0] : comp;
+  if (!row || !compRow || (scope && compRow[orgColumn(scope.side)] !== scope.orgId)) {
+    return NextResponse.json({ error: 'Game not found' }, { status: 404 });
+  }
+  const published = await publishContestToCalendar(admin, row, compRow, organizerId, timezone);
+  if ('error' in published) {
+    return NextResponse.json({ error: published.error }, { status: 400 });
+  }
+  return NextResponse.json({ ok: true, eventId: published.eventId });
 }
 
 // ── Results (R2) ─────────────────────────────────────────────────────────────
