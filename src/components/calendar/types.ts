@@ -36,6 +36,10 @@ export interface EventListItem {
   routine_id?: string | null;
   league_id?: string | null;
   club_id?: string | null;
+  /** Sub-org scopes (146) — a division/team event carries exactly one of
+   *  the four scope ids. */
+  division_id?: string | null;
+  team_id?: string | null;
   /** null on read-time org-merged events — the viewer has no guest row
    *  (yet); their first RSVP creates one. */
   my_status: MyStatus | null;

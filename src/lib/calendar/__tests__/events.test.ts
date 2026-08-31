@@ -26,6 +26,31 @@ function validEvent(overrides: Record<string, unknown> = {}) {
   };
 }
 
+describe('validateEventInput scope linkage (119/146)', () => {
+  it('accepts each scope column alone and normalizes the rest to null', () => {
+    for (const key of ['league_id', 'club_id', 'division_id', 'team_id'] as const) {
+      const result = validateEventInput(validEvent({ [key]: SELF }));
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.event[key]).toBe(SELF);
+        const others = (['league_id', 'club_id', 'division_id', 'team_id'] as const).filter(k => k !== key);
+        for (const other of others) expect(result.event[other]).toBeNull();
+      }
+    }
+  });
+
+  it('rejects ANY two scopes together (one scope at most)', () => {
+    expect(validateEventInput(validEvent({ league_id: SELF, club_id: OTHER })).ok).toBe(false);
+    expect(validateEventInput(validEvent({ league_id: SELF, team_id: OTHER })).ok).toBe(false);
+    expect(validateEventInput(validEvent({ division_id: SELF, team_id: OTHER })).ok).toBe(false);
+  });
+
+  it('rejects a malformed scope id', () => {
+    expect(validateEventInput(validEvent({ division_id: 'not-a-uuid' })).ok).toBe(false);
+    expect(validateEventInput(validEvent({ team_id: 'not-a-uuid' })).ok).toBe(false);
+  });
+});
+
 describe('validateEventInput', () => {
   it('accepts and normalizes a valid event', () => {
     const result = validateEventInput(validEvent({ title: '  Team Practice  ', description: '  ' }));

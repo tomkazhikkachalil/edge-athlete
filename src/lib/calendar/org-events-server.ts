@@ -28,24 +28,51 @@ export async function orgEventsGET(
   }
   const admin = getSupabaseAdmin();
   const column = side === 'league' ? 'league_id' : 'club_id';
+  const nowIso = new Date().toISOString();
 
-  const { data, error } = await admin
-    .from('events')
-    .select(ORG_EVENT_FIELDS)
-    .eq(column, orgId)
-    .eq('status', 'active')
-    .gte('starts_at', new Date().toISOString())
-    .order('starts_at', { ascending: true })
-    .limit(LIMIT);
-  if (error) {
-    // Pre-119 database (column missing → 42703) or missing table: an empty
-    // schedule, never an error.
-    if (isMissingTableError(error.code) || error.code === '42703') {
-      return NextResponse.json({ events: [] });
+  const base = () =>
+    admin
+      .from('events')
+      .select(ORG_EVENT_FIELDS)
+      .eq('status', 'active')
+      .gte('starts_at', nowIso)
+      .order('starts_at', { ascending: true })
+      .limit(LIMIT);
+
+  // 0.9 (Tom's decision): the org page INCLUDES its divisions'/teams' events
+  // — page visibility ≠ calendar placement, and a house-league game IS org
+  // activity. Structure ids first (bounded: an org's own rows), then three
+  // scope queries merged, resorted, and re-capped.
+  const [divisionRows, teamRows] = await Promise.all([
+    admin.from('divisions').select('id').eq(column, orgId),
+    admin.from('teams').select('id').eq(column, orgId),
+  ]);
+  const divisionIds = (divisionRows.data ?? []).map(r => r.id as string);
+  const teamIds = (teamRows.data ?? []).map(r => r.id as string);
+
+  const results = await Promise.all([
+    base().eq(column, orgId),
+    divisionIds.length > 0
+      ? base().in('division_id', divisionIds)
+      : Promise.resolve({ data: [], error: null }),
+    teamIds.length > 0
+      ? base().in('team_id', teamIds)
+      : Promise.resolve({ data: [], error: null }),
+  ]);
+  for (const { error } of results) {
+    // Pre-119/146 database (column missing → 42703) or missing table: an
+    // empty schedule, never an error.
+    if (error && !isMissingTableError(error.code) && error.code !== '42703') {
+      console.error('[ORG EVENTS] list error:', error);
+      return NextResponse.json({ error: 'Failed to load events' }, { status: 500 });
     }
-    console.error('[ORG EVENTS] list error:', error);
-    return NextResponse.json({ error: 'Failed to load events' }, { status: 500 });
   }
+  const seen = new Set<string>();
+  const events = results
+    .flatMap(r => (r.data ?? []) as { id: string; starts_at: string }[])
+    .filter(e => (seen.has(e.id) ? false : (seen.add(e.id), true)))
+    .sort((a, b) => a.starts_at.localeCompare(b.starts_at))
+    .slice(0, LIMIT);
 
-  return NextResponse.json({ events: data ?? [] });
+  return NextResponse.json({ events });
 }

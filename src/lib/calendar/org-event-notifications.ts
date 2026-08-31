@@ -13,6 +13,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { chunk } from '@/lib/chunk';
 import { memberProfileIds } from '@/lib/orgs/members';
+import { scopedMemberProfileIds, type SubOrgScopeType } from '@/lib/orgs/scoped-members';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Admin = SupabaseClient<any, 'public', any>;
@@ -62,6 +63,10 @@ export interface OrgEventNotifyInput {
   supabase: Admin;
   side: 'league' | 'club';
   orgId: string;
+  /** Sub-org scope (146): present → the fan-out enumerates the SCOPED
+   *  members only, never the whole org (strict audience — a house-league
+   *  game bells its division, not every follower). */
+  scope?: { scopeType: SubOrgScopeType; scopeId: string };
   orgName: string;
   /** Anchor occurrence — the deep-link target (`/calendar?event=`). */
   eventId: string;
@@ -95,10 +100,9 @@ async function sendOrgEventNotification(
       .limit(1);
     if (existing && existing.length > 0) return;
 
-    const { profileIds: memberIds, error: memberError } = await memberProfileIds(supabase, {
-      side,
-      orgId,
-    });
+    const { profileIds: memberIds, error: memberError } = input.scope
+      ? await scopedMemberProfileIds(supabase, input.scope.scopeType, input.scope.scopeId)
+      : await memberProfileIds(supabase, { side, orgId });
     if (memberError) {
       console.error('[ORG EVENT NOTIFY] member fetch failed:', memberError);
       return;

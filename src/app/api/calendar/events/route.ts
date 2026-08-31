@@ -10,6 +10,7 @@ import { formatEventWhen } from '@/lib/calendar/format-server';
 import { buildRoutineSnapshot, type RoutinePlan } from '@/lib/calendar/event-routine';
 import { fetchActivityOverlay } from '@/lib/calendar/activity-overlay';
 import { fetchOrgEventsForViewer } from '@/lib/calendar/org-merge-server';
+import { hasEventScope, resolveEventScope } from '@/lib/calendar/event-scope';
 import { enforceRateLimit } from '@/lib/rate-limit';
 import { checkSupervisedInviteGate } from '@/lib/calendar/supervised-invites';
 import type { ServerRoutineRow } from '@/lib/workouts/routines';
@@ -26,7 +27,7 @@ import type { ServerRoutineRow } from '@/lib/workouts/routines';
 const MAX_RANGE_DAYS = 62;
 
 const EVENT_FIELDS =
-  'id, organizer_id, title, description, location, starts_at, ends_at, all_day, timezone, category, status, cancelled_at, series_id, series_override, routine_id, routine_snapshot, league_id, club_id, venue_id, facility_id';
+  'id, organizer_id, title, description, location, starts_at, ends_at, all_day, timezone, category, status, cancelled_at, series_id, series_override, routine_id, routine_snapshot, league_id, club_id, division_id, team_id, venue_id, facility_id';
 
 export async function GET(request: NextRequest) {
   if (!FEATURE_FLAGS.FEATURE_CALENDAR) {
@@ -129,27 +130,39 @@ export async function POST(request: NextRequest) {
     const body = await request.json().catch(() => ({}));
 
     const validated = validateEventInput(body);
-    // Kept for the member fan-out after the write (PR 3): the org this
-    // event is being attached to, once the authz gate has passed.
-    let orgContext: { side: 'league' | 'club'; orgId: string; orgName: string } | null = null;
-    if (validated.ok && (validated.event.league_id || validated.event.club_id)) {
-      // Org linkage (119): only the org's owner/manager may attach it.
+    // Kept for the member fan-out after the write (PR 3): the scope this
+    // event is being attached to, once the authz gate has passed. Sub-org
+    // scopes (146) carry scopeType/scopeId so the fan-out enumerates the
+    // SCOPED members, never the whole org (strict audience).
+    let orgContext:
+      | {
+          side: 'league' | 'club';
+          orgId: string;
+          orgName: string;
+          scope?: { scopeType: 'division' | 'team'; scopeId: string };
+        }
+      | null = null;
+    if (validated.ok && hasEventScope(validated.event)) {
+      // Scope linkage (119/146): only the OWNING org's owner/manager may
+      // attach it — division/team events resolve to their org first.
       const { getOrgRole, isOwnerOrManager } = await import('@/lib/orgs/authz');
       const admin0 = getSupabaseAdmin();
-      const side = validated.event.league_id ? 'league' : 'club';
-      const orgId = (validated.event.league_id ?? validated.event.club_id) as string;
+      const scope = await resolveEventScope(admin0, validated.event);
+      if (!scope) {
+        return NextResponse.json({ error: 'Organization not found' }, { status: 404 });
+      }
       const { data: org } = await admin0
-        .from(side === 'league' ? 'leagues' : 'clubs')
+        .from(scope.side === 'league' ? 'leagues' : 'clubs')
         .select('id, owner_profile_id, name')
-        .eq('id', orgId)
+        .eq('id', scope.orgId)
         .maybeSingle();
       if (!org) {
         return NextResponse.json({ error: 'Organization not found' }, { status: 404 });
       }
       const role = await getOrgRole(
         admin0,
-        side,
-        orgId,
+        scope.side,
+        scope.orgId,
         user.id,
         org.owner_profile_id
       );
@@ -159,7 +172,14 @@ export async function POST(request: NextRequest) {
           { status: 403 }
         );
       }
-      orgContext = { side, orgId, orgName: (org.name as string | null) ?? 'Your organization' };
+      orgContext = {
+        side: scope.side,
+        orgId: scope.orgId,
+        orgName: (org.name as string | null) ?? 'Your organization',
+        ...(scope.scopeType !== 'org'
+          ? { scope: { scopeType: scope.scopeType, scopeId: scope.scopeId as string } }
+          : {}),
+      };
     }
     if (!validated.ok) {
       return NextResponse.json({ error: validated.error }, { status: 400 });
@@ -256,11 +276,14 @@ export async function POST(request: NextRequest) {
             category: validated.event.category,
             routine_id: validated.event.routine_id,
             routine_snapshot: routineSnapshot,
-            // Org linkage (119) — this template is hand-built, so without
-            // these a recurring org event's occurrences silently lose their
-            // org link (the single-event path spreads validated.event).
+            // Scope linkage (119/146) — this template is hand-built, so
+            // without these a recurring scoped event's occurrences silently
+            // lose their link (the single-event path spreads
+            // validated.event).
             league_id: validated.event.league_id ?? null,
             club_id: validated.event.club_id ?? null,
+            division_id: validated.event.division_id ?? null,
+            team_id: validated.event.team_id ?? null,
           },
           [
             { profile_id: user.id, role: 'organizer', status: 'accepted', responded_at: now },

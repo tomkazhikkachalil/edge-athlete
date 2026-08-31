@@ -19,12 +19,14 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { getOrgRole } from '@/lib/orgs/authz';
 import { anyMembershipExists } from '@/lib/orgs/members';
+import { scopedMembershipExists } from '@/lib/orgs/scoped-members';
+import { resolveEventScope } from './event-scope';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Admin = SupabaseClient<any, 'public', any>;
 
 export const EVENT_FIELDS =
-  'id, organizer_id, title, description, location, starts_at, ends_at, all_day, timezone, category, status, cancelled_at, series_id, series_override, routine_id, routine_snapshot, league_id, club_id, venue_id, facility_id';
+  'id, organizer_id, title, description, location, starts_at, ends_at, all_day, timezone, category, status, cancelled_at, series_id, series_override, routine_id, routine_snapshot, league_id, club_id, division_id, team_id, venue_id, facility_id';
 
 export interface CalendarEventRow {
   id: string;
@@ -45,6 +47,8 @@ export interface CalendarEventRow {
   routine_snapshot: unknown;
   league_id?: string | null;
   club_id?: string | null;
+  division_id?: string | null;
+  team_id?: string | null;
   venue_id?: string | null;
   facility_id?: string | null;
   updated_at?: string;
@@ -74,22 +78,31 @@ export async function loadEventForViewer(
     .maybeSingle();
   if (myGuestRow) return { event: event as CalendarEventRow, access: 'guest' };
 
-  if (event.league_id || event.club_id) {
-    const side = event.league_id ? 'league' : 'club';
-    const orgId = (event.league_id ?? event.club_id) as string;
+  // Scoped events (119/146): any role in the OWNING org grants read (org
+  // events kept their 119 behavior; division/team events inherit it —
+  // page visibility, not calendar placement), and a membership row AT the
+  // sub-org scope grants read even without an org row.
+  const scope = await resolveEventScope(admin, event as CalendarEventRow);
+  if (scope) {
     const { data: org } = await admin
-      .from(side === 'league' ? 'leagues' : 'clubs')
+      .from(scope.side === 'league' ? 'leagues' : 'clubs')
       .select('owner_profile_id')
-      .eq('id', orgId)
+      .eq('id', scope.orgId)
       .maybeSingle();
     const role = await getOrgRole(
       admin,
-      side,
-      orgId,
+      scope.side,
+      scope.orgId,
       viewerId,
       (org?.owner_profile_id as string | null) ?? null
     );
     if (role) return { event: event as CalendarEventRow, access: 'org_member' };
+    if (
+      scope.scopeType !== 'org' &&
+      (await scopedMembershipExists(admin, scope.scopeType, scope.scopeId as string, [viewerId]))
+    ) {
+      return { event: event as CalendarEventRow, access: 'org_member' };
+    }
   }
 
   if (await householdReadAccess(admin, event as CalendarEventRow, viewerId)) {
@@ -127,16 +140,21 @@ async function householdReadAccess(
     .maybeSingle();
   if (childGuest) return true;
 
-  if (event.league_id || event.club_id) {
-    const side = event.league_id ? 'league' : 'club';
-    const orgId = (event.league_id ?? event.club_id) as string;
+  const scope = await resolveEventScope(admin, event);
+  if (scope) {
     const { data: org } = await admin
-      .from(side === 'league' ? 'leagues' : 'clubs')
+      .from(scope.side === 'league' ? 'leagues' : 'clubs')
       .select('owner_profile_id')
-      .eq('id', orgId)
+      .eq('id', scope.orgId)
       .maybeSingle();
     if (org?.owner_profile_id && childIds.includes(org.owner_profile_id as string)) return true;
-    if (await anyMembershipExists(admin, { side, orgId }, childIds)) return true;
+    if (await anyMembershipExists(admin, { side: scope.side, orgId: scope.orgId }, childIds)) return true;
+    if (
+      scope.scopeType !== 'org' &&
+      (await scopedMembershipExists(admin, scope.scopeType, scope.scopeId as string, childIds))
+    ) {
+      return true;
+    }
   }
   return false;
 }
