@@ -11,7 +11,7 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { OrgSide } from '@/lib/orgs/authz';
-import { resolveFixtureRule, type StandingsColumn } from './scoring';
+import { resolveFixtureRule, resolveLeaderboardRule, type StandingsColumn } from './scoring';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- matches the authz.ts Admin alias; schema-agnostic helper
 type Admin = SupabaseClient<any, 'public', any>;
@@ -133,7 +133,9 @@ export async function fetchPublicStandings(
       columns:
         c.format === 'fixture'
           ? resolveFixtureRule(c.sport_key as string, c.scoring_rule as string | null).columns
-          : [],
+          : c.format === 'leaderboard'
+            ? resolveLeaderboardRule(c.sport_key as string, c.scoring_rule as string | null).columns
+            : [],
       rows: rowsByCompetition.get(c.id) ?? [],
     })),
   };

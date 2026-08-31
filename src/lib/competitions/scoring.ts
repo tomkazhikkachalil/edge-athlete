@@ -165,3 +165,104 @@ export function computeFixtureStandings(
   });
   return rows;
 }
+
+// ── Leaderboard rules (R5) — individual entrants, summed totals ─────────────
+
+export interface LeaderboardScoringRule {
+  key: string;
+  kind: 'leaderboard';
+  /** 'asc' = lowest total wins (strokes); 'desc' = highest wins (points). */
+  direction: 'asc' | 'desc';
+  columns: StandingsColumn[];
+}
+
+const LEADERBOARD_COLUMNS: StandingsColumn[] = [
+  { key: 'played', label: 'Rounds', shortLabel: 'RDS' },
+  { key: 'points', label: 'Total', shortLabel: 'TOT' },
+];
+
+export const LEADERBOARD_RULES: Record<string, LeaderboardScoringRule> = {
+  stroke_total: {
+    key: 'stroke_total',
+    kind: 'leaderboard',
+    direction: 'asc',
+    columns: LEADERBOARD_COLUMNS,
+  },
+  points_total: {
+    key: 'points_total',
+    kind: 'leaderboard',
+    direction: 'desc',
+    columns: LEADERBOARD_COLUMNS,
+  },
+};
+
+const SPORT_DEFAULT_LEADERBOARD_RULE: Record<string, string> = {
+  golf: 'stroke_total',
+};
+
+export function resolveLeaderboardRule(
+  sportKey: string,
+  scoringRule: string | null
+): LeaderboardScoringRule {
+  if (scoringRule && LEADERBOARD_RULES[scoringRule]) return LEADERBOARD_RULES[scoringRule];
+  return LEADERBOARD_RULES[SPORT_DEFAULT_LEADERBOARD_RULE[sportKey] ?? 'points_total'];
+}
+
+export interface LeaderboardContestInput {
+  status: string;
+  /** Every participant with a score entered so far (entry_id keyed). */
+  scores: { entry_id: string; score: number | null }[];
+}
+
+/** Standings for a leaderboard: total = summed scores across completed
+ *  contests; played = contests actually scored. Entrants with no scored
+ *  round sit below every scored entrant (a zero-stroke total must never
+ *  "win" an ascending board). Ties share rank. */
+export function computeLeaderboardStandings(
+  entryIds: string[],
+  contests: LeaderboardContestInput[],
+  rule: LeaderboardScoringRule
+): StandingRow[] {
+  const table = new Map<string, { total: number; played: number }>();
+  for (const id of entryIds) table.set(id, { total: 0, played: 0 });
+  for (const contest of contests) {
+    if (contest.status !== 'completed') continue;
+    for (const s of contest.scores) {
+      const row = table.get(s.entry_id);
+      if (!row || s.score == null) continue;
+      row.total += s.score;
+      row.played += 1;
+    }
+  }
+
+  const sortKey = (id: string): number => {
+    const row = table.get(id)!;
+    if (row.played === 0) return Number.POSITIVE_INFINITY; // always last
+    return rule.direction === 'asc' ? row.total : -row.total;
+  };
+  const sorted = [...entryIds].sort((x, y) => {
+    const kx = sortKey(x);
+    const ky = sortKey(y);
+    if (kx !== ky) return kx - ky;
+    return x < y ? -1 : x > y ? 1 : 0;
+  });
+
+  const rows: StandingRow[] = [];
+  let lastKey: number | null = null;
+  let lastRank = 0;
+  sorted.forEach((id, i) => {
+    const key = sortKey(id);
+    const rank = key === lastKey ? lastRank : i + 1;
+    lastKey = key;
+    lastRank = rank;
+    const row = table.get(id)!;
+    rows.push({
+      entry_id: id,
+      rank,
+      points: row.played === 0 ? null : row.total,
+      played: row.played,
+      stats: {},
+    });
+  });
+  return rows;
+}

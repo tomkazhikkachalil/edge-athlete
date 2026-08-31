@@ -151,6 +151,27 @@ export default function CompetitionDetailPage() {
   };
 
   const createContest = async () => {
+    if (competition?.format === 'leaderboard') {
+      const ok = await act(
+        `${base}/contests`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            competitionId,
+            ...(when ? { scheduledAt: new Date(when).toISOString() } : {}),
+            ...(roundLabel.trim() ? { round: roundLabel.trim() } : {}),
+          }),
+        },
+        'Round added',
+        'Failed to add the round'
+      );
+      if (ok) {
+        setWhen('');
+        setRoundLabel('');
+      }
+      return;
+    }
     if (!homeEntryId || !awayEntryId) {
       showError('Competition', 'Pick a home and an away side');
       return;
@@ -306,6 +327,40 @@ export default function CompetitionDetailPage() {
         >
           <h2 className="text-lg font-semibold text-primary mb-4">Schedule</h2>
 
+          {competition.format === 'leaderboard' && (
+            entries.length === 0 ? (
+              <p className="text-sm text-tertiary mb-4">
+                Enter at least one athlete from the console first.
+              </p>
+            ) : (
+              <div className="flex flex-wrap gap-2 mb-4">
+                <input
+                  type="datetime-local"
+                  value={when}
+                  onChange={e => setWhen(e.target.value)}
+                  aria-label="Round time"
+                  className="px-3 py-2 border border-border-strong rounded-md outline-none text-sm"
+                />
+                <input
+                  type="text"
+                  value={roundLabel}
+                  maxLength={40}
+                  onChange={e => setRoundLabel(e.target.value)}
+                  placeholder="Round (e.g., Round 1)"
+                  aria-label="Round label"
+                  className="w-36 px-3 py-2 border border-border-strong rounded-md outline-none text-sm"
+                />
+                <button
+                  type="button"
+                  onClick={() => void createContest()}
+                  className="px-4 py-2 text-sm min-h-[40px] rounded-lg bg-brand text-white font-medium hover:bg-brand-hover transition-colors"
+                >
+                  Add round
+                </button>
+              </div>
+            )
+          )}
+
           {competition.format === 'fixture' && (
             entries.length < 2 ? (
               <p className="text-sm text-tertiary mb-4">
@@ -370,17 +425,19 @@ export default function CompetitionDetailPage() {
             <ul className="space-y-3">
               {contests.map(contest => {
                 const { home, away } = bySide(contest);
-                const scored = home?.result?.score != null && away?.result?.score != null;
+                const scored =
+                  contest.participants.length > 0 &&
+                  contest.participants.every(p => p.result?.score != null);
                 return (
                   <li key={contest.id} className="border border-border rounded-lg p-3">
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <div className="min-w-0">
                         <p className="font-medium text-primary">
-                          {home?.entrant_name ?? '—'}
-                          {scored
-                            ? ` ${home?.result?.score} – ${away?.result?.score} `
-                            : ' vs '}
-                          {away?.entrant_name ?? '—'}
+                          {competition.format === 'leaderboard'
+                            ? `${contest.round || 'Round'} · ${contest.participants.length} player${contest.participants.length === 1 ? '' : 's'}`
+                            : `${home?.entrant_name ?? '—'}${
+                                scored ? ` ${home?.result?.score} – ${away?.result?.score} ` : ' vs '
+                              }${away?.entrant_name ?? '—'}`}
                         </p>
                         <p className="text-xs text-muted">
                           {[

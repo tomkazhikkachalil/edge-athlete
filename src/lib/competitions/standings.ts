@@ -8,7 +8,14 @@
 // the §12 scale risk is bounded HERE, not at the callers.
 
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { computeFixtureStandings, resolveFixtureRule, type FixtureContestInput } from './scoring';
+import {
+  computeFixtureStandings,
+  computeLeaderboardStandings,
+  resolveFixtureRule,
+  resolveLeaderboardRule,
+  type FixtureContestInput,
+  type LeaderboardContestInput,
+} from './scoring';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- matches the authz.ts Admin alias; schema-agnostic helper
 type Admin = SupabaseClient<any, 'public', any>;
@@ -45,8 +52,8 @@ export async function recomputeStandings(
       .eq('id', competitionId)
       .maybeSingle();
     if (!comp) return null;
-    // Leaderboard aggregation arrives with R5; fixtures are the v1 engine.
-    if (comp.format !== 'fixture') return null;
+    // Fixture + leaderboard are the live engines; bracket/meet defer.
+    if (comp.format !== 'fixture' && comp.format !== 'leaderboard') return null;
 
     const { data: entries } = await admin
       .from('competition_entries')
@@ -84,13 +91,25 @@ export async function recomputeStandings(
         score: scoreByParticipant.get(p.id) ?? null,
       });
     }
-    const contestInputs: FixtureContestInput[] = contestIds.map(id => ({
-      status: statusOf.get(id) ?? 'scheduled',
-      sides: sidesByContest.get(id) ?? [],
-    }));
-
-    const rule = resolveFixtureRule(comp.sport_key as string, comp.scoring_rule as string | null);
-    const rows = computeFixtureStandings(entryIds, contestInputs, rule);
+    let rows;
+    if (comp.format === 'fixture') {
+      const contestInputs: FixtureContestInput[] = contestIds.map(id => ({
+        status: statusOf.get(id) ?? 'scheduled',
+        sides: sidesByContest.get(id) ?? [],
+      }));
+      const rule = resolveFixtureRule(comp.sport_key as string, comp.scoring_rule as string | null);
+      rows = computeFixtureStandings(entryIds, contestInputs, rule);
+    } else {
+      const contestInputs: LeaderboardContestInput[] = contestIds.map(id => ({
+        status: statusOf.get(id) ?? 'scheduled',
+        scores: sidesByContest.get(id) ?? [],
+      }));
+      const rule = resolveLeaderboardRule(
+        comp.sport_key as string,
+        comp.scoring_rule as string | null
+      );
+      rows = computeLeaderboardStandings(entryIds, contestInputs, rule);
+    }
 
     if (rows.length) {
       const { error: upsertError } = await admin.from('competition_standings').upsert(
