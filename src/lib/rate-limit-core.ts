@@ -102,6 +102,13 @@ export const RATE_LIMITS = {
   // (auth user + profile + 3 membership rows + invite each); 10/h clears a
   // real club evening while capping a runaway client.
   'roster-import': { max: 10, windowSeconds: 3600, keyBy: 'user' },
+  // Athlete claim (phase 1 R3): peek IP-keyed (token-guess cost); the
+  // claim itself is IP-keyed too — the adult path is ACCOUNTLESS by
+  // design (no merge machinery; the stub becomes your account), so there
+  // is no user to key on. A shared-NAT family claiming 10+ kids in an
+  // hour hits it — accepted, retry next hour.
+  'athlete-claim-peek': { max: 30, windowSeconds: 60, keyBy: 'ip' },
+  'athlete-claim': { max: 10, windowSeconds: 3600, keyBy: 'ip' },
   'org-claim-peek': { max: 30, windowSeconds: 60, keyBy: 'ip' },
   'org-claim': { max: 10, windowSeconds: 3600, keyBy: 'user' },
   // Calendar event creation — org events fan a team_update out to every
