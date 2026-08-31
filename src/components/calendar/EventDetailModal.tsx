@@ -332,18 +332,31 @@ export default function EventDetailModal({
                   {describeRecurrence(event.series, event.timezone)}
                 </p>
               )}
-              {(event.league_id || event.club_id) && event.org_name && (
-                <p className="text-muted text-xs">
-                  <i className="fas fa-people-group text-faint mr-1"></i>
-                  {event.league_id ? 'League event' : 'Club event'} ·{' '}
-                  <a
-                    href={event.league_id ? `/league/${event.league_id}` : `/club/${event.club_id}`}
-                    className="text-brand-fg hover:underline font-medium"
-                  >
-                    {event.org_name}
-                  </a>
-                </p>
-              )}
+              {(event.league_id || event.club_id || event.division_id || event.team_id) &&
+                event.org_name && (
+                  <p className="text-muted text-xs">
+                    <i className="fas fa-people-group text-faint mr-1"></i>
+                    {event.league_id
+                      ? 'League event'
+                      : event.club_id
+                        ? 'Club event'
+                        : event.division_id
+                          ? 'Division event'
+                          : 'Team event'}{' '}
+                    ·{' '}
+                    {event.league_id || event.club_id ? (
+                      <a
+                        href={event.league_id ? `/league/${event.league_id}` : `/club/${event.club_id}`}
+                        className="text-brand-fg hover:underline font-medium"
+                      >
+                        {event.org_name}
+                      </a>
+                    ) : (
+                      // Scoped events carry no org id client-side — name only.
+                      <span className="font-medium">{event.org_name}</span>
+                    )}
+                  </p>
+                )}
               {!cancelled && (
                 <p className="text-xs pt-0.5">
                   <a

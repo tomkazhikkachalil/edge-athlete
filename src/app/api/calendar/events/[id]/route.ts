@@ -13,6 +13,7 @@ import {
 } from '@/lib/calendar/notifications';
 import { formatEventWhen } from '@/lib/calendar/format-server';
 import { loadEventForViewer } from '@/lib/calendar/detail-server';
+import { hasEventScope, resolveEventScope } from '@/lib/calendar/event-scope';
 import { checkSupervisedInviteGate } from '@/lib/calendar/supervised-invites';
 import { buildRoutineSnapshot, resolveEventRoutine } from '@/lib/calendar/event-routine';
 import type { ServerRoutineRow } from '@/lib/workouts/routines';
@@ -32,7 +33,7 @@ import type { ServerRoutineRow } from '@/lib/workouts/routines';
 //         bulk-cancel and stop generation (series ends flips to 'until').
 
 const EVENT_FIELDS =
-  'id, organizer_id, title, description, location, starts_at, ends_at, all_day, timezone, category, status, cancelled_at, series_id, series_override, routine_id, routine_snapshot, league_id, club_id, venue_id, facility_id';
+  'id, organizer_id, title, description, location, starts_at, ends_at, all_day, timezone, category, status, cancelled_at, series_id, series_override, routine_id, routine_snapshot, league_id, club_id, division_id, team_id, venue_id, facility_id';
 const GUEST_FIELDS =
   'id, profile_id, invited_email, role, status, responded_at, reminder_minutes, profiles:profile_id (id, first_name, middle_name, last_name, full_name, avatar_url, handle)';
 const SERIES_FIELDS = 'id, freq, interval_n, byweekday, ends, until_at, count_n';
@@ -77,17 +78,18 @@ async function fullDetail(
     routine_id: event.routine_id ?? null,
     routine_snapshot: event.routine_snapshot ?? null,
   });
-  // Org badge for the modal ("League event · Spring League").
-  const { league_id: leagueId, club_id: clubId } = event as {
-    league_id?: string | null;
-    club_id?: string | null;
-  };
+  // Org badge for the modal ("League event · Spring League") — scoped
+  // events (146) resolve through their division/team to the owning org.
   let orgName: string | null = null;
-  if (leagueId || clubId) {
+  const scope = await resolveEventScope(
+    admin,
+    event as { league_id?: string | null; club_id?: string | null; division_id?: string | null; team_id?: string | null }
+  );
+  if (scope) {
     const { data: org } = await admin
-      .from(leagueId ? 'leagues' : 'clubs')
+      .from(scope.side === 'league' ? 'leagues' : 'clubs')
       .select('name')
-      .eq('id', (leagueId ?? clubId) as string)
+      .eq('id', scope.orgId)
       .maybeSingle();
     orgName = (org?.name as string | undefined) ?? null;
   }
@@ -184,10 +186,12 @@ export async function PATCH(
       timezone: body.timezone ?? event.timezone,
       category: body.category ?? event.category,
       routine_id: body.routine_id !== undefined ? body.routine_id : event.routine_id,
-      // Org linkage (119): omission keeps the existing value; explicit null
-      // detaches.
+      // Scope linkage (119/146): omission keeps the existing value;
+      // explicit null detaches.
       league_id: body.league_id !== undefined ? body.league_id : event.league_id,
       club_id: body.club_id !== undefined ? body.club_id : event.club_id,
+      division_id: body.division_id !== undefined ? body.division_id : event.division_id,
+      team_id: body.team_id !== undefined ? body.team_id : event.team_id,
     };
     const validated = validateEventInput(merged);
     if (!validated.ok) {
@@ -208,24 +212,27 @@ export async function PATCH(
       );
     }
 
-    // Org linkage (119): whenever the FINAL value carries an org, the editor
-    // must be that org's owner/manager — covers attach, keep, and re-home.
-    if (validated.event.league_id || validated.event.club_id) {
+    // Scope linkage (119/146): whenever the FINAL value carries a scope,
+    // the editor must be the OWNING org's owner/manager — covers attach,
+    // keep, and re-home; division/team scopes resolve to their org first.
+    if (hasEventScope(validated.event)) {
       const { getOrgRole, isOwnerOrManager } = await import('@/lib/orgs/authz');
-      const side = validated.event.league_id ? 'league' : 'club';
-      const orgId = (validated.event.league_id ?? validated.event.club_id) as string;
+      const scope = await resolveEventScope(admin, validated.event);
+      if (!scope) {
+        return NextResponse.json({ error: 'Organization not found' }, { status: 404 });
+      }
       const { data: org } = await admin
-        .from(side === 'league' ? 'leagues' : 'clubs')
+        .from(scope.side === 'league' ? 'leagues' : 'clubs')
         .select('id, owner_profile_id')
-        .eq('id', orgId)
+        .eq('id', scope.orgId)
         .maybeSingle();
       if (!org) {
         return NextResponse.json({ error: 'Organization not found' }, { status: 404 });
       }
       const role = await getOrgRole(
         admin,
-        side,
-        orgId,
+        scope.side,
+        scope.orgId,
         user.id,
         org.owner_profile_id
       );
@@ -358,10 +365,12 @@ export async function PATCH(
       all_day: validated.event.all_day,
       routine_id: validated.event.routine_id,
       routine_snapshot: routineSnapshot,
-      // Org linkage (119) — hand-built list, so these must be explicit or
-      // org edits silently drop on update.
+      // Scope linkage (119/146) — hand-built list, so these must be
+      // explicit or scope edits silently drop on update.
       league_id: validated.event.league_id,
       club_id: validated.event.club_id,
+      division_id: validated.event.division_id,
+      team_id: validated.event.team_id,
     };
     if (timeChanged && scope !== 'this') {
       // Per-occurrence: keep its date, apply the new local time + duration.
@@ -588,22 +597,25 @@ export async function DELETE(
       seriesId: (event.series_id as string | null) ?? undefined,
     };
     await notifyEventCancelled(ctx, user.id, notify);
-    if (event.league_id || event.club_id) {
+    const cancelScope = hasEventScope(event) ? await resolveEventScope(admin, event) : null;
+    if (cancelScope) {
       // Member broadcast (team_update): everyone holding a guest row on an
       // affected occurrence is excluded — they got event_cancelled above,
-      // or declined their way out of this event's story.
-      const side = event.league_id ? 'league' : 'club';
-      const orgId = (event.league_id ?? event.club_id) as string;
+      // or declined their way out of this event's story. Sub-org scopes
+      // broadcast to the SCOPED members only (strict audience).
       const { data: org } = await admin
-        .from(side === 'league' ? 'leagues' : 'clubs')
+        .from(cancelScope.side === 'league' ? 'leagues' : 'clubs')
         .select('name')
-        .eq('id', orgId)
+        .eq('id', cancelScope.orgId)
         .maybeSingle();
       const { notifyOrgEventCancelled } = await import('@/lib/calendar/org-event-notifications');
       await notifyOrgEventCancelled({
         supabase: admin,
-        side,
-        orgId,
+        side: cancelScope.side,
+        orgId: cancelScope.orgId,
+        ...(cancelScope.scopeType !== 'org'
+          ? { scope: { scopeType: cancelScope.scopeType, scopeId: cancelScope.scopeId as string } }
+          : {}),
         orgName: (org?.name as string | null) ?? 'Your organization',
         eventId: event.id,
         seriesId: scope !== 'this' ? (event.series_id as string | null) : null,

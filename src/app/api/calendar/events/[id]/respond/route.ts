@@ -73,30 +73,44 @@ export async function POST(
       // event). Everyone else keeps the 404 — never reveal existence.
       const { data: orgEvent } = await admin
         .from('events')
-        .select('id, organizer_id, title, status, series_id, league_id, club_id')
+        .select('id, organizer_id, title, status, series_id, league_id, club_id, division_id, team_id')
         .eq('id', id)
         .maybeSingle();
-      if (!orgEvent || (!orgEvent.league_id && !orgEvent.club_id)) {
+      const { hasEventScope, resolveEventScope } = await import('@/lib/calendar/event-scope');
+      if (!orgEvent || !hasEventScope(orgEvent)) {
         return NextResponse.json({ error: 'Event not found' }, { status: 404 });
       }
-      const side = orgEvent.league_id ? 'league' : 'club';
-      const orgId = (orgEvent.league_id ?? orgEvent.club_id) as string;
+      // Scoped events (146) resolve to their owning org; a membership row
+      // AT the sub-org scope qualifies too (a team member need not hold an
+      // org row — no invariant links them yet).
+      const eventScope = await resolveEventScope(admin, orgEvent);
+      if (!eventScope) return NextResponse.json({ error: 'Event not found' }, { status: 404 });
       const { getOrgRole } = await import('@/lib/orgs/authz');
       const { data: org } = await admin
-        .from(side === 'league' ? 'leagues' : 'clubs')
+        .from(eventScope.side === 'league' ? 'leagues' : 'clubs')
         .select('owner_profile_id')
-        .eq('id', orgId)
+        .eq('id', eventScope.orgId)
         .maybeSingle();
       // Membership must be respondAs's OWN (guardian path: the child is the
       // member; the guardian only relays their response).
       const role = await getOrgRole(
         admin,
-        side,
-        orgId,
+        eventScope.side,
+        eventScope.orgId,
         respondAs,
         (org?.owner_profile_id as string | null) ?? null
       );
-      if (!role) return NextResponse.json({ error: 'Event not found' }, { status: 404 });
+      let mayRespond = !!role;
+      if (!mayRespond && eventScope.scopeType !== 'org') {
+        const { scopedMembershipExists } = await import('@/lib/orgs/scoped-members');
+        mayRespond = await scopedMembershipExists(
+          admin,
+          eventScope.scopeType,
+          eventScope.scopeId as string,
+          [respondAs]
+        );
+      }
+      if (!mayRespond) return NextResponse.json({ error: 'Event not found' }, { status: 404 });
       if (orgEvent.organizer_id === respondAs) {
         return NextResponse.json({ error: "You're the organizer — your attendance is fixed." }, { status: 403 });
       }

@@ -32,10 +32,13 @@ export interface NormalizedEventInput {
   category: EventCategory;
   /** Attached workout routine (080). Ownership is checked in the route. */
   routine_id: string | null;
-  /** Org linkage (119): at most ONE of these, mirroring the DB CHECK.
-   *  Owner/manager role is verified in the route (getOrgRole). */
+  /** Scope linkage (119/146): at most ONE of these four, mirroring
+   *  events_one_scope_check. Owner/manager role on the OWNING org is
+   *  verified in the route (resolveEventScope + getOrgRole). */
   league_id: string | null;
   club_id: string | null;
+  division_id: string | null;
+  team_id: string | null;
 }
 
 export interface NormalizedGuestInput {
@@ -134,17 +137,25 @@ export function validateEventInput(
     routine_id = body.routine_id;
   }
 
-  const orgId = (key: 'league_id' | 'club_id'): string | null | undefined => {
+  const orgId = (key: 'league_id' | 'club_id' | 'division_id' | 'team_id'): string | null | undefined => {
     if (body[key] === undefined || body[key] === null) return null;
     if (typeof body[key] !== 'string' || !UUID_RE.test(body[key] as string)) return undefined;
     return body[key] as string;
   };
   const league_id = orgId('league_id');
   const club_id = orgId('club_id');
-  if (league_id === undefined || club_id === undefined) {
+  const division_id = orgId('division_id');
+  const team_id = orgId('team_id');
+  if (
+    league_id === undefined ||
+    club_id === undefined ||
+    division_id === undefined ||
+    team_id === undefined
+  ) {
     return { ok: false, error: 'Invalid organization.' };
   }
-  if (league_id && club_id) {
+  // One SCOPE at most (146's num_nonnulls, mirrored).
+  if ([league_id, club_id, division_id, team_id].filter(Boolean).length > 1) {
     return { ok: false, error: 'An event can belong to one organization at most.' };
   }
 
@@ -162,6 +173,8 @@ export function validateEventInput(
       routine_id,
       league_id,
       club_id,
+      division_id,
+      team_id,
     },
   };
 }

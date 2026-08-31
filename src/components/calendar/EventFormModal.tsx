@@ -39,9 +39,17 @@ interface FormState {
   // Inside FormState (not separate state) so the dirty-close snapshot
   // covers it automatically.
   routineId: string | null;
-  /** Org linkage (119): at most one of these. */
+  /** Scope linkage (119/146): at most one SCOPE. leagueId/clubId double as
+   *  the org-select UI state; when a sub-scope (division/team) is chosen
+   *  the submit sends the sub-scope id and nulls the org ids. */
   leagueId: string | null;
   clubId: string | null;
+  divisionId: string | null;
+  teamId: string | null;
+  /** Editing a sub-org-scoped event: true until the user touches the org
+   *  select — the submit then omits all four scope keys (PATCH omission
+   *  keeps), because the owning org isn't resolvable client-side. */
+  keepScope: boolean;
   /** "Who is this for?" — supervised children to add as guests on create.
    *  A guest row is what makes the event visible to EVERY guardian (the
    *  parity contract), so this is sugar over guests.profile_ids, not a new
@@ -106,6 +114,9 @@ function emptyForm(defaultDay?: Date, defaultRange?: { start: Date; end: Date })
     routineId: null,
     leagueId: null,
     clubId: null,
+    divisionId: null,
+    teamId: null,
+    keepScope: false,
     forChildIds: [],
   };
 }
@@ -127,6 +138,9 @@ function formFromEvent(event: EventDetail): FormState {
     routineId: event.routine_id ?? null,
     leagueId: event.league_id ?? null,
     clubId: event.club_id ?? null,
+    divisionId: event.division_id ?? null,
+    teamId: event.team_id ?? null,
+    keepScope: !!(event.division_id || event.team_id),
     // Edit mode: children already on the event are ordinary GuestPicker
     // chips (chipsFromEvent); the create-only "for" row stays empty.
     forChildIds: [],
@@ -265,6 +279,38 @@ export default function EventFormModal({
     return () => { cancelled = true; };
   }, [isOpen, moreOpen, managedOrgs, authUser?.id]);
 
+  // Sub-org scope options (0.9) for the SELECTED org — lazy per org, same
+  // cancellable-IIFE pattern. Empty divisions+teams = the select hides
+  // itself (the "naturally empty" v1: only orgs with structure show it).
+  interface ScopeOptions { divisions: { id: string; name: string }[]; teams: { id: string; name: string }[] }
+  const [scopeOptions, setScopeOptions] = useState<Record<string, ScopeOptions>>({});
+  const selectedOrgKey = form.leagueId
+    ? `league:${form.leagueId}`
+    : form.clubId
+      ? `club:${form.clubId}`
+      : null;
+  useEffect(() => {
+    if (!isOpen || !moreOpen || !selectedOrgKey || selectedOrgKey in scopeOptions) return;
+    const [kind, id] = selectedOrgKey.split(':');
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`/api/${kind}s/${id}/structure-options`, { credentials: 'include' });
+        if (!res.ok) throw new Error(String(res.status));
+        const data = await res.json();
+        if (!cancelled) {
+          setScopeOptions(prev => ({
+            ...prev,
+            [selectedOrgKey]: { divisions: data.divisions ?? [], teams: data.teams ?? [] },
+          }));
+        }
+      } catch {
+        if (!cancelled) setScopeOptions(prev => ({ ...prev, [selectedOrgKey]: { divisions: [], teams: [] } }));
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [isOpen, moreOpen, selectedOrgKey, scopeOptions]);
+
   // Seeding the form is state synchronisation — done during render so the
   // previous values never paint for a frame.
   const [syncedOpen, setSyncedOpen] = useState({ isOpen, editing, defaultDay, defaultRange });
@@ -357,8 +403,17 @@ export default function EventFormModal({
       timezone: form.timezone,
       category: form.category,
       routine_id: form.routineId,
-      league_id: form.leagueId,
-      club_id: form.clubId,
+      // Scope (119/146): keepScope omits all four keys (PATCH omission
+      // keeps the placement); a chosen sub-scope nulls the org ids — one
+      // scope at most, mirroring events_one_scope_check.
+      ...(form.keepScope
+        ? {}
+        : {
+            league_id: form.divisionId || form.teamId ? null : form.leagueId,
+            club_id: form.divisionId || form.teamId ? null : form.clubId,
+            division_id: form.divisionId,
+            team_id: form.teamId,
+          }),
     };
 
     setSaving(true);
@@ -846,9 +901,25 @@ export default function EventFormModal({
                   </p>
                   <select
                     id="ev-org"
-                    value={form.leagueId ? `league:${form.leagueId}` : form.clubId ? `club:${form.clubId}` : ''}
+                    value={
+                      form.keepScope
+                        ? '__keep'
+                        : form.leagueId
+                          ? `league:${form.leagueId}`
+                          : form.clubId
+                            ? `club:${form.clubId}`
+                            : ''
+                    }
                     onChange={e => {
                       const v = e.target.value;
+                      if (v === '__keep') {
+                        set('keepScope', true);
+                        return;
+                      }
+                      // Any real choice replaces the whole scope.
+                      set('keepScope', false);
+                      set('divisionId', null);
+                      set('teamId', null);
                       if (!v) {
                         set('leagueId', null);
                         set('clubId', null);
@@ -861,12 +932,69 @@ export default function EventFormModal({
                     className="w-full px-3 py-2 border border-border-strong rounded-lg text-base focus:ring-2 focus:ring-violet-500 focus:outline-none"
                   >
                     <option value="">None</option>
+                    {/* Editing a division/team-scoped event: the owning org
+                        isn't resolvable client-side, so "keep" preserves the
+                        placement (submit omits the scope keys entirely). */}
+                    {editing && (editing.division_id || editing.team_id) && (
+                      <option value="__keep">Keep current division/team placement</option>
+                    )}
                     {managedOrgs.map(o => (
                       <option key={`${o.kind}:${o.id}`} value={`${o.kind}:${o.id}`}>
                         {o.name} ({o.kind})
                       </option>
                     ))}
                   </select>
+
+                  {/* Sub-org scope (0.9): division/team within the selected
+                      org. Hidden until the org has structure to offer. */}
+                  {!form.keepScope &&
+                    selectedOrgKey &&
+                    scopeOptions[selectedOrgKey] &&
+                    (scopeOptions[selectedOrgKey].divisions.length > 0 ||
+                      scopeOptions[selectedOrgKey].teams.length > 0) && (
+                      <div className="mt-2">
+                        <label htmlFor="ev-org-scope" className="sr-only">
+                          Division or team
+                        </label>
+                        <select
+                          id="ev-org-scope"
+                          value={
+                            form.divisionId
+                              ? `division:${form.divisionId}`
+                              : form.teamId
+                                ? `team:${form.teamId}`
+                                : ''
+                          }
+                          onChange={e => {
+                            const v = e.target.value;
+                            const [kind, id] = v ? v.split(':') : ['', ''];
+                            set('divisionId', kind === 'division' ? id : null);
+                            set('teamId', kind === 'team' ? id : null);
+                          }}
+                          className="w-full px-3 py-2 border border-border-strong rounded-lg text-base focus:ring-2 focus:ring-violet-500 focus:outline-none"
+                        >
+                          <option value="">Whole organization</option>
+                          {scopeOptions[selectedOrgKey].divisions.length > 0 && (
+                            <optgroup label="Divisions">
+                              {scopeOptions[selectedOrgKey].divisions.map(d => (
+                                <option key={d.id} value={`division:${d.id}`}>
+                                  {d.name}
+                                </option>
+                              ))}
+                            </optgroup>
+                          )}
+                          {scopeOptions[selectedOrgKey].teams.length > 0 && (
+                            <optgroup label="Teams">
+                              {scopeOptions[selectedOrgKey].teams.map(t => (
+                                <option key={t.id} value={`team:${t.id}`}>
+                                  {t.name}
+                                </option>
+                              ))}
+                            </optgroup>
+                          )}
+                        </select>
+                      </div>
+                    )}
                 </div>
               )}
 

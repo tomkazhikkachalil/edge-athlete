@@ -33,6 +33,8 @@ export interface OccurrenceEventFields {
   routine_snapshot: unknown;
   league_id?: string | null;
   club_id?: string | null;
+  division_id?: string | null;
+  team_id?: string | null;
   venue_id?: string | null;
   facility_id?: string | null;
 }
@@ -130,7 +132,7 @@ export async function extendRecurringSeries(
       // back to the latest occurrence of any kind.
       const { data: templateRow } = await admin
         .from('events')
-        .select('id, organizer_id, title, description, location, all_day, timezone, category, routine_id, routine_snapshot, league_id, club_id, venue_id, facility_id')
+        .select('id, organizer_id, title, description, location, all_day, timezone, category, routine_id, routine_snapshot, league_id, club_id, division_id, team_id, venue_id, facility_id')
         .eq('series_id', series.id)
         .eq('series_override', false)
         .eq('status', 'active')
@@ -139,7 +141,7 @@ export async function extendRecurringSeries(
         .maybeSingle();
       const { data: latestAny } = await admin
         .from('events')
-        .select('id, organizer_id, title, description, location, all_day, timezone, category, routine_id, routine_snapshot, league_id, club_id, venue_id, facility_id')
+        .select('id, organizer_id, title, description, location, all_day, timezone, category, routine_id, routine_snapshot, league_id, club_id, division_id, team_id, venue_id, facility_id')
         .eq('series_id', series.id)
         .order('starts_at', { ascending: false })
         .limit(1)
@@ -188,6 +190,8 @@ export async function extendRecurringSeries(
           routine_snapshot: template.routine_snapshot,
           league_id: template.league_id,
           club_id: template.club_id,
+          division_id: template.division_id,
+          team_id: template.team_id,
           venue_id: template.venue_id,
           facility_id: template.facility_id,
         },

@@ -18,7 +18,7 @@ const FUTURE_WINDOW_MS = 183 * 86_400_000;
 const FEED_LIMIT = 500;
 
 const FEED_EVENT_FIELDS =
-  'id, title, description, location, starts_at, ends_at, all_day, timezone, status, updated_at, cancelled_at, league_id, club_id, venue_id, facility_id';
+  'id, title, description, location, starts_at, ends_at, all_day, timezone, status, updated_at, cancelled_at, league_id, club_id, division_id, team_id, venue_id, facility_id';
 
 export function generateFeedToken(): string {
   return randomBytes(32).toString('base64url'); // 43 chars
