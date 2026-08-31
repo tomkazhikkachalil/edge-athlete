@@ -15,8 +15,9 @@
 // grants, not audience). v1 runs dormant: nothing mints sub-org rows yet.
 
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { FEATURE_FLAGS } from '@/lib/features';
 import { isMissingTableError } from '@/lib/leagues/validate';
-import { memberOrgIds } from '@/lib/orgs/members';
+import { memberOrgIds, rosterOrgIds } from '@/lib/orgs/members';
 import { viewerScopeSet } from '@/lib/orgs/scoped-members';
 import { EVENT_FIELDS } from './detail-server';
 
@@ -94,11 +95,15 @@ export async function fetchOrgEventsForViewer(
 ): Promise<OrgMergedEvent[]> {
   const fields = options.fields ?? EVENT_FIELDS;
 
-  // 0.10 puts the kind='roster' predicate on THIS membership read (via a
-  // roster-only variant in orgs/members.ts) — and nowhere else.
+  // 0.10: the kind='roster' predicate lives on THIS membership read and
+  // nowhere else. Flag OFF = today's kind-blind merge exactly; flag ON =
+  // only active roster rows place events (follow members still see org
+  // pages and opt in by RSVP — their guest rows stay authoritative either
+  // way, so pre-flip RSVPs are never retroactively removed).
+  const rosterOnly = FEATURE_FLAGS.FEATURE_CALENDAR_ROSTER_ONLY;
   const [{ leagueIds: ownLeagueIds, clubIds: ownClubIds }, scopes] = await Promise.all([
-    memberOrgIds(admin, profileId),
-    viewerScopeSet(admin, profileId),
+    rosterOnly ? rosterOrgIds(admin, profileId) : memberOrgIds(admin, profileId),
+    viewerScopeSet(admin, profileId, { rosterOnly }),
   ]);
   // A team/division member also sees the OWNING org's events (child sees up).
   const leagueIds = [...new Set([...ownLeagueIds, ...scopes.leagueIds])];

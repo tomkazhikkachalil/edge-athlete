@@ -17,6 +17,7 @@ import {
   promoteFollowToOwner,
   redactPendingRoster,
   removeMember,
+  rosterOrgIds,
   setMemberRole,
 } from '../members';
 
@@ -356,5 +357,20 @@ describe('write filters keep legacy-shaped paths off future roster rows', () => 
     expect(await memberOrgIds(missing.admin, 'me')).toEqual({ leagueIds: [], clubIds: [] });
     const broken = mockAdmin({ memberships: { data: null, error: { code: '57014' } } });
     await expect(memberOrgIds(broken.admin, 'me')).rejects.toEqual({ code: '57014' });
+  });
+
+  it('rosterOrgIds (0.10) pins kind=roster + status=active on top of the org scope', async () => {
+    const ok = mockAdmin({
+      memberships: { data: [{ league_id: 'l1', club_id: null }], error: null },
+    });
+    expect(await rosterOrgIds(ok.admin, 'me')).toEqual({ leagueIds: ['l1'], clubIds: [] });
+    expect(ok.calls[0].filters).toEqual({
+      profile_id: 'me',
+      scope_type: 'org',
+      kind: 'roster',
+      status: 'active',
+    });
+    const missing = mockAdmin({ memberships: { data: null, error: { code: '42P01' } } });
+    expect(await rosterOrgIds(missing.admin, 'me')).toEqual({ leagueIds: [], clubIds: [] });
   });
 });

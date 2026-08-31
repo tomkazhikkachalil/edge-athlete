@@ -240,8 +240,9 @@ export function redactPendingRoster(
 // ── Reads (the enumeration layer promised by orgs/authz.ts) ─────────────────
 // Multi-row aware (0.3): a profile may hold BOTH a follow row and a roster
 // row per org, so role reads reduce with maxOrgRole and enumeration reads
-// dedupe. Enumeration keeps NO kind predicate — 0.10 adds the kind='roster'
-// predicate to the CALENDAR MERGE's caller only. The member-list/count
+// dedupe. Enumeration keeps NO kind predicate except `rosterOrgIds` — the
+// 0.10 calendar-merge placement variant, used by org-merge-server behind
+// FEATURE_CALENDAR_ROSTER_ONLY and nowhere else. The member-list/count
 // queries filter kind='follow' (roster ⊆ follow: one row per person).
 // ORG-SCOPED BY CHARTER (0.5): every read here pins scope_type='org' —
 // division/team-scoped rows (145+) are a different authority surface and
@@ -278,6 +279,32 @@ export async function memberOrgIds(
     .select('league_id, club_id')
     .eq('profile_id', profileId)
     .eq('scope_type', 'org');
+  if (error) {
+    if (isMissingTableError(error.code)) return { leagueIds: [], clubIds: [] };
+    throw error;
+  }
+  const rows = (data ?? []) as Array<{ league_id: string | null; club_id: string | null }>;
+  return {
+    leagueIds: [...new Set(rows.map(r => r.league_id).filter((id): id is string => !!id))],
+    clubIds: [...new Set(rows.map(r => r.club_id).filter((id): id is string => !!id))],
+  };
+}
+
+/** The 0.10 roster-only variant — the CALENDAR MERGE's placement read and
+ *  nothing else (org-peers keeps the kind-blind memberOrgIds: the lens is
+ *  a scope, not a grant). ACTIVE roster rows only: a pending offer must
+ *  never place events. Same degrade policy as memberOrgIds. */
+export async function rosterOrgIds(
+  admin: Admin,
+  profileId: string
+): Promise<{ leagueIds: string[]; clubIds: string[] }> {
+  const { data, error } = await admin
+    .from('memberships')
+    .select('league_id, club_id')
+    .eq('profile_id', profileId)
+    .eq('scope_type', 'org')
+    .eq('kind', 'roster')
+    .eq('status', 'active');
   if (error) {
     if (isMissingTableError(error.code)) return { leagueIds: [], clubIds: [] };
     throw error;
