@@ -41,6 +41,21 @@ interface ContestRow {
   participants: ParticipantRow[];
 }
 
+interface StandingRowUi {
+  entry_id: string;
+  rank: number;
+  points: number | null;
+  played: number;
+  stats: Record<string, number>;
+  entrant_name: string;
+}
+
+interface StandingsColumnUi {
+  key: string;
+  label: string;
+  shortLabel: string;
+}
+
 interface CompetitionInfo {
   id: string;
   name: string;
@@ -66,6 +81,8 @@ export default function CompetitionDetailPage() {
   const [competition, setCompetition] = useState<CompetitionInfo | null>(null);
   const [entries, setEntries] = useState<EntryRow[]>([]);
   const [contests, setContests] = useState<ContestRow[]>([]);
+  const [standings, setStandings] = useState<StandingRowUi[]>([]);
+  const [standingsColumns, setStandingsColumns] = useState<StandingsColumnUi[]>([]);
   const [reloadKey, setReloadKey] = useState(0);
 
   // Create form
@@ -97,6 +114,8 @@ export default function CompetitionDetailPage() {
         setCompetition(body.competition ?? null);
         setEntries(body.entries ?? []);
         setContests(body.contests ?? []);
+        setStandings(body.standings ?? []);
+        setStandingsColumns(body.standingsColumns ?? []);
       } catch {
         if (!cancelled) setAuthorized(false);
       }
@@ -472,6 +491,50 @@ export default function CompetitionDetailPage() {
             </ul>
           )}
         </section>
+
+        {/* Standings (R3) — the materialized table, columns drawn blindly
+            from the scoring rule. Wide tables scroll inside their own
+            container (the house overflow rule). */}
+        {standings.length > 0 && standingsColumns.length > 0 && (
+          <section
+            aria-label="Standings"
+            className="bg-surface rounded-lg shadow-sm border border-border p-4 sm:p-6"
+          >
+            <h2 className="text-lg font-semibold text-primary mb-4">Standings</h2>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-left text-xs text-muted">
+                    <th className="py-1.5 pr-2 font-medium">#</th>
+                    <th className="py-1.5 pr-3 font-medium">Team</th>
+                    {standingsColumns.map(col => (
+                      <th key={col.key} className="py-1.5 px-2 font-medium text-right" title={col.label}>
+                        {col.shortLabel}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {standings.map(row => (
+                    <tr key={row.entry_id} className="border-t border-border-subtle">
+                      <td className="py-1.5 pr-2 text-muted">{row.rank}</td>
+                      <td className="py-1.5 pr-3 font-medium text-primary">{row.entrant_name}</td>
+                      {standingsColumns.map(col => (
+                        <td key={col.key} className="py-1.5 px-2 text-right text-secondary">
+                          {col.key === 'played'
+                            ? row.played
+                            : col.key === 'points'
+                              ? (row.points ?? 0)
+                              : (row.stats[col.key] ?? 0)}
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </section>
+        )}
       </main>
 
       <ConfirmModal
