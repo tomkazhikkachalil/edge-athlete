@@ -42,25 +42,30 @@ export default function YourOrgsCard() {
               ? SPORT_REGISTRY[org.sport_key as keyof typeof SPORT_REGISTRY]?.display_name ?? org.sport_key
               : null;
             return (
-              <li key={`${org.kind}-${org.id}`}>
+              // Two SIBLING links per row (never nested anchors): the org
+              // page, and — for owners/managers — the console (phase 1).
+              <li key={`${org.kind}-${org.id}`} className="flex items-center gap-1 min-w-0">
                 <Link
                   href={org.kind === 'league' ? `/league/${org.id}` : `/club/${org.id}`}
-                  className="flex items-center gap-2 p-2 rounded-lg hover:bg-surface-muted transition-colors min-w-0"
+                  className="flex items-center gap-2 p-2 rounded-lg hover:bg-surface-muted transition-colors min-w-0 flex-1"
                 >
                   <i
                     className={`fas ${org.kind === 'league' ? 'fa-trophy' : 'fa-building'} text-brand-fg text-sm shrink-0`}
                     aria-hidden="true"
                   ></i>
                   <span className="text-sm font-medium text-primary truncate">{org.name}</span>
-                  {org.role !== 'member' && (
-                    <span className="ml-auto text-[10px] font-semibold text-brand-fg uppercase shrink-0">
-                      {org.role}
-                    </span>
-                  )}
                   {org.role === 'member' && sport && (
                     <span className="ml-auto text-xs text-muted shrink-0">{sport}</span>
                   )}
                 </Link>
+                {org.role !== 'member' && (
+                  <Link
+                    href={`/app/org/${org.kind}/${org.id}`}
+                    className="text-[10px] font-semibold text-brand-fg uppercase shrink-0 px-2 py-1.5 rounded-md hover:bg-brand-soft transition-colors"
+                  >
+                    Manage
+                  </Link>
+                )}
               </li>
             );
           })}
