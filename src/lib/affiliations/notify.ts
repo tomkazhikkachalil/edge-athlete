@@ -17,6 +17,8 @@ export interface AffiliationInviteNotification {
   initiatedBy: 'league' | 'club';
   /** The RECIPIENT's own org page, where Accept lives. */
   actionUrl: string;
+  /** 143's vocabulary — carried in metadata; titles stay name-only. */
+  affiliationType: 'partner_of' | 'member_of' | 'sanctioned_by';
 }
 
 export async function notifyAffiliationInvite(
@@ -35,7 +37,7 @@ export async function notifyAffiliationInvite(
       message: null,
       action_url: n.actionUrl,
       is_read: false,
-      metadata: { initiated_by: n.initiatedBy },
+      metadata: { initiated_by: n.initiatedBy, affiliation_type: n.affiliationType },
     });
     if (error) console.error('[AFFILIATION NOTIFY] invite failed:', error);
   } catch (e) {
@@ -50,6 +52,7 @@ export interface AffiliationUpdateNotification {
   clubName: string;
   outcome: 'accepted' | 'declined' | 'dissolved';
   actionUrl: string;
+  affiliationType: 'partner_of' | 'member_of' | 'sanctioned_by';
 }
 
 export async function notifyAffiliationUpdate(
@@ -71,7 +74,7 @@ export async function notifyAffiliationUpdate(
       message: null,
       action_url: n.actionUrl,
       is_read: false,
-      metadata: { outcome: n.outcome },
+      metadata: { outcome: n.outcome, affiliation_type: n.affiliationType },
     });
     if (error) console.error('[AFFILIATION NOTIFY] update failed:', error);
   } catch (e) {

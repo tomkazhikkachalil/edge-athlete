@@ -23,12 +23,15 @@ interface AffOrg {
   country?: string | null;
 }
 
+type AffiliationType = 'partner_of' | 'member_of' | 'sanctioned_by';
+
 interface AffRow {
   league_id: string;
   club_id: string;
   status: string;
   initiated_by: string;
   created_at: string;
+  affiliation_type?: AffiliationType | null;
   org: AffOrg | null;
 }
 
@@ -53,6 +56,7 @@ export default function AffiliationSection({ side, orgId }: AffiliationSectionPr
 
   const [data, setData] = useState<AffData | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
+  const [inviteType, setInviteType] = useState<AffiliationType>('partner_of');
   const [inviteQuery, setInviteQuery] = useState('');
   const [inviteResults, setInviteResults] = useState<AffOrg[]>([]);
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -105,7 +109,7 @@ export default function AffiliationSection({ side, orgId }: AffiliationSectionPr
       const response = await fetch(base, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ [targetKey]: target.id }),
+        body: JSON.stringify({ [targetKey]: target.id, affiliationType: inviteType }),
       });
       const body = await response.json();
       if (!response.ok) {
@@ -174,6 +178,23 @@ export default function AffiliationSection({ side, orgId }: AffiliationSectionPr
     }
   };
 
+  // 143 chips. Direction reads from the CLUB's side (the club is a
+  // member_of / sanctioned_by the league); labels phrase per viewing side.
+  // Shown for every type — the partner_of backfill stays visible.
+  const typeLabel = (t: AffiliationType | null | undefined) => {
+    const type = t ?? 'partner_of';
+    if (side === 'league') {
+      return type === 'member_of' ? 'Member club' : type === 'sanctioned_by' ? 'Sanctioned club' : 'Partner';
+    }
+    return type === 'member_of' ? 'Member of' : type === 'sanctioned_by' ? 'Sanctioned by' : 'Partner';
+  };
+
+  const typeChip = (row: AffRow) => (
+    <span className="px-1.5 py-0.5 text-[10px] rounded-full bg-surface-sunken text-secondary shrink-0">
+      {typeLabel(row.affiliation_type)}
+    </span>
+  );
+
   const orgLine = (org: AffOrg | null) => {
     if (!org) return null;
     const sport = org.sport_key
@@ -199,7 +220,10 @@ export default function AffiliationSection({ side, orgId }: AffiliationSectionPr
             return (
               <li key={targetId} className="flex items-center justify-between gap-3 p-2 rounded-lg hover:bg-surface-muted">
                 <Link href={otherPath(targetId)} className="min-w-0 flex-1">
-                  <p className="font-medium text-primary truncate">{row.org?.name ?? 'Unknown'}</p>
+                  <p className="flex items-center gap-1.5 min-w-0">
+                    <span className="font-medium text-primary truncate">{row.org?.name ?? 'Unknown'}</span>
+                    {typeChip(row)}
+                  </p>
                   {orgLine(row.org) && <p className="text-sm text-muted truncate">{orgLine(row.org)}</p>}
                 </Link>
                 {data.viewerIsManager && (
@@ -230,7 +254,10 @@ export default function AffiliationSection({ side, orgId }: AffiliationSectionPr
                   const targetId = side === 'league' ? row.club_id : row.league_id;
                   return (
                     <li key={targetId} className="flex items-center justify-between gap-3 p-2 border border-border rounded-lg">
-                      <p className="font-medium text-primary truncate">{row.org?.name ?? 'Unknown'}</p>
+                      <p className="flex items-center gap-1.5 min-w-0">
+                        <span className="font-medium text-primary truncate">{row.org?.name ?? 'Unknown'}</span>
+                        {typeChip(row)}
+                      </p>
                       <div className="flex gap-2 shrink-0">
                         <button
                           type="button"
@@ -264,7 +291,10 @@ export default function AffiliationSection({ side, orgId }: AffiliationSectionPr
                   const targetId = side === 'league' ? row.club_id : row.league_id;
                   return (
                     <li key={targetId} className="flex items-center justify-between gap-3 p-2 border border-border rounded-lg">
-                      <p className="font-medium text-primary truncate">{row.org?.name ?? 'Unknown'}</p>
+                      <p className="flex items-center gap-1.5 min-w-0">
+                        <span className="font-medium text-primary truncate">{row.org?.name ?? 'Unknown'}</span>
+                        {typeChip(row)}
+                      </p>
                       <button
                         type="button"
                         disabled={busyId === targetId}
@@ -284,6 +314,20 @@ export default function AffiliationSection({ side, orgId }: AffiliationSectionPr
             <label htmlFor={`aff-invite-${orgId}`} className="block text-sm font-medium text-secondary mb-1">
               {side === 'league' ? 'Affiliate a club' : 'Request a league'}
             </label>
+            <select
+              value={inviteType}
+              onChange={e => setInviteType(e.target.value as AffiliationType)}
+              aria-label="Affiliation type"
+              className="w-full mb-2 px-3 py-2 border border-border-strong rounded-md outline-none text-sm"
+            >
+              <option value="partner_of">Partner</option>
+              <option value="member_of">
+                {side === 'league' ? 'The club is a member of this league' : 'Member of the league'}
+              </option>
+              <option value="sanctioned_by">
+                {side === 'league' ? 'This league sanctions the club' : 'Sanctioned by the league'}
+              </option>
+            </select>
             <input
               id={`aff-invite-${orgId}`}
               type="text"
