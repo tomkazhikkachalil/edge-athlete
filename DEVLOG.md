@@ -1,5 +1,35 @@
 # Development Log
 
+## August 31, 2026 — Phase-0 cleanup: the soak fallback dies, the legacy tables drop (mig 148, #410)
+
+The two debts phase 0 recorded, paid the same day it closed.
+
+- **getOrgRole is rows-ONLY.** The 0.8 soak fallback and its ownerProfileId
+  parameter are gone — the owner column is now purely a display/notification
+  cache, granting nothing anywhere. The org fetches that existed solely to
+  feed the parameter died with it (detail-server's two access legs, the
+  RSVP gate — one query fewer per scoped read), and the household leg's
+  cache check was redundant with anyMembershipExists post-144. The unit
+  canaries inverted: zero rows + a cache hit now resolves to NO role.
+- **Migration 148** drops league_members/club_members. Frozen since the 0.2
+  read-switch, zero code references (the last was a comment), and the final
+  divergence pass read CLEAN — including zero rows in both legacy tables
+  AND memberships' org rows, prod org data being QA-windowed, which is the
+  same ground the 0.2 soak waiver stood on (Tom's call, again). The
+  pre-flight re-runs the divergence check and ABORTS the transaction on
+  any mismatch; every legacy-table reference is dynamic SQL so the
+  migration stays re-runnable after the drop. Not order-strict.
+- **Deliberately NOT retired:** both 0.10 flags.
+  NEXT_PUBLIC_FEATURE_ROSTER_GUARDIAN_GATE was set in Vercel today (no
+  soak yet) and NEXT_PUBLIC_FEATURE_CALENDAR_ROSTER_ONLY waits for phase 1
+  by design. Flag retirement is its own later cleanup.
+- **Verification.** Verify green (197 files, 2297 tests; lint 0). Post-
+  deploy org + guardian e2e vs prod: 7/7 passed. FINDING: guardian-roster
+  still self-skips on prod — the freshly-built deploy does NOT carry the
+  roster-gate flag Tom set, which matches the known Vercel env-injection
+  trap (media-privacy arc): verify Production scope, then delete + re-add
+  + redeploy if needed.
+
 ## August 31, 2026 — Step 0.10: the guardian roster gate (mig 147, #407 + #408) — PHASE 0 COMPLETE
 
 The last phase-0 step, and the one the whole program was ordered around:
