@@ -1,5 +1,63 @@
 # Development Log
 
+## August 30, 2026 — Steps 0.4 + 0.6a + 0.7: venues, capability flags, typed affiliations (migs 141–143, #395–#397)
+
+The three parallel-anytime phase-0 steps as one batch — three additive
+migrations, three file-disjoint PRs, merged serially after Tom ran all
+three grids (141: 12× true, 142: 6× true, 143: 3× true).
+
+- **0.4 (#395, mig 141).** The venue/org split becomes schema: `venues`
+  (orphan allowed — the owning-org two-FK pair may be entirely NULL;
+  `golf_club_id` LINKS the 125 reference catalog, never unifies it) +
+  `facilities` (CASCADE; `kind` free text v1 — a taxonomy CHECK is a later
+  product decision). `events.venue_id/facility_id` land in the 119 shape
+  with a facility-requires-venue CHECK; the airtight composite same-venue
+  FK is documented in 141's header and ships with the picker. **All seven
+  explicit event field lists + CalendarEventRow + the series template and
+  occurrence insert widened in the same PR** — the 119 silent-drop class
+  closed before any writer exists. v1 surface = the admin console only
+  (/dashboard/venues: create with inline facilities, PlacePicker,
+  golf-club typeahead, ConfirmModal delete) + /api/admin/venues* routes;
+  org/manager venue UX arrives with phase 1's dashboard.
+- **0.6a (#396, mig 142).** Capability flags as columns on BOTH org tables
+  (org unification stays deferred): leagues → operates_competitions
+  default true; clubs → operates_teams default true; NOT NULL DEFAULT is
+  the backfill. Read-only v1: org GET APIs + admin console chips; the
+  Update zod schemas' strip behavior makes a client-sent flag a silent
+  no-op by design (commented on both schemas).
+- **0.7 (#397, mig 143).** `league_clubs.affiliation_type` (partner_of |
+  member_of | sanctioned_by; district_of waits for org unification;
+  backfill = the default). Direction convention documented: the type reads
+  FROM THE CLUB'S side. The invite flow gains a side-aware picker — placed
+  ABOVE the typeahead because clicking a candidate POSTs immediately —
+  and type chips on all three row groups on both org pages (partner_of
+  shown, so the backfill stays visible). Threaded through the insert, the
+  explicit GET/row selects (the UI-never-sees-it trap), and both
+  notifiers' METADATA (titles untouched; zero notifications CHECK
+  changes). One-edge-per-pair PK stands; affiliation still grants nothing.
+- **Two working-tree traps for the file.** (1) Three ORDER-STRICT PRs =
+  three branches each holding only its own migration — Tom's editor showed
+  only 143 until the three files were materialized on main as untracked
+  copies (removed before the post-merge pull, which would otherwise refuse
+  to overwrite them). (2) The e2e chip locators are exact-match on purpose:
+  the picker's own option text ("Member of the league") substring-collides
+  with the chip ("Member of").
+- **Verification.** Verify green per PR (#395: 2253; #396: 2249; #397:
+  2250; lint 0 throughout; the .next stale-types trap hit once per branch
+  switch — rm -rf .next). Prod probes after the serial merge + deploy:
+  extended affiliation e2e **1/1** vs prod (member_of picked, chips
+  pending → incoming → active, DB row + notification metadata); flags
+  probe **4/4** (backfill both sides via app GETs, smuggled
+  `operates_teams: true` PATCH → 200 with the flag UNCHANGED); venues
+  console **10/10** via the local-ADMIN_EMAILS spawn (golf typeahead —
+  where q=kanata correctly returns 0: golf_clubs holds only the 32
+  multi-course clubs — orphan create with inline facilities + golf link,
+  list hydration, facility add/delete, no-cookie 401, delete cascade);
+  org-calendar + org-events **2/2** vs prod (the widened field lists
+  regression); 375px screenshot passes of the venues console and the
+  affiliation section (zero overflow; the "N" badge in the console shot is
+  the Next.js dev overlay from the local spawn, not a product element).
+
 ## August 30, 2026 — Step 0.3: roster offers, and the follow/roster split becomes real (#391–#393, zero DDL)
 
 Migration 140's front-loaded `kind='roster'` / `status='pending'` CHECKs paid
