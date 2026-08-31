@@ -122,6 +122,9 @@ export default function OrgConsolePage() {
   // only — the leaderboard flow arrives with its round (R5); the API
   // already accepts both.
   const [competitions, setCompetitions] = useState<CompetitionRow[]>([]);
+  const [affiliatedTeams, setAffiliatedTeams] = useState<
+    { id: string; name: string; club_name: string }[]
+  >([]);
   const [compName, setCompName] = useState('');
   const [compSeasonId, setCompSeasonId] = useState('');
   const [compDivisionId, setCompDivisionId] = useState('');
@@ -162,7 +165,10 @@ export default function OrgConsolePage() {
         // renders the section empty rather than blocking the console.
         if (competitionsRes.ok) {
           const compBody = await competitionsRes.json();
-          if (!cancelled) setCompetitions(compBody.competitions ?? []);
+          if (!cancelled) {
+            setCompetitions(compBody.competitions ?? []);
+            setAffiliatedTeams(compBody.affiliatedTeams ?? []);
+          }
         }
       } catch {
         if (!cancelled) setAuthorized(false);
@@ -1005,6 +1011,50 @@ export default function OrgConsolePage() {
                           className="inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded-full bg-surface-sunken text-secondary"
                         >
                           {entry.entrant_name}
+                          {entry.status === 'pending' && (
+                            <>
+                              <span className="text-amber-600">pending</span>
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  void act(
+                                    `/api/${plural}/${orgId}/competitions/entries`,
+                                    {
+                                      method: 'PATCH',
+                                      headers: { 'Content-Type': 'application/json' },
+                                      body: JSON.stringify({ entryId: entry.id, decision: 'approved' }),
+                                    },
+                                    'Entry approved',
+                                    'Failed to approve'
+                                  )
+                                }
+                                aria-label={`Approve ${entry.entrant_name}`}
+                                className="text-emerald-600 hover:text-emerald-700"
+                              >
+                                <i className="fas fa-check" aria-hidden="true"></i>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  void act(
+                                    `/api/${plural}/${orgId}/competitions/entries`,
+                                    {
+                                      method: 'PATCH',
+                                      headers: { 'Content-Type': 'application/json' },
+                                      body: JSON.stringify({ entryId: entry.id, decision: 'rejected' }),
+                                    },
+                                    'Entry declined',
+                                    'Failed to decline'
+                                  )
+                                }
+                                aria-label={`Decline ${entry.entrant_name}`}
+                                className="text-muted hover:text-red-600"
+                              >
+                                <i className="fas fa-ban" aria-hidden="true"></i>
+                              </button>
+                            </>
+                          )}
+                          {entry.status === 'rejected' && <span className="text-muted">declined</span>}
                           <button
                             type="button"
                             onClick={() =>
@@ -1022,7 +1072,7 @@ export default function OrgConsolePage() {
                           </button>
                         </span>
                       ))}
-                      {activeTeams.length > 0 && (
+                      {(activeTeams.length > 0 || affiliatedTeams.length > 0) && (
                         <select
                           value=""
                           onChange={e => {
@@ -1045,6 +1095,15 @@ export default function OrgConsolePage() {
                           {activeTeams.map(t => (
                             <option key={t.id} value={t.id}>{t.name}</option>
                           ))}
+                          {affiliatedTeams.length > 0 && (
+                            <optgroup label="Affiliated clubs (enter as pending)">
+                              {affiliatedTeams.map(t => (
+                                <option key={t.id} value={t.id}>
+                                  {t.name} — {t.club_name}
+                                </option>
+                              ))}
+                            </optgroup>
+                          )}
                         </select>
                       )}
                     </div>

@@ -127,6 +127,13 @@ export const ResultUpsertSchema = z.object({
 });
 export type ResultUpsertInput = z.infer<typeof ResultUpsertSchema>;
 
+/** R4: the owner decides a pending cross-org entry. */
+export const EntryDecideSchema = z.object({
+  entryId: uuid,
+  decision: z.enum(['approved', 'rejected']),
+});
+export type EntryDecideInput = z.infer<typeof EntryDecideSchema>;
+
 /** One entrant, kind-matched to the competition's entrant_type in the
  *  server lib (never trusted from the client). */
 export const EntryAddSchema = z
