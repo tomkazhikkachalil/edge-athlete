@@ -1,5 +1,54 @@
 # Development Log
 
+## September 1, 2026 — Phase 2 round 3: standings + THE PROJECTION SPIKE (mig 153, #434–#437)
+
+Standings materialize (Tom's decision: §3.3's "(materialized)" over the
+WHS read-time precedent — the table IS the phase-3 projection artifact),
+and the spike phase 3 blocks on ran to a measured verdict.
+
+- **The engine (#434).** `competitions/scoring.ts` is pure (the
+  formats.ts charter): declarative points tables (2-1-0 hockey default,
+  3-1-0 soccer), the tiebreaker chain (points → wins → diff → GF →
+  stable id, full ties SHARE rank), adapter-declared columns renderers
+  draw blindly; unknown rule keys fall back to the sport default.
+  `standings.ts` rewrites the whole competition per write (upsert +
+  prune, chunked ≤500) from best-effort hooks on results/contests/
+  entries; `POST /api/admin/competitions/recompute?id=` heals drift.
+- **The spike (#435), three surfaces:** the viewer-independent
+  `/api/{side}s/[id]/standings` (#303 recipe; authz-audit allowlisted);
+  `OrgStandings` sections on both public org pages; and
+  `/league/[id]/standings` — **the repo's first server-component data
+  page and first generateMetadata**, team names in the raw HTML.
+- **THE SPIKE VERDICT (measured on prod, Sep 1):**
+  - *A — dynamic SSR as-is:* WORKS. Anon TTFB 0.49–1.21s (median ~0.6s),
+    `x-vercel-cache: MISS` always, fully crawlable HTML + metadata.
+  - *B — middleware carve-out* (`PUBLIC_STANDINGS_CACHE=1`, temporarily
+    flipped, now removed): the static nonce-free CSP went live and the
+    page rendered with ZERO violations; skipping the auth round trip
+    tightened TTFB to 0.41–0.65s. **But the document never cached:
+    Next's dynamic renderer stamps `private, no-store` OVER the
+    middleware's Cache-Control** — the root layout's `headers()` read
+    keeps every page dynamic, so document-level CDN caching is
+    unreachable by middleware alone. Also learned: `vercel redeploy`
+    reuses built artifacts, so env changes need a REAL build (the
+    env-injection trap, third sighting).
+  - *C — cached API + client render:* PROVEN. The standings API's second
+    hit is `x-vercel-cache: HIT` (age: 1); Vercel consumes s-maxage/SWR
+    and rewrites the client-facing header to bare `public` (assert
+    x-vercel-cache on prod, the directive locally — the spec encodes
+    both, plus the prime-then-assert cache-bust trap, #436/#437).
+  - **Phase-3 mechanism decision: A + C.** Public pages render as
+    dynamic server components (correct, crawlable, ~0.6s — acceptable),
+    with data reads behind #303-cached APIs where shared; document-level
+    CDN caching requires a DEDICATED PUBLIC SEGMENT whose layout does
+    not read `headers()` (its own nonce-free-or-hashed CSP) — that
+    restructure is phase 3's first work item, not a middleware trick.
+    The carve-out code stays (flag off, kill-switch semantics) as the
+    experiment record.
+- Verification: verify green ×2 + two spec-fix PRs; e2e 1/1 local + 1/1
+  vs prod (materialized truth, anon API, raw-HTML crawlability proof,
+  org sections, 375px, private competitions vanish under cache-bust).
+
 ## August 31, 2026 — Phase 2 round 2: contests, results, the calendar mirror (mig 152, #430–#432)
 
 Games get scheduled and scored. Mig 152 mints contests / contest_participants
