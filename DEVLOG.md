@@ -1,5 +1,52 @@
 # Development Log
 
+## August 31, 2026 — Steps 0.6b + 0.9: derived org sports, event scope polymorphism (mig 146, #404 + #405)
+
+The last two structural steps before 0.10. Tom's decisions: STRICT
+calendar audience (parent-implies-child applies to grants, not audience);
+the sub-org picker ships ungated and "naturally empty" (only orgs with
+structure offer it); the org public page DOES list child-scope events
+(page visibility ≠ calendar placement); 0.6b = derive + cache refresh.
+
+- **0.6b (#404, zero DDL).** Sport identity derives from the division
+  structure: both org GETs return `sports[]` (division sports ∪ the
+  league's cached primary, cached first; clubs derive only — no sport
+  column by 117 decision) and both org pages render the multi-sport
+  Trophy chip. `refreshLeagueSportCache` (recomputePrimaryOwner
+  conventions: never NULLs, warn-and-continue) rewrites `leagues.sport_key`
+  on division create/delete + season delete ONLY when the cache left the
+  division-sport set — most-common wins, alphabetical tie-break — and the
+  113/115 triggers resync search/facets for free. Explore's client-side
+  single-sport filter stays as-is (phase-1 note).
+- **0.9 (#405, mig 146, order-strict — grid 8× true).** events gain
+  division_id/team_id (SET NULL — events outlive structure);
+  `events_one_org_check` RENAMED to `events_one_scope_check`
+  (num_nonnulls of 4). `resolveEventScope` replaces all six
+  `league_id ?? club_id` coalesce sites (POST/PATCH gates, detail access
+  both legs, RSVP materialization, cancel broadcast, detail org badge) —
+  the owning org comes off the structure row's denormalized org pair, the
+  one-read property 145 bought. The merge computes the viewer's scope set
+  via `orgs/scoped-members.ts` (members.ts charter forbids sub-org scopes
+  there): team row → team + entered divisions + owning org; org-only rows
+  never see child scopes. Dormant v1 — nothing mints sub-org membership
+  rows until 0.10/phase 1. Scoped events notify SCOPED members only; the
+  event form gains a division/team select fed by the org-manager-gated
+  `/structure-options` twin routes. All seven field lists,
+  CalendarEventRow, OccurrenceEventFields and the three hand-built insert
+  templates widened (the 119 silent-drop lesson, applied preemptively).
+- **Verification.** Verify green both PRs (197 files, 2294 tests, +31 on
+  the round; lint 0). Probe battery 20/20 app-correct via the spawn
+  recipe: cache flip golf→ice_hockey on the first division + stability
+  once back in-set, derived sports[] both-sports, structure-options
+  owner/403 matrix, two-scopes 400 + raw 23514, strict-audience negative
+  (org-only member does NOT merge the team event), scoped-row merge with
+  org_name, detail + RSVP for the scoped member, org page listing,
+  re-home both directions, cancel fan-out (guest-row holder correctly
+  excluded from team_update, got event_cancelled). e2e vs prod 7/7 incl.
+  the new `event-scopes.spec.ts`. 375px + desktop screenshots inspected:
+  league "Ice Hockey · Golf" chip row, form org+scope selects stacked
+  full-width.
+
 ## August 31, 2026 — Step 0.5: seasons, divisions, teams — the program structure (mig 145, #401 + #402)
 
 The tables the masterplan's phases 1–5 stand on: `seasons` (per-org, the
