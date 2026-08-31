@@ -124,7 +124,7 @@ test('standings: recompute on results; public API + org section + SSR page; 375p
       // The org page's additive section renders for the anon viewer.
       await page.goto(`/league/${leagueId}`);
       await expect(page.getByRole('heading', { name })).toBeVisible({ timeout: 20_000 });
-      await expect(page.getByRole('heading', { name: 'Standings' })).toBeVisible({ timeout: 15_000 });
+      await expect(page.getByRole('heading', { name: 'Standings', exact: true })).toBeVisible({ timeout: 15_000 });
       await expect(page.getByText('Full standings →')).toBeVisible();
 
       // The SSR page in a browser at 375px — usable, no overflow.
