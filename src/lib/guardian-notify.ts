@@ -35,7 +35,10 @@ export type GuardianNotificationType =
   | 'calendar_alert'
   // Wave 9 (mig 139): carpool coordination on calendar events.
   | 'carpool_offer'
-  | 'carpool_update';
+  | 'carpool_update'
+  // 0.10 (mig 147): an org offered a supervised athlete a roster spot —
+  // either-approves: the guardian queue and the child's own accept both work.
+  | 'roster_invite';
 
 export interface GuardianNotification {
   type: GuardianNotificationType;

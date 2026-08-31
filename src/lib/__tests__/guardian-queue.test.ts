@@ -369,6 +369,36 @@ describe('flattenInviteRows + calendar_invite items', () => {
     ]);
     expect(items[1]).toMatchObject({ id: 'g1', event: { id: 'e1', title: 'event e1' } });
   });
+
+  it('roster offers (0.10) surface as decide items after follows, org resolved by side', () => {
+    const follower = { id: 'p9', first_name: 'Pat', last_name: 'Q', full_name: null, handle: 'pq', avatar_url: null };
+    const items = buildQueueItems(
+      [kid('a')],
+      [],
+      [],
+      [{ id: 'f1', following_id: 'a', message: null, created_at: '2026-08-27T10:00:00Z', follower } as QueueFollowRow],
+      approvedConsent('a'),
+      [{ user_id: 'a', profile_id: 'a' }],
+      [],
+      [],
+      [],
+      null,
+      [],
+      [
+        { id: 'r2', profile_id: 'a', league_id: null, club_id: 'club-1', joined_at: '2026-08-28T10:00:00Z', orgName: 'Eagle Creek' },
+        { id: 'r1', profile_id: 'a', league_id: 'lg-1', club_id: null, joined_at: '2026-08-27T09:00:00Z', orgName: 'Spring League' },
+        // Unknown athlete rows are dropped, never crash the queue.
+        { id: 'rX', profile_id: 'ghost', league_id: 'lg-1', club_id: null, joined_at: '2026-08-27T09:00:00Z', orgName: 'Spring League' },
+      ]
+    );
+    expect(items.map(i => i.kind)).toEqual(['follow_request', 'roster_invite', 'roster_invite']);
+    expect(items[1]).toMatchObject({
+      id: 'r1',
+      org: { side: 'league', id: 'lg-1', name: 'Spring League' },
+      athlete: { id: 'a' },
+    });
+    expect(items[2]).toMatchObject({ id: 'r2', org: { side: 'club', id: 'club-1', name: 'Eagle Creek' } });
+  });
 });
 
 describe('AGING_BADGE_MS', () => {

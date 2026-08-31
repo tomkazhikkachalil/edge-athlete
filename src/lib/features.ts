@@ -43,6 +43,22 @@ export const FEATURE_FLAGS = {
   // after testing.
   FEATURE_CHAT_DOCK: process.env.NEXT_PUBLIC_FEATURE_CHAT_DOCK === '1',
 
+  // 0.10 flag 1 — guardian roster gate. OFF (unset) = the stricter state:
+  // supervised athletes can't be offered roster spots (403) and can't
+  // accept (403). ON = offers to supervised athletes create the pending
+  // row, bell the guardians (roster_invite), surface in the guardian
+  // queue, and EITHER the child or a guardian accepts. Migration 147 must
+  // be run before this is enabled anywhere.
+  FEATURE_ROSTER_GUARDIAN_GATE: process.env.NEXT_PUBLIC_FEATURE_ROSTER_GUARDIAN_GATE === '1',
+
+  // 0.10 flag 2 — roster-only calendar placement. OFF (unset) = today's
+  // kind-blind merge (every org member gets org events on their calendar).
+  // ON = only kind='roster' status='active' memberships place events
+  // (follow members still see org pages and can opt in by RSVP).
+  // ORDERING: flip this ONLY after orgs have converted members to roster
+  // (phase 1) — flipping it day one empties every org calendar.
+  FEATURE_CALENDAR_ROSTER_ONLY: process.env.NEXT_PUBLIC_FEATURE_CALENDAR_ROSTER_ONLY === '1',
+
   // Future feature flags can be added here
   // FEATURE_PUBLIC_PROFILES: false,
   // FEATURE_MESSAGING: false,

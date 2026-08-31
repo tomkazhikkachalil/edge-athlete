@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { requireAuth, getSupabaseAdmin } from '@/lib/auth-server';
+import { requireAuth, requireProfileRole, getSupabaseAdmin } from '@/lib/auth-server';
 import { enforceRateLimit } from '@/lib/rate-limit';
 import { parseBody } from '@/lib/validation';
 import { RosterAcceptSchema } from '@/lib/leagues/validate';
@@ -37,7 +37,10 @@ export async function POST(
   }
 }
 
-/** PATCH { action: 'accept' } — the athlete accepts their pending offer. */
+/** PATCH { action: 'accept', profileId? } — the athlete accepts their
+ *  pending offer; a guardian passes profileId to accept for their
+ *  supervised athlete (0.10, requireProfileRole-gated — the followers
+ *  route model). */
 export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -51,7 +54,12 @@ export async function PATCH(
     const parsed = await parseBody(request, RosterAcceptSchema);
     if (!parsed.success) return parsed.response;
 
-    return await rosterPatch(getSupabaseAdmin(), user, 'league', id);
+    let actingFor: string | undefined;
+    if (parsed.data.profileId && parsed.data.profileId !== user.id) {
+      await requireProfileRole(request, parsed.data.profileId, 'manage_privacy');
+      actingFor = parsed.data.profileId;
+    }
+    return await rosterPatch(getSupabaseAdmin(), user, 'league', id, actingFor);
   } catch (error) {
     if (error instanceof Response) return error;
     console.error('[ROSTER] PATCH error:', error);
@@ -59,7 +67,9 @@ export async function PATCH(
   }
 }
 
-/** DELETE [?profileId=] — self decline/leave, or manager cancel/remove. */
+/** DELETE [?profileId=[&as=guardian]] — self decline/leave, manager
+ *  cancel/remove, or (as=guardian, 0.10) a guardian declining/leaving for
+ *  their supervised athlete — requireProfileRole-gated, self-equivalent. */
 export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -75,8 +85,16 @@ export async function DELETE(
     if (profileId && !UUID_RE.test(profileId)) {
       return NextResponse.json({ error: 'profileId is required' }, { status: 400 });
     }
+    let guardianActing = false;
+    if (searchParams.get('as') === 'guardian') {
+      if (!profileId || profileId === user.id) {
+        return NextResponse.json({ error: 'profileId is required' }, { status: 400 });
+      }
+      await requireProfileRole(request, profileId, 'manage_privacy');
+      guardianActing = true;
+    }
 
-    return await rosterDelete(getSupabaseAdmin(), user, 'league', id, profileId);
+    return await rosterDelete(getSupabaseAdmin(), user, 'league', id, profileId, guardianActing);
   } catch (error) {
     if (error instanceof Response) return error;
     console.error('[ROSTER] DELETE error:', error);
