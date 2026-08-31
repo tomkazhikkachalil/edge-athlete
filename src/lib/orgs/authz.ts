@@ -48,11 +48,13 @@ export function maxOrgRole(roles: Array<string | null | undefined>): OrgRole | n
   return best;
 }
 
-/** The profile's role in an org: ROWS FIRST (0.8 — memberships rows are
- *  the authoritative ownership source; the org row's owner column is a
- *  primary-owner CACHE). A failed membership read yields null —
- *  deliberately: authorization degrades to "no role", never to a 500 here
- *  (routes 500 on the ORG fetch instead). */
+/** The profile's ORG role: MAX across their org-SCOPE rows (0.8 rows-first;
+ *  0.5 pins scope_type='org' — a division/team-scoped role must never leak
+ *  into org authorization; those scopes get their own readers with
+ *  0.9/roles). The org row's owner column is a primary-owner CACHE. A
+ *  failed membership read yields null — deliberately: authorization
+ *  degrades to "no role", never to a 500 here (routes 500 on the ORG
+ *  fetch instead). */
 export async function getOrgRole(
   admin: Admin,
   side: OrgSide,
@@ -65,7 +67,8 @@ export async function getOrgRole(
     .from('memberships')
     .select('role')
     .eq(idColumn, orgId)
-    .eq('profile_id', profileId);
+    .eq('profile_id', profileId)
+    .eq('scope_type', 'org');
   const role = maxOrgRole((data ?? []).map(r => r.role as string));
   if (role) return role;
   // Soak fallback — dies in a later cleanup once 144 has proven out. Fires
