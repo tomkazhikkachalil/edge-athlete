@@ -104,7 +104,8 @@ export async function competitionsAggregateGET(
       'id, season_id, division_id, sport_key, name, format, entrant_type, scoring_rule, status, visibility, created_at'
     )
     .eq(col, scope.orgId)
-    .order('created_at', { ascending: false });
+    .order('created_at', { ascending: false })
+    .limit(100);
   if (error) {
     if (isMissingTableError(error.code)) return NextResponse.json({ competitions: [] });
     console.error(`${TAG} list error:`, error);
@@ -117,6 +118,9 @@ export async function competitionsAggregateGET(
         .from('competition_entries')
         .select('id, competition_id, team_id, profile_id, status, seed, pool')
         .in('competition_id', competitionIds)
+        // Truncation past PostgREST's silent 1000 cap is data corruption
+        // on the console — bound it explicitly (stage-gate fix).
+        .limit(1000)
     : { data: [] };
 
   // Batched display names for both entrant kinds (no N+1).
@@ -610,7 +614,8 @@ export async function competitionDetailGET(
   const { data: entries } = await admin
     .from('competition_entries')
     .select('id, team_id, profile_id, status, seed, pool')
-    .eq('competition_id', competitionId);
+    .eq('competition_id', competitionId)
+    .limit(500);
 
   const teamIds = [...new Set((entries ?? []).map(e => e.team_id).filter(Boolean))] as string[];
   const profileIds = [...new Set((entries ?? []).map(e => e.profile_id).filter(Boolean))] as string[];
