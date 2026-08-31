@@ -88,6 +88,14 @@ export default function OrgConsolePage() {
   const [divisionGender, setDivisionGender] = useState('');
   const [divisionTier, setDivisionTier] = useState('');
   const [teamName, setTeamName] = useState('');
+  // Roster import (R3): per-team inline expander, the divisionSeasonId
+  // toggle precedent (never a modal — 375px).
+  const [importTeamId, setImportTeamId] = useState<string | null>(null);
+  const [importText, setImportText] = useState('');
+  const [importing, setImporting] = useState(false);
+  const [importReport, setImportReport] = useState<
+    { name: string; claimUrl: string | null; emailSent: boolean; error?: string }[] | null
+  >(null);
 
   useEffect(() => {
     if (!validSide || !user?.id) return;
@@ -231,6 +239,33 @@ export default function OrgConsolePage() {
     if (ok) setTeamName('');
   };
 
+  const runImport = async (teamId: string) => {
+    if (!importText.trim() || importing) return;
+    setImporting(true);
+    setImportReport(null);
+    try {
+      const response = await fetch(`/api/${plural}/${orgId}/roster-import`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ teamId, text: importText }),
+      });
+      const body = await response.json();
+      if (!response.ok) {
+        showError('Roster import', body.error || 'Import failed');
+        return;
+      }
+      setImportReport(body.report ?? []);
+      setImportText('');
+      showSuccess('Roster import', `${(body.report ?? []).filter((r: { error?: string }) => !r.error).length} athletes imported`);
+      refresh();
+    } catch (e) {
+      console.error('Roster import failed:', e);
+      showError('Roster import', 'Import failed');
+    } finally {
+      setImporting(false);
+    }
+  };
+
   const remove = (target: NonNullable<typeof confirmTarget>) => {
     const paths = { season: `${base}/seasons`, division: `${base}/divisions` } as const;
     void act(
@@ -326,6 +361,26 @@ export default function OrgConsolePage() {
             rosterAthleteCount: counts.rosterAthletes,
           }}
         />
+
+        {/* Roster (R3) — counts + the door; per-team import lives on the
+            team rows below. */}
+        <section
+          aria-label="Roster"
+          className="bg-surface rounded-lg shadow-sm border border-border p-4 sm:p-6"
+        >
+          <h2 className="text-lg font-semibold text-primary mb-1">Roster</h2>
+          <p className="text-sm text-tertiary">
+            {counts.rosterAthletes} rostered athlete{counts.rosterAthletes === 1 ? '' : 's'}.
+            Import athletes per team below — each import creates claimable profiles and
+            claim links to hand out.
+          </p>
+          <Link
+            href={`/${side}/${orgId}#members`}
+            className="mt-2 inline-block text-sm text-brand-fg hover:text-brand-fg-strong"
+          >
+            View members &amp; roster →
+          </Link>
+        </section>
 
         {/* Seasons & divisions — forked from the admin console; the org is
             the URL's, every write scope-pinned server-side. */}
@@ -598,27 +653,98 @@ export default function OrgConsolePage() {
                     <p className="font-medium text-primary">{team.name}</p>
                     {team.status === 'archived' && <p className="text-xs text-muted">Archived</p>}
                   </div>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      void act(
-                        `${base}/teams`,
-                        {
-                          method: 'PATCH',
-                          headers: { 'Content-Type': 'application/json' },
-                          body: JSON.stringify({
-                            id: team.id,
-                            status: team.status === 'active' ? 'archived' : 'active',
-                          }),
-                        },
-                        team.status === 'active' ? 'Team archived' : 'Team restored',
-                        'Failed to update team'
-                      )
-                    }
-                    className="px-2 py-1 text-xs rounded-md border border-border-strong text-secondary hover:bg-surface-sunken transition-colors shrink-0"
-                  >
-                    {team.status === 'active' ? 'Archive' : 'Restore'}
-                  </button>
+                  <div className="flex gap-2 shrink-0">
+                    {team.status === 'active' && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setImportTeamId(importTeamId === team.id ? null : team.id);
+                          setImportReport(null);
+                        }}
+                        className="px-2 py-1 text-xs rounded-md border border-border-strong text-secondary hover:bg-surface-sunken transition-colors"
+                      >
+                        {importTeamId === team.id ? 'Close import' : 'Import roster'}
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() =>
+                        void act(
+                          `${base}/teams`,
+                          {
+                            method: 'PATCH',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                              id: team.id,
+                              status: team.status === 'active' ? 'archived' : 'active',
+                            }),
+                          },
+                          team.status === 'active' ? 'Team archived' : 'Team restored',
+                          'Failed to update team'
+                        )
+                      }
+                      className="px-2 py-1 text-xs rounded-md border border-border-strong text-secondary hover:bg-surface-sunken transition-colors"
+                    >
+                      {team.status === 'active' ? 'Archive' : 'Restore'}
+                    </button>
+                  </div>
+                  {importTeamId === team.id && (
+                    <div className="w-full mt-2 border-t border-border-subtle pt-3 space-y-2">
+                      <textarea
+                        value={importText}
+                        onChange={e => setImportText(e.target.value)}
+                        rows={4}
+                        aria-label="Roster import lines"
+                        placeholder={'One athlete per line:\nFirst Last, email@example.com (email optional)'}
+                        className="w-full px-3 py-2 border border-border-strong rounded-md outline-none text-sm"
+                      />
+                      <button
+                        type="button"
+                        disabled={importing || !importText.trim()}
+                        onClick={() => void runImport(team.id)}
+                        className="px-4 py-2 text-sm min-h-[44px] rounded-lg bg-brand text-white font-medium hover:bg-brand-hover transition-colors disabled:opacity-50"
+                      >
+                        {importing ? 'Importing…' : 'Import'}
+                      </button>
+                      {importReport && (
+                        <ul className="space-y-1.5">
+                          {importReport.map((r, i) => (
+                            <li key={`${r.name}-${i}`} className="text-xs">
+                              <span className="font-medium text-primary">{r.name}</span>{' '}
+                              {r.error ? (
+                                <span className="text-red-600">failed ({r.error})</span>
+                              ) : (
+                                <>
+                                  {r.emailSent ? (
+                                    <span className="text-emerald-600">emailed</span>
+                                  ) : (
+                                    <span className="text-muted">link only</span>
+                                  )}
+                                  {r.claimUrl && (
+                                    <span className="mt-0.5 flex flex-wrap items-center gap-1.5">
+                                      <input
+                                        readOnly
+                                        value={r.claimUrl}
+                                        aria-label={`Claim link for ${r.name}`}
+                                        className="grow basis-48 min-w-0 px-2 py-1 border border-border rounded-md text-[11px] text-muted"
+                                      />
+                                      <button
+                                        type="button"
+                                        onClick={() => void navigator.clipboard.writeText(r.claimUrl!)}
+                                        className="px-2 py-1 min-h-[32px] rounded-md border border-border-strong text-secondary hover:bg-surface-sunken"
+                                      >
+                                        Copy
+                                      </button>
+                                    </span>
+                                  )}
+                                </>
+                              )}
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+                  )}
                 </li>
               ))}
             </ul>

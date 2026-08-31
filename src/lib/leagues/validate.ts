@@ -118,6 +118,16 @@ export const RosterAcceptSchema = z.object({
   profileId: z.string().uuid().optional(),
 });
 
+/** Roster import (phase 1 R3) — a discriminated pair: paste-import into
+ *  one team, or re-mint a claim link for an unclaimed stub. Shared by both
+ *  sides — clubs/validate re-exports it. The 50-row cap is enforced in the
+ *  ROUTE (rows come from parseRosterImport, not this schema). */
+export const RosterImportSchema = z.union([
+  z.object({ teamId: uuid, text: z.string().min(1).max(20_000) }),
+  z.object({ remintProfileId: uuid }),
+]);
+export type RosterImportInput = z.infer<typeof RosterImportSchema>;
+
 /** Postgres 42P01 / PostgREST PGRST205 — the leagues tables don't exist yet
  *  (migration 113 not run). Routes degrade to 404/empty rather than 500. */
 export function isMissingTableError(code: string | undefined | null): boolean {
