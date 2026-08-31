@@ -29,7 +29,7 @@ export async function GET(
 
     const { data: club, error } = await supabase
       .from('clubs')
-      .select('id, name, description, owner_profile_id, place_id, city, region, region_code, country, country_code, lat, lng, location, created_at')
+      .select('id, name, description, owner_profile_id, place_id, city, region, region_code, country, country_code, lat, lng, location, created_at, operates_teams, operates_competitions')
       .eq('id', id)
       .maybeSingle();
     if (error) {

@@ -30,7 +30,7 @@ export async function GET(
 
     const { data: league, error } = await supabase
       .from('leagues')
-      .select('id, name, description, sport_key, owner_profile_id, place_id, city, region, region_code, country, country_code, lat, lng, created_at')
+      .select('id, name, description, sport_key, owner_profile_id, place_id, city, region, region_code, country, country_code, lat, lng, created_at, operates_competitions, operates_teams')
       .eq('id', id)
       .maybeSingle();
     if (error) {

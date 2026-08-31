@@ -56,7 +56,7 @@ export async function GET(request: NextRequest) {
 
     const { data: clubs, error } = await supabase
       .from('clubs')
-      .select('id, name, description, owner_profile_id, city, region, country, created_at')
+      .select('id, name, description, owner_profile_id, city, region, country, created_at, operates_teams, operates_competitions')
       .order('created_at', { ascending: false })
       .limit(100);
     if (error) {
