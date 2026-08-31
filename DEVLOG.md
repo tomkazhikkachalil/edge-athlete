@@ -1,5 +1,40 @@
 # Development Log
 
+## September 1, 2026 — PHASE 2 COMPLETE — round 5: the leaderboard format (#442, zero DDL)
+
+The masterplan's phase-2 exit condition holds live: **KMHA can run a
+house league AND a rep season on EA** — and a golf club can run a club
+championship on the same tables, which was the round's point: the second
+format proves the adapter seam.
+
+- scoring.ts grew the pure leaderboard rules (stroke_total asc — golf's
+  default — and points_total desc; an unscored entrant always sits LAST,
+  so a zero-stroke total never "wins" an ascending board; ties share
+  rank). The recompute branches on format; the public and console
+  renderers draw the adapter-declared RDS/TOT columns with the SAME
+  blind table that draws W/L/T/GF/GA/PTS.
+- A leaderboard ROUND mints participants for every approved entrant at
+  creation (side NULL — the fixture partial unique stays dormant);
+  result entry is the same batch upsert + auto-complete. Console: format
+  select on create (entrant_type still derived server-side), a
+  roster-athlete picker from the aggregate's rosterAthletes (§8
+  invariant 3 — follow-only members never appear), Add round on the
+  detail console.
+- **The phase exit sweep: all five competition specs 5/5 against prod
+  in one run** (competitions, contests+mirror, standings+spike, rep
+  entries, leaderboard). Spec lessons: the entries toggle reads "Close
+  entries" while open (assert chips); participant input order is DB
+  order (fill by label); console-created competitions are DRAFT
+  (activate before public-surface asserts); the PGRST102 homogeneous-
+  keys rule hit a FOURTH time (spec seeds).
+- Phase-2 deferred list stands in the plan file (bracket/meet,
+  ad_hoc_team, schedule generation, stat_line→phase 4, dispute UI,
+  memberships 'competition' scope + Competition Admin with its
+  defuse-first obligation, provenance display, public SELECT policies
+  per the spike verdict). Phase 3 (public sites) is a NEW program — its
+  first work item is the spike's verdict: a dedicated public segment
+  whose layout never reads headers().
+
 ## September 1, 2026 — Phase 2 round 4: cross-org rep entries (mig 154, #439–#440)
 
 The rep half of the phase-2 exit, one PR. A foreign team enters an owner
