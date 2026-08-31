@@ -95,9 +95,34 @@ export async function PATCH(request: NextRequest) {
           lng: row.lng,
           location_source: row.location_source,
         },
+        // 149 tristate: NULL wizard columns pass nothing → 142 defaults.
+        capabilities:
+          row.operates_competitions === null || row.operates_competitions === undefined
+            ? undefined
+            : {
+                operatesCompetitions: row.operates_competitions,
+                operatesTeams: row.operates_teams ?? false,
+              },
       });
       if ('error' in created) {
         return NextResponse.json({ error: 'Failed to create club from request' }, { status: 500 });
+      }
+
+      // STRUCTURE REPLAY — STRICT, before the claim (see the league mirror).
+      const { planStructureReplay, replayStructure } = await import('@/lib/orgs/wizard-replay');
+      const plan = planStructureReplay(row.structure_draft, 'club', null);
+      let structureCounts: { divisions: number; teams: number } | null = null;
+      if (plan) {
+        const replayed = await replayStructure(supabase, { side: 'club', orgId: created.club.id }, plan);
+        if (!replayed.ok) {
+          console.error('[ADMIN CLUB REQUESTS] structure replay failed at', replayed.step, replayed.status);
+          await supabase.from('clubs').delete().eq('id', created.club.id);
+          return NextResponse.json(
+            { error: 'Failed to build the club structure — the request is still pending; try approving again' },
+            { status: 500 }
+          );
+        }
+        structureCounts = replayed.counts;
       }
 
       const { data: claimed, error: claimError } = await supabase
@@ -117,6 +142,19 @@ export async function PATCH(request: NextRequest) {
         return NextResponse.json({ error: 'Request was decided by someone else' }, { status: 409 });
       }
 
+      // CONNECTIONS REPLAY — BEST-EFFORT after the claim.
+      const { replayConnections } = await import('@/lib/orgs/wizard-replay');
+      const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://edge-athlete.vercel.app';
+      const connectionReport = await replayConnections(
+        supabase,
+        { side: 'club', orgId: created.club.id },
+        row.name,
+        row.connections_draft,
+        row.requester_profile_id,
+        user.id,
+        appUrl
+      );
+
       const { notifyClubRequestResult } = await import('@/lib/clubs/notify');
       await notifyClubRequestResult(supabase, {
         requesterProfileId: row.requester_profile_id,
@@ -127,7 +165,15 @@ export async function PATCH(request: NextRequest) {
         reason: null,
       });
 
-      return NextResponse.json({ ok: true, club: created.club });
+      return NextResponse.json({
+        ok: true,
+        club: created.club,
+        replay: {
+          structure: structureCounts,
+          connections: connectionReport.connections,
+          stubs: connectionReport.stubs,
+        },
+      });
     }
 
     const { data: claimed, error: claimError } = await supabase
