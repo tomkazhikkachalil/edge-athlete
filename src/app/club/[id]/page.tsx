@@ -83,6 +83,10 @@ export default function ClubPage() {
   // required), so they confirm; invite and cancel-invite are one-tap.
   const [rosterRemoveTarget, setRosterRemoveTarget] = useState<MemberRow | null>(null);
   const [confirmDeclineRoster, setConfirmDeclineRoster] = useState(false);
+  // Owners (0.8): promote is irreversible-by-others (no coup — owners only
+  // step down themselves), so both actions confirm.
+  const [promoteTarget, setPromoteTarget] = useState<MemberRow | null>(null);
+  const [confirmStepDown, setConfirmStepDown] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
@@ -155,6 +159,44 @@ export default function ClubPage() {
     } catch (e) {
       console.error('Role change failed:', e);
       showError('Club', 'Failed to change role');
+    }
+  };
+
+  // Owner actions (0.8). Transfer = promote, then the old owner steps down.
+  const promoteOwner = async (target: MemberRow) => {
+    try {
+      const response = await fetch(
+        `/api/clubs/${encodeURIComponent(clubId)}/owners?profileId=${encodeURIComponent(target.profile_id)}`,
+        { method: 'POST' }
+      );
+      const body = await response.json();
+      if (!response.ok) {
+        showError('Club', body.error || 'Failed to add the owner');
+        return;
+      }
+      showSuccess('Club', 'Owner added');
+      refresh();
+    } catch (e) {
+      console.error('Owner promote failed:', e);
+      showError('Club', 'Failed to add the owner');
+    }
+  };
+
+  const stepDownOwner = async () => {
+    try {
+      const response = await fetch(`/api/clubs/${encodeURIComponent(clubId)}/owners`, {
+        method: 'DELETE',
+      });
+      const body = await response.json();
+      if (!response.ok) {
+        showError('Club', body.error || 'Failed to step down');
+        return;
+      }
+      showSuccess('Club', 'You stepped down');
+      refresh();
+    } catch (e) {
+      console.error('Owner step-down failed:', e);
+      showError('Club', 'Failed to step down');
     }
   };
 
@@ -404,7 +446,27 @@ export default function ClubPage() {
                       </div>
                     </Link>
                     {/* Role controls are OWNER-only; reversible one-click, so
-                        no confirm — that stays on the destructive remove. */}
+                        no confirm — that stays on the destructive remove.
+                        Owner rows deliberately fall through the manager
+                        controls (0.8): owners never demote each other. */}
+                    {isOwner && member.role === 'owner' && member.profile_id === user?.id && (
+                      <button
+                        type="button"
+                        onClick={() => setConfirmStepDown(true)}
+                        className="px-2 py-1 text-xs rounded-md border border-border-strong text-secondary hover:bg-surface-sunken transition-colors shrink-0"
+                      >
+                        Step down as owner
+                      </button>
+                    )}
+                    {isOwner && member.role !== 'owner' && member.profile_id !== user?.id && (
+                      <button
+                        type="button"
+                        onClick={() => setPromoteTarget(member)}
+                        className="px-2 py-1 text-xs rounded-md border border-border-strong text-secondary hover:bg-surface-sunken transition-colors shrink-0"
+                      >
+                        Make owner
+                      </button>
+                    )}
                     {isOwner && member.role === 'member' && member.profile_id !== user?.id && (
                       <button
                         type="button"
@@ -538,6 +600,31 @@ export default function ClubPage() {
           if (target) void removeFromRoster(target);
         }}
         onCancel={() => setRosterRemoveTarget(null)}
+      />
+
+      <ConfirmModal
+        isOpen={!!promoteTarget}
+        title={`Make ${promoteTarget?.profile ? formatDisplayName(promoteTarget.profile.first_name, null, promoteTarget.profile.last_name, promoteTarget.profile.full_name) : 'this member'} an owner?`}
+        message="They'll be able to manage everything, including owners. You can't undo this — owners can't demote each other; only they can step down."
+        confirmText="Make owner"
+        onConfirm={() => {
+          const target = promoteTarget;
+          setPromoteTarget(null);
+          if (target) void promoteOwner(target);
+        }}
+        onCancel={() => setPromoteTarget(null)}
+      />
+
+      <ConfirmModal
+        isOpen={confirmStepDown}
+        title="Step down as owner?"
+        message="You'll become a manager. Only another owner can make you an owner again."
+        confirmText="Step down"
+        onConfirm={() => {
+          setConfirmStepDown(false);
+          void stepDownOwner();
+        }}
+        onCancel={() => setConfirmStepDown(false)}
       />
 
       <ConfirmModal

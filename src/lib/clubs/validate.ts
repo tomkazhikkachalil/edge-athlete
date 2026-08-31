@@ -51,7 +51,8 @@ export const ClubRequestDecisionSchema = z
   });
 export type ClubRequestDecisionInput = z.infer<typeof ClubRequestDecisionSchema>;
 
-/** Owner-assignable roles — 'owner' is not a role PATCH (leagues precedent). */
+/** Owner-assignable roles — 'owner' goes through /owners, not a role PATCH
+ *  (0.8, leagues precedent). */
 export const ClubMemberRoleSchema = z.object({
   role: z.enum(['manager', 'member']),
 });

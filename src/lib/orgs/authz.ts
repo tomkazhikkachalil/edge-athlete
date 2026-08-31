@@ -48,10 +48,11 @@ export function maxOrgRole(roles: Array<string | null | undefined>): OrgRole | n
   return best;
 }
 
-/** The profile's role in an org, from `memberships` + the org row's owner
- *  column (owners hold power even without a member row). A failed
- *  membership read yields null — deliberately: authorization degrades to
- *  "no role", never to a 500 here (routes 500 on the ORG fetch instead). */
+/** The profile's role in an org: ROWS FIRST (0.8 — memberships rows are
+ *  the authoritative ownership source; the org row's owner column is a
+ *  primary-owner CACHE). A failed membership read yields null —
+ *  deliberately: authorization degrades to "no role", never to a 500 here
+ *  (routes 500 on the ORG fetch instead). */
 export async function getOrgRole(
   admin: Admin,
   side: OrgSide,
@@ -59,14 +60,20 @@ export async function getOrgRole(
   profileId: string,
   ownerProfileId: string | null
 ): Promise<OrgRole | null> {
-  if (ownerProfileId && ownerProfileId === profileId) return 'owner';
   const idColumn = side === 'league' ? 'league_id' : 'club_id';
   const { data } = await admin
     .from('memberships')
     .select('role')
     .eq(idColumn, orgId)
     .eq('profile_id', profileId);
-  return maxOrgRole((data ?? []).map(r => r.role as string));
+  const role = maxOrgRole((data ?? []).map(r => r.role as string));
+  if (role) return role;
+  // Soak fallback — dies in a later cleanup once 144 has proven out. Fires
+  // ONLY when the profile has ZERO rows (a backfill-gap belt-and-suspenders);
+  // a stepped-down primary holds a manager row, so a stale cache can never
+  // resurrect their ownership.
+  if (ownerProfileId && ownerProfileId === profileId) return 'owner';
+  return null;
 }
 
 export function isOwnerOrManager(role: OrgRole | null): boolean {
@@ -77,10 +84,15 @@ export function isOwnerOrManager(role: OrgRole | null): boolean {
  *  here, so widening it (or moving to scoped grants) touches this function,
  *  not every route. Today: change_roles is owner-only; everything else is
  *  owner-or-manager. */
-export type OrgIntent = 'manage_org' | 'manage_members' | 'change_roles' | 'schedule_events';
+export type OrgIntent =
+  | 'manage_org'
+  | 'manage_members'
+  | 'change_roles'
+  | 'schedule_events'
+  | 'manage_owners';
 
 export function roleAllows(role: OrgRole | null, intent: OrgIntent): boolean {
-  if (intent === 'change_roles') return role === 'owner';
+  if (intent === 'change_roles' || intent === 'manage_owners') return role === 'owner';
   return role === 'owner' || role === 'manager';
 }
 
@@ -96,8 +108,8 @@ export type OrgAndRole =
 /** Load an org row and the profile's role in one call. `not_found` covers
  *  both a missing row and a pre-113/117 database (missing-table codes), which
  *  every route maps to its own 404; `error` carries the PostgrestError for
- *  the route's own log tag + 500 body. The owner-column short-circuit in
- *  getOrgRole means an owner match skips the membership query entirely. */
+ *  the route's own log tag + 500 body. Role comes from the memberships
+ *  rows (0.8); the owner column rides along as the primary-owner cache. */
 export async function getOrgAndRole(
   admin: Admin,
   side: OrgSide,

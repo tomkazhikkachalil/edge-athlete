@@ -134,9 +134,29 @@ export async function hardDeleteAccount(
   await admin.from('performances').delete().eq('profile_id', userId);
   await admin.from('athlete_badges').delete().eq('profile_id', userId);
   await admin.from('sport_settings').delete().eq('profile_id', userId);
-  // Org membership needs no explicit step: memberships (140) and the
-  // club/league request tables CASCADE from profiles, and an owned org goes
-  // ownerless via owner_profile_id's SET NULL (athlete_clubs was dropped).
+  // Org membership rows CASCADE from profiles (140) and the club/league
+  // request tables likewise. Ownership (0.8): move the primary-owner cache
+  // to a surviving co-owner BEFORE the rows cascade — best-effort; when the
+  // dying profile was the LAST owner, the org still orphans (column SET
+  // NULL, no owner rows) exactly as it always has.
+  try {
+    const { recomputePrimaryOwner } = await import('./orgs/owners');
+    const { data: ownerMemberships } = await admin
+      .from('memberships')
+      .select('league_id, club_id')
+      .eq('profile_id', userId)
+      .eq('role', 'owner')
+      .eq('kind', 'follow')
+      .eq('scope_type', 'org');
+    for (const row of ownerMemberships ?? []) {
+      const side = row.league_id ? ('league' as const) : ('club' as const);
+      const orgId = (row.league_id ?? row.club_id) as string;
+      const { error } = await recomputePrimaryOwner(admin, { side, orgId }, { excludeProfileId: userId });
+      if (error) warnings.push(`owner cache recompute (${side} ${orgId}): ${error.message}`);
+    }
+  } catch (e) {
+    warnings.push(`owner cache recompute failed: ${e instanceof Error ? e.message : 'unknown'}`);
+  }
   // Group rounds: participant rows key on profile_id; created rounds'
   // participants/scorecards cascade.
   await admin.from('group_post_participants').delete().eq('profile_id', userId);

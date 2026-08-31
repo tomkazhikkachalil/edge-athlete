@@ -47,7 +47,8 @@ export interface ClubRoleNotification {
   profileId: string;
   clubId: string;
   clubName: string;
-  role: 'manager' | 'member';
+  /** 'owner' arrives only from the owners core (0.8). */
+  role: 'owner' | 'manager' | 'member';
 }
 
 /** Tell a member their role changed — 'club_update' gets its first sender. */
@@ -57,9 +58,11 @@ export async function notifyClubRole(admin: Admin, n: ClubRoleNotification): Pro
       user_id: n.profileId,
       type: 'club_update',
       actor_id: null,
-      title: n.role === 'manager'
-        ? `You're now a manager of ${n.clubName}`
-        : `Your manager role in ${n.clubName} was removed`,
+      title: n.role === 'owner'
+        ? `You're now an owner of ${n.clubName}`
+        : n.role === 'manager'
+          ? `You're now a manager of ${n.clubName}`
+          : `Your manager role in ${n.clubName} was removed`,
       message: null,
       action_url: `/club/${n.clubId}`,
       is_read: false,

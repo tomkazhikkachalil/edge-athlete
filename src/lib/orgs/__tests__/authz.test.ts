@@ -49,12 +49,30 @@ describe('maxOrgRole', () => {
   });
 });
 
-describe('getOrgRole', () => {
-  it('owner column short-circuits without touching memberships', async () => {
-    const { admin, queried } = mockAdmin({});
+describe('getOrgRole (rows-first since 0.8)', () => {
+  it('reads the rows even on an owner-column match', async () => {
+    const { admin, queried } = mockAdmin({
+      memberships: { data: [{ role: 'owner' }], error: null },
+    });
     const role = await getOrgRole(admin, 'league', 'org-1', 'me', 'me');
     expect(role).toBe('owner');
-    expect(queried).toEqual([]);
+    expect(queried).toEqual(['memberships']);
+  });
+
+  it('zero rows + column match → owner via the soak fallback', async () => {
+    const { admin, queried } = mockAdmin({ memberships: { data: [], error: null } });
+    const role = await getOrgRole(admin, 'league', 'org-1', 'me', 'me');
+    expect(role).toBe('owner');
+    expect(queried).toEqual(['memberships']);
+  });
+
+  it('a stale cache can NEVER resurrect a stepped-down owner', async () => {
+    // The stepped-down primary holds a manager row; the column still names
+    // them. Rows win.
+    const { admin } = mockAdmin({
+      memberships: { data: [{ role: 'manager' }], error: null },
+    });
+    expect(await getOrgRole(admin, 'league', 'org-1', 'me', 'me')).toBe('manager');
   });
 
   it('reduces multiple rows (follow + roster) to the max role', async () => {
@@ -80,6 +98,7 @@ describe('roleAllows', () => {
     manage_members: [true, true, false, false],
     schedule_events: [true, true, false, false],
     change_roles: [true, false, false, false],
+    manage_owners: [true, false, false, false],
   };
 
   for (const [intent, expected] of Object.entries(EXPECTED) as [OrgIntent, boolean[]][]) {
@@ -112,13 +131,14 @@ describe('getOrgAndRole', () => {
     expect(out).toEqual({ status: 'found', org: ORG, role: 'member' });
   });
 
-  it('found: the owner-column match yields owner without a members query', async () => {
+  it('found: rows are read even for the cached owner (0.8 rows-first)', async () => {
+    // memberships resolves empty here → the soak fallback answers 'owner'.
     const { admin, queried } = mockAdmin({
       leagues: { data: ORG, error: null },
     });
     const out = await getOrgAndRole(admin, 'league', 'org-1', 'owner-1');
     expect(out).toEqual({ status: 'found', org: ORG, role: 'owner' });
-    expect(queried).toEqual(['leagues']);
+    expect(queried).toEqual(['leagues', 'memberships']);
   });
 
   it('not_found: missing row', async () => {

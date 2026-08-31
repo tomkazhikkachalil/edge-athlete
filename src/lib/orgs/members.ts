@@ -47,9 +47,76 @@ export function joinOrg(admin: Admin, ref: OrgRef, profileId: string): Promise<W
   return insertMembership(admin, ref, profileId);
 }
 
-/** Org creation: the owner's role='owner' member row. */
+/** Org creation: the CREATOR's primary owner row. Later co-owners are
+ *  minted by promoteFollowToOwner via the owners core (0.8). */
 export function insertOwnerRow(admin: Admin, ref: OrgRef, profileId: string): Promise<WriteResult> {
   return insertMembership(admin, ref, profileId, 'owner');
+}
+
+// ── Owner-set writes (0.8) — called ONLY by orgs/owners.ts ──────────────────
+
+/** Promote an existing member/manager follow row to owner. updated=false →
+ *  no eligible row (not a member, or already owner). */
+export async function promoteFollowToOwner(
+  admin: Admin,
+  ref: OrgRef,
+  profileId: string
+): Promise<{ updated: boolean; error: PostgrestError | null }> {
+  const { data, error } = await admin
+    .from('memberships')
+    .update({ role: 'owner' })
+    .eq(orgColumn(ref.side), ref.orgId)
+    .eq('profile_id', profileId)
+    .eq('kind', 'follow')
+    .eq('scope_type', 'org')
+    .in('role', ['member', 'manager'])
+    .select('id');
+  return { updated: (data ?? []).length > 0, error };
+}
+
+/** Step-down landing: the owner's follow row becomes manager. The guarded
+ *  role='owner' filter makes concurrent step-downs collide safely
+ *  (updated=false → the row was no longer an owner row). Roster rows are
+ *  untouched by the kind filter. */
+export async function demoteOwnerToManager(
+  admin: Admin,
+  ref: OrgRef,
+  profileId: string
+): Promise<{ updated: boolean; error: PostgrestError | null }> {
+  const { data, error } = await admin
+    .from('memberships')
+    .update({ role: 'manager' })
+    .eq(orgColumn(ref.side), ref.orgId)
+    .eq('profile_id', profileId)
+    .eq('kind', 'follow')
+    .eq('scope_type', 'org')
+    .eq('role', 'owner')
+    .select('id');
+  return { updated: (data ?? []).length > 0, error };
+}
+
+/** The org's owner rows, primary-first (joined_at ASC, id ASC — the id
+ *  tie-break matters: batch seeds share a joined_at). */
+export async function ownerRows(
+  admin: Admin,
+  ref: OrgRef
+): Promise<{
+  rows: Array<{ id: string; profile_id: string; joined_at: string }>;
+  error: PostgrestError | null;
+}> {
+  const { data, error } = await admin
+    .from('memberships')
+    .select('id, profile_id, joined_at')
+    .eq(orgColumn(ref.side), ref.orgId)
+    .eq('kind', 'follow')
+    .eq('scope_type', 'org')
+    .eq('role', 'owner')
+    .order('joined_at', { ascending: true })
+    .order('id', { ascending: true });
+  return {
+    rows: (data ?? []) as Array<{ id: string; profile_id: string; joined_at: string }>,
+    error,
+  };
 }
 
 async function deleteMembership(admin: Admin, ref: OrgRef, profileId: string): Promise<WriteResult> {
