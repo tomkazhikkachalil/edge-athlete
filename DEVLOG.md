@@ -1,5 +1,49 @@
 # Development Log
 
+## August 31, 2026 — Phase 1 round 1: the org-manager console (#412 + #413, zero DDL)
+
+Phase 1 opens (exit condition: an association can self-onboard and roster
+a team; Tom's program decisions — three rounds, jsonb wizard drafts,
+connections-in-wizard, supervised-self-row stubs — are recorded in the
+plan file). Round 1 delivers the console the later rounds publish into.
+
+- **#412 — the shared core.** The 0.5 admin structure routes' bodies moved
+  to `orgs/structure-server.ts` (roster-server × structure-options
+  pattern); admin routes are now wrappers with byte-identical responses.
+  Ten org-manager twins at `/api/{side}s/[id]/structure*` gate on
+  requireOrgManager (`roleAllows('manage_org')` — the intent finally
+  spent) + the new bursty `org-structure` bucket (120/h). **Scope is the
+  security crux**: every child write pins the URL org — foreign ids
+  answer 404, and entryDELETE verifies through the division join because
+  team_entries has no org column. The manager teams route exposes NO
+  DELETE (archive is the manager affordance). The body/URL mismatch guard
+  runs before every lib call (the confused-deputy hole).
+- **#413 — the console.** `/app/org/[side]/[id]` on the guardian-console
+  template: the admin structure UI forked minus the org selector, plus a
+  derived setup checklist (GetStartedCard recipe — done-ness computed
+  from the aggregate's rows + two membership head-counts, no checklist
+  table). Non-managers get an in-page managers-only state linking the
+  public page. Entry points: AppHeader dropdown + drawer gain a LAZY
+  "Your organizations" section (fetch on first menu open), and
+  YourOrgsCard / the viewer's own OrgMembershipsStrip grow SIBLING Manage
+  links (nested anchors hydrate broken; the strip renders on public
+  profiles, so its link gates on viewer === profile).
+- **Verification.** Verify green both PRs (198 files, 2306 tests, lint 0).
+  Probe battery **15/15** vs prod: anon 401 / member 403 / owner 200 with
+  counts, full lifecycle, body/URL mismatch 400, manager teams DELETE
+  405, **both cross-org attack paths 404 with the target surviving**
+  (season via a foreign org's route; entry via the division join), and
+  the admin wrappers regression-probed through the ADMIN_EMAILS spawn
+  (aggregate carries no counts key; unscoped delete intact). e2e: the
+  first e2e-able structure CRUD (`org-structure.spec.ts` — owner drives
+  the UI end-to-end, member locked out, 375px overflow assertion), 3/3
+  vs prod with the org regressions. Screenshots inspected: 375px console
+  (checklist 3/5, division entry chips, Archive reachable), the dropdown
+  section, the sidebar Manage link.
+- Next: round 2 — the onboarding wizard (mig 149; jsonb draft +
+  capabilities on the request tables, grid builder, connections with
+  claimable stub orgs created at approval time).
+
 ## August 31, 2026 — Phase-0 cleanup: the soak fallback dies, the legacy tables drop (mig 148, #410)
 
 The two debts phase 0 recorded, paid the same day it closed.
