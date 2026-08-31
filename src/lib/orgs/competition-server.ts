@@ -39,6 +39,8 @@ import {
   mirrorContestDelete,
   publishContestToCalendar,
 } from '@/lib/competitions/calendar-mirror';
+import { recomputeStandingsBestEffort } from '@/lib/competitions/standings';
+import { resolveFixtureRule } from '@/lib/competitions/scoring';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- matches the authz.ts Admin alias; schema-agnostic helper
 type Admin = SupabaseClient<any, 'public', any>;
@@ -357,6 +359,7 @@ export async function entryAddPOST(
     console.error(`${TAG} entry insert error:`, error);
     return NextResponse.json({ error: 'Failed to add the entry' }, { status: 500 });
   }
+  await recomputeStandingsBestEffort(admin, input.competitionId);
   return NextResponse.json({ entry });
 }
 
@@ -388,7 +391,7 @@ export async function entryDELETE(
     .from('competition_entries')
     .delete()
     .eq('id', entryId)
-    .select('id');
+    .select('id, competition_id');
   if (error) {
     console.error(`${TAG} entry delete error:`, error);
     return NextResponse.json({ error: 'Failed to remove the entry' }, { status: 500 });
@@ -396,6 +399,7 @@ export async function entryDELETE(
   if (!deleted || deleted.length === 0) {
     return NextResponse.json({ error: 'Entry not found' }, { status: 404 });
   }
+  await recomputeStandingsBestEffort(admin, deleted[0].competition_id as string);
   return NextResponse.json({ action: 'deleted' });
 }
 
@@ -512,6 +516,18 @@ export async function competitionDetailGET(
     });
   }
 
+  // Standings (R3): the materialized rows + the rule's columns so
+  // renderers draw BLINDLY (pre-153 degrades to an empty table).
+  const { data: standingRows } = await admin
+    .from('competition_standings')
+    .select('entry_id, rank, points, played, stats')
+    .eq('competition_id', competitionId)
+    .order('rank', { ascending: true });
+  const rule =
+    full?.format === 'fixture'
+      ? resolveFixtureRule(full.sport_key as string, full.scoring_rule as string | null)
+      : null;
+
   return NextResponse.json({
     competition: full,
     entries: (entries ?? []).map(e => ({ ...e, entrant_name: entryName.get(e.id) })),
@@ -519,6 +535,11 @@ export async function competitionDetailGET(
       ...c,
       participants: participantsByContest.get(c.id) ?? [],
     })),
+    standings: (standingRows ?? []).map(r => ({
+      ...r,
+      entrant_name: entryName.get(r.entry_id) ?? 'Entrant',
+    })),
+    standingsColumns: rule?.columns ?? [],
   });
 }
 
@@ -631,7 +652,7 @@ export async function contestPATCH(
     .from('contests')
     .update(patch)
     .eq('id', input.id)
-    .select('id, event_id, status, scheduled_at');
+    .select('id, competition_id, event_id, status, scheduled_at');
   if (error) {
     if (error.code === '23503') {
       return NextResponse.json(
@@ -647,6 +668,10 @@ export async function contestPATCH(
   }
   // One-way calendar mirror (best-effort — never fails the write).
   await mirrorContestChange(admin, updated[0]);
+  // Status flips move games in and out of the table (best-effort).
+  if (input.status !== undefined) {
+    await recomputeStandingsBestEffort(admin, updated[0].competition_id as string);
+  }
   return NextResponse.json({ action: 'updated', contest: updated[0] });
 }
 
@@ -675,7 +700,7 @@ export async function contestDELETE(
     .from('contests')
     .delete()
     .eq('id', contestId)
-    .select('id, event_id');
+    .select('id, competition_id, event_id');
   if (error) {
     console.error(`${TAG} contest delete error:`, error);
     return NextResponse.json({ error: 'Failed to delete the game' }, { status: 500 });
@@ -685,6 +710,7 @@ export async function contestDELETE(
   }
   // The mirror event dies with its contest (best-effort).
   await mirrorContestDelete(admin, deleted[0].event_id as string | null);
+  await recomputeStandingsBestEffort(admin, deleted[0].competition_id as string);
   return NextResponse.json({ action: 'deleted', contest: deleted[0] });
 }
 
@@ -803,5 +829,6 @@ export async function resultsUpsertPOST(
   if (complete && contestRow.status !== 'completed') {
     await admin.from('contests').update({ status: 'completed' }).eq('id', input.contestId);
   }
+  await recomputeStandingsBestEffort(admin, compRow.id);
   return NextResponse.json({ ok: true, completed: complete, competitionId: compRow.id });
 }
