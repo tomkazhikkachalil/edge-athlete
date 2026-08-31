@@ -1,5 +1,31 @@
 # Development Log
 
+## September 1, 2026 — Pre-phase-3 maintenance round (#444)
+
+Tom's checklist before phase 3 opens — lint, build, devlog, sync —
+"without breaking anything." Results:
+
+- `npm run verify` green (207 files, 2379 tests; lint 0 warnings;
+  build clean). `npm audit` 0 vulnerabilities.
+- **The guardrails script caught its own drift**: it hard-failed on
+  `await cookies()` in `athlete-claim/[token]` — a route that IS a
+  documented exception (api/CLAUDE.md, phase 1 R3) but was never added
+  to the script's grep allowlist, so the CI `guardrails` job has been
+  red since #422 (merges in this program go out via the API without
+  waiting on checks — the local run is the gate that caught it). Fixed
+  by adding the exception; guardrails green.
+- Branch prune: remote is `origin/main` only again (2 server-side
+  deletions + stale tracking refs pruned; every removed ref verified
+  merged first); stale local branch deleted.
+- CLAUDE.md's verified-docs index re-swept — all paths resolve.
+- Post-merge: deploy verified Ready + the 7-spec org/competition sweep
+  re-run against prod.
+
+Phase 3 (public sites) opens next with the docs/HARDENING.md stage gate
+as its first item (Tom's call: findings land next to the work they
+affect), then the dedicated headers()-free public segment design (the
+spike verdict), then the program plan.
+
 ## September 1, 2026 — PHASE 2 COMPLETE — round 5: the leaderboard format (#442, zero DDL)
 
 The masterplan's phase-2 exit condition holds live: **KMHA can run a

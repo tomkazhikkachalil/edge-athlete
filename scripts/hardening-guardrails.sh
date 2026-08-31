@@ -51,7 +51,7 @@ fi
 # 3. API routes must not use await cookies() / next/headers (cookie-header auth
 #    only) — except the documented session-writing exceptions.
 hits=$(scan "await cookies\(\)|from 'next/headers'" 'src/app/api/**/*.ts' \
-  | grep -vE 'auth/(activate|username-login|callback)')
+  | grep -vE 'auth/(activate|username-login|callback)|athlete-claim/')
 if [ -n "$hits" ]; then
   bad "await cookies()/next/headers in an API route outside the documented exceptions:"
   echo "$hits" | sed 's/^/      /'
