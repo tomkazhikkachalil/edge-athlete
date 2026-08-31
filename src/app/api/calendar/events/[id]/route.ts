@@ -32,7 +32,7 @@ import type { ServerRoutineRow } from '@/lib/workouts/routines';
 //         bulk-cancel and stop generation (series ends flips to 'until').
 
 const EVENT_FIELDS =
-  'id, organizer_id, title, description, location, starts_at, ends_at, all_day, timezone, category, status, cancelled_at, series_id, series_override, routine_id, routine_snapshot, league_id, club_id';
+  'id, organizer_id, title, description, location, starts_at, ends_at, all_day, timezone, category, status, cancelled_at, series_id, series_override, routine_id, routine_snapshot, league_id, club_id, venue_id, facility_id';
 const GUEST_FIELDS =
   'id, profile_id, invited_email, role, status, responded_at, reminder_minutes, profiles:profile_id (id, first_name, middle_name, last_name, full_name, avatar_url, handle)';
 const SERIES_FIELDS = 'id, freq, interval_n, byweekday, ends, until_at, count_n';
