@@ -91,6 +91,11 @@ export const RATE_LIMITS = {
   // touches a real manager and, with delete-on-decline, is the backstop
   // against re-invite spam.
   affiliation: { max: 20, windowSeconds: 3600, keyBy: 'user' },
+  // Org structure CRUD (phase 1) — setup evenings are BURSTY (a league
+  // owner creating 8 divisions × 30 teams × entries in one sitting);
+  // affiliation's 20/h would starve that, the guardian-split lesson.
+  // 120/h still caps a runaway client.
+  'org-structure': { max: 120, windowSeconds: 3600, keyBy: 'user' },
   // Calendar event creation — org events fan a team_update out to every
   // member (uncapped membership), so creation gets post-create parity.
   'event-create': { max: 30, windowSeconds: 3600, keyBy: 'user' },
