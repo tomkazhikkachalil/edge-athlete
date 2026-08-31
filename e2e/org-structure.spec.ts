@@ -47,7 +47,11 @@ test('org console: owner builds structure via UI; member locked out; 375px', asy
       await page.getByLabel('Season starts').fill('2026-09-01');
       await page.getByLabel('Season ends').fill('2027-04-30');
       await page.getByRole('button', { name: 'Add season' }).click();
-      await expect(page.getByText('2026-27', { exact: true })).toBeVisible();
+      // Scoped: the Competitions section's season SELECT (phase 2) also
+      // carries this label as an <option>.
+      await expect(
+        page.getByLabel('Seasons and divisions').getByText('2026-27', { exact: true })
+      ).toBeVisible();
 
       // Division (expand the season first)
       await page.getByRole('button', { name: 'Divisions' }).click();
