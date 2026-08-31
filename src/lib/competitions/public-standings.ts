@@ -12,6 +12,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { OrgSide } from '@/lib/orgs/authz';
 import { resolveFixtureRule, resolveLeaderboardRule, type StandingsColumn } from './scoring';
+import { isStubEmail } from '@/lib/config/stubs-config';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- matches the authz.ts Admin alias; schema-agnostic helper
 type Admin = SupabaseClient<any, 'public', any>;
@@ -90,18 +91,29 @@ export async function fetchPublicStandings(
       ? admin.from('teams').select('id, name, display_name').in('id', teamIds)
       : Promise.resolve({ data: [] as never[] }),
     profileIds.length
-      ? // PUBLIC page: name only, and ONLY for entrants whose entry exists —
-        // athlete entrants resolved through roster rows (R5); no other
-        // profile fields ever cross this boundary.
-        admin.from('profiles').select('id, first_name, last_name, full_name').in('id', profileIds)
+      ? // PUBLIC page: names only — and the masterplan's §6 rule applies
+        // (minors never indexed; athlete pages public only for adult+
+        // public profiles). Full name ONLY when profiles.visibility is
+        // 'public'; private profiles and unclaimed stubs render
+        // "First L." (stage-gate fix, Sep 2026 — a manager's entry must
+        // never put a private athlete's full name on a crawlable page).
+        admin
+          .from('profiles')
+          .select('id, first_name, last_name, full_name, visibility, email')
+          .in('id', profileIds)
       : Promise.resolve({ data: [] as never[] }),
   ]);
   const teamName = new Map((teamsRes.data ?? []).map(t => [t.id, (t.display_name || t.name) as string]));
   const profileName = new Map(
-    (profilesRes.data ?? []).map(p => [
-      p.id,
-      ([p.first_name, p.last_name].filter(Boolean).join(' ') || p.full_name || 'Athlete') as string,
-    ])
+    (profilesRes.data ?? []).map(p => {
+      const first = (p.first_name || p.full_name?.split(' ')[0] || 'Athlete') as string;
+      const last = (p.last_name || '') as string;
+      const isPublic = p.visibility === 'public' && !isStubEmail(p.email as string | null);
+      const display = isPublic
+        ? [p.first_name, p.last_name].filter(Boolean).join(' ') || p.full_name || 'Athlete'
+        : `${first}${last ? ` ${last[0]}.` : ''}`;
+      return [p.id, display as string];
+    })
   );
   const entryName = new Map(
     (entries ?? []).map(e => [

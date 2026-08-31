@@ -81,6 +81,25 @@ public `/u/[handle]` page.
 
 Ranked, with the source finding. Fix deliberately; each is its own change.
 
+**From the Sep 2026 pre-phase-3 stage-gate sweep (org/competition band)**
+- **`.limit()` sweep, remaining sites** — `structureAggregateGET` (4
+  selects), `structure-options` (2), `competitionDetailGET`
+  contests/participants/results/standings, `recomputeStandings` entries
+  read. (The two hottest aggregates' entry reads were capped fix-now.)
+- **`competitionDetailGET` redundant competition re-select** — merge
+  `pinCompetition` + the `full` re-select into one read.
+- **Roster import worst case** — 50 rows × ~6 sequential admin ops (+
+  optional SMTP) in one request; a timeout loses the report while stubs
+  were already minted. Lower cap or chunked responses.
+- **`athlete-claim` POST body onto zod** (hand-rolled email/password
+  checks today); score range bounds in `ResultUpsertSchema`.
+- **`resultsUpsertPOST` auto-complete count-by-fetch** →
+  `{ count:'exact', head:true }` (bounded ≤50 today; advisory).
+- Sweep verdict otherwise: scope-pin coverage, token lifecycle, rate
+  buckets, error bodies, twins all verified clean; fix-nows shipped
+  (public-name masking per masterplan §6, SSR standings React cache(),
+  hot-aggregate limits).
+
 **Security**
 - ~~**Private-media signed URLs** (MEDIUM-HIGH)~~ — **DONE (Aug 2026,
   #297–#301 + bucket flip).** Same-origin authenticated media proxy

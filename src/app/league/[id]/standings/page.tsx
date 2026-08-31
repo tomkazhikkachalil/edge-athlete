@@ -1,8 +1,17 @@
+import { cache } from 'react';
 import Link from 'next/link';
 import type { Metadata } from 'next';
 import { getSupabaseAdmin } from '@/lib/auth-server';
 import { fetchPublicStandings } from '@/lib/competitions/public-standings';
 import { UUID_RE } from '@/lib/golf/course-catalog';
+
+// generateMetadata AND the page body need the same payload; React cache()
+// dedupes them to ONE fetch per request (stage-gate fix — this page is
+// dynamic on every hit by the spike verdict, so the double fetch doubled
+// real DB load under crawler traffic).
+const getStandings = cache((id: string) =>
+  fetchPublicStandings(getSupabaseAdmin(), 'league', id)
+);
 
 // ── /league/[id]/standings — THE SPIKE (phase 2 R3) ─────────────────────────
 // The repo's FIRST server-component data page and first generateMetadata:
@@ -24,7 +33,7 @@ interface PageParams {
 export async function generateMetadata({ params }: PageParams): Promise<Metadata> {
   const { id } = await params;
   if (!UUID_RE.test(id)) return { title: 'Standings' };
-  const payload = await fetchPublicStandings(getSupabaseAdmin(), 'league', id);
+  const payload = await getStandings(id);
   if (!payload) return { title: 'Standings' };
   return {
     title: `${payload.orgName} Standings`,
@@ -34,9 +43,7 @@ export async function generateMetadata({ params }: PageParams): Promise<Metadata
 
 export default async function LeagueStandingsPage({ params }: PageParams) {
   const { id } = await params;
-  const payload = UUID_RE.test(id)
-    ? await fetchPublicStandings(getSupabaseAdmin(), 'league', id)
-    : null;
+  const payload = UUID_RE.test(id) ? await getStandings(id) : null;
 
   if (!payload) {
     return (
