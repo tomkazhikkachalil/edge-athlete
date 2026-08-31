@@ -81,6 +81,20 @@ describe('viewerScopeSet', () => {
     expect(set.divisionIds).toEqual([]);
     expect(set.teamIds).toEqual([]);
   });
+
+  it('rosterOnly (0.10) pins kind=roster + status=active; default stays kind-blind', async () => {
+    const pinned = mockAdmin({ memberships: { data: [] } });
+    await viewerScopeSet(pinned.admin, 'p1', { rosterOnly: true });
+    expect(pinned.calls[0].filters).toMatchObject({
+      profile_id: 'p1',
+      scope_type: ['division', 'team'],
+      kind: 'roster',
+      status: 'active',
+    });
+    const blind = mockAdmin({ memberships: { data: [] } });
+    await viewerScopeSet(blind.admin, 'p1');
+    expect('kind' in blind.calls[0].filters).toBe(false);
+  });
 });
 
 describe('scopedMembershipExists', () => {
