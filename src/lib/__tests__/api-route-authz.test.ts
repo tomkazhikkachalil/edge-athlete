@@ -48,6 +48,10 @@ const PUBLIC_ROUTES: Record<string, string> = {
   'auth/activate': 'token-gated activation; the invite row IS the authorization',
   'auth/username-login': 'the supervised sign-in endpoint itself; rate-limited, uniform 401s',
   'golf/courses/facets': 'public course-catalog facets; no user data',
+  'leagues/[id]/standings':
+    'the R3 spike surface: visibility=public competitions only, viewer-independent by construction, CDN-cached',
+  'clubs/[id]/standings':
+    'the R3 spike surface: visibility=public competitions only, viewer-independent by construction, CDN-cached',
   'profile/[profileId]/active-sports': 'deliberately public sport-key read (documented in the route header)',
   'clubs/[id]/activity': 'anonymous org read surface (public club pages)',
   'clubs/[id]/events': 'anonymous org read surface (public club pages)',
