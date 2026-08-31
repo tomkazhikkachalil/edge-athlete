@@ -159,13 +159,7 @@ export async function POST(request: NextRequest) {
       if (!org) {
         return NextResponse.json({ error: 'Organization not found' }, { status: 404 });
       }
-      const role = await getOrgRole(
-        admin0,
-        scope.side,
-        scope.orgId,
-        user.id,
-        org.owner_profile_id
-      );
+      const role = await getOrgRole(admin0, scope.side, scope.orgId, user.id);
       if (!isOwnerOrManager(role)) {
         return NextResponse.json(
           { error: 'Only the organization\'s owner or managers can schedule its events' },

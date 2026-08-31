@@ -48,19 +48,22 @@ export function maxOrgRole(roles: Array<string | null | undefined>): OrgRole | n
   return best;
 }
 
-/** The profile's ORG role: MAX across their org-SCOPE rows (0.8 rows-first;
+/** The profile's ORG role: MAX across their org-SCOPE rows (0.8 rows-only;
  *  0.5 pins scope_type='org' — a division/team-scoped role must never leak
  *  into org authorization; those scopes get their own readers with
- *  0.9/roles). The org row's owner column is a primary-owner CACHE. A
- *  failed membership read yields null — deliberately: authorization
- *  degrades to "no role", never to a 500 here (routes 500 on the ORG
- *  fetch instead). */
+ *  0.9/roles). The org row's owner column is a primary-owner CACHE feeding
+ *  display defaults + notification recipients — it grants NOTHING here
+ *  (the 0.8 soak fallback died in the phase-0 cleanup: 144's backfill was
+ *  a verified no-op and every org since creation gets its owner row from
+ *  insertOwnerRow, so zero-rows-with-a-cache-hit cannot occur; the old
+ *  ownerProfileId parameter died with it). A failed membership read
+ *  yields null — deliberately: authorization degrades to "no role", never
+ *  to a 500 here (routes 500 on the ORG fetch instead). */
 export async function getOrgRole(
   admin: Admin,
   side: OrgSide,
   orgId: string,
-  profileId: string,
-  ownerProfileId: string | null
+  profileId: string
 ): Promise<OrgRole | null> {
   const idColumn = side === 'league' ? 'league_id' : 'club_id';
   const { data } = await admin
@@ -69,14 +72,7 @@ export async function getOrgRole(
     .eq(idColumn, orgId)
     .eq('profile_id', profileId)
     .eq('scope_type', 'org');
-  const role = maxOrgRole((data ?? []).map(r => r.role as string));
-  if (role) return role;
-  // Soak fallback — dies in a later cleanup once 144 has proven out. Fires
-  // ONLY when the profile has ZERO rows (a backfill-gap belt-and-suspenders);
-  // a stepped-down primary holds a manager row, so a stale cache can never
-  // resurrect their ownership.
-  if (ownerProfileId && ownerProfileId === profileId) return 'owner';
-  return null;
+  return maxOrgRole((data ?? []).map(r => r.role as string));
 }
 
 export function isOwnerOrManager(role: OrgRole | null): boolean {
@@ -132,6 +128,6 @@ export async function getOrgAndRole(
   }
   if (!org) return { status: 'not_found' };
 
-  const role = await getOrgRole(admin, side, orgId, profileId, org.owner_profile_id);
+  const role = await getOrgRole(admin, side, orgId, profileId);
   return { status: 'found', org, role };
 }

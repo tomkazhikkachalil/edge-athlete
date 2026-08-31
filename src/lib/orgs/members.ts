@@ -3,9 +3,8 @@
 // read). Routes keep their own authorization (orgs/authz.ts) and their own
 // response bodies; this module owns the queries.
 //
-// `memberships` (migration 140) is the ONLY store. The legacy
-// league_members/club_members tables are frozen and dropped by a later
-// migration once the soak criteria in 140's header are met.
+// `memberships` (migration 140) is the ONLY store. The legacy mirrored
+// member tables were dropped by 148 (phase-0 cleanup, divergence pass zero).
 //
 // UPDATE/DELETE writes filter kind='follow' AND scope_type='org' explicitly:
 // every open-join-era row is a follow/org row, and the filter makes 0.3's
