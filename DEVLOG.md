@@ -1,5 +1,53 @@
 # Development Log
 
+## August 31, 2026 — Phase 1 round 2: the onboarding wizard (mig 149, #415–#418)
+
+The acquisition surface. A volunteer registrar now builds their org in one
+resumable wizard — identity, capabilities, sport(s), the division grid,
+connections — and admin approval publishes ALL of it through round 1's
+structure core. Tom's decisions: three templates (hockey/soccer/baseball),
+stub orgs visible, sign-in-required claim, teams as an optional list.
+
+- **The draft rides the request row** (149: capability tristate booleans +
+  TWO jsonb columns — structure and connections replay under different
+  failure policies). The wizard (#416) replaces both start-page forms:
+  RegistrationSteps machine; the grid builder derives its preview from
+  band/stream/tier pill-toggles minus ✕'d rowKeys (re-checking never
+  resurrects a removed row); the club side has no sport step — the
+  template buttons ARE the sport pickers, one grid section per sport;
+  drafts autosave per side with restore-as-notice. The pinned pending/
+  declined/approved states were not touched.
+- **Approval replays (#417), two policies on purpose.** STRUCTURE is
+  STRICT and runs BEFORE the claim: any failed op deletes the org (145
+  cascades erase everything) and the request stays pending — the retry is
+  a free second click. CONNECTIONS are BEST-EFFORT after the claim:
+  existing orgs re-verified by id (renamed → the bell reads the fresh
+  name; deleted → skipped), pending league_clubs edges inserted directly,
+  owners belled; stubs become VISIBLE ownerless orgs (the 001 demo-club
+  precedent — stub leagues carry their required sport from the row) with
+  a claim invite and an SMTP-guarded email. The approve response always
+  carries the claim URLs (the admin's handle when SMTP is dark), and the
+  dashboards grew draft chips + a copy-link block.
+- **The claim surface (#418).** org_claim_invites reuses the guardian
+  token helpers: peek-then-typed-redeem, atomic single-use, and a lost
+  owner-fill race RESTORES the invite — a token never burns on a failed
+  precondition. The BrandBar claim page parks the token for signed-out
+  visitors (30d localStorage) and ResumeOrgClaimBanner in AppHeader
+  catches the signup detour without any ?next= plumbing.
+- **Verification.** Verify green ×4 (202 files, 2325 tests; lint 0).
+  Probe battery **19/19**: wizard submit on prod → spawn approve → replay
+  report {2 divisions, 2 teams}, capabilities on the org, the manager
+  aggregate showing it all, two pending edges, the existing club's owner
+  belled, the stub visible + ownerless → **the stub claimed end-to-end ON
+  PROD** (ownership + owner row + consumed token + second claim 410) →
+  the STRICT-ROLLBACK probe: a hand-edited duplicate draft 500s with the
+  request still pending and zero orphan orgs. e2e 5/5 vs prod (both
+  wizard specs — including the sport re-stamp and the sported stub-league
+  truth — plus claim and org regressions). 375px screenshots inspected:
+  the live template grid, the claim card.
+- Wizard e2e specs probe-skip pre-149 by design; back-compat is pinned
+  (the old minimal request payload still validates).
+
 ## August 31, 2026 — Phase 1 round 1: the org-manager console (#412 + #413, zero DDL)
 
 Phase 1 opens (exit condition: an association can self-onboard and roster
