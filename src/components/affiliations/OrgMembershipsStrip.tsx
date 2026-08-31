@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { useAuth } from '@/lib/auth';
 import { formatPlace } from '@/lib/geo/regions';
 import { SPORT_REGISTRY } from '@/lib/sports/SportRegistry';
 
@@ -28,6 +29,8 @@ interface OrgMembershipsStripProps {
 }
 
 export default function OrgMembershipsStrip({ profileId, initialData }: OrgMembershipsStripProps) {
+  const { user } = useAuth();
+  const isSelf = user?.id === profileId;
   const [orgs, setOrgs] = useState<OrgMembership[] | null>(initialData ?? null);
 
   useEffect(() => {
@@ -61,7 +64,7 @@ export default function OrgMembershipsStrip({ profileId, initialData }: OrgMembe
           const place = formatPlace({ city: org.city, region: org.region, country: org.country });
           const title = [sport, place].filter(Boolean).join(' · ');
           return (
-            <li key={`${org.kind}-${org.id}`}>
+            <li key={`${org.kind}-${org.id}`} className="flex items-center gap-1">
               <Link
                 href={org.kind === 'league' ? `/league/${org.id}` : `/club/${org.id}`}
                 title={title || undefined}
@@ -76,6 +79,18 @@ export default function OrgMembershipsStrip({ profileId, initialData }: OrgMembe
                   <span className="text-[10px] font-semibold text-brand-fg uppercase">{org.role}</span>
                 )}
               </Link>
+              {/* The console door — SIBLING link (never nested), and only on
+                  the viewer's OWN strip: this strip renders on public
+                  profiles, where the role badge is the profile's, not the
+                  viewer's. */}
+              {isSelf && org.role !== 'member' && (
+                <Link
+                  href={`/app/org/${org.kind}/${org.id}`}
+                  className="text-[10px] font-semibold text-brand-fg uppercase px-1.5 py-1 rounded-md hover:bg-brand-soft transition-colors"
+                >
+                  Manage
+                </Link>
+              )}
             </li>
           );
         })}

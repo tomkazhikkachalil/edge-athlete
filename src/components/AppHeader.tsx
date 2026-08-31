@@ -81,6 +81,31 @@ export default function AppHeader({ onCreatePost, onEditProfile }: AppHeaderProp
   const { theme, toggleNow: toggleTheme } = useTheme();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isProfileDropdownOpen, setIsProfileDropdownOpen] = useState(false);
+  // Orgs the user manages (phase 1) — LAZY on first menu open so the
+  // header adds no request to ordinary page loads. null = not yet loaded;
+  // [] = loaded, none (the section hides itself).
+  const [managedOrgs, setManagedOrgs] = useState<
+    { kind: 'league' | 'club'; id: string; name: string }[] | null
+  >(null);
+  useEffect(() => {
+    if (!user?.id || managedOrgs !== null) return;
+    if (!isProfileDropdownOpen && !isMobileMenuOpen) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`/api/profile/${user.id}/organizations`);
+        if (!res.ok) throw new Error(String(res.status));
+        const data = await res.json();
+        if (!cancelled) {
+          const all = (data.organizations ?? []) as { kind: 'league' | 'club'; id: string; name: string; role: string }[];
+          setManagedOrgs(all.filter(o => o.role === 'owner' || o.role === 'manager').slice(0, 3));
+        }
+      } catch {
+        if (!cancelled) setManagedOrgs([]);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [user?.id, managedOrgs, isProfileDropdownOpen, isMobileMenuOpen]);
   const profileMenuRef = useRef<HTMLDivElement | null>(null);
   const closeProfileDropdown = useCallback(() => setIsProfileDropdownOpen(false), []);
   usePopoverDismiss(profileMenuRef, isProfileDropdownOpen, closeProfileDropdown);
@@ -551,6 +576,29 @@ export default function AppHeader({ onCreatePost, onEditProfile }: AppHeaderProp
                         </div>
                       )}
 
+                      {/* Orgs the user manages (phase 1) — the Family
+                          console pattern: a console door per managed org. */}
+                      {managedOrgs !== null && managedOrgs.length > 0 && (
+                        <div className="py-1 border-b border-border-subtle">
+                          <p className="px-4 pt-1 pb-0.5 text-[10px] font-semibold text-faint uppercase tracking-wide">
+                            Your organizations
+                          </p>
+                          {managedOrgs.map(org => (
+                            <button
+                              key={`${org.kind}:${org.id}`}
+                              onClick={() => {
+                                router.push(`/app/org/${org.kind}/${org.id}`);
+                                setIsProfileDropdownOpen(false);
+                              }}
+                              className="w-full text-left px-4 py-2 text-sm text-secondary hover:bg-surface-muted flex items-center gap-3"
+                            >
+                              <i className={`fas ${org.kind === 'league' ? 'fa-trophy' : 'fa-building'} w-4`}></i>
+                              <span className="truncate">Manage {org.name}</span>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+
                       <div className="py-1">
                         <button
                           onClick={() => {
@@ -777,6 +825,29 @@ export default function AppHeader({ onCreatePost, onEditProfile }: AppHeaderProp
                   <i className="fas fa-plus w-5 text-center"></i>
                   <span className="font-medium">Add an athlete</span>
                 </button>
+              </div>
+            )}
+
+            {/* Managed orgs (phase 1) — the drawer must be a superset of the
+                dropdown (the tablets-lost-features lesson above). */}
+            {managedOrgs !== null && managedOrgs.length > 0 && (
+              <div className="pt-2 mt-2 border-t border-border">
+                <p className="px-4 pb-1 text-[10px] font-semibold text-faint uppercase tracking-wide">
+                  Your organizations
+                </p>
+                {managedOrgs.map(org => (
+                  <button
+                    key={`${org.kind}:${org.id}`}
+                    onClick={() => {
+                      router.push(`/app/org/${org.kind}/${org.id}`);
+                      setIsMobileMenuOpen(false);
+                    }}
+                    className="flex items-center gap-3 w-full px-4 py-3 text-left text-secondary hover:bg-surface-muted rounded-lg transition-colors"
+                  >
+                    <i className={`fas ${org.kind === 'league' ? 'fa-trophy' : 'fa-building'} w-5 text-center shrink-0`}></i>
+                    <span className="font-medium flex-1 min-w-0 truncate">Manage {org.name}</span>
+                  </button>
+                ))}
               </div>
             )}
 
