@@ -100,8 +100,23 @@ test('roster import: paste two athletes → stubs + 3 rows each + claim links; c
       const pageB = await ctxB.newPage();
       await pageB.goto(`/league/${leagueId}`);
       await expect(pageB.getByText('Unclaimed').first()).toBeVisible({ timeout: 20_000 });
+
+      // Re-mint (PR-D): "New claim link" mints a fresh invite inline; the
+      // old one is deleted server-side (still exactly one per stub).
+      await pageB.getByRole('button', { name: 'New claim link' }).first().click();
+      const linkInput = pageB.getByLabel(/^Claim link for /);
+      await expect(linkInput).toBeVisible({ timeout: 15_000 });
+      expect(await linkInput.inputValue()).toContain('/athlete-claim/');
     } finally {
       await ctxB.close();
+    }
+    for (const id of stubIds) {
+      const { data: invitesAfter } = await admin
+        .from('athlete_claim_invites')
+        .select('id')
+        .eq('profile_id', id)
+        .is('consumed_at', null);
+      expect(invitesAfter).toHaveLength(1);
     }
     const ctxAnon = await browser.newContext();
     try {

@@ -92,6 +92,9 @@ export default function ClubPage() {
   // step down themselves), so both actions confirm.
   const [promoteTarget, setPromoteTarget] = useState<MemberRow | null>(null);
   const [confirmStepDown, setConfirmStepDown] = useState(false);
+  // Re-minted claim links (R3), keyed by profile_id — session-local display
+  // only; the server deleted the old invite when it minted this one.
+  const [claimLinks, setClaimLinks] = useState<Record<string, string>>({});
   const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
@@ -246,6 +249,27 @@ export default function ClubPage() {
     rosterAction('PATCH', null, "You're on the roster", 'Failed to accept the invitation');
   const declineRoster = () =>
     rosterAction('DELETE', null, 'Invitation declined', 'Failed to decline the invitation');
+
+  // Re-mint a claim link for an unclaimed stub (R3): the import report is
+  // the only other place the URL ever appeared, and it may be long gone.
+  const remintClaimLink = async (target: MemberRow) => {
+    try {
+      const response = await fetch(`/api/clubs/${encodeURIComponent(clubId)}/roster-import`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ remintProfileId: target.profile_id }),
+      });
+      const body = await response.json();
+      if (!response.ok) {
+        showError('Club', body.error || 'Failed to create the claim link');
+        return;
+      }
+      setClaimLinks(prev => ({ ...prev, [target.profile_id]: body.claimUrl }));
+    } catch (e) {
+      console.error('Claim re-mint failed:', e);
+      showError('Club', 'Failed to create the claim link');
+    }
+  };
 
   const removeMember = async (target: MemberRow) => {
     try {
@@ -540,6 +564,15 @@ export default function ClubPage() {
                         Remove from roster
                       </button>
                     )}
+                    {canManage && member.unclaimed && (
+                      <button
+                        type="button"
+                        onClick={() => void remintClaimLink(member)}
+                        className="px-2 py-1 text-xs rounded-md border border-border-strong text-secondary hover:bg-surface-sunken transition-colors shrink-0"
+                      >
+                        New claim link
+                      </button>
+                    )}
                     {canManage && member.role === 'member' && member.profile_id !== user?.id && (
                       <button
                         type="button"
@@ -549,6 +582,25 @@ export default function ClubPage() {
                       >
                         <i className="fas fa-times" aria-hidden="true"></i>
                       </button>
+                    )}
+                    {claimLinks[member.profile_id] && (
+                      <span className="w-full flex items-center gap-2">
+                        <input
+                          type="text"
+                          readOnly
+                          value={claimLinks[member.profile_id]}
+                          onFocus={e => e.currentTarget.select()}
+                          aria-label={`Claim link for ${name}`}
+                          className="grow basis-48 min-w-0 px-2 py-1 border border-border rounded-md text-[11px] text-muted"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => void navigator.clipboard.writeText(claimLinks[member.profile_id])}
+                          className="px-2 py-1 min-h-[32px] rounded-md border border-border-strong text-secondary hover:bg-surface-sunken"
+                        >
+                          Copy
+                        </button>
+                      </span>
                     )}
                   </li>
                 );
