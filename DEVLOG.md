@@ -1,5 +1,50 @@
 # Development Log
 
+## August 31, 2026 — Phase 2 opens — round 1: the competition core (mig 151, #425–#428)
+
+Phase 2 (the competition model; Tom's five-round program and the four
+shape decisions — materialized standings, contests-link-events, the R3
+projection spike, five rounds — are recorded in the plan file). Round 1:
+an org can create a competition and enter its teams.
+
+- **Mig 151** — `competitions` (org pair, season CASCADE, optional
+  division pin, format/entrant/status/visibility CHECKs with
+  bracket/meet/ad_hoc_team FRONT-LOADED; visibility defaults private)
+  + `competition_entries`, the ONE polymorphic table (team XOR profile,
+  num_nonnulls=1 — 152's contest_participants will reference entry_id).
+  Posture A service-only; the anon-denial probe read 42501 live.
+- **The server core (#425)** clones structure-server: `CompetitionScope`
+  pinning (foreign ids 404; entries verified through the competition
+  JOIN — the team_entries precedent), `requireCompetitionManager` on the
+  NEW `'manage_competitions'` OrgIntent, cross-row rules once (org
+  inherited from the season row; division-in-season; v1 own-org teams;
+  division-pinned competitions require a team_entry; **athlete entrants
+  resolve through active ROSTER memberships only** — §8 invariant 3).
+  The pure zod half derives entrant_type FROM the format server-side
+  and gates v1 to fixture+team / leaderboard+athlete.
+- **#426** manager twins (GET/POST/PATCH + entries; no manager DELETE —
+  archive is the affordance) + the bursty `org-competitions` 120/h
+  bucket. **#427** the console section (create → lifecycle → visibility
+  → entries expander) + the R1 e2e.
+- **#428 — the 375px close caught a real bug**: the competition row's
+  action container carried `shrink-0` with four buttons (~341px
+  max-content), so it could never shrink and its own flex-wrap never
+  engaged — 12px of overflow. `min-w-0` fixes it; an overflow-locator
+  probe (skip fixed-rooted subtrees, report right>375) pinned the exact
+  element. Debugging detour worth recording: a stale `next start` held
+  :3000 and playwright's webServer silently reused it, so the "fix" kept
+  measuring the old build — `lsof -ti :3000` before trusting a local
+  e2e result.
+- **Verification.** Verify green ×4; e2e 1/1 local + 1/1 vs prod;
+  cross-org scope probe ON PROD via a minted session (own-org 200,
+  foreign 403, cross-org PATCH/entry through the own-org route 404,
+  target row untouched — the scope pin proven live); anon PostgREST
+  denied on both tables; 375px screenshots inspected. Probe trap: a
+  bare `profiles` upsert violates `check_display_name_not_empty` —
+  disposable probe users need `display_name` (the e2e harness already
+  knows).
+- Next: R2 contests + results + the calendar mirror (mig 152).
+
 ## August 31, 2026 — PHASE 1 COMPLETE — round 3: roster stubs + the athlete claim (mig 150, #420–#423)
 
 The masterplan's phase-1 exit condition ("an association can self-onboard
