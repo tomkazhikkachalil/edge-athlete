@@ -1,5 +1,54 @@
 # Development Log
 
+## August 31, 2026 — Step 0.8: multiple owners, and the dual-encoded owner finally resolves (mig 144, #399)
+
+The last structural debt from 113/117: ownership lived in BOTH an
+`owner_profile_id` column and a role='owner' row, with getOrgRole bridging.
+Now the ROWS are authoritative and the column is a maintained
+"primary owner" cache — earliest-joined, id tie-break (the tie-break is
+load-bearing: batch seeds and the creation-time backfill share timestamps).
+
+- **Tom's decisions.** Owners mint co-owners from existing members; SELF-
+  demote only — owners never demote or remove each other (no coup
+  semantics; the rule is stated at the API boundary: DELETE /owners with a
+  foreign profileId → 400 — and in the promote confirm's copy). Transfer =
+  promote + step down, crash-safe by construction (the two-owner window is
+  the safe direction). Supervised athletes can't be made owners (403 — the
+  guardian rail: an owner grant is strictly worse than a roster spot).
+- **Migration 144.** Convergent backfill (owner rows from the columns,
+  joined_at = org created_at; ON CONFLICT DO UPDATE touches only role) +
+  symmetric NULL-column repair. Prod backfill was a verified no-op — zero
+  cached-owner orgs exist (the 001 demo club is ownerless) — so the e2e
+  fixtures carry the proof.
+- **The flip.** getOrgRole reads rows first; the column survives as a
+  ZERO-ROWS-ONLY soak fallback, and a unit test pins that it can never
+  resurrect a stepped-down owner (they hold a manager row — rows win).
+  Thanks to 0.1/0.2 the flip was one function; the only test change was
+  inverting the "memberships is never queried" canary.
+- **Ordering and races, per the design review.** Step-down recomputes the
+  cache EXCLUDING self BEFORE demoting — a cache failure aborts with
+  nothing changed, so the column never names a non-owner. Concurrent
+  step-downs are compensated: guarded update → recount → zero owners left →
+  restore own row + 409. Account deletion moves the cache to a surviving
+  co-owner before the rows cascade; the last-owner-deletes-account orphan
+  is pre-existing and stays documented in place.
+- **Surfaces.** orgs/owners.ts core behind thin /owners routes both sides
+  ('owner-change' 10/h; audit allowlist); role notifiers widened to 'owner'
+  (zero DDL); Make-owner + Step-down confirms on both org pages; owner
+  rows' fall-through past the manager controls is now deliberate and
+  commented; the stale "transfer is a future admin action" docstrings
+  rewritten.
+- **Verification.** Verify green (193 files, 2263 tests, +13; lint 0). Prod
+  probes: e2e org-owners **1/1** (promote via confirm → two owner rows +
+  cache unchanged + "You're now an owner" notification; role-PATCH-on-owner
+  400; the no-coup 400; step down → manager row; last-owner 400) and a
+  **9/9 full-transfer probe** — promote successor → original steps down →
+  cache MOVES to the successor → the stepped-down account 403s on both
+  owner-gated actions → last-owner 400 with the exact body → re-promotion
+  works and the cache returns to the earliest-joined owner. 375px
+  screenshot pass: own-row Step-down + Make-owner beside the manager row,
+  wrapping cleanly (the 0.3 basis fix carrying it), zero overflow.
+
 ## August 30, 2026 — Steps 0.4 + 0.6a + 0.7: venues, capability flags, typed affiliations (migs 141–143, #395–#397)
 
 The three parallel-anytime phase-0 steps as one batch — three additive
