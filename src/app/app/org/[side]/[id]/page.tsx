@@ -932,7 +932,10 @@ export default function OrgConsolePage() {
                         ].filter(Boolean).join(' · ')}
                       </p>
                     </div>
-                    <div className="flex flex-wrap gap-2 shrink-0">
+                    {/* min-w-0, NOT shrink-0: four buttons' max-content basis
+                        (~341px) can't fit 375px minus padding; the container
+                        must be allowed to shrink so its own wrap engages. */}
+                    <div className="flex flex-wrap gap-2 min-w-0">
                       {comp.entrant_type === 'team' && (
                         <button
                           type="button"
