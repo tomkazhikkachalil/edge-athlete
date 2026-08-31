@@ -51,6 +51,28 @@ interface TeamRow {
   status: 'active' | 'archived';
 }
 
+interface CompetitionEntryRow {
+  id: string;
+  team_id: string | null;
+  profile_id: string | null;
+  status: string;
+  entrant_name: string;
+}
+
+interface CompetitionRow {
+  id: string;
+  season_id: string;
+  division_id: string | null;
+  sport_key: string;
+  name: string;
+  format: string;
+  entrant_type: string;
+  status: 'draft' | 'active' | 'completed' | 'archived';
+  visibility: 'public' | 'private';
+  season_label: string | null;
+  entries: CompetitionEntryRow[];
+}
+
 export default function OrgConsolePage() {
   const params = useParams();
   const side = params.side as string;
@@ -96,15 +118,26 @@ export default function OrgConsolePage() {
   const [importReport, setImportReport] = useState<
     { name: string; claimUrl: string | null; emailSent: boolean; error?: string }[] | null
   >(null);
+  // Competitions (phase 2 R1). The console creates FIXTURE competitions
+  // only — the leaderboard flow arrives with its round (R5); the API
+  // already accepts both.
+  const [competitions, setCompetitions] = useState<CompetitionRow[]>([]);
+  const [compName, setCompName] = useState('');
+  const [compSeasonId, setCompSeasonId] = useState('');
+  const [compDivisionId, setCompDivisionId] = useState('');
+  const [compSport, setCompSport] = useState('ice_hockey');
+  const [compPublic, setCompPublic] = useState(false);
+  const [entriesCompetitionId, setEntriesCompetitionId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!validSide || !user?.id) return;
     let cancelled = false;
     (async () => {
       try {
-        const [orgRes, structureRes] = await Promise.all([
+        const [orgRes, structureRes, competitionsRes] = await Promise.all([
           fetch(`/api/${plural}/${orgId}`),
           fetch(`/api/${plural}/${orgId}/structure`),
+          fetch(`/api/${plural}/${orgId}/competitions`),
         ]);
         if (cancelled) return;
         if (orgRes.ok) {
@@ -125,6 +158,12 @@ export default function OrgConsolePage() {
         setSeasons(structure.seasons ?? []);
         setTeams(structure.teams ?? []);
         setCounts(structure.counts ?? { managers: 0, rosterAthletes: 0 });
+        // Pre-151 the route degrades to an empty list; any other failure
+        // renders the section empty rather than blocking the console.
+        if (competitionsRes.ok) {
+          const compBody = await competitionsRes.json();
+          if (!cancelled) setCompetitions(compBody.competitions ?? []);
+        }
       } catch {
         if (!cancelled) setAuthorized(false);
       }
@@ -265,6 +304,49 @@ export default function OrgConsolePage() {
       setImporting(false);
     }
   };
+
+  const createCompetition = async () => {
+    if (!compName.trim() || !compSeasonId) {
+      showError('Competitions', 'A name and season are required');
+      return;
+    }
+    const ok = await act(
+      `/api/${plural}/${orgId}/competitions`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          side,
+          orgId,
+          seasonId: compSeasonId,
+          ...(compDivisionId ? { divisionId: compDivisionId } : {}),
+          sportKey: compSport,
+          name: compName.trim(),
+          format: 'fixture',
+          visibility: compPublic ? 'public' : 'private',
+        }),
+      },
+      'Competition created',
+      'Failed to create competition'
+    );
+    if (ok) {
+      setCompName('');
+      setCompDivisionId('');
+      setCompPublic(false);
+    }
+  };
+
+  const patchCompetition = (competitionId: string, patch: { status?: string; visibility?: string }) =>
+    act(
+      `/api/${plural}/${orgId}/competitions`,
+      {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: competitionId, ...patch }),
+      },
+      'Competition updated',
+      'Failed to update competition'
+    );
 
   const remove = (target: NonNullable<typeof confirmTarget>) => {
     const paths = { season: `${base}/seasons`, division: `${base}/divisions` } as const;
@@ -742,6 +824,220 @@ export default function OrgConsolePage() {
                             </li>
                           ))}
                         </ul>
+                      )}
+                    </div>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+
+        {/* Competitions (phase 2 R1) — create + entries; contests and
+            standings arrive with rounds 2–3's detail subpage. */}
+        <section
+          aria-label="Competitions"
+          className="bg-surface rounded-lg shadow-sm border border-border p-4 sm:p-6"
+        >
+          <h2 className="text-lg font-semibold text-primary mb-1">Competitions</h2>
+          <p className="text-sm text-tertiary mb-4">
+            A competition holds a schedule and standings. Create one per season — pin it
+            to a division for house play.
+          </p>
+          {seasons.length === 0 ? (
+            <p className="text-sm text-tertiary">Create a season first.</p>
+          ) : (
+            <div className="flex flex-wrap gap-2 mb-4">
+              <input
+                type="text"
+                value={compName}
+                maxLength={80}
+                onChange={e => setCompName(e.target.value)}
+                placeholder="Name (e.g., House League)"
+                aria-label="Competition name"
+                className="grow basis-44 min-w-0 px-3 py-2 border border-border-strong rounded-md outline-none text-sm"
+              />
+              <select
+                value={compSeasonId}
+                onChange={e => {
+                  setCompSeasonId(e.target.value);
+                  setCompDivisionId('');
+                }}
+                aria-label="Competition season"
+                className="px-3 py-2 border border-border-strong rounded-md outline-none text-sm"
+              >
+                <option value="">Season…</option>
+                {seasons.map(s => (
+                  <option key={s.id} value={s.id}>{s.label}</option>
+                ))}
+              </select>
+              <select
+                value={compDivisionId}
+                onChange={e => setCompDivisionId(e.target.value)}
+                aria-label="Competition division"
+                className="px-3 py-2 border border-border-strong rounded-md outline-none text-sm"
+              >
+                <option value="">Whole org</option>
+                {(seasons.find(s => s.id === compSeasonId)?.divisions ?? []).map(d => (
+                  <option key={d.id} value={d.id}>{d.name}</option>
+                ))}
+              </select>
+              <select
+                value={compSport}
+                onChange={e => setCompSport(e.target.value)}
+                aria-label="Competition sport"
+                className="px-3 py-2 border border-border-strong rounded-md outline-none text-sm"
+              >
+                {FEATURE_FLAGS.FEATURE_SPORTS.map(key => (
+                  <option key={key} value={key}>
+                    {SPORT_REGISTRY[key]?.display_name ?? key}
+                  </option>
+                ))}
+              </select>
+              <label className="flex items-center gap-1.5 text-sm text-secondary">
+                <input
+                  type="checkbox"
+                  checked={compPublic}
+                  onChange={e => setCompPublic(e.target.checked)}
+                  aria-label="Public competition"
+                />
+                Public
+              </label>
+              <button
+                type="button"
+                onClick={() => void createCompetition()}
+                className="px-4 py-2 text-sm min-h-[40px] rounded-lg bg-brand text-white font-medium hover:bg-brand-hover transition-colors"
+              >
+                Add competition
+              </button>
+            </div>
+          )}
+
+          {competitions.length === 0 ? (
+            seasons.length > 0 && <p className="text-sm text-tertiary">No competitions yet.</p>
+          ) : (
+            <ul className="space-y-3">
+              {competitions.map(comp => (
+                <li key={comp.id} className="border border-border rounded-lg p-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="font-medium text-primary">{comp.name}</p>
+                      <p className="text-xs text-muted">
+                        {[
+                          comp.season_label,
+                          SPORT_REGISTRY[comp.sport_key as keyof typeof SPORT_REGISTRY]?.display_name ?? comp.sport_key,
+                          comp.format,
+                          comp.status,
+                          comp.visibility === 'public' ? 'public' : 'private',
+                        ].filter(Boolean).join(' · ')}
+                      </p>
+                    </div>
+                    <div className="flex flex-wrap gap-2 shrink-0">
+                      {comp.entrant_type === 'team' && (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setEntriesCompetitionId(entriesCompetitionId === comp.id ? null : comp.id)
+                          }
+                          className="px-2 py-1 text-xs rounded-md border border-border-strong text-secondary hover:bg-surface-sunken transition-colors"
+                        >
+                          {entriesCompetitionId === comp.id
+                            ? 'Close entries'
+                            : `Entries (${comp.entries.length})`}
+                        </button>
+                      )}
+                      {comp.status === 'draft' && (
+                        <button
+                          type="button"
+                          onClick={() => void patchCompetition(comp.id, { status: 'active' })}
+                          className="px-2 py-1 text-xs rounded-md border border-border-strong text-secondary hover:bg-surface-sunken transition-colors"
+                        >
+                          Activate
+                        </button>
+                      )}
+                      {comp.status === 'active' && (
+                        <button
+                          type="button"
+                          onClick={() => void patchCompetition(comp.id, { status: 'completed' })}
+                          className="px-2 py-1 text-xs rounded-md border border-border-strong text-secondary hover:bg-surface-sunken transition-colors"
+                        >
+                          Complete
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() =>
+                          void patchCompetition(comp.id, {
+                            visibility: comp.visibility === 'public' ? 'private' : 'public',
+                          })
+                        }
+                        className="px-2 py-1 text-xs rounded-md border border-border-strong text-secondary hover:bg-surface-sunken transition-colors"
+                      >
+                        {comp.visibility === 'public' ? 'Make private' : 'Make public'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          void patchCompetition(comp.id, {
+                            status: comp.status === 'archived' ? 'draft' : 'archived',
+                          })
+                        }
+                        className="px-2 py-1 text-xs rounded-md border border-border-strong text-secondary hover:bg-surface-sunken transition-colors"
+                      >
+                        {comp.status === 'archived' ? 'Restore' : 'Archive'}
+                      </button>
+                    </div>
+                  </div>
+
+                  {entriesCompetitionId === comp.id && (
+                    <div className="mt-2 flex flex-wrap items-center gap-1 border-t border-border-subtle pt-2">
+                      {comp.entries.map(entry => (
+                        <span
+                          key={entry.id}
+                          className="inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded-full bg-surface-sunken text-secondary"
+                        >
+                          {entry.entrant_name}
+                          <button
+                            type="button"
+                            onClick={() =>
+                              void act(
+                                `/api/${plural}/${orgId}/competitions/entries?id=${encodeURIComponent(entry.id)}`,
+                                { method: 'DELETE' },
+                                'Entry removed',
+                                'Failed to remove the entry'
+                              )
+                            }
+                            aria-label={`Remove ${entry.entrant_name}`}
+                            className="text-muted hover:text-red-600"
+                          >
+                            <i className="fas fa-times" aria-hidden="true"></i>
+                          </button>
+                        </span>
+                      ))}
+                      {activeTeams.length > 0 && (
+                        <select
+                          value=""
+                          onChange={e => {
+                            if (!e.target.value) return;
+                            void act(
+                              `/api/${plural}/${orgId}/competitions/entries`,
+                              {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ competitionId: comp.id, teamId: e.target.value }),
+                              },
+                              'Team entered',
+                              'Failed to enter the team'
+                            );
+                          }}
+                          aria-label={`Enter a team in ${comp.name}`}
+                          className="px-2 py-1 text-xs border border-border-strong rounded-md outline-none"
+                        >
+                          <option value="">+ Enter team…</option>
+                          {activeTeams.map(t => (
+                            <option key={t.id} value={t.id}>{t.name}</option>
+                          ))}
+                        </select>
                       )}
                     </div>
                   )}
