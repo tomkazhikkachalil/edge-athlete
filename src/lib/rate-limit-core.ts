@@ -98,6 +98,10 @@ export const RATE_LIMITS = {
   'org-structure': { max: 120, windowSeconds: 3600, keyBy: 'user' },
   // Org claim (phase 1 R2) — the invite-peek/claim mirror: peeks IP-keyed
   // to keep token guessing costly; claims user-keyed and rare.
+  // Roster paste-import (phase 1 R3): each request mints up to 50 stubs
+  // (auth user + profile + 3 membership rows + invite each); 10/h clears a
+  // real club evening while capping a runaway client.
+  'roster-import': { max: 10, windowSeconds: 3600, keyBy: 'user' },
   'org-claim-peek': { max: 30, windowSeconds: 60, keyBy: 'ip' },
   'org-claim': { max: 10, windowSeconds: 3600, keyBy: 'user' },
   // Calendar event creation — org events fan a team_update out to every

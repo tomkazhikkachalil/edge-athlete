@@ -54,6 +54,8 @@ interface MemberRow {
   joined_at: string;
   profile: MemberProfile | null;
   roster: 'pending' | 'active' | null;
+  /** R3: unclaimed roster stub — server-derived, manager-redacted. */
+  unclaimed?: boolean;
 }
 
 interface ClubResponse {
@@ -423,7 +425,7 @@ export default function ClubPage() {
 
         {/* Members */}
         <div className="mt-6 bg-surface rounded-xl shadow-sm border border-border p-4 sm:p-6">
-          <h2 className="text-lg font-semibold text-primary mb-4">Members</h2>
+          <h2 id="members" className="text-lg font-semibold text-primary mb-4">Members</h2>
           {members.length === 0 ? (
             <p className="text-tertiary text-sm">No members yet.</p>
           ) : (
@@ -452,7 +454,7 @@ export default function ClubPage() {
                       )}
                       <div className="min-w-0">
                         <p className="font-medium text-primary truncate">{name}</p>
-                        {(member.role !== 'member' || member.roster) && (
+                        {(member.role !== 'member' || member.roster || member.unclaimed) && (
                           <p className="text-xs">
                             {member.role !== 'member' && (
                               <span className="text-brand-fg capitalize">{member.role}</span>
@@ -460,6 +462,11 @@ export default function ClubPage() {
                             {member.role !== 'member' && member.roster && <span className="text-muted"> · </span>}
                             {member.roster === 'active' && <span className="text-brand-fg">Roster</span>}
                             {member.roster === 'pending' && <span className="text-muted">Roster invited</span>}
+                            {member.unclaimed && (
+                              <span className="text-muted">
+                                {(member.role !== 'member' || member.roster) ? ' · ' : ''}Unclaimed
+                              </span>
+                            )}
                           </p>
                         )}
                       </div>

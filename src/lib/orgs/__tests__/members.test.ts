@@ -113,17 +113,24 @@ describe('single-write to memberships', () => {
 });
 
 describe('write filters keep legacy-shaped paths off future roster rows', () => {
-  it('leaveOrg deletes BOTH kinds (exit ends roster participation)', async () => {
+  it('leaveOrg deletes BOTH kinds AND the sub-org roster rows (R3 widening)', async () => {
     const { admin, calls } = mockAdmin({});
     await leaveOrg(admin, REF, 'me');
-    expect(calls).toHaveLength(1);
-    expect(calls[0].table).toBe('memberships');
-    expect(calls[0].op).toBe('delete');
+    expect(calls).toHaveLength(2);
+    expect(calls.every(c => c.table === 'memberships' && c.op === 'delete')).toBe(true);
     expect(calls[0].filters).toEqual({
       league_id: 'org-1',
       profile_id: 'me',
       kind: ['follow', 'roster'],
       scope_type: 'org',
+    });
+    // The exit must also end TEAM placement (viewerScopeSet would strand
+    // calendar placement otherwise) — org-pinned via the row's org pair.
+    expect(calls[1].filters).toEqual({
+      league_id: 'org-1',
+      profile_id: 'me',
+      kind: 'roster',
+      scope_type: ['division', 'team'],
     });
   });
 
@@ -131,16 +138,23 @@ describe('write filters keep legacy-shaped paths off future roster rows', () => 
     const { admin, calls } = mockAdmin({});
     await removeMember(admin, CLUB_REF, 'them');
     await setMemberRole(admin, CLUB_REF, 'them', 'member');
-    expect(calls.map(c => c.table)).toEqual(['memberships', 'memberships']);
+    expect(calls.map(c => c.table)).toEqual(['memberships', 'memberships', 'memberships']);
     expect(calls[0].filters).toEqual({
       club_id: 'club-1',
       profile_id: 'them',
       kind: ['follow', 'roster'],
       scope_type: 'org',
     });
-    expect(calls[1].op).toBe('update');
-    expect(calls[1].payload).toEqual({ role: 'member' });
+    // R3 widening: the sub-org roster cleanup rides the same exit.
     expect(calls[1].filters).toEqual({
+      club_id: 'club-1',
+      profile_id: 'them',
+      kind: 'roster',
+      scope_type: ['division', 'team'],
+    });
+    expect(calls[2].op).toBe('update');
+    expect(calls[2].payload).toEqual({ role: 'member' });
+    expect(calls[2].filters).toEqual({
       club_id: 'club-1',
       profile_id: 'them',
       kind: 'follow',

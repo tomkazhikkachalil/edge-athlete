@@ -14,6 +14,7 @@
 import type { PostgrestError, SupabaseClient } from '@supabase/supabase-js';
 import { maxOrgRole, type OrgRole, type OrgSide } from './authz';
 import { isMissingTableError } from '@/lib/leagues/validate';
+import { isStubEmail } from '@/lib/config/stubs-config';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- matches the authz.ts Admin alias; schema-agnostic helper
 type Admin = SupabaseClient<any, 'public', any>;
@@ -120,7 +121,7 @@ export async function ownerRows(
 
 async function deleteMembership(admin: Admin, ref: OrgRef, profileId: string): Promise<WriteResult> {
   // Leaving (or being removed) ends roster participation too — the
-  // roster ⊆ follow invariant's exit half. scope_type stays pinned.
+  // roster ⊆ follow invariant's exit half.
   const { error } = await admin
     .from('memberships')
     .delete()
@@ -128,7 +129,18 @@ async function deleteMembership(admin: Admin, ref: OrgRef, profileId: string): P
     .eq('profile_id', profileId)
     .in('kind', ['follow', 'roster'])
     .eq('scope_type', 'org');
-  return { error };
+  if (error) return { error };
+  // R3 widening: TEAM-scoped roster rows (roster-import mints them) must
+  // end with the org exit too, or viewerScopeSet strands calendar
+  // placement forever. Rows carry the org pair, so this stays org-pinned.
+  const { error: scopedError } = await admin
+    .from('memberships')
+    .delete()
+    .eq(orgColumn(ref.side), ref.orgId)
+    .eq('profile_id', profileId)
+    .eq('kind', 'roster')
+    .in('scope_type', ['division', 'team']);
+  return { error: scopedError };
 }
 
 /** POST leave branch: the session user leaves. */
@@ -231,9 +243,12 @@ export function redactPendingRoster(
   viewerId: string | null
 ): MemberPreviewRow[] {
   if (canManage) return members;
-  return members.map(m =>
-    m.roster === 'pending' && m.profile_id !== viewerId ? { ...m, roster: null } : m
-  );
+  return members.map(m => ({
+    ...m,
+    ...(m.roster === 'pending' && m.profile_id !== viewerId ? { roster: null } : {}),
+    // Unclaimed status is an org-management detail — managers only.
+    unclaimed: false,
+  }));
 }
 
 // ── Reads (the enumeration layer promised by orgs/authz.ts) ─────────────────
@@ -402,6 +417,10 @@ export interface MemberPreviewRow {
   profile: unknown;
   /** 0.3: the member's roster edge, merged onto their follow row. */
   roster: 'pending' | 'active' | null;
+  /** R3: an unclaimed roster stub (@stubs.invalid ⇔ unclaimed). Derived
+   *  server-side; the email itself is STRIPPED before return and the flag
+   *  is redacted for non-managers (redactPendingRoster). */
+  unclaimed: boolean;
 }
 
 /** The org page's member panel: exact count and first `limit` rows over the
@@ -430,7 +449,7 @@ export async function orgMemberPreview(
       .eq('scope_type', 'org'),
     admin
       .from('memberships')
-      .select('profile_id, role, joined_at, profile:profile_id (id, handle, first_name, last_name, full_name, avatar_url)')
+      .select('profile_id, role, joined_at, profile:profile_id (id, handle, first_name, last_name, full_name, avatar_url, email)')
       .eq(col, ref.orgId)
       .eq('kind', 'follow')
       .eq('scope_type', 'org')
@@ -457,10 +476,19 @@ export async function orgMemberPreview(
       r.status as 'pending' | 'active',
     ])
   );
-  const members = ((membersRes.data ?? []) as unknown as MemberPreviewRow[]).map(m => ({
-    ...m,
-    roster: rosterByProfile.get(m.profile_id) ?? null,
-  }));
+  const members = ((membersRes.data ?? []) as unknown as MemberPreviewRow[]).map(m => {
+    // Derive unclaimed from the embedded email, then STRIP the email here
+    // so no caller can leak it.
+    const profile = (m.profile ?? null) as ({ email?: string | null } & Record<string, unknown>) | null;
+    const unclaimed = isStubEmail(profile?.email ?? null);
+    if (profile && 'email' in profile) delete profile.email;
+    return {
+      ...m,
+      profile,
+      roster: rosterByProfile.get(m.profile_id) ?? null,
+      unclaimed,
+    };
+  });
   const viewerRows = (viewerRes.data ?? []) as Array<{ role: string; kind: string; status: string }>;
   const viewerRosterRow = viewerRows.find(r => r.kind === 'roster');
   return {

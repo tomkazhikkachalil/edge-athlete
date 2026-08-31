@@ -185,6 +185,50 @@ This email was sent from your website's contact form.
     });
   }
 
+  /** Athlete claim invite (phase 1 R3): an org rostered this person as a
+   *  stub; the recipient (the athlete, or their parent) claims the
+   *  profile. Single-use, 30-day link. */
+  async sendAthleteClaimInvite(
+    to: string,
+    athleteName: string,
+    orgName: string,
+    teamName: string,
+    claimUrl: string
+  ): Promise<boolean> {
+    const athlete = escapeHtml(athleteName);
+    const org = escapeHtml(orgName);
+    const team = escapeHtml(teamName);
+    const htmlContent = `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <h2 style="color:#6d28d9;">${org} added ${athlete} to ${team}</h2>
+        <p style="color:#333;font-size:15px;line-height:1.6;">
+          ${org} rostered ${athlete} on ${team} and created their Edge
+          Athlete profile. If you're ${athlete}, claim the profile to make
+          it yours; if you're their parent or guardian, you can claim it
+          for them and stay in control of their account.
+        </p>
+        <a href="${claimUrl}"
+           style="display:inline-block;background:#7c3aed;color:#fff;text-decoration:none;padding:10px 20px;border-radius:6px;font-size:14px;margin-top:8px;">
+          Claim this profile
+        </a>
+        <p style="color:#888;font-size:12px;margin-top:16px;">
+          This link is single-use and expires in 30 days. If this isn't
+          you or your athlete, you can ignore this email.
+        </p>
+        <div style="margin-top:20px;padding-top:20px;border-top:1px solid #eee;color:#888;font-size:12px;">
+          <p>— Edge Athlete</p>
+        </div>
+      </div>
+    `;
+    return this.deliver('athlete_claim_invite', {
+      from: fromAddress(),
+      to,
+      subject: `${orgName} rostered ${athleteName} on ${teamName} — claim the profile`,
+      html: htmlContent,
+      text: `${orgName} rostered ${athleteName} on ${teamName} and created their Edge Athlete profile.\n\nClaim it here (single-use link, expires in 30 days):\n\n${claimUrl}\n\nIf this isn't you or your athlete, you can ignore this email.\n\n— Edge Athlete`,
+    });
+  }
+
   /** Org claim invite (phase 1 round 2): an org named this one as a
    *  partner; the recipient claims ownership of the pre-built page.
    *  Single-use link, 30-day expiry — copy mirrors sendGuardianInvite. */
