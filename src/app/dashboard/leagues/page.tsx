@@ -28,6 +28,9 @@ interface AdminLeagueRow {
   created_at: string;
   memberCount: number;
   owner: { id: string; first_name: string | null; last_name: string | null; full_name: string | null } | null;
+  // Capability flags (142) — read-only v1; backfilled leagues→competitions.
+  operates_competitions?: boolean;
+  operates_teams?: boolean;
 }
 
 interface AdminRequestRow {
@@ -465,7 +468,17 @@ export default function AdminLeaguesPage() {
                 <tbody className="divide-y divide-border-subtle">
                   {leagues.map(league => (
                     <tr key={league.id}>
-                      <td className="py-2 pr-3 text-primary font-medium">{league.name}</td>
+                      <td className="py-2 pr-3">
+                        <span className="text-primary font-medium">{league.name}</span>
+                        <span className="mt-0.5 flex flex-wrap gap-1">
+                          {league.operates_competitions && (
+                            <span className="px-1.5 py-0.5 text-[10px] rounded-full bg-surface-sunken text-secondary">runs competitions</span>
+                          )}
+                          {league.operates_teams && (
+                            <span className="px-1.5 py-0.5 text-[10px] rounded-full bg-surface-sunken text-secondary">runs teams</span>
+                          )}
+                        </span>
+                      </td>
                       <td className="py-2 pr-3 text-secondary">
                         {SPORT_REGISTRY[league.sport_key as keyof typeof SPORT_REGISTRY]?.display_name ?? league.sport_key}
                       </td>

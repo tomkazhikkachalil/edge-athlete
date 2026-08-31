@@ -38,7 +38,9 @@ export type LeagueCreateInput = z.infer<typeof LeagueCreateSchema>;
 
 /** sport_key is deliberately ABSENT — immutable in v1 (a league is one
  *  sport; changing it would silently re-home every member). `place: null`
- *  clears the location; omitting `place` leaves it untouched. */
+ *  clears the location; omitting `place` leaves it untouched. The 142
+ *  capability flags (operates_competitions/operates_teams) are ALSO absent
+ *  on purpose — read-only v1; zod's strip drops a client-sent flag. */
 export const LeagueUpdateSchema = z.object({
   name: boundedText(120).optional(),
   description: optionalText(2000),

@@ -22,7 +22,9 @@ export const ClubCreateSchema = z.object({
 });
 export type ClubCreateInput = z.infer<typeof ClubCreateSchema>;
 
-/** `place: null` clears the location; omitting `place` leaves it untouched. */
+/** `place: null` clears the location; omitting `place` leaves it untouched.
+ *  The 142 capability flags are deliberately absent — read-only v1; zod's
+ *  strip drops a client-sent flag. */
 export const ClubUpdateSchema = z.object({
   name: boundedText(120).optional(),
   description: optionalText(2000),

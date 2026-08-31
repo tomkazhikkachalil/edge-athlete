@@ -24,6 +24,9 @@ interface AdminClubRow {
   created_at: string;
   memberCount: number;
   owner: { id: string; first_name: string | null; last_name: string | null; full_name: string | null } | null;
+  // Capability flags (142) — read-only v1; backfilled clubs→teams.
+  operates_teams?: boolean;
+  operates_competitions?: boolean;
 }
 
 interface AdminRequestRow {
@@ -437,7 +440,17 @@ export default function AdminClubsPage() {
                 <tbody className="divide-y divide-border-subtle">
                   {clubs.map(club => (
                     <tr key={club.id}>
-                      <td className="py-2 pr-3 text-primary font-medium">{club.name}</td>
+                      <td className="py-2 pr-3">
+                        <span className="text-primary font-medium">{club.name}</span>
+                        <span className="mt-0.5 flex flex-wrap gap-1">
+                          {club.operates_teams && (
+                            <span className="px-1.5 py-0.5 text-[10px] rounded-full bg-surface-sunken text-secondary">runs teams</span>
+                          )}
+                          {club.operates_competitions && (
+                            <span className="px-1.5 py-0.5 text-[10px] rounded-full bg-surface-sunken text-secondary">runs competitions</span>
+                          )}
+                        </span>
+                      </td>
                       <td className="py-2 pr-3 text-secondary">
                         {club.owner
                           ? formatDisplayName(club.owner.first_name, null, club.owner.last_name, club.owner.full_name)
