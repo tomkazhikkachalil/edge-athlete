@@ -213,7 +213,8 @@ export async function membershipEdges(
     .from('memberships')
     .select('role, kind, status')
     .eq(orgColumn(ref.side), ref.orgId)
-    .eq('profile_id', profileId);
+    .eq('profile_id', profileId)
+    .eq('scope_type', 'org');
   const rows = (data ?? []) as Array<{ role: string; kind: string; status: string }>;
   const rosterRow = rows.find(r => r.kind === 'roster');
   return {
@@ -242,6 +243,9 @@ export function redactPendingRoster(
 // dedupe. Enumeration keeps NO kind predicate — 0.10 adds the kind='roster'
 // predicate to the CALENDAR MERGE's caller only. The member-list/count
 // queries filter kind='follow' (roster ⊆ follow: one row per person).
+// ORG-SCOPED BY CHARTER (0.5): every read here pins scope_type='org' —
+// division/team-scoped rows (145+) are a different authority surface and
+// get their own readers with 0.9/roles, never these.
 // Functions own the query; callers keep their own error mapping unless
 // every caller shares one policy (noted per function).
 
@@ -257,7 +261,8 @@ export async function getMemberRole(
     .from('memberships')
     .select('role')
     .eq(orgColumn(ref.side), ref.orgId)
-    .eq('profile_id', profileId);
+    .eq('profile_id', profileId)
+    .eq('scope_type', 'org');
   return { role: maxOrgRole((data ?? []).map(r => r.role as string)), error };
 }
 
@@ -271,7 +276,8 @@ export async function memberOrgIds(
   const { data, error } = await admin
     .from('memberships')
     .select('league_id, club_id')
-    .eq('profile_id', profileId);
+    .eq('profile_id', profileId)
+    .eq('scope_type', 'org');
   if (error) {
     if (isMissingTableError(error.code)) return { leagueIds: [], clubIds: [] };
     throw error;
@@ -294,7 +300,8 @@ export async function memberProfileIdsForOrgs(
   const { data, error } = await admin
     .from('memberships')
     .select('profile_id')
-    .in(orgColumn(side), orgIds);
+    .in(orgColumn(side), orgIds)
+    .eq('scope_type', 'org');
   if (error) {
     if (isMissingTableError(error.code)) return [];
     throw error;
@@ -312,7 +319,8 @@ export async function memberProfileIds(
   const { data, error } = await admin
     .from('memberships')
     .select('profile_id')
-    .eq(orgColumn(ref.side), ref.orgId);
+    .eq(orgColumn(ref.side), ref.orgId)
+    .eq('scope_type', 'org');
   return { profileIds: [...new Set((data ?? []).map(r => r.profile_id as string))], error };
 }
 
@@ -328,6 +336,7 @@ export async function anyMembershipExists(
     .from('memberships')
     .select('profile_id')
     .eq(orgColumn(ref.side), ref.orgId)
+    .eq('scope_type', 'org')
     .in('profile_id', profileIds)
     .limit(1)
     .maybeSingle();
@@ -345,7 +354,8 @@ export async function profileMembershipRows(
   const { data, error } = await admin
     .from('memberships')
     .select(`${col}, role`)
-    .eq('profile_id', profileId);
+    .eq('profile_id', profileId)
+    .eq('scope_type', 'org');
   // One entry per org: a dual-edge profile reduces to their max role.
   const byOrg = new Map<string, string[]>();
   for (const r of (data ?? []) as unknown as Array<Record<string, string>>) {
@@ -390,25 +400,29 @@ export async function orgMemberPreview(
       .from('memberships')
       .select('profile_id', { count: 'exact', head: true })
       .eq(col, ref.orgId)
-      .eq('kind', 'follow'),
+      .eq('kind', 'follow')
+      .eq('scope_type', 'org'),
     admin
       .from('memberships')
       .select('profile_id, role, joined_at, profile:profile_id (id, handle, first_name, last_name, full_name, avatar_url)')
       .eq(col, ref.orgId)
       .eq('kind', 'follow')
+      .eq('scope_type', 'org')
       .order('joined_at', { ascending: true })
       .limit(limit),
     admin
       .from('memberships')
       .select('profile_id, status')
       .eq(col, ref.orgId)
-      .eq('kind', 'roster'),
+      .eq('kind', 'roster')
+      .eq('scope_type', 'org'),
     viewerId
       ? admin
           .from('memberships')
           .select('role, kind, status')
           .eq(col, ref.orgId)
           .eq('profile_id', viewerId)
+          .eq('scope_type', 'org')
       : Promise.resolve({ data: null }),
   ]);
   const rosterByProfile = new Map(
@@ -444,7 +458,8 @@ export async function memberCountsByOrg(
   const { data } = await admin
     .from('memberships')
     .select(`${col}, profile_id`)
-    .in(col, orgIds);
+    .in(col, orgIds)
+    .eq('scope_type', 'org');
   // Distinct people per org — a dual-edge profile counts once.
   const seen = new Map<string, Set<string>>();
   for (const row of (data ?? []) as unknown as Array<Record<string, string>>) {

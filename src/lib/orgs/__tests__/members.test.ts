@@ -274,6 +274,7 @@ describe('write filters keep legacy-shaped paths off future roster rows', () => 
     });
     expect(await getMemberRole(ok.admin, REF, 'me')).toEqual({ role: 'owner', error: null });
     expect(ok.calls.map(c => c.table)).toEqual(['memberships']);
+    expect(ok.calls[0].filters).toMatchObject({ scope_type: 'org' }); // 0.5 pin
     const bad = mockAdmin({ memberships: { data: null, error: { code: '57014' } } });
     const res = await getMemberRole(bad.admin, REF, 'me');
     expect(res.role).toBeNull();
@@ -331,10 +332,11 @@ describe('write filters keep legacy-shaped paths off future roster rows', () => 
     });
     const out = await orgMemberPreview(admin, REF, 'viewer', 12);
     expect(calls).toHaveLength(4);
-    expect(calls[0].filters).toMatchObject({ kind: 'follow' }); // count
-    expect(calls[1].filters).toMatchObject({ kind: 'follow' }); // list
-    expect(calls[2].filters).toMatchObject({ kind: 'roster' }); // decorations
-    expect(calls[3].filters).not.toHaveProperty('kind'); // viewer reads ALL rows
+    expect(calls[0].filters).toMatchObject({ kind: 'follow', scope_type: 'org' }); // count
+    expect(calls[1].filters).toMatchObject({ kind: 'follow', scope_type: 'org' }); // list
+    expect(calls[2].filters).toMatchObject({ kind: 'roster', scope_type: 'org' }); // decorations
+    expect(calls[3].filters).toMatchObject({ scope_type: 'org' }); // viewer: all kinds, org scope
+    expect(calls[3].filters).not.toHaveProperty('kind');
     expect(out.viewerRole).toBe('manager');
     expect(out.viewerRoster).toBe('pending');
   });
