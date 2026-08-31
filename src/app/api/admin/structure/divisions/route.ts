@@ -3,12 +3,15 @@ import { requireAdmin, getSupabaseAdmin } from '@/lib/auth-server';
 import { parseBody } from '@/lib/validation';
 import { DivisionCreateSchema } from '@/lib/structure/validate';
 import { isSportEnabled } from '@/lib/features';
+import { refreshLeagueSportCache } from '@/lib/orgs/sports';
 import type { SportKey } from '@/lib/sports/SportRegistry';
 import { UUID_RE } from '@/lib/golf/course-catalog';
 
 // ── /api/admin/structure/divisions — per-season divisions (0.5) ─────────────
 // The division inherits its org from the season (the app-layer
 // division.org == season.org rule lives HERE, once — no cross-row CHECKs).
+// Division writes refresh the league's primary-sport cache (0.6b) —
+// warn-and-continue: a stale sport chip never fails a division write.
 
 export async function POST(request: NextRequest) {
   try {
@@ -54,6 +57,10 @@ export async function POST(request: NextRequest) {
       console.error('[ADMIN STRUCTURE] division insert error:', error);
       return NextResponse.json({ error: 'Failed to create division' }, { status: 500 });
     }
+    if (season.league_id) {
+      const { error: cacheError } = await refreshLeagueSportCache(supabase, season.league_id as string);
+      if (cacheError) console.warn('[ADMIN STRUCTURE] sport cache refresh failed:', cacheError.message);
+    }
     return NextResponse.json({ division });
   } catch (error) {
     if (error instanceof Response) return error;
@@ -72,13 +79,21 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: 'id is required' }, { status: 400 });
     }
     const supabase = getSupabaseAdmin();
-    const { data: deleted, error } = await supabase.from('divisions').delete().eq('id', id).select('id');
+    const { data: deleted, error } = await supabase
+      .from('divisions')
+      .delete()
+      .eq('id', id)
+      .select('id, league_id');
     if (error) {
       console.error('[ADMIN STRUCTURE] division delete error:', error);
       return NextResponse.json({ error: 'Failed to delete division' }, { status: 500 });
     }
     if (!deleted || deleted.length === 0) {
       return NextResponse.json({ error: 'Division not found' }, { status: 404 });
+    }
+    if (deleted[0].league_id) {
+      const { error: cacheError } = await refreshLeagueSportCache(supabase, deleted[0].league_id as string);
+      if (cacheError) console.warn('[ADMIN STRUCTURE] sport cache refresh failed:', cacheError.message);
     }
     return NextResponse.json({ action: 'deleted' });
   } catch (error) {

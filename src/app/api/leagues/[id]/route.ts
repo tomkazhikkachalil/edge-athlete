@@ -4,6 +4,7 @@ import { parseBody } from '@/lib/validation';
 import { LeagueUpdateSchema, placeToLeagueColumns, isMissingTableError } from '@/lib/leagues/validate';
 import { getOrgAndRole, roleAllows } from '@/lib/orgs/authz';
 import { orgMemberPreview, redactPendingRoster } from '@/lib/orgs/members';
+import { deriveOrgSports } from '@/lib/orgs/sports';
 import type { OrgRole } from '@/lib/orgs/authz';
 import { UUID_RE } from '@/lib/golf/course-catalog';
 
@@ -62,8 +63,16 @@ export async function GET(
       (a, b) => (ROLE_ORDER[a.role] ?? 9) - (ROLE_ORDER[b.role] ?? 9)
     );
 
+    // 0.6b: derived sports (division sports ∪ the cached primary sport).
+    const sports = await deriveOrgSports(
+      supabase,
+      { side: 'league', orgId: id },
+      (league.sport_key as string | null) ?? null
+    );
+
     return NextResponse.json({
       league,
+      sports,
       memberCount: count,
       members,
       viewerRole,

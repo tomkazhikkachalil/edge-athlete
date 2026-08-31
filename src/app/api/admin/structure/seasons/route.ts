@@ -3,6 +3,7 @@ import { requireAdmin, getSupabaseAdmin } from '@/lib/auth-server';
 import { parseBody } from '@/lib/validation';
 import { SeasonCreateSchema } from '@/lib/structure/validate';
 import { isSportEnabled } from '@/lib/features';
+import { refreshLeagueSportCache } from '@/lib/orgs/sports';
 import type { SportKey } from '@/lib/sports/SportRegistry';
 import { UUID_RE } from '@/lib/golf/course-catalog';
 
@@ -68,13 +69,23 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: 'id is required' }, { status: 400 });
     }
     const supabase = getSupabaseAdmin();
-    const { data: deleted, error } = await supabase.from('seasons').delete().eq('id', id).select('id');
+    const { data: deleted, error } = await supabase
+      .from('seasons')
+      .delete()
+      .eq('id', id)
+      .select('id, league_id');
     if (error) {
       console.error('[ADMIN STRUCTURE] season delete error:', error);
       return NextResponse.json({ error: 'Failed to delete season' }, { status: 500 });
     }
     if (!deleted || deleted.length === 0) {
       return NextResponse.json({ error: 'Season not found' }, { status: 404 });
+    }
+    // The delete cascaded this season's divisions — refresh the sport
+    // cache (0.6b, league side only; warn-and-continue).
+    if (deleted[0].league_id) {
+      const { error: cacheError } = await refreshLeagueSportCache(supabase, deleted[0].league_id as string);
+      if (cacheError) console.warn('[ADMIN STRUCTURE] sport cache refresh failed:', cacheError.message);
     }
     return NextResponse.json({ action: 'deleted' });
   } catch (error) {

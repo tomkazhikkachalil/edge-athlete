@@ -14,7 +14,8 @@ import OrgRecentActivity from '@/components/affiliations/OrgRecentActivity';
 import { useToast } from '@/components/Toast';
 import { formatDisplayName, getInitials } from '@/lib/formatters';
 import { formatPlace, GEO_ATTRIBUTION } from '@/lib/geo/regions';
-import { MapPin, Building2, Users } from 'lucide-react';
+import { MapPin, Building2, Trophy, Users } from 'lucide-react';
+import { SPORT_REGISTRY } from '@/lib/sports/SportRegistry';
 
 // The club page (117) — mirror of /league/[id], minus sport: clubs are
 // multi-sport facilities by decision. Shipping this page is what makes the
@@ -57,6 +58,8 @@ interface MemberRow {
 
 interface ClubResponse {
   club: ClubInfo;
+  /** 0.6b: derived sports (distinct division sports; [] until structure exists). */
+  sports?: string[];
   memberCount: number;
   members: MemberRow[];
   viewerRole: string | null;
@@ -301,6 +304,11 @@ export default function ClubPage() {
   }
 
   const { club, memberCount, members, viewerRole, viewerRoster } = data;
+  // Derived sports (0.6b) — purely additive: a structureless club shows no
+  // sport chip at all, exactly as before.
+  const sportLabels = (data.sports ?? []).map(
+    key => SPORT_REGISTRY[key as keyof typeof SPORT_REGISTRY]?.display_name ?? key
+  );
   const placeLine =
     formatPlace({ city: club.city, region: club.region, country: club.country }) || club.location;
   const canManage =
@@ -319,6 +327,12 @@ export default function ClubPage() {
               <div className="min-w-0">
                 <h1 className="text-2xl font-bold text-primary break-words">{club.name}</h1>
                 <div className="mt-2 flex flex-wrap gap-x-4 gap-y-2 text-sm text-tertiary">
+                  {sportLabels.length > 0 && (
+                    <span className="inline-flex items-center gap-1">
+                      <Trophy className="w-4 h-4" />
+                      {sportLabels.join(' · ')}
+                    </span>
+                  )}
                   {placeLine && (
                     <span className="inline-flex items-center gap-1">
                       <MapPin className="w-4 h-4" />
