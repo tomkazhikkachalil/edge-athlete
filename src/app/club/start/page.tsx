@@ -4,8 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/lib/auth';
 import AppHeader from '@/components/AppHeader';
-import PlacePicker, { type PlaceValue } from '@/components/PlacePicker';
-import { useToast } from '@/components/Toast';
+import OrgStartWizard from '@/components/orgs/OrgStartWizard';
 import { Building2, Clock } from 'lucide-react';
 
 // "Start a club" (117) — mirror of /league/start, minus the sport select
@@ -28,17 +27,11 @@ interface MyRequest {
 
 export default function StartClubPage() {
   const { user, loading: authLoading } = useAuth();
-  const { showSuccess, showError } = useToast();
 
   const [requests, setRequests] = useState<MyRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [reloadKey, setReloadKey] = useState(0);
 
-  const [name, setName] = useState('');
-  const [description, setDescription] = useState('');
-  const [place, setPlace] = useState<PlaceValue | null>(null);
-  const [placeText, setPlaceText] = useState('');
-  const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     if (!user?.id) return;
@@ -59,42 +52,6 @@ export default function StartClubPage() {
     return () => { cancelled = true; };
   }, [user?.id, reloadKey]);
 
-  const submit = async () => {
-    if (submitting) return;
-    if (!name.trim()) {
-      showError('Club request', 'A club name is required');
-      return;
-    }
-    setSubmitting(true);
-    try {
-      const response = await fetch('/api/clubs/requests', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: name.trim(),
-          description: description.trim() || undefined,
-          place,
-        }),
-      });
-      const data = await response.json();
-      if (!response.ok) {
-        showError('Club request', data.error || 'Failed to submit request');
-        if (response.status === 409) setReloadKey(k => k + 1);
-        return;
-      }
-      showSuccess('Club request', "Submitted — we'll notify you when it's reviewed");
-      setName('');
-      setDescription('');
-      setPlace(null);
-      setPlaceText('');
-      setReloadKey(k => k + 1);
-    } catch (e) {
-      console.error('Club request submit failed:', e);
-      showError('Club request', 'Failed to submit request');
-    } finally {
-      setSubmitting(false);
-    }
-  };
 
   if (authLoading) {
     return (
@@ -179,63 +136,7 @@ export default function StartClubPage() {
               </div>
             )}
 
-            <div className="bg-surface rounded-xl shadow-sm border border-border p-5 space-y-4">
-              <div>
-                <label htmlFor="club-start-name" className="block text-sm font-medium text-secondary mb-1">
-                  Name
-                </label>
-                <input
-                  id="club-start-name"
-                  type="text"
-                  value={name}
-                  maxLength={120}
-                  onChange={e => setName(e.target.value)}
-                  placeholder="e.g., Ottawa Athletics Club"
-                  className="w-full px-3 py-2 border border-border-strong rounded-md outline-none"
-                />
-              </div>
-              <div>
-                <label htmlFor="club-start-description" className="block text-sm font-medium text-secondary mb-1">
-                  Description
-                </label>
-                <textarea
-                  id="club-start-description"
-                  value={description}
-                  maxLength={2000}
-                  rows={4}
-                  onChange={e => setDescription(e.target.value)}
-                  placeholder="What does your club offer, and to whom?"
-                  className="w-full px-3 py-2 border border-border-strong rounded-md outline-none resize-y"
-                />
-              </div>
-              <div>
-                <label htmlFor="club-start-place" className="block text-sm font-medium text-secondary mb-1">
-                  Location
-                </label>
-                <PlacePicker
-                  id="club-start-place"
-                  value={place}
-                  text={placeText}
-                  allowFreeText={false}
-                  placeholder="City or town"
-                  onChange={(nextPlace, text) => {
-                    setPlace(nextPlace);
-                    setPlaceText(text);
-                  }}
-                  className="w-full px-3 py-2 border border-border-strong rounded-md outline-none"
-                />
-              </div>
-              <div className="flex justify-end">
-                <button
-                  type="button"
-                  onClick={submit}
-                  disabled={submitting}
-                  className="px-4 py-2 text-sm min-h-[40px] rounded-lg bg-brand text-white font-medium hover:bg-brand-hover transition-colors disabled:opacity-60"
-                >
-                  {submitting ? 'Submitting…' : 'Submit request'}
-                </button>
-              </div>
-            </div>
+            <OrgStartWizard side="club" onSubmitted={() => setReloadKey(k => k + 1)} />
           </>
         )}
 
