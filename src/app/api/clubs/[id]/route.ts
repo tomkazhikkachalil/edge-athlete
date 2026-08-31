@@ -4,12 +4,16 @@ import { parseBody } from '@/lib/validation';
 import { ClubUpdateSchema, placeToClubColumns, isMissingTableError } from '@/lib/clubs/validate';
 import { getOrgAndRole, roleAllows } from '@/lib/orgs/authz';
 import { orgMemberPreview, redactPendingRoster } from '@/lib/orgs/members';
+import { deriveOrgSports } from '@/lib/orgs/sports';
 import type { OrgRole } from '@/lib/orgs/authz';
 import { UUID_RE } from '@/lib/golf/course-catalog';
 
 // ── /api/clubs/[id] — the public club read + owner/manager edit ─────────────
-// Mirror of /api/leagues/[id], minus sport. Clubs are always public;
-// optional auth only resolves the viewer's membership role.
+// Mirror of /api/leagues/[id], minus the sport COLUMN (117 decision:
+// multi-sport facilities). Sport identity arrives derived (0.6b): the
+// `sports` payload key is the distinct division sports, empty for a
+// structureless club. Clubs are always public; optional auth only resolves
+// the viewer's membership role.
 
 const MEMBER_PREVIEW = 12;
 const ROLE_ORDER: Record<string, number> = { owner: 0, manager: 1, member: 2 };
@@ -58,8 +62,12 @@ export async function GET(
       (a, b) => (ROLE_ORDER[a.role] ?? 9) - (ROLE_ORDER[b.role] ?? 9)
     );
 
+    // 0.6b: derived sports (clubs have no cached sport — divisions only).
+    const sports = await deriveOrgSports(supabase, { side: 'club', orgId: id }, null);
+
     return NextResponse.json({
       club,
+      sports,
       memberCount: count,
       members,
       viewerRole,

@@ -56,6 +56,8 @@ interface MemberRow {
 
 interface LeagueResponse {
   league: LeagueInfo;
+  /** 0.6b: derived sports (division sports ∪ cached primary), cached first. */
+  sports?: string[];
   memberCount: number;
   members: MemberRow[];
   viewerRole: string | null;
@@ -301,8 +303,12 @@ export default function LeaguePage() {
   }
 
   const { league, memberCount, members, viewerRole, viewerRoster } = data;
-  const sportLabel =
-    SPORT_REGISTRY[league.sport_key as keyof typeof SPORT_REGISTRY]?.display_name ?? league.sport_key;
+  // Derived sports (0.6b), cached-primary first; older payloads fall back
+  // to the single cached sport.
+  const sportKeys = data.sports?.length ? data.sports : [league.sport_key];
+  const sportLabels = sportKeys.map(
+    key => SPORT_REGISTRY[key as keyof typeof SPORT_REGISTRY]?.display_name ?? key
+  );
   const placeLine = formatPlace({ city: league.city, region: league.region, country: league.country });
   const canManage =
     viewerRole === 'owner' || viewerRole === 'manager' || (!!user && user.id === league.owner_profile_id);
@@ -322,7 +328,7 @@ export default function LeaguePage() {
                 <div className="mt-2 flex flex-wrap gap-x-4 gap-y-2 text-sm text-tertiary">
                   <span className="inline-flex items-center gap-1">
                     <Trophy className="w-4 h-4" />
-                    {sportLabel}
+                    {sportLabels.join(' · ')}
                   </span>
                   {placeLine && (
                     <span className="inline-flex items-center gap-1">
