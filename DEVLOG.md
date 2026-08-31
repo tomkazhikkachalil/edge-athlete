@@ -1,5 +1,37 @@
 # Development Log
 
+## August 31, 2026 — Phase 2 round 2: contests, results, the calendar mirror (mig 152, #430–#432)
+
+Games get scheduled and scored. Mig 152 mints contests / contest_participants
+/ contest_results — and lands **the airtight composite facility↔venue FK
+141's header deferred** to "the migration that ships the writer" (events
+gets the identical FK; the pre-flight aborts on violating rows — prod had
+zero).
+
+- **Results carry the full 5-rung provenance CHECK from day one**
+  (dispute_status column-room, entered_by/confirmed_by audit columns);
+  v1 stamps `league_verified` + `entered_by` SERVER-side — never client.
+  No outcome column: W/L/T derives at standings recompute. Fixture
+  contests are born with both sides (approved entries only, homogeneous
+  participant batch with contest-delete compensation); a fixture
+  auto-completes when both sides hold a result.
+- **The mirror (#431)** is Tom's linked-events decision: publish-to-
+  calendar mints ONE normal scoped event (division when pinned, else
+  org) with a guarded `IS NULL` link + delete-the-event compensation,
+  then one-way best-effort sync (reschedule moves, cancel cancels,
+  delete deletes — the round-mirror charter). ZERO events columns; the
+  minted event rides merge/RSVP/ICS/public-schedule free. No bell
+  fan-out v1 (deferred — a season schedule is dozens of rows).
+- **The detail console (#432)**: add game → publish → one-save "3 – 2";
+  buttons follow the min-w-0 wrap rule R1 taught.
+- **Verification.** Verify green ×3; e2e 1/1 local + 1/1 vs prod (the
+  whole loop UI-driven incl. cancel → event cancelled); live probes —
+  a published game reached the member's **calendar merge** (org-decorated,
+  derived title) AND their **ICS feed** via the minted feed URL; 375px
+  screenshots inspected. Probe notes: calendar GET takes `from`/`to`
+  (not start/end); feed-token POST returns `{url}` with the raw token
+  only there (hashed at rest).
+
 ## August 31, 2026 — Phase 2 opens — round 1: the competition core (mig 151, #425–#428)
 
 Phase 2 (the competition model; Tom's five-round program and the four
