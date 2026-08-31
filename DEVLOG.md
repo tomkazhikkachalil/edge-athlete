@@ -1,5 +1,55 @@
 # Development Log
 
+## August 31, 2026 — Step 0.5: seasons, divisions, teams — the program structure (mig 145, #401 + #402)
+
+The tables the masterplan's phases 1–5 stand on: `seasons` (per-org, the
+org pair required), `divisions` (season-owned, org pair denormalized so
+0.9's scope resolution is one read; the org==season.org rule enforced
+app-layer, once, in the division-create route), `teams` (org-owned,
+active|archived), and `team_entries` placing teams into divisions.
+
+- **The PAIR amendment.** team_entries was planned as the triple
+  (team_id, division_id, season_id); Tom approved amending it to the PAIR
+  (team_id, division_id) — season derives through the division, which
+  permits playing-up (one team entered in two divisions of the same
+  season) without a lying denormalized column. The one-division-per-season
+  variant is documented in 145's header as the future moment season_id
+  gets denormalized, if ever.
+- **The 10-site defuse shipped FIRST (#401).** Same discipline as 0.3's
+  maybeSingle round: before the CHECK widening made division/team-scoped
+  memberships rows *possible*, every scope-blind membership read (authz
+  getOrgRole + the nine members.ts readers, incl. all four orgMemberPreview
+  subqueries) gained `.eq('scope_type','org')` — a future team-scoped
+  manager row can no longer leak org-wide power through maxOrgRole.
+  Deployed and regressed (7/7 org e2e vs prod) before 145 ran.
+- **Migration 145** (order-strict; Tom ran it, grid 16× true): the four
+  tables (service-only REVOKE posture like leagues/clubs — the public
+  projection is phase 3's spike), memberships scope_type CHECK widened to
+  org|division|team with scope_id now REQUIRED on sub-org scopes, and the
+  season FK (CASCADE) that 140's header promised. `memberships_uniq`
+  untouched — 144's ON CONFLICT names it.
+- **Admin console v1** (`/dashboard/structure`, ADMIN_EMAILS-gated, the
+  venues precedent): org selector → seasons → expanded season's divisions →
+  per-division entry chips over active teams; teams with archive/restore
+  (a status column with no writer repeats the silent-drop class, so PATCH
+  shipped with the table). Org-manager CRUD arrives with phase 1's
+  dashboard.
+- **Verification.** Verify green both PRs (194 files, 2267 tests, lint 0).
+  Prod probe battery **20/20** via the ADMIN_EMAILS spawn: full lifecycle
+  (season → division → team → entry → aggregate), season delete cascades
+  divisions + entries + season-scoped memberships while the **team
+  persists**, archive blocks entry with restore-first copy, cross-org
+  entry 400, duplicate entry 409, disabled sport 400, both CHECK negatives
+  raw (23514 on team-scope-without-scope_id and bogus scope), and the
+  defuse proven live: a team-scoped row is invisible to the org member
+  count. 375px + desktop console screenshots inspected. Org e2e 7/7 vs
+  prod post-deploy.
+- **Trap for the record.** Turbopack refuses to build inside a git
+  worktree whose node_modules is a symlink out of the worktree root
+  ("Symlink is invalid, it points out of the filesystem root") —
+  typecheck/lint/tests all pass there; only `next build` fails. Building
+  a PR in a worktree means running the final verify from the main tree.
+
 ## August 31, 2026 — Step 0.8: multiple owners, and the dual-encoded owner finally resolves (mig 144, #399)
 
 The last structural debt from 113/117: ownership lived in BOTH an
