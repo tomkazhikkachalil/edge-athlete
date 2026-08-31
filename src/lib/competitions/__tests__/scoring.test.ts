@@ -100,3 +100,66 @@ describe('computeFixtureStandings', () => {
     expect(rows.find(r => r.entry_id === 'A')!.points).toBe(3);
   });
 });
+
+import {
+  computeLeaderboardStandings,
+  LEADERBOARD_RULES,
+  resolveLeaderboardRule,
+} from '../scoring';
+
+describe('resolveLeaderboardRule', () => {
+  it('golf defaults ascending stroke_total; others points_total; unknown keys fall back', () => {
+    expect(resolveLeaderboardRule('golf', null).key).toBe('stroke_total');
+    expect(resolveLeaderboardRule('golf', null).direction).toBe('asc');
+    expect(resolveLeaderboardRule('track_field', null).key).toBe('points_total');
+    expect(resolveLeaderboardRule('golf', 'garbage').key).toBe('stroke_total');
+    expect(resolveLeaderboardRule('golf', 'points_total').direction).toBe('desc');
+  });
+});
+
+describe('computeLeaderboardStandings', () => {
+  const round = (scores: [string, number | null][], status = 'completed') => ({
+    status,
+    scores: scores.map(([entry_id, score]) => ({ entry_id, score })),
+  });
+
+  it('ascending strokes: two rounds sum; lowest total leads', () => {
+    const rows = computeLeaderboardStandings(
+      ['A', 'B'],
+      [
+        round([['A', 72], ['B', 75]]),
+        round([['A', 70], ['B', 68]]),
+      ],
+      LEADERBOARD_RULES.stroke_total
+    );
+    const byId = Object.fromEntries(rows.map(r => [r.entry_id, r]));
+    expect(byId.A).toMatchObject({ rank: 1, points: 142, played: 2 });
+    expect(byId.B).toMatchObject({ rank: 2, points: 143, played: 2 });
+  });
+
+  it('an unscored entrant sits LAST on an ascending board (zero never wins)', () => {
+    const rows = computeLeaderboardStandings(
+      ['A', 'GHOST'],
+      [round([['A', 72]])],
+      LEADERBOARD_RULES.stroke_total
+    );
+    const byId = Object.fromEntries(rows.map(r => [r.entry_id, r]));
+    expect(byId.A.rank).toBe(1);
+    expect(byId.GHOST).toMatchObject({ rank: 2, points: null, played: 0 });
+  });
+
+  it('incomplete rounds are ignored; descending points ranks high-first; ties share', () => {
+    const rows = computeLeaderboardStandings(
+      ['A', 'B', 'C'],
+      [
+        round([['A', 10], ['B', 10], ['C', 4]]),
+        round([['A', 5]], 'scheduled'),
+      ],
+      LEADERBOARD_RULES.points_total
+    );
+    const byId = Object.fromEntries(rows.map(r => [r.entry_id, r]));
+    expect(byId.A.rank).toBe(1);
+    expect(byId.B.rank).toBe(1); // tie shares
+    expect(byId.C.rank).toBe(3);
+  });
+});

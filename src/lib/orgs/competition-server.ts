@@ -40,7 +40,7 @@ import {
   publishContestToCalendar,
 } from '@/lib/competitions/calendar-mirror';
 import { recomputeStandingsBestEffort } from '@/lib/competitions/standings';
-import { resolveFixtureRule } from '@/lib/competitions/scoring';
+import { resolveFixtureRule, resolveLeaderboardRule } from '@/lib/competitions/scoring';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- matches the authz.ts Admin alias; schema-agnostic helper
 type Admin = SupabaseClient<any, 'public', any>;
@@ -187,6 +187,25 @@ export async function competitionsAggregateGET(
     }
   }
 
+  // R5: active roster athletes — the athlete-entry picker (§8 invariant
+  // 3: the ROSTER edge is the record edge; follows never appear here).
+  const { data: rosterRows } = await admin
+    .from('memberships')
+    .select('profile_id')
+    .eq(col, scope.orgId)
+    .eq('scope_type', 'org')
+    .eq('kind', 'roster')
+    .eq('status', 'active')
+    .limit(300);
+  const rosterIds = [...new Set((rosterRows ?? []).map(r => r.profile_id as string))];
+  const { data: rosterProfiles } = rosterIds.length
+    ? await admin.from('profiles').select('id, first_name, last_name, full_name').in('id', rosterIds)
+    : { data: [] };
+  const rosterAthletes = (rosterProfiles ?? []).map(p => ({
+    id: p.id as string,
+    name: ([p.first_name, p.last_name].filter(Boolean).join(' ') || p.full_name || 'Athlete') as string,
+  }));
+
   return NextResponse.json({
     competitions: (competitions ?? []).map(c => ({
       ...c,
@@ -194,6 +213,7 @@ export async function competitionsAggregateGET(
       entries: entriesByCompetition.get(c.id) ?? [],
     })),
     affiliatedTeams,
+    rosterAthletes,
   });
 }
 
@@ -663,7 +683,9 @@ export async function competitionDetailGET(
   const rule =
     full?.format === 'fixture'
       ? resolveFixtureRule(full.sport_key as string, full.scoring_rule as string | null)
-      : null;
+      : full?.format === 'leaderboard'
+        ? resolveLeaderboardRule(full.sport_key as string, full.scoring_rule as string | null)
+        : null;
 
   return NextResponse.json({
     competition: full,
@@ -691,9 +713,25 @@ export async function contestCreatePOST(
     return NextResponse.json({ error: 'This competition is closed' }, { status: 400 });
   }
 
-  // Fixture contests carry both sides at birth.
-  let sides: { entry_id: string; side: 'home' | 'away' }[] = [];
-  if (comp.format === 'fixture') {
+  // Fixture contests carry both sides at birth; a LEADERBOARD round (R5)
+  // includes every approved entrant automatically.
+  let sides: { entry_id: string; side: 'home' | 'away' | null }[] = [];
+  if (comp.format === 'leaderboard') {
+    const { data: allEntries } = await admin
+      .from('competition_entries')
+      .select('id, status')
+      .eq('competition_id', input.competitionId)
+      .limit(500);
+    sides = (allEntries ?? [])
+      .filter(e => e.status === 'approved')
+      .map(e => ({ entry_id: e.id as string, side: null }));
+    if (sides.length === 0) {
+      return NextResponse.json(
+        { error: 'Enter at least one athlete before adding a round' },
+        { status: 400 }
+      );
+    }
+  } else if (comp.format === 'fixture') {
     if (!input.homeEntryId || !input.awayEntryId) {
       return NextResponse.json(
         { error: 'A fixture needs a home and an away entry' },

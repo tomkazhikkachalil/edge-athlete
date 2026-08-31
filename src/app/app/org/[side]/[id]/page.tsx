@@ -118,13 +118,14 @@ export default function OrgConsolePage() {
   const [importReport, setImportReport] = useState<
     { name: string; claimUrl: string | null; emailSent: boolean; error?: string }[] | null
   >(null);
-  // Competitions (phase 2 R1). The console creates FIXTURE competitions
-  // only — the leaderboard flow arrives with its round (R5); the API
-  // already accepts both.
+  // Competitions (phase 2). Fixture (team) and leaderboard (athlete)
+  // formats — the entrant type is derived server-side from the format.
   const [competitions, setCompetitions] = useState<CompetitionRow[]>([]);
   const [affiliatedTeams, setAffiliatedTeams] = useState<
     { id: string; name: string; club_name: string }[]
   >([]);
+  const [rosterAthletes, setRosterAthletes] = useState<{ id: string; name: string }[]>([]);
+  const [compFormat, setCompFormat] = useState<'fixture' | 'leaderboard'>('fixture');
   const [compName, setCompName] = useState('');
   const [compSeasonId, setCompSeasonId] = useState('');
   const [compDivisionId, setCompDivisionId] = useState('');
@@ -168,6 +169,7 @@ export default function OrgConsolePage() {
           if (!cancelled) {
             setCompetitions(compBody.competitions ?? []);
             setAffiliatedTeams(compBody.affiliatedTeams ?? []);
+            setRosterAthletes(compBody.rosterAthletes ?? []);
           }
         }
       } catch {
@@ -328,7 +330,7 @@ export default function OrgConsolePage() {
           ...(compDivisionId ? { divisionId: compDivisionId } : {}),
           sportKey: compSport,
           name: compName.trim(),
-          format: 'fixture',
+          format: compFormat,
           visibility: compPublic ? 'public' : 'private',
         }),
       },
@@ -900,6 +902,15 @@ export default function OrgConsolePage() {
                   </option>
                 ))}
               </select>
+              <select
+                value={compFormat}
+                onChange={e => setCompFormat(e.target.value as 'fixture' | 'leaderboard')}
+                aria-label="Competition format"
+                className="px-3 py-2 border border-border-strong rounded-md outline-none text-sm"
+              >
+                <option value="fixture">Fixture (teams)</option>
+                <option value="leaderboard">Leaderboard (athletes)</option>
+              </select>
               <label className="flex items-center gap-1.5 text-sm text-secondary">
                 <input
                   type="checkbox"
@@ -947,7 +958,7 @@ export default function OrgConsolePage() {
                         (~341px) can't fit 375px minus padding; the container
                         must be allowed to shrink so its own wrap engages. */}
                     <div className="flex flex-wrap gap-2 min-w-0">
-                      {comp.entrant_type === 'team' && (
+                      {(comp.entrant_type === 'team' || comp.entrant_type === 'athlete') && (
                         <button
                           type="button"
                           onClick={() =>
@@ -1074,7 +1085,37 @@ export default function OrgConsolePage() {
                           </button>
                         </span>
                       ))}
-                      {(activeTeams.length > 0 || affiliatedTeams.length > 0) && (
+                      {comp.entrant_type === 'athlete' && rosterAthletes.length > 0 && (
+                        <select
+                          value=""
+                          onChange={e => {
+                            if (!e.target.value) return;
+                            void act(
+                              `/api/${plural}/${orgId}/competitions/entries`,
+                              {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ competitionId: comp.id, profileId: e.target.value }),
+                              },
+                              'Athlete entered',
+                              'Failed to enter the athlete'
+                            );
+                          }}
+                          aria-label={`Enter an athlete in ${comp.name}`}
+                          className="max-w-full px-2 py-1 text-xs border border-border-strong rounded-md outline-none"
+                        >
+                          <option value="">+ Enter athlete…</option>
+                          {rosterAthletes.map(a => (
+                            <option key={a.id} value={a.id}>{a.name}</option>
+                          ))}
+                        </select>
+                      )}
+                      {comp.entrant_type === 'athlete' && rosterAthletes.length === 0 && (
+                        <span className="text-xs text-muted">
+                          Only rostered athletes can be entered — import a roster first.
+                        </span>
+                      )}
+                      {comp.entrant_type === 'team' && (activeTeams.length > 0 || affiliatedTeams.length > 0) && (
                         <select
                           value=""
                           onChange={e => {
