@@ -23,7 +23,7 @@
 // - The guardian queue icon map — keyed by QueueItem.kind, not by type.
 
 /** Which named tab on /app/notifications shows the type. `null` = reachable
- *  only via All/Unread — today's real behavior for 18 of the 43 types, and
+ *  only via All/Unread — today's real behavior for 19 of the 44 types, and
  *  the safe default for a type the DB knows but this build doesn't. */
 export type NotificationTab = 'follow' | 'engagement' | 'system' | null;
 
@@ -82,6 +82,9 @@ export const NOTIFICATION_TYPE_META = {
   affiliation_update: { tab: null },
   carpool_offer: { tab: null },
   carpool_update: { tab: null },
+  // 0.10 (mig 147): guardian-facing roster bell — sits with its guardian
+  // siblings in the All/Unread-only bucket.
+  roster_invite: { tab: null, icon: 'fa-clipboard-list' },
 } as const satisfies Record<string, NotificationTypeMeta>;
 
 export type KnownNotificationType = keyof typeof NOTIFICATION_TYPE_META;

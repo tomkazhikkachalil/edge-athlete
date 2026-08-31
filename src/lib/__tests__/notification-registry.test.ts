@@ -90,7 +90,7 @@ describe('tab buckets (behavior frozen from the pre-registry literal arrays)', (
     ]);
   });
 
-  it('All/Unread-only (tab: null) — the 18 types no named tab listed', () => {
+  it('All/Unread-only (tab: null) — the 19 types no named tab listed', () => {
     expect(bucket(null)).toEqual([
       'affiliation_invite',
       'affiliation_update',
@@ -109,6 +109,7 @@ describe('tab buckets (behavior frozen from the pre-registry literal arrays)', (
       'league_update',
       'new_message',
       'profile_change',
+      'roster_invite',
       'tag_alert',
     ]);
   });

@@ -99,6 +99,8 @@ function queueLabel(item: QueueItem): string {
       return `Sent back to ${item.athlete.name} — waiting on their edit`;
     case 'calendar_invite':
       return `${item.athlete.name} was invited: ${item.event.title}`;
+    case 'roster_invite':
+      return `${item.org.name} invited ${item.athlete.name} to its roster`;
     case 'contact_request':
       return `${item.requester.name} wants to message ${item.athlete.name}`;
     case 'age_preset_prompt':
@@ -135,6 +137,7 @@ const QUEUE_ICONS: Record<QueueItem['kind'], string> = {
   credentials_gap: 'fa-key',
   waiting_on_child: 'fa-hourglass-half',
   calendar_invite: 'fa-calendar-day',
+  roster_invite: 'fa-clipboard-list',
   contact_request: 'fa-user-clock',
   age_preset_prompt: 'fa-cake-candles',
   // Observational, deliberately not alarm-shaped (no triangles, no sirens).
@@ -346,6 +349,31 @@ export default function FamilyConsolePage() {
     }
   };
 
+  // Inline decide on a roster offer (0.10, either-approves) — the same
+  // roster routes the org page fires, acting-for via profileId (accept) /
+  // as=guardian (decline); both re-verify requireProfileRole server-side.
+  const decideRoster = async (item: Extract<QueueItem, { kind: 'roster_invite' }>, accept: boolean) => {
+    setQueueActing(item.id);
+    setQueueError('');
+    try {
+      const base = `/api/${item.org.side}s/${item.org.id}/roster`;
+      const res = accept
+        ? await fetch(base, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'accept', profileId: item.athlete.id }),
+          })
+        : await fetch(`${base}?profileId=${item.athlete.id}&as=guardian`, { method: 'DELETE' });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'Could not update the invitation');
+      setQueueItems(prev => prev.filter(i => i.id !== item.id));
+    } catch (e) {
+      setQueueError(e instanceof Error ? e.message : 'Could not update the invitation');
+    } finally {
+      setQueueActing('');
+    }
+  };
+
   // Inline decide on a fan request — the same POST the athlete page's fans
   // section fires; decline is a repeatable non-notifying delete, so neither
   // direction needs a confirm step.
@@ -516,6 +544,8 @@ export default function FamilyConsolePage() {
                           ? item.message
                           : item.kind === 'calendar_invite'
                           ? inviteWhen(item.event)
+                          : item.kind === 'roster_invite'
+                          ? 'You or your athlete can accept or decline.'
                           : item.kind === 'contact_request'
                           ? item.requester.handle
                             ? `@${item.requester.handle} — held until you decide`
@@ -564,6 +594,7 @@ export default function FamilyConsolePage() {
                       if (
                         item.kind === 'follow_request' ||
                         item.kind === 'calendar_invite' ||
+                        item.kind === 'roster_invite' ||
                         item.kind === 'contact_request'
                       ) {
                         const decide =
@@ -571,6 +602,8 @@ export default function FamilyConsolePage() {
                             ? (yes: boolean) => decideFollow(item, yes ? 'accept' : 'reject')
                             : item.kind === 'calendar_invite'
                             ? (yes: boolean) => decideInvite(item, yes ? 'accepted' : 'declined')
+                            : item.kind === 'roster_invite'
+                            ? (yes: boolean) => decideRoster(item, yes)
                             : (yes: boolean) => decideContact(item, yes ? 'approve' : 'deny');
                         const [yesLabel, noLabel] =
                           item.kind === 'contact_request' ? ['Approve', 'Deny'] : ['Accept', 'Decline'];

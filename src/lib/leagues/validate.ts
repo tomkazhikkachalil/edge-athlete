@@ -108,11 +108,14 @@ export const LeagueMemberRoleSchema = z.object({
 });
 export type LeagueMemberRoleInput = z.infer<typeof LeagueMemberRoleSchema>;
 
-/** Roster accept (0.3). Accept is the only PATCH action; decline is a
- *  DELETE (the row is erased, the 118 precedent). Shared by both sides —
- *  clubs/validate re-exports it. */
+/** Roster accept (0.3/0.10). Accept is the only PATCH action; decline is a
+ *  DELETE (the row is erased, the 118 precedent). `profileId` (0.10) is the
+ *  guardian acting-for target — the route gates it with requireProfileRole
+ *  before the core ever sees it. Shared by both sides — clubs/validate
+ *  re-exports it. */
 export const RosterAcceptSchema = z.object({
   action: z.literal('accept'),
+  profileId: z.string().uuid().optional(),
 });
 
 /** Postgres 42P01 / PostgREST PGRST205 — the leagues tables don't exist yet

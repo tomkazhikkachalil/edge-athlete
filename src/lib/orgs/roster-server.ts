@@ -1,27 +1,38 @@
-// ── Roster offers — the shared core behind both /roster routes (0.3) ───────
+// ── Roster offers — the shared core behind both /roster routes (0.3/0.10) ───
 // The affiliations/server.ts pattern: league/club routes are thin wrappers,
 // the authorization matrix lives ONCE here.
 //
 //   actor                     target state          verb    result
 //   manager (manage_members)  follow, no roster     POST    pending row + offer notification
 //   manager                   no follow row         POST    400 (roster ⊆ follow — v1 invariant)
-//   manager                   supervised target     POST    403 (see below)
+//   manager                   supervised target     POST    flag OFF: 403; flag ON: pending row
+//                                                           + child bell + GUARDIAN roster_invite
 //   manager                   pending / active      POST    400 already invited / already on roster
 //   athlete (self)            pending               PATCH   status → active, notify owner
+//   supervised athlete (self) pending               PATCH   flag OFF: 403; flag ON: accepted
+//                                                           (either-approves) + guardians told
+//   guardian (profileId)      pending               PATCH   status → active (acting-for), child told
 //   athlete (self)            pending               DELETE  row deleted (declined), notify owner
 //   athlete (self)            active                DELETE  row deleted (left), quiet
+//   guardian (as=guardian)    pending/active        DELETE  self-equivalent acting-for, child told
 //   manager ?profileId        pending               DELETE  row deleted (cancelled), quiet
 //   manager ?profileId        active                DELETE  row deleted (removed), notify athlete
 //   anyone else               any                   any     403
 //
-// SECURITY — guardian rail: a SUPERVISED athlete cannot be offered a roster
-// spot (403) and cannot accept one, until 0.10 routes the offer through the
-// guardian queue. Without this gate a pending row a child can self-accept
-// would bypass that future queue. Checked at POST (target) AND PATCH
-// (session user) — defense in depth on a child-safety-adjacent path.
+// SECURITY — guardian rail (0.10, EITHER-APPROVES per Tom): with
+// FEATURE_ROSTER_GUARDIAN_GATE off, a supervised athlete can't be offered a
+// roster spot (403) and can't accept one (403) — the stricter state, and
+// flag-off must never weaken it. With the flag on, the offer creates the
+// pending row, guardians are belled (roster_invite) and see it in the
+// guardian queue, and EITHER the child or a guardian accepts — the follow
+// convention. Whoever didn't act is told (followers/route.ts cross-notify
+// model). Guardian acting-for arrives pre-authorized from the routes
+// (requireProfileRole 'manage_privacy'); this core trusts actingFor only
+// when the route vouches for it.
 
 import { NextResponse } from 'next/server';
 import type { SupabaseClient, User } from '@supabase/supabase-js';
+import { FEATURE_FLAGS } from '@/lib/features';
 import { getOrgAndRole, roleAllows, type OrgSide } from './authz';
 import {
   acceptRosterOffer,
@@ -91,7 +102,8 @@ export async function rosterPost(
   if (targetSupervision === undefined) {
     return NextResponse.json({ error: 'Athlete not found' }, { status: 404 });
   }
-  if (targetSupervision === 'supervised') {
+  const targetSupervised = targetSupervision === 'supervised';
+  if (targetSupervised && !FEATURE_FLAGS.FEATURE_ROSTER_GUARDIAN_GATE) {
     return NextResponse.json({ error: SUPERVISED_MESSAGE }, { status: 403 });
   }
 
@@ -126,19 +138,29 @@ export async function rosterPost(
     return NextResponse.json({ error: 'Failed to send the invitation' }, { status: 500 });
   }
 
+  // Parallel-notify (Tom, 0.10): the child keeps their own offer bell,
+  // and a supervised child's guardians get the roster_invite half.
   await notifyOffer(admin, side, orgId, loaded.org.name, targetProfileId);
+  if (targetSupervised) {
+    await notifyGuardiansOfRoster(admin, side, orgId, loaded.org.name, targetProfileId, 'offer', user.id);
+  }
   return NextResponse.json({ action: 'invited' });
 }
 
-/** PATCH { action: 'accept' } — the athlete accepts their own pending offer. */
+/** PATCH { action: 'accept', profileId? } — the athlete (or, acting for a
+ *  supervised athlete, their guardian — pre-authorized by the route via
+ *  requireProfileRole) accepts the pending offer. */
 export async function rosterPatch(
   admin: Admin,
   user: User,
   side: OrgSide,
-  orgId: string
+  orgId: string,
+  actingFor?: string
 ): Promise<NextResponse> {
   const cfg = SIDES[side];
-  const loaded = await getOrgAndRole(admin, side, orgId, user.id);
+  const target = actingFor ?? user.id;
+  const guardianActing = target !== user.id;
+  const loaded = await getOrgAndRole(admin, side, orgId, target);
   if (loaded.status === 'error') {
     console.error('[ROSTER] org fetch error:', loaded.error);
     return NextResponse.json({ error: `Failed to load ${cfg.noun}` }, { status: 500 });
@@ -147,12 +169,14 @@ export async function rosterPatch(
     return NextResponse.json({ error: cfg.notFound }, { status: 404 });
   }
 
-  const selfSupervision = await supervisionState(admin, user.id);
-  if (selfSupervision === 'supervised') {
+  const targetSupervision = await supervisionState(admin, target);
+  const targetSupervised = targetSupervision === 'supervised';
+  // Flag OFF keeps 0.3's stricter state: no supervised accept, by anyone.
+  if (targetSupervised && !FEATURE_FLAGS.FEATURE_ROSTER_GUARDIAN_GATE) {
     return NextResponse.json({ error: SUPERVISED_MESSAGE }, { status: 403 });
   }
 
-  const { accepted, error } = await acceptRosterOffer(admin, { side, orgId }, user.id);
+  const { accepted, error } = await acceptRosterOffer(admin, { side, orgId }, target);
   if (error) {
     console.error('[ROSTER] accept error:', error);
     return NextResponse.json({ error: 'Failed to accept the invitation' }, { status: 500 });
@@ -162,16 +186,27 @@ export async function rosterPatch(
   }
 
   await notifyResult(admin, side, orgId, loaded.org, user.id, 'accepted');
+  // Either-approves cross-notify: whoever didn't act hears about it.
+  if (targetSupervised) {
+    if (guardianActing) {
+      await notifyChildOfGuardianDecision(admin, side, orgId, loaded.org.name, target, 'accepted');
+    } else {
+      await notifyGuardiansOfRoster(admin, side, orgId, loaded.org.name, target, 'accepted', user.id);
+    }
+  }
   return NextResponse.json({ action: 'accepted' });
 }
 
-/** DELETE [?profileId=] — self decline/leave, or manager cancel/remove. */
+/** DELETE [?profileId=] — self decline/leave, manager cancel/remove, or
+ *  (guardianActing, pre-authorized by the route) a guardian declining/
+ *  leaving on their supervised athlete's behalf — the self-equivalent path. */
 export async function rosterDelete(
   admin: Admin,
   user: User,
   side: OrgSide,
   orgId: string,
-  targetProfileId: string | null
+  targetProfileId: string | null,
+  guardianActing = false
 ): Promise<NextResponse> {
   const cfg = SIDES[side];
   const loaded = await getOrgAndRole(admin, side, orgId, user.id);
@@ -184,7 +219,10 @@ export async function rosterDelete(
   }
 
   const target = targetProfileId ?? user.id;
-  const isSelf = target === user.id;
+  // A guardian acting for their child takes the SELF path (refusing a spot
+  // is the athlete side of the matrix, never the org side — the safety
+  // boundary keeps the two authorities separate).
+  const isSelf = target === user.id || guardianActing;
   if (!isSelf && !roleAllows(loaded.role, 'manage_members')) {
     return NextResponse.json({ error: 'Not authorized to manage the roster' }, { status: 403 });
   }
@@ -213,6 +251,18 @@ export async function rosterDelete(
   } else if (action === 'removed') {
     await notifyRemoved(admin, side, orgId, loaded.org.name, target);
   }
+  // Cross-notify on the supervised decline path (leaves stay quiet — the
+  // withdraw-quiet precedent).
+  if (action === 'declined') {
+    const targetSupervision = await supervisionState(admin, target);
+    if (targetSupervision === 'supervised') {
+      if (guardianActing) {
+        await notifyChildOfGuardianDecision(admin, side, orgId, loaded.org.name, target, 'declined');
+      } else {
+        await notifyGuardiansOfRoster(admin, side, orgId, loaded.org.name, target, 'declined', user.id);
+      }
+    }
+  }
   return NextResponse.json({ action });
 }
 
@@ -231,6 +281,72 @@ async function notifyOffer(
   } else {
     const { notifyRosterOffer } = await import('@/lib/clubs/notify');
     await notifyRosterOffer(admin, { profileId, clubId: orgId, clubName: orgName });
+  }
+}
+
+/** The guardian half (0.10, roster_invite): offer → "you or your athlete
+ *  can accept"; accepted/declined by the child → the guardians hear.
+ *  Direct-insert convention via notifyGuardians; actorId excludes the
+ *  acting guardian from their own bell. */
+async function notifyGuardiansOfRoster(
+  admin: Admin,
+  side: OrgSide,
+  orgId: string,
+  orgName: string,
+  childProfileId: string,
+  event: 'offer' | 'accepted' | 'declined',
+  actorId: string
+): Promise<void> {
+  try {
+    const { notifyGuardians, profileFirstName } = await import('@/lib/guardian-notify');
+    const childName = await profileFirstName(admin, childProfileId);
+    const title =
+      event === 'offer'
+        ? `${orgName} invited ${childName} to its roster`
+        : `${childName} ${event} the roster invitation from ${orgName}`;
+    await notifyGuardians(
+      admin,
+      childProfileId,
+      {
+        type: 'roster_invite',
+        title,
+        message: event === 'offer' ? 'You or your athlete can accept or decline.' : null,
+        actionUrl: '/app/guardian',
+        actorId,
+        metadata: { [side === 'league' ? 'league_id' : 'club_id']: orgId, roster: event },
+      },
+      actorId
+    );
+  } catch (e) {
+    console.error('[ROSTER] guardian notify failed:', e);
+  }
+}
+
+/** The child half of a guardian decision — rides league/club_update like
+ *  every athlete-facing roster bell (metadata.roster disambiguates; direct
+ *  insert per the org-sender convention — the RPC would drop it). */
+async function notifyChildOfGuardianDecision(
+  admin: Admin,
+  side: OrgSide,
+  orgId: string,
+  orgName: string,
+  childProfileId: string,
+  result: 'accepted' | 'declined'
+): Promise<void> {
+  try {
+    const { error } = await admin.from('notifications').insert({
+      user_id: childProfileId,
+      type: side === 'league' ? 'league_update' : 'club_update',
+      actor_id: null,
+      title: `Your guardian ${result} the roster invitation from ${orgName}`,
+      message: null,
+      action_url: side === 'league' ? `/league/${orgId}` : `/club/${orgId}`,
+      is_read: false,
+      metadata: { [side === 'league' ? 'league_id' : 'club_id']: orgId, roster: result },
+    });
+    if (error) console.error('[ROSTER] child notify failed:', error);
+  } catch (e) {
+    console.error('[ROSTER] child notify failed:', e);
   }
 }
 

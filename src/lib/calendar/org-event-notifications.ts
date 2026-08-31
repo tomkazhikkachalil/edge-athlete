@@ -137,6 +137,42 @@ async function sendOrgEventNotification(
         return;
       }
     }
+
+    // 0.10 — the direct-bell bypass close, ADDITIVE (Tom's decision): a
+    // supervised member keeps their team_update; their guardians ALSO hear
+    // (the calendar-invite parallel-notify precedent). Unconditional — a
+    // safety behavior, never flag-gated. Rides inside the marker-dedup
+    // branch above, so re-runs stay no-ops.
+    const belled = rows.map(r => r.user_id);
+    if (belled.length > 0) {
+      const { data: supervised } = await supabase
+        .from('profiles')
+        .select('id, first_name, display_name')
+        .in('id', belled)
+        .eq('supervision_state', 'supervised');
+      if (supervised && supervised.length > 0) {
+        const { notifyGuardians } = await import('@/lib/guardian-notify');
+        for (const child of supervised) {
+          const childName =
+            (child.first_name as string | null) || (child.display_name as string | null) || 'Your athlete';
+          await notifyGuardians(supabase, child.id as string, {
+            type: 'calendar_alert',
+            title:
+              kind === 'cancelled'
+                ? `${input.orgName} cancelled an event on ${childName}'s calendar: ${input.eventTitle}`
+                : `${input.orgName} scheduled for ${childName}: ${input.eventTitle}`,
+            message: input.whenText,
+            actionUrl: `/app/guardian/athlete/${child.id}`,
+            actorId: input.organizerId,
+            metadata: {
+              event_id: input.eventId,
+              ...(seriesId ? { series_id: seriesId } : {}),
+              org: `${side}:${orgId}`,
+            },
+          });
+        }
+      }
+    }
   } catch (e) {
     console.error('[ORG EVENT NOTIFY] failed:', e);
   }

@@ -116,7 +116,19 @@ export async function GET(request: NextRequest) {
         .order('created_at', { ascending: true })
         .limit(20),
     ]);
-    for (const q of [postsQ, commentsQ, followsQ, consentQ, supervisedQ, transferQ, invitesQ, heldQ, riskQ]) {
+    // Pending roster offers (0.10) — flag-gated like calendar invites; the
+    // org-name batch below is the only follow-up query (constant count).
+    const rosterOffersQ = FEATURE_FLAGS.FEATURE_ROSTER_GUARDIAN_GATE
+      ? await admin
+          .from('memberships')
+          .select('id, profile_id, league_id, club_id, joined_at')
+          .in('profile_id', ids)
+          .eq('kind', 'roster')
+          .eq('status', 'pending')
+          .eq('scope_type', 'org')
+          .order('joined_at', { ascending: true })
+      : { data: [], error: null };
+    for (const q of [postsQ, commentsQ, followsQ, consentQ, supervisedQ, transferQ, invitesQ, heldQ, riskQ, rosterOffersQ]) {
       if (q.error) throw q.error;
     }
 
@@ -161,6 +173,35 @@ export async function GET(request: NextRequest) {
       };
     });
 
+    // Org names for the roster offers — one batched lookup per side.
+    const rosterRows = (rosterOffersQ.data ?? []) as Array<{
+      id: string;
+      profile_id: string;
+      league_id: string | null;
+      club_id: string | null;
+      joined_at: string;
+    }>;
+    const offerLeagueIds = [...new Set(rosterRows.map(r => r.league_id).filter(Boolean))] as string[];
+    const offerClubIds = [...new Set(rosterRows.map(r => r.club_id).filter(Boolean))] as string[];
+    const orgNames = new Map<string, string>();
+    if (offerLeagueIds.length > 0 || offerClubIds.length > 0) {
+      const [leagueNames, clubNames] = await Promise.all([
+        offerLeagueIds.length > 0
+          ? admin.from('leagues').select('id, name').in('id', offerLeagueIds)
+          : Promise.resolve({ data: [] as { id: string; name: string }[] }),
+        offerClubIds.length > 0
+          ? admin.from('clubs').select('id, name').in('id', offerClubIds)
+          : Promise.resolve({ data: [] as { id: string; name: string }[] }),
+      ]);
+      for (const r of [...(leagueNames.data ?? []), ...(clubNames.data ?? [])]) {
+        orgNames.set(r.id as string, r.name as string);
+      }
+    }
+    const rosterOffers = rosterRows.map(r => ({
+      ...r,
+      orgName: orgNames.get((r.league_id ?? r.club_id) as string) ?? 'An organization',
+    }));
+
     // Household policy (Wave 4): one constant query — age-preset prompt
     // items derive only when the CALLER's own older overrides differ.
     const { parseHouseholdPolicy } = await import('@/lib/household-policy');
@@ -181,7 +222,8 @@ export async function GET(request: NextRequest) {
       flattenInviteRows((invitesQ.data ?? []) as unknown as RawInviteRow[], Date.now()),
       buildHeldContactRows(heldRows, counterpartRows),
       parseHouseholdPolicy(guardianRow?.household_policy),
-      (riskQ.data ?? []) as QueueRiskRow[]
+      (riskQ.data ?? []) as QueueRiskRow[],
+      rosterOffers
     );
     return NextResponse.json({ items });
   } catch (error) {

@@ -132,6 +132,17 @@ export type QueueItem =
       signalKind: 'new_contact_burst' | 'message_volume_spike' | 'report_filed' | 'late_night_activity';
     }
   | {
+      /** Pending roster offer for a child (0.10, either-approves) — inline
+       *  accept via PATCH /api/{side}s/<org.id>/roster {action:'accept',
+       *  profileId} or decline via DELETE ?profileId=&as=guardian. `id` is
+       *  the memberships row. */
+      kind: 'roster_invite';
+      id: string;
+      athlete: QueueAthlete;
+      createdAt: string;
+      org: { side: 'league' | 'club'; id: string; name: string };
+    }
+  | {
       /** Pending event invite for a child — inline respond-as-child via
        *  POST /api/calendar/events/<event.id>/respond. `id` is the guest
        *  row (unique per child+event). */
@@ -287,6 +298,17 @@ export interface QueueInviteRow {
   event: Omit<InviteEventEmbed, 'status'>;
 }
 
+/** Pending roster offer (0.10) — the memberships row plus the org name the
+ *  route resolves in one batched lookup. */
+export interface QueueRosterOfferRow {
+  id: string;
+  profile_id: string;
+  league_id: string | null;
+  club_id: string | null;
+  joined_at: string;
+  orgName: string;
+}
+
 /** Unwrap the events!inner embed (object OR array) and keep only invites a
  *  guardian can still act on: event active and not already over. */
 export function flattenInviteRows(rows: RawInviteRow[], nowMs: number): QueueInviteRow[] {
@@ -360,7 +382,8 @@ export function buildQueueItems(
   invites: QueueInviteRow[] = [],
   heldContacts: QueueHeldContactRow[] = [],
   policy: HouseholdPolicy | null = null,
-  riskRows: QueueRiskRow[] = []
+  riskRows: QueueRiskRow[] = [],
+  rosterOffers: QueueRosterOfferRow[] = []
 ): QueueItem[] {
   const athletesById = new Map<string, RosterRow>();
   for (const row of roster) athletesById.set(row.id, row);
@@ -456,6 +479,25 @@ export function buildQueueItems(
     });
   }
   followItems.sort((a, b) =>
+    ('createdAt' in a ? a.createdAt : '').localeCompare('createdAt' in b ? b.createdAt : '')
+  );
+
+  // Roster offers (0.10) — decide items like follows; org name resolved by
+  // the route's one batched lookup.
+  const rosterItems: QueueItem[] = [];
+  for (const row of rosterOffers) {
+    const athlete = athletesById.get(row.profile_id);
+    const orgId = row.league_id ?? row.club_id;
+    if (!athlete || !orgId) continue;
+    rosterItems.push({
+      kind: 'roster_invite',
+      id: row.id,
+      athlete: toQueueAthlete(athlete),
+      createdAt: row.joined_at,
+      org: { side: row.league_id ? 'league' : 'club', id: orgId, name: row.orgName },
+    });
+  }
+  rosterItems.sort((a, b) =>
     ('createdAt' in a ? a.createdAt : '').localeCompare('createdAt' in b ? b.createdAt : '')
   );
 
@@ -583,5 +625,5 @@ export function buildQueueItems(
   waiting.sort((a, b) =>
     ('createdAt' in a ? a.createdAt : '').localeCompare('createdAt' in b ? b.createdAt : '')
   );
-  return [...content, ...followItems, ...contactItems, ...riskItems, ...ageItems, ...inviteItems, ...tail, ...waiting];
+  return [...content, ...followItems, ...rosterItems, ...contactItems, ...riskItems, ...ageItems, ...inviteItems, ...tail, ...waiting];
 }

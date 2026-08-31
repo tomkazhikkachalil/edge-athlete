@@ -69,7 +69,7 @@ interface ClubResponse {
 export default function ClubPage() {
   const params = useParams();
   const clubId = params.id as string;
-  const { user } = useAuth();
+  const { user, profile: viewerProfile } = useAuth();
   const { showError, showSuccess } = useToast();
 
   const [loading, setLoading] = useState(true);
@@ -397,6 +397,11 @@ export default function ClubPage() {
             <p className="mt-1 text-sm text-secondary">
               Roster membership is the real record — it&apos;s what future stats and schedules attach to.
             </p>
+            {viewerProfile?.supervision_state === 'supervised' && (
+              <p className="mt-1 text-xs text-muted">
+                Your guardian can also approve this from their console.
+              </p>
+            )}
             <div className="mt-3 flex flex-wrap gap-2">
               <button
                 type="button"
