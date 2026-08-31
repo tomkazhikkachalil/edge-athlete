@@ -42,6 +42,10 @@ interface AdminRequestRow {
   region: string | null;
   country: string | null;
   created_at: string;
+  operates_competitions: boolean | null;
+  operates_teams: boolean | null;
+  structure_draft: { divisions?: unknown[]; teams?: unknown[] } | null;
+  connections_draft: { existing?: unknown[]; stubs?: { name: string }[] } | null;
   requester: {
     id: string;
     first_name: string | null;
@@ -72,6 +76,7 @@ export default function AdminLeaguesPage() {
   const [actingId, setActingId] = useState<string | null>(null);
   const [declineOpenId, setDeclineOpenId] = useState<string | null>(null);
   const [declineReason, setDeclineReason] = useState('');
+  const [claimUrls, setClaimUrls] = useState<{ name: string; claimUrl: string | null; emailSent: boolean }[]>([]);
   const [reloadKey, setReloadKey] = useState(0);
 
   // Create form
@@ -157,6 +162,9 @@ export default function AdminLeaguesPage() {
         return;
       }
       showSuccess('Leagues', decision === 'approve' ? 'League approved and created' : 'Request declined');
+      if (decision === 'approve' && Array.isArray(data.replay?.stubs) && data.replay.stubs.length > 0) {
+        setClaimUrls(data.replay.stubs);
+      }
       setDeclineOpenId(null);
       setDeclineReason('');
       setReloadKey(k => k + 1);
@@ -252,6 +260,36 @@ export default function AdminLeaguesPage() {
         </div>
 
         {/* Pending self-service requests (116) */}
+        {claimUrls.length > 0 && (
+          <section className="bg-surface rounded-lg shadow-sm border border-brand p-4">
+            <h2 className="text-sm font-semibold text-primary mb-2">
+              Claim links for the new partner pages
+            </h2>
+            <p className="text-xs text-muted mb-2">
+              Single-use, 30-day links — copy and send any that weren&apos;t emailed.
+            </p>
+            <ul className="space-y-1">
+              {claimUrls.map(stub => (
+                <li key={stub.name} className="flex flex-wrap items-center gap-2 text-xs">
+                  <span className="font-medium text-primary">{stub.name}</span>
+                  {stub.emailSent && <span className="text-emerald-600">emailed</span>}
+                  {stub.claimUrl ? (
+                    <button
+                      type="button"
+                      onClick={() => void navigator.clipboard.writeText(stub.claimUrl!)}
+                      className="px-2 py-0.5 rounded-md border border-border-strong text-secondary hover:bg-surface-sunken"
+                    >
+                      Copy link
+                    </button>
+                  ) : (
+                    <span className="text-red-600">invite failed — re-approve mints nothing; re-mint manually</span>
+                  )}
+                  {stub.claimUrl && <code className="text-muted break-all">{stub.claimUrl}</code>}
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
         {pendingRequests.length > 0 && (
           <section className="bg-surface rounded-lg shadow-sm border border-border p-4 sm:p-6">
             <h2 className="text-lg font-semibold text-primary mb-4">Pending requests</h2>
@@ -274,6 +312,26 @@ export default function AdminLeaguesPage() {
                       </p>
                       {req.description && (
                         <p className="text-sm text-secondary mt-2 line-clamp-3">{req.description}</p>
+                      )}
+                      {(req.operates_competitions !== null || req.structure_draft || req.connections_draft) && (
+                        <div className="mt-2 flex flex-wrap gap-1.5">
+                          {req.operates_competitions && (
+                            <span className="px-2 py-0.5 text-[10px] font-semibold uppercase rounded-full bg-surface-sunken text-secondary">Runs competitions</span>
+                          )}
+                          {req.operates_teams && (
+                            <span className="px-2 py-0.5 text-[10px] font-semibold uppercase rounded-full bg-surface-sunken text-secondary">Runs teams</span>
+                          )}
+                          {req.structure_draft && (
+                            <span className="px-2 py-0.5 text-[10px] font-semibold uppercase rounded-full bg-brand-soft text-brand-fg">
+                              {req.structure_draft.divisions?.length ?? 0} divisions · {req.structure_draft.teams?.length ?? 0} teams
+                            </span>
+                          )}
+                          {req.connections_draft && (
+                            <span className="px-2 py-0.5 text-[10px] font-semibold uppercase rounded-full bg-brand-soft text-brand-fg">
+                              {req.connections_draft.existing?.length ?? 0} connections · {req.connections_draft.stubs?.length ?? 0} new
+                            </span>
+                          )}
+                        </div>
                       )}
                     </div>
                     <div className="flex flex-col items-end gap-2 shrink-0">

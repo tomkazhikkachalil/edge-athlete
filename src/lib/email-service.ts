@@ -185,6 +185,48 @@ This email was sent from your website's contact form.
     });
   }
 
+  /** Org claim invite (phase 1 round 2): an org named this one as a
+   *  partner; the recipient claims ownership of the pre-built page.
+   *  Single-use link, 30-day expiry — copy mirrors sendGuardianInvite. */
+  async sendOrgClaimInvite(
+    to: string,
+    stubOrgName: string,
+    inviterOrgName: string,
+    claimUrl: string
+  ): Promise<boolean> {
+    const stub = escapeHtml(stubOrgName);
+    const inviter = escapeHtml(inviterOrgName);
+    const htmlContent = `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <h2 style="color:#6d28d9;">${inviter} added ${stub} on Edge Athlete</h2>
+        <p style="color:#333;font-size:15px;line-height:1.6;">
+          ${inviter} listed ${stub} as one of its partner organizations, so
+          we created a page for it. If you run ${stub}, you can claim the
+          page and take ownership — rosters, schedules, and your public
+          presence, all in one place.
+        </p>
+        <a href="${claimUrl}"
+           style="display:inline-block;background:#7c3aed;color:#fff;text-decoration:none;padding:10px 20px;border-radius:6px;font-size:14px;margin-top:8px;">
+          Claim ${stub}
+        </a>
+        <p style="color:#888;font-size:12px;margin-top:16px;">
+          This link is single-use and expires in 30 days. If this isn't your
+          organization, you can ignore this email — nothing else changes.
+        </p>
+        <div style="margin-top:20px;padding-top:20px;border-top:1px solid #eee;color:#888;font-size:12px;">
+          <p>— Edge Athlete</p>
+        </div>
+      </div>
+    `;
+    return this.deliver('org_claim_invite', {
+      from: fromAddress(),
+      to,
+      subject: `${inviterOrgName} added ${stubOrgName} on Edge Athlete — claim your page`,
+      html: htmlContent,
+      text: `${inviterOrgName} listed ${stubOrgName} as a partner organization on Edge Athlete, and a page was created for it.\n\nIf you run ${stubOrgName}, claim the page here (single-use link, expires in 30 days):\n\n${claimUrl}\n\nIf this isn't your organization, you can ignore this email.\n\n— Edge Athlete`,
+    });
+  }
+
   /**
    * Calendar event invitation for an EMAIL invitee (not an app user yet) —
    * read-only v1: full details + a join-the-app path. Registered guests get

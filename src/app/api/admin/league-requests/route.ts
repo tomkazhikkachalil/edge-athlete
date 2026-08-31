@@ -99,9 +99,36 @@ export async function PATCH(request: NextRequest) {
           lng: row.lng,
           location_source: row.location_source,
         },
+        // 149 tristate: NULL wizard columns pass nothing → 142 defaults.
+        capabilities:
+          row.operates_competitions === null || row.operates_competitions === undefined
+            ? undefined
+            : {
+                operatesCompetitions: row.operates_competitions,
+                operatesTeams: row.operates_teams ?? false,
+              },
       });
       if ('error' in created) {
         return NextResponse.json({ error: 'Failed to create league from request' }, { status: 500 });
+      }
+
+      // 1b. STRUCTURE REPLAY — STRICT, before the claim: any failure
+      //     deletes the org (145 cascades erase everything) and the request
+      //     stays pending, so the retry is a free second click.
+      const { planStructureReplay, replayStructure } = await import('@/lib/orgs/wizard-replay');
+      const plan = planStructureReplay(row.structure_draft, 'league', row.sport_key);
+      let structureCounts: { divisions: number; teams: number } | null = null;
+      if (plan) {
+        const replayed = await replayStructure(supabase, { side: 'league', orgId: created.league.id }, plan);
+        if (!replayed.ok) {
+          console.error('[ADMIN LEAGUE REQUESTS] structure replay failed at', replayed.step, replayed.status);
+          await supabase.from('leagues').delete().eq('id', created.league.id);
+          return NextResponse.json(
+            { error: 'Failed to build the league structure — the request is still pending; try approving again' },
+            { status: 500 }
+          );
+        }
+        structureCounts = replayed.counts;
       }
 
       // 2. Claim the row. Zero rows = another admin decided mid-flight —
@@ -123,6 +150,20 @@ export async function PATCH(request: NextRequest) {
         return NextResponse.json({ error: 'Request was decided by someone else' }, { status: 409 });
       }
 
+      // 2b. CONNECTIONS REPLAY — BEST-EFFORT after the claim: a partner
+      //     hiccup never forces deleting a fully-built approved org.
+      const { replayConnections } = await import('@/lib/orgs/wizard-replay');
+      const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://edge-athlete.vercel.app';
+      const connectionReport = await replayConnections(
+        supabase,
+        { side: 'league', orgId: created.league.id },
+        row.name,
+        row.connections_draft,
+        row.requester_profile_id,
+        user.id,
+        appUrl
+      );
+
       // 3. Best-effort notification — never fails the decision.
       const { notifyLeagueRequestResult } = await import('@/lib/leagues/notify');
       await notifyLeagueRequestResult(supabase, {
@@ -134,7 +175,15 @@ export async function PATCH(request: NextRequest) {
         reason: null,
       });
 
-      return NextResponse.json({ ok: true, league: created.league });
+      return NextResponse.json({
+        ok: true,
+        league: created.league,
+        replay: {
+          structure: structureCounts,
+          connections: connectionReport.connections,
+          stubs: connectionReport.stubs,
+        },
+      });
     }
 
     // Decline (reason presence enforced by the schema).
