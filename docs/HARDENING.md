@@ -183,6 +183,20 @@ Ranked, with the source finding. Fix deliberately; each is its own change.
 ---
 
 ## Change log
+- **Sep 2026 (pre-phase-3 stage gate, #444–#446)** — the full re-run before
+  the public-sites stage. Part A automated: verify green (2379 tests), audit
+  0, guardrails FIXED (the script had never learned the athlete-claim
+  cookies exception — CI red since #422) + green. Part B: the B2+B3 sweep
+  over the entire phase-1/2 org/competition route band came back
+  structurally clean (scope-pin coverage on all four org-column-less child
+  tables, token lifecycle, buckets, twins diff-identical); three fix-nows
+  shipped in #446 (public-name masking per masterplan §6, SSR standings
+  React cache() dedupe, hot-aggregate limits); Tier-2 remainder filed
+  above. B1 live-index review: hot paths all served (places/follows/golf/
+  notifications/posts); org tables' indexes grid-asserted at creation and
+  correctly absent from the young-table usage tail; one no-action
+  observation — idx_places_population reads ~6.8k tuples/scan (bounded
+  reference data, capped routes).
 - **Aug 2026** — first audit + Tier-1 fixes shipped (index migration 123;
   count/limit fixes; feed like-embed removal; polling pause; security gates for
   stat-lines/organizations/tags/upload/`.or()` sanitizer). This runbook + the CI
