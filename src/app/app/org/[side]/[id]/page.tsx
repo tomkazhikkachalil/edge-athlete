@@ -1008,9 +1008,11 @@ export default function OrgConsolePage() {
                       {comp.entries.map(entry => (
                         <span
                           key={entry.id}
-                          className="inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded-full bg-surface-sunken text-secondary"
+                          className="inline-flex max-w-full items-center gap-1 px-2 py-0.5 text-xs rounded-full bg-surface-sunken text-secondary"
                         >
-                          {entry.entrant_name}
+                          {/* min-w-0 + truncate: a long name must shrink or the
+                              un-wrappable pill overflows 375px (R4's catch). */}
+                          <span className="min-w-0 truncate">{entry.entrant_name}</span>
                           {entry.status === 'pending' && (
                             <>
                               <span className="text-amber-600">pending</span>
@@ -1089,7 +1091,7 @@ export default function OrgConsolePage() {
                             );
                           }}
                           aria-label={`Enter a team in ${comp.name}`}
-                          className="px-2 py-1 text-xs border border-border-strong rounded-md outline-none"
+                          className="max-w-full px-2 py-1 text-xs border border-border-strong rounded-md outline-none"
                         >
                           <option value="">+ Enter team…</option>
                           {activeTeams.map(t => (
