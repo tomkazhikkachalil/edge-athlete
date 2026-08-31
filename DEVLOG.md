@@ -1,5 +1,65 @@
 # Development Log
 
+## August 31, 2026 — Step 0.10: the guardian roster gate (mig 147, #407 + #408) — PHASE 0 COMPLETE
+
+The last phase-0 step, and the one the whole program was ordered around:
+supervised roster offers route through the guardian console, and the
+calendar merge gains its flag-gated roster-only placement predicate. Every
+guardian bypass the 0.1 audit found is now closed.
+
+- **Tom's decisions.** EITHER-APPROVES — the follow convention carries to
+  roster: child OR guardian accepts, whoever didn't act is told (the
+  followers-route cross-notify model); the child may always decline.
+  Parallel-notify: the child keeps their offer bell, guardians get the new
+  `roster_invite` type. The broadcast bypass closes ADDITIVELY: supervised
+  members keep team_update, their guardians also get calendar_alert —
+  unconditional, a safety behavior never behind a flag. `roster_invite` is
+  guardian-facing only; adult senders stay on league/club_update +
+  metadata.roster.
+- **Two flags, both default-off = today's behavior byte-for-byte.**
+  `NEXT_PUBLIC_FEATURE_ROSTER_GUARDIAN_GATE` (flag off = 0.3's supervised
+  403s verbatim; on = pending row + queue + either-approves) and
+  `NEXT_PUBLIC_FEATURE_CALENDAR_ROSTER_ONLY` (on = only active roster rows
+  place org events; org-peers keeps the kind-blind read — the lens is a
+  scope, not a grant; viewerScopeSet mirrors the predicate so sub-org rows
+  never become a placement back door). features.ts carries the ordering
+  rule: flag 2 flips only after phase 1 converts members to roster.
+- **Mechanics.** Mig 147 adds roster_invite (registry + frozen parity
+  buckets + GuardianNotificationType land together, forced by the parity
+  test). The guardian queue gains its 12th kind (one flag-gated memberships
+  query + one batched org-name lookup — still constant count); the console
+  reuses the two-button decide row. Guardian acting-for rides the roster
+  routes themselves (PATCH profileId / DELETE as=guardian, both
+  requireProfileRole-gated) — no new queue-act endpoint, per the console
+  doctrine. Guardian decline is SELF-equivalent: refusing a spot is the
+  athlete side of the safety boundary, never the org side.
+- **Verification.** Verify green both PRs (197 files, 2297 tests; lint 0).
+  Probe battery **21/21** (spawn with both flags on, prod flag-off checks
+  interleaved): offer → pending + both bells + queue item; guardian accept
+  acting-for + child told; child SELF-accept via a minted supervised
+  session + guardians told; guardian decline; stranger acting-for 403s;
+  child keeps team_update while the guardian gets the additive
+  calendar_alert; flag-2-on merge drops the follow-only member and keeps
+  the roster member; prod (flags off) still 403s supervised offers and
+  merges kind-blind. e2e guardian-roster 1/1 vs the flag-on spawn (incl.
+  375px console); prod suite 9 passed + the flag-off self-skip. 375px
+  screenshots LOOKED at: console decide row + the supervised banner with
+  its guardian note.
+- **Probe trap re-hit:** PostgREST batch inserts need homogeneous keys
+  (PGRST102) — a follow row and a roster row can't share one array. Third
+  time; it's the law.
+- **Rollout owed to Tom:** set NEXT_PUBLIC_FEATURE_ROSTER_GUARDIAN_GATE=1
+  in Vercel (+ ci.yml smoke env) and redeploy; flag 2 stays unset until
+  phase 1. Flags retire in a cleanup once soaked, alongside the 0.8 authz
+  soak fallback and the legacy member-table drop (~Sep 13, 140's header).
+
+**Phase 0 (the revised ten-step plan, Aug 30–31): COMPLETE.** Migrations
+140–147, PRs #384–#408, every round verify-green, serially merged,
+prod-probed, phone-width-verified. The masterplan's phases 1–5 now stand
+on: unified scoped memberships, roster offers with the guardian gate,
+owners as rows, venues/facilities, capability flags, typed affiliations,
+seasons/divisions/teams, derived sports, and scope-polymorphic events.
+
 ## August 31, 2026 — Steps 0.6b + 0.9: derived org sports, event scope polymorphism (mig 146, #404 + #405)
 
 The last two structural steps before 0.10. Tom's decisions: STRICT
