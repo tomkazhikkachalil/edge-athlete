@@ -108,7 +108,16 @@ test('standings: recompute on results; public API + org section + SSR page; 375p
       // The viewer-independent API: payload + CDN header, anonymously.
       const apiRes = await page.request.get(`/api/leagues/${leagueId}/standings`);
       expect(apiRes.status()).toBe(200);
-      expect(apiRes.headers()['cache-control']).toContain('s-maxage=60');
+      // Vercel's CDN CONSUMES s-maxage/SWR into its own layer and rewrites
+      // the client-facing header to bare 'public' (the #303 lesson: assert
+      // x-vercel-cache there, the raw directive only locally).
+      const cc = apiRes.headers()['cache-control'] ?? '';
+      if (apiRes.headers()['x-vercel-cache']) {
+        expect(cc).toContain('public');
+        expect(cc).not.toContain('no-store');
+      } else {
+        expect(cc).toContain('s-maxage=60');
+      }
       const payload = await apiRes.json();
       expect(payload.competitions[0].rows[0].entrant_name).toBe(`Blazers ${stamp}`);
 
@@ -142,7 +151,11 @@ test('standings: recompute on results; public API + org section + SSR page; 375p
     const ctx2 = await browser.newContext();
     try {
       const page2 = await ctx2.newPage();
-      const apiRes2 = await page2.request.get(`/api/leagues/${leagueId}/standings`);
+      // Cache-bust: the earlier request just primed the CDN for 60s (the
+      // #303 probe trap — a stale HIT here is correct caching, not a leak).
+      const apiRes2 = await page2.request.get(
+        `/api/leagues/${leagueId}/standings?_cb=${Date.now()}`
+      );
       const payload2 = await apiRes2.json();
       expect(payload2.competitions).toHaveLength(0);
     } finally {
