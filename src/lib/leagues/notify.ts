@@ -51,7 +51,9 @@ export interface LeagueRoleNotification {
   profileId: string;
   leagueId: string;
   leagueName: string;
-  role: 'manager' | 'member';
+  /** 'owner' arrives only from the owners core (0.8); the members route
+   *  stays zod-narrowed to manager|member. */
+  role: 'owner' | 'manager' | 'member';
 }
 
 /** Tell a member their role changed — the front-loaded 'league_update' type's
@@ -62,9 +64,11 @@ export async function notifyLeagueRole(admin: Admin, n: LeagueRoleNotification):
       user_id: n.profileId,
       type: 'league_update',
       actor_id: null,
-      title: n.role === 'manager'
-        ? `You're now a manager of ${n.leagueName}`
-        : `Your manager role in ${n.leagueName} was removed`,
+      title: n.role === 'owner'
+        ? `You're now an owner of ${n.leagueName}`
+        : n.role === 'manager'
+          ? `You're now a manager of ${n.leagueName}`
+          : `Your manager role in ${n.leagueName} was removed`,
       message: null,
       action_url: `/league/${n.leagueId}`,
       is_read: false,

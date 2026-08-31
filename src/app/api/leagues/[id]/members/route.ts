@@ -92,8 +92,8 @@ export async function POST(
 
 /** PATCH ?profileId= {role} — the OWNER promotes a member to manager or
  *  demotes a manager back. Owner-only on purpose: managers must not mint or
- *  remove peers (the org-managed model). The owner row itself is untouchable
- *  — ownership transfer is a future admin action, not a role PATCH. */
+ *  remove peers (the org-managed model). Owner rows stay untouchable HERE —
+ *  owner-set changes live in /owners (0.8): transfer = promote + step down. */
 export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }

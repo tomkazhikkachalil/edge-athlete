@@ -78,6 +78,8 @@ export const RATE_LIMITS = {
   'league-join': { max: 30, windowSeconds: 3600, keyBy: 'user' },
   // Roster offers fan out one notification each (0.3) — league-join's shape.
   'roster-offer': { max: 30, windowSeconds: 3600, keyBy: 'user' },
+  // Owner-set mutations (0.8) notify and are rare by nature.
+  'owner-change': { max: 10, windowSeconds: 3600, keyBy: 'user' },
   // "Start a league" submissions — rare by nature, each lands in the admin
   // queue; 3/day per user keeps a griefing account from flooding it while
   // never touching a genuine requester (one pending at a time anyway).

@@ -100,9 +100,9 @@ export const LeagueRequestDecisionSchema = z
   });
 export type LeagueRequestDecisionInput = z.infer<typeof LeagueRequestDecisionSchema>;
 
-/** Owner-assignable roles. 'owner' is deliberately NOT assignable — there is
- *  exactly one owner, set at creation; ownership transfer is a future admin
- *  action, not a role PATCH. */
+/** Owner-assignable roles for the role PATCH. 'owner' is deliberately NOT
+ *  here — owner-set changes go through /owners (0.8): owners mint co-owners
+ *  and step down themselves; transfer = promote + step down. */
 export const LeagueMemberRoleSchema = z.object({
   role: z.enum(['manager', 'member']),
 });

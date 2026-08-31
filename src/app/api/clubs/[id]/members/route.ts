@@ -88,8 +88,8 @@ export async function POST(
   }
 }
 
-/** PATCH ?profileId= {role} — the OWNER promotes/demotes. Owner row is
- *  untouchable; 'owner' is not in the schema (leagues precedent). */
+/** PATCH ?profileId= {role} — the OWNER promotes/demotes. Owner rows stay
+ *  untouchable HERE — owner-set changes live in /owners (0.8). */
 export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }

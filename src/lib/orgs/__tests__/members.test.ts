@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   acceptRosterOffer,
   deleteRosterRow,
+  demoteOwnerToManager,
   getMemberRole,
   insertOwnerRow,
   insertRosterOffer,
@@ -11,7 +12,9 @@ import {
   memberOrgIds,
   membershipEdges,
   orgMemberPreview,
+  ownerRows,
   profileMembershipRows,
+  promoteFollowToOwner,
   redactPendingRoster,
   removeMember,
   setMemberRole,
@@ -180,6 +183,45 @@ describe('write filters keep legacy-shaped paths off future roster rows', () => 
       profile_id: 'them',
       kind: 'roster',
       scope_type: 'org',
+    });
+  });
+
+  it('owner-set writers carry exact guards (0.8)', async () => {
+    const promote = mockAdmin({ memberships: { data: [{ id: 'row-1' }], error: null } });
+    const p = await promoteFollowToOwner(promote.admin, REF, 'them');
+    expect(p).toEqual({ updated: true, error: null });
+    expect(promote.calls[0].op).toBe('update');
+    expect(promote.calls[0].payload).toEqual({ role: 'owner' });
+    expect(promote.calls[0].filters).toEqual({
+      league_id: 'org-1',
+      profile_id: 'them',
+      kind: 'follow',
+      scope_type: 'org',
+      role: ['member', 'manager'],
+    });
+
+    const demote = mockAdmin({ memberships: { data: [], error: null } });
+    const d = await demoteOwnerToManager(demote.admin, CLUB_REF, 'me');
+    expect(d.updated).toBe(false); // guarded update raced away → caller 409s
+    expect(demote.calls[0].payload).toEqual({ role: 'manager' });
+    expect(demote.calls[0].filters).toEqual({
+      club_id: 'club-1',
+      profile_id: 'me',
+      kind: 'follow',
+      scope_type: 'org',
+      role: 'owner',
+    });
+
+    const owners = mockAdmin({
+      memberships: { data: [{ id: 'r1', profile_id: 'p1', joined_at: 'a' }], error: null },
+    });
+    const o = await ownerRows(owners.admin, REF);
+    expect(o.rows).toHaveLength(1);
+    expect(owners.calls[0].filters).toEqual({
+      league_id: 'org-1',
+      kind: 'follow',
+      scope_type: 'org',
+      role: 'owner',
     });
   });
 
