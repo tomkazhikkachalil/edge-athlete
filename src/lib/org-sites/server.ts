@@ -89,7 +89,7 @@ export async function siteGET(
   if (!data) return NextResponse.json({ site: null, modules: [] });
   const { data: modules } = await admin
     .from('org_site_modules')
-    .select('module_key, enabled, sort_order')
+    .select('module_key, enabled, sort_order, config')
     .eq('site_id', data.id)
     .order('sort_order', { ascending: true })
     .limit(20);
@@ -153,15 +153,82 @@ export async function siteCreatePOST(
   return NextResponse.json({ site });
 }
 
-/** Publish/unpublish, or toggle one module (R2's Sections). Every branch
- *  ends in revalidateTag — publish must be immediate, not 300s-stale,
- *  and a toggle flips home + subpages through the same tag. */
+/** Publish/unpublish, toggle one module (R2), or write branding config
+ *  (R3: hero, theme accent, sponsors). Every branch ends in revalidateTag
+ *  — publish must be immediate, not 300s-stale, and every edit flips
+ *  home + subpages through the same tag. */
 export async function sitePATCH(
   admin: Admin,
   side: OrgSide,
   orgId: string,
   input: SitePatchInput
 ): Promise<NextResponse> {
+  if (input.action === 'set_hero' || input.action === 'set_theme') {
+    const patch =
+      input.action === 'set_hero'
+        ? {
+            hero_config: {
+              ...(input.headline ? { headline: input.headline } : {}),
+              ...(input.tagline ? { tagline: input.tagline } : {}),
+            },
+          }
+        : // null clears back to the violet defaults. Whole-object replace on
+          // both branches — the console always sends every field, seeded
+          // from GET (a partial save would otherwise clear the rest).
+          { theme_token_set: input.accent ? { accent: input.accent.toLowerCase() } : {} };
+    const { data: updated, error } = await admin
+      .from('org_sites')
+      .update(patch)
+      .eq(orgColumn(side), orgId)
+      .select('id, subdomain');
+    if (error) {
+      console.error(`${TAG} branding patch error:`, error);
+      return NextResponse.json({ error: 'Failed to update the site' }, { status: 500 });
+    }
+    if (!updated || updated.length === 0) {
+      return NextResponse.json({ error: 'Site not found' }, { status: 404 });
+    }
+    revalidateTag(`org-site:${updated[0].subdomain}`, { expire: 0 });
+    return NextResponse.json({ ok: true });
+  }
+
+  if (input.action === 'set_sponsors') {
+    const { data: site } = await admin
+      .from('org_sites')
+      .select('id, subdomain')
+      .eq(orgColumn(side), orgId)
+      .maybeSingle();
+    if (!site) {
+      return NextResponse.json({ error: 'Site not found' }, { status: 404 });
+    }
+    // UPDATE, never upsert — an upsert would clobber sort_order/enabled.
+    const { data: updated, error } = await admin
+      .from('org_site_modules')
+      .update({ config: { sponsors: input.sponsors } })
+      .eq('site_id', site.id)
+      .eq('module_key', 'sponsors')
+      .select('module_key');
+    if (error) {
+      console.error(`${TAG} sponsors patch error:`, error);
+      return NextResponse.json({ error: 'Failed to update sponsors' }, { status: 500 });
+    }
+    if (!updated || updated.length === 0) {
+      const { error: insertError } = await admin.from('org_site_modules').insert({
+        site_id: site.id,
+        module_key: 'sponsors',
+        enabled: true,
+        sort_order: MODULE_KEYS.indexOf('sponsors'),
+        config: { sponsors: input.sponsors },
+      });
+      if (insertError) {
+        console.error(`${TAG} sponsors insert error:`, insertError);
+        return NextResponse.json({ error: 'Failed to update sponsors' }, { status: 500 });
+      }
+    }
+    revalidateTag(`org-site:${site.subdomain}`, { expire: 0 });
+    return NextResponse.json({ ok: true });
+  }
+
   if (input.action === 'set_module') {
     const { data: site } = await admin
       .from('org_sites')

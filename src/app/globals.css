@@ -673,6 +673,26 @@ body {
 .vt-draw { animation: vt-draw 900ms var(--ea-ease) backwards; }
 .vt-fade-in { animation: ea-fade-in 400ms ease-out 500ms backwards; }
 
+/* ── ORG-SITE ACCENT ("org-") — phase 3 R3 ──────────────────────────────────
+ * The (public) org segment re-points the --brand family per site. LIGHT-ONLY
+ * by design: that segment never stamps data-theme, so unlike .vt-scope above
+ * there is deliberately NO dark twin. The defaults ARE the pre-R3 violet
+ * hero (violet-500 → violet-600); a site's theme_token_set.accent overrides
+ * them via an inline style on the segment root — the hex is server-validated
+ * at write AND re-validated at render (parseThemeAccent), so nothing
+ * unvalidated ever reaches a style attribute. The Tailwind @theme bridge
+ * dereferences var(--brand*), so text-brand-fg etc. re-point automatically
+ * inside this scope. Shared-class contract holds: no display/width here. */
+.org-scope {
+  --org-accent: #8b5cf6;        /* violet-500 — gradient start */
+  --org-accent-strong: #7c3aed; /* violet-600 — gradient end, links */
+  --brand: var(--org-accent-strong);
+  --brand-hover: var(--org-accent-strong);
+  --brand-fg: var(--org-accent-strong);
+  --brand-fg-strong: var(--org-accent-strong);
+  --brand-soft: color-mix(in srgb, var(--org-accent) 10%, white);
+}
+
 /* Long-press targets: a 400ms press must open OUR surface, not the OS text
  * selection (iOS loupe/callout) — the two fight, and selection wins ugly.
  * Coarse-scoped so desktop mouse selection (and copy) is untouched; on

@@ -10,9 +10,10 @@ import {
   getCachedTeams,
   getCachedVenues,
 } from '@/lib/org-sites/cached';
-import { MODULE_TITLES } from '@/lib/org-sites/validate';
+import { MODULE_TITLES, parseHeroConfig, parseSponsors } from '@/lib/org-sites/validate';
 import AffiliationsList from './_components/AffiliationsList';
 import ScheduleList from './_components/ScheduleList';
+import SponsorsList from './_components/SponsorsList';
 import StaffList from './_components/StaffList';
 import StandingsPreview from './_components/StandingsPreview';
 import TeamsList from './_components/TeamsList';
@@ -59,6 +60,7 @@ export default async function OrgSiteHome({ params }: PageParams) {
 
   const enabled = site.modules.filter(m => m.enabled);
   const has = (key: string) => enabled.some(m => m.module_key === key);
+  const hero = parseHeroConfig(site.hero_config);
   const { side, orgId } = site;
 
   const [standings, events, teams, staff, venues, affiliations] = await Promise.all([
@@ -114,8 +116,18 @@ export default async function OrgSiteHome({ params }: PageParams) {
         ) : (
           empty('No affiliations yet.')
         );
+      case 'sponsors': {
+        const sponsors = parseSponsors(
+          site.modules.find(m => m.module_key === 'sponsors')?.config
+        );
+        return sponsors.length > 0 ? (
+          <SponsorsList sponsors={sponsors} />
+        ) : (
+          empty('No sponsors yet.')
+        );
+      }
       default:
-        // sponsors + contact: R3 ships their editors; the stub stays.
+        // contact: its editor is deferred; the stub stays.
         return empty('Coming soon.');
     }
   };
@@ -123,12 +135,20 @@ export default async function OrgSiteHome({ params }: PageParams) {
   return (
     <div className="max-w-4xl mx-auto px-4 py-8 space-y-6">
       {has('hero') && (
+        // The gradient rides the .org-scope accent vars (violet defaults; a
+        // site's theme_token_set overrides via the layout's inline style).
         <section
           aria-label="Welcome"
-          className="rounded-xl bg-gradient-to-r from-violet-500 to-violet-600 px-6 py-10 text-white"
+          className="rounded-xl px-6 py-10 text-white"
+          style={{
+            backgroundImage:
+              'linear-gradient(to right, var(--org-accent), var(--org-accent-strong))',
+          }}
         >
-          <h1 className="text-2xl sm:text-3xl font-bold">{site.orgName}</h1>
-          <p className="mt-1 text-sm opacity-90">Schedules, standings, and teams — live.</p>
+          <h1 className="text-2xl sm:text-3xl font-bold">{hero.headline || site.orgName}</h1>
+          <p className="mt-1 text-sm opacity-90">
+            {hero.tagline || 'Schedules, standings, and teams — live.'}
+          </p>
         </section>
       )}
       {enabled

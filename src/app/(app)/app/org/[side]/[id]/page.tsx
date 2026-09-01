@@ -139,10 +139,15 @@ export default function OrgConsolePage() {
     subdomain: string;
     published_at: string | null;
   } | null>(null);
-  // R2: the site's module rows — the Sections toggles.
+  // R2: the site's module rows — the Sections toggles (+R3: config).
   const [siteModules, setSiteModules] = useState<
-    { module_key: string; enabled: boolean }[]
+    { module_key: string; enabled: boolean; config?: unknown }[]
   >([]);
+  // R3 branding editors — seeded from the site GET on every refresh.
+  const [heroHeadline, setHeroHeadline] = useState('');
+  const [heroTagline, setHeroTagline] = useState('');
+  const [themeAccent, setThemeAccent] = useState(''); // '' = default violet
+  const [sponsorDrafts, setSponsorDrafts] = useState<{ name: string; url: string }[]>([]);
 
   useEffect(() => {
     if (!validSide || !user?.id) return;
@@ -189,6 +194,25 @@ export default function OrgConsolePage() {
           if (!cancelled) {
             setSite(siteBody.site ?? null);
             setSiteModules(siteBody.modules ?? []);
+            // R3: seed the branding editors from the stored config so a
+            // Save always sends the complete object (replace semantics).
+            const heroConfig = (siteBody.site?.hero_config ?? {}) as {
+              headline?: string;
+              tagline?: string;
+            };
+            setHeroHeadline(typeof heroConfig.headline === 'string' ? heroConfig.headline : '');
+            setHeroTagline(typeof heroConfig.tagline === 'string' ? heroConfig.tagline : '');
+            const themeSet = (siteBody.site?.theme_token_set ?? {}) as { accent?: string };
+            setThemeAccent(typeof themeSet.accent === 'string' ? themeSet.accent : '');
+            const sponsorsConfig = (siteBody.modules ?? []).find(
+              (m: { module_key: string }) => m.module_key === 'sponsors'
+            )?.config as { sponsors?: { name?: string; url?: string }[] } | undefined;
+            setSponsorDrafts(
+              (sponsorsConfig?.sponsors ?? []).map(s => ({
+                name: s.name ?? '',
+                url: s.url ?? '',
+              }))
+            );
           }
         }
       } catch {
@@ -206,24 +230,39 @@ export default function OrgConsolePage() {
     path: string,
     init: RequestInit,
     successMessage: string,
-    failMessage: string
+    failMessage: string,
+    title = 'Structure'
   ) => {
     try {
       const response = await fetch(path, init);
       const body = await response.json();
       if (!response.ok) {
-        showError('Structure', body.error || failMessage);
+        showError(title, body.error || failMessage);
         return false;
       }
-      showSuccess('Structure', successMessage);
+      showSuccess(title, successMessage);
       refresh();
       return true;
     } catch (e) {
       console.error('Structure action failed:', e);
-      showError('Structure', failMessage);
+      showError(title, failMessage);
       return false;
     }
   };
+
+  // R3: the Website card's PATCH helper — same act(), Website-titled toasts.
+  const siteAct = (bodyJson: Record<string, unknown>, successMessage: string, failMessage: string) =>
+    act(
+      `/api/${plural}/${orgId}/site`,
+      {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(bodyJson),
+      },
+      successMessage,
+      failMessage,
+      'Website'
+    );
 
   const base = `/api/${plural}/${orgId}/structure`;
 
@@ -1298,6 +1337,163 @@ export default function OrgConsolePage() {
                   </div>
                 </div>
               )}
+              {/* R3 branding editors — flat inline forms (house pattern,
+                  never a modal). Saves send the COMPLETE object (replace
+                  semantics), seeded from the GET above. */}
+              <div className="pt-2 space-y-1.5">
+                <p className="text-sm font-medium text-primary">Hero</p>
+                <div className="flex flex-wrap gap-2">
+                  <input
+                    type="text"
+                    value={heroHeadline}
+                    onChange={e => setHeroHeadline(e.target.value)}
+                    maxLength={80}
+                    placeholder={orgName ?? 'Headline'}
+                    aria-label="Hero headline"
+                    className="px-3 py-2 border border-border-strong rounded-md outline-none text-sm min-w-0 flex-1"
+                  />
+                  <input
+                    type="text"
+                    value={heroTagline}
+                    onChange={e => setHeroTagline(e.target.value)}
+                    maxLength={140}
+                    placeholder="Schedules, standings, and teams — live."
+                    aria-label="Hero tagline"
+                    className="px-3 py-2 border border-border-strong rounded-md outline-none text-sm min-w-0 flex-1"
+                  />
+                  <button
+                    type="button"
+                    onClick={() =>
+                      void siteAct(
+                        {
+                          action: 'set_hero',
+                          ...(heroHeadline.trim() ? { headline: heroHeadline.trim() } : {}),
+                          ...(heroTagline.trim() ? { tagline: heroTagline.trim() } : {}),
+                        },
+                        'Hero updated',
+                        'Failed to update the hero'
+                      )
+                    }
+                    className="px-3 py-1.5 text-sm rounded-md border border-border-strong text-secondary hover:bg-surface-sunken transition-colors"
+                  >
+                    Save hero
+                  </button>
+                </div>
+              </div>
+              <div className="pt-2 space-y-1.5">
+                <p className="text-sm font-medium text-primary">Accent color</p>
+                <div className="flex flex-wrap items-center gap-2">
+                  <input
+                    type="color"
+                    value={themeAccent || '#7c3aed'}
+                    onChange={e => setThemeAccent(e.target.value)}
+                    aria-label="Accent color"
+                    className="h-9 w-12 rounded-md border border-border-strong bg-surface p-0.5"
+                  />
+                  <button
+                    type="button"
+                    onClick={() =>
+                      void siteAct(
+                        { action: 'set_theme', accent: themeAccent || '#7c3aed' },
+                        'Accent updated',
+                        'Failed to update the accent'
+                      )
+                    }
+                    className="px-3 py-1.5 text-sm rounded-md border border-border-strong text-secondary hover:bg-surface-sunken transition-colors"
+                  >
+                    Save accent
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      void siteAct(
+                        { action: 'set_theme', accent: null },
+                        'Accent reset',
+                        'Failed to reset the accent'
+                      )
+                    }
+                    className="px-3 py-1.5 text-sm rounded-md text-tertiary hover:bg-surface-sunken transition-colors"
+                  >
+                    Reset
+                  </button>
+                  <span className="text-xs text-tertiary">
+                    Very light colors are rejected — the hero text is white.
+                  </span>
+                </div>
+              </div>
+              <div className="pt-2 space-y-1.5">
+                <p className="text-sm font-medium text-primary">Sponsors</p>
+                {sponsorDrafts.map((s, index) => (
+                  <div key={index} className="flex flex-wrap gap-2">
+                    <input
+                      type="text"
+                      value={s.name}
+                      onChange={e =>
+                        setSponsorDrafts(d =>
+                          d.map((row, i) => (i === index ? { ...row, name: e.target.value } : row))
+                        )
+                      }
+                      maxLength={80}
+                      placeholder="Sponsor name"
+                      aria-label={`Sponsor ${index + 1} name`}
+                      className="px-3 py-2 border border-border-strong rounded-md outline-none text-sm min-w-0 flex-1"
+                    />
+                    <input
+                      type="url"
+                      value={s.url}
+                      onChange={e =>
+                        setSponsorDrafts(d =>
+                          d.map((row, i) => (i === index ? { ...row, url: e.target.value } : row))
+                        )
+                      }
+                      maxLength={200}
+                      placeholder="https:// (optional)"
+                      aria-label={`Sponsor ${index + 1} link`}
+                      className="px-3 py-2 border border-border-strong rounded-md outline-none text-sm min-w-0 flex-1"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setSponsorDrafts(d => d.filter((_, i) => i !== index))}
+                      aria-label={`Remove sponsor ${index + 1}`}
+                      className="px-2 text-tertiary hover:text-primary"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                ))}
+                <div className="flex flex-wrap gap-2">
+                  {sponsorDrafts.length < 20 && (
+                    <button
+                      type="button"
+                      onClick={() => setSponsorDrafts(d => [...d, { name: '', url: '' }])}
+                      className="px-3 py-1.5 text-sm rounded-md text-tertiary hover:bg-surface-sunken transition-colors"
+                    >
+                      + Add sponsor
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() =>
+                      void siteAct(
+                        {
+                          action: 'set_sponsors',
+                          sponsors: sponsorDrafts
+                            .filter(s => s.name.trim())
+                            .map(s => ({
+                              name: s.name.trim(),
+                              ...(s.url.trim() ? { url: s.url.trim() } : {}),
+                            })),
+                        },
+                        'Sponsors updated',
+                        'Failed to update sponsors'
+                      )
+                    }
+                    className="px-3 py-1.5 text-sm rounded-md border border-border-strong text-secondary hover:bg-surface-sunken transition-colors"
+                  >
+                    Save sponsors
+                  </button>
+                </div>
+              </div>
             </div>
           )}
         </section>
