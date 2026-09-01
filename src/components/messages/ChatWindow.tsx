@@ -492,8 +492,13 @@ export default function ChatWindow({ conversationId, onBack }: Props) {
     setShowMenu(false);
   }, [conversation, conversationId]);
 
+  // C3 (Sep 2026): leave/block ride ConfirmModal like every other
+  // destructive action here (portaled — the messages stacking rule); the
+  // legacy native confirm()s are gone.
+  const [confirmAction, setConfirmAction] = useState<'leave' | 'block' | null>(null);
+
   const handleLeave = useCallback(async () => {
-    if (!confirm('Leave this conversation?')) return;
+    setConfirmAction(null);
     setShowMenu(false);
     try {
       const res = await fetch(`/api/messages/${conversationId}/participants/${currentUserId}`, {
@@ -514,7 +519,7 @@ export default function ChatWindow({ conversationId, onBack }: Props) {
     if (!conversation || conversation.type !== 'direct') return;
     const other = conversation.participants.find(p => p.profile_id !== currentUserId);
     if (!other) return;
-    if (!confirm('Block this user? They will not be able to message you.')) return;
+    setConfirmAction(null);
     setShowMenu(false);
     try {
       const res = await fetch('/api/messages/block', {
@@ -764,7 +769,7 @@ export default function ChatWindow({ conversationId, onBack }: Props) {
                 <div className="border-t border-border-subtle my-1" />
 
                 <button
-                  onClick={handleLeave}
+                  onClick={() => setConfirmAction('leave')}
                   className="w-full text-left px-4 py-2.5 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 flex items-center gap-3"
                 >
                   <i className="fas fa-sign-out-alt w-4 text-center"></i>
@@ -783,7 +788,7 @@ export default function ChatWindow({ conversationId, onBack }: Props) {
 
                 {isDM && (
                   <button
-                    onClick={handleBlock}
+                    onClick={() => setConfirmAction('block')}
                     className="w-full text-left px-4 py-2.5 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 flex items-center gap-3"
                   >
                     <i className="fas fa-ban w-4 text-center"></i>
@@ -926,6 +931,25 @@ export default function ChatWindow({ conversationId, onBack }: Props) {
             cancelText="Cancel"
             onConfirm={() => void handleEscalate()}
             onCancel={() => setShowEscalateConfirm(false)}
+          />,
+          document.body
+        )}
+
+      {/* Leave/block confirms — portaled like the escalation confirm. */}
+      {confirmAction !== null &&
+        createPortal(
+          <ConfirmModal
+            isOpen
+            title={confirmAction === 'leave' ? 'Leave this conversation?' : 'Block this user?'}
+            message={
+              confirmAction === 'leave'
+                ? 'You will stop receiving its messages. You can be re-added later.'
+                : 'They will not be able to message you.'
+            }
+            confirmText={confirmAction === 'leave' ? 'Leave' : 'Block'}
+            cancelText="Cancel"
+            onConfirm={() => void (confirmAction === 'leave' ? handleLeave() : handleBlock())}
+            onCancel={() => setConfirmAction(null)}
           />,
           document.body
         )}

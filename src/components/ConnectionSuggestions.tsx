@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { getInitials } from '@/lib/formatters';
 import LazyImage from './LazyImage';
@@ -58,6 +58,12 @@ export default function ConnectionSuggestions({
     };
   }, [profileId, limit]);
 
+  // C2 (Sep 2026): a dismissal was one mistap from permanent. The last
+  // dismissed suggestion is held for a short undo window; Undo restores
+  // both the server flag and the row in place.
+  const [lastDismissed, setLastDismissed] = useState<Suggestion | null>(null);
+  const undoTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   const handleDismiss = async (suggestedId: string) => {
     try {
       await fetch('/api/suggestions', {
@@ -70,10 +76,43 @@ export default function ConnectionSuggestions({
         })
       });
 
+      const dismissed = suggestions.find(s => s.suggested_id === suggestedId) ?? null;
       setDismissedIds(prev => new Set(prev).add(suggestedId));
       setSuggestions(prev => prev.filter(s => s.suggested_id !== suggestedId));
+      setLastDismissed(dismissed);
+      if (undoTimerRef.current) clearTimeout(undoTimerRef.current);
+      undoTimerRef.current = setTimeout(() => setLastDismissed(null), 8000);
     } catch (e) {
       console.error('Failed to dismiss connection suggestion:', e);
+    }
+  };
+
+  const handleUndoDismiss = async () => {
+    const restored = lastDismissed;
+    if (!restored) return;
+    if (undoTimerRef.current) clearTimeout(undoTimerRef.current);
+    setLastDismissed(null);
+    // Optimistic: the row comes back immediately; the server flag follows.
+    setDismissedIds(prev => {
+      const next = new Set(prev);
+      next.delete(restored.suggested_id);
+      return next;
+    });
+    setSuggestions(prev =>
+      prev.some(s => s.suggested_id === restored.suggested_id) ? prev : [restored, ...prev]
+    );
+    try {
+      await fetch('/api/suggestions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          profileId,
+          suggestedProfileId: restored.suggested_id,
+          action: 'undismiss'
+        })
+      });
+    } catch (e) {
+      console.error('Failed to restore connection suggestion:', e);
     }
   };
 
@@ -100,8 +139,8 @@ export default function ConnectionSuggestions({
     );
   }
 
-  if (visibleSuggestions.length === 0) {
-    return null; // Don't show empty state
+  if (visibleSuggestions.length === 0 && !lastDismissed) {
+    return null; // Don't show empty state (but keep the undo strip alive)
   }
 
   return (
@@ -116,6 +155,18 @@ export default function ConnectionSuggestions({
 
       {/* Suggestions List */}
       <div className="space-y-3">
+        {lastDismissed && (
+          <div className="flex items-center justify-between gap-3 p-3 rounded-lg border border-border bg-surface-muted text-sm text-secondary">
+            <span className="min-w-0 truncate">Suggestion dismissed.</span>
+            <button
+              type="button"
+              onClick={() => void handleUndoDismiss()}
+              className="min-h-[36px] px-3 rounded-full font-semibold text-brand-fg hover:bg-surface-sunken transition-colors"
+            >
+              Undo
+            </button>
+          </div>
+        )}
         {visibleSuggestions.map(suggestion => (
           <div
             key={suggestion.suggested_id}

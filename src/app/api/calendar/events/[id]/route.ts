@@ -156,11 +156,29 @@ export async function PATCH(
     if (event.organizer_id !== user.id) {
       return NextResponse.json({ error: 'Only the organizer can edit this event' }, { status: 403 });
     }
+    const body = await request.json().catch(() => ({}));
     if (event.status === 'cancelled') {
+      // B4 (Sep 2026): the one edit a cancelled event accepts is a restore
+      // — THIS occurrence only ({restore:true}; organizer already verified
+      // above). A whole-series restore would also have to reverse the
+      // series generation stop (until_at) — deliberately not built until
+      // someone asks; per-occurrence covers the accidental-cancel case.
+      if (body.restore === true) {
+        const { error: restoreError } = await admin
+          .from('events')
+          .update({ status: 'active', cancelled_at: null })
+          .eq('id', event.id);
+        if (restoreError) {
+          console.error('[CALENDAR] restore failed:', restoreError);
+          return NextResponse.json(
+            { error: 'Could not restore the event. Please try again.' },
+            { status: 500 }
+          );
+        }
+        return NextResponse.json({ restored: true });
+      }
       return NextResponse.json({ error: 'This event was cancelled' }, { status: 409 });
     }
-
-    const body = await request.json().catch(() => ({}));
     const scope = parseScope(body.scope);
     if (!scope) return NextResponse.json({ error: 'Invalid scope' }, { status: 400 });
     if (scope !== 'this' && !event.series_id) {

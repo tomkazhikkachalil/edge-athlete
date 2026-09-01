@@ -149,6 +149,25 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: true, message: 'Suggestion dismissed' });
     }
 
+    // C2 (Sep 2026): the undo half — a dismissal was one mistap from
+    // permanent, with no way back.
+    if (action === 'undismiss') {
+      const { error } = await supabase
+        .from('connection_suggestions')
+        .upsert({
+          profile_id: profileId,
+          suggested_profile_id: suggestedProfileId,
+          dismissed: false,
+          dismissed_at: null
+        }, { onConflict: 'profile_id,suggested_profile_id' });
+
+      if (error) {
+        return NextResponse.json({ error: 'Failed to process suggestion action' }, { status: 500 });
+      }
+
+      return NextResponse.json({ success: true, message: 'Suggestion restored' });
+    }
+
     return NextResponse.json({ error: 'Invalid action' }, { status: 400 });
 
   } catch (error) {

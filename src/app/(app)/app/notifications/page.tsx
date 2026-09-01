@@ -9,6 +9,7 @@ import { useNotifications, getNotificationText } from '@/lib/notifications';
 import { getNotificationIcon, notificationTab } from '@/lib/notification-registry';
 import { formatDisplayName, getInitials } from '@/lib/formatters';
 import AppHeader from '@/components/AppHeader';
+import ConfirmModal from '@/components/ConfirmModal';
 
 // 1091-line modal — only loaded when user opens Edit Profile
 const EditProfileTabs = dynamic(() => import('@/components/EditProfileTabs'), { ssr: false });
@@ -32,6 +33,10 @@ export default function NotificationsPage() {
 
   const [activeTab, setActiveTab] = useState<Tab>('all');
   const [showClearConfirm, setShowClearConfirm] = useState(false);
+  // C1 (Sep 2026): single-delete gets the same confirm treatment clear-all
+  // always had — deletion is permanent and the trash icon sits next to the
+  // tap target for opening the notification.
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [isEditProfileModalOpen, setIsEditProfileModalOpen] = useState(false);
 
   // Redirect if not authenticated
@@ -305,7 +310,7 @@ export default function NotificationsPage() {
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();
-                                deleteNotification(notification.id);
+                                setConfirmDeleteId(notification.id);
                               }}
                               className="p-2 text-faint hover:text-red-600 dark:hover:text-red-400 transition-colors"
                               title="Delete notification"
@@ -343,6 +348,19 @@ export default function NotificationsPage() {
           </div>
         )}
       </div>
+
+      <ConfirmModal
+        isOpen={confirmDeleteId !== null}
+        title="Delete this notification?"
+        message="It will be removed permanently."
+        confirmText="Delete"
+        cancelText="Keep it"
+        onConfirm={() => {
+          if (confirmDeleteId) deleteNotification(confirmDeleteId);
+          setConfirmDeleteId(null);
+        }}
+        onCancel={() => setConfirmDeleteId(null)}
+      />
 
       {/* Clear All Confirmation Modal */}
       {showClearConfirm && (
