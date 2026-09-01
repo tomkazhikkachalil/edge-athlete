@@ -8,9 +8,12 @@ import AppHeader from '@/components/AppHeader';
 import ConfirmModal from '@/components/ConfirmModal';
 import OrgSetupChecklist from '@/components/orgs/OrgSetupChecklist';
 import { useToast } from '@/components/Toast';
+import Image from 'next/image';
 import { FEATURE_FLAGS } from '@/lib/features';
+import { orgLogoUrl } from '@/lib/media/org-site-media';
 import { MODULE_TITLES, TOGGLEABLE_MODULE_KEYS } from '@/lib/org-sites/validate';
 import { SPORT_REGISTRY } from '@/lib/sports/SportRegistry';
+import OrgLogoUploader from '@/components/org/OrgLogoUploader';
 
 // ── The org-manager console (phase 1, round 1) ──────────────────────────────
 // The guardian-console shape (AppHeader — a recurring signed-in
@@ -138,6 +141,7 @@ export default function OrgConsolePage() {
     id: string;
     subdomain: string;
     published_at: string | null;
+    logo_path?: string | null;
   } | null>(null);
   // R2: the site's module rows — the Sections toggles (+R3: config).
   const [siteModules, setSiteModules] = useState<
@@ -1337,6 +1341,59 @@ export default function OrgConsolePage() {
                   </div>
                 </div>
               )}
+              {/* R3: site logo — square PNG through the shared editor,
+                  streamed publicly by /api/media/org-logo/[siteId]. */}
+              <div className="pt-2 space-y-1.5">
+                <p className="text-sm font-medium text-primary">Logo</p>
+                <div className="flex flex-wrap items-center gap-2">
+                  {site.logo_path ? (
+                    <Image
+                      src={orgLogoUrl(site.id, site.logo_path)!}
+                      alt="Current site logo"
+                      width={40}
+                      height={40}
+                      unoptimized
+                      className="rounded border border-border shrink-0"
+                    />
+                  ) : (
+                    <span className="text-xs text-tertiary">No logo yet.</span>
+                  )}
+                  <OrgLogoUploader
+                    endpoint={`/api/${plural}/${orgId}/site/logo`}
+                    onUploaded={() => {
+                      showSuccess('Website', 'Logo updated');
+                      refresh();
+                    }}
+                    render={({ open, uploading }) => (
+                      <button
+                        type="button"
+                        onClick={open}
+                        disabled={uploading}
+                        className="px-3 py-1.5 text-sm rounded-md border border-border-strong text-secondary hover:bg-surface-sunken transition-colors disabled:opacity-50"
+                      >
+                        {uploading ? 'Uploading…' : site.logo_path ? 'Replace logo' : 'Upload logo'}
+                      </button>
+                    )}
+                  />
+                  {site.logo_path && (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        void act(
+                          `/api/${plural}/${orgId}/site/logo`,
+                          { method: 'DELETE' },
+                          'Logo removed',
+                          'Failed to remove the logo',
+                          'Website'
+                        )
+                      }
+                      className="px-3 py-1.5 text-sm rounded-md text-tertiary hover:bg-surface-sunken transition-colors"
+                    >
+                      Remove
+                    </button>
+                  )}
+                </div>
+              </div>
               {/* R3 branding editors — flat inline forms (house pattern,
                   never a modal). Saves send the COMPLETE object (replace
                   semantics), seeded from the GET above. */}

@@ -43,6 +43,8 @@ const PUBLIC_ROUTES: Record<string, string> = {
   explore: 'guest browse surface; public-only queries by construction',
   places: 'geo autocomplete over public place data',
   'media/cover/[id]': 'public cover-photo redirect; object key is unguessable',
+  'media/org-logo/[siteId]':
+    'public org-site logo streamer (phase 3 R3); resolves org_sites.logo_path itself and hard-asserts the org-logos/ prefix — can only ever serve org-authored public artwork',
   'calendar/feed/[token]': 'capability URL; sha256 token lookup + supervised re-check',
   'invites/[token]': 'invite peek; never consumes, rate-limited, token is bearer',
   'auth/activate': 'token-gated activation; the invite row IS the authorization',
