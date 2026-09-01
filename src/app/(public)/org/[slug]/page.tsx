@@ -9,6 +9,16 @@ import { getCachedSite } from '@/lib/org-sites/cached';
 
 export const revalidate = 300;
 
+// The App Router ISR rule: a dynamic segment is only ISR-ELIGIBLE when
+// generateStaticParams exists — an empty list prerenders nothing at
+// build (no build-time DB/service-key needed) while making every
+// runtime-rendered slug cacheable under `revalidate`. Without this the
+// route is plain on-demand SSR and x-vercel-cache never leaves MISS
+// (measured on prod, Sep 1).
+export function generateStaticParams(): { slug: string }[] {
+  return [];
+}
+
 const MODULE_TITLES: Record<string, string> = {
   standings: 'Standings',
   schedule: 'Schedule',
