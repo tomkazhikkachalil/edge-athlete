@@ -118,7 +118,7 @@ test('org site: create → publish → anon shell; unpublish → 404; member 403
       const page = await ctxAnon.newPage();
       // The draft probe cached a 404 for this slug; publish revalidated
       // the tag, and SWR may serve the stale 404 once — settle to 200.
-      expect(await settle(page.request, `/org/${subdomain}`, 200)).toBe(200);
+      expect(await settle(page.request, `/org/${subdomain}`, 200, 12)).toBe(200);
       const htmlRes = await page.request.get(`/org/${subdomain}`);
       expect(htmlRes.status()).toBe(200);
       const html = await htmlRes.text();
@@ -137,6 +137,9 @@ test('org site: create → publish → anon shell; unpublish → 404; member 403
       // no app chrome.
       expect(html).not.toContain('data-theme');
       expect(html).not.toContain('Notifications');
+
+      // R5 a11y: the skip link ships on every public document.
+      expect(html).toContain('Skip to content');
 
       // R4: canonical + OpenGraph reach the raw document.
       expect(html).toContain('rel="canonical"');
@@ -194,7 +197,7 @@ test('org site: create → publish → anon shell; unpublish → 404; member 403
     try {
       const page2 = await ctxAnon2.newPage();
       // SWR serves the stale document once post-revalidateTag; settle.
-      expect(await settle(page2.request, `/org/${subdomain}`, 404)).toBe(404);
+      expect(await settle(page2.request, `/org/${subdomain}`, 404, 12)).toBe(404);
       // R4 PR-3: unpublish purged the org-sitemap tag too — the site
       // settles OUT of /sitemap.xml.
       const sitemapAfter = await settleBody(
@@ -694,7 +697,12 @@ test('org site branding: hero, theme accent, sponsors', async ({ browser }) => {
     const ctxAnon3 = await browser.newContext();
     try {
       const page = await ctxAnon3.newPage();
-      expect((await page.request.get(`/api/media/org-logo/${siteId}`)).status()).toBe(404);
+      // The streamer is CDN-cached for a day ON PURPOSE (s-maxage=86400);
+      // the earlier GET primed it, so bust with a query (API routes key on
+      // the query string, unlike ISR documents).
+      expect(
+        (await page.request.get(`/api/media/org-logo/${siteId}?cb=${Date.now()}`)).status()
+      ).toBe(404);
     } finally {
       await ctxAnon3.close();
     }

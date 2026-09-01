@@ -50,6 +50,14 @@ export default async function OrgSiteLayout({
 
   return (
     <div className="org-scope min-h-screen flex flex-col bg-canvas" style={accentStyle}>
+      {/* R5 a11y: keyboard users skip the header/nav straight to content.
+          sr-only until focused (the global :focus-visible ring shows it). */}
+      <a
+        href="#main"
+        className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:bg-surface focus:px-3 focus:py-2 focus:rounded-md focus:text-sm focus:text-primary"
+      >
+        Skip to content
+      </a>
       <header className="bg-surface border-b border-border">
         <div className="max-w-4xl mx-auto px-4 py-4 flex flex-wrap items-center justify-between gap-2">
           <Link href={`/org/${site.subdomain}`} className="min-w-0 flex items-center gap-3">
@@ -103,9 +111,9 @@ export default async function OrgSiteLayout({
           </nav>
         )}
       </header>
-      <main className="flex-1">{children}</main>
+      <main id="main" className="flex-1">{children}</main>
       <footer className="border-t border-border">
-        <div className="max-w-4xl mx-auto px-4 py-4 text-xs text-faint">
+        <div className="max-w-4xl mx-auto px-4 py-4 text-xs text-muted">
           Powered by{' '}
           <Link href="/" className="text-brand-fg">
             Edge Athlete

@@ -152,6 +152,10 @@ export default async function OrgSiteHome({ params }: PageParams) {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: safeJsonLd(buildOrgJsonLd(site)) }}
       />
+      {/* R5 a11y: the visible h1 lives in the hero — a hero-disabled site
+          (DB-level state; the console can't toggle hero) must still open
+          its outline at level 1. */}
+      {!has('hero') && <h1 className="sr-only">{site.orgName}</h1>}
       {has('hero') && (
         // The gradient rides the .org-scope accent vars (violet defaults; a
         // site's theme_token_set overrides via the layout's inline style).

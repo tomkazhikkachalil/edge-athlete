@@ -80,10 +80,12 @@ export default async function OrgSiteTeamPage({ params }: PageParams) {
             <table className="w-full text-sm">
               <thead>
                 <tr className="text-left text-xs text-muted">
-                  <th className="py-1.5 pr-3 font-medium">Competition</th>
-                  <th className="py-1.5 px-2 font-medium text-right">Rank</th>
-                  <th className="py-1.5 px-2 font-medium text-right">Played</th>
-                  <th className="py-1.5 px-2 font-medium text-right">Pts</th>
+                  <th scope="col" className="py-1.5 pr-3 font-medium">Competition</th>
+                  <th scope="col" className="py-1.5 px-2 font-medium text-right">Rank</th>
+                  <th scope="col" className="py-1.5 px-2 font-medium text-right">Played</th>
+                  <th scope="col" aria-label="Points" className="py-1.5 px-2 font-medium text-right">
+                    Pts
+                  </th>
                 </tr>
               </thead>
               <tbody>

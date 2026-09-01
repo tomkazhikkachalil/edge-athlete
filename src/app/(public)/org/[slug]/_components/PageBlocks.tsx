@@ -59,6 +59,7 @@ export default function PageBlocks({
                       className="text-sm font-medium text-brand-fg"
                     >
                       {link.label}
+                      <span className="sr-only"> (opens in a new tab)</span>
                     </a>
                   </li>
                 ))}
