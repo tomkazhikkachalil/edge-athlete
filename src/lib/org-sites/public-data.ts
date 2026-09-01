@@ -191,6 +191,10 @@ export interface PublicAffiliation {
   affiliationType: string | null;
   city: string | null;
   region: string | null;
+  /** Phase 6 R3: 'up' = this org sits under the named org (sanctioned
+   *  by / member of it); 'down' = the named org sits under this one.
+   *  null for the flat league↔club edges (the pre-167 vocabulary). */
+  direction?: 'up' | 'down' | null;
 }
 
 export async function fetchPublicAffiliations(
@@ -200,14 +204,32 @@ export async function fetchPublicAffiliations(
 ): Promise<PublicAffiliation[]> {
   const listed = await listAffiliations(admin, side, orgId);
   if (!listed) return [];
-  return listed.rows
+  const flat: PublicAffiliation[] = listed.rows
     .filter(r => r.status === 'active' && r.org)
     .map(r => ({
       name: r.org!.name,
       affiliationType: r.affiliation_type,
       city: r.org!.city ?? null,
       region: r.org!.region ?? null,
+      direction: null,
     }));
+  // Phase 6 R3: leagues also show their league↔league chain (the public
+  // sanctioning story). Best-effort — pre-167 reads as no chain.
+  if (side !== 'league') return flat;
+  const { listParentAffiliations } = await import('@/lib/affiliations/parents-server');
+  const chain = await listParentAffiliations(admin, orgId);
+  if (!chain) return flat;
+  const chainRows: PublicAffiliation[] = chain.rows
+    .filter(r => r.status === 'active' && r.org)
+    .map(r => ({
+      name: r.org!.name,
+      affiliationType: r.affiliation_type,
+      city: r.org!.city ?? null,
+      region: r.org!.region ?? null,
+      direction: r.league_id === orgId ? ('up' as const) : ('down' as const),
+    }));
+  return [...chainRows.filter(r => r.direction === 'up'), ...flat,
+          ...chainRows.filter(r => r.direction === 'down')];
 }
 
 // ── Team page (Tom's decision 3: FULL team pages, masked rosters) ───────────

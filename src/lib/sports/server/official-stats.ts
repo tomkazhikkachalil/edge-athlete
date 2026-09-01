@@ -1,5 +1,9 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { deriveDisplayTier, type ResultProvenance } from '@/lib/orgs/provenance';
+import {
+  deriveDisplayTier,
+  resolveSanctionedPairs,
+  type ResultProvenance,
+} from '@/lib/orgs/provenance';
 import { computeProfileTile, type SportStatSchema, type StatLineData } from '../stat-schemas';
 import type { SkillCardContribution, SkillProvenance, SkillTile } from './types';
 
@@ -138,23 +142,62 @@ export async function fetchOfficialStatLines(
       ])
     );
 
-    // Sanctioned derivation: one batched edge read over the league ids in
-    // play, then a per-line pair check.
+    // Sanctioned derivation (phase 6 R3 — the chain): club edges are read
+    // by the CLUBS in play (any league may be the sanctioner), then the
+    // league chain is walked up from the owners + direct sanctioners in
+    // ≤3 bounded batched reads; the pure resolver computes the pairs
+    // under the common-authority rule. Pre-167 (missing table) the chain
+    // reads return empty and the resolver reduces to exact single-hop
+    // parity with the old behavior.
     const leagueIds = [
       ...new Set([...compById.values()].map(c => c.leagueId).filter((v): v is string => !!v)),
     ];
-    const sanctionedPairs = new Set<string>();
-    if (leagueIds.length) {
-      const { data: edges } = await admin
+    const clubIdsInPlay = [
+      ...new Set([...teamById.values()].map(t => t.clubId).filter((v): v is string => !!v)),
+    ];
+    let sanctionedPairs = new Set<string>();
+    if (leagueIds.length && clubIdsInPlay.length) {
+      const { data: clubEdgeRows } = await admin
         .from('league_clubs')
         .select('league_id, club_id')
-        .in('league_id', leagueIds)
+        .in('club_id', clubIdsInPlay)
         .eq('status', 'active')
         .eq('affiliation_type', 'sanctioned_by')
         .limit(1000);
-      for (const e of edges ?? []) {
-        sanctionedPairs.add(`${e.league_id}:${e.club_id}`);
+      const clubEdges = (clubEdgeRows ?? []).map(e => ({
+        leagueId: e.league_id as string,
+        clubId: e.club_id as string,
+      }));
+
+      const leagueEdges: { leagueId: string; parentLeagueId: string }[] = [];
+      let frontier = [
+        ...new Set([...leagueIds, ...clubEdges.map(e => e.leagueId)]),
+      ];
+      const seen = new Set(frontier);
+      for (let hop = 0; hop < 3 && frontier.length > 0; hop++) {
+        const { data: parentRows, error: parentErr } = await admin
+          .from('league_affiliations')
+          .select('league_id, parent_league_id')
+          .in('league_id', frontier)
+          .eq('status', 'active')
+          .eq('affiliation_type', 'sanctioned_by')
+          .limit(500);
+        if (parentErr) break; // pre-167 → single-hop behavior
+        const next: string[] = [];
+        for (const e of parentRows ?? []) {
+          leagueEdges.push({
+            leagueId: e.league_id as string,
+            parentLeagueId: e.parent_league_id as string,
+          });
+          const p = e.parent_league_id as string;
+          if (!seen.has(p)) {
+            seen.add(p);
+            next.push(p);
+          }
+        }
+        frontier = next;
       }
+      sanctionedPairs = resolveSanctionedPairs(clubEdges, leagueEdges, leagueIds);
     }
 
     const out: OfficialStatLine[] = [];

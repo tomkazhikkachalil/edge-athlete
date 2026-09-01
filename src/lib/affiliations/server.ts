@@ -327,6 +327,13 @@ export async function affiliationAccept(
     return NextResponse.json({ error: 'This invite is no longer pending' }, { status: 409 });
   }
 
+  // Phase 6 R3: sanctioned_by accepts open a sanction_grants history row
+  // (append-only audit; best-effort, pre-167-safe).
+  if (row.affiliation_type === 'sanctioned_by') {
+    const { recordSanctionGrant } = await import('./parents-server');
+    await recordSanctionGrant(admin, row.league_id, 'club', row.club_id);
+  }
+
   const { org: other } = await loadOrg(admin, cfg.otherOrgTable, targetId);
   if (other) {
     const { notifyAffiliationUpdate } = await import('./notify');
@@ -409,7 +416,12 @@ export async function affiliationDELETE(
     }
     return NextResponse.json({ action: 'declined' });
   }
-  // Active — dissolve; tell the other side's owner, best-effort.
+  // Active — dissolve; close the sanction-grant history for
+  // sanctioned_by edges (phase 6 R3), then tell the other side's owner.
+  if (row.status === 'active' && row.affiliation_type === 'sanctioned_by') {
+    const { revokeSanctionGrant } = await import('./parents-server');
+    await revokeSanctionGrant(admin, row.league_id, 'club', row.club_id);
+  }
   if (names && other) {
     await notifyAffiliationUpdate(admin, {
       recipientProfileId: other.owner_profile_id,
