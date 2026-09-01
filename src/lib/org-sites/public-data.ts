@@ -560,6 +560,56 @@ export async function fetchPublicNewsList(
   }));
 }
 
+// ── Register (phase 5 R5 — the registration CTA card) ───────────────────────
+// The OPEN windows only, viewer-independent, no personal data. Openness
+// is time-based, so a window crossing closes_at can linger ≤ the ISR TTL
+// on the cached page — the app-side POST re-gates unconditionally, so a
+// stale card can never admit a registration. Missing tables (pre-162)
+// read as no windows: the card simply never renders.
+
+export interface PublicOpenWindow {
+  seasonLabel: string;
+  offeringName: string | null; // division/program name, null = season-wide
+  opensAt: string;
+  closesAt: string | null;
+}
+
+export async function fetchPublicOpenWindows(
+  admin: Admin,
+  side: OrgSide,
+  orgId: string
+): Promise<PublicOpenWindow[]> {
+  const col = orgColumn(side);
+  const { data: rows, error } = await admin
+    .from('registration_windows')
+    .select(
+      'opens_at, closes_at, season:season_id (label), division:division_id (name), program:program_id (name)'
+    )
+    .eq(col, orgId)
+    .order('opens_at', { ascending: false })
+    .limit(50);
+  if (degraded('open windows', error) || !rows) return [];
+  const nowIso = new Date().toISOString();
+  const unwrap = <T,>(v: T | T[] | null | undefined): T | null =>
+    (Array.isArray(v) ? v[0] : v) ?? null;
+  return rows
+    .filter(w =>
+      (w.opens_at as string) <= nowIso &&
+      (!w.closes_at || (w.closes_at as string) > nowIso)
+    )
+    .map(w => {
+      const season = unwrap(w.season as { label: string } | { label: string }[] | null);
+      const division = unwrap(w.division as { name: string } | { name: string }[] | null);
+      const program = unwrap(w.program as { name: string } | { name: string }[] | null);
+      return {
+        seasonLabel: season?.label ?? 'This season',
+        offeringName: division?.name ?? program?.name ?? null,
+        opensAt: w.opens_at as string,
+        closesAt: (w.closes_at as string | null) ?? null,
+      };
+    });
+}
+
 // ── Gallery (phase 4 R5 — the consent-gated contest media) ──────────────────
 // The bar: org-published (158) AND every actively tagged athlete cleared
 // by photo_consent (159) — evaluated by the shared gallery gate, which
