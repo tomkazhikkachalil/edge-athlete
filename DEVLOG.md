@@ -1,5 +1,69 @@
 # Development Log
 
+## September 2, 2026 — Phase 3 round 4: SEO — THE EXIT ROUND (#461–#463, zero DDL)
+
+The phase's stated exit is "a public site is live, fast, and indexed";
+R1–R3 delivered live and fast, R4 delivers indexable. Everything derives
+from NEXT_PUBLIC_APP_URL — the canonical-domain question (masterplan
+says edgeathlete.com, the runbook says the registered domain is
+edgeathlete.ca and it isn't pointed at Vercel) is Tom's ops decision and
+never touches code.
+
+- **#461 — canonicals + OpenGraph.** All six public org pages gain
+  relative `alternates.canonical` (metadataBase resolves them) +
+  per-page openGraph; the (public) layout gains og/twitter defaults.
+  Draft/missing pages stay canonical-free. RESERVED_PAGE_SLUGS grows the
+  metadata-route convention names.
+- **#462 — JSON-LD + the share card.** Pure builders: SportsOrganization
+  (home, with postal address from the widened per-side org read and
+  sport for leagues), SportsTeam (team pages), SportsEvent (schedule,
+  ≤10). THE PEOPLE RULE holds absolutely — no Person, no roster, no
+  staff: minors are never indexed. safeJsonLd escapes `<` (org names are
+  user text). The card is an EXPLICIT route (/org/{slug}/card.png,
+  dep-free next/og, accent gradient, Cache-Control overriding
+  ImageResponse's 1-year-immutable default) rather than the
+  opengraph-image convention file — under a route group the convention
+  hash-suffixes its URL; explicit is deterministic and probe-able.
+  **Debugging lesson that cost an hour: a stale next-server on :3000
+  (which `pkill -f "next start"` never matches — npm's child is
+  next-server) poisoned both manual probes and the e2e via
+  reuseExistingServer. Kill by port (`lsof -ti :3000`).**
+- **#463 — sitemap, robots, subdomain 301s.** /sitemap.xml enumerates
+  every published site (home + enabled module subpages + public pages)
+  through the repo's first bounded org_sites enumerator under a new
+  org-sitemap tag purged by publish/unpublish; `force-dynamic` is
+  LOAD-BEARING (build-time prerender would call the service key) — the
+  build marks prove it (sitemap ƒ, robots ○). /robots.txt lives at the
+  app ROOT (Next's robots regex is root-anchored; a route-group
+  placement is silently dead code). Both crawler files ride a new
+  unconditional middleware early-branch (they were about to pay the
+  getUser() round trip per crawl). The subdomain 301 is a pure
+  zero-import computeSubdomainRedirect (full vitest matrix) as the
+  first middleware statement behind ORG_SUBDOMAINS=1 — inert until the
+  wildcard DNS exists, apex derived from env, flag build-injected.
+- Verification: verify green per PR (ends 212 files / 2440 tests);
+  org-site e2e 4/4 per PR (canonical/og/ld+json in raw HTML, the card
+  as image/png, robots content, the sitemap settling IN on publish and
+  OUT on unpublish). Step 0 closed R3's debt first: the deploy landed
+  manually (SHA 5586d6e verified) after the auto-deploy webhook stayed
+  dead. **Prod probes (deploy b22d65b verified READY): org-site e2e 4/4
+  vs prod** (two prod-CDN spec fixes landed en route: the logo
+  streamer's post-DELETE assert must query-bust its own deliberate
+  s-maxage=86400 — API routes key on query, ISR documents don't — and
+  the publish-transition settles widened to 12 attempts for edge-POP
+  convergence); **all five /org routes MISS→HIT at 65–210ms, card.png
+  200 image/png CDN-cached, canonical + og:image + SportsOrganization
+  in the raw HTML, robots 200, and a freshly published slug entered
+  /sitemap.xml immediately** (the org-sitemap purge works live).
+- **OPS HANDOFF (Tom) — the phase-3 exit checklist:** (1) decide the
+  domain (.ca is registered; masterplan says .com) and point it at
+  Vercel + wildcard `*` DNS; (2) set NEXT_PUBLIC_APP_URL to the apex
+  and ORG_SUBDOMAINS=1 — both need a REAL build (the env-injection
+  trap); (3) fix the dead git auto-deploy webhook and consider a paid
+  tier (the 100-deploys/day rolling quota keeps blocking); (4) Search
+  Console: verify the property and submit /sitemap.xml — that
+  submission is the phase's exit proof.
+
 ## September 1, 2026 — Phase 3 round 3: branding, custom pages, sponsors (#458–#460, zero DDL)
 
 Every org site stops looking identical: theme accents, a real hero, a
