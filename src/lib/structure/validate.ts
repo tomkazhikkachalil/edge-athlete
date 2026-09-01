@@ -69,3 +69,19 @@ export const EntryCreateSchema = z.object({
   divisionId: uuid,
 });
 export type EntryCreateInput = z.infer<typeof EntryCreateSchema>;
+
+/** Phase 5.5: clone a season forward. The new label must differ (the
+ *  org+label unique enforces it as a 409); dates optional like create. */
+export const RolloverSchema = z
+  .object({
+    seasonId: uuid,
+    label: boundedText(60),
+    startsOn: isoDate.optional(),
+    endsOn: isoDate.optional(),
+  })
+  .superRefine((val, ctx) => {
+    if (val.startsOn && val.endsOn && val.endsOn < val.startsOn) {
+      ctx.addIssue({ code: 'custom', path: ['endsOn'], message: 'Season must end on or after it starts' });
+    }
+  });
+export type RolloverInput = z.infer<typeof RolloverSchema>;

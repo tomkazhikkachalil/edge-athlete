@@ -34,6 +34,7 @@ import { eligibilityWarnings, type EligibilityWarning } from './eligibility';
 import { getOrgAndRole, roleAllows, type OrgSide } from './authz';
 import { membershipEdges, type RosterEdge } from './members';
 import { canGrantPhotoConsent, setPhotoConsent } from './photo-consent';
+import { seasonArchivedMap } from './rollover-server';
 import {
   notifyRegistrationDecision,
   notifyRegistrationReceived,
@@ -699,6 +700,15 @@ export async function windowCreatePOST(
 ): Promise<NextResponse> {
   const season = await loadSeasonForOrg(admin, side, orgId, input.seasonId);
   if (!season) return NextResponse.json({ error: 'Season not found' }, { status: 404 });
+  // Phase 5.5: an archived season takes no new windows (best-effort —
+  // pre-165 reads live and allows, matching the pre-165 world).
+  const archived = await seasonArchivedMap(admin, [input.seasonId]);
+  if (archived.get(input.seasonId)) {
+    return NextResponse.json(
+      { error: 'That season is archived — roll it forward first' },
+      { status: 400 }
+    );
+  }
   const { data: window, error } = await admin
     .from('registration_windows')
     .insert({
@@ -867,7 +877,12 @@ export async function offeringsGET(
   if (seasonsError || !seasons || seasons.length === 0) {
     return NextResponse.json({ seasons: [] });
   }
-  const seasonIds = seasons.map(s => s.id as string);
+  // Phase 5.5: archived seasons take no new registrations — dropped from
+  // the offerings via the best-effort map (pre-165 reads all-live).
+  const archivedMap = await seasonArchivedMap(admin, seasons.map(s => s.id as string));
+  const liveSeasons = seasons.filter(s => !archivedMap.get(s.id as string));
+  if (liveSeasons.length === 0) return NextResponse.json({ seasons: [] });
+  const seasonIds = liveSeasons.map(s => s.id as string);
   const [divisionsRes, programsRes, windowsRes] = await Promise.all([
     admin
       .from('divisions')
@@ -899,7 +914,7 @@ export async function offeringsGET(
   };
 
   return NextResponse.json({
-    seasons: seasons.map(s => ({
+    seasons: liveSeasons.map(s => ({
       id: s.id,
       label: s.label,
       startsOn: s.starts_on,
