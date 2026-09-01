@@ -59,7 +59,28 @@ else
   ok "no disallowed cookie APIs in routes"
 fi
 
-# 4. Dependency CVEs — fail on high/critical.
+# 4. The (public) segment is anonymous, CDN-cached, and light-only — client
+#    components, request-header APIs, and the Font Awesome sheet are all
+#    architecture regressions there (phase 3; see HARDENING.md B4).
+hits=$(scan "'use client'|from 'next/headers'|@fortawesome" 'src/app/(public)/**/*.ts' 'src/app/(public)/**/*.tsx')
+if [ -n "$hits" ]; then
+  bad "'use client'/next-headers/Font Awesome inside src/app/(public)/ (the segment must stay server-only + light):"
+  echo "$hits" | sed 's/^/      /'
+else
+  ok "(public) segment stays server-only, header-free, FA-free"
+fi
+
+# 5. next/og carries a multi-MB wasm payload — it stays isolated to the
+#    share-card route bundles, never imported elsewhere.
+hits=$(scan "from 'next/og'" 'src/**/*.ts' 'src/**/*.tsx' | grep -v 'card\.png/route\.ts')
+if [ -n "$hits" ]; then
+  bad "next/og imported outside a card.png route (its wasm must stay isolated):"
+  echo "$hits" | sed 's/^/      /'
+else
+  ok "next/og isolated to the card routes"
+fi
+
+# 6. Dependency CVEs — fail on high/critical.
 echo "▸ npm audit (high+)"
 if npm audit --omit=dev --audit-level=high >/tmp/hardening-audit.log 2>&1; then
   ok "no high/critical advisories"
@@ -70,6 +91,11 @@ fi
 
 # ── Advisory (never fails the build) ────────────────────────────────────────
 echo "▸ Advisories (review, non-blocking)"
+
+# dark: utilities under (public) are inert (the tree never stamps
+# data-theme) but signal a copy-paste from the app tree — worth a glance.
+adv=$(scan "dark:(bg|text|border|divide|shadow|from|to|via|ring|hover)-" 'src/app/(public)/**/*.tsx' | wc -l | tr -d ' ')
+[ "$adv" != "0" ] && note "$adv dark: utility sites under src/app/(public)/ — inert there; likely copy-paste from the app tree"
 
 # Count-by-fetching: .select('id'|'*') whose result is measured with .length.
 adv=$(scan "\.select\('(id|\*)'\)" 'src/app/api/**/*.ts' | wc -l | tr -d ' ')

@@ -59,7 +59,11 @@ recurring anti-patterns:
 
 Hot surfaces to walk: feed load (`/api/posts`), profile load, vitals tab,
 messages/notifications providers (root-layout polls), search keystrokes, the
-public `/u/[handle]` page.
+public `/u/[handle]` page, **the public org-site tree (`/org/{slug}` + its
+subpages — ISR + per-module `unstable_cache` readers; DB cost appears only
+on cache fill, so walk the readers in `src/lib/org-sites/public-data.ts`)**,
+and the sitemap enumerator (`fetchPublishedSitesForSitemap` — the repo's one
+whole-table `org_sites` scan; keep it bounded and hourly-cached).
 
 ### B3. Security sweep (the audit's 10 categories)
 1. Admin-client routes — authorization (not just authentication) before any read/write.
@@ -75,9 +79,44 @@ public `/u/[handle]` page.
 9. Storage — private media bytes vs public URLs (see backlog).
 10. Route-count drift — new routes since the last recorded pass are the unreviewed band.
 
+### B4. Anonymous-surface sweep (phase 3 — the public org sites)
+The (public) segment serves ANONYMOUS, CDN-cached documents; its invariants
+are different in kind from the app's and each one is load-bearing:
+1. **Viewer independence** — nothing under `src/lib/org-sites/` may branch on
+   a session; one cached render serves everyone (the standings contract).
+2. **Never-throw readers** — a throw inside `unstable_cache` 500s the page;
+   every reader degrades to empty (`isMissingTableError` + `'42703'`).
+3. **The ISR contract** — every page under `(public)` exports
+   `revalidate` AND `generateStaticParams` (empty ok); a missing export is
+   silent permanent-MISS SSR (measured). Probe: the x-vercel-cache ladder.
+4. **Name masking** — `publicDisplayName` (full name only for claimed public
+   profiles, else "First L.") at EVERY person-rendering call site; email is
+   selected only to feed it and never leaves a return type.
+5. **Streamer prefix asserts** — the tokenless org-logo/org-media streamers
+   serve ONLY server-built keys under their fixed prefixes; their
+   `api-route-authz` allowlist justifications must stay true word for word.
+6. **JSON-LD carries NO Person, ever** — minors are never indexed; people
+   stay out of structured data entirely (masterplan §SEO).
+7. **Crawler files** (`/robots.txt`, `/sitemap.xml`) ride the middleware
+   static branch — they must never pay the auth round trip.
+8. **Accent hygiene** — theme accents validated at write (strict hex +
+   the luminance clamp) AND re-validated at render before any inline style.
+The guardrails script enforces the mechanical half (no `'use client'`,
+`next/headers`, or Font Awesome under `(public)`; `next/og` isolation);
+this sweep covers the rest by reading.
+
 ---
 
 ## Backlog (Tier 2) — scheduled, not yet done
+
+**From the Sep 2026 phase-3 R5 close (public-segment perf, accepted for now)**
+- **Shared `globals.css` (~40KB) ships whole to the public tree** — the org
+  pages use a small subset but pay for the full app design system (incl.
+  inert dark tokens). A split entry is the fix; measure before bothering.
+- **Proxied images are `unoptimized` by rule** (`/api/media/*` is not
+  optimizer-eligible) — logo + page images skip webp/avif and resizing.
+- **Page-image CLS** — block images store no intrinsic dimensions
+  (`h-auto w-full` governs); storing width/height at upload would fix it.
 
 Ranked, with the source finding. Fix deliberately; each is its own change.
 
@@ -183,6 +222,16 @@ Ranked, with the source finding. Fix deliberately; each is its own change.
 ---
 
 ## Change log
+- **Sep 2026 (phase-3 R5 anon-surface update)** — the public org-site
+  tree becomes a first-class hardening surface: B2 hot-surfaces gains the
+  /org ISR tree + the sitemap enumerator, new B4 codifies the eight
+  anonymous-surface invariants (viewer independence, never-throw readers,
+  the ISR contract, publicDisplayName masking, streamer prefix asserts,
+  the no-Person JSON-LD rule, crawler-file fast path, accent hygiene),
+  and the guardrails script grows public-segment checks (HARD: no
+  'use client'/next-headers/Font Awesome under (public), next/og isolated
+  to the card routes; ADVISORY: dark: utilities there). Three accepted
+  perf limits filed to Tier 2.
 - **Sep 2026 (pre-phase-3 stage gate, #444–#446)** — the full re-run before
   the public-sites stage. Part A automated: verify green (2379 tests), audit
   0, guardrails FIXED (the script had never learned the athlete-claim

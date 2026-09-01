@@ -93,21 +93,35 @@ hand — don't add a test that pretends otherwise.
 
 ## 📁 Architecture Overview
 
-### App Router Structure
+### App Router Structure — TWO ROOT LAYOUTS (phase 3, Sep 2026)
 ```
 src/app/
-├── feed/                    # Main feed (posts from followed athletes)
-├── athlete/[id]/            # Profile pages by user ID
-├── u/[username]/            # Public profile pages by username
-├── live/[groupPostId]/      # A live round as a PLACE (see Navigation Conventions)
-├── app/
-│   ├── profile/             # Logged-in user's profile editor
-│   ├── followers/           # Followers/following management
-│   ├── notifications/       # Notifications page
-│   └── sport/[sport_key]/   # Sport-specific pages
-├── dashboard/               # Admin dashboard
+├── (app)/                   # THE APP — root layout with auth/theme/providers/nonce
+│   ├── feed/                #   Main feed (posts from followed athletes)
+│   ├── athlete/[id]/        #   Profile pages by user ID
+│   ├── u/[username]/        #   Public profile pages by username
+│   ├── live/[groupPostId]/  #   A live round as a PLACE (see Navigation Conventions)
+│   ├── league|club/[id]/    #   Org pages (+ /standings — anonymous SSR twins)
+│   ├── app/                 #   Signed-in tools: profile, followers, notifications,
+│   │                        #   sport/[sport_key], org/[side]/[id] (the org console)
+│   └── dashboard/           #   Admin dashboard
+├── (public)/                # PUBLIC ORG SITES — its own root layout: NO headers()/
+│   │                        # providers/theme/Font Awesome; light-only; ISR+CDN
+│   ├── org/[slug]/          #   Site home + standings|schedule|teams(+/[teamId])
+│   │                        #   + [pageSlug] custom pages + card.png (og image)
+│   └── sitemap.ts           #   /sitemap.xml (force-dynamic — LOAD-BEARING)
+├── robots.ts                # /robots.txt (must stay at the ROOT — see below)
 └── api/                     # API routes — see src/app/api/CLAUDE.md
 ```
+
+**The (public) segment's iron rules** (each measured, all enforced by the
+guardrails script + docs/HARDENING.md §B4): server components only; every
+page exports `revalidate` AND `generateStaticParams` (empty ok — without it
+the route silently becomes permanent-MISS SSR); readers are viewer-
+independent and never throw; person names pass through `publicDisplayName`
+masking; `next/og` imports only in `card.png/route.ts`. `robots.ts` cannot
+move into a route group (Next's robots regex is root-anchored — it becomes
+dead code).
 
 ### Key Libraries & Utilities
 
@@ -120,7 +134,12 @@ src/app/
 
 **`src/middleware.ts`** — refreshes the Supabase session per request; required for SSR
 auth. Deliberately still the `middleware` convention rather than `proxy` — the reason
-and revisit triggers are in the file header.
+and revisit triggers are in the file header. Order matters inside it: the
+ORG_SUBDOMAINS host-301 branch runs FIRST, then static-CSP fast paths for
+/org/* (behind PUBLIC_ORG_SITES), the standings carve-out, and the crawler
+files (/robots.txt, /sitemap.xml) — all of which skip the auth round trip.
+Its env flags are BUILD-INJECTED: changing one needs a real build, not a
+redeploy.
 
 ### Sport Adapter Pattern
 
@@ -377,9 +396,11 @@ addition below as a promise to keep it true.
 - `docs/MEDIA_PRIVACY_FLIP.md` — the owner-run runbook for the final step of the
   media-proxy arc: flipping the `uploads` bucket to private. Verify with
   `npm run verify:media-privacy` (`scripts/verify-media-privacy.mjs`).
-- `docs/ORG_PLATFORM_MASTERPLAN.md` — the org-platform master plan (status:
-  design). The ten-step "revised phase 0" that executes it against the current
-  two-table org schema is recorded in `DEVLOG.md` (Aug 30 2026).
+- `docs/ORG_PLATFORM_MASTERPLAN.md` — the org-platform master plan. Status:
+  **phases 0–3 SHIPPED** (console/claim → competition model → public org
+  sites with SEO, Aug 30–Sep 2 2026; `DEVLOG.md` is the round-by-round
+  record). The doc remains the design reference for phases 3.5+ (news,
+  media galleries w/ photo consent, custom domains).
 - `docs/` — roadmaps (`docs/ROADMAP_2026-07.md`, `docs/MULTI_SPORT_ROADMAP.md`), a
   security audit, and feature write-ups. **`docs/devlog/` is the OLD devlog** (entries
   001–010, superseded by `DEVLOG.md` at the repo root) — history, not current
