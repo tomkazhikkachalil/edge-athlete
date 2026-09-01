@@ -1,5 +1,46 @@
 # Development Log
 
+## September 1, 2026 — Phase 3 round 1: the public segment + the site shell (mig 155, #448–#451)
+
+Phase 3 (public org sites; Tom's five-round program + decisions in the
+plan file) opens by making the spike verdict structural — and closes the
+round with the number the whole phase exists for: **an anonymous org-site
+document serves as a CDN HIT at 76–185ms** (vs ~0.6s dynamic), zero DB
+load on hits.
+
+- **#448 — two root layouts.** All ~27 segments + today's layout moved
+  VERBATIM under (app)/; the new (public)/ root layout has no headers()
+  read, no theme script, no providers — light-only by never stamping
+  data-theme. URLs unchanged; zero behavior change proven by the 7-spec
+  sweep vs prod post-deploy.
+- **Mig 155 + #449 — the site product.** org_sites (subdomain IS the
+  slug — DNS-label CHECK, LOWER-unique, minted from the org name against
+  the SHARED reserved_handles denylist; the grid's one false was the
+  reason-filter meeting 006's pre-existing 'api' row — all ten seeds
+  verified reserved) + org_site_modules (nine keys) + org_site_pages
+  (block-array body). /org/[slug] renders the shell + module stubs from
+  an unstable_cache'd read (tag org-site:{slug} + 300s); console Website
+  card (create → draft → publish; no dead preview link — the public read
+  is published-only); middleware /org/ static-CSP branch behind
+  PUBLIC_ORG_SITES=1 (set + live).
+- **#450 — the round's biggest lesson: a dynamic segment is only
+  ISR-ELIGIBLE with generateStaticParams.** Without it (even returning
+  []) the route is plain on-demand SSR and x-vercel-cache never leaves
+  MISS — with it, build classification flips ƒ → ● and the CDN serves.
+  Second lesson (#451, measured): ISR document caches key by PATHNAME
+  (?_cb= never busts a page, unlike API routes) and SWR serves the stale
+  copy ONCE after revalidateTag — unpublish settles to 404 REVALIDATED
+  on the second hit. The spec settle-polls both.
+- Also: the full middleware's per-request CSP nonce in the REQUEST
+  headers is itself a cache-killer (a nonce'd render differs per
+  request) — the flag's early-return is the cache enabler, not just a
+  latency cut. revalidateTag is two-arg in Next 16.3 ({expire:0}).
+- Verification: verify green ×4; e2e org-site.spec 1/1 local + vs prod;
+  probes — HIT ladder (MISS 1.7s → HIT 76–185ms), static CSP live,
+  publish/unpublish purge semantics, draft 404, member 403; 375px
+  screenshots inspected (Website card, public shell).
+- Next: R2 — the live-data modules.
+
 ## September 1, 2026 — Pre-phase-3 maintenance round (#444)
 
 Tom's checklist before phase 3 opens — lint, build, devlog, sync —
