@@ -114,8 +114,9 @@ test('org site: create → publish → anon shell; unpublish → 404; member 403
       // R2: the Sections toggles render, default-on, hero absent.
       await expect(page.getByLabel('Toggle Standings section')).toBeChecked();
       await expect(page.getByLabel('Toggle Contact section')).toBeChecked();
-      // 8 pre-migration-156 (no news row), 9 after — both are correct.
-      expect([8, 9]).toContain(await page.getByLabel(/^Toggle .* section$/).count());
+      // 8 pre-mig-156 (no news row), 9 pre-mig-160 (no gallery row),
+      // 10 current — every ladder step is a correct database state.
+      expect([8, 9, 10]).toContain(await page.getByLabel(/^Toggle .* section$/).count());
 
       // 375px: the Website card stays usable.
       await page.setViewportSize({ width: 375, height: 812 });

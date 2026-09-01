@@ -216,8 +216,9 @@ test('org-site gallery: consent gate, streamer revoke, minor never labeled; 375p
       expect(res.status(), await readErrorBody(res)).toBe(200);
 
       // The anonymous surface: gallery in the nav, the item rendered, the
-      // adult labeled, the supervised child NEVER labeled.
-      const anonCtx = await browser.newContext();
+      // adult labeled, the supervised child NEVER labeled. Explicit empty
+      // storageState — the config default would sign this context in.
+      const anonCtx = await browser.newContext({ storageState: { cookies: [], origins: [] } });
       try {
         const page = await anonCtx.newPage();
         await page.goto(`/org/${subdomain}/gallery`);

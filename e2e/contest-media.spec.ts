@@ -178,7 +178,9 @@ test('contest media: upload, roster tag, athlete surface, tombstone, proxy gate'
       // Proxy gate: the tagged athlete gets bytes; anonymous does not.
       const asAthlete = await clubApi.get(profileItems[0].url!);
       expect(asAthlete.status(), 'tagged athlete sees the bytes').toBe(200);
-      const anonCtx = await browser.newContext();
+      // The config sets a DEFAULT storageState (user A) — a bare
+      // newContext() is silently signed in. Force truly anonymous.
+      const anonCtx = await browser.newContext({ storageState: { cookies: [], origins: [] } });
       try {
         const anon = await anonCtx.request.get(mediaUrl!);
         expect(anon.status(), 'anonymous is refused').not.toBe(200);
