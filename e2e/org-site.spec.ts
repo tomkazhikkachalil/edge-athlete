@@ -450,3 +450,124 @@ test('org site modules: live data on home + subpages; masked roster; team 404s',
     }
   }
 });
+
+// Phase 3 R3: branding. The console's hero/theme/sponsors writes reach the
+// anonymous document — headline/tagline replace the defaults, the accent
+// hex lands in the injected style (and only a validated hex ever can),
+// sponsors render as nofollow links, and a light accent is refused.
+test('org site branding: hero, theme accent, sponsors', async ({ browser }) => {
+  test.setTimeout(180_000);
+  const owner = loadQaUser('user-b.json');
+  const admin = adminClient();
+
+  const probe = await admin.from('org_sites').select('id').limit(1);
+  test.skip(!!probe.error, `org_sites missing — run migration 155 (${probe.error?.message})`);
+
+  const stamp = Date.now();
+  const name = `QA Brand League ${stamp}`;
+  const { data: league } = await admin
+    .from('leagues')
+    .insert({ name, sport_key: 'ice_hockey', owner_profile_id: owner.id })
+    .select()
+    .single();
+  const leagueId = league!.id as string;
+
+  try {
+    await admin.from('memberships').insert([{ league_id: leagueId, profile_id: owner.id, role: 'owner' }]);
+
+    const ownerApi = await apiAs('state-b.json');
+    try {
+      const created = await ownerApi.post(`/api/leagues/${leagueId}/site`);
+      expect(created.status(), await readErrorBody(created)).toBe(200);
+      const published = await ownerApi.patch(`/api/leagues/${leagueId}/site`, {
+        data: { action: 'publish' },
+      });
+      expect(published.status(), await readErrorBody(published)).toBe(200);
+
+      // A near-white accent is refused at the schema (white hero text).
+      const tooLight = await ownerApi.patch(`/api/leagues/${leagueId}/site`, {
+        data: { action: 'set_theme', accent: '#ffff00' },
+      });
+      expect(tooLight.status()).toBe(400);
+
+      const hero = await ownerApi.patch(`/api/leagues/${leagueId}/site`, {
+        data: {
+          action: 'set_hero',
+          headline: `Play with us ${stamp}`,
+          tagline: 'Hockey for everyone.',
+        },
+      });
+      expect(hero.status(), await readErrorBody(hero)).toBe(200);
+      const theme = await ownerApi.patch(`/api/leagues/${leagueId}/site`, {
+        data: { action: 'set_theme', accent: '#0F766E' },
+      });
+      expect(theme.status(), await readErrorBody(theme)).toBe(200);
+      const sponsors = await ownerApi.patch(`/api/leagues/${leagueId}/site`, {
+        data: {
+          action: 'set_sponsors',
+          sponsors: [{ name: `Rinkside Supply ${stamp}`, url: 'https://example.com/rinkside' }],
+        },
+      });
+      expect(sponsors.status(), await readErrorBody(sponsors)).toBe(200);
+    } finally {
+      await ownerApi.dispose();
+    }
+
+    const { data: siteRow } = await admin
+      .from('org_sites')
+      .select('subdomain')
+      .eq('league_id', leagueId)
+      .single();
+    const base = `/org/${siteRow!.subdomain}`;
+
+    const ctxAnon = await browser.newContext();
+    try {
+      const page = await ctxAnon.newPage();
+      expect(await settle(page.request, base, 200)).toBe(200);
+      // Content settle: SWR may serve the pre-branding document once.
+      let html = '';
+      for (let i = 0; i < 6; i++) {
+        html = await (await page.request.get(base)).text();
+        if (html.includes(`Play with us ${stamp}`)) break;
+        await new Promise(r => setTimeout(r, 2500));
+      }
+      expect(html).toContain(`Play with us ${stamp}`);
+      expect(html).toContain('Hockey for everyone.');
+      expect(html).toContain('--org-accent:#0f766e');
+      expect(html).toContain(`Rinkside Supply ${stamp}`);
+      expect(html).toContain('rel="noopener nofollow"');
+
+      // Reset the theme → the injected style disappears (violet defaults).
+      const ownerApi2 = await apiAs('state-b.json');
+      try {
+        const reset = await ownerApi2.patch(`/api/leagues/${leagueId}/site`, {
+          data: { action: 'set_theme', accent: null },
+        });
+        expect(reset.status(), await readErrorBody(reset)).toBe(200);
+      } finally {
+        await ownerApi2.dispose();
+      }
+      let htmlAfter = '';
+      for (let i = 0; i < 6; i++) {
+        htmlAfter = await (await page.request.get(base)).text();
+        if (!htmlAfter.includes('--org-accent:#0f766e')) break;
+        await new Promise(r => setTimeout(r, 2500));
+      }
+      expect(htmlAfter).not.toContain('--org-accent:#0f766e');
+      expect(htmlAfter).toContain(`Play with us ${stamp}`); // hero survives
+
+      // 375px: the branded home stays inside the viewport.
+      await page.setViewportSize({ width: 375, height: 812 });
+      await page.goto(base);
+      await expect(page.getByText(`Play with us ${stamp}`)).toBeVisible({ timeout: 15_000 });
+      expect(
+        await page.evaluate(() => document.documentElement.scrollWidth),
+        'no horizontal overflow at 375px'
+      ).toBeLessThanOrEqual(375);
+    } finally {
+      await ctxAnon.close();
+    }
+  } finally {
+    await admin.from('leagues').delete().eq('id', leagueId);
+  }
+});

@@ -1,7 +1,12 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { getCachedSite } from '@/lib/org-sites/cached';
-import { MODULE_SUBPAGE_KEYS, MODULE_TITLES } from '@/lib/org-sites/validate';
+import {
+  deriveStrongAccent,
+  MODULE_SUBPAGE_KEYS,
+  MODULE_TITLES,
+  parseThemeAccent,
+} from '@/lib/org-sites/validate';
 
 // ── /org/[slug] — the site shell (phase 3 R1, nav in R2) ────────────────────
 // Published sites only (draft = 404, the publish gate). The fetch is
@@ -29,8 +34,18 @@ export default async function OrgSiteLayout({
     site.modules.some(m => m.module_key === key && m.enabled)
   );
 
+  // Strict hex re-validation at render (parseThemeAccent) is the
+  // inline-style injection defense — never interpolate the raw jsonb.
+  const accent = parseThemeAccent(site.theme_token_set);
+  const accentStyle = accent
+    ? ({
+        '--org-accent': accent,
+        '--org-accent-strong': deriveStrongAccent(accent),
+      } as React.CSSProperties)
+    : undefined;
+
   return (
-    <div className="min-h-screen flex flex-col bg-canvas">
+    <div className="org-scope min-h-screen flex flex-col bg-canvas" style={accentStyle}>
       <header className="bg-surface border-b border-border">
         <div className="max-w-4xl mx-auto px-4 py-4 flex flex-wrap items-center justify-between gap-2">
           <Link href={`/org/${site.subdomain}`} className="min-w-0">

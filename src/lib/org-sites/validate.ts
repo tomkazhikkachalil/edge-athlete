@@ -69,12 +69,131 @@ export const TOGGLEABLE_MODULE_KEYS = [
 ] as const;
 export type ToggleableModuleKey = (typeof TOGGLEABLE_MODULE_KEYS)[number];
 
+// ── Branding primitives (phase 3 R3) ────────────────────────────────────────
+
+export const HEX_COLOR_RE = /^#[0-9a-f]{6}$/i;
+
+/** https-only external link, ≤200 chars. Pure (URL ctor), node-testable. */
+export const httpsUrl = z
+  .string()
+  .trim()
+  .max(200)
+  .refine(v => {
+    try {
+      return new URL(v).protocol === 'https:';
+    } catch {
+      return false;
+    }
+  }, 'Must be an https:// link');
+
+/** WCAG relative luminance of #rrggbb (0 = black, 1 = white). */
+export function hexLuminance(hex: string): number {
+  const channel = (i: number) => {
+    const c = parseInt(hex.slice(1 + i * 2, 3 + i * 2), 16) / 255;
+    return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
+  };
+  return 0.2126 * channel(0) + 0.7152 * channel(1) + 0.0722 * channel(2);
+}
+
+/** The hero renders white text on the accent — a near-white accent makes
+ *  the whole hero unreadable, so light colors are rejected at write. */
+export const ACCENT_MAX_LUMINANCE = 0.55;
+
+/** #rrggbb → its darker companion (each channel ×0.85) — the gradient end
+ *  and link color when a site sets a single accent. */
+export function deriveStrongAccent(hex: string): string {
+  const part = (i: number) =>
+    Math.round(parseInt(hex.slice(1 + i * 2, 3 + i * 2), 16) * 0.85)
+      .toString(16)
+      .padStart(2, '0');
+  return `#${part(0)}${part(1)}${part(2)}`;
+}
+
+/** Defensive render-side parse: unknown jsonb → validated accent or null.
+ *  The strict hex check here is the inline-style injection defense — raw
+ *  theme_token_set must never reach a style attribute. Never throws. */
+export function parseThemeAccent(themeTokenSet: unknown): string | null {
+  if (!themeTokenSet || typeof themeTokenSet !== 'object') return null;
+  const accent = (themeTokenSet as Record<string, unknown>).accent;
+  return typeof accent === 'string' && HEX_COLOR_RE.test(accent)
+    ? accent.toLowerCase()
+    : null;
+}
+
+export interface PublicHero {
+  headline: string;
+  tagline: string;
+}
+
+/** Defensive render-side parse: unknown hero_config jsonb → strings
+ *  ('' = use the default). Never throws. */
+export function parseHeroConfig(config: unknown): PublicHero {
+  const record =
+    config && typeof config === 'object' ? (config as Record<string, unknown>) : {};
+  return {
+    headline: typeof record.headline === 'string' ? record.headline.slice(0, 80) : '',
+    tagline: typeof record.tagline === 'string' ? record.tagline.slice(0, 140) : '',
+  };
+}
+
+export interface PublicSponsor {
+  name: string;
+  url?: string;
+}
+
+/** Defensive render-side parse: unknown module config → clamped sponsor
+ *  list (names as plain strings, urls re-checked https). Never throws. */
+export function parseSponsors(config: unknown): PublicSponsor[] {
+  if (!config || typeof config !== 'object') return [];
+  const raw = (config as Record<string, unknown>).sponsors;
+  if (!Array.isArray(raw)) return [];
+  const out: PublicSponsor[] = [];
+  for (const item of raw.slice(0, 20)) {
+    if (!item || typeof item !== 'object') continue;
+    const name = (item as Record<string, unknown>).name;
+    if (typeof name !== 'string' || !name.trim()) continue;
+    const url = (item as Record<string, unknown>).url;
+    const safeUrl =
+      typeof url === 'string' && httpsUrl.safeParse(url).success ? url : undefined;
+    out.push(safeUrl ? { name: name.slice(0, 80), url: safeUrl } : { name: name.slice(0, 80) });
+  }
+  return out;
+}
+
+const boundedTrimmed = (max: number) => z.string().trim().min(1).max(max);
+const optionalTrimmed = (max: number) =>
+  z
+    .string()
+    .trim()
+    .max(max)
+    .optional()
+    .transform(v => (v ? v : undefined));
+
 export const SitePatchSchema = z.union([
   z.object({ action: z.enum(['publish', 'unpublish']) }),
   z.object({
     action: z.literal('set_module'),
     moduleKey: z.enum(TOGGLEABLE_MODULE_KEYS),
     enabled: z.boolean(),
+  }),
+  z.object({
+    action: z.literal('set_hero'),
+    headline: optionalTrimmed(80),
+    tagline: optionalTrimmed(140),
+  }),
+  z.object({
+    action: z.literal('set_theme'),
+    accent: z
+      .string()
+      .regex(HEX_COLOR_RE, 'Must be a #rrggbb color')
+      .refine(v => hexLuminance(v) <= ACCENT_MAX_LUMINANCE, 'Choose a darker color')
+      .nullable(),
+  }),
+  z.object({
+    action: z.literal('set_sponsors'),
+    sponsors: z
+      .array(z.object({ name: boundedTrimmed(80), url: httpsUrl.optional() }))
+      .max(20),
   }),
 ]);
 export type SitePatchInput = z.infer<typeof SitePatchSchema>;
