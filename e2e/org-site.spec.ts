@@ -26,6 +26,25 @@ async function settle(
   return last;
 }
 
+/** Body-content settle: poll until the response body contains (or, with
+ *  shouldContain=false, no longer contains) the needle — for caches that
+ *  change content without changing status (the sitemap, a toggled home). */
+async function settleBody(
+  request: { get: (u: string) => Promise<{ text: () => Promise<string> }> },
+  url: string,
+  needle: string,
+  shouldContain = true,
+  attempts = 6
+): Promise<string> {
+  let body = '';
+  for (let i = 0; i < attempts; i++) {
+    body = await (await request.get(url)).text();
+    if (body.includes(needle) === shouldContain) return body;
+    await new Promise(r => setTimeout(r, 2500));
+  }
+  return body;
+}
+
 test('org site: create → publish → anon shell; unpublish → 404; member 403; 375px', async ({
   browser,
 }) => {
@@ -137,6 +156,17 @@ test('org site: create → publish → anon shell; unpublish → 404; member 403
       expect(ogRes.status()).toBe(200);
       expect(ogRes.headers()['content-type'] ?? '').toContain('image/png');
       expect((await ogRes.body()).length).toBeGreaterThan(0);
+
+      // R4 PR-3: robots + the sitemap (publish purged the org-sitemap tag,
+      // so the published site settles INTO /sitemap.xml).
+      const robotsRes = await page.request.get('/robots.txt');
+      expect(robotsRes.status()).toBe(200);
+      const robots = await robotsRes.text();
+      expect(robots).toContain('/sitemap.xml');
+      expect(robots).toContain('Disallow: /api/');
+      const sitemap = await settleBody(page.request, '/sitemap.xml', `/org/${subdomain}`);
+      expect(sitemap).toContain(`/org/${subdomain}<`); // the home entry
+      expect(sitemap).toContain(`/org/${subdomain}/standings`); // enabled module
     } finally {
       await ctxAnon.close();
     }
@@ -165,6 +195,15 @@ test('org site: create → publish → anon shell; unpublish → 404; member 403
       const page2 = await ctxAnon2.newPage();
       // SWR serves the stale document once post-revalidateTag; settle.
       expect(await settle(page2.request, `/org/${subdomain}`, 404)).toBe(404);
+      // R4 PR-3: unpublish purged the org-sitemap tag too — the site
+      // settles OUT of /sitemap.xml.
+      const sitemapAfter = await settleBody(
+        page2.request,
+        '/sitemap.xml',
+        `/org/${subdomain}`,
+        false
+      );
+      expect(sitemapAfter).not.toContain(`/org/${subdomain}`);
     } finally {
       await ctxAnon2.close();
     }
