@@ -78,7 +78,12 @@ test('org site: create → publish → anon shell; unpublish → 404; member 403
       const page = await ctx.newPage();
       await page.goto(`/app/org/league/${leagueId}`);
       await expect(page.getByRole('heading', { name })).toBeVisible({ timeout: 20_000 });
+      // Phase 6 R1: "Create your site" opens the slug picker (suggestions
+      // preselect the first available); the picker's Create button mints.
       await page.getByRole('button', { name: 'Create your site' }).click();
+      await expect(page.getByLabel('Site address')).toBeVisible({ timeout: 15_000 });
+      await expect(page.getByLabel('Site address')).not.toHaveValue('', { timeout: 15_000 });
+      await page.getByRole('button', { name: 'Create', exact: true }).click();
       await expect(page.getByText('draft — publish to go live')).toBeVisible({ timeout: 15_000 });
 
       const { data: siteRow } = await admin
@@ -88,7 +93,9 @@ test('org site: create → publish → anon shell; unpublish → 404; member 403
         .single();
       subdomain = siteRow!.subdomain as string;
       // Minted from the org name; DNS-label shaped.
-      expect(subdomain).toMatch(/^qa-site-league-\d+$/);
+      // Phase 6 R1: the picker preselects an identity suggestion, which
+      // drops generic words ('league') — assert shape, not the old mint.
+      expect(subdomain).toMatch(/^qa-site-\d+$/);
       expect(siteRow!.published_at).toBeNull();
 
       // Draft is invisible to the world.

@@ -55,6 +55,12 @@ export default function AdminDashboardPage() {
   const [users, setUsers] = useState<UserRow[]>([]);
   const [searching, setSearching] = useState(false);
 
+  // Phase 6 R1: the anti-squatting review list — computed server-side
+  // against each org's live identity, never stored.
+  const [flaggedSlugs, setFlaggedSlugs] = useState<
+    { siteId: string; slug: string; orgName: string; side: string; published: boolean; verdict: string; reason?: string }[]
+  >([]);
+
   useEffect(() => {
     if (!authLoading && !user) router.push('/');
   }, [user, authLoading, router]);
@@ -89,6 +95,27 @@ export default function AdminDashboardPage() {
   }, [user?.id, statusFilter]);
 
   // Clearing is synchronisation (render phase); the debounced fetch stays here.
+  // Phase 6 R1: load the flagged-slug review list once authorized
+  // (inlined cancellable IIFE, the page's fetch idiom).
+  useEffect(() => {
+    if (!authorized) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const response = await fetch('/api/admin/flagged-slugs');
+        if (response.ok) {
+          const body = await response.json();
+          if (!cancelled) setFlaggedSlugs(body.flagged ?? []);
+        }
+      } catch {
+        /* review list is advisory */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [authorized]);
+
   const [syncedUserQuery, setSyncedUserQuery] = useState({ authorized, userQuery });
   if (syncedUserQuery.authorized !== authorized || syncedUserQuery.userQuery !== userQuery) {
     setSyncedUserQuery({ authorized, userQuery });
@@ -330,6 +357,37 @@ export default function AdminDashboardPage() {
             </div>
           )}
         </section>
+
+        {/* Phase 6 R1: flagged site addresses (anti-squatting review). */}
+        {flaggedSlugs.length > 0 && (
+          <section
+            aria-label="Flagged site addresses"
+            className="bg-surface rounded-lg shadow-sm border border-border p-4 sm:p-6"
+          >
+            <h2 className="text-lg font-semibold text-primary mb-1">Flagged site addresses</h2>
+            <p className="text-xs text-muted mb-3">
+              Slugs that don’t clearly carry their organization’s identity —
+              computed live, nothing stored. Renaming is a support action.
+            </p>
+            <ul className="space-y-2">
+              {flaggedSlugs.map(f => (
+                <li
+                  key={f.siteId}
+                  className="flex flex-wrap items-center justify-between gap-2 border border-border rounded-lg px-3 py-2 text-sm"
+                >
+                  <span className="min-w-0">
+                    <span className="font-medium text-primary">/{f.slug}</span>
+                    <span className="text-muted"> · {f.orgName} ({f.side})</span>
+                    {f.published && <span className="text-emerald-600"> · published</span>}
+                  </span>
+                  <span className={`text-xs ${f.verdict === 'refused' ? 'text-red-600 dark:text-red-400' : 'text-amber-700 dark:text-amber-300'}`}>
+                    {f.reason ?? f.verdict}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
 
         {/* User lookup */}
         <section className="bg-surface rounded-lg shadow-sm border border-border p-4 sm:p-6">

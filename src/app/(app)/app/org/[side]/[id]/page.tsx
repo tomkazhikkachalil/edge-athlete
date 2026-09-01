@@ -221,6 +221,17 @@ export default function OrgConsolePage() {
   const [contactEmail, setContactEmail] = useState('');
   const [contactPhone, setContactPhone] = useState('');
   const [contactWebsite, setContactWebsite] = useState('');
+  // Phase 6 R1 — the slug picker (create flow): identity-composed
+  // suggestions + a custom candidate with live availability/policy check.
+  const [slugPickerOpen, setSlugPickerOpen] = useState(false);
+  const [slugSuggestions, setSlugSuggestions] = useState<{ slug: string; available: boolean }[]>([]);
+  const [chosenSlug, setChosenSlug] = useState('');
+  const [slugCheck, setSlugCheck] = useState<{
+    slug: string;
+    availability: string;
+    verdict: string;
+    reason?: string;
+  } | null>(null);
   // R3 pages — the list in the Website card; the block editor is a subpage.
   const [sitePages, setSitePages] = useState<
     { id: string; slug: string; title: string; visibility: 'public' | 'draft' }[]
@@ -1860,20 +1871,115 @@ export default function OrgConsolePage() {
                 A public site for your organization — schedule, standings, and teams,
                 always current, no webmaster.
               </p>
-              <button
-                type="button"
-                onClick={() =>
-                  void act(
-                    `/api/${plural}/${orgId}/site`,
-                    { method: 'POST' },
-                    'Site created — preview it, then publish',
-                    'Failed to create the site'
-                  )
-                }
-                className="px-4 py-2 text-sm min-h-[40px] rounded-lg bg-brand text-white font-medium hover:bg-brand-hover transition-colors"
-              >
-                Create your site
-              </button>
+              {!slugPickerOpen ? (
+                <button
+                  type="button"
+                  onClick={async () => {
+                    setSlugPickerOpen(true);
+                    try {
+                      const res = await fetch(`/api/${plural}/${orgId}/site/slug-options`);
+                      const body = await res.json().catch(() => ({}));
+                      const list = (body.suggestions ?? []) as { slug: string; available: boolean }[];
+                      setSlugSuggestions(list);
+                      const first = list.find(s => s.available);
+                      if (first) setChosenSlug(first.slug);
+                    } catch {
+                      setSlugSuggestions([]);
+                    }
+                  }}
+                  className="px-4 py-2 text-sm min-h-[40px] rounded-lg bg-brand text-white font-medium hover:bg-brand-hover transition-colors"
+                >
+                  Create your site
+                </button>
+              ) : (
+                <div className="space-y-3 border border-border rounded-lg p-3">
+                  {/* Phase 6 R1: the address IS a root path (edgeathlete/{slug}),
+                      so it must carry the org's own identity — the policy
+                      check explains itself via `reason`. */}
+                  <p className="text-xs text-muted">
+                    Pick your web address. It should include your city or district
+                    plus your organization’s name.
+                  </p>
+                  {slugSuggestions.length > 0 && (
+                    <div className="flex flex-wrap gap-2">
+                      {slugSuggestions.map(s => (
+                        <button
+                          key={s.slug}
+                          type="button"
+                          disabled={!s.available}
+                          onClick={() => {
+                            setChosenSlug(s.slug);
+                            setSlugCheck(null);
+                          }}
+                          className={`px-3 py-1.5 text-sm rounded-full border transition-colors ${
+                            chosenSlug === s.slug
+                              ? 'border-brand bg-brand-soft text-brand-fg font-medium'
+                              : 'border-border-strong text-secondary hover:bg-surface-sunken'
+                          } disabled:opacity-40 disabled:line-through`}
+                        >
+                          /{s.slug}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  <div className="flex flex-wrap items-center gap-2">
+                    <input
+                      type="text"
+                      value={chosenSlug}
+                      onChange={e => {
+                        const v = e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '');
+                        setChosenSlug(v);
+                        setSlugCheck(null);
+                      }}
+                      onBlur={async () => {
+                        if (!chosenSlug) return;
+                        try {
+                          const res = await fetch(
+                            `/api/${plural}/${orgId}/site/slug-options?candidate=${encodeURIComponent(chosenSlug)}`
+                          );
+                          const body = await res.json().catch(() => ({}));
+                          if (body.candidate) setSlugCheck(body.candidate);
+                        } catch {
+                          /* check is advisory; create re-validates */
+                        }
+                      }}
+                      aria-label="Site address"
+                      placeholder="your-city-your-club"
+                      className="flex-1 min-w-40 px-3 py-2 border border-border-strong rounded-md outline-none text-sm"
+                    />
+                    <button
+                      type="button"
+                      disabled={!chosenSlug || slugCheck?.verdict === 'refused' || slugCheck?.availability === 'taken'}
+                      onClick={() =>
+                        void act(
+                          `/api/${plural}/${orgId}/site`,
+                          {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ subdomain: chosenSlug }),
+                          },
+                          'Site created — preview it, then publish',
+                          'Failed to create the site'
+                        )
+                      }
+                      className="px-4 py-2 text-sm min-h-[40px] rounded-lg bg-brand text-white font-medium hover:bg-brand-hover transition-colors disabled:opacity-50"
+                    >
+                      Create
+                    </button>
+                  </div>
+                  {slugCheck && (slugCheck.verdict !== 'ok' || slugCheck.availability !== 'available') && (
+                    <p className="text-xs text-amber-700 dark:text-amber-300">
+                      {slugCheck.availability === 'taken'
+                        ? 'That address is already taken.'
+                        : slugCheck.availability === 'reserved'
+                          ? 'That address is reserved.'
+                          : slugCheck.availability === 'invalid'
+                            ? 'Lowercase letters, digits and hyphens only.'
+                            : (slugCheck.reason ?? '')}
+                    </p>
+                  )}
+                </div>
+              )}
             </>
           ) : (
             <div className="space-y-2">

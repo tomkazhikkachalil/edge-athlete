@@ -24,6 +24,8 @@ import {
   slugifyOrgName,
   type SitePatchInput,
 } from './validate';
+import { RESERVED_ROOT_SLUGS } from './reserved';
+import { judgeSlug, suggestSlugs, type OrgIdentity } from './slug-policy';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- matches the authz.ts Admin alias; schema-agnostic helper
 type Admin = SupabaseClient<any, 'public', any>;
@@ -57,7 +59,11 @@ export async function mintSubdomain(admin: Admin, orgName: string): Promise<stri
   const base = slugifyOrgName(orgName);
   const candidates = [base, ...Array.from({ length: 19 }, (_, i) => `${base}-${i + 2}`)]
     .map(c => c.slice(0, 63))
-    .filter(isValidSubdomain);
+    .filter(isValidSubdomain)
+    // Phase 6 R1: slugs are ROOT URL paths now — the app-side reserved
+    // set blocks route collisions even before migration 166 seeds the DB
+    // list (degrade-first).
+    .filter(c => !RESERVED_ROOT_SLUGS.has(c));
   if (candidates.length === 0) return null;
 
   const [{ data: reserved }, { data: taken }] = await Promise.all([
@@ -97,14 +103,97 @@ export async function siteGET(
   return NextResponse.json({ site: data, modules: modules ?? [] });
 }
 
+/** The org's identity for the slug engine (phase 6 R1) — name + sport +
+ *  location off the org row itself (113/117 shape). */
+async function loadOrgIdentity(
+  admin: Admin,
+  side: OrgSide,
+  orgId: string
+): Promise<OrgIdentity | null> {
+  const { data } = await admin
+    .from(side === 'league' ? 'leagues' : 'clubs')
+    .select('name, sport_key, city, region')
+    .eq('id', orgId)
+    .maybeSingle();
+  if (!data) return null;
+  return {
+    name: data.name as string,
+    sportKey: (data.sport_key as string | null) ?? null,
+    city: (data.city as string | null) ?? null,
+    region: (data.region as string | null) ?? null,
+  };
+}
+
+/** Availability = format + app-side reserved set + reserved_handles +
+ *  org_sites uniqueness. Pure-ish helper shared by the options endpoint
+ *  and the create path. */
+async function slugAvailability(
+  admin: Admin,
+  slug: string
+): Promise<'available' | 'reserved' | 'taken' | 'invalid'> {
+  if (!isValidSubdomain(slug)) return 'invalid';
+  if (RESERVED_ROOT_SLUGS.has(slug)) return 'reserved';
+  const [{ data: reserved }, { data: taken }] = await Promise.all([
+    admin.from('reserved_handles').select('handle').eq('handle', slug).maybeSingle(),
+    admin.from('org_sites').select('id').eq('subdomain', slug).maybeSingle(),
+  ]);
+  if (reserved) return 'reserved';
+  if (taken) return 'taken';
+  return 'available';
+}
+
+/** The slug engine (phase 6 R1, Tom's ask): suggestions composed from
+ *  the org's own identity, plus a verdict on a typed candidate. The
+ *  anti-squatting policy lives in slug-policy.ts; refused slugs never
+ *  reach the create path. */
+export async function slugOptionsGET(
+  admin: Admin,
+  side: OrgSide,
+  orgId: string,
+  candidate: string | null
+): Promise<NextResponse> {
+  const identity = await loadOrgIdentity(admin, side, orgId);
+  if (!identity) return NextResponse.json({ error: 'Organization not found' }, { status: 404 });
+
+  const raw = suggestSlugs(identity);
+  const suggestions: { slug: string; available: boolean }[] = [];
+  for (const slug of raw) {
+    suggestions.push({ slug, available: (await slugAvailability(admin, slug)) === 'available' });
+  }
+
+  let candidateReport: {
+    slug: string;
+    availability: string;
+    verdict: string;
+    reason?: string;
+  } | null = null;
+  if (candidate) {
+    const slug = candidate.toLowerCase().trim();
+    const availability = await slugAvailability(admin, slug);
+    const judged = judgeSlug(slug, identity);
+    candidateReport = {
+      slug,
+      availability,
+      verdict: judged.verdict,
+      ...(judged.verdict !== 'ok' ? { reason: judged.reason } : {}),
+    };
+  }
+  return NextResponse.json({ suggestions, candidate: candidateReport });
+}
+
 /** Create-with-defaults: mint the subdomain, insert the site + all nine
  *  module rows (one homogeneous batch — the PGRST102 rule), draft state.
- *  An existing site answers 409 (one per org, DB-enforced too). */
+ *  An existing site answers 409 (one per org, DB-enforced too).
+ *  Phase 6 R1: an explicitly requested slug wins over the minted one —
+ *  format/reserved/availability-checked and policy-judged (refused →
+ *  400 with the reason; 'flagged' proceeds — the dashboard derives the
+ *  flagged list, storage-free). */
 export async function siteCreatePOST(
   admin: Admin,
   side: OrgSide,
   orgId: string,
-  orgName: string
+  orgName: string,
+  requestedSlug?: string | null
 ): Promise<NextResponse> {
   const { data: existing } = await admin
     .from('org_sites')
@@ -115,7 +204,28 @@ export async function siteCreatePOST(
     return NextResponse.json({ error: 'This organization already has a site' }, { status: 409 });
   }
 
-  const subdomain = await mintSubdomain(admin, orgName);
+  let subdomain: string | null = null;
+  if (requestedSlug) {
+    const slug = requestedSlug.toLowerCase().trim();
+    const availability = await slugAvailability(admin, slug);
+    if (availability !== 'available') {
+      const msg =
+        availability === 'invalid'
+          ? 'That address has an invalid format (lowercase letters, digits and hyphens)'
+          : availability === 'reserved'
+            ? 'That address is reserved'
+            : 'That address is already taken';
+      return NextResponse.json({ error: msg }, { status: 400 });
+    }
+    const identity = await loadOrgIdentity(admin, side, orgId);
+    const judged = identity ? judgeSlug(slug, identity) : { verdict: 'ok' as const };
+    if (judged.verdict === 'refused') {
+      return NextResponse.json({ error: judged.reason }, { status: 400 });
+    }
+    subdomain = slug;
+  } else {
+    subdomain = await mintSubdomain(admin, orgName);
+  }
   if (!subdomain) {
     return NextResponse.json(
       { error: 'Could not derive a web address from the organization name' },

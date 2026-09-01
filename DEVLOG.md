@@ -1,5 +1,57 @@
 # Development Log
 
+## September 1, 2026 — Phase 6 R1: the vanity namespace + slug engine (#496, mig 166)
+
+Phase 6 opens (Tom's scope: vanity root paths, sanctioning chain +
+disputes, import expansion; payments skipped). R1 is the time-sensitive
+half: every org site minted before the namespace guard exists is a
+potential root-path collision.
+
+- **The vanity tree**: `src/app/(public)/[slug]/` — a root dynamic
+  segment (the NHL.com/team model, DNS-independent), thin re-export
+  twins of the whole /org/{slug} tree (home, standings, schedule,
+  teams+teamId, gallery, news+slug, custom pages, card.png; NOT
+  preview). Each twin declares a LITERAL `revalidate` (re-exported
+  segment config is invisible to Next's static analysis); the param name
+  [slug] matches org/[slug] so re-exports line up. The delegating layout
+  carries the flag gate (`NEXT_PUBLIC_VANITY_ORG_PATHS`, build-injected
+  — the fourth such flag): off → notFound() → byte-for-byte today. ISR
+  tag purges come free — twins share the unstable_cache readers.
+- **The 404 consequence handled**: `src/app/(public)/not-found.tsx` —
+  with a root [slug] segment, every unknown root path 404s inside the
+  (public) group, and without this file Next renders its bare dead-end
+  default. Links to / and /explore.
+- **The namespace guard**: `src/lib/org-sites/reserved.ts` (pure,
+  zero-import) + reserved.test.ts pinning the set ⊇ the LIVE
+  src/app/(app) directory listing — a new root segment fails verify
+  until listed (failure asymmetry: junk fast-pathed just 404s; a real
+  route missing from the list would lose session refresh).
+  mintSubdomain checks the app-side set pre-migration (degrade-first);
+  mig 166 seeds reserved_handles as defense-in-depth, and its check
+  grid carries THE RETRO CHECK (existing slugs ∩ root namespace must be
+  empty).
+- **The slug engine** (Tom's ask): `slug-policy.ts` (pure, node-tested)
+  — anti-squatting verdicts: a slug must carry ≥2 identity tokens from
+  the org's own name/city/region/sport (kanata-knights ✓); one token →
+  flagged; bare/all-generic words (hockey, minor-hockey, league) →
+  refused, even for a club literally named "Hockey". slug-options
+  endpoint twins serve identity-composed suggestions + a candidate
+  verdict; site create accepts a chosen slug (refused → 400 with the
+  reason); the console's Create-your-site button opens a picker
+  (suggestion chips + custom input with live check). The admin
+  dashboard gains a flagged-addresses list — COMPUTED against live org
+  identity on every load, nothing stored, so renames and policy changes
+  reflect immediately.
+- **Middleware**: non-reserved DNS-label-shaped first segments get the
+  /org static-CSP fast path behind the flag (reserved checked FIRST).
+
+e2e: org-vanity-path.spec (slug engine verdicts, chosen-slug create,
+vanity home/subpage/card serving, reserved /feed untouched, linked 404
+@mobile); org-site.spec updated for the picker flow (and its minted-slug
+assert — the picker drops generic words, so 'league' left the slug).
+Local runs flag-ON (.env.local) so dev/CI exercise the tree; prod stays
+off until Tom adds the env + a real build.
+
 ## September 1, 2026 — Bug round PR-B: confirms, undo, un-cancel + the owner-join quirk (#495, zero DDL)
 
 The second half of the audit backlog:
