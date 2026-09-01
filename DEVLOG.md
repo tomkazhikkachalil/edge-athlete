@@ -1,5 +1,64 @@
 # Development Log
 
+## September 1, 2026 — Phase 3 round 3: branding, custom pages, sponsors (#458–#460, zero DDL)
+
+Every org site stops looking identical: theme accents, a real hero, a
+logo, sponsors, and manager-authored custom pages — all of Tom's locked
+R3 decisions, no schema changes (155 already had every column). Step 0
+first closed R2's debt: the quota-dropped #456/#457 deploy was triggered
+manually, verified live (SHA 25309c9), and the org-site e2e passed 2/2
+vs prod.
+
+- **#458 — the branding core.** SitePatchSchema grows set_hero /
+  set_theme / set_sponsors; the accent is strict #rrggbb with a
+  WCAG-luminance refine (near-white rejected — the hero text is white).
+  `.org-scope` re-points the --brand family (LIGHT-ONLY, no dark twin:
+  the segment never stamps data-theme) with the old violet literals as
+  defaults; a site's accent arrives via inline custom-property injection
+  that is validated at write AND re-validated at render
+  (parseThemeAccent — the inline-style injection defense). Sponsors
+  render as noopener/nofollow https links. Console gains inline Hero /
+  Accent / Sponsors editors; act() gains a toast-title param (site
+  toasts finally say Website).
+- **#459 — the logo.** Upload twins clone the cover recipe exactly
+  (10MB, no-SVG allowlist, uploads bucket, rollback, prefix-guarded
+  old-file delete) but store the BARE path; anonymous serving clones the
+  tokenless cover streamer (`/api/media/org-logo/[siteId]` hard-asserts
+  the org-logos/ prefix — it can only ever serve org artwork; public
+  Cache-Control, no vary; authz-audit allowlisted). OrgLogoUploader
+  outputs square 512 PNG (jpeg would flatten crest transparency).
+  Lesson re-learned: an aria-label on a button OVERRIDES its visible
+  text as the accessible name — the e2e caught it.
+- **#460 — custom pages.** RESERVED_PAGE_SLUGS finally enforces R1's
+  module-shadow comment; the PageBlock union (heading | paragraph |
+  image with required alt | https-only link-list, ≤40 blocks) with the
+  never-throw parsePageBody at render. CRUD twins behind
+  requireOrgManager on a new org-site-pages 120/h bucket; minted slugs
+  with -2..-20 retries; 20-page cap; PATCH re-asserts image paths
+  against THIS site's org-media/ prefix (the cross-site guard).
+  Anonymous page-image streamer builds its key server-side from
+  strictly validated segments. `/org/[slug]/[pageSlug]` carries the
+  full ISR contract (two-param empty generateStaticParams) with the
+  static module segments beating it; nav gains public page titles;
+  getCachedPage keys include pageSlug (the keyParts trap). Console:
+  Pages list in the Website card + the block-editor subpage
+  (competitions-detail shell; unsaved-changes chip + beforeunload).
+- Verification: verify green per PR (ends 210 files / 2422 tests);
+  org-site e2e grows to 4 tests, 4/4 — raw-HTML proofs for the accent
+  hex in the injected style, the light-accent 400, anonymous logo/asset
+  streaming + traversal probes, reserved-slug 400, foreign-asset 400,
+  draft 404, and 375px on every touched surface incl. the editor.
+- **Deploy-pipeline finding (needs Tom):** the git-push auto-deploys
+  did not fire for #458–#460 even while quota was available — and the
+  manual trigger then hit the 100-deploys/day rolling quota AGAIN.
+  Two separate problems: (a) the Vercel Git integration appears to be
+  silently dropping push deploys — check the project's Git settings;
+  (b) the account is burning ~100 deploys/day on the free tier at this
+  project's merge pace. Recommend looking at both before R4's exit
+  probes (the SEO round makes prod verification even more central).
+  The R3 prod probes ran as R4's step 0, once a manual deploy slot
+  freed — results recorded in the R4 entry above this one.
+
 ## September 1, 2026 — Phase 3 round 2: the live-data modules (#454–#456, zero DDL)
 
 R2 makes the site real: R1's "Coming soon" stubs become live modules, the
