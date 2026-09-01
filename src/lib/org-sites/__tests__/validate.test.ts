@@ -12,6 +12,8 @@ import {
   SCHEDULE_RANGE_MAX_DAYS,
   isValidPageSlug,
   MODULE_KEYS,
+  NewsCreateSchema,
+  NewsPatchSchema,
   PageBodySchema,
   PagePatchSchema,
   parsePageBody,
@@ -315,6 +317,25 @@ describe('page slugs (R3)', () => {
     expect(slugifyPageTitle('Fees & Dates 2026!')).toBe('fees-dates-2026');
     expect(slugifyPageTitle('X')).toBe('x');
     expect(slugifyPageTitle('!!!')).toBe('');
+  });
+});
+
+describe('news schemas (phase 3.5)', () => {
+  it("reserves 'news' as a page slug (module key ⇒ denylist)", () => {
+    expect(isValidPageSlug('news')).toBe(false);
+  });
+
+  it('NewsCreateSchema takes a title and optional slug', () => {
+    expect(NewsCreateSchema.safeParse({ title: 'Season opener' }).success).toBe(true);
+    expect(NewsCreateSchema.safeParse({ title: '' }).success).toBe(false);
+  });
+
+  it('NewsPatchSchema needs at least one field; publish is a boolean', () => {
+    expect(NewsPatchSchema.safeParse({}).success).toBe(false);
+    expect(NewsPatchSchema.safeParse({ publish: true }).success).toBe(true);
+    expect(
+      NewsPatchSchema.safeParse({ body: [{ type: 'paragraph', text: 'Hi' }] }).success
+    ).toBe(true);
   });
 });
 

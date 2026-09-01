@@ -135,15 +135,24 @@ export async function siteCreatePOST(
     return NextResponse.json({ error: 'Failed to create the site' }, { status: 500 });
   }
 
-  const { error: modulesError } = await admin.from('org_site_modules').insert(
-    MODULE_KEYS.map((key, i) => ({
+  const moduleRows = (keys: readonly string[]) =>
+    keys.map(key => ({
       site_id: site.id,
       module_key: key,
       enabled: true,
-      sort_order: i,
+      sort_order: MODULE_KEYS.indexOf(key as (typeof MODULE_KEYS)[number]),
       config: {},
-    }))
-  );
+    }));
+  let { error: modulesError } = await admin
+    .from('org_site_modules')
+    .insert(moduleRows(MODULE_KEYS));
+  if (modulesError?.code === '23514') {
+    // Pre-156 database: the module CHECK doesn't know 'news' yet — retry
+    // without it so site creation never breaks on migration ordering.
+    ({ error: modulesError } = await admin
+      .from('org_site_modules')
+      .insert(moduleRows(MODULE_KEYS.filter(k => k !== 'news'))));
+  }
   if (modulesError) {
     // Compensate: a site without its module rows renders nothing.
     await admin.from('org_sites').delete().eq('id', site.id);
