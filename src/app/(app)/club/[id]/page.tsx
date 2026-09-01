@@ -89,6 +89,17 @@ interface ClubResponse {
   members: MemberRow[];
   viewerRole: string | null;
   viewerRoster: RosterChipStatus | null;
+  /** Phase 5 R3: the Register banner's data (flag-off reads closed/none). */
+  viewerRegistration?: {
+    windowOpen: boolean;
+    current: {
+      seasonId: string;
+      status: string;
+      divisionId: string | null;
+      programId: string | null;
+      teamName: string | null;
+    } | null;
+  };
 }
 
 export default function ClubPage() {
@@ -363,6 +374,7 @@ export default function ClubPage() {
   }
 
   const { club, memberCount, members, viewerRole, viewerRoster } = data;
+  const viewerRegistration = data.viewerRegistration ?? { windowOpen: false, current: null };
   // Derived sports (0.6b) — purely additive: a structureless club shows no
   // sport chip at all, exactly as before.
   const sportLabels = (data.sports ?? []).map(
@@ -446,6 +458,46 @@ export default function ClubPage() {
             </div>
           </div>
         </div>
+
+        {/* Registration banner (phase 5 R3): the family-facing state of
+            the season workflow — CTA while a window is open, then the
+            lifecycle as it advances. Never rendered alongside the roster
+            invite banner in practice (invite-wins blocks stacking). */}
+        {viewerRegistration.current ? (
+          <div className="mt-6 bg-surface rounded-xl shadow-sm border border-brand p-4 sm:p-6">
+            <p className="font-medium text-primary">
+              {viewerRegistration.current.status === 'registered'
+                ? 'Registration received — placement pending'
+                : viewerRegistration.current.status === 'evaluating'
+                ? 'Registration in evaluation'
+                : viewerRegistration.current.status === 'placed'
+                ? `Placed${viewerRegistration.current.teamName ? ` on ${viewerRegistration.current.teamName}` : ''}`
+                : viewerRegistration.current.status === 'released'
+                ? 'Released from this season’s roster'
+                : 'Registered'}
+            </p>
+            <p className="mt-1 text-sm text-secondary">
+              {viewerRegistration.current.status === 'placed'
+                ? 'You’re on this season’s roster — schedules and stats attach here.'
+                : viewerRegistration.current.status === 'released'
+                ? 'Contact the organization if this looks wrong.'
+                : 'The organization will place registrations onto teams.'}
+            </p>
+          </div>
+        ) : viewerRegistration.windowOpen && user ? (
+          <div className="mt-6 bg-surface rounded-xl shadow-sm border border-brand p-4 sm:p-6">
+            <p className="font-medium text-primary">Registration is open</p>
+            <p className="mt-1 text-sm text-secondary">
+              Register yourself or your athletes for the season — it takes a couple of minutes.
+            </p>
+            <Link
+              href={`/register/club/${clubId}`}
+              className="mt-3 inline-flex px-4 py-2 text-sm min-h-[40px] items-center rounded-lg bg-brand text-white hover:bg-brand-hover font-medium transition-colors"
+            >
+              Register
+            </Link>
+          </div>
+        ) : null}
 
         {/* Roster invitation banner (0.3) */}
         {viewerRoster === 'pending' && (

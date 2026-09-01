@@ -698,6 +698,96 @@ export async function windowDELETE(
   return NextResponse.json({ action: 'deleted' });
 }
 
+// ── The viewer's registration state (the org-page banner) ───────────────────
+
+export interface ViewerRegistration {
+  seasonId: string;
+  status: string;
+  divisionId: string | null;
+  programId: string | null;
+  teamName: string | null;
+}
+
+/** What the league/club page banner needs: is ANY window open right now
+ *  (the CTA), and the viewer's current-season registration if they have
+ *  one. Flag-off or pre-162 reads as closed/none — surface hidden. */
+export async function viewerRegistrationSummary(
+  admin: Admin,
+  side: OrgSide,
+  orgId: string,
+  viewerId: string | null,
+  flagOn: boolean
+): Promise<{ windowOpen: boolean; current: ViewerRegistration | null }> {
+  if (!flagOn) return { windowOpen: false, current: null };
+  const nowIso = new Date().toISOString();
+  const { data: windowRows, error: windowsError } = await admin
+    .from('registration_windows')
+    .select('id, season_id, division_id, program_id, opens_at, closes_at, capacity')
+    .eq(orgColumn(side), orgId)
+    .limit(100);
+  const windows = windowsError ? [] : ((windowRows ?? []) as WindowRow[]);
+  const windowOpen = windows.some(w => isWindowOpen(w, nowIso));
+  if (!viewerId) return { windowOpen, current: null };
+
+  const { data: seasonRows } = await admin
+    .from('memberships')
+    .select('status, season_id, joined_at')
+    .eq(orgColumn(side), orgId)
+    .eq('profile_id', viewerId)
+    .eq('kind', 'roster')
+    .eq('scope_type', 'org')
+    .not('season_id', 'is', null)
+    .order('joined_at', { ascending: false })
+    .limit(1);
+  const row = (seasonRows ?? [])[0] as
+    | { status: string; season_id: string; joined_at: string }
+    | undefined;
+  if (!row) return { windowOpen, current: null };
+
+  const { data: reg } = await admin
+    .from('registrations')
+    .select('division_id, program_id')
+    .eq(orgColumn(side), orgId)
+    .eq('profile_id', viewerId)
+    .eq('season_id', row.season_id)
+    .is('withdrawn_at', null)
+    .limit(1)
+    .maybeSingle();
+
+  let teamName: string | null = null;
+  if (row.status === 'placed') {
+    const { data: teamRow } = await admin
+      .from('memberships')
+      .select('scope_id')
+      .eq(orgColumn(side), orgId)
+      .eq('profile_id', viewerId)
+      .eq('kind', 'roster')
+      .eq('scope_type', 'team')
+      .eq('season_id', row.season_id)
+      .limit(1)
+      .maybeSingle();
+    if (teamRow?.scope_id) {
+      const { data: team } = await admin
+        .from('teams')
+        .select('name, display_name')
+        .eq('id', teamRow.scope_id as string)
+        .maybeSingle();
+      teamName = ((team?.display_name as string | null) || (team?.name as string | null)) ?? null;
+    }
+  }
+
+  return {
+    windowOpen,
+    current: {
+      seasonId: row.season_id,
+      status: row.status,
+      divisionId: (reg?.division_id as string | null) ?? null,
+      programId: (reg?.program_id as string | null) ?? null,
+      teamName,
+    },
+  };
+}
+
 // ── Offerings — the family/public projection ────────────────────────────────
 
 /** Viewer-independent: what can be registered for right now. Shared by

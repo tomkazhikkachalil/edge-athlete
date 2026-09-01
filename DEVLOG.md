@@ -1,5 +1,36 @@
 # Development Log
 
+## September 2, 2026 — Phase 5 R3: the family wizard + org-page CTA (#484, zero DDL)
+
+The doorway. Registration existed as an API for one round; now a family
+can walk through it.
+
+- **RegistrationWizard** — the third instance of the OrgStartWizard
+  machine (named-union Step, hoisted state, sibling blocks, 400ms
+  debounced localStorage draft offered back as a notice, never silently
+  applied — its own small pure draft module with the versioned envelope
+  + TTL): who (Myself hidden for supervised viewers — a guardian
+  registers them; children from /api/guardian/athletes, viewer-only
+  seats excluded) → offering (the offeringsGET projection; closed
+  offerings visible but disabled) → details (emergency contact, the
+  registrar-eyes-only medical notes with that exact copy, a DOB prompt
+  only when the athlete has none) → photo consent (the 159 wording) →
+  review → done (server eligibility warnings surfaced as "the registrar
+  will sort this out at placement"). Everything client-side is
+  convenience — the POST re-runs every gate.
+- **/register/[side]/[id]** — flag-gated page, house auth-boot order
+  (initialAuthCheckComplete before !user).
+- **The org-page banner** (both twins): viewerRegistrationSummary rides
+  the detail payload — an open window shows the Register CTA; a live
+  registration shows its lifecycle (received → in evaluation → placed
+  on {team} → released) in the roster-banner's markup class. Never
+  stacks with the invite banner (invite-wins guarantees it).
+- e2e: a guardian registers a supervised child END-TO-END through the
+  UI — CTA → who → offering → details → consent → review → done — with
+  DB truth on the season row, the submission record, and the
+  guardian-granted photo consent; 375px pass. R4 next: the registrar
+  console + placement UI + bells (mig 163).
+
 ## September 2, 2026 — Phase 5 R2: registration capture (#483, mig 162)
 
 The tables and the core. The org-scope membership row (161) is the

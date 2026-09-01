@@ -4,6 +4,8 @@ import { parseBody } from '@/lib/validation';
 import { LeagueUpdateSchema, placeToLeagueColumns, isMissingTableError } from '@/lib/leagues/validate';
 import { getOrgAndRole, roleAllows } from '@/lib/orgs/authz';
 import { orgMemberPreview, redactPendingRoster } from '@/lib/orgs/members';
+import { viewerRegistrationSummary } from '@/lib/orgs/registration-server';
+import { FEATURE_FLAGS } from '@/lib/features';
 import { deriveOrgSports } from '@/lib/orgs/sports';
 import type { OrgRole } from '@/lib/orgs/authz';
 import { UUID_RE } from '@/lib/golf/course-catalog';
@@ -77,6 +79,15 @@ export async function GET(
       members,
       viewerRole,
       viewerRoster,
+      // Phase 5 R3: the Register banner's data — flag-off/pre-162 reads
+      // as closed/none (surface hidden), never an error.
+      viewerRegistration: await viewerRegistrationSummary(
+        supabase,
+        'league',
+        id,
+        viewerId,
+        FEATURE_FLAGS.FEATURE_ORG_REGISTRATION
+      ),
     });
   } catch (error) {
     if (error instanceof Response) return error;
