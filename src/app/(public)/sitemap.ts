@@ -1,6 +1,6 @@
 import type { MetadataRoute } from 'next';
 import { getCachedSitemapSites } from '@/lib/org-sites/cached';
-import { appBaseUrl } from '@/lib/org-sites/urls';
+import { appBaseUrl, orgSitePath } from '@/lib/org-sites/urls';
 
 // ── /sitemap.xml (phase 3 R4) — every published org site ──────────────────
 // force-dynamic is LOAD-BEARING: without it the build statically
@@ -19,13 +19,13 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     const sites = await getCachedSitemapSites();
     return sites.flatMap(site => [
       {
-        url: `${base}/org/${site.subdomain}`,
+        url: `${base}${orgSitePath(site.subdomain)}`,
         ...(site.lastModified ? { lastModified: site.lastModified } : {}),
       },
-      ...site.moduleKeys.map(key => ({ url: `${base}/org/${site.subdomain}/${key}` })),
-      ...site.pageSlugs.map(slug => ({ url: `${base}/org/${site.subdomain}/${slug}` })),
-      ...site.teamIds.map(id => ({ url: `${base}/org/${site.subdomain}/teams/${id}` })),
-      ...site.newsSlugs.map(ns => ({ url: `${base}/org/${site.subdomain}/news/${ns}` })),
+      ...site.moduleKeys.map(key => ({ url: `${base}${orgSitePath(site.subdomain)}/${key}` })),
+      ...site.pageSlugs.map(slug => ({ url: `${base}${orgSitePath(site.subdomain)}/${slug}` })),
+      ...site.teamIds.map(id => ({ url: `${base}${orgSitePath(site.subdomain)}/teams/${id}` })),
+      ...site.newsSlugs.map(ns => ({ url: `${base}${orgSitePath(site.subdomain)}/news/${ns}` })),
     ]);
   } catch {
     return [];

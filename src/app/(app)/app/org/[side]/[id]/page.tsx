@@ -12,6 +12,7 @@ import Image from 'next/image';
 import { FEATURE_FLAGS } from '@/lib/features';
 import { orgLogoUrl, orgMediaUrl } from '@/lib/media/org-site-media';
 import { MODULE_TITLES, TOGGLEABLE_MODULE_KEYS } from '@/lib/org-sites/validate';
+import { orgSitePath } from '@/lib/org-sites/urls';
 import { SPORT_REGISTRY } from '@/lib/sports/SportRegistry';
 import OrgLogoUploader from '@/components/org/OrgLogoUploader';
 
@@ -1984,7 +1985,7 @@ export default function OrgConsolePage() {
           ) : (
             <div className="space-y-2">
               <p className="text-sm text-secondary min-w-0 break-all">
-                Address: <span className="font-medium text-primary">/org/{site.subdomain}</span>
+                Address: <span className="font-medium text-primary">{orgSitePath(site.subdomain)}</span>
                 {' · '}
                 {site.published_at ? (
                   <span className="text-emerald-600">published</span>
@@ -2020,7 +2021,7 @@ export default function OrgConsolePage() {
                 )}
                 {site.published_at && (
                   <a
-                    href={`/org/${site.subdomain}`}
+                    href={orgSitePath(site.subdomain)}
                     target="_blank"
                     rel="noreferrer"
                     className="px-3 py-1.5 text-sm rounded-md border border-border-strong text-secondary hover:bg-surface-sunken transition-colors"

@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
-import { adminClient, apiAs, loadQaUser, readErrorBody } from './helpers/qa-user';
+import { adminClient, apiAs, loadQaUser, readErrorBody, resetRateBucket } from './helpers/qa-user';
 
 /** Document-content settle (the org-site suite's multi-POP lesson, third
  *  application): after a purge, each goto may land on a POP still holding
@@ -31,6 +31,7 @@ test('org-site register card: open window renders the CTA; closed hides it', asy
   test.setTimeout(180_000);
   const owner = loadQaUser('user-b.json');
   const admin = adminClient();
+  await resetRateBucket(admin, 'org-site', owner.id);
 
   const probe = await admin.from('registration_windows').select('id').limit(1);
   test.skip(!!probe.error, `registration_windows missing — run migration 162 (${probe.error?.message})`);

@@ -72,6 +72,24 @@ export function adminClient(): SupabaseClient {
   });
 }
 
+/** Reset a user-keyed rate bucket for the shared QA user (phase 6 R2).
+ *  The org-site bucket is 30/hour and the site suite bursts past it when
+ *  run whole (rate_limits is DB-backed, so a tripped bucket poisons the
+ *  next hour of runs too). Key shape: `${action}:${identifier}` — see
+ *  buildRateLimitKey. Best-effort: a missing table (pre-094 target) is
+ *  fine. */
+export async function resetRateBucket(
+  admin: SupabaseClient,
+  action: string,
+  userId: string
+): Promise<void> {
+  try {
+    await admin.from('rate_limits').delete().like('key', `${action}:${userId}%`);
+  } catch {
+    // best-effort
+  }
+}
+
 export interface QaUser {
   id: string;
   email: string;

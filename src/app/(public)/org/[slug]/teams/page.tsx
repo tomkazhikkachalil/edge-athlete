@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { getCachedSite, getCachedTeams } from '@/lib/org-sites/cached';
 import TeamsList from '../_components/TeamsList';
 import { requireSiteModule } from '../_components/require-module';
+import { orgSitePath } from '@/lib/org-sites/urls';
 
 // ── /org/[slug]/teams — all active teams (phase 3 R2) ──────────────────────
 // Names + division/season labels, each linking to the team's own page.
@@ -23,12 +24,12 @@ export async function generateMetadata({ params }: PageParams): Promise<Metadata
   if (!site) return { title: 'Not found' };
   const title = `${site.orgName} Teams`;
   const description = `Teams of ${site.orgName} on Edge Athlete.`;
-  const canonical = `/org/${site.subdomain}/teams`;
+  const canonical = `${orgSitePath(site.subdomain)}/teams`;
   return {
     title,
     description,
     alternates: { canonical },
-    openGraph: { title, description, url: canonical, siteName: 'Edge Athlete', type: 'website', images: [`/org/${site.subdomain}/card.png`] },
+    openGraph: { title, description, url: canonical, siteName: 'Edge Athlete', type: 'website', images: [`${orgSitePath(site.subdomain)}/card.png`] },
   };
 }
 

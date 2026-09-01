@@ -5,6 +5,7 @@ import { buildTeamJsonLd, safeJsonLd } from '@/lib/org-sites/jsonld';
 import { UUID_RE } from '@/lib/golf/course-catalog';
 import ScheduleList from '../../_components/ScheduleList';
 import { requireSiteModule } from '../../_components/require-module';
+import { orgSitePath } from '@/lib/org-sites/urls';
 
 // ── /org/[slug]/teams/[teamId] — the FULL team page (phase 3 R2) ───────────
 // Tom's decision 3: record row, upcoming schedule, and a MASKED roster
@@ -34,12 +35,12 @@ export async function generateMetadata({ params }: PageParams): Promise<Metadata
   if (!teamPage) return { title: 'Not found' };
   const title = `${teamPage.team.name} — ${site.orgName}`;
   const description = `${teamPage.team.name} of ${site.orgName} on Edge Athlete.`;
-  const canonical = `/org/${site.subdomain}/teams/${teamId}`;
+  const canonical = `${orgSitePath(site.subdomain)}/teams/${teamId}`;
   return {
     title,
     description,
     alternates: { canonical },
-    openGraph: { title, description, url: canonical, siteName: 'Edge Athlete', type: 'website', images: [`/org/${site.subdomain}/card.png`] },
+    openGraph: { title, description, url: canonical, siteName: 'Edge Athlete', type: 'website', images: [`${orgSitePath(site.subdomain)}/card.png`] },
   };
 }
 

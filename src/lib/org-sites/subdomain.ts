@@ -14,7 +14,11 @@ export function computeSubdomainRedirect(
   host: string | null,
   appHost: string,
   pathname: string,
-  search: string
+  search: string,
+  // Phase 6 R2: with the vanity canonical on, subdomains 301 straight to
+  // /{slug} (single hop — never via /org). Middleware supplies '' when
+  // NEXT_PUBLIC_VANITY_CANONICAL=1, '/org' otherwise.
+  targetBase: '/org' | '' = '/org'
 ): string | null {
   if (!host) return null;
   const bare = host.toLowerCase().split(':')[0];
@@ -23,8 +27,8 @@ export function computeSubdomainRedirect(
   if (!bare.endsWith(`.${apex}`)) return null;
   const label = bare.slice(0, -(apex.length + 1));
   if (label === 'www' || label.includes('.') || !DNS_LABEL_RE.test(label)) return null;
-  // Root path stays bare — /org/{slug}/ would eat Next's trailing-slash
-  // 308 as a second hop.
+  // Root path stays bare — a trailing slash would eat Next's
+  // trailing-slash 308 as a second hop.
   const path = pathname === '/' ? '' : pathname;
-  return `https://${apex}/org/${label}${path}${search}`;
+  return `https://${apex}${targetBase}/${label}${path}${search}`;
 }

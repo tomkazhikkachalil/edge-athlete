@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { getCachedSite, getCachedStandings } from '@/lib/org-sites/cached';
 import PublicStandingsTable from '@/components/standings/PublicStandingsTable';
 import { requireSiteModule } from '../_components/require-module';
+import { orgSitePath } from '@/lib/org-sites/urls';
 
 // ── /org/[slug]/standings — the full standings subpage (phase 3 R2) ────────
 // Every competition with rows, full column engine. Module disabled →
@@ -26,12 +27,12 @@ export async function generateMetadata({ params }: PageParams): Promise<Metadata
   if (!site) return { title: 'Not found' };
   const title = `${site.orgName} Standings`;
   const description = `Live standings for ${site.orgName} on Edge Athlete.`;
-  const canonical = `/org/${site.subdomain}/standings`;
+  const canonical = `${orgSitePath(site.subdomain)}/standings`;
   return {
     title,
     description,
     alternates: { canonical },
-    openGraph: { title, description, url: canonical, siteName: 'Edge Athlete', type: 'website', images: [`/org/${site.subdomain}/card.png`] },
+    openGraph: { title, description, url: canonical, siteName: 'Edge Athlete', type: 'website', images: [`${orgSitePath(site.subdomain)}/card.png`] },
   };
 }
 

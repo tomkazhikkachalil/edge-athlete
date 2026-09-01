@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import type { PublicTeam } from '@/lib/org-sites/public-data';
+import { orgSitePath } from '@/lib/org-sites/urls';
 
 // Teams module: linked name chips on the home page (detailed=false),
 // rows with division/season labels on /teams (detailed=true). Every
@@ -19,7 +20,7 @@ export default function TeamsList({
         {teams.map(t => (
           <li key={t.id} className="py-2.5">
             <Link
-              href={`/org/${slug}/teams/${t.id}`}
+              href={`${orgSitePath(slug)}/teams/${t.id}`}
               className="text-sm font-medium text-brand-fg"
             >
               {t.name}
@@ -37,7 +38,7 @@ export default function TeamsList({
       {teams.map(t => (
         <Link
           key={t.id}
-          href={`/org/${slug}/teams/${t.id}`}
+          href={`${orgSitePath(slug)}/teams/${t.id}`}
           className="inline-block rounded-full border border-border bg-canvas px-3 py-1 text-sm font-medium text-primary"
         >
           {t.name}
