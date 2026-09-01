@@ -1,5 +1,54 @@
 # Development Log
 
+## September 2, 2026 — Phase 5 R2: registration capture (#483, mig 162)
+
+The tables and the core. The org-scope membership row (161) is the
+lifecycle AUTHORITY; the new `registrations` table is the SUBMISSION
+record (offering, submitted_by, answers, eligibility snapshot) with NO
+status column — one authority, no drift; both rows written by ONE core
+function with a compensating delete. `registrations` is deliberately the
+phase-6 invoice anchor.
+
+- **Mig 162** (handed to Tom, after 161): `programs` (divisions'
+  non-competitive siblings — camps/clinics, org derived through the
+  season), `registrations` (org XOR, offering at-most-one — the record
+  outlives a deleted offering), `registration_windows` (v1 = one
+  season-wide window; per-offering later without DDL). Posture A.
+- **The core** (orgs/registration-server.ts): the submit runs flag →
+  window gate (missing table/window = CLOSED, absence never opens
+  anything) → capacity → the UNCONDITIONAL supervised gate (a guardian
+  registers a supervised athlete acting-for, requireProfileRole-vouched;
+  supervised self-serve 403s regardless of flags) → collision matrix
+  (invite-wins: a pending invite must be answered first; a season edge
+  of any status blocks; legacy active membership coexists) →
+  warn-never-block eligibility (pure orgs/eligibility.ts: U-band cap at
+  Dec-31-of-season-start-year, Girls/Boys stream mapping, free text and
+  missing DOB check nothing) → follow upsert (roster ⊆ follow holds) →
+  the 'registered' org-roster row with season_id (the column's FIRST
+  writer since 140 shipped it) → the submission record → photo consent
+  via the unchanged 159 contract (NULL → the guardian queue asks).
+- **Transitions**: evaluate → place (mints the team-scope ACTIVE roster
+  row — THE attribution edge phases 2–4 read — then flips 'placed';
+  purges the org site: placed athletes appear on public team rosters) →
+  release (row 'released', team row removed, reason stamped) + the
+  family withdraw (registered/evaluating only; the submission record
+  survives with withdrawn_at).
+- **Registrar seam**: 'manage_registration' OrgIntent (owner-or-manager;
+  roleAllows only, as designed); requireRegistrar gates the list — THE
+  ONLY surface serving answers (Tom's v1: emergency contact + MEDICAL
+  NOTES, registrar-eyes-only by contract, restated at every layer).
+- **offeringsGET**: the viewer-independent what-can-be-registered
+  projection (seasons + divisions + programs + per-offering open-ness
+  via the shared isWindowOpen) — the wizard reads it in R3, the public
+  Register card reuses the same core in R5. Route twins ×5 per side;
+  `FEATURE_ORG_REGISTRATION` flag (surface only); 'registration'
+  rate-limit bucket.
+- e2e (skips pre-162 / flag-off): closed-by-default → open window →
+  submit (answers + DB truth) → both collisions → gated registrar list
+  with the medical note → evaluate/place (team-scope row) → family 403
+  on registrar acts → release (reason stamped) → close → closed again.
+  R3 next: the family wizard + org-page CTA.
+
 ## September 2, 2026 — Phase 5 R1: the registration lifecycle lands (#482, mig 161)
 
 Phase 5 (registration) opens: "a season runs end to end from

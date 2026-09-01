@@ -26,6 +26,7 @@ import {
   type TeamCreateInput,
   type TeamPatchInput,
 } from '@/lib/structure/validate';
+import { type ProgramCreateInput } from '@/lib/registration/validate';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- matches the authz.ts Admin alias; schema-agnostic helper
 type Admin = SupabaseClient<any, 'public', any>;
@@ -293,6 +294,93 @@ export async function divisionDELETE(
   if (deleted[0].league_id) {
     const { error: cacheError } = await refreshLeagueSportCache(admin, deleted[0].league_id as string);
     if (cacheError) console.warn(`${TAG} sport cache refresh failed:`, cacheError.message);
+  }
+  return NextResponse.json({ action: 'deleted' });
+}
+
+// ── Programs (phase 5, mig 162) ─────────────────────────────────────────────
+// Divisions' non-competitive siblings (camps, clinics, learn-to-play):
+// registrants but no contests. No org columns — the org derives through
+// the season, exactly like divisions enforce it.
+
+export async function programCreatePOST(
+  admin: Admin,
+  input: ProgramCreateInput,
+  scope: StructureScope | null
+): Promise<NextResponse> {
+  const { data: season } = await admin
+    .from('seasons')
+    .select('id, league_id, club_id')
+    .eq('id', input.seasonId)
+    .maybeSingle();
+  if (!season || (scope && season[orgColumn(scope.side)] !== scope.orgId)) {
+    return NextResponse.json({ error: 'Season not found' }, { status: 404 });
+  }
+
+  const { data: program, error } = await admin
+    .from('programs')
+    .insert({
+      season_id: input.seasonId,
+      sport_key: input.sportKey,
+      type: input.type,
+      name: input.name,
+      capacity_estimate: input.capacityEstimate ?? null,
+    })
+    .select()
+    .single();
+  if (error || !program) {
+    if (error?.code === '23505') {
+      return NextResponse.json(
+        { error: 'A program with that name already exists in this season' },
+        { status: 409 }
+      );
+    }
+    if (error && isMissingTableError(error.code)) {
+      return NextResponse.json(
+        { error: 'Programs aren’t set up yet — ask your admin (migration 162)' },
+        { status: 400 }
+      );
+    }
+    console.error(`${TAG} program insert error:`, error);
+    return NextResponse.json({ error: 'Failed to create program' }, { status: 500 });
+  }
+  return NextResponse.json({ program });
+}
+
+/** Scoped delete verifies through the season join (the entryDELETE
+ *  precedent — programs carry no org columns; never "simplify" this to a
+ *  bare delete). */
+export async function programDELETE(
+  admin: Admin,
+  programId: string,
+  scope: StructureScope | null
+): Promise<NextResponse> {
+  if (scope) {
+    const { data: row } = await admin
+      .from('programs')
+      .select('id, season:season_id (league_id, club_id)')
+      .eq('id', programId)
+      .maybeSingle();
+    const seasonRaw = row?.season;
+    const season = (Array.isArray(seasonRaw) ? seasonRaw[0] : seasonRaw) as
+      | { league_id: string | null; club_id: string | null }
+      | null
+      | undefined;
+    if (!row || !season || season[orgColumn(scope.side)] !== scope.orgId) {
+      return NextResponse.json({ error: 'Program not found' }, { status: 404 });
+    }
+  }
+  const { data: deleted, error } = await admin
+    .from('programs')
+    .delete()
+    .eq('id', programId)
+    .select('id');
+  if (error) {
+    console.error(`${TAG} program delete error:`, error);
+    return NextResponse.json({ error: 'Failed to delete program' }, { status: 500 });
+  }
+  if (!deleted || deleted.length === 0) {
+    return NextResponse.json({ error: 'Program not found' }, { status: 404 });
   }
   return NextResponse.json({ action: 'deleted' });
 }
