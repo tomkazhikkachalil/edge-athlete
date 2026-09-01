@@ -107,3 +107,52 @@ export async function notifyEntryDecided(
     console.error(`${TAG} decided failed:`, e);
   }
 }
+
+/** Phase 6 R4: dispute raised/resolved — belled to every org with
+ *  standing (owner + participating orgs) minus the actor. Best-effort:
+ *  a 23514 on a pre-168 CHECK drops the bell, never the transition. */
+export async function notifyDispute(
+  admin: Admin,
+  input: {
+    orgs: { side: OrgSide; orgId: string }[];
+    actorId: string;
+    competitionId: string;
+    kind: 'raised' | 'resolved' | null;
+    note: string | null;
+    side: OrgSide;
+    orgId: string;
+  }
+): Promise<void> {
+  if (!input.kind) return; // withdraw is quiet — the raise bell said enough
+  try {
+    const { data: comp } = await admin
+      .from('competitions')
+      .select('name')
+      .eq('id', input.competitionId)
+      .maybeSingle();
+    const compName = (comp?.name as string | undefined) ?? 'a competition';
+    const managerLists = await Promise.all(
+      input.orgs.map(o => orgManagerIds(admin, o.side, o.orgId))
+    );
+    const recipients = [...new Set(managerLists.flat())].filter(id => id !== input.actorId);
+    if (recipients.length === 0) return;
+    const { error } = await admin.from('notifications').insert(
+      recipients.map(userId => ({
+        user_id: userId,
+        type: input.kind === 'raised' ? 'contest_dispute_raised' : 'contest_dispute_resolved',
+        actor_id: null,
+        title:
+          input.kind === 'raised'
+            ? `A result in ${compName} was disputed`
+            : `A disputed result in ${compName} was resolved`,
+        message: input.kind === 'raised' ? (input.note || null) : null,
+        action_url: `/app/org/${input.side}/${input.orgId}/competitions/${input.competitionId}`,
+        is_read: false,
+        metadata: { competition_id: input.competitionId },
+      }))
+    );
+    if (error) console.error(`${TAG} dispute insert failed:`, error);
+  } catch (e) {
+    console.error(`${TAG} dispute failed:`, e);
+  }
+}

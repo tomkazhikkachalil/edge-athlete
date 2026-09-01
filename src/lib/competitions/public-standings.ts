@@ -33,6 +33,9 @@ export interface PublicCompetitionStandings {
   status: string;
   columns: StandingsColumn[];
   rows: PublicStandingRow[];
+  /** Phase 6 R4: open disputes among this competition's results — the
+   *  table footnotes "includes disputed results" when > 0. */
+  disputedCount: number;
 }
 
 export interface PublicStandingsPayload {
@@ -75,6 +78,28 @@ export async function fetchPublicStandings(
     admin.from('seasons').select('id, label').in('id', seasonIds),
   ]);
   const seasonLabel = new Map((seasonsRes.data ?? []).map(s => [s.id, s.label as string]));
+
+  // Phase 6 R4: open disputes per competition (embed-filtered, one read;
+  // best-effort — never-throw is the standings contract).
+  const disputedByComp = new Map<string, number>();
+  try {
+    const { data: disputedRows } = await admin
+      .from('contest_results')
+      .select('contest_id, contests!inner(competition_id)')
+      .eq('dispute_status', 'disputed')
+      .in('contests.competition_id', competitionIds)
+      .limit(500);
+    const seenContests = new Set<string>();
+    for (const r of disputedRows ?? []) {
+      if (seenContests.has(r.contest_id as string)) continue; // one per contest, not per row
+      seenContests.add(r.contest_id as string);
+      const embedded = r.contests as { competition_id: string } | { competition_id: string }[];
+      const compId = (Array.isArray(embedded) ? embedded[0] : embedded)?.competition_id;
+      if (compId) disputedByComp.set(compId, (disputedByComp.get(compId) ?? 0) + 1);
+    }
+  } catch {
+    // pre-152/168 or embed failure — footnote simply absent
+  }
 
   // Entrant display names, batched.
   const entryIds = [...new Set((standingsRes.data ?? []).map(r => r.entry_id))];
@@ -140,6 +165,7 @@ export async function fetchPublicStandings(
             ? resolveLeaderboardRule(c.sport_key as string, c.scoring_rule as string | null).columns
             : [],
       rows: rowsByCompetition.get(c.id) ?? [],
+      disputedCount: disputedByComp.get(c.id) ?? 0,
     })),
   };
 }
