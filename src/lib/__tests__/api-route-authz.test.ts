@@ -79,6 +79,10 @@ const REVIEWED_SELF_SCOPED: Record<string, string> = {
   'clubs/[id]/members': 'org-role system (club managers), not profile roles',
   'clubs/[id]/owners': 'org-role system (owner-only minting; DELETE is self-scoped)',
   'clubs/[id]/roster': 'org-role system (club managers); supervised flag-gated (0.10) + guardian acting-for via requireProfileRole inside',
+  'clubs/[id]/competitions/[competitionId]/media/tags':
+    'org-role system (requireCompetitionManager) + roster-set membership check in the lib — tagging others is org attribution, not acting-as',
+  'leagues/[id]/competitions/[competitionId]/media/tags':
+    'org-role system (requireCompetitionManager) + roster-set membership check in the lib — tagging others is org attribution, not acting-as',
   'leagues/[id]/members': 'org-role system (league managers), not profile roles',
   'leagues/[id]/owners': 'org-role system (owner-only minting; DELETE is self-scoped)',
   'leagues/[id]/roster': 'org-role system (league managers); supervised flag-gated (0.10) + guardian acting-for via requireProfileRole inside',
@@ -94,6 +98,8 @@ const REVIEWED_SELF_SCOPED: Record<string, string> = {
   'messages/[conversationId]/participants/[profileId]': 'participant-scoped via conversation membership',
   'privacy/check': 'read-only visibility probe; leaks only a boolean the UI needs',
   'profile/[profileId]/media': 'visibility-filtered public read surface',
+  'profile/[profileId]/contest-media':
+    'visibility-filtered public read (GET mirrors the media route gate); DELETE self/guardian-gated inline',
   'profile/[profileId]/organizations': 'public org membership read',
   'profile/[profileId]/tagged-summary': 'privacy-filtered read (tagged round)',
   'settings/theme': 'writes session user only; accepts no target param',

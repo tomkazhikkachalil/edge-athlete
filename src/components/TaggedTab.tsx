@@ -8,6 +8,7 @@ import SectionEmptyState from './SectionEmptyState';
 import ConfirmModal from './ConfirmModal';
 import PostDetailModal from './PostDetailModal';
 import TaggedTile, { type TaggedItem } from './tagged/TaggedTile';
+import ContestMediaStrip from './tagged/ContestMediaStrip';
 import { useToast } from './Toast';
 import {
   taggedSportOptions, taggedYearOptions,
@@ -190,6 +191,11 @@ export default function TaggedTab({ profileId, currentUserId, isOwnProfile = fal
 
   return (
     <div className="w-full space-y-8">
+      {/* Team media (phase 4): org-uploaded contest media the athlete is
+          tagged in — its own section, never mixed into the post grid.
+          Hides itself when empty. */}
+      <ContestMediaStrip profileId={profileId} />
+
       {/* Filters + grid — the tab pill already names the surface, so there
           is no in-tab header (Tom cut it). */}
       <div className="space-y-6">
