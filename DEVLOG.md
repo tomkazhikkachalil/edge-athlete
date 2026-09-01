@@ -1,5 +1,39 @@
 # Development Log
 
+## September 2, 2026 — Phase 5 R6: the exit sweep + PHASE CLOSE (#486, zero DDL)
+
+**Phase 5 complete** (#482–#486 + direct commit 9ba2049, migs 161–164 —
+all four run and grid-verified by Tom during the build). The exit
+condition holds in ONE spec, end to end with no manual linking: a family
+registers through the window gate → the registrar places onto a team
+(minting the team-scope attribution edge) → that team plays a fixture →
+the result materializes the standings AND the placed athlete's stat line
+rides the phase-4 roster gate → the athlete's profile shows the official
+stat with its provenance and standings backlink. Registration → the
+recruiting dataset, one chain.
+
+- The sweep: stray `'pending' | 'active'` literals grepped out;
+  guardrails + authz audit green throughout; 375px passes recorded per
+  round (wizard, banner, registrar section, public card).
+- **⚠ TOM: two env flips when ready** — `NEXT_PUBLIC_FEATURE_ORG_
+  REGISTRATION=1` in Vercel (build-injected: needs a REAL build) to
+  open the surface in prod, and the register module toggle per site.
+- **Phase 5.5 — the rollover brief** (the deferred retention feature,
+  §9): one button = clone the season forward (replayStructure in
+  wizard-replay.ts already clones season+divisions+teams via the POST
+  cores; add team_entries cloning), a `seasons.archived_at` column
+  ('42703'-tolerant) as the close-out marker, "close registration" as
+  part of the close-out act, and season-scoped grant expiry when staff
+  roles arrive. Small, self-contained, ready to open on a word.
+- Deferred, recorded: per-offering windows UI (the table supports them),
+  registrar CSV export, a paid-fees seam on registrations (phase 6),
+  the full Registrar/Convener staff-role arc, program-scope memberships.
+- NEXT: phase 6 (custom domains, payments, sanctioning chain, block
+  builder) is masterplan-marked "later, on demand" — the core platform
+  arc is COMPLETE. Remaining side quests: phase 5.5 rollover, the
+  phase-3 exit ops (domain/DNS, flags, webhook, Search Console), and
+  Tom's device passes.
+
 ## September 2, 2026 — Phase 5 R5: the public Register card (#485, mig 164)
 
 The masterplan's "registration call to action" on the public site.
