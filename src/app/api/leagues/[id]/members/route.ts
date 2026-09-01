@@ -3,7 +3,7 @@ import { requireAuth, getSupabaseAdmin } from '@/lib/auth-server';
 import { enforceRateLimit } from '@/lib/rate-limit';
 import { LeagueMemberRoleSchema, isMissingTableError } from '@/lib/leagues/validate';
 import { getOrgAndRole, roleAllows } from '@/lib/orgs/authz';
-import { getMemberRole, joinOrg, leaveOrg, removeMember, setMemberRole } from '@/lib/orgs/members';
+import { getMemberRole, insertOwnerRow, joinOrg, leaveOrg, removeMember, setMemberRole } from '@/lib/orgs/members';
 import { parseBody } from '@/lib/validation';
 import { UUID_RE } from '@/lib/golf/course-catalog';
 
@@ -67,7 +67,13 @@ export async function POST(
       return NextResponse.json({ action: 'left' });
     }
 
-    const { error: insertError } = await joinOrg(supabase, { side: 'league', orgId: id }, user.id);
+    // DEVLOG 0.1 quirk closed (Sep 2026): a column-only owner joining
+    // their own league gets an OWNER row, not a member row — the column
+    // and the membership table must never disagree about who owns.
+    const { error: insertError } =
+      league.owner_profile_id === user.id
+        ? await insertOwnerRow(supabase, { side: 'league', orgId: id }, user.id)
+        : await joinOrg(supabase, { side: 'league', orgId: id }, user.id);
     if (insertError) {
       console.error('[LEAGUE MEMBERS] join error:', insertError);
       return NextResponse.json({ error: 'Failed to join league' }, { status: 500 });

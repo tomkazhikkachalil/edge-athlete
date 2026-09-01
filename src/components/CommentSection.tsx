@@ -5,6 +5,7 @@ import Image from 'next/image';
 import { Comment } from '@/lib/supabase';
 import { useAuth } from '@/lib/auth';
 import { formatDisplayName, getInitials } from '@/lib/formatters';
+import ConfirmModal from '@/components/ConfirmModal';
 import EmojiPickerButton from '@/components/EmojiPickerButton';
 import GifPickerModal from '@/components/GifPickerModal';
 import {
@@ -330,9 +331,9 @@ export default function CommentSection({
     }
   };
 
+  // C3 (Sep 2026): ConfirmModal, not the legacy native confirm.
+  const [confirmDeleteCommentId, setConfirmDeleteCommentId] = useState<string | null>(null);
   const handleDeleteComment = async (commentId: string) => {
-    if (!confirm('Delete this comment?')) return;
-
     try {
       const response = await fetch(`/api/comments?commentId=${commentId}`, {
         method: 'DELETE'
@@ -551,7 +552,7 @@ export default function CommentSection({
                 {(user?.id === comment.profile_id ||
                   managedProfiles.some(mp => mp.id === comment.profile_id)) && (
                   <button
-                    onClick={() => handleDeleteComment(comment.id)}
+                    onClick={() => setConfirmDeleteCommentId(comment.id)}
                     className="text-xs text-red-600 dark:text-red-400 hover:text-red-700 min-w-[44px] min-h-[44px] -m-3 inline-flex items-center justify-center"
                     title="Delete comment"
                   >
@@ -1071,6 +1072,19 @@ export default function CommentSection({
           )}
         </div>
       )}
+
+      <ConfirmModal
+        isOpen={confirmDeleteCommentId !== null}
+        title="Delete this comment?"
+        message="Its replies are removed with it. This can't be undone."
+        confirmText="Delete"
+        cancelText="Keep it"
+        onConfirm={() => {
+          if (confirmDeleteCommentId) void handleDeleteComment(confirmDeleteCommentId);
+          setConfirmDeleteCommentId(null);
+        }}
+        onCancel={() => setConfirmDeleteCommentId(null)}
+      />
     </div>
   );
 }

@@ -107,6 +107,10 @@ export default function EventDetailModal({
     if (isOpen && eventId) setEvent(null);
   }
 
+  // B4 (Sep 2026): restore-in-flight — declared with the hooks, above the
+  // early return (rules-of-hooks).
+  const [restoring, setRestoring] = useState(false);
+
   // Loader defined inside the effect and published on a ref: respond() and
   // the reminder handler both `await load()` before continuing, so a
   // fire-and-forget reloadKey bump would let them run against stale state.
@@ -142,6 +146,32 @@ export default function EventDetailModal({
   const isOrganizer = !!event && !!user && event.organizer_id === user.id;
   const myGuestRow = event?.guests.find(g => g.profile_id === user?.id) ?? null;
   const cancelled = event?.status === 'cancelled';
+
+  // B4 (Sep 2026): a cancelled event needs a way back — restore is the
+  // safe direction, so no confirm. THIS occurrence only (the API's rule).
+  const restoreEvent = async () => {
+    if (!event || restoring) return;
+    setRestoring(true);
+    try {
+      const res = await fetch(`/api/calendar/events/${event.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ restore: true }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        showError('Could not restore', data.error || 'Please try again.');
+        return;
+      }
+      await loadRef.current();
+      onChanged();
+      showSuccess('Restored', 'The event is back on the calendar.');
+    } catch {
+      showError('Could not restore', 'Please try again.');
+    } finally {
+      setRestoring(false);
+    }
+  };
 
   const respond = async (status: MyStatus, scope: 'this' | 'series') => {
     if (!event || responding) return;
@@ -308,8 +338,18 @@ export default function EventDetailModal({
         ) : (
           <div className="p-6 space-y-4">
             {cancelled && (
-              <div role="alert" className="bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-300 px-4 py-3 rounded-md text-sm font-medium">
-                This event was cancelled by the organizer.
+              <div role="alert" className="flex flex-wrap items-center gap-2 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-300 px-4 py-3 rounded-md text-sm font-medium">
+                <span className="flex-1 min-w-40">This event was cancelled by the organizer.</span>
+                {isOrganizer && (
+                  <button
+                    type="button"
+                    onClick={() => void restoreEvent()}
+                    disabled={restoring}
+                    className="min-h-[36px] px-3 rounded-lg border border-red-300 dark:border-red-700 text-sm font-semibold hover:bg-red-100 dark:hover:bg-red-900/40 transition-colors disabled:opacity-50"
+                  >
+                    {restoring ? 'Restoring…' : 'Restore event'}
+                  </button>
+                )}
               </div>
             )}
 

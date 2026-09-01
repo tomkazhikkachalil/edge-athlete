@@ -149,8 +149,10 @@ export default function GroupSettingsModal({ conversation, currentUserId, onClos
     }
   };
 
+  // C3 (Sep 2026): ConfirmModal like remove-member, not the native confirm.
+  const [leaveConfirmOpen, setLeaveConfirmOpen] = useState(false);
   const handleLeave = async () => {
-    if (!confirm('Leave this group conversation?')) return;
+    setLeaveConfirmOpen(false);
     setSaving(true);
     try {
       const res = await fetch(`/api/messages/${conversation.id}/participants/${currentUserId}`, {
@@ -328,7 +330,7 @@ export default function GroupSettingsModal({ conversation, currentUserId, onClos
           {/* Leave Group */}
           <div className="pt-2 border-t border-border">
             <button
-              onClick={handleLeave}
+              onClick={() => setLeaveConfirmOpen(true)}
               disabled={saving}
               className="w-full flex items-center justify-center gap-2 py-2.5 text-sm font-semibold text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 rounded-lg transition-colors disabled:opacity-40"
             >
@@ -349,6 +351,15 @@ export default function GroupSettingsModal({ conversation, currentUserId, onClos
           setRemoveTarget(null);
         }}
         onCancel={() => setRemoveTarget(null)}
+      />
+
+      <ConfirmModal
+        isOpen={leaveConfirmOpen}
+        title="Leave this group?"
+        message="You will stop receiving its messages. Someone can re-add you later."
+        confirmText="Leave"
+        onConfirm={() => void handleLeave()}
+        onCancel={() => setLeaveConfirmOpen(false)}
       />
     </div>
   );

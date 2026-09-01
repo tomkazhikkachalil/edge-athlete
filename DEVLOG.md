@@ -1,5 +1,28 @@
 # Development Log
 
+## September 1, 2026 — Bug round PR-B: confirms, undo, un-cancel + the owner-join quirk (#495, zero DDL)
+
+The second half of the audit backlog:
+
+- **B4 un-cancel**: a cancelled event now accepts exactly one edit — the
+  organizer's `{restore:true}` PATCH (status active, cancelled_at null,
+  THIS occurrence only; a whole-series restore would also have to reverse
+  the generation stop and waits for a real ask). The cancelled banner
+  grew a Restore button (organizer-only; restoring is the safe direction,
+  so no confirm).
+- **C1**: single notification delete confirms (clear-all always did).
+- **C2**: suggestion dismissal gained an undo — an `undismiss` API action
+  plus an 8-second inline Undo strip that restores the row optimistically
+  (the component stays alive for the strip even when the list empties).
+- **C3**: the last four native `confirm()`s are gone — comment delete,
+  group leave, conversation leave, block — all on ConfirmModal, the
+  ChatWindow pair portaled per the messages stacking rule (the
+  escalation-confirm precedent in the same file).
+- **DEVLOG 0.1 quirk closed**: a column-only owner POSTing the join
+  toggle now mints an OWNER membership row via insertOwnerRow, not a
+  member row — the column and the table never disagree about who owns
+  (both twins).
+
 ## September 1, 2026 — Bug round PR-A: the data-loss backlog (#494, zero DDL)
 
 Tom asked for the bugs; a verification pass over the Aug 24
