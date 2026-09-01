@@ -284,6 +284,10 @@ export const PageBlockSchema = z.discriminatedUnion('type', [
     type: z.literal('image'),
     path: z.string().regex(ORG_MEDIA_PATH_RE, 'Not a site asset path'),
     alt: boundedTrimmed(200),
+    // Intrinsic dimensions, measured client-side at upload (kills the
+    // CLS placeholder tradeoff). Optional — pre-existing blocks lack them.
+    width: z.number().int().positive().max(10000).optional(),
+    height: z.number().int().positive().max(10000).optional(),
   }),
   z.object({
     type: z.literal('link-list'),

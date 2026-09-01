@@ -402,6 +402,7 @@ export interface SitemapSiteEntry {
   lastModified: string | null;
   moduleKeys: string[]; // enabled subpage modules (standings/schedule/teams)
   pageSlugs: string[]; // public custom pages
+  teamIds: string[]; // active teams, only when the teams module is enabled
 }
 
 /** Every published site with its crawlable sub-URLs — the repo's first
@@ -413,14 +414,16 @@ export async function fetchPublishedSitesForSitemap(
 ): Promise<SitemapSiteEntry[]> {
   const { data: sites, error } = await admin
     .from('org_sites')
-    .select('id, subdomain, updated_at')
+    .select('id, subdomain, updated_at, league_id, club_id')
     .not('published_at', 'is', null)
     .order('created_at', { ascending: true })
     .limit(500);
   if (degraded('sitemap sites', error) || !sites || sites.length === 0) return [];
 
   const siteIds = sites.map(s => s.id as string);
-  const [modulesRes, pagesRes] = await Promise.all([
+  const leagueIds = sites.map(s => s.league_id as string | null).filter(Boolean) as string[];
+  const clubIds = sites.map(s => s.club_id as string | null).filter(Boolean) as string[];
+  const [modulesRes, pagesRes, leagueTeamsRes, clubTeamsRes] = await Promise.all([
     admin
       .from('org_site_modules')
       .select('site_id, module_key')
@@ -434,6 +437,23 @@ export async function fetchPublishedSitesForSitemap(
       .in('site_id', siteIds)
       .eq('visibility', 'public')
       .limit(2000),
+    // Teams key by ORG, not site — two by-side batches, bounded.
+    leagueIds.length
+      ? admin
+          .from('teams')
+          .select('id, league_id')
+          .in('league_id', leagueIds)
+          .eq('status', 'active')
+          .limit(5000)
+      : Promise.resolve({ data: [] as { id: string; league_id: string }[] }),
+    clubIds.length
+      ? admin
+          .from('teams')
+          .select('id, club_id')
+          .in('club_id', clubIds)
+          .eq('status', 'active')
+          .limit(5000)
+      : Promise.resolve({ data: [] as { id: string; club_id: string }[] }),
   ]);
   const modulesBySite = new Map<string, string[]>();
   for (const m of modulesRes.data ?? []) {
@@ -446,10 +466,28 @@ export async function fetchPublishedSitesForSitemap(
     pagesBySite.get(p.site_id)!.push(p.slug as string);
   }
 
-  return sites.map(s => ({
-    subdomain: s.subdomain as string,
-    lastModified: (s.updated_at ?? null) as string | null,
-    moduleKeys: modulesBySite.get(s.id) ?? [],
-    pageSlugs: pagesBySite.get(s.id) ?? [],
-  }));
+  const teamsByOrg = new Map<string, string[]>();
+  for (const t of leagueTeamsRes.data ?? []) {
+    const key = `league:${t.league_id}`;
+    if (!teamsByOrg.has(key)) teamsByOrg.set(key, []);
+    teamsByOrg.get(key)!.push(t.id as string);
+  }
+  for (const t of clubTeamsRes.data ?? []) {
+    const key = `club:${(t as { club_id: string }).club_id}`;
+    if (!teamsByOrg.has(key)) teamsByOrg.set(key, []);
+    teamsByOrg.get(key)!.push(t.id as string);
+  }
+
+  return sites.map(s => {
+    const moduleKeys = modulesBySite.get(s.id) ?? [];
+    const orgKey = s.league_id ? `league:${s.league_id}` : `club:${s.club_id}`;
+    return {
+      subdomain: s.subdomain as string,
+      lastModified: (s.updated_at ?? null) as string | null,
+      moduleKeys,
+      pageSlugs: pagesBySite.get(s.id) ?? [],
+      // Team pages 404 when the module is off — gate like requireSiteModule.
+      teamIds: moduleKeys.includes('teams') ? (teamsByOrg.get(orgKey) ?? []) : [],
+    };
+  });
 }

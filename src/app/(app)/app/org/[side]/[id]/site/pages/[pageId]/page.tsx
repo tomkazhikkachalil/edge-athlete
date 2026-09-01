@@ -137,6 +137,21 @@ export default function OrgSitePageEditor() {
       return;
     }
     try {
+      // Measure intrinsic dimensions client-side (the server never decodes
+      // the image) — they ride the block and kill the CLS placeholder.
+      const dims = await new Promise<{ width?: number; height?: number }>(resolve => {
+        const url = URL.createObjectURL(accepted[0]);
+        const probe = new window.Image();
+        probe.onload = () => {
+          URL.revokeObjectURL(url);
+          resolve({ width: probe.naturalWidth || undefined, height: probe.naturalHeight || undefined });
+        };
+        probe.onerror = () => {
+          URL.revokeObjectURL(url);
+          resolve({});
+        };
+        probe.src = url;
+      });
       const formData = new FormData();
       formData.append('image', accepted[0]);
       const res = await fetch(`/api/${plural}/${orgId}/site/assets`, {
@@ -148,7 +163,7 @@ export default function OrgSitePageEditor() {
         showError('Website', body.error || 'Failed to upload the image');
         return;
       }
-      patchBlock(index, { path: body.path } as Partial<PageBlock>);
+      patchBlock(index, { path: body.path, ...dims } as Partial<PageBlock>);
     } catch {
       showError('Website', 'Upload failed — please try again');
     }

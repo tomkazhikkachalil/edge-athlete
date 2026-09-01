@@ -115,8 +115,11 @@ this sweep covers the rest by reading.
   inert dark tokens). A split entry is the fix; measure before bothering.
 - **Proxied images are `unoptimized` by rule** (`/api/media/*` is not
   optimizer-eligible) — logo + page images skip webp/avif and resizing.
-- **Page-image CLS** — block images store no intrinsic dimensions
-  (`h-auto w-full` governs); storing width/height at upload would fix it.
+- ~~**Page-image CLS** — block images store no intrinsic dimensions
+  (`h-auto w-full` governs); storing width/height at upload would fix it.~~
+  — **DONE (Sep 2026, cleanup round)**: the block editor measures
+  naturalWidth/Height client-side at upload; the image block schema gained
+  optional width/height (additive) and PageBlocks reserves the real aspect.
 
 Ranked, with the source finding. Fix deliberately; each is its own change.
 
