@@ -298,6 +298,8 @@ export const RESERVED_PAGE_SLUGS: ReadonlySet<string> = new Set([
   'apple-icon',
   'robots',
   'sitemap',
+  // Cleanup round: the draft-preview route family.
+  'preview',
 ]);
 export const PAGE_SLUG_MAX = 80;
 export const PAGES_PER_SITE_MAX = 20;

@@ -1303,8 +1303,31 @@ export default function OrgConsolePage() {
                 )}
               </p>
               <div className="flex flex-wrap gap-2">
-                {/* The public route 404s for drafts (published-only read) —
-                    no dead preview link; a real draft preview is R3's. */}
+                {/* Drafts get a signed short-lived preview link (the public
+                    route stays a 404 until publish). */}
+                {!site.published_at && (
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      try {
+                        const res = await fetch(`/api/${plural}/${orgId}/site/preview`, {
+                          method: 'POST',
+                        });
+                        const body = await res.json();
+                        if (!res.ok) {
+                          showError('Website', body.error || 'Failed to create a preview link');
+                          return;
+                        }
+                        window.open(body.url, '_blank', 'noopener');
+                      } catch {
+                        showError('Website', 'Failed to create a preview link');
+                      }
+                    }}
+                    className="px-3 py-1.5 text-sm rounded-md border border-border-strong text-secondary hover:bg-surface-sunken transition-colors"
+                  >
+                    Preview draft
+                  </button>
+                )}
                 {site.published_at && (
                   <a
                     href={`/org/${site.subdomain}`}
