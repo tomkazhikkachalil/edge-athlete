@@ -134,9 +134,10 @@ test('org site: create → publish → anon shell; unpublish → 404; member 403
       // The draft probe cached a 404 for this slug; publish revalidated
       // the tag, and SWR may serve the stale 404 once — settle to 200.
       expect(await settle(page.request, `/org/${subdomain}`, 200, 12)).toBe(200);
-      const htmlRes = await page.request.get(`/org/${subdomain}`);
-      expect(htmlRes.status()).toBe(200);
-      const html = await htmlRes.text();
+      // Multi-POP convergence (measured on prod): one edge's 200 doesn't
+      // guarantee the next request's POP has revalidated — settle on
+      // CONTENT before asserting on the body.
+      const html = await settleBody(page.request, `/org/${subdomain}`, name, true, 12);
       expect(html).toContain(name);
       expect(html).toContain('Standings');
       expect(html).toContain('Powered by');
