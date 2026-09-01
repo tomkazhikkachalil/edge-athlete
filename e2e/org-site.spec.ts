@@ -644,3 +644,188 @@ test('org site branding: hero, theme accent, sponsors', async ({ browser }) => {
     await admin.from('leagues').delete().eq('id', leagueId);
   }
 });
+
+// Phase 3 R3: custom pages. Create → slug minted against the denylist,
+// block body (heading/paragraph/image/link-list) → publish → the
+// anonymous document renders every block, the nav gains the page, the
+// asset streams anonymously; drafts and reserved slugs never surface.
+test('org site pages: create, blocks, publish; reserved 400; draft 404', async ({ browser }) => {
+  test.setTimeout(240_000);
+  const owner = loadQaUser('user-b.json');
+  const admin = adminClient();
+
+  const probe = await admin.from('org_site_pages').select('id').limit(1);
+  test.skip(!!probe.error, `org_site_pages missing — run migration 155 (${probe.error?.message})`);
+
+  const stamp = Date.now();
+  const name = `QA Pages League ${stamp}`;
+  const { data: league } = await admin
+    .from('leagues')
+    .insert({ name, sport_key: 'ice_hockey', owner_profile_id: owner.id })
+    .select()
+    .single();
+  const leagueId = league!.id as string;
+  let assetPath: string | null = null;
+
+  try {
+    await admin.from('memberships').insert([{ league_id: leagueId, profile_id: owner.id, role: 'owner' }]);
+
+    const ownerApi = await apiAs('state-b.json');
+    let pageId = '';
+    let siteId = '';
+    let subdomain = '';
+    try {
+      const created = await ownerApi.post(`/api/leagues/${leagueId}/site`);
+      expect(created.status(), await readErrorBody(created)).toBe(200);
+      const published = await ownerApi.patch(`/api/leagues/${leagueId}/site`, {
+        data: { action: 'publish' },
+      });
+      expect(published.status(), await readErrorBody(published)).toBe(200);
+      const { data: siteRow } = await admin
+        .from('org_sites')
+        .select('id, subdomain')
+        .eq('league_id', leagueId)
+        .single();
+      siteId = siteRow!.id as string;
+      subdomain = siteRow!.subdomain as string;
+
+      // Reserved slug → 400 (the module-shadow rule, enforced).
+      const reserved = await ownerApi.post(`/api/leagues/${leagueId}/site/pages`, {
+        data: { title: 'Nope', slug: 'teams' },
+      });
+      expect(reserved.status(), await readErrorBody(reserved)).toBe(400);
+
+      // Create from title → minted slug.
+      const pageRes = await ownerApi.post(`/api/leagues/${leagueId}/site/pages`, {
+        data: { title: 'About Us' },
+      });
+      expect(pageRes.status(), await readErrorBody(pageRes)).toBe(200);
+      const page = (await pageRes.json()).page;
+      pageId = page.id as string;
+      expect(page.slug).toBe('about-us');
+      expect(page.visibility).toBe('draft');
+
+      // Asset upload (multipart) → the bare stored path.
+      const fs = await import('fs');
+      const buffer = fs.readFileSync(path.join(__dirname, 'fixtures', 'photo.png'));
+      const assetRes = await ownerApi.post(`/api/leagues/${leagueId}/site/assets`, {
+        multipart: { image: { name: 'photo.png', mimeType: 'image/png', buffer } },
+      });
+      expect(assetRes.status(), await readErrorBody(assetRes)).toBe(200);
+      assetPath = (await assetRes.json()).path as string;
+      expect(assetPath).toMatch(new RegExp(`^org-media/${siteId}/[0-9a-f-]+\\.png$`));
+
+      // A foreign-site image path is refused at PATCH (the cross-site guard).
+      const foreign = await ownerApi.patch(`/api/leagues/${leagueId}/site/pages/${pageId}`, {
+        data: {
+          body: [
+            {
+              type: 'image',
+              path: 'org-media/00000000-0000-4000-8000-000000000000/stolen.png',
+              alt: 'x',
+            },
+          ],
+        },
+      });
+      expect(foreign.status(), await readErrorBody(foreign)).toBe(400);
+
+      // The real body + publish.
+      const patched = await ownerApi.patch(`/api/leagues/${leagueId}/site/pages/${pageId}`, {
+        data: {
+          body: [
+            { type: 'heading', text: `Our story ${stamp}` },
+            { type: 'paragraph', text: 'Founded on a frozen pond.' },
+            { type: 'image', path: assetPath, alt: 'The home rink' },
+            {
+              type: 'link-list',
+              links: [{ label: `Registration ${stamp}`, url: 'https://example.com/register' }],
+            },
+          ],
+          visibility: 'public',
+        },
+      });
+      expect(patched.status(), await readErrorBody(patched)).toBe(200);
+
+      // A second page stays draft.
+      const draftRes = await ownerApi.post(`/api/leagues/${leagueId}/site/pages`, {
+        data: { title: 'Secret Plans' },
+      });
+      expect(draftRes.status(), await readErrorBody(draftRes)).toBe(200);
+    } finally {
+      await ownerApi.dispose();
+    }
+
+    const ctxAnon = await browser.newContext();
+    try {
+      const page = await ctxAnon.newPage();
+      const base = `/org/${subdomain}`;
+      expect(await settle(page.request, `${base}/about-us`, 200)).toBe(200);
+      const html = await (await page.request.get(`${base}/about-us`)).text();
+      expect(html).toContain(`Our story ${stamp}`);
+      expect(html).toContain('Founded on a frozen pond.');
+      expect(html).toContain(`Registration ${stamp}`);
+      expect(html).toContain('rel="noopener nofollow"');
+      expect(html).toContain(`/api/media/org-media/${siteId}/`);
+      expect(html).toContain('About Us — '); // metadata title
+
+      // The asset streams anonymously; traversal probes bounce.
+      const file = assetPath!.split('/').pop()!;
+      const assetGet = await page.request.get(`/api/media/org-media/${siteId}/${file}`);
+      expect(assetGet.status()).toBe(200);
+      expect(assetGet.headers()['content-type'] ?? '').toContain('image/');
+      expect(
+        (await page.request.get(`/api/media/org-media/${siteId}/UPPER.PNG`)).status()
+      ).toBe(400);
+      expect(
+        (await page.request.get(`/api/media/org-media/${siteId}/..%2fsecret.png`)).status()
+      ).toBeGreaterThanOrEqual(400);
+
+      // Nav on home gains the page; the draft page never surfaces.
+      expect(await settle(page.request, base, 200)).toBe(200);
+      let homeHtml = '';
+      for (let i = 0; i < 6; i++) {
+        homeHtml = await (await page.request.get(base)).text();
+        if (homeHtml.includes('About Us')) break;
+        await new Promise(r => setTimeout(r, 2500));
+      }
+      expect(homeHtml).toContain('About Us');
+      expect(homeHtml).not.toContain('Secret Plans');
+      expect((await page.request.get(`${base}/secret-plans`)).status()).toBe(404);
+      // Module subpages still beat the dynamic segment.
+      expect((await page.request.get(`${base}/teams`)).status()).toBe(200);
+
+      // 375px: the page route stays inside the viewport.
+      await page.setViewportSize({ width: 375, height: 812 });
+      await page.goto(`${base}/about-us`);
+      await expect(page.getByText(`Our story ${stamp}`)).toBeVisible({ timeout: 15_000 });
+      expect(
+        await page.evaluate(() => document.documentElement.scrollWidth),
+        'page: no horizontal overflow at 375px'
+      ).toBeLessThanOrEqual(375);
+    } finally {
+      await ctxAnon.close();
+    }
+
+    // The console editor subpage at 375px: fields visible, no h-scroll.
+    const ctxOwner = await browser.newContext({ storageState: 'e2e/.auth/state-b.json' });
+    try {
+      const page = await ctxOwner.newPage();
+      await page.setViewportSize({ width: 375, height: 812 });
+      await page.goto(`/app/org/league/${leagueId}/site/pages/${pageId}`);
+      await expect(page.getByLabel('Page title')).toBeVisible({ timeout: 20_000 });
+      await expect(page.getByRole('button', { name: 'Save page' })).toBeVisible();
+      await expect(page.getByLabel('Heading text for block 1')).toBeVisible();
+      expect(
+        await page.evaluate(() => document.documentElement.scrollWidth),
+        'editor: no horizontal overflow at 375px'
+      ).toBeLessThanOrEqual(375);
+    } finally {
+      await ctxOwner.close();
+    }
+  } finally {
+    if (assetPath) {
+      await admin.storage.from('uploads').remove([assetPath]).catch(() => {});
+    }
+    await admin.from('leagues').delete().eq('id', leagueId);
+  }
+});
