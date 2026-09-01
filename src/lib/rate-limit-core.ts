@@ -99,6 +99,8 @@ export const RATE_LIMITS = {
   // Competition CRUD (phase 2) — same bursty-setup reasoning: entering 30
   // teams and scheduling a weekend's slate happens in one sitting.
   'org-competitions': { max: 120, windowSeconds: 3600, keyBy: 'user' },
+  // Site create/publish (phase 3) — rare, deliberate actions.
+  'org-site': { max: 30, windowSeconds: 3600, keyBy: 'user' },
   // Org claim (phase 1 R2) — the invite-peek/claim mirror: peeks IP-keyed
   // to keep token guessing costly; claims user-keyed and rare.
   // Roster paste-import (phase 1 R3): each request mints up to 50 stubs
