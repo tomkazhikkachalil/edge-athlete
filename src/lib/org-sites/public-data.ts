@@ -7,17 +7,19 @@
 // (missing table/column) is an empty module, never an error.
 //
 // The masking invariant: names of PEOPLE pass through publicDisplayName
-// (full name only for claimed public profiles, else "First L."), and email
-// is selected ONLY to feed it — no reader's return type carries email,
-// handle, or avatar. NO media on the public site until phase 4's
-// photo-consent flag exists.
+// (full name only for claimed, unsupervised public profiles, else
+// "First L."), and email/supervision_state are selected ONLY to feed it —
+// no reader's return type carries email, handle, or avatar. Media reaches
+// the public site ONLY through the phase-4 gallery gate (fetchPublicGallery
+// — org-published + every tag photo-consented; supervised athletes are
+// never labeled).
 
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { OrgSide } from '@/lib/orgs/authz';
 import { publicDisplayName, type MaskableProfile } from '@/lib/orgs/public-names';
 import { listAffiliations } from '@/lib/affiliations/server';
 import { type OrgEvent } from '@/lib/calendar/org-events-server';
-import { isMissingTableError } from './validate';
+import { isMissingTableError, MODULE_SUBPAGE_KEYS } from './validate';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- matches the authz.ts Admin alias; schema-agnostic helper
 type Admin = SupabaseClient<any, 'public', any>;
@@ -430,7 +432,7 @@ export async function fetchPublishedSitesForSitemap(
       .select('site_id, module_key')
       .in('site_id', siteIds)
       .eq('enabled', true)
-      .in('module_key', ['news', 'standings', 'schedule', 'teams'])
+      .in('module_key', [...MODULE_SUBPAGE_KEYS])
       .limit(1500),
     admin
       .from('org_site_pages')
@@ -555,6 +557,85 @@ export async function fetchPublicNewsList(
     title: n.title as string,
     publishedAt: n.published_at as string,
     excerpt: firstParagraph(n.body),
+  }));
+}
+
+// ── Gallery (phase 4 R5 — the consent-gated contest media) ──────────────────
+// The bar: org-published (158) AND every actively tagged athlete cleared
+// by photo_consent (159) — evaluated by the shared gallery gate, which
+// the public streamer re-runs per request (a stale ISR document can
+// never out-serve it). Names of tagged athletes pass through the masking
+// rule, and SUPERVISED athletes get NO label at all — a consented photo
+// may appear, the identification of a minor never does.
+
+export interface PublicGalleryItem {
+  id: string;
+  url: string; // the tokenless public streamer, gate re-run per request
+  mediaType: 'image' | 'video';
+  caption: string | null;
+  date: string | null; // contest date, else upload date
+  competitionName: string;
+  tagLabels: string[]; // masked; supervised athletes omitted entirely
+}
+
+export async function fetchPublicGallery(
+  admin: Admin,
+  side: OrgSide,
+  orgId: string
+): Promise<PublicGalleryItem[]> {
+  const col = orgColumn(side);
+  const { data: comps, error: compsError } = await admin
+    .from('competitions')
+    .select('id')
+    .eq(col, orgId)
+    .eq('visibility', 'public')
+    .in('status', ['active', 'completed'])
+    .limit(50);
+  if (degraded('gallery competitions', compsError) || !comps || comps.length === 0) return [];
+  const { data: contests } = await admin
+    .from('contests')
+    .select('id')
+    .in('competition_id', comps.map(c => c.id as string))
+    .limit(300);
+  const contestIds = (contests ?? []).map(c => c.id as string);
+  if (contestIds.length === 0) return [];
+  const { data: mediaRows, error: mediaError } = await admin
+    .from('contest_media')
+    .select('id')
+    .in('contest_id', contestIds)
+    .eq('published', true)
+    .order('created_at', { ascending: false })
+    .limit(80);
+  if (degraded('gallery media', mediaError) || !mediaRows || mediaRows.length === 0) return [];
+
+  const { evaluatePublicContestMedia } = await import('@/lib/orgs/gallery-gate');
+  const eligible = await evaluatePublicContestMedia(admin, mediaRows.map(m => m.id as string));
+  if (eligible.length === 0) return [];
+
+  const taggedIds = [...new Set(eligible.flatMap(m => m.taggedProfileIds))];
+  const { data: profileRows } = taggedIds.length
+    ? await admin
+        .from('profiles')
+        .select('id, first_name, last_name, full_name, visibility, email, supervision_state')
+        .in('id', taggedIds)
+    : { data: [] };
+  const labelById = new Map<string, string | null>(
+    (profileRows ?? []).map(p => [
+      p.id as string,
+      p.supervision_state === 'supervised' ? null : publicDisplayName(p as MaskableProfile),
+    ])
+  );
+
+  return eligible.map(m => ({
+    id: m.id,
+    url: `/api/media/contest-media/${m.id}`,
+    mediaType: m.mediaType,
+    caption: m.caption,
+    date: m.contestDate ?? m.createdAt,
+    competitionName: m.competitionName,
+    tagLabels: m.taggedProfileIds
+      .map(profileId => labelById.get(profileId) ?? null)
+      .filter((v): v is string => !!v),
   }));
 }
 

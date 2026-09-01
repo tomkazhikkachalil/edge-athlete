@@ -6,6 +6,7 @@ import { fetchOrgEvents, type OrgEvent } from '@/lib/calendar/org-events-server'
 import { getPublicSiteBySlug, type PublicSite } from './server';
 import {
   fetchPublicAffiliations,
+  fetchPublicGallery,
   fetchPublicNewsList,
   fetchPublicNewsPost,
   fetchPublicPage,
@@ -16,6 +17,7 @@ import {
   fetchPublicVenues,
   fetchPublishedSitesForSitemap,
   type PublicAffiliation,
+  type PublicGalleryItem,
   type PublicNewsItem,
   type PublicNewsPost,
   type PublicPageLink,
@@ -119,6 +121,17 @@ export const getCachedSitemapSites = (): Promise<SitemapSiteEntry[]> =>
     ['org-sitemap'],
     { tags: ['org-sitemap'], revalidate: 3600 }
   )();
+
+// Phase 4 R5: the consent-gated gallery. side/orgId are 1:1 with slug —
+// safe in the closure (the keyParts rule).
+export const getCachedGallery = (
+  slug: string,
+  side: OrgSide,
+  orgId: string
+): Promise<PublicGalleryItem[]> =>
+  perSlug(['org-site-gallery', slug], slug, () =>
+    fetchPublicGallery(getSupabaseAdmin(), side, orgId)
+  );
 
 export const getCachedNewsList = (slug: string, siteId: string): Promise<PublicNewsItem[]> =>
   perSlug(['org-site-news', slug], slug, () =>

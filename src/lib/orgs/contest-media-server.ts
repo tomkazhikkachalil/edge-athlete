@@ -27,6 +27,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { isMissingTableError } from '@/lib/competitions/validate';
 import { signMediaToken } from '@/lib/media/token';
 import { notifyGuardians, notifyUser, profileFirstName } from '@/lib/guardian-notify';
+import { revalidateOrgSiteForCompetition } from '@/lib/org-sites/revalidate';
 import type { CompetitionScope } from './competition-server';
 import {
   resolveCompetitionAccess,
@@ -314,6 +315,7 @@ export async function contestMediaDELETE(
     return NextResponse.json({ error: 'Failed to delete the media' }, { status: 500 });
   }
   await admin.storage.from('uploads').remove([media.storage_path as string]);
+  await revalidateOrgSiteForCompetition(admin, loaded.comp.id);
   return NextResponse.json({ success: true });
 }
 
@@ -352,6 +354,8 @@ export async function contestMediaPublishPATCH(
     console.error(`${TAG} publish error:`, error);
     return NextResponse.json({ error: 'Failed to update the media' }, { status: 500 });
   }
+  // R5: the public gallery reads the curation bit — purge the site.
+  await revalidateOrgSiteForCompetition(admin, loaded.comp.id);
   return NextResponse.json({ success: true, published });
 }
 
@@ -436,6 +440,7 @@ export async function contestMediaTagPOST(
       });
     }
   }
+  await revalidateOrgSiteForCompetition(admin, loaded.comp.id);
   return NextResponse.json({ tagged: landed.length, skipped: profileIds.length - landed.length });
 }
 
@@ -468,5 +473,6 @@ export async function contestMediaTagDELETE(
     console.error(`${TAG} untag error:`, error);
     return NextResponse.json({ error: 'Failed to untag' }, { status: 500 });
   }
+  await revalidateOrgSiteForCompetition(admin, loaded.comp.id);
   return NextResponse.json({ success: true });
 }

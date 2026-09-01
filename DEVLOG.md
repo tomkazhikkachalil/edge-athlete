@@ -1,5 +1,47 @@
 # Development Log
 
+## September 2, 2026 — Phase 4 R5: the public gallery + phase close (#480, mig 160)
+
+The last surface, and the phase's exit condition made public: a result
+and a photo now reach an athlete profile with no manual linking, and the
+photo can continue — consent permitting — onto the org's crawlable site.
+
+- **Mig 160** (handed to Tom; the 156 module recipe verbatim): the
+  org_site_modules CHECK widens to 'gallery'; existing sites seed the
+  row DISABLED. siteCreatePOST's pre-migration 23514 retry became a
+  LADDER (POST_155_MODULE_KEYS, newest-stripped-first) — site creation
+  survives any migration ordering from 155 onward.
+- **The gallery gate** (gallery-gate.ts, shared single rule): public
+  iff the org PUBLISHED the item (158's bit) AND every actively tagged
+  athlete is cleared by a photo_consent=true org-scope roster row with
+  an org touching the contest — the owner or a participating team's
+  owner: consent follows the membership through which the athlete
+  participates (a club kid's parent consents to the CLUB, and that
+  clears league galleries their team plays in). Fails closed in every
+  direction; untagged published items rely on the org's explicit
+  publish act (Tom's chosen bar).
+- **Defense in depth**: /org/{slug}/gallery is a normal ISR page
+  (contract intact, cached reader, sitemap + nav ride
+  MODULE_SUBPAGE_KEYS), but the bytes come from the tokenless
+  /api/media/contest-media/[mediaId] streamer which RE-RUNS the full
+  gate per request with a deliberately short shared cache — a consent
+  revoke stops the bytes immediately even while a stale document still
+  links them (the e2e proves exactly this: revoke → 404 on the next
+  fetch). Media publish/tag/untag/delete now purge the owning site.
+- **Minors on the public page**: a consented photo may appear; the
+  identification never does — supervised athletes get NO label at all,
+  other names ride the R4-hardened masking.
+- e2e (sixth spec, skips pre-158/159/160): site + gallery module →
+  consent → upload/tag (adult + supervised child) → publish → anonymous
+  page shows the item, labels the adult, never names the child →
+  streamer serves → revoke → streamer refuses; 375px pass.
+- **PHASE 4 CODE COMPLETE** (#476–#480, migs 157–160 — all four handed
+  to Tom, every code path degrade-first). Deferred, recorded: dispute
+  workflow UI (dispute_status is stored, never surfaced), team-page
+  media strips, per-athlete stat lines on leaderboard contests,
+  cross-source game dedup (self-posted vs official), org notification
+  on consent revoke. Exit sweep vs prod after the migrations run.
+
 ## September 2, 2026 — Phase 4 R4: photo consent + minor masking (#479, mig 159)
 
 The masterplan's non-negotiable guardian gate, plus a measured safety

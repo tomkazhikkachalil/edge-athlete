@@ -53,8 +53,14 @@ export const MODULE_KEYS = [
   'sponsors',
   'contact',
   'news', // phase 3.5 (mig 156 widens the DB CHECK; pre-156 code degrades)
+  'gallery', // phase 4 R5 (mig 160; consent-gated contest media)
 ] as const;
 export type ModuleKey = (typeof MODULE_KEYS)[number];
+
+/** Keys newer than the 155 base CHECK, NEWEST LAST — siteCreatePOST's
+ *  pre-migration 23514 retry strips them from the end until the insert
+ *  fits the database it's talking to. */
+export const POST_155_MODULE_KEYS = ['news', 'gallery'] as const;
 
 /** Every module except hero can be toggled from the console (hero is the
  *  site's identity — excluded at the SCHEMA level, not just the UI). */
@@ -68,6 +74,7 @@ export const TOGGLEABLE_MODULE_KEYS = [
   'sponsors',
   'contact',
   'news',
+  'gallery',
 ] as const;
 export type ToggleableModuleKey = (typeof TOGGLEABLE_MODULE_KEYS)[number];
 
@@ -271,10 +278,13 @@ export const MODULE_TITLES: Record<string, string> = {
   sponsors: 'Sponsors',
   contact: 'Contact',
   news: 'News',
+  gallery: 'Gallery',
 };
 
-/** The module keys that have their own subpage under /org/{slug}/. */
-export const MODULE_SUBPAGE_KEYS = ['news', 'standings', 'schedule', 'teams'] as const;
+/** The module keys that have their own subpage under /org/{slug}/.
+ *  An entry must land WITH its route (a nav link must never precede its
+ *  destination). */
+export const MODULE_SUBPAGE_KEYS = ['news', 'standings', 'schedule', 'teams', 'gallery'] as const;
 
 // ── Custom pages (phase 3 R3) ───────────────────────────────────────────────
 // org_site_pages.body is an ORDERED BLOCK ARRAY (the masterplan's own
