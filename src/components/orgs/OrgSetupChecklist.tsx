@@ -14,6 +14,9 @@ export interface OrgChecklistInput {
   hasTeams: boolean;
   managerCount: number;
   rosterAthleteCount: number;
+  /** Phase 5: optional so pre-registration callers/tests stay valid —
+   *  undefined omits the step entirely (flag-off consoles don't nag). */
+  hasOpenRegistration?: boolean;
 }
 
 interface Step {
@@ -55,6 +58,16 @@ export function buildOrgChecklistSteps(input: OrgChecklistInput): Step[] {
       label: 'Roster your first athlete',
       hint: 'Invite a member to the roster — the record edge stats attach to.',
     },
+    ...(input.hasOpenRegistration === undefined
+      ? []
+      : [
+          {
+            key: 'registration',
+            done: input.hasOpenRegistration,
+            label: 'Open registration',
+            hint: 'Let families register themselves — placements land on the roster.',
+          },
+        ]),
   ];
 }
 

@@ -77,6 +77,40 @@ interface CompetitionRow {
   entries: CompetitionEntryRow[];
 }
 
+interface RegistrarRow {
+  id: string;
+  profileId: string;
+  athlete: { displayName: string; birthday: string | null; supervised: boolean };
+  seasonId: string;
+  divisionName: string | null;
+  programName: string | null;
+  status: string;
+  answers: {
+    emergencyContact?: { name?: string; phone?: string };
+    medicalNotes?: string;
+  } | null;
+  eligibility: { warnings?: { kind: string; message: string }[] } | null;
+  createdAt: string;
+  releasedReason: string | null;
+}
+
+interface RegistrarWindow {
+  id: string;
+  season_id: string;
+  division_id: string | null;
+  program_id: string | null;
+  opens_at: string;
+  closes_at: string | null;
+}
+
+const REG_STATUS_LABELS: Record<string, string> = {
+  registered: 'Registered',
+  evaluating: 'Evaluating',
+  placed: 'Placed',
+  released: 'Released',
+  withdrawn: 'Withdrawn',
+};
+
 export default function OrgConsolePage() {
   const params = useParams();
   const side = params.side as string;
@@ -143,6 +177,13 @@ export default function OrgConsolePage() {
   const [externalComps, setExternalComps] = useState<
     { id: string; name: string; sportKey: string; status: string; owner: { name: string } }[]
   >([]);
+  // Phase 5 R4: the registrar screen — one season's registrations + the
+  // windows. 403/flag-off/pre-162 hide the section (regAvailable).
+  const [regSeasonId, setRegSeasonId] = useState('');
+  const [registrations, setRegistrations] = useState<RegistrarRow[]>([]);
+  const [regWindows, setRegWindows] = useState<RegistrarWindow[]>([]);
+  const [regAvailable, setRegAvailable] = useState(false);
+  const [regDetailId, setRegDetailId] = useState<string | null>(null);
   // Website (phase 3 R1): the org's public site row (null until created).
   const [site, setSite] = useState<{
     id: string;
@@ -292,6 +333,44 @@ export default function OrgConsolePage() {
   }, [validSide, side, plural, orgId, user?.id, reloadKey]);
 
   const refresh = () => setReloadKey(k => k + 1);
+
+  // Phase 5 R4: registrar data (flag-gated surface; the API re-gates).
+  const effectiveRegSeason = regSeasonId || (seasons[0]?.id ?? '');
+  useEffect(() => {
+    if (!FEATURE_FLAGS.FEATURE_ORG_REGISTRATION || !validSide || !user?.id || authorized !== true) {
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const [regRes, winRes] = await Promise.all([
+          fetch(
+            `/api/${plural}/${orgId}/registrations${effectiveRegSeason ? `?seasonId=${effectiveRegSeason}` : ''}`
+          ),
+          fetch(`/api/${plural}/${orgId}/registration-windows`),
+        ]);
+        if (cancelled) return;
+        if (regRes.ok) {
+          const body = await regRes.json();
+          if (!cancelled) {
+            setRegistrations((body.registrations ?? []) as RegistrarRow[]);
+            setRegAvailable(body.available !== false);
+          }
+        } else {
+          setRegAvailable(false);
+        }
+        if (winRes.ok) {
+          const body = await winRes.json();
+          if (!cancelled) setRegWindows((body.windows ?? []) as RegistrarWindow[]);
+        }
+      } catch {
+        if (!cancelled) setRegAvailable(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [validSide, plural, orgId, user?.id, authorized, reloadKey, effectiveRegSeason]);
 
   const act = async (
     path: string,
@@ -584,6 +663,9 @@ export default function OrgConsolePage() {
             hasTeams: teams.length > 0,
             managerCount: counts.managers,
             rosterAthleteCount: counts.rosterAthletes,
+            ...(FEATURE_FLAGS.FEATURE_ORG_REGISTRATION && regAvailable
+              ? { hasOpenRegistration: regWindows.length > 0 }
+              : {}),
           }}
         />
 
@@ -1291,6 +1373,217 @@ export default function OrgConsolePage() {
             </ul>
           )}
         </section>
+
+        {/* Registrations (phase 5 R4) — the registrar screen: the season's
+            registrations with lifecycle actions, and the window controls.
+            Hidden pre-162 / flag-off / for non-registrars (the API 403s). */}
+        {FEATURE_FLAGS.FEATURE_ORG_REGISTRATION && regAvailable && seasons.length > 0 && (
+          <section
+            aria-label="Registrations"
+            className="bg-surface rounded-lg shadow-sm border border-border p-4 sm:p-6"
+          >
+            <h2 className="text-lg font-semibold text-primary mb-1">Registrations</h2>
+            <p className="text-sm text-tertiary mb-3">
+              Families register; you evaluate, place onto teams, or release.
+            </p>
+            <div className="flex flex-wrap items-center gap-2 mb-4">
+              <select
+                value={effectiveRegSeason}
+                onChange={e => setRegSeasonId(e.target.value)}
+                aria-label="Registration season"
+                className="max-w-full px-3 py-2 border border-border-strong rounded-md outline-none text-sm"
+              >
+                {seasons.map(sn => (
+                  <option key={sn.id} value={sn.id}>{sn.label}</option>
+                ))}
+              </select>
+              {(() => {
+                const seasonWindow = regWindows.find(
+                  w => w.season_id === effectiveRegSeason && !w.division_id && !w.program_id
+                );
+                return seasonWindow ? (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      void act(
+                        `/api/${plural}/${orgId}/registration-windows?windowId=${seasonWindow.id}`,
+                        { method: 'DELETE' },
+                        'Registration closed',
+                        'Failed to close registration',
+                        'Registrations'
+                      )
+                    }
+                    className="px-3 py-2 text-sm min-h-[40px] rounded-lg border border-border-strong text-secondary hover:bg-surface-sunken transition-colors"
+                  >
+                    Close registration
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    disabled={!effectiveRegSeason}
+                    onClick={() =>
+                      void act(
+                        `/api/${plural}/${orgId}/registration-windows`,
+                        {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({
+                            seasonId: effectiveRegSeason,
+                            opensAt: new Date().toISOString(),
+                          }),
+                        },
+                        'Registration is open',
+                        'Failed to open registration',
+                        'Registrations'
+                      )
+                    }
+                    className="px-3 py-2 text-sm min-h-[40px] rounded-lg bg-brand text-white font-medium hover:bg-brand-hover transition-colors disabled:opacity-50"
+                  >
+                    Open registration
+                  </button>
+                );
+              })()}
+            </div>
+
+            {registrations.length === 0 ? (
+              <p className="text-sm text-tertiary">No registrations for this season yet.</p>
+            ) : (
+              <ul className="space-y-3">
+                {registrations.map(reg => (
+                  <li key={reg.id} className="border border-border rounded-lg p-3">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className="font-medium text-primary truncate">
+                          {reg.athlete.displayName}
+                          {reg.athlete.supervised && (
+                            <span className="ml-1.5 text-xs text-muted">(supervised)</span>
+                          )}
+                        </p>
+                        <p className="text-xs text-muted">
+                          {[
+                            reg.divisionName ?? reg.programName ?? 'No offering',
+                            REG_STATUS_LABELS[reg.status] ?? reg.status,
+                            reg.athlete.birthday ? null : 'DOB unknown',
+                          ].filter(Boolean).join(' · ')}
+                        </p>
+                        {(reg.eligibility?.warnings ?? []).map((w, i) => (
+                          <p key={i} className="text-xs text-amber-700 dark:text-amber-300">
+                            <i className="fas fa-circle-info mr-1" aria-hidden="true"></i>
+                            {w.message}
+                          </p>
+                        ))}
+                      </div>
+                      <div className="flex flex-wrap gap-2 min-w-0">
+                        <button
+                          type="button"
+                          onClick={() => setRegDetailId(prev => (prev === reg.id ? null : reg.id))}
+                          className="px-2 py-1 text-xs rounded-md border border-border-strong text-secondary hover:bg-surface-sunken transition-colors"
+                        >
+                          {regDetailId === reg.id ? 'Hide details' : 'Details'}
+                        </button>
+                        {reg.status === 'registered' && (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              void act(
+                                `/api/${plural}/${orgId}/registrations/${reg.id}`,
+                                {
+                                  method: 'PATCH',
+                                  headers: { 'Content-Type': 'application/json' },
+                                  body: JSON.stringify({ action: 'evaluate' }),
+                                },
+                                'Marked as evaluating',
+                                'Failed to update',
+                                'Registrations'
+                              )
+                            }
+                            className="px-2 py-1 text-xs rounded-md border border-border-strong text-secondary hover:bg-surface-sunken transition-colors"
+                          >
+                            Evaluate
+                          </button>
+                        )}
+                        {(reg.status === 'registered' || reg.status === 'evaluating') && (
+                          <select
+                            value=""
+                            onChange={e => {
+                              const teamId = e.target.value;
+                              if (!teamId) return;
+                              void act(
+                                `/api/${plural}/${orgId}/registrations/${reg.id}`,
+                                {
+                                  method: 'PATCH',
+                                  headers: { 'Content-Type': 'application/json' },
+                                  body: JSON.stringify({ action: 'place', teamId }),
+                                },
+                                'Placed on the team',
+                                'Failed to place',
+                                'Registrations'
+                              );
+                            }}
+                            aria-label={`Place ${reg.athlete.displayName} on a team`}
+                            className="max-w-full px-2 py-1 text-xs border border-border-strong rounded-md outline-none"
+                          >
+                            <option value="">Place on…</option>
+                            {activeTeams.map(t => (
+                              <option key={t.id} value={t.id}>{t.name}</option>
+                            ))}
+                          </select>
+                        )}
+                        {(reg.status === 'registered' ||
+                          reg.status === 'evaluating' ||
+                          reg.status === 'placed') && (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              void act(
+                                `/api/${plural}/${orgId}/registrations/${reg.id}`,
+                                {
+                                  method: 'PATCH',
+                                  headers: { 'Content-Type': 'application/json' },
+                                  body: JSON.stringify({ action: 'release' }),
+                                },
+                                'Released',
+                                'Failed to release',
+                                'Registrations'
+                              )
+                            }
+                            className="px-2 py-1 text-xs rounded-md border border-border-strong text-secondary hover:bg-surface-sunken transition-colors"
+                          >
+                            Release
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                    {regDetailId === reg.id && (
+                      <dl className="mt-2 border-t border-border-subtle pt-2 text-sm space-y-1">
+                        <div className="flex gap-2">
+                          <dt className="text-muted w-36 shrink-0">Emergency contact</dt>
+                          <dd className="text-secondary min-w-0">
+                            {reg.answers?.emergencyContact
+                              ? `${reg.answers.emergencyContact.name ?? ''} ${reg.answers.emergencyContact.phone ?? ''}`.trim() || '—'
+                              : '—'}
+                          </dd>
+                        </div>
+                        <div className="flex gap-2">
+                          <dt className="text-muted w-36 shrink-0">Medical notes</dt>
+                          <dd className="text-secondary min-w-0 whitespace-pre-wrap">
+                            {reg.answers?.medicalNotes || '—'}
+                          </dd>
+                        </div>
+                        {reg.releasedReason && (
+                          <div className="flex gap-2">
+                            <dt className="text-muted w-36 shrink-0">Release reason</dt>
+                            <dd className="text-secondary min-w-0">{reg.releasedReason}</dd>
+                          </div>
+                        )}
+                      </dl>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+        )}
 
         {/* External competitions (phase 4 R1, club side) — the doorway to
             player-stats entry for competitions the club's teams are

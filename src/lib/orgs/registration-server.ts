@@ -34,6 +34,10 @@ import { eligibilityWarnings, type EligibilityWarning } from './eligibility';
 import { getOrgAndRole, roleAllows, type OrgSide } from './authz';
 import { membershipEdges, type RosterEdge } from './members';
 import { canGrantPhotoConsent, setPhotoConsent } from './photo-consent';
+import {
+  notifyRegistrationDecision,
+  notifyRegistrationReceived,
+} from '@/lib/registration/notify';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- matches the authz.ts Admin alias; schema-agnostic helper
 type Admin = SupabaseClient<any, 'public', any>;
@@ -154,21 +158,22 @@ export async function registrationCreatePOST(
   const season = await loadSeasonForOrg(admin, side, orgId, input.seasonId);
   if (!season) return NextResponse.json({ error: 'Season not found' }, { status: 404 });
 
-  let division: { id: string; age_band: string | null; gender_stream: string | null } | null = null;
+  let division: { id: string; name?: string; age_band: string | null; gender_stream: string | null } | null = null;
+  let programName: string | null = null;
   if (input.divisionId) {
     const { data } = await admin
       .from('divisions')
-      .select('id, season_id, age_band, gender_stream')
+      .select('id, season_id, name, age_band, gender_stream')
       .eq('id', input.divisionId)
       .eq('season_id', input.seasonId)
       .maybeSingle();
     if (!data) return NextResponse.json({ error: 'Division not found' }, { status: 404 });
-    division = data as unknown as { id: string; age_band: string | null; gender_stream: string | null };
+    division = data as unknown as { id: string; name: string; age_band: string | null; gender_stream: string | null };
   }
   if (input.programId) {
     const { data, error } = await admin
       .from('programs')
-      .select('id, season_id')
+      .select('id, season_id, name')
       .eq('id', input.programId)
       .eq('season_id', input.seasonId)
       .maybeSingle();
@@ -176,6 +181,7 @@ export async function registrationCreatePOST(
       return NextResponse.json({ error: 'Program not found' }, { status: 404 });
     }
     if (!data) return NextResponse.json({ error: 'Program not found' }, { status: 404 });
+    programName = (data as { name?: string }).name ?? null;
   }
 
   // The window gate: no table, no window, or a closed window = CLOSED.
@@ -207,7 +213,7 @@ export async function registrationCreatePOST(
   // The supervised gate — unconditional, never flag-dependent.
   const { data: profile } = await admin
     .from('profiles')
-    .select('id, supervision_state, birthday, gender')
+    .select('id, supervision_state, birthday, gender, first_name, full_name, display_name')
     .eq('id', target)
     .maybeSingle();
   if (!profile) return NextResponse.json({ error: 'Athlete not found' }, { status: 404 });
@@ -348,6 +354,19 @@ export async function registrationCreatePOST(
     photoConsentRecorded =
       (await setPhotoConsent(admin, side, orgId, target, input.photoConsent, user.id)) === 'ok';
   }
+
+  // The received bell (best-effort; managers minus the submitter).
+  await notifyRegistrationReceived(admin, {
+    side,
+    orgId,
+    athleteName:
+      (profile.display_name as string | null) ||
+      (profile.full_name as string | null) ||
+      (profile.first_name as string | null) ||
+      'An athlete',
+    offeringName: division?.name ?? programName ?? 'the season',
+    actorId: user.id,
+  });
 
   return NextResponse.json({
     registration,
@@ -555,7 +574,7 @@ export async function registrationTransitionPATCH(
     }
     const { data: team } = await admin
       .from('teams')
-      .select('id, status')
+      .select('id, status, name, display_name')
       .eq('id', input.teamId)
       .eq(orgColumn(side), orgId)
       .maybeSingle();
@@ -581,6 +600,10 @@ export async function registrationTransitionPATCH(
     await admin.from('memberships').update({ status: 'placed' }).eq('id', membership.id);
     // Placed athletes appear on public team rosters — purge the site.
     await revalidateOrgSiteForOrg(admin, side, orgId);
+    await notifyDecision(admin, side, orgId, reg.profile_id as string, 'placed', {
+      teamName: ((team.display_name as string | null) || (team.name as string | null)) ?? null,
+      actorId: user.id,
+    });
     return NextResponse.json({ action: 'placed', teamId: input.teamId });
   }
 
@@ -606,7 +629,44 @@ export async function registrationTransitionPATCH(
     })
     .eq('id', registrationId);
   await revalidateOrgSiteForOrg(admin, side, orgId);
+  await notifyDecision(admin, side, orgId, reg.profile_id as string, 'released', {
+    teamName: null,
+    actorId: user.id,
+  });
   return NextResponse.json({ action: 'released' });
+}
+
+/** Load the two lookups the decision bell needs, then send — best-effort. */
+async function notifyDecision(
+  admin: Admin,
+  side: OrgSide,
+  orgId: string,
+  profileId: string,
+  decision: 'placed' | 'released',
+  extra: { teamName: string | null; actorId: string }
+): Promise<void> {
+  try {
+    const [{ data: org }, { data: prof }] = await Promise.all([
+      admin
+        .from(side === 'league' ? 'leagues' : 'clubs')
+        .select('name')
+        .eq('id', orgId)
+        .maybeSingle(),
+      admin.from('profiles').select('supervision_state').eq('id', profileId).maybeSingle(),
+    ]);
+    await notifyRegistrationDecision(admin, {
+      side,
+      orgId,
+      orgName: (org?.name as string | null) ?? 'The organization',
+      profileId,
+      supervised: prof?.supervision_state === 'supervised',
+      decision,
+      teamName: extra.teamName,
+      actorId: extra.actorId,
+    });
+  } catch (e) {
+    console.error(`${TAG} decision notify failed:`, e);
+  }
 }
 
 // ── Windows ─────────────────────────────────────────────────────────────────
