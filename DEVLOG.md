@@ -1,5 +1,48 @@
 # Development Log
 
+## September 1, 2026 — Consolidation PR-3: the phase-5 seams (#492, zero DDL)
+
+Three seams phase 5 left, closed before the next arc:
+
+- **The register-card spec settles** (the multi-POP lesson's third
+  application, and its second confirmed sighting — today's prod sweep
+  failed exactly here): after a window open/close purge, each goto can
+  land on a POP still holding the stale ISR document, and `?_cb=` never
+  busts a document cache. `settlePage` re-gotos until the needle('s
+  absence) lands, all three assertions converted.
+- **Per-offering windows in the console**: the Registrations section's
+  one-click season-wide button became an inline expander (never a modal
+  — 375px) with an offering select (season-wide | division | program),
+  an optional close date, and an optional capacity — the schema and API
+  (162's `WindowCreateSchema`, `applicableWindow`) supported all three
+  since phase 5 R2; this is the UI catching up. Open windows render as
+  per-offering rows with their own Close buttons (previously invisible
+  unless season-wide). Offering ids are season-scoped, so switching
+  season resets the picker; programs ride the offerings projection.
+- **The registrar CSV export**: `GET /api/{side}s/[id]/registrations/export`
+  (twins; `requireRegistrar`; the ICS attachment-download model). One
+  shared `loadRegistrarRows` aggregation now feeds both the JSON list
+  and the CSV so the two surfaces can never drift. Columns: athlete,
+  DOB, supervised, offering, status, submitted, emergency contact +
+  phone, eligibility flags. **MEDICAL NOTES ARE EXCLUDED BY DESIGN** —
+  a downloadable file spreads beyond the gated screen; the console list
+  remains the only medical-notes surface (stated in both route
+  headers, asserted in e2e).
+- **dispute_status**: decision recorded, not built — the column stays
+  column-room until a real dispute workflow is designed; it costs
+  nothing and drops cleanly if never used.
+
+e2e: registration.spec grows the export assertions (family 403,
+attachment headers, exact header row, contact present, medical notes
+absent) and a per-offering capacity-1 window whose second family is
+refused as full (the capacity check runs before collisions).
+
+Prod sweep note: today's flag-carrying deploy (39f67f3) went live and
+the round-close sweep ran vs prod — registration, wizard, phase5-exit,
+rollover, gallery and the org-site suite all passed; the two failures
+were this spec seam (now fixed) and a 429 rate-limit collision from
+sweep pressure on the news spec's site-create (not a product bug).
+
 ## September 1, 2026 — Consolidation PR-2: measured hardening fixes (#491, zero DDL)
 
 The verified-live half of the pre-PR-4 hardening list, all surgical:

@@ -381,12 +381,34 @@ export async function registrationCreatePOST(
 
 /** Everything the registrar screen needs. THE ONLY PLACE answers (incl.
  *  medical notes) are served — behind requireRegistrar in the routes. */
-export async function registrationsGET(
+interface RegistrarListRow {
+  id: string;
+  profileId: string;
+  athlete: { displayName: string; birthday: string | null; supervised: boolean };
+  seasonId: string;
+  divisionId: string | null;
+  divisionName: string | null;
+  programId: string | null;
+  programName: string | null;
+  status: string;
+  answers: Record<string, unknown> | null;
+  eligibility: { warnings?: { kind: string; message: string }[] } | null;
+  createdAt: string;
+  releasedAt: string | null;
+  releasedReason: string | null;
+}
+
+/** The registrar aggregation shared by the JSON list and the CSV export —
+ *  one query set, one row shape, so the two surfaces can never drift. */
+async function loadRegistrarRows(
   admin: Admin,
   side: OrgSide,
   orgId: string,
   seasonId: string | null
-): Promise<NextResponse> {
+): Promise<
+  | { ok: true; available: boolean; rows: RegistrarListRow[] }
+  | { ok: false; response: NextResponse }
+> {
   let query = admin
     .from('registrations')
     .select(
@@ -399,10 +421,13 @@ export async function registrationsGET(
   const { data: rows, error } = await query;
   if (error) {
     if (isMissingTableError(error.code)) {
-      return NextResponse.json({ registrations: [], available: false });
+      return { ok: true, available: false, rows: [] };
     }
     console.error(`${TAG} list error:`, error);
-    return NextResponse.json({ error: 'Failed to load registrations' }, { status: 500 });
+    return {
+      ok: false,
+      response: NextResponse.json({ error: 'Failed to load registrations' }, { status: 500 }),
+    };
   }
 
   const profileIds = [...new Set((rows ?? []).map(r => r.profile_id as string))];
@@ -459,30 +484,103 @@ export async function registrationsGET(
     )
   );
 
-  return NextResponse.json({
+  return {
+    ok: true,
     available: true,
-    registrations: (rows ?? []).map(r => ({
-      id: r.id,
-      profileId: r.profile_id,
+    rows: (rows ?? []).map(r => ({
+      id: r.id as string,
+      profileId: r.profile_id as string,
       athlete: names.get(r.profile_id as string) ?? {
         displayName: 'Athlete',
         birthday: null,
         supervised: false,
       },
-      seasonId: r.season_id,
-      divisionId: r.division_id,
+      seasonId: r.season_id as string,
+      divisionId: r.division_id as string | null,
       divisionName: r.division_id ? (divisionNames.get(r.division_id as string) ?? null) : null,
-      programId: r.program_id,
+      programId: r.program_id as string | null,
       programName: r.program_id ? (programNames.get(r.program_id as string) ?? null) : null,
       status: r.withdrawn_at
         ? 'withdrawn'
         : (statusByProfileSeason.get(`${r.profile_id}:${r.season_id}`) ?? 'released'),
-      answers: r.answers,
-      eligibility: r.eligibility,
-      createdAt: r.created_at,
-      releasedAt: r.released_at,
-      releasedReason: r.released_reason,
+      answers: r.answers as Record<string, unknown> | null,
+      eligibility: r.eligibility as RegistrarListRow['eligibility'],
+      createdAt: r.created_at as string,
+      releasedAt: r.released_at as string | null,
+      releasedReason: r.released_reason as string | null,
     })),
+  };
+}
+
+export async function registrationsGET(
+  admin: Admin,
+  side: OrgSide,
+  orgId: string,
+  seasonId: string | null
+): Promise<NextResponse> {
+  const loaded = await loadRegistrarRows(admin, side, orgId, seasonId);
+  if (!loaded.ok) return loaded.response;
+  if (!loaded.available) return NextResponse.json({ registrations: [], available: false });
+  return NextResponse.json({ available: true, registrations: loaded.rows });
+}
+
+function csvField(value: string | null | undefined): string {
+  const v = value ?? '';
+  return /[",\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v;
+}
+
+/** The registrar CSV download (PR #492). MEDICAL NOTES ARE EXCLUDED by
+ *  design: a downloadable file spreads beyond the gated screen, so the
+ *  console's registrations list stays the ONLY medical-notes surface.
+ *  Emergency contact rides along — it exists to be handed to coaches. */
+export async function registrationsExportGET(
+  admin: Admin,
+  side: OrgSide,
+  orgId: string,
+  seasonId: string | null
+): Promise<NextResponse> {
+  const loaded = await loadRegistrarRows(admin, side, orgId, seasonId);
+  if (!loaded.ok) return loaded.response;
+  if (!loaded.available) {
+    return NextResponse.json({ error: 'Registration isn’t set up yet' }, { status: 404 });
+  }
+  const header = [
+    'Athlete',
+    'Date of birth',
+    'Supervised',
+    'Offering',
+    'Status',
+    'Submitted',
+    'Emergency contact',
+    'Emergency phone',
+    'Eligibility flags',
+  ];
+  const lines = [header.join(',')];
+  for (const r of loaded.rows) {
+    const answers = (r.answers ?? {}) as {
+      emergencyContact?: { name?: string; phone?: string };
+    };
+    lines.push(
+      [
+        csvField(r.athlete.displayName),
+        csvField(r.athlete.birthday),
+        r.athlete.supervised ? 'yes' : 'no',
+        csvField(r.divisionName ?? r.programName ?? ''),
+        csvField(r.status),
+        csvField(r.createdAt),
+        csvField(answers.emergencyContact?.name),
+        csvField(answers.emergencyContact?.phone),
+        csvField((r.eligibility?.warnings ?? []).map(w => w.kind).join('; ')),
+      ].join(',')
+    );
+  }
+  const day = new Date().toISOString().slice(0, 10);
+  return new NextResponse(lines.join('\n') + '\n', {
+    status: 200,
+    headers: {
+      'Content-Type': 'text/csv; charset=utf-8',
+      'Content-Disposition': `attachment; filename="registrations-${day}.csv"`,
+    },
   });
 }
 
