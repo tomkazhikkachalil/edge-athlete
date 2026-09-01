@@ -1,5 +1,29 @@
 # Development Log
 
+## September 1, 2026 — Maintenance round at the phase-6 close: all gates green (#503)
+
+Tom's requested full sweep at the arc's close, no code changes needed:
+
+- **`npm run verify`**: typecheck clean, lint at ZERO warnings
+  (`--max-warnings 0` holds), **2,523 unit tests across 223 files**, and
+  the production build — all green in one run.
+- **Guardrails**: all hard checks pass; the `.or()`/raw-error advisories
+  hold at their audited ZERO (the #491 annotation contract); the
+  93-site select advisory stays advisory as recorded.
+- **Phone width**: the full `@mobile` Playwright project — 12 specs at
+  390×844 (stats hub, vitals deep links, get-started, org-site 375px
+  passes, the vanity 404, calendar) — all pass, no horizontal overflow.
+- **Desktop**: the 1280×800 core — feed posting, round lifecycle,
+  league/club joins, the org-site create→publish→SEO chain, the full
+  registration workflow — 10/10.
+- Prod is current: build 98d41a7 (the phase-6 activation) deployed and
+  18/18-swept earlier today; this commit rides the next deploy.
+
+State of the world: phases 0–6 + consolidation + the bug round all
+live; email + custom domain CONSCIOUSLY deferred to launch (Tom's call,
+Sep 1 — dark sends are a decision, not a bug; the DNS recipe is proven
+and recorded in LAUNCH_RUNBOOK.md).
+
 ## September 1, 2026 — Phase 6 ACTIVATED: live in prod, 18/18 sweep (#502)
 
 Tom ran migrations 166–168 (grids all-true; my probes re-verified —
