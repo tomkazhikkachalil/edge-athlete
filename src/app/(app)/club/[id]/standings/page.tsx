@@ -7,25 +7,17 @@ import PublicStandingsTable from '@/components/standings/PublicStandingsTable';
 import { UUID_RE } from '@/lib/golf/course-catalog';
 
 // generateMetadata AND the page body need the same payload; React cache()
-// dedupes them to ONE fetch per request (stage-gate fix — this page is
-// dynamic on every hit by the spike verdict, so the double fetch doubled
-// real DB load under crawler traffic).
+// dedupes them to ONE fetch per request (the league twin's stage-gate fix).
 const getStandings = cache((id: string) =>
-  fetchPublicStandings(getSupabaseAdmin(), 'league', id)
+  fetchPublicStandings(getSupabaseAdmin(), 'club', id)
 );
 
-// ── /league/[id]/standings — THE SPIKE (phase 2 R3) ─────────────────────────
-// The repo's FIRST server-component data page and first generateMetadata:
-// anonymous, crawlable HTML — team names and points are IN THE SOURCE,
-// no client fetch. Reads are service-role gated on
-// competitions.visibility='public' (the viewer-independent contract:
-// nothing here branches on a session). The page is dynamic like every
-// page (the root layout's CSP nonce); the PUBLIC_STANDINGS_CACHE
-// middleware carve-out is the measured experiment that decides phase 3's
-// rendering mechanism — see the DEVLOG verdict.
-//
-// Chrome is deliberately minimal (no AppHeader): this is the shareable
-// public artifact, not an app surface; the org page link is the way in.
+// ── /club/[id]/standings — the club twin of the league spike page ───────────
+// Phase 3 R2 closes the club standings gap: fetchPublicStandings and the
+// /api/clubs/[id]/standings route supported clubs since phase 2, but the
+// crawlable SSR page only existed for leagues. Same contract as the league
+// page: anonymous, viewer-independent, minimal chrome; the middleware's
+// PUBLIC_STANDINGS_CACHE carve-out covers both paths.
 
 interface PageParams {
   params: Promise<{ id: string }>;
@@ -42,7 +34,7 @@ export async function generateMetadata({ params }: PageParams): Promise<Metadata
   };
 }
 
-export default async function LeagueStandingsPage({ params }: PageParams) {
+export default async function ClubStandingsPage({ params }: PageParams) {
   const { id } = await params;
   const payload = UUID_RE.test(id) ? await getStandings(id) : null;
 
@@ -50,7 +42,7 @@ export default async function LeagueStandingsPage({ params }: PageParams) {
     return (
       <div className="min-h-screen bg-canvas flex items-center justify-center px-4">
         <div className="text-center">
-          <h1 className="text-xl font-bold text-primary mb-2">League not found</h1>
+          <h1 className="text-xl font-bold text-primary mb-2">Club not found</h1>
           <Link href="/explore" className="text-sm text-brand-fg font-medium">
             Explore Edge Athlete →
           </Link>
@@ -72,10 +64,10 @@ export default async function LeagueStandingsPage({ params }: PageParams) {
             </h1>
           </div>
           <Link
-            href={`/league/${id}`}
+            href={`/club/${id}`}
             className="text-sm text-brand-fg hover:text-brand-fg-strong font-medium shrink-0"
           >
-            League page →
+            Club page →
           </Link>
         </div>
       </header>

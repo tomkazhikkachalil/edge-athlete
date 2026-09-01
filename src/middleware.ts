@@ -46,8 +46,10 @@ import { sanitizeThemePrefs } from '@/lib/theme-prefs'
 // ever be a CDN HIT through middleware; the experiment records whether
 // x-vercel-cache: HIT is actually reachable. Default OFF = today's
 // behavior byte-for-byte. Kill switch: unset the env + redeploy.
+// Phase 3 R2: widened to the club twin — /club/[id]/standings is the same
+// anonymous viewer-independent page, so it rides the same carve-out.
 const STANDINGS_PATH_RE =
-  /^\/league\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\/standings\/?$/i
+  /^\/(league|club)\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\/standings\/?$/i
 
 // Phase 3: the (public) segment's path family. With PUBLIC_ORG_SITES=1,
 // /org/* skips the auth round trip + nonce and gets the static CSP; the

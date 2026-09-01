@@ -12,7 +12,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { OrgSide } from '@/lib/orgs/authz';
 import { resolveFixtureRule, resolveLeaderboardRule, type StandingsColumn } from './scoring';
-import { isStubEmail } from '@/lib/config/stubs-config';
+import { publicDisplayName, type MaskableProfile } from '@/lib/orgs/public-names';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- matches the authz.ts Admin alias; schema-agnostic helper
 type Admin = SupabaseClient<any, 'public', any>;
@@ -93,10 +93,9 @@ export async function fetchPublicStandings(
     profileIds.length
       ? // PUBLIC page: names only — and the masterplan's §6 rule applies
         // (minors never indexed; athlete pages public only for adult+
-        // public profiles). Full name ONLY when profiles.visibility is
-        // 'public'; private profiles and unclaimed stubs render
-        // "First L." (stage-gate fix, Sep 2026 — a manager's entry must
-        // never put a private athlete's full name on a crawlable page).
+        // public profiles). The masking rule itself lives in
+        // orgs/public-names.ts (publicDisplayName), shared by every
+        // public org-site surface; email is selected ONLY to feed it.
         admin
           .from('profiles')
           .select('id, first_name, last_name, full_name, visibility, email')
@@ -105,15 +104,7 @@ export async function fetchPublicStandings(
   ]);
   const teamName = new Map((teamsRes.data ?? []).map(t => [t.id, (t.display_name || t.name) as string]));
   const profileName = new Map(
-    (profilesRes.data ?? []).map(p => {
-      const first = (p.first_name || p.full_name?.split(' ')[0] || 'Athlete') as string;
-      const last = (p.last_name || '') as string;
-      const isPublic = p.visibility === 'public' && !isStubEmail(p.email as string | null);
-      const display = isPublic
-        ? [p.first_name, p.last_name].filter(Boolean).join(' ') || p.full_name || 'Athlete'
-        : `${first}${last ? ` ${last[0]}.` : ''}`;
-      return [p.id, display as string];
-    })
+    (profilesRes.data ?? []).map(p => [p.id, publicDisplayName(p as MaskableProfile)])
   );
   const entryName = new Map(
     (entries ?? []).map(e => [
