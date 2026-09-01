@@ -150,6 +150,15 @@ export default function OrgConsolePage() {
   const [divisionSeasonId, setDivisionSeasonId] = useState<string | null>(null);
   // Phase 5.5: the roll-forward expander (one open at a time) + its form.
   const [rolloverSeasonId, setRolloverSeasonId] = useState<string | null>(null);
+  // Phase 6 R5: the structure-import expander (dry-run-first).
+  const [importSeasonId, setImportSeasonId] = useState<string | null>(null);
+  const [importCsvText, setImportCsvText] = useState('');
+  const [importBusy, setImportBusy] = useState(false);
+  const [importCsvReport, setImportCsvReport] = useState<{
+    dryRun: boolean;
+    summary: { rows: number; errors: number; divisionsCreated: number; teamsCreated: number; entriesCreated: number };
+    report: { row: number; division: string; team: string; divisionAction: string; teamAction: string; entryAction: string; error?: string }[];
+  } | null>(null);
   const [rolloverLabel, setRolloverLabel] = useState('');
   const [rolloverStarts, setRolloverStarts] = useState('');
   const [rolloverEnds, setRolloverEnds] = useState('');
@@ -436,6 +445,34 @@ export default function OrgConsolePage() {
       console.error('Structure action failed:', e);
       showError(title, failMessage);
       return false;
+    }
+  };
+
+  // Phase 6 R5: the structure-import runner — Preview (dryRun, default)
+  // then Import (explicit dryRun:false); commit refreshes the console.
+  const runStructureImport = async (seasonId: string, dryRun: boolean) => {
+    if (importBusy) return;
+    setImportBusy(true);
+    try {
+      const response = await fetch(`/api/${plural}/${orgId}/structure-import`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ seasonId, csv: importCsvText, dryRun }),
+      });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        showError('Structure import', body.error || 'Import failed');
+        return;
+      }
+      setImportCsvReport(body);
+      if (!dryRun) {
+        showSuccess('Structure import', 'Imported — the season structure is updated');
+        refresh();
+      }
+    } catch {
+      showError('Structure import', 'Import failed');
+    } finally {
+      setImportBusy(false);
     }
   };
 
@@ -830,6 +867,19 @@ export default function OrgConsolePage() {
                           {rolloverSeasonId === season.id ? 'Close roll forward' : 'Roll forward'}
                         </button>
                       )}
+                      {!season.archived && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setImportSeasonId(prev => (prev === season.id ? null : season.id));
+                            setImportCsvText('');
+                            setImportCsvReport(null);
+                          }}
+                          className="px-2 py-1 text-xs rounded-md border border-border-strong text-secondary hover:bg-surface-sunken transition-colors"
+                        >
+                          {importSeasonId === season.id ? 'Close import' : 'Import CSV'}
+                        </button>
+                      )}
                       <button
                         type="button"
                         onClick={() => setConfirmTarget({ kind: 'season', id: season.id, label: season.label })}
@@ -840,6 +890,74 @@ export default function OrgConsolePage() {
                       </button>
                     </div>
                   </div>
+
+                  {/* Phase 6 R5: structure import — paste CSV, preview
+                      (dry-run default), then import. Inline expander,
+                      never a modal; report wraps at 375px. */}
+                  {importSeasonId === season.id && (
+                    <div className="mt-3 border-t border-border-subtle pt-3">
+                      <p className="text-xs text-muted mb-2">
+                        Paste CSV with columns <code>division, team_name</code> (optional:
+                        age_band, gender_stream, tier, sport). Preview shows what would
+                        happen; importing twice is safe — existing rows are reused.
+                      </p>
+                      <textarea
+                        value={importCsvText}
+                        onChange={e => {
+                          setImportCsvText(e.target.value);
+                          setImportCsvReport(null);
+                        }}
+                        rows={5}
+                        placeholder={'division,team_name\nU13 A,Blazers\nU13 A,Comets'}
+                        aria-label="Structure CSV"
+                        className="w-full px-3 py-2 border border-border-strong rounded-md outline-none text-sm font-mono"
+                      />
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          disabled={importBusy || importCsvText.trim() === ''}
+                          onClick={() => void runStructureImport(season.id, true)}
+                          className="px-3 py-1.5 text-sm min-h-[36px] rounded-lg border border-border-strong text-secondary hover:bg-surface-sunken transition-colors disabled:opacity-50"
+                        >
+                          Preview
+                        </button>
+                        <button
+                          type="button"
+                          disabled={importBusy || importCsvReport === null || importCsvReport.dryRun !== true}
+                          onClick={() => void runStructureImport(season.id, false)}
+                          title={importCsvReport?.dryRun !== true ? 'Preview first' : undefined}
+                          className="px-3 py-1.5 text-sm min-h-[36px] rounded-lg bg-brand text-white font-medium hover:bg-brand-hover transition-colors disabled:opacity-50"
+                        >
+                          Import
+                        </button>
+                      </div>
+                      {importCsvReport && (
+                        <div className="mt-2 text-xs text-secondary">
+                          <p className="font-medium text-primary mb-1">
+                            {importCsvReport.dryRun ? 'Preview' : 'Imported'}:{' '}
+                            {importCsvReport.summary.rows} rows ·{' '}
+                            {importCsvReport.summary.divisionsCreated} divisions,{' '}
+                            {importCsvReport.summary.teamsCreated} teams,{' '}
+                            {importCsvReport.summary.entriesCreated} entries
+                            {importCsvReport.summary.errors > 0 && (
+                              <span className="text-red-600"> · {importCsvReport.summary.errors} errors</span>
+                            )}
+                          </p>
+                          <div className="overflow-x-auto">
+                            <ul className="space-y-0.5">
+                              {importCsvReport.report.map(r => (
+                                <li key={r.row} className={r.error ? 'text-red-600' : ''}>
+                                  #{r.row} {r.division} / {r.team} — {r.divisionAction},{' '}
+                                  {r.teamAction}, {r.entryAction}
+                                  {r.error ? ` — ${r.error}` : ''}
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
 
                   {rolloverSeasonId === season.id && (
                     <div className="mt-3 border-t border-border-subtle pt-3">
