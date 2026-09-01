@@ -45,6 +45,8 @@ const PUBLIC_ROUTES: Record<string, string> = {
   'media/cover/[id]': 'public cover-photo redirect; object key is unguessable',
   'media/org-logo/[siteId]':
     'public org-site logo streamer (phase 3 R3); resolves org_sites.logo_path itself and hard-asserts the org-logos/ prefix — can only ever serve org-authored public artwork',
+  'media/org-media/[siteId]/[file]':
+    'public org-site page-image streamer (phase 3 R3); key built server-side from strictly validated segments under the fixed org-media/ prefix — org-authored public-site content by construction',
   'calendar/feed/[token]': 'capability URL; sha256 token lookup + supervised re-check',
   'invites/[token]': 'invite peek; never consumes, rate-limited, token is bearer',
   'auth/activate': 'token-gated activation; the invite row IS the authorization',

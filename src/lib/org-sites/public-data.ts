@@ -348,3 +348,49 @@ export async function fetchPublicTeamPage(
     records,
   };
 }
+
+// ── Custom pages (phase 3 R3) ───────────────────────────────────────────────
+
+export interface PublicPageLink {
+  slug: string;
+  title: string;
+}
+
+export interface PublicPageRow {
+  slug: string;
+  title: string;
+  body: unknown; // parsed defensively at render (parsePageBody)
+}
+
+/** Public pages of a site (nav + existence checks). */
+export async function fetchPublicPages(
+  admin: Admin,
+  siteId: string
+): Promise<PublicPageLink[]> {
+  const { data, error } = await admin
+    .from('org_site_pages')
+    .select('slug, title')
+    .eq('site_id', siteId)
+    .eq('visibility', 'public')
+    .order('created_at', { ascending: true })
+    .limit(20);
+  if (degraded('pages', error) || !data) return [];
+  return data.map(p => ({ slug: p.slug as string, title: p.title as string }));
+}
+
+/** One PUBLIC page by slug — drafts are indistinguishable from missing. */
+export async function fetchPublicPage(
+  admin: Admin,
+  siteId: string,
+  pageSlug: string
+): Promise<PublicPageRow | null> {
+  const { data, error } = await admin
+    .from('org_site_pages')
+    .select('slug, title, body')
+    .eq('site_id', siteId)
+    .eq('slug', pageSlug)
+    .eq('visibility', 'public')
+    .maybeSingle();
+  if (degraded('page', error) || !data) return null;
+  return { slug: data.slug as string, title: data.title as string, body: data.body };
+}

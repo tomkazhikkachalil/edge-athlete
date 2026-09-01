@@ -6,11 +6,15 @@ import { fetchOrgEvents, type OrgEvent } from '@/lib/calendar/org-events-server'
 import { getPublicSiteBySlug, type PublicSite } from './server';
 import {
   fetchPublicAffiliations,
+  fetchPublicPage,
+  fetchPublicPages,
   fetchPublicStaff,
   fetchPublicTeamPage,
   fetchPublicTeams,
   fetchPublicVenues,
   type PublicAffiliation,
+  type PublicPageLink,
+  type PublicPageRow,
   type PublicStaffRow,
   type PublicTeam,
   type PublicTeamPage,
@@ -98,4 +102,20 @@ export const getCachedTeamPage = (
 ): Promise<PublicTeamPage | null> =>
   perSlug(['org-site-team', slug, teamId], slug, () =>
     fetchPublicTeamPage(getSupabaseAdmin(), side, orgId, teamId)
+  );
+
+export const getCachedPages = (slug: string, siteId: string): Promise<PublicPageLink[]> =>
+  perSlug(['org-site-pages', slug], slug, () =>
+    fetchPublicPages(getSupabaseAdmin(), siteId)
+  );
+
+// pageSlug varies per slug → it MUST be in the keyParts (the closure trap
+// above); siteId is 1:1 with slug, safe closed-over.
+export const getCachedPage = (
+  slug: string,
+  siteId: string,
+  pageSlug: string
+): Promise<PublicPageRow | null> =>
+  perSlug(['org-site-page', slug, pageSlug], slug, () =>
+    fetchPublicPage(getSupabaseAdmin(), siteId, pageSlug)
   );

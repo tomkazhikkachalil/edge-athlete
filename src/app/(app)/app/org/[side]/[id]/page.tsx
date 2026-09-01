@@ -99,6 +99,7 @@ export default function OrgConsolePage() {
   const [confirmTarget, setConfirmTarget] = useState<
     | { kind: 'season'; id: string; label: string }
     | { kind: 'division'; id: string; label: string }
+    | { kind: 'page'; id: string; label: string }
     | null
   >(null);
 
@@ -152,17 +153,23 @@ export default function OrgConsolePage() {
   const [heroTagline, setHeroTagline] = useState('');
   const [themeAccent, setThemeAccent] = useState(''); // '' = default violet
   const [sponsorDrafts, setSponsorDrafts] = useState<{ name: string; url: string }[]>([]);
+  // R3 pages — the list in the Website card; the block editor is a subpage.
+  const [sitePages, setSitePages] = useState<
+    { id: string; slug: string; title: string; visibility: 'public' | 'draft' }[]
+  >([]);
+  const [pageTitle, setPageTitle] = useState('');
 
   useEffect(() => {
     if (!validSide || !user?.id) return;
     let cancelled = false;
     (async () => {
       try {
-        const [orgRes, structureRes, competitionsRes, siteRes] = await Promise.all([
+        const [orgRes, structureRes, competitionsRes, siteRes, pagesRes] = await Promise.all([
           fetch(`/api/${plural}/${orgId}`),
           fetch(`/api/${plural}/${orgId}/structure`),
           fetch(`/api/${plural}/${orgId}/competitions`),
           fetch(`/api/${plural}/${orgId}/site`),
+          fetch(`/api/${plural}/${orgId}/site/pages`),
         ]);
         if (cancelled) return;
         if (orgRes.ok) {
@@ -218,6 +225,11 @@ export default function OrgConsolePage() {
               }))
             );
           }
+        }
+        // Pages list (R3) — tolerate failure: an empty list, never a block.
+        if (pagesRes.ok) {
+          const pagesBody = await pagesRes.json();
+          if (!cancelled) setSitePages(pagesBody.pages ?? []);
         }
       } catch {
         if (!cancelled) setAuthorized(false);
@@ -419,6 +431,16 @@ export default function OrgConsolePage() {
     );
 
   const remove = (target: NonNullable<typeof confirmTarget>) => {
+    if (target.kind === 'page') {
+      void act(
+        `/api/${plural}/${orgId}/site/pages/${target.id}`,
+        { method: 'DELETE' },
+        'Page deleted',
+        'Delete failed',
+        'Website'
+      );
+      return;
+    }
     const paths = { season: `${base}/seasons`, division: `${base}/divisions` } as const;
     void act(
       `${paths[target.kind]}?id=${encodeURIComponent(target.id)}`,
@@ -1551,6 +1573,72 @@ export default function OrgConsolePage() {
                   </button>
                 </div>
               </div>
+              {/* R3: custom pages — list + create here; the block editor is
+                  a subpage (the competitions-detail precedent). */}
+              <div className="pt-2 space-y-1.5">
+                <p className="text-sm font-medium text-primary">Pages</p>
+                {sitePages.map(p => (
+                  <div key={p.id} className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                    <span className="text-sm text-primary min-w-0 truncate">{p.title}</span>
+                    <span className="text-xs text-muted">/{p.slug}</span>
+                    {p.visibility === 'public' ? (
+                      <span className="text-xs text-emerald-600">public</span>
+                    ) : (
+                      <span className="text-xs text-amber-600">draft</span>
+                    )}
+                    <Link
+                      href={`/app/org/${side}/${orgId}/site/pages/${p.id}`}
+                      className="text-sm text-brand-fg font-medium"
+                    >
+                      Edit
+                    </Link>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setConfirmTarget({ kind: 'page', id: p.id, label: p.title })
+                      }
+                      className="text-sm text-tertiary hover:text-red-600"
+                    >
+                      Delete
+                    </button>
+                  </div>
+                ))}
+                <div className="flex flex-wrap gap-2">
+                  <input
+                    type="text"
+                    value={pageTitle}
+                    onChange={e => setPageTitle(e.target.value)}
+                    maxLength={120}
+                    placeholder="New page title"
+                    aria-label="New page title"
+                    className="px-3 py-2 border border-border-strong rounded-md outline-none text-sm min-w-0 flex-1"
+                  />
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      if (!pageTitle.trim()) {
+                        showError('Website', 'A page title is required');
+                        return;
+                      }
+                      const ok = await act(
+                        `/api/${plural}/${orgId}/site/pages`,
+                        {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ title: pageTitle.trim() }),
+                        },
+                        'Page created — it starts as a draft',
+                        'Failed to create the page',
+                        'Website'
+                      );
+                      if (ok) setPageTitle('');
+                    }}
+                    className="px-3 py-1.5 text-sm rounded-md border border-border-strong text-secondary hover:bg-surface-sunken transition-colors"
+                  >
+                    Add page
+                  </button>
+                </div>
+              </div>
             </div>
           )}
         </section>
@@ -1562,7 +1650,9 @@ export default function OrgConsolePage() {
         message={
           confirmTarget?.kind === 'season'
             ? 'Its divisions and their entries are removed too. Teams persist.'
-            : 'Its entries are removed too. Teams persist.'
+            : confirmTarget?.kind === 'page'
+              ? 'The page comes off your site immediately.'
+              : 'Its entries are removed too. Teams persist.'
         }
         confirmText="Delete"
         confirmButtonClass="bg-red-600 hover:bg-red-700 text-white"

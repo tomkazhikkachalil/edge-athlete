@@ -1,7 +1,7 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { getCachedSite } from '@/lib/org-sites/cached';
+import { getCachedPages, getCachedSite } from '@/lib/org-sites/cached';
 import { orgLogoUrl } from '@/lib/media/org-site-media';
 import {
   deriveStrongAccent,
@@ -35,6 +35,8 @@ export default async function OrgSiteLayout({
   const navKeys = MODULE_SUBPAGE_KEYS.filter(key =>
     site.modules.some(m => m.module_key === key && m.enabled)
   );
+  // R3: public custom pages join the nav after the module links.
+  const pages = await getCachedPages(slug, site.id);
 
   // Strict hex re-validation at render (parseThemeAccent) is the
   // inline-style injection defense — never interpolate the raw jsonb.
@@ -70,7 +72,7 @@ export default async function OrgSiteLayout({
             </span>
           </Link>
         </div>
-        {navKeys.length > 0 && (
+        {navKeys.length + pages.length > 0 && (
           <nav aria-label="Site navigation" className="max-w-4xl mx-auto px-4 pb-3">
             <div className="flex flex-wrap gap-x-5 gap-y-1">
               <Link
@@ -86,6 +88,15 @@ export default async function OrgSiteLayout({
                   className="text-sm font-medium text-secondary"
                 >
                   {MODULE_TITLES[key]}
+                </Link>
+              ))}
+              {pages.map(p => (
+                <Link
+                  key={p.slug}
+                  href={`/org/${site.subdomain}/${p.slug}`}
+                  className="text-sm font-medium text-secondary"
+                >
+                  {p.title}
                 </Link>
               ))}
             </div>

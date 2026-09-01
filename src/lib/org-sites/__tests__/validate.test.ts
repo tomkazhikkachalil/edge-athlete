@@ -9,7 +9,13 @@ import {
   SCHEDULE_LIMIT_DEFAULT,
   SCHEDULE_LIMIT_MAX,
   SCHEDULE_RANGE_MAX_DAYS,
+  isValidPageSlug,
+  MODULE_KEYS,
+  PageBodySchema,
+  PagePatchSchema,
+  parsePageBody,
   SitePatchSchema,
+  slugifyPageTitle,
   TOGGLEABLE_MODULE_KEYS,
 } from '../validate';
 
@@ -202,5 +208,106 @@ describe('clampScheduleQuery', () => {
     expect(clampScheduleQuery({ limit: NaN, rangeDays: Infinity })).toEqual({
       limit: SCHEDULE_LIMIT_DEFAULT,
     });
+  });
+});
+
+describe('page slugs (R3)', () => {
+  it('accepts normal slugs', () => {
+    expect(isValidPageSlug('about-us')).toBe(true);
+    expect(isValidPageSlug('a')).toBe(true);
+  });
+
+  it('rejects every module key and reserved word', () => {
+    for (const key of MODULE_KEYS) expect(isValidPageSlug(key), key).toBe(false);
+    for (const word of ['assets', 'site', 'admin', 'api', 'p', 'pages', 'home', 'index']) {
+      expect(isValidPageSlug(word), word).toBe(false);
+    }
+  });
+
+  it('rejects regex edges', () => {
+    expect(isValidPageSlug('-a')).toBe(false);
+    expect(isValidPageSlug('a-')).toBe(false);
+    expect(isValidPageSlug('About')).toBe(false);
+    expect(isValidPageSlug('a'.repeat(81))).toBe(false);
+    expect(isValidPageSlug('')).toBe(false);
+    expect(isValidPageSlug('a b')).toBe(false);
+  });
+
+  it('slugifyPageTitle mirrors the org pipeline without the floor', () => {
+    expect(slugifyPageTitle('About Us')).toBe('about-us');
+    expect(slugifyPageTitle('Fees & Dates 2026!')).toBe('fees-dates-2026');
+    expect(slugifyPageTitle('X')).toBe('x');
+    expect(slugifyPageTitle('!!!')).toBe('');
+  });
+});
+
+describe('page blocks (R3)', () => {
+  const SITE = '01234567-89ab-4cde-8f01-23456789abcd';
+
+  it('accepts each block type', () => {
+    expect(PageBodySchema.safeParse([{ type: 'heading', text: 'Hi' }]).success).toBe(true);
+    expect(PageBodySchema.safeParse([{ type: 'paragraph', text: 'Body' }]).success).toBe(true);
+    expect(
+      PageBodySchema.safeParse([
+        { type: 'image', path: `org-media/${SITE}/abc123.png`, alt: 'A rink' },
+      ]).success
+    ).toBe(true);
+    expect(
+      PageBodySchema.safeParse([
+        { type: 'link-list', links: [{ label: 'Fees', url: 'https://x.example/fees' }] },
+      ]).success
+    ).toBe(true);
+  });
+
+  it('rejects bad image paths (traversal, case, foreign shapes)', () => {
+    for (const path of [
+      `org-media/${SITE}/../secret.png`,
+      `org-media/${SITE}/UPPER.PNG`,
+      `org-media/not-a-uuid/a.png`,
+      `covers/${SITE}/a.png`,
+      `org-media/${SITE}/a.svg`,
+      `org-media/${SITE}/a.png/extra`,
+    ]) {
+      expect(
+        PageBodySchema.safeParse([{ type: 'image', path, alt: 'x' }]).success,
+        path
+      ).toBe(false);
+    }
+  });
+
+  it('requires alt on images and https on links', () => {
+    expect(
+      PageBodySchema.safeParse([
+        { type: 'image', path: `org-media/${SITE}/a.png`, alt: '' },
+      ]).success
+    ).toBe(false);
+    expect(
+      PageBodySchema.safeParse([
+        { type: 'link-list', links: [{ label: 'x', url: 'http://x.example' }] },
+      ]).success
+    ).toBe(false);
+  });
+
+  it('caps the body at 40 blocks', () => {
+    const blocks = Array.from({ length: 41 }, () => ({ type: 'paragraph', text: 'x' }));
+    expect(PageBodySchema.safeParse(blocks).success).toBe(false);
+  });
+
+  it('parsePageBody drops malformed blocks, never throws', () => {
+    expect(
+      parsePageBody([
+        { type: 'heading', text: 'Keep' },
+        { type: 'image', path: 'covers/evil.png', alt: 'drop' },
+        'garbage',
+        null,
+      ])
+    ).toEqual([{ type: 'heading', text: 'Keep' }]);
+    expect(parsePageBody('not-an-array')).toEqual([]);
+    expect(parsePageBody(null)).toEqual([]);
+  });
+
+  it('PagePatchSchema rejects an empty patch', () => {
+    expect(PagePatchSchema.safeParse({}).success).toBe(false);
+    expect(PagePatchSchema.safeParse({ visibility: 'public' }).success).toBe(true);
   });
 });

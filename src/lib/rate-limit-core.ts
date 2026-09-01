@@ -101,6 +101,9 @@ export const RATE_LIMITS = {
   'org-competitions': { max: 120, windowSeconds: 3600, keyBy: 'user' },
   // Site create/publish (phase 3) — rare, deliberate actions.
   'org-site': { max: 30, windowSeconds: 3600, keyBy: 'user' },
+  // Page CRUD (phase 3 R3) — its own bucket: a save-happy block-editor
+  // session must not burn the 30/h org-site budget.
+  'org-site-pages': { max: 120, windowSeconds: 3600, keyBy: 'user' },
   // Org claim (phase 1 R2) — the invite-peek/claim mirror: peeks IP-keyed
   // to keep token guessing costly; claims user-keyed and rare.
   // Roster paste-import (phase 1 R3): each request mints up to 50 stubs

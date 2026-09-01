@@ -214,6 +214,105 @@ export const MODULE_TITLES: Record<string, string> = {
 /** The module keys that have their own subpage under /org/{slug}/. */
 export const MODULE_SUBPAGE_KEYS = ['standings', 'schedule', 'teams'] as const;
 
+// ── Custom pages (phase 3 R3) ───────────────────────────────────────────────
+// org_site_pages.body is an ORDERED BLOCK ARRAY (the masterplan's own
+// recommendation). Slugs ride the same DNS-ish regex as subdomains but
+// with no length floor (the DB CHECK), PLUS an app-side denylist so
+// /org/{slug}/{page} can never shadow a module route or a future static
+// surface — this enforces the R1 comment above MODULE_KEYS.
+
+export const RESERVED_PAGE_SLUGS: ReadonlySet<string> = new Set([
+  ...MODULE_KEYS,
+  'assets',
+  'site',
+  'admin',
+  'api',
+  'p',
+  'pages',
+  'home',
+  'index',
+]);
+export const PAGE_SLUG_MAX = 80;
+export const PAGES_PER_SITE_MAX = 20;
+
+export function isValidPageSlug(slug: string): boolean {
+  return (
+    slug.length >= 1 &&
+    slug.length <= PAGE_SLUG_MAX &&
+    SUBDOMAIN_RE.test(slug) &&
+    !RESERVED_PAGE_SLUGS.has(slug)
+  );
+}
+
+/** Title → slug candidate: the slugifyOrgName pipeline without the
+ *  3-char floor (a 1-char page slug is legal at the DB level). */
+export function slugifyPageTitle(title: string): string {
+  return title
+    .toLowerCase()
+    .normalize('NFKD')
+    .replace(/[̀-ͯ]/g, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/-{2,}/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, PAGE_SLUG_MAX)
+    .replace(/-+$/g, '');
+}
+
+export const PAGE_BODY_MAX_BLOCKS = 40;
+/** One filename segment of an org-media asset — the streamer's gate. */
+export const ORG_MEDIA_FILE_RE = /^[a-z0-9-]{1,80}\.(jpg|jpeg|png|webp|gif)$/;
+/** A full stored asset path: org-media/{siteId uuid}/{file}. */
+export const ORG_MEDIA_PATH_RE =
+  /^org-media\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\/[a-z0-9-]{1,80}\.(jpg|jpeg|png|webp|gif)$/;
+
+export const PageBlockSchema = z.discriminatedUnion('type', [
+  z.object({ type: z.literal('heading'), text: boundedTrimmed(120) }),
+  z.object({ type: z.literal('paragraph'), text: boundedTrimmed(2000) }),
+  z.object({
+    type: z.literal('image'),
+    path: z.string().regex(ORG_MEDIA_PATH_RE, 'Not a site asset path'),
+    alt: boundedTrimmed(200),
+  }),
+  z.object({
+    type: z.literal('link-list'),
+    links: z.array(z.object({ label: boundedTrimmed(80), url: httpsUrl })).min(1).max(20),
+  }),
+]);
+export type PageBlock = z.infer<typeof PageBlockSchema>;
+export const PageBodySchema = z.array(PageBlockSchema).max(PAGE_BODY_MAX_BLOCKS);
+
+export const PageCreateSchema = z.object({
+  title: boundedTrimmed(120),
+  // Regex + denylist are enforced server-side via isValidPageSlug (the
+  // schema alone can't express the denylist message usefully).
+  slug: z.string().trim().toLowerCase().max(PAGE_SLUG_MAX).optional(),
+});
+export type PageCreateInput = z.infer<typeof PageCreateSchema>;
+
+export const PagePatchSchema = z
+  .object({
+    title: boundedTrimmed(120).optional(),
+    body: PageBodySchema.optional(),
+    visibility: z.enum(['public', 'draft']).optional(),
+  })
+  .refine(
+    o => o.title !== undefined || o.body !== undefined || o.visibility !== undefined,
+    'Nothing to update'
+  );
+export type PagePatchInput = z.infer<typeof PagePatchSchema>;
+
+/** Defensive render-side parse: unknown body jsonb → valid blocks only
+ *  (drops anything malformed; never throws — the public-render rule). */
+export function parsePageBody(body: unknown): PageBlock[] {
+  if (!Array.isArray(body)) return [];
+  const out: PageBlock[] = [];
+  for (const block of body.slice(0, PAGE_BODY_MAX_BLOCKS)) {
+    const parsed = PageBlockSchema.safeParse(block);
+    if (parsed.success) out.push(parsed.data);
+  }
+  return out;
+}
+
 // ── Schedule query clamps (phase 3 R2) ──────────────────────────────────────
 // The public schedule reads take caller-supplied limit/range params; both
 // are clamped here (pure, node-testable) so no caller can turn the
