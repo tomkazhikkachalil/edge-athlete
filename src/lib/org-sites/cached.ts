@@ -12,6 +12,7 @@ import {
   fetchPublicTeamPage,
   fetchPublicTeams,
   fetchPublicVenues,
+  fetchPublishedSitesForSitemap,
   type PublicAffiliation,
   type PublicPageLink,
   type PublicPageRow,
@@ -19,6 +20,7 @@ import {
   type PublicTeam,
   type PublicTeamPage,
   type PublicVenue,
+  type SitemapSiteEntry,
 } from './public-data';
 
 // The (public) segment's per-slug cached reads: unstable_cache with the
@@ -103,6 +105,16 @@ export const getCachedTeamPage = (
   perSlug(['org-site-team', slug, teamId], slug, () =>
     fetchPublicTeamPage(getSupabaseAdmin(), side, orgId, teamId)
   );
+
+/** The sitemap's enumerator — its own tag ('org-sitemap', purged by
+ *  publish/unpublish) and a longer window: module/page churn reaching
+ *  the sitemap within an hour is accepted (locked scope). */
+export const getCachedSitemapSites = (): Promise<SitemapSiteEntry[]> =>
+  unstable_cache(
+    () => fetchPublishedSitesForSitemap(getSupabaseAdmin()),
+    ['org-sitemap'],
+    { tags: ['org-sitemap'], revalidate: 3600 }
+  )();
 
 export const getCachedPages = (slug: string, siteId: string): Promise<PublicPageLink[]> =>
   perSlug(['org-site-pages', slug], slug, () =>

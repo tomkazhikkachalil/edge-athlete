@@ -34,6 +34,7 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 import { buildCsp, buildStaticCsp, CSP_REPORT_PATH } from '@/lib/csp'
+import { computeSubdomainRedirect } from '@/lib/org-sites/subdomain'
 import { THEME_COOKIE, THEME_COOKIE_MAX_AGE, encodeThemeCookie } from '@/lib/theme-cookie'
 import { sanitizeThemePrefs } from '@/lib/theme-prefs'
 
@@ -56,7 +57,42 @@ const STANDINGS_PATH_RE =
 // ISR renderer owns Cache-Control (the spike taught middleware cannot).
 const ORG_SITE_PATH_RE = /^\/org\//
 
+// R4: the crawler files. They exist for every visitor and need neither
+// auth nor a nonce — without this branch a robots.txt hit would pay the
+// full supabase.auth.getUser() round trip (the matcher doesn't exclude
+// .txt/.xml, and that regex is too fragile to grow).
+const CRAWLER_PATH_RE = /^\/(robots\.txt|sitemap\.xml)$/
+
 export async function middleware(request: NextRequest) {
+  // R4, FIRST on purpose (host-based; must precede the path-based /org/
+  // branch): {slug}.<appHost> 301s to /org/{slug}. Inert until Tom's
+  // wildcard DNS exists; BUILD-INJECTED like its sibling flags — needs a
+  // real build, not a redeploy (the thrice-recorded trap). Apex derives
+  // from NEXT_PUBLIC_APP_URL: no domain is hardcoded anywhere.
+  if (process.env.ORG_SUBDOMAINS === '1') {
+    const appHost = new URL(
+      process.env.NEXT_PUBLIC_APP_URL || 'https://edge-athlete.vercel.app'
+    ).host
+    const target = computeSubdomainRedirect(
+      request.headers.get('host'),
+      appHost,
+      request.nextUrl.pathname,
+      request.nextUrl.search
+    )
+    if (target) return NextResponse.redirect(target, 301)
+  }
+  if (CRAWLER_PATH_RE.test(request.nextUrl.pathname)) {
+    const response = NextResponse.next()
+    const staticCsp = buildStaticCsp({ dev: process.env.NODE_ENV !== 'production' })
+    const enforceStatic =
+      process.env.NODE_ENV === 'production' && process.env.CSP_ENFORCE !== '0'
+    response.headers.set(
+      enforceStatic ? 'Content-Security-Policy' : 'Content-Security-Policy-Report-Only',
+      staticCsp
+    )
+    response.headers.set('Reporting-Endpoints', `csp="${CSP_REPORT_PATH}"`)
+    return response
+  }
   if (
     process.env.PUBLIC_ORG_SITES === '1' &&
     ORG_SITE_PATH_RE.test(request.nextUrl.pathname)

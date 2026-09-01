@@ -281,8 +281,11 @@ export async function sitePATCH(
     return NextResponse.json({ error: 'Site not found' }, { status: 404 });
   }
   // The ISR documents re-render on the next hit (publish must be
-  // immediate, not 300s-stale — the preview-then-publish flow).
+  // immediate, not 300s-stale — the preview-then-publish flow). The
+  // sitemap enumerator purges too (R4): a published site must enter
+  // /sitemap.xml immediately, an unpublished one must leave it.
   revalidateTag(`org-site:${updated[0].subdomain}`, { expire: 0 });
+  revalidateTag('org-sitemap', { expire: 0 });
   return NextResponse.json({ site: updated[0] });
 }
 

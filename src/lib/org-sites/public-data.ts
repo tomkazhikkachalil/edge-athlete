@@ -394,3 +394,62 @@ export async function fetchPublicPage(
   if (degraded('page', error) || !data) return null;
   return { slug: data.slug as string, title: data.title as string, body: data.body };
 }
+
+// ── Sitemap enumeration (phase 3 R4) ────────────────────────────────────────
+
+export interface SitemapSiteEntry {
+  subdomain: string;
+  lastModified: string | null;
+  moduleKeys: string[]; // enabled subpage modules (standings/schedule/teams)
+  pageSlugs: string[]; // public custom pages
+}
+
+/** Every published site with its crawlable sub-URLs — the repo's first
+ *  org_sites enumerator, explicitly bounded (house rule). Cached under
+ *  the 'org-sitemap' tag; publish/unpublish purge it, module/page churn
+ *  rides the hourly revalidate. Degrades partial, never throws. */
+export async function fetchPublishedSitesForSitemap(
+  admin: Admin
+): Promise<SitemapSiteEntry[]> {
+  const { data: sites, error } = await admin
+    .from('org_sites')
+    .select('id, subdomain, updated_at')
+    .not('published_at', 'is', null)
+    .order('created_at', { ascending: true })
+    .limit(500);
+  if (degraded('sitemap sites', error) || !sites || sites.length === 0) return [];
+
+  const siteIds = sites.map(s => s.id as string);
+  const [modulesRes, pagesRes] = await Promise.all([
+    admin
+      .from('org_site_modules')
+      .select('site_id, module_key')
+      .in('site_id', siteIds)
+      .eq('enabled', true)
+      .in('module_key', ['standings', 'schedule', 'teams'])
+      .limit(1500),
+    admin
+      .from('org_site_pages')
+      .select('site_id, slug')
+      .in('site_id', siteIds)
+      .eq('visibility', 'public')
+      .limit(2000),
+  ]);
+  const modulesBySite = new Map<string, string[]>();
+  for (const m of modulesRes.data ?? []) {
+    if (!modulesBySite.has(m.site_id)) modulesBySite.set(m.site_id, []);
+    modulesBySite.get(m.site_id)!.push(m.module_key as string);
+  }
+  const pagesBySite = new Map<string, string[]>();
+  for (const p of pagesRes.data ?? []) {
+    if (!pagesBySite.has(p.site_id)) pagesBySite.set(p.site_id, []);
+    pagesBySite.get(p.site_id)!.push(p.slug as string);
+  }
+
+  return sites.map(s => ({
+    subdomain: s.subdomain as string,
+    lastModified: (s.updated_at ?? null) as string | null,
+    moduleKeys: modulesBySite.get(s.id) ?? [],
+    pageSlugs: pagesBySite.get(s.id) ?? [],
+  }));
+}
