@@ -59,6 +59,14 @@ export const FEATURE_FLAGS = {
   // (phase 1) — flipping it day one empties every org calendar.
   FEATURE_CALENDAR_ROSTER_ONLY: process.env.NEXT_PUBLIC_FEATURE_CALENDAR_ROSTER_ONLY === '1',
 
+  /**
+   * Phase 5 (migs 161/162): family-initiated org registration. A pure
+   * SURFACE switch (the flag doctrine above): off hides the wizard/CTAs
+   * and 404s the submit route — every safety check (supervised gating,
+   * window open-ness, collision rules) runs unconditionally when on.
+   */
+  FEATURE_ORG_REGISTRATION: process.env.NEXT_PUBLIC_FEATURE_ORG_REGISTRATION === '1',
+
   // Future feature flags can be added here
   // FEATURE_PUBLIC_PROFILES: false,
   // FEATURE_MESSAGING: false,

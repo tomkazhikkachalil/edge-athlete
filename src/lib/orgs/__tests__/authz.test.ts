@@ -98,6 +98,7 @@ describe('roleAllows', () => {
     manage_members: [true, true, false, false],
     schedule_events: [true, true, false, false],
     manage_competitions: [true, true, false, false],
+    manage_registration: [true, true, false, false],
     change_roles: [true, false, false, false],
     manage_owners: [true, false, false, false],
   };

@@ -89,7 +89,10 @@ export type OrgIntent =
   | 'change_roles'
   | 'schedule_events'
   | 'manage_owners'
-  | 'manage_competitions';
+  | 'manage_competitions'
+  // Phase 5: registrations, placements, windows — the masterplan's
+  // Registrar seam; owner-or-manager today, a dedicated role later.
+  | 'manage_registration';
 
 export function roleAllows(role: OrgRole | null, intent: OrgIntent): boolean {
   if (intent === 'change_roles' || intent === 'manage_owners') return role === 'owner';
