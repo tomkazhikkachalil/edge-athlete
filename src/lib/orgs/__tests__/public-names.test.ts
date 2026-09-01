@@ -7,6 +7,7 @@ const base = {
   full_name: 'Casey Zimmerman',
   visibility: 'public',
   email: 'casey@example.com',
+  supervision_state: 'self',
 };
 
 describe('publicDisplayName', () => {
@@ -42,6 +43,7 @@ describe('publicDisplayName', () => {
         full_name: 'Jordan Lee',
         visibility: 'private',
         email: null,
+        supervision_state: null,
       })
     ).toBe('Jordan');
   });
@@ -52,6 +54,14 @@ describe('publicDisplayName', () => {
     ).toBe('Casey Zimmerman');
   });
 
+  it('masks a SUPERVISED profile even when a guardian set it public — the R4 gap', () => {
+    expect(publicDisplayName({ ...base, supervision_state: 'supervised' })).toBe('Casey Z.');
+  });
+
+  it('shows the full name when supervision_state is null (legacy adult rows)', () => {
+    expect(publicDisplayName({ ...base, supervision_state: null })).toBe('Casey Zimmerman');
+  });
+
   it('degrades to "Athlete" when nothing is available', () => {
     expect(
       publicDisplayName({
@@ -60,6 +70,7 @@ describe('publicDisplayName', () => {
         full_name: null,
         visibility: null,
         email: null,
+        supervision_state: null,
       })
     ).toBe('Athlete');
   });

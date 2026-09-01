@@ -55,6 +55,8 @@ interface MemberRow {
   joined_at: string;
   profile: MemberProfile | null;
   roster: 'pending' | 'active' | null;
+  /** Phase 4 R4 — managers only (redacted to null otherwise). */
+  photoConsent?: boolean | null;
   /** R3: unclaimed roster stub — server-derived, manager-redacted. */
   unclaimed?: boolean;
 }
@@ -89,6 +91,11 @@ export default function ClubPage() {
   // required), so they confirm; invite and cancel-invite are one-tap.
   const [rosterRemoveTarget, setRosterRemoveTarget] = useState<MemberRow | null>(null);
   const [confirmDeclineRoster, setConfirmDeclineRoster] = useState(false);
+  // Phase 4 R4: the photo-consent checkbox on the accept banner. Only
+  // rendered (and only sent) for unsupervised viewers — a supervised
+  // athlete's answer would be ignored server-side (guardian-only), and
+  // the guardian queue asks instead.
+  const [photoConsentChecked, setPhotoConsentChecked] = useState(false);
   // Owners (0.8): promote is irreversible-by-others (no coup — owners only
   // step down themselves), so both actions confirm.
   const [promoteTarget, setPromoteTarget] = useState<MemberRow | null>(null);
@@ -223,7 +230,12 @@ export default function ClubPage() {
         ...(method === 'PATCH'
           ? {
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ action: 'accept' }),
+              body: JSON.stringify({
+                action: 'accept',
+                ...(viewerProfile?.supervision_state !== 'supervised'
+                  ? { photoConsent: photoConsentChecked }
+                  : {}),
+              }),
             }
           : {}),
       });
@@ -424,10 +436,23 @@ export default function ClubPage() {
             <p className="mt-1 text-sm text-secondary">
               Roster membership is the real record — it&apos;s what future stats and schedules attach to.
             </p>
-            {viewerProfile?.supervision_state === 'supervised' && (
+            {viewerProfile?.supervision_state === 'supervised' ? (
               <p className="mt-1 text-xs text-muted">
                 Your guardian can also approve this from their console.
               </p>
+            ) : (
+              <label className="mt-2 flex items-start gap-2 text-sm text-secondary">
+                <input
+                  type="checkbox"
+                  checked={photoConsentChecked}
+                  onChange={e => setPhotoConsentChecked(e.target.checked)}
+                  className="mt-0.5"
+                />
+                <span>
+                  Allow this organization to publish photos I&apos;m tagged in on its
+                  public site. You can change this anytime.
+                </span>
+              </label>
             )}
             <div className="mt-3 flex flex-wrap gap-2">
               <button
@@ -486,6 +511,16 @@ export default function ClubPage() {
                             )}
                             {member.role !== 'member' && member.roster && <span className="text-muted"> · </span>}
                             {member.roster === 'active' && <span className="text-brand-fg">Roster</span>}
+                            {canManage && member.roster === 'active' && (
+                              <span className="text-muted">
+                                {' · '}
+                                {member.photoConsent === true
+                                  ? 'Photos allowed'
+                                  : member.photoConsent === false
+                                  ? 'Photos declined'
+                                  : 'Photos not asked'}
+                              </span>
+                            )}
                             {member.roster === 'pending' && <span className="text-muted">Roster invited</span>}
                             {member.unclaimed && (
                               <span className="text-muted">

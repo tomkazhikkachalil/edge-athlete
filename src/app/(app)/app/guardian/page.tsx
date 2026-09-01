@@ -101,6 +101,8 @@ function queueLabel(item: QueueItem): string {
       return `${item.athlete.name} was invited: ${item.event.title}`;
     case 'roster_invite':
       return `${item.org.name} invited ${item.athlete.name} to its roster`;
+    case 'photo_consent':
+      return `Allow ${item.org.name} to publish photos of ${item.athlete.name}?`;
     case 'contact_request':
       return `${item.requester.name} wants to message ${item.athlete.name}`;
     case 'age_preset_prompt':
@@ -138,6 +140,7 @@ const QUEUE_ICONS: Record<QueueItem['kind'], string> = {
   waiting_on_child: 'fa-hourglass-half',
   calendar_invite: 'fa-calendar-day',
   roster_invite: 'fa-clipboard-list',
+  photo_consent: 'fa-camera',
   contact_request: 'fa-user-clock',
   age_preset_prompt: 'fa-cake-candles',
   // Observational, deliberately not alarm-shaped (no triangles, no sirens).
@@ -374,6 +377,31 @@ export default function FamilyConsolePage() {
     }
   };
 
+  // Photo consent (phase 4 R4): guardian-only per-org publication grant.
+  // Allow=true / Not-now=false both ANSWER the ask (the row leaves the
+  // queue either way — false is revisitable via the same PATCH later).
+  const decidePhotoConsent = async (
+    item: Extract<QueueItem, { kind: 'photo_consent' }>,
+    consent: boolean
+  ) => {
+    setQueueActing(item.id);
+    setQueueError('');
+    try {
+      const res = await fetch(`/api/${item.org.side}s/${item.org.id}/roster`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'set_photo_consent', profileId: item.athlete.id, consent }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'Could not record the decision');
+      setQueueItems(prev => prev.filter(i => i.id !== item.id));
+    } catch (e) {
+      setQueueError(e instanceof Error ? e.message : 'Could not record the decision');
+    } finally {
+      setQueueActing('');
+    }
+  };
+
   // Inline decide on a fan request — the same POST the athlete page's fans
   // section fires; decline is a repeatable non-notifying delete, so neither
   // direction needs a confirm step.
@@ -546,6 +574,8 @@ export default function FamilyConsolePage() {
                           ? inviteWhen(item.event)
                           : item.kind === 'roster_invite'
                           ? 'You or your athlete can accept or decline.'
+                          : item.kind === 'photo_consent'
+                          ? 'Photos they’re tagged in stay private to the team until you allow it. You can change this anytime.'
                           : item.kind === 'contact_request'
                           ? item.requester.handle
                             ? `@${item.requester.handle} — held until you decide`
@@ -595,6 +625,7 @@ export default function FamilyConsolePage() {
                         item.kind === 'follow_request' ||
                         item.kind === 'calendar_invite' ||
                         item.kind === 'roster_invite' ||
+                        item.kind === 'photo_consent' ||
                         item.kind === 'contact_request'
                       ) {
                         const decide =
@@ -604,9 +635,15 @@ export default function FamilyConsolePage() {
                             ? (yes: boolean) => decideInvite(item, yes ? 'accepted' : 'declined')
                             : item.kind === 'roster_invite'
                             ? (yes: boolean) => decideRoster(item, yes)
+                            : item.kind === 'photo_consent'
+                            ? (yes: boolean) => decidePhotoConsent(item, yes)
                             : (yes: boolean) => decideContact(item, yes ? 'approve' : 'deny');
                         const [yesLabel, noLabel] =
-                          item.kind === 'contact_request' ? ['Approve', 'Deny'] : ['Accept', 'Decline'];
+                          item.kind === 'contact_request'
+                            ? ['Approve', 'Deny']
+                            : item.kind === 'photo_consent'
+                            ? ['Allow', 'Don’t allow']
+                            : ['Accept', 'Decline'];
                         return (
                           <div key={item.id} className="flex flex-wrap items-center gap-3 px-4 py-3 min-h-[44px]">
                             {body}

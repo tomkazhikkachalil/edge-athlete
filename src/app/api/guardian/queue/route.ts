@@ -128,6 +128,20 @@ export async function GET(request: NextRequest) {
           .eq('scope_type', 'org')
           .order('joined_at', { ascending: true })
       : { data: [], error: null };
+    // Photo-consent asks (phase 4 R4): ACTIVE org-roster rows never
+    // answered. Selecting photo_consent 42703s pre-159 — degrade to none
+    // rather than failing the whole queue (kept OUT of the throw loop).
+    const photoConsentQ = FEATURE_FLAGS.FEATURE_ROSTER_GUARDIAN_GATE
+      ? await admin
+          .from('memberships')
+          .select('id, profile_id, league_id, club_id, joined_at, photo_consent')
+          .in('profile_id', ids)
+          .eq('kind', 'roster')
+          .eq('status', 'active')
+          .eq('scope_type', 'org')
+          .is('photo_consent', null)
+          .order('joined_at', { ascending: true })
+      : { data: [], error: null };
     for (const q of [postsQ, commentsQ, followsQ, consentQ, supervisedQ, transferQ, invitesQ, heldQ, riskQ, rosterOffersQ]) {
       if (q.error) throw q.error;
     }
@@ -181,8 +195,19 @@ export async function GET(request: NextRequest) {
       club_id: string | null;
       joined_at: string;
     }>;
-    const offerLeagueIds = [...new Set(rosterRows.map(r => r.league_id).filter(Boolean))] as string[];
-    const offerClubIds = [...new Set(rosterRows.map(r => r.club_id).filter(Boolean))] as string[];
+    const consentRows = (photoConsentQ.error ? [] : (photoConsentQ.data ?? [])) as Array<{
+      id: string;
+      profile_id: string;
+      league_id: string | null;
+      club_id: string | null;
+      joined_at: string;
+    }>;
+    const offerLeagueIds = [
+      ...new Set([...rosterRows, ...consentRows].map(r => r.league_id).filter(Boolean)),
+    ] as string[];
+    const offerClubIds = [
+      ...new Set([...rosterRows, ...consentRows].map(r => r.club_id).filter(Boolean)),
+    ] as string[];
     const orgNames = new Map<string, string>();
     if (offerLeagueIds.length > 0 || offerClubIds.length > 0) {
       const [leagueNames, clubNames] = await Promise.all([
@@ -198,6 +223,10 @@ export async function GET(request: NextRequest) {
       }
     }
     const rosterOffers = rosterRows.map(r => ({
+      ...r,
+      orgName: orgNames.get((r.league_id ?? r.club_id) as string) ?? 'An organization',
+    }));
+    const photoConsentAsks = consentRows.map(r => ({
       ...r,
       orgName: orgNames.get((r.league_id ?? r.club_id) as string) ?? 'An organization',
     }));
@@ -223,7 +252,8 @@ export async function GET(request: NextRequest) {
       buildHeldContactRows(heldRows, counterpartRows),
       parseHouseholdPolicy(guardianRow?.household_policy),
       (riskQ.data ?? []) as QueueRiskRow[],
-      rosterOffers
+      rosterOffers,
+      photoConsentAsks
     );
     return NextResponse.json({ items });
   } catch (error) {

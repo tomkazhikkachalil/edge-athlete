@@ -111,7 +111,7 @@ export async function fetchPublicStaff(
 ): Promise<PublicStaffRow[]> {
   const { data, error } = await admin
     .from('memberships')
-    .select('role, profile:profile_id (first_name, last_name, full_name, visibility, email)')
+    .select('role, profile:profile_id (first_name, last_name, full_name, visibility, email, supervision_state)')
     .eq(orgColumn(side), orgId)
     .eq('kind', 'follow')
     .eq('scope_type', 'org')
@@ -250,7 +250,7 @@ export async function fetchPublicTeamPage(
     admin.from('team_entries').select('division_id').eq('team_id', teamId),
     admin
       .from('memberships')
-      .select('joined_at, profile:profile_id (first_name, last_name, full_name, visibility, email)')
+      .select('joined_at, profile:profile_id (first_name, last_name, full_name, visibility, email, supervision_state)')
       .eq(col, orgId)
       .eq('kind', 'roster')
       .eq('status', 'active')

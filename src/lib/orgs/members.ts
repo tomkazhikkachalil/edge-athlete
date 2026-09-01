@@ -248,6 +248,9 @@ export function redactPendingRoster(
     ...(m.roster === 'pending' && m.profile_id !== viewerId ? { roster: null } : {}),
     // Unclaimed status is an org-management detail — managers only.
     unclaimed: false,
+    // Consent state likewise (a member's answer is not other members'
+    // business) — except one's OWN answer, which the banner may show.
+    photoConsent: m.profile_id === viewerId ? m.photoConsent : null,
   }));
 }
 
@@ -421,6 +424,11 @@ export interface MemberPreviewRow {
    *  server-side; the email itself is STRIPPED before return and the flag
    *  is redacted for non-managers (redactPendingRoster). */
   unclaimed: boolean;
+  /** Phase 4 R4: the member's photo-consent answer on their ACTIVE
+   *  org-roster row — true/false = answered, null = never asked (or
+   *  pre-159, or not on the roster). READ-ONLY for orgs, and redacted
+   *  to null for non-managers like `unclaimed`. */
+  photoConsent: boolean | null;
 }
 
 /** The org page's member panel: exact count and first `limit` rows over the
@@ -470,6 +478,23 @@ export async function orgMemberPreview(
           .eq('scope_type', 'org')
       : Promise.resolve({ data: null }),
   ]);
+  // Phase 4 R4: consent answers on the active roster rows — a SEPARATE
+  // best-effort query so a pre-159 database (42703 on the column) degrades
+  // this one field to null instead of breaking the whole member panel.
+  const consentRes = await admin
+    .from('memberships')
+    .select('profile_id, photo_consent')
+    .eq(col, ref.orgId)
+    .eq('kind', 'roster')
+    .eq('scope_type', 'org')
+    .eq('status', 'active');
+  const consentByProfile = new Map<string, boolean | null>(
+    consentRes.error
+      ? []
+      : ((consentRes.data ?? []) as Array<{ profile_id: string; photo_consent: boolean | null }>).map(
+          r => [r.profile_id, r.photo_consent]
+        )
+  );
   const rosterByProfile = new Map(
     ((rosterRes.data ?? []) as Array<{ profile_id: string; status: string }>).map(r => [
       r.profile_id,
@@ -487,6 +512,7 @@ export async function orgMemberPreview(
       profile,
       roster: rosterByProfile.get(m.profile_id) ?? null,
       unclaimed,
+      photoConsent: consentByProfile.get(m.profile_id) ?? null,
     };
   });
   const viewerRows = (viewerRes.data ?? []) as Array<{ role: string; kind: string; status: string }>;
