@@ -163,7 +163,11 @@ export async function sitePATCH(
   orgId: string,
   input: SitePatchInput
 ): Promise<NextResponse> {
-  if (input.action === 'set_hero' || input.action === 'set_theme') {
+  if (
+    input.action === 'set_hero' ||
+    input.action === 'set_theme' ||
+    input.action === 'set_contact'
+  ) {
     const patch =
       input.action === 'set_hero'
         ? {
@@ -172,10 +176,19 @@ export async function sitePATCH(
               ...(input.tagline ? { tagline: input.tagline } : {}),
             },
           }
-        : // null clears back to the violet defaults. Whole-object replace on
-          // both branches — the console always sends every field, seeded
-          // from GET (a partial save would otherwise clear the rest).
-          { theme_token_set: input.accent ? { accent: input.accent.toLowerCase() } : {} };
+        : input.action === 'set_contact'
+          ? {
+              // Deliberately public, manager-entered org contact info.
+              contact_config: {
+                ...(input.email ? { email: input.email } : {}),
+                ...(input.phone ? { phone: input.phone } : {}),
+                ...(input.website ? { website: input.website } : {}),
+              },
+            }
+          : // null clears back to the violet defaults. Whole-object replace on
+            // every branch — the console always sends every field, seeded
+            // from GET (a partial save would otherwise clear the rest).
+            { theme_token_set: input.accent ? { accent: input.accent.toLowerCase() } : {} };
     const { data: updated, error } = await admin
       .from('org_sites')
       .update(patch)
@@ -200,6 +213,16 @@ export async function sitePATCH(
       .maybeSingle();
     if (!site) {
       return NextResponse.json({ error: 'Site not found' }, { status: 404 });
+    }
+    // Cross-site guard (the pagePATCH recipe): every logo must live under
+    // THIS site's asset prefix — the schema can't know the site id.
+    for (const sponsor of input.sponsors) {
+      if (sponsor.logoPath && !sponsor.logoPath.startsWith(`org-media/${site.id}/`)) {
+        return NextResponse.json(
+          { error: 'Logo is not one of this site’s assets' },
+          { status: 400 }
+        );
+      }
     }
     // UPDATE, never upsert — an upsert would clobber sort_order/enabled.
     const { data: updated, error } = await admin

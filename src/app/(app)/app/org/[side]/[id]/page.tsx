@@ -10,7 +10,7 @@ import OrgSetupChecklist from '@/components/orgs/OrgSetupChecklist';
 import { useToast } from '@/components/Toast';
 import Image from 'next/image';
 import { FEATURE_FLAGS } from '@/lib/features';
-import { orgLogoUrl } from '@/lib/media/org-site-media';
+import { orgLogoUrl, orgMediaUrl } from '@/lib/media/org-site-media';
 import { MODULE_TITLES, TOGGLEABLE_MODULE_KEYS } from '@/lib/org-sites/validate';
 import { SPORT_REGISTRY } from '@/lib/sports/SportRegistry';
 import OrgLogoUploader from '@/components/org/OrgLogoUploader';
@@ -152,7 +152,12 @@ export default function OrgConsolePage() {
   const [heroHeadline, setHeroHeadline] = useState('');
   const [heroTagline, setHeroTagline] = useState('');
   const [themeAccent, setThemeAccent] = useState(''); // '' = default violet
-  const [sponsorDrafts, setSponsorDrafts] = useState<{ name: string; url: string }[]>([]);
+  const [sponsorDrafts, setSponsorDrafts] = useState<
+    { name: string; url: string; logoPath: string }[]
+  >([]);
+  const [contactEmail, setContactEmail] = useState('');
+  const [contactPhone, setContactPhone] = useState('');
+  const [contactWebsite, setContactWebsite] = useState('');
   // R3 pages — the list in the Website card; the block editor is a subpage.
   const [sitePages, setSitePages] = useState<
     { id: string; slug: string; title: string; visibility: 'public' | 'draft' }[]
@@ -219,10 +224,27 @@ export default function OrgConsolePage() {
               (m: { module_key: string }) => m.module_key === 'sponsors'
             )?.config as { sponsors?: { name?: string; url?: string }[] } | undefined;
             setSponsorDrafts(
-              (sponsorsConfig?.sponsors ?? []).map(s => ({
+              (
+                (sponsorsConfig?.sponsors ?? []) as {
+                  name?: string;
+                  url?: string;
+                  logoPath?: string;
+                }[]
+              ).map(s => ({
                 name: s.name ?? '',
                 url: s.url ?? '',
+                logoPath: s.logoPath ?? '',
               }))
+            );
+            const contactConfig = (siteBody.site?.contact_config ?? {}) as {
+              email?: string;
+              phone?: string;
+              website?: string;
+            };
+            setContactEmail(typeof contactConfig.email === 'string' ? contactConfig.email : '');
+            setContactPhone(typeof contactConfig.phone === 'string' ? contactConfig.phone : '');
+            setContactWebsite(
+              typeof contactConfig.website === 'string' ? contactConfig.website : ''
             );
           }
         }
@@ -1530,6 +1552,51 @@ export default function OrgConsolePage() {
                       aria-label={`Sponsor ${index + 1} link`}
                       className="px-3 py-2 border border-border-strong rounded-md outline-none text-sm min-w-0 flex-1"
                     />
+                    <label className="flex items-center gap-1.5 text-xs text-tertiary">
+                      {s.logoPath ? (
+                        <Image
+                          src={orgMediaUrl(site.id, s.logoPath) ?? ''}
+                          alt=""
+                          width={24}
+                          height={24}
+                          unoptimized
+                          className="rounded border border-border shrink-0"
+                        />
+                      ) : (
+                        'Logo'
+                      )}
+                      <input
+                        type="file"
+                        accept="image/jpeg,image/png,image/gif,image/webp"
+                        aria-label={`Sponsor ${index + 1} logo`}
+                        className="w-32 text-xs"
+                        onChange={async e => {
+                          const file = e.target.files?.[0];
+                          e.target.value = '';
+                          if (!file) return;
+                          const formData = new FormData();
+                          formData.append('image', file);
+                          try {
+                            const res = await fetch(`/api/${plural}/${orgId}/site/assets`, {
+                              method: 'POST',
+                              body: formData,
+                            });
+                            const body = await res.json();
+                            if (!res.ok) {
+                              showError('Website', body.error || 'Failed to upload the logo');
+                              return;
+                            }
+                            setSponsorDrafts(d =>
+                              d.map((row, i) =>
+                                i === index ? { ...row, logoPath: body.path } : row
+                              )
+                            );
+                          } catch {
+                            showError('Website', 'Upload failed — please try again');
+                          }
+                        }}
+                      />
+                    </label>
                     <button
                       type="button"
                       onClick={() => setSponsorDrafts(d => d.filter((_, i) => i !== index))}
@@ -1544,7 +1611,9 @@ export default function OrgConsolePage() {
                   {sponsorDrafts.length < 20 && (
                     <button
                       type="button"
-                      onClick={() => setSponsorDrafts(d => [...d, { name: '', url: '' }])}
+                      onClick={() =>
+                        setSponsorDrafts(d => [...d, { name: '', url: '', logoPath: '' }])
+                      }
                       className="px-3 py-1.5 text-sm rounded-md text-tertiary hover:bg-surface-sunken transition-colors"
                     >
                       + Add sponsor
@@ -1561,6 +1630,7 @@ export default function OrgConsolePage() {
                             .map(s => ({
                               name: s.name.trim(),
                               ...(s.url.trim() ? { url: s.url.trim() } : {}),
+                              ...(s.logoPath ? { logoPath: s.logoPath } : {}),
                             })),
                         },
                         'Sponsors updated',
@@ -1572,6 +1642,62 @@ export default function OrgConsolePage() {
                     Save sponsors
                   </button>
                 </div>
+              </div>
+              {/* Cleanup round: contact — the three DELIBERATELY public
+                  fields (manager-entered org contact info); Save sends the
+                  complete object (replace semantics). */}
+              <div className="pt-2 space-y-1.5">
+                <p className="text-sm font-medium text-primary">Contact</p>
+                <div className="flex flex-wrap gap-2">
+                  <input
+                    type="email"
+                    value={contactEmail}
+                    onChange={e => setContactEmail(e.target.value)}
+                    maxLength={200}
+                    placeholder="contact@your-org.example"
+                    aria-label="Contact email"
+                    className="px-3 py-2 border border-border-strong rounded-md outline-none text-sm min-w-0 flex-1"
+                  />
+                  <input
+                    type="tel"
+                    value={contactPhone}
+                    onChange={e => setContactPhone(e.target.value)}
+                    maxLength={40}
+                    placeholder="Phone (optional)"
+                    aria-label="Contact phone"
+                    className="px-3 py-2 border border-border-strong rounded-md outline-none text-sm min-w-0 flex-1"
+                  />
+                  <input
+                    type="url"
+                    value={contactWebsite}
+                    onChange={e => setContactWebsite(e.target.value)}
+                    maxLength={200}
+                    placeholder="https:// (optional)"
+                    aria-label="Contact website"
+                    className="px-3 py-2 border border-border-strong rounded-md outline-none text-sm min-w-0 flex-1"
+                  />
+                  <button
+                    type="button"
+                    onClick={() =>
+                      void siteAct(
+                        {
+                          action: 'set_contact',
+                          ...(contactEmail.trim() ? { email: contactEmail.trim() } : {}),
+                          ...(contactPhone.trim() ? { phone: contactPhone.trim() } : {}),
+                          ...(contactWebsite.trim() ? { website: contactWebsite.trim() } : {}),
+                        },
+                        'Contact updated',
+                        'Failed to update contact'
+                      )
+                    }
+                    className="px-3 py-1.5 text-sm rounded-md border border-border-strong text-secondary hover:bg-surface-sunken transition-colors"
+                  >
+                    Save contact
+                  </button>
+                </div>
+                <p className="text-xs text-tertiary">
+                  These details are published on your public site.
+                </p>
               </div>
               {/* R3: custom pages — list + create here; the block editor is
                   a subpage (the competitions-detail precedent). */}

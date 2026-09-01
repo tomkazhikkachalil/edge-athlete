@@ -407,7 +407,8 @@ test('org site modules: live data on home + subpages; masked roster; team 404s',
       expect(home).toContain(`QA Arena ${stamp}`); // venues
       expect(home).toContain('Rink 1'); // facility
       expect(home).toContain(`QA Affiliated Club ${stamp}`); // affiliations
-      expect(home).toContain('Coming soon.'); // sponsors/contact stubs stay
+      expect(home).toContain('No sponsors yet.'); // empty modules say so quietly
+      expect(home).toContain('No contact details yet.');
       expect(home).toContain('Full standings →');
       expect(home).toContain('Full schedule →');
 
@@ -585,13 +586,56 @@ test('org site branding: hero, theme accent, sponsors', async ({ browser }) => {
         data: { action: 'set_theme', accent: '#0F766E' },
       });
       expect(theme.status(), await readErrorBody(theme)).toBe(200);
+      // Sponsor logo: upload an asset, reference it; a foreign path 400s.
+      const fs = await import('fs');
+      const logoBuffer = fs.readFileSync(path.join(__dirname, 'fixtures', 'photo.png'));
+      const { data: siteForAssets } = await admin
+        .from('org_sites')
+        .select('id')
+        .eq('league_id', leagueId)
+        .single();
+      const assetRes = await ownerApi.post(`/api/leagues/${leagueId}/site/assets`, {
+        multipart: { image: { name: 'logo.png', mimeType: 'image/png', buffer: logoBuffer } },
+      });
+      expect(assetRes.status(), await readErrorBody(assetRes)).toBe(200);
+      const sponsorLogoPath = (await assetRes.json()).path as string;
+      const foreignLogo = await ownerApi.patch(`/api/leagues/${leagueId}/site`, {
+        data: {
+          action: 'set_sponsors',
+          sponsors: [
+            {
+              name: 'Bad',
+              logoPath: 'org-media/00000000-0000-4000-8000-000000000000/stolen.png',
+            },
+          ],
+        },
+      });
+      expect(foreignLogo.status(), await readErrorBody(foreignLogo)).toBe(400);
       const sponsors = await ownerApi.patch(`/api/leagues/${leagueId}/site`, {
         data: {
           action: 'set_sponsors',
-          sponsors: [{ name: `Rinkside Supply ${stamp}`, url: 'https://example.com/rinkside' }],
+          sponsors: [
+            {
+              name: `Rinkside Supply ${stamp}`,
+              url: 'https://example.com/rinkside',
+              logoPath: sponsorLogoPath,
+            },
+          ],
         },
       });
       expect(sponsors.status(), await readErrorBody(sponsors)).toBe(200);
+
+      // Contact: the three deliberately public fields.
+      const contact = await ownerApi.patch(`/api/leagues/${leagueId}/site`, {
+        data: {
+          action: 'set_contact',
+          email: `demo-contact-${stamp}@example.com`,
+          phone: '+1 613 555 0100',
+          website: 'https://example.com/org',
+        },
+      });
+      expect(contact.status(), await readErrorBody(contact)).toBe(200);
+      void siteForAssets;
     } finally {
       await ownerApi.dispose();
     }
@@ -619,6 +663,9 @@ test('org site branding: hero, theme accent, sponsors', async ({ browser }) => {
       expect(html).toContain('--org-accent:#0f766e');
       expect(html).toContain(`Rinkside Supply ${stamp}`);
       expect(html).toContain('rel="noopener nofollow"');
+      expect(html).toContain('/api/media/org-media/'); // the sponsor logo img
+      expect(html).toContain(`mailto:demo-contact-${stamp}@example.com`);
+      expect(html).toContain('tel:+16135550100');
 
       // Reset the theme → the injected style disappears (violet defaults).
       const ownerApi2 = await apiAs('state-b.json');

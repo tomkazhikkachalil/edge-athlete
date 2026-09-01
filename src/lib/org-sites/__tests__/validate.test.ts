@@ -3,6 +3,7 @@ import {
   clampScheduleQuery,
   deriveStrongAccent,
   hexLuminance,
+  parseContact,
   parseHeroConfig,
   parseSponsors,
   parseThemeAccent,
@@ -79,6 +80,59 @@ describe('branding schema actions (R3)', () => {
         sponsors: Array.from({ length: 21 }, (_, i) => ({ name: `S${i}` })),
       }).success
     ).toBe(false);
+  });
+});
+
+describe('contact + sponsor logos (cleanup round)', () => {
+  const SITE = '01234567-89ab-4cde-8f01-23456789abcd';
+
+  it('set_contact accepts the three optional fields, rejects junk', () => {
+    expect(
+      SitePatchSchema.safeParse({
+        action: 'set_contact',
+        email: 'Info@Example.COM',
+        phone: '+1 613 555 0100',
+        website: 'https://example.com',
+      }).success
+    ).toBe(true);
+    expect(SitePatchSchema.safeParse({ action: 'set_contact' }).success).toBe(true);
+    expect(
+      SitePatchSchema.safeParse({ action: 'set_contact', email: 'not-an-email' }).success
+    ).toBe(false);
+    expect(
+      SitePatchSchema.safeParse({ action: 'set_contact', website: 'http://x.example' }).success
+    ).toBe(false);
+  });
+
+  it('parseContact re-validates defensively', () => {
+    expect(
+      parseContact({ email: 'a@b.co', phone: '613-555', website: 'https://x.example' })
+    ).toEqual({ email: 'a@b.co', phone: '613-555', website: 'https://x.example' });
+    expect(parseContact({ email: 'nope', phone: 'x', website: 'http://x' })).toEqual({});
+    expect(parseContact(null)).toEqual({});
+  });
+
+  it('sponsor logoPath must be a site asset path; parseSponsors re-checks', () => {
+    expect(
+      SitePatchSchema.safeParse({
+        action: 'set_sponsors',
+        sponsors: [{ name: 'A', logoPath: `org-media/${SITE}/logo.png` }],
+      }).success
+    ).toBe(true);
+    expect(
+      SitePatchSchema.safeParse({
+        action: 'set_sponsors',
+        sponsors: [{ name: 'A', logoPath: 'covers/evil.png' }],
+      }).success
+    ).toBe(false);
+    expect(
+      parseSponsors({
+        sponsors: [
+          { name: 'A', logoPath: `org-media/${SITE}/logo.png` },
+          { name: 'B', logoPath: '../../etc/passwd' },
+        ],
+      })
+    ).toEqual([{ name: 'A', logoPath: `org-media/${SITE}/logo.png` }, { name: 'B' }]);
   });
 });
 

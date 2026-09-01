@@ -11,8 +11,14 @@ import {
   getCachedVenues,
 } from '@/lib/org-sites/cached';
 import { buildOrgJsonLd, safeJsonLd } from '@/lib/org-sites/jsonld';
-import { MODULE_TITLES, parseHeroConfig, parseSponsors } from '@/lib/org-sites/validate';
+import {
+  MODULE_TITLES,
+  parseContact,
+  parseHeroConfig,
+  parseSponsors,
+} from '@/lib/org-sites/validate';
 import AffiliationsList from './_components/AffiliationsList';
+import ContactCard from './_components/ContactCard';
 import ScheduleList from './_components/ScheduleList';
 import SponsorsList from './_components/SponsorsList';
 import StaffList from './_components/StaffList';
@@ -133,13 +139,20 @@ export default async function OrgSiteHome({ params }: PageParams) {
           site.modules.find(m => m.module_key === 'sponsors')?.config
         );
         return sponsors.length > 0 ? (
-          <SponsorsList sponsors={sponsors} />
+          <SponsorsList sponsors={sponsors} siteId={site.id} />
         ) : (
           empty('No sponsors yet.')
         );
       }
+      case 'contact': {
+        const contact = parseContact(site.contact_config);
+        return Object.keys(contact).length > 0 ? (
+          <ContactCard contact={contact} />
+        ) : (
+          empty('No contact details yet.')
+        );
+      }
       default:
-        // contact: its editor is deferred; the stub stays.
         return empty('Coming soon.');
     }
   };
