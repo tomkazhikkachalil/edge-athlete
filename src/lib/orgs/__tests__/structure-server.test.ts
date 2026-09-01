@@ -221,7 +221,9 @@ describe('structureAggregateGET', () => {
     expect(membershipCalls[1].filters).toMatchObject({
       league_id: 'org-1',
       kind: 'roster',
-      status: 'active',
+      // Phase 5 R1 fix: org-scope pin + on-the-roster semantics.
+      scope_type: 'org',
+      status: ['active', 'placed'],
     });
   });
 });

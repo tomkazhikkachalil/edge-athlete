@@ -154,8 +154,63 @@ export function removeMember(admin: Admin, ref: OrgRef, profileId: string): Prom
 }
 
 // ── Roster edges (0.3) — explicit kind, NEVER touch follow rows ─────────────
+// Phase 5 (mig 161) widens the lifecycle: 'pending'/'active' remain the
+// NULL-season invite flow this file owns; 'registered'/'evaluating'/
+// 'placed'/'released' are SEASON-scoped registration rows owned by
+// registration-server.ts. The roster routes here never mutate season rows
+// (deleteRosterRow pins season_id IS NULL), and rosterPost refuses to
+// stack an invite on a live registration.
+//
+// WHY the enumeration readers below (memberOrgIds, memberProfileIds,
+// memberCountsByOrg, anyMembershipExists, profileMembershipRows,
+// getMemberRole) stay status-blind ON PURPOSE: registration maintains
+// roster ⊆ follow (the registration writer upserts the follow row), so
+// registrants ARE members for fan-out/counting/authz — and a 'released'
+// athlete keeps their follow row (they still follow the org), so nothing
+// here needs to exclude them either.
 
-export type RosterStatus = 'pending' | 'active';
+export type RosterStatus =
+  | 'pending'
+  | 'active'
+  | 'registered'
+  | 'evaluating'
+  | 'placed'
+  | 'released';
+
+const ROSTER_STATUSES: ReadonlySet<string> = new Set([
+  'pending',
+  'active',
+  'registered',
+  'evaluating',
+  'placed',
+  'released',
+]);
+
+/** Parse a status string from the DB — the safe replacement for the old
+ *  `as 'pending' | 'active'` casts. An unknown value (a future migration
+ *  ahead of this build) reads as null rather than mis-typing. */
+export function parseRosterStatus(value: string | null | undefined): RosterStatus | null {
+  return value && ROSTER_STATUSES.has(value) ? (value as RosterStatus) : null;
+}
+
+export interface RosterEdge {
+  status: RosterStatus;
+  seasonId: string | null;
+}
+
+/** The edge the invite/leave flows act on vs the season lifecycle: with a
+ *  seasonId, that season's row wins; otherwise a season-scoped row (the
+ *  live registration) outranks the NULL-season row (legacy membership /
+ *  invite). Pure — exported for unit tests. */
+export function pickRosterEdge(
+  edges: RosterEdge[],
+  seasonId?: string | null
+): RosterEdge | null {
+  if (seasonId !== undefined) {
+    return edges.find(e => e.seasonId === seasonId) ?? null;
+  }
+  return edges.find(e => e.seasonId !== null) ?? edges.find(e => e.seasonId === null) ?? null;
+}
 
 /** Manager mints the offer. Explicit kind+status — never the defaults. */
 export async function insertRosterOffer(
@@ -192,7 +247,10 @@ export async function acceptRosterOffer(
 }
 
 /** Decline / cancel / remove — DELETE the roster row (the 118
- *  decline-erases precedent; re-inviting stays possible). */
+ *  decline-erases precedent; re-inviting stays possible). Pinned to the
+ *  NULL-season row (phase 5): the invite/leave lifecycle must never
+ *  delete a season registration row — those move only through
+ *  registration-server's transitions. */
 export async function deleteRosterRow(
   admin: Admin,
   ref: OrgRef,
@@ -205,38 +263,57 @@ export async function deleteRosterRow(
     .eq('profile_id', profileId)
     .eq('kind', 'roster')
     .eq('scope_type', 'org')
+    .is('season_id', null)
     .select('id');
   return { deleted: (data ?? []).length > 0, error };
 }
 
 /** One read powering the roster routes' decision tree: the target's follow
- *  role (the roster ⊆ follow gate) and roster status. */
+ *  role (the roster ⊆ follow gate) and EVERY org-scope roster edge —
+ *  since phase 5 a profile can hold a NULL-season row (invite/legacy) AND
+ *  a season registration row at once; callers pick with pickRosterEdge. */
 export async function membershipEdges(
   admin: Admin,
   ref: OrgRef,
   profileId: string
 ): Promise<{
   followRole: OrgRole | null;
-  rosterStatus: RosterStatus | null;
+  rosterEdges: RosterEdge[];
   error: PostgrestError | null;
 }> {
   const { data, error } = await admin
     .from('memberships')
-    .select('role, kind, status')
+    .select('role, kind, status, season_id')
     .eq(orgColumn(ref.side), ref.orgId)
     .eq('profile_id', profileId)
     .eq('scope_type', 'org');
-  const rows = (data ?? []) as Array<{ role: string; kind: string; status: string }>;
-  const rosterRow = rows.find(r => r.kind === 'roster');
+  const rows = (data ?? []) as Array<{
+    role: string;
+    kind: string;
+    status: string;
+    season_id: string | null;
+  }>;
+  const rosterEdges: RosterEdge[] = [];
+  for (const row of rows) {
+    if (row.kind !== 'roster') continue;
+    const status = parseRosterStatus(row.status);
+    if (status) rosterEdges.push({ status, seasonId: row.season_id ?? null });
+  }
   return {
     followRole: maxOrgRole(rows.filter(r => r.kind === 'follow').map(r => r.role)),
-    rosterStatus: rosterRow ? ((rosterRow.status as RosterStatus) ?? null) : null,
+    rosterEdges,
     error,
   };
 }
 
-/** Pending offers are private to managers and the invitee; active roster
- *  membership is public. Pure — exported for the routes and unit tests. */
+/** Pending offers are private to managers and the invitee; active/placed
+ *  roster membership is public (the public team page shows placed rosters
+ *  anyway). Phase 5: the in-flight registration states (registered/
+ *  evaluating/released) are org-management detail like pending — redacted
+ *  for everyone but managers and the person themselves. Pure — exported
+ *  for the routes and unit tests. */
+const PUBLIC_ROSTER_STATUSES: ReadonlySet<RosterStatus> = new Set(['active', 'placed']);
+
 export function redactPendingRoster(
   members: MemberPreviewRow[],
   canManage: boolean,
@@ -245,7 +322,9 @@ export function redactPendingRoster(
   if (canManage) return members;
   return members.map(m => ({
     ...m,
-    ...(m.roster === 'pending' && m.profile_id !== viewerId ? { roster: null } : {}),
+    ...(m.roster && !PUBLIC_ROSTER_STATUSES.has(m.roster) && m.profile_id !== viewerId
+      ? { roster: null }
+      : {}),
     // Unclaimed status is an org-management detail — managers only.
     unclaimed: false,
     // Consent state likewise (a member's answer is not other members'
@@ -418,8 +497,10 @@ export interface MemberPreviewRow {
   role: string;
   joined_at: string;
   profile: unknown;
-  /** 0.3: the member's roster edge, merged onto their follow row. */
-  roster: 'pending' | 'active' | null;
+  /** 0.3: the member's roster edge, merged onto their follow row. Since
+   *  phase 5 this can be any lifecycle status (a season registration row
+   *  outranks the NULL-season row via pickRosterEdge). */
+  roster: RosterStatus | null;
   /** R3: an unclaimed roster stub (@stubs.invalid ⇔ unclaimed). Derived
    *  server-side; the email itself is STRIPPED before return and the flag
    *  is redacted for non-managers (redactPendingRoster). */
@@ -445,7 +526,7 @@ export async function orgMemberPreview(
   count: number;
   members: MemberPreviewRow[];
   viewerRole: string | null;
-  viewerRoster: 'pending' | 'active' | null;
+  viewerRoster: RosterStatus | null;
 }> {
   const col = orgColumn(ref.side);
   const [countRes, membersRes, rosterRes, viewerRes] = await Promise.all([
@@ -465,42 +546,62 @@ export async function orgMemberPreview(
       .limit(limit),
     admin
       .from('memberships')
-      .select('profile_id, status')
+      .select('profile_id, status, season_id')
       .eq(col, ref.orgId)
       .eq('kind', 'roster')
       .eq('scope_type', 'org'),
     viewerId
       ? admin
           .from('memberships')
-          .select('role, kind, status')
+          .select('role, kind, status, season_id')
           .eq(col, ref.orgId)
           .eq('profile_id', viewerId)
           .eq('scope_type', 'org')
       : Promise.resolve({ data: null }),
   ]);
-  // Phase 4 R4: consent answers on the active roster rows — a SEPARATE
+  // Phase 4 R4: consent answers on the roster rows — a SEPARATE
   // best-effort query so a pre-159 database (42703 on the column) degrades
   // this one field to null instead of breaking the whole member panel.
+  // Phase 5: registrants get the consent chip too (consent is captured at
+  // registration), and a season row's answer outranks the NULL-season one.
   const consentRes = await admin
     .from('memberships')
-    .select('profile_id, photo_consent')
+    .select('profile_id, photo_consent, season_id')
     .eq(col, ref.orgId)
     .eq('kind', 'roster')
     .eq('scope_type', 'org')
-    .eq('status', 'active');
-  const consentByProfile = new Map<string, boolean | null>(
-    consentRes.error
-      ? []
-      : ((consentRes.data ?? []) as Array<{ profile_id: string; photo_consent: boolean | null }>).map(
-          r => [r.profile_id, r.photo_consent]
-        )
-  );
-  const rosterByProfile = new Map(
-    ((rosterRes.data ?? []) as Array<{ profile_id: string; status: string }>).map(r => [
-      r.profile_id,
-      r.status as 'pending' | 'active',
-    ])
-  );
+    .in('status', ['active', 'registered', 'evaluating', 'placed']);
+  const consentByProfile = new Map<string, boolean | null>();
+  if (!consentRes.error) {
+    const rows = (consentRes.data ?? []) as Array<{
+      profile_id: string;
+      photo_consent: boolean | null;
+      season_id: string | null;
+    }>;
+    // NULL-season answers first, season answers second — the season row wins.
+    for (const r of rows.filter(r => r.season_id === null)) {
+      consentByProfile.set(r.profile_id, r.photo_consent);
+    }
+    for (const r of rows.filter(r => r.season_id !== null)) {
+      consentByProfile.set(r.profile_id, r.photo_consent);
+    }
+  }
+  const edgesByProfile = new Map<string, RosterEdge[]>();
+  for (const r of (rosterRes.data ?? []) as Array<{
+    profile_id: string;
+    status: string;
+    season_id: string | null;
+  }>) {
+    const status = parseRosterStatus(r.status);
+    if (!status) continue;
+    if (!edgesByProfile.has(r.profile_id)) edgesByProfile.set(r.profile_id, []);
+    edgesByProfile.get(r.profile_id)!.push({ status, seasonId: r.season_id ?? null });
+  }
+  const rosterByProfile = new Map<string, RosterStatus>();
+  for (const [profileId, edges] of edgesByProfile) {
+    const picked = pickRosterEdge(edges);
+    if (picked) rosterByProfile.set(profileId, picked.status);
+  }
   const members = ((membersRes.data ?? []) as unknown as MemberPreviewRow[]).map(m => {
     // Derive unclaimed from the embedded email, then STRIP the email here
     // so no caller can leak it.
@@ -515,13 +616,23 @@ export async function orgMemberPreview(
       photoConsent: consentByProfile.get(m.profile_id) ?? null,
     };
   });
-  const viewerRows = (viewerRes.data ?? []) as Array<{ role: string; kind: string; status: string }>;
-  const viewerRosterRow = viewerRows.find(r => r.kind === 'roster');
+  const viewerRows = (viewerRes.data ?? []) as Array<{
+    role: string;
+    kind: string;
+    status: string;
+    season_id: string | null;
+  }>;
+  const viewerEdges: RosterEdge[] = [];
+  for (const r of viewerRows) {
+    if (r.kind !== 'roster') continue;
+    const status = parseRosterStatus(r.status);
+    if (status) viewerEdges.push({ status, seasonId: r.season_id ?? null });
+  }
   return {
     count: countRes.count ?? 0,
     members,
     viewerRole: maxOrgRole(viewerRows.map(r => r.role)),
-    viewerRoster: viewerRosterRow ? ((viewerRosterRow.status as 'pending' | 'active') ?? null) : null,
+    viewerRoster: pickRosterEdge(viewerEdges)?.status ?? null,
   };
 }
 

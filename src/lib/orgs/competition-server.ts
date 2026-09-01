@@ -422,14 +422,19 @@ export async function entryAddPOST(
       return NextResponse.json({ error: 'This competition takes athlete entries' }, { status: 400 });
     }
     // §8 invariant 3: entrants resolve through the ROSTER edge, never
-    // follow — an athlete competition is a record surface.
+    // follow — an athlete competition is a record surface. Phase 5 R1
+    // fix: pinned to the ORG scope (a team-scope row used to satisfy the
+    // org-level check) and to full membership under the widened lifecycle
+    // (active legacy rows and placed registrants; a merely-registered
+    // athlete isn't rostered yet).
     const { data: rosterRow } = await admin
       .from('memberships')
       .select('id')
       .eq(comp.league_id ? 'league_id' : 'club_id', (comp.league_id ?? comp.club_id) as string)
       .eq('profile_id', input.profileId)
       .eq('kind', 'roster')
-      .eq('status', 'active')
+      .eq('scope_type', 'org')
+      .in('status', ['active', 'placed'])
       .limit(1)
       .maybeSingle();
     if (!rosterRow) {

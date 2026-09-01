@@ -22,6 +22,26 @@ import { SPORT_REGISTRY } from '@/lib/sports/SportRegistry';
 // multi-sport facilities by decision. Shipping this page is what makes the
 // ⌘K club rows navigable (no page, no link).
 
+// Phase 5 (mig 161): the widened roster lifecycle. 'pending'/'active' keep
+// the invite-flow chips; the four registration statuses get read-only chips
+// here (the registration workflow itself lives on the registrar screen).
+type RosterChipStatus =
+  | 'pending'
+  | 'active'
+  | 'registered'
+  | 'evaluating'
+  | 'placed'
+  | 'released';
+
+const ROSTER_CHIP_LABELS: Record<RosterChipStatus, string> = {
+  pending: 'Roster invited',
+  active: 'Roster',
+  registered: 'Registered',
+  evaluating: 'In evaluation',
+  placed: 'Placed',
+  released: 'Released',
+};
+
 export interface ClubInfo {
   id: string;
   name: string;
@@ -54,7 +74,7 @@ interface MemberRow {
   role: string;
   joined_at: string;
   profile: MemberProfile | null;
-  roster: 'pending' | 'active' | null;
+  roster: RosterChipStatus | null;
   /** Phase 4 R4 — managers only (redacted to null otherwise). */
   photoConsent?: boolean | null;
   /** R3: unclaimed roster stub — server-derived, manager-redacted. */
@@ -68,7 +88,7 @@ interface ClubResponse {
   memberCount: number;
   members: MemberRow[];
   viewerRole: string | null;
-  viewerRoster: 'pending' | 'active' | null;
+  viewerRoster: RosterChipStatus | null;
 }
 
 export default function ClubPage() {
@@ -510,8 +530,12 @@ export default function ClubPage() {
                               <span className="text-brand-fg capitalize">{member.role}</span>
                             )}
                             {member.role !== 'member' && member.roster && <span className="text-muted"> · </span>}
-                            {member.roster === 'active' && <span className="text-brand-fg">Roster</span>}
-                            {canManage && member.roster === 'active' && (
+                            {member.roster && member.roster !== 'pending' && (
+                              <span className={member.roster === 'released' ? 'text-muted' : 'text-brand-fg'}>
+                                {ROSTER_CHIP_LABELS[member.roster]}
+                              </span>
+                            )}
+                            {canManage && member.roster && ['active', 'registered', 'evaluating', 'placed'].includes(member.roster) && (
                               <span className="text-muted">
                                 {' · '}
                                 {member.photoConsent === true
@@ -521,7 +545,9 @@ export default function ClubPage() {
                                   : 'Photos not asked'}
                               </span>
                             )}
-                            {member.roster === 'pending' && <span className="text-muted">Roster invited</span>}
+                            {member.roster === 'pending' && (
+                              <span className="text-muted">{ROSTER_CHIP_LABELS.pending}</span>
+                            )}
                             {member.unclaimed && (
                               <span className="text-muted">
                                 {(member.role !== 'member' || member.roster) ? ' · ' : ''}Unclaimed

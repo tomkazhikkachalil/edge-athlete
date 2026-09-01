@@ -51,6 +51,10 @@ function mockAdmin(
           call.filters[col] = vals;
           return chain;
         },
+        is(col: string, val: unknown) {
+          call.filters[col] = val;
+          return chain;
+        },
         limit: () => chain,
         order: () => chain,
         select: () => chain,
@@ -198,6 +202,9 @@ describe('write filters keep legacy-shaped paths off future roster rows', () => 
       profile_id: 'them',
       kind: 'roster',
       scope_type: 'org',
+      // Phase 5: the invite/leave lifecycle never deletes a season
+      // registration row.
+      season_id: null,
     });
   });
 
@@ -240,29 +247,61 @@ describe('write filters keep legacy-shaped paths off future roster rows', () => 
     });
   });
 
-  it('membershipEdges splits follow role from roster status', async () => {
+  it('membershipEdges splits follow role from EVERY roster edge (phase 5)', async () => {
     const { admin } = mockAdmin({
       memberships: {
         data: [
-          { role: 'manager', kind: 'follow', status: 'active' },
-          { role: 'member', kind: 'roster', status: 'pending' },
+          { role: 'manager', kind: 'follow', status: 'active', season_id: null },
+          { role: 'member', kind: 'roster', status: 'pending', season_id: null },
+          { role: 'member', kind: 'roster', status: 'registered', season_id: 's1' },
+          // An unknown future status parses out rather than mis-typing.
+          { role: 'member', kind: 'roster', status: 'weird_future_value', season_id: 's2' },
         ],
         error: null,
       },
     });
     const edges = await membershipEdges(admin, REF, 'them');
     expect(edges.followRole).toBe('manager');
-    expect(edges.rosterStatus).toBe('pending');
+    expect(edges.rosterEdges).toEqual([
+      { status: 'pending', seasonId: null },
+      { status: 'registered', seasonId: 's1' },
+    ]);
 
     const followOnly = mockAdmin({
-      memberships: { data: [{ role: 'member', kind: 'follow', status: 'active' }], error: null },
+      memberships: {
+        data: [{ role: 'member', kind: 'follow', status: 'active', season_id: null }],
+        error: null,
+      },
     });
     const edges2 = await membershipEdges(followOnly.admin, REF, 'them');
     expect(edges2.followRole).toBe('member');
-    expect(edges2.rosterStatus).toBeNull();
+    expect(edges2.rosterEdges).toEqual([]);
   });
 
-  it('redactPendingRoster hides pending offers from everyone but managers and the invitee', () => {
+  it('redactPendingRoster hides pending offers AND in-flight registration states (phase 5)', () => {
+    const lifecycleRow = (profile_id: string, roster: 'registered' | 'evaluating' | 'placed' | 'released') =>
+      ({ profile_id, role: 'member', joined_at: '', profile: null, roster }) as never;
+    const lifecycle = [
+      lifecycleRow('r1', 'registered'),
+      lifecycleRow('r2', 'evaluating'),
+      lifecycleRow('r3', 'placed'),
+      lifecycleRow('r4', 'released'),
+    ];
+    // Non-managers: placed is public (the team page shows it anyway);
+    // registered/evaluating/released are org-management detail — except
+    // one's own row.
+    expect(redactPendingRoster(lifecycle, false, 'r1').map(m => m.roster)).toEqual([
+      'registered',
+      null,
+      'placed',
+      null,
+    ]);
+    expect(redactPendingRoster(lifecycle, true, null).map(m => m.roster)).toEqual([
+      'registered',
+      'evaluating',
+      'placed',
+      'released',
+    ]);
     const row = (profile_id: string, roster: 'pending' | 'active' | null) =>
       ({ profile_id, role: 'member', joined_at: '', profile: null, roster }) as never;
     const members = [row('a', 'pending'), row('b', 'active'), row('c', null)];
@@ -355,7 +394,11 @@ describe('write filters keep legacy-shaped paths off future roster rows', () => 
     // Phase 4 R4: the separate best-effort photo-consent read (active
     // roster rows only — kept apart so a pre-159 42703 degrades one field,
     // never the panel).
-    expect(calls[4].filters).toMatchObject({ kind: 'roster', scope_type: 'org', status: 'active' });
+    expect(calls[4].filters).toMatchObject({
+      kind: 'roster',
+      scope_type: 'org',
+      status: ['active', 'registered', 'evaluating', 'placed'],
+    });
     expect(out.viewerRole).toBe('manager');
     expect(out.viewerRoster).toBe('pending');
   });

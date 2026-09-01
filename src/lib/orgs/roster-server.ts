@@ -40,6 +40,7 @@ import {
   deleteRosterRow,
   insertRosterOffer,
   membershipEdges,
+  pickRosterEdge,
   type RosterStatus,
 } from './members';
 import { canGrantPhotoConsent, setPhotoConsent } from './photo-consent';
@@ -109,7 +110,7 @@ export async function rosterPost(
     return NextResponse.json({ error: SUPERVISED_MESSAGE }, { status: 403 });
   }
 
-  const { followRole, rosterStatus, error: edgesError } = await membershipEdges(
+  const { followRole, rosterEdges, error: edgesError } = await membershipEdges(
     admin,
     { side, orgId },
     targetProfileId
@@ -124,11 +125,22 @@ export async function rosterPost(
       { status: 400 }
     );
   }
-  if (rosterStatus === 'pending') {
-    return NextResponse.json({ error: 'Already invited to the roster' }, { status: 400 });
-  }
-  if (rosterStatus === 'active') {
-    return NextResponse.json({ error: 'Already on the roster' }, { status: 400 });
+  // Phase 5: one live workflow per athlete per org. Any live edge —
+  // NULL-season invite/membership OR a season registration — blocks a new
+  // invite with a status-specific message (this also kills the old
+  // re-offer → 23505 path at the source). Only 'released' edges permit
+  // re-inviting: that workflow is over.
+  const liveEdge = pickRosterEdge(rosterEdges.filter(e => e.status !== 'released'));
+  if (liveEdge) {
+    const message =
+      liveEdge.status === 'pending'
+        ? 'Already invited to the roster'
+        : liveEdge.status === 'active'
+          ? 'Already on the roster'
+          : liveEdge.status === 'placed'
+            ? 'Already placed on a team this season'
+            : 'Already registered for this season';
+    return NextResponse.json({ error: message }, { status: 400 });
   }
 
   const { error: insertError } = await insertRosterOffer(admin, { side, orgId }, targetProfileId);
@@ -310,14 +322,26 @@ export async function rosterDelete(
     return NextResponse.json({ error: 'Not authorized to manage the roster' }, { status: 403 });
   }
 
-  const { rosterStatus, error: edgesError } = await membershipEdges(admin, { side, orgId }, target);
+  const { rosterEdges, error: edgesError } = await membershipEdges(admin, { side, orgId }, target);
   if (edgesError) {
     console.error('[ROSTER] edges fetch error:', edgesError);
     return NextResponse.json({ error: 'Failed to check membership' }, { status: 500 });
   }
+  // This flow acts ONLY on the NULL-season edge (invite/legacy membership):
+  // season registration rows move through registration-server's
+  // transitions, never a roster DELETE (deleteRosterRow is season-pinned
+  // to match).
+  const rosterStatus = pickRosterEdge(rosterEdges, null)?.status ?? null;
   if (!rosterStatus) {
+    const hasSeasonEdge = rosterEdges.length > 0;
     return NextResponse.json(
-      { error: isSelf ? 'No pending roster invitation' : 'Not on the roster' },
+      {
+        error: hasSeasonEdge
+          ? 'This membership is a season registration — manage it from the registrations screen'
+          : isSelf
+            ? 'No pending roster invitation'
+            : 'Not on the roster',
+      },
       { status: 404 }
     );
   }
