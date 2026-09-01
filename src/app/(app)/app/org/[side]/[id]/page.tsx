@@ -103,6 +103,7 @@ interface RegistrarWindow {
   program_id: string | null;
   opens_at: string;
   closes_at: string | null;
+  capacity: number | null;
 }
 
 const REG_STATUS_LABELS: Record<string, string> = {
@@ -191,6 +192,14 @@ export default function OrgConsolePage() {
   const [regWindows, setRegWindows] = useState<RegistrarWindow[]>([]);
   const [regAvailable, setRegAvailable] = useState(false);
   const [regDetailId, setRegDetailId] = useState<string | null>(null);
+  // PR #492: per-offering window controls — the inline-expander precedent.
+  const [winFormOpen, setWinFormOpen] = useState(false);
+  const [winOfferingKey, setWinOfferingKey] = useState('season');
+  const [winClosesOn, setWinClosesOn] = useState('');
+  const [winCapacity, setWinCapacity] = useState('');
+  const [regPrograms, setRegPrograms] = useState<
+    Record<string, { id: string; name: string }[]>
+  >({});
   // Website (phase 3 R1): the org's public site row (null until created).
   const [site, setSite] = useState<{
     id: string;
@@ -350,11 +359,14 @@ export default function OrgConsolePage() {
     let cancelled = false;
     (async () => {
       try {
-        const [regRes, winRes] = await Promise.all([
+        const [regRes, winRes, offRes] = await Promise.all([
           fetch(
             `/api/${plural}/${orgId}/registrations${effectiveRegSeason ? `?seasonId=${effectiveRegSeason}` : ''}`
           ),
           fetch(`/api/${plural}/${orgId}/registration-windows`),
+          // Programs for the offering picker (divisions already ride the
+          // seasons payload); the offerings projection lists live seasons.
+          fetch(`/api/${plural}/${orgId}/offerings`),
         ]);
         if (cancelled) return;
         if (regRes.ok) {
@@ -369,6 +381,18 @@ export default function OrgConsolePage() {
         if (winRes.ok) {
           const body = await winRes.json();
           if (!cancelled) setRegWindows((body.windows ?? []) as RegistrarWindow[]);
+        }
+        if (offRes.ok) {
+          const body = (await offRes.json()) as {
+            seasons?: { id: string; programs?: { id: string; name: string }[] }[];
+          };
+          if (!cancelled) {
+            setRegPrograms(
+              Object.fromEntries(
+                (body.seasons ?? []).map(s => [s.id, s.programs ?? []])
+              )
+            );
+          }
         }
       } catch {
         if (!cancelled) setRegAvailable(false);
@@ -1478,7 +1502,10 @@ export default function OrgConsolePage() {
             <div className="flex flex-wrap items-center gap-2 mb-4">
               <select
                 value={effectiveRegSeason}
-                onChange={e => setRegSeasonId(e.target.value)}
+                onChange={e => {
+                  setRegSeasonId(e.target.value);
+                  setWinOfferingKey('season'); // offering ids are season-scoped
+                }}
                 aria-label="Registration season"
                 className="max-w-full px-3 py-2 border border-border-strong rounded-md outline-none text-sm"
               >
@@ -1486,53 +1513,162 @@ export default function OrgConsolePage() {
                   <option key={sn.id} value={sn.id}>{sn.label}</option>
                 ))}
               </select>
-              {(() => {
-                const seasonWindow = regWindows.find(
-                  w => w.season_id === effectiveRegSeason && !w.division_id && !w.program_id
-                );
-                return seasonWindow ? (
-                  <button
-                    type="button"
-                    onClick={() =>
-                      void act(
-                        `/api/${plural}/${orgId}/registration-windows?windowId=${seasonWindow.id}`,
-                        { method: 'DELETE' },
-                        'Registration closed',
-                        'Failed to close registration',
-                        'Registrations'
-                      )
-                    }
-                    className="px-3 py-2 text-sm min-h-[40px] rounded-lg border border-border-strong text-secondary hover:bg-surface-sunken transition-colors"
-                  >
-                    Close registration
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    disabled={!effectiveRegSeason}
-                    onClick={() =>
-                      void act(
-                        `/api/${plural}/${orgId}/registration-windows`,
-                        {
-                          method: 'POST',
-                          headers: { 'Content-Type': 'application/json' },
-                          body: JSON.stringify({
-                            seasonId: effectiveRegSeason,
-                            opensAt: new Date().toISOString(),
-                          }),
-                        },
-                        'Registration is open',
-                        'Failed to open registration',
-                        'Registrations'
-                      )
-                    }
-                    className="px-3 py-2 text-sm min-h-[40px] rounded-lg bg-brand text-white font-medium hover:bg-brand-hover transition-colors disabled:opacity-50"
-                  >
-                    Open registration
-                  </button>
-                );
-              })()}
+              <button
+                type="button"
+                disabled={!effectiveRegSeason}
+                onClick={() => setWinFormOpen(o => !o)}
+                className="px-3 py-2 text-sm min-h-[40px] rounded-lg bg-brand text-white font-medium hover:bg-brand-hover transition-colors disabled:opacity-50"
+              >
+                {winFormOpen ? 'Cancel' : 'Open registration…'}
+              </button>
+              {registrations.length > 0 && (
+                <a
+                  href={`/api/${plural}/${orgId}/registrations/export${effectiveRegSeason ? `?seasonId=${effectiveRegSeason}` : ''}`}
+                  download
+                  className="px-3 py-2 text-sm min-h-[40px] inline-flex items-center rounded-lg border border-border-strong text-secondary hover:bg-surface-sunken transition-colors"
+                >
+                  Download CSV
+                </a>
+              )}
             </div>
+
+            {/* PR #492: per-offering open form — season-wide by default,
+                or one division/program, with optional close date + capacity
+                (the schema/API supported all three since 162; this is the
+                UI catching up). Inline expander, never a modal (375px). */}
+            {winFormOpen && (
+              <form
+                className="flex flex-wrap items-end gap-2 mb-4 border border-border rounded-lg p-3"
+                onSubmit={e => {
+                  e.preventDefault();
+                  const payload: Record<string, unknown> = {
+                    seasonId: effectiveRegSeason,
+                    opensAt: new Date().toISOString(),
+                  };
+                  if (winOfferingKey.startsWith('d:')) payload.divisionId = winOfferingKey.slice(2);
+                  if (winOfferingKey.startsWith('p:')) payload.programId = winOfferingKey.slice(2);
+                  if (winClosesOn) {
+                    payload.closesAt = new Date(`${winClosesOn}T23:59:59`).toISOString();
+                  }
+                  const cap = parseInt(winCapacity, 10);
+                  if (Number.isFinite(cap) && cap > 0) payload.capacity = cap;
+                  void act(
+                    `/api/${plural}/${orgId}/registration-windows`,
+                    {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify(payload),
+                    },
+                    'Registration is open',
+                    'Failed to open registration',
+                    'Registrations'
+                  ).then(ok => {
+                    if (!ok) return; // keep the entered values on failure
+                    setWinFormOpen(false);
+                    setWinOfferingKey('season');
+                    setWinClosesOn('');
+                    setWinCapacity('');
+                  });
+                }}
+              >
+                <label className="text-sm text-secondary">
+                  <span className="block text-xs text-muted mb-1">Offering</span>
+                  <select
+                    value={winOfferingKey}
+                    onChange={e => setWinOfferingKey(e.target.value)}
+                    className="max-w-full px-3 py-2 border border-border-strong rounded-md outline-none text-sm"
+                  >
+                    <option value="season">Season-wide</option>
+                    {(seasons.find(s => s.id === effectiveRegSeason)?.divisions ?? []).map(d => (
+                      <option key={d.id} value={`d:${d.id}`}>Division · {d.name}</option>
+                    ))}
+                    {(regPrograms[effectiveRegSeason] ?? []).map(p => (
+                      <option key={p.id} value={`p:${p.id}`}>Program · {p.name}</option>
+                    ))}
+                  </select>
+                </label>
+                <label className="text-sm text-secondary">
+                  <span className="block text-xs text-muted mb-1">Closes on (optional)</span>
+                  <input
+                    type="date"
+                    value={winClosesOn}
+                    onChange={e => setWinClosesOn(e.target.value)}
+                    className="px-3 py-2 border border-border-strong rounded-md outline-none text-sm"
+                  />
+                </label>
+                <label className="text-sm text-secondary">
+                  <span className="block text-xs text-muted mb-1">Capacity (optional)</span>
+                  <input
+                    type="number"
+                    min={1}
+                    max={100000}
+                    value={winCapacity}
+                    onChange={e => setWinCapacity(e.target.value)}
+                    placeholder="No cap"
+                    className="w-28 px-3 py-2 border border-border-strong rounded-md outline-none text-sm"
+                  />
+                </label>
+                <button
+                  type="submit"
+                  className="px-3 py-2 text-sm min-h-[40px] rounded-lg bg-brand text-white font-medium hover:bg-brand-hover transition-colors"
+                >
+                  Open
+                </button>
+              </form>
+            )}
+
+            {(() => {
+              const seasonWindows = regWindows.filter(w => w.season_id === effectiveRegSeason);
+              if (seasonWindows.length === 0) return null;
+              const divName = new Map(
+                (seasons.find(s => s.id === effectiveRegSeason)?.divisions ?? []).map(d => [d.id, d.name])
+              );
+              const progName = new Map(
+                (regPrograms[effectiveRegSeason] ?? []).map(p => [p.id, p.name])
+              );
+              return (
+                <ul className="space-y-2 mb-4" aria-label="Registration windows">
+                  {seasonWindows.map(w => (
+                    <li
+                      key={w.id}
+                      className="flex flex-wrap items-center justify-between gap-2 border border-border rounded-lg px-3 py-2"
+                    >
+                      <span className="text-sm text-secondary min-w-0">
+                        <span className="font-medium text-primary">
+                          {w.division_id
+                            ? (divName.get(w.division_id) ?? 'Division')
+                            : w.program_id
+                              ? (progName.get(w.program_id) ?? 'Program')
+                              : 'Season-wide'}
+                        </span>
+                        {' · '}
+                        {w.closes_at
+                          ? new Date(w.closes_at) <= new Date()
+                            ? `closed ${new Date(w.closes_at).toLocaleDateString()}`
+                            : `closes ${new Date(w.closes_at).toLocaleDateString()}`
+                          : 'open-ended'}
+                        {w.capacity != null && ` · cap ${w.capacity}`}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          void act(
+                            `/api/${plural}/${orgId}/registration-windows?windowId=${w.id}`,
+                            { method: 'DELETE' },
+                            'Registration closed',
+                            'Failed to close registration',
+                            'Registrations'
+                          )
+                        }
+                        className="px-3 py-1.5 text-sm min-h-[36px] rounded-lg border border-border-strong text-secondary hover:bg-surface-sunken transition-colors"
+                      >
+                        Close
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              );
+            })()}
 
             {registrations.length === 0 ? (
               <p className="text-sm text-tertiary">No registrations for this season yet.</p>

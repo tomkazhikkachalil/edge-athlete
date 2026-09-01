@@ -142,6 +142,58 @@ test('registration: window gate, submit, collisions, registrar transitions', asy
       expect(list[0]).toMatchObject({ status: 'registered', divisionName: `U13 A ${stamp}` });
       expect(JSON.stringify(list[0].answers)).toContain(`peanut allergy ${stamp}`);
 
+      // PR #492: the CSV export — same registrar gate, attachment
+      // download, emergency contact included, MEDICAL NOTES EXCLUDED
+      // (the console list stays the only medical-notes surface).
+      res = await athleteApi.get(`${regUrl}/export`);
+      expect(res.status(), 'family export refused').toBe(403);
+      res = await ownerApi.get(`${regUrl}/export?seasonId=${seasonId}`);
+      expect(res.status(), await readErrorBody(res)).toBe(200);
+      expect(res.headers()['content-type']).toContain('text/csv');
+      expect(res.headers()['content-disposition']).toContain('attachment');
+      const csv = await res.text();
+      expect(csv.split('\n')[0]).toBe(
+        'Athlete,Date of birth,Supervised,Offering,Status,Submitted,Emergency contact,Emergency phone,Eligibility flags'
+      );
+      expect(csv).toContain('Pat Contact');
+      expect(csv).toContain(`U13 A ${stamp}`);
+      expect(csv, 'medical notes must never reach a download').not.toContain('peanut allergy');
+
+      // PR #492: a per-offering window with closesAt + capacity (the
+      // console UI can now mint these). Season count is already 1, so a
+      // capacity-1 division window refuses the next family as full —
+      // the capacity check runs before collisions, so the body says so.
+      const { data: division2 } = await admin
+        .from('divisions')
+        .insert({
+          league_id: leagueId,
+          season_id: seasonId,
+          sport_key: 'ice_hockey',
+          name: `U15 B ${stamp}`,
+        })
+        .select()
+        .single();
+      res = await ownerApi.post(`/api/leagues/${leagueId}/registration-windows`, {
+        data: {
+          seasonId,
+          divisionId: division2!.id,
+          opensAt: new Date(Date.now() - 60_000).toISOString(),
+          closesAt: new Date(Date.now() + 86_400_000).toISOString(),
+          capacity: 1,
+        },
+      });
+      expect(res.status(), await readErrorBody(res)).toBe(200);
+      const div2WindowId = ((await res.json()).window as { id: string }).id;
+      res = await ownerApi.post(regUrl, {
+        data: { seasonId, divisionId: division2!.id, answers: {} },
+      });
+      expect(res.status(), await readErrorBody(res)).toBe(409);
+      expect(((await res.json()) as { error: string }).error).toContain('full');
+      res = await ownerApi.delete(
+        `/api/leagues/${leagueId}/registration-windows?windowId=${div2WindowId}`
+      );
+      expect(res.status(), await readErrorBody(res)).toBe(200);
+
       // R4: the received bell reached the org's manager (163-gated).
       const bellsOn = await registrationBellsAvailable(admin, owner.id);
       if (bellsOn) {
@@ -174,7 +226,11 @@ test('registration: window gate, submit, collisions, registrar transitions', asy
         await page.goto(`/app/org/league/${leagueId}`);
         await expect(page.getByRole('heading', { name })).toBeVisible({ timeout: 20_000 });
         const section = page.getByRole('region', { name: 'Registrations' });
-        await expect(section.getByText('Close registration')).toBeVisible({ timeout: 15_000 });
+        // PR #492: the open season-wide window renders as its own row
+        // with a Close button (the old single toggle is gone).
+        const windowsList = section.getByRole('list', { name: 'Registration windows' });
+        await expect(windowsList.getByText('Season-wide')).toBeVisible({ timeout: 15_000 });
+        await expect(windowsList.getByRole('button', { name: 'Close' }).first()).toBeVisible();
         await expect(section.getByText(athleteName).first()).toBeVisible();
         await section.getByRole('button', { name: 'Evaluate' }).click();
         await expect(section.getByText('Evaluating')).toBeVisible({ timeout: 15_000 });

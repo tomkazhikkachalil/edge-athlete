@@ -1,5 +1,25 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, type Page } from '@playwright/test';
 import { adminClient, apiAs, loadQaUser, readErrorBody } from './helpers/qa-user';
+
+/** Document-content settle (the org-site suite's multi-POP lesson, third
+ *  application): after a purge, each goto may land on a POP still holding
+ *  the stale document — ?_cb= never busts an ISR document cache. Re-goto
+ *  until the needle('s absence) lands. */
+async function settlePage(
+  page: Page,
+  url: string,
+  needle: string,
+  shouldContain = true,
+  attempts = 12
+): Promise<boolean> {
+  for (let i = 0; i < attempts; i++) {
+    await page.goto(url);
+    const found = (await page.content()).includes(needle);
+    if (found === shouldContain) return true;
+    await new Promise(r => setTimeout(r, 2500));
+  }
+  return false;
+}
 
 // The public Register card (phase 5 R5, mig 164): a card, not a subpage —
 // open windows + a static link into the app wizard, viewer-independent.
@@ -65,11 +85,12 @@ test('org-site register card: open window renders the CTA; closed hides it', asy
       const anonCtx = await browser.newContext({ storageState: { cookies: [], origins: [] } });
       try {
         const page = await anonCtx.newPage();
-        await page.goto(`/org/${subdomain}`);
+        expect(
+          await settlePage(page, `/org/${subdomain}`, 'Registration is currently closed.'),
+          'closed-by-default copy never settled'
+        ).toBe(true);
         const section = page.getByRole('region', { name: 'Register' });
-        await expect(section.getByText('Registration is currently closed.')).toBeVisible({
-          timeout: 20_000,
-        });
+        await expect(section.getByText('Registration is currently closed.')).toBeVisible();
 
         // Open a window → the purge lands → the CTA renders.
         const win = await ownerApi.post(`/api/leagues/${leagueId}/registration-windows`, {
@@ -78,7 +99,10 @@ test('org-site register card: open window renders the CTA; closed hides it', asy
         expect(win.status(), await readErrorBody(win)).toBe(200);
         const windowId = ((await win.json()).window as { id: string }).id;
 
-        await page.goto(`/org/${subdomain}`);
+        expect(
+          await settlePage(page, `/org/${subdomain}`, 'Registration is currently closed.', false),
+          'open-window content never settled past the stale POP copy'
+        ).toBe(true);
         await expect(section.getByText('2026-27')).toBeVisible({ timeout: 20_000 });
         const cta = section.getByRole('link', { name: 'Register' });
         await expect(cta).toBeVisible();
@@ -95,10 +119,11 @@ test('org-site register card: open window renders the CTA; closed hides it', asy
           `/api/leagues/${leagueId}/registration-windows?windowId=${windowId}`
         );
         expect(closed.status(), await readErrorBody(closed)).toBe(200);
-        await page.goto(`/org/${subdomain}`);
-        await expect(section.getByText('Registration is currently closed.')).toBeVisible({
-          timeout: 20_000,
-        });
+        expect(
+          await settlePage(page, `/org/${subdomain}`, 'Registration is currently closed.'),
+          'closed copy never settled after the window delete'
+        ).toBe(true);
+        await expect(section.getByText('Registration is currently closed.')).toBeVisible();
       } finally {
         await anonCtx.close();
       }
