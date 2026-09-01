@@ -10,6 +10,7 @@ import {
   getCachedTeams,
   getCachedVenues,
 } from '@/lib/org-sites/cached';
+import { buildOrgJsonLd, safeJsonLd } from '@/lib/org-sites/jsonld';
 import { MODULE_TITLES, parseHeroConfig, parseSponsors } from '@/lib/org-sites/validate';
 import AffiliationsList from './_components/AffiliationsList';
 import ScheduleList from './_components/ScheduleList';
@@ -56,9 +57,11 @@ export async function generateMetadata({ params }: PageParams): Promise<Metadata
     title,
     description,
     alternates: { canonical },
-    // openGraph merges per-key WHOLESALE — images must ride along here or
-    // the layout fallback is dropped (R4 PR-2's convention file overrides).
-    openGraph: { title, description, url: canonical, siteName: 'Edge Athlete', type: 'website', images: ['/og-image.png'] },
+    // The card is an EXPLICIT route (/org/{slug}/card.png), not the
+    // opengraph-image convention file — the convention hash-suffixes its
+    // URL under a route group; explicit images are deterministic and
+    // probe-able.
+    openGraph: { title, description, url: canonical, siteName: 'Edge Athlete', type: 'website', images: [`/org/${site.subdomain}/card.png`] },
   };
 }
 
@@ -143,6 +146,12 @@ export default async function OrgSiteHome({ params }: PageParams) {
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-8 space-y-6">
+      {/* R4: SportsOrganization structured data — safeJsonLd escapes `<`
+          (org names are user text), and NO people ever appear here. */}
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: safeJsonLd(buildOrgJsonLd(site)) }}
+      />
       {has('hero') && (
         // The gradient rides the .org-scope accent vars (violet defaults; a
         // site's theme_token_set overrides via the layout's inline style).

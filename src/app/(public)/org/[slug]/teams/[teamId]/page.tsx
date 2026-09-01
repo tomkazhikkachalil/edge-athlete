@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { getCachedSite, getCachedTeamPage } from '@/lib/org-sites/cached';
+import { buildTeamJsonLd, safeJsonLd } from '@/lib/org-sites/jsonld';
 import { UUID_RE } from '@/lib/golf/course-catalog';
 import ScheduleList from '../../_components/ScheduleList';
 import { requireSiteModule } from '../../_components/require-module';
@@ -37,7 +38,7 @@ export async function generateMetadata({ params }: PageParams): Promise<Metadata
     title,
     description,
     alternates: { canonical },
-    openGraph: { title, description, url: canonical, siteName: 'Edge Athlete', type: 'website', images: ['/og-image.png'] },
+    openGraph: { title, description, url: canonical, siteName: 'Edge Athlete', type: 'website', images: [`/org/${site.subdomain}/card.png`] },
   };
 }
 
@@ -52,6 +53,14 @@ export default async function OrgSiteTeamPage({ params }: PageParams) {
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-8 space-y-6">
+      {/* R4: SportsTeam structured data — the team and its org only,
+          never the roster (no Person in JSON-LD, ever). */}
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: safeJsonLd(buildTeamJsonLd(site, { id: team.id, name: team.name })),
+        }}
+      />
       <header>
         <h1 className="text-2xl font-bold text-primary">{team.name}</h1>
         {team.divisionLabels.length > 0 ? (

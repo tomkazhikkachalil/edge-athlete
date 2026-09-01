@@ -290,6 +290,12 @@ export interface PublicSite extends SiteRow {
   orgName: string;
   side: OrgSide;
   orgId: string;
+  // R4: public org geography + sport for JSON-LD (nullable — clubs have
+  // no sport_key, and location columns may be empty).
+  orgCity: string | null;
+  orgRegion: string | null;
+  orgCountry: string | null;
+  orgSportKey: string | null;
   modules: { module_key: string; enabled: boolean; sort_order: number; config: unknown }[];
 }
 
@@ -319,7 +325,13 @@ export async function getPublicSiteBySlug(
   const [{ data: org }, { data: modules }] = await Promise.all([
     admin
       .from(side === 'league' ? 'leagues' : 'clubs')
-      .select('id, name')
+      // R4 widens the org read for JSON-LD: geography both sides,
+      // sport_key leagues only (clubs have no such column — mig 108/113).
+      .select(
+        side === 'league'
+          ? 'id, name, city, region, country, sport_key'
+          : 'id, name, city, region, country'
+      )
       .eq('id', orgId)
       .maybeSingle(),
     admin
@@ -331,11 +343,23 @@ export async function getPublicSiteBySlug(
   ]);
   if (!org) return null;
 
+  // The dynamic select string defeats supabase-js's type parser; cast once.
+  const orgRow = org as unknown as {
+    name: string;
+    city?: string | null;
+    region?: string | null;
+    country?: string | null;
+    sport_key?: string | null;
+  };
   return {
     ...(site as SiteRow),
-    orgName: org.name as string,
+    orgName: orgRow.name,
     side,
     orgId,
+    orgCity: orgRow.city ?? null,
+    orgRegion: orgRow.region ?? null,
+    orgCountry: orgRow.country ?? null,
+    orgSportKey: orgRow.sport_key ?? null,
     modules: modules ?? [],
   };
 }
