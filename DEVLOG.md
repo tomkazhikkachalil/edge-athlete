@@ -1,5 +1,27 @@
 # Development Log
 
+## September 1, 2026 — Consolidation PR-4: the stage-gate pass + ROUND CLOSE (#493, zero DDL)
+
+The manual Part-B sweep over the migration 140–165 band, written into
+docs/HARDENING.md (its own rule: re-run before each stage; the last
+recorded pass predated phase 3.5). Route baseline recorded at 255. B2
+verdicts on the registration band (all capped/batched; the two real
+finds were already fixed in #491); B3 walked over the phase-4/5/5.5
+routes (gates, buckets, zod, the one-surface medical-notes rule); B4
+gained invariant 9 — the Register card's viewer-independence and its
+documented-harmless ISR time drift. Part A's advisory text now records
+the #491 annotation contract. Tier-2 re-marked (detail-GET re-select,
+auto-complete count, score bounds DONE; the .limit() sweep narrowed to
+contests/standings + structure aggregates). B1 stays Tom's: the two
+SQL queries, now pre-loaded with the band's tables.
+
+**The consolidation round closes** (#490–#493, zero DDL): flags retired,
+advisories at genuine zero, phase-5 seams shipped, the gate re-run and
+recorded. Round-close prod sweep ran against the flag-carrying deploy
+(39f67f3): registration + wizard + phase5-exit + rollover + gallery +
+org-site all green; the register-card spec seam it exposed is fixed
+(#492) and the news spec's 429 was sweep rate pressure, not product.
+
 ## September 1, 2026 — Consolidation PR-3: the phase-5 seams (#492, zero DDL)
 
 Three seams phase 5 left, closed before the next arc:

@@ -24,8 +24,11 @@ DB scale-readiness). That audit's findings seed the backlog below.
     cookies()` / `next/headers` in a route outside the auth exceptions; `npm
     audit` high/critical.
   - **advisories** (printed, non-blocking): count-by-fetch `.select('id'|'*')`
-    sites; interpolated `.or()/.filter()` sites.
-  - Escape hatch: a `hardening-ok` comment on a line exempts a deliberate case.
+    sites; interpolated `.or()/.filter()` sites; raw-error response bodies.
+  - Escape hatch: a `hardening-ok: <reason>` comment on a line exempts a
+    deliberate case. Since #491 the `.or()` and raw-error scans honor it and
+    every pre-existing hit is audited + annotated, so those two advisories
+    read **0** — an unannotated hit is a NEW site needing review, not noise.
 
 ## Part B — periodic manual sweep (this runbook)
 
@@ -37,7 +40,10 @@ scripts). Confirm index reality directly, in the Supabase SQL editor:
 SELECT tablename, indexname, indexdef FROM pg_indexes
 WHERE schemaname='public'
   AND tablename IN ('follows','posts','post_likes','post_comments',
-                    'post_media','notifications')
+                    'post_media','notifications',
+                    -- the org/registration band (migs 140–165):
+                    'memberships','registrations','registration_windows',
+                    'programs','contest_results')
 ORDER BY tablename, indexname;
 -- Index usage over time (run after a few days of real traffic):
 SELECT relname, indexrelname, idx_scan, idx_tup_read
@@ -63,7 +69,11 @@ public `/u/[handle]` page, **the public org-site tree (`/org/{slug}` + its
 subpages — ISR + per-module `unstable_cache` readers; DB cost appears only
 on cache fill, so walk the readers in `src/lib/org-sites/public-data.ts`)**,
 and the sitemap enumerator (`fetchPublishedSitesForSitemap` — the repo's one
-whole-table `org_sites` scan; keep it bounded and hourly-cached).
+whole-table `org_sites` scan; keep it bounded and hourly-cached), **and the
+registration band (phase 5): `registrationsGET`/`offeringsGET`/`windowsGET`,
+`viewerRegistrationSummary` (rides BOTH org detail payloads — keep it ≤4
+round trips, viewer-conditional), `fetchPublicOpenWindows` (cache-fill only),
+and `seasonRolloverPOST` (one-shot, compensated — reads capped 300/300/1000)**.
 
 ### B3. Security sweep (the audit's 10 categories)
 1. Admin-client routes — authorization (not just authentication) before any read/write.
@@ -101,6 +111,12 @@ are different in kind from the app's and each one is load-bearing:
    static branch — they must never pay the auth round trip.
 8. **Accent hygiene** — theme accents validated at write (strict hex +
    the luminance clamp) AND re-validated at render before any inline style.
+9. **The Register card** (phase 5 R5) — `fetchPublicOpenWindows` is
+   viewer-independent and serves NO personal data (season/offering labels
+   and dates only); its time-based open/closed answer may drift up to the
+   ISR TTL, which is documented-harmless because the registration POST
+   re-gates on the live window. Links into the app are absolute via
+   `appBaseUrl` (subdomain-safe).
 The guardrails script enforces the mechanical half (no `'use client'`,
 `next/headers`, or Font Awesome under `(public)`; `next/og` isolation);
 this sweep covers the rest by reading.
@@ -126,17 +142,19 @@ Ranked, with the source finding. Fix deliberately; each is its own change.
 **From the Sep 2026 pre-phase-3 stage-gate sweep (org/competition band)**
 - **`.limit()` sweep, remaining sites** — `structureAggregateGET` (4
   selects), `structure-options` (2), `competitionDetailGET`
-  contests/participants/results/standings, `recomputeStandings` entries
-  read. (The two hottest aggregates' entry reads were capped fix-now.)
-- **`competitionDetailGET` redundant competition re-select** — merge
-  `pinCompetition` + the `full` re-select into one read.
+  contests/standings, `recomputeStandings` entries read. (The two hottest
+  aggregates' entry reads were capped fix-now; **participants/results
+  capped in #491**.)
+- ~~**`competitionDetailGET` redundant competition re-select**~~ —
+  **DONE (#491):** one select pins AND serves.
 - **Roster import worst case** — 50 rows × ~6 sequential admin ops (+
   optional SMTP) in one request; a timeout loses the report while stubs
   were already minted. Lower cap or chunked responses.
 - **`athlete-claim` POST body onto zod** (hand-rolled email/password
-  checks today); score range bounds in `ResultUpsertSchema`.
-- **`resultsUpsertPOST` auto-complete count-by-fetch** →
-  `{ count:'exact', head:true }` (bounded ≤50 today; advisory).
+  checks today); ~~score range bounds in `ResultUpsertSchema`~~ —
+  **score bounds DONE (#491, ±1e6)**.
+- ~~**`resultsUpsertPOST` auto-complete count-by-fetch**~~ — **DONE
+  (#491):** `{ count:'exact', head:true }`.
 - Sweep verdict otherwise: scope-pin coverage, token lifecycle, rate
   buckets, error bodies, twins all verified clean; fix-nows shipped
   (public-name masking per masterplan §6, SSR standings React cache(),
@@ -225,6 +243,24 @@ Ranked, with the source finding. Fix deliberately; each is its own change.
 ---
 
 ## Change log
+- **Sep 2026 (consolidation stage gate, #490–#493)** — the re-run after
+  phases 4/5/5.5 (the migration 140–165 band; route count now **255**, the
+  new drift baseline for B3 category 10). Part A: verify green; guardrails
+  green with the NEW annotation contract (#491) — `.or()` and raw-error
+  advisories audited to genuine 0. Part B2 over the phase-4/5/5.5
+  surfaces: registration/offerings/windows/rollover reads all capped and
+  batched; `viewerRegistrationSummary` ≤4 viewer-conditional round trips;
+  `fetchPublicOpenWindows` capped 50, cache-fill only; two count-by-fetch
+  or unbounded sites found and fixed (#491). B3 walk: the phase-4/5 route
+  band uses `requireAuth`+zod+UUID gates throughout, `requireRegistrar`
+  (manage_registration) on every registrar surface, the 'registration'
+  rate bucket on the family submit, medical notes served by exactly one
+  gated surface (asserted in e2e, and the #492 CSV export explicitly
+  excludes them); the api-route-authz audit covers all new twins. B4
+  gained invariant 9 (the Register card). Flag debt retired (#490: four
+  launched flags), Tier-2 re-marked below. B1 owed: Tom runs the two
+  queries with `registrations`, `registration_windows`, `programs`,
+  `memberships` added to the table list once real traffic accrues.
 - **Sep 2026 (phase-3 R5 anon-surface update)** — the public org-site
   tree becomes a first-class hardening surface: B2 hot-surfaces gains the
   /org ISR tree + the sitemap enumerator, new B4 codifies the eight
