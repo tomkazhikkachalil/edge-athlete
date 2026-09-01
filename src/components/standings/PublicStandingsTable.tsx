@@ -66,6 +66,16 @@ export default function PublicStandingsTable({
           </tbody>
         </table>
       </div>
+      {/* Phase 6 R4: a disputed result must never read as settled —
+          shared markup, so console twins and the public site all carry
+          the same footnote (unconfirmed semantics, no new visual
+          language). */}
+      {competition.disputedCount > 0 && (
+        <p className="mt-2 text-xs text-amber-700">
+          Includes {competition.disputedCount === 1 ? 'a disputed result' : 'disputed results'}{' '}
+          awaiting the organizer’s review.
+        </p>
+      )}
     </section>
   );
 }

@@ -32,7 +32,7 @@ interface ParticipantRow {
   entry_id: string;
   side: 'home' | 'away' | null;
   entrant_name: string;
-  result: { score: number | null; provenance: string } | null;
+  result: { score: number | null; provenance: string; dispute_status?: string | null } | null;
 }
 
 interface ContestRow {
@@ -109,6 +109,10 @@ export default function CompetitionDetailPage() {
   const [roundLabel, setRoundLabel] = useState('');
   // Score entry: one expander at a time, values keyed by participant id.
   const [scoreContestId, setScoreContestId] = useState<string | null>(null);
+  // Phase 6 R4 (mig 168): dispute controls — inline note expander, never
+  // a modal. Raising is withdrawable, so no confirm.
+  const [disputeContestId, setDisputeContestId] = useState<string | null>(null);
+  const [disputeNote, setDisputeNote] = useState('');
   const [scoreValues, setScoreValues] = useState<Record<string, string>>({});
   const [deleteTarget, setDeleteTarget] = useState<ContestRow | null>(null);
   // Player stats: one expander at a time (the scoreContestId pattern).
@@ -251,6 +255,34 @@ export default function CompetitionDetailPage() {
       'Published to the calendar',
       'Failed to publish'
     );
+
+  // Phase 6 R4: raise / withdraw / resolve (the dispute-server matrix;
+  // this console is the owner org, so all three are available here —
+  // participating orgs raise through the same API from their side).
+  const disputeAct = async (
+    contestId: string,
+    action: 'raise' | 'withdraw' | 'resolve',
+    note?: string
+  ) => {
+    const ok = await act(
+      `${base}/results/dispute`,
+      {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ contestId, action, ...(note ? { note } : {}) }),
+      },
+      action === 'raise'
+        ? 'Result disputed — both organizations were notified'
+        : action === 'withdraw'
+          ? 'Dispute withdrawn'
+          : 'Dispute resolved',
+      'Failed to update the dispute'
+    );
+    if (ok) {
+      setDisputeContestId(null);
+      setDisputeNote('');
+    }
+  };
 
   const saveScores = async (contest: ContestRow) => {
     const results = contest.participants.map(p => ({
@@ -579,6 +611,13 @@ export default function CompetitionDetailPage() {
                             contest.status,
                             contest.event_id ? 'on calendar' : null,
                           ].filter(Boolean).join(' · ')}
+                          {/* R4: the unconfirmed marker — a disputed score
+                              must never read as settled. */}
+                          {contest.participants[0]?.result?.dispute_status === 'disputed' && (
+                            <span className="ml-1.5 text-amber-700 dark:text-amber-300 font-medium">
+                              · disputed
+                            </span>
+                          )}
                         </p>
                       </div>
                       <div className="flex flex-wrap gap-2 min-w-0">
@@ -629,6 +668,44 @@ export default function CompetitionDetailPage() {
                             {mediaContestId === contest.id ? 'Close media' : 'Media'}
                           </button>
                         )}
+                        {/* Phase 6 R4: dispute controls on scored contests. */}
+                        {scored && (() => {
+                          const ds = contest.participants[0]?.result?.dispute_status ?? 'none';
+                          if (ds === 'disputed') {
+                            return (
+                              <>
+                                <button
+                                  type="button"
+                                  onClick={() => void disputeAct(contest.id, 'withdraw')}
+                                  className="px-2 py-1 text-xs rounded-md border border-border-strong text-secondary hover:bg-surface-sunken transition-colors"
+                                >
+                                  Withdraw dispute
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => void disputeAct(contest.id, 'resolve')}
+                                  className="px-2 py-1 text-xs rounded-md border border-amber-400 text-amber-700 dark:text-amber-300 hover:bg-surface-sunken transition-colors"
+                                >
+                                  Resolve dispute
+                                </button>
+                              </>
+                            );
+                          }
+                          if (ds !== 'resolved') {
+                            return (
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setDisputeContestId(prev => (prev === contest.id ? null : contest.id))
+                                }
+                                className="px-2 py-1 text-xs rounded-md border border-border-strong text-secondary hover:bg-surface-sunken transition-colors"
+                              >
+                                {disputeContestId === contest.id ? 'Close dispute' : 'Dispute result'}
+                              </button>
+                            );
+                          }
+                          return null;
+                        })()}
                         {!contest.event_id && contest.scheduled_at && contest.status === 'scheduled' && (
                           <button
                             type="button"
@@ -668,6 +745,27 @@ export default function CompetitionDetailPage() {
                         </button>
                       </div>
                     </div>
+
+                    {disputeContestId === contest.id && (
+                      <div className="mt-2 flex flex-wrap items-end gap-2 border-t border-border-subtle pt-2">
+                        <label className="flex-1 min-w-48 text-xs text-secondary">
+                          What’s wrong with this result? (optional, shared with both organizations)
+                          <textarea
+                            value={disputeNote}
+                            onChange={e => setDisputeNote(e.target.value.slice(0, 500))}
+                            rows={2}
+                            className="mt-0.5 block w-full px-2 py-1.5 border border-border-strong rounded-md outline-none text-sm"
+                          />
+                        </label>
+                        <button
+                          type="button"
+                          onClick={() => void disputeAct(contest.id, 'raise', disputeNote.trim() || undefined)}
+                          className="px-3 py-1.5 text-sm min-h-[36px] rounded-lg bg-amber-600 text-white font-medium hover:bg-amber-700 transition-colors"
+                        >
+                          Dispute
+                        </button>
+                      </div>
+                    )}
 
                     {scoreContestId === contest.id && (
                       <div className="mt-2 flex flex-wrap items-end gap-2 border-t border-border-subtle pt-2">

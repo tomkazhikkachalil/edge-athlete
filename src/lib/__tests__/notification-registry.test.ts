@@ -100,6 +100,9 @@ describe('tab buckets (behavior frozen from the pre-registry literal arrays)', (
       'club_request_result',
       'competition_entry_decided',
       'competition_entry_pending',
+      // Phase 6 R4 (mig 168): result disputes.
+      'contest_dispute_raised',
+      'contest_dispute_resolved',
       'event_reminder',
       'follow_request_guardian',
       'follow_update',

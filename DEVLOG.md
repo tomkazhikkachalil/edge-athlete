@@ -1,5 +1,38 @@
 # Development Log
 
+## September 1, 2026 — Phase 6 R4: result disputes (#499, mig 168)
+
+The workflow the 152 column-room has waited for (masterplan §7: "the
+record holds both and shows unconfirmed until the competition admin
+resolves it — do not let last-write-wins decide a season"):
+
+- **Mig 168**: disputed_by/at, dispute_note (≤500), resolved_by/at on
+  contest_results + the notifications CHECK 49→51
+  (contest_dispute_raised/resolved, the 163 ritual verbatim).
+- **The matrix** (`dispute-server.ts`): raise/withdraw by a manager of
+  ANY org with standing (the owner, or a participating entry team's
+  club/league — resolved through participants → entries → teams);
+  resolve by the owning org only. Dispute fields live per result row
+  but MEAN the contest (every row updated together). Transitions
+  none→disputed→(none|resolved); provenance untouched, the sanctioned
+  chip unsuppressed (v1 call). Pre-168 the update maps 42703 to a
+  friendly migration-pending 409; bells are best-effort
+  (23514 drops the bell, never the transition). Route twins under
+  /competitions/[competitionId]/results/dispute.
+- **Bells**: notifyDispute fans out to every standing org's managers
+  minus the actor (raise carries the note; withdraw is quiet);
+  registry + the frozen-bucket test updated in the same PR.
+- **Surfaces**: the console competition detail gets the `· disputed`
+  marker, Dispute (inline note expander, never a modal),
+  Withdraw/Resolve; `PublicStandingsTable` — the markup shared by the
+  org-page twins AND the public site — footnotes "includes disputed
+  results awaiting the organizer's review" via a new per-competition
+  disputedCount (one embed-filtered best-effort read; the standings
+  never-throw contract holds pre-168).
+- e2e `result-dispute.spec.ts` (skips pre-168): club raises with a
+  note, owner belled, footnote count 1, detail shows disputed, club
+  cannot resolve, owner resolves, club belled, footnote clears.
+
 ## September 1, 2026 — Phase 6 R3: the sanctioning chain (#498, mig 167)
 
 KMHA → District → Federation becomes expressible, and the provenance

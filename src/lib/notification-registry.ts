@@ -93,6 +93,9 @@ export const NOTIFICATION_TYPE_META = {
   org_registration_received: { tab: null, icon: 'fa-user-plus' },
   org_registration_placed: { tab: null, icon: 'fa-people-group' },
   org_registration_released: { tab: null, icon: 'fa-user-minus' },
+  // Phase 6 R4 (mig 168): result disputes — manager-facing.
+  contest_dispute_raised: { tab: null, icon: 'fa-flag' },
+  contest_dispute_resolved: { tab: null, icon: 'fa-flag-checkered' },
 } as const satisfies Record<string, NotificationTypeMeta>;
 
 export type KnownNotificationType = keyof typeof NOTIFICATION_TYPE_META;
