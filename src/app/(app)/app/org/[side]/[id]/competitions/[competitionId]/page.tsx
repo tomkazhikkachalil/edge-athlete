@@ -8,6 +8,8 @@ import AppHeader from '@/components/AppHeader';
 import ConfirmModal from '@/components/ConfirmModal';
 import { useToast } from '@/components/Toast';
 import { SPORT_REGISTRY } from '@/lib/sports/SportRegistry';
+import { getStatSchema } from '@/lib/sports/stat-schemas';
+import PlayerStatsPanel from '@/components/org/PlayerStatsPanel';
 
 // ── The competition detail console (phase 2 R2) ─────────────────────────────
 // The org-console template one level deeper: schedule (contests) + score
@@ -66,6 +68,20 @@ interface CompetitionInfo {
   visibility: string;
 }
 
+/** The participant (team-staff) view's data — the stat-lines aggregate is
+ *  its whole world: club managers whose teams are entered in a
+ *  competition they don't own get stat entry, nothing else (phase 4 R1). */
+interface ParticipantAggregate {
+  competition: { id: string; name: string; sportKey: string; access: 'owner' | 'participant' };
+  contests: {
+    id: string;
+    round: string | null;
+    scheduledAt: string | null;
+    status: string;
+    sides: { teamId: string | null; teamName: string | null; side: string | null }[];
+  }[];
+}
+
 export default function CompetitionDetailPage() {
   const params = useParams();
   const side = params.side as string;
@@ -94,6 +110,9 @@ export default function CompetitionDetailPage() {
   const [scoreContestId, setScoreContestId] = useState<string | null>(null);
   const [scoreValues, setScoreValues] = useState<Record<string, string>>({});
   const [deleteTarget, setDeleteTarget] = useState<ContestRow | null>(null);
+  // Player stats: one expander at a time (the scoreContestId pattern).
+  const [statsContestId, setStatsContestId] = useState<string | null>(null);
+  const [participantAgg, setParticipantAgg] = useState<ParticipantAggregate | null>(null);
 
   const base = `/api/${plural}/${orgId}/competitions/${competitionId}`;
 
@@ -105,7 +124,22 @@ export default function CompetitionDetailPage() {
         const res = await fetch(base);
         if (cancelled) return;
         if (!res.ok) {
-          setAuthorized(false);
+          // Not the owning org's manager — probe the participant surface:
+          // a club with an approved team entry gets stat entry only.
+          if (side === 'club') {
+            try {
+              const probe = await fetch(`${base}/stat-lines`);
+              if (!cancelled && probe.ok) {
+                const body = (await probe.json()) as ParticipantAggregate;
+                if (!cancelled && body.competition?.access === 'participant') {
+                  setParticipantAgg(body);
+                }
+              }
+            } catch {
+              // fall through to the managers-only screen
+            }
+          }
+          if (!cancelled) setAuthorized(false);
           return;
         }
         const body = await res.json();
@@ -123,7 +157,7 @@ export default function CompetitionDetailPage() {
     return () => {
       cancelled = true;
     };
-  }, [validSide, base, user?.id, reloadKey]);
+  }, [validSide, side, base, user?.id, reloadKey]);
 
   const refresh = () => setReloadKey(k => k + 1);
 
@@ -264,6 +298,83 @@ export default function CompetitionDetailPage() {
         <div className="flex items-center justify-center py-20">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand"></div>
         </div>
+      </div>
+    );
+  }
+
+  // Team-staff view: stat entry for the club's own players in a
+  // competition someone else owns — no schedule/entry/standings controls.
+  if (user && authorized === false && participantAgg) {
+    return (
+      <div className="min-h-screen bg-canvas">
+        <AppHeader showSearch={false} />
+        <main className="max-w-3xl mx-auto px-4 py-8 space-y-6">
+          <div>
+            <Link
+              href={`/app/org/${side}/${orgId}`}
+              className="text-sm text-brand-fg hover:text-brand-fg-strong"
+            >
+              ← Console
+            </Link>
+            <h1 className="mt-1 text-2xl sm:text-3xl font-bold text-primary">
+              <i className="fas fa-trophy mr-2 text-brand-fg" aria-hidden="true"></i>
+              {participantAgg.competition.name}
+            </h1>
+            <p className="mt-1 text-sm text-muted">
+              Player stats for your club&apos;s teams — recorded as club stats until the
+              competition owner verifies them.
+            </p>
+          </div>
+          <section
+            aria-label="Player stats"
+            className="bg-surface rounded-lg shadow-sm border border-border p-4 sm:p-6"
+          >
+            <h2 className="text-lg font-semibold text-primary mb-4">Games</h2>
+            {participantAgg.contests.length === 0 ? (
+              <p className="text-sm text-tertiary">No games yet.</p>
+            ) : (
+              <ul className="space-y-3">
+                {participantAgg.contests.map(contest => (
+                  <li key={contest.id} className="border border-border rounded-lg p-3">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className="font-medium text-primary">
+                          {contest.sides.map(s => s.teamName ?? '—').join(' vs ') || 'Game'}
+                        </p>
+                        <p className="text-xs text-muted">
+                          {[
+                            contest.scheduledAt
+                              ? new Date(contest.scheduledAt).toLocaleString([], {
+                                  dateStyle: 'medium',
+                                  timeStyle: 'short',
+                                })
+                              : 'Unscheduled',
+                            contest.round,
+                            contest.status,
+                          ].filter(Boolean).join(' · ')}
+                        </p>
+                      </div>
+                      {contest.status !== 'canceled' && (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setStatsContestId(prev => (prev === contest.id ? null : contest.id))
+                          }
+                          className="px-2 py-1 text-xs rounded-md border border-border-strong text-secondary hover:bg-surface-sunken transition-colors"
+                        >
+                          {statsContestId === contest.id ? 'Close player stats' : 'Player stats'}
+                        </button>
+                      )}
+                    </div>
+                    {statsContestId === contest.id && (
+                      <PlayerStatsPanel base={base} contestId={contest.id} />
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+        </main>
       </div>
     );
   }
@@ -477,6 +588,19 @@ export default function CompetitionDetailPage() {
                             {scoreContestId === contest.id ? 'Close score' : scored ? 'Edit score' : 'Enter score'}
                           </button>
                         )}
+                        {contest.status !== 'canceled' &&
+                          competition.format === 'fixture' &&
+                          !!getStatSchema(competition.sport_key) && (
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setStatsContestId(prev => (prev === contest.id ? null : contest.id))
+                              }
+                              className="px-2 py-1 text-xs rounded-md border border-border-strong text-secondary hover:bg-surface-sunken transition-colors"
+                            >
+                              {statsContestId === contest.id ? 'Close player stats' : 'Player stats'}
+                            </button>
+                          )}
                         {!contest.event_id && contest.scheduled_at && contest.status === 'scheduled' && (
                           <button
                             type="button"
@@ -541,6 +665,10 @@ export default function CompetitionDetailPage() {
                           Save result
                         </button>
                       </div>
+                    )}
+
+                    {statsContestId === contest.id && (
+                      <PlayerStatsPanel base={base} contestId={contest.id} />
                     )}
                   </li>
                 );

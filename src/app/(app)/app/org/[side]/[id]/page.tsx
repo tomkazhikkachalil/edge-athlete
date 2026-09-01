@@ -138,6 +138,11 @@ export default function OrgConsolePage() {
   const [compSport, setCompSport] = useState('ice_hockey');
   const [compPublic, setCompPublic] = useState(false);
   const [entriesCompetitionId, setEntriesCompetitionId] = useState<string | null>(null);
+  // Phase 4 R1 (club side only): competitions this club's teams are
+  // entered in but the club doesn't own — the player-stats doorway.
+  const [externalComps, setExternalComps] = useState<
+    { id: string; name: string; sportKey: string; status: string; owner: { name: string } }[]
+  >([]);
   // Website (phase 3 R1): the org's public site row (null until created).
   const [site, setSite] = useState<{
     id: string;
@@ -213,6 +218,18 @@ export default function OrgConsolePage() {
             setRosterAthletes(compBody.rosterAthletes ?? []);
           }
         }
+        // Best-effort, club side only: external competitions (phase 4 R1).
+        if (side === 'club') {
+          try {
+            const extRes = await fetch(`/api/${plural}/${orgId}/competitions/external`);
+            if (!cancelled && extRes.ok) {
+              const extBody = await extRes.json();
+              if (!cancelled) setExternalComps(extBody.competitions ?? []);
+            }
+          } catch {
+            // the section simply stays hidden
+          }
+        }
         if (siteRes.ok) {
           const siteBody = await siteRes.json();
           if (!cancelled) {
@@ -272,7 +289,7 @@ export default function OrgConsolePage() {
     return () => {
       cancelled = true;
     };
-  }, [validSide, plural, orgId, user?.id, reloadKey]);
+  }, [validSide, side, plural, orgId, user?.id, reloadKey]);
 
   const refresh = () => setReloadKey(k => k + 1);
 
@@ -1274,6 +1291,43 @@ export default function OrgConsolePage() {
             </ul>
           )}
         </section>
+
+        {/* External competitions (phase 4 R1, club side) — the doorway to
+            player-stats entry for competitions the club's teams are
+            entered in but doesn't own. Hidden when there are none. */}
+        {side === 'club' && externalComps.length > 0 && (
+          <section
+            aria-label="External competitions"
+            className="bg-surface rounded-lg shadow-sm border border-border p-4 sm:p-6"
+          >
+            <h2 className="text-lg font-semibold text-primary mb-1">External competitions</h2>
+            <p className="text-sm text-tertiary mb-3">
+              Your teams are entered here — record player stats for your own athletes.
+            </p>
+            <ul className="space-y-2">
+              {externalComps.map(comp => (
+                <li key={comp.id} className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="min-w-0">
+                    <Link
+                      href={`/app/org/club/${orgId}/competitions/${comp.id}`}
+                      className="block truncate text-sm font-medium text-brand-fg hover:text-brand-fg-strong"
+                    >
+                      {comp.name}
+                    </Link>
+                    <p className="text-xs text-muted">
+                      {[
+                        SPORT_REGISTRY[comp.sportKey as keyof typeof SPORT_REGISTRY]?.display_name ??
+                          comp.sportKey,
+                        comp.owner.name,
+                        comp.status,
+                      ].join(' · ')}
+                    </p>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
 
         {/* Website (phase 3 R1) — create → preview → publish. The public
             site lives at /org/{subdomain}; draft = 404 out there. */}
