@@ -97,6 +97,70 @@ function orgNames(cfg: SideConfig, org: OrgRow, other: OrgRow) {
     : { leagueName: other.name, clubName: org.name };
 }
 
+/** The other-side org decoration on an affiliation row. Leagues carry a
+ *  sport_key; clubs don't (the 118 select difference). */
+export interface AffiliatedOrg {
+  id: string;
+  name: string;
+  sport_key?: string | null;
+  city: string | null;
+  region: string | null;
+  country: string | null;
+}
+
+export interface DecoratedAffiliationRow {
+  league_id: string;
+  club_id: string;
+  status: string;
+  initiated_by: AffSide;
+  requested_by_profile_id: string | null;
+  created_at: string;
+  affiliation_type: string | null;
+  org: AffiliatedOrg | null;
+}
+
+/** All affiliation rows for an org, decorated with the other-side org —
+ *  plain data, viewer-independent (phase 3 R2: the public org-site
+ *  affiliations module reads the active subset through unstable_cache).
+ *  `missing` = pre-118 database (empty section, never an error);
+ *  null = real DB error. */
+export async function listAffiliations(
+  admin: Admin,
+  side: AffSide,
+  orgId: string
+): Promise<{ rows: DecoratedAffiliationRow[]; missing: boolean } | null> {
+  const cfg = SIDES[side];
+  const { data: rows, error } = await admin
+    .from('league_clubs')
+    .select('league_id, club_id, status, initiated_by, requested_by_profile_id, created_at, affiliation_type')
+    .eq(cfg.rowKey, orgId);
+  if (error) {
+    if (isMissingTableError(error.code)) return { rows: [], missing: true };
+    console.error('[AFFILIATIONS] list error:', error);
+    return null;
+  }
+
+  const list = rows ?? [];
+  const otherIds = [...new Set(list.map((r: Record<string, unknown>) => r[cfg.otherRowKey] as string))];
+  const selectCols = cfg.otherOrgTable === 'leagues'
+    ? 'id, name, sport_key, city, region, country'
+    : 'id, name, city, region, country';
+  const { data: others } = otherIds.length
+    ? await admin.from(cfg.otherOrgTable).select(selectCols).in('id', otherIds)
+    : { data: [] };
+  // The dynamic select string defeats supabase-js's type-level parser — the
+  // runtime shape is the selected columns; cast once here.
+  const otherRows = (others ?? []) as unknown as AffiliatedOrg[];
+  const byId = new Map(otherRows.map(o => [o.id, o]));
+  return {
+    rows: list.map((r: Record<string, unknown>) => ({
+      ...(r as unknown as Omit<DecoratedAffiliationRow, 'org'>),
+      org: byId.get(r[cfg.otherRowKey] as string) ?? null,
+    })),
+    missing: false,
+  };
+}
+
 /** GET — public actives; pending split into outgoing/incoming for managers. */
 export async function affiliationGET(request: NextRequest, side: AffSide, orgId: string) {
   const cfg = SIDES[side];
@@ -109,35 +173,15 @@ export async function affiliationGET(request: NextRequest, side: AffSide, orgId:
   const { org } = await loadOrg(admin, cfg.orgTable, orgId);
   if (!org) return NextResponse.json({ error: 'Not found' }, { status: 404 });
 
-  const { data: rows, error } = await admin
-    .from('league_clubs')
-    .select('league_id, club_id, status, initiated_by, requested_by_profile_id, created_at, affiliation_type')
-    .eq(cfg.rowKey, orgId);
-  if (error) {
-    // Pre-118 database: an empty section, never an error.
-    if (isMissingTableError(error.code)) {
-      return NextResponse.json({ active: [], outgoing: [], incoming: [], viewerIsManager: false });
-    }
-    console.error('[AFFILIATIONS] list error:', error);
+  const listed = await listAffiliations(admin, side, orgId);
+  if (listed === null) {
     return NextResponse.json({ error: 'Failed to load affiliations' }, { status: 500 });
   }
-
-  const list = rows ?? [];
-  const otherIds = [...new Set(list.map(r => r[cfg.otherRowKey] as string))];
-  const selectCols = cfg.otherOrgTable === 'leagues'
-    ? 'id, name, sport_key, city, region, country'
-    : 'id, name, city, region, country';
-  const { data: others } = otherIds.length
-    ? await admin.from(cfg.otherOrgTable).select(selectCols).in('id', otherIds)
-    : { data: [] };
-  // The dynamic select string defeats supabase-js's type-level parser — the
-  // runtime shape is the selected columns; cast once here.
-  const otherRows = (others ?? []) as unknown as Array<{ id: string }>;
-  const byId = new Map(otherRows.map(o => [o.id, o]));
-  const withOrg = (r: (typeof list)[number]) => ({
-    ...r,
-    org: byId.get(r[cfg.otherRowKey] as string) ?? null,
-  });
+  if (listed.missing) {
+    // Pre-118 database: an empty section, never an error.
+    return NextResponse.json({ active: [], outgoing: [], incoming: [], viewerIsManager: false });
+  }
+  const list = listed.rows;
 
   const viewerRole = user
     ? await getOrgRole(admin, cfg.side, orgId, user.id)
@@ -145,12 +189,12 @@ export async function affiliationGET(request: NextRequest, side: AffSide, orgId:
   const manager = isOwnerOrManager(viewerRole);
 
   return NextResponse.json({
-    active: list.filter(r => r.status === 'active').map(withOrg),
+    active: list.filter(r => r.status === 'active'),
     outgoing: manager
-      ? list.filter(r => r.status === 'pending' && r.initiated_by === cfg.side).map(withOrg)
+      ? list.filter(r => r.status === 'pending' && r.initiated_by === cfg.side)
       : [],
     incoming: manager
-      ? list.filter(r => r.status === 'pending' && r.initiated_by === cfg.otherSide).map(withOrg)
+      ? list.filter(r => r.status === 'pending' && r.initiated_by === cfg.otherSide)
       : [],
     viewerIsManager: manager,
   });

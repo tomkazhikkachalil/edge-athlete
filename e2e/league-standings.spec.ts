@@ -165,3 +165,89 @@ test('standings: recompute on results; public API + org section + SSR page; 375p
     await admin.from('leagues').delete().eq('id', leagueId);
   }
 });
+
+// Phase 3 R2 closed the club standings gap: /club/[id]/standings is the
+// same crawlable SSR page as the league twin. Seeded directly (no results
+// API drive — recompute is the league test's job); asserts the raw HTML.
+test('club standings: the SSR twin renders crawlable HTML', async ({ browser }) => {
+  test.setTimeout(120_000);
+  const owner = loadQaUser('user-b.json');
+  const admin = adminClient();
+
+  const probe = await admin.from('competition_standings').select('id').limit(1);
+  test.skip(!!probe.error, `competition_standings missing — run migration 153 (${probe.error?.message})`);
+
+  const stamp = Date.now();
+  const name = `QA Standings Club ${stamp}`;
+  const { data: club } = await admin
+    .from('clubs')
+    .insert({ name, owner_profile_id: owner.id })
+    .select()
+    .single();
+  const clubId = club!.id as string;
+
+  try {
+    await admin.from('memberships').insert([{ club_id: clubId, profile_id: owner.id, role: 'owner' }]);
+    const { data: season } = await admin
+      .from('seasons')
+      .insert({ club_id: clubId, label: '2026-27' })
+      .select()
+      .single();
+    const { data: team } = await admin
+      .from('teams')
+      .insert({ club_id: clubId, name: `Rockets ${stamp}` })
+      .select()
+      .single();
+    const { data: comp } = await admin
+      .from('competitions')
+      .insert({
+        club_id: clubId,
+        season_id: season!.id,
+        sport_key: 'ice_hockey',
+        name: 'Club Ladder',
+        format: 'fixture',
+        entrant_type: 'team',
+        status: 'active',
+        visibility: 'public',
+      })
+      .select()
+      .single();
+    const { data: entry } = await admin
+      .from('competition_entries')
+      .insert({ competition_id: comp!.id, team_id: team!.id })
+      .select()
+      .single();
+    await admin.from('competition_standings').insert({
+      competition_id: comp!.id,
+      entry_id: entry!.id,
+      rank: 1,
+      points: 2,
+      played: 1,
+      stats: { w: 1, gf: 4, ga: 1, diff: 3 },
+    });
+
+    const ctxAnon = await browser.newContext();
+    try {
+      const page = await ctxAnon.newPage();
+      const htmlRes = await page.request.get(`/club/${clubId}/standings`);
+      expect(htmlRes.status()).toBe(200);
+      const html = await htmlRes.text();
+      expect(html).toContain(`Rockets ${stamp}`);
+      expect(html).toContain('Club Ladder');
+      expect(html).toContain(`${name} Standings`);
+      expect(html).toContain('Club page →');
+
+      // 375px render — usable, no overflow.
+      const view = await ctxAnon.newPage();
+      await view.setViewportSize({ width: 375, height: 812 });
+      await view.goto(`/club/${clubId}/standings`);
+      await expect(view.getByText(`Rockets ${stamp}`)).toBeVisible({ timeout: 15_000 });
+      const scrollWidth = await view.evaluate(() => document.documentElement.scrollWidth);
+      expect(scrollWidth, 'no horizontal overflow at 375px').toBeLessThanOrEqual(375);
+    } finally {
+      await ctxAnon.close();
+    }
+  } finally {
+    await admin.from('clubs').delete().eq('id', clubId);
+  }
+});

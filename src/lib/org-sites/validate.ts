@@ -59,3 +59,40 @@ export const SitePatchSchema = z.object({
   action: z.enum(['publish', 'unpublish']),
 });
 export type SitePatchInput = z.infer<typeof SitePatchSchema>;
+
+// ── Schedule query clamps (phase 3 R2) ──────────────────────────────────────
+// The public schedule reads take caller-supplied limit/range params; both
+// are clamped here (pure, node-testable) so no caller can turn the
+// viewer-independent read into an unbounded scan.
+
+export const SCHEDULE_LIMIT_DEFAULT = 10;
+export const SCHEDULE_LIMIT_MAX = 50;
+export const SCHEDULE_RANGE_MAX_DAYS = 365;
+
+export interface ScheduleQuery {
+  limit: number;
+  rangeDays?: number;
+}
+
+function toInt(value: unknown): number | null {
+  const n =
+    typeof value === 'number'
+      ? value
+      : typeof value === 'string' && value.trim() !== ''
+        ? Number(value)
+        : NaN;
+  return Number.isFinite(n) ? Math.floor(n) : null;
+}
+
+export function clampScheduleQuery(
+  input: { limit?: unknown; rangeDays?: unknown } = {}
+): ScheduleQuery {
+  const limitRaw = toInt(input.limit);
+  const limit =
+    limitRaw === null
+      ? SCHEDULE_LIMIT_DEFAULT
+      : Math.min(Math.max(limitRaw, 1), SCHEDULE_LIMIT_MAX);
+  const rangeRaw = toInt(input.rangeDays);
+  if (rangeRaw === null) return { limit };
+  return { limit, rangeDays: Math.min(Math.max(rangeRaw, 1), SCHEDULE_RANGE_MAX_DAYS) };
+}

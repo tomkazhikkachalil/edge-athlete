@@ -1,0 +1,67 @@
+import type { PublicCompetitionStandings } from '@/lib/competitions/public-standings';
+
+// One competition's standings card — the SSR markup shared by the
+// league/club standings pages and the public org-site standings module.
+// Server-safe and dependency-free ON PURPOSE: it renders inside the
+// (public) segment, so no Font Awesome, no client hooks, no dark:
+// variants (that segment never stamps data-theme). The overflow-x-auto
+// wrapper is the 375px rule — wide tables scroll inside the card, the
+// page never scrolls horizontally.
+export default function PublicStandingsTable({
+  competition,
+}: {
+  competition: PublicCompetitionStandings;
+}) {
+  return (
+    <section
+      aria-label={competition.name}
+      className="bg-surface rounded-lg shadow-sm border border-border p-4 sm:p-6"
+    >
+      <h2 className="text-lg font-semibold text-primary">
+        {competition.name}
+        {competition.season_label ? (
+          <span className="text-sm font-normal text-muted"> · {competition.season_label}</span>
+        ) : null}
+      </h2>
+      <div className="mt-3 overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="text-left text-xs text-muted">
+              <th className="py-1.5 pr-2 font-medium">#</th>
+              <th className="py-1.5 pr-3 font-medium">Team</th>
+              {competition.columns.map(col => (
+                <th
+                  key={col.key}
+                  className="py-1.5 px-2 font-medium text-right"
+                  title={col.label}
+                >
+                  {col.shortLabel}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {competition.rows.map(row => (
+              <tr
+                key={`${competition.id}-${row.rank}-${row.entrant_name}`}
+                className="border-t border-border-subtle"
+              >
+                <td className="py-1.5 pr-2 text-muted">{row.rank}</td>
+                <td className="py-1.5 pr-3 font-medium text-primary">{row.entrant_name}</td>
+                {competition.columns.map(col => (
+                  <td key={col.key} className="py-1.5 px-2 text-right text-secondary">
+                    {col.key === 'played'
+                      ? row.played
+                      : col.key === 'points'
+                        ? (row.points ?? 0)
+                        : (row.stats[col.key] ?? 0)}
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  );
+}
