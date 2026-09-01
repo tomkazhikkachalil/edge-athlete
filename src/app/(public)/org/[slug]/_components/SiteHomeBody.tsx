@@ -2,6 +2,7 @@ import Link from 'next/link';
 import type { OrgEvent } from '@/lib/calendar/org-events-server';
 import type { PublicStandingsPayload } from '@/lib/competitions/public-standings';
 import type { PublicSite } from '@/lib/org-sites/server';
+import type { PublicOpenWindow } from '@/lib/org-sites/public-data';
 import type {
   PublicAffiliation,
   PublicStaffRow,
@@ -16,6 +17,7 @@ import {
 } from '@/lib/org-sites/validate';
 import AffiliationsList from './AffiliationsList';
 import ContactCard from './ContactCard';
+import RegisterCard from './RegisterCard';
 import ScheduleList from './ScheduleList';
 import SponsorsList from './SponsorsList';
 import StaffList from './StaffList';
@@ -34,6 +36,8 @@ export interface SiteHomeData {
   staff: PublicStaffRow[];
   venues: PublicVenue[];
   affiliations: PublicAffiliation[];
+  /** Phase 5 R5 — open registration windows (empty = card says closed). */
+  openWindows: PublicOpenWindow[];
 }
 
 export default function SiteHomeBody({
@@ -43,7 +47,7 @@ export default function SiteHomeBody({
   site: PublicSite;
   data: SiteHomeData;
 }) {
-  const { standings, events, teams, staff, venues, affiliations } = data;
+  const { standings, events, teams, staff, venues, affiliations, openWindows } = data;
   const enabled = site.modules.filter(m => m.enabled);
   const has = (key: string) => enabled.some(m => m.module_key === key);
   const hero = parseHeroConfig(site.hero_config);
@@ -102,6 +106,23 @@ export default function SiteHomeBody({
           empty('No sponsors yet.')
         );
       }
+      case 'register':
+        return openWindows.length > 0 ? (
+          <RegisterCard windows={openWindows} side={site.side} orgId={site.orgId} />
+        ) : (
+          empty('Registration is currently closed.')
+        );
+      case 'gallery':
+        // The gallery is a subpage module — the home section is a teaser
+        // (it used to fall to the default "Coming soon.").
+        return (
+          <Link
+            href={`/org/${site.subdomain}/gallery`}
+            className="mt-2 inline-block text-sm text-brand-fg font-medium"
+          >
+            View the gallery →
+          </Link>
+        );
       case 'contact': {
         const contact = parseContact(site.contact_config);
         return Object.keys(contact).length > 0 ? (

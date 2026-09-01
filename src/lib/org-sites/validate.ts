@@ -54,13 +54,14 @@ export const MODULE_KEYS = [
   'contact',
   'news', // phase 3.5 (mig 156 widens the DB CHECK; pre-156 code degrades)
   'gallery', // phase 4 R5 (mig 160; consent-gated contest media)
+  'register', // phase 5 R5 (mig 164; the registration CTA card)
 ] as const;
 export type ModuleKey = (typeof MODULE_KEYS)[number];
 
 /** Keys newer than the 155 base CHECK, NEWEST LAST — siteCreatePOST's
  *  pre-migration 23514 retry strips them from the end until the insert
  *  fits the database it's talking to. */
-export const POST_155_MODULE_KEYS = ['news', 'gallery'] as const;
+export const POST_155_MODULE_KEYS = ['news', 'gallery', 'register'] as const;
 
 /** Every module except hero can be toggled from the console (hero is the
  *  site's identity — excluded at the SCHEMA level, not just the UI). */
@@ -75,6 +76,7 @@ export const TOGGLEABLE_MODULE_KEYS = [
   'contact',
   'news',
   'gallery',
+  'register',
 ] as const;
 export type ToggleableModuleKey = (typeof TOGGLEABLE_MODULE_KEYS)[number];
 
@@ -279,6 +281,7 @@ export const MODULE_TITLES: Record<string, string> = {
   contact: 'Contact',
   news: 'News',
   gallery: 'Gallery',
+  register: 'Register',
 };
 
 /** The module keys that have their own subpage under /org/{slug}/.

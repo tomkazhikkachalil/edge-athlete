@@ -1,6 +1,32 @@
 # Development Log
 
-## September 2, 2026 — Phase 5 R4: the registrar console + bells (#485, mig 163)
+## September 2, 2026 — Phase 5 R5: the public Register card (#485, mig 164)
+
+The masterplan's "registration call to action" on the public site.
+
+- **Mig 164** (handed to Tom; the 160 recipe): org_site_modules widens
+  with 'register' — a CARD module, not a subpage (no route, no nav
+  entry); existing sites seed the row DISABLED; siteCreatePOST's retry
+  ladder grows a rung (POST_155_MODULE_KEYS, newest last).
+- **fetchPublicOpenWindows + getCachedOpenWindows**: the OPEN windows
+  only, viewer-independent, no personal data. Time-based openness can
+  drift ≤ the ISR TTL on a cached page (a window crossing closes_at) —
+  documented, and harmless: the app-side POST re-gates unconditionally,
+  so a stale card can never admit a registration. Window open/close
+  already purges the site tag (wired in R2).
+- **RegisterCard**: season + offering + closes-date lines, and a static
+  ABSOLUTE link into the app wizard (appBaseUrl — a relative /register
+  wouldn't resolve on an org subdomain). No sessions, no forms — the
+  public segment's contract holds untouched.
+- Also fixed in passing: an enabled gallery module used to fall to the
+  home body's "Coming soon." default — it now renders a proper "View
+  the gallery →" teaser.
+- e2e: closed by default → open window → the anonymous page renders the
+  card with the wizard link (375px pass) → close → closed again. R6
+  next: the exit sweep — registration → placement → competition →
+  standings in one spec, plus the phase close.
+
+## September 2, 2026 — Phase 5 R4: the registrar console + bells (#484, mig 163)
 
 The org side of the workflow the family started.
 

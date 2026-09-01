@@ -8,6 +8,7 @@ import {
   fetchPublicAffiliations,
   fetchPublicGallery,
   fetchPublicNewsList,
+  fetchPublicOpenWindows,
   fetchPublicNewsPost,
   fetchPublicPage,
   fetchPublicPages,
@@ -19,6 +20,7 @@ import {
   type PublicAffiliation,
   type PublicGalleryItem,
   type PublicNewsItem,
+  type PublicOpenWindow,
   type PublicNewsPost,
   type PublicPageLink,
   type PublicPageRow,
@@ -121,6 +123,16 @@ export const getCachedSitemapSites = (): Promise<SitemapSiteEntry[]> =>
     ['org-sitemap'],
     { tags: ['org-sitemap'], revalidate: 3600 }
   )();
+
+// Phase 5 R5: the open registration windows for the Register card.
+export const getCachedOpenWindows = (
+  slug: string,
+  side: OrgSide,
+  orgId: string
+): Promise<PublicOpenWindow[]> =>
+  perSlug(['org-site-open-windows', slug], slug, () =>
+    fetchPublicOpenWindows(getSupabaseAdmin(), side, orgId)
+  );
 
 // Phase 4 R5: the consent-gated gallery. side/orgId are 1:1 with slug —
 // safe in the closure (the keyParts rule).
