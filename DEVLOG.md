@@ -1,5 +1,34 @@
 # Development Log
 
+## September 1, 2026 — Phase 6 R5: CSV core + structure import (#500, zero DDL)
+
+Import is "the actual sales obstacle" (masterplan §10) — this round
+builds the pure CSV core and the first big importer:
+
+- **`src/lib/orgs/csv.ts`** (pure, ZERO deps — the no-new-deps rule):
+  the RFC-4180 subset the import surfaces need — quoted fields, escaped
+  quotes, CRLF, lowercased header mapping, ragged-row/unclosed-quote
+  refusal, 200-row/200-char caps enforced in the parser so callers
+  can't forget. `checkHeaders` fails loudly with the full expected list
+  (strict headers v1). The vitest matrix is the verification.
+- **`structure-import.ts`**: rows `division, team_name` (+ optional
+  age_band/gender_stream/tier/sport, sport defaulting to the org's) →
+  ONE target season. Idempotent BY CONSTRAINT: division upsert on
+  divisions_season_name_uniq, team upsert on teams_org_name_uniq
+  (NULLS NOT DISTINCT takes the full column list), entry
+  insert-if-absent on team_entries_uniq — a re-paste is a no-op report.
+  Dry-run is the DEFAULT (commit passes dryRun:false explicitly — the
+  storage-sweep model); per-row best-effort report (roster-import
+  shape); archived seasons refuse.
+- Route twins (manager-gated, 100KB cap, the org-site rate bucket);
+  console: an "Import CSV" expander per live season (paste → Preview →
+  report table → Import; Import stays disabled until a preview ran and
+  re-disables when the text changes).
+- e2e: header-typo 400 naming the expected columns, dry-run writes
+  nothing (head-count proven), commit lands 2 divisions/3 teams/3
+  entries with the blank-division row erroring without aborting, and
+  the re-run reports all-reuse zero-create.
+
 ## September 1, 2026 — Phase 6 R4: result disputes (#499, mig 168)
 
 The workflow the 152 column-room has waited for (masterplan §7: "the
