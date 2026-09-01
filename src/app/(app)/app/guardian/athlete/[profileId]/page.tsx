@@ -222,7 +222,6 @@ export default function GuardianAthletePage() {
   const [decliningId, setDecliningId] = useState<string | null>(null);
 
   const refetchCalendar = useCallback(async () => {
-    if (!FEATURE_FLAGS.FEATURE_CALENDAR) return;
     try {
       const from = new Date();
       const to = new Date(Date.now() + 14 * 86_400_000);
@@ -1053,7 +1052,7 @@ export default function GuardianAthletePage() {
                 </section>
 
                 {/* Calendar (Round I): read-only schedule + decline */}
-                {FEATURE_FLAGS.FEATURE_CALENDAR && (
+                {(
                   <section className="bg-surface border border-border rounded-lg p-5 mb-4">
                     <h2 className="text-base font-bold text-primary mb-1">Calendar</h2>
                     <p className="text-xs text-tertiary mb-4">

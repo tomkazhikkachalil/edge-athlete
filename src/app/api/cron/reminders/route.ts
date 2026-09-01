@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/auth-server';
 import { runReminderSweep } from '@/lib/calendar/reminders-server';
-import { FEATURE_FLAGS } from '@/lib/features';
 
 export const maxDuration = 60;
 
@@ -16,9 +15,6 @@ export async function GET(request: NextRequest) {
   const authHeader = request.headers.get('authorization');
   if (!cronSecret || authHeader !== `Bearer ${cronSecret}`) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-  if (!FEATURE_FLAGS.FEATURE_CALENDAR) {
-    return NextResponse.json({ skipped: 'flag off' });
   }
   try {
     const summary = await runReminderSweep(getSupabaseAdmin());

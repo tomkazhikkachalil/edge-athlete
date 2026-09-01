@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import * as Sentry from '@sentry/nextjs';
 import { requireAuth, getSupabaseAdmin, getProfileRole } from '@/lib/auth-server';
-import { FEATURE_FLAGS } from '@/lib/features';
 import { validateEventInput, validateGuestInput } from '@/lib/calendar/events';
 import { validateRecurrenceInput, describeRecurrence } from '@/lib/calendar/recurrence';
 import { insertSeriesOccurrences } from '@/lib/calendar/series-server';
@@ -30,9 +29,6 @@ const EVENT_FIELDS =
   'id, organizer_id, title, description, location, starts_at, ends_at, all_day, timezone, category, status, cancelled_at, series_id, series_override, routine_id, routine_snapshot, league_id, club_id, division_id, team_id, venue_id, facility_id';
 
 export async function GET(request: NextRequest) {
-  if (!FEATURE_FLAGS.FEATURE_CALENDAR) {
-    return NextResponse.json({ error: 'Not found' }, { status: 404 });
-  }
   try {
     const user = await requireAuth(request);
     const { searchParams } = new URL(request.url);
@@ -118,9 +114,6 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  if (!FEATURE_FLAGS.FEATURE_CALENDAR) {
-    return NextResponse.json({ error: 'Not found' }, { status: 404 });
-  }
   try {
     const user = await requireAuth(request);
     // PR 3: creates can now fan out a notification per org member, so event

@@ -172,9 +172,7 @@ export default function AppHeader({ onCreatePost, onEditProfile }: AppHeaderProp
   const placeLinks: NavLink[] = [
     { path: '/feed', label: 'Feed', icon: 'fa-home' },
     { path: '/explore', label: 'Explore', icon: 'fa-compass' },
-    ...(FEATURE_FLAGS.FEATURE_CALENDAR
-      ? [{ path: '/calendar', label: 'Calendar', icon: 'fa-calendar-alt' }]
-      : []),
+    { path: '/calendar', label: 'Calendar', icon: 'fa-calendar-alt' },
     { path: '/athlete', label: 'Profile', icon: 'fa-user' },
   ];
 

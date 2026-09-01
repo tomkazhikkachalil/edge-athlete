@@ -160,7 +160,7 @@ export default function GuardianBatchUploadPage() {
   );
 
   useEffect(() => {
-    if (!FEATURE_FLAGS.FEATURE_CALENDAR || !range || !assignedIdsKey) return;
+    if (!range || !assignedIdsKey) return;
     const athleteIds = assignedIdsKey.split(',').filter(Boolean);
     const rangeKey = range.key;
     for (const athleteId of athleteIds) {

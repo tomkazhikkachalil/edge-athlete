@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import { isUuid } from '@/lib/uuid';
 import * as Sentry from '@sentry/nextjs';
 import { requireAuth, getSupabaseAdmin } from '@/lib/auth-server';
-import { FEATURE_FLAGS } from '@/lib/features';
 import { validateEventInput, validateGuestInput, MAX_GUESTS } from '@/lib/calendar/events';
 import { applyWallTime, wallClockInZone, wallDurationMinutes } from '@/lib/calendar/recurrence';
 import {
@@ -117,9 +116,6 @@ export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  if (!FEATURE_FLAGS.FEATURE_CALENDAR) {
-    return NextResponse.json({ error: 'Not found' }, { status: 404 });
-  }
   try {
     const user = await requireAuth(request);
     const { id } = await params;
@@ -146,9 +142,6 @@ export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  if (!FEATURE_FLAGS.FEATURE_CALENDAR) {
-    return NextResponse.json({ error: 'Not found' }, { status: 404 });
-  }
   try {
     const user = await requireAuth(request);
     const { id } = await params;
@@ -501,9 +494,6 @@ export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  if (!FEATURE_FLAGS.FEATURE_CALENDAR) {
-    return NextResponse.json({ error: 'Not found' }, { status: 404 });
-  }
   try {
     const user = await requireAuth(request);
     const { id } = await params;

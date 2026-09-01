@@ -6,7 +6,6 @@ import { useAuth } from '@/lib/auth';
 import LazyImage from '@/components/LazyImage';
 import { formatDisplayName, getInitials } from '@/lib/formatters';
 import { useMessages } from '@/lib/messages';
-import { FEATURE_FLAGS } from '@/lib/features';
 import {
   DOCK_PANEL_BODY_HEIGHT,
   dockReducer,
@@ -66,7 +65,8 @@ export default function ChatDock() {
   // Compose lives in the bar now, so its state belongs to the widget.
   const [mode, setMode] = useState<DockComposeMode>('list');
 
-  const enabled = FEATURE_FLAGS.FEATURE_CHAT_DOCK && !!user && isDesktop;
+  // The dock launched Jul 28; its flag retired in the consolidation round.
+  const enabled = !!user && isDesktop;
   const open = state.panelOpen;
   const myName = formatDisplayName(
     profile?.first_name,
@@ -82,7 +82,6 @@ export default function ChatDock() {
 
   // Viewport gate + width-aware window cap (SSR-safe: starts false).
   useEffect(() => {
-    if (!FEATURE_FLAGS.FEATURE_CHAT_DOCK) return;
     const media = window.matchMedia('(min-width: 1024px) and (min-height: 600px)');
     const apply = () => {
       setIsDesktop(media.matches);
@@ -115,7 +114,6 @@ export default function ChatDock() {
   // toggle (same tab, via CustomEvent) or another tab (storage event).
   // Effect-owned deliberately: this is an external-store read-then-subscribe.
   useEffect(() => {
-    if (!FEATURE_FLAGS.FEATURE_CHAT_DOCK) return;
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setHidden(isChatDockHidden());
     return subscribeChatDockVisibility(setHidden);
@@ -131,7 +129,6 @@ export default function ChatDock() {
   // fired on the dock-suppressed /messages route lands: the reducer commits
   // and persists before the caller navigates to a visible route.
   useEffect(() => {
-    if (!FEATURE_FLAGS.FEATURE_CHAT_DOCK) return;
     return subscribeDockConversationRequests(id => {
       setChatDockHidden(false); // opening a chat un-hides a closed dock
       dispatch({ type: 'OPEN_WINDOW', id });

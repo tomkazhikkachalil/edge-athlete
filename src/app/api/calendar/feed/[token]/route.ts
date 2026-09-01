@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/auth-server';
-import { FEATURE_FLAGS } from '@/lib/features';
 import { hashFeedToken, buildFeedIcs } from '@/lib/calendar/feed-server';
 
 // ── GET /api/calendar/feed/[token] ────────────────────────────────────────────
@@ -14,9 +13,6 @@ export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ token: string }> }
 ) {
-  if (!FEATURE_FLAGS.FEATURE_CALENDAR) {
-    return NextResponse.json({ error: 'Not found' }, { status: 404 });
-  }
   try {
     const { token } = await params;
     if (!TOKEN_RE.test(token)) {

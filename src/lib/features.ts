@@ -31,33 +31,11 @@ export const FEATURE_FLAGS = {
   // behavior.)
   FEATURE_GUARDIAN_PROFILES: process.env.NEXT_PUBLIC_FEATURE_GUARDIAN_PROFILES === '1',
 
-  // Personal calendar (events + invite loop). Build-time env flag: set
-  // NEXT_PUBLIC_FEATURE_CALENDAR=1 locally to develop/test; leave unset in
-  // Vercel until launch. Migration 057 must be run before this is ever
-  // enabled in an environment.
-  FEATURE_CALENDAR: process.env.NEXT_PUBLIC_FEATURE_CALENDAR === '1',
-
-  // Persistent chat dock (big screens; the FB/LinkedIn bottom-corner
-  // pattern). Pure view layer over the existing messaging system — no
-  // migrations. Rides the root layout, so it ships dark and Tom flips it
-  // after testing.
-  FEATURE_CHAT_DOCK: process.env.NEXT_PUBLIC_FEATURE_CHAT_DOCK === '1',
-
-  // 0.10 flag 1 — guardian roster gate. OFF (unset) = the stricter state:
-  // supervised athletes can't be offered roster spots (403) and can't
-  // accept (403). ON = offers to supervised athletes create the pending
-  // row, bell the guardians (roster_invite), surface in the guardian
-  // queue, and EITHER the child or a guardian accepts. Migration 147 must
-  // be run before this is enabled anywhere.
-  FEATURE_ROSTER_GUARDIAN_GATE: process.env.NEXT_PUBLIC_FEATURE_ROSTER_GUARDIAN_GATE === '1',
-
-  // 0.10 flag 2 — roster-only calendar placement. OFF (unset) = today's
-  // kind-blind merge (every org member gets org events on their calendar).
-  // ON = only kind='roster' status='active' memberships place events
-  // (follow members still see org pages and can opt in by RSVP).
-  // ORDERING: flip this ONLY after orgs have converted members to roster
-  // (phase 1) — flipping it day one empties every org calendar.
-  FEATURE_CALENDAR_ROSTER_ONLY: process.env.NEXT_PUBLIC_FEATURE_CALENDAR_ROSTER_ONLY === '1',
+  // RETIRED (consolidation round, Sep 2026) — behavior now unconditional:
+  // FEATURE_CALENDAR, FEATURE_CHAT_DOCK (launched surfaces),
+  // FEATURE_ROSTER_GUARDIAN_GATE (either-approves is permanent),
+  // FEATURE_CALENDAR_ROSTER_ONLY (roster-only placement is permanent).
+  // Never reintroduce a flag on a retired safety behavior.
 
   /**
    * Phase 5 (migs 161/162): family-initiated org registration. A pure

@@ -4,7 +4,6 @@ import { useMemo, useState } from 'react';
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import { format } from 'date-fns';
-import { FEATURE_FLAGS } from '@/lib/features';
 import { weekDays, localDayKey, eventOverlapsDay } from '@/lib/calendar/grid';
 import { findConflicts, conflictDayKeys, type ConflictEvent } from '@/lib/calendar/conflicts';
 import { venueTimeLabel } from '@/lib/calendar/venue-time';
@@ -69,7 +68,7 @@ export default function GuardianWeekStrip({
     return ids;
   }, [conflicts]);
 
-  if (!FEATURE_FLAGS.FEATURE_CALENDAR || athletes.length === 0) return null;
+  if (athletes.length === 0) return null;
 
   const selectedDate = (() => {
     const [y, m, d] = selectedDay.split('-').map(Number);

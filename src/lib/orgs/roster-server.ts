@@ -19,20 +19,18 @@
 //   manager ?profileId        active                DELETE  row deleted (removed), notify athlete
 //   anyone else               any                   any     403
 //
-// SECURITY — guardian rail (0.10, EITHER-APPROVES per Tom): with
-// FEATURE_ROSTER_GUARDIAN_GATE off, a supervised athlete can't be offered a
-// roster spot (403) and can't accept one (403) — the stricter state, and
-// flag-off must never weaken it. With the flag on, the offer creates the
-// pending row, guardians are belled (roster_invite) and see it in the
-// guardian queue, and EITHER the child or a guardian accepts — the follow
-// convention. Whoever didn't act is told (followers/route.ts cross-notify
-// model). Guardian acting-for arrives pre-authorized from the routes
-// (requireProfileRole 'manage_privacy'); this core trusts actingFor only
-// when the route vouches for it.
+// SECURITY — guardian rail (0.10, EITHER-APPROVES per Tom; its launch
+// flag retired in the consolidation round — the flow below is PERMANENT
+// and must never regrow a flag): an offer to a supervised athlete
+// creates the pending row, guardians are belled (roster_invite) and see
+// it in the guardian queue, and EITHER the child or a guardian accepts —
+// the follow convention. Whoever didn't act is told (followers/route.ts
+// cross-notify model). Guardian acting-for arrives pre-authorized from
+// the routes (requireProfileRole 'manage_privacy'); this core trusts
+// actingFor only when the route vouches for it.
 
 import { NextResponse } from 'next/server';
 import type { SupabaseClient, User } from '@supabase/supabase-js';
-import { FEATURE_FLAGS } from '@/lib/features';
 import { revalidateOrgSiteForOrg } from '@/lib/org-sites/revalidate';
 import { getOrgAndRole, roleAllows, type OrgSide } from './authz';
 import {
@@ -57,9 +55,6 @@ const SIDES: Record<OrgSide, SideConfig> = {
   league: { noun: 'league', notFound: 'League not found' },
   club: { noun: 'club', notFound: 'Club not found' },
 };
-
-const SUPERVISED_MESSAGE =
-  "Supervised athletes can't be invited to rosters yet — guardian approval arrives with the guardian queue";
 
 /** Pure outcome decision for DELETE — exported for unit tests. */
 export function rosterDeleteOutcome(input: {
@@ -106,9 +101,6 @@ export async function rosterPost(
     return NextResponse.json({ error: 'Athlete not found' }, { status: 404 });
   }
   const targetSupervised = targetSupervision === 'supervised';
-  if (targetSupervised && !FEATURE_FLAGS.FEATURE_ROSTER_GUARDIAN_GATE) {
-    return NextResponse.json({ error: SUPERVISED_MESSAGE }, { status: 403 });
-  }
 
   const { followRole, rosterEdges, error: edgesError } = await membershipEdges(
     admin,
@@ -190,10 +182,6 @@ export async function rosterPatch(
 
   const targetSupervision = await supervisionState(admin, target);
   const targetSupervised = targetSupervision === 'supervised';
-  // Flag OFF keeps 0.3's stricter state: no supervised accept, by anyone.
-  if (targetSupervised && !FEATURE_FLAGS.FEATURE_ROSTER_GUARDIAN_GATE) {
-    return NextResponse.json({ error: SUPERVISED_MESSAGE }, { status: 403 });
-  }
 
   const { accepted, error } = await acceptRosterOffer(admin, { side, orgId }, target);
   if (error) {

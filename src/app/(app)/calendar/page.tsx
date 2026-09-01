@@ -5,7 +5,6 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
 import AppHeader from '@/components/AppHeader';
 import CalendarPage from '@/components/calendar/CalendarPage';
-import { FEATURE_FLAGS } from '@/lib/features';
 
 // useSearchParams must live under Suspense (house rule) — this tiny reader
 // captures the ?event= deep link (notification clicks) and ?new=1 (the
@@ -37,7 +36,7 @@ export default function CalendarRoute() {
     if (!loading && initialAuthCheckComplete && !user) router.replace('/');
   }, [user, loading, initialAuthCheckComplete, router]);
 
-  if (!FEATURE_FLAGS.FEATURE_CALENDAR || loading || !initialAuthCheckComplete || !user) {
+  if (loading || !initialAuthCheckComplete || !user) {
     return (
       <div className="min-h-screen bg-canvas flex items-center justify-center">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-brand"></div>

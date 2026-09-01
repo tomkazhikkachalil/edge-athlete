@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/auth-server';
-import { FEATURE_FLAGS } from '@/lib/features';
 import { searchPeople, accessibleProfileIds } from '@/lib/search/people-server';
 
 // ── GET /api/calendar/invite-search?q= ────────────────────────────────────────
@@ -16,9 +15,6 @@ import { searchPeople, accessibleProfileIds } from '@/lib/search/people-server';
 const LIMIT = 8;
 
 export async function GET(request: NextRequest) {
-  if (!FEATURE_FLAGS.FEATURE_CALENDAR) {
-    return NextResponse.json({ error: 'Not found' }, { status: 404 });
-  }
   try {
     const user = await requireAuth(request);
     const q = (new URL(request.url).searchParams.get('q') ?? '').trim();

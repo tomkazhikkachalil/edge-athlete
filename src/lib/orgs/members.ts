@@ -338,7 +338,8 @@ export function redactPendingRoster(
 // row per org, so role reads reduce with maxOrgRole and enumeration reads
 // dedupe. Enumeration keeps NO kind predicate except `rosterOrgIds` — the
 // 0.10 calendar-merge placement variant, used by org-merge-server behind
-// FEATURE_CALENDAR_ROSTER_ONLY and nowhere else. The member-list/count
+// the calendar merge (roster-only placement, its flag retired) and
+// nowhere else. The member-list/count
 // queries filter kind='follow' (roster ⊆ follow: one row per person).
 // ORG-SCOPED BY CHARTER (0.5): every read here pins scope_type='org' —
 // division/team-scoped rows (145+) are a different authority surface and

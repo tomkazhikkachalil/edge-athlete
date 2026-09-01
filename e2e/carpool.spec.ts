@@ -4,7 +4,7 @@ import { apiAs, loadQaUser, readErrorBody } from './helpers/qa-user';
 // Carpool (Wave 9, mig 139) — API loop over the real routes: offer → claim
 // → capacity guard → release → cancel, plus the structural-leak assertion
 // (carpool notes must NEVER reach the ICS payload). Serial: one event
-// threads through. Gated on FEATURE_CALENDAR like the calendar suite.
+// threads through. (The calendar flag retired — always live now.)
 
 test.describe.configure({ mode: 'serial' });
 
