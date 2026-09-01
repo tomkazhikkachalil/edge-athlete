@@ -156,17 +156,24 @@ export default function GolfComposerSection({
   userId,
   active,
   onChange,
+  seed,
 }: SportComposerExtraProps) {
   // activeProfile first, so a guardian composing AS a managed athlete seeds
   // that athlete's row rather than their own.
   const { profile, activeProfile } = useAuth();
   const displayProfile = activeProfile ?? profile;
 
-  // Round data
-  const [sharedRoundParticipants, setSharedRoundParticipants] = useState<string[]>([]);
-  const [sharedRoundParticipantsData, setSharedRoundParticipantsData] = useState<{id: string; name: string; avatar_url?: string}[]>([]);
+  // Round data. `seed` (crash-draft restore) wins over the blank defaults —
+  // it is read once as initializers, which is safe because the slot is
+  // remount-keyed (reset-by-remount contract in sport-composer-extras.ts).
+  const [sharedRoundParticipants, setSharedRoundParticipants] = useState<string[]>(
+    () => seed?.sharedRoundParticipants ?? []
+  );
+  const [sharedRoundParticipantsData, setSharedRoundParticipantsData] = useState<{id: string; name: string; avatar_url?: string}[]>(
+    () => seed?.sharedRoundParticipantsData ?? []
+  );
   const [showParticipantModal, setShowParticipantModal] = useState(false);
-  const [sharedRoundDetails, setSharedRoundDetails] = useState<GolfSharedRoundDetails>({
+  const [sharedRoundDetails, setSharedRoundDetails] = useState<GolfSharedRoundDetails>(() => seed?.sharedRoundDetails ?? {
     courseName: '',
     date: localDayKey(new Date()), // today, VIEWER-local (not UTC)
     holesPlayed: 18,
@@ -200,12 +207,16 @@ export default function GolfComposerSection({
   const [selectedCourse, setSelectedCourse] = useState<GolfCourse | null>(null);
 
   // Course hole data (par and yardage per hole)
-  const [courseHoleData, setCourseHoleData] = useState<{ hole: number; par: number; yardage?: number }[]>([]);
-  const [manualParEntry, setManualParEntry] = useState<number[]>([]);
-  const [manualYardageEntry, setManualYardageEntry] = useState<number[]>([]);
+  const [courseHoleData, setCourseHoleData] = useState<{ hole: number; par: number; yardage?: number }[]>(
+    () => seed?.courseHoleData ?? []
+  );
+  const [manualParEntry, setManualParEntry] = useState<number[]>(() => seed?.manualParEntry ?? []);
+  const [manualYardageEntry, setManualYardageEntry] = useState<number[]>(
+    () => seed?.manualYardageEntry ?? []
+  );
 
   // Shared round score entry
-  const [playerScores, setPlayerScores] = useState<PlayerScoreData[]>([]);
+  const [playerScores, setPlayerScores] = useState<PlayerScoreData[]>(() => seed?.playerScores ?? []);
   // Counter prop for the grid's hole-by-hole stepper — each bump opens it
   // (resume mode) for the first player. See the Score Entry header button.
   const [quickEntryRequest, setQuickEntryRequest] = useState(0);

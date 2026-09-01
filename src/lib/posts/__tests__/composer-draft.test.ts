@@ -48,6 +48,19 @@ describe('parseComposerDraft', () => {
     });
   });
 
+  it('golf rides along shape-checked and alone keeps a draft non-empty (G1)', () => {
+    const golf = { sharedRoundDetails: { courseName: 'Eagle Creek' }, playerScores: [] };
+    const withGolf = JSON.stringify({ v: 1, savedAt: NOW, caption: '', golf });
+    const parsed = parseComposerDraft(withGolf, NOW);
+    expect(parsed?.golf).toEqual(golf); // golf-only draft survives
+    // Malformed golf (no sharedRoundDetails object) is dropped, and with
+    // nothing else the whole draft reads empty.
+    const badGolf = JSON.stringify({ v: 1, savedAt: NOW, caption: '', golf: { playerScores: [] } });
+    expect(parseComposerDraft(badGolf, NOW)).toBeNull();
+    const golfString = JSON.stringify({ v: 1, savedAt: NOW, caption: 'hi', golf: 'nope' });
+    expect(parseComposerDraft(golfString, NOW)?.golf).toBeUndefined();
+  });
+
   it('isEmptyComposerDraft ignores whitespace captions', () => {
     expect(
       isEmptyComposerDraft({ postType: 'general', caption: '  ', hashtags: [], tags: [], visibility: 'public' })

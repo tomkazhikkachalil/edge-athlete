@@ -184,6 +184,10 @@ export default function CreatePostModal({
   // change, and this snapshot is all the submit, validation, footer-hint and
   // preview paths read.
   const [golfValue, setGolfValue] = useState<GolfComposerValue>(() => defaultGolfComposerValue());
+  // G1 (Sep 2026): the crash-draft's golf value, applied by remounting the
+  // slot with a seed (the section reads it once as initializers and reports
+  // up on mount, so golfValue re-syncs without extra plumbing).
+  const [golfSeed, setGolfSeed] = useState<GolfComposerValue | undefined>(undefined);
   // Bumped by reset() — remounts the sport sections so their internal state
   // clears at exactly the moments the old inline golf state was reset
   // (confirmed discard / post success).
@@ -211,10 +215,12 @@ export default function CreatePostModal({
         hashtags,
         tags: selectedTags,
         visibility,
+        // The golf section rides along only while it holds real work (G1).
+        ...(golfValue.isDirty ? { golf: golfValue } : {}),
       });
     }, 400);
     return () => clearTimeout(timer);
-  }, [isOpen, postType, caption, hashtags, selectedTags, visibility]);
+  }, [isOpen, postType, caption, hashtags, selectedTags, visibility, golfValue]);
 
   // Tagging people
   const [taggedProfiles, setTaggedProfiles] = useState<string[]>([]);
@@ -254,6 +260,7 @@ export default function CreatePostModal({
     // score entry): restore the reported snapshot to its default and remount
     // the sport sections so their internal state starts fresh.
     setGolfValue(defaultGolfComposerValue());
+    setGolfSeed(undefined);
     setSportSectionResetKey(k => k + 1);
   };
 
@@ -698,6 +705,12 @@ export default function CreatePostModal({
                   if (availableDraft.postType !== postType) {
                     setPostType(availableDraft.postType as SportKey | 'general');
                   }
+                  if (availableDraft.golf) {
+                    // Remount the slot with the seed; the section reports
+                    // the seeded value up on mount (G1).
+                    setGolfSeed(availableDraft.golf);
+                    setSportSectionResetKey(k => k + 1);
+                  }
                   setAvailableDraft(null);
                 }}
                 className="min-h-[44px] px-3 rounded-full bg-brand text-white text-sm font-semibold hover:bg-brand-hover"
@@ -964,6 +977,7 @@ export default function CreatePostModal({
               active={postType === sportKey}
               onChange={setGolfValue}
               onCaptionGenerated={setCaption}
+              seed={sportKey === 'golf' ? golfSeed : undefined}
             />
           ))}
 

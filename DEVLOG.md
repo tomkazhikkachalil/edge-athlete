@@ -1,5 +1,36 @@
 # Development Log
 
+## September 1, 2026 — Bug round PR-A: the data-loss backlog (#494, zero DDL)
+
+Tom asked for the bugs; a verification pass over the Aug 24
+dummy-proofing audit backlog found five still real, two already fixed
+(B3 series-guest RSVPs — now a true diff both ends; B5 avatar/cover —
+retire-after-new verified). This PR takes the four data-loss items:
+
+- **B1 workout PRs recoverable**: review-mode re-entry to a finished
+  session now recomputes PR candidates on mount (they only ever recorded
+  via Share/Keep private, and review mode never called loadPRs — the
+  share step recorded nothing after a nav-away; the re-finish 409 made
+  the loss permanent). Recompute is self-limiting: once PRs are
+  recorded, detectPRs finds no improvement. Plus the beforeunload prompt
+  on summary/share with unrecorded candidates (the SiteBlockEditor
+  recipe).
+- **B8 sport removal confirm-gated**: unchecking a sport silently
+  DELETEd its sport_settings row (and dropped the sport from the profile
+  surface via active-sports). Removal now confirms before save; cancel
+  restores the checkboxes. The `is_active` soft-delete remains the
+  deeper future fix (recorded).
+- **G1 golf composer crash-draft**: the composer draft now carries the
+  golf section (when dirty) and restores it — `seed` joined the sport-
+  section contract (read once as initializers; a remount applies it, per
+  the reset-by-remount contract), `ComposerDraft.golf` is shape-checked
+  on parse (type-only import, no runtime edge into components), and a
+  golf-only draft now counts as non-empty. Media Files remain the one
+  thing that can't ride localStorage.
+- **C4 onboarding step persists** per-tab (sessionStorage; setTimeout(0)
+  rehydrate — lazy init is a hydration mismatch and a synchronous set is
+  the set-state-in-effect error); finishing clears it.
+
 ## September 1, 2026 — Consolidation PR-4: the stage-gate pass + ROUND CLOSE (#493, zero DDL)
 
 The manual Part-B sweep over the migration 140–165 band, written into

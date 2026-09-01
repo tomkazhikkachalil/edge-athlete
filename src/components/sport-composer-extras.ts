@@ -26,6 +26,11 @@ export interface SportComposerExtraProps {
   onChange: (value: SportComposerValue) => void;
   /** "Generate caption from scorecard" — the caption box belongs to the parent. */
   onCaptionGenerated: (caption: string) => void;
+  /** Crash-draft restore (G1, Sep 2026): a previously reported value to
+   *  seed the section's initial state from. Read ONCE as useState
+   *  initializers — the slot is remount-keyed, so a new seed only takes
+   *  effect through a remount, matching the reset-by-remount contract. */
+  seed?: SportComposerValue;
 }
 
 export const SPORT_COMPOSER_EXTRAS: Partial<Record<SportKey, ComponentType<SportComposerExtraProps>>> = {

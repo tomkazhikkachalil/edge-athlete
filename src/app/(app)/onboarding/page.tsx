@@ -24,6 +24,32 @@ export default function OnboardingPage() {
   const { user, profile, loading, refreshProfile, signOut, managedProfiles } = useAuth();
 
   const [step, setStep] = useState<Step>(1);
+
+  // C4 (Sep 2026): a refresh mid-onboarding restarted at step 1. The step
+  // persists per-tab; rehydration uses the setTimeout(0) recipe (a lazy
+  // initializer here is a hydration mismatch, and a synchronous set in the
+  // effect is the set-state-in-effect lint error — RegistrationSteps
+  // precedent). sessionStorage: finishing clears it, and a new tab
+  // legitimately starts at 1.
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      try {
+        const raw = window.sessionStorage.getItem('ea:onboarding-step');
+        const parsed = raw ? Number(raw) : NaN;
+        if (parsed === 2 || parsed === 3 || parsed === 4) setStep(parsed);
+      } catch {
+        // storage unavailable — start at 1
+      }
+    }, 0);
+    return () => clearTimeout(timer);
+  }, []);
+  useEffect(() => {
+    try {
+      window.sessionStorage.setItem('ea:onboarding-step', String(step));
+    } catch {
+      // best-effort
+    }
+  }, [step]);
   const [selectedSports, setSelectedSports] = useState<SportKey[]>([]);
   const [savingSports, setSavingSports] = useState(false);
   const [avatarError, setAvatarError] = useState<string | null>(null);
@@ -85,6 +111,11 @@ export default function OnboardingPage() {
   const finish = async (destination: string) => {
     if (finishing) return;
     setFinishing(true);
+    try {
+      window.sessionStorage.removeItem('ea:onboarding-step');
+    } catch {
+      // best-effort
+    }
     await markOnboarded();
     router.push(destination);
   };
