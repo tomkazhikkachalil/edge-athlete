@@ -33,6 +33,7 @@
 import { NextResponse } from 'next/server';
 import type { SupabaseClient, User } from '@supabase/supabase-js';
 import { FEATURE_FLAGS } from '@/lib/features';
+import { revalidateOrgSiteForOrg } from '@/lib/org-sites/revalidate';
 import { getOrgAndRole, roleAllows, type OrgSide } from './authz';
 import {
   acceptRosterOffer,
@@ -41,6 +42,7 @@ import {
   membershipEdges,
   type RosterStatus,
 } from './members';
+import { canGrantPhotoConsent, setPhotoConsent } from './photo-consent';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- matches the authz.ts Admin alias; schema-agnostic helper
 type Admin = SupabaseClient<any, 'public', any>;
@@ -147,15 +149,20 @@ export async function rosterPost(
   return NextResponse.json({ action: 'invited' });
 }
 
-/** PATCH { action: 'accept', profileId? } — the athlete (or, acting for a
- *  supervised athlete, their guardian — pre-authorized by the route via
- *  requireProfileRole) accepts the pending offer. */
+/** PATCH { action: 'accept', profileId?, photoConsent? } — the athlete
+ *  (or, acting for a supervised athlete, their guardian — pre-authorized
+ *  by the route via requireProfileRole) accepts the pending offer.
+ *  photoConsent (phase 4 R4) is written only when canGrantPhotoConsent
+ *  passes — a supervised child ticking the box leaves NULL, which is
+ *  what generates the guardian queue's ask; a pre-159 database drops it
+ *  silently (the accept must never break). */
 export async function rosterPatch(
   admin: Admin,
   user: User,
   side: OrgSide,
   orgId: string,
-  actingFor?: string
+  actingFor?: string,
+  photoConsent?: boolean
 ): Promise<NextResponse> {
   const cfg = SIDES[side];
   const target = actingFor ?? user.id;
@@ -185,6 +192,22 @@ export async function rosterPatch(
     return NextResponse.json({ error: 'No pending roster invitation' }, { status: 404 });
   }
 
+  // Phase 4 R4: record the consent decision when the accepting actor has
+  // the authority; otherwise leave NULL (never asked) so the guardian
+  // queue asks. Best-effort by design — the accept already succeeded.
+  let consentRecorded = false;
+  if (
+    photoConsent !== undefined &&
+    canGrantPhotoConsent({
+      actorIsSelf: !guardianActing,
+      actorIsGuardian: guardianActing,
+      subjectSupervised: targetSupervised,
+    })
+  ) {
+    consentRecorded =
+      (await setPhotoConsent(admin, side, orgId, target, photoConsent, user.id)) === 'ok';
+  }
+
   await notifyResult(admin, side, orgId, loaded.org, user.id, 'accepted');
   // Either-approves cross-notify: whoever didn't act hears about it.
   if (targetSupervised) {
@@ -194,7 +217,67 @@ export async function rosterPatch(
       await notifyGuardiansOfRoster(admin, side, orgId, loaded.org.name, target, 'accepted', user.id);
     }
   }
-  return NextResponse.json({ action: 'accepted' });
+  return NextResponse.json({ action: 'accepted', photoConsentRecorded: consentRecorded });
+}
+
+/** PATCH { action: 'set_photo_consent', profileId?, consent } — the
+ *  standalone consent toggle (phase 4 R4): an adult athlete for
+ *  themselves, or a guardian acting for a supervised athlete
+ *  (pre-authorized by the route). Orgs never reach this path. Revoking
+ *  purges the public site so the R5 gallery drops the media within the
+ *  ISR window. */
+export async function rosterConsentPatch(
+  admin: Admin,
+  user: User,
+  side: OrgSide,
+  orgId: string,
+  consent: boolean,
+  actingFor?: string
+): Promise<NextResponse> {
+  const cfg = SIDES[side];
+  const target = actingFor ?? user.id;
+  const guardianActing = target !== user.id;
+  const loaded = await getOrgAndRole(admin, side, orgId, target);
+  if (loaded.status === 'error') {
+    console.error('[ROSTER] org fetch error:', loaded.error);
+    return NextResponse.json({ error: `Failed to load ${cfg.noun}` }, { status: 500 });
+  }
+  if (loaded.status === 'not_found') {
+    return NextResponse.json({ error: cfg.notFound }, { status: 404 });
+  }
+
+  const targetSupervision = await supervisionState(admin, target);
+  if (targetSupervision === undefined) {
+    return NextResponse.json({ error: 'Athlete not found' }, { status: 404 });
+  }
+  if (
+    !canGrantPhotoConsent({
+      actorIsSelf: !guardianActing,
+      actorIsGuardian: guardianActing,
+      subjectSupervised: targetSupervision === 'supervised',
+    })
+  ) {
+    return NextResponse.json(
+      { error: 'Photo consent for a supervised athlete is a guardian decision' },
+      { status: 403 }
+    );
+  }
+
+  const result = await setPhotoConsent(admin, side, orgId, target, consent, user.id);
+  if (result === 'no_row') {
+    return NextResponse.json({ error: 'Not on the roster' }, { status: 404 });
+  }
+  if (result === 'unavailable') {
+    return NextResponse.json(
+      { error: 'Photo consent isn’t set up yet — ask your admin (migration 159)' },
+      { status: 400 }
+    );
+  }
+  if (result === 'error') {
+    return NextResponse.json({ error: 'Failed to update photo consent' }, { status: 500 });
+  }
+  await revalidateOrgSiteForOrg(admin, side, orgId);
+  return NextResponse.json({ action: 'photo_consent', consent });
 }
 
 /** DELETE [?profileId=] — self decline/leave, manager cancel/remove, or

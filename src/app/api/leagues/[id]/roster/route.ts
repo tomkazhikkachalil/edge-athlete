@@ -3,7 +3,7 @@ import { requireAuth, requireProfileRole, getSupabaseAdmin } from '@/lib/auth-se
 import { enforceRateLimit } from '@/lib/rate-limit';
 import { parseBody } from '@/lib/validation';
 import { RosterAcceptSchema } from '@/lib/leagues/validate';
-import { rosterDelete, rosterPatch, rosterPost } from '@/lib/orgs/roster-server';
+import { rosterConsentPatch, rosterDelete, rosterPatch, rosterPost } from '@/lib/orgs/roster-server';
 import { UUID_RE } from '@/lib/golf/course-catalog';
 
 // ── /api/leagues/[id]/roster — offers, accepts, declines (0.3) ──────────────
@@ -59,7 +59,24 @@ export async function PATCH(
       await requireProfileRole(request, parsed.data.profileId, 'manage_privacy');
       actingFor = parsed.data.profileId;
     }
-    return await rosterPatch(getSupabaseAdmin(), user, 'league', id, actingFor);
+    if (parsed.data.action === 'set_photo_consent') {
+      return await rosterConsentPatch(
+        getSupabaseAdmin(),
+        user,
+        'league',
+        id,
+        parsed.data.consent,
+        actingFor
+      );
+    }
+    return await rosterPatch(
+      getSupabaseAdmin(),
+      user,
+      'league',
+      id,
+      actingFor,
+      parsed.data.photoConsent
+    );
   } catch (error) {
     if (error instanceof Response) return error;
     console.error('[ROSTER] PATCH error:', error);

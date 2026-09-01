@@ -143,6 +143,18 @@ export type QueueItem =
       org: { side: 'league' | 'club'; id: string; name: string };
     }
   | {
+      /** Photo-consent ask (phase 4 R4, mig 159): an ACTIVE roster
+       *  membership of a supervised child whose photo_consent was never
+       *  answered (NULL). Allow / not-now via PATCH /api/{side}s/<org.id>
+       *  /roster {action:'set_photo_consent', profileId, consent}. `id`
+       *  is the memberships row. */
+      kind: 'photo_consent';
+      id: string;
+      athlete: QueueAthlete;
+      createdAt: string;
+      org: { side: 'league' | 'club'; id: string; name: string };
+    }
+  | {
       /** Pending event invite for a child — inline respond-as-child via
        *  POST /api/calendar/events/<event.id>/respond. `id` is the guest
        *  row (unique per child+event). */
@@ -309,6 +321,11 @@ export interface QueueRosterOfferRow {
   orgName: string;
 }
 
+/** Unanswered photo-consent membership (phase 4 R4) — the same row shape;
+ *  the route pre-filters to ACTIVE org-roster rows with photo_consent
+ *  NULL for SUPERVISED children (pre-159 degrades to none). */
+export type QueuePhotoConsentRow = QueueRosterOfferRow;
+
 /** Unwrap the events!inner embed (object OR array) and keep only invites a
  *  guardian can still act on: event active and not already over. */
 export function flattenInviteRows(rows: RawInviteRow[], nowMs: number): QueueInviteRow[] {
@@ -383,7 +400,8 @@ export function buildQueueItems(
   heldContacts: QueueHeldContactRow[] = [],
   policy: HouseholdPolicy | null = null,
   riskRows: QueueRiskRow[] = [],
-  rosterOffers: QueueRosterOfferRow[] = []
+  rosterOffers: QueueRosterOfferRow[] = [],
+  photoConsentAsks: QueuePhotoConsentRow[] = []
 ): QueueItem[] {
   const athletesById = new Map<string, RosterRow>();
   for (const row of roster) athletesById.set(row.id, row);
@@ -498,6 +516,25 @@ export function buildQueueItems(
     });
   }
   rosterItems.sort((a, b) =>
+    ('createdAt' in a ? a.createdAt : '').localeCompare('createdAt' in b ? b.createdAt : '')
+  );
+
+  // Photo-consent asks (phase 4 R4): setup-gap-like — they don't age, so
+  // they sit with the decide items right after roster invites.
+  const photoConsentItems: QueueItem[] = [];
+  for (const row of photoConsentAsks) {
+    const athlete = athletesById.get(row.profile_id);
+    const orgId = row.league_id ?? row.club_id;
+    if (!athlete || !orgId) continue;
+    photoConsentItems.push({
+      kind: 'photo_consent',
+      id: row.id,
+      athlete: toQueueAthlete(athlete),
+      createdAt: row.joined_at,
+      org: { side: row.league_id ? 'league' : 'club', id: orgId, name: row.orgName },
+    });
+  }
+  photoConsentItems.sort((a, b) =>
     ('createdAt' in a ? a.createdAt : '').localeCompare('createdAt' in b ? b.createdAt : '')
   );
 
@@ -625,5 +662,5 @@ export function buildQueueItems(
   waiting.sort((a, b) =>
     ('createdAt' in a ? a.createdAt : '').localeCompare('createdAt' in b ? b.createdAt : '')
   );
-  return [...content, ...followItems, ...rosterItems, ...contactItems, ...riskItems, ...ageItems, ...inviteItems, ...tail, ...waiting];
+  return [...content, ...followItems, ...rosterItems, ...photoConsentItems, ...contactItems, ...riskItems, ...ageItems, ...inviteItems, ...tail, ...waiting];
 }

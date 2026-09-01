@@ -113,10 +113,23 @@ export type LeagueMemberRoleInput = z.infer<typeof LeagueMemberRoleSchema>;
  *  guardian acting-for target — the route gates it with requireProfileRole
  *  before the core ever sees it. Shared by both sides — clubs/validate
  *  re-exports it. */
-export const RosterAcceptSchema = z.object({
-  action: z.literal('accept'),
-  profileId: z.string().uuid().optional(),
-});
+export const RosterAcceptSchema = z.union([
+  z.object({
+    action: z.literal('accept'),
+    profileId: z.string().uuid().optional(),
+    /** Phase 4 R4: recorded at accept only when the actor may grant it
+     *  (canGrantPhotoConsent) — otherwise silently left unasked. */
+    photoConsent: z.boolean().optional(),
+  }),
+  /** Phase 4 R4: the standalone per-org photo-consent toggle — an adult
+   *  athlete for themselves, or a guardian acting for a supervised
+   *  athlete (route-gated). Orgs never send this. */
+  z.object({
+    action: z.literal('set_photo_consent'),
+    profileId: z.string().uuid().optional(),
+    consent: z.boolean(),
+  }),
+]);
 
 /** Roster import (phase 1 R3) — a discriminated pair: paste-import into
  *  one team, or re-mint a claim link for an unclaimed stub. Shared by both

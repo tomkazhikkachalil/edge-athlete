@@ -1,5 +1,43 @@
 # Development Log
 
+## September 2, 2026 — Phase 4 R4: photo consent + minor masking (#479, mig 159)
+
+The masterplan's non-negotiable guardian gate, plus a measured safety
+gap closed.
+
+- **Mig 159** (handed to Tom): photo_consent (+_at/_by audit) on the
+  ORG-SCOPE roster row — per-org, revocable, deliberately NOT
+  consent_records (that's global COPPA state). NULL = never asked,
+  false = declined; NULL, false, a missing row AND a missing column all
+  read as "no consent" — there is no code path where absence publishes.
+  Imported stubs stay NULL forever (the import writes none of it).
+- **canGrantPhotoConsent** (pure, photo-consent.ts): supervised ⇒
+  guardian-only; adults self-consent (guardians can act for them too);
+  orgs NEVER write it — the org console gets a READ-ONLY tri-state on
+  the member panel (redacted to one's own answer for non-managers, the
+  unclaimed-flag discipline).
+- **Capture**: the accept banner grows the checkbox (unsupervised
+  viewers only — a supervised child's tick would be ignored, so it
+  isn't shown; PATCH accept carries photoConsent, written only when the
+  rule passes); the standalone {action:'set_photo_consent'} PATCH is
+  the toggle (revoke purges the org site so R5's gallery drops media
+  within the ISR window); the guardian queue gains the
+  **photo_consent ask** (active org-roster rows of supervised children
+  never answered — Allow / Don't allow inline, both answers retire the
+  ask). Pre-159: consent reads NULL, the accept drops the field and
+  proceeds, the queue query degrades to none.
+- **Minor masking closed**: publicDisplayName now masks SUPERVISED
+  profiles regardless of visibility — a guardian flipping a supervised
+  minor public no longer publishes the full name on crawlable org
+  pages. supervision_state is REQUIRED on MaskableProfile so the
+  compiler forces every future caller to select it; supervision (not
+  age math) is the boundary on purpose — it's the platform's
+  operational minor state, and a self-managed athlete who chose public
+  made their own call.
+- e2e (skips pre-159): adult accept+consent in one PATCH → revoke →
+  org manager 403 on writing + tri-state read + member redaction →
+  guardian queue ask → guardian answers for the child → ask retires.
+
 ## September 2, 2026 — Phase 4 R3: contest media + attribution (#478, mig 158)
 
 The photo half of the exit condition, on its private surfaces. Model

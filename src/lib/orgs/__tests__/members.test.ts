@@ -346,12 +346,16 @@ describe('write filters keep legacy-shaped paths off future roster rows', () => 
       },
     });
     const out = await orgMemberPreview(admin, REF, 'viewer', 12);
-    expect(calls).toHaveLength(4);
+    expect(calls).toHaveLength(5);
     expect(calls[0].filters).toMatchObject({ kind: 'follow', scope_type: 'org' }); // count
     expect(calls[1].filters).toMatchObject({ kind: 'follow', scope_type: 'org' }); // list
     expect(calls[2].filters).toMatchObject({ kind: 'roster', scope_type: 'org' }); // decorations
     expect(calls[3].filters).toMatchObject({ scope_type: 'org' }); // viewer: all kinds, org scope
     expect(calls[3].filters).not.toHaveProperty('kind');
+    // Phase 4 R4: the separate best-effort photo-consent read (active
+    // roster rows only — kept apart so a pre-159 42703 degrades one field,
+    // never the panel).
+    expect(calls[4].filters).toMatchObject({ kind: 'roster', scope_type: 'org', status: 'active' });
     expect(out.viewerRole).toBe('manager');
     expect(out.viewerRoster).toBe('pending');
   });
