@@ -9,6 +9,7 @@ import LazyImage from '@/components/LazyImage';
 import ConfirmModal from '@/components/ConfirmModal';
 import LeagueEditModal from '@/components/leagues/LeagueEditModal';
 import AffiliationSection from '@/components/affiliations/AffiliationSection';
+import ParentLeaguesSection from '@/components/affiliations/ParentLeaguesSection';
 import OrgUpcomingEvents from '@/components/affiliations/OrgUpcomingEvents';
 import OrgStandings from '@/components/orgs/OrgStandings';
 import OrgRecentActivity from '@/components/affiliations/OrgRecentActivity';
@@ -731,6 +732,9 @@ export default function LeaguePage() {
         <OrgRecentActivity side="league" orgId={league.id} />
 
         <AffiliationSection side="league" orgId={league.id} />
+
+        {/* Phase 6 R3: the league↔league chain (mig 167). */}
+        <ParentLeaguesSection leagueId={league.id} />
 
         {/* GeoNames attribution — rendered only when place-derived fields do
             (docs/SEARCH.md). */}

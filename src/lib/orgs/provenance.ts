@@ -59,9 +59,97 @@ export function canOverwriteProvenance(
 export interface SanctionContext {
   /** The competition owner is a league (clubs cannot sanction). */
   ownerIsLeague: boolean;
-  /** The owning league holds an ACTIVE member_of/sanctioned_by edge of
-   *  type 'sanctioned_by' to the athlete's participating club. */
+  /** The owning league holds an ACTIVE sanctioned_by edge to the
+   *  athlete's participating club — DIRECTLY, or through the league
+   *  chain (phase 6 R3): a league sanctioned by its parent (transitively)
+   *  passes the sanction down to its clubs. Callers feed this from
+   *  resolveSanctionedPairs. */
   sanctionedEdgeToClub: boolean;
+}
+
+/** A live league→club sanctioning edge. */
+export interface ClubSanctionEdge {
+  leagueId: string;
+  clubId: string;
+}
+
+/** A live child-league→parent-league sanctioning edge (mig 167). */
+export interface LeagueSanctionEdge {
+  leagueId: string;
+  parentLeagueId: string;
+}
+
+/**
+ * The chain resolver (phase 6 R3), pure. The rule: a (competition-owner
+ * league, club) pair counts as sanctioned when both sit under a COMMON
+ * sanctioning authority —
+ *   * the owner itself directly sanctions the club (the pre-167 case),
+ *   * an ancestor of the owner sanctions the club (KMHA runs the
+ *     competition; the District sanctions the club),
+ *   * or the club's direct sanctioner and the owner share an ancestor
+ *     (both under the same Federation).
+ * Formally: ancestors(owner) ∩ sanctioners(club) ≠ ∅, where ancestors
+ * walks UP sanctioned_by parent edges (bounded, cycle-safe, includes the
+ * league itself) and sanctioners(club) = the ancestors of every league
+ * holding a direct sanctioned_by edge to the club. Only sanctioned_by
+ * edges chain — member_of/partner_of never upgrade provenance.
+ */
+export function resolveSanctionedPairs(
+  clubEdges: ClubSanctionEdge[],
+  leagueEdges: LeagueSanctionEdge[],
+  ownerLeagueIds: string[],
+  opts: { maxDepth?: number } = {}
+): Set<string> {
+  const maxDepth = opts.maxDepth ?? 3;
+  const parentsOf = new Map<string, string[]>();
+  for (const e of leagueEdges) {
+    const list = parentsOf.get(e.leagueId) ?? [];
+    list.push(e.parentLeagueId);
+    parentsOf.set(e.leagueId, list);
+  }
+  const ancestorsCache = new Map<string, Set<string>>();
+  const ancestors = (league: string): Set<string> => {
+    const cached = ancestorsCache.get(league);
+    if (cached) return cached;
+    const seen = new Set<string>([league]);
+    let frontier = [league];
+    for (let depth = 0; depth < maxDepth && frontier.length > 0; depth++) {
+      const next: string[] = [];
+      for (const l of frontier) {
+        for (const p of parentsOf.get(l) ?? []) {
+          if (!seen.has(p)) {
+            seen.add(p);
+            next.push(p);
+          }
+        }
+      }
+      frontier = next;
+    }
+    ancestorsCache.set(league, seen);
+    return seen;
+  };
+
+  // sanctioners(club) = ancestors of every direct league→club sanctioner.
+  const sanctionersByClub = new Map<string, Set<string>>();
+  for (const e of clubEdges) {
+    const set = sanctionersByClub.get(e.clubId) ?? new Set<string>();
+    for (const a of ancestors(e.leagueId)) set.add(a);
+    sanctionersByClub.set(e.clubId, set);
+  }
+
+  const pairs = new Set<string>();
+  for (const owner of new Set(ownerLeagueIds)) {
+    const up = ancestors(owner);
+    for (const [club, sanctioners] of sanctionersByClub) {
+      for (const a of up) {
+        if (sanctioners.has(a)) {
+          pairs.add(`${owner}:${club}`);
+          break;
+        }
+      }
+    }
+  }
+  return pairs;
 }
 
 /** The tier a reader displays for a stored rung. Only 'league_verified'

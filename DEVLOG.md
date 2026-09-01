@@ -1,5 +1,45 @@
 # Development Log
 
+## September 1, 2026 — Phase 6 R3: the sanctioning chain (#498, mig 167)
+
+KMHA → District → Federation becomes expressible, and the provenance
+ladder learns to walk it:
+
+- **Mig 167**: `league_affiliations` (child league → parent league — a
+  SIBLING of 118, its design verbatim; league_clubs untouched) +
+  `sanction_grants`, an append-only history of sanctioned_by edges
+  (grantor/grantee/granted_at/revoked_at, backfilled in-grid from live
+  club edges) answering "was this org sanctioned on the contest date"
+  for future audit surfaces. Live display keeps reading live edges —
+  the chip may change, the documented semantics.
+- **The handshake**: `/api/leagues/[id]/parents` (GET public like the
+  club affiliations; POST/PATCH/DELETE behind owner/manager) runs the
+  118 matrix over the new table in `parents-server.ts` — either side
+  initiates (direction up = request a governing body, down = invite a
+  member league), the opposite side accepts, withdraw/decline/dissolve
+  by row state. sanctioned_by accepts open a grant row and dissolves
+  close it — on BOTH edge tables (the league_clubs accept/dissolve
+  paths gained the same best-effort hooks). Site caches purge on
+  change. **The 143 invariant re-asserted: affiliation grants NOTHING**
+  — authz and eligibility never read the chain for authority.
+- **The resolver** (`resolveSanctionedPairs`, pure, 6 node tests): the
+  common-authority rule — a (competition-owner, club) pair upgrades
+  when ancestors(owner) ∩ sanctioners(club) is non-empty, where both
+  walk UP sanctioned_by parent edges, bounded (maxDepth 3) and
+  cycle-safe. Covers direct (pre-167 parity — with no league edges it
+  reduces exactly to the old single-hop), up-chain (KMHA owns, the
+  District sanctions the club), down-chain, and siblings-under-one-
+  federation. official-stats reads club edges by the CLUBS in play and
+  walks the chain in ≤3 bounded batched reads; pre-167 degrades to
+  single-hop.
+- **Display**: the public affiliations module shows the chain
+  directionally (Sanctioned by / Sanctions); the league console gains a
+  League chain section (request/accept/withdraw/dissolve with confirm).
+- e2e `sanction-chain.spec.ts` (skips pre-167): the full handshake
+  matrix, the grants row lifecycle, and the payoff — a league_verified
+  line whose club is sanctioned two hops up reads `sanctioned` on the
+  profile, then drops back to league_verified when the chain dissolves.
+
 ## September 1, 2026 — Phase 6 R2: the canonical flip (#497, zero DDL)
 
 The org's address becomes `/{slug}` (Tom's call — the NHL.com/team

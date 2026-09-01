@@ -6,6 +6,19 @@ const TYPE_LABEL: Record<string, string> = {
   sanctioned_by: 'Sanctioned',
 };
 
+// Phase 6 R3: the league chain reads directionally — "Sanctioned by" the
+// governing body above, "Sanctions" the leagues below.
+const UP_LABEL: Record<string, string> = {
+  partner_of: 'Partner of',
+  member_of: 'Member of',
+  sanctioned_by: 'Sanctioned by',
+};
+const DOWN_LABEL: Record<string, string> = {
+  partner_of: 'Partner',
+  member_of: 'Members include',
+  sanctioned_by: 'Sanctions',
+};
+
 // Affiliations module: active affiliations only (the public branch of
 // 118), name + geography + relationship label. No cross-links v1 — the
 // public site stays self-contained.
@@ -27,9 +40,13 @@ export default function AffiliationsList({
               <p className="text-sm font-medium text-primary truncate">{a.name}</p>
               {place ? <p className="text-xs text-tertiary truncate">{place}</p> : null}
             </div>
-            {a.affiliationType && TYPE_LABEL[a.affiliationType] ? (
+            {a.affiliationType ? (
               <span className="text-xs text-muted shrink-0">
-                {TYPE_LABEL[a.affiliationType]}
+                {(a.direction === 'up'
+                  ? UP_LABEL[a.affiliationType]
+                  : a.direction === 'down'
+                    ? DOWN_LABEL[a.affiliationType]
+                    : TYPE_LABEL[a.affiliationType]) ?? null}
               </span>
             ) : null}
           </li>

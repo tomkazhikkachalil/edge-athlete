@@ -64,6 +64,8 @@ const PUBLIC_ROUTES: Record<string, string> = {
   'clubs/[id]/leagues': 'anonymous org read surface (public club pages)',
   'leagues/[id]/activity': 'anonymous org read surface (public league pages)',
   'leagues/[id]/clubs': 'anonymous org read surface (public league pages)',
+  'leagues/[id]/parents':
+    'anonymous org read surface (the league chain, phase 6 R3) — GET is public like leagues/[id]/clubs; POST/PATCH/DELETE requireAuth + owner/manager inside parents-server.ts (the 118 matrix)',
   'leagues/[id]/events': 'anonymous org read surface (public league pages)',
 };
 
