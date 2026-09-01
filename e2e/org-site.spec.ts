@@ -1,3 +1,4 @@
+import path from 'path';
 import { test, expect } from '@playwright/test';
 import { adminClient, apiAs, loadQaUser, readErrorBody } from './helpers/qa-user';
 
@@ -566,6 +567,78 @@ test('org site branding: hero, theme accent, sponsors', async ({ browser }) => {
       ).toBeLessThanOrEqual(375);
     } finally {
       await ctxAnon.close();
+    }
+
+    // R3 PR-2: the logo — console upload through the shared editor, then
+    // the anonymous tokenless streamer serves it and the public header
+    // shows it. Remove → the streamer 404s again.
+    const { data: siteIdRow } = await admin
+      .from('org_sites')
+      .select('id')
+      .eq('league_id', leagueId)
+      .single();
+    const siteId = siteIdRow!.id as string;
+
+    const ctxOwner = await browser.newContext({ storageState: 'e2e/.auth/state-b.json' });
+    try {
+      const page = await ctxOwner.newPage();
+      await page.goto(`/app/org/league/${leagueId}`);
+      await expect(page.getByRole('button', { name: 'Upload logo' })).toBeVisible({
+        timeout: 20_000,
+      });
+      const fixture = path.join(__dirname, 'fixtures', 'photo.png');
+      await page.locator('input[aria-label="Site logo file"]').setInputFiles(fixture);
+      await expect(page.getByRole('heading', { name: 'Edit media' })).toBeVisible({
+        timeout: 15_000,
+      });
+      const uploaded = page.waitForResponse(
+        r => r.url().includes('/site/logo') && r.request().method() === 'POST',
+        { timeout: 30_000 }
+      );
+      await page.getByRole('button', { name: 'Done', exact: true }).click();
+      expect((await uploaded).status()).toBe(200);
+      await expect(page.getByRole('button', { name: 'Replace logo' })).toBeVisible({
+        timeout: 20_000,
+      });
+    } finally {
+      await ctxOwner.close();
+    }
+
+    const ctxAnon2 = await browser.newContext();
+    try {
+      const page = await ctxAnon2.newPage();
+      const logoRes = await page.request.get(`/api/media/org-logo/${siteId}`);
+      expect(logoRes.status()).toBe(200);
+      expect(logoRes.headers()['content-type'] ?? '').toContain('image/');
+      expect((await logoRes.body()).length).toBeGreaterThan(0);
+
+      // The public header carries the streamer URL (settle: the logo write
+      // revalidated the tag; SWR may serve the stale document once).
+      let html = '';
+      for (let i = 0; i < 6; i++) {
+        html = await (await page.request.get(`/org/${siteRow!.subdomain}`)).text();
+        if (html.includes(`/api/media/org-logo/${siteId}`)) break;
+        await new Promise(r => setTimeout(r, 2500));
+      }
+      expect(html).toContain(`/api/media/org-logo/${siteId}`);
+    } finally {
+      await ctxAnon2.close();
+    }
+
+    // Remove via the API → streamer 404s.
+    const ownerApi3 = await apiAs('state-b.json');
+    try {
+      const removed = await ownerApi3.delete(`/api/leagues/${leagueId}/site/logo`);
+      expect(removed.status(), await readErrorBody(removed)).toBe(200);
+    } finally {
+      await ownerApi3.dispose();
+    }
+    const ctxAnon3 = await browser.newContext();
+    try {
+      const page = await ctxAnon3.newPage();
+      expect((await page.request.get(`/api/media/org-logo/${siteId}`)).status()).toBe(404);
+    } finally {
+      await ctxAnon3.close();
     }
   } finally {
     await admin.from('leagues').delete().eq('id', leagueId);

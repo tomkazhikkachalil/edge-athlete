@@ -1,6 +1,8 @@
+import Image from 'next/image';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { getCachedSite } from '@/lib/org-sites/cached';
+import { orgLogoUrl } from '@/lib/media/org-site-media';
 import {
   deriveStrongAccent,
   MODULE_SUBPAGE_KEYS,
@@ -48,10 +50,24 @@ export default async function OrgSiteLayout({
     <div className="org-scope min-h-screen flex flex-col bg-canvas" style={accentStyle}>
       <header className="bg-surface border-b border-border">
         <div className="max-w-4xl mx-auto px-4 py-4 flex flex-wrap items-center justify-between gap-2">
-          <Link href={`/org/${site.subdomain}`} className="min-w-0">
+          <Link href={`/org/${site.subdomain}`} className="min-w-0 flex items-center gap-3">
+            {site.logo_path ? (
+              // Streamed through the tokenless org-logo proxy; /api/media/*
+              // is never optimizer-eligible, so unoptimized is mandatory.
+              <Image
+                src={orgLogoUrl(site.id, site.logo_path)!}
+                alt=""
+                width={40}
+                height={40}
+                unoptimized
+                className="rounded shrink-0"
+              />
+            ) : null}
             {/* block, not inline — truncate's ellipsis only works on a
                 block box, and an inline span's nowrap overflows 375px. */}
-            <span className="block text-xl font-bold text-primary truncate">{site.orgName}</span>
+            <span className="block min-w-0 text-xl font-bold text-primary truncate">
+              {site.orgName}
+            </span>
           </Link>
         </div>
         {navKeys.length > 0 && (
