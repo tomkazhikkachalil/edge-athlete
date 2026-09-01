@@ -20,6 +20,7 @@ import {
   isMissingTableError,
   isValidSubdomain,
   MODULE_KEYS,
+  POST_155_MODULE_KEYS,
   slugifyOrgName,
   type SitePatchInput,
 } from './validate';
@@ -146,12 +147,19 @@ export async function siteCreatePOST(
   let { error: modulesError } = await admin
     .from('org_site_modules')
     .insert(moduleRows(MODULE_KEYS));
-  if (modulesError?.code === '23514') {
-    // Pre-156 database: the module CHECK doesn't know 'news' yet — retry
-    // without it so site creation never breaks on migration ordering.
+  // Pre-migration retry ladder: the CHECK on an older database doesn't
+  // know the newest keys — strip POST_155_MODULE_KEYS from the end
+  // (newest first) until the insert fits. Site creation never breaks on
+  // migration ordering.
+  for (
+    let stripFrom = POST_155_MODULE_KEYS.length - 1;
+    modulesError?.code === '23514' && stripFrom >= 0;
+    stripFrom--
+  ) {
+    const stripped = new Set<string>(POST_155_MODULE_KEYS.slice(stripFrom));
     ({ error: modulesError } = await admin
       .from('org_site_modules')
-      .insert(moduleRows(MODULE_KEYS.filter(k => k !== 'news'))));
+      .insert(moduleRows(MODULE_KEYS.filter(k => !stripped.has(k)))));
   }
   if (modulesError) {
     // Compensate: a site without its module rows renders nothing.

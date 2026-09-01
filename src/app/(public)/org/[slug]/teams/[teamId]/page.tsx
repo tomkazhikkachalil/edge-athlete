@@ -10,7 +10,8 @@ import { requireSiteModule } from '../../_components/require-module';
 // Tom's decision 3: record row, upcoming schedule, and a MASKED roster
 // (publicDisplayName — full name only for claimed public profiles). The
 // reader filters by the org column, so a foreign teamId under this slug
-// 404s indistinguishably. NO media until phase 4's photo-consent flag.
+// 404s indistinguishably. Media lives on /gallery (phase 4 R5) behind the
+// photo-consent gate; team pages stay media-free by choice (deferred).
 
 export const revalidate = 300;
 
