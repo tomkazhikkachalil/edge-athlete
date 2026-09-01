@@ -440,6 +440,22 @@ export async function apiAs(
  * (Vercel 413s are plain text, gateways send HTML), so unconditional
  * response.json() turns an infrastructure error into a SyntaxError.
  */
+/** True when the TARGET deployment has FEATURE_ORG_REGISTRATION on.
+ *  The submit route answers 404 {error:'Not found'} BEFORE any org
+ *  lookup when the flag is off; flag-on with a syntactically valid org
+ *  id reaches auth/validation instead. Probing the target beats reading
+ *  the LOCAL env (which lies about a remote prod build). */
+export async function registrationFlagOnTarget(api: {
+  post(url: string, opts?: unknown): Promise<{ status(): number; json(): Promise<unknown> }>;
+}): Promise<boolean> {
+  const res = await api.post(
+    '/api/leagues/00000000-0000-4000-8000-000000000000/registrations',
+    { data: {} }
+  );
+  const body = (await res.json().catch(() => ({}))) as { error?: string };
+  return !(res.status() === 404 && body?.error === 'Not found');
+}
+
 export async function readErrorBody(response: { text(): Promise<string> }): Promise<string> {
   const text = await response.text();
   try {

@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { adminClient, apiAs, loadQaUser, readErrorBody } from './helpers/qa-user';
+import { adminClient, apiAs, loadQaUser, readErrorBody, registrationFlagOnTarget } from './helpers/qa-user';
 
 // The phase-5 exit condition, in one spec: "a season runs end to end from
 // registration to standings." A family registers → the registrar places
@@ -16,10 +16,10 @@ test('phase 5 exit: registration → placement → competition → standings →
 
   const probe = await admin.from('registrations').select('id').limit(1);
   test.skip(!!probe.error, `registrations missing — run migration 162 (${probe.error?.message})`);
-  test.skip(
-    process.env.NEXT_PUBLIC_FEATURE_ORG_REGISTRATION !== '1',
-    'FEATURE_ORG_REGISTRATION off on this target'
-  );
+  const flagProbeApi = await apiAs('state.json');
+  const flagOn = await registrationFlagOnTarget(flagProbeApi);
+  await flagProbeApi.dispose();
+  test.skip(!flagOn, 'FEATURE_ORG_REGISTRATION off on this target');
 
   const stamp = Date.now();
   const name = `QA Exit League ${stamp}`;
