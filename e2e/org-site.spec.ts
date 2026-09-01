@@ -124,6 +124,19 @@ test('org site: create → publish → anon shell; unpublish → 404; member 403
       expect(html).toContain(`/org/${subdomain}"`);
       expect(html).toContain('property="og:title"');
       expect(html).toContain('property="og:site_name"');
+
+      // R4 PR-2: structured data (no people) + the per-org share card
+      // (an explicit /card.png route — hash-free, unlike the convention
+      // file under a route group).
+      expect(html).toContain('application/ld+json');
+      expect(html).toContain('SportsOrganization');
+      const ogImageUrl = html.match(/property="og:image"\s+content="([^"]+)"/)?.[1];
+      expect(ogImageUrl, 'og:image meta present').toBeTruthy();
+      expect(ogImageUrl!).toContain(`/org/${subdomain}/card.png`);
+      const ogRes = await page.request.get(`/org/${subdomain}/card.png`);
+      expect(ogRes.status()).toBe(200);
+      expect(ogRes.headers()['content-type'] ?? '').toContain('image/png');
+      expect((await ogRes.body()).length).toBeGreaterThan(0);
     } finally {
       await ctxAnon.close();
     }

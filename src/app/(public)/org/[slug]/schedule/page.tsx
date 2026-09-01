@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import { getCachedSchedule, getCachedSite } from '@/lib/org-sites/cached';
+import { buildEventsJsonLd, safeJsonLd } from '@/lib/org-sites/jsonld';
 import ScheduleList from '../_components/ScheduleList';
 import { requireSiteModule } from '../_components/require-module';
 
@@ -29,7 +30,7 @@ export async function generateMetadata({ params }: PageParams): Promise<Metadata
     title,
     description,
     alternates: { canonical },
-    openGraph: { title, description, url: canonical, siteName: 'Edge Athlete', type: 'website', images: ['/og-image.png'] },
+    openGraph: { title, description, url: canonical, siteName: 'Edge Athlete', type: 'website', images: [`/org/${site.subdomain}/card.png`] },
   };
 }
 
@@ -40,6 +41,13 @@ export default async function OrgSiteSchedulePage({ params }: PageParams) {
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-8 space-y-6">
+      {/* R4: SportsEvent structured data (capped; no people). */}
+      {events && events.length > 0 && (
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: safeJsonLd(buildEventsJsonLd(site, events)) }}
+        />
+      )}
       <h1 className="text-2xl font-bold text-primary">Schedule</h1>
       <section
         aria-label="Upcoming events"

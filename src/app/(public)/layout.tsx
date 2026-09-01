@@ -45,9 +45,10 @@ export const metadata: Metadata = {
     type: 'website',
     images: [{ url: '/og-image.png', width: 1200, height: 630, alt: 'Edge Athlete' }],
   },
+  // twitter.images deliberately unset — Twitter falls back to og:image,
+  // which is the per-org card on every org page.
   twitter: {
     card: 'summary_large_image',
-    images: ['/og-image.png'],
   },
 };
 
