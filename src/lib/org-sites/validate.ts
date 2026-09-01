@@ -143,6 +143,7 @@ export function parseHeroConfig(config: unknown): PublicHero {
 export interface PublicSponsor {
   name: string;
   url?: string;
+  logoPath?: string;
 }
 
 /** Defensive render-side parse: unknown module config → clamped sponsor
@@ -159,10 +160,50 @@ export function parseSponsors(config: unknown): PublicSponsor[] {
     const url = (item as Record<string, unknown>).url;
     const safeUrl =
       typeof url === 'string' && httpsUrl.safeParse(url).success ? url : undefined;
-    out.push(safeUrl ? { name: name.slice(0, 80), url: safeUrl } : { name: name.slice(0, 80) });
+    const logoPath = (item as Record<string, unknown>).logoPath;
+    const safeLogo =
+      typeof logoPath === 'string' && ORG_MEDIA_PATH_RE.test(logoPath) ? logoPath : undefined;
+    out.push({
+      name: name.slice(0, 80),
+      ...(safeUrl ? { url: safeUrl } : {}),
+      ...(safeLogo ? { logoPath: safeLogo } : {}),
+    });
   }
   return out;
 }
+
+export interface PublicContact {
+  email?: string;
+  phone?: string;
+  website?: string;
+}
+
+/** Defensive render-side parse: unknown contact_config → the three
+ *  optional fields, each re-validated. The email/phone here are
+ *  DELIBERATELY public — manager-entered org contact info. Never throws. */
+export function parseContact(config: unknown): PublicContact {
+  if (!config || typeof config !== 'object') return {};
+  const record = config as Record<string, unknown>;
+  const out: PublicContact = {};
+  if (typeof record.email === 'string' && /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(record.email)) {
+    out.email = record.email.slice(0, 200);
+  }
+  if (typeof record.phone === 'string' && record.phone.trim().length >= 3) {
+    out.phone = record.phone.trim().slice(0, 40);
+  }
+  if (typeof record.website === 'string' && httpsUrl.safeParse(record.website).success) {
+    out.website = record.website;
+  }
+  return out;
+}
+
+/** One filename segment of an org-media asset — the streamer's gate.
+ *  (Declared here, above SitePatchSchema, which references the path RE
+ *  at module-eval time — TDZ ordering matters.) */
+export const ORG_MEDIA_FILE_RE = /^[a-z0-9-]{1,80}\.(jpg|jpeg|png|webp|gif)$/;
+/** A full stored asset path: org-media/{siteId uuid}/{file}. */
+export const ORG_MEDIA_PATH_RE =
+  /^org-media\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\/[a-z0-9-]{1,80}\.(jpg|jpeg|png|webp|gif)$/;
 
 const boundedTrimmed = (max: number) => z.string().trim().min(1).max(max);
 const optionalTrimmed = (max: number) =>
@@ -196,8 +237,22 @@ export const SitePatchSchema = z.union([
   z.object({
     action: z.literal('set_sponsors'),
     sponsors: z
-      .array(z.object({ name: boundedTrimmed(80), url: httpsUrl.optional() }))
+      .array(
+        z.object({
+          name: boundedTrimmed(80),
+          url: httpsUrl.optional(),
+          // A site asset path; the server re-asserts THIS site's prefix
+          // (the schema can't know the site id — the cross-site guard).
+          logoPath: z.string().regex(ORG_MEDIA_PATH_RE, 'Not a site asset path').optional(),
+        })
+      )
       .max(20),
+  }),
+  z.object({
+    action: z.literal('set_contact'),
+    email: z.string().trim().toLowerCase().max(200).pipe(z.email()).optional(),
+    phone: z.string().trim().min(3).max(40).optional(),
+    website: httpsUrl.optional(),
   }),
 ]);
 export type SitePatchInput = z.infer<typeof SitePatchSchema>;
@@ -271,11 +326,6 @@ export function slugifyPageTitle(title: string): string {
 }
 
 export const PAGE_BODY_MAX_BLOCKS = 40;
-/** One filename segment of an org-media asset — the streamer's gate. */
-export const ORG_MEDIA_FILE_RE = /^[a-z0-9-]{1,80}\.(jpg|jpeg|png|webp|gif)$/;
-/** A full stored asset path: org-media/{siteId uuid}/{file}. */
-export const ORG_MEDIA_PATH_RE =
-  /^org-media\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\/[a-z0-9-]{1,80}\.(jpg|jpeg|png|webp|gif)$/;
 
 export const PageBlockSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('heading'), text: boundedTrimmed(120) }),
