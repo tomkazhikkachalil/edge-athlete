@@ -100,6 +100,7 @@ export default function OrgConsolePage() {
     | { kind: 'season'; id: string; label: string }
     | { kind: 'division'; id: string; label: string }
     | { kind: 'page'; id: string; label: string }
+    | { kind: 'news'; id: string; label: string }
     | null
   >(null);
 
@@ -163,19 +164,26 @@ export default function OrgConsolePage() {
     { id: string; slug: string; title: string; visibility: 'public' | 'draft' }[]
   >([]);
   const [pageTitle, setPageTitle] = useState('');
+  // Phase 3.5: news posts (published_at is the state).
+  const [siteNews, setSiteNews] = useState<
+    { id: string; slug: string; title: string; published_at: string | null }[]
+  >([]);
+  const [newsTitle, setNewsTitle] = useState('');
 
   useEffect(() => {
     if (!validSide || !user?.id) return;
     let cancelled = false;
     (async () => {
       try {
-        const [orgRes, structureRes, competitionsRes, siteRes, pagesRes] = await Promise.all([
-          fetch(`/api/${plural}/${orgId}`),
-          fetch(`/api/${plural}/${orgId}/structure`),
-          fetch(`/api/${plural}/${orgId}/competitions`),
-          fetch(`/api/${plural}/${orgId}/site`),
-          fetch(`/api/${plural}/${orgId}/site/pages`),
-        ]);
+        const [orgRes, structureRes, competitionsRes, siteRes, pagesRes, newsRes] =
+          await Promise.all([
+            fetch(`/api/${plural}/${orgId}`),
+            fetch(`/api/${plural}/${orgId}/structure`),
+            fetch(`/api/${plural}/${orgId}/competitions`),
+            fetch(`/api/${plural}/${orgId}/site`),
+            fetch(`/api/${plural}/${orgId}/site/pages`),
+            fetch(`/api/${plural}/${orgId}/site/news`),
+          ]);
         if (cancelled) return;
         if (orgRes.ok) {
           const data = await orgRes.json();
@@ -252,6 +260,10 @@ export default function OrgConsolePage() {
         if (pagesRes.ok) {
           const pagesBody = await pagesRes.json();
           if (!cancelled) setSitePages(pagesBody.pages ?? []);
+        }
+        if (newsRes.ok) {
+          const newsBody = await newsRes.json();
+          if (!cancelled) setSiteNews(newsBody.posts ?? []);
         }
       } catch {
         if (!cancelled) setAuthorized(false);
@@ -453,11 +465,11 @@ export default function OrgConsolePage() {
     );
 
   const remove = (target: NonNullable<typeof confirmTarget>) => {
-    if (target.kind === 'page') {
+    if (target.kind === 'page' || target.kind === 'news') {
       void act(
-        `/api/${plural}/${orgId}/site/pages/${target.id}`,
+        `/api/${plural}/${orgId}/site/${target.kind === 'page' ? 'pages' : 'news'}/${target.id}`,
         { method: 'DELETE' },
-        'Page deleted',
+        target.kind === 'page' ? 'Page deleted' : 'Post deleted',
         'Delete failed',
         'Website'
       );
@@ -1788,6 +1800,70 @@ export default function OrgConsolePage() {
                   </button>
                 </div>
               </div>
+              {/* Phase 3.5: news posts — same shape as Pages; published_at
+                  is the state and the feed order. */}
+              <div className="pt-2 space-y-1.5">
+                <p className="text-sm font-medium text-primary">News</p>
+                {siteNews.map(n => (
+                  <div key={n.id} className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                    <span className="text-sm text-primary min-w-0 truncate">{n.title}</span>
+                    <span className="text-xs text-muted">/news/{n.slug}</span>
+                    {n.published_at ? (
+                      <span className="text-xs text-emerald-600">published</span>
+                    ) : (
+                      <span className="text-xs text-amber-600">draft</span>
+                    )}
+                    <Link
+                      href={`/app/org/${side}/${orgId}/site/news/${n.id}`}
+                      className="text-sm text-brand-fg font-medium"
+                    >
+                      Edit
+                    </Link>
+                    <button
+                      type="button"
+                      onClick={() => setConfirmTarget({ kind: 'news', id: n.id, label: n.title })}
+                      className="text-sm text-tertiary hover:text-red-600"
+                    >
+                      Delete
+                    </button>
+                  </div>
+                ))}
+                <div className="flex flex-wrap gap-2">
+                  <input
+                    type="text"
+                    value={newsTitle}
+                    onChange={e => setNewsTitle(e.target.value)}
+                    maxLength={120}
+                    placeholder="New post title"
+                    aria-label="New post title"
+                    className="px-3 py-2 border border-border-strong rounded-md outline-none text-sm min-w-0 flex-1"
+                  />
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      if (!newsTitle.trim()) {
+                        showError('Website', 'A post title is required');
+                        return;
+                      }
+                      const ok = await act(
+                        `/api/${plural}/${orgId}/site/news`,
+                        {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ title: newsTitle.trim() }),
+                        },
+                        'Post created — it starts as a draft',
+                        'Failed to create the post',
+                        'Website'
+                      );
+                      if (ok) setNewsTitle('');
+                    }}
+                    className="px-3 py-1.5 text-sm rounded-md border border-border-strong text-secondary hover:bg-surface-sunken transition-colors"
+                  >
+                    Add post
+                  </button>
+                </div>
+              </div>
             </div>
           )}
         </section>
@@ -1799,8 +1875,8 @@ export default function OrgConsolePage() {
         message={
           confirmTarget?.kind === 'season'
             ? 'Its divisions and their entries are removed too. Teams persist.'
-            : confirmTarget?.kind === 'page'
-              ? 'The page comes off your site immediately.'
+            : confirmTarget?.kind === 'page' || confirmTarget?.kind === 'news'
+              ? `The ${confirmTarget.kind === 'page' ? 'page' : 'post'} comes off your site immediately.`
               : 'Its entries are removed too. Teams persist.'
         }
         confirmText="Delete"

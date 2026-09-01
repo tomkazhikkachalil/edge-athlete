@@ -52,6 +52,7 @@ export const MODULE_KEYS = [
   'affiliations',
   'sponsors',
   'contact',
+  'news', // phase 3.5 (mig 156 widens the DB CHECK; pre-156 code degrades)
 ] as const;
 export type ModuleKey = (typeof MODULE_KEYS)[number];
 
@@ -66,6 +67,7 @@ export const TOGGLEABLE_MODULE_KEYS = [
   'affiliations',
   'sponsors',
   'contact',
+  'news',
 ] as const;
 export type ToggleableModuleKey = (typeof TOGGLEABLE_MODULE_KEYS)[number];
 
@@ -268,9 +270,12 @@ export const MODULE_TITLES: Record<string, string> = {
   affiliations: 'Affiliations',
   sponsors: 'Sponsors',
   contact: 'Contact',
+  news: 'News',
 };
 
 /** The module keys that have their own subpage under /org/{slug}/. */
+// 'news' joins this list with its public route (the PR after the CRUD —
+// a nav entry must never precede its destination).
 export const MODULE_SUBPAGE_KEYS = ['standings', 'schedule', 'teams'] as const;
 
 // ── Custom pages (phase 3 R3) ───────────────────────────────────────────────
@@ -368,6 +373,30 @@ export const PagePatchSchema = z
     'Nothing to update'
   );
 export type PagePatchInput = z.infer<typeof PagePatchSchema>;
+
+// ── News posts (phase 3.5, mig 156) ─────────────────────────────────────────
+// Same block body as pages; published_at IS the draft/live state and the
+// feed order. Slugs share the page regex + the reserved denylist.
+
+export const NEWS_PER_SITE_MAX = 200;
+
+export const NewsCreateSchema = z.object({
+  title: boundedTrimmed(120),
+  slug: z.string().trim().toLowerCase().max(PAGE_SLUG_MAX).optional(),
+});
+export type NewsCreateInput = z.infer<typeof NewsCreateSchema>;
+
+export const NewsPatchSchema = z
+  .object({
+    title: boundedTrimmed(120).optional(),
+    body: PageBodySchema.optional(),
+    publish: z.boolean().optional(),
+  })
+  .refine(
+    o => o.title !== undefined || o.body !== undefined || o.publish !== undefined,
+    'Nothing to update'
+  );
+export type NewsPatchInput = z.infer<typeof NewsPatchSchema>;
 
 /** Defensive render-side parse: unknown body jsonb → valid blocks only
  *  (drops anything malformed; never throws — the public-render rule). */
