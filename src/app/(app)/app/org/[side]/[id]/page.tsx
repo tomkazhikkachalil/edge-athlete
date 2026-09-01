@@ -9,6 +9,7 @@ import ConfirmModal from '@/components/ConfirmModal';
 import OrgSetupChecklist from '@/components/orgs/OrgSetupChecklist';
 import { useToast } from '@/components/Toast';
 import { FEATURE_FLAGS } from '@/lib/features';
+import { MODULE_TITLES, TOGGLEABLE_MODULE_KEYS } from '@/lib/org-sites/validate';
 import { SPORT_REGISTRY } from '@/lib/sports/SportRegistry';
 
 // ── The org-manager console (phase 1, round 1) ──────────────────────────────
@@ -138,6 +139,10 @@ export default function OrgConsolePage() {
     subdomain: string;
     published_at: string | null;
   } | null>(null);
+  // R2: the site's module rows — the Sections toggles.
+  const [siteModules, setSiteModules] = useState<
+    { module_key: string; enabled: boolean }[]
+  >([]);
 
   useEffect(() => {
     if (!validSide || !user?.id) return;
@@ -181,7 +186,10 @@ export default function OrgConsolePage() {
         }
         if (siteRes.ok) {
           const siteBody = await siteRes.json();
-          if (!cancelled) setSite(siteBody.site ?? null);
+          if (!cancelled) {
+            setSite(siteBody.site ?? null);
+            setSiteModules(siteBody.modules ?? []);
+          }
         }
       } catch {
         if (!cancelled) setAuthorized(false);
@@ -1241,6 +1249,55 @@ export default function OrgConsolePage() {
                   {site.published_at ? 'Unpublish' : 'Publish'}
                 </button>
               </div>
+              {/* R2: Sections — one toggle per non-hero module. act()
+                  refreshes, so the checkbox state round-trips through
+                  the server; revalidateTag flips the public pages. */}
+              {siteModules.length > 0 && (
+                <div className="pt-2">
+                  <p className="text-sm font-medium text-primary">Sections</p>
+                  <p className="text-xs text-tertiary mb-2">
+                    Changes go live within a few minutes.
+                  </p>
+                  <div className="flex flex-wrap gap-x-5 gap-y-1.5">
+                    {siteModules
+                      .filter(m =>
+                        (TOGGLEABLE_MODULE_KEYS as readonly string[]).includes(m.module_key)
+                      )
+                      .map(m => {
+                        const label = MODULE_TITLES[m.module_key] ?? m.module_key;
+                        return (
+                          <label
+                            key={m.module_key}
+                            className="flex items-center gap-2 text-sm text-secondary min-h-[28px]"
+                          >
+                            <input
+                              type="checkbox"
+                              checked={m.enabled}
+                              aria-label={`Toggle ${label} section`}
+                              onChange={() =>
+                                void act(
+                                  `/api/${plural}/${orgId}/site`,
+                                  {
+                                    method: 'PATCH',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({
+                                      action: 'set_module',
+                                      moduleKey: m.module_key,
+                                      enabled: !m.enabled,
+                                    }),
+                                  },
+                                  'Section updated',
+                                  'Failed to update the section'
+                                )
+                              }
+                            />
+                            {label}
+                          </label>
+                        );
+                      })}
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </section>

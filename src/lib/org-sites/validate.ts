@@ -55,9 +55,28 @@ export const MODULE_KEYS = [
 ] as const;
 export type ModuleKey = (typeof MODULE_KEYS)[number];
 
-export const SitePatchSchema = z.object({
-  action: z.enum(['publish', 'unpublish']),
-});
+/** Every module except hero can be toggled from the console (hero is the
+ *  site's identity — excluded at the SCHEMA level, not just the UI). */
+export const TOGGLEABLE_MODULE_KEYS = [
+  'standings',
+  'schedule',
+  'teams',
+  'staff',
+  'venues',
+  'affiliations',
+  'sponsors',
+  'contact',
+] as const;
+export type ToggleableModuleKey = (typeof TOGGLEABLE_MODULE_KEYS)[number];
+
+export const SitePatchSchema = z.union([
+  z.object({ action: z.enum(['publish', 'unpublish']) }),
+  z.object({
+    action: z.literal('set_module'),
+    moduleKey: z.enum(TOGGLEABLE_MODULE_KEYS),
+    enabled: z.boolean(),
+  }),
+]);
 export type SitePatchInput = z.infer<typeof SitePatchSchema>;
 
 /** Public section titles, shared by the site home, the layout nav, and
