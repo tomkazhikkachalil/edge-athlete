@@ -49,7 +49,27 @@ import { sanitizeThemePrefs } from '@/lib/theme-prefs'
 const STANDINGS_PATH_RE =
   /^\/league\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\/standings\/?$/i
 
+// Phase 3: the (public) segment's path family. With PUBLIC_ORG_SITES=1,
+// /org/* skips the auth round trip + nonce and gets the static CSP; the
+// ISR renderer owns Cache-Control (the spike taught middleware cannot).
+const ORG_SITE_PATH_RE = /^\/org\//
+
 export async function middleware(request: NextRequest) {
+  if (
+    process.env.PUBLIC_ORG_SITES === '1' &&
+    ORG_SITE_PATH_RE.test(request.nextUrl.pathname)
+  ) {
+    const response = NextResponse.next()
+    const staticCsp = buildStaticCsp({ dev: process.env.NODE_ENV !== 'production' })
+    const enforceStatic =
+      process.env.NODE_ENV === 'production' && process.env.CSP_ENFORCE !== '0'
+    response.headers.set(
+      enforceStatic ? 'Content-Security-Policy' : 'Content-Security-Policy-Report-Only',
+      staticCsp
+    )
+    response.headers.set('Reporting-Endpoints', `csp="${CSP_REPORT_PATH}"`)
+    return response
+  }
   if (
     process.env.PUBLIC_STANDINGS_CACHE === '1' &&
     STANDINGS_PATH_RE.test(request.nextUrl.pathname)

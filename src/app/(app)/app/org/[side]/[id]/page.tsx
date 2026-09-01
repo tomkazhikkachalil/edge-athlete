@@ -132,16 +132,23 @@ export default function OrgConsolePage() {
   const [compSport, setCompSport] = useState('ice_hockey');
   const [compPublic, setCompPublic] = useState(false);
   const [entriesCompetitionId, setEntriesCompetitionId] = useState<string | null>(null);
+  // Website (phase 3 R1): the org's public site row (null until created).
+  const [site, setSite] = useState<{
+    id: string;
+    subdomain: string;
+    published_at: string | null;
+  } | null>(null);
 
   useEffect(() => {
     if (!validSide || !user?.id) return;
     let cancelled = false;
     (async () => {
       try {
-        const [orgRes, structureRes, competitionsRes] = await Promise.all([
+        const [orgRes, structureRes, competitionsRes, siteRes] = await Promise.all([
           fetch(`/api/${plural}/${orgId}`),
           fetch(`/api/${plural}/${orgId}/structure`),
           fetch(`/api/${plural}/${orgId}/competitions`),
+          fetch(`/api/${plural}/${orgId}/site`),
         ]);
         if (cancelled) return;
         if (orgRes.ok) {
@@ -171,6 +178,10 @@ export default function OrgConsolePage() {
             setAffiliatedTeams(compBody.affiliatedTeams ?? []);
             setRosterAthletes(compBody.rosterAthletes ?? []);
           }
+        }
+        if (siteRes.ok) {
+          const siteBody = await siteRes.json();
+          if (!cancelled) setSite(siteBody.site ?? null);
         }
       } catch {
         if (!cancelled) setAuthorized(false);
@@ -1154,6 +1165,83 @@ export default function OrgConsolePage() {
                 </li>
               ))}
             </ul>
+          )}
+        </section>
+
+        {/* Website (phase 3 R1) — create → preview → publish. The public
+            site lives at /org/{subdomain}; draft = 404 out there. */}
+        <section
+          aria-label="Website"
+          className="bg-surface rounded-lg shadow-sm border border-border p-4 sm:p-6"
+        >
+          <h2 className="text-lg font-semibold text-primary mb-1">Website</h2>
+          {site === null ? (
+            <>
+              <p className="text-sm text-tertiary mb-3">
+                A public site for your organization — schedule, standings, and teams,
+                always current, no webmaster.
+              </p>
+              <button
+                type="button"
+                onClick={() =>
+                  void act(
+                    `/api/${plural}/${orgId}/site`,
+                    { method: 'POST' },
+                    'Site created — preview it, then publish',
+                    'Failed to create the site'
+                  )
+                }
+                className="px-4 py-2 text-sm min-h-[40px] rounded-lg bg-brand text-white font-medium hover:bg-brand-hover transition-colors"
+              >
+                Create your site
+              </button>
+            </>
+          ) : (
+            <div className="space-y-2">
+              <p className="text-sm text-secondary min-w-0 break-all">
+                Address: <span className="font-medium text-primary">/org/{site.subdomain}</span>
+                {' · '}
+                {site.published_at ? (
+                  <span className="text-emerald-600">published</span>
+                ) : (
+                  <span className="text-amber-600">draft — publish to go live</span>
+                )}
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {/* The public route 404s for drafts (published-only read) —
+                    no dead preview link; a real draft preview is R3's. */}
+                {site.published_at && (
+                  <a
+                    href={`/org/${site.subdomain}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="px-3 py-1.5 text-sm rounded-md border border-border-strong text-secondary hover:bg-surface-sunken transition-colors"
+                  >
+                    View site
+                  </a>
+                )}
+                <button
+                  type="button"
+                  onClick={() =>
+                    void act(
+                      `/api/${plural}/${orgId}/site`,
+                      {
+                        method: 'PATCH',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                          action: site.published_at ? 'unpublish' : 'publish',
+                        }),
+                      },
+                      site.published_at ? 'Site unpublished' : 'Site is live',
+                      'Failed to update the site'
+                    )
+                  }
+                  className="px-3 py-1.5 text-sm rounded-md bg-brand text-white font-medium hover:bg-brand-hover transition-colors"
+                >
+                  {site.published_at ? 'Unpublish' : 'Publish'}
+                </button>
+              </div>
+            </div>
           )}
         </section>
       </main>
