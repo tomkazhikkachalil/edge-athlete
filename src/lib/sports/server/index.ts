@@ -6,7 +6,13 @@ import {
   getSportSettingsDisplay,
   type SettingsDisplayItem,
 } from '../settings-schemas';
+import { getStatSchema } from '../stat-schemas';
 import { golfServerModule } from './golf';
+import {
+  fetchOfficialStatLines,
+  mergeOfficialContribution,
+  type OfficialStatLine,
+} from './official-stats';
 import { statLineServerModule } from './stat-line';
 import { trackFieldServerModule } from './track-field';
 import type { ServerSportModule, SkillCardContribution, SportSkillCard, SportStatsCard } from './types';
@@ -107,12 +113,19 @@ export async function buildSportSkillCards(
   // Same union as /api/profile/[id]/active-sports: declared label ∪ posted
   // sports ∪ intake-declared sport_settings rows (settings fetched here too,
   // once, so modules never re-query them).
-  const [{ data: profile }, { data: postSportKeys, error: rpcError }, { data: settingsRows }] =
-    await Promise.all([
-      supabase.from('profiles').select('sport').eq('id', profileId).single(),
-      supabase.rpc('get_profile_post_sport_keys', { p_profile_id: profileId }),
-      supabase.from('sport_settings').select('sport_key, settings').eq('profile_id', profileId),
-    ]);
+  const [
+    { data: profile },
+    { data: postSportKeys, error: rpcError },
+    { data: settingsRows },
+    officialLines,
+  ] = await Promise.all([
+    supabase.from('profiles').select('sport').eq('id', profileId).single(),
+    supabase.rpc('get_profile_post_sport_keys', { p_profile_id: profileId }),
+    supabase.from('sport_settings').select('sport_key, settings').eq('profile_id', profileId),
+    // Phase 4: org-entered stat lines from PUBLIC competitions (degrades
+    // to [] pre-157 or on an RLS-limited client — never throws).
+    fetchOfficialStatLines(supabase, profileId),
+  ]);
 
   // Loud, not silent: a missing RPC would quietly drop every posted sport.
   if (rpcError) console.error('[skill-cards] get_profile_post_sport_keys failed:', rpcError);
@@ -122,6 +135,17 @@ export async function buildSportSkillCards(
     postSportKeys: (postSportKeys as string[] | null) ?? [],
     settingsSportKeys: (settingsRows || []).map(s => s.sport_key as string),
   });
+
+  // Official lines widen the union too: an athlete whose only hockey
+  // record is coach-entered still gets a hockey card.
+  const officialBySport = new Map<string, OfficialStatLine[]>();
+  for (const line of officialLines) {
+    if (!officialBySport.has(line.sportKey)) officialBySport.set(line.sportKey, []);
+    officialBySport.get(line.sportKey)!.push(line);
+  }
+  for (const key of officialBySport.keys()) {
+    if (!ordered.includes(key as SportKey)) ordered.push(key as SportKey);
+  }
 
   // Widen the union with non-post activity: computeActiveSports only sees
   // declared ∪ posted ∪ settings rows, so a golfer with logged rounds but
@@ -150,7 +174,14 @@ export async function buildSportSkillCards(
       const contribution = mod?.buildSkillCard
         ? await mod.buildSkillCard(profileId, supabase, { settings })
         : null;
-      return assembleSkillCard(sportKey, contribution, getSportSettingsDisplay(sportKey, settings));
+      // Phase 4: official tiles replace same-label tracked tiles
+      // (verified beats tracked; provenance = the conservative minimum).
+      const merged = mergeOfficialContribution(
+        contribution,
+        officialBySport.get(sportKey) ?? [],
+        getStatSchema(sportKey)
+      );
+      return assembleSkillCard(sportKey, merged, getSportSettingsDisplay(sportKey, settings));
     })
   );
 

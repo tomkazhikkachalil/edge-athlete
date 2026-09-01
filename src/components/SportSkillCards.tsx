@@ -46,21 +46,47 @@ interface SportSkillCardsProps {
 }
 
 const PROVENANCE_TITLE: Record<SkillProvenance, string> = {
+  sanctioned: 'Recorded in a sanctioned competition — the strongest verification tier',
+  league_verified: 'Entered and verified by the competition owner',
+  club_recorded: 'Recorded by team staff — not yet league-verified',
   tracked: 'Calculated from logged activity on Edge Athlete',
+  imported: 'Imported historical record — labeled, not verified here',
   entered: 'Entered by the athlete — not verified',
 };
 
+// Display the ACTUAL rung, never a generic "verified" — the ladder is the
+// integrity story a scout interrogates (masterplan §7). Official rungs
+// read strong (brand + shield); tracked keeps its check; claimed stays
+// visually distinct, as always.
+const PROVENANCE_LABEL: Record<SkillProvenance, string> = {
+  sanctioned: 'Sanctioned',
+  league_verified: 'League verified',
+  club_recorded: 'Club recorded',
+  tracked: 'Tracked',
+  imported: 'Imported',
+  entered: 'Self-reported',
+};
+
+const OFFICIAL: Set<SkillProvenance> = new Set(['sanctioned', 'league_verified', 'club_recorded']);
+
+export function provenanceIcon(provenance: SkillProvenance): string {
+  if (OFFICIAL.has(provenance)) return 'fa-shield-halved';
+  if (provenance === 'tracked') return 'fa-circle-check';
+  if (provenance === 'imported') return 'fa-box-archive';
+  return 'fa-user-pen';
+}
+
 export function ProvenanceChip({ provenance }: { provenance: SkillProvenance }) {
-  const tracked = provenance === 'tracked';
+  const strong = OFFICIAL.has(provenance) || provenance === 'tracked';
   return (
     <span
       title={PROVENANCE_TITLE[provenance]}
       className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${
-        tracked ? 'bg-brand-soft text-brand-fg-strong' : 'bg-surface-muted text-muted'
+        strong ? 'bg-brand-soft text-brand-fg-strong' : 'bg-surface-muted text-muted'
       }`}
     >
-      <i className={`fas ${tracked ? 'fa-circle-check' : 'fa-user-pen'}`} aria-hidden="true"></i>
-      {tracked ? 'Tracked' : 'Self-reported'}
+      <i className={`fas ${provenanceIcon(provenance)}`} aria-hidden="true"></i>
+      {PROVENANCE_LABEL[provenance]}
     </span>
   );
 }
@@ -79,8 +105,10 @@ export function TileGrid({ tiles }: { tiles: SkillTile[] }) {
           >
             {tile.label}
             <i
-              className={`fas ${
-                tile.provenance === 'tracked' ? 'fa-circle-check text-brand-fg' : 'fa-user-pen'
+              className={`fas ${provenanceIcon(tile.provenance)} ${
+                tile.provenance === 'entered' || tile.provenance === 'imported'
+                  ? ''
+                  : 'text-brand-fg'
               } text-[10px]`}
               aria-hidden="true"
             ></i>

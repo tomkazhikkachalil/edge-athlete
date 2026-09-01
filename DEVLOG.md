@@ -1,5 +1,38 @@
 # Development Log
 
+## September 2, 2026 — Phase 4 R2: official stats on the profile (#477, zero DDL)
+
+The read side of R1 — the first half of the phase-4 exit condition ("a
+result reaches the athlete profile with no manual linking") is now
+walkable end to end.
+
+- **SkillProvenance widens** from 2 rungs to the full display ladder:
+  sanctioned > league_verified > club_recorded > tracked > imported >
+  entered (rank in official-stats.ts; a stored 'self_reported' displays
+  as 'entered' — one vocabulary). Chips and tile icons show the ACTUAL
+  rung, never a generic "verified" — the ladder is what a scout
+  interrogates. Official rungs render strong (brand + shield).
+- **official-stats.ts** — the never-throw reader: an athlete's
+  contest_stat_lines from PUBLIC competitions only (a private
+  competition's lines — and its NAME — stay off the profile until the
+  org flips it public, mirroring standings), 'sanctioned' derived per
+  line from the live sanctioned_by edge, opponent resolved from the
+  contest's other side, backlink = the owner's public standings page.
+- **Skill cards**: official tiles are computed with the SAME
+  profileTiles machinery as self-posted lines and REPLACE same-label
+  tracked tiles (verified beats tracked — the consumedEnteredKeys
+  precedent generalized); tile provenance is the CONSERVATIVE minimum
+  across the contributing lines. Official lines also widen the
+  active-sports union: a kid whose only hockey record is coach-entered
+  still gets a hockey card.
+- **/api/sports/stat-lines** gains a distinct `official` array — no
+  cross-source merge with self-posted rows (no game-level link exists;
+  documented limitation), rendered as its own labeled log in
+  StatLineBreakdown with per-row provenance + competition backlink.
+- e2e extended: private competition ⇒ official empty; flip public ⇒
+  the line surfaces with 'league_verified' and the skill card's Goals
+  tile flips to the official value. Still skips pre-157.
+
 ## September 2, 2026 — Phase 4 R1: contest stat lines (#476, mig 157)
 
 Phase 4 (automatic flows) opens: "a result and a photo reach an athlete

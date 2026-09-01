@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin, requireAuth } from '@/lib/auth-server';
 import { getStatSchema, isStatLineData, formatResult, computeProfileTile, type StatLineData } from '@/lib/sports/stat-schemas';
+import { fetchOfficialStatLines } from '@/lib/sports/server/official-stats';
 
 /**
  * GET /api/sports/stat-lines?profileId=...&sport=ice_hockey
@@ -151,6 +152,29 @@ export async function GET(request: NextRequest) {
       keyStat: schema.headline(line.stats) || '—',
     }));
 
+    // Phase 4: org-entered lines from PUBLIC competitions — a distinct
+    // "official" section, never merged into the self-posted rows (no
+    // cross-source game dedup exists; the two are labeled apart). The
+    // profile gate above already ran; the reader degrades to [] pre-157.
+    const officialAll = (await fetchOfficialStatLines(supabase, profileId)).filter(
+      l => l.sportKey === sport
+    );
+    const official = (yearParam
+      ? officialAll.filter(l => l.date && l.date.slice(0, 4) === yearParam)
+      : officialAll
+    )
+      .slice(0, 25)
+      .map(l => ({
+        contestId: l.contestId,
+        date: l.date ? l.date.slice(0, 10) : null,
+        competitionName: l.competitionName,
+        teamName: l.teamName,
+        opponent: l.opponentName,
+        keyStat: schema.headline(l.stats) || '—',
+        provenance: l.provenance,
+        href: l.href,
+      }));
+
     return NextResponse.json({
       sport,
       entryCount,
@@ -158,6 +182,7 @@ export async function GET(request: NextRequest) {
       highlights,
       recentActivity,
       years,
+      official,
     });
   } catch (e) {
     console.error('[stat-lines] unexpected error:', e);

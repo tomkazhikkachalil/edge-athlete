@@ -25,7 +25,27 @@ interface StatLinesResponse {
     keyStat: string | null;
   }>;
   years: number[];
+  /** Phase 4: org-entered lines from public competitions — labeled apart
+   *  from the self-posted log, never merged (no cross-source dedup). */
+  official?: Array<{
+    contestId: string;
+    date: string | null;
+    competitionName: string;
+    teamName: string | null;
+    opponent: string | null;
+    keyStat: string | null;
+    provenance: string;
+    href: string;
+  }>;
 }
+
+const OFFICIAL_PROVENANCE_LABELS: Record<string, string> = {
+  sanctioned: 'Sanctioned',
+  league_verified: 'League verified',
+  club_recorded: 'Club recorded',
+  imported: 'Imported',
+  entered: 'Self reported',
+};
 
 const shortDate = (iso: string) =>
   new Date(`${iso}T00:00:00`).toLocaleDateString(undefined, {
@@ -75,7 +95,8 @@ export default function StatLineBreakdown({
       </div>
     );
   }
-  if (!data || data.entryCount === 0) {
+  const official = data?.official ?? [];
+  if (!data || (data.entryCount === 0 && official.length === 0)) {
     return (
       <p className="text-sm text-muted py-2">
         No {schema.activityNoun.toLowerCase()}s logged{year !== null ? ` in ${year}` : ''} yet.
@@ -129,6 +150,46 @@ export default function StatLineBreakdown({
                 <tr key={field.key} className="border-b border-border-subtle/60 last:border-0">
                   <td className="py-2 pr-4 text-secondary">{field.label}</td>
                   <td className="py-2 text-right font-bold text-primary tabular-nums">{total}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* Official log (phase 4) — org-entered lines, each row naming its
+          competition and carrying the ACTUAL provenance rung, linking to
+          the owner's public standings (the contest backlink). */}
+      {official.length > 0 && (
+        <div className="mb-4 overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-left text-xs uppercase tracking-wide text-muted border-b border-border-subtle">
+                <th className="py-2 pr-4 font-semibold">Official</th>
+                <th className="py-2 pr-4 font-semibold">Competition</th>
+                <th className="py-2 pr-4 font-semibold">{schema.opponentLabel}</th>
+                <th className="py-2 text-right font-semibold">Key stat</th>
+              </tr>
+            </thead>
+            <tbody>
+              {official.map(row => (
+                <tr key={row.contestId} className="border-b border-border-subtle/60 last:border-0">
+                  <td className="py-2 pr-4 text-secondary whitespace-nowrap">
+                    {row.date ? shortDate(row.date) : '—'}
+                    <span className="block text-[11px] text-brand-fg">
+                      <i className="fas fa-shield-halved mr-1" aria-hidden="true"></i>
+                      {OFFICIAL_PROVENANCE_LABELS[row.provenance] ?? row.provenance}
+                    </span>
+                  </td>
+                  <td className="py-2 pr-4 text-secondary">
+                    <a href={row.href} className="hover:text-brand-fg">
+                      {row.competitionName}
+                    </a>
+                  </td>
+                  <td className="py-2 pr-4 text-secondary">{row.opponent ?? '—'}</td>
+                  <td className="py-2 text-right font-semibold text-primary tabular-nums">
+                    {row.keyStat ?? '—'}
+                  </td>
                 </tr>
               ))}
             </tbody>

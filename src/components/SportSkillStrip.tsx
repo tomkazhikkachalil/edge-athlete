@@ -11,7 +11,8 @@
  */
 
 import { getSportDefinition } from '@/lib/sports/SportRegistry';
-import type { SportSkillCard } from '@/lib/sports/server/types';
+import type { SkillProvenance, SportSkillCard } from '@/lib/sports/server/types';
+import { provenanceIcon } from './SportSkillCards';
 
 interface SportSkillStripProps {
   cards: SportSkillCard[];
@@ -22,10 +23,14 @@ interface SportSkillStripProps {
   onAddDetails?: () => void;
 }
 
-const PROVENANCE_TITLE = {
+const PROVENANCE_TITLE: Record<SkillProvenance, string> = {
+  sanctioned: 'Recorded in a sanctioned competition — the strongest verification tier',
+  league_verified: 'Entered and verified by the competition owner',
+  club_recorded: 'Recorded by team staff — not yet league-verified',
   tracked: 'Calculated from logged activity on Edge Athlete',
+  imported: 'Imported historical record — labeled, not verified here',
   entered: 'Entered by the athlete — not verified',
-} as const;
+};
 
 export default function SportSkillStrip({
   cards,
@@ -75,10 +80,11 @@ export default function SportSkillStrip({
                     </span>
                     <span className="text-xs text-muted truncate">{card.headline.label}</span>
                     <i
-                      className={`fas ${
-                        card.headline.provenance === 'tracked'
-                          ? 'fa-circle-check text-brand-fg'
-                          : 'fa-user-pen text-muted'
+                      className={`fas ${provenanceIcon(card.headline.provenance)} ${
+                        card.headline.provenance === 'entered' ||
+                        card.headline.provenance === 'imported'
+                          ? 'text-muted'
+                          : 'text-brand-fg'
                       } text-[10px]`}
                       title={PROVENANCE_TITLE[card.headline.provenance]}
                       aria-hidden="true"
