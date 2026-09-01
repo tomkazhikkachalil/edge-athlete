@@ -1,6 +1,22 @@
 import { test, expect } from '@playwright/test';
 import { adminClient, apiAs, loadQaUser, readErrorBody } from './helpers/qa-user';
 
+/** True once mig 163 widened the notifications CHECK (probe by insert —
+ *  the FK-vs-CHECK error-code trick can't work here since user_id must be
+ *  real; use the owner and clean up). */
+async function registrationBellsAvailable(
+  admin: ReturnType<typeof adminClient>,
+  userId: string
+): Promise<boolean> {
+  const { data, error } = await admin
+    .from('notifications')
+    .insert({ user_id: userId, type: 'org_registration_received', title: 'probe', is_read: true })
+    .select('id')
+    .single();
+  if (data?.id) await admin.from('notifications').delete().eq('id', data.id);
+  return !error;
+}
+
 // Registration capture (phase 5 R2, migs 161+162): the family-initiated
 // path. Window gates fail closed; the submit mints follow + the
 // 'registered' org-roster row + the submission record with the
@@ -8,7 +24,9 @@ import { adminClient, apiAs, loadQaUser, readErrorBody } from './helpers/qa-user
 // registrar list is gated and carries the answers; the transitions walk
 // registered → evaluating → placed (team-scope row minted — THE
 // attribution edge) → released. Runs API-level; the wizard UI is R3.
-test('registration: window gate, submit, collisions, registrar transitions', async () => {
+test('registration: window gate, submit, collisions, registrar transitions', async ({
+  browser,
+}) => {
   test.setTimeout(180_000);
   const athlete = loadQaUser('user.json');
   const owner = loadQaUser('user-b.json');
@@ -124,14 +142,64 @@ test('registration: window gate, submit, collisions, registrar transitions', asy
       expect(list[0]).toMatchObject({ status: 'registered', divisionName: `U13 A ${stamp}` });
       expect(JSON.stringify(list[0].answers)).toContain(`peanut allergy ${stamp}`);
 
-      // Transitions: evaluate → place → the team-scope attribution row.
+      // R4: the received bell reached the org's manager (163-gated).
+      const bellsOn = await registrationBellsAvailable(admin, owner.id);
+      if (bellsOn) {
+        const { data: received } = await admin
+          .from('notifications')
+          .select('id, type')
+          .eq('user_id', owner.id)
+          .eq('type', 'org_registration_received')
+          .order('created_at', { ascending: false })
+          .limit(1);
+        expect(received, 'received bell for the manager').toHaveLength(1);
+      }
+
+      // R4: the registrar CONSOLE drives evaluate (UI), then the API
+      // finishes place/release (both paths share the core).
       const transitionUrl = `${regUrl}/${registrationId}`;
-      res = await ownerApi.patch(transitionUrl, { data: { action: 'evaluate' } });
-      expect(res.status(), await readErrorBody(res)).toBe(200);
+      const { data: athleteProfile } = await admin
+        .from('profiles')
+        .select('display_name, full_name, first_name')
+        .eq('id', athlete.id)
+        .single();
+      const athleteName =
+        (athleteProfile!.display_name as string | null) ||
+        (athleteProfile!.full_name as string | null) ||
+        (athleteProfile!.first_name as string | null) ||
+        'Athlete';
+      const ctxOwner = await browser.newContext({ storageState: 'e2e/.auth/state-b.json' });
+      try {
+        const page = await ctxOwner.newPage();
+        await page.goto(`/app/org/league/${leagueId}`);
+        await expect(page.getByRole('heading', { name })).toBeVisible({ timeout: 20_000 });
+        const section = page.getByRole('region', { name: 'Registrations' });
+        await expect(section.getByText('Close registration')).toBeVisible({ timeout: 15_000 });
+        await expect(section.getByText(athleteName).first()).toBeVisible();
+        await section.getByRole('button', { name: 'Evaluate' }).click();
+        await expect(section.getByText('Evaluating')).toBeVisible({ timeout: 15_000 });
+
+        // 375px: the registrar section holds.
+        await page.setViewportSize({ width: 375, height: 812 });
+        await expect(section.getByText('Evaluating')).toBeVisible();
+        const scrollWidth = await page.evaluate(() => document.documentElement.scrollWidth);
+        expect(scrollWidth, 'no horizontal overflow at 375px').toBeLessThanOrEqual(375);
+      } finally {
+        await ctxOwner.close();
+      }
       res = await ownerApi.patch(transitionUrl, {
         data: { action: 'place', teamId: team!.id },
       });
       expect(res.status(), await readErrorBody(res)).toBe(200);
+      if (bellsOn) {
+        const { data: placedBell } = await admin
+          .from('notifications')
+          .select('id')
+          .eq('user_id', athlete.id)
+          .eq('type', 'org_registration_placed')
+          .limit(1);
+        expect(placedBell, 'placed bell for the athlete').toHaveLength(1);
+      }
       const { data: teamRow } = await admin
         .from('memberships')
         .select('status, season_id')

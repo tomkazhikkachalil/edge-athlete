@@ -90,7 +90,7 @@ describe('tab buckets (behavior frozen from the pre-registry literal arrays)', (
     ]);
   });
 
-  it('All/Unread-only (tab: null) — the 19 types no named tab listed', () => {
+  it('All/Unread-only (tab: null) — the types no named tab listed', () => {
     expect(bucket(null)).toEqual([
       'affiliation_invite',
       'affiliation_update',
@@ -110,6 +110,10 @@ describe('tab buckets (behavior frozen from the pre-registry literal arrays)', (
       'league_request_result',
       'league_update',
       'new_message',
+      // Phase 5 (mig 163): the registration lifecycle.
+      'org_registration_placed',
+      'org_registration_received',
+      'org_registration_released',
       'profile_change',
       'roster_invite',
       'tag_alert',

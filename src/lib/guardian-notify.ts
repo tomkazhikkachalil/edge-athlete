@@ -38,7 +38,10 @@ export type GuardianNotificationType =
   | 'carpool_update'
   // 0.10 (mig 147): an org offered a supervised athlete a roster spot —
   // either-approves: the guardian queue and the child's own accept both work.
-  | 'roster_invite';
+  | 'roster_invite'
+  // Phase 5 (mig 163): the registrar placed/released a supervised child.
+  | 'org_registration_placed'
+  | 'org_registration_released';
 
 export interface GuardianNotification {
   type: GuardianNotificationType;

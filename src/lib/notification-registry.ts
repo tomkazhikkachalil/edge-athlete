@@ -89,6 +89,10 @@ export const NOTIFICATION_TYPE_META = {
   // All/Unread-only like their org siblings.
   competition_entry_pending: { tab: null, icon: 'fa-clipboard-check' },
   competition_entry_decided: { tab: null, icon: 'fa-clipboard-check' },
+  // Phase 5 (mig 163): the registration lifecycle.
+  org_registration_received: { tab: null, icon: 'fa-user-plus' },
+  org_registration_placed: { tab: null, icon: 'fa-people-group' },
+  org_registration_released: { tab: null, icon: 'fa-user-minus' },
 } as const satisfies Record<string, NotificationTypeMeta>;
 
 export type KnownNotificationType = keyof typeof NOTIFICATION_TYPE_META;

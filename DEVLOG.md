@@ -1,6 +1,40 @@
 # Development Log
 
-## September 2, 2026 — Phase 5 R3: the family wizard + org-page CTA (#484, zero DDL)
+## September 2, 2026 — Phase 5 R4: the registrar console + bells (#485, mig 163)
+
+The org side of the workflow the family started.
+
+- **Mig 163** (handed to Tom; the 154 ritual verbatim): the notifications
+  CHECK widens 46 → 49 with org_registration_received / _placed /
+  _released. Any order relative to the deploy — the senders are
+  best-effort and a 23514 on the old CHECK only drops the bell, never
+  the transition.
+- **The Registrations section** on the org console (both sides): season
+  selector, Open/Close registration (the season-wide window, one
+  click), the list with lifecycle chips, eligibility + DOB-unknown
+  badges, supervised markers, Details (emergency contact + the
+  registrar-eyes-only medical notes — this section and the API behind
+  it remain the ONLY surfaces that show them), Evaluate, the
+  Place-on-team picker (active teams), Release. Hidden pre-162 /
+  flag-off / non-registrars (the API 403s regardless). The setup
+  checklist gains "Open registration" (optional input — flag-off
+  consoles don't nag).
+- **Bells** (registration/notify.ts, the competitions/notify charter):
+  received → the org's managers minus the submitter; placed/released →
+  the athlete and, when supervised, the guardians (the roster-invite
+  cross-notify model — GuardianNotificationType widened); registry meta
+  for all three.
+- e2e: the R2 spec grows the R4 arc — the received bell (probed for
+  163), the console UI driving Evaluate with 375px, the placed bell on
+  the athlete. R5 next: the public-site Register module (mig 164).
+
+## September 2, 2026 — Phase 5 R3: the family wizard + org-page CTA (commit 9ba2049, zero DDL)
+
+> Process note, honestly recorded: this round landed as a DIRECT commit
+> to main — a branching slip (the R2 ship script never cut the R3
+> branch), not a decision. Verify + both registration e2e specs were
+> green before the commit, and main was never force-touched. The
+> atomic-PR convention resumes with R4.
 
 The doorway. Registration existed as an API for one round; now a family
 can walk through it.
