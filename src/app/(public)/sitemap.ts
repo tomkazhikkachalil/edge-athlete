@@ -24,6 +24,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       },
       ...site.moduleKeys.map(key => ({ url: `${base}/org/${site.subdomain}/${key}` })),
       ...site.pageSlugs.map(slug => ({ url: `${base}/org/${site.subdomain}/${slug}` })),
+      ...site.teamIds.map(id => ({ url: `${base}/org/${site.subdomain}/teams/${id}` })),
     ]);
   } catch {
     return [];

@@ -282,6 +282,15 @@ describe('page blocks (R3)', () => {
     ).toBe(true);
   });
 
+  it('accepts optional client-measured dimensions, rejects junk ones', () => {
+    const base = { type: 'image', path: `org-media/${SITE}/a.png`, alt: 'x' };
+    expect(PageBodySchema.safeParse([{ ...base, width: 800, height: 450 }]).success).toBe(true);
+    expect(PageBodySchema.safeParse([base]).success).toBe(true); // legacy blocks
+    expect(PageBodySchema.safeParse([{ ...base, width: 0 }]).success).toBe(false);
+    expect(PageBodySchema.safeParse([{ ...base, width: 20000 }]).success).toBe(false);
+    expect(PageBodySchema.safeParse([{ ...base, width: 1.5 }]).success).toBe(false);
+  });
+
   it('rejects bad image paths (traversal, case, foreign shapes)', () => {
     for (const path of [
       `org-media/${SITE}/../secret.png`,

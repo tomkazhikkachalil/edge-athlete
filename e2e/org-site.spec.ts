@@ -490,6 +490,27 @@ test('org site modules: live data on home + subpages; masked roster; team 404s',
           data: { action: 'set_module', moduleKey: 'hero', enabled: false },
         });
         expect(hero.status(), await readErrorBody(hero)).toBe(400);
+
+        // FRESHNESS HOOK (cleanup round): a competition write must reach
+        // the public site without waiting out the 300s window — flipping
+        // visibility private empties the public standings within a few
+        // polls (the revalidateOrgSiteForCompetition proof).
+        const hide = await toggleApi.patch(`/api/leagues/${leagueId}/competitions`, {
+          data: { id: comp!.id, visibility: 'private' },
+        });
+        expect(hide.status(), await readErrorBody(hide)).toBe(200);
+        const hidden = await settleBody(page.request, `${base}/standings`, 'House League', false, 5);
+        expect(hidden).not.toContain('House League');
+        const show = await toggleApi.patch(`/api/leagues/${leagueId}/competitions`, {
+          data: { id: comp!.id, visibility: 'public' },
+        });
+        expect(show.status(), await readErrorBody(show)).toBe(200);
+        const shown = await settleBody(page.request, `${base}/standings`, 'House League', true, 5);
+        expect(shown).toContain('House League');
+
+        // Sitemap gains the TEAM page (cleanup round).
+        const sm = await settleBody(page.request, '/sitemap.xml', `/org/${subdomain}/teams/${teamId}`);
+        expect(sm).toContain(`/org/${subdomain}/teams/${teamId}`);
       } finally {
         await toggleApi.dispose();
       }

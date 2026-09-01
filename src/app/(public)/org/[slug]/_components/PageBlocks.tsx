@@ -7,8 +7,9 @@ import type { PageBlock } from '@/lib/org-sites/validate';
 // still route through orgMediaUrl (which re-asserts the site prefix) and
 // external links carry noopener + nofollow. Server component; no client
 // hooks, no Font Awesome, light-only (the public-segment rules). Page
-// images have no stored dimensions — width/height are aspect placeholders
-// and h-auto w-full governs (accepted tradeoff).
+// images carry client-measured intrinsic dimensions when available
+// (correct aspect reserved before load); 1200×675 is the legacy-block
+// fallback and h-auto w-full still governs the layout width.
 export default function PageBlocks({
   blocks,
   siteId,
@@ -40,8 +41,8 @@ export default function PageBlocks({
                 key={i}
                 src={src}
                 alt={block.alt}
-                width={1200}
-                height={675}
+                width={block.width ?? 1200}
+                height={block.height ?? 675}
                 unoptimized
                 className="h-auto w-full rounded-lg"
               />

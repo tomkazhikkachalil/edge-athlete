@@ -40,6 +40,10 @@ import {
   publishContestToCalendar,
 } from '@/lib/competitions/calendar-mirror';
 import { recomputeStandingsBestEffort } from '@/lib/competitions/standings';
+import {
+  revalidateOrgSiteForCompetition,
+  revalidateOrgSiteForOrg,
+} from '@/lib/org-sites/revalidate';
 import { resolveFixtureRule, resolveLeaderboardRule } from '@/lib/competitions/scoring';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- matches the authz.ts Admin alias; schema-agnostic helper
@@ -298,6 +302,8 @@ export async function competitionPATCH(
   if (!updated || updated.length === 0) {
     return NextResponse.json({ error: 'Competition not found' }, { status: 404 });
   }
+  // Visibility/status flips change what fetchPublicStandings returns.
+  await revalidateOrgSiteForCompetition(admin, input.id);
   return NextResponse.json({ action: 'updated' });
 }
 
@@ -310,13 +316,19 @@ export async function competitionDELETE(
 ): Promise<NextResponse> {
   let query = admin.from('competitions').delete().eq('id', competitionId);
   if (scope) query = query.eq(orgColumn(scope.side), scope.orgId);
-  const { data: deleted, error } = await query.select('id');
+  // Org columns ride the returning select — the freshness hook needs them
+  // after the row is gone.
+  const { data: deleted, error } = await query.select('id, league_id, club_id');
   if (error) {
     console.error(`${TAG} delete error:`, error);
     return NextResponse.json({ error: 'Failed to delete competition' }, { status: 500 });
   }
   if (!deleted || deleted.length === 0) {
     return NextResponse.json({ error: 'Competition not found' }, { status: 404 });
+  }
+  const delOrgId = (deleted[0].league_id ?? deleted[0].club_id) as string | null;
+  if (delOrgId) {
+    await revalidateOrgSiteForOrg(admin, deleted[0].league_id ? 'league' : 'club', delOrgId);
   }
   return NextResponse.json({ action: 'deleted' });
 }
@@ -461,6 +473,7 @@ export async function entryAddPOST(
     });
   }
   await recomputeStandingsBestEffort(admin, input.competitionId);
+  await revalidateOrgSiteForCompetition(admin, input.competitionId);
   return NextResponse.json({ entry });
 }
 
@@ -521,6 +534,7 @@ export async function entryDecidePATCH(
     }
   }
   await recomputeStandingsBestEffort(admin, compRow.id);
+  await revalidateOrgSiteForCompetition(admin, compRow.id);
   return NextResponse.json({ action: input.decision });
 }
 
@@ -561,6 +575,7 @@ export async function entryDELETE(
     return NextResponse.json({ error: 'Entry not found' }, { status: 404 });
   }
   await recomputeStandingsBestEffort(admin, deleted[0].competition_id as string);
+  await revalidateOrgSiteForCompetition(admin, deleted[0].competition_id as string);
   return NextResponse.json({ action: 'deleted' });
 }
 
@@ -798,6 +813,7 @@ export async function contestCreatePOST(
       return NextResponse.json({ error: 'Failed to create the game' }, { status: 500 });
     }
   }
+  await revalidateOrgSiteForCompetition(admin, contest.competition_id as string);
   return NextResponse.json({ contest });
 }
 
@@ -852,6 +868,8 @@ export async function contestPATCH(
   if (input.status !== undefined) {
     await recomputeStandingsBestEffort(admin, updated[0].competition_id as string);
   }
+  // Time/venue/status changes all reach the public schedule (freshness hook).
+  await revalidateOrgSiteForCompetition(admin, updated[0].competition_id as string);
   return NextResponse.json({ action: 'updated', contest: updated[0] });
 }
 
@@ -891,6 +909,7 @@ export async function contestDELETE(
   // The mirror event dies with its contest (best-effort).
   await mirrorContestDelete(admin, deleted[0].event_id as string | null);
   await recomputeStandingsBestEffort(admin, deleted[0].competition_id as string);
+  await revalidateOrgSiteForCompetition(admin, deleted[0].competition_id as string);
   return NextResponse.json({ action: 'deleted', contest: deleted[0] });
 }
 
@@ -924,6 +943,10 @@ export async function contestPublishPOST(
   const published = await publishContestToCalendar(admin, row, compRow, organizerId, timezone);
   if ('error' in published) {
     return NextResponse.json({ error: published.error }, { status: 400 });
+  }
+  const pubOrgId = compRow.league_id ?? compRow.club_id;
+  if (pubOrgId) {
+    await revalidateOrgSiteForOrg(admin, compRow.league_id ? 'league' : 'club', pubOrgId);
   }
   return NextResponse.json({ ok: true, eventId: published.eventId });
 }
@@ -1010,5 +1033,6 @@ export async function resultsUpsertPOST(
     await admin.from('contests').update({ status: 'completed' }).eq('id', input.contestId);
   }
   await recomputeStandingsBestEffort(admin, compRow.id);
+  await revalidateOrgSiteForCompetition(admin, compRow.id);
   return NextResponse.json({ ok: true, completed: complete, competitionId: compRow.id });
 }
