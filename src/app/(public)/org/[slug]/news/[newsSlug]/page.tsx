@@ -5,6 +5,7 @@ import { formatEventWhen } from '@/lib/org-sites/format';
 import { isValidPageSlug, parsePageBody } from '@/lib/org-sites/validate';
 import PageBlocks from '../../_components/PageBlocks';
 import { requireSiteModule } from '../../_components/require-module';
+import { orgSitePath } from '@/lib/org-sites/urls';
 
 // ── /org/[slug]/news/[newsSlug] — one news post (phase 3.5) ────────────────
 // PUBLISHED posts only (draft ⇔ missing, both notFound). The body is the
@@ -33,12 +34,12 @@ export async function generateMetadata({ params }: PageParams): Promise<Metadata
   if (!post) return { title: 'Not found' };
   const title = `${post.title} — ${site.orgName}`;
   const description = `${post.title} — news from ${site.orgName} on Edge Athlete.`;
-  const canonical = `/org/${site.subdomain}/news/${post.slug}`;
+  const canonical = `${orgSitePath(site.subdomain)}/news/${post.slug}`;
   return {
     title,
     description,
     alternates: { canonical },
-    openGraph: { title, description, url: canonical, siteName: 'Edge Athlete', type: 'article', images: [`/org/${site.subdomain}/card.png`] },
+    openGraph: { title, description, url: canonical, siteName: 'Edge Athlete', type: 'article', images: [`${orgSitePath(site.subdomain)}/card.png`] },
   };
 }
 

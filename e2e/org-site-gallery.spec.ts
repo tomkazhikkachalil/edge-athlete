@@ -6,8 +6,7 @@ import {
   deleteQaUser,
   guardianFlagOn,
   loadQaUser,
-  readErrorBody,
-} from './helpers/qa-user';
+  readErrorBody, resetRateBucket } from './helpers/qa-user';
 
 // The public gallery (phase 4, round 5, mig 160) — and the phase's photo
 // exit proof on its PUBLIC surface. The bar: org publishes the item AND
@@ -22,6 +21,7 @@ test('org-site gallery: consent gate, streamer revoke, minor never labeled; 375p
   const clubManager = loadQaUser('user.json'); // adult athlete + guardian
   const owner = loadQaUser('user-b.json');
   const admin = adminClient();
+  await resetRateBucket(admin, 'org-site', owner.id);
 
   const probe = await admin.from('contest_media').select('id').limit(1);
   test.skip(!!probe.error, `contest_media missing — run migration 158 (${probe.error?.message})`);

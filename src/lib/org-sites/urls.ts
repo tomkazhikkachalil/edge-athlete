@@ -10,3 +10,15 @@ export function appBaseUrl(): string {
     ''
   );
 }
+
+// ── The one canonical-path seam (phase 6 R2) ────────────────────────────────
+// Every public org-site URL mint (canonicals, OG, JSON-LD, sitemap, nav
+// links) funnels through orgSitePath so the canonical flip is a FLAG, not
+// a sweep. NEXT_PUBLIC_VANITY_CANONICAL=1 (build-injected, the fifth such
+// flag) makes /{slug} the org's address — Tom's call, the NHL.com/team
+// model; off keeps /org/{slug}. Canonical only ever flips ON where the
+// vanity tree (R1's NEXT_PUBLIC_VANITY_ORG_PATHS) is also on — the
+// middleware 301 requires both.
+export function orgSitePath(slug: string): string {
+  return process.env.NEXT_PUBLIC_VANITY_CANONICAL === '1' ? `/${slug}` : `/org/${slug}`;
+}

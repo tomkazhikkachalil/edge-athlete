@@ -1,7 +1,7 @@
 import path from 'path';
 import { test, expect } from '@playwright/test';
 import { TOGGLEABLE_MODULE_KEYS } from '../src/lib/org-sites/validate';
-import { adminClient, apiAs, loadQaUser, readErrorBody } from './helpers/qa-user';
+import { adminClient, apiAs, loadQaUser, readErrorBody, resetRateBucket } from './helpers/qa-user';
 
 // The public org site shell (phase 3, round 1): create → publish → the
 // anonymous /org/{slug} document renders from the (public) segment;
@@ -53,6 +53,7 @@ test('org site: create → publish → anon shell; unpublish → 404; member 403
   const member = loadQaUser('user.json');
   const owner = loadQaUser('user-b.json');
   const admin = adminClient();
+  await resetRateBucket(admin, 'org-site', owner.id);
 
   const probe = await admin.from('org_sites').select('id').limit(1);
   test.skip(!!probe.error, `org_sites missing — run migration 155 (${probe.error?.message})`);
@@ -133,12 +134,22 @@ test('org site: create → publish → anon shell; unpublish → 404; member 403
 
       // 375px: the Website card stays usable.
       await page.setViewportSize({ width: 375, height: 812 });
-      await expect(page.getByText(`/org/${subdomain}`)).toBeVisible();
+      await expect(page.getByText(new RegExp(`(/org)?/${subdomain}`))).toBeVisible();
       const scrollWidth = await page.evaluate(() => document.documentElement.scrollWidth);
       expect(scrollWidth, 'no horizontal overflow at 375px').toBeLessThanOrEqual(375);
     } finally {
       await ctx.close();
     }
+
+    // Phase 6 R2: detect the canonical on this target — with both vanity
+    // flags on, /org/{slug} 301s to /{slug} and every advertised URL
+    // (console address, canonical link, og:image, sitemap) flips with it.
+    const canonicalProbe = await (await browser.newContext()).request.get(
+      `/org/${subdomain}`,
+      { maxRedirects: 0 }
+    );
+    const sitePath =
+      canonicalProbe.status() === 301 ? `/${subdomain}` : `/org/${subdomain}`;
 
     // The anonymous document: org name in the RAW HTML (the ISR shell),
     // module stubs present, metadata title set.
@@ -147,18 +158,18 @@ test('org site: create → publish → anon shell; unpublish → 404; member 403
       const page = await ctxAnon.newPage();
       // The draft probe cached a 404 for this slug; publish revalidated
       // the tag, and SWR may serve the stale 404 once — settle to 200.
-      expect(await settle(page.request, `/org/${subdomain}`, 200, 12)).toBe(200);
+      expect(await settle(page.request, sitePath, 200, 12)).toBe(200);
       // Multi-POP convergence (measured on prod): one edge's 200 doesn't
       // guarantee the next request's POP has revalidated — settle on
       // CONTENT before asserting on the body.
-      const html = await settleBody(page.request, `/org/${subdomain}`, name, true, 12);
+      const html = await settleBody(page.request, sitePath, name, true, 12);
       expect(html).toContain(name);
       expect(html).toContain('Standings');
       expect(html).toContain('Powered by');
 
       // In a browser at 375px: renders and stays inside the viewport.
       await page.setViewportSize({ width: 375, height: 812 });
-      await page.goto(`/org/${subdomain}`);
+      await page.goto(sitePath);
       await expect(page.getByRole('heading', { name }).first()).toBeVisible({ timeout: 15_000 });
       const scrollWidth = await page.evaluate(() => document.documentElement.scrollWidth);
       expect(scrollWidth, 'no horizontal overflow at 375px').toBeLessThanOrEqual(375);
@@ -173,7 +184,7 @@ test('org site: create → publish → anon shell; unpublish → 404; member 403
 
       // R4: canonical + OpenGraph reach the raw document.
       expect(html).toContain('rel="canonical"');
-      expect(html).toContain(`/org/${subdomain}"`);
+      expect(html).toContain(`${sitePath}"`);
       expect(html).toContain('property="og:title"');
       expect(html).toContain('property="og:site_name"');
 
@@ -184,7 +195,7 @@ test('org site: create → publish → anon shell; unpublish → 404; member 403
       expect(html).toContain('SportsOrganization');
       const ogImageUrl = html.match(/property="og:image"\s+content="([^"]+)"/)?.[1];
       expect(ogImageUrl, 'og:image meta present').toBeTruthy();
-      expect(ogImageUrl!).toContain(`/org/${subdomain}/card.png`);
+      expect(ogImageUrl!).toContain(`${sitePath}/card.png`);
       const ogRes = await page.request.get(`/org/${subdomain}/card.png`);
       expect(ogRes.status()).toBe(200);
       expect(ogRes.headers()['content-type'] ?? '').toContain('image/png');
@@ -197,9 +208,9 @@ test('org site: create → publish → anon shell; unpublish → 404; member 403
       const robots = await robotsRes.text();
       expect(robots).toContain('/sitemap.xml');
       expect(robots).toContain('Disallow: /api/');
-      const sitemap = await settleBody(page.request, '/sitemap.xml', `/org/${subdomain}`);
-      expect(sitemap).toContain(`/org/${subdomain}<`); // the home entry
-      expect(sitemap).toContain(`/org/${subdomain}/standings`); // enabled module
+      const sitemap = await settleBody(page.request, '/sitemap.xml', `${sitePath}`);
+      expect(sitemap).toContain(`${sitePath}<`); // the home entry
+      expect(sitemap).toContain(`${sitePath}/standings`); // enabled module
     } finally {
       await ctxAnon.close();
     }
@@ -230,13 +241,15 @@ test('org site: create → publish → anon shell; unpublish → 404; member 403
       expect(await settle(page2.request, `/org/${subdomain}`, 404, 12)).toBe(404);
       // R4 PR-3: unpublish purged the org-sitemap tag too — the site
       // settles OUT of /sitemap.xml.
+      // Canonical-aware: the sitemap advertised sitePath (R2), so settle
+      // on ITS absence — the bare slug never appears in either form.
       const sitemapAfter = await settleBody(
         page2.request,
         '/sitemap.xml',
-        `/org/${subdomain}`,
+        subdomain,
         false
       );
-      expect(sitemapAfter).not.toContain(`/org/${subdomain}`);
+      expect(sitemapAfter).not.toContain(subdomain);
     } finally {
       await ctxAnon2.close();
     }
@@ -258,6 +271,7 @@ test('org site modules: live data on home + subpages; masked roster; team 404s',
   test.setTimeout(240_000);
   const owner = loadQaUser('user-b.json');
   const admin = adminClient();
+  await resetRateBucket(admin, 'org-site', owner.id);
 
   const probe = await admin.from('org_sites').select('id').limit(1);
   test.skip(!!probe.error, `org_sites missing — run migration 155 (${probe.error?.message})`);
@@ -540,8 +554,10 @@ test('org site modules: live data on home + subpages; masked roster; team 404s',
         expect(shown).toContain('House League');
 
         // Sitemap gains the TEAM page (cleanup round).
-        const sm = await settleBody(page.request, '/sitemap.xml', `/org/${subdomain}/teams/${teamId}`);
-        expect(sm).toContain(`/org/${subdomain}/teams/${teamId}`);
+        // Canonical-insensitive needle: `/{slug}/teams/{id}` is a substring of
+        // BOTH URL forms (R2).
+        const sm = await settleBody(page.request, '/sitemap.xml', `/${subdomain}/teams/${teamId}`);
+        expect(sm).toContain(`/${subdomain}/teams/${teamId}`);
       } finally {
         await toggleApi.dispose();
       }
@@ -573,6 +589,7 @@ test('org site branding: hero, theme accent, sponsors', async ({ browser }) => {
   test.setTimeout(180_000);
   const owner = loadQaUser('user-b.json');
   const admin = adminClient();
+  await resetRateBucket(admin, 'org-site', owner.id);
 
   const probe = await admin.from('org_sites').select('id').limit(1);
   test.skip(!!probe.error, `org_sites missing — run migration 155 (${probe.error?.message})`);
@@ -817,6 +834,7 @@ test('org site pages: create, blocks, publish; reserved 400; draft 404', async (
   test.setTimeout(240_000);
   const owner = loadQaUser('user-b.json');
   const admin = adminClient();
+  await resetRateBucket(admin, 'org-site', owner.id);
 
   const probe = await admin.from('org_site_pages').select('id').limit(1);
   test.skip(!!probe.error, `org_site_pages missing — run migration 155 (${probe.error?.message})`);
@@ -1003,6 +1021,7 @@ test('org site news: create, publish, feed + post; draft 404', async ({ browser 
   test.setTimeout(240_000);
   const owner = loadQaUser('user-b.json');
   const admin = adminClient();
+  await resetRateBucket(admin, 'org-site', owner.id);
 
   const probe = await admin.from('org_site_news').select('id').limit(1);
   test.skip(!!probe.error, `org_site_news missing — run migration 156 (${probe.error?.message})`);
@@ -1090,12 +1109,13 @@ test('org site news: create, publish, feed + post; draft 404', async ({ browser 
       // Nav gains News; the sitemap gains the post URL.
       const home = await settleBody(page.request, base, '>News<');
       expect(home).toContain('>News<');
+      // Canonical-insensitive needle — substring of both URL forms (R2).
       const sm = await settleBody(
         page.request,
         '/sitemap.xml',
-        `/org/${subdomain}/news/season-opener-${stamp}`
+        `/${subdomain}/news/season-opener-${stamp}`
       );
-      expect(sm).toContain(`/org/${subdomain}/news/season-opener-${stamp}`);
+      expect(sm).toContain(`/${subdomain}/news/season-opener-${stamp}`);
 
       // 375px: feed + post stay inside the viewport.
       await page.setViewportSize({ width: 375, height: 812 });

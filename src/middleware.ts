@@ -78,7 +78,9 @@ export async function middleware(request: NextRequest) {
       request.headers.get('host'),
       appHost,
       request.nextUrl.pathname,
-      request.nextUrl.search
+      request.nextUrl.search,
+      // R2: canonical-on subdomains land on /{slug} in ONE hop.
+      process.env.NEXT_PUBLIC_VANITY_CANONICAL === '1' ? '' : '/org'
     )
     if (target) return NextResponse.redirect(target, 301)
   }
@@ -98,6 +100,29 @@ export async function middleware(request: NextRequest) {
     process.env.PUBLIC_ORG_SITES === '1' &&
     ORG_SITE_PATH_RE.test(request.nextUrl.pathname)
   ) {
+    // Phase 6 R2: with the canonical flipped (BOTH vanity flags on),
+    // /org/{slug}/* 301s to /{slug}/* — pure string work, no DB.
+    // Carve-outs: preview/[token] (console-only, must never bounce) and
+    // card.png (OG scrapers keep a stable direct URL; both routes serve
+    // identical bytes and only one is ever advertised).
+    if (
+      process.env.NEXT_PUBLIC_VANITY_CANONICAL === '1' &&
+      process.env.NEXT_PUBLIC_VANITY_ORG_PATHS === '1'
+    ) {
+      const rest = request.nextUrl.pathname.slice('/org'.length) // "/{slug}..."
+      const seg = firstPathSegment(rest)
+      if (
+        seg.length >= 3 &&
+        !RESERVED_ROOT_SLUGS.has(seg) &&
+        !rest.includes('/preview/') &&
+        !rest.endsWith('/card.png')
+      ) {
+        return NextResponse.redirect(
+          new URL(`${rest}${request.nextUrl.search}`, request.url),
+          301
+        )
+      }
+    }
     const response = NextResponse.next()
     const staticCsp = buildStaticCsp({ dev: process.env.NODE_ENV !== 'production' })
     const enforceStatic =

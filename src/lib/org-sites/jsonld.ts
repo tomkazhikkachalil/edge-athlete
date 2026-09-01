@@ -8,6 +8,7 @@ import { orgLogoUrl } from '@/lib/media/org-site-media';
 import type { OrgEvent } from '@/lib/calendar/org-events-server';
 import type { PublicSite } from './server';
 import { appBaseUrl } from './urls';
+import { orgSitePath } from '@/lib/org-sites/urls';
 
 export const JSONLD_EVENTS_MAX = 10;
 
@@ -29,7 +30,7 @@ function postalAddress(site: PublicSite): Record<string, unknown> | undefined {
 }
 
 export function buildOrgJsonLd(site: PublicSite): Record<string, unknown> {
-  const url = `${appBaseUrl()}/org/${site.subdomain}`;
+  const url = `${appBaseUrl()}${orgSitePath(site.subdomain)}`;
   const logo = orgLogoUrl(site.id, site.logo_path);
   const address = postalAddress(site);
   return {
@@ -47,7 +48,7 @@ export function buildTeamJsonLd(
   site: PublicSite,
   team: { id: string; name: string }
 ): Record<string, unknown> {
-  const orgUrl = `${appBaseUrl()}/org/${site.subdomain}`;
+  const orgUrl = `${appBaseUrl()}${orgSitePath(site.subdomain)}`;
   return {
     '@context': 'https://schema.org',
     '@type': 'SportsTeam',

@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import type { PublicStandingsPayload } from '@/lib/competitions/public-standings';
+import { orgSitePath } from '@/lib/org-sites/urls';
 
 // Home-page standings preview: the first competition with rows, top 5,
 // three columns only (the full column engine lives on /standings via
@@ -51,7 +52,7 @@ export default function StandingsPreview({
         </table>
       </div>
       <Link
-        href={`/org/${slug}/standings`}
+        href={`${orgSitePath(slug)}/standings`}
         className="mt-3 inline-block text-sm text-brand-fg font-medium"
       >
         Full standings →

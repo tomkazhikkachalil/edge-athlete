@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { adminClient, apiAs, loadQaUser, readErrorBody } from './helpers/qa-user';
+import { adminClient, apiAs, loadQaUser, readErrorBody, resetRateBucket } from './helpers/qa-user';
 
 // The vanity root tree (phase 6 R1): edgeathlete/{slug} serves the same
 // org site as /org/{slug} through the delegating [slug] layout. The flag
@@ -13,6 +13,7 @@ test('vanity path: /{slug} serves the site; unknown slug gets the linked 404; re
   test.setTimeout(180_000);
   const owner = loadQaUser('user-b.json');
   const admin = adminClient();
+  await resetRateBucket(admin, 'org-site', owner.id);
 
   const probe = await admin.from('org_sites').select('id').limit(1);
   test.skip(!!probe.error, `org_sites missing — run migration 155 (${probe.error?.message})`);
@@ -88,6 +89,77 @@ test('vanity path: /{slug} serves the site; unknown slug gets the linked 404; re
       const feedRes = await request.get('/feed');
       expect(feedRes.status()).toBe(200);
       expect(await feedRes.text()).not.toContain('There’s nothing at this address');
+    } finally {
+      await ownerApi.dispose();
+    }
+  } finally {
+    await admin.from('leagues').delete().eq('id', leagueId);
+  }
+});
+
+// Phase 6 R2: the canonical flip — /org/{slug} 301s to /{slug} (single
+// hop) with preview and card.png carved out. Target-aware: a target
+// without NEXT_PUBLIC_VANITY_CANONICAL skips.
+test('canonical flip: /org 301s to vanity; preview and card.png exempt', async ({
+  request,
+}) => {
+  test.setTimeout(180_000);
+  const owner = loadQaUser('user-b.json');
+  const admin = adminClient();
+  await resetRateBucket(admin, 'org-site', owner.id);
+
+  const probe = await admin.from('org_sites').select('id').limit(1);
+  test.skip(!!probe.error, `org_sites missing — run migration 155 (${probe.error?.message})`);
+
+  const stamp = Date.now();
+  const name = `QA Canonical League ${stamp}`;
+  const { data: league, error } = await admin
+    .from('leagues')
+    .insert({ name, sport_key: 'ice_hockey', owner_profile_id: owner.id, city: 'Kanata' })
+    .select()
+    .single();
+  expect(error, error?.message).toBeNull();
+  const leagueId = league!.id as string;
+
+  try {
+    await admin.from('memberships').insert([
+      { league_id: leagueId, profile_id: owner.id, role: 'owner' },
+    ]);
+    const ownerApi = await apiAs('state-b.json');
+    try {
+      const chosen = `kanata-canonical-${stamp}`.slice(0, 63);
+      let res = await ownerApi.post(`/api/leagues/${leagueId}/site`, {
+        data: { subdomain: chosen },
+      });
+      expect(res.status(), await readErrorBody(res)).toBe(200);
+      res = await ownerApi.patch(`/api/leagues/${leagueId}/site`, {
+        data: { action: 'publish' },
+      });
+      expect(res.status(), await readErrorBody(res)).toBe(200);
+
+      const redir = await request.get(`/org/${chosen}`, { maxRedirects: 0 });
+      test.skip(
+        redir.status() !== 301,
+        'NEXT_PUBLIC_VANITY_CANONICAL off on this target — no 301 to assert'
+      );
+      expect(redir.headers()['location']).toContain(`/${chosen}`);
+      expect(redir.headers()['location']).not.toContain('/org/');
+      // Subpage rides along, query preserved.
+      const redirSub = await request.get(`/org/${chosen}/standings?x=1`, { maxRedirects: 0 });
+      expect(redirSub.status()).toBe(301);
+      expect(redirSub.headers()['location']).toContain(`/${chosen}/standings?x=1`);
+      // Carve-outs never bounce.
+      const card = await request.get(`/org/${chosen}/card.png`, { maxRedirects: 0 });
+      expect(card.status()).toBe(200);
+      const preview = await ownerApi.post(`/api/leagues/${leagueId}/site/preview`);
+      expect(preview.status(), await readErrorBody(preview)).toBe(200);
+      const previewUrl = (await preview.json()).url as string;
+      expect(previewUrl).toContain(`/org/${chosen}/preview/`);
+      const previewRes = await request.get(previewUrl, { maxRedirects: 0 });
+      expect(previewRes.status()).toBe(200);
+      // The canonical document self-references the vanity path.
+      const html = await (await request.get(`/${chosen}`)).text();
+      expect(html).toContain(`/${chosen}"`);
     } finally {
       await ownerApi.dispose();
     }

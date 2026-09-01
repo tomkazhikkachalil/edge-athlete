@@ -57,4 +57,18 @@ describe('computeSubdomainRedirect', () => {
   it('rejects a www label under the apex', () => {
     expect(computeSubdomainRedirect(`www.www.${APEX}`, APEX, '/', '')).toBeNull();
   });
+
+  // Phase 6 R2: canonical-on subdomains land on /{slug} in ONE hop.
+  it("targetBase '' sends the label to the vanity root", () => {
+    expect(computeSubdomainRedirect(`kmha.${APEX}`, APEX, '/', '', '')).toBe(
+      `https://${APEX}/kmha`
+    );
+    expect(
+      computeSubdomainRedirect(`kmha.${APEX}`, APEX, '/standings', '?x=1', '')
+    ).toBe(`https://${APEX}/kmha/standings?x=1`);
+    // Default stays /org — no caller-side surprises.
+    expect(computeSubdomainRedirect(`kmha.${APEX}`, APEX, '/', '')).toBe(
+      `https://${APEX}/org/kmha`
+    );
+  });
 });

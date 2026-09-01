@@ -1,5 +1,40 @@
 # Development Log
 
+## September 1, 2026 — Phase 6 R2: the canonical flip (#497, zero DDL)
+
+The org's address becomes `/{slug}` (Tom's call — the NHL.com/team
+model), behind `NEXT_PUBLIC_VANITY_CANONICAL` (build-injected, the
+fifth such flag; only meaningful with R1's tree flag also on):
+
+- **One seam**: `orgSitePath()` joined the existing appBaseUrl in
+  `src/lib/org-sites/urls.ts` (lesson re-learned: Write-before-Read
+  nearly destroyed appBaseUrl — recovered from git; and the scripted
+  import insertion hit the recorded last-import-line trap on multi-line
+  imports, repaired). All 36 public URL mints across 15 files
+  (canonicals, OG urls + images, JSON-LD, the sitemap's 5 URL families,
+  layout nav, component links, the console's Address line + visit link)
+  now funnel through it — the flip is a flag, not a sweep.
+- **Redirects**: /org/{slug}/* 301s to /{slug}/* in middleware (pure
+  string, both flags on, reserved-checked) with two carve-outs —
+  preview/[token] never bounces (console-only) and card.png keeps a
+  stable direct URL for OG scrapers (both routes serve identical
+  bytes). Subdomains 301 straight to /{slug} — `computeSubdomainRedirect`
+  gained a targetBase param (pure, tests extended); single hop, never
+  via /org.
+- **Specs canonical-aware**: org-site.spec detects the target's
+  canonical via a maxRedirects:0 probe and asserts sitePath-relative;
+  sitemap needles went canonical-insensitive (`/{slug}/…` is a
+  substring of both forms). New canonical-flip test: the 301 matrix,
+  query preservation, both carve-outs, self-referencing canonical.
+- **Rate-bucket burst fixed**: the whole site suite run tripped the
+  org-site 30/h bucket for the shared QA owner (DB-backed — it poisons
+  the next hour of runs too); `resetRateBucket` in qa-user.ts clears
+  the user's bucket at each spec's setup.
+
+Local runs both flags ON (.env.local); prod flips when Tom adds the
+two env vars + a real build — the cheap moment for Search Console
+comes right after.
+
 ## September 1, 2026 — Phase 6 R1: the vanity namespace + slug engine (#496, mig 166)
 
 Phase 6 opens (Tom's scope: vanity root paths, sanctioning chain +

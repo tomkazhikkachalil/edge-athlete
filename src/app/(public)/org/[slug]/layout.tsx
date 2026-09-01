@@ -9,6 +9,7 @@ import {
   MODULE_TITLES,
   parseThemeAccent,
 } from '@/lib/org-sites/validate';
+import { orgSitePath } from '@/lib/org-sites/urls';
 
 // ── /org/[slug] — the site shell (phase 3 R1, nav in R2) ────────────────────
 // Published sites only (draft = 404, the publish gate). The fetch is
@@ -60,7 +61,7 @@ export default async function OrgSiteLayout({
       </a>
       <header className="bg-surface border-b border-border">
         <div className="max-w-4xl mx-auto px-4 py-4 flex flex-wrap items-center justify-between gap-2">
-          <Link href={`/org/${site.subdomain}`} className="min-w-0 flex items-center gap-3">
+          <Link href={`${orgSitePath(site.subdomain)}`} className="min-w-0 flex items-center gap-3">
             {site.logo_path ? (
               // Streamed through the tokenless org-logo proxy; /api/media/*
               // is never optimizer-eligible, so unoptimized is mandatory.
@@ -84,7 +85,7 @@ export default async function OrgSiteLayout({
           <nav aria-label="Site navigation" className="max-w-4xl mx-auto px-4 pb-3">
             <div className="flex flex-wrap gap-x-5 gap-y-1">
               <Link
-                href={`/org/${site.subdomain}`}
+                href={`${orgSitePath(site.subdomain)}`}
                 className="text-sm font-medium text-secondary"
               >
                 Home
@@ -92,7 +93,7 @@ export default async function OrgSiteLayout({
               {navKeys.map(key => (
                 <Link
                   key={key}
-                  href={`/org/${site.subdomain}/${key}`}
+                  href={`${orgSitePath(site.subdomain)}/${key}`}
                   className="text-sm font-medium text-secondary"
                 >
                   {MODULE_TITLES[key]}
@@ -101,7 +102,7 @@ export default async function OrgSiteLayout({
               {pages.map(p => (
                 <Link
                   key={p.slug}
-                  href={`/org/${site.subdomain}/${p.slug}`}
+                  href={`${orgSitePath(site.subdomain)}/${p.slug}`}
                   className="text-sm font-medium text-secondary"
                 >
                   {p.title}

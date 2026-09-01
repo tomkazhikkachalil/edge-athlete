@@ -24,6 +24,7 @@ import StaffList from './StaffList';
 import StandingsPreview from './StandingsPreview';
 import TeamsList from './TeamsList';
 import VenuesList from './VenuesList';
+import { orgSitePath } from '@/lib/org-sites/urls';
 
 // The site home's module rendering, extracted (cleanup round) so the
 // PUBLISHED home page and the token-gated draft PREVIEW render the exact
@@ -63,7 +64,7 @@ export default function SiteHomeBody({
           <>
             <ScheduleList events={events.slice(0, 5)} />
             <Link
-              href={`/org/${site.subdomain}/schedule`}
+              href={`${orgSitePath(site.subdomain)}/schedule`}
               className="mt-3 inline-block text-sm text-brand-fg font-medium"
             >
               Full schedule →
@@ -77,7 +78,7 @@ export default function SiteHomeBody({
           <>
             <TeamsList teams={teams.slice(0, 12)} slug={site.subdomain} />
             <Link
-              href={`/org/${site.subdomain}/teams`}
+              href={`${orgSitePath(site.subdomain)}/teams`}
               className="mt-3 inline-block text-sm text-brand-fg font-medium"
             >
               All teams →
@@ -117,7 +118,7 @@ export default function SiteHomeBody({
         // (it used to fall to the default "Coming soon.").
         return (
           <Link
-            href={`/org/${site.subdomain}/gallery`}
+            href={`${orgSitePath(site.subdomain)}/gallery`}
             className="mt-2 inline-block text-sm text-brand-fg font-medium"
           >
             View the gallery →
