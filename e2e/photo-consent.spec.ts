@@ -39,17 +39,22 @@ test('photo consent: adult accept+consent, revoke, org read-only, guardian path'
 
   try {
     // Owner manages; the athlete follows and holds a PENDING roster offer.
-    await admin.from('memberships').insert([
+    // TWO inserts on purpose: a mixed-key batch puts `role` in the column
+    // union and NULLs it on the roster row (NOT NULL violation → the whole
+    // batch silently dies) — the homogeneous-keys trap, fifth sighting.
+    const { error: followsError } = await admin.from('memberships').insert([
       { league_id: leagueId, profile_id: owner.id, role: 'owner' },
       { league_id: leagueId, profile_id: athlete.id, role: 'member' },
-      {
-        league_id: leagueId,
-        profile_id: athlete.id,
-        kind: 'roster',
-        status: 'pending',
-        scope_type: 'org',
-      },
     ]);
+    expect(followsError, followsError?.message).toBeNull();
+    const { error: offerError } = await admin.from('memberships').insert({
+      league_id: leagueId,
+      profile_id: athlete.id,
+      kind: 'roster',
+      status: 'pending',
+      scope_type: 'org',
+    });
+    expect(offerError, offerError?.message).toBeNull();
 
     const rosterUrl = `/api/leagues/${leagueId}/roster`;
     const athleteApi = await apiAs('state.json');
