@@ -11,11 +11,23 @@ export interface SportStatsCard {
 // ── Skill cards ───────────────────────────────────────────────────────────────
 // One card per sport an athlete plays, each expressing skill in that sport's
 // native language (golf → computed handicap; team sports → level played;
-// track → PB times). Every metric carries provenance: 'tracked' = computed
-// from real app data, 'entered' = self-reported by the athlete. The client
-// renders these blindly — sport-specific logic lives only in the modules.
+// track → PB times). Every metric carries provenance. The original two
+// rungs: 'tracked' = computed from real app data, 'entered' = self-reported
+// by the athlete. Phase 4 widens the ladder with the ORG rungs (masterplan
+// §7 — "display the tier; a scout will interrogate it"): 'sanctioned' /
+// 'league_verified' / 'club_recorded' ride contest_stat_lines entered by
+// competition owners and team staff; 'imported' labels migrated history.
+// An official line stored 'self_reported' displays as 'entered' — same
+// meaning, one vocabulary. The client renders these blindly — the rank
+// order lives in sports/server/official-stats.ts.
 
-export type SkillProvenance = 'tracked' | 'entered';
+export type SkillProvenance =
+  | 'sanctioned'
+  | 'league_verified'
+  | 'club_recorded'
+  | 'tracked'
+  | 'imported'
+  | 'entered';
 
 /** The sport's headline skill metric — front and center on the card. */
 export interface SkillMetric {

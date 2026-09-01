@@ -203,6 +203,37 @@ test('contest stat lines: roster gate, provenance stamps, participant path; 375p
       const clubRow = rows!.find(r => r.profile_id === clubManager.id)!;
       expect(clubRow.provenance).toBe('league_verified');
       expect(clubRow.team_id).toBe(awayTeamId);
+
+      // ── R2: the profile read side ────────────────────────────────────
+      // A PRIVATE competition's lines stay off the profile...
+      const statLinesUrl = `/api/sports/stat-lines?profileId=${owner.id}&sport=ice_hockey`;
+      let profileRes = await ownerApi.get(statLinesUrl);
+      expect(profileRes.status(), await readErrorBody(profileRes)).toBe(200);
+      expect((await profileRes.json()).official).toHaveLength(0);
+
+      // ...and surface with their provenance the moment it flips public.
+      await admin.from('competitions').update({ visibility: 'public' }).eq('id', compId);
+      profileRes = await ownerApi.get(statLinesUrl);
+      expect(profileRes.status(), await readErrorBody(profileRes)).toBe(200);
+      const profileBody = await profileRes.json();
+      expect(profileBody.official).toHaveLength(1);
+      expect(profileBody.official[0]).toMatchObject({
+        competitionName: `House League ${stamp}`,
+        provenance: 'league_verified',
+        href: `/league/${leagueId}/standings`,
+      });
+
+      // The skill card carries the official tiles (verified beats tracked).
+      const cardsRes = await ownerApi.get(`/api/profile/${owner.id}/skill-cards`);
+      expect(cardsRes.status(), await readErrorBody(cardsRes)).toBe(200);
+      const cards = (await cardsRes.json()).skillCards as {
+        sportKey: string;
+        tiles: { label: string; value: string; provenance: string }[];
+      }[];
+      const hockey = cards.find(c => c.sportKey === 'ice_hockey');
+      expect(hockey, 'hockey skill card exists').toBeTruthy();
+      const goalsTile = hockey!.tiles.find(t => t.label === 'Goals');
+      expect(goalsTile).toMatchObject({ value: '2', provenance: 'league_verified' });
     } finally {
       await ownerApi.dispose();
       await clubApi.dispose();
