@@ -35,6 +35,7 @@ import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 import { buildCsp, buildStaticCsp, CSP_REPORT_PATH } from '@/lib/csp'
 import { computeSubdomainRedirect } from '@/lib/org-sites/subdomain'
+import { RESERVED_ROOT_SLUGS, firstPathSegment } from '@/lib/org-sites/reserved'
 import { THEME_COOKIE, THEME_COOKIE_MAX_AGE, encodeThemeCookie } from '@/lib/theme-cookie'
 import { sanitizeThemePrefs } from '@/lib/theme-prefs'
 
@@ -107,6 +108,33 @@ export async function middleware(request: NextRequest) {
     )
     response.headers.set('Reporting-Endpoints', `csp="${CSP_REPORT_PATH}"`)
     return response
+  }
+  // Phase 6 R1: the vanity org tree — /{slug}[/...] where the first
+  // segment is DNS-label-shaped and NOT a reserved root slug gets the
+  // same static-CSP fast path as /org/*. The FOURTH build-injected flag
+  // (real build, not redeploy). Failure asymmetry justifies the shape:
+  // a junk path fast-pathed just 404s in the (public) tree, but a real
+  // app route wrongly matched here would lose session refresh — which is
+  // why RESERVED_ROOT_SLUGS is pinned to the live route tree by
+  // reserved.test.ts and this branch checks it FIRST.
+  if (process.env.NEXT_PUBLIC_VANITY_ORG_PATHS === '1') {
+    const seg = firstPathSegment(request.nextUrl.pathname)
+    if (
+      seg.length >= 3 &&
+      !RESERVED_ROOT_SLUGS.has(seg) &&
+      /^[a-z0-9]([a-z0-9-]*[a-z0-9])?$/.test(seg)
+    ) {
+      const response = NextResponse.next()
+      const staticCsp = buildStaticCsp({ dev: process.env.NODE_ENV !== 'production' })
+      const enforceStatic =
+        process.env.NODE_ENV === 'production' && process.env.CSP_ENFORCE !== '0'
+      response.headers.set(
+        enforceStatic ? 'Content-Security-Policy' : 'Content-Security-Policy-Report-Only',
+        staticCsp
+      )
+      response.headers.set('Reporting-Endpoints', `csp="${CSP_REPORT_PATH}"`)
+      return response
+    }
   }
   if (
     process.env.PUBLIC_STANDINGS_CACHE === '1' &&

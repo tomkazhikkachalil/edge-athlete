@@ -47,7 +47,11 @@ export async function POST(
     const admin = getSupabaseAdmin();
     const gate = await requireOrgManager(admin, user, 'club', id);
     if (!gate.ok) return gate.response;
-    return await siteCreatePOST(admin, 'club', id, gate.org.name);
+    // Phase 6 R1: an optional requested slug from the slug engine —
+    // absent body keeps the mint-from-name behavior.
+    const body = (await request.json().catch(() => null)) as { subdomain?: unknown } | null;
+    const requested = typeof body?.subdomain === 'string' ? body.subdomain : null;
+    return await siteCreatePOST(admin, 'club', id, gate.org.name, requested);
   } catch (error) {
     if (error instanceof Response) return error;
     console.error('[ORG SITES] club POST error:', error);
