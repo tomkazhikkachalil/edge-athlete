@@ -6,6 +6,25 @@ import { adminClient, apiAs, loadQaUser, readErrorBody } from './helpers/qa-user
 // unpublish → 404 again. The subdomain is minted from the org name
 // against the shared reserved denylist; drafts are invisible; a member
 // without manage_org gets 403 from the site API.
+/** ISR + SWR settle: after revalidateTag the FIRST hit may serve the
+ *  stale copy (and ?_cb= never busts a document cache — ISR pages key by
+ *  PATHNAME). Poll briefly until the expected status lands. */
+async function settle(
+  request: { get: (u: string) => Promise<{ status: () => number }> },
+  url: string,
+  expected: number,
+  attempts = 6
+): Promise<number> {
+  let last = 0;
+  for (let i = 0; i < attempts; i++) {
+    const res = await request.get(url);
+    last = res.status();
+    if (last === expected) return last;
+    await new Promise(r => setTimeout(r, 2500));
+  }
+  return last;
+}
+
 test('org site: create → publish → anon shell; unpublish → 404; member 403; 375px', async ({
   browser,
 }) => {
@@ -72,6 +91,9 @@ test('org site: create → publish → anon shell; unpublish → 404; member 403
     const ctxAnon = await browser.newContext();
     try {
       const page = await ctxAnon.newPage();
+      // The draft probe cached a 404 for this slug; publish revalidated
+      // the tag, and SWR may serve the stale 404 once — settle to 200.
+      expect(await settle(page.request, `/org/${subdomain}`, 200)).toBe(200);
       const htmlRes = await page.request.get(`/org/${subdomain}`);
       expect(htmlRes.status()).toBe(200);
       const html = await htmlRes.text();
@@ -116,8 +138,8 @@ test('org site: create → publish → anon shell; unpublish → 404; member 403
     const ctxAnon2 = await browser.newContext();
     try {
       const page2 = await ctxAnon2.newPage();
-      const gone = await page2.request.get(`/org/${subdomain}?_cb=${Date.now()}`);
-      expect(gone.status()).toBe(404);
+      // SWR serves the stale document once post-revalidateTag; settle.
+      expect(await settle(page2.request, `/org/${subdomain}`, 404)).toBe(404);
     } finally {
       await ctxAnon2.close();
     }
