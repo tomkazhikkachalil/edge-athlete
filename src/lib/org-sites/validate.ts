@@ -231,6 +231,14 @@ export const RESERVED_PAGE_SLUGS: ReadonlySet<string> = new Set([
   'pages',
   'home',
   'index',
+  // R4: Next metadata-route convention names — a page slug must never
+  // shadow (or be shadowed by) the generated og/icon/robots routes.
+  'opengraph-image',
+  'twitter-image',
+  'icon',
+  'apple-icon',
+  'robots',
+  'sitemap',
 ]);
 export const PAGE_SLUG_MAX = 80;
 export const PAGES_PER_SITE_MAX = 20;

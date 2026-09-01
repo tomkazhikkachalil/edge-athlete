@@ -224,6 +224,19 @@ describe('page slugs (R3)', () => {
     }
   });
 
+  it('rejects the metadata-route convention names (R4)', () => {
+    for (const word of [
+      'opengraph-image',
+      'twitter-image',
+      'icon',
+      'apple-icon',
+      'robots',
+      'sitemap',
+    ]) {
+      expect(isValidPageSlug(word), word).toBe(false);
+    }
+  });
+
   it('rejects regex edges', () => {
     expect(isValidPageSlug('-a')).toBe(false);
     expect(isValidPageSlug('a-')).toBe(false);

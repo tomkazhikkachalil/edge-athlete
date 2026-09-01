@@ -31,9 +31,14 @@ export async function generateMetadata({ params }: PageParams): Promise<Metadata
   if (!site) return { title: 'Not found' };
   const page = await getCachedPage(slug, site.id, pageSlug);
   if (!page) return { title: 'Not found' };
+  const title = `${page.title} — ${site.orgName}`;
+  const description = `${page.title} — ${site.orgName} on Edge Athlete.`;
+  const canonical = `/org/${site.subdomain}/${page.slug}`;
   return {
-    title: `${page.title} — ${site.orgName}`,
-    description: `${page.title} — ${site.orgName} on Edge Athlete.`,
+    title,
+    description,
+    alternates: { canonical },
+    openGraph: { title, description, url: canonical, siteName: 'Edge Athlete', type: 'website', images: ['/og-image.png'] },
   };
 }
 

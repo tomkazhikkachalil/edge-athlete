@@ -47,9 +47,18 @@ export async function generateMetadata({ params }: PageParams): Promise<Metadata
   const { slug } = await params;
   const site = await getCachedSite(slug);
   if (!site) return { title: 'Not found' };
+  const title = site.orgName;
+  const description = `${site.orgName} on Edge Athlete — schedule, standings, and teams.`;
+  // Relative canonical — the (public) layout's metadataBase resolves it,
+  // so the canonical domain is an env decision, never a code one.
+  const canonical = `/org/${site.subdomain}`;
   return {
-    title: site.orgName,
-    description: `${site.orgName} on Edge Athlete — schedule, standings, and teams.`,
+    title,
+    description,
+    alternates: { canonical },
+    // openGraph merges per-key WHOLESALE — images must ride along here or
+    // the layout fallback is dropped (R4 PR-2's convention file overrides).
+    openGraph: { title, description, url: canonical, siteName: 'Edge Athlete', type: 'website', images: ['/og-image.png'] },
   };
 }
 
