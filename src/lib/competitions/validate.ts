@@ -118,7 +118,9 @@ export const ResultUpsertSchema = z.object({
     .array(
       z.object({
         participantId: uuid,
-        score: z.number().finite(),
+        // Sort key, adapter-derived. ±1e6 comfortably covers every sport's
+        // scale (strokes, goals, seconds-as-ms) while rejecting nonsense.
+        score: z.number().finite().min(-1_000_000).max(1_000_000),
         payload: z.record(z.string(), z.unknown()).optional(),
       })
     )

@@ -1,6 +1,46 @@
 # Development Log
 
-## September 2, 2026 — Consolidation PR-1: four flags retired (#490, zero DDL)
+## September 1, 2026 — Consolidation PR-2: measured hardening fixes (#491, zero DDL)
+
+The verified-live half of the pre-PR-4 hardening list, all surgical:
+
+- **The advisory contract**: both interpolated-`.or()` and raw-error-body
+  guardrail scans now skip lines annotated `hardening-ok: <reason>`.
+  Every pre-existing hit was audited line-by-line first: all 14 `.or()`
+  sites sanitize (session UUIDs, `UUID_RE`-validated ids, DB-sourced id
+  lists, `sanitizeForFilter`/`likeSafe` patterns, guardian-gate-validated
+  params, server-built ISO strings) and all 14 raw-error hits either ship
+  crafted copy already or live in `console.error`/Sentry payloads the
+  single-line heuristic can't see. Each carries its reason at the site;
+  both advisories now read **0**, so a future hit is a signal, not noise
+  — the same ratchet philosophy as the lint cap. (The plan's "5 real
+  leaks" dissolved under verification: posts/signup/suggestions had
+  already been moved console-side by the Aug 2026 sweep, and the two
+  `.message` passthroughs forward deliberate validation copy — the
+  scorecard route's own `Invalid …` throws and Supabase auth's
+  user-facing signup messages.)
+- Two redundant detail-dump `console.error`s deleted (posts, signup — the
+  adjacent full-object log already carries message/details/hint/code);
+  suggestions' field-by-field log collapsed to the whole error object.
+- **competition-server**: `resultsUpsertPOST`'s auto-complete check now
+  head-counts (`{ count:'exact', head:true }`) instead of fetching every
+  result row; the contest participants/results `.in(contestIds)` pair is
+  capped at `.limit(5000)` (the B2 rule); `competitionDetailGET` no
+  longer re-reads the competition row it just pinned — one select does
+  both jobs.
+- `ResultUpsertSchema.score` bounded ±1e6 (was only `.finite()`).
+- DEVLOG date repair: the 16 entries from this arc (#476–#490) were
+  headed "September 2" while every commit landed September 1 — corrected.
+
+**Deferred with intent** (bigger than a consolidation round, listed for
+PR-4's Tier-2 ledger): athlete-claim's hand-rolled body validation → zod;
+roster-import batching; the golf all-time >1000-round cap; conversation
+search matching loaded pages only. The 93-site `.select('id'|'*')`
+advisory stays advisory — spot-checks keep finding legitimate existence
+probes, and the two real count-by-fetch sites found this round are fixed
+above.
+
+## September 1, 2026 — Consolidation PR-1: four flags retired (#490, zero DDL)
 
 The consolidation round opens (the stage-gate rule: tighten before the
 next arc). Four launched flags made their ON paths unconditional and
@@ -33,7 +73,7 @@ surface's kill switch), FEATURE_GUARDIAN_PROFILES (~65 sites — its own
 future chore). features.ts carries the retirement record; the retired
 vars left .env.local.
 
-## September 2, 2026 — Phase 5.5: season rollover (#489, mig 165)
+## September 1, 2026 — Phase 5.5: season rollover (#489, mig 165)
 
 The §9 retention feature, one round while the phase-5 prod sweep waits
 out the deploy quota. "Clone forward, keep the structure, empty the
@@ -67,7 +107,7 @@ rosters" — measured against this schema, that means:
   season roster-empty → archived refuses windows → offerings omit it →
   registration on it 409s → console chip + button at 375px.
 
-## September 2, 2026 — Phase 5 R6: the exit sweep + PHASE CLOSE (#486, zero DDL)
+## September 1, 2026 — Phase 5 R6: the exit sweep + PHASE CLOSE (#486, zero DDL)
 
 **Phase 5 complete** (#482–#486 + direct commit 9ba2049, migs 161–164 —
 all four run and grid-verified by Tom during the build). The exit
@@ -101,7 +141,7 @@ recruiting dataset, one chain.
   phase-3 exit ops (domain/DNS, flags, webhook, Search Console), and
   Tom's device passes.
 
-## September 2, 2026 — Phase 5 R5: the public Register card (#485, mig 164)
+## September 1, 2026 — Phase 5 R5: the public Register card (#485, mig 164)
 
 The masterplan's "registration call to action" on the public site.
 
@@ -127,7 +167,7 @@ The masterplan's "registration call to action" on the public site.
   next: the exit sweep — registration → placement → competition →
   standings in one spec, plus the phase close.
 
-## September 2, 2026 — Phase 5 R4: the registrar console + bells (#484, mig 163)
+## September 1, 2026 — Phase 5 R4: the registrar console + bells (#484, mig 163)
 
 The org side of the workflow the family started.
 
@@ -155,7 +195,7 @@ The org side of the workflow the family started.
   163), the console UI driving Evaluate with 375px, the placed bell on
   the athlete. R5 next: the public-site Register module (mig 164).
 
-## September 2, 2026 — Phase 5 R3: the family wizard + org-page CTA (commit 9ba2049, zero DDL)
+## September 1, 2026 — Phase 5 R3: the family wizard + org-page CTA (commit 9ba2049, zero DDL)
 
 > Process note, honestly recorded: this round landed as a DIRECT commit
 > to main — a branching slip (the R2 ship script never cut the R3
@@ -192,7 +232,7 @@ can walk through it.
   guardian-granted photo consent; 375px pass. R4 next: the registrar
   console + placement UI + bells (mig 163).
 
-## September 2, 2026 — Phase 5 R2: registration capture (#483, mig 162)
+## September 1, 2026 — Phase 5 R2: registration capture (#483, mig 162)
 
 The tables and the core. The org-scope membership row (161) is the
 lifecycle AUTHORITY; the new `registrations` table is the SUBMISSION
@@ -241,7 +281,7 @@ phase-6 invoice anchor.
   on registrar acts → release (reason stamped) → close → closed again.
   R3 next: the family wizard + org-page CTA.
 
-## September 2, 2026 — Phase 5 R1: the registration lifecycle lands (#482, mig 161)
+## September 1, 2026 — Phase 5 R1: the registration lifecycle lands (#482, mig 161)
 
 Phase 5 (registration) opens: "a season runs end to end from
 registration to standings." R1 is the ground work — the status widening
@@ -284,7 +324,7 @@ by the planning exploration.
   follow row). R2 next: programs/registrations/windows tables + the
   registration core.
 
-## September 2, 2026 — Phase 4 R5: the public gallery + phase close (#480, mig 160)
+## September 1, 2026 — Phase 4 R5: the public gallery + phase close (#480, mig 160)
 
 The last surface, and the phase's exit condition made public: a result
 and a photo now reach an athlete profile with no manual linking, and the
@@ -326,7 +366,7 @@ photo can continue — consent permitting — onto the org's crawlable site.
   cross-source game dedup (self-posted vs official), org notification
   on consent revoke. Exit sweep vs prod after the migrations run.
 
-## September 2, 2026 — Phase 4 R4: photo consent + minor masking (#479, mig 159)
+## September 1, 2026 — Phase 4 R4: photo consent + minor masking (#479, mig 159)
 
 The masterplan's non-negotiable guardian gate, plus a measured safety
 gap closed.
@@ -364,7 +404,7 @@ gap closed.
   org manager 403 on writing + tri-state read + member redaction →
   guardian queue ask → guardian answers for the child → ask retires.
 
-## September 2, 2026 — Phase 4 R3: contest media + attribution (#478, mig 158)
+## September 1, 2026 — Phase 4 R3: contest media + attribution (#478, mig 158)
 
 The photo half of the exit condition, on its private surfaces. Model
 decision (against posts.contest_id and posts.event_id): an ORG-SIDE
@@ -405,7 +445,7 @@ dual-store trap structurally cannot recur).
   proxy serves the athlete and refuses anonymous → untag → re-tag is a
   no-op skip → participant uploads but cannot publish; 375px pass.
 
-## September 2, 2026 — Phase 4 R2: official stats on the profile (#477, zero DDL)
+## September 1, 2026 — Phase 4 R2: official stats on the profile (#477, zero DDL)
 
 The read side of R1 — the first half of the phase-4 exit condition ("a
 result reaches the athlete profile with no manual linking") is now
@@ -438,7 +478,7 @@ walkable end to end.
   the line surfaces with 'league_verified' and the skill card's Goals
   tile flips to the official value. Still skips pre-157.
 
-## September 2, 2026 — Phase 4 R1: contest stat lines (#476, mig 157)
+## September 1, 2026 — Phase 4 R1: contest stat lines (#476, mig 157)
 
 Phase 4 (automatic flows) opens: "a result and a photo reach an athlete
 profile with no manual linking." R1 lands the stat half's write path —
@@ -477,7 +517,7 @@ competition_entries.team_id) and the athlete.
   — self-verifying grid). R2 next: the athlete-profile read side
   (official tiles + provenance chips + contest backlinks).
 
-## September 2, 2026 — Phase-3 cleanup + phase 3.5: news (#469–#473, mig 156)
+## September 1, 2026 — Phase-3 cleanup + phase 3.5: news (#469–#473, mig 156)
 
 Tom's call at the phase-3 break: clear the deferred pile and ship news
 before phase 4. Five PRs; the round's one migration (156) is written and
@@ -530,7 +570,7 @@ handed to Tom — every code path degrades gracefully until he runs it.
   domains, slug-change 301 history. NEXT: phase 4 (automatic flows) —
   scope confirmation with Tom before it opens.
 
-## September 2, 2026 — Phase 3 round 5 + PHASE CLOSE (#466–#468, zero DDL)
+## September 1, 2026 — Phase 3 round 5 + PHASE CLOSE (#466–#468, zero DDL)
 
 The polish round, and the close of the public-org-sites phase. Five
 rounds, one migration (155), twenty-one PRs (#448–#468), and the arc the
@@ -585,7 +625,7 @@ exist now serves branded, indexable, accessible pages as CDN HITs.
   Next program (phase 3.5 news / phase 4 media-with-consent / other):
   Tom's call.
 
-## September 2, 2026 — Phase 3 round 4: SEO — THE EXIT ROUND (#461–#463, zero DDL)
+## September 1, 2026 — Phase 3 round 4: SEO — THE EXIT ROUND (#461–#463, zero DDL)
 
 The phase's stated exit is "a public site is live, fast, and indexed";
 R1–R3 delivered live and fast, R4 delivers indexable. Everything derives

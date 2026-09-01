@@ -512,7 +512,8 @@ describe('resultsUpsertPOST (R2)', () => {
       contest_participants: twoSides,
       contest_results: [
         { data: null },
-        { data: [{ participant_id: 'p1' }, { participant_id: 'p2' }] },
+        // The auto-complete check head-counts (#491) — count, not rows.
+        { count: 2 },
       ],
     });
     const res = await resultsUpsertPOST(

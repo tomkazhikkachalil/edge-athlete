@@ -447,7 +447,7 @@ export async function GET(request: NextRequest) {
         const { data: clubs, error: clubsError } = await supabase
           .from('clubs')
           .select('id, name, description, location')
-          .or(`name.ilike.${searchPattern},description.ilike.${searchPattern},location.ilike.${searchPattern}`)
+          .or(`name.ilike.${searchPattern},description.ilike.${searchPattern},location.ilike.${searchPattern}`)  // hardening-ok: sanitizeForFilter above
           .limit(10);
 
         if (!clubsError && clubs) {

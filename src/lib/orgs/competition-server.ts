@@ -622,15 +622,19 @@ export async function competitionDetailGET(
   competitionId: string,
   scope: CompetitionScope | null
 ): Promise<NextResponse> {
-  const comp = await pinCompetition(admin, competitionId, scope);
-  if (!comp) return NextResponse.json({ error: 'Competition not found' }, { status: 404 });
+  // One select does both jobs (pin + payload) — the old pinCompetition
+  // call re-read the same row with fewer columns.
   const { data: full } = await admin
     .from('competitions')
     .select(
       'id, league_id, club_id, season_id, division_id, sport_key, name, format, entrant_type, scoring_rule, status, visibility, created_at'
     )
     .eq('id', competitionId)
-    .single();
+    .maybeSingle();
+  if (!full) return NextResponse.json({ error: 'Competition not found' }, { status: 404 });
+  if (scope && full[orgColumn(scope.side)] !== scope.orgId) {
+    return NextResponse.json({ error: 'Competition not found' }, { status: 404 });
+  }
 
   const { data: entries } = await admin
     .from('competition_entries')
@@ -678,11 +682,13 @@ export async function competitionDetailGET(
         admin
           .from('contest_participants')
           .select('id, contest_id, entry_id, side, start_position')
-          .in('contest_id', contestIds),
+          .in('contest_id', contestIds)
+          .limit(5000),
         admin
           .from('contest_results')
           .select('participant_id, score, payload, provenance, dispute_status')
-          .in('contest_id', contestIds),
+          .in('contest_id', contestIds)
+          .limit(5000),
       ])
     : [{ data: [] }, { data: [] }];
 
@@ -1027,14 +1033,15 @@ export async function resultsUpsertPOST(
     return NextResponse.json({ error: 'Failed to save the result' }, { status: 500 });
   }
 
-  // Auto-complete once every participant holds a result.
-  const { data: resultRows } = await admin
+  // Auto-complete once every participant holds a result (head-count, not
+  // a row fetch — the B2 rule).
+  const { count: resultCount } = await admin
     .from('contest_results')
-    .select('participant_id')
+    .select('participant_id', { count: 'exact', head: true })
     .eq('contest_id', input.contestId);
   const complete =
     (participants ?? []).length > 0 &&
-    (resultRows ?? []).length >= (participants ?? []).length;
+    (resultCount ?? 0) >= (participants ?? []).length;
   if (complete && contestRow.status !== 'completed') {
     await admin.from('contests').update({ status: 'completed' }).eq('id', input.contestId);
   }

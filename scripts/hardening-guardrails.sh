@@ -102,15 +102,22 @@ adv=$(scan "\.select\('(id|\*)'\)" 'src/app/api/**/*.ts' | wc -l | tr -d ' ')
 [ "$adv" != "0" ] && note "$adv .select('id'|'*') sites — verify none count via .length (use { count:'exact', head:true })"
 
 # .or()/.filter() built with interpolation — must route through a sanitizer.
-adv=$(scan "\.(or|filter)\(\`[^)]*\\\$\{" 'src/app/api/**/*.ts' 'src/lib/**/*.ts' | wc -l | tr -d ' ')
-[ "$adv" != "0" ] && note "$adv interpolated .or()/.filter() sites — confirm each sanitizes user input"
+# Sites verified safe carry a same-line `hardening-ok: <reason>` comment (all
+# 14 pre-existing sites audited + annotated Sep 2026, PR #491); an unannotated
+# hit here is a NEW site that needs review, not background noise.
+adv=$(scan "\.(or|filter)\(\`[^)]*\\\$\{" 'src/app/api/**/*.ts' 'src/lib/**/*.ts' \
+  | grep -v 'hardening-ok' | wc -l | tr -d ' ')
+[ "$adv" != "0" ] && note "$adv interpolated .or()/.filter() sites — confirm each sanitizes user input (then annotate hardening-ok)"
 
 # Raw DB/JS error internals in a RESPONSE body (Aug 2026 sweep): the client
 # gets a friendly string; message/details/hint/code/stack go to console.error
 # (Sentry). Heuristic — matches leak-shaped fields inside a json({...}) line.
+# Same annotation contract: every pre-existing hit was audited Sep 2026
+# (PR #491) — bodies all ship crafted copy; the annotated survivors are
+# Sentry extras and deliberate validation-copy passthroughs.
 adv=$(scan "(error|details|hint|stack): *[A-Za-z]+(Error)?\.(message|details|hint|stack|code)" 'src/app/api/**/*.ts' \
-  | grep -v 'console\.' | wc -l | tr -d ' ')
-[ "$adv" != "0" ] && note "$adv possible raw-error response bodies — each must ship a friendly string (raw belongs in console.error)"
+  | grep -v 'console\.' | grep -v 'hardening-ok' | wc -l | tr -d ' ')
+[ "$adv" != "0" ] && note "$adv possible raw-error response bodies — each must ship a friendly string (raw belongs in console.error; verified sites annotate hardening-ok)"
 
 echo
 if [ "$fail" -ne 0 ]; then

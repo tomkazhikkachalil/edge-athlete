@@ -83,7 +83,7 @@ export async function POST(
             supabase.from('follows').select('id').eq('follower_id', user.id).eq('following_id', otherId).eq('status', 'accepted').maybeSingle(),
             supabase.from('follows').select('id').eq('follower_id', otherId).eq('following_id', user.id).eq('status', 'accepted').maybeSingle(),
             supabase.from('user_blocks').select('id')
-              .or(`and(blocker_id.eq.${user.id},blocked_id.eq.${otherId}),and(blocker_id.eq.${otherId},blocked_id.eq.${user.id})`)
+              .or(`and(blocker_id.eq.${user.id},blocked_id.eq.${otherId}),and(blocker_id.eq.${otherId},blocked_id.eq.${user.id})`)  // hardening-ok: session UUID + DB-sourced UUID
               .maybeSingle(),
           ]);
           if (blockRow) {
@@ -262,7 +262,7 @@ export async function POST(
       const { data: blockRows } = await supabase
         .from('user_blocks')
         .select('blocker_id, blocked_id')
-        .or(`and(blocked_id.eq.${user.id},blocker_id.in.(${recipientIds.join(',')})),and(blocker_id.eq.${user.id},blocked_id.in.(${recipientIds.join(',')}))`);
+        .or(`and(blocked_id.eq.${user.id},blocker_id.in.(${recipientIds.join(',')})),and(blocker_id.eq.${user.id},blocked_id.in.(${recipientIds.join(',')}))`);  // hardening-ok: session UUID + DB-sourced UUID list
       const blockedSet = new Set(
         (blockRows || []).flatMap(b => [b.blocker_id, b.blocked_id]).filter(id => id !== user.id)
       );

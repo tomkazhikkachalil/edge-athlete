@@ -209,7 +209,7 @@ export async function POST(request: NextRequest) {
       console.error('[OAUTH-PROFILE] insert failed:', insertError);
       Sentry.captureException(
         new Error(`oauth complete-profile: insert failed: ${insertError.message}`),
-        { extra: { code: insertError.code, details: insertError.details, userId: user.id } }
+        { extra: { code: insertError.code, details: insertError.details, userId: user.id } } // hardening-ok: Sentry extra, never a response body
       );
       const mapped = mapProfileUpsertError(insertError);
       return NextResponse.json({ error: mapped.error }, { status: mapped.status });

@@ -316,7 +316,7 @@ export async function POST(request: NextRequest) {
     if (postType === 'golf' && golfData) {
       const golfResult = await createGolfRoundEntities(supabase, userId, golfData);
       if (!golfResult.ok) {
-        return NextResponse.json({ error: golfResult.message }, { status: 500 });
+        return NextResponse.json({ error: golfResult.message }, { status: 500 }); // hardening-ok: crafted union literals, see post-write.ts
       }
       roundId = golfResult.roundId;
 
@@ -370,12 +370,6 @@ export async function POST(request: NextRequest) {
 
     if (postError) {
       console.error('[POST] Post creation error:', postError);
-      console.error('[POST] Error details:', {
-        message: postError.message,
-        details: postError.details,
-        hint: postError.hint,
-        code: postError.code
-      });
       return NextResponse.json({ error: 'Failed to create post' }, { status: 500 });
     }
 
@@ -1062,7 +1056,7 @@ export async function GET(request: NextRequest) {
     // The org lens takes the strict published-only arm even for the author —
     // pending posts have no place in an org schedule of public content.
     query = currentUserId && !orgScope
-      ? query.or(`status.eq.published,profile_id.eq.${currentUserId}`)
+      ? query.or(`status.eq.published,profile_id.eq.${currentUserId}`)  // hardening-ok: session UUID
       : query.eq('status', 'published');
 
     if (pinnedOnly) {
@@ -1711,7 +1705,7 @@ export async function DELETE(request: NextRequest) {
         return NextResponse.json({ success: true, message: 'Round deleted successfully' });
       }
       if (roundResult.status === 'error') {
-        return NextResponse.json({ error: roundResult.message }, { status: 500 });
+        return NextResponse.json({ error: roundResult.message }, { status: 500 }); // hardening-ok: crafted strings, see round-delete-server.ts
       }
       // not_found / forbidden → legacy orphan or mismatched creator: the
       // caller still owns THIS post, so plain post deletion proceeds.

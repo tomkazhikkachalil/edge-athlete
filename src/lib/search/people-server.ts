@@ -181,7 +181,7 @@ export async function accessibleProfileIds(
     .from('follows')
     .select('follower_id, following_id')
     .eq('status', 'accepted')
-    .or(`follower_id.eq.${viewerId},following_id.eq.${viewerId}`);
+    .or(`follower_id.eq.${viewerId},following_id.eq.${viewerId}`);  // hardening-ok: session UUID
 
   const related = new Set<string>();
   for (const f of data ?? []) {

@@ -96,7 +96,7 @@ export async function GET(request: NextRequest) {
       `)
       .eq('post_id', postId);
     commentsQuery = viewer
-      ? commentsQuery.or(`status.eq.published,profile_id.eq.${viewer.id}`)
+      ? commentsQuery.or(`status.eq.published,profile_id.eq.${viewer.id}`)  // hardening-ok: session UUID
       : commentsQuery.eq('status', 'published');
     const { data: comments, error } = await commentsQuery
       .order('is_pinned', { ascending: false, nullsFirst: false })

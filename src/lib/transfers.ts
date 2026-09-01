@@ -428,7 +428,7 @@ export async function runTransferSweep(admin: SupabaseClient, appUrl?: string) {
   const { data: due } = await admin
     .from('profile_transfers')
     .select('*')
-    .or(`state.eq.executing,and(state.eq.cooling_off,cooling_off_ends_at.lte.${new Date().toISOString()})`);
+    .or(`state.eq.executing,and(state.eq.cooling_off,cooling_off_ends_at.lte.${new Date().toISOString()})`);  // hardening-ok: server clock, no user input
   for (const t of due ?? []) {
     if (t.state === 'cooling_off') {
       await admin.from('profile_transfers')

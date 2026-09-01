@@ -234,7 +234,7 @@ export async function POST(request: NextRequest) {
       // characters") are user-facing copy the signup form displays — not DB
       // internals. Deliberately passed through. hardening-ok
       return NextResponse.json(
-        { error: error.message },
+        { error: error.message }, // hardening-ok: see above — auth validation copy
         { status: 400 }
       );
     }
@@ -315,19 +315,13 @@ export async function POST(request: NextRequest) {
 
       if (profileError) {
         console.error('[SIGNUP] Error updating profile:', profileError);
-        console.error('[SIGNUP] Profile error details:', {
-          message: profileError.message,
-          code: profileError.code,
-          details: profileError.details,
-          hint: profileError.hint
-        });
         Sentry.captureException(
           new Error(`signup: profile upsert failed: ${profileError.message}`),
           {
             extra: {
               code: profileError.code,
-              details: profileError.details,
-              hint: profileError.hint,
+              details: profileError.details, // hardening-ok: Sentry extra, never a response body
+              hint: profileError.hint, // hardening-ok
               userId: data.user.id,
             },
           }
