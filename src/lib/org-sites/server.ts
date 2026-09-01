@@ -21,6 +21,7 @@ import {
   isValidSubdomain,
   MODULE_KEYS,
   slugifyOrgName,
+  type SitePatchInput,
 } from './validate';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- matches the authz.ts Admin alias; schema-agnostic helper
@@ -69,7 +70,8 @@ export async function mintSubdomain(admin: Admin, orgName: string): Promise<stri
   return candidates.find(c => !blocked.has(c)) ?? null;
 }
 
-/** The console read: this org's site (draft or published), or null. */
+/** The console read: this org's site (draft or published) with its
+ *  ordered module rows (R2: the Sections toggles), or null site. */
 export async function siteGET(
   admin: Admin,
   side: OrgSide,
@@ -84,7 +86,14 @@ export async function siteGET(
     console.error(`${TAG} site read error:`, error);
     return NextResponse.json({ error: 'Failed to load the site' }, { status: 500 });
   }
-  return NextResponse.json({ site: data ?? null });
+  if (!data) return NextResponse.json({ site: null, modules: [] });
+  const { data: modules } = await admin
+    .from('org_site_modules')
+    .select('module_key, enabled, sort_order')
+    .eq('site_id', data.id)
+    .order('sort_order', { ascending: true })
+    .limit(20);
+  return NextResponse.json({ site: data, modules: modules ?? [] });
 }
 
 /** Create-with-defaults: mint the subdomain, insert the site + all nine
@@ -144,17 +153,57 @@ export async function siteCreatePOST(
   return NextResponse.json({ site });
 }
 
-/** Publish/unpublish. Publishing stamps published_at once; unpublish
- *  clears it (the public routes 404 again). */
+/** Publish/unpublish, or toggle one module (R2's Sections). Every branch
+ *  ends in revalidateTag — publish must be immediate, not 300s-stale,
+ *  and a toggle flips home + subpages through the same tag. */
 export async function sitePATCH(
   admin: Admin,
   side: OrgSide,
   orgId: string,
-  action: 'publish' | 'unpublish'
+  input: SitePatchInput
 ): Promise<NextResponse> {
+  if (input.action === 'set_module') {
+    const { data: site } = await admin
+      .from('org_sites')
+      .select('id, subdomain')
+      .eq(orgColumn(side), orgId)
+      .maybeSingle();
+    if (!site) {
+      return NextResponse.json({ error: 'Site not found' }, { status: 404 });
+    }
+    // UPDATE, never upsert — an upsert would clobber sort_order/config.
+    const { data: updated, error } = await admin
+      .from('org_site_modules')
+      .update({ enabled: input.enabled })
+      .eq('site_id', site.id)
+      .eq('module_key', input.moduleKey)
+      .select('module_key');
+    if (error) {
+      console.error(`${TAG} module toggle error:`, error);
+      return NextResponse.json({ error: 'Failed to update the section' }, { status: 500 });
+    }
+    if (!updated || updated.length === 0) {
+      // Self-heal a missing row (pre-R1 sites shouldn't exist, but a
+      // deleted row must not brick the toggle) at its default position.
+      const { error: insertError } = await admin.from('org_site_modules').insert({
+        site_id: site.id,
+        module_key: input.moduleKey,
+        enabled: input.enabled,
+        sort_order: MODULE_KEYS.indexOf(input.moduleKey),
+        config: {},
+      });
+      if (insertError) {
+        console.error(`${TAG} module insert error:`, insertError);
+        return NextResponse.json({ error: 'Failed to update the section' }, { status: 500 });
+      }
+    }
+    revalidateTag(`org-site:${site.subdomain}`, { expire: 0 });
+    return NextResponse.json({ module: { module_key: input.moduleKey, enabled: input.enabled } });
+  }
+
   const { data: updated, error } = await admin
     .from('org_sites')
-    .update({ published_at: action === 'publish' ? new Date().toISOString() : null })
+    .update({ published_at: input.action === 'publish' ? new Date().toISOString() : null })
     .eq(orgColumn(side), orgId)
     .select('id, subdomain, published_at');
   if (error) {

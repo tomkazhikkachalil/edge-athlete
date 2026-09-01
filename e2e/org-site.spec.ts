@@ -77,6 +77,11 @@ test('org site: create → publish → anon shell; unpublish → 404; member 403
       await page.getByRole('button', { name: 'Publish', exact: true }).click();
       await expect(page.getByText('published', { exact: true })).toBeVisible({ timeout: 15_000 });
 
+      // R2: the Sections toggles render, default-on, hero absent.
+      await expect(page.getByLabel('Toggle Standings section')).toBeChecked();
+      await expect(page.getByLabel('Toggle Contact section')).toBeChecked();
+      expect(await page.getByLabel(/^Toggle .* section$/).count()).toBe(8);
+
       // 375px: the Website card stays usable.
       await page.setViewportSize({ width: 375, height: 812 });
       await expect(page.getByText(`/org/${subdomain}`)).toBeVisible();
@@ -393,6 +398,39 @@ test('org site modules: live data on home + subpages; masked roster; team 404s',
         await page.evaluate(() => document.documentElement.scrollWidth),
         'team page: no horizontal overflow at 375px'
       ).toBeLessThanOrEqual(375);
+
+      // R2 toggles: disable standings → home drops the section and the
+      // subpage 404s; re-enable → both come back. Hero can't be toggled.
+      const toggleApi = await apiAs('state-b.json');
+      try {
+        const off = await toggleApi.patch(`/api/leagues/${leagueId}/site`, {
+          data: { action: 'set_module', moduleKey: 'standings', enabled: false },
+        });
+        expect(off.status(), await readErrorBody(off)).toBe(200);
+        expect(await settle(page.request, `${base}/standings`, 404)).toBe(404);
+        // Content settle: SWR may serve the stale home document once.
+        let homeAfter = '';
+        for (let i = 0; i < 6; i++) {
+          homeAfter = await (await page.request.get(base)).text();
+          if (!homeAfter.includes('Full standings →')) break;
+          await new Promise(r => setTimeout(r, 2500));
+        }
+        expect(homeAfter).not.toContain('Full standings →');
+        expect(homeAfter).toContain(`QA Org Night ${stamp}`); // others intact
+
+        const on = await toggleApi.patch(`/api/leagues/${leagueId}/site`, {
+          data: { action: 'set_module', moduleKey: 'standings', enabled: true },
+        });
+        expect(on.status(), await readErrorBody(on)).toBe(200);
+        expect(await settle(page.request, `${base}/standings`, 200)).toBe(200);
+
+        const hero = await toggleApi.patch(`/api/leagues/${leagueId}/site`, {
+          data: { action: 'set_module', moduleKey: 'hero', enabled: false },
+        });
+        expect(hero.status(), await readErrorBody(hero)).toBe(400);
+      } finally {
+        await toggleApi.dispose();
+      }
     } finally {
       await ctxAnon.close();
     }

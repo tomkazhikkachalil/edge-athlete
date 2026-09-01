@@ -73,7 +73,7 @@ export async function PATCH(
 
     const parsed = await parseBody(request, SitePatchSchema);
     if (!parsed.success) return parsed.response;
-    return await sitePATCH(admin, 'league', id, parsed.data.action);
+    return await sitePATCH(admin, 'league', id, parsed.data);
   } catch (error) {
     if (error instanceof Response) return error;
     console.error('[ORG SITES] league PATCH error:', error);
