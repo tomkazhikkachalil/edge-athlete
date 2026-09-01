@@ -94,6 +94,20 @@ test('org site: create → publish → anon shell; unpublish → 404; member 403
       const anonProbe = await page.request.get(`/org/${subdomain}`);
       expect(anonProbe.status()).toBe(404);
 
+      // Cleanup round: the draft PREVIEW — a signed short-lived link the
+      // console mints; anonymous holders of the URL see the draft with
+      // the banner, tampered tokens 404.
+      const previewRes = await page.request.post(`/api/leagues/${leagueId}/site/preview`);
+      expect(previewRes.status()).toBe(200);
+      const previewUrl = (await previewRes.json()).url as string;
+      expect(previewUrl).toContain(`/org/${subdomain}/preview/`);
+      const previewHtml = await (await page.request.get(previewUrl)).text();
+      expect(previewHtml).toContain('Draft preview — not public');
+      expect(previewHtml).toContain(name);
+      expect(
+        (await page.request.get(`${previewUrl.slice(0, -4)}XXXX`)).status()
+      ).toBe(404);
+
       await page.getByRole('button', { name: 'Publish', exact: true }).click();
       await expect(page.getByText('published', { exact: true })).toBeVisible({ timeout: 15_000 });
 

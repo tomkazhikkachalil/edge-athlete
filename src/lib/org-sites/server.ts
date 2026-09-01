@@ -332,13 +332,28 @@ export async function getPublicSiteBySlug(
   admin: Admin,
   slug: string
 ): Promise<PublicSite | null> {
+  return getSiteBySlugInternal(admin, slug, false);
+}
+
+/** DRAFT-TOLERANT twin for the token-gated preview route ONLY — the
+ *  signed preview token is the authorization; every other public read
+ *  keeps the publish gate. */
+export async function getSiteBySlugAnyStatus(
+  admin: Admin,
+  slug: string
+): Promise<PublicSite | null> {
+  return getSiteBySlugInternal(admin, slug, true);
+}
+
+async function getSiteBySlugInternal(
+  admin: Admin,
+  slug: string,
+  includeDrafts: boolean
+): Promise<PublicSite | null> {
   if (!isValidSubdomain(slug.toLowerCase())) return null;
-  const { data: site, error } = await admin
-    .from('org_sites')
-    .select(SITE_FIELDS)
-    .ilike('subdomain', slug)
-    .not('published_at', 'is', null)
-    .maybeSingle();
+  let query = admin.from('org_sites').select(SITE_FIELDS).ilike('subdomain', slug);
+  if (!includeDrafts) query = query.not('published_at', 'is', null);
+  const { data: site, error } = await query.maybeSingle();
   if (error || !site) {
     if (error && !isMissingTableError(error.code)) {
       console.error(`${TAG} public site read error:`, error);
