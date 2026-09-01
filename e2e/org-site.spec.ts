@@ -1,5 +1,6 @@
 import path from 'path';
 import { test, expect } from '@playwright/test';
+import { TOGGLEABLE_MODULE_KEYS } from '../src/lib/org-sites/validate';
 import { adminClient, apiAs, loadQaUser, readErrorBody } from './helpers/qa-user';
 
 // The public org site shell (phase 3, round 1): create → publish → the
@@ -114,9 +115,14 @@ test('org site: create → publish → anon shell; unpublish → 404; member 403
       // R2: the Sections toggles render, default-on, hero absent.
       await expect(page.getByLabel('Toggle Standings section')).toBeChecked();
       await expect(page.getByLabel('Toggle Contact section')).toBeChecked();
-      // 8 pre-mig-156 (no news row), 9 pre-mig-160 (no gallery row),
-      // 10 current — every ladder step is a correct database state.
-      expect([8, 9, 10]).toContain(await page.getByLabel(/^Toggle .* section$/).count());
+      // The toggle count trails the module-migration ladder (8 pre-156 →
+      // 11 post-164) and chased it three times as an enumerated list —
+      // assert the RANGE instead: at least the 155 base set, at most the
+      // local build's toggleable list (the DB can never exceed what the
+      // newest CHECK admits).
+      const toggleCount = await page.getByLabel(/^Toggle .* section$/).count();
+      expect(toggleCount).toBeGreaterThanOrEqual(8);
+      expect(toggleCount).toBeLessThanOrEqual(TOGGLEABLE_MODULE_KEYS.length);
 
       // 375px: the Website card stays usable.
       await page.setViewportSize({ width: 375, height: 812 });
