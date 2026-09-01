@@ -60,6 +60,22 @@ export const SitePatchSchema = z.object({
 });
 export type SitePatchInput = z.infer<typeof SitePatchSchema>;
 
+/** Public section titles, shared by the site home, the layout nav, and
+ *  the module subpages (hero deliberately absent — it has no heading). */
+export const MODULE_TITLES: Record<string, string> = {
+  standings: 'Standings',
+  schedule: 'Schedule',
+  teams: 'Teams',
+  staff: 'Staff',
+  venues: 'Venues',
+  affiliations: 'Affiliations',
+  sponsors: 'Sponsors',
+  contact: 'Contact',
+};
+
+/** The module keys that have their own subpage under /org/{slug}/. */
+export const MODULE_SUBPAGE_KEYS = ['standings', 'schedule', 'teams'] as const;
+
 // ── Schedule query clamps (phase 3 R2) ──────────────────────────────────────
 // The public schedule reads take caller-supplied limit/range params; both
 // are clamped here (pure, node-testable) so no caller can turn the
