@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { adminClient, apiAs, loadQaUser, readErrorBody } from './helpers/qa-user';
+import { adminClient, apiAs, loadQaUser, readErrorBody, registrationFlagOnTarget } from './helpers/qa-user';
 
 /** True once mig 163 widened the notifications CHECK (probe by insert —
  *  the FK-vs-CHECK error-code trick can't work here since user_id must be
@@ -34,10 +34,10 @@ test('registration: window gate, submit, collisions, registrar transitions', asy
 
   const probe = await admin.from('registrations').select('id').limit(1);
   test.skip(!!probe.error, `registrations missing — run migration 162 (${probe.error?.message})`);
-  test.skip(
-    process.env.NEXT_PUBLIC_FEATURE_ORG_REGISTRATION !== '1',
-    'FEATURE_ORG_REGISTRATION off on this target'
-  );
+  const flagProbeApi = await apiAs('state.json');
+  const flagOn = await registrationFlagOnTarget(flagProbeApi);
+  await flagProbeApi.dispose();
+  test.skip(!flagOn, 'FEATURE_ORG_REGISTRATION off on this target');
 
   const stamp = Date.now();
   const name = `QA Reg League ${stamp}`;

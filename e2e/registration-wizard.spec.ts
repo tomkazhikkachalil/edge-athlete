@@ -7,6 +7,7 @@ import {
   guardianFlagOn,
   loadQaUser,
   readErrorBody,
+  registrationFlagOnTarget,
 } from './helpers/qa-user';
 
 // The family wizard (phase 5 R3): a guardian registers a supervised child
@@ -25,10 +26,10 @@ test('registration wizard: guardian registers a child; org-page CTA; 375px', asy
 
   const probe = await admin.from('registrations').select('id').limit(1);
   test.skip(!!probe.error, `registrations missing — run migration 162 (${probe.error?.message})`);
-  test.skip(
-    process.env.NEXT_PUBLIC_FEATURE_ORG_REGISTRATION !== '1',
-    'FEATURE_ORG_REGISTRATION off on this target'
-  );
+  const flagProbeApi = await apiAs('state.json');
+  const flagOn = await registrationFlagOnTarget(flagProbeApi);
+  await flagProbeApi.dispose();
+  test.skip(!flagOn, 'FEATURE_ORG_REGISTRATION off on this target');
   test.skip(!guardianFlagOn(), 'FEATURE_GUARDIAN_PROFILES off on this target');
 
   const stamp = Date.now();
