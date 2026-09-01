@@ -364,7 +364,7 @@ async function searchCatalogFallback(admin: SupabaseClient, q: string, limit: nu
   const [prefix, wide] = await Promise.all([
     ordered().ilike('name', `${likeSafe(q)}%`).limit(limit * 3),
     ordered()
-      .or(`name.ilike.${p},club_name.ilike.${p},city.ilike.${p},region.ilike.${p}`)
+      .or(`name.ilike.${p},club_name.ilike.${p},city.ilike.${p},region.ilike.${p}`)  // hardening-ok: likeSafe via coursePattern
       .limit(limit * 5),
   ]);
   if (prefix.error && wide.error) return [];

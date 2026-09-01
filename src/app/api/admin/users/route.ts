@@ -33,7 +33,7 @@ export async function GET(request: NextRequest) {
     const { data: users, error } = await supabase
       .from('profiles')
       .select('id, email, first_name, last_name, full_name, handle, user_type, visibility, created_at, onboarded_at')
-      .or(`email.ilike.${pattern},full_name.ilike.${pattern},first_name.ilike.${pattern},last_name.ilike.${pattern},handle.ilike.${pattern}`)
+      .or(`email.ilike.${pattern},full_name.ilike.${pattern},first_name.ilike.${pattern},last_name.ilike.${pattern},handle.ilike.${pattern}`)  // hardening-ok: sanitizeForFilter above
       .order('created_at', { ascending: false })
       .limit(20);
 

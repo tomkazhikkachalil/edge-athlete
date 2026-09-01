@@ -125,7 +125,7 @@ export async function POST(request: NextRequest) {
       const { data: blockCheck } = await supabase
         .from('user_blocks')
         .select('id')
-        .or(`and(blocker_id.eq.${user.id},blocked_id.eq.${participantId}),and(blocker_id.eq.${participantId},blocked_id.eq.${user.id})`)
+        .or(`and(blocker_id.eq.${user.id},blocked_id.eq.${participantId}),and(blocker_id.eq.${participantId},blocked_id.eq.${user.id})`)  // hardening-ok: session UUID + UUID_RE-validated
         .maybeSingle();
 
       if (blockCheck) {
@@ -314,7 +314,7 @@ export async function POST(request: NextRequest) {
       const { data: groupBlocks } = await supabase
         .from('user_blocks')
         .select('id')
-        .or(`and(blocker_id.eq.${user.id},blocked_id.in.(${idList})),and(blocked_id.eq.${user.id},blocker_id.in.(${idList}))`)
+        .or(`and(blocker_id.eq.${user.id},blocked_id.in.(${idList})),and(blocked_id.eq.${user.id},blocker_id.in.(${idList}))`)  // hardening-ok: session UUID + DB-sourced UUID list
         .limit(1);
 
       if (groupBlocks && groupBlocks.length > 0) {

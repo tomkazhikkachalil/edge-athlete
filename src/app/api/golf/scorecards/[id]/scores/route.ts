@@ -263,7 +263,9 @@ export async function POST(
     }, { status: 201 });
   } catch (error) {
     if (error instanceof Error && error.message.includes('Invalid')) {
-      return NextResponse.json({ error: error.message }, { status: 400 });
+      // Only this file's own validation throws ("Invalid hole_number: …")
+      // match — user-facing copy, not DB internals.
+      return NextResponse.json({ error: error.message }, { status: 400 }); // hardening-ok
     }
     console.error('Unexpected error in POST /api/golf/scorecards/[id]/scores:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });

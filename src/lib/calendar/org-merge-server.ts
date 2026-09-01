@@ -132,7 +132,7 @@ export async function fetchOrgEventsForViewer(
       .gt('ends_at', fromIso)
       .limit(ORG_EVENT_LIMIT);
     query = options.includeCancelledAfter
-      ? query.or(`status.eq.active,and(status.eq.cancelled,cancelled_at.gt.${options.includeCancelledAfter})`)
+      ? query.or(`status.eq.active,and(status.eq.cancelled,cancelled_at.gt.${options.includeCancelledAfter})`)  // hardening-ok: server-built ISO string
       : query.eq('status', 'active');
     return query;
   };

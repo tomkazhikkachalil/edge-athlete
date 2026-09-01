@@ -45,13 +45,8 @@ export async function GET(request: NextRequest) {
       });
 
     if (rpcError) {
-      // Log the specific error for debugging
-      console.error('RPC generate_connection_suggestions error:', {
-        code: rpcError.code,
-        message: rpcError.message,
-        details: rpcError.details,
-        hint: rpcError.hint
-      });
+      // The PostgrestError object carries code/message/details/hint whole.
+      console.error('RPC generate_connection_suggestions error:', rpcError);
 
       // Fallback: Get profiles that user doesn't follow
       // First get who the user already follows

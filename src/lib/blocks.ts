@@ -77,7 +77,7 @@ export async function applyBlock(admin: Admin, blockerId: string, blockedId: str
     await admin
       .from('follows')
       .delete()
-      .or(`and(follower_id.eq.${blockerId},following_id.eq.${blockedId}),and(follower_id.eq.${blockedId},following_id.eq.${blockerId})`);
+      .or(`and(follower_id.eq.${blockerId},following_id.eq.${blockedId}),and(follower_id.eq.${blockedId},following_id.eq.${blockerId})`);  // hardening-ok: caller-validated UUIDs
   } catch (severError) {
     console.error('[blocks] follow teardown failed (non-fatal):', severError);
   }

@@ -272,7 +272,7 @@ export async function DELETE(
           { status: 403 }
         );
       case 'error':
-        return NextResponse.json({ error: result.message }, { status: 500 });
+        return NextResponse.json({ error: result.message }, { status: 500 }); // hardening-ok: crafted strings, see round-delete-server.ts
     }
   } catch (error) {
     console.error('Unexpected error in DELETE /api/group-posts/[id]:', error);

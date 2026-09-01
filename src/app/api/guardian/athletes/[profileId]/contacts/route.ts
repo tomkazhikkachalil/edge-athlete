@@ -89,7 +89,7 @@ export async function GET(
       admin
         .from('user_blocks')
         .select('blocker_id, blocked_id')
-        .or(`blocker_id.eq.${profileId},blocked_id.eq.${profileId}`),
+        .or(`blocker_id.eq.${profileId},blocked_id.eq.${profileId}`),  // hardening-ok: guardian-gate-validated id
     ]);
     for (const q of [counterpartsQ, ledgerQ, blocksQ]) {
       if (q.error) throw q.error;
