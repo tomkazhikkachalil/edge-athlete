@@ -113,6 +113,15 @@ export default function CompetitionDetailPage() {
   // a modal. Raising is withdrawable, so no confirm.
   const [disputeContestId, setDisputeContestId] = useState<string | null>(null);
   const [disputeNote, setDisputeNote] = useState('');
+  // Phase 6 R6: schedule/results CSV import (dry-run-first).
+  const [schedImportOpen, setSchedImportOpen] = useState(false);
+  const [schedCsvText, setSchedCsvText] = useState('');
+  const [schedBusy, setSchedBusy] = useState(false);
+  const [schedReport, setSchedReport] = useState<{
+    dryRun: boolean;
+    summary: { rows: number; errors: number; warnings: number; created: number; reused: number; withResults: number };
+    report: { row: number; matchup: string; action: string; withResult: boolean; warning?: string; error?: string }[];
+  } | null>(null);
   const [scoreValues, setScoreValues] = useState<Record<string, string>>({});
   const [deleteTarget, setDeleteTarget] = useState<ContestRow | null>(null);
   // Player stats: one expander at a time (the scoreContestId pattern).
@@ -281,6 +290,37 @@ export default function CompetitionDetailPage() {
     if (ok) {
       setDisputeContestId(null);
       setDisputeNote('');
+    }
+  };
+
+  // Phase 6 R6: the schedule-import runner (Preview → Import).
+  const runScheduleImport = async (dryRun: boolean) => {
+    if (schedBusy) return;
+    setSchedBusy(true);
+    try {
+      const response = await fetch(`${base}/schedule-import`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          csv: schedCsvText,
+          timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
+          dryRun,
+        }),
+      });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        showError('Schedule import', body.error || 'Import failed');
+        return;
+      }
+      setSchedReport(body);
+      if (!dryRun) {
+        showSuccess('Schedule import', 'Imported — games are on the schedule');
+        refresh();
+      }
+    } catch {
+      showError('Schedule import', 'Import failed');
+    } finally {
+      setSchedBusy(false);
     }
   };
 
@@ -577,6 +617,88 @@ export default function CompetitionDetailPage() {
                 </button>
               </div>
             )
+          )}
+
+          {/* Phase 6 R6: schedule + historical results by CSV. */}
+          {competition.format === 'fixture' && (
+            <div className="mb-4">
+              <button
+                type="button"
+                onClick={() => {
+                  setSchedImportOpen(o => !o);
+                  setSchedReport(null);
+                }}
+                className="px-2 py-1 text-xs rounded-md border border-border-strong text-secondary hover:bg-surface-sunken transition-colors"
+              >
+                {schedImportOpen ? 'Close schedule import' : 'Import schedule CSV'}
+              </button>
+              {schedImportOpen && (
+                <div className="mt-2 border border-border rounded-lg p-3">
+                  <p className="text-xs text-muted mb-2">
+                    Columns: <code>date, time, home, away</code> (optional: venue,
+                    home_score, away_score — scores mark the game played and the
+                    result is labeled <em>imported</em>). Times read in your
+                    timezone. Team names must match this competition&apos;s entries.
+                  </p>
+                  <textarea
+                    value={schedCsvText}
+                    onChange={e => {
+                      setSchedCsvText(e.target.value);
+                      setSchedReport(null);
+                    }}
+                    rows={5}
+                    placeholder={'date,time,home,away,home_score,away_score\n2026-10-03,19:00,Blazers,Comets,3,2'}
+                    aria-label="Schedule CSV"
+                    className="w-full px-3 py-2 border border-border-strong rounded-md outline-none text-sm font-mono"
+                  />
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      disabled={schedBusy || schedCsvText.trim() === ''}
+                      onClick={() => void runScheduleImport(true)}
+                      className="px-3 py-1.5 text-sm min-h-[36px] rounded-lg border border-border-strong text-secondary hover:bg-surface-sunken transition-colors disabled:opacity-50"
+                    >
+                      Preview
+                    </button>
+                    <button
+                      type="button"
+                      disabled={schedBusy || schedReport === null || schedReport.dryRun !== true}
+                      onClick={() => void runScheduleImport(false)}
+                      title={schedReport?.dryRun !== true ? 'Preview first' : undefined}
+                      className="px-3 py-1.5 text-sm min-h-[36px] rounded-lg bg-brand text-white font-medium hover:bg-brand-hover transition-colors disabled:opacity-50"
+                    >
+                      Import
+                    </button>
+                  </div>
+                  {schedReport && (
+                    <div className="mt-2 text-xs text-secondary">
+                      <p className="font-medium text-primary mb-1">
+                        {schedReport.dryRun ? 'Preview' : 'Imported'}:{' '}
+                        {schedReport.summary.created} games ({schedReport.summary.withResults} with
+                        results), {schedReport.summary.reused} already existed
+                        {schedReport.summary.errors > 0 && (
+                          <span className="text-red-600"> · {schedReport.summary.errors} errors</span>
+                        )}
+                        {schedReport.summary.warnings > 0 && (
+                          <span className="text-amber-700 dark:text-amber-300"> · {schedReport.summary.warnings} warnings</span>
+                        )}
+                      </p>
+                      <div className="overflow-x-auto">
+                        <ul className="space-y-0.5">
+                          {schedReport.report.map(r => (
+                            <li key={r.row} className={r.error ? 'text-red-600' : r.warning ? 'text-amber-700 dark:text-amber-300' : ''}>
+                              #{r.row} {r.matchup} — {r.action}
+                              {r.withResult ? ' + result' : ''}
+                              {r.error ? ` — ${r.error}` : r.warning ? ` — ${r.warning}` : ''}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
           )}
 
           {contests.length === 0 ? (
