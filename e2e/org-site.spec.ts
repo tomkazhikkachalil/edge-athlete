@@ -118,6 +118,12 @@ test('org site: create → publish → anon shell; unpublish → 404; member 403
       // no app chrome.
       expect(html).not.toContain('data-theme');
       expect(html).not.toContain('Notifications');
+
+      // R4: canonical + OpenGraph reach the raw document.
+      expect(html).toContain('rel="canonical"');
+      expect(html).toContain(`/org/${subdomain}"`);
+      expect(html).toContain('property="og:title"');
+      expect(html).toContain('property="og:site_name"');
     } finally {
       await ctxAnon.close();
     }

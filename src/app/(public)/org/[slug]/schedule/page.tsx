@@ -22,9 +22,14 @@ export async function generateMetadata({ params }: PageParams): Promise<Metadata
   const { slug } = await params;
   const site = await getCachedSite(slug);
   if (!site) return { title: 'Not found' };
+  const title = `${site.orgName} Schedule`;
+  const description = `Upcoming events for ${site.orgName} on Edge Athlete.`;
+  const canonical = `/org/${site.subdomain}/schedule`;
   return {
-    title: `${site.orgName} Schedule`,
-    description: `Upcoming events for ${site.orgName} on Edge Athlete.`,
+    title,
+    description,
+    alternates: { canonical },
+    openGraph: { title, description, url: canonical, siteName: 'Edge Athlete', type: 'website', images: ['/og-image.png'] },
   };
 }
 

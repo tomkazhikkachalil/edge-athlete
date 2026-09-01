@@ -30,9 +30,14 @@ export async function generateMetadata({ params }: PageParams): Promise<Metadata
   if (!site || !UUID_RE.test(teamId)) return { title: 'Not found' };
   const teamPage = await getCachedTeamPage(slug, site.side, site.orgId, teamId);
   if (!teamPage) return { title: 'Not found' };
+  const title = `${teamPage.team.name} — ${site.orgName}`;
+  const description = `${teamPage.team.name} of ${site.orgName} on Edge Athlete.`;
+  const canonical = `/org/${site.subdomain}/teams/${teamId}`;
   return {
-    title: `${teamPage.team.name} — ${site.orgName}`,
-    description: `${teamPage.team.name} of ${site.orgName} on Edge Athlete.`,
+    title,
+    description,
+    alternates: { canonical },
+    openGraph: { title, description, url: canonical, siteName: 'Edge Athlete', type: 'website', images: ['/og-image.png'] },
   };
 }
 

@@ -37,6 +37,18 @@ export const metadata: Metadata = {
     template: '%s · Edge Athlete',
   },
   description: 'Team sites, schedules, and standings on Edge Athlete.',
+  // R4: share-card defaults mirroring the (app) root layout; per-page
+  // generateMetadata overrides title/description/url, and the
+  // opengraph-image convention file overrides the image per org.
+  openGraph: {
+    siteName: 'Edge Athlete',
+    type: 'website',
+    images: [{ url: '/og-image.png', width: 1200, height: 630, alt: 'Edge Athlete' }],
+  },
+  twitter: {
+    card: 'summary_large_image',
+    images: ['/og-image.png'],
+  },
 };
 
 export const viewport: Viewport = {
