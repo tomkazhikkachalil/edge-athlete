@@ -6,7 +6,7 @@ import { adminClient, apiAs, loadQaUser, readErrorBody } from './helpers/qa-user
 // unconfirmed marker, the owner resolves. Skips cleanly pre-168.
 
 test('result dispute: raise by the club, bells both ways, owner resolves', async () => {
-  test.setTimeout(180_000);
+  test.setTimeout(300_000); // CDN settle can add ~2min vs prod
   const owner = loadQaUser('user-b.json'); // league owner (the competition authority)
   const clubManager = loadQaUser('user.json');
   const admin = adminClient();
@@ -176,10 +176,19 @@ test('result dispute: raise by the club, bells both ways, owner resolves', async
         .limit(1);
       expect(resolvedBell, 'club belled on resolve').toHaveLength(1);
 
-      // The footnote clears once resolved.
-      res = await ownerApi.get(`/api/leagues/${leagueId}/standings`);
-      const after = (await res.json()).competitions as { name: string; disputedCount: number }[];
-      expect(after.find(c => c.name === `Dispute Cup ${stamp}`)?.disputedCount).toBe(0);
+      // The footnote clears once resolved. The standings API is
+      // CDN-cached (s-maxage=60 + SWR) — vs prod the first post-resolve
+      // read can serve the stale pre-resolve copy, so SETTLE on the
+      // cleared count (the multi-POP lesson, standings-API edition).
+      let clearedCount = -1;
+      for (let attempt = 0; attempt < 14; attempt++) {
+        res = await ownerApi.get(`/api/leagues/${leagueId}/standings`);
+        const after = (await res.json()).competitions as { name: string; disputedCount: number }[];
+        clearedCount = after.find(c => c.name === `Dispute Cup ${stamp}`)?.disputedCount ?? -1;
+        if (clearedCount === 0) break;
+        await new Promise(r => setTimeout(r, 8000));
+      }
+      expect(clearedCount, 'footnote cleared after resolve (CDN settled)').toBe(0);
     } finally {
       await ownerApi.dispose();
       await clubApi.dispose();

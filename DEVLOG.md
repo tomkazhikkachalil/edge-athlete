@@ -1,5 +1,40 @@
 # Development Log
 
+## September 1, 2026 — Phase 6 ACTIVATED: live in prod, 18/18 sweep (#502)
+
+Tom ran migrations 166–168 (grids all-true; my probes re-verified —
+retro check ZERO slug collisions) and added the two vanity flags in
+Vercel; the real build landed at the phase-6 head (98d41a7, carrying
+#494–#501). The activation sweep against the DEPLOYED prod:
+
+- **Curl matrix**: /feed and /calendar render the app (session refresh
+  intact past the vanity branch); an unknown root path serves the
+  linked (public) 404; /sitemap.xml carries ZERO /org/ URLs (the
+  canonical flipped); unreserved root paths get the static CSP class.
+- **Batch 1 — 10/10**: both vanity tests un-skipped and passed (slug
+  engine verdicts, chosen-slug create, /{slug} + subpage + card
+  serving, /org→/{slug} 301 single-hop with preview + card.png
+  carve-outs, reserved /feed untouched, @mobile 404) + the full
+  org-site/register/gallery suite canonical-aware.
+- **Batch 2 — 4/4**: sanction-chain (handshake, grants, 2-hop
+  'sanctioned', dissolve downgrade), result-dispute, structure-import,
+  schedule-import — all against deployed routes.
+- **Batch 3 — 4/4**: registration, wizard, phase5-exit, rollover
+  regression.
+
+One sweep lesson (the multi-POP class, standings-API edition): the
+standings API is CDN-cached (s-maxage=60 + SWR), so the post-resolve
+disputedCount read served the stale pre-resolve copy vs prod — the
+dispute spec now SETTLES on the cleared count (14×8s, timeout 300s).
+That fix is this PR.
+
+**Phase 6 is LIVE.** Orgs get NHL.com/team-style addresses at
+edgeathlete/{slug} with the canonical flipped; the sanctioning chain,
+dispute workflow, and CSV import surfaces are all prod-proven. Tom's
+follow-ups: Search Console (the cheap moment is NOW — the canonical
+just flipped), the device pass (slug picker, league chain, dispute
+controls, import expanders), domain + ORG_SUBDOMAINS ops as before.
+
 ## September 1, 2026 — Phase 6 R6: schedule + historical results import + PHASE 6 CODE-COMPLETE (#501, zero DDL)
 
 The last round of the phase-6 arc:
