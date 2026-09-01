@@ -1,5 +1,58 @@
 # Development Log
 
+## September 2, 2026 — Phase-3 cleanup + phase 3.5: news (#469–#473, mig 156)
+
+Tom's call at the phase-3 break: clear the deferred pile and ship news
+before phase 4. Five PRs; the round's one migration (156) is written and
+handed to Tom — every code path degrades gracefully until he runs it.
+
+- **#469 — freshness, dimensions, sitemap teams.** The masterplan's
+  "on-demand revalidation when the underlying data changes" finally
+  wired: best-effort revalidateOrgSiteForCompetition/ForOrg fire from
+  all ten public-surface competition mutators — standings and schedule
+  changes reach the public site on the next hit instead of ≤300s later
+  (the modules e2e now PROVES it: a visibility flip empties the public
+  standings within a few polls). The block editor measures image
+  naturalWidth/Height client-side and the schema carries them (additive)
+  — the recorded CLS tradeoff is closed. Team pages join the sitemap
+  (bounded by-side batches, module-gated).
+- **#470 — contact + sponsor logos: the last stubs fall.** set_contact
+  publishes the three DELIBERATELY public fields (manager-entered org
+  contact — this by design ends the "no @ on the public site" probe
+  heuristic); sponsors gain prefix-guarded logos through the existing
+  asset pipeline (the cross-site guard duplicated into set_sponsors:
+  the schema can't know the site id).
+- **#471 — draft preview, the R1 gap closed** without breaking the
+  segment's session-free contract: the console mints a SIGNED ~30-min
+  URL (HMAC over {siteId, exp}, MEDIA_PROXY_SECRET family, rotation-
+  aware, fails closed); /org/{slug}/preview/{token} is the segment's
+  one deliberately uncached route (force-dynamic, noindex), reads
+  draft-tolerantly + raw, and renders the EXACT home markup (extracted
+  SiteHomeBody — no drift possible) under a visible banner.
+- **#472 — news CRUD + console (mig 156).** org_site_news: the
+  masterplan's hand-authored posts, distinct from pages; published_at
+  IS the state and the feed order (stamped once). The module CHECK
+  widens to 'news'; existing sites seed their row DISABLED. Pre-156
+  degradation is real and e2e-proven: reads empty, creation friendly-
+  400s, and siteCreatePOST retries its module batch without 'news' on
+  the old CHECK. The block editor extracted into the shared
+  SiteBlockEditor (mode page|news) — both console subpages are thin
+  wrappers.
+- **#473 — the public news surface.** /news feed (date + first-
+  paragraph excerpt) + /news/[newsSlug] (shared PageBlocks, og:type
+  article), full ISR contract (both build ●), nav + sitemap entries
+  landing WITH their routes. The fifth e2e test skips cleanly pre-156
+  and activates the moment the migration runs.
+- Verification: verify green per PR (ends 213 files / 2452 tests);
+  org-site e2e per PR (4 passed + news skipped pre-156); prod probe at
+  close recorded below.
+- **⚠ TOM: run migration 156** (database/migrations/156_org_site_news.sql
+  — paste in the SQL editor; the check grid verifies itself). Until
+  then news is invisible everywhere and nothing else is affected.
+  Deferred still: nav_config ordering, per-page og cards, custom
+  domains, slug-change 301 history. NEXT: phase 4 (automatic flows) —
+  scope confirmation with Tom before it opens.
+
 ## September 2, 2026 — Phase 3 round 5 + PHASE CLOSE (#466–#468, zero DDL)
 
 The polish round, and the close of the public-org-sites phase. Five
