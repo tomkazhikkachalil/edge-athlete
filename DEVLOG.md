@@ -1,5 +1,40 @@
 # Development Log
 
+## September 1, 2026 — Phase 6 R6: schedule + historical results import + PHASE 6 CODE-COMPLETE (#501, zero DDL)
+
+The last round of the phase-6 arc:
+
+- **`schedule-import.ts`**: rows `date, time, home, away` (+ optional
+  venue, home_score, away_score) mint CONTESTS in one chosen fixture
+  competition — contests, not bare events, so the calendar mirror and
+  standings come free. Teams resolve against the competition's entries
+  (unmatched = row error, shown in the dry-run); venue by name
+  (unmatched = warning, never an error); wall times convert through the
+  caller's IANA zone via the calendar's zonedWallClockToUtc. Scores
+  present → the contest lands completed and two contest_results carry
+  **provenance 'imported'** — the reserved rung's FIRST writer, visibly
+  labeled, standings-recomputed, and never display-upgraded
+  (deriveDisplayTier only upgrades league_verified — correct by
+  design). Dedupe key (competition, scheduled_at, home, away) makes a
+  re-paste a no-op; participant-insert failures compensate by deleting
+  the contest. ICS parse and per-athlete stat-line import stay
+  deferred (recorded — the latter needs roster matching, its own
+  design).
+- Route twins under /competitions/[competitionId]/schedule-import
+  (requireCompetitionManager, org-competitions bucket, dry-run
+  default); the competition console gains the Import schedule CSV
+  expander (Preview → report → Import, fresh-preview gated).
+- e2e: dry-run purity, commit (2 games, 1 completed + imported results,
+  Toronto 19:00 = 23:00Z proven), standings counting the imported
+  result, unknown-team row error without abort, no-op re-paste.
+
+**PHASE 6 CODE-COMPLETE** (#496–#501, migs 166–168 written and waiting
+for Tom): vanity root paths + slug engine + canonical flip; the
+sanctioning chain + grants history + common-authority provenance;
+result disputes; CSV core + structure + schedule/history import. The
+chain and dispute specs self-skip until 166–168 run; the round-close
+prod sweep fires after Tom's migrations + the flag-carrying build.
+
 ## September 1, 2026 — Phase 6 R5: CSV core + structure import (#500, zero DDL)
 
 Import is "the actual sales obstacle" (masterplan §10) — this round
