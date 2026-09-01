@@ -1,5 +1,44 @@
 # Development Log
 
+## September 2, 2026 — Phase 4 R1: contest stat lines (#476, mig 157)
+
+Phase 4 (automatic flows) opens: "a result and a photo reach an athlete
+profile with no manual linking." R1 lands the stat half's write path —
+the missing hop between the 152 result chain (which bottoms out at
+competition_entries.team_id) and the athlete.
+
+- **Mig 157 — contest_stat_lines** (handed to Tom): per-athlete stats on
+  a fixture contest, keyed by the sport's STAT_SCHEMAS vocabulary (one
+  language for self-posted and official stats), provenance = the 152
+  five-rung CHECK verbatim, UNIQUE(contest_id, profile_id), Posture A.
+  team_id is SET NULL on team deletion — §8 invariant 2, the athlete's
+  record outlives the org edge.
+- **provenance.ts — the ONE stamping rule**, node-tested, now used by
+  BOTH writers (the hardcoded 'league_verified' in resultsUpsertPOST
+  refactored onto it): owner ⇒ league_verified, participating club
+  staff ⇒ club_recorded (Tom's call: team staff enter stats from day
+  one). 'sanctioned' is a DISPLAY tier derived from a live
+  sanctioned_by affiliation edge, never stored — the org graph mutates.
+  canOverwriteProvenance = the no-silent-downgrade rule: club staff
+  never replace an owner-verified line (409).
+- **stat-lines-server.ts + twins.** THE attribution gate (§8 invariant
+  3): every line must name an ACTIVE ROSTER member (kind='roster',
+  status='active', scope_type='team') of the exact participating team
+  it is recorded for — follow is never a pipe. The club twin doubles as
+  the participant path: a club holding an approved team entry in a
+  competition it doesn't own gets a stat-entry-only aggregate pinned to
+  its own teams. /api/clubs/[id]/competitions/external is the doorway.
+- **Console.** "Player stats" expander per fixture contest (roster
+  LIST + schema-driven inputs — a thirty-item picker, not a search);
+  the competition page grows a participant branch (team staff see stat
+  entry, nothing else); the club console lists external competitions.
+- Degradation pre-157: reads answer empty with linesAvailable:false,
+  writes friendly-400, both consoles hide the surface. The e2e spec
+  skips on the missing table and activates the moment 157 runs.
+- **⚠ TOM: run migration 157** (database/migrations/157_contest_stat_lines.sql
+  — self-verifying grid). R2 next: the athlete-profile read side
+  (official tiles + provenance chips + contest backlinks).
+
 ## September 2, 2026 — Phase-3 cleanup + phase 3.5: news (#469–#473, mig 156)
 
 Tom's call at the phase-3 break: clear the deferred pile and ship news

@@ -45,6 +45,7 @@ import {
   revalidateOrgSiteForOrg,
 } from '@/lib/org-sites/revalidate';
 import { resolveFixtureRule, resolveLeaderboardRule } from '@/lib/competitions/scoring';
+import { stampProvenance } from './provenance';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- matches the authz.ts Admin alias; schema-agnostic helper
 type Admin = SupabaseClient<any, 'public', any>;
@@ -953,10 +954,10 @@ export async function contestPublishPOST(
 
 // ── Results (R2) ─────────────────────────────────────────────────────────────
 
-/** Batch result upsert for one contest. Provenance is stamped HERE
- *  ('league_verified' — the entering manager IS the competition owner;
- *  the masterplan ladder's other rungs arrive with their phases). A
- *  fixture completes automatically once both sides hold a result. */
+/** Batch result upsert for one contest. Provenance is stamped via the
+ *  shared rule in provenance.ts ('owner' — this path is only reachable
+ *  through requireCompetitionManager on the owning org). A fixture
+ *  completes automatically once both sides hold a result. */
 export async function resultsUpsertPOST(
   admin: Admin,
   input: ResultUpsertInput,
@@ -1011,7 +1012,7 @@ export async function resultsUpsertPOST(
       participant_id: r.participantId,
       score: r.score,
       payload: r.payload ?? {},
-      provenance: 'league_verified',
+      provenance: stampProvenance('owner'),
       entered_by: enteredBy,
     })),
     { onConflict: 'participant_id' }

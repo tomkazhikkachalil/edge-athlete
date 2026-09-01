@@ -127,6 +127,31 @@ export const ResultUpsertSchema = z.object({
 });
 export type ResultUpsertInput = z.infer<typeof ResultUpsertSchema>;
 
+/** Per-athlete stat lines for one contest (phase 4 R1): one batch per
+ *  contest, keyed to the sport's STAT_SCHEMAS field vocabulary. Key
+ *  membership is checked in the SERVER lib against the competition's
+ *  sport_key (this file stays registry-free, the 113 convention);
+ *  provenance is stamped SERVER-side by writer authority, never accepted
+ *  from the client. */
+export const StatLinesUpsertSchema = z.object({
+  contestId: uuid,
+  lines: z
+    .array(
+      z.object({
+        profileId: uuid,
+        teamId: uuid.optional(),
+        stats: z
+          .record(z.string().max(40), z.number().finite())
+          .refine(s => Object.keys(s).length >= 1 && Object.keys(s).length <= 30, {
+            message: 'A stat line needs 1–30 stats',
+          }),
+      })
+    )
+    .min(1)
+    .max(60),
+});
+export type StatLinesUpsertInput = z.infer<typeof StatLinesUpsertSchema>;
+
 /** R4: the owner decides a pending cross-org entry. */
 export const EntryDecideSchema = z.object({
   entryId: uuid,
