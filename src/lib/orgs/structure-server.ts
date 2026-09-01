@@ -144,7 +144,12 @@ export async function structureAggregateGET(
         .select('id', { count: 'exact', head: true })
         .eq(col, scope.orgId)
         .eq('kind', 'roster')
-        .eq('status', 'active'),
+        // Phase 5 R1 fix: org-scope pin (a placed athlete used to count
+        // twice via their team row) + "on the roster" semantics under the
+        // widened lifecycle: active (legacy) and placed count; registered/
+        // evaluating surface separately on the registrar screen (R4).
+        .eq('scope_type', 'org')
+        .in('status', ['active', 'placed']),
     ]);
     counts = { managers: managersRes.count ?? 0, rosterAthletes: rosterRes.count ?? 0 };
   }

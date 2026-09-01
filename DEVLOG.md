@@ -1,5 +1,48 @@
 # Development Log
 
+## September 2, 2026 — Phase 5 R1: the registration lifecycle lands (#482, mig 161)
+
+Phase 5 (registration) opens: "a season runs end to end from
+registration to standings." R1 is the ground work — the status widening
+migration 140 promised, the type-safety sweep, and two live bugs found
+by the planning exploration.
+
+- **Mig 161** (handed to Tom): the named-CHECK swap, verbatim as 140's
+  header reserved it — memberships_status_check widens to the six-value
+  lifecycle (active, pending, registered, evaluating, placed, released).
+  Deliberately ONLY the CHECK: no writers of the new statuses exist
+  until R2, so running it early is inert, and memberships_uniq is
+  untouched (season-scoped rows get uniqueness from the NULLS NOT
+  DISTINCT key as designed in 140).
+- **The type chokepoint**: RosterStatus widens; parseRosterStatus
+  replaces the three unsafe `as` casts (an unknown future status now
+  reads null instead of mis-typing as 'active'). membershipEdges goes
+  multi-row — a profile can hold a NULL-season invite AND a season
+  registration at once — with the pure pickRosterEdge (season row
+  outranks NULL-season) choosing per caller.
+- **One live workflow per athlete per org**: rosterPost now refuses to
+  stack an invite on any live edge with a status-specific message (this
+  also kills the old re-offer → 23505 path); only 'released' permits
+  re-inviting. The roster DELETE lifecycle is season-pinned — it can
+  never touch a registration row (those move only through R2's
+  transitions).
+- **Two live bugs fixed**: the console rosterAthletes count double-
+  counted org+team rows (missing scope pin), and entryAddPOST's roster
+  eligibility was satisfiable by a team-scope row. Both now pin
+  scope_type='org' with ['active','placed'] semantics.
+- **Semantic widenings**: the guardian photo-consent ask and the member
+  panel's consent chip now cover registered/evaluating/placed rows —
+  consent is captured at registration, so registrants deserve the ask.
+- **Redaction**: in-flight registration states (registered/evaluating/
+  released) are org-management detail like pending invites — masked for
+  everyone but managers and the person themselves; active/placed stay
+  public (the team page shows placed rosters anyway). Lifecycle chips
+  land on both org-page twins.
+- Documented in members.ts why the enumeration readers stay
+  status-blind on purpose (registrants ARE members; released keeps the
+  follow row). R2 next: programs/registrations/windows tables + the
+  registration core.
+
 ## September 2, 2026 — Phase 4 R5: the public gallery + phase close (#480, mig 160)
 
 The last surface, and the phase's exit condition made public: a result

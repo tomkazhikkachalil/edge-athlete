@@ -277,7 +277,9 @@ describe('entryAddPOST', () => {
       league_id: 'org-1',
       profile_id: 'p1',
       kind: 'roster',
-      status: 'active',
+      // Phase 5 R1 fix: org-scope pin + full-membership statuses.
+      scope_type: 'org',
+      status: ['active', 'placed'],
     });
   });
 

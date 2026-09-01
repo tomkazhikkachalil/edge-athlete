@@ -128,16 +128,19 @@ export async function GET(request: NextRequest) {
           .eq('scope_type', 'org')
           .order('joined_at', { ascending: true })
       : { data: [], error: null };
-    // Photo-consent asks (phase 4 R4): ACTIVE org-roster rows never
-    // answered. Selecting photo_consent 42703s pre-159 — degrade to none
-    // rather than failing the whole queue (kept OUT of the throw loop).
+    // Photo-consent asks (phase 4 R4): org-roster rows never answered.
+    // Phase 5 widens the statuses — consent is captured AT registration,
+    // so a registered/evaluating/placed child deserves the ask exactly
+    // like an active one ('pending' invites and 'released' rows don't).
+    // Selecting photo_consent 42703s pre-159 — degrade to none rather
+    // than failing the whole queue (kept OUT of the throw loop).
     const photoConsentQ = FEATURE_FLAGS.FEATURE_ROSTER_GUARDIAN_GATE
       ? await admin
           .from('memberships')
           .select('id, profile_id, league_id, club_id, joined_at, photo_consent')
           .in('profile_id', ids)
           .eq('kind', 'roster')
-          .eq('status', 'active')
+          .in('status', ['active', 'registered', 'evaluating', 'placed'])
           .eq('scope_type', 'org')
           .is('photo_consent', null)
           .order('joined_at', { ascending: true })
