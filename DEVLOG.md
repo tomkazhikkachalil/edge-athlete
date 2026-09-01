@@ -1,5 +1,16 @@
 # Development Log
 
+## September 1, 2026 — Maintenance round at the phase-3 R1 break (#453)
+
+The full checklist at the session break, all clean on the first pass:
+`npm run verify` green (207 files, 2379 tests; lint 0 warnings; build
+clean), guardrails green, `npm audit` 0 vulnerabilities, remote pruned
+to `origin/main` (nine already-merged tracking refs cleaned), the
+CLAUDE.md doc index re-swept — every path resolves. Post-merge: deploy
+verified Ready and the org/site sweep re-run against prod. Nothing
+found to fix; the repo parks at the R1 resume point recorded in the
+plan file.
+
 ## September 1, 2026 — Phase 3 round 1: the public segment + the site shell (mig 155, #448–#451)
 
 Phase 3 (public org sites; Tom's five-round program + decisions in the
