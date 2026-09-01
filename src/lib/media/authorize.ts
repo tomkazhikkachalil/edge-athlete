@@ -186,6 +186,117 @@ async function authorizeWorkout(
   return base;
 }
 
+/**
+ * Contest media (phase 4): org staff of the competition owner, staff of a
+ * participating club, an actively tagged athlete (or their household), or
+ * an active roster member of a participating team. NEVER public through
+ * this proxy — the R5 public gallery serves consent-gated bytes through
+ * its own streamer with its own gate. Token id = the contest_media row.
+ */
+async function authorizeContestMedia(
+  admin: SupabaseClient,
+  mediaId: string,
+  viewerId: string | null
+): Promise<MediaAuthResult> {
+  if (!viewerId) return DENY;
+  const { data: media } = await admin
+    .from('contest_media')
+    .select('contest_id, contest:contest_id (competition:competition_id (league_id, club_id))')
+    .eq('id', mediaId)
+    .maybeSingle();
+  if (!media) return DENY;
+  const contest = Array.isArray(media.contest) ? media.contest[0] : media.contest;
+  const compRaw = contest?.competition;
+  const comp = (Array.isArray(compRaw) ? compRaw[0] : compRaw) as
+    | { league_id: string | null; club_id: string | null }
+    | null
+    | undefined;
+  if (!comp) return DENY;
+
+  // Actively tagged, or household access to a tagged profile.
+  const { data: tags } = await admin
+    .from('contest_media_tags')
+    .select('profile_id')
+    .eq('media_id', mediaId)
+    .eq('status', 'active')
+    .limit(100);
+  const taggedIds = (tags ?? []).map(t => t.profile_id as string);
+  if (taggedIds.includes(viewerId)) return { allow: true, isPublic: false };
+  for (const taggedId of taggedIds) {
+    if (await hasManagedAccess(viewerId, taggedId)) return { allow: true, isPublic: false };
+  }
+
+  // Manager of an org touching the contest: the owner, or the owning club
+  // of a participating team.
+  const { data: participants } = await admin
+    .from('contest_participants')
+    .select('entry:entry_id (team_id)')
+    .eq('contest_id', media.contest_id as string);
+  const teamIds: string[] = [];
+  for (const p of participants ?? []) {
+    const entry = Array.isArray(p.entry) ? p.entry[0] : p.entry;
+    if (entry?.team_id) teamIds.push(entry.team_id as string);
+  }
+  const { data: teamRows } = teamIds.length
+    ? await admin.from('teams').select('id, club_id').in('id', teamIds)
+    : { data: [] };
+  const clubIds = new Set(
+    (teamRows ?? []).map(t => t.club_id as string | null).filter((v): v is string => !!v)
+  );
+  if (comp.club_id) clubIds.add(comp.club_id);
+
+  const managerChecks: PromiseLike<boolean>[] = [];
+  if (comp.league_id) {
+    managerChecks.push(
+      admin
+        .from('memberships')
+        .select('id')
+        .eq('league_id', comp.league_id)
+        .eq('profile_id', viewerId)
+        .eq('scope_type', 'org')
+        .eq('status', 'active')
+        .in('role', ['owner', 'manager'])
+        .limit(1)
+        .maybeSingle()
+        .then(({ data }: { data: unknown }) => !!data)
+    );
+  }
+  for (const clubId of clubIds) {
+    managerChecks.push(
+      admin
+        .from('memberships')
+        .select('id')
+        .eq('club_id', clubId)
+        .eq('profile_id', viewerId)
+        .eq('scope_type', 'org')
+        .eq('status', 'active')
+        .in('role', ['owner', 'manager'])
+        .limit(1)
+        .maybeSingle()
+        .then(({ data }: { data: unknown }) => !!data)
+    );
+  }
+  if ((await Promise.all(managerChecks)).some(Boolean)) {
+    return { allow: true, isPublic: false };
+  }
+
+  // Active roster member of a participating team (teammates see the album).
+  if (teamIds.length) {
+    const { data: rosterRow } = await admin
+      .from('memberships')
+      .select('id')
+      .eq('profile_id', viewerId)
+      .eq('kind', 'roster')
+      .eq('status', 'active')
+      .eq('scope_type', 'team')
+      .in('scope_id', teamIds)
+      .limit(1)
+      .maybeSingle();
+    if (rosterRow) return { allow: true, isPublic: false };
+  }
+  return DENY;
+}
+
 export async function authorizeMedia(
   admin: SupabaseClient,
   payload: MediaTokenPayload,
@@ -208,6 +319,8 @@ export async function authorizeMedia(
       return profileScoped(admin, payload.id, viewerId);
     case 'workout':
       return authorizeWorkout(admin, payload.id, viewerId);
+    case 'contest_media':
+      return authorizeContestMedia(admin, payload.id, viewerId);
     default:
       return DENY;
   }

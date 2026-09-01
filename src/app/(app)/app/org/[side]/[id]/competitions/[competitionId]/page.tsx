@@ -10,6 +10,7 @@ import { useToast } from '@/components/Toast';
 import { SPORT_REGISTRY } from '@/lib/sports/SportRegistry';
 import { getStatSchema } from '@/lib/sports/stat-schemas';
 import PlayerStatsPanel from '@/components/org/PlayerStatsPanel';
+import ContestMediaPanel from '@/components/org/ContestMediaPanel';
 
 // ── The competition detail console (phase 2 R2) ─────────────────────────────
 // The org-console template one level deeper: schedule (contests) + score
@@ -112,6 +113,8 @@ export default function CompetitionDetailPage() {
   const [deleteTarget, setDeleteTarget] = useState<ContestRow | null>(null);
   // Player stats: one expander at a time (the scoreContestId pattern).
   const [statsContestId, setStatsContestId] = useState<string | null>(null);
+  // Game media: same pattern (phase 4 R3).
+  const [mediaContestId, setMediaContestId] = useState<string | null>(null);
   const [participantAgg, setParticipantAgg] = useState<ParticipantAggregate | null>(null);
 
   const base = `/api/${plural}/${orgId}/competitions/${competitionId}`;
@@ -355,19 +358,33 @@ export default function CompetitionDetailPage() {
                         </p>
                       </div>
                       {contest.status !== 'canceled' && (
-                        <button
-                          type="button"
-                          onClick={() =>
-                            setStatsContestId(prev => (prev === contest.id ? null : contest.id))
-                          }
-                          className="px-2 py-1 text-xs rounded-md border border-border-strong text-secondary hover:bg-surface-sunken transition-colors"
-                        >
-                          {statsContestId === contest.id ? 'Close player stats' : 'Player stats'}
-                        </button>
+                        <div className="flex flex-wrap gap-2">
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setStatsContestId(prev => (prev === contest.id ? null : contest.id))
+                            }
+                            className="px-2 py-1 text-xs rounded-md border border-border-strong text-secondary hover:bg-surface-sunken transition-colors"
+                          >
+                            {statsContestId === contest.id ? 'Close player stats' : 'Player stats'}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setMediaContestId(prev => (prev === contest.id ? null : contest.id))
+                            }
+                            className="px-2 py-1 text-xs rounded-md border border-border-strong text-secondary hover:bg-surface-sunken transition-colors"
+                          >
+                            {mediaContestId === contest.id ? 'Close media' : 'Media'}
+                          </button>
+                        </div>
                       )}
                     </div>
                     {statsContestId === contest.id && (
                       <PlayerStatsPanel base={base} contestId={contest.id} />
+                    )}
+                    {mediaContestId === contest.id && (
+                      <ContestMediaPanel base={base} contestId={contest.id} />
                     )}
                   </li>
                 ))}
@@ -601,6 +618,17 @@ export default function CompetitionDetailPage() {
                               {statsContestId === contest.id ? 'Close player stats' : 'Player stats'}
                             </button>
                           )}
+                        {contest.status !== 'canceled' && (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setMediaContestId(prev => (prev === contest.id ? null : contest.id))
+                            }
+                            className="px-2 py-1 text-xs rounded-md border border-border-strong text-secondary hover:bg-surface-sunken transition-colors"
+                          >
+                            {mediaContestId === contest.id ? 'Close media' : 'Media'}
+                          </button>
+                        )}
                         {!contest.event_id && contest.scheduled_at && contest.status === 'scheduled' && (
                           <button
                             type="button"
@@ -669,6 +697,9 @@ export default function CompetitionDetailPage() {
 
                     {statsContestId === contest.id && (
                       <PlayerStatsPanel base={base} contestId={contest.id} />
+                    )}
+                    {mediaContestId === contest.id && (
+                      <ContestMediaPanel base={base} contestId={contest.id} />
                     )}
                   </li>
                 );

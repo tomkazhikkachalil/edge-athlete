@@ -1,5 +1,46 @@
 # Development Log
 
+## September 2, 2026 — Phase 4 R3: contest media + attribution (#478, mig 158)
+
+The photo half of the exit condition, on its private surfaces. Model
+decision (against posts.contest_id and posts.event_id): an ORG-SIDE
+library — coach photos are org artifacts that survive the coach leaving
+(§8 invariant 1), the guardian gate mandates an org-private store anyway,
+and a dedicated table means ONE tag store (the posts.tags/post_tags
+dual-store trap structurally cannot recur).
+
+- **Mig 158 — contest_media + contest_media_tags** (handed to Tom):
+  private uploads-bucket objects under contest-media/{contestId}/,
+  `published` = the org's explicit gallery-curation bit born now (R5
+  reads it WITH photo consent; it grants nothing alone), tags
+  UNIQUE(media_id, profile_id) with status active|removed — 'removed'
+  is a TOMBSTONE (the mirror-tags lesson): tag writes are
+  ON CONFLICT DO NOTHING, so an untag is never silently undone.
+- **contest-media-server.ts + twins** ride the R1 authority rule
+  (resolveCompetitionAccess exported): the owner manages everything;
+  participating-club staff upload and tag for their OWN teams only;
+  publish is owner-only. Taggable set = the roster picker, never a
+  search. Tagging bells the athlete and (for supervised profiles) the
+  guardians via the existing tag_alert path — tags land immediately,
+  matching post tags (Tom's call).
+- **Serving**: 'contest_media' joins MediaEntityType — the signed proxy
+  re-authorizes per request (tagged athlete/household, org staff of
+  owner or participating club, or active roster member of a
+  participating team; NEVER anonymous — R5's public gallery gets its
+  own consent-gated streamer).
+- **The athlete's surface fills automatically**: /api/profile/[id]/
+  contest-media (the media route's visibility gate verbatim) feeds a
+  distinct "Team media" section atop the Tagged tab — never fake post
+  tiles (contest media is not a post; the ?post= modal contract stays
+  intact). A PRIVATE competition's items show (they are the athlete's
+  record) but its NAME is withheld from every viewer until the org
+  flips it public. Untag = self or guardian, tombstoned.
+- Console: a Media expander per contest (owner + participant views) —
+  upload, tag from the roster optgroups, untag, publish/unpublish.
+- e2e (skips pre-158): upload → roster tag → athlete surface fills →
+  proxy serves the athlete and refuses anonymous → untag → re-tag is a
+  no-op skip → participant uploads but cannot publish; 375px pass.
+
 ## September 2, 2026 — Phase 4 R2: official stats on the profile (#477, zero DDL)
 
 The read side of R1 — the first half of the phase-4 exit condition ("a

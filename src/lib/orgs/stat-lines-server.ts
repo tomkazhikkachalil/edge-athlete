@@ -38,7 +38,7 @@ type Admin = SupabaseClient<any, 'public', any>;
 
 const TAG = '[STAT LINES]';
 
-interface CompRow {
+export interface CompRow {
   id: string;
   name: string;
   sport_key: string;
@@ -48,15 +48,19 @@ interface CompRow {
   club_id: string | null;
 }
 
-type Access =
+export type CompetitionAccess =
   | { authority: 'owner' }
   | { authority: 'participant'; clubTeamIds: Set<string> };
 
+type Access = CompetitionAccess;
+
 /** Resolve how (and whether) the scoped org may touch this competition's
- *  stat lines. Owner = the scope org owns the competition (or admin
- *  unscoped). Participant = a CLUB scope holding at least one approved
- *  team entry — its authority is pinned to its own entered teams. */
-async function resolveAccess(
+ *  stat lines (and, since R3, its contest media — contest-media-server
+ *  rides the same rule). Owner = the scope org owns the competition (or
+ *  admin unscoped). Participant = a CLUB scope holding at least one
+ *  approved team entry — its authority is pinned to its own entered
+ *  teams. */
+export async function resolveCompetitionAccess(
   admin: Admin,
   comp: CompRow,
   scope: CompetitionScope | null
@@ -84,7 +88,7 @@ async function resolveAccess(
 }
 
 /** ACTIVE-ROSTER profile ids per team — THE attribution edge. */
-async function rosterByTeam(
+export async function rosterByTeam(
   admin: Admin,
   teamIds: string[]
 ): Promise<Map<string, Set<string>>> {
@@ -122,7 +126,7 @@ export async function statLinesAggregateGET(
     .eq('id', competitionId)
     .maybeSingle();
   if (!comp) return NextResponse.json({ error: 'Competition not found' }, { status: 404 });
-  const access = await resolveAccess(admin, comp as CompRow, scope);
+  const access = await resolveCompetitionAccess(admin, comp as CompRow, scope);
   if (!access) return NextResponse.json({ error: 'Competition not found' }, { status: 404 });
   if (comp.format !== 'fixture') {
     return NextResponse.json(
@@ -282,7 +286,7 @@ export async function statLinesUpsertPOST(
   if (!contestRow || !comp) {
     return NextResponse.json({ error: 'Game not found' }, { status: 404 });
   }
-  const access = await resolveAccess(admin, comp, scope);
+  const access = await resolveCompetitionAccess(admin, comp, scope);
   if (!access) return NextResponse.json({ error: 'Game not found' }, { status: 404 });
   if (contestRow.status === 'canceled') {
     return NextResponse.json({ error: 'This game was canceled' }, { status: 400 });
@@ -423,7 +427,7 @@ export async function statLineDELETE(
   const compRaw = contest?.competition;
   const comp = (Array.isArray(compRaw) ? compRaw[0] : compRaw) as CompRow | null | undefined;
   if (!line || !comp) return NextResponse.json({ error: 'Not found' }, { status: 404 });
-  const access = await resolveAccess(admin, comp, scope);
+  const access = await resolveCompetitionAccess(admin, comp, scope);
   if (!access) return NextResponse.json({ error: 'Not found' }, { status: 404 });
   if (access.authority === 'participant') {
     if (
