@@ -1,5 +1,60 @@
 # Development Log
 
+## September 2, 2026 — Phase 3 round 5 + PHASE CLOSE (#466–#468, zero DDL)
+
+The polish round, and the close of the public-org-sites phase. Five
+rounds, one migration (155), twenty-one PRs (#448–#468), and the arc the
+phase was named for: an anonymous org-site document that used to not
+exist now serves branded, indexable, accessible pages as CDN HITs.
+
+- **#466 — the a11y pass** (from a fresh segment inventory): skip-to-
+  content link on every public document; an sr-only h1 fallback for
+  hero-disabled sites; scope=col + full-name aria-labels on every
+  standings/record header; the three phase-surface footers off
+  text-faint (2.4:1) onto text-muted; sr-only new-tab notes on external
+  links; and ACCENT_MAX_LUMINANCE tightened 0.55 → 0.30 so the hero's
+  white-on-accent is guaranteed ≥3:1 (large-text AA) — the violet
+  default sits at 4.23:1, the exact ratio a pre-launch audit once
+  failed, and now clears its own bar. Plus two prod-CDN e2e truths from
+  the R4 close (query-bust the logo streamer's deliberate day cache;
+  wider publish-transition settles).
+- **#467 — the stage gate learns the anonymous surface.** HARDENING.md
+  B2 gains the /org ISR tree + the sitemap enumerator; new B4 codifies
+  the eight anon-surface invariants; guardrails grows public-segment
+  HARD checks (its first .tsx globs) + a dark: advisory whose pattern
+  is utility-prefixed so comments don't trip it (it tripped on two
+  doc comments immediately — the check checked itself). CLAUDE.md
+  finally shows the two-root architecture and the public segment's
+  iron rules; the masterplan index line moves to phases 0–3 SHIPPED.
+- **#468 — the demo site + the close.** scripts/seed-demo-org.mjs
+  (idempotent, --owner-email) seeds the **Edge Athlete Demo League** —
+  real rows through the real tables, demo-named throughout, and per
+  Tom's decision ZERO PEOPLE: no rosters, no memberships beyond the
+  owner, and the staff module disabled so no human name renders.
+  Live at **/org/edge-athlete-demo-league** (4 teams, a plausible
+  standings table, schedule, venue + rinks, teal accent, sponsors, an
+  About page that says plainly what it is). Enters the sitemap within
+  the hour (direct-DB seeding skips the publish API's purge — known).
+- **Lighthouse (prod, mobile, demo home + standings):** performance
+  90/91, best-practices 100, SEO 100, CLS 0, a11y 95 with exactly ONE
+  failing audit — the footer contrast #466 had already fixed but which
+  wasn't yet deployed at measurement time. Re-measured after the #467
+  deploy (dd06abd): **performance 90, accessibility 100, best-practices
+  100, SEO 100, zero failed audits.** The phase's public surface ships
+  with a perfect a11y/BP/SEO card and CDN-HIT latencies.
+- Maintenance sweep: verify green (212 files / 2441 tests), guardrails
+  green (incl. the new checks), npm audit 0, thirteen merged branch
+  refs pruned (remote back to origin/main only), CLAUDE.md doc-index
+  swept — two paths had silently gone stale in the R1 restructure
+  (login, not-found → their (app)/ homes) and are fixed.
+- **PHASE 3 CODE COMPLETE.** The exit itself is Tom's ops checklist
+  (recorded in the R4 entry): domain decision + wildcard DNS, the two
+  build-injected env flags, the dead auto-deploy webhook (every merge
+  this phase needed a manual API trigger — fix before R5's successor),
+  and the Search Console sitemap submission that is the exit proof.
+  Next program (phase 3.5 news / phase 4 media-with-consent / other):
+  Tom's call.
+
 ## September 2, 2026 — Phase 3 round 4: SEO — THE EXIT ROUND (#461–#463, zero DDL)
 
 The phase's stated exit is "a public site is live, fast, and indexed";
