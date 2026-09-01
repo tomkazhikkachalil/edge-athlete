@@ -100,7 +100,17 @@ describe('render-side parsers (never throw)', () => {
   it('hexLuminance orders dark below light', () => {
     expect(hexLuminance('#000000')).toBe(0);
     expect(hexLuminance('#ffffff')).toBeCloseTo(1, 5);
-    expect(hexLuminance('#7c3aed')).toBeLessThan(0.55);
+    // Both default gradient stops must clear the accent clamp (large-text
+    // 3:1 bound) — the clamp guards the defaults' own legality.
+    expect(hexLuminance('#7c3aed')).toBeLessThan(0.3);
+    expect(hexLuminance('#8b5cf6')).toBeLessThan(0.3);
+  });
+
+  it('rejects mid-light accents that clear 0.3 luminance', () => {
+    // A pleasant mid-tone that fails the 3:1 large-text bound.
+    expect(
+      SitePatchSchema.safeParse({ action: 'set_theme', accent: '#66bb88' }).success
+    ).toBe(false);
   });
 
   it('parseHeroConfig tolerates garbage', () => {

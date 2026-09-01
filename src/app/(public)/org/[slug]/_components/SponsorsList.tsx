@@ -17,6 +17,7 @@ export default function SponsorsList({ sponsors }: { sponsors: PublicSponsor[] }
               className="text-sm font-medium text-brand-fg"
             >
               {s.name}
+              <span className="sr-only"> (opens in a new tab)</span>
             </a>
           ) : (
             <span className="text-sm font-medium text-primary">{s.name}</span>

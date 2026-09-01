@@ -95,9 +95,13 @@ export function hexLuminance(hex: string): number {
   return 0.2126 * channel(0) + 0.7152 * channel(1) + 0.0722 * channel(2);
 }
 
-/** The hero renders white text on the accent — a near-white accent makes
- *  the whole hero unreadable, so light colors are rejected at write. */
-export const ACCENT_MAX_LUMINANCE = 0.55;
+/** The hero renders white text on the accent. L ≤ 0.30 guarantees the
+ *  gradient's LIGHT end keeps ≥3:1 against white — WCAG AA for large
+ *  text, which the hero h1 is. (R5 tightened this from 0.55, which was
+ *  only a readability floor; the violet-500 default sits at L ≈ 0.198,
+ *  i.e. 4.23:1 — the exact ratio a pre-launch WCAG audit once failed
+ *  white-on-violet at, so the default clears its own bar with room.) */
+export const ACCENT_MAX_LUMINANCE = 0.3;
 
 /** #rrggbb → its darker companion (each channel ×0.85) — the gradient end
  *  and link color when a site sets a single accent. */

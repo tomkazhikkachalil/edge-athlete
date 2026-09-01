@@ -27,11 +27,15 @@ export default function PublicStandingsTable({
         <table className="w-full text-sm">
           <thead>
             <tr className="text-left text-xs text-muted">
-              <th className="py-1.5 pr-2 font-medium">#</th>
-              <th className="py-1.5 pr-3 font-medium">Team</th>
+              <th scope="col" className="py-1.5 pr-2 font-medium">#</th>
+              <th scope="col" className="py-1.5 pr-3 font-medium">Team</th>
               {competition.columns.map(col => (
+                // aria-label carries the full column name — title alone is
+                // not a reliable accessible name for the abbreviation.
                 <th
                   key={col.key}
+                  scope="col"
+                  aria-label={col.label}
                   className="py-1.5 px-2 font-medium text-right"
                   title={col.label}
                 >

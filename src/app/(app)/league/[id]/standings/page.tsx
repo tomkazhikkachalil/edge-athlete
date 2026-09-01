@@ -86,7 +86,7 @@ export default async function LeagueStandingsPage({ params }: PageParams) {
         ) : (
           withRows.map(comp => <PublicStandingsTable key={comp.id} competition={comp} />)
         )}
-        <p className="text-xs text-faint">
+        <p className="text-xs text-muted">
           Powered by{' '}
           <Link href="/" className="text-brand-fg">
             Edge Athlete
