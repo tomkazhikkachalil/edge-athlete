@@ -130,18 +130,15 @@ test('photo consent: adult accept+consent, revoke, org read-only, guardian path'
           scope_type: 'org',
         });
 
-        // The ask surfaces in the guardian queue (the queue query rides
-        // FEATURE_ROSTER_GUARDIAN_GATE — assert only when it's on here).
-        const rosterGateOn = process.env.NEXT_PUBLIC_FEATURE_ROSTER_GUARDIAN_GATE === '1';
+        // The ask surfaces in the guardian queue — unconditional since the
+        // 0.10 flag retired.
         res = await athleteApi.get('/api/guardian/queue');
         expect(res.status(), await readErrorBody(res)).toBe(200);
         const items = (await res.json()).items as { kind: string; athlete: { id: string } }[];
-        if (rosterGateOn) {
-          expect(
-            items.some(i => i.kind === 'photo_consent' && i.athlete.id === childId),
-            'photo_consent ask in the guardian queue'
-          ).toBe(true);
-        }
+        expect(
+          items.some(i => i.kind === 'photo_consent' && i.athlete.id === childId),
+          'photo_consent ask in the guardian queue'
+        ).toBe(true);
 
         // The guardian answers for the child.
         res = await athleteApi.patch(rosterUrl, {

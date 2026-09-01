@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { isUuid } from '@/lib/uuid';
 import { requireAuth, getSupabaseAdmin, getProfileRole } from '@/lib/auth-server';
-import { FEATURE_FLAGS } from '@/lib/features';
 import { notifyEventResponse } from '@/lib/calendar/notifications';
 
 // ── POST /api/calendar/events/[id]/respond ────────────────────────────────────
@@ -20,9 +19,6 @@ export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  if (!FEATURE_FLAGS.FEATURE_CALENDAR) {
-    return NextResponse.json({ error: 'Not found' }, { status: 404 });
-  }
   try {
     const user = await requireAuth(request);
     const { id } = await params;

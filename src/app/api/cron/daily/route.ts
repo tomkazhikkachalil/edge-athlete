@@ -63,9 +63,7 @@ export async function GET(request: NextRequest) {
     summary.transfers = { ok: false };
   }
   try {
-    summary.recurrence = FEATURE_FLAGS.FEATURE_CALENDAR
-      ? await extendRecurringSeries(admin)
-      : { skipped: 'flag off' };
+    summary.recurrence = await extendRecurringSeries(admin);
   } catch (e) {
     console.error('[DAILY] recurrence phase failed:', e);
     summary.recurrence = { ok: false };
@@ -74,9 +72,7 @@ export async function GET(request: NextRequest) {
   // every 10 minutes (reminded_at dedups). Deliberately NOT a widened
   // variant — that would fire early and pre-empt the precise reminders.
   try {
-    summary.reminders = FEATURE_FLAGS.FEATURE_CALENDAR
-      ? await runReminderSweep(admin)
-      : { skipped: 'flag off' };
+    summary.reminders = await runReminderSweep(admin);
   } catch (e) {
     console.error('[DAILY] reminders phase failed:', e);
     summary.reminders = { ok: false };

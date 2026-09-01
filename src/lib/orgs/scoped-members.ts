@@ -43,24 +43,21 @@ const EMPTY: ViewerScopeSet = {
 
 /** The viewer's sub-org scope set for the calendar merge. Degrades to empty
  *  on a pre-145 database — scoped surfaces simply don't exist yet.
- *  `rosterOnly` (0.10, FEATURE_CALENDAR_ROSTER_ONLY) mirrors the org-scope
- *  predicate: only ACTIVE roster rows place events — without it a future
- *  follow-a-team row would be a placement back door the moment sub-org
- *  rows start being minted. */
+ *  ROSTER-ONLY, permanently (the 0.10 flag retired in the consolidation
+ *  round): only ACTIVE roster rows place events — a follow-a-team row
+ *  must never be a placement back door. Do not reintroduce a kind-blind
+ *  mode here. */
 export async function viewerScopeSet(
   admin: Admin,
-  profileId: string,
-  opts?: { rosterOnly?: boolean }
+  profileId: string
 ): Promise<ViewerScopeSet> {
-  let query = admin
+  const { data, error } = await admin
     .from('memberships')
     .select('scope_type, scope_id')
     .eq('profile_id', profileId)
-    .in('scope_type', ['division', 'team']);
-  if (opts?.rosterOnly) {
-    query = query.eq('kind', 'roster').eq('status', 'active');
-  }
-  const { data, error } = await query;
+    .in('scope_type', ['division', 'team'])
+    .eq('kind', 'roster')
+    .eq('status', 'active');
   if (error) {
     if (isMissingTableError(error.code)) return { ...EMPTY, scopeOrg: new Map() };
     throw error;

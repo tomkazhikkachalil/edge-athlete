@@ -15,9 +15,8 @@
 // grants, not audience). v1 runs dormant: nothing mints sub-org rows yet.
 
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { FEATURE_FLAGS } from '@/lib/features';
 import { isMissingTableError } from '@/lib/leagues/validate';
-import { memberOrgIds, rosterOrgIds } from '@/lib/orgs/members';
+import { rosterOrgIds } from '@/lib/orgs/members';
 import { viewerScopeSet } from '@/lib/orgs/scoped-members';
 import { EVENT_FIELDS } from './detail-server';
 
@@ -100,10 +99,11 @@ export async function fetchOrgEventsForViewer(
   // only active roster rows place events (follow members still see org
   // pages and opt in by RSVP — their guest rows stay authoritative either
   // way, so pre-flip RSVPs are never retroactively removed).
-  const rosterOnly = FEATURE_FLAGS.FEATURE_CALENDAR_ROSTER_ONLY;
+  // Flag retired (consolidation round): roster-only placement is the
+  // permanent rule — §8 invariant 3, the follow edge is never a pipe.
   const [{ leagueIds: ownLeagueIds, clubIds: ownClubIds }, scopes] = await Promise.all([
-    rosterOnly ? rosterOrgIds(admin, profileId) : memberOrgIds(admin, profileId),
-    viewerScopeSet(admin, profileId, { rosterOnly }),
+    rosterOrgIds(admin, profileId),
+    viewerScopeSet(admin, profileId),
   ]);
   // A team/division member also sees the OWNING org's events (child sees up).
   const leagueIds = [...new Set([...ownLeagueIds, ...scopes.leagueIds])];

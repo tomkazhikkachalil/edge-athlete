@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { isUuid } from '@/lib/uuid';
 import { requireAuth, getSupabaseAdmin } from '@/lib/auth-server';
-import { FEATURE_FLAGS } from '@/lib/features';
 import { loadEventForViewer } from '@/lib/calendar/detail-server';
 import { buildVEvent, buildCalendar } from '@/lib/calendar/ics';
 import { describeRecurrence } from '@/lib/calendar/recurrence';
@@ -17,9 +16,6 @@ export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  if (!FEATURE_FLAGS.FEATURE_CALENDAR) {
-    return NextResponse.json({ error: 'Not found' }, { status: 404 });
-  }
   try {
     const user = await requireAuth(request);
     const { id } = await params;

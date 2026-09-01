@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 import { adminClient, apiAs, createQaChild, deleteQaUser, loadQaUser } from './helpers/qa-user';
 
-// Guardian roster gate (0.10, mig 147 + FEATURE_ROSTER_GUARDIAN_GATE):
+// Guardian roster gate (0.10, mig 147; its launch flag retired):
 // an offer to a supervised child creates the pending row, bells the child
 // AND the guardians (roster_invite), surfaces in the guardian queue, and
 // the guardian accepts acting-for (either-approves — the child's own
@@ -44,16 +44,9 @@ test('guardian roster: offer → guardian bell + queue → accept acting-for; de
     const apiOwner = await apiAs('state-b.json');
     const apiGuardian = await apiAs('state.json');
     try {
-      // The offer — a 403 with the supervised message means the flag is off
-      // in this environment: that IS the correct flag-off behavior, skip.
+      // The either-approves flow is permanent (the 0.10 flag retired) —
+      // the offer must succeed on every target.
       const offer = await apiOwner.post(`/api/leagues/${leagueId}/roster?profileId=${childId}`);
-      if (offer.status() === 403) {
-        const body = await offer.json().catch(() => ({}));
-        test.skip(
-          String(body.error ?? '').includes('guardian approval arrives'),
-          'FEATURE_ROSTER_GUARDIAN_GATE off on this target'
-        );
-      }
       expect(offer.ok(), String(offer.status())).toBe(true);
 
       // Pending row + both notification halves.

@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth, getSupabaseAdmin } from '@/lib/auth-server';
-import { FEATURE_FLAGS } from '@/lib/features';
 import { generateFeedToken, hashFeedToken } from '@/lib/calendar/feed-server';
 
 // ── /api/calendar/feed-token ──────────────────────────────────────────────────
@@ -27,9 +26,6 @@ async function isSupervised(profileId: string): Promise<boolean> {
 }
 
 export async function GET(request: NextRequest) {
-  if (!FEATURE_FLAGS.FEATURE_CALENDAR) {
-    return NextResponse.json({ error: 'Not found' }, { status: 404 });
-  }
   try {
     const user = await requireAuth(request);
     const admin = getSupabaseAdmin();
@@ -55,9 +51,6 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  if (!FEATURE_FLAGS.FEATURE_CALENDAR) {
-    return NextResponse.json({ error: 'Not found' }, { status: 404 });
-  }
   try {
     const user = await requireAuth(request);
     const admin = getSupabaseAdmin();

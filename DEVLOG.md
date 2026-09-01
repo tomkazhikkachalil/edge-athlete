@@ -1,5 +1,38 @@
 # Development Log
 
+## September 2, 2026 — Consolidation PR-1: four flags retired (#490, zero DDL)
+
+The consolidation round opens (the stage-gate rule: tighten before the
+next arc). Four launched flags made their ON paths unconditional and
+died — dev/CI had silently been running two of their OFF branches,
+diverging from prod:
+
+- **FEATURE_CHAT_DOCK** (5 sites — the dock launched Jul 28; the
+  `!!user && isDesktop` conditions it ANDed with survive).
+- **FEATURE_CALENDAR_ROSTER_ONLY**: roster-only calendar placement is
+  PERMANENT — org-merge always reads rosterOrgIds, viewerScopeSet lost
+  its opts param and always pins kind='roster' status='active' ("a
+  follow-a-team row must never be a placement back door" is now written
+  into the function, not a flag). memberOrgIds itself stays — the
+  org-peers caller uses it kind-blind by charter.
+- **FEATURE_ROSTER_GUARDIAN_GATE**: either-approves is PERMANENT —
+  offers to supervised athletes always mint the pending row + guardian
+  bells, and the guardian queue's roster-offer AND photo-consent
+  queries run unconditionally (this also un-couples the phase-4/5
+  consent ask from a 0.10 flag). The stricter flag-off path is deleted
+  with its doctrine rewritten in place; owners.ts's identical-looking
+  SUPERVISED_MESSAGE is a DIFFERENT unflagged gate and stays. The
+  guardian-roster e2e self-skip is gone — the spec now actually runs
+  in every environment.
+- **FEATURE_CALENDAR** (29 mechanical gates across 20 files — set in
+  prod since launch; retirement changes nothing live, and local now
+  matches prod).
+
+KEPT: FEATURE_SPORTS (config), FEATURE_ORG_REGISTRATION (the newest
+surface's kill switch), FEATURE_GUARDIAN_PROFILES (~65 sites — its own
+future chore). features.ts carries the retirement record; the retired
+vars left .env.local.
+
 ## September 2, 2026 — Phase 5.5: season rollover (#489, mig 165)
 
 The §9 retention feature, one round while the phase-5 prod sweep waits

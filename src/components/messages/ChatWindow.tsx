@@ -16,7 +16,6 @@ import PostDetailModal from '@/components/PostDetailModal';
 import GifPickerModal from '@/components/GifPickerModal';
 import { loadDraft, saveDraft } from '@/components/chat-dock/drafts';
 import type { Message, Conversation, AggregatedReaction } from '@/types/messages';
-import { FEATURE_FLAGS } from '@/lib/features';
 import { requestDockConversation } from '@/lib/chat-dock-open';
 import { useToast } from '@/components/Toast';
 import ConfirmModal from '@/components/ConfirmModal';
@@ -705,7 +704,7 @@ export default function ChatWindow({ conversationId, onBack }: Props) {
         </div>
 
         {/* Minimize to dock — desktop-only (the dock is lg+) */}
-        {FEATURE_FLAGS.FEATURE_CHAT_DOCK && (
+        {(
           <button
             type="button"
             onClick={handleMinimizeToDock}

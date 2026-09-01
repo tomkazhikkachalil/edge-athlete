@@ -86,17 +86,14 @@ export async function GET(request: NextRequest) {
         .select('id, profile_id, state, created_at, age_preset_prompt, handover_prompted_at')
         .in('profile_id', ids)
         .in('state', [...ACTIVE_TRANSFER_STATES]),
-      // Pending event invites (guest status 'invited') — flag-gated with the
-      // calendar feature; future/cancelled filtering happens in the pure
-      // flattener (embed shape guarded there too).
-      FEATURE_FLAGS.FEATURE_CALENDAR
-        ? admin
-            .from('event_guests')
-            .select('id, profile_id, created_at, events!inner(id, title, starts_at, ends_at, all_day, timezone, status)')
-            .in('profile_id', ids)
-            .eq('status', 'invited')
-            .order('created_at', { ascending: true })
-        : Promise.resolve({ data: [], error: null }),
+      // Pending event invites (guest status 'invited') — future/cancelled
+      // filtering happens in the pure flattener (embed shape guarded too).
+      admin
+        .from('event_guests')
+        .select('id, profile_id, created_at, events!inner(id, title, starts_at, ends_at, all_day, timezone, status)')
+        .in('profile_id', ids)
+        .eq('status', 'invited')
+        .order('created_at', { ascending: true }),
       // First-contact holds (mig 131): the children's held rows. The
       // counterpart batch below is the only follow-up query — still constant
       // count regardless of roster size.
@@ -118,33 +115,29 @@ export async function GET(request: NextRequest) {
     ]);
     // Pending roster offers (0.10) — flag-gated like calendar invites; the
     // org-name batch below is the only follow-up query (constant count).
-    const rosterOffersQ = FEATURE_FLAGS.FEATURE_ROSTER_GUARDIAN_GATE
-      ? await admin
-          .from('memberships')
-          .select('id, profile_id, league_id, club_id, joined_at')
-          .in('profile_id', ids)
-          .eq('kind', 'roster')
-          .eq('status', 'pending')
-          .eq('scope_type', 'org')
-          .order('joined_at', { ascending: true })
-      : { data: [], error: null };
+    const rosterOffersQ = await admin
+      .from('memberships')
+      .select('id, profile_id, league_id, club_id, joined_at')
+      .in('profile_id', ids)
+      .eq('kind', 'roster')
+      .eq('status', 'pending')
+      .eq('scope_type', 'org')
+      .order('joined_at', { ascending: true });
     // Photo-consent asks (phase 4 R4): org-roster rows never answered.
     // Phase 5 widens the statuses — consent is captured AT registration,
     // so a registered/evaluating/placed child deserves the ask exactly
     // like an active one ('pending' invites and 'released' rows don't).
     // Selecting photo_consent 42703s pre-159 — degrade to none rather
     // than failing the whole queue (kept OUT of the throw loop).
-    const photoConsentQ = FEATURE_FLAGS.FEATURE_ROSTER_GUARDIAN_GATE
-      ? await admin
-          .from('memberships')
-          .select('id, profile_id, league_id, club_id, joined_at, photo_consent')
-          .in('profile_id', ids)
-          .eq('kind', 'roster')
-          .in('status', ['active', 'registered', 'evaluating', 'placed'])
-          .eq('scope_type', 'org')
-          .is('photo_consent', null)
-          .order('joined_at', { ascending: true })
-      : { data: [], error: null };
+    const photoConsentQ = await admin
+      .from('memberships')
+      .select('id, profile_id, league_id, club_id, joined_at, photo_consent')
+      .in('profile_id', ids)
+      .eq('kind', 'roster')
+      .in('status', ['active', 'registered', 'evaluating', 'placed'])
+      .eq('scope_type', 'org')
+      .is('photo_consent', null)
+      .order('joined_at', { ascending: true });
     for (const q of [postsQ, commentsQ, followsQ, consentQ, supervisedQ, transferQ, invitesQ, heldQ, riskQ, rosterOffersQ]) {
       if (q.error) throw q.error;
     }

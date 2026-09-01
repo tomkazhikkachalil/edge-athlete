@@ -21,7 +21,6 @@ import LiveNowStrip from '@/components/LiveNowStrip';
 import SportQuickLinks from '@/components/SportQuickLinks';
 import GetStartedCard from '@/components/GetStartedCard';
 import FeedCalendarWidget from '@/components/calendar/FeedCalendarWidget';
-import { FEATURE_FLAGS } from '@/lib/features';
 
 // Heavy modals (~2100 / ~1090 / ~330 lines) — split into their own chunks,
 // loaded only when the user opens them. Cuts First Load JS on /feed.
@@ -792,7 +791,7 @@ export default function FeedPage() {
 
             {/* Upcoming Events — real calendar widget when the flag is on;
                 the coming-soon shell otherwise (prod unchanged). */}
-            {FEATURE_FLAGS.FEATURE_CALENDAR && user ? (
+            {user ? (
               <FeedCalendarWidget />
             ) : (
               <div className="bg-surface rounded-lg shadow-sm border border-border p-4">

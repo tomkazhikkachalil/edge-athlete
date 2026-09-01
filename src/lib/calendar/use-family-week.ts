@@ -9,7 +9,6 @@
 // (athlete-page informational-section doctrine).
 
 import { useEffect, useMemo, useState } from 'react';
-import { FEATURE_FLAGS } from '@/lib/features';
 import { mergeLayeredEvents } from '@/lib/calendar/layers';
 import type { EventListItem } from '@/components/calendar/types';
 
@@ -36,7 +35,7 @@ export function useFamilyWeek(athletes: FamilyWeekAthlete[]): {
   const [refetchKey, setRefetchKey] = useState(0);
 
   useEffect(() => {
-    if (!FEATURE_FLAGS.FEATURE_CALENDAR || athletes.length === 0) return;
+    if (athletes.length === 0) return;
     let cancelled = false;
     (async () => {
       try {
