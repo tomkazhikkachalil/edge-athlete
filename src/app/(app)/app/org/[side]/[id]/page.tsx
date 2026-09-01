@@ -45,6 +45,8 @@ interface SeasonRow {
   starts_on: string | null;
   ends_on: string | null;
   sport_key: string | null;
+  /** Phase 5.5 (mig 165) — pre-165 targets report false. */
+  archived?: boolean;
   divisions: DivisionRow[];
 }
 
@@ -144,6 +146,11 @@ export default function OrgConsolePage() {
   const [seasonEnds, setSeasonEnds] = useState('');
   const [seasonSport, setSeasonSport] = useState('');
   const [divisionSeasonId, setDivisionSeasonId] = useState<string | null>(null);
+  // Phase 5.5: the roll-forward expander (one open at a time) + its form.
+  const [rolloverSeasonId, setRolloverSeasonId] = useState<string | null>(null);
+  const [rolloverLabel, setRolloverLabel] = useState('');
+  const [rolloverStarts, setRolloverStarts] = useState('');
+  const [rolloverEnds, setRolloverEnds] = useState('');
   const [divisionName, setDivisionName] = useState('');
   const [divisionSport, setDivisionSport] = useState('golf');
   const [divisionAge, setDivisionAge] = useState('');
@@ -750,7 +757,14 @@ export default function OrgConsolePage() {
                 <li key={season.id} className="border border-border rounded-lg p-3">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <div className="min-w-0">
-                      <p className="font-medium text-primary">{season.label}</p>
+                      <p className="font-medium text-primary">
+                        {season.label}
+                        {season.archived && (
+                          <span className="ml-2 text-xs font-medium px-2 py-0.5 rounded-full bg-surface-sunken text-muted">
+                            Archived
+                          </span>
+                        )}
+                      </p>
                       <p className="text-xs text-muted">
                         {[season.starts_on, season.ends_on].filter(Boolean).join(' → ') || 'No dates'}
                         {season.sport_key
@@ -766,6 +780,20 @@ export default function OrgConsolePage() {
                       >
                         {divisionSeasonId === season.id ? 'Close divisions' : 'Divisions'}
                       </button>
+                      {!season.archived && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setRolloverSeasonId(prev => (prev === season.id ? null : season.id));
+                            setRolloverLabel('');
+                            setRolloverStarts('');
+                            setRolloverEnds('');
+                          }}
+                          className="px-2 py-1 text-xs rounded-md border border-border-strong text-secondary hover:bg-surface-sunken transition-colors"
+                        >
+                          {rolloverSeasonId === season.id ? 'Close roll forward' : 'Roll forward'}
+                        </button>
+                      )}
                       <button
                         type="button"
                         onClick={() => setConfirmTarget({ kind: 'season', id: season.id, label: season.label })}
@@ -776,6 +804,67 @@ export default function OrgConsolePage() {
                       </button>
                     </div>
                   </div>
+
+                  {rolloverSeasonId === season.id && (
+                    <div className="mt-3 border-t border-border-subtle pt-3">
+                      <p className="text-xs text-muted mb-2">
+                        Clones this season&apos;s divisions and programs, re-enters the same
+                        teams, and archives this season. Rosters start empty; registration
+                        opens when you say so.
+                      </p>
+                      <div className="flex flex-wrap gap-2">
+                        <input
+                          type="text"
+                          value={rolloverLabel}
+                          maxLength={60}
+                          onChange={e => setRolloverLabel(e.target.value)}
+                          placeholder="New season label (e.g., 2027-28)"
+                          aria-label="New season label"
+                          className="grow basis-48 min-w-0 px-3 py-2 border border-border-strong rounded-md outline-none text-sm"
+                        />
+                        <input
+                          type="date"
+                          value={rolloverStarts}
+                          onChange={e => setRolloverStarts(e.target.value)}
+                          aria-label="New season start"
+                          className="px-3 py-2 border border-border-strong rounded-md outline-none text-sm"
+                        />
+                        <input
+                          type="date"
+                          value={rolloverEnds}
+                          onChange={e => setRolloverEnds(e.target.value)}
+                          aria-label="New season end"
+                          className="px-3 py-2 border border-border-strong rounded-md outline-none text-sm"
+                        />
+                        <button
+                          type="button"
+                          disabled={!rolloverLabel.trim()}
+                          onClick={() => {
+                            const label = rolloverLabel.trim();
+                            setRolloverSeasonId(null);
+                            void act(
+                              `/api/${plural}/${orgId}/structure/rollover`,
+                              {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({
+                                  seasonId: season.id,
+                                  label,
+                                  ...(rolloverStarts ? { startsOn: rolloverStarts } : {}),
+                                  ...(rolloverEnds ? { endsOn: rolloverEnds } : {}),
+                                }),
+                              },
+                              `Rolled forward to ${label}`,
+                              'Failed to roll the season forward'
+                            );
+                          }}
+                          className="px-4 py-2 text-sm min-h-[40px] rounded-lg bg-brand text-white font-medium hover:bg-brand-hover transition-colors disabled:opacity-50"
+                        >
+                          Roll forward
+                        </button>
+                      </div>
+                    </div>
+                  )}
 
                   {divisionSeasonId === season.id && (
                     <div className="mt-3 border-t border-border-subtle pt-3">

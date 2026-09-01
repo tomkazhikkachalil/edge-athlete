@@ -1,5 +1,39 @@
 # Development Log
 
+## September 2, 2026 — Phase 5.5: season rollover (#489, mig 165)
+
+The §9 retention feature, one round while the phase-5 prod sweep waits
+out the deploy quota. "Clone forward, keep the structure, empty the
+rosters" — measured against this schema, that means:
+
+- **Rollover clones NO teams** (145's design: teams persist; rollover
+  re-enters the same rows): the button creates the new season, clones
+  its divisions and programs, and RE-ENTERS the same team rows into the
+  name-mapped new divisions (archived teams sit out). Rosters start
+  empty by construction — lifecycle rows are season-scoped, and the old
+  season's rows remain the historical record untouched.
+- **Mig 165** (handed to Tom): seasons.archived_at, nothing else. The
+  clone half works even pre-165 (the archive stamp skips on 42703,
+  reported honestly as archivedOld:false); every reader treats the
+  missing column as all-live.
+- **The close-out act**: the old season stamps archived_at and its open
+  registration windows close. Archived seasons leave the offerings,
+  refuse new windows, and wear a chip in the console — but nothing
+  existing is deleted or hidden (playoffs may straddle a close-out).
+- **Compensated**: any failure after the new season row exists deletes
+  it (divisions/programs/entries cascade) — never a half-clone.
+  Duplicate label → 409 with nothing created.
+- Console: a per-season "Roll forward" expander (label + optional
+  dates → the one button, toast carries the clone summary) and the
+  Archived chip. Windows are NOT cloned — opening the new season's
+  registration stays the registrar's deliberate act (the checklist
+  nags). Season-scoped grant expiry is recorded as owed to the future
+  staff-role arc.
+- e2e (skips pre-165): seed → rollover → cloned divisions/program +
+  the SAME team ids re-entered → old archived + windows shut → new
+  season roster-empty → archived refuses windows → offerings omit it →
+  registration on it 409s → console chip + button at 375px.
+
 ## September 2, 2026 — Phase 5 R6: the exit sweep + PHASE CLOSE (#486, zero DDL)
 
 **Phase 5 complete** (#482–#486 + direct commit 9ba2049, migs 161–164 —

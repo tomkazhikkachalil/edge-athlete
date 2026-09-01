@@ -27,6 +27,7 @@ import {
   type TeamPatchInput,
 } from '@/lib/structure/validate';
 import { type ProgramCreateInput } from '@/lib/registration/validate';
+import { seasonArchivedMap } from './rollover-server';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- matches the authz.ts Admin alias; schema-agnostic helper
 type Admin = SupabaseClient<any, 'public', any>;
@@ -98,6 +99,10 @@ export async function structureAggregateGET(
   }
 
   const seasonIds = (seasons ?? []).map(s => s.id);
+  // Phase 5.5: archived state via the SEPARATE best-effort reader —
+  // never widen the seasons select (42703 pre-165 would break the
+  // whole console).
+  const archivedBySeason = await seasonArchivedMap(admin, seasonIds);
   const [divisionsRes, teamsRes] = await Promise.all([
     seasonIds.length
       ? admin
@@ -156,7 +161,11 @@ export async function structureAggregateGET(
   }
 
   return NextResponse.json({
-    seasons: (seasons ?? []).map(s => ({ ...s, divisions: divisionsBySeason.get(s.id) ?? [] })),
+    seasons: (seasons ?? []).map(s => ({
+      ...s,
+      archived: archivedBySeason.get(s.id) ?? false,
+      divisions: divisionsBySeason.get(s.id) ?? [],
+    })),
     teams: teamsRes.data ?? [],
     ...(counts ? { counts } : {}),
   });
