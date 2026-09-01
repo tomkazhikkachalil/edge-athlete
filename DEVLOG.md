@@ -1,5 +1,60 @@
 # Development Log
 
+## September 1, 2026 — Phase 3 round 2: the live-data modules (#454–#456, zero DDL)
+
+R2 makes the site real: R1's "Coming soon" stubs become live modules, the
+site grows subpages and full team pages, and the console gets per-module
+toggles. Three PRs, no schema changes, all of Tom's Sep 1 decisions held
+(masked rosters, staff = owner/manager names only, no media until phase
+4's photo-consent flag, sponsors/contact editors deferred to R3).
+
+- **#454 — the public-data layer.** The standings masking rule extracted
+  VERBATIM into `orgs/public-names.ts` (`publicDisplayName`: full name
+  only for claimed public profiles, else "First L.") and adopted by
+  public-standings plus every new reader — email is selected only to
+  feed it and never leaves a return type. `org-sites/public-data.ts`
+  adds viewer-free readers (teams+division labels, staff, venues+
+  facilities, active affiliations, and the team page: masked roster,
+  events, record rows from PUBLIC competitions only — the org-column
+  filter is the IDOR line). `fetchOrgEvents` and `listAffiliations`
+  split out of their NextResponse wrappers; per-module unstable_cache
+  wrappers (distinct key prefixes, teamId IN the keyParts, one shared
+  `org-site:{slug}` tag). **The club standings gap closed**: the
+  `/club/[id]/standings` twin via the extracted `PublicStandingsTable`,
+  middleware's standings carve-out widened to `(league|club)`.
+- **#455 — modules + subpages.** Home renders standings preview /
+  next-5 schedule / team chips / staff / venues / affiliations from one
+  Promise.all; new `/standings` `/schedule` `/teams` and the FULL
+  `/teams/[teamId]` (record, upcoming, masked roster; foreign teamId
+  404s). Layout nav from enabled modules; disabled modules 404 their
+  subpages through the same cached site entry. Every page carries the
+  ISR contract (revalidate 300 + generateStaticParams) — the build
+  classifies all five /org routes ●. Also fixed R1's header truncate
+  (inline span nowrap overflowed 375px on long org names — the new
+  spec's 375px check caught it) and added pure `formatEventWhen`
+  (events render in their OWN zone; one cached render serves everyone).
+- **#456 — console Sections toggles.** SitePatchSchema → union with
+  `set_module` (hero excluded at the SCHEMA level); the branch updates
+  the module row (update-then-insert-if-missing, never upsert — upsert
+  clobbers sort_order/config), leaves published_at alone, and ends in
+  the same two-arg revalidateTag so one toggle flips home, nav, and
+  subpages together. siteGET widens additively to `{ site, modules }`;
+  the Website card gets the checkbox list.
+- Verification: verify green per PR (ends 210 files / 2402 tests);
+  org-site e2e 2/2 (raw-HTML masking proof: "Casey Z." present,
+  "Zimmermantest" and @stubs.invalid absent; toggle drive; 375px);
+  league-standings 2/2 local AND **2/2 vs prod**. Prod probe of the
+  live public surface: **all five /org routes CDN HIT at 64–147ms**
+  (one MISS each), foreign teamId/unknown slug 404, cleanup clean.
+- **Deploy caveat (the round's operational lesson): the Vercel account
+  exhausted its 100-deploys/day free-tier quota mid-round**, so #456
+  never built — prod runs #455 (the entire public surface; consistent,
+  since #456 is additive console/API). The quota resets ~01:45 EDT
+  Sep 1; the next push (or manual redeploy) after that picks up #456 +
+  this entry. OWED then: confirm the deploy lands, re-run org-site
+  e2e vs prod (2/2 — it now asserts the toggles), and spot-check the
+  Sections card on a device.
+
 ## September 1, 2026 — Maintenance round at the phase-3 R1 break (#453)
 
 The full checklist at the session break, all clean on the first pass:
