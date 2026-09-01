@@ -351,10 +351,25 @@ export default function EditProfileTabs({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [profile]);
 
+  // B8 (Sep 2026): removing a sport DELETES its sport_settings row — an
+  // accidental uncheck silently loses per-sport settings and drops the
+  // sport from the profile surface, so removal is confirm-gated (the
+  // dummy-proofing severity-A convention). The ref, not state, carries
+  // the confirmation into the immediate saveTab re-call.
+  const [confirmRemoveSports, setConfirmRemoveSports] = useState<SportKey[] | null>(null);
+  const sportRemovalOkRef = useRef(false);
+
   const saveTab = async (tabId: TabId) => {
     if (!user?.id) {
       showError('Authentication Error', 'Please log in again.');
       return;
+    }
+    if (tabId === 'basic' && !actingAs && !sportRemovalOkRef.current) {
+      const removed = initialSports.filter(k => !selectedSports.includes(k));
+      if (removed.length > 0) {
+        setConfirmRemoveSports(removed);
+        return;
+      }
     }
 
     setIsSubmitting(true);
@@ -587,6 +602,7 @@ export default function EditProfileTabs({
         setErrors({ handle: message });
       }
     } finally {
+      sportRemovalOkRef.current = false;
       setIsSubmitting(false);
     }
   };
@@ -1107,6 +1123,28 @@ export default function EditProfileTabs({
         cancelText={COPY.FORMS.KEEP_EDITING}
         onConfirm={confirmDiscard}
         onCancel={cancelDiscard}
+      />
+      <ConfirmModal
+        isOpen={confirmRemoveSports !== null}
+        title="Remove sports?"
+        message={`Removing ${(confirmRemoveSports ?? [])
+          .map(k => getSportDefinition(k).display_name)
+          .join(', ')} deletes those sports' settings from your profile. This can't be undone.`}
+        confirmText="Remove"
+        cancelText="Keep them"
+        onConfirm={() => {
+          sportRemovalOkRef.current = true;
+          setConfirmRemoveSports(null);
+          void saveTab('basic');
+        }}
+        onCancel={() => {
+          // "I didn't mean to" — put the unchecked sports back.
+          setSelectedSports(prev => [
+            ...prev,
+            ...(confirmRemoveSports ?? []).filter(k => !prev.includes(k)),
+          ]);
+          setConfirmRemoveSports(null);
+        }}
       />
       <div className="flex items-center justify-center h-full p-4">
         {/* Backdrop */}

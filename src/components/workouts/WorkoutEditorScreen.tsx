@@ -263,6 +263,35 @@ export default function WorkoutEditorScreen({ mode, session, currentUserId, init
     }
   };
 
+  // B1 recovery (Sep 2026): PRs are recorded only by Share / Keep private,
+  // so re-entering a finished-but-unshared session (review mode) must
+  // recompute the candidates — without this the share step records
+  // nothing. Vitals are unchanged until a PR is recorded, so the recompute
+  // matches the one at finish time; once recorded, detectPRs finds no
+  // improvement and the list is empty (self-limiting, no double-record).
+  useEffect(() => {
+    if (mode !== 'review' || session?.status !== 'completed') return;
+    // setTimeout(0) recipe — the recompute sets state, which the lint
+    // forbids synchronously inside an effect.
+    const timer = setTimeout(() => {
+      void loadPRs(initial.exercises);
+    }, 0);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Refresh/close from summary/share with candidates still unrecorded →
+  // the native prompt (the SiteBlockEditor beforeunload recipe; in-app
+  // nav is not guarded — those exits go through Share / Keep private).
+  useEffect(() => {
+    if ((phase !== 'summary' && phase !== 'share') || prCandidates.length === 0) return;
+    const onBeforeUnload = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+    };
+    window.addEventListener('beforeunload', onBeforeUnload);
+    return () => window.removeEventListener('beforeunload', onBeforeUnload);
+  }, [phase, prCandidates.length]);
+
   const finishLive = async () => {
     if (!session || finishing) return;
     setFinishing(true);
