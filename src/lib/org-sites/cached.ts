@@ -6,6 +6,8 @@ import { fetchOrgEvents, type OrgEvent } from '@/lib/calendar/org-events-server'
 import { getPublicSiteBySlug, type PublicSite } from './server';
 import {
   fetchPublicAffiliations,
+  fetchPublicNewsList,
+  fetchPublicNewsPost,
   fetchPublicPage,
   fetchPublicPages,
   fetchPublicStaff,
@@ -14,6 +16,8 @@ import {
   fetchPublicVenues,
   fetchPublishedSitesForSitemap,
   type PublicAffiliation,
+  type PublicNewsItem,
+  type PublicNewsPost,
   type PublicPageLink,
   type PublicPageRow,
   type PublicStaffRow,
@@ -115,6 +119,21 @@ export const getCachedSitemapSites = (): Promise<SitemapSiteEntry[]> =>
     ['org-sitemap'],
     { tags: ['org-sitemap'], revalidate: 3600 }
   )();
+
+export const getCachedNewsList = (slug: string, siteId: string): Promise<PublicNewsItem[]> =>
+  perSlug(['org-site-news', slug], slug, () =>
+    fetchPublicNewsList(getSupabaseAdmin(), siteId)
+  );
+
+// newsSlug varies per slug → it MUST be in the keyParts (the closure trap).
+export const getCachedNewsPost = (
+  slug: string,
+  siteId: string,
+  newsSlug: string
+): Promise<PublicNewsPost | null> =>
+  perSlug(['org-site-news-post', slug, newsSlug], slug, () =>
+    fetchPublicNewsPost(getSupabaseAdmin(), siteId, newsSlug)
+  );
 
 export const getCachedPages = (slug: string, siteId: string): Promise<PublicPageLink[]> =>
   perSlug(['org-site-pages', slug], slug, () =>

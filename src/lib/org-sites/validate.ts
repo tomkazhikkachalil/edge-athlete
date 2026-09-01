@@ -274,9 +274,7 @@ export const MODULE_TITLES: Record<string, string> = {
 };
 
 /** The module keys that have their own subpage under /org/{slug}/. */
-// 'news' joins this list with its public route (the PR after the CRUD —
-// a nav entry must never precede its destination).
-export const MODULE_SUBPAGE_KEYS = ['standings', 'schedule', 'teams'] as const;
+export const MODULE_SUBPAGE_KEYS = ['news', 'standings', 'schedule', 'teams'] as const;
 
 // ── Custom pages (phase 3 R3) ───────────────────────────────────────────────
 // org_site_pages.body is an ORDERED BLOCK ARRAY (the masterplan's own

@@ -978,3 +978,124 @@ test('org site pages: create, blocks, publish; reserved 400; draft 404', async (
     await admin.from('leagues').delete().eq('id', leagueId);
   }
 });
+
+// Phase 3.5: news. Guarded on migration 156 — pre-156 targets skip (the
+// degradation paths are covered by the other tests + vitest). Create →
+// minted slug → blocks + publish → the feed and the post render in raw
+// anonymous HTML with dates; drafts 404; nav gains News; the sitemap
+// gains the post URL.
+test('org site news: create, publish, feed + post; draft 404', async ({ browser }) => {
+  test.setTimeout(240_000);
+  const owner = loadQaUser('user-b.json');
+  const admin = adminClient();
+
+  const probe = await admin.from('org_site_news').select('id').limit(1);
+  test.skip(!!probe.error, `org_site_news missing — run migration 156 (${probe.error?.message})`);
+
+  const stamp = Date.now();
+  const name = `QA News League ${stamp}`;
+  const { data: league } = await admin
+    .from('leagues')
+    .insert({ name, sport_key: 'ice_hockey', owner_profile_id: owner.id })
+    .select()
+    .single();
+  const leagueId = league!.id as string;
+
+  try {
+    await admin.from('memberships').insert([{ league_id: leagueId, profile_id: owner.id, role: 'owner' }]);
+
+    const ownerApi = await apiAs('state-b.json');
+    let subdomain = '';
+    try {
+      const created = await ownerApi.post(`/api/leagues/${leagueId}/site`);
+      expect(created.status(), await readErrorBody(created)).toBe(200);
+      const published = await ownerApi.patch(`/api/leagues/${leagueId}/site`, {
+        data: { action: 'publish' },
+      });
+      expect(published.status(), await readErrorBody(published)).toBe(200);
+      const { data: siteRow } = await admin
+        .from('org_sites')
+        .select('subdomain')
+        .eq('league_id', leagueId)
+        .single();
+      subdomain = siteRow!.subdomain as string;
+
+      // Create → minted slug; a second stays draft.
+      const postRes = await ownerApi.post(`/api/leagues/${leagueId}/site/news`, {
+        data: { title: `Season Opener ${stamp}` },
+      });
+      expect(postRes.status(), await readErrorBody(postRes)).toBe(200);
+      const post = (await postRes.json()).post;
+      expect(post.slug).toBe(`season-opener-${stamp}`);
+      expect(post.published_at).toBeNull();
+
+      const draftRes = await ownerApi.post(`/api/leagues/${leagueId}/site/news`, {
+        data: { title: 'Quiet Draft' },
+      });
+      expect(draftRes.status(), await readErrorBody(draftRes)).toBe(200);
+
+      // Body + publish.
+      const patched = await ownerApi.patch(
+        `/api/leagues/${leagueId}/site/news/${post.id}`,
+        {
+          data: {
+            body: [
+              { type: 'paragraph', text: `Puck drops Saturday ${stamp}.` },
+              { type: 'heading', text: 'Details' },
+            ],
+            publish: true,
+          },
+        }
+      );
+      expect(patched.status(), await readErrorBody(patched)).toBe(200);
+      expect((await patched.json()).post.published_at).toBeTruthy();
+    } finally {
+      await ownerApi.dispose();
+    }
+
+    const ctxAnon = await browser.newContext();
+    try {
+      const page = await ctxAnon.newPage();
+      const base = `/org/${subdomain}`;
+      expect(await settle(page.request, `${base}/news`, 200)).toBe(200);
+      const feed = await (await page.request.get(`${base}/news`)).text();
+      expect(feed).toContain(`Season Opener ${stamp}`);
+      expect(feed).toContain(`Puck drops Saturday ${stamp}.`); // the excerpt
+      expect(feed).not.toContain('Quiet Draft');
+
+      expect(await settle(page.request, `${base}/news/season-opener-${stamp}`, 200)).toBe(200);
+      const postHtml = await (
+        await page.request.get(`${base}/news/season-opener-${stamp}`)
+      ).text();
+      expect(postHtml).toContain(`Season Opener ${stamp}`);
+      expect(postHtml).toContain(`Puck drops Saturday ${stamp}.`);
+      expect(postHtml).toContain(`${name}`); // header/org context
+      expect((await page.request.get(`${base}/news/quiet-draft`)).status()).toBe(404);
+
+      // Nav gains News; the sitemap gains the post URL.
+      const home = await settleBody(page.request, base, '>News<');
+      expect(home).toContain('>News<');
+      const sm = await settleBody(
+        page.request,
+        '/sitemap.xml',
+        `/org/${subdomain}/news/season-opener-${stamp}`
+      );
+      expect(sm).toContain(`/org/${subdomain}/news/season-opener-${stamp}`);
+
+      // 375px: feed + post stay inside the viewport.
+      await page.setViewportSize({ width: 375, height: 812 });
+      await page.goto(`${base}/news/season-opener-${stamp}`);
+      await expect(page.getByText(`Puck drops Saturday ${stamp}.`)).toBeVisible({
+        timeout: 15_000,
+      });
+      expect(
+        await page.evaluate(() => document.documentElement.scrollWidth),
+        'news post: no horizontal overflow at 375px'
+      ).toBeLessThanOrEqual(375);
+    } finally {
+      await ctxAnon.close();
+    }
+  } finally {
+    await admin.from('leagues').delete().eq('id', leagueId);
+  }
+});

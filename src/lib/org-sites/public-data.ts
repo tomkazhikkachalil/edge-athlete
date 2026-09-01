@@ -400,9 +400,10 @@ export async function fetchPublicPage(
 export interface SitemapSiteEntry {
   subdomain: string;
   lastModified: string | null;
-  moduleKeys: string[]; // enabled subpage modules (standings/schedule/teams)
+  moduleKeys: string[]; // enabled subpage modules (news/standings/schedule/teams)
   pageSlugs: string[]; // public custom pages
   teamIds: string[]; // active teams, only when the teams module is enabled
+  newsSlugs: string[]; // published posts, only when the news module is enabled
 }
 
 /** Every published site with its crawlable sub-URLs — the repo's first
@@ -423,13 +424,13 @@ export async function fetchPublishedSitesForSitemap(
   const siteIds = sites.map(s => s.id as string);
   const leagueIds = sites.map(s => s.league_id as string | null).filter(Boolean) as string[];
   const clubIds = sites.map(s => s.club_id as string | null).filter(Boolean) as string[];
-  const [modulesRes, pagesRes, leagueTeamsRes, clubTeamsRes] = await Promise.all([
+  const [modulesRes, pagesRes, newsRes, leagueTeamsRes, clubTeamsRes] = await Promise.all([
     admin
       .from('org_site_modules')
       .select('site_id, module_key')
       .in('site_id', siteIds)
       .eq('enabled', true)
-      .in('module_key', ['standings', 'schedule', 'teams'])
+      .in('module_key', ['news', 'standings', 'schedule', 'teams'])
       .limit(1500),
     admin
       .from('org_site_pages')
@@ -437,6 +438,12 @@ export async function fetchPublishedSitesForSitemap(
       .in('site_id', siteIds)
       .eq('visibility', 'public')
       .limit(2000),
+    admin
+      .from('org_site_news')
+      .select('site_id, slug')
+      .in('site_id', siteIds)
+      .not('published_at', 'is', null)
+      .limit(5000),
     // Teams key by ORG, not site — two by-side batches, bounded.
     leagueIds.length
       ? admin
@@ -465,6 +472,11 @@ export async function fetchPublishedSitesForSitemap(
     if (!pagesBySite.has(p.site_id)) pagesBySite.set(p.site_id, []);
     pagesBySite.get(p.site_id)!.push(p.slug as string);
   }
+  const newsBySite = new Map<string, string[]>();
+  for (const n of newsRes.data ?? []) {
+    if (!newsBySite.has(n.site_id)) newsBySite.set(n.site_id, []);
+    newsBySite.get(n.site_id)!.push(n.slug as string);
+  }
 
   const teamsByOrg = new Map<string, string[]>();
   for (const t of leagueTeamsRes.data ?? []) {
@@ -488,6 +500,82 @@ export async function fetchPublishedSitesForSitemap(
       pageSlugs: pagesBySite.get(s.id) ?? [],
       // Team pages 404 when the module is off — gate like requireSiteModule.
       teamIds: moduleKeys.includes('teams') ? (teamsByOrg.get(orgKey) ?? []) : [],
+      newsSlugs: moduleKeys.includes('news') ? (newsBySite.get(s.id) ?? []) : [],
     };
   });
+}
+
+// ── News (phase 3.5) ────────────────────────────────────────────────────────
+
+export interface PublicNewsItem {
+  slug: string;
+  title: string;
+  publishedAt: string;
+  excerpt: string | null; // first paragraph block, truncated
+}
+
+export interface PublicNewsPost {
+  slug: string;
+  title: string;
+  publishedAt: string;
+  body: unknown; // parsed defensively at render (parsePageBody)
+}
+
+function firstParagraph(body: unknown): string | null {
+  if (!Array.isArray(body)) return null;
+  for (const block of body) {
+    if (
+      block &&
+      typeof block === 'object' &&
+      (block as { type?: string }).type === 'paragraph' &&
+      typeof (block as { text?: unknown }).text === 'string'
+    ) {
+      const text = ((block as { text: string }).text || '').trim();
+      if (text) return text.length > 160 ? `${text.slice(0, 157)}…` : text;
+    }
+  }
+  return null;
+}
+
+/** The published news feed, newest first. */
+export async function fetchPublicNewsList(
+  admin: Admin,
+  siteId: string
+): Promise<PublicNewsItem[]> {
+  const { data, error } = await admin
+    .from('org_site_news')
+    .select('slug, title, body, published_at')
+    .eq('site_id', siteId)
+    .not('published_at', 'is', null)
+    .order('published_at', { ascending: false })
+    .limit(50);
+  if (degraded('news list', error) || !data) return [];
+  return data.map(n => ({
+    slug: n.slug as string,
+    title: n.title as string,
+    publishedAt: n.published_at as string,
+    excerpt: firstParagraph(n.body),
+  }));
+}
+
+/** One PUBLISHED post by slug — drafts are indistinguishable from missing. */
+export async function fetchPublicNewsPost(
+  admin: Admin,
+  siteId: string,
+  newsSlug: string
+): Promise<PublicNewsPost | null> {
+  const { data, error } = await admin
+    .from('org_site_news')
+    .select('slug, title, body, published_at')
+    .eq('site_id', siteId)
+    .eq('slug', newsSlug)
+    .not('published_at', 'is', null)
+    .maybeSingle();
+  if (degraded('news post', error) || !data) return null;
+  return {
+    slug: data.slug as string,
+    title: data.title as string,
+    publishedAt: data.published_at as string,
+    body: data.body,
+  };
 }
