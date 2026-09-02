@@ -1,4 +1,5 @@
 import type { PointsRace } from '@/lib/competitions/golf-race';
+import { playerHref } from '@/lib/org-sites/player-links';
 
 // The points race (phase 8 P1) — one league's season, week by week: each
 // round's points, the running total and the movement into the latest
@@ -26,7 +27,16 @@ function Movement({ value }: { value: number | null }) {
   );
 }
 
-export default function PointsRaceTable({ race, competitionId }: { race: PointsRace; competitionId: string }) {
+export default function PointsRaceTable({
+  race,
+  competitionId,
+  basePath,
+}: {
+  race: PointsRace;
+  competitionId: string;
+  /** P2: the org site's base path for player-page links; omit in the app. */
+  basePath?: string;
+}) {
   if (race.rows.length === 0) return null;
   return (
     <div className="mt-4">
@@ -53,7 +63,15 @@ export default function PointsRaceTable({ race, competitionId }: { race: PointsR
               return (
                 <tr key={`${competitionId}-${row.entryId}`} className="border-t border-border-subtle">
                   <td className="py-1.5 pr-2 text-muted">{rank ?? '—'}</td>
-                  <td className="py-1.5 pr-3 font-medium text-primary">{row.entrant_name}</td>
+                  <td className="py-1.5 pr-3 font-medium text-primary">
+                    {row.playerHandle ? (
+                      <a href={playerHref(row.playerHandle, basePath)} className="hover:underline">
+                        {row.entrant_name}
+                      </a>
+                    ) : (
+                      row.entrant_name
+                    )}
+                  </td>
                   {row.weekly.map((pts, i) => (
                     <td key={race.weeks[i]?.contestId ?? i} className="py-1.5 px-2 text-right text-secondary">
                       {pts ?? '—'}

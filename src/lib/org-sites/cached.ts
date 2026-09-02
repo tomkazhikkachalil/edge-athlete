@@ -44,6 +44,8 @@ import {
   type PublicTeamPage,
   type PublicVenue,
   type SitemapSiteEntry,
+  fetchPublicPlayerPage,
+  type PublicPlayerPage,
 } from './public-data';
 
 // The (public) segment's per-slug cached reads: unstable_cache with the
@@ -132,6 +134,17 @@ export const getCachedTeamPage = (
 /** The sitemap's enumerator — its own tag ('org-sitemap', purged by
  *  publish/unpublish) and a longer window: module/page churn reaching
  *  the sitemap within an hour is accepted (locked scope). */
+/** P2: the player page — the handle rides the key (the closure trap). */
+export const getCachedPlayerPage = (
+  slug: string,
+  side: OrgSide,
+  orgId: string,
+  handle: string
+): Promise<PublicPlayerPage | null> =>
+  perSlug(['org-site-player', slug, handle], slug, () =>
+    fetchPublicPlayerPage(getSupabaseAdmin(), side, orgId, handle)
+  );
+
 export const getCachedSitemapSites = (): Promise<SitemapSiteEntry[]> =>
   unstable_cache(
     () => fetchPublishedSitesForSitemap(getSupabaseAdmin()),

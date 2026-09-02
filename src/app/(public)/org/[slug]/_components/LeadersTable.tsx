@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import type { PublicLeaderBoard } from '@/lib/org-sites/public-data';
 import { SPORT_REGISTRY } from '@/lib/sports/SportRegistry';
+import { playerHref } from '@/lib/org-sites/player-links';
 
 // Stat leaders module (phase 6b B3): per public competition, the schema's
 // sum tiles (Goals, Points…) as top-five tables. Names arrive already
@@ -12,7 +13,7 @@ function sportName(key: string): string {
   return SPORT_REGISTRY[key as keyof typeof SPORT_REGISTRY]?.display_name ?? key;
 }
 
-function Board({ board, limit }: { board: PublicLeaderBoard; limit: number }) {
+function Board({ board, limit, basePath }: { board: PublicLeaderBoard; limit: number; basePath: string }) {
   if (board.unsupported) {
     return (
       <p className="mt-1 text-sm text-tertiary">
@@ -39,7 +40,13 @@ function Board({ board, limit }: { board: PublicLeaderBoard; limit: number }) {
                 <tr key={`${row.name}-${i}`} className="border-t border-border-subtle">
                   <td className="py-1.5 pr-2 text-tertiary">{i + 1}</td>
                   <td className="py-1.5 pr-3">
-                    <span className="font-medium text-primary">{row.name}</span>
+                    {row.playerHandle ? (
+                      <a href={playerHref(row.playerHandle, basePath)} className="font-medium text-primary hover:underline">
+                        {row.name}
+                      </a>
+                    ) : (
+                      <span className="font-medium text-primary">{row.name}</span>
+                    )}
                     {row.note ?? row.teamName ? (
                       <span className="block text-xs text-tertiary">{row.note ?? row.teamName}</span>
                     ) : null}
@@ -72,7 +79,7 @@ export default function LeadersTable({
         {first ? (
           <>
             <p className="mt-2 text-sm font-medium text-secondary">{first.competitionName}</p>
-            <Board board={first} limit={1} />
+            <Board board={first} limit={1} basePath={basePath} />
           </>
         ) : null}
         <Link href={`${basePath}/leaders`} className="mt-3 inline-block text-sm text-brand-fg font-medium">
@@ -91,7 +98,7 @@ export default function LeadersTable({
         >
           <h2 className="text-lg font-semibold text-primary">{board.competitionName}</h2>
           <p className="text-xs text-tertiary">{sportName(board.sportKey)}</p>
-          <Board board={board} limit={8} />
+          <Board board={board} limit={8} basePath={basePath} />
         </section>
       ))}
     </div>

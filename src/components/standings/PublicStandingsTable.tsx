@@ -1,6 +1,7 @@
 import type { PublicCompetitionStandings } from '@/lib/competitions/public-standings';
 import GolfWeeks from './GolfWeeks';
 import PointsRaceTable from './PointsRaceTable';
+import { playerHref } from '@/lib/org-sites/player-links';
 
 // One competition's standings card — the SSR markup shared by the
 // league/club standings pages and the public org-site standings module.
@@ -11,8 +12,12 @@ import PointsRaceTable from './PointsRaceTable';
 // page never scrolls horizontally.
 export default function PublicStandingsTable({
   competition,
+  basePath,
 }: {
   competition: PublicCompetitionStandings;
+  /** P2: the org site's base path for player-page links; omit in the app
+   *  (names then link to the athlete profile). */
+  basePath?: string;
 }) {
   return (
     <section
@@ -59,7 +64,15 @@ export default function PublicStandingsTable({
                 className="border-t border-border-subtle"
               >
                 <td className="py-1.5 pr-2 text-muted">{row.rank}</td>
-                <td className="py-1.5 pr-3 font-medium text-primary">{row.entrant_name}</td>
+                <td className="py-1.5 pr-3 font-medium text-primary">
+                  {row.playerHandle ? (
+                    <a href={playerHref(row.playerHandle, basePath)} className="hover:underline">
+                      {row.entrant_name}
+                    </a>
+                  ) : (
+                    row.entrant_name
+                  )}
+                </td>
                 {competition.columns.map(col => (
                   <td key={col.key} className="py-1.5 px-2 text-right text-secondary">
                     {/* G1: a null total is "no round yet", never 0 — on an
@@ -77,8 +90,8 @@ export default function PublicStandingsTable({
         </table>
       </div>
       )}
-      {competition.golf && <GolfWeeks golf={competition.golf} competitionId={competition.id} />}
-      {competition.race && <PointsRaceTable race={competition.race} competitionId={competition.id} />}
+      {competition.golf && <GolfWeeks golf={competition.golf} competitionId={competition.id} basePath={basePath} />}
+      {competition.race && <PointsRaceTable race={competition.race} competitionId={competition.id} basePath={basePath} />}
       {/* Phase 6 R4: a disputed result must never read as settled —
           shared markup, so console twins and the public site all carry
           the same footnote (unconfirmed semantics, no new visual

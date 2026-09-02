@@ -30,6 +30,8 @@ export interface PublicGolfWeekResult {
   disputed: boolean;
   /** C6: season points awarded for this round (points leagues only). */
   points?: number;
+  /** P2: the public profile's handle (a link); absent for masked names. */
+  playerHandle?: string;
 }
 
 export interface PublicGolfWeek {
@@ -175,6 +177,8 @@ export interface BuildGolfBlockInput {
   results: GolfResultRaw[];
   /** Masked display name per entry id (missing ⇒ 'Athlete'). */
   entryName: Map<string, string>;
+  /** P2: handles by entry id — PUBLIC profiles only. */
+  entryHandle?: Map<string, string>;
   /** Entries whose rows are omitted from public surfaces (supervised). */
   omittedEntries: Set<string>;
   /** Course (or venue) name per venue id. */
@@ -241,7 +245,10 @@ export function buildGolfBlock(input: BuildGolfBlockInput): PublicGolfBlock | nu
     for (const r of rows) {
       const entryId = participantEntry.get(r.participant_id);
       if (!entryId) continue;
-      field.push({ entryId, result: publicResultFromRow(r, input.entryName.get(entryId) ?? 'Athlete', input.scoringRule) });
+      const result = publicResultFromRow(r, input.entryName.get(entryId) ?? 'Athlete', input.scoringRule);
+      const handle = input.entryHandle?.get(entryId);
+      if (handle) result.playerHandle = handle;
+      field.push({ entryId, result });
     }
     // Fewer strokes first (both golf rules ascend); a null key sorts last;
     // ties by name so the order is stable across renders.

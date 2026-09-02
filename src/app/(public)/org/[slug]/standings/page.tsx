@@ -3,7 +3,7 @@ import { getCachedSite, getCachedStandings } from '@/lib/org-sites/cached';
 import PublicStandingsTable from '@/components/standings/PublicStandingsTable';
 import { requireSiteModule } from '../_components/require-module';
 import { moduleLabel, parseNavConfig } from '@/lib/org-sites/validate';
-import { siteAbsoluteUrl } from '@/lib/org-sites/urls';
+import { siteAbsoluteUrl, siteBasePath } from '@/lib/org-sites/urls';
 
 // ── /org/[slug]/standings — the full standings subpage (phase 3 R2) ────────
 // Every competition with rows, full column engine. Module disabled →
@@ -53,7 +53,7 @@ export default async function OrgSiteStandingsPage({ params }: PageParams) {
       {withRows.length === 0 ? (
         <p className="text-sm text-tertiary">No published standings yet.</p>
       ) : (
-        withRows.map(comp => <PublicStandingsTable key={comp.id} competition={comp} />)
+        withRows.map(comp => <PublicStandingsTable key={comp.id} competition={comp} basePath={siteBasePath(site)} />)
       )}
     </div>
   );

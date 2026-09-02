@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { publicDisplayName } from '../public-names';
+import { publicDisplayName, isPublicProfile, publicHandle } from '../public-names';
 
 const base = {
   first_name: 'Casey',
@@ -73,5 +73,23 @@ describe('publicDisplayName', () => {
         supervision_state: null,
       })
     ).toBe('Athlete');
+  });
+});
+
+// Phase 8 P2 — the public-profile predicate and the linkable handle.
+describe('isPublicProfile / publicHandle', () => {
+  const base = { first_name: 'Alex', last_name: 'Adams', full_name: null, visibility: 'public', email: 'alex@example.com', supervision_state: null };
+  it('public + claimed + unsupervised → public; any miss → not', () => {
+    expect(isPublicProfile(base)).toBe(true);
+    expect(isPublicProfile({ ...base, visibility: 'private' })).toBe(false);
+    expect(isPublicProfile({ ...base, email: 'x@stubs.invalid' })).toBe(false);
+    expect(isPublicProfile({ ...base, supervision_state: 'supervised' })).toBe(false);
+  });
+  it('the handle links only for a public profile that has one', () => {
+    expect(publicHandle({ ...base, handle: 'alex' })).toBe('alex');
+    expect(publicHandle({ ...base, handle: null })).toBeNull();
+    expect(publicHandle({ ...base })).toBeNull();
+    expect(publicHandle({ ...base, visibility: 'private', handle: 'alex' })).toBeNull();
+    expect(publicHandle({ ...base, supervision_state: 'supervised', handle: 'alex' })).toBeNull();
   });
 });

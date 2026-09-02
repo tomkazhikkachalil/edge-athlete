@@ -770,6 +770,10 @@ export const RESERVED_PAGE_SLUGS: ReadonlySet<string> = new Set([
   'sitemap',
   // Cleanup round: the draft-preview route family.
   'preview',
+  // Phase 8: the player pages and the week hub (static routes shadow the
+  // [pageSlug] segment, so a page must never claim them).
+  'players',
+  'week',
 ]);
 export const PAGE_SLUG_MAX = 80;
 export const PAGES_PER_SITE_MAX = 20;

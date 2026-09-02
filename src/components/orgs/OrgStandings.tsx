@@ -5,6 +5,7 @@ import Link from 'next/link';
 import GolfWeeks from '@/components/standings/GolfWeeks';
 import PointsRaceTable from '@/components/standings/PointsRaceTable';
 import type { PointsRace } from '@/lib/competitions/golf-race';
+import { playerHref } from '@/lib/org-sites/player-links';
 import type { PublicGolfBlock } from '@/lib/competitions/golf-weeks';
 
 // The org page's standings section (phase 2 R3) — public competitions'
@@ -16,6 +17,7 @@ import type { PublicGolfBlock } from '@/lib/competitions/golf-weeks';
 interface StandingRow {
   rank: number;
   entrant_name: string;
+  playerHandle?: string;
   played: number;
   points: number | null;
   stats: Record<string, number>;
@@ -106,7 +108,15 @@ export default function OrgStandings({ side, orgId }: OrgStandingsProps) {
                   {comp.rows.map(row => (
                     <tr key={`${comp.id}-${row.rank}-${row.entrant_name}`} className="border-t border-border-subtle">
                       <td className="py-1 pr-2 text-muted">{row.rank}</td>
-                      <td className="py-1 pr-3 font-medium text-primary">{row.entrant_name}</td>
+                      <td className="py-1 pr-3 font-medium text-primary">
+                        {row.playerHandle ? (
+                          <a href={playerHref(row.playerHandle)} className="hover:underline">
+                            {row.entrant_name}
+                          </a>
+                        ) : (
+                          row.entrant_name
+                        )}
+                      </td>
                       {comp.columns.map(col => (
                         <td key={col.key} className="py-1 px-2 text-right text-secondary">
                           {col.key === 'played'
