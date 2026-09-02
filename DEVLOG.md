@@ -1,5 +1,56 @@
 # Development Log
 
+## September 2, 2026 — Phase 6e S6: golf sites, part 6 — announce to members: the org bell, mirrored to the site notice (#526, zero DDL) — PHASE 6e CODE-COMPLETE
+
+The last round of the golf-sites program, and the club's missing
+megaphone: nothing let a manager say "Rain-out: Week 3 extended to
+Sunday" to everyone at once — news was the only channel, and the
+`league_update` / `club_update` notification types had lived in the CHECK
+since 028 without a user-composed sender.
+
+- **No table.** The notification rows ARE the record, grouped by
+  `metadata.announcement_id`; the S1 notice band is the visible copy.
+- **`src/lib/orgs/announce.ts`** (pure, node-tested): `OrgAnnounceSchema`
+  (title ≤80, message ≤500, optional `siteNoticeUntil` day) and
+  `buildAnnouncementRows` — one row per member, the sender excluded (a
+  manager needs no self-bell), duplicates collapsed, the org's own type
+  by side, a self-contained title ("{org}: {title}" — it lands verbatim
+  in the digest), `action_url` the org page.
+- **`announce-server.ts`**: the org's members (`memberProfileIds` —
+  roster + follow, the org's audience) belled in chunks of 500 — the
+  member insert is the deliverable (a failed insert is a 500, never a
+  silent success); a supervised member's guardians ALSO hear
+  (`notifyGuardians`, "{org} announced for {child}: {title}", the
+  guardian console as the door — the org-event precedent, a safety
+  behaviour never flag-gated; `GuardianNotificationType` gains the two
+  org types); with `siteNoticeUntil` the title becomes the site's notice
+  (S1's `hero_config`, purged) — a missing site is a no-op. Route twins
+  `/api/{leagues,clubs}/[id]/announce` (manager-gated) on a new
+  `org-announce` bucket: 5 a day — a megaphone, not a chat.
+- Console (Website section): "Announce to members" — title, message,
+  "Also show on the site until" + day, "Send announcement" (disabled
+  until both fields are filled), the toast says how many heard.
+- e2e `org-announce.spec.ts` (a league; Alpha a member AND the guardian
+  of a supervised child on the roster under the flag): member 403, empty
+  title 400 → a send with a site date → `sent` = the members minus the
+  sender, one guardian copy on Alpha stamped with the child, the
+  league_update rows with the org-prefixed title and the org-page
+  `action_url`, none for the sender → the published site carries the
+  notice band → the console form at 375px sends one more → two more
+  pass, the sixth request 429. FINDING: the limiter runs BEFORE body
+  validation, so a rejected 400 spends a slot — spec adjusted, behaviour
+  kept (a flood of bad requests should cost the sender). Regressions:
+  identity (the notice band), org-site (5), org-activity green vs the
+  live DB.
+
+**Phase 6e is code-complete** (S1–S6, #521–#526, all zero DDL): a golf
+club's site has a photo hero, a "Book a tee time" button, a notice
+band, a real contact card, a page per course with hole maps drawn from
+the cached OSM geometry, course stats that fill themselves from
+members' public rounds, the league season on the schedule and on
+members' calendars with a subscribable feed, golf leaders from results,
+and a megaphone to every member.
+
 ## September 2, 2026 — Phase 6e S5: golf sites, part 5 — golf leaders: low gross by nine and eighteen, low net, most rounds, best week (#525, zero DDL)
 
 The leaders module reads stat lines, and golf has no stat-line schema:
