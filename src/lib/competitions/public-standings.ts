@@ -36,6 +36,12 @@ export interface PublicCompetitionStandings {
   /** Phase 6 R4: open disputes among this competition's results — the
    *  table footnotes "includes disputed results" when > 0. */
   disputedCount: number;
+  /** Phase 6c G1: 'asc' = fewer is better (strokes); null for formats
+   *  without a leaderboard direction. Renderers must not read a null
+   *  points cell as 0 on an ascending board. */
+  direction: 'asc' | 'desc' | null;
+  /** 'team' | 'athlete' — the entrant column header + the people rules. */
+  entrant_type: string;
 }
 
 export interface PublicStandingsPayload {
@@ -56,7 +62,7 @@ export async function fetchPublicStandings(
 
   const { data: competitions, error } = await admin
     .from('competitions')
-    .select('id, name, season_id, sport_key, format, scoring_rule, status')
+    .select('id, name, season_id, sport_key, format, scoring_rule, status, entrant_type')
     .eq(orgColumn, orgId)
     .eq('visibility', 'public')
     .in('status', ['active', 'completed'])
@@ -131,6 +137,18 @@ export async function fetchPublicStandings(
   const profileName = new Map(
     (profilesRes.data ?? []).map(p => [p.id, publicDisplayName(p as MaskableProfile)])
   );
+  // Phase 6c G1 — THE PEOPLE RULE on a crawlable board: supervised
+  // athletes are OMITTED, not masked (the gallery/leaders rule from 6b
+  // widened to standings). Their rank is left as a gap, which reveals
+  // nothing and keeps everyone else's rank honest.
+  const supervisedProfiles = new Set(
+    (profilesRes.data ?? [])
+      .filter(p => p.supervision_state === 'supervised')
+      .map(p => p.id as string)
+  );
+  const omittedEntries = new Set(
+    (entries ?? []).filter(e => e.profile_id && supervisedProfiles.has(e.profile_id)).map(e => e.id)
+  );
   const entryName = new Map(
     (entries ?? []).map(e => [
       e.id,
@@ -140,6 +158,7 @@ export async function fetchPublicStandings(
 
   const rowsByCompetition = new Map<string, PublicStandingRow[]>();
   for (const r of standingsRes.data ?? []) {
+    if (omittedEntries.has(r.entry_id)) continue;
     if (!rowsByCompetition.has(r.competition_id)) rowsByCompetition.set(r.competition_id, []);
     rowsByCompetition.get(r.competition_id)!.push({
       rank: r.rank,
@@ -166,6 +185,13 @@ export async function fetchPublicStandings(
             : [],
       rows: rowsByCompetition.get(c.id) ?? [],
       disputedCount: disputedByComp.get(c.id) ?? 0,
+      direction:
+        c.format === 'leaderboard'
+          ? resolveLeaderboardRule(c.sport_key as string, c.scoring_rule as string | null).direction
+          : c.format === 'fixture'
+            ? 'desc'
+            : null,
+      entrant_type: (c.entrant_type as string | null) ?? 'team',
     })),
   };
 }

@@ -254,24 +254,35 @@ export async function competitionCreatePOST(
     }
   }
 
-  const { data: competition, error } = await admin
+  const insertRow: Record<string, unknown> = {
+    // Org inherited from the season — the one place the rule is enforced.
+    league_id: season.league_id,
+    club_id: season.club_id,
+    season_id: input.seasonId,
+    division_id: input.divisionId ?? null,
+    sport_key: input.sportKey,
+    name: input.name,
+    format: input.format,
+    // Entrant type is DERIVED from the format (v1 pairs) — never client-set.
+    entrant_type: FORMAT_ENTRANTS[input.format],
+    scoring_rule: input.scoringRule ?? null,
+    visibility: input.visibility,
+  };
+  // G1: `config` (172) rides the insert when chosen; a pre-172 database
+  // answers PGRST204 and the insert is retried WITHOUT it — the pick
+  // silently defaults (first posted) rather than blocking creation.
+  let { data: competition, error } = await admin
     .from('competitions')
-    .insert({
-      // Org inherited from the season — the one place the rule is enforced.
-      league_id: season.league_id,
-      club_id: season.club_id,
-      season_id: input.seasonId,
-      division_id: input.divisionId ?? null,
-      sport_key: input.sportKey,
-      name: input.name,
-      format: input.format,
-      // Entrant type is DERIVED from the format (v1 pairs) — never client-set.
-      entrant_type: FORMAT_ENTRANTS[input.format],
-      scoring_rule: input.scoringRule ?? null,
-      visibility: input.visibility,
-    })
+    .insert(input.config ? { ...insertRow, config: input.config } : insertRow)
     .select()
     .single();
+  if (input.config && (error?.code === 'PGRST204' || error?.code === '42703')) {
+    ({ data: competition, error } = await admin
+      .from('competitions')
+      .insert(insertRow)
+      .select()
+      .single());
+  }
   if (error || !competition) {
     if (error?.code === '23505') {
       return NextResponse.json(
@@ -624,13 +635,17 @@ export async function competitionDetailGET(
 ): Promise<NextResponse> {
   // One select does both jobs (pin + payload) — the old pinCompetition
   // call re-read the same row with fewer columns.
-  const { data: full } = await admin
-    .from('competitions')
-    .select(
-      'id, league_id, club_id, season_id, division_id, sport_key, name, format, entrant_type, scoring_rule, status, visibility, created_at'
-    )
+  const COMP_FIELDS_BASE =
+    'id, league_id, club_id, season_id, division_id, sport_key, name, format, entrant_type, scoring_rule, status, visibility, created_at';
+  const readFull = (fields: string) => admin.from('competitions').select(fields)
     .eq('id', competitionId)
     .maybeSingle();
+  // G1: `config` (172) rides the read; pre-172 retries without it.
+  let { data: fullData, error: fullError } = await readFull(`${COMP_FIELDS_BASE}, config`);
+  if (fullError?.code === '42703') {
+    ({ data: fullData, error: fullError } = await readFull(COMP_FIELDS_BASE));
+  }
+  const full = fullData as unknown as ({ [key: string]: unknown; format?: string; sport_key?: string; scoring_rule?: string | null } | null);
   if (!full) return NextResponse.json({ error: 'Competition not found' }, { status: 404 });
   if (scope && full[orgColumn(scope.side)] !== scope.orgId) {
     return NextResponse.json({ error: 'Competition not found' }, { status: 404 });
@@ -666,11 +681,36 @@ export async function competitionDetailGET(
     ])
   );
 
-  const { data: contests, error: contestsError } = await admin
-    .from('contests')
-    .select('id, event_id, venue_id, facility_id, scheduled_at, round, status, created_at')
-    .eq('competition_id', competitionId)
+  // G1: the golf columns ride the read; a pre-172 database retries without
+  // them (the 42703 pattern).
+  const readContests = (fields: string) =>
+    admin
+      .from('contests')
+      .select(fields)
+      .eq('competition_id', competitionId)
     .order('scheduled_at', { ascending: true, nullsFirst: false });
+  const CONTEST_FIELDS_BASE = 'id, event_id, venue_id, facility_id, scheduled_at, round, status, created_at';
+  let { data: contestsData, error: contestsError } = await readContests(
+    `${CONTEST_FIELDS_BASE}, holes, play_from, play_to`
+  );
+  if (contestsError?.code === '42703') {
+    ({ data: contestsData, error: contestsError } = await readContests(CONTEST_FIELDS_BASE));
+  }
+  const contests = contestsData as unknown as
+    | {
+        id: string;
+        event_id: string | null;
+        venue_id: string | null;
+        facility_id: string | null;
+        scheduled_at: string | null;
+        round: string | null;
+        status: string;
+        created_at: string;
+        holes?: number | null;
+        play_from?: string | null;
+        play_to?: string | null;
+      }[]
+    | null;
   if (contestsError && !isMissingTableError(contestsError.code)) {
     console.error(`${TAG} contests error:`, contestsError);
     return NextResponse.json({ error: 'Failed to load contests' }, { status: 500 });
@@ -798,10 +838,21 @@ export async function contestCreatePOST(
       round: input.round ?? null,
       venue_id: input.venueId ?? null,
       facility_id: input.facilityId ?? null,
+      // G1: the golf league round's hole count + play window — sent only
+      // when declared, so a pre-172 database still adds plain rounds.
+      ...(input.holes ? { holes: input.holes } : {}),
+      ...(input.playFrom ? { play_from: input.playFrom } : {}),
+      ...(input.playTo ? { play_to: input.playTo } : {}),
     })
     .select()
     .single();
   if (error || !contest) {
+    if (error?.code === 'PGRST204' || error?.code === '42703') {
+      return NextResponse.json(
+        { error: 'Golf league rounds need a database migration first (172)' },
+        { status: 409 }
+      );
+    }
     if (error?.code === '23503') {
       // The composite facility↔venue FK: a facility outside that venue.
       return NextResponse.json(
@@ -856,12 +907,21 @@ export async function contestPATCH(
   if (input.round !== undefined) patch.round = input.round;
   if (input.venueId !== undefined) patch.venue_id = input.venueId;
   if (input.facilityId !== undefined) patch.facility_id = input.facilityId;
+  if (input.holes !== undefined) patch.holes = input.holes;
+  if (input.playFrom !== undefined) patch.play_from = input.playFrom;
+  if (input.playTo !== undefined) patch.play_to = input.playTo;
   const { data: updated, error } = await admin
     .from('contests')
     .update(patch)
     .eq('id', input.id)
     .select('id, competition_id, event_id, status, scheduled_at');
   if (error) {
+    if (error.code === 'PGRST204' || error.code === '42703') {
+      return NextResponse.json(
+        { error: 'Golf league rounds need a database migration first (172)' },
+        { status: 409 }
+      );
+    }
     if (error.code === '23503') {
       return NextResponse.json(
         { error: 'That facility does not belong to the chosen venue' },

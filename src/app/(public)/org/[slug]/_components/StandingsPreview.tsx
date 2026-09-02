@@ -17,6 +17,12 @@ export default function StandingsPreview({
   if (!first) {
     return <p className="mt-1 text-sm text-tertiary">No published standings yet.</p>;
   }
+  // G1: the sort key's own label (Pts / Net / Gross / Total), never a fixed "Pts".
+  const pointsColumn = first.columns.find(c => c.key === 'points') ?? {
+    key: 'points',
+    label: 'Points',
+    shortLabel: 'Pts',
+  };
   return (
     <div className="mt-3">
       <p className="text-sm font-medium text-secondary">
@@ -30,9 +36,11 @@ export default function StandingsPreview({
           <thead>
             <tr className="text-left text-xs text-muted">
               <th scope="col" className="py-1.5 pr-2 font-medium">#</th>
-              <th scope="col" className="py-1.5 pr-3 font-medium">Team</th>
-              <th scope="col" aria-label="Points" className="py-1.5 px-2 font-medium text-right">
-                Pts
+              <th scope="col" className="py-1.5 pr-3 font-medium">
+                {first.entrant_type === 'athlete' ? 'Player' : 'Team'}
+              </th>
+              <th scope="col" aria-label={pointsColumn.label} className="py-1.5 px-2 font-medium text-right">
+                {pointsColumn.shortLabel}
               </th>
             </tr>
           </thead>
@@ -44,7 +52,7 @@ export default function StandingsPreview({
               >
                 <td className="py-1.5 pr-2 text-muted">{row.rank}</td>
                 <td className="py-1.5 pr-3 font-medium text-primary">{row.entrant_name}</td>
-                <td className="py-1.5 px-2 text-right text-secondary">{row.points ?? 0}</td>
+                <td className="py-1.5 px-2 text-right text-secondary">{row.points ?? '—'}</td>
               </tr>
             ))}
           </tbody>

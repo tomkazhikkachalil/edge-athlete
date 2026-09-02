@@ -174,11 +174,27 @@ export interface LeaderboardScoringRule {
   /** 'asc' = lowest total wins (strokes); 'desc' = highest wins (points). */
   direction: 'asc' | 'desc';
   columns: StandingsColumn[];
+  /** Phase 6c G1: result-payload keys summed into `row.stats` alongside the
+   *  sort key (a net board still shows the gross total). */
+  sumStats?: string[];
 }
 
 const LEADERBOARD_COLUMNS: StandingsColumn[] = [
   { key: 'played', label: 'Rounds', shortLabel: 'RDS' },
   { key: 'points', label: 'Total', shortLabel: 'TOT' },
+];
+
+// Phase 6c G1 — golf leagues. The sort key (`score` → points) is gross or
+// net strokes; the payload's gross rides along as a stat column so a net
+// board reads honestly. Both ascend (fewer strokes wins).
+const GOLF_GROSS_COLUMNS: StandingsColumn[] = [
+  { key: 'played', label: 'Rounds', shortLabel: 'RDS' },
+  { key: 'points', label: 'Gross', shortLabel: 'GRS' },
+];
+const GOLF_NET_COLUMNS: StandingsColumn[] = [
+  { key: 'played', label: 'Rounds', shortLabel: 'RDS' },
+  { key: 'points', label: 'Net', shortLabel: 'NET' },
+  { key: 'gross', label: 'Gross', shortLabel: 'GRS' },
 ];
 
 export const LEADERBOARD_RULES: Record<string, LeaderboardScoringRule> = {
@@ -194,7 +210,24 @@ export const LEADERBOARD_RULES: Record<string, LeaderboardScoringRule> = {
     direction: 'desc',
     columns: LEADERBOARD_COLUMNS,
   },
+  golf_gross: {
+    key: 'golf_gross',
+    kind: 'leaderboard',
+    direction: 'asc',
+    columns: GOLF_GROSS_COLUMNS,
+    sumStats: ['gross'],
+  },
+  golf_net: {
+    key: 'golf_net',
+    kind: 'leaderboard',
+    direction: 'asc',
+    columns: GOLF_NET_COLUMNS,
+    sumStats: ['gross'],
+  },
 };
+
+/** The rules a golf leaderboard may pick from in the console (G1). */
+export const GOLF_LEADERBOARD_RULES = ['golf_gross', 'golf_net', 'stroke_total'] as const;
 
 const SPORT_DEFAULT_LEADERBOARD_RULE: Record<string, string> = {
   golf: 'stroke_total',
@@ -211,7 +244,7 @@ export function resolveLeaderboardRule(
 export interface LeaderboardContestInput {
   status: string;
   /** Every participant with a score entered so far (entry_id keyed). */
-  scores: { entry_id: string; score: number | null }[];
+  scores: { entry_id: string; score: number | null; stats?: Record<string, number> }[];
 }
 
 /** Standings for a leaderboard: total = summed scores across completed
@@ -223,8 +256,8 @@ export function computeLeaderboardStandings(
   contests: LeaderboardContestInput[],
   rule: LeaderboardScoringRule
 ): StandingRow[] {
-  const table = new Map<string, { total: number; played: number }>();
-  for (const id of entryIds) table.set(id, { total: 0, played: 0 });
+  const table = new Map<string, { total: number; played: number; stats: Record<string, number> }>();
+  for (const id of entryIds) table.set(id, { total: 0, played: 0, stats: {} });
   for (const contest of contests) {
     if (contest.status !== 'completed') continue;
     for (const s of contest.scores) {
@@ -232,6 +265,10 @@ export function computeLeaderboardStandings(
       if (!row || s.score == null) continue;
       row.total += s.score;
       row.played += 1;
+      for (const key of rule.sumStats ?? []) {
+        const v = s.stats?.[key];
+        if (typeof v === 'number' && Number.isFinite(v)) row.stats[key] = (row.stats[key] ?? 0) + v;
+      }
     }
   }
 
@@ -261,7 +298,7 @@ export function computeLeaderboardStandings(
       rank,
       points: row.played === 0 ? null : row.total,
       played: row.played,
-      stats: {},
+      stats: row.stats,
     });
   });
   return rows;

@@ -41,6 +41,16 @@ async function chunkedIn<T>(
 /** Full-competition rewrite: compute → upsert by (competition, entry) →
  *  prune rows for departed entries. Returns row count, or null on any
  *  failure (already logged). */
+/** The finite-number keys of a result payload (shape-blind jsonb). */
+function numericKeys(payload: Record<string, unknown> | null): Record<string, number> {
+  const out: Record<string, number> = {};
+  if (!payload || typeof payload !== 'object') return out;
+  for (const [k, v] of Object.entries(payload)) {
+    if (typeof v === 'number' && Number.isFinite(v)) out[k] = v;
+  }
+  return out;
+}
+
 export async function recomputeStandings(
   admin: Admin,
   competitionId: string
@@ -74,21 +84,28 @@ export async function recomputeStandings(
       contest_id: string;
       entry_id: string;
     }>(admin, 'contest_participants', 'id, contest_id, entry_id', 'contest_id', contestIds);
-    const results = await chunkedIn<{ participant_id: string; contest_id: string; score: number | null }>(
-      admin,
-      'contest_results',
-      'participant_id, contest_id, score',
-      'contest_id',
-      contestIds
-    );
+    const results = await chunkedIn<{
+      participant_id: string;
+      contest_id: string;
+      score: number | null;
+      payload: Record<string, unknown> | null;
+    }>(admin, 'contest_results', 'participant_id, contest_id, score, payload', 'contest_id', contestIds);
     const scoreByParticipant = new Map(results.map(r => [r.participant_id, r.score]));
+    // G1: numeric payload keys ride along as per-contest stats (golf gross).
+    const statsByParticipant = new Map(
+      results.map(r => [r.participant_id, numericKeys(r.payload)])
+    );
 
-    const sidesByContest = new Map<string, { entry_id: string; score: number | null }[]>();
+    const sidesByContest = new Map<
+      string,
+      { entry_id: string; score: number | null; stats: Record<string, number> }[]
+    >();
     for (const p of participants) {
       if (!sidesByContest.has(p.contest_id)) sidesByContest.set(p.contest_id, []);
       sidesByContest.get(p.contest_id)!.push({
         entry_id: p.entry_id,
         score: scoreByParticipant.get(p.id) ?? null,
+        stats: statsByParticipant.get(p.id) ?? {},
       });
     }
     let rows;

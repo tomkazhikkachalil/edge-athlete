@@ -1,5 +1,51 @@
 # Development Log
 
+## September 1, 2026 — Phase 6c G1: golf leagues, part 1 — rules, the round's declaration, direction to the renderers (#513, mig 172)
+
+The golf-first program's first code round (Tom's principles: the page
+fills itself from member rounds; rating/slope per tee is the dependency;
+nine holes is normal). G1 lays the rules and the shape; G2 brings the
+sync engine.
+
+- **Migration 172**: `contests.holes (9|18)`, `play_from`, `play_to`
+  (DATEs — `golf_rounds.date` is a DATE, so the window match needs no
+  timezone arithmetic) with CHECKs + a window index; `competitions.config`
+  jsonb (`{golf:{pick:'first'|'best'}}` — which of a member's qualifying
+  rounds counts; Tom's default = first posted). The course stays reachable
+  through `contests.venue_id → venues.golf_course_id|golf_club_id` (169) —
+  no new course column. Pre-172 code degrades (writes carrying the new
+  fields answer a friendly 409; reads retry without the columns).
+- **Rules** (`scoring.ts`): `golf_gross` and `golf_net`, both ascending,
+  with their own columns (Rounds/Gross; Rounds/Net/Gross) and a new
+  `sumStats` so the payload's gross rides a net board honestly;
+  `recomputeStandings` now carries numeric payload keys as per-contest
+  stats. `stroke_total` stays the golf default (existing boards untouched).
+- **Direction + entrant type reach the renderers** — the public payload
+  gains `direction` and `entrant_type`; `PublicStandingsTable`,
+  `StandingsPreview`, `OrgStandings` and the console table head the
+  column "Player" for athlete boards and render a null total as "—"
+  (a 0 read as the leader on an ascending board).
+- **People rule widened**: supervised athletes are OMITTED from public
+  standings of athlete-entrant competitions (the 6b gallery/leaders rule
+  applied to a crawlable board; their rank is left as a gap, which reveals
+  nothing). Managers still see them in the console.
+- Console: golf leaderboards get `Scoring rule` + `Counting round`
+  pickers at create; "Add round" gets course (a golf-linked venue —
+  unlinked venues are offered disabled with the reason), holes and the
+  play window; rounds show their declaration chips.
+- e2e `golf-league-rules.spec.ts` (self-skips pre-172): console create
+  (net, first) → API entries incl. a supervised child when the guardian
+  flag is on → refused inverted window → windowed 9-hole round at the
+  linked course → manual scores with payload → public payload
+  `direction asc`, `entrant_type athlete`, RDS/NET/GRS, gross in stats,
+  the child absent with the rank gap → "Player" header → console chips
+  and the child listed, 375px.
+
+Next: G2 — `syncGolfContest` reads `golf_rounds`/`golf_holes` for the
+window and course, counts holes from the card rows, computes net from the
+tee's rating/slope + the member's index, and writes `self_reported`
+results a manager can confirm; the daily cron keeps open windows fresh.
+
 ## September 1, 2026 — Phase 6c D1: phase 6b LIVE + prod-proven; masterplan status sync; preview deployments off (#512, docs + config)
 
 **Phase 6b is live.** Vercel's free-tier cap (100 deployments per

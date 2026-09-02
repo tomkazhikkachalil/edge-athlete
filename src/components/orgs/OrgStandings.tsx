@@ -23,6 +23,8 @@ interface CompetitionStandings {
   season_label: string | null;
   columns: { key: string; label: string; shortLabel: string }[];
   rows: StandingRow[];
+  /** G1: 'athlete' boards head the entrant column "Player". */
+  entrant_type?: string;
 }
 
 interface OrgStandingsProps {
@@ -80,7 +82,9 @@ export default function OrgStandings({ side, orgId }: OrgStandingsProps) {
                 <thead>
                   <tr className="text-left text-xs text-muted">
                     <th className="py-1 pr-2 font-medium">#</th>
-                    <th className="py-1 pr-3 font-medium">Team</th>
+                    <th className="py-1 pr-3 font-medium">
+                      {comp.entrant_type === 'athlete' ? 'Player' : 'Team'}
+                    </th>
                     {comp.columns.map(col => (
                       <th key={col.key} className="py-1 px-2 font-medium text-right" title={col.label}>
                         {col.shortLabel}
@@ -98,8 +102,8 @@ export default function OrgStandings({ side, orgId }: OrgStandingsProps) {
                           {col.key === 'played'
                             ? row.played
                             : col.key === 'points'
-                              ? (row.points ?? 0)
-                              : (row.stats[col.key] ?? 0)}
+                              ? (row.points ?? '—')
+                              : (row.stats[col.key] ?? '—')}
                         </td>
                       ))}
                     </tr>

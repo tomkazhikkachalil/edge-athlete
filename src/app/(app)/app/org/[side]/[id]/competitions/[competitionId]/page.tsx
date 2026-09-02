@@ -42,6 +42,19 @@ interface ContestRow {
   round: string | null;
   status: string;
   participants: ParticipantRow[];
+  /** G1 (172): a golf league round's declaration. Absent pre-172. */
+  venue_id?: string | null;
+  holes?: number | null;
+  play_from?: string | null;
+  play_to?: string | null;
+}
+
+interface VenueOption {
+  id: string;
+  name: string;
+  golfClubId: string | null;
+  golfCourseId: string | null;
+  courses: { id: string; name: string; clubName?: string }[];
 }
 
 interface StandingRowUi {
@@ -107,6 +120,12 @@ export default function CompetitionDetailPage() {
   const [awayEntryId, setAwayEntryId] = useState('');
   const [when, setWhen] = useState('');
   const [roundLabel, setRoundLabel] = useState('');
+  // G1: the golf league round's venue (must carry a course link), holes, window.
+  const [venues, setVenues] = useState<VenueOption[]>([]);
+  const [roundVenueId, setRoundVenueId] = useState('');
+  const [roundHoles, setRoundHoles] = useState<'' | '9' | '18'>('');
+  const [playFrom, setPlayFrom] = useState('');
+  const [playTo, setPlayTo] = useState('');
   // Score entry: one expander at a time, values keyed by participant id.
   const [scoreContestId, setScoreContestId] = useState<string | null>(null);
   // Phase 6 R4 (mig 168): dispute controls — inline note expander, never
@@ -166,6 +185,18 @@ export default function CompetitionDetailPage() {
         setContests(body.contests ?? []);
         setStandings(body.standings ?? []);
         setStandingsColumns(body.standingsColumns ?? []);
+        // G1: the org's venues for the golf round form (best-effort).
+        if (body.competition?.sport_key === 'golf') {
+          try {
+            const venuesRes = await fetch(`/api/${plural}/${orgId}/venues`);
+            if (venuesRes.ok) {
+              const venuesBody = await venuesRes.json();
+              if (!cancelled) setVenues(venuesBody.venues ?? []);
+            }
+          } catch {
+            /* the venue select simply stays empty */
+          }
+        }
       } catch {
         if (!cancelled) setAuthorized(false);
       }
@@ -173,7 +204,7 @@ export default function CompetitionDetailPage() {
     return () => {
       cancelled = true;
     };
-  }, [validSide, side, base, user?.id, reloadKey]);
+  }, [validSide, side, base, user?.id, reloadKey, orgId, plural]);
 
   const refresh = () => setReloadKey(k => k + 1);
 
@@ -211,6 +242,9 @@ export default function CompetitionDetailPage() {
             competitionId,
             ...(when ? { scheduledAt: new Date(when).toISOString() } : {}),
             ...(roundLabel.trim() ? { round: roundLabel.trim() } : {}),
+            ...(roundVenueId ? { venueId: roundVenueId } : {}),
+            ...(roundHoles ? { holes: Number(roundHoles) } : {}),
+            ...(playFrom && playTo ? { playFrom, playTo } : {}),
           }),
         },
         'Round added',
@@ -219,6 +253,8 @@ export default function CompetitionDetailPage() {
       if (ok) {
         setWhen('');
         setRoundLabel('');
+        setPlayFrom('');
+        setPlayTo('');
       }
       return;
     }
@@ -550,6 +586,56 @@ export default function CompetitionDetailPage() {
                   aria-label="Round label"
                   className="w-36 px-3 py-2 border border-border-strong rounded-md outline-none text-sm"
                 />
+                {competition.sport_key === 'golf' && (
+                  <>
+                    {/* G1: a golf league round — course (via a golf-linked
+                        venue), hole count, play window. Members' rounds in
+                        the window at that course fill the results (G2). */}
+                    <select
+                      value={roundVenueId}
+                      onChange={e => setRoundVenueId(e.target.value)}
+                      aria-label="Round course"
+                      className="px-3 py-2 border border-border-strong rounded-md outline-none text-sm"
+                    >
+                      <option value="">Course (optional)</option>
+                      {venues.map(v => (
+                        <option
+                          key={v.id}
+                          value={v.id}
+                          disabled={!v.golfClubId && !v.golfCourseId}
+                          title={!v.golfClubId && !v.golfCourseId ? 'Link a golf course to this venue first' : undefined}
+                        >
+                          {v.name}
+                          {v.courses.length > 0 ? ` — ${v.courses[0].name}` : ' (no course linked)'}
+                        </option>
+                      ))}
+                    </select>
+                    <select
+                      value={roundHoles}
+                      onChange={e => setRoundHoles(e.target.value as '' | '9' | '18')}
+                      aria-label="Holes"
+                      className="px-3 py-2 border border-border-strong rounded-md outline-none text-sm"
+                    >
+                      <option value="">Holes</option>
+                      <option value="9">9 holes</option>
+                      <option value="18">18 holes</option>
+                    </select>
+                    <input
+                      type="date"
+                      value={playFrom}
+                      onChange={e => setPlayFrom(e.target.value)}
+                      aria-label="Play from"
+                      className="px-3 py-2 border border-border-strong rounded-md outline-none text-sm"
+                    />
+                    <input
+                      type="date"
+                      value={playTo}
+                      onChange={e => setPlayTo(e.target.value)}
+                      aria-label="Play to"
+                      className="px-3 py-2 border border-border-strong rounded-md outline-none text-sm"
+                    />
+                  </>
+                )}
                 <button
                   type="button"
                   onClick={() => void createContest()}
@@ -720,6 +806,24 @@ export default function CompetitionDetailPage() {
                             : `${home?.entrant_name ?? '—'}${
                                 scored ? ` ${home?.result?.score} – ${away?.result?.score} ` : ' vs '
                               }${away?.entrant_name ?? '—'}`}
+                          {/* G1: the golf league round's declaration chips. */}
+                          {(contest.holes || contest.play_from) && (
+                            <span className="ml-2 text-xs font-normal text-tertiary">
+                              {[
+                                contest.holes ? `${contest.holes} holes` : null,
+                                contest.play_from && contest.play_to
+                                  ? `${contest.play_from} → ${contest.play_to}`
+                                  : null,
+                                contest.venue_id
+                                  ? (venues.find(v => v.id === contest.venue_id)?.courses[0]?.name ??
+                                    venues.find(v => v.id === contest.venue_id)?.name ??
+                                    null)
+                                  : null,
+                              ]
+                                .filter(Boolean)
+                                .join(' · ')}
+                            </span>
+                          )}
                         </p>
                         <p className="text-xs text-muted">
                           {[
@@ -942,7 +1046,9 @@ export default function CompetitionDetailPage() {
                 <thead>
                   <tr className="text-left text-xs text-muted">
                     <th className="py-1.5 pr-2 font-medium">#</th>
-                    <th className="py-1.5 pr-3 font-medium">Team</th>
+                    <th className="py-1.5 pr-3 font-medium">
+                      {competition.entrant_type === 'athlete' ? 'Player' : 'Team'}
+                    </th>
                     {standingsColumns.map(col => (
                       <th key={col.key} className="py-1.5 px-2 font-medium text-right" title={col.label}>
                         {col.shortLabel}
@@ -960,8 +1066,8 @@ export default function CompetitionDetailPage() {
                           {col.key === 'played'
                             ? row.played
                             : col.key === 'points'
-                              ? (row.points ?? 0)
-                              : (row.stats[col.key] ?? 0)}
+                              ? (row.points ?? '—')
+                              : (row.stats[col.key] ?? '—')}
                         </td>
                       ))}
                     </tr>

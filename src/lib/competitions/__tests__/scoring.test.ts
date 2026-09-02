@@ -163,3 +163,57 @@ describe('computeLeaderboardStandings', () => {
     expect(byId.C.rank).toBe(3);
   });
 });
+
+// ── Phase 6c G1: golf leaderboard rules ─────────────────────────────────────
+import { GOLF_LEADERBOARD_RULES } from '../scoring';
+
+describe('golf leaderboard rules (G1)', () => {
+  it('resolves golf_gross / golf_net ascending with their own columns; default stays stroke_total', () => {
+    expect(resolveLeaderboardRule('golf', null).key).toBe('stroke_total');
+    expect(resolveLeaderboardRule('golf', 'golf_gross').direction).toBe('asc');
+    expect(resolveLeaderboardRule('golf', 'golf_net').columns.map(c => c.shortLabel)).toEqual(['RDS', 'NET', 'GRS']);
+    expect(resolveLeaderboardRule('golf', 'golf_gross').columns.map(c => c.shortLabel)).toEqual(['RDS', 'GRS']);
+    expect(resolveLeaderboardRule('golf', 'nonsense').key).toBe('stroke_total');
+    expect([...GOLF_LEADERBOARD_RULES]).toEqual(['golf_gross', 'golf_net', 'stroke_total']);
+  });
+
+  it('sums payload gross into stats on a net board; unplayed sit last with null points', () => {
+    const rule = LEADERBOARD_RULES.golf_net;
+    const rows = computeLeaderboardStandings(
+      ['a', 'b', 'c'],
+      [
+        {
+          status: 'completed',
+          scores: [
+            { entry_id: 'a', score: 34, stats: { gross: 41 } },
+            { entry_id: 'b', score: 36, stats: { gross: 39 } },
+            { entry_id: 'c', score: null },
+          ],
+        },
+        {
+          status: 'completed',
+          scores: [
+            { entry_id: 'a', score: 35, stats: { gross: 42 } },
+            { entry_id: 'b', score: 33, stats: { gross: 38 } },
+          ],
+        },
+        { status: 'scheduled', scores: [{ entry_id: 'c', score: 30, stats: { gross: 30 } }] },
+      ],
+      rule
+    );
+    expect(rows.map(r => [r.entry_id, r.rank, r.points, r.played, r.stats.gross])).toEqual([
+      ['a', 1, 69, 2, 83],
+      ['b', 1, 69, 2, 77],
+      ['c', 3, null, 0, undefined],
+    ]);
+  });
+
+  it('stroke_total ignores payload stats (no sumStats)', () => {
+    const rows = computeLeaderboardStandings(
+      ['a'],
+      [{ status: 'completed', scores: [{ entry_id: 'a', score: 72, stats: { gross: 72 } }] }],
+      LEADERBOARD_RULES.stroke_total
+    );
+    expect(rows[0].stats).toEqual({});
+  });
+});

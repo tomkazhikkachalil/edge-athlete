@@ -201,6 +201,9 @@ export default function OrgConsolePage() {
   const [compSeasonId, setCompSeasonId] = useState('');
   const [compDivisionId, setCompDivisionId] = useState('');
   const [compSport, setCompSport] = useState('ice_hockey');
+  // G1: golf leaderboards pick their scoring rule + counting round.
+  const [compScoringRule, setCompScoringRule] = useState<'golf_gross' | 'golf_net' | 'stroke_total'>('golf_net');
+  const [compGolfPick, setCompGolfPick] = useState<'first' | 'best'>('first');
   const [compPublic, setCompPublic] = useState(false);
   const [entriesCompetitionId, setEntriesCompetitionId] = useState<string | null>(null);
   // Phase 4 R1 (club side only): competitions this club's teams are
@@ -739,6 +742,9 @@ export default function OrgConsolePage() {
           name: compName.trim(),
           format: compFormat,
           visibility: compPublic ? 'public' : 'private',
+          ...(compFormat === 'leaderboard' && compSport === 'golf'
+            ? { scoringRule: compScoringRule, config: { golf: { pick: compGolfPick } } }
+            : {}),
         }),
       },
       'Competition created',
@@ -1579,6 +1585,29 @@ export default function OrgConsolePage() {
                 <option value="fixture">Fixture (teams)</option>
                 <option value="leaderboard">Leaderboard (athletes)</option>
               </select>
+              {compFormat === 'leaderboard' && compSport === 'golf' && (
+                <>
+                  <select
+                    value={compScoringRule}
+                    onChange={e => setCompScoringRule(e.target.value as 'golf_gross' | 'golf_net' | 'stroke_total')}
+                    aria-label="Scoring rule"
+                    className="px-3 py-2 border border-border-strong rounded-md outline-none text-sm"
+                  >
+                    <option value="golf_net">Net strokes (handicap)</option>
+                    <option value="golf_gross">Gross strokes</option>
+                    <option value="stroke_total">Strokes (plain total)</option>
+                  </select>
+                  <select
+                    value={compGolfPick}
+                    onChange={e => setCompGolfPick(e.target.value as 'first' | 'best')}
+                    aria-label="Counting round"
+                    className="px-3 py-2 border border-border-strong rounded-md outline-none text-sm"
+                  >
+                    <option value="first">Counting round: first posted</option>
+                    <option value="best">Counting round: best score</option>
+                  </select>
+                </>
+              )}
               <label className="flex items-center gap-1.5 text-sm text-secondary">
                 <input
                   type="checkbox"
