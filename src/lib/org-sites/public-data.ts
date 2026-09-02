@@ -426,6 +426,9 @@ export async function fetchPublicPage(
 
 export interface SitemapSiteEntry {
   subdomain: string;
+  /** C2: the ACTIVE custom domain, or null — such sites leave the main
+   *  sitemap (cross-host URLs aren't allowed there) and get their own. */
+  customDomain: string | null;
   lastModified: string | null;
   moduleKeys: string[]; // enabled subpage modules (news/standings/schedule/teams/gallery/courses)
   pageSlugs: string[]; // public custom pages
@@ -440,17 +443,35 @@ export interface SitemapSiteEntry {
 export async function fetchPublishedSitesForSitemap(
   admin: Admin
 ): Promise<SitemapSiteEntry[]> {
-  const { data: sites, error } = await admin
-    .from('org_sites')
-    .select('id, subdomain, updated_at, league_id, club_id')
-    .not('published_at', 'is', null)
-    .order('created_at', { ascending: true })
-    .limit(500);
+  const readSites = (fields: string) =>
+    admin
+      .from('org_sites')
+      .select(fields)
+      .not('published_at', 'is', null)
+      .order('created_at', { ascending: true })
+      .limit(500);
+  // C2 widens the select; a pre-171 database retries without the columns.
+  let { data: sites, error } = await readSites(
+    'id, subdomain, updated_at, league_id, club_id, custom_domain, domain_active_at'
+  );
+  if (error?.code === '42703') {
+    ({ data: sites, error } = await readSites('id, subdomain, updated_at, league_id, club_id'));
+  }
   if (degraded('sitemap sites', error) || !sites || sites.length === 0) return [];
+  // The dynamic select string defeats supabase-js's type parser; cast once.
+  const siteRows = sites as unknown as {
+    id: string;
+    subdomain: string;
+    updated_at: string | null;
+    league_id: string | null;
+    club_id: string | null;
+    custom_domain?: string | null;
+    domain_active_at?: string | null;
+  }[];
 
-  const siteIds = sites.map(s => s.id as string);
-  const leagueIds = sites.map(s => s.league_id as string | null).filter(Boolean) as string[];
-  const clubIds = sites.map(s => s.club_id as string | null).filter(Boolean) as string[];
+  const siteIds = siteRows.map(s => s.id);
+  const leagueIds = siteRows.map(s => s.league_id).filter(Boolean) as string[];
+  const clubIds = siteRows.map(s => s.club_id).filter(Boolean) as string[];
   const [modulesRes, pagesRes, newsRes, leagueTeamsRes, clubTeamsRes] = await Promise.all([
     admin
       .from('org_site_modules')
@@ -517,11 +538,13 @@ export async function fetchPublishedSitesForSitemap(
     teamsByOrg.get(key)!.push(t.id as string);
   }
 
-  return sites.map(s => {
+  return siteRows.map(s => {
     const moduleKeys = modulesBySite.get(s.id) ?? [];
     const orgKey = s.league_id ? `league:${s.league_id}` : `club:${s.club_id}`;
     return {
       subdomain: s.subdomain as string,
+      customDomain:
+        s.custom_domain && s.domain_active_at ? (s.custom_domain as string) : null,
       lastModified: (s.updated_at ?? null) as string | null,
       moduleKeys,
       pageSlugs: pagesBySite.get(s.id) ?? [],

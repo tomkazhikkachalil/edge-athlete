@@ -11,7 +11,7 @@ import {
   parseThemeTokens,
   resolveAccentPair,
 } from '@/lib/org-sites/validate';
-import { orgSitePath } from '@/lib/org-sites/urls';
+import { siteBasePath } from '@/lib/org-sites/urls';
 import { templateSpec } from '@/lib/org-sites/templates';
 
 // ── /org/[slug] — the site shell (phase 3 R1, nav in R2) ────────────────────
@@ -36,7 +36,7 @@ export async function generateMetadata({
   const { slug } = await params;
   const site = await getCachedSite(slug);
   if (!site) return {};
-  const icon = orgLogoUrl(site.id, site.logo_path) ?? `${orgSitePath(site.subdomain)}/favicon.svg`;
+  const icon = orgLogoUrl(site.id, site.logo_path) ?? `${siteBasePath(site)}/favicon.svg`;
   return { icons: { icon } };
 }
 
@@ -98,7 +98,7 @@ export default async function OrgSiteLayout({
         style={band ? { backgroundColor: 'var(--org-accent-strong)' } : undefined}
       >
         <div className="max-w-4xl mx-auto px-4 py-4 flex flex-wrap items-center justify-between gap-2">
-          <Link href={`${orgSitePath(site.subdomain)}`} className="min-w-0 flex items-center gap-3">
+          <Link href={`${siteBasePath(site)}`} className="min-w-0 flex items-center gap-3">
             {site.logo_path ? (
               // Streamed through the tokenless org-logo proxy; /api/media/*
               // is never optimizer-eligible, so unoptimized is mandatory.
@@ -123,13 +123,13 @@ export default async function OrgSiteLayout({
         {navKeys.length + pages.length > 0 && (
           <nav aria-label="Site navigation" className="max-w-4xl mx-auto px-4 pb-3">
             <div className="flex flex-wrap gap-x-5 gap-y-1">
-              <Link href={`${orgSitePath(site.subdomain)}`} className={navLinkClass}>
+              <Link href={`${siteBasePath(site)}`} className={navLinkClass}>
                 Home
               </Link>
               {navKeys.map(key => (
                 <Link
                   key={key}
-                  href={`${orgSitePath(site.subdomain)}/${key}`}
+                  href={`${siteBasePath(site)}/${key}`}
                   className={navLinkClass}
                 >
                   {moduleLabel(key, nav)}
@@ -138,7 +138,7 @@ export default async function OrgSiteLayout({
               {pages.map(p => (
                 <Link
                   key={p.slug}
-                  href={`${orgSitePath(site.subdomain)}/${p.slug}`}
+                  href={`${siteBasePath(site)}/${p.slug}`}
                   className={navLinkClass}
                 >
                   {p.title}

@@ -35,6 +35,14 @@ import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 import { buildCsp, buildStaticCsp, CSP_REPORT_PATH } from '@/lib/csp'
 import { computeSubdomainRedirect } from '@/lib/org-sites/subdomain'
+import {
+  bareHost,
+  computeApexDomainRedirect,
+  computeCustomHostRewrite,
+  isAppHost,
+  resolveHost,
+  resolveSlugDomain,
+} from '@/lib/org-sites/domain-cache'
 import { RESERVED_ROOT_SLUGS, firstPathSegment } from '@/lib/org-sites/reserved'
 import { THEME_COOKIE, THEME_COOKIE_MAX_AGE, encodeThemeCookie } from '@/lib/theme-cookie'
 import { sanitizeThemePrefs } from '@/lib/theme-prefs'
@@ -64,7 +72,77 @@ const ORG_SITE_PATH_RE = /^\/org\//
 // .txt/.xml, and that regex is too fragile to grow).
 const CRAWLER_PATH_RE = /^\/(robots\.txt|sitemap\.xml)$/
 
+/** The static-CSP fast path's headers (phase 6b C2 factored the four
+ *  copies): no nonce, no auth round trip — the ISR renderer owns caching. */
+function withStaticCsp(response: NextResponse): NextResponse {
+  const staticCsp = buildStaticCsp({ dev: process.env.NODE_ENV !== 'production' })
+  const enforceStatic =
+    process.env.NODE_ENV === 'production' && process.env.CSP_ENFORCE !== '0'
+  response.headers.set(
+    enforceStatic ? 'Content-Security-Policy' : 'Content-Security-Policy-Report-Only',
+    staticCsp
+  )
+  response.headers.set('Reporting-Endpoints', `csp="${CSP_REPORT_PATH}"`)
+  return response
+}
+
 export async function middleware(request: NextRequest) {
+  // Phase 6b C2, FIRST of all (host-based): an org's OWN domain. With
+  // CUSTOM_DOMAINS=1 (build-injected — a real build, not a redeploy) a
+  // request whose Host is not ours is looked up through the anon RPCs
+  // (171, THE bounded posture-A exception; domain-cache.ts caches it).
+  //   verified host → REWRITE (never redirect) into the vanity tree, so
+  //   kmha.ca/teams serves /{slug}/teams while the URL bar keeps kmha.ca;
+  //   /.well-known/edge-athlete answers the slug (C1's reachability
+  //   proof, the ONLY path that activates a domain); crawler files map to
+  //   the per-site routes. Unknown host → fall through → a plain 404.
+  // The apex side: /{slug}[/...] and /org/{slug}[/...] of an ACTIVE domain
+  // 301 to it single-hop (carve-outs: preview links, card.png, favicon,
+  // crawler files). Never 301 to a domain that isn't active — no dead ends.
+  const customDomainsOn = process.env.CUSTOM_DOMAINS === '1'
+  const apexHost = new URL(
+    process.env.NEXT_PUBLIC_APP_URL || 'https://edge-athlete.vercel.app'
+  ).host
+  if (customDomainsOn) {
+    const host = bareHost(request.headers.get('host'))
+    if (host && !isAppHost(host, apexHost)) {
+      const hit = await resolveHost(host)
+      if (hit) {
+        const plan = computeCustomHostRewrite(request.nextUrl.pathname, hit.slug)
+        if (plan.kind === 'well-known') {
+          return new NextResponse(hit.slug, {
+            status: 200,
+            headers: { 'content-type': 'text/plain; charset=utf-8', 'cache-control': 'no-store' },
+          })
+        }
+        const target = new URL(`${plan.target}${request.nextUrl.search}`, request.url)
+        return withStaticCsp(NextResponse.rewrite(target))
+      }
+      // Unknown custom host: let Next answer (the (public) 404 for root
+      // labels, the app for anything else) — nothing to serve here.
+    } else if (host) {
+      // Apex: does this path belong to a site whose domain is ACTIVE?
+      const seg0 = firstPathSegment(request.nextUrl.pathname)
+      const slug =
+        seg0 === 'org' ? firstPathSegment(request.nextUrl.pathname.slice('/org'.length)) : seg0
+      if (
+        slug.length >= 3 &&
+        !RESERVED_ROOT_SLUGS.has(slug) &&
+        /^[a-z0-9]([a-z0-9-]*[a-z0-9])?$/.test(slug)
+      ) {
+        const domain = await resolveSlugDomain(slug)
+        if (domain) {
+          const target = computeApexDomainRedirect(
+            request.nextUrl.pathname,
+            request.nextUrl.search,
+            slug,
+            domain
+          )
+          if (target) return NextResponse.redirect(target, 301)
+        }
+      }
+    }
+  }
   // R4, FIRST on purpose (host-based; must precede the path-based /org/
   // branch): {slug}.<appHost> 301s to /org/{slug}. Inert until Tom's
   // wildcard DNS exists; BUILD-INJECTED like its sibling flags — needs a
@@ -85,16 +163,7 @@ export async function middleware(request: NextRequest) {
     if (target) return NextResponse.redirect(target, 301)
   }
   if (CRAWLER_PATH_RE.test(request.nextUrl.pathname)) {
-    const response = NextResponse.next()
-    const staticCsp = buildStaticCsp({ dev: process.env.NODE_ENV !== 'production' })
-    const enforceStatic =
-      process.env.NODE_ENV === 'production' && process.env.CSP_ENFORCE !== '0'
-    response.headers.set(
-      enforceStatic ? 'Content-Security-Policy' : 'Content-Security-Policy-Report-Only',
-      staticCsp
-    )
-    response.headers.set('Reporting-Endpoints', `csp="${CSP_REPORT_PATH}"`)
-    return response
+    return withStaticCsp(NextResponse.next())
   }
   if (
     process.env.PUBLIC_ORG_SITES === '1' &&
@@ -123,16 +192,7 @@ export async function middleware(request: NextRequest) {
         )
       }
     }
-    const response = NextResponse.next()
-    const staticCsp = buildStaticCsp({ dev: process.env.NODE_ENV !== 'production' })
-    const enforceStatic =
-      process.env.NODE_ENV === 'production' && process.env.CSP_ENFORCE !== '0'
-    response.headers.set(
-      enforceStatic ? 'Content-Security-Policy' : 'Content-Security-Policy-Report-Only',
-      staticCsp
-    )
-    response.headers.set('Reporting-Endpoints', `csp="${CSP_REPORT_PATH}"`)
-    return response
+    return withStaticCsp(NextResponse.next())
   }
   // Phase 6 R1: the vanity org tree — /{slug}[/...] where the first
   // segment is DNS-label-shaped and NOT a reserved root slug gets the
@@ -149,31 +209,14 @@ export async function middleware(request: NextRequest) {
       !RESERVED_ROOT_SLUGS.has(seg) &&
       /^[a-z0-9]([a-z0-9-]*[a-z0-9])?$/.test(seg)
     ) {
-      const response = NextResponse.next()
-      const staticCsp = buildStaticCsp({ dev: process.env.NODE_ENV !== 'production' })
-      const enforceStatic =
-        process.env.NODE_ENV === 'production' && process.env.CSP_ENFORCE !== '0'
-      response.headers.set(
-        enforceStatic ? 'Content-Security-Policy' : 'Content-Security-Policy-Report-Only',
-        staticCsp
-      )
-      response.headers.set('Reporting-Endpoints', `csp="${CSP_REPORT_PATH}"`)
-      return response
+      return withStaticCsp(NextResponse.next())
     }
   }
   if (
     process.env.PUBLIC_STANDINGS_CACHE === '1' &&
     STANDINGS_PATH_RE.test(request.nextUrl.pathname)
   ) {
-    const response = NextResponse.next()
-    const staticCsp = buildStaticCsp({ dev: process.env.NODE_ENV !== 'production' })
-    const enforceStatic =
-      process.env.NODE_ENV === 'production' && process.env.CSP_ENFORCE !== '0'
-    response.headers.set(
-      enforceStatic ? 'Content-Security-Policy' : 'Content-Security-Policy-Report-Only',
-      staticCsp
-    )
-    response.headers.set('Reporting-Endpoints', `csp="${CSP_REPORT_PATH}"`)
+    const response = withStaticCsp(NextResponse.next())
     response.headers.set(
       'Cache-Control',
       'public, s-maxage=300, stale-while-revalidate=600'

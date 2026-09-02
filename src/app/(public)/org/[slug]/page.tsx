@@ -15,7 +15,7 @@ import {
 } from '@/lib/org-sites/cached';
 import { buildOrgJsonLd, safeJsonLd } from '@/lib/org-sites/jsonld';
 import SiteHomeBody from './_components/SiteHomeBody';
-import { orgSitePath } from '@/lib/org-sites/urls';
+import { siteAbsoluteUrl } from '@/lib/org-sites/urls';
 
 // ── The site home (phase 3 R2; body shared with the draft preview) ─────────
 // The section list itself IS the product surface: enabled modules render
@@ -48,7 +48,7 @@ export async function generateMetadata({ params }: PageParams): Promise<Metadata
   const description = `${site.orgName} on Edge Athlete — schedule, standings, and teams.`;
   // Relative canonical — the (public) layout's metadataBase resolves it,
   // so the canonical domain is an env decision, never a code one.
-  const canonical = `${orgSitePath(site.subdomain)}`;
+  const canonical = `${siteAbsoluteUrl(site)}`;
   return {
     title,
     description,
@@ -57,7 +57,7 @@ export async function generateMetadata({ params }: PageParams): Promise<Metadata
     // opengraph-image convention file — the convention hash-suffixes its
     // URL under a route group; explicit images are deterministic and
     // probe-able.
-    openGraph: { title, description, url: canonical, siteName: 'Edge Athlete', type: 'website', images: [`${orgSitePath(site.subdomain)}/card.png`] },
+    openGraph: { title, description, url: canonical, siteName: 'Edge Athlete', type: 'website', images: [`${siteAbsoluteUrl(site)}/card.png`] },
   };
 }
 

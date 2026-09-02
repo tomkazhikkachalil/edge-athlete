@@ -34,7 +34,7 @@ import StaffList from './StaffList';
 import StandingsPreview from './StandingsPreview';
 import TeamsList from './TeamsList';
 import VenuesList from './VenuesList';
-import { orgSitePath } from '@/lib/org-sites/urls';
+import { siteBasePath } from '@/lib/org-sites/urls';
 import { FULL_WIDTH_MODULES, templateSpec } from '@/lib/org-sites/templates';
 
 // The site home's module rendering, extracted (cleanup round) so the
@@ -86,13 +86,13 @@ export default function SiteHomeBody({
   const moduleBody = (key: string) => {
     switch (key) {
       case 'standings':
-        return <StandingsPreview standings={standings} slug={site.subdomain} />;
+        return <StandingsPreview standings={standings} basePath={siteBasePath(site)} />;
       case 'schedule':
         return events && events.length > 0 ? (
           <>
             <ScheduleList events={events.slice(0, 5)} />
             <Link
-              href={`${orgSitePath(site.subdomain)}/schedule`}
+              href={`${siteBasePath(site)}/schedule`}
               className="mt-3 inline-block text-sm text-brand-fg font-medium"
             >
               Full schedule →
@@ -104,9 +104,9 @@ export default function SiteHomeBody({
       case 'teams':
         return teams.length > 0 ? (
           <>
-            <TeamsList teams={teams.slice(0, 12)} slug={site.subdomain} variant={spec.teams} />
+            <TeamsList teams={teams.slice(0, 12)} basePath={siteBasePath(site)} variant={spec.teams} />
             <Link
-              href={`${orgSitePath(site.subdomain)}/teams`}
+              href={`${siteBasePath(site)}/teams`}
               className="mt-3 inline-block text-sm text-brand-fg font-medium"
             >
               All teams →
@@ -143,19 +143,19 @@ export default function SiteHomeBody({
         );
       case 'courses':
         return courses.length > 0 ? (
-          <CoursesList courses={courses} detailed={false} basePath={orgSitePath(site.subdomain)} />
+          <CoursesList courses={courses} detailed={false} basePath={siteBasePath(site)} />
         ) : (
           empty('No courses listed yet.')
         );
       case 'divisions':
         return divisions.length > 0 ? (
-          <DivisionsList divisions={divisions} basePath={orgSitePath(site.subdomain)} detailed={false} />
+          <DivisionsList divisions={divisions} basePath={siteBasePath(site)} detailed={false} />
         ) : (
           empty('No divisions this season.')
         );
       case 'leaders':
         return leaders.length > 0 ? (
-          <LeadersTable boards={leaders} basePath={orgSitePath(site.subdomain)} detailed={false} />
+          <LeadersTable boards={leaders} basePath={siteBasePath(site)} detailed={false} />
         ) : (
           empty('No stats recorded yet.')
         );
@@ -167,7 +167,7 @@ export default function SiteHomeBody({
           <DocumentsList
             documents={documents}
             siteId={site.id}
-            basePath={orgSitePath(site.subdomain)}
+            basePath={siteBasePath(site)}
             detailed={false}
           />
         ) : (
@@ -179,7 +179,7 @@ export default function SiteHomeBody({
         // (it used to fall to the default "Coming soon.").
         return (
           <Link
-            href={`${orgSitePath(site.subdomain)}/gallery`}
+            href={`${siteBasePath(site)}/gallery`}
             className="mt-2 inline-block text-sm text-brand-fg font-medium"
           >
             View the gallery →

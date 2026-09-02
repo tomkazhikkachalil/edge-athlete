@@ -3,7 +3,7 @@ import { getCachedSite } from '@/lib/org-sites/cached';
 import { parseDocuments } from '@/lib/org-sites/validate';
 import DocumentsList from '../_components/DocumentsList';
 import { requireSiteModule } from '../_components/require-module';
-import { orgSitePath } from '@/lib/org-sites/urls';
+import { siteBasePath, siteAbsoluteUrl } from '@/lib/org-sites/urls';
 
 // ── /org/[slug]/documents — documents & policies (phase 6b B3) ────────────
 // The list lives in the module's config (stored PDFs + https links);
@@ -25,12 +25,12 @@ export async function generateMetadata({ params }: PageParams): Promise<Metadata
   if (!site) return { title: 'Not found' };
   const title = `${site.orgName} Documents`;
   const description = `Documents and policies from ${site.orgName} on Edge Athlete.`;
-  const canonical = `${orgSitePath(site.subdomain)}/documents`;
+  const canonical = `${siteAbsoluteUrl(site)}/documents`;
   return {
     title,
     description,
     alternates: { canonical },
-    openGraph: { title, description, url: canonical, siteName: 'Edge Athlete', type: 'website', images: [`${orgSitePath(site.subdomain)}/card.png`] },
+    openGraph: { title, description, url: canonical, siteName: 'Edge Athlete', type: 'website', images: [`${siteAbsoluteUrl(site)}/card.png`] },
   };
 }
 
@@ -45,7 +45,7 @@ export default async function OrgSiteDocumentsPage({ params }: PageParams) {
       {documents.length === 0 ? (
         <p className="text-sm text-tertiary">No documents yet.</p>
       ) : (
-        <DocumentsList documents={documents} siteId={site.id} basePath={orgSitePath(site.subdomain)} detailed />
+        <DocumentsList documents={documents} siteId={site.id} basePath={siteBasePath(site)} detailed />
       )}
     </div>
   );

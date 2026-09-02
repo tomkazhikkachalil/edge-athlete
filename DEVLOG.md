@@ -1,5 +1,46 @@
 # Development Log
 
+## September 1, 2026 — Phase 6b C2: custom domains — serving on the org's own host (#510, zero DDL, flag `CUSTOM_DOMAINS`)
+
+C1 proved a domain; C2 serves it. Behind `CUSTOM_DOMAINS=1` (read in the
+Edge middleware → BUILD-INJECTED, a real build):
+
+- **Middleware, first branch of all** (host-based): a Host that isn't ours
+  is resolved through 171's anon RPCs (`domain-cache.ts`, zero imports,
+  60s/30s TTL maps, one PostgREST fetch per miss, fails OPEN to "no
+  mapping"). A verified host is **REWRITTEN** (never redirected) into the
+  vanity tree — `kmha.ca/teams` serves `/{slug}/teams` while the URL bar
+  keeps `kmha.ca` — under the same static CSP (`withStaticCsp` now
+  factors the four inline copies). `/.well-known/edge-athlete` answers
+  the slug (C1's reachability proof — the only activator);
+  `/sitemap.xml` and `/robots.txt` map to new per-site routes. On the
+  apex, `/{slug}[/…]` and `/org/{slug}[/…]` of an ACTIVE domain 301 to it
+  single-hop, with carve-outs (preview links, card.png, favicon, crawler
+  files). Pure `computeCustomHostRewrite` / `computeApexDomainRedirect`
+  are vitest-covered.
+- **The render seam**: `siteBasePath(site)` ('' once active, else
+  `orgSitePath`) and `siteAbsoluteUrl(site)` (`https://<domain>` once
+  active) in urls.ts; every public mint swept onto them (14 files —
+  layout, home body, every subpage's canonical/OG, TeamsList and
+  StandingsPreview now take `basePath`, JSON-LD urls). One ISR document
+  suffices: once active the apex 301s, so the cached `/{slug}` document
+  is only ever seen on the domain; activation/detach purge the tag.
+- **Crawler files per site**: `org/[slug]/sitemap.xml` + `robots.txt`
+  routes (+ vanity twins) from the hourly enumeration
+  (`getCachedSiteSitemap`), absolute on the site's own address; the main
+  `/sitemap.xml` drops active-domain sites (cross-host URLs aren't
+  allowed there). `SitemapSiteEntry.customDomain` rides a 42703-safe
+  select.
+- e2e `org-site-domain-serving.spec.ts` (self-skips pre-171 AND when the
+  target doesn't honour a custom Host — the first request probes
+  `/.well-known/edge-athlete`): rewrite + well-known + per-host crawler
+  files while inactive, no apex 301; activate → apex + `/org` 301
+  single-hop with the location, card.png carve-out, host-relative links,
+  absolute canonical/og/JSON-LD on the domain, per-host sitemap, main
+  sitemap drop.
+- HARDENING §B4 #10 and LAUNCH_RUNBOOK §5a extended (flag, rollback,
+  the "stray orgSitePath doubles the slug" rule).
+
 ## September 1, 2026 — Phase 6b C1: custom domains — claim, verify, attach, activate (#509, mig 171)
 
 The masterplan's "custom domains modeled now, shipped later" gets its

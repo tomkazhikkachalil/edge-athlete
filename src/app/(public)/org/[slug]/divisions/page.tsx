@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import { getCachedDivisions, getCachedSite } from '@/lib/org-sites/cached';
 import DivisionsList from '../_components/DivisionsList';
 import { requireSiteModule } from '../_components/require-module';
-import { orgSitePath } from '@/lib/org-sites/urls';
+import { siteBasePath, siteAbsoluteUrl } from '@/lib/org-sites/urls';
 
 // ── /org/[slug]/divisions — the Divisions subpage (phase 6b B3) ──
 // Module disabled → notFound (disabled modules don't exist).
@@ -26,12 +26,12 @@ export async function generateMetadata({ params }: PageParams): Promise<Metadata
   if (!site) return { title: 'Not found' };
   const title = `${site.orgName} Divisions`;
   const description = `Divisions and teams at ${site.orgName} on Edge Athlete.`;
-  const canonical = `${orgSitePath(site.subdomain)}/divisions`;
+  const canonical = `${siteAbsoluteUrl(site)}/divisions`;
   return {
     title,
     description,
     alternates: { canonical },
-    openGraph: { title, description, url: canonical, siteName: 'Edge Athlete', type: 'website', images: [`${orgSitePath(site.subdomain)}/card.png`] },
+    openGraph: { title, description, url: canonical, siteName: 'Edge Athlete', type: 'website', images: [`${siteAbsoluteUrl(site)}/card.png`] },
   };
 }
 
@@ -46,7 +46,7 @@ export default async function OrgSiteDivisionsListPage({ params }: PageParams) {
       {items.length === 0 ? (
         <p className="text-sm text-tertiary">No divisions this season.</p>
       ) : (
-        <DivisionsList divisions={items} basePath={orgSitePath(site.subdomain)} detailed />
+        <DivisionsList divisions={items} basePath={siteBasePath(site)} detailed />
       )}
     </div>
   );

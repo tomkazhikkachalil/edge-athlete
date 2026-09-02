@@ -128,7 +128,12 @@ are different in kind from the app's and each one is load-bearing:
     (C2) is their only intended caller. Domain ACTIVATION (`domain_active_at`)
     is set by exactly one path — the reachability probe of
     `/.well-known/edge-athlete` answering the slug — so the apex never 301s
-    a visitor to a domain that doesn't route here (no dead ends).
+    a visitor to a domain that doesn't route here (no dead ends). C2 serves
+    a custom host by REWRITE (never redirect) into the vanity tree under the
+    same static CSP, behind the build-injected `CUSTOM_DOMAINS` flag; every
+    public URL mint funnels through `siteBasePath`/`siteAbsoluteUrl` (a
+    stray `orgSitePath(site.subdomain)` in the (public) tree is a bug — it
+    would double the slug on a custom host).
 The guardrails script enforces the mechanical half (no `'use client'`,
 `next/headers`, or Font Awesome under `(public)`; `next/og` isolation);
 this sweep covers the rest by reading.

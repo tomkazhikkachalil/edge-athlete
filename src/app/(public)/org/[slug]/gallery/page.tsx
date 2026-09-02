@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import { getCachedGallery, getCachedSite } from '@/lib/org-sites/cached';
 import { requireSiteModule } from '../_components/require-module';
-import { orgSitePath } from '@/lib/org-sites/urls';
+import { siteAbsoluteUrl } from '@/lib/org-sites/urls';
 
 // ── /org/[slug]/gallery — consent-gated contest media (phase 4 R5) ──────────
 // Every item passed the gallery gate at read time (org-published AND all
@@ -26,12 +26,12 @@ export async function generateMetadata({ params }: PageParams): Promise<Metadata
   if (!site) return { title: 'Not found' };
   const title = `${site.orgName} Gallery`;
   const description = `Photos and videos from ${site.orgName} on Edge Athlete.`;
-  const canonical = `${orgSitePath(site.subdomain)}/gallery`;
+  const canonical = `${siteAbsoluteUrl(site)}/gallery`;
   return {
     title,
     description,
     alternates: { canonical },
-    openGraph: { title, description, url: canonical, siteName: 'Edge Athlete', type: 'website', images: [`${orgSitePath(site.subdomain)}/card.png`] },
+    openGraph: { title, description, url: canonical, siteName: 'Edge Athlete', type: 'website', images: [`${siteAbsoluteUrl(site)}/card.png`] },
   };
 }
 

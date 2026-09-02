@@ -106,9 +106,12 @@ platform" and the admin dashboard's **Custom domains** list offers *Retry
 connect* once the env lands. The org's DNS side is prescribed in the
 console: `TXT _edgeathlete.<domain>` = the token, plus `CNAME <domain> →
 cname.vercel-dns.com` (apex domains: `A 76.76.21.21`). Serving on the
-custom host and the apex 301 arrive with C2 (`CUSTOM_DOMAINS=1`, a real
-build). Test hostname for the prod probe: any Tom-controlled subdomain of
-`edgeathlete.ca`.
+custom host and the apex 301 are gated by **`CUSTOM_DOMAINS=1`** — read in
+the Edge middleware, so it is BUILD-INJECTED (a real build, not a redeploy;
+the ORG_SUBDOMAINS precedent). Test hostname for the prod probe: any
+Tom-controlled subdomain of `edgeathlete.ca` (TXT + CNAME at GoDaddy).
+Rollback = unset the flag + build; claimed domains simply stop routing
+(the apex address always works).
 
 ## 5. (Optional decision) Custom domain — currently NOT pointed at Vercel
 

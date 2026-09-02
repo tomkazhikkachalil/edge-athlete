@@ -3,7 +3,7 @@ import { getCachedSchedule, getCachedSite } from '@/lib/org-sites/cached';
 import { buildEventsJsonLd, safeJsonLd } from '@/lib/org-sites/jsonld';
 import ScheduleList from '../_components/ScheduleList';
 import { requireSiteModule } from '../_components/require-module';
-import { orgSitePath } from '@/lib/org-sites/urls';
+import { siteAbsoluteUrl } from '@/lib/org-sites/urls';
 
 // ── /org/[slug]/schedule — the full schedule subpage (phase 3 R2) ──────────
 // The one canonical cached schedule entry (25 upcoming events across the
@@ -26,12 +26,12 @@ export async function generateMetadata({ params }: PageParams): Promise<Metadata
   if (!site) return { title: 'Not found' };
   const title = `${site.orgName} Schedule`;
   const description = `Upcoming events for ${site.orgName} on Edge Athlete.`;
-  const canonical = `${orgSitePath(site.subdomain)}/schedule`;
+  const canonical = `${siteAbsoluteUrl(site)}/schedule`;
   return {
     title,
     description,
     alternates: { canonical },
-    openGraph: { title, description, url: canonical, siteName: 'Edge Athlete', type: 'website', images: [`${orgSitePath(site.subdomain)}/card.png`] },
+    openGraph: { title, description, url: canonical, siteName: 'Edge Athlete', type: 'website', images: [`${siteAbsoluteUrl(site)}/card.png`] },
   };
 }
 
