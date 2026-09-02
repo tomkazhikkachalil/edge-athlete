@@ -161,6 +161,21 @@ export default function CompetitionDetailPage() {
     summary: { rows: number; errors: number; warnings: number; created: number; reused: number; withResults: number };
     report: { row: number; matchup: string; action: string; withResult: boolean; warning?: string; error?: string }[];
   } | null>(null);
+  // Phase 6d W3: the season generator (Preview → Generate, the import
+  // expanders' contract: any field change clears the preview).
+  const [seasonOpen, setSeasonOpen] = useState(false);
+  const [seasonStart, setSeasonStart] = useState('');
+  const [seasonWeeks, setSeasonWeeks] = useState('12');
+  const [seasonWindowDays, setSeasonWindowDays] = useState('7');
+  const [seasonHoles, setSeasonHoles] = useState<'9' | '18'>('9');
+  const [seasonVenueId, setSeasonVenueId] = useState('');
+  const [seasonLabel, setSeasonLabel] = useState('Week {n}');
+  const [seasonBusy, setSeasonBusy] = useState(false);
+  const [seasonReport, setSeasonReport] = useState<{
+    dryRun: boolean;
+    report: { row: number; round: string; playFrom: string; playTo: string; action: string; error?: string }[];
+    summary: { rows: number; created: number; reused: number; errors: number };
+  } | null>(null);
   const [scoreValues, setScoreValues] = useState<Record<string, string>>({});
   const [deleteTarget, setDeleteTarget] = useState<ContestRow | null>(null);
   // Player stats: one expander at a time (the scoreContestId pattern).
@@ -453,6 +468,42 @@ export default function CompetitionDetailPage() {
     }
   };
 
+  // Phase 6d W3: the season generator runner (Preview → Generate).
+  const runSeason = async (dryRun: boolean) => {
+    if (seasonBusy) return;
+    setSeasonBusy(true);
+    try {
+      const response = await fetch(`${base}/golf-season`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          competitionId,
+          startDate: seasonStart,
+          weeks: Number(seasonWeeks),
+          windowDays: Number(seasonWindowDays),
+          holes: Number(seasonHoles),
+          venueId: seasonVenueId,
+          ...(seasonLabel.trim() ? { labelPattern: seasonLabel.trim() } : {}),
+          dryRun,
+        }),
+      });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        showError('Generate rounds', body.error || 'Could not generate the rounds');
+        return;
+      }
+      setSeasonReport(body);
+      if (!dryRun) {
+        showSuccess('Generate rounds', `${body.summary?.created ?? 0} rounds added`);
+        refresh();
+      }
+    } catch {
+      showError('Generate rounds', 'Could not generate the rounds');
+    } finally {
+      setSeasonBusy(false);
+    }
+  };
+
   const saveScores = async (contest: ContestRow) => {
     const results = contest.participants.map(p => ({
       participantId: p.id,
@@ -740,6 +791,135 @@ export default function CompetitionDetailPage() {
                 </button>
               </div>
             )
+          )}
+
+          {/* Phase 6d W3: the whole season in one declaration — N weekly
+              windows at one course; Preview → Generate, existing windows
+              reused (never duplicated). */}
+          {competition.format === 'leaderboard' && competition.sport_key === 'golf' && entries.length > 0 && (
+            <div className="mb-4">
+              <button
+                type="button"
+                onClick={() => {
+                  setSeasonOpen(o => !o);
+                  setSeasonReport(null);
+                }}
+                className="px-2 py-1 text-xs rounded-md border border-border-strong text-secondary hover:bg-surface-sunken transition-colors"
+              >
+                {seasonOpen ? 'Close season generator' : 'Generate rounds'}
+              </button>
+              {seasonOpen && (
+                <div className="mt-2 border border-border rounded-lg p-3">
+                  <p className="text-xs text-muted mb-2">
+                    One round a week from the start date, each open for the window length at the
+                    chosen course. Rounds whose week already exists are kept, not duplicated.
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    <input
+                      type="date"
+                      value={seasonStart}
+                      onChange={e => { setSeasonStart(e.target.value); setSeasonReport(null); }}
+                      aria-label="Season start"
+                      className="px-3 py-2 border border-border-strong rounded-md outline-none text-sm"
+                    />
+                    <input
+                      type="number"
+                      min={1}
+                      max={52}
+                      value={seasonWeeks}
+                      onChange={e => { setSeasonWeeks(e.target.value); setSeasonReport(null); }}
+                      aria-label="Weeks"
+                      title="Weeks"
+                      className="w-20 px-3 py-2 border border-border-strong rounded-md outline-none text-sm"
+                    />
+                    <input
+                      type="number"
+                      min={1}
+                      max={14}
+                      value={seasonWindowDays}
+                      onChange={e => { setSeasonWindowDays(e.target.value); setSeasonReport(null); }}
+                      aria-label="Window days"
+                      title="Days each round stays open"
+                      className="w-20 px-3 py-2 border border-border-strong rounded-md outline-none text-sm"
+                    />
+                    <select
+                      value={seasonHoles}
+                      onChange={e => { setSeasonHoles(e.target.value as '9' | '18'); setSeasonReport(null); }}
+                      aria-label="Season holes"
+                      className="px-3 py-2 border border-border-strong rounded-md outline-none text-sm"
+                    >
+                      <option value="9">9 holes</option>
+                      <option value="18">18 holes</option>
+                    </select>
+                    {/* max-w-full: a select's intrinsic width is its widest
+                        option; without the cap it pushes the 375px page sideways. */}
+                    <select
+                      value={seasonVenueId}
+                      onChange={e => { setSeasonVenueId(e.target.value); setSeasonReport(null); }}
+                      aria-label="Season course"
+                      className="max-w-full px-3 py-2 border border-border-strong rounded-md outline-none text-sm"
+                    >
+                      <option value="">Course…</option>
+                      {venues.map(v => (
+                        <option key={v.id} value={v.id} disabled={!v.golfClubId && !v.golfCourseId}>
+                          {v.name}
+                          {v.courses[0]?.name ? ` — ${v.courses[0].name}` : !v.golfClubId && !v.golfCourseId ? ' (no course linked)' : ''}
+                        </option>
+                      ))}
+                    </select>
+                    <input
+                      type="text"
+                      maxLength={34}
+                      value={seasonLabel}
+                      onChange={e => { setSeasonLabel(e.target.value); setSeasonReport(null); }}
+                      aria-label="Round label pattern"
+                      placeholder="Week {n}"
+                      className="w-32 px-3 py-2 border border-border-strong rounded-md outline-none text-sm"
+                    />
+                  </div>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      disabled={seasonBusy || !seasonStart || !seasonVenueId}
+                      onClick={() => void runSeason(true)}
+                      className="px-3 py-1.5 text-sm min-h-[36px] rounded-lg border border-border-strong text-secondary hover:bg-surface-sunken transition-colors disabled:opacity-50"
+                    >
+                      Preview
+                    </button>
+                    <button
+                      type="button"
+                      disabled={seasonBusy || seasonReport === null || seasonReport.dryRun !== true}
+                      onClick={() => void runSeason(false)}
+                      title={seasonReport?.dryRun !== true ? 'Preview first' : undefined}
+                      className="px-3 py-1.5 text-sm min-h-[36px] rounded-lg bg-brand text-white font-medium hover:bg-brand-hover transition-colors disabled:opacity-50"
+                    >
+                      Generate
+                    </button>
+                  </div>
+                  {seasonReport && (
+                    <div className="mt-2 text-xs text-secondary">
+                      <p className="font-medium text-primary mb-1">
+                        {seasonReport.dryRun ? 'Preview' : 'Generated'}: {seasonReport.summary.created} rounds
+                        {seasonReport.summary.reused > 0 && <span> · {seasonReport.summary.reused} already there</span>}
+                        {seasonReport.summary.errors > 0 && (
+                          <span className="text-red-600"> · {seasonReport.summary.errors} errors</span>
+                        )}
+                      </p>
+                      <div className="overflow-x-auto">
+                        <ul className="space-y-0.5">
+                          {seasonReport.report.map(r => (
+                            <li key={r.row} className={r.error ? 'text-red-600' : ''}>
+                              {r.round} · {r.playFrom} → {r.playTo} — {r.action}
+                              {r.error ? ` — ${r.error}` : ''}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
           )}
 
           {competition.format === 'fixture' && (

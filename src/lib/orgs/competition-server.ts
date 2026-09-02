@@ -32,8 +32,10 @@ import {
   type ContestCreateInput,
   type ContestPatchInput,
   type EntryAddInput,
+  type GolfSeasonGenerateInput,
   type ResultUpsertInput,
 } from '@/lib/competitions/validate';
+import { generateRoundWindows } from '@/lib/competitions/golf-season';
 import {
   mirrorContestChange,
   mirrorContestDelete,
@@ -830,54 +832,221 @@ export async function contestCreatePOST(
     ];
   }
 
-  const { data: contest, error } = await admin
-    .from('contests')
-    .insert({
+  const written = await insertContestWithParticipants(
+    admin,
+    {
       competition_id: input.competitionId,
       scheduled_at: input.scheduledAt ?? null,
       round: input.round ?? null,
       venue_id: input.venueId ?? null,
       facility_id: input.facilityId ?? null,
-      // G1: the golf league round's hole count + play window — sent only
-      // when declared, so a pre-172 database still adds plain rounds.
-      ...(input.holes ? { holes: input.holes } : {}),
-      ...(input.playFrom ? { play_from: input.playFrom } : {}),
-      ...(input.playTo ? { play_to: input.playTo } : {}),
-    })
-    .select()
-    .single();
-  if (error || !contest) {
-    if (error?.code === 'PGRST204' || error?.code === '42703') {
+      holes: input.holes ?? null,
+      play_from: input.playFrom ?? null,
+      play_to: input.playTo ?? null,
+    },
+    sides
+  );
+  if (!written.ok) {
+    if (written.reason === 'needs_migration') {
       return NextResponse.json(
         { error: 'Golf league rounds need a database migration first (172)' },
         { status: 409 }
       );
     }
-    if (error?.code === '23503') {
-      // The composite facility↔venue FK: a facility outside that venue.
+    if (written.reason === 'facility') {
       return NextResponse.json(
         { error: 'That facility does not belong to the chosen venue' },
         { status: 400 }
       );
     }
-    console.error(`${TAG} contest insert error:`, error);
     return NextResponse.json({ error: 'Failed to create the game' }, { status: 500 });
   }
+  const contest = written.contest;
+  await revalidateOrgSiteForCompetition(admin, contest.competition_id as string);
+  return NextResponse.json({ contest });
+}
 
+export interface ContestInsertRow {
+  competition_id: string;
+  scheduled_at: string | null;
+  round: string | null;
+  venue_id: string | null;
+  facility_id: string | null;
+  holes: 9 | 18 | null;
+  play_from: string | null;
+  play_to: string | null;
+}
+
+/** THE contest writer (W3 extracted it from contestCreatePOST so the
+ *  season generator and "Add round" share one path): the row with the
+ *  golf columns sent only when declared (a pre-172 database still adds
+ *  plain rounds), then the participants as one homogeneous batch (the
+ *  PGRST102 rule) with a compensating delete — a contest without its
+ *  sides is a broken fixture. Reasons map to the caller's own bodies. */
+export async function insertContestWithParticipants(
+  admin: Admin,
+  row: ContestInsertRow,
+  sides: { entry_id: string; side: 'home' | 'away' | null }[]
+): Promise<
+  | { ok: true; contest: Record<string, unknown> & { id: string; competition_id: string } }
+  | { ok: false; reason: 'needs_migration' | 'facility' | 'insert' | 'participants' }
+> {
+  const { data: contest, error } = await admin
+    .from('contests')
+    .insert({
+      competition_id: row.competition_id,
+      scheduled_at: row.scheduled_at,
+      round: row.round,
+      venue_id: row.venue_id,
+      facility_id: row.facility_id,
+      ...(row.holes ? { holes: row.holes } : {}),
+      ...(row.play_from ? { play_from: row.play_from } : {}),
+      ...(row.play_to ? { play_to: row.play_to } : {}),
+    })
+    .select()
+    .single();
+  if (error || !contest) {
+    if (error?.code === 'PGRST204' || error?.code === '42703') return { ok: false, reason: 'needs_migration' };
+    // The composite facility↔venue FK: a facility outside that venue.
+    if (error?.code === '23503') return { ok: false, reason: 'facility' };
+    console.error(`${TAG} contest insert error:`, error);
+    return { ok: false, reason: 'insert' };
+  }
   if (sides.length) {
-    // One homogeneous-key batch (the PGRST102 rule).
     const { error: pError } = await admin.from('contest_participants').insert(
       sides.map(s => ({ contest_id: contest.id, entry_id: s.entry_id, side: s.side }))
     );
     if (pError) {
-      // Compensate: a contest without its sides is a broken fixture.
       await admin.from('contests').delete().eq('id', contest.id);
       console.error(`${TAG} participants insert error:`, pError);
-      return NextResponse.json({ error: 'Failed to create the game' }, { status: 500 });
+      return { ok: false, reason: 'participants' };
     }
   }
-  await revalidateOrgSiteForCompetition(admin, contest.competition_id as string);
-  return NextResponse.json({ contest });
+  return { ok: true, contest: contest as Record<string, unknown> & { id: string; competition_id: string } };
+}
+
+export interface SeasonRowReport {
+  row: number;
+  round: string;
+  playFrom: string;
+  playTo: string;
+  action: 'create' | 'reuse' | 'error' | 'dry-create' | 'dry-reuse';
+  error?: string;
+}
+
+/** Phase 6d W3: N weekly rounds in one request (dry-run by default). A
+ *  round whose play_from the competition already has is REUSED, never
+ *  duplicated (nothing in the DB prevents duplicate windows); per-row
+ *  best-effort; ONE site purge at the end. No calendar mirror — a
+ *  play-window round has no instant, exactly like "Add round" without
+ *  a time. */
+export async function golfSeasonGeneratePOST(
+  admin: Admin,
+  input: GolfSeasonGenerateInput,
+  scope: CompetitionScope
+): Promise<NextResponse> {
+  const comp = await pinCompetition(admin, input.competitionId, scope);
+  if (!comp) return NextResponse.json({ error: 'Competition not found' }, { status: 404 });
+  if (comp.status === 'completed' || comp.status === 'archived') {
+    return NextResponse.json({ error: 'This competition is closed' }, { status: 400 });
+  }
+  const { data: compRow } = await admin.from('competitions').select('sport_key').eq('id', comp.id).maybeSingle();
+  if (comp.format !== 'leaderboard' || compRow?.sport_key !== 'golf') {
+    return NextResponse.json({ error: 'The season generator is for golf leaderboards' }, { status: 400 });
+  }
+  const { data: venue } = await admin
+    .from('venues')
+    .select('id, golf_club_id, golf_course_id')
+    .eq('id', input.venueId)
+    .eq(orgColumn(scope.side), scope.orgId)
+    .maybeSingle();
+  if (!venue) return NextResponse.json({ error: 'That course is not one of this organization’s venues' }, { status: 400 });
+  if (!venue.golf_club_id && !venue.golf_course_id) {
+    return NextResponse.json({ error: 'Link a golf course to that venue first' }, { status: 400 });
+  }
+  const { data: allEntries } = await admin
+    .from('competition_entries')
+    .select('id, status')
+    .eq('competition_id', comp.id)
+    .limit(500);
+  const sides = (allEntries ?? [])
+    .filter(e => e.status === 'approved')
+    .map(e => ({ entry_id: e.id as string, side: null }));
+  if (sides.length === 0) {
+    return NextResponse.json({ error: 'Enter at least one athlete before adding a round' }, { status: 400 });
+  }
+  let existingFrom = new Set<string>();
+  try {
+    const { data: existing } = await admin
+      .from('contests')
+      .select('play_from')
+      .eq('competition_id', comp.id)
+      .not('play_from', 'is', null)
+      .limit(500);
+    existingFrom = new Set((existing ?? []).map(c => c.play_from as string));
+  } catch {
+    /* pre-172: nothing to dedupe against; the write answers 409 below */
+  }
+
+  const specs = generateRoundWindows({
+    startDate: input.startDate,
+    weeks: input.weeks,
+    windowDays: input.windowDays,
+    holes: input.holes,
+    labelPattern: input.labelPattern ?? null,
+  });
+  const report: SeasonRowReport[] = [];
+  let created = 0;
+  let reused = 0;
+  let errors = 0;
+  for (let i = 0; i < specs.length; i++) {
+    const s = specs[i];
+    const base = { row: i + 1, round: s.round, playFrom: s.playFrom, playTo: s.playTo };
+    if (existingFrom.has(s.playFrom)) {
+      reused += 1;
+      report.push({ ...base, action: input.dryRun ? 'dry-reuse' : 'reuse' });
+      continue;
+    }
+    if (input.dryRun) {
+      created += 1;
+      report.push({ ...base, action: 'dry-create' });
+      continue;
+    }
+    const written = await insertContestWithParticipants(
+      admin,
+      {
+        competition_id: comp.id,
+        scheduled_at: null,
+        round: s.round,
+        venue_id: venue.id as string,
+        facility_id: null,
+        holes: s.holes,
+        play_from: s.playFrom,
+        play_to: s.playTo,
+      },
+      sides
+    );
+    if (!written.ok) {
+      if (written.reason === 'needs_migration') {
+        return NextResponse.json(
+          { error: 'Golf league rounds need a database migration first (172)' },
+          { status: 409 }
+        );
+      }
+      errors += 1;
+      report.push({ ...base, action: 'error', error: 'Failed to create the round' });
+      continue;
+    }
+    created += 1;
+    existingFrom.add(s.playFrom);
+    report.push({ ...base, action: 'create' });
+  }
+  if (!input.dryRun && created > 0) await revalidateOrgSiteForCompetition(admin, comp.id);
+  return NextResponse.json({
+    dryRun: input.dryRun,
+    report,
+    summary: { rows: specs.length, created, reused, errors },
+  });
 }
 
 export async function contestPATCH(

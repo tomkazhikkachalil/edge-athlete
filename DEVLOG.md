@@ -1,5 +1,54 @@
 # Development Log
 
+## September 2, 2026 — Phase 6d W3: golf league depth, part 3 — the season generator (#520, zero DDL)
+
+The organizer's day-one need, and the last round of phase 6d: a golf
+league's rounds were typed one week at a time in the console, and nothing
+in the database prevents two rounds with the same window. Now the season
+is declared once.
+
+- **`golf-season.ts`** (pure, node-tested): `generateRoundWindows` —
+  week n opens `start + 7(n−1)` and closes `windowDays − 1` later, dates
+  only (`addDaysIso`, no timezone), clamped to 52 weeks / 14 days;
+  `roundLabel` replaces `{n}` (a pattern without it gets the number
+  appended, so two rounds can never share a label by construction) and
+  keeps the number when cut to the 40-char column.
+- **`GolfSeasonGenerateSchema`**: start date, weeks 1–52, window 1–14,
+  holes 9|18, a REQUIRED course (a windowed round without one can never
+  fill itself — the sync's "round has no course"), a bounded label
+  pattern, `dryRun` default true.
+- **THE contest writer is now one path**: `insertContestWithParticipants`
+  extracted from `contestCreatePOST` (the golf columns only when
+  declared, the participants as one homogeneous batch, the compensating
+  delete) with reasons the callers map to their own bodies — "Add
+  round" keeps its 409 "needs migration 172" and its facility 400
+  verbatim. `golfSeasonGeneratePOST` (golf leaderboards only; the venue
+  must be the org's own and golf-linked; approved entrants on every
+  round) dedupes on an existing round's `play_from` — `reuse`, never a
+  duplicate — per-row best-effort, ONE site purge at the end, no
+  calendar mirror (a play-window round has no instant, exactly like
+  "Add round" without a time). Route twins
+  `…/competitions/[competitionId]/golf-season` (manager-gated,
+  org-competitions bucket): one request per season, so the 120/h bucket
+  is not burned per round.
+- Console: a "Generate rounds" expander beside Add round on golf
+  leaderboards — start, weeks, window days, holes, course (the
+  `max-w-full` select), label pattern; Preview → Generate gated on a
+  fresh preview (any field change clears it); per-row report.
+- e2e `golf-season-generate.spec.ts`: member 403, an unlinked venue and
+  60 weeks refused → dry-run 4 rounds with ZERO rows → commit → 4 rounds
+  with holes/window/course + 8 participants → a 6-week re-run reuses 4
+  and creates 2 → the console at 375px: Generate disabled until
+  Preview, a field change re-gates it, Generate lands the rounds.
+  Regression (the shared writer): org-contests, org-leaderboard,
+  golf-league-rules/sync/weeks/notify all green vs the live DB.
+
+**Phase 6d is code-complete**: W1 the week visible (#518), W2 the member
+feedback loop (#519, mig 173), W3 the season generator (#520). A golf
+league now declares its season once, fills itself from members' rounds,
+shows the week on every page, and tells each member when their round
+counted, when the week is final, and when a window is about to close.
+
 ## September 2, 2026 — Phase 6d W2: golf league depth, part 2 — the member feedback loop (#519, mig 173)
 
 W1 made the week visible to visitors; nothing yet spoke to the MEMBER.
