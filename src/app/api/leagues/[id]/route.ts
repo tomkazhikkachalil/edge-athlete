@@ -9,6 +9,7 @@ import { FEATURE_FLAGS } from '@/lib/features';
 import { deriveOrgSports } from '@/lib/orgs/sports';
 import type { OrgRole } from '@/lib/orgs/authz';
 import { UUID_RE } from '@/lib/golf/course-catalog';
+import { findPublishedSite } from '@/lib/org-sites/revalidate';
 
 // ── /api/leagues/[id] — the public league read + owner/manager edit ──────────
 // Leagues are always public (their search documents carry visibility
@@ -75,6 +76,9 @@ export async function GET(
     return NextResponse.json({
       league,
       sports,
+      // Phase 6b A1: the league page's "Public site" link — published only;
+      // pre-155 or draft reads null (link hidden), never an error.
+      site: await findPublishedSite(supabase, 'league', id),
       memberCount: count,
       members,
       viewerRole,

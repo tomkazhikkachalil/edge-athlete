@@ -30,6 +30,45 @@ export const VenueCreateSchema = z.object({
 });
 export type VenueCreateInput = z.infer<typeof VenueCreateSchema>;
 
+// ── Org-manager venue shapes (phase 6b A1) ──────────────────────────────────
+// The owning-org column comes from the ROUTE (side + id), never the body,
+// and the golf link is a catalog COURSE pick (any golf_courses row): the
+// server splits it into golf_club_id (row has club_id → the whole facility)
+// or golf_course_id (single-course facility, which 125 never gives a
+// golf_clubs row). golfClubId is deliberately absent from these shapes.
+
+export const OrgVenueCreateSchema = z.object({
+  name: boundedText(120),
+  place: PlaceValueSchema.nullable().optional(),
+  golfCourseId: uuid.optional(),
+  facilities: z.array(FacilityCreateSchema).max(20).optional(),
+});
+export type OrgVenueCreateInput = z.infer<typeof OrgVenueCreateSchema>;
+
+/** PATCH: every key optional; `golfCourseId: null` unlinks; `place: null`
+ *  clears the location. An empty body is rejected (nothing to update). */
+export const OrgVenuePatchSchema = z
+  .object({
+    name: boundedText(120).optional(),
+    place: PlaceValueSchema.nullable().optional(),
+    golfCourseId: uuid.nullable().optional(),
+  })
+  .refine(v => v.name !== undefined || v.place !== undefined || v.golfCourseId !== undefined, {
+    message: 'Nothing to update',
+  });
+export type OrgVenuePatchInput = z.infer<typeof OrgVenuePatchSchema>;
+
+/** Which venue column a catalog pick lands in: a row with club_id links the
+ *  CLUB (all its sections show), a lone course links the COURSE. Pure. */
+export function golfLinkColumns(
+  row: { id: string; club_id?: string | null } | null
+): { golf_club_id: string | null; golf_course_id: string | null } {
+  if (!row) return { golf_club_id: null, golf_course_id: null };
+  return row.club_id
+    ? { golf_club_id: row.club_id, golf_course_id: null }
+    : { golf_club_id: null, golf_course_id: row.id };
+}
+
 /** PlaceValue → venues location columns (real NULLs when cleared — the
  *  placeToLeagueColumns convention; venues are admin-client writes). */
 export function placeToVenueColumns(

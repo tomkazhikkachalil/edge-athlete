@@ -9,6 +9,7 @@ import { FEATURE_FLAGS } from '@/lib/features';
 import { deriveOrgSports } from '@/lib/orgs/sports';
 import type { OrgRole } from '@/lib/orgs/authz';
 import { UUID_RE } from '@/lib/golf/course-catalog';
+import { findPublishedSite } from '@/lib/org-sites/revalidate';
 
 // ── /api/clubs/[id] — the public club read + owner/manager edit ─────────────
 // Mirror of /api/leagues/[id], minus the sport COLUMN (117 decision:
@@ -70,6 +71,9 @@ export async function GET(
     return NextResponse.json({
       club,
       sports,
+      // Phase 6b A1: the club page's "Public site" link — published only;
+      // pre-155 or draft reads null (link hidden), never an error.
+      site: await findPublishedSite(supabase, 'club', id),
       memberCount: count,
       members,
       viewerRole,

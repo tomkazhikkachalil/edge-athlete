@@ -56,3 +56,61 @@ describe('placeToVenueColumns', () => {
     expect(cleared.lat).toBeNull();
   });
 });
+
+// ── Org-manager shapes (phase 6b A1) ────────────────────────────────────────
+import { OrgVenueCreateSchema, OrgVenuePatchSchema, golfLinkColumns } from '../validate';
+
+describe('OrgVenueCreateSchema', () => {
+  it('accepts a course pick and never a golfClubId', () => {
+    const parsed = OrgVenueCreateSchema.parse({
+      name: 'Kanata Golf & CC',
+      golfCourseId: '2f1b46c8-2964-4139-9689-d1c3f736ed93',
+    });
+    expect(parsed.golfCourseId).toBe('2f1b46c8-2964-4139-9689-d1c3f736ed93');
+    expect('golfClubId' in parsed).toBe(false);
+  });
+
+  it('rejects a non-uuid course id', () => {
+    expect(OrgVenueCreateSchema.safeParse({ name: 'X', golfCourseId: 'kanata' }).success).toBe(false);
+  });
+});
+
+describe('OrgVenuePatchSchema', () => {
+  it('rejects an empty patch', () => {
+    expect(OrgVenuePatchSchema.safeParse({}).success).toBe(false);
+  });
+
+  it('accepts golfCourseId: null as an unlink', () => {
+    const parsed = OrgVenuePatchSchema.parse({ golfCourseId: null });
+    expect(parsed.golfCourseId).toBeNull();
+    expect(parsed.name).toBeUndefined();
+  });
+
+  it('accepts place: null as a clear', () => {
+    expect(OrgVenuePatchSchema.parse({ place: null }).place).toBeNull();
+  });
+});
+
+describe('golfLinkColumns', () => {
+  it('links the CLUB when the picked course belongs to one', () => {
+    expect(golfLinkColumns({ id: 'course-1', club_id: 'club-9' })).toEqual({
+      golf_club_id: 'club-9',
+      golf_course_id: null,
+    });
+  });
+
+  it('links the COURSE for a single-course facility (no golf_clubs row, mig 125)', () => {
+    expect(golfLinkColumns({ id: 'course-1', club_id: null })).toEqual({
+      golf_club_id: null,
+      golf_course_id: 'course-1',
+    });
+    expect(golfLinkColumns({ id: 'course-2' })).toEqual({
+      golf_club_id: null,
+      golf_course_id: 'course-2',
+    });
+  });
+
+  it('null pick clears both', () => {
+    expect(golfLinkColumns(null)).toEqual({ golf_club_id: null, golf_course_id: null });
+  });
+});
