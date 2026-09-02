@@ -12,6 +12,7 @@ import {
   resolveAccentPair,
 } from '@/lib/org-sites/validate';
 import { orgSitePath } from '@/lib/org-sites/urls';
+import { templateSpec } from '@/lib/org-sites/templates';
 
 // ── /org/[slug] — the site shell (phase 3 R1, nav in R2) ────────────────────
 // Published sites only (draft = 404, the publish gate). The fetch is
@@ -68,6 +69,13 @@ export default async function OrgSiteLayout({
       ? ({ '--org-accent': accent, '--org-accent-strong': strong } as React.CSSProperties)
       : undefined;
   const brandName = tokens.wordmark ?? site.orgName;
+  // B2: the template decides the header shape — 'bar' is the R1 markup,
+  // 'band' is one strong-accent band with the nav inside it.
+  const spec = templateSpec(site.template_id);
+  const band = spec.header === 'band';
+  const navLinkClass = band
+    ? 'text-sm font-medium text-white/90'
+    : 'text-sm font-medium text-secondary';
 
   return (
     <div
@@ -75,6 +83,7 @@ export default async function OrgSiteLayout({
       style={accentStyle}
       data-typeface={tokens.typeface}
       data-surface={tokens.surface}
+      data-template={spec.id}
     >
       {/* R5 a11y: keyboard users skip the header/nav straight to content.
           sr-only until focused (the global :focus-visible ring shows it). */}
@@ -84,7 +93,10 @@ export default async function OrgSiteLayout({
       >
         Skip to content
       </a>
-      <header className="bg-surface border-b border-border">
+      <header
+        className={band ? 'text-white' : 'bg-surface border-b border-border'}
+        style={band ? { backgroundColor: 'var(--org-accent-strong)' } : undefined}
+      >
         <div className="max-w-4xl mx-auto px-4 py-4 flex flex-wrap items-center justify-between gap-2">
           <Link href={`${orgSitePath(site.subdomain)}`} className="min-w-0 flex items-center gap-3">
             {site.logo_path ? (
@@ -101,7 +113,9 @@ export default async function OrgSiteLayout({
             ) : null}
             {/* block, not inline — truncate's ellipsis only works on a
                 block box, and an inline span's nowrap overflows 375px. */}
-            <span className="block min-w-0 text-xl font-bold text-primary truncate">
+            <span
+              className={`block min-w-0 text-xl font-bold truncate ${band ? 'text-white' : 'text-primary'}`}
+            >
               {brandName}
             </span>
           </Link>
@@ -109,17 +123,14 @@ export default async function OrgSiteLayout({
         {navKeys.length + pages.length > 0 && (
           <nav aria-label="Site navigation" className="max-w-4xl mx-auto px-4 pb-3">
             <div className="flex flex-wrap gap-x-5 gap-y-1">
-              <Link
-                href={`${orgSitePath(site.subdomain)}`}
-                className="text-sm font-medium text-secondary"
-              >
+              <Link href={`${orgSitePath(site.subdomain)}`} className={navLinkClass}>
                 Home
               </Link>
               {navKeys.map(key => (
                 <Link
                   key={key}
                   href={`${orgSitePath(site.subdomain)}/${key}`}
-                  className="text-sm font-medium text-secondary"
+                  className={navLinkClass}
                 >
                   {moduleLabel(key, nav)}
                 </Link>
@@ -128,7 +139,7 @@ export default async function OrgSiteLayout({
                 <Link
                   key={p.slug}
                   href={`${orgSitePath(site.subdomain)}/${p.slug}`}
-                  className="text-sm font-medium text-secondary"
+                  className={navLinkClass}
                 >
                   {p.title}
                 </Link>

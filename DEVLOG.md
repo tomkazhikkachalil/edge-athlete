@@ -1,5 +1,31 @@
 # Development Log
 
+## September 1, 2026 — Phase 6b B2: builder depth, part 2 — the second template, `bold` (#507, mig 170)
+
+155 shipped one template and promised the CHECK "widens additively";
+B2 is the first widening and the first REAL alternative — a template is
+a bundle of render decisions, not a label:
+
+- **Migration 170**: `org_sites_template_check` → `('classic','bold')`.
+  ORDER-STRICT before this PR merges; app code ahead degrades
+  (`set_template` answers a friendly 409 on 23514; readers treat an
+  unknown id as classic).
+- **`src/lib/org-sites/templates.ts`** (pure, tested): `templateSpec(id)`
+  → `{ header: bar|band, hero: card|bleed, sections: stack|grid,
+  teams: chips|tiles, density }`; `classic` = the shipped markup
+  byte-for-byte; `bold` differs on every axis: a strong-accent BAND
+  header with the nav inside it (white links), a full-bleed hero with
+  an uppercase display headline, a two-column section grid at ≥ sm
+  (teams/news/gallery/courses span both), tile teams, compact card
+  density with uppercase-tracking headings. `data-template` on the
+  `.org-scope` root for probes.
+- `set_template` in `SitePatchSchema`; console "Template" picker (two
+  radio cards with a one-line description) above the Brand form.
+- e2e `org-site-template.spec.ts` (self-skips pre-170): bold → the raw
+  document carries the band/grid/tile markers and the team tile;
+  `/teams` renders; 375px no overflow in BOTH templates; unknown id
+  400; classic restores; console picker.
+
 ## September 1, 2026 — Phase 6b B1: builder depth, part 1 — brand tokens, favicon, nav labels + order (#506, zero DDL)
 
 The masterplan's §6 token set was a single `accent`; `nav_config` and
