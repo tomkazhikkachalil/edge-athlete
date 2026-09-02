@@ -41,6 +41,8 @@ import VenuesList from './VenuesList';
 import { siteBasePath } from '@/lib/org-sites/urls';
 import { FULL_WIDTH_MODULES, templateSpec } from '@/lib/org-sites/templates';
 import type { CourseStats } from '@/lib/golf/course-stats';
+import type { PublicGolfRound } from '@/lib/org-sites/public-data';
+import GolfRoundsSchedule from './GolfRoundsSchedule';
 import { courseRecordLine } from './CourseStatsCard';
 
 // The site home's module rendering, extracted (cleanup round) so the
@@ -65,6 +67,8 @@ export interface SiteHomeData {
   clubGolfBoards?: PublicClubGolfBoard[];
   /** Phase 6e S3 — the club's courses fill themselves from members' public rounds. */
   courseStrip?: CourseStats | null;
+  /** Phase 6e S4 — a golf league's play windows on the schedule. */
+  golfRounds?: PublicGolfRound[];
 }
 
 export default function SiteHomeBody({
@@ -99,10 +103,15 @@ export default function SiteHomeBody({
     switch (key) {
       case 'standings':
         return <StandingsPreview standings={standings} basePath={siteBasePath(site)} />;
-      case 'schedule':
-        return events && events.length > 0 ? (
+      case 'schedule': {
+        const golfRounds = data.golfRounds ?? [];
+        const hasEvents = !!events && events.length > 0;
+        if (!hasEvents && golfRounds.length === 0) return empty('No upcoming events.');
+        return (
           <>
-            <ScheduleList events={events.slice(0, 5)} />
+            {/* S4: a golf league's season leads — the rounds, then the events. */}
+            {golfRounds.length > 0 && <GolfRoundsSchedule rounds={golfRounds} compact />}
+            {hasEvents && <ScheduleList events={events!.slice(0, 5)} />}
             <Link
               href={`${siteBasePath(site)}/schedule`}
               className="mt-3 inline-block text-sm text-brand-fg font-medium"
@@ -110,9 +119,8 @@ export default function SiteHomeBody({
               Full schedule →
             </Link>
           </>
-        ) : (
-          empty('No upcoming events.')
         );
+      }
       case 'teams':
         return teams.length > 0 ? (
           <>

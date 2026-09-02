@@ -49,7 +49,15 @@ export default function OrgUpcomingEvents({ side, orgId }: OrgUpcomingEventsProp
     const date = start.toLocaleDateString(undefined, {
       weekday: 'short', month: 'short', day: 'numeric',
     });
-    if (ev.all_day) return date;
+    if (ev.all_day) {
+      // S4: a golf league's play window is a multi-day all-day event
+      // (end exclusive) — show the range, not the first day alone.
+      const end = new Date(new Date(ev.ends_at).getTime() - 86_400_000);
+      if (!Number.isNaN(end.getTime()) && end.getTime() - start.getTime() >= 12 * 3_600_000) {
+        return `${date} – ${end.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })}`;
+      }
+      return date;
+    }
     const time = start.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
     return `${date} · ${time}`;
   };

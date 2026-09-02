@@ -1,5 +1,75 @@
 # Development Log
 
+## September 2, 2026 — Phase 6e S4: golf sites, part 4 — the season on the schedule: all-day rounds, the site's ICS feed (#524, zero DDL)
+
+A golf league's season is its play windows, and until now a windowed
+round could reach NO calendar (the mirror refused without an instant;
+the generator wrote none) and NO schedule (the module reads `events`
+only). This round puts the season everywhere a member or a visitor looks
+for it.
+
+- **The all-day mirror** (`calendar-mirror.ts`): a round with a play
+  window and no instant publishes as an ALL-DAY, MULTI-DAY event —
+  local midnight of `play_from` to local midnight of the day AFTER
+  `play_to` in the publisher's zone (`windowEventBounds`, pure; the 057
+  storage convention `buildVEvent` and the grid already honour: end
+  EXCLUSIVE, a one-day window still a full day, a DST crossing keeps its
+  dates), title "Week 3 — Thursday Nine", description "Play any day
+  Sep 15 – 21 · 9 holes at QA Nine" (the linked catalog course names it),
+  category `game`, the org as audience. A window move re-derives the
+  bounds in the EVENT'S OWN stored zone. Timed games publish exactly as
+  before. Every minted event rides the existing rails: the read-time
+  roster merge (members' calendars + personal ICS), RSVP, the org page.
+  Still no bell (the v1 decision; R6 is the bell).
+- **Publish season** — `contestPublishSeasonPOST` (every unpublished
+  scheduled round with an instant or a window, ≤60, one site purge;
+  idempotent: a second call publishes zero) behind
+  `…/contests/publish-season` twins; the console button beside "Generate
+  rounds"; the per-round "Publish to calendar" now shows for a windowed
+  round too. The season generator gained `publishToCalendar` (default
+  ON — "Add to members' calendars") + `timezone`, publishes each created
+  round best-effort and reports `published` per row and in the summary.
+- **The public schedule**: `fetchPublicGolfRounds` (public golf
+  leaderboards' windowed rounds, course name, state) → `GolfRoundsSchedule`
+  (open / upcoming rows with a state chip, closed rounds in a native
+  `<details>`) leads the home schedule module and a "League rounds"
+  section on `/schedule`, with the events beneath; SportsEvent JSON-LD
+  for the rounds (start/end = the window, the course as the place).
+  `formatEventWhen` and the app's `OrgUpcomingEvents` read a multi-day
+  all-day event as a date range (the LAST day, not the exclusive bound).
+- **The site's ICS feed** — `/org/[slug]/schedule.ics` (+ the vanity
+  twin; a `(public)` route handler, exempt from the API authz audit like
+  card.png): the org's public events over a year plus the golf rounds
+  as `VALUE=DATE` events, viewer-independent (no auth, no cookies),
+  cached under the site tag, `text/calendar`, `s-maxage=300`. "Subscribe"
+  (webcal) and ".ics" links on `/schedule`. FINDING while writing the
+  spec: the feed's events are UPCOMING only, so an OPEN round whose
+  mirror event started days ago vanished — the feed now dedupes against
+  the events it actually carries, not against "has a mirror id", so an
+  open week always reaches the subscriber.
+- Two spec repairs on the way: `golf-season-generate.spec.ts` (the
+  summary gained `published`; the default-on publish leaves mirror
+  events the club cascade doesn't reach — deleted explicitly) and
+  `org-calendar.spec.ts`, STALE on main since the consolidation round
+  made the merge roster-only: its member was follow-kind and every row
+  omitted `kind` (the multi-row NULL trap) — now roster, every key set.
+- e2e `golf-season-calendar.spec.ts`: a public golf league (owner +
+  roster member), 3 weeks generated in America/Toronto with publish ON
+  → 3 all-day events with the exact local-midnight bounds, the window
+  title, the course in the description → the roster member's calendar
+  read carries week 1 through the merge (`is_org_event`, all-day) →
+  publish-season publishes 0 → a window PATCH moves the event's bounds
+  → the published site: `/schedule` lists the rounds with "open now" /
+  "upcoming" chips, the course, the Subscribe link, SportsEvent data,
+  and the mirrored events as ranges; the home carries the rounds;
+  `/schedule.ics` (unfolded — RFC 5545 folds at 75 octets) carries three
+  VEVENTs (weeks 2–3 as their upcoming events, the open week 1 as a
+  round) with `VALUE=DATE` → 375px. Regressions: season-generate,
+  org-contests, org-calendar, org-site (5), identity green vs the live DB.
+
+Next: S5 — golf leaders from `contest_results` (low gross by nine and
+eighteen, low net, most rounds, best week).
+
 ## September 2, 2026 — Phase 6e S3: golf sites, part 3 — the course fills itself from members' public rounds (#523, zero DDL)
 
 Tom's principle 2 applied to the club's course page: members post

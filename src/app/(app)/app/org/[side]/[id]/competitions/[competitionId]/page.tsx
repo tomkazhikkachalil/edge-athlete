@@ -170,6 +170,8 @@ export default function CompetitionDetailPage() {
   const [seasonHoles, setSeasonHoles] = useState<'9' | '18'>('9');
   const [seasonVenueId, setSeasonVenueId] = useState('');
   const [seasonLabel, setSeasonLabel] = useState('Week {n}');
+  // S4: the generated rounds land on members' calendars as all-day windows.
+  const [seasonPublish, setSeasonPublish] = useState(true);
   const [seasonBusy, setSeasonBusy] = useState(false);
   const [seasonReport, setSeasonReport] = useState<{
     dryRun: boolean;
@@ -484,6 +486,8 @@ export default function CompetitionDetailPage() {
           holes: Number(seasonHoles),
           venueId: seasonVenueId,
           ...(seasonLabel.trim() ? { labelPattern: seasonLabel.trim() } : {}),
+          publishToCalendar: seasonPublish,
+          timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
           dryRun,
         }),
       });
@@ -808,6 +812,27 @@ export default function CompetitionDetailPage() {
               >
                 {seasonOpen ? 'Close season generator' : 'Generate rounds'}
               </button>
+              <button
+                type="button"
+                onClick={() =>
+                  void act(
+                    `${base}/contests/publish-season`,
+                    {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({
+                        competitionId,
+                        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
+                      }),
+                    },
+                    'Season published to the calendar',
+                    'Failed to publish the season'
+                  )
+                }
+                className="ml-2 px-2 py-1 text-xs rounded-md border border-border-strong text-secondary hover:bg-surface-sunken transition-colors"
+              >
+                Publish season to calendar
+              </button>
               {seasonOpen && (
                 <div className="mt-2 border border-border rounded-lg p-3">
                   <p className="text-xs text-muted mb-2">
@@ -867,6 +892,15 @@ export default function CompetitionDetailPage() {
                         </option>
                       ))}
                     </select>
+                    <label className="flex items-center gap-2 text-sm text-secondary">
+                      <input
+                        type="checkbox"
+                        checked={seasonPublish}
+                        onChange={e => { setSeasonPublish(e.target.checked); setSeasonReport(null); }}
+                        aria-label="Add to members' calendars"
+                      />
+                      Add to members&apos; calendars
+                    </label>
                     <input
                       type="text"
                       maxLength={34}
@@ -1337,7 +1371,7 @@ export default function CompetitionDetailPage() {
                           }
                           return null;
                         })()}
-                        {!contest.event_id && contest.scheduled_at && contest.status === 'scheduled' && (
+                        {!contest.event_id && (contest.scheduled_at || (contest.play_from && contest.play_to)) && contest.status === 'scheduled' && (
                           <button
                             type="button"
                             onClick={() => void publishContest(contest.id)}

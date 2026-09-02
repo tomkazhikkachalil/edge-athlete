@@ -111,7 +111,7 @@ test('season generator: dry-run writes nothing, commit creates N rounds with eve
     expect(res.status(), await readErrorBody(res)).toBe(200);
     let out = await res.json();
     expect(out.dryRun).toBe(true);
-    expect(out.summary).toEqual({ rows: 4, created: 4, reused: 0, errors: 0 });
+    expect(out.summary).toMatchObject({ rows: 4, created: 4, reused: 0, errors: 0 });
     expect(out.report.map((r: { action: string }) => r.action)).toEqual(['dry-create', 'dry-create', 'dry-create', 'dry-create']);
     expect(out.report[0]).toMatchObject({ round: 'Round 1', playFrom: start, playTo: addDays(start, 6) });
     expect(out.report[3]).toMatchObject({ round: 'Round 4', playFrom: addDays(start, 21), playTo: addDays(start, 27) });
@@ -123,7 +123,7 @@ test('season generator: dry-run writes nothing, commit creates N rounds with eve
     expect(res.status(), await readErrorBody(res)).toBe(200);
     out = await res.json();
     expect(out.dryRun).toBe(false);
-    expect(out.summary).toEqual({ rows: 4, created: 4, reused: 0, errors: 0 });
+    expect(out.summary).toMatchObject({ rows: 4, created: 4, reused: 0, errors: 0 });
     const { data: contests } = await admin
       .from('contests')
       .select('id, round, holes, play_from, play_to, venue_id, status')
@@ -142,7 +142,7 @@ test('season generator: dry-run writes nothing, commit creates N rounds with eve
     res = await ownerApi.post(url, { data: { ...body, weeks: 6, dryRun: false } });
     expect(res.status()).toBe(200);
     out = await res.json();
-    expect(out.summary).toEqual({ rows: 6, created: 2, reused: 4, errors: 0 });
+    expect(out.summary).toMatchObject({ rows: 6, created: 2, reused: 4, errors: 0 });
     expect(out.report.map((r: { action: string }) => r.action)).toEqual(['reuse', 'reuse', 'reuse', 'reuse', 'create', 'create']);
     ({ data: rows } = await admin.from('contests').select('id').eq('competition_id', competitionId));
     expect(rows!.length).toBe(6);
@@ -181,8 +181,13 @@ test('season generator: dry-run writes nothing, commit creates N rounds with eve
   } finally {
     await ownerApi.dispose();
     await alphaApi.dispose();
+    // S4: generated rounds publish to the calendar by default — the mirror
+    // events outlive the club's cascade, so delete them explicitly.
+    const { data: evs } = await admin.from('contests').select('event_id').eq('competition_id', competitionId);
+    const eventIds = (evs ?? []).map(c => c.event_id).filter(Boolean) as string[];
     await admin.from('venues').delete().eq('club_id', clubId);
     await admin.from('clubs').delete().eq('id', clubId);
+    if (eventIds.length) await admin.from('events').delete().in('id', eventIds);
     await admin.from('golf_courses').delete().eq('id', courseId);
   }
 });

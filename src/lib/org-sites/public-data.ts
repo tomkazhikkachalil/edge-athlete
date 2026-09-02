@@ -26,6 +26,7 @@ import type { HoleGeometry } from '@/lib/golf/hole-geometry';
 import type { GolfCourse } from '@/types/golf';
 import { getStatSchema } from '@/lib/sports/stat-schemas';
 import type { PublicCompetitionStandings } from '@/lib/competitions/public-standings';
+import { sortWeeks, utcToday, weekState, type GolfWeekState } from '@/lib/competitions/golf-weeks';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- matches the authz.ts Admin alias; schema-agnostic helper
 type Admin = SupabaseClient<any, 'public', any>;
@@ -946,6 +947,87 @@ export async function fetchPublicCoursePage(
     geometry = null; // pre-102: no column — the page renders without diagrams
   }
   return { ...hit, siblings, geometry };
+}
+
+// ── Golf rounds on the schedule (phase 6e S4) ───────────────────────────────
+// A golf league's season is its play windows, not `events`: the public
+// schedule lists them (open / upcoming / closed) beside the org's events,
+// and the site's ICS feed carries the ones no mirror event already
+// covers. Viewer-independent; never throws; pre-172 → none.
+
+export interface PublicGolfRound {
+  id: string;
+  competitionId: string;
+  competitionName: string;
+  round: string | null;
+  holes: number;
+  playFrom: string;
+  playTo: string;
+  courseName: string | null;
+  state: GolfWeekState;
+  /** The mirror event id when the round was published to the calendar. */
+  eventId: string | null;
+}
+
+export async function fetchPublicGolfRounds(
+  admin: Admin,
+  side: OrgSide,
+  orgId: string
+): Promise<PublicGolfRound[]> {
+  try {
+    const { data: competitions, error } = await admin
+      .from('competitions')
+      .select('id, name')
+      .eq(orgColumn(side), orgId)
+      .eq('sport_key', 'golf')
+      .eq('format', 'leaderboard')
+      .eq('visibility', 'public')
+      .in('status', ['active', 'completed'])
+      .order('created_at', { ascending: false })
+      .limit(20);
+    if (degraded('golf rounds competitions', error) || !competitions || competitions.length === 0) return [];
+    const nameOf = new Map(competitions.map(c => [c.id as string, c.name as string]));
+    const { data: contests, error: cErr } = await admin
+      .from('contests')
+      .select('id, competition_id, round, status, venue_id, holes, play_from, play_to, event_id')
+      .in('competition_id', [...nameOf.keys()])
+      .not('play_from', 'is', null)
+      .neq('status', 'canceled')
+      .order('play_from', { ascending: true })
+      .limit(100);
+    if (degraded('golf rounds', cErr) || !contests || contests.length === 0) return [];
+    const venueIds = [...new Set(contests.map(c => c.venue_id).filter(Boolean))] as string[];
+    const { data: venues } = venueIds.length
+      ? await admin.from('venues').select('id, name, golf_course_id').in('id', venueIds)
+      : { data: [] as { id: string; name: string; golf_course_id: string | null }[] };
+    const courseIds = [...new Set((venues ?? []).map(v => v.golf_course_id).filter(Boolean))] as string[];
+    const { data: courses } = courseIds.length
+      ? await admin.from('golf_courses').select('id, name').in('id', courseIds)
+      : { data: [] as { id: string; name: string }[] };
+    const courseName = new Map((courses ?? []).map(c => [c.id as string, c.name as string]));
+    const nameByVenue = new Map<string, string>();
+    for (const v of venues ?? []) {
+      nameByVenue.set(v.id as string, (v.golf_course_id && courseName.get(v.golf_course_id as string)) || (v.name as string));
+    }
+    const today = utcToday();
+    return sortWeeks(
+      contests.map(c => ({
+        id: c.id as string,
+        competitionId: c.competition_id as string,
+        competitionName: nameOf.get(c.competition_id as string) ?? 'League',
+        round: (c.round as string | null) ?? null,
+        holes: Number(c.holes ?? 0),
+        playFrom: String(c.play_from),
+        playTo: String(c.play_to),
+        courseName: (c.venue_id && nameByVenue.get(c.venue_id as string)) || null,
+        state: weekState({ playFrom: String(c.play_from), playTo: String(c.play_to) }, today),
+        eventId: (c.event_id as string | null) ?? null,
+      }))
+    );
+  } catch (error) {
+    console.error(`${TAG} golf rounds failed:`, error);
+    return [];
+  }
 }
 
 // ── Divisions (phase 6b B3) ─────────────────────────────────────────────────

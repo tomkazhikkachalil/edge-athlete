@@ -932,6 +932,8 @@ export interface SeasonRowReport {
   playTo: string;
   action: 'create' | 'reuse' | 'error' | 'dry-create' | 'dry-reuse';
   error?: string;
+  /** S4: the created round reached members' calendars. */
+  published?: boolean;
 }
 
 /** Phase 6d W3: N weekly rounds in one request (dry-run by default). A
@@ -943,7 +945,9 @@ export interface SeasonRowReport {
 export async function golfSeasonGeneratePOST(
   admin: Admin,
   input: GolfSeasonGenerateInput,
-  scope: CompetitionScope
+  scope: CompetitionScope,
+  /** S4: who publishes the generated rounds to the calendar (null = don't). */
+  organizerId: string | null = null
 ): Promise<NextResponse> {
   const comp = await pinCompetition(admin, input.competitionId, scope);
   if (!comp) return NextResponse.json({ error: 'Competition not found' }, { status: 404 });
@@ -999,6 +1003,7 @@ export async function golfSeasonGeneratePOST(
   let created = 0;
   let reused = 0;
   let errors = 0;
+  let publishedCount = 0;
   for (let i = 0; i < specs.length; i++) {
     const s = specs[i];
     const base = { row: i + 1, round: s.round, playFrom: s.playFrom, playTo: s.playTo };
@@ -1039,14 +1044,105 @@ export async function golfSeasonGeneratePOST(
     }
     created += 1;
     existingFrom.add(s.playFrom);
-    report.push({ ...base, action: 'create' });
+    // S4: the new round lands on members' calendars as an all-day window
+    // (best-effort — a mirror failure never fails the generation).
+    let published = false;
+    if (input.publishToCalendar && organizerId) {
+      const out = await publishContestToCalendar(
+        admin,
+        {
+          id: written.contest.id,
+          event_id: null,
+          scheduled_at: null,
+          venue_id: venue.id as string,
+          facility_id: null,
+          round: s.round,
+          play_from: s.playFrom,
+          play_to: s.playTo,
+          holes: s.holes,
+        },
+        { id: comp.id, name: comp.name, league_id: comp.league_id, club_id: comp.club_id, division_id: comp.division_id },
+        organizerId,
+        input.timezone
+      );
+      published = !('error' in out);
+      if (published) publishedCount += 1;
+    }
+    report.push({ ...base, action: 'create', published });
   }
   if (!input.dryRun && created > 0) await revalidateOrgSiteForCompetition(admin, comp.id);
   return NextResponse.json({
     dryRun: input.dryRun,
     report,
-    summary: { rows: specs.length, created, reused, errors },
+    summary: { rows: specs.length, created, reused, errors, published: publishedCount },
   });
+}
+
+/** S4: "Publish season to calendar" — every unpublished, scheduled round
+ *  of the competition with an instant OR a play window (≤60), one site
+ *  purge at the end. Idempotent: a second call publishes zero. */
+export async function contestPublishSeasonPOST(
+  admin: Admin,
+  competitionId: string,
+  scope: CompetitionScope,
+  organizerId: string,
+  timezone: string
+): Promise<NextResponse> {
+  const comp = await pinCompetition(admin, competitionId, scope);
+  if (!comp) return NextResponse.json({ error: 'Competition not found' }, { status: 404 });
+  let res: { data: Record<string, unknown>[] | null; error: { code?: string } | null } = await admin
+    .from('contests')
+    .select('id, event_id, scheduled_at, venue_id, facility_id, round, play_from, play_to, holes')
+    .eq('competition_id', comp.id)
+    .is('event_id', null)
+    .eq('status', 'scheduled')
+    .limit(60);
+  if (res.error?.code === '42703') {
+    res = await admin
+      .from('contests')
+      .select('id, event_id, scheduled_at, venue_id, facility_id, round')
+      .eq('competition_id', comp.id)
+      .is('event_id', null)
+      .eq('status', 'scheduled')
+      .limit(60);
+  }
+  if (res.error) {
+    console.error(`${TAG} publish season read error:`, res.error);
+    return NextResponse.json({ error: 'Failed to read the rounds' }, { status: 500 });
+  }
+  let published = 0;
+  let skipped = 0;
+  for (const c of (res.data ?? []) as Record<string, unknown>[]) {
+    const contest = {
+      id: c.id as string,
+      event_id: (c.event_id as string | null) ?? null,
+      scheduled_at: (c.scheduled_at as string | null) ?? null,
+      venue_id: (c.venue_id as string | null) ?? null,
+      facility_id: (c.facility_id as string | null) ?? null,
+      round: (c.round as string | null) ?? null,
+      play_from: (c.play_from as string | null) ?? null,
+      play_to: (c.play_to as string | null) ?? null,
+      holes: (c.holes as number | null) ?? null,
+    };
+    if (!contest.scheduled_at && !(contest.play_from && contest.play_to)) {
+      skipped += 1;
+      continue;
+    }
+    const out = await publishContestToCalendar(
+      admin,
+      contest,
+      { id: comp.id, name: comp.name, league_id: comp.league_id, club_id: comp.club_id, division_id: comp.division_id },
+      organizerId,
+      timezone
+    );
+    if ('error' in out) skipped += 1;
+    else published += 1;
+  }
+  if (published > 0) {
+    const orgId = comp.league_id ?? comp.club_id;
+    if (orgId) await revalidateOrgSiteForOrg(admin, comp.league_id ? 'league' : 'club', orgId);
+  }
+  return NextResponse.json({ ok: true, published, skipped });
 }
 
 export async function contestPATCH(
@@ -1103,8 +1199,19 @@ export async function contestPATCH(
   if (!updated || updated.length === 0) {
     return NextResponse.json({ error: 'Game not found' }, { status: 404 });
   }
-  // One-way calendar mirror (best-effort — never fails the write).
-  await mirrorContestChange(admin, updated[0]);
+  // One-way calendar mirror (best-effort — never fails the write). S4: a
+  // window move needs the window; read it only when a mirror exists and
+  // the round has no instant (a pre-172 read simply yields none).
+  let mirrorInput: Parameters<typeof mirrorContestChange>[1] = updated[0];
+  if (updated[0].event_id && !updated[0].scheduled_at) {
+    const { data: win } = await admin
+      .from('contests')
+      .select('play_from, play_to')
+      .eq('id', input.id)
+      .maybeSingle();
+    if (win) mirrorInput = { ...updated[0], play_from: win.play_from, play_to: win.play_to };
+  }
+  await mirrorContestChange(admin, mirrorInput);
   // Status flips move games in and out of the table (best-effort).
   if (input.status !== undefined) {
     await recomputeStandingsBestEffort(admin, updated[0].competition_id as string);
@@ -1165,13 +1272,25 @@ export async function contestPublishPOST(
   organizerId: string,
   timezone: string
 ): Promise<NextResponse> {
-  const { data: row } = await admin
+  // S4: the play window + holes ride along (a pre-172 database retries
+  // without them — such a round has no window to publish anyway).
+  let rowRes = await admin
     .from('contests')
     .select(
-      'id, event_id, scheduled_at, venue_id, facility_id, round, competition:competition_id (id, name, league_id, club_id, division_id)'
+      'id, event_id, scheduled_at, venue_id, facility_id, round, play_from, play_to, holes, competition:competition_id (id, name, league_id, club_id, division_id)'
     )
     .eq('id', contestId)
     .maybeSingle();
+  if (rowRes.error?.code === '42703') {
+    rowRes = await admin
+      .from('contests')
+      .select(
+        'id, event_id, scheduled_at, venue_id, facility_id, round, competition:competition_id (id, name, league_id, club_id, division_id)'
+      )
+      .eq('id', contestId)
+      .maybeSingle();
+  }
+  const row = rowRes.data;
   const comp = row?.competition as
     | { id: string; name: string; league_id: string | null; club_id: string | null; division_id: string | null }
     | { id: string; name: string; league_id: string | null; club_id: string | null; division_id: string | null }[]
