@@ -1,5 +1,57 @@
 # Development Log
 
+## September 2, 2026 — Phase 6e S3: golf sites, part 3 — the course fills itself from members' public rounds (#523, zero DDL)
+
+Tom's principle 2 applied to the club's course page: members post
+rounds anyway, so the page fills itself — no admin retyping, no new
+tables. Until now nothing on a club page came from rounds except league
+standings; no course record, scoring average, hardest hole or "recent
+rounds" existed anywhere in the codebase (every golf "best" was a single
+profile's `Math.min`).
+
+- **`src/lib/golf/course-stats.ts`** (pure, node-tested):
+  `selectPublicRounds` — THE TWO-KEY RULE as a filter (a round is public
+  only with a PUBLIC post AND a PUBLIC profile; log-only rounds never
+  appear) — and `buildCourseStats`: buckets by (holes, tee) so a nine
+  and an eighteen never compete (principle 4), scoring average and best
+  per bucket, the course record per bucket (ties → the EARLIEST date,
+  the record was set first), the hardest holes as mean strokes over par
+  across TRACKED holes only (null ≠ missed; catalog par fills a holes
+  row without one; ≥5 tracked; top 3), the recent rounds newest first.
+- **`src/lib/org-sites/course-stats.ts`** (reader, never throws): the
+  club's members (`memberships`, org scope, ≤2000) → their complete
+  outdoor `golf_rounds` at the course ids over the last year (≤500,
+  `.in()` chunked ≤200; a pre-`round_type` database retries without the
+  filter) → key 1 from `posts` (`visibility='public'`, `status` null or
+  `published` — a guardian-held round is never public) → key 2 from
+  `profiles` (public, unsupervised, not a stub) with the masked name →
+  `golf_holes` chunked ≤55 → the pure builder. Reads only; the frozen
+  golf write path is untouched, and because that path purges nothing, a
+  new round reaches the page within the ISR window (≤300s) — the same
+  staleness the standings live with (recorded).
+- **Rendered**: `CourseStatsCard` ("At this course": the record lines,
+  the tee table Tee/Holes/Rounds/Avg/Best, hardest holes, recent rounds;
+  names are labels, never links — the standings precedent) on the course
+  page, and a one-line strip under the club home's courses module
+  ("5 rounds posted this year · Course record 39 (9 holes, White) —
+  Edge B., Aug 8"). The preview renders the same.
+- Also in this PR: `package-lock.json` bumps the transitive `fast-uri`
+  to 3.1.7 — a high advisory (host confusion / SSRF, GHSA-5jgf-p345-68v8
+  and three siblings) published today failed the audit guardrail on
+  every branch; lockfile-only, `npm audit fix`.
+- e2e `org-site-course-stats.spec.ts` (the owner made PUBLIC — QA
+  profiles are private by default; a second QA user kept PRIVATE; a
+  supervised child under the guardian flag): the owner's five public
+  nines (hole 3 a 7 on every card), a private-post 38, a log-only 44,
+  the private user's public-post 36, the child's public-post 35 → the
+  page counts 5, the record is the owner's 39 with a masked name, never
+  38/36/35, no "Priv", no "Casey", the average 40.6, hole 3 "+3",
+  recent rounds → the home strip → 375px. Regressions: course-page,
+  courses, identity, two-pages green vs the live DB.
+
+Next: S4 — the season on the schedule and the calendar (all-day rounds,
+the site's ICS feed).
+
 ## September 2, 2026 — Phase 6e S2: golf sites, part 2 — a page per course: hole maps, sections, photos (#522, zero DDL)
 
 A2 gave a golf club's site a course LIST: one card per catalog course

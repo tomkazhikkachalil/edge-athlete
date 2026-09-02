@@ -14,6 +14,7 @@ import {
   fetchPublicTeams,
   fetchPublicVenues,
 } from '@/lib/org-sites/public-data';
+import { fetchPublicCourseStats } from '@/lib/org-sites/course-stats';
 import { getSiteBySlugAnyStatus } from '@/lib/org-sites/server';
 import { verifyPreviewToken } from '@/lib/org-sites/preview-token';
 import SiteHomeBody from '../../_components/SiteHomeBody';
@@ -61,6 +62,11 @@ export default async function OrgSitePreview({
     has('leaders') ? fetchPublicStatLeaders(admin, side, orgId) : Promise.resolve([]),
     has('courses') && side === 'club' ? fetchPublicClubGolfBoards(admin, orgId) : Promise.resolve([]),
   ]);
+  // S3: the club strip (needs the course ids from the read above).
+  const courseStrip =
+    has('courses') && side === 'club'
+      ? await fetchPublicCourseStats(admin, side, orgId, [...new Set(courses.map(c => c.course.id))])
+      : null;
 
   return (
     <>
@@ -72,7 +78,7 @@ export default async function OrgSitePreview({
       </div>
       <SiteHomeBody
         site={site}
-        data={{ standings, events, teams, staff, venues, affiliations, openWindows, courses, divisions, leaders, clubGolfBoards }}
+        data={{ standings, events, teams, staff, venues, affiliations, openWindows, courses, divisions, leaders, clubGolfBoards, courseStrip }}
       />
     </>
   );
