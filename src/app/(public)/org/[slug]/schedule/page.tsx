@@ -4,6 +4,7 @@ import { buildEventsJsonLd, buildGolfRoundsJsonLd, safeJsonLd } from '@/lib/org-
 import ScheduleList from '../_components/ScheduleList';
 import GolfRoundsSchedule from '../_components/GolfRoundsSchedule';
 import { requireSiteModule } from '../_components/require-module';
+import { moduleLabel, parseNavConfig } from '@/lib/org-sites/validate';
 import { siteAbsoluteUrl } from '@/lib/org-sites/urls';
 
 // ── /org/[slug]/schedule — the full schedule subpage (phase 3 R2) ──────────
@@ -60,7 +61,9 @@ export default async function OrgSiteSchedulePage({ params }: PageParams) {
         <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: safeJsonLd(jsonLd) }} />
       )}
       <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <h1 className="text-2xl font-bold text-primary">Schedule</h1>
+        <h1 className="text-2xl font-bold text-primary">
+        {moduleLabel('schedule', parseNavConfig(site.nav_config), site.side, site.sportKey)}
+      </h1>
         <p className="text-sm">
           <a href={icsWebcal} className="text-brand-fg font-medium">
             Subscribe

@@ -163,7 +163,8 @@ test('golf leaders: low gross 9/18, low net, most rounds, best week from results
     const page = await anonCtx.newPage();
     await page.setViewportSize({ width: 375, height: 812 });
     await page.goto(`${sitePath}/leaders`);
-    await expect(page.getByRole('heading', { name: 'Stat leaders', level: 1 })).toBeVisible({ timeout: 15_000 });
+    // C3: a golf org's leaders page speaks tour — 'Leaders', not 'Stat leaders'.
+    await expect(page.getByRole('heading', { name: 'Leaders', level: 1 })).toBeVisible({ timeout: 15_000 });
     const scrollWidth = await page.evaluate(() => document.documentElement.scrollWidth);
     expect(scrollWidth, 'no horizontal overflow at 375px').toBeLessThanOrEqual(375);
     await page.close();

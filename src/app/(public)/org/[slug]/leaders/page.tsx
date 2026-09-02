@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { getCachedLeaders, getCachedSite } from '@/lib/org-sites/cached';
 import LeadersTable from '../_components/LeadersTable';
 import { requireSiteModule } from '../_components/require-module';
+import { moduleLabel, parseNavConfig } from '@/lib/org-sites/validate';
 import { siteBasePath, siteAbsoluteUrl } from '@/lib/org-sites/urls';
 
 // ── /org/[slug]/leaders — the Stat leaders subpage (phase 6b B3) ──
@@ -42,7 +43,9 @@ export default async function OrgSiteLeadersTablePage({ params }: PageParams) {
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-8 space-y-6">
-      <h1 className="text-2xl font-bold text-primary">Stat leaders</h1>
+      <h1 className="text-2xl font-bold text-primary">
+        {moduleLabel('leaders', parseNavConfig(site.nav_config), site.side, site.sportKey)}
+      </h1>
       {items.length === 0 ? (
         <p className="text-sm text-tertiary">No stats recorded yet.</p>
       ) : (

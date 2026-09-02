@@ -1,5 +1,48 @@
 # Development Log
 
+## September 2, 2026 — Phase 7 C3: club sign-up, part 3 — the PGA shape: a golf org's site leads with standings, leaders and the week's play (#529, zero DDL)
+
+Tom's brief for the golf club and league pages: "look like the PGA
+website — FedEx cup points, leaderboard standings, media plus stats,
+news, announcements — all present." And a golf club is NOT course-
+specific: it plays many courses and MAY have a home course, which
+doesn't shape the page. The classic club order (6c G3) led with
+`courses`; a golf org now leads with the table.
+
+- **`GOLF_MODULE_ORDER`** (`org-sites/validate.ts`, one list per side,
+  pinned like the classic ones): hero → standings → leaders → schedule
+  → news → gallery, then courses/register (clubs: courses first),
+  affiliations, venues, teams, divisions, staff, sponsors, documents,
+  contact. `defaultModuleOrder(side, sportKey)` picks it for `golf`;
+  everything else keeps `DEFAULT_MODULE_ORDER`. `GOLF_TAGLINE`
+  ("Standings, leaderboards and the week's play — live.").
+- **Sport titles**: `moduleLabel(key, nav, side, sportKey)` gains a
+  sport layer between the nav labels and the side titles — golf:
+  standings "Season standings", leaders "Leaders", schedule "Rounds &
+  events". The home sections, the nav, and the standings / schedule /
+  leaders subpage `<h1>`s (which used fixed strings — they now go
+  through `moduleLabel`, so nav labels apply there too) all speak it.
+- **The org's shaping sport** = `leagues.sport_key` or `clubs.primary_sport`
+  (174), read by `loadOrgSport` (42703 → null, the classic shape).
+  `siteCreatePOST` mints the golf order and seeds `hero_config.tagline`
+  (plain data — `set_hero` edits it); `reset_order` returns to the
+  sport's order; `PublicSite.sportKey` rides the public read (a 42703
+  retry keeps pre-174 databases rendering) and the golf tagline is
+  also the render fallback for golf sites made before C3.
+- e2e `org-site-golf-order.spec.ts`: a `primary_sport='golf'` club →
+  create → the golf order + tagline → `set_nav` scramble → `reset_order`
+  restores → publish → the public home's first three `<h2>`s are
+  "Season standings", "Leaders", "Rounds & events" and `/leaders` titles
+  "Leaders" → 375px → a club without a sport keeps the classic order and
+  no tagline. Two specs updated for the new truth: `org-site-two-pages`
+  (its golf LEAGUE now takes the golf shape) and `org-site-golf-leaders`
+  ("Leaders"). Regressions green vs the live DB: org-site (5),
+  org-site-modules, org-site-two-pages, org-site-golf-leaders.
+
+Next: C4 — build while waiting (the club, its owner row, the optional
+home-course venue and a DRAFT site exist at request time; approval
+flips `approved_at`; publish waits for it).
+
 ## September 2, 2026 — Phase 7 C2: club sign-up, part 2 — the golf fast path: sports, an optional home course that prefills, contact; migration 174 (#528)
 
 C1 lands a new club owner on `/club/start?sport=golf`. C2 makes that

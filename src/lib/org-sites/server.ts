@@ -17,7 +17,8 @@ import { NextResponse } from 'next/server';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { OrgSide } from '@/lib/orgs/authz';
 import {
-  DEFAULT_MODULE_ORDER,
+  defaultModuleOrder,
+  GOLF_TAGLINE,
   isMissingTableError,
   isValidSubdomain,
   MODULE_KEYS,
@@ -116,6 +117,21 @@ export async function siteGET(
     .order('sort_order', { ascending: true })
     .limit(20);
   return NextResponse.json({ site: data, modules: modules ?? [] });
+}
+
+/** Phase 7 C3: the org's shaping sport — leagues.sport_key, clubs.primary_sport
+ *  (174). A pre-174 database (42703) or an org without one → null, which
+ *  every caller treats as "the classic shape". */
+export async function loadOrgSport(admin: Admin, side: OrgSide, orgId: string): Promise<string | null> {
+  const column = side === 'league' ? 'sport_key' : 'primary_sport';
+  const { data, error } = await admin
+    .from(side === 'league' ? 'leagues' : 'clubs')
+    .select(column)
+    .eq('id', orgId)
+    .maybeSingle();
+  if (error || !data) return null;
+  const value = (data as Record<string, unknown>)[column];
+  return typeof value === 'string' && value ? value : null;
 }
 
 /** The org's identity for the slug engine (phase 6 R1) — name + sport +
@@ -248,9 +264,17 @@ export async function siteCreatePOST(
     );
   }
 
+  // C3: the org's sport shapes the site from day one — the golf order and
+  // the golf tagline (plain hero_config data the manager edits freely).
+  const sportKey = await loadOrgSport(admin, side, orgId);
+  const order = defaultModuleOrder(side, sportKey);
   const { data: site, error } = await admin
     .from('org_sites')
-    .insert({ [orgColumn(side)]: orgId, subdomain })
+    .insert({
+      [orgColumn(side)]: orgId,
+      subdomain,
+      ...(sportKey === 'golf' ? { hero_config: { tagline: GOLF_TAGLINE } } : {}),
+    })
     // A fresh site has no domain — the base list keeps create working on a
     // pre-171 database (the 42703 retry lives on the read paths).
     .select(SITE_FIELDS_BASE)
@@ -268,8 +292,9 @@ export async function siteCreatePOST(
       site_id: site.id,
       module_key: key,
       enabled: true,
-      // G3: the side's recommended order (club ≠ league — Tom's principle 1).
-      sort_order: DEFAULT_MODULE_ORDER[side].indexOf(key as (typeof MODULE_KEYS)[number]),
+      // G3: the side's recommended order (club ≠ league — Tom's principle 1);
+      // C3: the sport's shape when the org has one.
+      sort_order: order.indexOf(key as (typeof MODULE_KEYS)[number]),
       config: {},
     }));
   let { error: modulesError } = await admin
@@ -474,7 +499,7 @@ export async function sitePATCH(
     if (!site) {
       return NextResponse.json({ error: 'Site not found' }, { status: 404 });
     }
-    const order = DEFAULT_MODULE_ORDER[side];
+    const order = defaultModuleOrder(side, await loadOrgSport(admin, side, orgId));
     for (let i = 0; i < order.length; i++) {
       const { error: orderError } = await admin
         .from('org_site_modules')
@@ -706,6 +731,10 @@ export interface PublicSite extends SiteRow {
   orgRegion: string | null;
   orgCountry: string | null;
   orgSportKey: string | null;
+  /** C3: the sport that SHAPES the site — leagues.sport_key or
+   *  clubs.primary_sport (174; null pre-174 or when unset). Picks the
+   *  sport titles and the golf tagline fallback at render. */
+  sportKey: string | null;
   modules: { module_key: string; enabled: boolean; sort_order: number; config: unknown }[];
 }
 
@@ -753,18 +782,17 @@ async function getSiteBySlugInternal(
 
   const side: OrgSide = site.league_id ? 'league' : 'club';
   const orgId = (site.league_id ?? site.club_id) as string;
-  const [{ data: org }, { data: modules }] = await Promise.all([
-    admin
-      .from(side === 'league' ? 'leagues' : 'clubs')
-      // R4 widens the org read for JSON-LD: geography both sides,
-      // sport_key leagues only (clubs have no such column — mig 108/113).
-      .select(
-        side === 'league'
-          ? 'id, name, city, region, country, sport_key'
-          : 'id, name, city, region, country'
-      )
-      .eq('id', orgId)
-      .maybeSingle(),
+  // R4 widens the org read for JSON-LD: geography both sides, sport_key
+  // leagues only (clubs have no such column — mig 108/113); C3 adds the
+  // club's primary_sport (174) with a 42703 retry for older databases.
+  const readOrg = (fields: string) =>
+    admin.from(side === 'league' ? 'leagues' : 'clubs').select(fields).eq('id', orgId).maybeSingle();
+  const [orgRead, { data: modules }] = await Promise.all([
+    readOrg(
+      side === 'league'
+        ? 'id, name, city, region, country, sport_key'
+        : 'id, name, city, region, country, primary_sport'
+    ),
     admin
       .from('org_site_modules')
       .select('module_key, enabled, sort_order, config')
@@ -772,6 +800,8 @@ async function getSiteBySlugInternal(
       .order('sort_order', { ascending: true })
       .limit(20),
   ]);
+  let org = orgRead.data;
+  if (orgRead.error?.code === '42703') ({ data: org } = await readOrg('id, name, city, region, country'));
   if (!org) return null;
 
   // The dynamic select string defeats supabase-js's type parser; cast once.
@@ -781,6 +811,7 @@ async function getSiteBySlugInternal(
     region?: string | null;
     country?: string | null;
     sport_key?: string | null;
+    primary_sport?: string | null;
   };
   return {
     ...site,
@@ -791,6 +822,7 @@ async function getSiteBySlugInternal(
     orgRegion: orgRow.region ?? null,
     orgCountry: orgRow.country ?? null,
     orgSportKey: orgRow.sport_key ?? null,
+    sportKey: (side === 'league' ? orgRow.sport_key : orgRow.primary_sport) ?? null,
     modules: modules ?? [],
   };
 }

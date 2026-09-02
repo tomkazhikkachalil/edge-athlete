@@ -16,6 +16,7 @@ import type {
   PublicVenue,
 } from '@/lib/org-sites/public-data';
 import {
+  GOLF_TAGLINE,
   moduleLabel,
   parseContact,
   parseDocuments,
@@ -305,7 +306,7 @@ export default function SiteHomeBody({
               {hero.headline || brandName}
             </h1>
             <p className={spec.hero === 'bleed' ? 'mt-2 text-base opacity-90' : 'mt-1 text-sm opacity-90'}>
-              {hero.tagline || 'Schedules, standings, and teams — live.'}
+              {hero.tagline || (site.sportKey === 'golf' ? GOLF_TAGLINE : 'Schedules, standings, and teams — live.')}
             </p>
             {hero.ctaLabel && hero.ctaUrl && (
               <a
@@ -328,12 +329,12 @@ export default function SiteHomeBody({
           .map(m => (
             <section
               key={m.module_key}
-              aria-label={moduleLabel(m.module_key, nav, site.side)}
+              aria-label={moduleLabel(m.module_key, nav, site.side, site.sportKey)}
               className={`${sectionClass} ${
                 spec.sections === 'grid' && FULL_WIDTH_MODULES.has(m.module_key) ? 'sm:col-span-2' : ''
               }`}
             >
-              <h2 className={headingClass}>{moduleLabel(m.module_key, nav, site.side)}</h2>
+              <h2 className={headingClass}>{moduleLabel(m.module_key, nav, site.side, site.sportKey)}</h2>
               {moduleBody(m.module_key)}
             </section>
           ))}

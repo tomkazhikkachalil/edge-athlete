@@ -578,7 +578,7 @@ describe('documents (B3)', () => {
 });
 
 // ── Phase 6c G3: two pages ──────────────────────────────────────────────────
-import { DEFAULT_MODULE_ORDER } from '../validate';
+import { DEFAULT_MODULE_ORDER, GOLF_MODULE_ORDER, GOLF_TAGLINE, defaultModuleOrder } from '../validate';
 
 describe('DEFAULT_MODULE_ORDER (G3)', () => {
   it('lists every module exactly once per side, hero first, and differs by side', () => {
@@ -591,6 +591,34 @@ describe('DEFAULT_MODULE_ORDER (G3)', () => {
     expect(DEFAULT_MODULE_ORDER.club[1]).toBe('courses');
     expect(DEFAULT_MODULE_ORDER.league[1]).toBe('standings');
     expect(SitePatchSchema.safeParse({ action: 'reset_order' }).success).toBe(true);
+  });
+
+  // Phase 7 C3 — the PGA shape.
+  it('GOLF_MODULE_ORDER: every module once per side, standings then leaders after the hero; courses is NOT the lead', () => {
+    for (const side of ['club', 'league'] as const) {
+      const order = GOLF_MODULE_ORDER[side];
+      expect([...order].sort()).toEqual([...MODULE_KEYS].sort());
+      expect(new Set(order).size).toBe(order.length);
+      expect(order.slice(0, 4)).toEqual(['hero', 'standings', 'leaders', 'schedule']);
+      expect(order.indexOf('courses')).toBeGreaterThan(order.indexOf('gallery'));
+    }
+    expect(defaultModuleOrder('club', 'golf')).toBe(GOLF_MODULE_ORDER.club);
+    expect(defaultModuleOrder('league', 'golf')).toBe(GOLF_MODULE_ORDER.league);
+    expect(defaultModuleOrder('club', null)).toBe(DEFAULT_MODULE_ORDER.club);
+    expect(defaultModuleOrder('club', 'ice_hockey')).toBe(DEFAULT_MODULE_ORDER.club);
+    expect(defaultModuleOrder('league')).toBe(DEFAULT_MODULE_ORDER.league);
+    expect(GOLF_TAGLINE.length).toBeLessThanOrEqual(140);
+  });
+
+  it('moduleLabel speaks the sport: golf titles sit above the side titles, below the nav labels', () => {
+    const nav = parseNavConfig([]);
+    expect(moduleLabel('standings', nav, 'club', 'golf')).toBe('Season standings');
+    expect(moduleLabel('leaders', nav, 'league', 'golf')).toBe('Leaders');
+    expect(moduleLabel('schedule', nav, 'club', 'golf')).toBe('Rounds & events');
+    expect(moduleLabel('affiliations', nav, 'club', 'golf')).toBe('Leagues'); // the side still speaks
+    expect(moduleLabel('standings', nav, 'club', 'ice_hockey')).toBe('Standings');
+    expect(moduleLabel('standings', nav, 'club', null)).toBe('Standings');
+    expect(moduleLabel('standings', parseNavConfig([{ key: 'standings', label: 'Tables' }]), 'club', 'golf')).toBe('Tables');
   });
 
   it('moduleLabel reads the relationship from the page it is on', () => {
