@@ -97,6 +97,10 @@ export interface GolfCourse {
   yearBuilt?: number;
   courseType?: string;
   website?: string;
+  /** Contact + place (phase 7 C2) — the org wizard's home-course pick
+   *  prefills the club's contact and home town from these. */
+  phone?: string;
+  placeId?: string;
   // Club/section fields (migration 125) — present only on rows linked to a
   // multi-course facility. A section row is a playable layout (an 18 or an
   // individual nine); sectionKind ∈ 'course_18' | 'nine' | 'unspecified'.

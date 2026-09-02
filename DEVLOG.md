@@ -1,5 +1,66 @@
 # Development Log
 
+## September 2, 2026 — Phase 7 C2: club sign-up, part 2 — the golf fast path: sports, an optional home course that prefills, contact; migration 174 (#528)
+
+C1 lands a new club owner on `/club/start?sport=golf`. C2 makes that
+wizard fit a golf club: a golf club runs leaderboards, not divisions and
+teams, and it is NOT course-specific — it plays many courses and MAY
+name a home one (Tom, Sep 2). So the golf path asks for what the site
+needs and nothing else, in two steps.
+
+- **Migration 174** (`174_club_signup.sql`, the program's only DDL, Tom
+  runs it BEFORE this merges): `clubs.approved_at` + `leagues.approved_at`
+  (NULL = pending; every existing org backfilled live; partial indexes on
+  the pending set), `clubs.primary_sport` (plain text, app-validated —
+  the `leagues.sport_key` precedent; clubs stay multi-sport), and
+  `club_requests.site_draft` / `league_requests.site_draft` (jsonb,
+  default `{}`). C4 reads them; nothing here does. No search-trigger DDL.
+- **`SiteDraftSchema`** (`wizard-validate.ts`): `{sports?: ≤12,
+  homeCourseId?: uuid, contact?: {website?: https, phone?: 3–40}}`, an
+  optional `siteDraft` on both widened request schemas (the pre-C2
+  payload still parses — pinned). The routes gate every sport key
+  through `isSportEnabled`; a league's draft always leads with ITS sport
+  (server-stamped). The insert carries `site_draft` and, on a pre-174
+  PGRST204, **retries without it** (warned) — a deploy-before-migrate
+  drops the draft, never the request. `normalizeWebsiteInput` (pure):
+  bare host → https, http → https, junk → null (the wizard shows it).
+- **The wizard** (`OrgStartWizard`, prop `initialSport` from the start
+  pages' `?sport=`, read once in a lazy initializer — the wizard only
+  mounts after auth + fetch, so it never reaches the SSR tree):
+  "Sports you play" chips over `FEATURE_SPORTS` (clubs; leagues keep
+  their select); when the set is exactly golf the capability boxes flip
+  ONCE to competitions-only (a ref — never over a later manual choice)
+  and the flow collapses to identity → review (leagues: identity →
+  sport → review), with "Add divisions and teams now" on the review
+  step expanding back to the full flow. "Home course (optional)" is the
+  console's catalog search (250 ms, ≥2 chars, `limit=8` — the bucket is
+  IP-keyed); a pick prefills ONLY what is still empty: the name (club
+  name over course name), website, phone, and the home town when the
+  row carries a real place (`PlacePicker` needs a `placeId`) — else a
+  hint ("… is in Kanata, Ontario, Canada — pick your home town below").
+  "Contact (for your site)": website + phone. The localStorage draft
+  carries the new fields (pre-C2 envelopes get safe defaults — pinned).
+  `GolfCourse` gains `phone` and `placeId` from the catalog row
+  (additive; the mapper already selected both columns).
+- e2e `club-request-golf.spec.ts` (user-b, 375px end to end): a seeded
+  catalog row with contact and no place → `/club/start?sport=golf` shows
+  "Step 1 of 2", Golf checked, competitions on / teams off → the search
+  → the pick prefills name, website, phone and shows the hint → review
+  shows the home course and "can wait" → the escape hatch shows "Step 2
+  of 4" and the draft survives → submit → `club_requests` row pending,
+  competitions true / teams false, `site_draft` deep-equals `{sports:
+  ['golf'], homeCourseId, contact:{website, phone}}` — on a pre-174
+  database the spec asserts everything else and records that the
+  FALLBACK insert was exercised (which is how it ran locally; the prod
+  probe after 174 proves the draft). Regressions: club-request,
+  league-request, club-signup-door green vs the live DB. The door spec
+  now finds the fresh account by `profiles.email` — `auth.admin.listUsers`
+  pages in creation order and missed a brand-new account on the first
+  production run (green on the retry).
+
+Next: C3 — the PGA-shaped golf site order (standings, leaders, schedule,
+news, gallery first) + the golf tagline, keyed off `primary_sport`.
+
 ## September 2, 2026 — Phase 7 C1: club sign-up, part 1 — the door: Club and League on the login page create the account, then land in the wizard (#527, zero DDL)
 
 Phase 7 ("Club sign-up", Tom, Sep 2): a way IN. A new club should start

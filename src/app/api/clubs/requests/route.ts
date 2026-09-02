@@ -21,11 +21,17 @@ export async function POST(request: NextRequest) {
 
     const parsed = await parseBody(request, ClubRequestWizardSchema);
     if (!parsed.success) return parsed.response;
-    const { name, description, place, capabilities, structure, connections } = parsed.data;
+    const { name, description, place, capabilities, structure, connections, siteDraft } = parsed.data;
 
     // Clubs are multi-sport: every distinct division sport must be enabled
     // (the 113 route-gates-sport convention; the schema stays registry-free).
     for (const key of new Set((structure?.divisions ?? []).map(d => d.sportKey))) {
+      if (!isSportEnabled(key as SportKey)) {
+        return NextResponse.json({ error: `Unknown or disabled sport: ${key}` }, { status: 400 });
+      }
+    }
+    // Phase 7 C2: the sports the club plays (site_draft) — same gate.
+    for (const key of siteDraft?.sports ?? []) {
       if (!isSportEnabled(key as SportKey)) {
         return NextResponse.json({ error: `Unknown or disabled sport: ${key}` }, { status: 400 });
       }
@@ -41,20 +47,27 @@ export async function POST(request: NextRequest) {
     }
 
     const supabase = getSupabaseAdmin();
-    const { data: row, error } = await supabase
+    const insertRow = {
+      requester_profile_id: user.id,
+      name,
+      description: description ?? null,
+      ...placeToClubColumns(place),
+      operates_competitions: capabilities?.operatesCompetitions ?? null,
+      operates_teams: capabilities?.operatesTeams ?? null,
+      structure_draft: structure ?? null,
+      connections_draft: connections ?? null,
+    };
+    let { data: row, error } = await supabase
       .from('club_requests')
-      .insert({
-        requester_profile_id: user.id,
-        name,
-        description: description ?? null,
-        ...placeToClubColumns(place),
-        operates_competitions: capabilities?.operatesCompetitions ?? null,
-        operates_teams: capabilities?.operatesTeams ?? null,
-        structure_draft: structure ?? null,
-        connections_draft: connections ?? null,
-      })
+      .insert({ ...insertRow, site_draft: siteDraft ?? {} })
       .select()
       .single();
+    if (error?.code === 'PGRST204' && /site_draft/.test(error.message ?? '')) {
+      // Pre-174 database: the request still lands; only the site draft is
+      // dropped (logged — it is the one thing a deploy-before-migrate loses).
+      console.warn('[CLUB REQUESTS] site_draft column missing — run migration 174');
+      ({ data: row, error } = await supabase.from('club_requests').insert(insertRow).select().single());
+    }
     if (error || !row) {
       if (error?.code === '23505') {
         return NextResponse.json(

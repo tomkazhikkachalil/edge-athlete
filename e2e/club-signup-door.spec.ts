@@ -84,10 +84,15 @@ test('the Club door: account → /club/start?sport=golf; signed-out /club/start 
     }
     await page.waitForURL(/\/club\/start\?sport=golf/, { timeout: 30_000 });
     await expect(page.getByRole('heading', { name: 'Start a club' })).toBeVisible({ timeout: 20_000 });
-    const { data: users } = await admin.auth.admin.listUsers({ page: 1, perPage: 200 });
-    createdId = users.users.find(u => u.email === email)?.id ?? null;
+    // By profile email — auth.admin.listUsers pages in creation order and
+    // missed a brand-new account on the first production run.
+    const { data: prof } = await admin
+      .from('profiles')
+      .select('id, user_type, onboarded_at')
+      .eq('email', email)
+      .maybeSingle();
+    createdId = prof?.id ?? null;
     expect(createdId, 'the account exists').toBeTruthy();
-    const { data: prof } = await admin.from('profiles').select('user_type, onboarded_at').eq('id', createdId!).single();
     expect(prof!.user_type).toBe('athlete'); // an org owner is a normal profile
     if (guardianFlagOn()) expect(prof!.onboarded_at).toBeTruthy();
 

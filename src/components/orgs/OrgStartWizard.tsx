@@ -12,6 +12,9 @@ import ConnectionsPicker from '@/components/orgs/ConnectionsPicker';
 import { useToast } from '@/components/Toast';
 import { FEATURE_FLAGS } from '@/lib/features';
 import { SPORT_REGISTRY } from '@/lib/sports/SportRegistry';
+import { courseDisplayName } from '@/lib/golf/tees';
+import { normalizeWebsiteInput } from '@/lib/orgs/wizard-validate';
+import type { GolfCourse } from '@/types/golf';
 import { STRUCTURE_TEMPLATES, defaultSeasonLabel } from '@/lib/orgs/structure-templates';
 import {
   clearOrgWizardDraft,
@@ -33,25 +36,53 @@ type Step = 'identity' | 'sport' | 'structure' | 'connections' | 'review';
 
 const STEPS_LEAGUE: Step[] = ['identity', 'sport', 'structure', 'connections', 'review'];
 const STEPS_CLUB: Step[] = ['identity', 'structure', 'connections', 'review'];
+// Phase 7 C2 — the golf fast path: a golf-only org skips structure and
+// connections (a golf club runs leaderboards, not divisions; both can be
+// built later from the console). "Add divisions and teams now" on the
+// review step expands back to the full flow.
+const STEPS_LEAGUE_GOLF: Step[] = ['identity', 'sport', 'review'];
+const STEPS_CLUB_GOLF: Step[] = ['identity', 'review'];
+
+const enabledSport = (key: string | null | undefined): key is string =>
+  !!key && (FEATURE_FLAGS.FEATURE_SPORTS as readonly string[]).includes(key);
 
 export default function OrgStartWizard({
   side,
   onSubmitted,
+  initialSport = null,
 }: {
   side: 'league' | 'club';
   onSubmitted: () => void;
+  /** Phase 7 C2: the start page's `?sport=` — pre-checks the sport (clubs)
+   *  or preselects it (leagues); `golf` also applies the golf defaults. */
+  initialSport?: string | null;
 }) {
   const { showSuccess, showError } = useToast();
-  const steps = side === 'league' ? STEPS_LEAGUE : STEPS_CLUB;
+  const startsGolf = initialSport === 'golf';
 
   const [step, setStep] = useState<Step>('identity');
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [place, setPlace] = useState<PlaceValue | null>(null);
   const [placeText, setPlaceText] = useState('');
-  const [operatesCompetitions, setOperatesCompetitions] = useState(side === 'league');
-  const [operatesTeams, setOperatesTeams] = useState(side === 'club');
-  const [sportKey, setSportKey] = useState<string>('golf');
+  // Golf defaults: a golf org runs competitions (leaderboards), not teams.
+  const [operatesCompetitions, setOperatesCompetitions] = useState(side === 'league' || startsGolf);
+  const [operatesTeams, setOperatesTeams] = useState(side === 'club' && !startsGolf);
+  const [sportKey, setSportKey] = useState<string>(enabledSport(initialSport) ? initialSport : 'golf');
+  // Phase 7 C2 — what the site draft collects beyond the request.
+  const [sports, setSports] = useState<string[]>(
+    side === 'club' && enabledSport(initialSport) ? [initialSport] : []
+  );
+  const [homeCourse, setHomeCourse] = useState<{ id: string; label: string } | null>(null);
+  const [courseQuery, setCourseQuery] = useState('');
+  const [courseResults, setCourseResults] = useState<GolfCourse[]>([]);
+  const [courseHint, setCourseHint] = useState('');
+  const [website, setWebsite] = useState('');
+  const [phone, setPhone] = useState('');
+  const [expandStructure, setExpandStructure] = useState(false);
+  // The golf defaults flip the capability boxes ONCE (the first time the
+  // sport set becomes exactly golf) — never over a manual choice after.
+  const golfDefaultsApplied = useRef(startsGolf);
   const [seasonLabel, setSeasonLabel] = useState('');
   const [sections, setSections] = useState<SectionState[]>([]);
   const [teams, setTeams] = useState<string[]>([]);
@@ -66,6 +97,91 @@ export default function OrgStartWizard({
   const [availableDraft, setAvailableDraft] = useState<OrgWizardDraft | null>(null);
 
   const allDivisions = (): DivisionDraftRow[] => sections.flatMap(sectionRows);
+
+  const hasGolf = side === 'league' ? sportKey === 'golf' : sports.includes('golf');
+  const golfOnly = side === 'league' ? sportKey === 'golf' : sports.length === 1 && sports[0] === 'golf';
+  const golfFast = golfOnly && !expandStructure;
+  const steps = golfFast
+    ? side === 'league'
+      ? STEPS_LEAGUE_GOLF
+      : STEPS_CLUB_GOLF
+    : side === 'league'
+      ? STEPS_LEAGUE
+      : STEPS_CLUB;
+
+  const applyGolfDefaults = (nextGolfOnly: boolean) => {
+    if (!nextGolfOnly || golfDefaultsApplied.current) return;
+    golfDefaultsApplied.current = true;
+    setOperatesCompetitions(true);
+    setOperatesTeams(false);
+  };
+  const toggleSport = (key: string, on: boolean) => {
+    const next = on ? [...sports.filter(k => k !== key), key] : sports.filter(k => k !== key);
+    setSports(next);
+    applyGolfDefaults(next.length === 1 && next[0] === 'golf');
+  };
+
+  // The catalog search behind "Home course" — the console's recipe:
+  // debounced, never per keystroke (the course-search bucket is IP-keyed);
+  // short queries clear results in the onChange handler, not here.
+  useEffect(() => {
+    const q = courseQuery.trim();
+    if (!hasGolf || q.length < 2) return;
+    let cancelled = false;
+    const timer = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/golf/courses?q=${encodeURIComponent(q)}&limit=8`);
+        if (!res.ok || cancelled) return;
+        const body = await res.json();
+        if (!cancelled) setCourseResults(body.courses ?? []);
+      } catch {
+        /* results keep their last value */
+      }
+    }, 250);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [hasGolf, courseQuery]);
+
+  // A pick PREFILLS (only what is still empty): the name from the club or
+  // course, the site contact, and the home town when the catalog row
+  // carries a real place (PlacePicker needs a placeId) — else a hint.
+  const pickCourse = (c: GolfCourse) => {
+    const label = courseDisplayName(c.clubName, c.name);
+    setHomeCourse({ id: c.id, label });
+    setCourseQuery('');
+    setCourseResults([]);
+    if (!name.trim()) setName(c.clubName ?? c.name);
+    if (!website.trim() && c.website) setWebsite(c.website);
+    if (!phone.trim() && c.phone) setPhone(c.phone);
+    const placeLabel = [c.city, c.state, c.country].filter(Boolean).join(', ');
+    if (place) return;
+    if (
+      c.placeId &&
+      c.city &&
+      c.country &&
+      c.countryCode &&
+      typeof c.lat === 'number' &&
+      typeof c.lng === 'number'
+    ) {
+      setPlace({
+        placeId: c.placeId,
+        city: c.city,
+        region: c.state ?? null,
+        regionCode: c.regionCode ?? null,
+        country: c.country,
+        countryCode: c.countryCode,
+        lat: c.lat,
+        lng: c.lng,
+        label: placeLabel,
+      });
+      setPlaceText(placeLabel);
+      setCourseHint('');
+    } else if (placeLabel) {
+      setCourseHint(`${label} is in ${placeLabel} — pick your home town below.`);
+    }
+  };
 
   // Draft rehydrate — async via setTimeout(0) (the RegistrationSteps
   // recipe: lazy initializers hydration-mismatch, sync effect setState
@@ -91,10 +207,15 @@ export default function OrgStartWizard({
         teams,
         connectionsExisting: connections.existing,
         connectionsStubs: connections.stubs,
+        sports,
+        homeCourseId: homeCourse?.id ?? null,
+        homeCourseLabel: homeCourse?.label ?? '',
+        website,
+        phone,
       });
     }, 400);
     return () => clearTimeout(t);
-  }, [side, step, name, description, place, placeText, operatesCompetitions, operatesTeams, sportKey, seasonLabel, sections, teams, connections]);
+  }, [side, step, name, description, place, placeText, operatesCompetitions, operatesTeams, sportKey, seasonLabel, sections, teams, connections, sports, homeCourse, website, phone]);
 
   const untouched =
     name.trim() === '' && description.trim() === '' && sections.length === 0 && teams.length === 0;
@@ -120,6 +241,13 @@ export default function OrgStartWizard({
     );
     setTeams(draft.teams);
     setConnections({ existing: draft.connectionsExisting, stubs: draft.connectionsStubs });
+    setSports(draft.sports);
+    setHomeCourse(
+      draft.homeCourseId ? { id: draft.homeCourseId, label: draft.homeCourseLabel || 'Home course' } : null
+    );
+    setWebsite(draft.website);
+    setPhone(draft.phone);
+    if (draft.divisions.length > 0 || draft.teams.length > 0) setExpandStructure(true);
     if (steps.includes(draft.step as Step)) setStep(draft.step as Step);
     setAvailableDraft(null);
   };
@@ -162,6 +290,22 @@ export default function OrgStartWizard({
       const divisions = allDivisions();
       const hasStructure = divisions.length > 0 || teams.length > 0 || seasonLabel.trim() !== '';
       const hasConnections = connections.existing.length > 0 || connections.stubs.length > 0;
+      // Phase 7 C2: the site draft (empties omitted; a league's sport is
+      // stamped server-side, so only clubs send their sport list).
+      const websiteUrl = normalizeWebsiteInput(website);
+      if (websiteUrl === null) {
+        showError('Website', 'Enter a full https:// link, or leave it blank');
+        return;
+      }
+      const contact = {
+        ...(websiteUrl ? { website: websiteUrl } : {}),
+        ...(phone.trim() ? { phone: phone.trim() } : {}),
+      };
+      const siteDraft = {
+        ...(side === 'club' && sports.length > 0 ? { sports } : {}),
+        ...(homeCourse ? { homeCourseId: homeCourse.id } : {}),
+        ...(Object.keys(contact).length > 0 ? { contact } : {}),
+      };
       const response = await fetch(`/api/${side === 'league' ? 'leagues' : 'clubs'}/requests`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -181,6 +325,7 @@ export default function OrgStartWizard({
               }
             : {}),
           ...(hasConnections ? { connections } : {}),
+          ...(Object.keys(siteDraft).length > 0 ? { siteDraft } : {}),
         }),
       });
       const data = await response.json().catch(() => ({}));
@@ -245,6 +390,89 @@ export default function OrgStartWizard({
 
       {step === 'identity' && (
         <div className="space-y-4">
+          {side === 'club' && (
+            <fieldset>
+              <legend className="text-sm font-medium text-secondary mb-1">Sports you play</legend>
+              <div className="flex flex-wrap gap-2">
+                {FEATURE_FLAGS.FEATURE_SPORTS.map(key => {
+                  const on = sports.includes(key);
+                  return (
+                    <label
+                      key={key}
+                      className={`inline-flex items-center gap-2 px-3 py-1.5 min-h-[40px] rounded-lg border text-sm cursor-pointer ${
+                        on ? 'border-brand bg-brand-soft text-primary' : 'border-border-strong text-secondary'
+                      }`}
+                    >
+                      <input type="checkbox" checked={on} onChange={e => toggleSport(key, e.target.checked)} />
+                      {SPORT_REGISTRY[key]?.display_name ?? key}
+                    </label>
+                  );
+                })}
+              </div>
+              <p className="text-xs text-muted mt-1">
+                {golfOnly
+                  ? 'Golf clubs sign up in two steps — divisions and teams can wait.'
+                  : 'Pick every sport your club runs; you can add more later.'}
+              </p>
+            </fieldset>
+          )}
+          {hasGolf && (
+            <div>
+              <label htmlFor="wiz-home-course" className="block text-sm font-medium text-secondary mb-1">
+                Home course (optional)
+              </label>
+              {homeCourse ? (
+                <div className="flex items-center justify-between gap-2 rounded-lg border border-border px-3 py-2 text-sm">
+                  <span className="text-primary">{homeCourse.label}</span>
+                  <button
+                    type="button"
+                    onClick={() => setHomeCourse(null)}
+                    className="text-xs text-brand-fg hover:text-brand-fg-strong shrink-0"
+                  >
+                    Remove
+                  </button>
+                </div>
+              ) : (
+                <>
+                  <input
+                    id="wiz-home-course"
+                    type="text"
+                    value={courseQuery}
+                    autoComplete="off"
+                    onChange={e => {
+                      const next = e.target.value;
+                      setCourseQuery(next);
+                      if (next.trim().length < 2) setCourseResults([]);
+                    }}
+                    placeholder="Search the course catalog"
+                    className={inputClass}
+                  />
+                  {courseResults.length > 0 && (
+                    <ul className="mt-2 divide-y divide-border rounded-lg border border-border">
+                      {courseResults.map(c => (
+                        <li key={c.id}>
+                          <button
+                            type="button"
+                            onClick={() => pickCourse(c)}
+                            className="w-full text-left px-3 py-2 text-sm hover:bg-surface-sunken transition-colors"
+                          >
+                            <span className="font-medium text-primary">{courseDisplayName(c.clubName, c.name)}</span>
+                            {(c.city || c.state) && (
+                              <span className="text-tertiary"> · {[c.city, c.state].filter(Boolean).join(', ')}</span>
+                            )}
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </>
+              )}
+              <p className="text-xs text-muted mt-1">
+                {courseHint ||
+                  'Your club can play anywhere — a home course just prefills your details and shows on your site.'}
+              </p>
+            </div>
+          )}
           <div>
             <label htmlFor="wiz-name" className="block text-sm font-medium text-secondary mb-1">
               Name
@@ -288,6 +516,37 @@ export default function OrgStartWizard({
               className={inputClass}
             />
           </div>
+          <fieldset className="space-y-3">
+            <legend className="text-sm font-medium text-secondary mb-1">Contact (for your site)</legend>
+            <div>
+              <label htmlFor="wiz-website" className="block text-xs text-tertiary mb-1">
+                Website
+              </label>
+              <input
+                id="wiz-website"
+                type="url"
+                inputMode="url"
+                value={website}
+                maxLength={200}
+                onChange={e => setWebsite(e.target.value)}
+                placeholder="https://"
+                className={inputClass}
+              />
+            </div>
+            <div>
+              <label htmlFor="wiz-phone" className="block text-xs text-tertiary mb-1">
+                Phone
+              </label>
+              <input
+                id="wiz-phone"
+                type="tel"
+                value={phone}
+                maxLength={40}
+                onChange={e => setPhone(e.target.value)}
+                className={inputClass}
+              />
+            </div>
+          </fieldset>
           <fieldset>
             <legend className="text-sm font-medium text-secondary mb-1">
               What does your organization run?
@@ -579,7 +838,8 @@ export default function OrgStartWizard({
                 {[
                   side === 'league'
                     ? SPORT_REGISTRY[sportKey as keyof typeof SPORT_REGISTRY]?.display_name ?? sportKey
-                    : null,
+                    : sports.map(k => SPORT_REGISTRY[k as keyof typeof SPORT_REGISTRY]?.display_name ?? k).join(', ') ||
+                      null,
                   placeText || null,
                   [operatesCompetitions ? 'runs competitions' : null, operatesTeams ? 'runs teams' : null]
                     .filter(Boolean)
@@ -588,10 +848,40 @@ export default function OrgStartWizard({
                   .filter(Boolean)
                   .join(' · ')}
               </span>
+              {(homeCourse || website.trim() || phone.trim()) && (
+                <span className="block text-xs text-tertiary mt-1">
+                  {[
+                    homeCourse ? `Home course: ${homeCourse.label}` : null,
+                    website.trim() || null,
+                    phone.trim() || null,
+                  ]
+                    .filter(Boolean)
+                    .join(' · ')}
+                </span>
+              )}
               <button type="button" onClick={() => setStep('identity')} className="text-xs text-brand-fg mt-1">
                 Edit
               </button>
             </li>
+            {golfFast ? (
+              <li className="rounded-lg border border-border p-3">
+                <span className="block text-primary">Divisions, teams and connections can wait</span>
+                <span className="block text-xs text-muted">
+                  Leagues, leaderboards and season points are built from your console.
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setExpandStructure(true);
+                    setStep('structure');
+                  }}
+                  className="text-xs text-brand-fg mt-1"
+                >
+                  Add divisions and teams now
+                </button>
+              </li>
+            ) : (
+              <>
             <li className="rounded-lg border border-border p-3">
               <span className="block text-primary">
                 {allDivisions().length} division{allDivisions().length === 1 ? '' : 's'} ·{' '}
@@ -611,6 +901,8 @@ export default function OrgStartWizard({
                 Edit
               </button>
             </li>
+              </>
+            )}
           </ul>
           <button type="button" disabled={submitting || !name.trim()} onClick={() => void submit()} className={primaryBtn}>
             {submitting ? 'Submitting…' : 'Submit request'}
