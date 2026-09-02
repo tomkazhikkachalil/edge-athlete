@@ -1,5 +1,29 @@
 # Development Log
 
+## September 1, 2026 — Phase 6b close: the domain specs run for real (#511, e2e-only)
+
+Tom merged #507–#510 and ran 171 (grid verified; the anon RPCs answer
+through PostgREST). Vercel's free-tier daily deploy cap blocked the
+push, so the four merges ride the 30-min retry loop again (verify the
+deployed SHA before any prod probe). Meanwhile both domain specs ran
+for real against the live DB on a flag-on dev server:
+
+- `org-site-domain.spec.ts` PASSED (claim normalized + token + DNS
+  table, reserved 400, duplicate 409, the stable DNS 409, remove).
+- `org-site-domain-serving.spec.ts` PASSED — and answered the open
+  question: Playwright's request client DOES honour a custom `Host`
+  against the dev server, so the rewrite, well-known, per-host crawler
+  files, apex 301, host-relative links, absolute canonical/OG/JSON-LD
+  and the main-sitemap drop are all proven locally.
+- Three assertion settles, no product change: the host renders twice
+  in the console (status + DNS table → `.first()`); a bare-origin 301
+  Location carries Next's trailing slash; a seeded activation must
+  purge like the real path (a publish cycle purges BOTH the site tag
+  and the sitemap tag).
+
+Owed: prod probes of #507–#510 once the deploy lands; Tom's C ops
+(Vercel env, test hostname, `CUSTOM_DOMAINS=1` + real build).
+
 ## September 1, 2026 — Phase 6b C2: custom domains — serving on the org's own host (#510, zero DDL, flag `CUSTOM_DOMAINS`)
 
 C1 proved a domain; C2 serves it. Behind `CUSTOM_DOMAINS=1` (read in the

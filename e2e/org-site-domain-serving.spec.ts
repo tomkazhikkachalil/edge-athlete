@@ -93,6 +93,12 @@ test('org site domain serving: rewrite on the custom host, well-known, per-host 
         .from('org_sites')
         .update({ domain_vercel_state: 'attached', domain_active_at: new Date().toISOString() })
         .eq('id', site.id);
+      // The real activation path (domainCheckPOST) purges the site tag AND
+      // the sitemap tag; a direct seed doesn't — a publish cycle does both.
+      for (const action of ['unpublish', 'publish']) {
+        const cycle = await ownerApi.patch(`/api/leagues/${leagueId}/site`, { data: { action } });
+        expect(cycle.status(), await readErrorBody(cycle)).toBe(200);
+      }
       // The middleware caches host/slug answers for 60s; the render cache
       // purges on tag. Poll the apex until it 301s.
       let apex = await anon.request.get(`/${slug}/teams?x=1`, { maxRedirects: 0 });
@@ -104,14 +110,15 @@ test('org site domain serving: rewrite on the custom host, well-known, per-host 
       expect(apex.headers()['location']).toBe(`https://${host}/teams?x=1`);
       const orgForm = await anon.request.get(`/org/${slug}`, { maxRedirects: 0 });
       expect(orgForm.status()).toBe(301);
-      expect(orgForm.headers()['location']).toBe(`https://${host}`);
+      // NextResponse.redirect normalizes a bare origin to a trailing slash.
+      expect(orgForm.headers()['location']).toMatch(new RegExp(`^https://${host.replace(/\./g, '\\.')}/?$`));
       // Carve-outs stay on the apex.
       const card = await anon.request.get(`/${slug}/card.png`, { maxRedirects: 0 });
       expect(card.status()).toBe(200);
 
       // On the domain: host-relative links, absolute canonical + og on it.
       let activeHtml = '';
-      for (let i = 0; i < 12; i++) {
+      for (let i = 0; i < 30; i++) {
         activeHtml = await (await anon.request.get('/', { headers: { host } })).text();
         if (activeHtml.includes(`href="https://${host}"`) || activeHtml.includes(`href="https://${host}/`)) break;
         await new Promise(r => setTimeout(r, 2500));
