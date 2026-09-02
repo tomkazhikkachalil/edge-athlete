@@ -58,6 +58,36 @@ describe('parseOrgWizardDraft', () => {
     expect(draft?.teams).toHaveLength(50);
   });
 
+  it('phase 7 C2: the golf extras round-trip, and a pre-C2 envelope gets safe defaults', () => {
+    const golf = parseOrgWizardDraft(
+      full({
+        sports: ['golf', 7 as never],
+        homeCourseId: 'course-1',
+        homeCourseLabel: 'Eagle Creek Golf Club',
+        website: 'https://eaglecreek.example',
+        phone: '613-555-0100',
+      }),
+      NOW
+    );
+    expect(golf).toMatchObject({
+      sports: ['golf'],
+      homeCourseId: 'course-1',
+      homeCourseLabel: 'Eagle Creek Golf Club',
+      website: 'https://eaglecreek.example',
+      phone: '613-555-0100',
+    });
+    expect(parseOrgWizardDraft(full(), NOW)).toMatchObject({
+      sports: [],
+      homeCourseId: null,
+      homeCourseLabel: '',
+      website: '',
+      phone: '',
+    });
+    // A draft holding ONLY the golf extras is not empty — it restores.
+    const onlyExtras = JSON.stringify({ v: 1, savedAt: NOW, name: '', sports: ['golf'] });
+    expect(parseOrgWizardDraft(onlyExtras, NOW)?.sports).toEqual(['golf']);
+  });
+
   it('an empty draft parses to null (never a restore notice for nothing)', () => {
     const empty = JSON.stringify({ v: 1, savedAt: NOW, name: '', description: '' });
     expect(parseOrgWizardDraft(empty, NOW)).toBeNull();

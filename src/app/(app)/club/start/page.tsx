@@ -31,6 +31,12 @@ export default function StartClubPage() {
   const [requests, setRequests] = useState<MyRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [reloadKey, setReloadKey] = useState(0);
+  // Phase 7 C2: `?sport=golf` (the login-page door) — read once, lazily.
+  // The wizard only mounts after auth + the requests fetch, so this never
+  // reaches the server-rendered tree (no hydration mismatch).
+  const [initialSport] = useState<string | null>(() =>
+    typeof window === 'undefined' ? null : new URLSearchParams(window.location.search).get('sport')
+  );
 
 
   useEffect(() => {
@@ -141,7 +147,7 @@ export default function StartClubPage() {
               </div>
             )}
 
-            <OrgStartWizard side="club" onSubmitted={() => setReloadKey(k => k + 1)} />
+            <OrgStartWizard side="club" initialSport={initialSport} onSubmitted={() => setReloadKey(k => k + 1)} />
           </>
         )}
 

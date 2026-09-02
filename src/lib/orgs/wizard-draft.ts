@@ -25,6 +25,12 @@ export interface OrgWizardDraft {
   teams: string[];
   connectionsExisting: ConnectionsDraftInput['existing'];
   connectionsStubs: ConnectionsDraftInput['stubs'];
+  // Phase 7 C2 — the golf fast path's extras (all optional on the wire).
+  sports: string[];
+  homeCourseId: string | null;
+  homeCourseLabel: string;
+  website: string;
+  phone: string;
 }
 
 export const WIZARD_DRAFT_TTL_MS = 48 * 60 * 60 * 1000;
@@ -38,7 +44,11 @@ export function isEmptyOrgWizardDraft(draft: OrgWizardDraft): boolean {
     draft.divisions.length === 0 &&
     draft.teams.length === 0 &&
     draft.connectionsExisting.length === 0 &&
-    draft.connectionsStubs.length === 0
+    draft.connectionsStubs.length === 0 &&
+    draft.sports.length === 0 &&
+    draft.homeCourseId === null &&
+    draft.website.trim() === '' &&
+    draft.phone.trim() === ''
   );
 }
 
@@ -94,6 +104,13 @@ export function parseOrgWizardDraft(raw: string | null, now: number = Date.now()
             )
             .slice(0, 10)
         : [],
+      sports: Array.isArray(parsed.sports)
+        ? parsed.sports.filter((k): k is string => typeof k === 'string').slice(0, 12)
+        : [],
+      homeCourseId: typeof parsed.homeCourseId === 'string' ? parsed.homeCourseId : null,
+      homeCourseLabel: str(parsed.homeCourseLabel),
+      website: str(parsed.website),
+      phone: str(parsed.phone),
     };
     return isEmptyOrgWizardDraft(draft) ? null : draft;
   } catch {

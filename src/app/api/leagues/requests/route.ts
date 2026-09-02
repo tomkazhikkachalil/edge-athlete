@@ -23,11 +23,22 @@ export async function POST(request: NextRequest) {
 
     const parsed = await parseBody(request, LeagueRequestWizardSchema);
     if (!parsed.success) return parsed.response;
-    const { name, sportKey, description, place, capabilities, structure, connections } = parsed.data;
+    const { name, sportKey, description, place, capabilities, structure, connections, siteDraft } = parsed.data;
 
     if (!isSportEnabled(sportKey as SportKey)) {
       return NextResponse.json({ error: `Unknown or disabled sport: ${sportKey}` }, { status: 400 });
     }
+    // Phase 7 C2: a league's site draft always leads with ITS sport; any
+    // extra sports listed pass the same gate.
+    for (const key of siteDraft?.sports ?? []) {
+      if (!isSportEnabled(key as SportKey)) {
+        return NextResponse.json({ error: `Unknown or disabled sport: ${key}` }, { status: 400 });
+      }
+    }
+    const siteDraftRow = {
+      ...(siteDraft ?? {}),
+      sports: [sportKey, ...(siteDraft?.sports ?? []).filter(k => k !== sportKey)],
+    };
     // Server-truth stamp: a league's divisions ARE its sport — client
     // values are untrusted (the 113 route-gates-sport convention).
     const structureDraft = structure
@@ -35,21 +46,27 @@ export async function POST(request: NextRequest) {
       : null;
 
     const supabase = getSupabaseAdmin();
-    const { data: row, error } = await supabase
+    const insertRow = {
+      requester_profile_id: user.id,
+      name,
+      description: description ?? null,
+      sport_key: sportKey,
+      ...placeToLeagueColumns(place),
+      operates_competitions: capabilities?.operatesCompetitions ?? null,
+      operates_teams: capabilities?.operatesTeams ?? null,
+      structure_draft: structureDraft,
+      connections_draft: connections ?? null,
+    };
+    let { data: row, error } = await supabase
       .from('league_requests')
-      .insert({
-        requester_profile_id: user.id,
-        name,
-        description: description ?? null,
-        sport_key: sportKey,
-        ...placeToLeagueColumns(place),
-        operates_competitions: capabilities?.operatesCompetitions ?? null,
-        operates_teams: capabilities?.operatesTeams ?? null,
-        structure_draft: structureDraft,
-        connections_draft: connections ?? null,
-      })
+      .insert({ ...insertRow, site_draft: siteDraftRow })
       .select()
       .single();
+    if (error?.code === 'PGRST204' && /site_draft/.test(error.message ?? '')) {
+      // Pre-174 database: the request still lands; only the site draft is dropped.
+      console.warn('[LEAGUE REQUESTS] site_draft column missing — run migration 174');
+      ({ data: row, error } = await supabase.from('league_requests').insert(insertRow).select().single());
+    }
     if (error || !row) {
       if (error?.code === '23505') {
         return NextResponse.json(

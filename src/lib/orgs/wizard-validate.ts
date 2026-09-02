@@ -18,6 +18,7 @@ import { z } from 'zod';
 import { boundedText, optionalText, uuid } from '@/lib/validation';
 import { LeagueRequestSchema } from '@/lib/leagues/validate';
 import { ClubRequestSchema } from '@/lib/clubs/validate';
+import { httpsUrl } from '@/lib/org-sites/validate';
 
 export const CapabilitiesSchema = z
   .object({
@@ -66,10 +67,42 @@ export const ConnectionsDraftSchema = z.object({
 });
 export type ConnectionsDraftInput = z.infer<typeof ConnectionsDraftSchema>;
 
+// Phase 7 C2: what the golf fast path collects BEYOND the request — the
+// sports the org plays (a club's first entry becomes clubs.primary_sport at
+// provisioning), the OPTIONAL home course (a golf club is NOT course-
+// specific — it plays many courses and MAY name one), and the site's
+// contact. Stored verbatim in {club,league}_requests.site_draft (174);
+// C4 turns it into a venue + a draft site. Registry-free by the 113
+// convention — the routes gate each sport key.
+export const SiteDraftSchema = z.object({
+  sports: z.array(boundedText(40)).max(12).optional(),
+  homeCourseId: uuid.optional(),
+  contact: z
+    .object({
+      website: httpsUrl.optional(),
+      phone: z.string().trim().min(3).max(40).optional(),
+    })
+    .optional(),
+});
+export type SiteDraftInput = z.infer<typeof SiteDraftSchema>;
+
+/** The wizard's website box, made into what SiteDraftSchema accepts:
+ *  '' → undefined (omit); a bare host gets https://; http:// is upgraded
+ *  (site links are https-only); anything that still isn't an https URL
+ *  → null (the caller shows the error). */
+export function normalizeWebsiteInput(raw: string): string | null | undefined {
+  const v = raw.trim();
+  if (!v) return undefined;
+  const hasScheme = /^[a-z][a-z0-9+.-]*:/i.test(v);
+  const withScheme = hasScheme ? v.replace(/^http:\/\//i, 'https://') : `https://${v}`;
+  return httpsUrl.safeParse(withScheme).success ? withScheme : null;
+}
+
 export const LeagueRequestWizardSchema = LeagueRequestSchema.extend({
   capabilities: CapabilitiesSchema.optional(),
   structure: StructureDraftSchema.optional(),
   connections: ConnectionsDraftSchema.optional(),
+  siteDraft: SiteDraftSchema.optional(),
 });
 export type LeagueRequestWizardInput = z.infer<typeof LeagueRequestWizardSchema>;
 
@@ -77,5 +110,6 @@ export const ClubRequestWizardSchema = ClubRequestSchema.extend({
   capabilities: CapabilitiesSchema.optional(),
   structure: StructureDraftSchema.optional(),
   connections: ConnectionsDraftSchema.optional(),
+  siteDraft: SiteDraftSchema.optional(),
 });
 export type ClubRequestWizardInput = z.infer<typeof ClubRequestWizardSchema>;

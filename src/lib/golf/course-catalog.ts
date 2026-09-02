@@ -155,6 +155,8 @@ export function rowToCourse(row: CatalogRow): GolfCourse {
     yearBuilt: row.year_built ?? undefined,
     courseType: row.course_type ?? undefined,
     website: row.website ?? undefined,
+    phone: row.phone ?? undefined,
+    placeId: row.place_id ?? undefined,
     // Undefined until migration 125's columns ride the select.
     clubId: row.club_id ?? undefined,
     clubName: row.club_name ?? undefined,

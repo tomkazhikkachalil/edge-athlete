@@ -4,7 +4,9 @@ import {
   ClubRequestWizardSchema,
   ConnectionsDraftSchema,
   LeagueRequestWizardSchema,
+  SiteDraftSchema,
   StructureDraftSchema,
+  normalizeWebsiteInput,
 } from '../wizard-validate';
 
 const UUID = '00000000-0000-4000-8000-000000000001';
@@ -72,5 +74,56 @@ describe('widened request schemas', () => {
       expect('evil' in parsed.data).toBe(false);
       expect(parsed.data.structure?.divisions).toHaveLength(1);
     }
+  });
+});
+
+// Phase 7 C2 — the golf fast path's site draft.
+describe('SiteDraftSchema', () => {
+  it('every field optional; the golf shape round-trips', () => {
+    expect(SiteDraftSchema.safeParse({}).success).toBe(true);
+    const parsed = SiteDraftSchema.safeParse({
+      sports: ['golf'],
+      homeCourseId: UUID,
+      contact: { website: 'https://eaglecreek.example', phone: '613-555-0100' },
+    });
+    expect(parsed.success).toBe(true);
+    if (parsed.success) {
+      expect(parsed.data).toEqual({
+        sports: ['golf'],
+        homeCourseId: UUID,
+        contact: { website: 'https://eaglecreek.example', phone: '613-555-0100' },
+      });
+    }
+  });
+
+  it('rejects a non-https website, a non-uuid course and more than 12 sports', () => {
+    expect(SiteDraftSchema.safeParse({ contact: { website: 'http://eaglecreek.example' } }).success).toBe(false);
+    expect(SiteDraftSchema.safeParse({ contact: { website: 'eaglecreek.example' } }).success).toBe(false);
+    expect(SiteDraftSchema.safeParse({ homeCourseId: 'course-1' }).success).toBe(false);
+    expect(SiteDraftSchema.safeParse({ sports: Array(13).fill('golf') }).success).toBe(false);
+    expect(SiteDraftSchema.safeParse({ contact: { phone: '12' } }).success).toBe(false);
+  });
+
+  it('rides the widened request schemas (still optional — the pre-C2 payload parses)', () => {
+    expect(ClubRequestWizardSchema.safeParse({ name: 'Eagle Creek' }).success).toBe(true);
+    const club = ClubRequestWizardSchema.safeParse({ name: 'Eagle Creek', siteDraft: { sports: ['golf'] } });
+    expect(club.success && club.data.siteDraft?.sports).toEqual(['golf']);
+    const league = LeagueRequestWizardSchema.safeParse({
+      name: 'Thursday Nine',
+      sportKey: 'golf',
+      siteDraft: { contact: { website: 'https://nine.example' } },
+    });
+    expect(league.success && league.data.siteDraft?.contact?.website).toBe('https://nine.example');
+  });
+});
+
+describe('normalizeWebsiteInput', () => {
+  it("'' omits, a bare host gets https, http upgrades, junk is null", () => {
+    expect(normalizeWebsiteInput('   ')).toBeUndefined();
+    expect(normalizeWebsiteInput('eaglecreek.example')).toBe('https://eaglecreek.example');
+    expect(normalizeWebsiteInput(' http://eaglecreek.example/about ')).toBe('https://eaglecreek.example/about');
+    expect(normalizeWebsiteInput('https://eaglecreek.example')).toBe('https://eaglecreek.example');
+    expect(normalizeWebsiteInput('not a url')).toBeNull();
+    expect(normalizeWebsiteInput('ftp://eaglecreek.example')).toBeNull();
   });
 });
