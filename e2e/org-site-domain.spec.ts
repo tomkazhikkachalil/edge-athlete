@@ -111,7 +111,8 @@ test('org site domain: publish gate → claim (normalized, token, DNS table) →
       const page = await ownerCtx.newPage();
       await page.setViewportSize({ width: 375, height: 812 });
       await page.goto(`/app/org/league/${leagueId}`);
-      await expect(page.getByText(host, { exact: true })).toBeVisible({ timeout: 20_000 });
+      // The host renders twice (status line + DNS table) — the status span first.
+      await expect(page.getByText(host, { exact: true }).first()).toBeVisible({ timeout: 20_000 });
       await expect(page.getByText(`_edgeathlete.${host}`)).toBeVisible();
       await expect(page.getByRole('button', { name: 'Verify DNS' })).toBeVisible();
       const scrollWidth = await page.evaluate(() => document.documentElement.scrollWidth);
