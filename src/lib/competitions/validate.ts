@@ -103,6 +103,22 @@ export const ContestCreateSchema = z
   });
 export type ContestCreateInput = z.infer<typeof ContestCreateSchema>;
 
+/** Phase 6d W3: a golf league's whole season in one declaration — N
+ *  weekly rounds from a start date, each a windowDays-long play window
+ *  at ONE course. venueId is REQUIRED: a windowed round without a course
+ *  can never fill itself ("round has no course"). Dry-run by default. */
+export const GolfSeasonGenerateSchema = z.object({
+  competitionId: uuid,
+  startDate: z.string().regex(ISO_DATE_RE, 'YYYY-MM-DD'),
+  weeks: z.number().int().min(1).max(52),
+  windowDays: z.number().int().min(1).max(14),
+  holes: z.union([z.literal(9), z.literal(18)]),
+  venueId: uuid,
+  labelPattern: optionalText(34),
+  dryRun: z.boolean().default(true),
+});
+export type GolfSeasonGenerateInput = z.infer<typeof GolfSeasonGenerateSchema>;
+
 export const ContestPatchSchema = z
   .object({
     id: uuid,
