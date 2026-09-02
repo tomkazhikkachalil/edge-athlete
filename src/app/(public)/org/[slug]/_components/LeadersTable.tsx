@@ -5,7 +5,8 @@ import { SPORT_REGISTRY } from '@/lib/sports/SportRegistry';
 // Stat leaders module (phase 6b B3): per public competition, the schema's
 // sum tiles (Goals, Points…) as top-five tables. Names arrive already
 // masked/omitted by the reader (supervised athletes never reach here).
-// A sport with no stat-line schema says so instead of showing nothing.
+// A sport with no stat-line schema says so instead of showing nothing —
+// except a golf LEADERBOARD (S5), whose boards come from its results.
 
 function sportName(key: string): string {
   return SPORT_REGISTRY[key as keyof typeof SPORT_REGISTRY]?.display_name ?? key;
@@ -30,7 +31,7 @@ function Board({ board, limit }: { board: PublicLeaderBoard; limit: number }) {
               <tr className="text-left text-xs text-muted">
                 <th scope="col" className="py-1.5 pr-2 font-medium">#</th>
                 <th scope="col" className="py-1.5 pr-3 font-medium">{stat.label}</th>
-                <th scope="col" className="py-1.5 px-2 font-medium text-right">Total</th>
+                <th scope="col" className="py-1.5 px-2 font-medium text-right">{stat.valueLabel ?? 'Total'}</th>
               </tr>
             </thead>
             <tbody>
@@ -39,7 +40,9 @@ function Board({ board, limit }: { board: PublicLeaderBoard; limit: number }) {
                   <td className="py-1.5 pr-2 text-tertiary">{i + 1}</td>
                   <td className="py-1.5 pr-3">
                     <span className="font-medium text-primary">{row.name}</span>
-                    {row.teamName ? <span className="block text-xs text-tertiary">{row.teamName}</span> : null}
+                    {row.note ?? row.teamName ? (
+                      <span className="block text-xs text-tertiary">{row.note ?? row.teamName}</span>
+                    ) : null}
                   </td>
                   <td className="py-1.5 px-2 text-right font-semibold text-primary">{row.value}</td>
                 </tr>

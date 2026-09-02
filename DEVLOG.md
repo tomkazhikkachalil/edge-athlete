@@ -1,5 +1,44 @@
 # Development Log
 
+## September 2, 2026 — Phase 6e S5: golf sites, part 5 — golf leaders: low gross by nine and eighteen, low net, most rounds, best week (#525, zero DDL)
+
+The leaders module reads stat lines, and golf has no stat-line schema:
+a golf league's `/leaders` said "not available" (and a golf leaderboard
+with no lines produced no board at all). A golf league's numbers live
+in `contest_results` — the sync engine's payloads — so its boards come
+from there.
+
+- **`src/lib/competitions/golf-leaders.ts`** (pure, node-tested):
+  `buildGolfLeaderBoards` — "Low gross (9 holes)" and "(18 holes)"
+  separately (principle 4: a 38 and a 76 never compete), "Low net" per
+  hole count only when the rule is `golf_net`, "Most rounds" (distinct
+  rounds with a result), "Best week" (the lowest single-round rule score
+  — net on a net league — with the round and its date as the note); top
+  five, ascending except Most rounds, ties by name; a null name (an
+  omitted, supervised athlete) never reaches a row.
+- **The reader** (`fetchPublicStatLeaders`): golf LEADERBOARDS branch
+  to `fetchGolfLeaderBoards` — COMPLETED rounds only (the confirmed
+  record, like the standings; an open round's posted score never leads),
+  `contest_results` ≤1000 → participants → entries → profiles masked by
+  `publicDisplayName`, supervised → null. Everything else, a golf
+  FIXTURE included, keeps the stat-lines path and its honest "not
+  available". The early returns (no contests / no lines) now still emit
+  the golf boards. `PublicLeaderBoard.stats[].valueLabel` heads the
+  value column ("Gross" / "Net" / "Rounds"; absent = "Total") and
+  `PublicLeaderRow.note` rides the team-name slot in `LeadersTable`.
+- e2e `org-site-golf-leaders.spec.ts`: a public net league with two
+  completed nines, a completed eighteen and an OPEN round (owner 41/36,
+  39/34, 80/70; Alpha 38/37; the open round's 33/30; a supervised child's
+  35/30) → `/leaders` carries the five boards with their column heads,
+  Alpha's 38 ahead of the owner's 39 and the 41 absent from low gross,
+  the open 33 absent everywhere, no child, Best week = the owner's net 34
+  with "Week 2 · 2026-08-10", Most rounds 3, no "not available" → the
+  home teaser → 375px. Regressions: org-site-modules (the golf fixture
+  still degrades), org-site (5), two-pages green vs the live DB.
+
+Next: S6 — announcements (a manager's notice bells every member and
+mirrors to the site's notice band).
+
 ## September 2, 2026 — Phase 6e S4: golf sites, part 4 — the season on the schedule: all-day rounds, the site's ICS feed (#524, zero DDL)
 
 A golf league's season is its play windows, and until now a windowed
