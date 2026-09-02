@@ -5,6 +5,7 @@ import type { PublicSite } from '@/lib/org-sites/server';
 import type { PublicOpenWindow } from '@/lib/org-sites/public-data';
 import type {
   PublicAffiliation,
+  PublicCourse,
   PublicStaffRow,
   PublicTeam,
   PublicVenue,
@@ -17,6 +18,7 @@ import {
 } from '@/lib/org-sites/validate';
 import AffiliationsList from './AffiliationsList';
 import ContactCard from './ContactCard';
+import CoursesList from './CoursesList';
 import RegisterCard from './RegisterCard';
 import ScheduleList from './ScheduleList';
 import SponsorsList from './SponsorsList';
@@ -39,6 +41,8 @@ export interface SiteHomeData {
   affiliations: PublicAffiliation[];
   /** Phase 5 R5 — open registration windows (empty = card says closed). */
   openWindows: PublicOpenWindow[];
+  /** Phase 6b A2 — the golf club's linked catalog courses. */
+  courses: PublicCourse[];
 }
 
 export default function SiteHomeBody({
@@ -48,7 +52,7 @@ export default function SiteHomeBody({
   site: PublicSite;
   data: SiteHomeData;
 }) {
-  const { standings, events, teams, staff, venues, affiliations, openWindows } = data;
+  const { standings, events, teams, staff, venues, affiliations, openWindows, courses } = data;
   const enabled = site.modules.filter(m => m.enabled);
   const has = (key: string) => enabled.some(m => m.module_key === key);
   const hero = parseHeroConfig(site.hero_config);
@@ -112,6 +116,12 @@ export default function SiteHomeBody({
           <RegisterCard windows={openWindows} side={site.side} orgId={site.orgId} />
         ) : (
           empty('Registration is currently closed.')
+        );
+      case 'courses':
+        return courses.length > 0 ? (
+          <CoursesList courses={courses} detailed={false} basePath={orgSitePath(site.subdomain)} />
+        ) : (
+          empty('No courses listed yet.')
         );
       case 'gallery':
         // The gallery is a subpage module — the home section is a teaser

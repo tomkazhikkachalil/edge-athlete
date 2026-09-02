@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import Link from 'next/link';
 import { UUID_RE as UUID_SHAPE } from '@/lib/uuid';
 import type { GolfCourse } from '@/types/golf';
 import type { HoleLine } from '@/lib/golf/hole-geometry';
@@ -43,6 +44,10 @@ export default function CourseInfoCard({ course, defaultOpen = false, enableTrac
   // id but hardcode holes: [] — the tee sheet lives only in the catalog).
   const [showScorecard, setShowScorecard] = useState(false);
   const [fetchedCourse, setFetchedCourse] = useState<GolfCourse | null>(null);
+  // Phase 6b A2: "Home of {org} →" — the org site whose venue recognized
+  // this course. Keyed by course id (the composer swaps `course` in place).
+  const [homeOfState, setHomeOfState] = useState<{ id: string; orgName: string; path: string } | null>(null);
+  const homeOf = homeOfState?.id === course.id ? homeOfState : null;
   const [scorecardLoading, setScorecardLoading] = useState(false);
   // Hole-by-hole preview: fetched once per card when the map is actually
   // shown (the endpoint serves the 30-day cache; anonymous-safe, so Explore
@@ -65,6 +70,28 @@ export default function CourseInfoCard({ course, defaultOpen = false, enableTrac
   const hasCoords = typeof course.lat === 'number' && typeof course.lng === 'number';
 
   const mapVisible = showMap && hasCoords && mapMode !== 'hidden';
+  // Phase 6b A2: one lightweight ?id= read per catalog course to learn its
+  // home org. Guarded by course id so a swapped card refetches exactly once.
+  const homeRequestedFor = useRef<string | null>(null);
+  useEffect(() => {
+    if (!UUID_SHAPE.test(course.id) || homeRequestedFor.current === course.id) return;
+    const id = course.id;
+    homeRequestedFor.current = id;
+    let cancelled = false;
+    fetch(`/api/golf/courses?id=${id}&home=1`, { credentials: 'include' })
+      .then(r => (r.ok ? r.json() : null))
+      .then(body => {
+        if (cancelled) return;
+        const h = body?.homeOf as { orgName: string; path: string } | undefined;
+        if (h?.path) setHomeOfState({ id, ...h });
+      })
+      .catch(() => {
+        if (!cancelled && homeRequestedFor.current === id) homeRequestedFor.current = null;
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [course.id]);
   useEffect(() => {
     if (!mapVisible || holesRequestedFor.current === course.id || !UUID_SHAPE.test(course.id)) return;
     const id = course.id;
@@ -108,7 +135,11 @@ export default function CourseInfoCard({ course, defaultOpen = false, enableTrac
       setScorecardLoading(true);
       fetch(`/api/golf/courses?id=${course.id}`, { credentials: 'include' })
         .then(r => (r.ok ? r.json() : null))
-        .then(body => setFetchedCourse((body?.course as GolfCourse | null) ?? null))
+        .then(body => {
+          setFetchedCourse((body?.course as GolfCourse | null) ?? null);
+          const h = body?.homeOf as { orgName: string; path: string } | undefined;
+          if (h?.path) setHomeOfState({ id: course.id, ...h });
+        })
         .catch(() => setFetchedCourse(null))
         .finally(() => setScorecardLoading(false));
     }
@@ -171,6 +202,15 @@ export default function CourseInfoCard({ course, defaultOpen = false, enableTrac
             <i className={`fas ${showMap ? 'fa-chevron-up' : 'fa-map'}`} aria-hidden="true"></i>
             {showMap ? 'Hide map' : 'Show map'}
           </button>
+        )}
+        {homeOf && (
+          <Link
+            href={homeOf.path}
+            className="inline-flex min-h-[40px] items-center gap-1.5 font-medium text-brand-fg hover:underline"
+          >
+            <i className="fas fa-house-flag" aria-hidden="true"></i>
+            Home of {homeOf.orgName}
+          </Link>
         )}
         {course.website && (
           <a

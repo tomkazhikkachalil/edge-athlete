@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation';
 import {
   getCachedOpenWindows,
   getCachedAffiliations,
+  getCachedCourses,
   getCachedSchedule,
   getCachedSite,
   getCachedStaff,
@@ -66,7 +67,7 @@ export default async function OrgSiteHome({ params }: PageParams) {
   const has = (key: string) => site.modules.some(m => m.module_key === key && m.enabled);
   const { side, orgId } = site;
 
-  const [standings, events, teams, staff, venues, affiliations, openWindows] = await Promise.all([
+  const [standings, events, teams, staff, venues, affiliations, openWindows, courses] = await Promise.all([
     has('standings') ? getCachedStandings(slug, side, orgId) : Promise.resolve(null),
     has('schedule') ? getCachedSchedule(slug, side, orgId) : Promise.resolve(null),
     has('teams') ? getCachedTeams(slug, side, orgId) : Promise.resolve([]),
@@ -74,6 +75,7 @@ export default async function OrgSiteHome({ params }: PageParams) {
     has('venues') ? getCachedVenues(slug, side, orgId) : Promise.resolve([]),
     has('affiliations') ? getCachedAffiliations(slug, side, orgId) : Promise.resolve([]),
     has('register') ? getCachedOpenWindows(slug, side, orgId) : Promise.resolve([]),
+    has('courses') ? getCachedCourses(slug, side, orgId) : Promise.resolve([]),
   ]);
 
   return (
@@ -86,7 +88,7 @@ export default async function OrgSiteHome({ params }: PageParams) {
       />
       <SiteHomeBody
         site={site}
-        data={{ standings, events, teams, staff, venues, affiliations, openWindows }}
+        data={{ standings, events, teams, staff, venues, affiliations, openWindows, courses }}
       />
     </>
   );

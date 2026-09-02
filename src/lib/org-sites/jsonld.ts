@@ -6,6 +6,7 @@
 
 import { orgLogoUrl } from '@/lib/media/org-site-media';
 import type { OrgEvent } from '@/lib/calendar/org-events-server';
+import type { PublicCourse } from './public-data';
 import type { PublicSite } from './server';
 import { appBaseUrl } from './urls';
 import { orgSitePath } from '@/lib/org-sites/urls';
@@ -78,4 +79,30 @@ export function buildEventsJsonLd(
       name: e.location || site.orgName,
     },
   }));
+}
+
+/** Phase 6b A2: the /courses subpage's structured data — schema.org
+ *  GolfCourse entries (place data only; the PEOPLE RULE is untouched).
+ *  Empty input → null, so the page emits no script. */
+export function buildCoursesJsonLd(
+  site: PublicSite,
+  courses: PublicCourse[]
+): Record<string, unknown> | null {
+  if (courses.length === 0) return null;
+  const address = postalAddress(site);
+  return {
+    '@context': 'https://schema.org',
+    '@graph': courses.slice(0, 20).map(({ course }) => ({
+      '@type': 'GolfCourse',
+      name: course.clubName && !course.name.includes(course.clubName)
+        ? `${course.clubName} – ${course.name}`
+        : course.name,
+      ...(course.website ? { url: course.website } : {}),
+      ...(typeof course.lat === 'number' && typeof course.lng === 'number'
+        ? { geo: { '@type': 'GeoCoordinates', latitude: course.lat, longitude: course.lng } }
+        : {}),
+      ...(address ? { address } : {}),
+      containedInPlace: { '@type': 'SportsOrganization', name: site.orgName },
+    })),
+  };
 }
