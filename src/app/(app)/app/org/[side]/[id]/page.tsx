@@ -353,6 +353,9 @@ export default function OrgConsolePage() {
   const [courseResults, setCourseResults] = useState<GolfCourse[]>([]);
   // Phase 7 C4: awaiting approval — the console works, publishing waits.
   const [pending, setPending] = useState(false);
+  // Phase 7 C5: the org's sport shapes the console (golf-first).
+  const [orgSport, setOrgSport] = useState<string | null>(null);
+  const [memberCount, setMemberCount] = useState(0);
 
   useEffect(() => {
     if (!validSide || !user?.id) return;
@@ -373,6 +376,18 @@ export default function OrgConsolePage() {
           const data = await orgRes.json();
           if (!cancelled) setOrgName((data.league ?? data.club)?.name ?? null);
           if (!cancelled) setPending(data.pending === true);
+          // C5: leagues carry sport_key; clubs answer primarySport (174).
+          const sport = (data.league?.sport_key ?? data.primarySport ?? null) as string | null;
+          if (!cancelled) {
+            setOrgSport(sport);
+            setMemberCount(typeof data.memberCount === 'number' ? data.memberCount : 0);
+            // A golf org's first competition is a golf leaderboard — set in
+            // the fetch callback, never an effect (the set-state-in-effect rule).
+            if (sport === 'golf') {
+              setCompSport('golf');
+              setCompFormat('leaderboard');
+            }
+          }
         }
         if (structureRes.status === 403 || structureRes.status === 401) {
           setAuthorized(false);
@@ -1016,6 +1031,8 @@ export default function OrgConsolePage() {
     );
   }
 
+  const golfFirst = orgSport === 'golf';
+
   // The console's sections, keyed so the ORDER can follow the org's sport
   // (phase 7 C5: golf-first — Website and Venues on top). A pure hoist of
   // the JSX that used to sit inline in <main>; every closure is unchanged.
@@ -1593,7 +1610,7 @@ export default function OrgConsolePage() {
           aria-label="Competitions"
           className="bg-surface rounded-lg shadow-sm border border-border p-4 sm:p-6"
         >
-          <h2 className="text-lg font-semibold text-primary mb-1">Competitions</h2>
+          <h2 className="text-lg font-semibold text-primary mb-1">{golfFirst ? 'Leagues & events' : 'Competitions'}</h2>
           <p className="text-sm text-tertiary mb-4">
             A competition holds a schedule and standings. Create one per season — pin it
             to a division for house play.
@@ -3996,19 +4013,28 @@ export default function OrgConsolePage() {
 
         <OrgSetupChecklist
           storageKey={`org-checklist:${side}:${orgId}`}
+          variant={golfFirst ? 'golf' : 'default'}
           input={{
             hasSeasonWithDates,
             hasDivisions,
             hasTeams: teams.length > 0,
             managerCount: counts.managers,
             rosterAthleteCount: counts.rosterAthletes,
+            // C5 (golf variant) — all derived from rows already fetched.
+            hasSite: !!site,
+            hasSitePhotoOrCta: !!(heroImagePath || heroCtaUrl),
+            hasHomeCourse: venues.some(v => v.courses.length > 0),
+            sitePublished: !!site?.published_at,
+            memberCount,
+            hasGolfLeague: competitions.some(c => c.sport_key === 'golf' && c.format === 'leaderboard'),
+            hasNotice: !!heroNotice,
             ...(FEATURE_FLAGS.FEATURE_ORG_REGISTRATION && regAvailable
               ? { hasOpenRegistration: regWindows.length > 0 }
               : {}),
           }}
         />
 
-        {CONSOLE_SECTION_ORDER.default.map(key => (
+        {CONSOLE_SECTION_ORDER[golfFirst ? 'golf' : 'default'].map(key => (
           <Fragment key={key}>{sectionNodes[key]}</Fragment>
         ))}
       </main>
