@@ -382,6 +382,8 @@ export default function CompetitionDetailPage() {
   };
 
   // Phase 6 R6: the schedule-import runner (Preview → Import).
+  // I1: the same expander takes a pasted .ics (calendar export) instead of CSV.
+  const [schedIcsMode, setSchedIcsMode] = useState(false);
   const runScheduleImport = async (dryRun: boolean) => {
     if (schedBusy) return;
     setSchedBusy(true);
@@ -390,7 +392,7 @@ export default function CompetitionDetailPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          csv: schedCsvText,
+          ...(schedIcsMode ? { ics: schedCsvText } : { csv: schedCsvText }),
           timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
           dryRun,
         }),
@@ -774,12 +776,34 @@ export default function CompetitionDetailPage() {
               </button>
               {schedImportOpen && (
                 <div className="mt-2 border border-border rounded-lg p-3">
-                  <p className="text-xs text-muted mb-2">
-                    Columns: <code>date, time, home, away</code> (optional: venue,
-                    home_score, away_score — scores mark the game played and the
-                    result is labeled <em>imported</em>). Times read in your
-                    timezone. Team names must match this competition&apos;s entries.
-                  </p>
+                  <div className="flex flex-wrap items-center gap-2 mb-2">
+                    <button
+                      type="button"
+                      aria-pressed={schedIcsMode}
+                      onClick={() => {
+                        setSchedIcsMode(v => !v);
+                        setSchedReport(null);
+                      }}
+                      className="px-2 py-1 text-xs rounded-md border border-border-strong text-secondary hover:bg-surface-sunken transition-colors"
+                    >
+                      {schedIcsMode ? 'Paste CSV instead' : 'Paste ICS instead'}
+                    </button>
+                  </div>
+                  {schedIcsMode ? (
+                    <p className="text-xs text-muted mb-2">
+                      Paste the contents of a calendar export (<code>.ics</code>). Each event&apos;s
+                      title must read <code>Home vs Away</code> (or <code>Away @ Home</code>);
+                      its location is matched to your venues. Recurring and all-day events are
+                      reported per row — expand recurring events in your calendar first.
+                    </p>
+                  ) : (
+                    <p className="text-xs text-muted mb-2">
+                      Columns: <code>date, time, home, away</code> (optional: venue,
+                      home_score, away_score — scores mark the game played and the
+                      result is labeled <em>imported</em>). Times read in your
+                      timezone. Team names must match this competition&apos;s entries.
+                    </p>
+                  )}
                   <textarea
                     value={schedCsvText}
                     onChange={e => {
@@ -787,8 +811,12 @@ export default function CompetitionDetailPage() {
                       setSchedReport(null);
                     }}
                     rows={5}
-                    placeholder={'date,time,home,away,home_score,away_score\n2026-10-03,19:00,Blazers,Comets,3,2'}
-                    aria-label="Schedule CSV"
+                    placeholder={
+                      schedIcsMode
+                        ? 'BEGIN:VCALENDAR\nBEGIN:VEVENT\nDTSTART;TZID=America/Toronto:20261003T190000\nSUMMARY:Blazers vs Comets\nEND:VEVENT\nEND:VCALENDAR'
+                        : 'date,time,home,away,home_score,away_score\n2026-10-03,19:00,Blazers,Comets,3,2'
+                    }
+                    aria-label={schedIcsMode ? 'Schedule ICS' : 'Schedule CSV'}
                     className="w-full px-3 py-2 border border-border-strong rounded-md outline-none text-sm font-mono"
                   />
                   <div className="mt-2 flex flex-wrap gap-2">

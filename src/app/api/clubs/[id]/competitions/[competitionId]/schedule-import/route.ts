@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth, getSupabaseAdmin } from '@/lib/auth-server';
 import { enforceRateLimit } from '@/lib/rate-limit';
-import { scheduleImportPOST } from '@/lib/orgs/schedule-import';
+import { scheduleIcsImportPOST, scheduleImportPOST } from '@/lib/orgs/schedule-import';
 import { requireCompetitionManager } from '@/lib/orgs/competition-server';
 import { UUID_RE } from '@/lib/golf/course-catalog';
 
@@ -38,22 +38,25 @@ export async function POST(
 
     const body = (await request.json().catch(() => ({}))) as {
       csv?: unknown;
+      ics?: unknown;
       timezone?: unknown;
       dryRun?: unknown;
     };
-    if (typeof body.csv !== 'string' || body.csv.length === 0 || body.csv.length > 100_000) {
-      return NextResponse.json({ error: 'csv text is required (max 100KB)' }, { status: 400 });
+    // I1: exactly one of csv | ics (both ≤100KB).
+    const csv = typeof body.csv === 'string' && body.csv.length > 0 ? body.csv : null;
+    const ics = typeof body.ics === 'string' && body.ics.length > 0 ? body.ics : null;
+    if ((!csv && !ics) || (csv && ics) || (csv ?? ics ?? '').length > 100_000) {
+      return NextResponse.json({ error: 'csv or ics text is required (one of them, max 100KB)' }, { status: 400 });
     }
-    return await scheduleImportPOST(
-      admin,
-      { id: comp.id as string, format: comp.format as string, status: comp.status as string },
-      user.id,
-      {
-        csv: body.csv,
-        timezone: typeof body.timezone === 'string' && body.timezone.length <= 64 ? body.timezone : 'UTC',
-        dryRun: body.dryRun !== false,
-      }
-    );
+    const competition = { id: comp.id as string, format: comp.format as string, status: comp.status as string };
+    const opts = {
+      timezone: typeof body.timezone === 'string' && body.timezone.length <= 64 ? body.timezone : 'UTC',
+      dryRun: body.dryRun !== false,
+    };
+    const scope = { side: 'club' as const, orgId: id };
+    return ics
+      ? await scheduleIcsImportPOST(admin, competition, user.id, { ics, ...opts }, scope)
+      : await scheduleImportPOST(admin, competition, user.id, { csv: csv as string, ...opts }, scope);
   } catch (error) {
     if (error instanceof Response) return error;
     console.error('[SCHEDULE-IMPORT] club POST error:', error);

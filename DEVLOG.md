@@ -1,5 +1,39 @@
 # Development Log
 
+## September 2, 2026 — Phase 6c I1: ICS schedule import + org-scoped venues (#516, zero DDL)
+
+Masterplan §10 said "schedule by CSV or ICS"; R6 shipped the CSV half.
+Now a league pastes the contents of its calendar export:
+
+- **`src/lib/calendar/ics-parse.ts`** (pure, node-tested — the READ half
+  of `ics.ts`): unfolding, `icsUnescape`, VEVENT blocks with DTSTART
+  (TZID / trailing Z / floating), SUMMARY, LOCATION, UID. Deliberately
+  not a calendar engine: an RRULE event is refused per row ("expand
+  them in your calendar first"), an all-day event is refused for
+  scheduling (a game needs a start time), a summary that isn't
+  `Home vs Away` (or `Home v Away`, `Home - Away`, `Away @ Home` — the
+  @ form swaps) is a row error. `summaryToMatchup` is the one parser.
+- **`schedule-import.ts` refactored**: the row loop is now
+  `importScheduleRows(rows, {timezone, dryRun}, scope)`, fed by
+  `scheduleImportPOST` (CSV) and the new `scheduleIcsImportPOST` (ICS →
+  rows; TZID/Z starts are converted to the caller's zone so the row
+  shape stays date + time; floating times are already the caller's).
+  The report shape, dedupe key, provenance `imported` and the
+  compensating delete are unchanged.
+- **Venue lookup scoped to the org** — it used to match ANY venue by
+  name (`.select('id, name').limit(500)` with no org filter). A
+  same-named venue under another org no longer resolves (the spec
+  proves it with a decoy).
+- Route twins accept `{ics}` xor `{csv}` (100KB); the console's schedule
+  expander gains a `Paste ICS instead` toggle (hint, placeholder and the
+  textarea label follow the mode; the report list is shared).
+- e2e `schedule-import-ics.spec.ts`: a 4-event ICS (TZID, Z, an RRULE,
+  an all-day) → dry-run: 2 dry-create + 2 row errors, zero writes →
+  commit: the right UTC instants (Toronto 19:00 = 23:00Z; the Z instant
+  verbatim), the org's venue resolved, the decoy venue under another
+  org NOT resolved (warning row); the CSV path unchanged; console
+  toggle at 375px.
+
 ## September 1, 2026 — Phase 6c G3: two pages — a club page and a league page are different pages (#515, zero DDL)
 
 Tom's principle 1: a club page and a league page answer different
