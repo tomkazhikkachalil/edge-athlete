@@ -28,7 +28,10 @@ import { isValidDateString, isNotFutureDate } from '@/lib/date-validation';
 // computes ages locally, so it can't leak the threshold either.
 
 type Step = 'role' | 'dob' | 'details' | 'parent' | 'parent-done' | 'guardian' | 'parked';
-type Role = 'athlete' | 'parent';
+type Role = 'athlete' | 'parent' | 'org';
+type OrgKind = 'club' | 'league';
+/** Phase 7 C1: the org door lands in the wizard with golf preselected. */
+const ORG_DEFAULT_SPORT = 'golf';
 
 const inputClass =
   'w-full px-4 py-3 text-sm text-primary border border-border-strong rounded-md focus:outline-none focus:ring-1 focus:ring-violet-500';
@@ -40,9 +43,17 @@ const HANDLE_CHECKING_MSG = 'Checking your handle — one moment…';
 const HANDLE_WAIT_MSG =
   'Please wait for your handle to be confirmed as available, or pick another handle.';
 
-export default function RegistrationSteps({ onBackToLogin }: { onBackToLogin: () => void }) {
+export default function RegistrationSteps({
+  onBackToLogin,
+  initialOrg = null,
+}: {
+  onBackToLogin: () => void;
+  /** Phase 7 C1: launched from the login page's Club / League door. */
+  initialOrg?: OrgKind | null;
+}) {
   const [step, setStep] = useState<Step>('role');
-  const [role, setRole] = useState<Role>('athlete');
+  const [role, setRole] = useState<Role>(initialOrg ? 'org' : 'athlete');
+  const [orgKind, setOrgKind] = useState<OrgKind>(initialOrg ?? 'club');
   const [dob, setDob] = useState('');
   const [guardianEmail, setGuardianEmail] = useState('');
   const [parkedMessage, setParkedMessage] = useState('');
@@ -253,6 +264,22 @@ export default function RegistrationSteps({ onBackToLogin }: { onBackToLogin: ()
           password: form.password,
         });
         if (!signInError) {
+          if (role === 'org') {
+            // Phase 7 C1: an org owner never runs the athlete onboarding —
+            // stamp it (best-effort) so `/` never bounces them there, drop the
+            // parked intent, and land in the wizard with golf preselected.
+            try {
+              await fetch('/api/profile', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ profileData: { onboarded_at: new Date().toISOString() } }),
+              });
+            } catch { /* the wizard works either way; `/` would just show onboarding once */ }
+            try { window.sessionStorage.removeItem('ea:invite-return'); } catch { /* ignore */ }
+            // eslint-disable-next-line @next/next/no-location-assign-relative-destination -- a session was just created; the auth provider must boot fresh (house pattern)
+            window.location.href = `/${orgKind}/start?sport=${ORG_DEFAULT_SPORT}`;
+            return;
+          }
           // eslint-disable-next-line @next/next/no-location-assign-relative-destination -- a session was just created; the auth provider must boot fresh (house pattern)
           window.location.href = '/onboarding';
           return;
@@ -307,6 +334,19 @@ export default function RegistrationSteps({ onBackToLogin }: { onBackToLogin: ()
                   <i className="fas fa-user-shield text-brand-fg text-2xl mb-2"></i>
                   <p className="font-bold text-primary">I&apos;m a parent or guardian</p>
                   <p className="text-sm text-tertiary mt-1">I&apos;m setting this up for my athlete.</p>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setRole('org'); setStep('dob'); }}
+                  className={`border-2 rounded-lg p-6 text-left transition sm:col-span-2 ${
+                    role === 'org' ? 'border-brand' : 'border-violet-200 dark:border-violet-800 hover:border-brand'
+                  }`}
+                >
+                  <i className="fas fa-building text-brand-fg text-2xl mb-2"></i>
+                  <p className="font-bold text-primary">I run a club or league</p>
+                  <p className="text-sm text-tertiary mt-1">
+                    Create your account, then set up your {orgKind === 'league' ? 'league' : 'club'} and its website.
+                  </p>
                 </button>
               </div>
               <button type="button" onClick={onBackToLogin} className="inline-flex min-h-[44px] items-center mt-4 text-xs text-brand-fg hover:underline active:underline">
@@ -419,8 +459,26 @@ export default function RegistrationSteps({ onBackToLogin }: { onBackToLogin: ()
 
           {step === 'details' && (
             <>
-              <h2 className="text-xl sm:text-2xl font-bold text-violet-800 dark:text-violet-200 space-micro">Create Athlete Account</h2>
-              <OAuthButtons onError={setError} divider="below" />
+              <h2 className="text-xl sm:text-2xl font-bold text-violet-800 dark:text-violet-200 space-micro">
+                {role === 'org' ? 'Create your account' : 'Create Athlete Account'}
+              </h2>
+              {role === 'org' && (
+                <fieldset className="mb-4">
+                  <legend className="text-sm font-medium text-secondary mb-1">I&apos;m setting up a</legend>
+                  <div className="flex gap-4 text-sm text-primary">
+                    <label className="flex items-center gap-2">
+                      <input type="radio" name="orgKind" value="club" checked={orgKind === 'club'} onChange={() => setOrgKind('club')} />
+                      Club
+                    </label>
+                    <label className="flex items-center gap-2">
+                      <input type="radio" name="orgKind" value="league" checked={orgKind === 'league'} onChange={() => setOrgKind('league')} />
+                      League
+                    </label>
+                  </div>
+                  <p className="text-xs text-tertiary mt-1">Your account is yours; the {orgKind} is set up right after.</p>
+                </fieldset>
+              )}
+              <OAuthButtons onError={setError} divider="below" signupRole={role === 'org' ? orgKind : 'athlete'} />
               {errorBox}
               {success && (
                 <div className="bg-green-50 dark:bg-green-950/40 border border-green-200 dark:border-green-800 text-green-600 dark:text-green-400 px-4 py-3 rounded-md text-sm mb-4">

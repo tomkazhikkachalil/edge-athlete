@@ -1,5 +1,51 @@
 # Development Log
 
+## September 2, 2026 — Phase 7 C1: club sign-up, part 1 — the door: Club and League on the login page create the account, then land in the wizard (#527, zero DDL)
+
+Phase 7 ("Club sign-up", Tom, Sep 2): a way IN. A new club should start
+from the login page, create its account, and begin building its site —
+golf first, the sign-up shaped so other sports and leagues fit. Today the
+login page's Club / League buttons opened a WAITLIST popup, the real
+wizard at `/club/start` was signed-in only with a dead-end signed-out
+card, and "Explore as Guest" also opened the waitlist (CLAUDE.md said
+`/explore` — the code had drifted).
+
+- **Account first** (an org is owned by a NORMAL profile — mig 116;
+  `user_type` club/league stays unreachable and `resolveSignupUserType`
+  is untouched). The Club / League buttons park the intent in
+  sessionStorage `ea:invite-return` (the one channel that survives the
+  registration hard-reload in BOTH flag states — `/` already honours it
+  after sign-in, the invite-claim precedent) and open the sign-up.
+- **A third role card** in `RegistrationSteps`: "I run a club or league"
+  (preselected from the door), DOB next (the minor gate still applies —
+  an under-threshold requester parks, which is correct), then "Create
+  your account" with a Club / League radio; on success the org branch
+  signs in, stamps `onboarded_at` (best-effort — an org owner never runs
+  the athlete onboarding; without it `/` would bounce them there every
+  visit), clears the parked intent, and hard-navigates to
+  `/club/start?sport=golf` (or league). The OAuth twin: `OAuthButtons`'
+  `ea-signup-role` cookie gains `club|league`, and `complete-profile`
+  creates the same athlete profile, stamps onboarding, and lands in the
+  wizard before the profile-arrives guard can race it.
+- The signed-out `/club/start` and `/league/start` cards: "Create an
+  account to start your club" with a CTA to `/?next=…` that also parks
+  the intent. "Explore as Guest" → `/explore` (the drift fixed).
+- e2e `club-signup-door.spec.ts` (an ANONYMOUS context — the default
+  desktop storageState is signed in, the fake-anonymity trap): the
+  signed-out `/club/start` CTA carries `next=`; the login page at 375px;
+  Explore as Guest lands on `/explore`; the Club door → the org card →
+  DOB → account (handle confirmed available before submit) → signed in
+  on `/club/start?sport=golf` with `user_type='athlete'` and
+  `onboarded_at` set; a plain sign-in with `?next=` (user-b) lands on
+  `/league/start?sport=golf`. Regressions: auth-login, club-request,
+  league-request, registration, registration-wizard green vs the live
+  DB — the last one after a dev-only fix: its `getByRole('button',
+  {name:'Next'})` also matched the Next.js dev-tools button ("Open
+  Next.js Dev Tools" — the substring rule); now `exact: true`.
+
+Next: C2 — the golf fast path in the wizard (sports, an optional home
+course that prefills, contact) + migration 174.
+
 ## September 2, 2026 — Phase 6e S6: golf sites, part 6 — announce to members: the org bell, mirrored to the site notice (#526, zero DDL) — PHASE 6e CODE-COMPLETE
 
 The last round of the golf-sites program, and the club's missing

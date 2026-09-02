@@ -95,21 +95,21 @@ test('registration wizard: guardian registers a child; org-page CTA; 375px', asy
 
       // who → the child.
       await page.getByRole('radio', { name: `Wiz${stamp} Kid` }).check();
-      await page.getByRole('button', { name: 'Next' }).click();
+      await page.getByRole('button', { name: 'Next', exact: true }).click();
 
       // offering → the open division.
       await page.getByRole('radio', { name: new RegExp(`U13 A ${stamp}`) }).check();
-      await page.getByRole('button', { name: 'Next' }).click();
+      await page.getByRole('button', { name: 'Next', exact: true }).click();
 
       // details.
       await page.getByLabel('Emergency contact name').fill('Pat Contact');
       await page.getByLabel('Emergency contact phone').fill('555-0100');
       await page.getByLabel(/Medical notes/).fill(`bee sting allergy ${stamp}`);
-      await page.getByRole('button', { name: 'Next' }).click();
+      await page.getByRole('button', { name: 'Next', exact: true }).click();
 
       // consents.
       await page.getByRole('checkbox').check();
-      await page.getByRole('button', { name: 'Next' }).click();
+      await page.getByRole('button', { name: 'Next', exact: true }).click();
 
       // review → submit.
       await expect(page.getByText(`U13 A ${stamp}`)).toBeVisible();

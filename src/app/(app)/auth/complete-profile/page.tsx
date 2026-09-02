@@ -31,15 +31,20 @@ export default function CompleteProfilePage() {
   // Round J: which signup branch launched OAuth (OAuthButtons writes the
   // short-lived cookie before the redirect). Parents get a parent profile —
   // no handle, no DOB — instead of being silently minted as athletes.
-  const [signupRole] = useState<'parent' | 'athlete'>(() => {
+  const [signupRole] = useState<'parent' | 'athlete' | 'club' | 'league'>(() => {
     try {
-      if (typeof document !== 'undefined' && document.cookie.includes('ea-signup-role=parent')) {
-        return 'parent';
+      if (typeof document !== 'undefined') {
+        // Phase 7 C1: the org door's OAuth twin — an org owner is a normal
+        // athlete profile that lands in the wizard instead of onboarding.
+        for (const role of ['parent', 'club', 'league'] as const) {
+          if (document.cookie.includes(`ea-signup-role=${role}`)) return role;
+        }
       }
     } catch { /* cookie unreadable → athlete default */ }
     return 'athlete';
   });
   const isParent = signupRole === 'parent';
+  const orgKind = signupRole === 'club' || signupRole === 'league' ? signupRole : null;
   const errorRef = useRef<HTMLDivElement>(null);
 
   // Route guards: unauthenticated → login; already has a profile → onward.
@@ -151,6 +156,20 @@ export default function CompleteProfilePage() {
         // add-athlete screen must boot with the fresh parent profile.
         // eslint-disable-next-line @next/next/no-location-assign-relative-destination -- profile was just created server-side; the auth provider must boot fresh (house pattern)
         window.location.href = '/app/guardian/add-athlete';
+        return;
+      }
+      if (orgKind) {
+        // Phase 7 C1: stamp onboarding (best-effort) and hard-navigate into
+        // the wizard before the profile-arrives guard above can race us.
+        try {
+          await fetch('/api/profile', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ profileData: { onboarded_at: new Date().toISOString() } }),
+          });
+        } catch { /* the wizard works either way */ }
+        // eslint-disable-next-line @next/next/no-location-assign-relative-destination -- profile was just created server-side; the auth provider must boot fresh (house pattern)
+        window.location.href = `/${orgKind}/start?sport=golf`;
         return;
       }
       await refreshProfile();
