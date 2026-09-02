@@ -51,7 +51,8 @@ export default async function ClubStandingsPage({ params }: PageParams) {
     );
   }
 
-  const withRows = payload.competitions.filter(c => c.rows.length > 0);
+  // W1: a golf league with an open window has a week to show before it has rows.
+  const withRows = payload.competitions.filter(c => c.rows.length > 0 || c.golf);
 
   return (
     <div className="min-h-screen bg-canvas">

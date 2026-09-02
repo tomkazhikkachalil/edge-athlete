@@ -13,6 +13,14 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import type { OrgSide } from '@/lib/orgs/authz';
 import { resolveFixtureRule, resolveLeaderboardRule, type StandingsColumn } from './scoring';
 import { publicDisplayName, type MaskableProfile } from '@/lib/orgs/public-names';
+import {
+  buildGolfBlock,
+  utcToday,
+  type GolfContestRaw,
+  type GolfParticipantRaw,
+  type GolfResultRaw,
+  type PublicGolfBlock,
+} from './golf-weeks';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- matches the authz.ts Admin alias; schema-agnostic helper
 type Admin = SupabaseClient<any, 'public', any>;
@@ -44,6 +52,11 @@ export interface PublicCompetitionStandings {
   entrant_type: string;
   /** G3: the club golf teaser filters on it. */
   sport_key: string;
+  /** Phase 6d W1: the week-to-week view of a golf leaderboard — the
+   *  open window, who has posted, per-round results. PRESENT ONLY when
+   *  the competition has at least one windowed round (mig 172), so
+   *  legacy boards and non-golf payloads are byte-identical to before. */
+  golf?: PublicGolfBlock;
 }
 
 export interface PublicStandingsPayload {
@@ -109,8 +122,24 @@ export async function fetchPublicStandings(
     // pre-152/168 or embed failure — footnote simply absent
   }
 
+  // Phase 6d W1: the golf weeks' raw rows (windowed rounds, their
+  // participants and results). Read BEFORE the names so a member who has
+  // posted this week but has no standings row yet (standings count only
+  // completed rounds) still gets a masked name. Never throws — pre-172
+  // (no holes/play_from) simply yields no block.
+  const golfRaw = await readGolfWeeksRaw(
+    admin,
+    competitions.filter(c => c.sport_key === 'golf' && c.format === 'leaderboard').map(c => c.id)
+  );
+  const golfParticipantEntry = new Map(golfRaw.participants.map(p => [p.id, p.entry_id]));
+  const golfResultEntryIds = golfRaw.results
+    .map(r => golfParticipantEntry.get(r.participant_id))
+    .filter((id): id is string => !!id);
+
   // Entrant display names, batched.
-  const entryIds = [...new Set((standingsRes.data ?? []).map(r => r.entry_id))];
+  const entryIds = [
+    ...new Set([...(standingsRes.data ?? []).map(r => r.entry_id), ...golfResultEntryIds]),
+  ];
   const { data: entries } = entryIds.length
     ? await admin
         .from('competition_entries')
@@ -171,6 +200,24 @@ export async function fetchPublicStandings(
     });
   }
 
+  function golfBlockFor(competitionId: string, scoringRule: string | null): { golf?: PublicGolfBlock } {
+    const contests = golfRaw.contestsByCompetition.get(competitionId);
+    if (!contests || contests.length === 0) return {};
+    const contestIds = new Set(contests.map(c => c.id));
+    const block = buildGolfBlock({
+      contests,
+      participants: golfRaw.participants.filter(p => contestIds.has(p.contest_id)),
+      results: golfRaw.results.filter(r => contestIds.has(r.contest_id)),
+      entryName,
+      omittedEntries,
+      courseNameByVenue: golfRaw.courseNameByVenue,
+      pick: golfRaw.pickByCompetition.get(competitionId) ?? 'first',
+      scoringRule,
+      today: utcToday(),
+    });
+    return block ? { golf: block } : {};
+  }
+
   return {
     orgName: org.name as string,
     competitions: competitions.map(c => ({
@@ -195,6 +242,116 @@ export async function fetchPublicStandings(
             : null,
       entrant_type: (c.entrant_type as string | null) ?? 'team',
       sport_key: c.sport_key as string,
+      ...golfBlockFor(c.id, c.scoring_rule as string | null),
     })),
   };
+
+}
+
+interface GolfWeeksRaw {
+  contestsByCompetition: Map<string, GolfContestRaw[]>;
+  participants: GolfParticipantRaw[];
+  results: GolfResultRaw[];
+  courseNameByVenue: Map<string, string>;
+  pickByCompetition: Map<string, 'first' | 'best'>;
+}
+
+const EMPTY_GOLF_RAW: GolfWeeksRaw = {
+  contestsByCompetition: new Map(),
+  participants: [],
+  results: [],
+  courseNameByVenue: new Map(),
+  pickByCompetition: new Map(),
+};
+
+/** The windowed rounds of the org's public golf leaderboards, with their
+ *  participants, results and course names — bounded (≤300 rounds, ≤2000
+ *  participants, ≤1000 results per org payload) and never-throw. */
+async function readGolfWeeksRaw(admin: Admin, competitionIds: string[]): Promise<GolfWeeksRaw> {
+  if (competitionIds.length === 0) return EMPTY_GOLF_RAW;
+  try {
+    const { data: contests, error } = await admin
+      .from('contests')
+      .select('id, competition_id, round, status, venue_id, holes, play_from, play_to')
+      .in('competition_id', competitionIds)
+      .not('holes', 'is', null)
+      .order('play_from', { ascending: true })
+      .limit(300);
+    if (error || !contests || contests.length === 0) return EMPTY_GOLF_RAW;
+
+    const contestIds = contests.map(c => c.id as string);
+    const venueIds = [...new Set(contests.map(c => c.venue_id).filter(Boolean))] as string[];
+    const [participantsRes, resultsRes, venuesRes, configRes] = await Promise.all([
+      admin
+        .from('contest_participants')
+        .select('id, contest_id, entry_id')
+        .in('contest_id', contestIds)
+        .limit(2000),
+      admin
+        .from('contest_results')
+        .select('contest_id, participant_id, score, payload, provenance, dispute_status')
+        .in('contest_id', contestIds)
+        .limit(1000),
+      venueIds.length
+        ? admin.from('venues').select('id, name, golf_course_id').in('id', venueIds)
+        : Promise.resolve({ data: [] as { id: string; name: string; golf_course_id: string | null }[] }),
+      admin.from('competitions').select('id, config').in('id', competitionIds),
+    ]);
+
+    // Course name: the linked course's catalog name; a club-linked venue
+    // (many courses) or an unlinked one reads as the venue itself.
+    const courseIds = [...new Set((venuesRes.data ?? []).map(v => v.golf_course_id).filter(Boolean))] as string[];
+    const { data: courses } = courseIds.length
+      ? await admin.from('golf_courses').select('id, name').in('id', courseIds)
+      : { data: [] as { id: string; name: string }[] };
+    const courseName = new Map((courses ?? []).map(c => [c.id as string, c.name as string]));
+    const courseNameByVenue = new Map<string, string>();
+    for (const v of venuesRes.data ?? []) {
+      const linked = v.golf_course_id ? courseName.get(v.golf_course_id as string) : undefined;
+      courseNameByVenue.set(v.id as string, linked ?? (v.name as string));
+    }
+
+    const pickByCompetition = new Map<string, 'first' | 'best'>();
+    for (const c of configRes.data ?? []) {
+      const pick = ((c.config as Record<string, unknown> | null)?.golf as { pick?: unknown } | undefined)?.pick;
+      pickByCompetition.set(c.id as string, pick === 'best' ? 'best' : 'first');
+    }
+
+    const contestsByCompetition = new Map<string, GolfContestRaw[]>();
+    for (const c of contests) {
+      const compId = c.competition_id as string;
+      if (!contestsByCompetition.has(compId)) contestsByCompetition.set(compId, []);
+      contestsByCompetition.get(compId)!.push({
+        id: c.id as string,
+        round: (c.round as string | null) ?? null,
+        status: c.status as string,
+        venue_id: (c.venue_id as string | null) ?? null,
+        holes: c.holes as number,
+        play_from: c.play_from as string,
+        play_to: c.play_to as string,
+      });
+    }
+
+    return {
+      contestsByCompetition,
+      participants: (participantsRes.data ?? []).map(p => ({
+        id: p.id as string,
+        contest_id: p.contest_id as string,
+        entry_id: p.entry_id as string,
+      })),
+      results: (resultsRes.data ?? []).map(r => ({
+        contest_id: r.contest_id as string,
+        participant_id: r.participant_id as string,
+        score: (r.score as number | null) ?? null,
+        payload: (r.payload as Record<string, unknown> | null) ?? null,
+        provenance: r.provenance as string,
+        dispute_status: (r.dispute_status as string | null) ?? null,
+      })),
+      courseNameByVenue,
+      pickByCompetition,
+    };
+  } catch {
+    // pre-172 (no holes/play_from) or an embed failure — the block is absent
+    return EMPTY_GOLF_RAW;
+  }
 }
