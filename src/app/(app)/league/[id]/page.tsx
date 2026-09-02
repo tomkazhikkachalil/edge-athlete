@@ -12,6 +12,8 @@ import AffiliationSection from '@/components/affiliations/AffiliationSection';
 import ParentLeaguesSection from '@/components/affiliations/ParentLeaguesSection';
 import OrgUpcomingEvents from '@/components/affiliations/OrgUpcomingEvents';
 import OrgStandings from '@/components/orgs/OrgStandings';
+import OrgVenues from '@/components/orgs/OrgVenues';
+import { orgSitePath } from '@/lib/org-sites/urls';
 import OrgRecentActivity from '@/components/affiliations/OrgRecentActivity';
 import { useToast } from '@/components/Toast';
 import { formatDisplayName, getInitials } from '@/lib/formatters';
@@ -84,6 +86,8 @@ interface LeagueResponse {
   league: LeagueInfo;
   /** 0.6b: derived sports (division sports ∪ cached primary), cached first. */
   sports?: string[];
+  /** Phase 6b A1: the published public site, or null (draft/none). */
+  site?: { subdomain: string } | null;
   memberCount: number;
   members: MemberRow[];
   viewerRole: string | null;
@@ -452,6 +456,24 @@ export default function LeaguePage() {
                     Edit league
                   </button>
                 )}
+                {/* Phase 6b A1: the two doors this page lacked — the org's
+                    public site (published only) and its console. */}
+                {data.site?.subdomain && (
+                  <Link
+                    href={orgSitePath(data.site.subdomain)}
+                    className="text-sm text-brand-fg hover:text-brand-fg-strong hover:underline"
+                  >
+                    Public site →
+                  </Link>
+                )}
+                {canManage && (
+                  <Link
+                    href={`/app/org/league/${league.id}`}
+                    className="text-sm text-brand-fg hover:text-brand-fg-strong hover:underline"
+                  >
+                    Manage league →
+                  </Link>
+                )}
               </div>
             </div>
           </div>
@@ -726,6 +748,8 @@ export default function LeaguePage() {
         </div>
 
         <OrgStandings side="league" orgId={league.id} />
+
+        <OrgVenues side="league" orgId={league.id} />
 
         <OrgUpcomingEvents side="league" orgId={league.id} />
 

@@ -19,12 +19,14 @@ type Admin = SupabaseClient<any, 'public', any>;
 
 const TAG = '[ORG SITE REVALIDATE]';
 
-/** Purge the org's PUBLISHED site (if any) after a public-surface write. */
-export async function revalidateOrgSiteForOrg(
+/** The org's PUBLISHED site, or null (draft, none, or pre-155 database —
+ *  never an error). Phase 6b A1 also feeds the org pages' "Public site"
+ *  link from this, so the two surfaces agree on what "published" means. */
+export async function findPublishedSite(
   admin: Admin,
   side: OrgSide,
   orgId: string
-): Promise<void> {
+): Promise<{ subdomain: string } | null> {
   try {
     const { data: site } = await admin
       .from('org_sites')
@@ -32,11 +34,24 @@ export async function revalidateOrgSiteForOrg(
       .eq(side === 'league' ? 'league_id' : 'club_id', orgId)
       .not('published_at', 'is', null)
       .maybeSingle();
-    if (site?.subdomain) {
-      revalidateTag(`org-site:${site.subdomain}`, { expire: 0 });
-    }
+    return site?.subdomain ? { subdomain: site.subdomain as string } : null;
   } catch (error) {
-    console.warn(`${TAG} org lookup failed (write unaffected):`, error);
+    console.warn(`${TAG} org lookup failed:`, error);
+    return null;
+  }
+}
+
+/** Purge the org's PUBLISHED site (if any) after a public-surface write. */
+export async function revalidateOrgSiteForOrg(
+  admin: Admin,
+  side: OrgSide,
+  orgId: string
+): Promise<void> {
+  try {
+    const site = await findPublishedSite(admin, side, orgId);
+    if (site) revalidateTag(`org-site:${site.subdomain}`, { expire: 0 });
+  } catch (error) {
+    console.warn(`${TAG} revalidate failed (write unaffected):`, error);
   }
 }
 
