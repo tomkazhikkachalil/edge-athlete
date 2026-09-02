@@ -1,4 +1,4 @@
-# Launch Runbook — the four ops gates before real users
+# Launch Runbook — the five ops gates before real users
 
 Everything in this file is a **console/dashboard action** (nothing here ships
 in a PR), listed in priority order. Each section ends with a probe that proves
@@ -114,6 +114,10 @@ Rollback = unset the flag + build; claimed domains simply stop routing
 (the apex address always works).
 
 ## 5. (Optional decision) Custom domain — currently NOT pointed at Vercel
+
+Sep 1 note: §5a (above, on purpose — the platform env comes first) makes
+this apex load-bearing for TESTING org custom domains: the C2 prod probe
+uses a Tom-controlled subdomain of `edgeathlete.ca` as its test Host.
 
 Found Aug 23: `edgeathlete.ca`'s root A records are GoDaddy forwarding IPs —
 the app lives only at `edge-athlete.vercel.app`. This is NOT a launch gate,

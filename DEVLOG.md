@@ -1,5 +1,44 @@
 # Development Log
 
+## September 1, 2026 — Phase 6c D1: phase 6b LIVE + prod-proven; masterplan status sync; preview deployments off (#512, docs + config)
+
+**Phase 6b is live.** Vercel's free-tier cap (100 deployments per
+rolling 24h, and 37 of today's were PR previews) blocked every deploy
+after #506 until the oldest deployments aged out; a deploy of main
+(769167a — #507–#511) was accepted at 22:04 and went READY. Prod probes
+against it: `org-site-template.spec.ts` PASSED, `org-site-modules.spec.ts`
+PASSED, `org-site-domain.spec.ts` PASSED (the C1 claim/verify/remove
+lifecycle vs the live DB through the deployed routes),
+`org-site-domain-serving.spec.ts` self-skipped as designed (prod has no
+`CUSTOM_DOMAINS=1` yet — Tom's ops). Migrations 169–171 all verified.
+
+**Preview deployments off for feature branches.** Vercel's docs are
+explicit that an ignored/canceled build still counts as a created
+deployment, so `ignoreCommand` would not have helped; the only
+quota-safe control is `git.deploymentEnabled`. `vercel.json` now keeps
+`main` deploying and disables automatic deployments for `feat/**`,
+`fix/**`, `chore/**` and `docs/**`. Cost: no per-PR preview URL (we
+verify locally against the live DB and probe prod after merge, which is
+how every round has shipped). Proof on the next branch push: NO
+deployment row appears for the branch (not "Canceled" — nothing).
+House rule from here: ONE push per PR, no amend-and-force-push.
+
+**Docs sync.** `ORG_PLATFORM_MASTERPLAN.md` said "Status: design" with
+phase 6 as "later, on demand" and custom domains "shipped later": the
+status header, the domains decision row, the shipped module list (16
+keys), the shipped token set (text/primary/secondary deliberately
+skipped; public is light-only), the domain flow, §10's import bullets
+(ICS → 6c I1, stat-line CSV → 6c I2) and the §11 phase table (0–6b
+shipped, 6b + 6c rows, payments SKIPPED, the projection spike resolved)
+now say what shipped. `CLAUDE.md`'s masterplan bullet moved from
+"phases 0–3" to "0–6b"; `LAUNCH_RUNBOOK.md` counts five gates and notes
+the apex is now C2's test host. No e2e (docs + config); phone-width n/a.
+
+**Phase 6c opens** (plan approved tonight): G1 golf leaderboard rules +
+mig 172 → G2 the sync engine that fills league standings from
+member-posted rounds → G3 the two-page club/league defaults → I1 ICS
+schedule import → I2 per-athlete stat-line CSV import.
+
 ## September 1, 2026 — Phase 6b close: the domain specs run for real (#511, e2e-only)
 
 Tom merged #507–#510 and ran 171 (grid verified; the anon RPCs answer

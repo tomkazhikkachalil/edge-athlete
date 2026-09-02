@@ -4,10 +4,11 @@ Clubs, schools, and leagues run their entire online presence inside Edge
 Athlete. Their website is not a thing they maintain. It is a rendering of
 their EA data.
 
-**Status: design.** Supersedes nothing yet. Companion to
-`docs/LAUNCH_RUNBOOK.md`. The build order against the current schema —
-the "revised phase 0" of ten steps replacing this document's phase 0 —
-lives in the DEVLOG round that landed this file.
+**Status: phases 0–6b SHIPPED (Aug 30–Sep 1 2026).** This document is the
+design reference; `DEVLOG.md` is the round-by-round record and wins on any
+conflict. Payments (§11 phase 6) is deliberately skipped. Phase 6c (golf
+leagues that fill themselves from member rounds, the import leftovers) is
+in flight — see the DEVLOG. Companion to `docs/LAUNCH_RUNBOOK.md`.
 
 ## 1. The thesis
 
@@ -48,7 +49,7 @@ Second-order effects worth naming, because they justify the build cost:
 | Decision | Choice | Notes |
 | --- | --- | --- |
 | Builder depth (v1) | Themed templates, module toggles, brand tokens | No free-form layout |
-| Domains (v1) | `{slug}.edgeathlete.com` | Custom domains modeled now, shipped later |
+| Domains (v1) | `{slug}.edgeathlete.com` | Custom domains SHIPPED (phase 6b C1/C2, mig 171): claim → TXT verify → Vercel attach → activate; served behind the `CUSTOM_DOMAINS` build flag |
 | Registration | Capture data, no money movement | Schema assumes fees arrive later |
 | Venue vs org | Split | A golf club is both a venue and an org, stored separately |
 | Org type | Capability set, not enum | An association is a club and a league at once |
@@ -330,6 +331,11 @@ Home, Divisions and Teams, Team pages, Schedule, Standings, Stat leaders,
 News, Media galleries, Registration, Documents and policies, Staff
 directory, Venues and directions, Sponsors, Contact.
 
+Shipped (Sep 2026): the 16 keys in `MODULE_KEYS`
+(`src/lib/org-sites/validate.ts`) — hero, standings, schedule, teams, staff,
+venues, affiliations, sponsors, contact, news, gallery, register, courses
+(the golf club's linked catalog courses), divisions, leaders, documents.
+
 Every module reads live EA data. Ordering and nav labels are editable. That
 is the entire v1 builder.
 
@@ -343,19 +349,27 @@ else is derived.
 
 A token set: primary, secondary, accent, surface, text, logo, wordmark,
 favicon, and a typeface pair from a curated list. Templates supply layout,
-tokens supply brand. Because it is the same component library as the app,
-dark mode and phone-width parity come free, which keeps the existing
-production standard intact instead of forking it.
+tokens supply brand.
+
+Shipped (phase 6b B1/B2): accent, accentStrong, surface (plain|tinted),
+typeface (sans|serif as CSS stacks — no per-site webfont), wordmark, logo,
+a generated favicon, and two templates (classic, bold). `text`, `primary`
+and `secondary` were deliberately skipped (a user-set text colour on white
+is a contrast liability; the primaries collapse into the accents). The
+public segment is LIGHT-ONLY by rule — phone-width parity came free, dark
+mode did not (and is not wanted there).
 
 ### Routing and domains
 
 - v1: `{slug}.edgeathlete.com` for the public site.
 - `edgeathlete.com/org/{slug}` always resolves, and is what in-app links use.
-- Model `custom_domain` and `domain_verified_at` now. Verification by TXT
-  record, automated certificates, shipped in a later phase.
-- Pick one canonical URL and 301 the other. Once custom domains exist, the
-  org's own domain should be canonical, because the org cares about their
-  brand ranking.
+- Shipped (phase 6b C1/C2, mig 171): claim → TXT verify (`_edgeathlete.<domain>`)
+  → Vercel attach → activation by a reachability probe
+  (`/.well-known/edge-athlete`); the middleware serves the custom host by
+  rewrite and the apex 301s to an ACTIVE domain single-hop
+  (`src/lib/org-sites/domain-server.ts`, `domain-cache.ts`).
+- Canonical: once a domain is active every public URL mints on it
+  (`siteAbsoluteUrl`); until then the vanity `/{slug}` path is canonical.
 
 ### Rendering, and the biggest technical risk in this plan
 
@@ -477,13 +491,14 @@ keep the structure, empty the rosters, expire the season-scoped grants.
 
 Getting an association off their existing site is the actual sales obstacle.
 
-- Divisions and teams by CSV
-- Rosters by CSV per team, creating unclaimed athlete stubs
-- Schedule by CSV or ICS
+- Divisions and teams by CSV — shipped (phase 6 R5)
+- Rosters by CSV per team, creating unclaimed athlete stubs — shipped (phase 1)
+- Schedule by CSV — shipped (phase 6 R6); by ICS — phase 6c I1
 - Historical results, optional, tagged with imported provenance and visibly
-  labeled
+  labeled — shipped (phase 6 R6)
 - Claim flow: an email or guardian invite converts a stub into a real
-  profile and merges its history
+  profile and merges its history — shipped (phase 1)
+- Per-athlete stat lines by CSV (roster-matched) — phase 6c I2
 
 The stub and claim path is the growth loop, not an import edge case. A
 league handing over four thousand kids is four thousand invitations with a
@@ -501,22 +516,27 @@ entry, phone-width parity.
 
 | Phase | Scope | Exit condition |
 | --- | --- | --- |
-| 0 | Foundations: capabilities, affiliation, venue and facility split, season, division, scoped role grants | Schema and policy tests pass, admin-only UI |
-| 1 | Onboarding wizard, org dashboard, division and team CRUD, rosters with stubs and claim | An association can self-onboard and roster a team |
-| 2 | Competition model, four formats behind the adapter, house league and external league, standings | KMHA runs a house league and a rep season on EA |
-| 3 | Public site: templates, tokens, modules, subdomain routing, public projection, SEO | A public site is live, fast, and indexed |
-| 4 | Automatic flows: stat to profile with provenance, contest-scoped media attribution, guardian gates | A result and a photo reach an athlete profile with no manual linking |
-| 5 | Registration capture, programs, eligibility, placement workflow | A season runs end to end from registration to standings |
-| 6 | Custom domains, payments, sanctioning chain, block builder | Later, on demand |
+| 0 | Foundations: capabilities, affiliation, venue and facility split, season, division, scoped role grants | SHIPPED (migs 140–150) |
+| 1 | Onboarding wizard, org dashboard, division and team CRUD, rosters with stubs and claim | SHIPPED |
+| 2 | Competition model, four formats behind the adapter, house league and external league, standings | SHIPPED (migs 151–154) |
+| 3 | Public site: templates, tokens, modules, subdomain routing, public projection, SEO | SHIPPED (migs 155–156; block editor shipped here, not in phase 6) |
+| 4 | Automatic flows: stat to profile with provenance, contest-scoped media attribution, guardian gates | SHIPPED (migs 157–160) |
+| 5 | Registration capture, programs, eligibility, placement workflow | SHIPPED (migs 161–165) |
+| 6 | Vanity paths + slug engine, sanctioning chain, result disputes, CSV import (Tom's redefined scope) | SHIPPED (migs 166–168) |
+| 6b | Golf club page, builder depth (tokens, second template, three modules), custom domains | SHIPPED (migs 169–171) |
+| — | Payments | SKIPPED by decision (registrations stays the invoice anchor) |
+| 6c | Golf leagues that fill themselves from member rounds, ICS + stat-line imports, the two-page club/league defaults | IN FLIGHT |
 
-Phase 3 depends on the public projection spike. Do that spike during
-phase 2.
+The public projection spike (phase 2) resolved to posture A — service-role,
+viewer-independent reads in the (public) segment — with one recorded
+exception, the anon SECURITY DEFINER host RPCs of mig 171
+(`docs/HARDENING.md` §B4 #10).
 
 ## 12. Open questions and risks
 
 ### Technical
 
-- Public read path versus RLS. Highest technical risk. Spike before phase 3.
+- Public read path versus RLS. Resolved — see the note under §11 (posture A + the one recorded exception).
 - Scale: one hundred thousand orgs at one hundred teams each is ten million
   teams. Division queries, season clone, and standings recomputation all
   need to be batched from the start.
