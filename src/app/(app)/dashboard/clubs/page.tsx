@@ -40,6 +40,9 @@ interface AdminRequestRow {
   operates_competitions: boolean | null;
   operates_teams: boolean | null;
   structure_draft: { divisions?: unknown[]; teams?: unknown[] } | null;
+  /** Phase 7 C4: the provisioned club + a signed preview of its draft site. */
+  created_club_id?: string | null;
+  previewUrl?: string | null;
   connections_draft: { existing?: unknown[]; stubs?: { name: string }[] } | null;
   requester: {
     id: string;
@@ -300,6 +303,16 @@ export default function AdminClubsPage() {
                       </p>
                       {req.description && (
                         <p className="text-sm text-secondary mt-2 line-clamp-3">{req.description}</p>
+                      )}
+                      {req.previewUrl && (
+                        <a
+                          href={req.previewUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-block mt-2 text-sm text-brand-fg font-medium hover:text-brand-fg-strong"
+                        >
+                          Preview draft site ↗
+                        </a>
                       )}
                       {(req.operates_competitions !== null || req.structure_draft || req.connections_draft) && (
                         <div className="mt-2 flex flex-wrap gap-1.5">

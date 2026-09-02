@@ -60,6 +60,10 @@ test('club wizard: two sport sections + sported stub league → pending + draft 
     const conns = rows![0].connections_draft as { stubs: { name: string; sportKey?: string }[] };
     expect(conns.stubs).toEqual([{ name: 'QA Stub League', sportKey: 'ice_hockey' }]);
   } finally {
+    // C4: the request provisioned a pending club — delete it too (FK SET NULL would leak it).
+    const { data: provisioned } = await admin.from('club_requests').select('created_club_id').eq('requester_profile_id', userB.id);
+    const provisionedIds = (provisioned ?? []).map(r => r.created_club_id as string | null).filter((id): id is string => !!id);
+    if (provisionedIds.length) await admin.from('clubs').delete().in('id', provisionedIds);
     await admin.from('club_requests').delete().eq('requester_profile_id', userB.id);
     await ctx.close();
   }

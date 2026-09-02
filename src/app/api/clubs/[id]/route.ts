@@ -3,6 +3,8 @@ import { getServerAuth, requireAuth, getSupabaseAdmin } from '@/lib/auth-server'
 import { parseBody } from '@/lib/validation';
 import { ClubUpdateSchema, placeToClubColumns, isMissingTableError } from '@/lib/clubs/validate';
 import { getOrgAndRole, roleAllows } from '@/lib/orgs/authz';
+import { canViewPending, readApproval } from '@/lib/orgs/approval';
+import { isAdminEmail } from '@/lib/auth-server';
 import { orgMemberPreview, redactPendingRoster } from '@/lib/orgs/members';
 import { viewerRegistrationSummary } from '@/lib/orgs/registration-server';
 import { FEATURE_FLAGS } from '@/lib/features';
@@ -61,6 +63,17 @@ export async function GET(
     const canManage =
       roleAllows((viewerRole as OrgRole | null) ?? null, 'manage_members') ||
       (!!viewerId && viewerId === club.owner_profile_id);
+
+    // Phase 7 C4: a PENDING club (provisioned at request time, awaiting
+    // approval — 174) is visible to its managers and an admin only;
+    // everyone else gets the same 404 as a missing club.
+    const approval = await readApproval(supabase, 'club', id);
+    if (
+      approval.pending &&
+      !canViewPending({ canManage, isAdmin: isAdminEmail(user?.email, process.env.ADMIN_EMAILS) })
+    ) {
+      return NextResponse.json({ error: 'Club not found' }, { status: 404 });
+    }
     const members = redactPendingRoster([...memberRows], canManage, viewerId).sort(
       (a, b) => (ROLE_ORDER[a.role] ?? 9) - (ROLE_ORDER[b.role] ?? 9)
     );
@@ -70,6 +83,8 @@ export async function GET(
 
     return NextResponse.json({
       club,
+      // C4: awaiting approval (managers/admins only ever see this true).
+      pending: approval.pending,
       sports,
       // Phase 6b A1: the club page's "Public site" link — published only;
       // pre-155 or draft reads null (link hidden), never an error.

@@ -86,6 +86,10 @@ test('league wizard: full drive → pending banner + draft columns; duplicate 40
       await api.dispose();
     }
   } finally {
+    // C4: the request provisioned a pending league — delete it too (FK SET NULL would leak it).
+    const { data: provisioned } = await admin.from('league_requests').select('created_league_id').eq('requester_profile_id', userA.id);
+    const provisionedIds = (provisioned ?? []).map(r => r.created_league_id as string | null).filter((id): id is string => !!id);
+    if (provisionedIds.length) await admin.from('leagues').delete().in('id', provisionedIds);
     await admin.from('league_requests').delete().eq('requester_profile_id', userA.id);
   }
 });

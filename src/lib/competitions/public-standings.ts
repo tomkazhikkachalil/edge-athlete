@@ -10,6 +10,7 @@
 // session, so one cached entry serves everyone (authed or not).
 
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { readApproval } from '@/lib/orgs/approval';
 import type { OrgSide } from '@/lib/orgs/authz';
 import { resolveFixtureRule, resolveLeaderboardRule, type StandingsColumn } from './scoring';
 import { publicDisplayName, type MaskableProfile } from '@/lib/orgs/public-names';
@@ -74,6 +75,12 @@ export async function fetchPublicStandings(
 
   const { data: org } = await admin.from(orgTable).select('id, name').eq('id', orgId).maybeSingle();
   if (!org) return null;
+  // Phase 7 C4: a pending org (174) publishes nothing yet — the page keeps
+  // its shape (the org name, the empty state), never a 404 for managers
+  // previewing their own twin.
+  if ((await readApproval(admin, side, orgId)).pending) {
+    return { orgName: org.name as string, competitions: [] };
+  }
 
   const { data: competitions, error } = await admin
     .from('competitions')

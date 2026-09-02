@@ -6,6 +6,7 @@ import { placeToLeagueColumns, isMissingTableError } from '@/lib/leagues/validat
 import { LeagueRequestWizardSchema } from '@/lib/orgs/wizard-validate';
 import { isSportEnabled } from '@/lib/features';
 import type { SportKey } from '@/lib/sports/SportRegistry';
+import { provisionPendingOrg } from '@/lib/orgs/pending-org';
 
 // ── /api/leagues/requests — self-service "Start a league" (116) ─────────────
 // The org-signup flow: any signed-in user submits a request; admins decide
@@ -83,7 +84,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Failed to submit request' }, { status: 500 });
     }
 
-    return NextResponse.json({ request: row });
+    // Phase 7 C4: build while waiting — the pending league, its owner row,
+    // the optional home course and a draft site exist from now.
+    const provisioned = await provisionPendingOrg(supabase, 'league', row);
+    return NextResponse.json({
+      request: provisioned ? { ...row, created_league_id: provisioned.orgId } : row,
+      orgId: provisioned?.orgId ?? null,
+    });
   } catch (error) {
     if (error instanceof Response) return error;
     console.error('[LEAGUE REQUESTS] POST error:', error);

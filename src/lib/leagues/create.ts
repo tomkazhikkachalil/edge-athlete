@@ -29,6 +29,9 @@ export interface CreateLeagueInput {
   /** Capability flags (142) — absent ⇒ the column DEFAULTs apply (the
    *  wizard's tristate: NULL request columns pass nothing through). */
   capabilities?: { operatesCompetitions: boolean; operatesTeams: boolean };
+  /** Phase 7 C4 (174): undefined ⇒ live now (every direct/admin create);
+   *  null ⇒ PENDING (provisioned at request time, approval stamps it). */
+  approvedAt?: string | null;
 }
 
 export type CreateLeagueResult =
@@ -39,23 +42,29 @@ export async function createLeagueWithOwner(
   admin: Admin,
   input: CreateLeagueInput
 ): Promise<CreateLeagueResult> {
-  const { data: league, error: insertError } = await admin
+  const base = {
+    name: input.name,
+    description: input.description,
+    sport_key: input.sportKey,
+    owner_profile_id: input.ownerProfileId,
+    ...input.placeColumns,
+    ...(input.capabilities
+      ? {
+          operates_competitions: input.capabilities.operatesCompetitions,
+          operates_teams: input.capabilities.operatesTeams,
+        }
+      : {}),
+  };
+  const approvedAt = input.approvedAt === undefined ? new Date().toISOString() : input.approvedAt;
+  let { data: league, error: insertError } = await admin
     .from('leagues')
-    .insert({
-      name: input.name,
-      description: input.description,
-      sport_key: input.sportKey,
-      owner_profile_id: input.ownerProfileId,
-      ...input.placeColumns,
-      ...(input.capabilities
-        ? {
-            operates_competitions: input.capabilities.operatesCompetitions,
-            operates_teams: input.capabilities.operatesTeams,
-          }
-        : {}),
-    })
+    .insert({ ...base, approved_at: approvedAt })
     .select()
     .single();
+  if (insertError?.code === 'PGRST204' && /approved_at/.test(insertError.message ?? '')) {
+    // Pre-174 database: no approval state exists — the league is simply live.
+    ({ data: league, error: insertError } = await admin.from('leagues').insert(base).select().single());
+  }
   if (insertError || !league) {
     console.error('[LEAGUES CREATE] insert error:', insertError);
     return { error: 'insert_failed' };

@@ -340,6 +340,8 @@ export default function OrgConsolePage() {
   const [linkingVenueId, setLinkingVenueId] = useState<string | null>(null);
   const [courseQuery, setCourseQuery] = useState('');
   const [courseResults, setCourseResults] = useState<GolfCourse[]>([]);
+  // Phase 7 C4: awaiting approval — the console works, publishing waits.
+  const [pending, setPending] = useState(false);
 
   useEffect(() => {
     if (!validSide || !user?.id) return;
@@ -359,6 +361,7 @@ export default function OrgConsolePage() {
         if (orgRes.ok) {
           const data = await orgRes.json();
           if (!cancelled) setOrgName((data.league ?? data.club)?.name ?? null);
+          if (!cancelled) setPending(data.pending === true);
         }
         if (structureRes.status === 403 || structureRes.status === 401) {
           setAuthorized(false);
@@ -1011,7 +1014,17 @@ export default function OrgConsolePage() {
           <h1 className="text-2xl sm:text-3xl font-bold text-primary">
             <i className="fas fa-sitemap mr-2 text-brand-fg" aria-hidden="true"></i>
             {orgName ?? 'Organization'}
+            {pending && (
+              <span className="ml-3 align-middle inline-block px-2 py-0.5 text-xs font-semibold uppercase rounded-full bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300">
+                Pending approval
+              </span>
+            )}
           </h1>
+          {pending && (
+            <p className="mt-1 text-sm text-secondary">
+              Awaiting approval — you can keep building; publishing unlocks when approved.
+            </p>
+          )}
           <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-sm">
             <Link href={`/${side}/${orgId}`} className="text-brand-fg hover:text-brand-fg-strong">
               View public page
@@ -2708,7 +2721,9 @@ export default function OrgConsolePage() {
                       'Failed to update the site'
                     )
                   }
-                  className="px-3 py-1.5 text-sm rounded-md bg-brand text-white font-medium hover:bg-brand-hover transition-colors"
+                  disabled={!site.published_at && pending}
+                  title={!site.published_at && pending ? 'Awaiting approval — publishing unlocks when approved' : undefined}
+                  className="px-3 py-1.5 text-sm rounded-md bg-brand text-white font-medium hover:bg-brand-hover transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {site.published_at ? 'Unpublish' : 'Publish'}
                 </button>

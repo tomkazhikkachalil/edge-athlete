@@ -51,7 +51,11 @@ test('golf fast path: Golf pre-checked → home course prefills → two steps �
   expect(seedError, 'course seeded').toBeNull();
   const courseId = course!.id as string;
 
-  await admin.from('club_requests').delete().eq('requester_profile_id', userB.id);
+  // C4: the request provisioned a pending club — delete it too (FK SET NULL would leak it).
+    const { data: provisioned } = await admin.from('club_requests').select('created_club_id').eq('requester_profile_id', userB.id);
+    const provisionedIds = (provisioned ?? []).map(r => r.created_club_id as string | null).filter((id): id is string => !!id);
+    if (provisionedIds.length) await admin.from('clubs').delete().in('id', provisionedIds);
+    await admin.from('club_requests').delete().eq('requester_profile_id', userB.id);
   await resetRateBucket(admin, 'club-request', userB.id);
 
   const ctx = await page.context().browser()!.newContext({

@@ -129,6 +129,16 @@ export default function StartClubPage() {
               <p className="text-sm text-tertiary mt-1">
                 We&apos;ll notify you here as soon as it&apos;s decided. One request can be open at a time.
               </p>
+              {/* Phase 7 C4: build while waiting — the club and its draft site
+                  already exist; approval unlocks publishing. */}
+              {pending.created_club_id && (
+                <Link
+                  href={`/app/org/club/${pending.created_club_id}`}
+                  className="mt-3 inline-flex items-center px-3 py-2 text-sm rounded-lg bg-brand text-white font-medium hover:bg-brand-hover transition-colors"
+                >
+                  Open your console — build your site while you wait
+                </Link>
+              )}
             </div>
           </div>
         ) : (

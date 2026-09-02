@@ -3,6 +3,8 @@ import { requireAuth, requireAdmin, getSupabaseAdmin } from '@/lib/auth-server';
 import { parseBody } from '@/lib/validation';
 import { ClubRequestDecisionSchema, isMissingTableError } from '@/lib/clubs/validate';
 import { createClubWithOwner } from '@/lib/clubs/create';
+import { readApproval, shouldDeleteOnDecline } from '@/lib/orgs/approval';
+import { draftPreviewUrls } from '@/lib/orgs/pending-org';
 
 // ── /api/admin/club-requests — the decision queue (117) ──────────────────────
 // Mirror of /api/admin/league-requests: approval creates the club through
@@ -18,7 +20,7 @@ export async function GET(request: NextRequest) {
 
     const { data: rows, error } = await supabase
       .from('club_requests')
-      .select('id, requester_profile_id, name, description, city, region, country, created_at, operates_competitions, operates_teams, structure_draft, connections_draft')
+      .select('id, requester_profile_id, name, description, city, region, country, created_at, operates_competitions, operates_teams, structure_draft, connections_draft, created_club_id')
       .eq('status', 'pending')
       .order('created_at', { ascending: true });
     if (error) {
@@ -37,8 +39,20 @@ export async function GET(request: NextRequest) {
       : { data: [] };
     const byId = new Map((profiles ?? []).map(p => [p.id, p]));
 
+    // C4: a provisioned club has a DRAFT site — a signed preview link lets
+    // the admin see what they are approving (requireOrgManager gives admins
+    // nothing, so the queue mints it). Best-effort: no site/secret → null.
+    const previewByOrg = await draftPreviewUrls(
+      supabase,
+      'club',
+      list.map(r => (r as { created_club_id?: string | null }).created_club_id ?? null)
+    );
     return NextResponse.json({
-      requests: list.map(r => ({ ...r, requester: byId.get(r.requester_profile_id) ?? null })),
+      requests: list.map(r => ({
+        ...r,
+        requester: byId.get(r.requester_profile_id) ?? null,
+        previewUrl: previewByOrg.get((r as { created_club_id?: string | null }).created_club_id ?? '') ?? null,
+      })),
     });
   } catch (error) {
     if (error instanceof Response) return error;
@@ -80,7 +94,15 @@ export async function PATCH(request: NextRequest) {
     const decidedAt = new Date().toISOString();
 
     if (decision === 'approve') {
-      const created = await createClubWithOwner(supabase, {
+      // C4: BUILD WHILE WAITING — the club usually already exists (provisioned
+      // at request time, approved_at NULL). ADOPT it: structure replays into
+      // it, approval stamps approved_at, and a failure never deletes it (it
+      // holds the owner's work). No provisioned club → today's create path.
+      const { data: adoptedRow } = row.created_club_id
+        ? await supabase.from('clubs').select('*').eq('id', row.created_club_id).is('approved_at', null).maybeSingle()
+        : { data: null };
+      const adopted = (adoptedRow as { id: string; name: string } | null) ?? null;
+      const created = adopted ? { club: adopted } : await createClubWithOwner(supabase, {
         name: row.name,
         description: row.description,
         ownerProfileId: row.requester_profile_id,
@@ -116,7 +138,7 @@ export async function PATCH(request: NextRequest) {
         const replayed = await replayStructure(supabase, { side: 'club', orgId: created.club.id }, plan);
         if (!replayed.ok) {
           console.error('[ADMIN CLUB REQUESTS] structure replay failed at', replayed.step, replayed.status);
-          await supabase.from('clubs').delete().eq('id', created.club.id);
+          if (!adopted) await supabase.from('clubs').delete().eq('id', created.club.id);
           return NextResponse.json(
             { error: 'Failed to build the club structure — the request is still pending; try approving again' },
             { status: 500 }
@@ -125,6 +147,17 @@ export async function PATCH(request: NextRequest) {
         structureCounts = replayed.counts;
       }
 
+      if (adopted) {
+        const { error: stampError } = await supabase
+          .from('clubs')
+          .update({ approved_at: decidedAt })
+          .eq('id', adopted.id)
+          .is('approved_at', null);
+        if (stampError) {
+          console.error('[ADMIN CLUB REQUESTS] approve stamp error:', stampError);
+          return NextResponse.json({ error: 'Failed to approve the club — try again' }, { status: 500 });
+        }
+      }
       const { data: claimed, error: claimError } = await supabase
         .from('club_requests')
         .update({
@@ -138,7 +171,7 @@ export async function PATCH(request: NextRequest) {
         .select();
       if (claimError || !claimed || claimed.length === 0) {
         if (claimError) console.error('[ADMIN CLUB REQUESTS] claim error:', claimError);
-        await supabase.from('clubs').delete().eq('id', created.club.id);
+        if (!adopted) await supabase.from('clubs').delete().eq('id', created.club.id);
         return NextResponse.json({ error: 'Request was decided by someone else' }, { status: 409 });
       }
 
@@ -190,6 +223,22 @@ export async function PATCH(request: NextRequest) {
     if (claimError || !claimed || claimed.length === 0) {
       if (claimError) console.error('[ADMIN CLUB REQUESTS] decline error:', claimError);
       return NextResponse.json({ error: 'Request was decided by someone else' }, { status: 409 });
+    }
+
+    // C4: a declined request's provisioned club goes away — ONLY while it
+    // is still pending (an approved club is never collateral). The
+    // cascade is the same rollback create.ts relies on; the request row
+    // keeps its name and drafts (FK SET NULL) so a resubmit is one click.
+    if (row.created_club_id) {
+      const approval = await readApproval(supabase, 'club', row.created_club_id);
+      if (approval.known && shouldDeleteOnDecline({ createdOrgId: row.created_club_id, approvedAt: approval.approvedAt })) {
+        const { error: deleteError } = await supabase
+          .from('clubs')
+          .delete()
+          .eq('id', row.created_club_id)
+          .is('approved_at', null);
+        if (deleteError) console.error('[ADMIN CLUB REQUESTS] pending club delete error:', deleteError);
+      }
     }
 
     const { notifyClubRequestResult } = await import('@/lib/clubs/notify');
