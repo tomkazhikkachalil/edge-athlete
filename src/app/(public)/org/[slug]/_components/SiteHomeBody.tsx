@@ -11,10 +11,12 @@ import type {
   PublicVenue,
 } from '@/lib/org-sites/public-data';
 import {
-  MODULE_TITLES,
+  moduleLabel,
   parseContact,
   parseHeroConfig,
+  parseNavConfig,
   parseSponsors,
+  parseThemeTokens,
 } from '@/lib/org-sites/validate';
 import AffiliationsList from './AffiliationsList';
 import ContactCard from './ContactCard';
@@ -56,6 +58,9 @@ export default function SiteHomeBody({
   const enabled = site.modules.filter(m => m.enabled);
   const has = (key: string) => enabled.some(m => m.module_key === key);
   const hero = parseHeroConfig(site.hero_config);
+  // B1: label overrides + wordmark (the header/hero name, never <title>).
+  const nav = parseNavConfig(site.nav_config);
+  const brandName = parseThemeTokens(site.theme_token_set).wordmark ?? site.orgName;
 
   const empty = (text: string) => <p className="mt-1 text-sm text-tertiary">{text}</p>;
 
@@ -164,7 +169,7 @@ export default function SiteHomeBody({
               'linear-gradient(to right, var(--org-accent), var(--org-accent-strong))',
           }}
         >
-          <h1 className="text-2xl sm:text-3xl font-bold">{hero.headline || site.orgName}</h1>
+          <h1 className="text-2xl sm:text-3xl font-bold">{hero.headline || brandName}</h1>
           <p className="mt-1 text-sm opacity-90">
             {hero.tagline || 'Schedules, standings, and teams — live.'}
           </p>
@@ -175,12 +180,10 @@ export default function SiteHomeBody({
         .map(m => (
           <section
             key={m.module_key}
-            aria-label={MODULE_TITLES[m.module_key] ?? m.module_key}
+            aria-label={moduleLabel(m.module_key, nav)}
             className="bg-surface rounded-lg shadow-sm border border-border p-4 sm:p-6"
           >
-            <h2 className="text-lg font-semibold text-primary">
-              {MODULE_TITLES[m.module_key] ?? m.module_key}
-            </h2>
+            <h2 className="text-lg font-semibold text-primary">{moduleLabel(m.module_key, nav)}</h2>
             {moduleBody(m.module_key)}
           </section>
         ))}

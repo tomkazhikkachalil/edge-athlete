@@ -1,7 +1,7 @@
 import { createElement } from 'react';
 import { ImageResponse } from 'next/og';
 import { getCachedSite } from '@/lib/org-sites/cached';
-import { deriveStrongAccent, parseThemeAccent } from '@/lib/org-sites/validate';
+import { parseThemeTokens, resolveAccentPair } from '@/lib/org-sites/validate';
 
 // ── /org/[slug]/card.png — the per-org share card (phase 3 R4) ─────────────
 // An EXPLICIT route instead of the opengraph-image convention file: under
@@ -28,8 +28,8 @@ export async function GET(
     return new Response('Not Found', { status: 404 });
   }
 
-  const accent = parseThemeAccent(site.theme_token_set) ?? '#8b5cf6';
-  const accentStrong = deriveStrongAccent(accent);
+  // B1: the explicit strong token wins over the derived companion.
+  const { accent, strong: accentStrong } = resolveAccentPair(parseThemeTokens(site.theme_token_set));
 
   const card = createElement(
     'div',

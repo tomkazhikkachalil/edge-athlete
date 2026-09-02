@@ -137,6 +137,100 @@ export function parseThemeAccent(themeTokenSet: unknown): string | null {
     : null;
 }
 
+// ── Brand tokens (phase 6b B1) ──────────────────────────────────────────────
+// The masterplan's token set, bounded for a LIGHT-ONLY site that loads no
+// per-site fonts: accent (+ an explicit strong companion), a surface tint,
+// a typeface pair of CSS STACKS, and a wordmark. `text`/`primary`/
+// `secondary` are deliberately absent — a user-set text colour on white
+// is a contrast liability, and the primaries collapse into the accents.
+
+export const THEME_TYPEFACES = ['sans', 'serif'] as const;
+export type ThemeTypeface = (typeof THEME_TYPEFACES)[number];
+export const THEME_SURFACES = ['plain', 'tinted'] as const;
+export type ThemeSurface = (typeof THEME_SURFACES)[number];
+export const WORDMARK_MAX = 40;
+
+export interface ThemeTokens {
+  accent: string | null;
+  /** The gradient end / link colour; null = deriveStrongAccent(accent). */
+  accentStrong: string | null;
+  surface: ThemeSurface;
+  typeface: ThemeTypeface;
+  /** Replaces the org name in the header + hero h1 only (never <title>). */
+  wordmark: string | null;
+}
+
+/** Defensive render-side parse of the whole token set — every key is
+ *  re-validated independently (the strict hex check is the inline-style
+ *  injection defense; enums fall back to their defaults). Never throws. */
+export function parseThemeTokens(themeTokenSet: unknown): ThemeTokens {
+  const raw =
+    themeTokenSet && typeof themeTokenSet === 'object'
+      ? (themeTokenSet as Record<string, unknown>)
+      : {};
+  const hex = (v: unknown): string | null =>
+    typeof v === 'string' && HEX_COLOR_RE.test(v) ? v.toLowerCase() : null;
+  const wordmark =
+    typeof raw.wordmark === 'string' && raw.wordmark.trim()
+      ? raw.wordmark.trim().slice(0, WORDMARK_MAX)
+      : null;
+  return {
+    accent: hex(raw.accent),
+    accentStrong: hex(raw.accentStrong),
+    surface: (THEME_SURFACES as readonly string[]).includes(raw.surface as string)
+      ? (raw.surface as ThemeSurface)
+      : 'plain',
+    typeface: (THEME_TYPEFACES as readonly string[]).includes(raw.typeface as string)
+      ? (raw.typeface as ThemeTypeface)
+      : 'sans',
+    wordmark,
+  };
+}
+
+/** The strong accent a site actually renders with (explicit token, else
+ *  the derived companion of the accent, else the violet default). */
+export function resolveAccentPair(tokens: ThemeTokens): { accent: string; strong: string } {
+  const accent = tokens.accent ?? '#8b5cf6';
+  const strong = tokens.accentStrong ?? (tokens.accent ? deriveStrongAccent(tokens.accent) : '#7c3aed');
+  return { accent, strong };
+}
+
+// ── Nav config (phase 6b B1 — nav_config comes alive) ───────────────────────
+// `[{ key, label? }]` in DISPLAY ORDER over the toggleable modules. The
+// server mirrors the order into org_site_modules.sort_order (per-row
+// UPDATE, never upsert), so the home sections and the nav strip follow
+// the same order; labels override MODULE_TITLES on the nav and the
+// section headings. Unknown keys are dropped at render.
+
+export const NAV_LABEL_MAX = 24;
+
+export interface NavConfig {
+  /** Module keys in display order (valid, deduped). */
+  order: string[];
+  labels: Record<string, string>;
+}
+
+export function parseNavConfig(navConfig: unknown): NavConfig {
+  const order: string[] = [];
+  const labels: Record<string, string> = {};
+  if (!Array.isArray(navConfig)) return { order, labels };
+  for (const item of navConfig) {
+    if (!item || typeof item !== 'object') continue;
+    const key = (item as Record<string, unknown>).key;
+    if (typeof key !== 'string' || !(MODULE_KEYS as readonly string[]).includes(key)) continue;
+    if (order.includes(key)) continue;
+    order.push(key);
+    const label = (item as Record<string, unknown>).label;
+    if (typeof label === 'string' && label.trim()) labels[key] = label.trim().slice(0, NAV_LABEL_MAX);
+  }
+  return { order, labels };
+}
+
+/** The visible name of a module on the public site. */
+export function moduleLabel(key: string, nav: NavConfig): string {
+  return nav.labels[key] ?? MODULE_TITLES[key] ?? key;
+}
+
 export interface PublicHero {
   headline: string;
   tagline: string;
@@ -246,6 +340,29 @@ export const SitePatchSchema = z.union([
       .regex(HEX_COLOR_RE, 'Must be a #rrggbb color')
       .refine(v => hexLuminance(v) <= ACCENT_MAX_LUMINANCE, 'Choose a darker color')
       .nullable(),
+    // Phase 6b B1 — the rest of the token set. Every key optional so the
+    // R3 accent-only shape keeps working; the server replaces the whole
+    // object from what the console sends (seeded from GET).
+    accentStrong: z
+      .string()
+      .regex(HEX_COLOR_RE, 'Must be a #rrggbb color')
+      .refine(v => hexLuminance(v) <= ACCENT_MAX_LUMINANCE, 'Choose a darker color')
+      .nullable()
+      .optional(),
+    surface: z.enum(THEME_SURFACES).optional(),
+    typeface: z.enum(THEME_TYPEFACES).optional(),
+    wordmark: optionalTrimmed(WORDMARK_MAX),
+  }),
+  z.object({
+    action: z.literal('set_nav'),
+    items: z
+      .array(
+        z.object({
+          key: z.enum(TOGGLEABLE_MODULE_KEYS),
+          label: optionalTrimmed(NAV_LABEL_MAX),
+        })
+      )
+      .max(20),
   }),
   z.object({
     action: z.literal('set_sponsors'),
