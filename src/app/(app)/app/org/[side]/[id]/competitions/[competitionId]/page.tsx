@@ -32,7 +32,13 @@ interface ParticipantRow {
   entry_id: string;
   side: 'home' | 'away' | null;
   entrant_name: string;
-  result: { score: number | null; provenance: string; dispute_status?: string | null } | null;
+  result: {
+    score: number | null;
+    provenance: string;
+    dispute_status?: string | null;
+    /** G2: the synced round's proof (gross/net/holes/tee/handicap/noRating). */
+    payload?: Record<string, unknown> | null;
+  } | null;
 }
 
 interface ContestRow {
@@ -128,6 +134,11 @@ export default function CompetitionDetailPage() {
   const [playTo, setPlayTo] = useState('');
   // Score entry: one expander at a time, values keyed by participant id.
   const [scoreContestId, setScoreContestId] = useState<string | null>(null);
+  // G2: the last sync report per contest (synced / kept / skipped with reasons).
+  const [syncReports, setSyncReports] = useState<
+    Record<string, { synced: number; kept: number; skipped: { profileId: string; reason: string }[]; blocked?: string }>
+  >({});
+  const [syncBusy, setSyncBusy] = useState<string | null>(null);
   // Phase 6 R4 (mig 168): dispute controls — inline note expander, never
   // a modal. Raising is withdrawable, so no confirm.
   const [disputeContestId, setDisputeContestId] = useState<string | null>(null);
@@ -285,6 +296,47 @@ export default function CompetitionDetailPage() {
       setRoundLabel('');
     }
   };
+
+  // G2: fill a league round from members' posted rounds / confirm it.
+  const syncRounds = async (contestId: string) => {
+    setSyncBusy(contestId);
+    try {
+      const res = await fetch(`${base}/golf-sync`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ contestId }),
+      });
+      const body = await res.json();
+      if (!res.ok) {
+        showError('Competition', body.error || 'Sync failed');
+        return;
+      }
+      const report = (body.reports ?? [])[0];
+      if (report) setSyncReports(prev => ({ ...prev, [contestId]: report }));
+      showSuccess(
+        'Competition',
+        report?.blocked
+          ? `Nothing synced — ${report.blocked}`
+          : `${report?.synced ?? 0} round${report?.synced === 1 ? '' : 's'} synced`
+      );
+      refresh();
+    } catch {
+      showError('Competition', 'Sync failed — please try again');
+    } finally {
+      setSyncBusy(null);
+    }
+  };
+  const confirmRounds = (contestId: string) =>
+    act(
+      `${base}/golf-sync/confirm`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ contestId }),
+      },
+      'Round confirmed',
+      'Failed to confirm the round'
+    );
 
   const publishContest = (contestId: string) =>
     act(
@@ -872,6 +924,32 @@ export default function CompetitionDetailPage() {
                             {scoreContestId === contest.id ? 'Close score' : scored ? 'Edit score' : 'Enter score'}
                           </button>
                         )}
+                        {/* G2: a golf league round fills itself. */}
+                        {contest.status !== 'canceled' &&
+                          competition.sport_key === 'golf' &&
+                          competition.format === 'leaderboard' &&
+                          !!contest.holes && (
+                            <>
+                              <button
+                                type="button"
+                                disabled={syncBusy === contest.id}
+                                onClick={() => void syncRounds(contest.id)}
+                                className="px-2 py-1 text-xs rounded-md border border-border-strong text-secondary hover:bg-surface-sunken transition-colors disabled:opacity-60"
+                              >
+                                {syncBusy === contest.id ? 'Syncing…' : 'Sync rounds'}
+                              </button>
+                              {contest.participants.some(p => p.result?.provenance === 'self_reported') && (
+                                <button
+                                  type="button"
+                                  aria-label="Confirm rounds"
+                                  onClick={() => void confirmRounds(contest.id)}
+                                  className="px-2 py-1 text-xs rounded-md border border-border-strong text-secondary hover:bg-surface-sunken transition-colors"
+                                >
+                                  Confirm rounds
+                                </button>
+                              )}
+                            </>
+                          )}
                         {contest.status !== 'canceled' &&
                           competition.format === 'fixture' &&
                           !!getStatSchema(competition.sport_key) && (
@@ -973,6 +1051,60 @@ export default function CompetitionDetailPage() {
                         </button>
                       </div>
                     </div>
+
+                    {/* G2: the synced rows — gross/net/holes with the provenance
+                        chip, and a plain reason for anyone gross-only or skipped. */}
+                    {competition.sport_key === 'golf' &&
+                      competition.format === 'leaderboard' &&
+                      !!contest.holes &&
+                      (contest.participants.some(p => p.result) || syncReports[contest.id]) && (
+                        <div className="mt-2 border-t border-border-subtle pt-2 text-xs text-secondary space-y-1">
+                          {contest.participants
+                            .filter(p => p.result)
+                            .map(p => {
+                              const payload = (p.result?.payload ?? {}) as {
+                                gross?: number;
+                                net?: number;
+                                holes?: number;
+                                tee?: string | null;
+                                courseHandicap?: number;
+                                noRating?: boolean;
+                                noIndex?: boolean;
+                              };
+                              return (
+                                <p key={p.id}>
+                                  <span className="font-medium text-primary">{p.entrant_name}</span>
+                                  {typeof payload.gross === 'number'
+                                    ? ` · gross ${payload.gross}${typeof payload.net === 'number' ? ` · net ${payload.net} (CH ${payload.courseHandicap})` : ''}${payload.holes ? ` · ${payload.holes} holes` : ''}${payload.tee ? ` · ${payload.tee}` : ''}`
+                                    : ` · ${p.result?.score ?? '—'}`}
+                                  <span className="ml-2 rounded-full border border-border px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-tertiary">
+                                    {p.result?.provenance === 'self_reported'
+                                      ? 'posted'
+                                      : p.result?.provenance === 'league_verified'
+                                        ? 'verified'
+                                        : (p.result?.provenance ?? '')}
+                                  </span>
+                                  {payload.noRating && (
+                                    <span className="ml-2 text-amber-700">no rating for this tee — gross only</span>
+                                  )}
+                                  {payload.noIndex && (
+                                    <span className="ml-2 text-amber-700">no handicap index yet — gross only</span>
+                                  )}
+                                </p>
+                              );
+                            })}
+                          {syncReports[contest.id]?.blocked && (
+                            <p className="text-amber-700">Nothing synced — {syncReports[contest.id].blocked}</p>
+                          )}
+                          {syncReports[contest.id]?.skipped.map(s => (
+                            <p key={s.profileId} className="text-tertiary">
+                              {contest.participants.find(p => p.entry_id && entries.find(e => e.id === p.entry_id)?.profile_id === s.profileId)?.entrant_name ?? 'A member'}
+                              {' — '}
+                              {s.reason}
+                            </p>
+                          ))}
+                        </div>
+                      )}
 
                     {disputeContestId === contest.id && (
                       <div className="mt-2 flex flex-wrap items-end gap-2 border-t border-border-subtle pt-2">
