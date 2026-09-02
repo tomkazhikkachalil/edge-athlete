@@ -1,5 +1,41 @@
 # Development Log
 
+## September 1, 2026 — Phase 6b B1: builder depth, part 1 — brand tokens, favicon, nav labels + order (#506, zero DDL)
+
+The masterplan's §6 token set was a single `accent`; `nav_config` and
+`template_id` were read nowhere. B1 closes the bounded, light-only,
+zero-payload half:
+
+- **Tokens** (`parseThemeTokens`, strict per-key render-side parse — the
+  inline-style injection defense, never throws): `accent` (as before),
+  `accentStrong` (an explicit gradient end / link colour, same
+  luminance floor; `resolveAccentPair` derives it otherwise),
+  `surface: plain|tinted` (a 4% accent color-mix on the canvas),
+  `typeface: sans|serif` (CSS STACKS via a `data-typeface` attribute —
+  the public segment still loads exactly one build-time font), and
+  `wordmark` (≤40, replaces the org name in the header and hero h1,
+  NEVER `<title>`/JSON-LD). `text`/`primary`/`secondary` deliberately
+  skipped (contrast liability; they collapse into the accents).
+  `set_theme` widened additively — the R3 accent-only shape still
+  works; card.png honours the strong token.
+- **Favicon**: `org/[slug]/favicon.svg` (+ vanity twin) — a hand-written
+  SVG in the accent with the brand's initial (no `next/og` outside
+  card.png, the B4 guardrail); the layout's `generateMetadata` advertises
+  the uploaded logo when there is one, else the SVG. The middleware
+  matcher already skips `*.svg`, so it never pays the auth round trip.
+- **nav_config comes alive**: `[{ key, label? }]` in display order over
+  the toggleable modules; `set_nav` writes it AND mirrors the order into
+  `org_site_modules.sort_order` (per-row UPDATE, never upsert), so the
+  nav strip and the home sections follow one order; `moduleLabel`
+  overrides `MODULE_TITLES` on the nav and the section headings.
+  Console: the Sections list gains a label input + ▲/▼ per module and
+  a "Save layout" button; the accent block became a "Brand" form.
+- e2e `org-site-brand.spec.ts`: too-light strong accent 400 → the full
+  set → `set_nav` mirrored into sort_order → the raw document carries
+  `data-typeface`/`data-surface`/the strong var/the wordmark (title
+  untouched)/labels in order → favicon.svg 200 `image/svg+xml` with the
+  accent + initial → reset returns the defaults → console at 375px.
+
 ## September 1, 2026 — Maintenance round at the phase-6 close: all gates green (#503)
 
 Tom's requested full sweep at the arc's close, no code changes needed:

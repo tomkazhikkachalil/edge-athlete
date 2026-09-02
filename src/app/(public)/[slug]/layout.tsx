@@ -12,6 +12,8 @@ import OrgSiteLayout from '../org/[slug]/layout';
 // build, not a redeploy (the ORG_SUBDOMAINS precedent).
 
 export const revalidate = 300;
+// B1: the per-site favicon rides the same metadata on the vanity tree.
+export { generateMetadata } from '../org/[slug]/layout';
 
 export default async function VanityOrgLayout(props: {
   children: React.ReactNode;

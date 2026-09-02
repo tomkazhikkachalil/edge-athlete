@@ -3,11 +3,13 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { getCachedPages, getCachedSite } from '@/lib/org-sites/cached';
 import { orgLogoUrl } from '@/lib/media/org-site-media';
+import type { Metadata } from 'next';
 import {
-  deriveStrongAccent,
   MODULE_SUBPAGE_KEYS,
-  MODULE_TITLES,
-  parseThemeAccent,
+  moduleLabel,
+  parseNavConfig,
+  parseThemeTokens,
+  resolveAccentPair,
 } from '@/lib/org-sites/validate';
 import { orgSitePath } from '@/lib/org-sites/urls';
 
@@ -22,6 +24,21 @@ import { orgSitePath } from '@/lib/org-sites/urls';
 
 export const revalidate = 300;
 
+/** Phase 6b B1: the per-site favicon — the uploaded logo when there is
+ *  one (the tokenless streamer), else the generated /favicon.svg. Pages
+ *  merge their own title/canonical over this; none of them sets icons. */
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ slug: string }>;
+}): Promise<Metadata> {
+  const { slug } = await params;
+  const site = await getCachedSite(slug);
+  if (!site) return {};
+  const icon = orgLogoUrl(site.id, site.logo_path) ?? `${orgSitePath(site.subdomain)}/favicon.svg`;
+  return { icons: { icon } };
+}
+
 export default async function OrgSiteLayout({
   children,
   params,
@@ -33,24 +50,32 @@ export default async function OrgSiteLayout({
   const site = await getCachedSite(slug);
   if (!site) notFound();
 
-  const navKeys = MODULE_SUBPAGE_KEYS.filter(key =>
-    site.modules.some(m => m.module_key === key && m.enabled)
-  );
+  // B1: nav follows the modules' sort_order (set_nav mirrors the list
+  // into it) and honours label overrides from nav_config.
+  const nav = parseNavConfig(site.nav_config);
+  const navKeys = site.modules
+    .filter(m => m.enabled && (MODULE_SUBPAGE_KEYS as readonly string[]).includes(m.module_key))
+    .map(m => m.module_key);
   // R3: public custom pages join the nav after the module links.
   const pages = await getCachedPages(slug, site.id);
 
-  // Strict hex re-validation at render (parseThemeAccent) is the
+  // Strict per-key re-validation at render (parseThemeTokens) is the
   // inline-style injection defense — never interpolate the raw jsonb.
-  const accent = parseThemeAccent(site.theme_token_set);
-  const accentStyle = accent
-    ? ({
-        '--org-accent': accent,
-        '--org-accent-strong': deriveStrongAccent(accent),
-      } as React.CSSProperties)
-    : undefined;
+  const tokens = parseThemeTokens(site.theme_token_set);
+  const { accent, strong } = resolveAccentPair(tokens);
+  const accentStyle =
+    tokens.accent || tokens.accentStrong
+      ? ({ '--org-accent': accent, '--org-accent-strong': strong } as React.CSSProperties)
+      : undefined;
+  const brandName = tokens.wordmark ?? site.orgName;
 
   return (
-    <div className="org-scope min-h-screen flex flex-col bg-canvas" style={accentStyle}>
+    <div
+      className="org-scope min-h-screen flex flex-col bg-canvas"
+      style={accentStyle}
+      data-typeface={tokens.typeface}
+      data-surface={tokens.surface}
+    >
       {/* R5 a11y: keyboard users skip the header/nav straight to content.
           sr-only until focused (the global :focus-visible ring shows it). */}
       <a
@@ -77,7 +102,7 @@ export default async function OrgSiteLayout({
             {/* block, not inline — truncate's ellipsis only works on a
                 block box, and an inline span's nowrap overflows 375px. */}
             <span className="block min-w-0 text-xl font-bold text-primary truncate">
-              {site.orgName}
+              {brandName}
             </span>
           </Link>
         </div>
@@ -96,7 +121,7 @@ export default async function OrgSiteLayout({
                   href={`${orgSitePath(site.subdomain)}/${key}`}
                   className="text-sm font-medium text-secondary"
                 >
-                  {MODULE_TITLES[key]}
+                  {moduleLabel(key, nav)}
                 </Link>
               ))}
               {pages.map(p => (

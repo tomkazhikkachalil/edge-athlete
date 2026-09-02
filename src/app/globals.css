@@ -692,6 +692,18 @@ body {
   --brand-fg-strong: var(--org-accent-strong);
   --brand-soft: color-mix(in srgb, var(--org-accent) 10%, white);
 }
+/* Phase 6b B1 brand tokens — zero payload by design: typefaces are CSS
+ * stacks (the public segment never loads a per-site webfont) and the
+ * surface tint is a color-mix of the accent. Both ride data attributes
+ * the layout stamps from the re-validated token set. */
+.org-scope[data-typeface='serif'] h1,
+.org-scope[data-typeface='serif'] h2,
+.org-scope[data-typeface='serif'] h3 {
+  font-family: Georgia, 'Times New Roman', Times, serif;
+}
+.org-scope[data-surface='tinted'] {
+  --color-canvas: color-mix(in srgb, var(--org-accent) 4%, white);
+}
 
 /* Long-press targets: a 400ms press must open OUR surface, not the OS text
  * selection (iOS loupe/callout) — the two fight, and selection wins ugly.

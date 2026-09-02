@@ -418,3 +418,106 @@ describe('page blocks (R3)', () => {
     expect(PagePatchSchema.safeParse({ visibility: 'public' }).success).toBe(true);
   });
 });
+
+// ── Phase 6b B1: brand tokens + nav config ──────────────────────────────────
+import {
+  moduleLabel,
+  parseNavConfig,
+  parseThemeTokens,
+  resolveAccentPair,
+} from '../validate';
+
+describe('parseThemeTokens', () => {
+  it('re-validates every key independently and never throws', () => {
+    expect(parseThemeTokens(null)).toEqual({
+      accent: null,
+      accentStrong: null,
+      surface: 'plain',
+      typeface: 'sans',
+      wordmark: null,
+    });
+    expect(parseThemeTokens('garbage')).toMatchObject({ accent: null, typeface: 'sans' });
+    const parsed = parseThemeTokens({
+      accent: '#0F766E',
+      accentStrong: 'javascript:alert(1)',
+      surface: 'tinted',
+      typeface: 'comic',
+      wordmark: '  Kanata Golf  ',
+    });
+    expect(parsed).toEqual({
+      accent: '#0f766e',
+      accentStrong: null,
+      surface: 'tinted',
+      typeface: 'sans',
+      wordmark: 'Kanata Golf',
+    });
+  });
+
+  it('caps the wordmark and resolves the accent pair', () => {
+    const long = parseThemeTokens({ wordmark: 'x'.repeat(80) });
+    expect(long.wordmark).toHaveLength(40);
+    expect(resolveAccentPair(parseThemeTokens({}))).toEqual({ accent: '#8b5cf6', strong: '#7c3aed' });
+    expect(resolveAccentPair(parseThemeTokens({ accent: '#0f766e' }))).toEqual({
+      accent: '#0f766e',
+      strong: '#0d645e',
+    });
+    expect(
+      resolveAccentPair(parseThemeTokens({ accent: '#0f766e', accentStrong: '#111111' })).strong
+    ).toBe('#111111');
+  });
+});
+
+describe('SitePatchSchema set_theme (B1 widening) + set_nav', () => {
+  it('keeps the accent-only shape and accepts the full token set', () => {
+    expect(SitePatchSchema.safeParse({ action: 'set_theme', accent: '#0f766e' }).success).toBe(true);
+    expect(
+      SitePatchSchema.safeParse({
+        action: 'set_theme',
+        accent: '#0f766e',
+        accentStrong: '#111111',
+        surface: 'tinted',
+        typeface: 'serif',
+        wordmark: 'KGCC',
+      }).success
+    ).toBe(true);
+    expect(
+      SitePatchSchema.safeParse({ action: 'set_theme', accent: null, accentStrong: '#ffffff' }).success
+    ).toBe(false);
+    expect(SitePatchSchema.safeParse({ action: 'set_theme', accent: null, typeface: 'mono' }).success).toBe(
+      false
+    );
+  });
+
+  it('set_nav takes toggleable keys with optional short labels', () => {
+    expect(
+      SitePatchSchema.safeParse({
+        action: 'set_nav',
+        items: [{ key: 'standings', label: 'Tables' }, { key: 'schedule' }],
+      }).success
+    ).toBe(true);
+    expect(SitePatchSchema.safeParse({ action: 'set_nav', items: [{ key: 'hero' }] }).success).toBe(false);
+    expect(
+      SitePatchSchema.safeParse({ action: 'set_nav', items: [{ key: 'teams', label: 'x'.repeat(25) }] })
+        .success
+    ).toBe(false);
+  });
+});
+
+describe('parseNavConfig / moduleLabel', () => {
+  it('keeps valid keys in order, dedupes, drops junk, caps labels', () => {
+    const nav = parseNavConfig([
+      { key: 'schedule', label: ' Games ' },
+      { key: 'standings' },
+      { key: 'schedule', label: 'dupe' },
+      { key: 'nope', label: 'x' },
+      'garbage',
+      { key: 'teams', label: 'y'.repeat(40) },
+    ]);
+    expect(nav.order).toEqual(['schedule', 'standings', 'teams']);
+    expect(nav.labels.schedule).toBe('Games');
+    expect(nav.labels.teams).toHaveLength(24);
+    expect(moduleLabel('schedule', nav)).toBe('Games');
+    expect(moduleLabel('standings', nav)).toBe('Standings');
+    expect(parseNavConfig(null)).toEqual({ order: [], labels: {} });
+  });
+});

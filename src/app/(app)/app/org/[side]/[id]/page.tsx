@@ -11,7 +11,14 @@ import { useToast } from '@/components/Toast';
 import Image from 'next/image';
 import { FEATURE_FLAGS } from '@/lib/features';
 import { orgLogoUrl, orgMediaUrl } from '@/lib/media/org-site-media';
-import { MODULE_TITLES, TOGGLEABLE_MODULE_KEYS } from '@/lib/org-sites/validate';
+import {
+  MODULE_TITLES,
+  NAV_LABEL_MAX,
+  TOGGLEABLE_MODULE_KEYS,
+  WORDMARK_MAX,
+  parseNavConfig,
+  parseThemeTokens,
+} from '@/lib/org-sites/validate';
 import { orgSitePath } from '@/lib/org-sites/urls';
 import { SPORT_REGISTRY } from '@/lib/sports/SportRegistry';
 import OrgLogoUploader from '@/components/org/OrgLogoUploader';
@@ -221,6 +228,15 @@ export default function OrgConsolePage() {
   const [siteModules, setSiteModules] = useState<
     { module_key: string; enabled: boolean; config?: unknown }[]
   >([]);
+  // B1: brand tokens beyond the accent, and the per-section labels.
+  const [themeStrong, setThemeStrong] = useState('');
+  const [themeSurface, setThemeSurface] = useState<'plain' | 'tinted'>('plain');
+  const [themeTypeface, setThemeTypeface] = useState<'sans' | 'serif'>('sans');
+  const [themeWordmark, setThemeWordmark] = useState('');
+  const [navLabels, setNavLabels] = useState<Record<string, string>>({});
+  // Local display order for the Sections list (seeded from the rows' order;
+  // ▲/▼ reorder here, Save layout mirrors it into sort_order).
+  const [navOrder, setNavOrder] = useState<string[] | null>(null);
   // R3 branding editors — seeded from the site GET on every refresh.
   const [heroHeadline, setHeroHeadline] = useState('');
   const [heroTagline, setHeroTagline] = useState('');
@@ -323,6 +339,13 @@ export default function OrgConsolePage() {
             setHeroTagline(typeof heroConfig.tagline === 'string' ? heroConfig.tagline : '');
             const themeSet = (siteBody.site?.theme_token_set ?? {}) as { accent?: string };
             setThemeAccent(typeof themeSet.accent === 'string' ? themeSet.accent : '');
+            // B1: the rest of the token set + nav labels, seeded the same way.
+            const tokens = parseThemeTokens(siteBody.site?.theme_token_set);
+            setThemeStrong(tokens.accentStrong ?? '');
+            setThemeSurface(tokens.surface);
+            setThemeTypeface(tokens.typeface);
+            setThemeWordmark(tokens.wordmark ?? '');
+            setNavLabels(parseNavConfig(siteBody.site?.nav_config).labels);
             const sponsorsConfig = (siteBody.modules ?? []).find(
               (m: { module_key: string }) => m.module_key === 'sponsors'
             )?.config as { sponsors?: { name?: string; url?: string }[] } | undefined;
@@ -2175,46 +2198,117 @@ export default function OrgConsolePage() {
                 <div className="pt-2">
                   <p className="text-sm font-medium text-primary">Sections</p>
                   <p className="text-xs text-tertiary mb-2">
-                    Changes go live within a few minutes.
+                    Toggle, rename and reorder. Changes go live within a few minutes.
                   </p>
-                  <div className="flex flex-wrap gap-x-5 gap-y-1.5">
-                    {siteModules
-                      .filter(m =>
-                        (TOGGLEABLE_MODULE_KEYS as readonly string[]).includes(m.module_key)
-                      )
-                      .map(m => {
-                        const label = MODULE_TITLES[m.module_key] ?? m.module_key;
-                        return (
-                          <label
-                            key={m.module_key}
-                            className="flex items-center gap-2 text-sm text-secondary min-h-[28px]"
-                          >
-                            <input
-                              type="checkbox"
-                              checked={m.enabled}
-                              aria-label={`Toggle ${label} section`}
-                              onChange={() =>
-                                void act(
-                                  `/api/${plural}/${orgId}/site`,
-                                  {
-                                    method: 'PATCH',
-                                    headers: { 'Content-Type': 'application/json' },
-                                    body: JSON.stringify({
-                                      action: 'set_module',
-                                      moduleKey: m.module_key,
-                                      enabled: !m.enabled,
-                                    }),
-                                  },
-                                  'Section updated',
-                                  'Failed to update the section'
-                                )
-                              }
-                            />
-                            {label}
-                          </label>
-                        );
-                      })}
-                  </div>
+                  {(() => {
+                    // B1: the rows arrive in sort_order; the local order (▲/▼)
+                    // overlays it until Save layout mirrors it to the server.
+                    const toggleable = siteModules.filter(m =>
+                      (TOGGLEABLE_MODULE_KEYS as readonly string[]).includes(m.module_key)
+                    );
+                    const rowKeys = toggleable.map(m => m.module_key);
+                    const order = navOrder
+                      ? [...navOrder.filter(k => rowKeys.includes(k)), ...rowKeys.filter(k => !navOrder.includes(k))]
+                      : rowKeys;
+                    const byKey = new Map(toggleable.map(m => [m.module_key, m]));
+                    const move = (key: string, dir: -1 | 1) => {
+                      const i = order.indexOf(key);
+                      const j = i + dir;
+                      if (i < 0 || j < 0 || j >= order.length) return;
+                      const next = [...order];
+                      [next[i], next[j]] = [next[j], next[i]];
+                      setNavOrder(next);
+                    };
+                    return (
+                      <>
+                        <ul className="space-y-1.5">
+                          {order.map((key, index) => {
+                            const m = byKey.get(key)!;
+                            const label = MODULE_TITLES[key] ?? key;
+                            return (
+                              <li key={key} className="flex flex-wrap items-center gap-2 min-h-[28px]">
+                                <label className="flex items-center gap-2 text-sm text-secondary min-w-[9rem]">
+                                  <input
+                                    type="checkbox"
+                                    checked={m.enabled}
+                                    aria-label={`Toggle ${label} section`}
+                                    onChange={() =>
+                                      void act(
+                                        `/api/${plural}/${orgId}/site`,
+                                        {
+                                          method: 'PATCH',
+                                          headers: { 'Content-Type': 'application/json' },
+                                          body: JSON.stringify({
+                                            action: 'set_module',
+                                            moduleKey: key,
+                                            enabled: !m.enabled,
+                                          }),
+                                        },
+                                        'Section updated',
+                                        'Failed to update the section'
+                                      )
+                                    }
+                                  />
+                                  {label}
+                                </label>
+                                <input
+                                  type="text"
+                                  value={navLabels[key] ?? ''}
+                                  onChange={e =>
+                                    setNavLabels(prev => ({ ...prev, [key]: e.target.value }))
+                                  }
+                                  maxLength={NAV_LABEL_MAX}
+                                  placeholder={label}
+                                  aria-label={`${label} section label`}
+                                  className="px-2 py-1 border border-border-strong rounded-md outline-none text-xs w-36"
+                                />
+                                <span className="flex gap-1">
+                                  <button
+                                    type="button"
+                                    onClick={() => move(key, -1)}
+                                    disabled={index === 0}
+                                    aria-label={`Move ${label} up`}
+                                    className="ea-icon-btn h-8 w-8 text-tertiary disabled:opacity-40"
+                                  >
+                                    ▲
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => move(key, 1)}
+                                    disabled={index === order.length - 1}
+                                    aria-label={`Move ${label} down`}
+                                    className="ea-icon-btn h-8 w-8 text-tertiary disabled:opacity-40"
+                                  >
+                                    ▼
+                                  </button>
+                                </span>
+                              </li>
+                            );
+                          })}
+                        </ul>
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            const ok = await siteAct(
+                              {
+                                action: 'set_nav',
+                                items: order.map(key => ({
+                                  key,
+                                  ...(navLabels[key]?.trim() ? { label: navLabels[key].trim() } : {}),
+                                })),
+                              },
+                              'Layout saved',
+                              'Failed to save the layout'
+                            );
+                            if (ok) setNavOrder(null);
+                          }}
+                          className="mt-2 px-3 py-1.5 text-sm rounded-md border border-border-strong text-secondary hover:bg-surface-sunken transition-colors"
+                        >
+                          Save layout
+                        </button>
+                      </>
+                    );
+                  })()}
                 </div>
               )}
               {/* R3: site logo — square PNG through the shared editor,
@@ -2314,44 +2408,123 @@ export default function OrgConsolePage() {
                 </div>
               </div>
               <div className="pt-2 space-y-1.5">
-                <p className="text-sm font-medium text-primary">Accent color</p>
+                <p className="text-sm font-medium text-primary">Brand</p>
+                <p className="text-xs text-tertiary">
+                  Colors, a wordmark and a typeface. Very light colors are rejected — the
+                  hero text is white.
+                </p>
+                <div className="grid gap-2 sm:grid-cols-2">
+                  <label className="flex items-center gap-2 text-sm text-secondary">
+                    <input
+                      type="color"
+                      value={themeAccent || '#7c3aed'}
+                      onChange={e => setThemeAccent(e.target.value)}
+                      aria-label="Accent color"
+                      className="h-9 w-12 rounded-md border border-border-strong bg-surface p-0.5"
+                    />
+                    Accent
+                  </label>
+                  <label className="flex items-center gap-2 text-sm text-secondary">
+                    <input
+                      type="color"
+                      value={themeStrong || '#5b21b6'}
+                      onChange={e => setThemeStrong(e.target.value)}
+                      aria-label="Strong accent color"
+                      className="h-9 w-12 rounded-md border border-border-strong bg-surface p-0.5"
+                    />
+                    Strong accent (gradient end, links)
+                    {themeStrong && (
+                      <button
+                        type="button"
+                        onClick={() => setThemeStrong('')}
+                        className="text-xs text-tertiary hover:text-primary"
+                      >
+                        auto
+                      </button>
+                    )}
+                  </label>
+                  <label className="text-sm text-secondary">
+                    <span className="block text-xs font-medium text-secondary mb-1">Wordmark</span>
+                    <input
+                      type="text"
+                      value={themeWordmark}
+                      onChange={e => setThemeWordmark(e.target.value)}
+                      maxLength={WORDMARK_MAX}
+                      placeholder={orgName ?? 'Your name, as branded'}
+                      aria-label="Wordmark"
+                      className="w-full px-3 py-2 border border-border-strong rounded-md outline-none text-sm"
+                    />
+                  </label>
+                  <label className="text-sm text-secondary">
+                    <span className="block text-xs font-medium text-secondary mb-1">Typeface</span>
+                    <select
+                      value={themeTypeface}
+                      onChange={e => setThemeTypeface(e.target.value as 'sans' | 'serif')}
+                      aria-label="Typeface"
+                      className="w-full px-3 py-2 border border-border-strong rounded-md outline-none text-sm bg-surface"
+                    >
+                      <option value="sans">Sans (default)</option>
+                      <option value="serif">Serif headings</option>
+                    </select>
+                  </label>
+                  <fieldset className="text-sm text-secondary sm:col-span-2">
+                    <legend className="text-xs font-medium text-secondary mb-1">Background</legend>
+                    <div className="flex flex-wrap gap-4">
+                      <label className="flex items-center gap-2">
+                        <input
+                          type="radio"
+                          name="theme-surface"
+                          checked={themeSurface === 'plain'}
+                          onChange={() => setThemeSurface('plain')}
+                        />
+                        Plain
+                      </label>
+                      <label className="flex items-center gap-2">
+                        <input
+                          type="radio"
+                          name="theme-surface"
+                          checked={themeSurface === 'tinted'}
+                          onChange={() => setThemeSurface('tinted')}
+                        />
+                        Tinted with the accent
+                      </label>
+                    </div>
+                  </fieldset>
+                </div>
                 <div className="flex flex-wrap items-center gap-2">
-                  <input
-                    type="color"
-                    value={themeAccent || '#7c3aed'}
-                    onChange={e => setThemeAccent(e.target.value)}
-                    aria-label="Accent color"
-                    className="h-9 w-12 rounded-md border border-border-strong bg-surface p-0.5"
-                  />
                   <button
                     type="button"
                     onClick={() =>
                       void siteAct(
-                        { action: 'set_theme', accent: themeAccent || '#7c3aed' },
-                        'Accent updated',
-                        'Failed to update the accent'
+                        {
+                          action: 'set_theme',
+                          accent: themeAccent || '#7c3aed',
+                          accentStrong: themeStrong || null,
+                          surface: themeSurface,
+                          typeface: themeTypeface,
+                          ...(themeWordmark.trim() ? { wordmark: themeWordmark.trim() } : {}),
+                        },
+                        'Brand updated',
+                        'Failed to update the brand'
                       )
                     }
                     className="px-3 py-1.5 text-sm rounded-md border border-border-strong text-secondary hover:bg-surface-sunken transition-colors"
                   >
-                    Save accent
+                    Save brand
                   </button>
                   <button
                     type="button"
                     onClick={() =>
                       void siteAct(
                         { action: 'set_theme', accent: null },
-                        'Accent reset',
-                        'Failed to reset the accent'
+                        'Brand reset',
+                        'Failed to reset the brand'
                       )
                     }
                     className="px-3 py-1.5 text-sm rounded-md text-tertiary hover:bg-surface-sunken transition-colors"
                   >
                     Reset
                   </button>
-                  <span className="text-xs text-tertiary">
-                    Very light colors are rejected — the hero text is white.
-                  </span>
                 </div>
               </div>
               <div className="pt-2 space-y-1.5">

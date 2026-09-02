@@ -315,7 +315,16 @@ export async function sitePATCH(
           : // null clears back to the violet defaults. Whole-object replace on
             // every branch — the console always sends every field, seeded
             // from GET (a partial save would otherwise clear the rest).
-            { theme_token_set: input.accent ? { accent: input.accent.toLowerCase() } : {} };
+            // Phase 6b B1: the full token set rides the same replace.
+            {
+              theme_token_set: {
+                ...(input.accent ? { accent: input.accent.toLowerCase() } : {}),
+                ...(input.accentStrong ? { accentStrong: input.accentStrong.toLowerCase() } : {}),
+                ...(input.surface && input.surface !== 'plain' ? { surface: input.surface } : {}),
+                ...(input.typeface && input.typeface !== 'sans' ? { typeface: input.typeface } : {}),
+                ...(input.wordmark ? { wordmark: input.wordmark } : {}),
+              },
+            };
     const { data: updated, error } = await admin
       .from('org_sites')
       .update(patch)
@@ -329,6 +338,42 @@ export async function sitePATCH(
       return NextResponse.json({ error: 'Site not found' }, { status: 404 });
     }
     revalidateTag(`org-site:${updated[0].subdomain}`, { expire: 0 });
+    return NextResponse.json({ ok: true });
+  }
+
+  if (input.action === 'set_nav') {
+    // Phase 6b B1: nav_config (labels + display order) AND the module
+    // rows' sort_order follow the same list — per-row UPDATE, never
+    // upsert (an upsert would clobber enabled/config). Unlisted modules
+    // keep their sort_order; hero stays first at MODULE_KEYS index 0.
+    const { data: site } = await admin
+      .from('org_sites')
+      .select('id, subdomain')
+      .eq(orgColumn(side), orgId)
+      .maybeSingle();
+    if (!site) {
+      return NextResponse.json({ error: 'Site not found' }, { status: 404 });
+    }
+    const seen = new Set<string>();
+    const items = input.items.filter(i => (seen.has(i.key) ? false : (seen.add(i.key), true)));
+    const navConfig = items.map(i => ({ key: i.key, ...(i.label ? { label: i.label } : {}) }));
+    const { error } = await admin
+      .from('org_sites')
+      .update({ nav_config: navConfig })
+      .eq('id', site.id);
+    if (error) {
+      console.error(`${TAG} nav patch error:`, error);
+      return NextResponse.json({ error: 'Failed to update the navigation' }, { status: 500 });
+    }
+    for (let i = 0; i < items.length; i++) {
+      const { error: orderError } = await admin
+        .from('org_site_modules')
+        .update({ sort_order: i + 1 })
+        .eq('site_id', site.id)
+        .eq('module_key', items[i].key);
+      if (orderError) console.error(`${TAG} sort_order patch error:`, orderError);
+    }
+    revalidateTag(`org-site:${site.subdomain}`, { expire: 0 });
     return NextResponse.json({ ok: true });
   }
 
