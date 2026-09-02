@@ -60,6 +60,12 @@ export default function AdminDashboardPage() {
   const [flaggedSlugs, setFlaggedSlugs] = useState<
     { siteId: string; slug: string; orgName: string; side: string; published: boolean; verdict: string; reason?: string }[]
   >([]);
+  // Phase 6b C1: every claimed custom domain with its lifecycle state.
+  const [orgDomains, setOrgDomains] = useState<
+    { siteId: string; slug: string; orgName: string; side: string; domain: string; state: string; failure: string | null; awaitingPlatform: boolean }[]
+  >([]);
+  const [domainsPlatformConfigured, setDomainsPlatformConfigured] = useState(true);
+  const [domainsReload, setDomainsReload] = useState(0);
 
   useEffect(() => {
     if (!authLoading && !user) router.push('/');
@@ -107,6 +113,14 @@ export default function AdminDashboardPage() {
           const body = await response.json();
           if (!cancelled) setFlaggedSlugs(body.flagged ?? []);
         }
+        const domainsRes = await fetch('/api/admin/org-domains');
+        if (domainsRes.ok) {
+          const domainsBody = await domainsRes.json();
+          if (!cancelled) {
+            setOrgDomains(domainsBody.domains ?? []);
+            setDomainsPlatformConfigured(domainsBody.platformConfigured !== false);
+          }
+        }
       } catch {
         /* review list is advisory */
       }
@@ -114,7 +128,7 @@ export default function AdminDashboardPage() {
     return () => {
       cancelled = true;
     };
-  }, [authorized]);
+  }, [authorized, domainsReload]);
 
   const [syncedUserQuery, setSyncedUserQuery] = useState({ authorized, userQuery });
   if (syncedUserQuery.authorized !== authorized || syncedUserQuery.userQuery !== userQuery) {
@@ -382,6 +396,84 @@ export default function AdminDashboardPage() {
                   </span>
                   <span className={`text-xs ${f.verdict === 'refused' ? 'text-red-600 dark:text-red-400' : 'text-amber-700 dark:text-amber-300'}`}>
                     {f.reason ?? f.verdict}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
+
+        {/* Phase 6b C1: custom domains — the lifecycle list + retry actions. */}
+        {orgDomains.length > 0 && (
+          <section
+            aria-label="Custom domains"
+            className="bg-surface rounded-lg shadow-sm border border-border p-4 sm:p-6"
+          >
+            <h2 className="text-lg font-semibold text-primary mb-1">Custom domains</h2>
+            <p className="text-xs text-muted mb-3">
+              Claimed org domains and where each one is in claim → verify → connect → live.
+              {!domainsPlatformConfigured && (
+                <span className="text-amber-700 dark:text-amber-300">
+                  {' '}Vercel API env is not set — verified domains wait here until it is.
+                </span>
+              )}
+            </p>
+            <ul className="space-y-2">
+              {orgDomains.map(d => (
+                <li
+                  key={d.siteId}
+                  className="flex flex-wrap items-center justify-between gap-2 border border-border rounded-lg px-3 py-2 text-sm"
+                >
+                  <span className="min-w-0">
+                    <span className="font-medium text-primary">{d.domain}</span>
+                    <span className="text-muted"> → /{d.slug} · {d.orgName} ({d.side})</span>
+                  </span>
+                  <span className="flex items-center gap-2">
+                    <span
+                      className={`text-xs ${
+                        d.state === 'active'
+                          ? 'text-emerald-600'
+                          : d.state === 'failed'
+                            ? 'text-red-600 dark:text-red-400'
+                            : 'text-amber-700 dark:text-amber-300'
+                      }`}
+                    >
+                      {d.state}
+                      {d.awaitingPlatform ? ' (awaiting platform)' : ''}
+                      {d.failure ? ` — ${d.failure}` : ''}
+                    </span>
+                    {['verified', 'failed', 'attaching'].includes(d.state) && (
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          await fetch('/api/admin/org-domains', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ siteId: d.siteId, action: 'retry-attach' }),
+                          });
+                          setDomainsReload(k => k + 1);
+                        }}
+                        className="px-2 py-1 text-xs rounded-md border border-border-strong text-secondary hover:bg-surface-sunken"
+                      >
+                        Retry connect
+                      </button>
+                    )}
+                    {d.state === 'attached' && (
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          await fetch('/api/admin/org-domains', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ siteId: d.siteId, action: 'probe' }),
+                          });
+                          setDomainsReload(k => k + 1);
+                        }}
+                        className="px-2 py-1 text-xs rounded-md border border-border-strong text-secondary hover:bg-surface-sunken"
+                      >
+                        Probe
+                      </button>
+                    )}
                   </span>
                 </li>
               ))}

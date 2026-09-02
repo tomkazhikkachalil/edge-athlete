@@ -48,10 +48,16 @@ export interface SiteRow {
   hero_config: Record<string, unknown>;
   contact_config: Record<string, unknown>;
   published_at: string | null;
+  /** Phase 6b C1 (171) — absent on a pre-171 read. */
+  custom_domain?: string | null;
+  domain_active_at?: string | null;
 }
 
-const SITE_FIELDS =
+const SITE_FIELDS_BASE =
   'id, league_id, club_id, subdomain, template_id, theme_token_set, nav_config, logo_path, hero_config, contact_config, published_at';
+// Phase 6b C1: the render seam needs the active custom domain; pre-171
+// databases lack the columns, so every reader retries on 42703.
+const SITE_FIELDS = `${SITE_FIELDS_BASE}, custom_domain, domain_active_at`;
 
 /** Mint a free subdomain from the org name: base, then base-2..base-20.
  *  Reserved (shared denylist) and taken labels are skipped. */
@@ -84,11 +90,18 @@ export async function siteGET(
   side: OrgSide,
   orgId: string
 ): Promise<NextResponse> {
-  const { data, error } = await admin
+  let { data, error } = await admin
     .from('org_sites')
     .select(SITE_FIELDS)
     .eq(orgColumn(side), orgId)
     .maybeSingle();
+  if (error?.code === '42703') {
+    ({ data, error } = await admin
+      .from('org_sites')
+      .select(SITE_FIELDS_BASE)
+      .eq(orgColumn(side), orgId)
+      .maybeSingle());
+  }
   if (error && !isMissingTableError(error.code)) {
     console.error(`${TAG} site read error:`, error);
     return NextResponse.json({ error: 'Failed to load the site' }, { status: 500 });
@@ -236,7 +249,9 @@ export async function siteCreatePOST(
   const { data: site, error } = await admin
     .from('org_sites')
     .insert({ [orgColumn(side)]: orgId, subdomain })
-    .select(SITE_FIELDS)
+    // A fresh site has no domain — the base list keeps create working on a
+    // pre-171 database (the 42703 retry lives on the read paths).
+    .select(SITE_FIELDS_BASE)
     .single();
   if (error || !site) {
     if (error?.code === '23505') {
@@ -594,9 +609,15 @@ async function getSiteBySlugInternal(
   includeDrafts: boolean
 ): Promise<PublicSite | null> {
   if (!isValidSubdomain(slug.toLowerCase())) return null;
-  let query = admin.from('org_sites').select(SITE_FIELDS).ilike('subdomain', slug);
-  if (!includeDrafts) query = query.not('published_at', 'is', null);
-  const { data: site, error } = await query.maybeSingle();
+  const read = (fields: string) => {
+    let query = admin.from('org_sites').select(fields).ilike('subdomain', slug);
+    if (!includeDrafts) query = query.not('published_at', 'is', null);
+    return query.maybeSingle();
+  };
+  let { data: siteData, error } = await read(SITE_FIELDS);
+  if (error?.code === '42703') ({ data: siteData, error } = await read(SITE_FIELDS_BASE));
+  // The dynamic select string defeats supabase-js's type parser; cast once.
+  const site = siteData as unknown as SiteRow | null;
   if (error || !site) {
     if (error && !isMissingTableError(error.code)) {
       console.error(`${TAG} public site read error:`, error);
@@ -636,7 +657,7 @@ async function getSiteBySlugInternal(
     sport_key?: string | null;
   };
   return {
-    ...(site as SiteRow),
+    ...site,
     orgName: orgRow.name,
     side,
     orgId,

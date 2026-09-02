@@ -1,5 +1,55 @@
 # Development Log
 
+## September 1, 2026 — Phase 6b C1: custom domains — claim, verify, attach, activate (#509, mig 171)
+
+The masterplan's "custom domains modeled now, shipped later" gets its
+flow. An org points ITS domain (kmha.ca) at its site; every lifecycle
+step is a proof the previous one really happened, so a half-configured
+domain can never strand a visitor:
+
+- **Migration 171**: `domain_verification_token / requested_at /
+  vercel_state (+CHECK) / vercel_at / vercel_detail / active_at`, a
+  hostname CHECK on `custom_domain`, a partial UNIQUE index, and the
+  two **anon-granted SECURITY DEFINER RPCs** the Edge middleware will
+  use in C2 (`resolve_org_site_host`, `resolve_org_site_domain`) — THE
+  bounded posture-A exception (Tom's call): they expose only
+  (verified host ↔ slug) pairs for published sites. Recorded as
+  HARDENING §B4 invariant 10. ORDER-STRICT; app code ahead degrades
+  (site reads retry without the columns; domain routes answer 409).
+- **`domains.ts`** (pure, tested): `normalizeHostname`,
+  `isValidCustomDomain`, `isReservedDomain` (our apex + its root, Vercel,
+  Supabase, localhost), `dnsInstructions` (TXT ownership + CNAME, or an
+  A record for an apex), `domainState` — the one state function the
+  console, admin list and probes share: none → pending → verified →
+  attaching → attached → active | failed.
+- **`domain-server.ts`** (Node): claim (23505 → "in use", replacing a
+  claim resets everything and detaches the old domain best-effort);
+  verify (`node:dns` TXT lookup with a 6s cap; ENOTFOUND/ENODATA → a
+  human 409 "not visible yet"); attach via the Vercel REST API
+  (`POST /v10/projects/{id}/domains`; 409 = already added = attached;
+  **env unset → the domain parks as verified + awaitingPlatform**, so the
+  round ships before Tom's ops step); check = re-attach if needed, then
+  the reachability probe (`https://<domain>/.well-known/edge-athlete`
+  must answer the slug — the ONLY writer of `domain_active_at`);
+  detach. Rate bucket `org-domain` 10/h.
+- Routes (twins): `site/domain` GET/POST/DELETE, `site/domain/verify`,
+  `site/domain/check`; admin `org-domains` GET list + POST
+  retry-attach/probe. Console: a "Custom domain" block on published
+  sites (input → the DNS table → Verify DNS → Check connection →
+  Remove with confirm). Admin dashboard: the Custom domains list with
+  an env-not-set warning.
+- `SITE_FIELDS` now carries `custom_domain, domain_active_at` (42703
+  retry on pre-171) — the C2 render seam reads them.
+- e2e `org-site-domain.spec.ts` (self-skips pre-171): unpublished 409 →
+  claim stored lowercase + token + TXT/CNAME instructions → reserved
+  400 → duplicate 409 → verify against real DNS = the stable "not
+  visible yet" 409 → remove clears → console block at 375px.
+- `LAUNCH_RUNBOOK.md` §5a records the three Vercel env vars and the
+  registrar recipe.
+
+Deferred to C2: serving on the custom host (middleware rewrite via the
+RPCs), the apex → domain 301, per-host crawler files, the render seam.
+
 ## September 1, 2026 — Phase 6b B3: builder depth, part 3 — divisions, stat leaders, documents (#508, zero DDL)
 
 The three masterplan §6 modules that were still unbuilt (169 already

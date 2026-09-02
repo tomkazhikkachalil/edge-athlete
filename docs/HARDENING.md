@@ -117,6 +117,18 @@ are different in kind from the app's and each one is load-bearing:
    ISR TTL, which is documented-harmless because the registration POST
    re-gates on the live window. Links into the app are absolute via
    `appBaseUrl` (subdomain-safe).
+10. **The custom-domain RPCs are THE bounded posture-A exception** (phase 6b
+    C1, mig 171; Tom's call Sep 1). `org_sites` stays RLS-on/zero-policy/
+    anon-REVOKEd; two SECURITY DEFINER functions granted to anon —
+    `resolve_org_site_host(host) → (slug, active)` and
+    `resolve_org_site_domain(slug) → host` — expose ONLY (verified host ↔
+    slug) pairs for PUBLISHED sites, which the domain itself publishes. No
+    other column is reachable through them; widening either function's
+    return shape is a security review, not a refactor. The Edge middleware
+    (C2) is their only intended caller. Domain ACTIVATION (`domain_active_at`)
+    is set by exactly one path — the reachability probe of
+    `/.well-known/edge-athlete` answering the slug — so the apex never 301s
+    a visitor to a domain that doesn't route here (no dead ends).
 The guardrails script enforces the mechanical half (no `'use client'`,
 `next/headers`, or Font Awesome under `(public)`; `next/og` isolation);
 this sweep covers the rest by reading.

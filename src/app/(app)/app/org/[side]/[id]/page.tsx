@@ -151,6 +151,7 @@ export default function OrgConsolePage() {
     | { kind: 'page'; id: string; label: string }
     | { kind: 'news'; id: string; label: string }
     | { kind: 'venue'; id: string; label: string }
+    | { kind: 'domain'; id: string; label: string }
     | null
   >(null);
 
@@ -235,6 +236,18 @@ export default function OrgConsolePage() {
   const [siteModules, setSiteModules] = useState<
     { module_key: string; enabled: boolean; config?: unknown }[]
   >([]);
+  // C1: the custom-domain lifecycle (published sites only).
+  const [domainStatus, setDomainStatus] = useState<{
+    state: string;
+    domain: string | null;
+    instructions: { type: string; name: string; value: string; purpose: string }[];
+    platformVerification: { type: string; domain: string; value: string }[];
+    failure: string | null;
+    awaitingPlatform: boolean;
+    migrationPending?: boolean;
+  } | null>(null);
+  const [domainInput, setDomainInput] = useState('');
+  const [domainBusy, setDomainBusy] = useState(false);
   // B3: documents & policies drafts (stored PDF path OR https link).
   const [documentDrafts, setDocumentDrafts] = useState<
     { title: string; path: string; url: string }[]
@@ -385,6 +398,21 @@ export default function OrgConsolePage() {
             setThemeTypeface(tokens.typeface);
             setThemeWordmark(tokens.wordmark ?? '');
             setNavLabels(parseNavConfig(siteBody.site?.nav_config).labels);
+            // C1: the domain status rides its own GET (best-effort; a
+            // pre-171 database answers migrationPending).
+            if (siteBody.site?.published_at) {
+              try {
+                const domainRes = await fetch(`/api/${plural}/${orgId}/site/domain`);
+                if (domainRes.ok) {
+                  const domainBody = await domainRes.json();
+                  if (!cancelled) setDomainStatus(domainBody.domain ?? null);
+                }
+              } catch {
+                /* the block renders its empty state */
+              }
+            } else if (!cancelled) {
+              setDomainStatus(null);
+            }
             const documentsConfig = (siteBody.modules ?? []).find(
               (m: { module_key: string }) => m.module_key === 'documents'
             )?.config as { documents?: { title?: string; path?: string; url?: string }[] } | undefined;
@@ -736,6 +764,16 @@ export default function OrgConsolePage() {
     );
 
   const remove = (target: NonNullable<typeof confirmTarget>) => {
+    if (target.kind === 'domain') {
+      void act(
+        `/api/${plural}/${orgId}/site/domain`,
+        { method: 'DELETE' },
+        'Domain removed',
+        'Could not remove the domain',
+        'Website'
+      );
+      return;
+    }
     if (target.kind === 'venue') {
       void act(
         `/api/${plural}/${orgId}/venues/${target.id}`,
@@ -805,6 +843,28 @@ export default function OrgConsolePage() {
       setLinkingVenueId(null);
       setCourseQuery('');
       setCourseResults([]);
+    }
+  };
+
+  // C1: domain actions — each answers the fresh status; a 409 carries a
+  // human reason (DNS not visible yet, domain not reaching us yet).
+  const domainAction = async (path: string, init: RequestInit, successMessage: string) => {
+    setDomainBusy(true);
+    try {
+      const res = await fetch(path, init);
+      const body = await res.json();
+      if (body.domain) setDomainStatus(body.domain);
+      if (!res.ok) {
+        showError('Website', body.error || 'Domain step failed');
+        return false;
+      }
+      showSuccess('Website', successMessage);
+      return true;
+    } catch {
+      showError('Website', 'Domain step failed — please try again');
+      return false;
+    } finally {
+      setDomainBusy(false);
     }
   };
 
@@ -2476,6 +2536,161 @@ export default function OrgConsolePage() {
                   {site.published_at ? 'Unpublish' : 'Publish'}
                 </button>
               </div>
+              {/* C1: the custom domain — published sites only. Each step is
+                  a proof: TXT (ownership) → Vercel attach → the domain
+                  answers /.well-known/edge-athlete (only then does the
+                  Edge Athlete address 301 to it — no dead ends). */}
+              {site.published_at && (
+                <div className="pt-2 space-y-1.5">
+                  <p className="text-sm font-medium text-primary">Custom domain</p>
+                  {domainStatus?.migrationPending ? (
+                    <p className="text-xs text-tertiary">Custom domains are not available yet.</p>
+                  ) : !domainStatus || domainStatus.state === 'none' ? (
+                    <>
+                      <p className="text-xs text-tertiary">
+                        Use your own domain (for example kmha.ca) for this site. You will add two DNS
+                        records at your registrar.
+                      </p>
+                      <div className="flex flex-wrap gap-2">
+                        <input
+                          type="text"
+                          value={domainInput}
+                          onChange={e => setDomainInput(e.target.value)}
+                          placeholder="yourclub.ca"
+                          aria-label="Custom domain"
+                          className="px-3 py-2 border border-border-strong rounded-md outline-none text-sm min-w-0 flex-1"
+                        />
+                        <button
+                          type="button"
+                          disabled={domainBusy || !domainInput.trim()}
+                          onClick={async () => {
+                            const ok = await domainAction(
+                              `/api/${plural}/${orgId}/site/domain`,
+                              {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ domain: domainInput.trim() }),
+                              },
+                              'Domain saved — add the DNS records below'
+                            );
+                            if (ok) setDomainInput('');
+                          }}
+                          className="px-3 py-1.5 text-sm rounded-md border border-border-strong text-secondary hover:bg-surface-sunken transition-colors disabled:opacity-60"
+                        >
+                          Save domain
+                        </button>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <p className="text-sm text-secondary break-all">
+                        <span className="font-medium text-primary">{domainStatus.domain}</span>
+                        {' · '}
+                        <span
+                          className={
+                            domainStatus.state === 'active'
+                              ? 'text-emerald-600'
+                              : domainStatus.state === 'failed'
+                                ? 'text-red-600'
+                                : 'text-amber-600'
+                          }
+                        >
+                          {domainStatus.state === 'pending'
+                            ? 'waiting for DNS verification'
+                            : domainStatus.state === 'verified'
+                              ? domainStatus.awaitingPlatform
+                                ? 'verified — Edge Athlete will connect it shortly'
+                                : 'verified'
+                              : domainStatus.state === 'attaching'
+                                ? 'connecting'
+                                : domainStatus.state === 'attached'
+                                  ? 'connected — waiting for the domain to reach us'
+                                  : domainStatus.state === 'active'
+                                    ? 'live'
+                                    : `failed${domainStatus.failure ? ` — ${domainStatus.failure}` : ''}`}
+                        </span>
+                      </p>
+                      {domainStatus.state !== 'active' && domainStatus.instructions.length > 0 && (
+                        <div className="overflow-x-auto rounded-lg border border-border">
+                          <table className="w-full text-xs">
+                            <thead>
+                              <tr className="text-left text-muted bg-surface-sunken">
+                                <th scope="col" className="px-2 py-1.5 font-medium">Type</th>
+                                <th scope="col" className="px-2 py-1.5 font-medium">Name</th>
+                                <th scope="col" className="px-2 py-1.5 font-medium">Value</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {[
+                                ...domainStatus.instructions,
+                                ...domainStatus.platformVerification.map(v => ({
+                                  type: v.type,
+                                  name: v.domain,
+                                  value: v.value,
+                                  purpose: 'Requested by the platform',
+                                })),
+                              ].map((row, i) => (
+                                <tr key={i} className="border-t border-border">
+                                  <td className="px-2 py-1.5 font-medium text-primary">{row.type}</td>
+                                  <td className="px-2 py-1.5 font-mono text-secondary break-all">{row.name}</td>
+                                  <td className="px-2 py-1.5 font-mono text-secondary break-all">{row.value}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+                      <div className="flex flex-wrap gap-2">
+                        {domainStatus.state === 'pending' && (
+                          <button
+                            type="button"
+                            disabled={domainBusy}
+                            onClick={() =>
+                              void domainAction(
+                                `/api/${plural}/${orgId}/site/domain/verify`,
+                                { method: 'POST' },
+                                'Domain verified'
+                              )
+                            }
+                            className="px-3 py-1.5 text-sm rounded-md border border-border-strong text-secondary hover:bg-surface-sunken transition-colors disabled:opacity-60"
+                          >
+                            Verify DNS
+                          </button>
+                        )}
+                        {['verified', 'attaching', 'attached', 'failed'].includes(domainStatus.state) && (
+                          <button
+                            type="button"
+                            disabled={domainBusy}
+                            onClick={() =>
+                              void domainAction(
+                                `/api/${plural}/${orgId}/site/domain/check`,
+                                { method: 'POST' },
+                                'Your domain is live'
+                              )
+                            }
+                            className="px-3 py-1.5 text-sm rounded-md border border-border-strong text-secondary hover:bg-surface-sunken transition-colors disabled:opacity-60"
+                          >
+                            Check connection
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setConfirmTarget({
+                              kind: 'domain',
+                              id: site.id,
+                              label: domainStatus.domain ?? 'domain',
+                            })
+                          }
+                          className="px-3 py-1.5 text-sm rounded-md text-tertiary hover:text-red-600 hover:bg-surface-sunken transition-colors"
+                        >
+                          Remove domain
+                        </button>
+                      </div>
+                    </>
+                  )}
+                </div>
+              )}
               {/* R2: Sections — one toggle per non-hero module. act()
                   refreshes, so the checkbox state round-trips through
                   the server; revalidateTag flips the public pages. */}
@@ -3300,6 +3515,8 @@ export default function OrgConsolePage() {
             ? 'Its divisions and their entries are removed too. Teams persist.'
             : confirmTarget?.kind === 'venue'
               ? 'Its facilities are removed too. Events keep their dates.'
+            : confirmTarget?.kind === 'domain'
+              ? 'Visitors on that domain will stop reaching your site. Your Edge Athlete address keeps working.'
             : confirmTarget?.kind === 'page' || confirmTarget?.kind === 'news'
               ? `The ${confirmTarget.kind === 'page' ? 'page' : 'post'} comes off your site immediately.`
               : 'Its entries are removed too. Teams persist.'
