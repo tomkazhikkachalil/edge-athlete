@@ -85,6 +85,8 @@ export async function GET(
       club,
       // C4: awaiting approval (managers/admins only ever see this true).
       pending: approval.pending,
+      // C5: the sport the club leads with (174) — shapes the console.
+      primarySport: approval.primarySport,
       sports,
       // Phase 6b A1: the club page's "Public site" link — published only;
       // pre-155 or draft reads null (link hidden), never an error.

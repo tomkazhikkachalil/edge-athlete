@@ -1,5 +1,47 @@
 # Development Log
 
+## September 2, 2026 — Phase 7 C5: club sign-up, part 5 — the golf-first console: Website and courses on top, "Leagues & events", a golf checklist (#531, zero DDL)
+
+A golf club's console opened on Roster / Seasons / Teams and put Website
+LAST — the team-sport shape. Tom's brief is a site builder first. Two
+commits: a pure hoist, then the golf logic.
+
+- **The hoist** (its own commit): the console's eight `<main>` sections
+  moved verbatim into a keyed `sectionNodes` map rendered from
+  `CONSOLE_SECTION_ORDER[variant]` (`default` = the phase-1 order;
+  `golf` = website, venues, competitions, roster, seasons, teams,
+  registrations, external — every key once per variant). Each section
+  gained an `id` (`#website`, `#venues`, `#competitions`, `#roster`, …)
+  so the checklist can anchor into it. DOM order IS the visual order —
+  no CSS `order` tricks (tab and reader order stay honest).
+- **The golf logic**: the org GET answers `primarySport` (clubs, off the
+  C4 approval read — 42703-safe; leagues already carry `sport_key`);
+  `golfFirst` picks the order, renames Competitions to "Leagues &
+  events", and defaults the create form to a golf leaderboard — set in
+  the fetch callback, never an effect (the `set-state-in-effect` rule).
+- **`src/lib/orgs/checklist.ts`** (new, pure; the component re-exports
+  `buildOrgChecklistSteps` so the phase-1 tests stand): `variant:
+  'default' | 'golf'`. Golf steps with anchors: create your site,
+  add a photo and a booking link (hero image or CTA), add your home
+  course (**optional — never blocks "all done"**, `remainingSteps`),
+  publish (approval unlocks it — C4), invite members (a lone owner is
+  1), create your first league (a golf leaderboard exists), tell your
+  members (a notice). Every `done` derives from rows the console
+  already fetched (`site`, the hero editors, `venues`, `competitions`,
+  `memberCount` from the org GET). Undone steps link to their section.
+- e2e `org-console-golf.spec.ts` (390px, both clubs): a
+  `primary_sport='golf'` club's console lists Website, Venues and
+  courses, Competitions first, titles "Leagues & events", shows the golf
+  checklist (no "Create a season"), defaults the form to golf +
+  leaderboard, carries the section ids; a club without a sport keeps
+  Roster first, "Competitions", the phase-1 checklist and the
+  ice-hockey/fixture defaults. C4's post-175 regressions recorded here:
+  org-site (5), affiliation and club-pending-build green vs the live DB
+  after migration 175 ran.
+
+Next: C6 — FedEx-style season points (`golf_points`, derived at recompute,
+never stored).
+
 ## September 2, 2026 — Phase 7 C4: club sign-up, part 4 — build while waiting: the club, its owner, the home course and a draft site exist from the request; approval unlocks publish (#530, migration 175)
 
 Tom's decision: keep the admin approval queue, but don't make a new club

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, Fragment, type ReactNode } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/lib/auth';
@@ -76,6 +76,17 @@ interface CompetitionEntryRow {
   status: string;
   entrant_name: string;
 }
+
+/** Phase 7 C5: the console's sections, in the order the org's sport wants
+ *  them. Classic = the phase-1 order (roster first); golf leads with the
+ *  site, the courses and the leagues (a golf club's console is a site
+ *  builder first). Every key appears exactly once per variant (pinned). */
+export type ConsoleSectionKey =
+  | 'roster' | 'seasons' | 'teams' | 'competitions' | 'registrations' | 'external' | 'venues' | 'website';
+export const CONSOLE_SECTION_ORDER: Record<'default' | 'golf', readonly ConsoleSectionKey[]> = {
+  default: ['roster', 'seasons', 'teams', 'competitions', 'registrations', 'external', 'venues', 'website'],
+  golf: ['website', 'venues', 'competitions', 'roster', 'seasons', 'teams', 'registrations', 'external'],
+};
 
 interface CompetitionRow {
   id: string;
@@ -342,6 +353,9 @@ export default function OrgConsolePage() {
   const [courseResults, setCourseResults] = useState<GolfCourse[]>([]);
   // Phase 7 C4: awaiting approval — the console works, publishing waits.
   const [pending, setPending] = useState(false);
+  // Phase 7 C5: the org's sport shapes the console (golf-first).
+  const [orgSport, setOrgSport] = useState<string | null>(null);
+  const [memberCount, setMemberCount] = useState(0);
 
   useEffect(() => {
     if (!validSide || !user?.id) return;
@@ -362,6 +376,18 @@ export default function OrgConsolePage() {
           const data = await orgRes.json();
           if (!cancelled) setOrgName((data.league ?? data.club)?.name ?? null);
           if (!cancelled) setPending(data.pending === true);
+          // C5: leagues carry sport_key; clubs answer primarySport (174).
+          const sport = (data.league?.sport_key ?? data.primarySport ?? null) as string | null;
+          if (!cancelled) {
+            setOrgSport(sport);
+            setMemberCount(typeof data.memberCount === 'number' ? data.memberCount : 0);
+            // A golf org's first competition is a golf leaderboard — set in
+            // the fetch callback, never an effect (the set-state-in-effect rule).
+            if (sport === 'golf') {
+              setCompSport('golf');
+              setCompFormat('leaderboard');
+            }
+          }
         }
         if (structureRes.status === 403 || structureRes.status === 401) {
           setAuthorized(false);
@@ -1005,56 +1031,18 @@ export default function OrgConsolePage() {
     );
   }
 
-  return (
-    <div className="min-h-screen bg-canvas">
-      <AppHeader showSearch={false} />
+  const golfFirst = orgSport === 'golf';
 
-      <main className="max-w-3xl mx-auto px-4 py-8 space-y-6">
-        <div>
-          <h1 className="text-2xl sm:text-3xl font-bold text-primary">
-            <i className="fas fa-sitemap mr-2 text-brand-fg" aria-hidden="true"></i>
-            {orgName ?? 'Organization'}
-            {pending && (
-              <span className="ml-3 align-middle inline-block px-2 py-0.5 text-xs font-semibold uppercase rounded-full bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300">
-                Pending approval
-              </span>
-            )}
-          </h1>
-          {pending && (
-            <p className="mt-1 text-sm text-secondary">
-              Awaiting approval — you can keep building; publishing unlocks when approved.
-            </p>
-          )}
-          <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-sm">
-            <Link href={`/${side}/${orgId}`} className="text-brand-fg hover:text-brand-fg-strong">
-              View public page
-            </Link>
-            <Link
-              href={`/${side}/${orgId}`}
-              className="text-brand-fg hover:text-brand-fg-strong"
-            >
-              Members &amp; roster
-            </Link>
-          </div>
-        </div>
-
-        <OrgSetupChecklist
-          storageKey={`org-checklist:${side}:${orgId}`}
-          input={{
-            hasSeasonWithDates,
-            hasDivisions,
-            hasTeams: teams.length > 0,
-            managerCount: counts.managers,
-            rosterAthleteCount: counts.rosterAthletes,
-            ...(FEATURE_FLAGS.FEATURE_ORG_REGISTRATION && regAvailable
-              ? { hasOpenRegistration: regWindows.length > 0 }
-              : {}),
-          }}
-        />
-
+  // The console's sections, keyed so the ORDER can follow the org's sport
+  // (phase 7 C5: golf-first — Website and Venues on top). A pure hoist of
+  // the JSX that used to sit inline in <main>; every closure is unchanged.
+  const sectionNodes: Record<ConsoleSectionKey, ReactNode> = {
+    roster: (
+      <>
         {/* Roster (R3) — counts + the door; per-team import lives on the
             team rows below. */}
         <section
+        id="roster"
           aria-label="Roster"
           className="bg-surface rounded-lg shadow-sm border border-border p-4 sm:p-6"
         >
@@ -1071,10 +1059,14 @@ export default function OrgConsolePage() {
             View members &amp; roster →
           </Link>
         </section>
-
+      </>
+    ),
+    seasons: (
+      <>
         {/* Seasons & divisions — forked from the admin console; the org is
             the URL's, every write scope-pinned server-side. */}
         <section
+        id="seasons"
           aria-label="Seasons and divisions"
           className="bg-surface rounded-lg shadow-sm border border-border p-4 sm:p-6"
         >
@@ -1471,9 +1463,13 @@ export default function OrgConsolePage() {
             </ul>
           )}
         </section>
-
+      </>
+    ),
+    teams: (
+      <>
         {/* Teams — archive/restore only; teams persist (no manager delete). */}
         <section
+        id="teams"
           aria-label="Teams"
           className="bg-surface rounded-lg shadow-sm border border-border p-4 sm:p-6"
         >
@@ -1603,14 +1599,18 @@ export default function OrgConsolePage() {
             </ul>
           )}
         </section>
-
+      </>
+    ),
+    competitions: (
+      <>
         {/* Competitions (phase 2 R1) — create + entries; contests and
             standings arrive with rounds 2–3's detail subpage. */}
         <section
+        id="competitions"
           aria-label="Competitions"
           className="bg-surface rounded-lg shadow-sm border border-border p-4 sm:p-6"
         >
-          <h2 className="text-lg font-semibold text-primary mb-1">Competitions</h2>
+          <h2 className="text-lg font-semibold text-primary mb-1">{golfFirst ? 'Leagues & events' : 'Competitions'}</h2>
           <p className="text-sm text-tertiary mb-4">
             A competition holds a schedule and standings. Create one per season — pin it
             to a division for house play.
@@ -1942,12 +1942,16 @@ export default function OrgConsolePage() {
             </ul>
           )}
         </section>
-
+      </>
+    ),
+    registrations: (
+      <>
         {/* Registrations (phase 5 R4) — the registrar screen: the season's
             registrations with lifecycle actions, and the window controls.
             Hidden pre-162 / flag-off / for non-registrars (the API 403s). */}
         {FEATURE_FLAGS.FEATURE_ORG_REGISTRATION && regAvailable && seasons.length > 0 && (
           <section
+          id="registrations"
             aria-label="Registrations"
             className="bg-surface rounded-lg shadow-sm border border-border p-4 sm:p-6"
           >
@@ -2265,12 +2269,16 @@ export default function OrgConsolePage() {
             )}
           </section>
         )}
-
+      </>
+    ),
+    external: (
+      <>
         {/* External competitions (phase 4 R1, club side) — the doorway to
             player-stats entry for competitions the club's teams are
             entered in but doesn't own. Hidden when there are none. */}
         {side === 'club' && externalComps.length > 0 && (
           <section
+          id="external"
             aria-label="External competitions"
             className="bg-surface rounded-lg shadow-sm border border-border p-4 sm:p-6"
           >
@@ -2302,11 +2310,15 @@ export default function OrgConsolePage() {
             </ul>
           </section>
         )}
-
+      </>
+    ),
+    venues: (
+      <>
         {/* Venues & courses (phase 6b A1) — the org's PROPERTY (141). A golf
             club recognizes its catalog course here; that is what puts tees,
             scorecards and the map on the club page and the public site. */}
         <section
+        id="venues"
           aria-label="Venues and courses"
           className="bg-surface rounded-lg shadow-sm border border-border p-4 sm:p-6"
         >
@@ -2534,10 +2546,14 @@ export default function OrgConsolePage() {
             </button>
           </div>
         </section>
-
+      </>
+    ),
+    website: (
+      <>
         {/* Website (phase 3 R1) — create → preview → publish. The public
             site lives at /org/{subdomain}; draft = 404 out there. */}
         <section
+        id="website"
           aria-label="Website"
           className="bg-surface rounded-lg shadow-sm border border-border p-4 sm:p-6"
         >
@@ -3958,6 +3974,69 @@ export default function OrgConsolePage() {
             </div>
           )}
         </section>
+      </>
+    ),
+  };
+
+  return (
+    <div className="min-h-screen bg-canvas">
+      <AppHeader showSearch={false} />
+
+      <main className="max-w-3xl mx-auto px-4 py-8 space-y-6">
+        <div>
+          <h1 className="text-2xl sm:text-3xl font-bold text-primary">
+            <i className="fas fa-sitemap mr-2 text-brand-fg" aria-hidden="true"></i>
+            {orgName ?? 'Organization'}
+            {pending && (
+              <span className="ml-3 align-middle inline-block px-2 py-0.5 text-xs font-semibold uppercase rounded-full bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300">
+                Pending approval
+              </span>
+            )}
+          </h1>
+          {pending && (
+            <p className="mt-1 text-sm text-secondary">
+              Awaiting approval — you can keep building; publishing unlocks when approved.
+            </p>
+          )}
+          <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-sm">
+            <Link href={`/${side}/${orgId}`} className="text-brand-fg hover:text-brand-fg-strong">
+              View public page
+            </Link>
+            <Link
+              href={`/${side}/${orgId}`}
+              className="text-brand-fg hover:text-brand-fg-strong"
+            >
+              Members &amp; roster
+            </Link>
+          </div>
+        </div>
+
+        <OrgSetupChecklist
+          storageKey={`org-checklist:${side}:${orgId}`}
+          variant={golfFirst ? 'golf' : 'default'}
+          input={{
+            hasSeasonWithDates,
+            hasDivisions,
+            hasTeams: teams.length > 0,
+            managerCount: counts.managers,
+            rosterAthleteCount: counts.rosterAthletes,
+            // C5 (golf variant) — all derived from rows already fetched.
+            hasSite: !!site,
+            hasSitePhotoOrCta: !!(heroImagePath || heroCtaUrl),
+            hasHomeCourse: venues.some(v => v.courses.length > 0),
+            sitePublished: !!site?.published_at,
+            memberCount,
+            hasGolfLeague: competitions.some(c => c.sport_key === 'golf' && c.format === 'leaderboard'),
+            hasNotice: !!heroNotice,
+            ...(FEATURE_FLAGS.FEATURE_ORG_REGISTRATION && regAvailable
+              ? { hasOpenRegistration: regWindows.length > 0 }
+              : {}),
+          }}
+        />
+
+        {CONSOLE_SECTION_ORDER[golfFirst ? 'golf' : 'default'].map(key => (
+          <Fragment key={key}>{sectionNodes[key]}</Fragment>
+        ))}
       </main>
 
       <ConfirmModal
