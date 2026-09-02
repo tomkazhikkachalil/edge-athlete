@@ -1,5 +1,59 @@
 # Development Log
 
+## September 2, 2026 — Phase 6e S1: golf sites, part 1 — club identity: hero photo, CTA, notice, a real contact card (#521, zero DDL)
+
+Phase 6e, "the best website for golf clubs and golf leagues" (Tom, Sep 2:
+scouting stays in the background — the data model already serves it —
+the focus is the public org site, golf first). The masterplan's
+hand-authored ceiling ("news, hero, sponsors, a few pages — nothing
+else") left a golf club's site with a gradient hero and three contact
+fields. This round adds the golf essentials, all in the existing jsonb
+configs — no migration.
+
+- **The hero** (`hero_config`, `parseHeroConfig`): a PHOTO (a site image
+  asset — `ORG_IMAGE_PATH_RE`, because `ORG_MEDIA_PATH_RE` admits pdf;
+  the server re-asserts THIS site's `org-media/{id}/` prefix, the
+  set_sponsors recipe, so a stored path can never point at another
+  site's file), an alt text, ONE button (`ctaLabel` ≤24 + https
+  `ctaUrl`, both or neither — "Book a tee time" is the point), and a
+  NOTICE (≤200, optional `noticeUntil` day, inclusive). Rendered:
+  `next/image fill unoptimized` (the streamer is never optimizer-
+  eligible) under a translucent accent wash so white text stays legible
+  on any photo — bleed on `bold`, card on `classic`; the button opens
+  in a new tab; the notice is an amber `role="status"` band in the
+  LAYOUT, so every page carries it (`noticeActive(hero, utcToday())` —
+  pure, boundary tested; reads ≤300s stale like everything ISR).
+- **The contact card** (`contact_config`, `parseContact`): up to three
+  address lines, free-text hours, an optional directions link (else
+  "Directions →" is a maps search on the typed address —
+  `directionsHref`, pure), and social links that must point at their
+  OWN network's host (`socialHostOk`: instagram.com, facebook.com,
+  x.com|twitter.com, youtube.com|youtu.be) so the org's JSON-LD `sameAs`
+  stays honest. Socials render as text links — the (public) segment
+  has no icon font.
+- **Structured data**: `SportsOrganization` gains `telephone`,
+  `address.streetAddress` and `sameAs`. Free-text hours are NOT
+  structured (`openingHours` needs a schema we don't collect).
+  `card.png` keeps the gradient (drawing the photo would put a
+  same-origin fetch inside OG generation) — deferred, recorded.
+- Console (Website section): photo picker (the sponsor-logo upload
+  flow, `image` part), alt, button label + link, notice + until;
+  address ×3, hours, directions, four social URLs. Saves still send the
+  COMPLETE object (replace semantics), seeded from GET — a partial save
+  would clear the photo.
+- e2e `org-site-identity.spec.ts`: upload → foreign path 400, pdf 400,
+  half a button 400 → hero + contact set → wrong-host social 400 →
+  publish → anonymous home carries the streamer URL, the alt, the
+  button href, the notice band, the address, hours, the maps
+  Directions link, Instagram as text, `telephone`/`streetAddress`/
+  `sameAs` → a subpage carries the notice → yesterday's `noticeUntil`
+  hides it while the rest of the hero survives → 375px on the site and
+  the console form. Regressions: org-site (5), courses, two-pages,
+  brand all green vs the live DB.
+
+Next: S2 — a page per course (server-drawn hole maps from the cached
+OSM geometry, nines labelled, phone/directions, course photos).
+
 ## September 2, 2026 — Phase 6d W3: golf league depth, part 3 — the season generator (#520, zero DDL)
 
 The organizer's day-one need, and the last round of phase 6d: a golf

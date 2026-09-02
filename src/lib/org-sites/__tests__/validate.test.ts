@@ -5,6 +5,11 @@ import {
   hexLuminance,
   parseContact,
   parseHeroConfig,
+  noticeActive,
+  directionsHref,
+  socialHostOk,
+  HERO_CTA_LABEL_MAX,
+  HERO_NOTICE_MAX,
   parseSponsors,
   parseThemeAccent,
   SCHEDULE_LIMIT_DEFAULT,
@@ -593,5 +598,89 @@ describe('DEFAULT_MODULE_ORDER (G3)', () => {
     expect(moduleLabel('affiliations', nav, 'league')).toBe('Clubs');
     expect(moduleLabel('affiliations', nav)).toBe('Affiliations');
     expect(moduleLabel('affiliations', parseNavConfig([{ key: 'affiliations', label: 'Partners' }]), 'club')).toBe('Partners');
+  });
+});
+
+describe('phase 6e S1 — hero photo / CTA / notice (parseHeroConfig)', () => {
+  const site = '01234567-89ab-4cde-8f01-23456789abcd';
+  const base = { headline: 'Welcome', tagline: 'Play here' };
+  it('keeps an image asset path, drops a pdf or a foreign shape', () => {
+    expect(parseHeroConfig({ ...base, imagePath: `org-media/${site}/abc.jpg`, imageAlt: ' The 9th green ' })).toMatchObject({
+      imagePath: `org-media/${site}/abc.jpg`,
+      imageAlt: 'The 9th green',
+    });
+    expect(parseHeroConfig({ ...base, imagePath: `org-media/${site}/rules.pdf` }).imagePath).toBeUndefined();
+    expect(parseHeroConfig({ ...base, imagePath: 'https://evil.example/x.jpg' }).imagePath).toBeUndefined();
+    // alt without a photo is meaningless
+    expect(parseHeroConfig({ ...base, imageAlt: 'x' }).imageAlt).toBeUndefined();
+  });
+  it('the CTA needs both a label and an https link', () => {
+    expect(parseHeroConfig({ ...base, ctaLabel: 'Book a tee time', ctaUrl: 'https://book.example/x' })).toMatchObject({
+      ctaLabel: 'Book a tee time',
+      ctaUrl: 'https://book.example/x',
+    });
+    expect(parseHeroConfig({ ...base, ctaLabel: 'Book', ctaUrl: 'http://book.example' }).ctaUrl).toBeUndefined();
+    expect(parseHeroConfig({ ...base, ctaUrl: 'https://book.example' }).ctaUrl).toBeUndefined();
+    expect(parseHeroConfig({ ...base, ctaLabel: 'x'.repeat(40), ctaUrl: 'https://b.example' }).ctaLabel).toHaveLength(HERO_CTA_LABEL_MAX);
+  });
+  it('the notice is clamped and its end date must be a day', () => {
+    expect(parseHeroConfig({ ...base, notice: ' Cart path only ', noticeUntil: '2026-09-14' })).toMatchObject({
+      notice: 'Cart path only',
+      noticeUntil: '2026-09-14',
+    });
+    expect(parseHeroConfig({ ...base, notice: 'x', noticeUntil: 'next week' }).noticeUntil).toBeUndefined();
+    expect(parseHeroConfig({ ...base, noticeUntil: '2026-09-14' }).noticeUntil).toBeUndefined();
+    expect(parseHeroConfig({ ...base, notice: 'y'.repeat(500) }).notice).toHaveLength(HERO_NOTICE_MAX);
+  });
+  it('noticeActive: open-ended shows; dated shows through the day inclusive', () => {
+    expect(noticeActive({ notice: 'x' }, '2026-09-02')).toBe(true);
+    expect(noticeActive({ notice: 'x', noticeUntil: '2026-09-02' }, '2026-09-02')).toBe(true);
+    expect(noticeActive({ notice: 'x', noticeUntil: '2026-09-02' }, '2026-09-03')).toBe(false);
+    expect(noticeActive({}, '2026-09-02')).toBe(false);
+  });
+});
+
+describe('phase 6e S1 — the contact card (parseContact)', () => {
+  it('address lines are trimmed, bounded to three, and empties dropped', () => {
+    expect(parseContact({ address: [' 1 Fairway Dr ', '', 'Kanata, ON', 'K2K 1A1', 'extra'] }).address).toEqual([
+      '1 Fairway Dr',
+      'Kanata, ON',
+      'K2K 1A1',
+    ]);
+    expect(parseContact({ address: 'not an array' }).address).toBeUndefined();
+  });
+  it('socials must point at their own network (https), else dropped', () => {
+    const c = parseContact({
+      social: {
+        instagram: 'https://www.instagram.com/club',
+        facebook: 'https://facebook.com/club',
+        x: 'https://twitter.com/club',
+        youtube: 'https://youtu.be/abc',
+      },
+    });
+    expect(c.social).toEqual({
+      instagram: 'https://www.instagram.com/club',
+      facebook: 'https://facebook.com/club',
+      x: 'https://twitter.com/club',
+      youtube: 'https://youtu.be/abc',
+    });
+    expect(parseContact({ social: { instagram: 'https://evil.example/instagram.com' } }).social).toBeUndefined();
+    expect(parseContact({ social: { instagram: 'http://instagram.com/club' } }).social).toBeUndefined();
+    expect(socialHostOk('x', 'https://x.com/club')).toBe(true);
+    expect(socialHostOk('x', 'https://notx.com/club')).toBe(false);
+  });
+  it('hours and directions', () => {
+    expect(parseContact({ hours: ' 7am–8pm ', directionsUrl: 'https://maps.example/x' })).toMatchObject({
+      hours: '7am–8pm',
+      directionsUrl: 'https://maps.example/x',
+    });
+    expect(parseContact({ directionsUrl: 'http://maps.example' }).directionsUrl).toBeUndefined();
+  });
+  it('directionsHref: explicit link, else a maps search on the address, else null', () => {
+    expect(directionsHref({ directionsUrl: 'https://maps.example/x', address: ['1 Fairway'] })).toBe('https://maps.example/x');
+    expect(directionsHref({ address: ['1 Fairway Dr', 'Kanata, ON'] })).toBe(
+      'https://www.google.com/maps/search/?api=1&query=1%20Fairway%20Dr%2C%20Kanata%2C%20ON'
+    );
+    expect(directionsHref({})).toBeNull();
   });
 });

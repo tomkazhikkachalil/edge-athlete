@@ -1,4 +1,6 @@
+import Image from 'next/image';
 import Link from 'next/link';
+import { orgMediaUrl } from '@/lib/media/org-site-media';
 import type { OrgEvent } from '@/lib/calendar/org-events-server';
 import type { PublicStandingsPayload } from '@/lib/competitions/public-standings';
 import type { PublicSite } from '@/lib/org-sites/server';
@@ -73,6 +75,7 @@ export default function SiteHomeBody({
   const enabled = site.modules.filter(m => m.enabled);
   const has = (key: string) => enabled.some(m => m.module_key === key);
   const hero = parseHeroConfig(site.hero_config);
+  const heroImage = orgMediaUrl(site.id, hero.imagePath);
   // B1: label overrides + wordmark (the header/hero name, never <title>).
   const nav = parseNavConfig(site.nav_config);
   const brandName = parseThemeTokens(site.theme_token_set).wordmark ?? site.orgName;
@@ -232,28 +235,67 @@ export default function SiteHomeBody({
         // site's theme_token_set overrides via the layout's inline style).
         <section
           aria-label="Welcome"
-          className={
+          className={`relative overflow-hidden ${
             spec.hero === 'bleed'
               ? '-mx-4 px-6 py-14 sm:py-20 text-white'
               : 'rounded-xl px-6 py-10 text-white'
-          }
+          }${heroImage ? ' min-h-[240px] sm:min-h-[320px] flex flex-col justify-end' : ''}`}
           style={{
             backgroundImage:
               'linear-gradient(to right, var(--org-accent), var(--org-accent-strong))',
           }}
         >
-          <h1
-            className={
-              spec.hero === 'bleed'
-                ? 'text-3xl sm:text-5xl font-extrabold uppercase tracking-tight'
-                : 'text-2xl sm:text-3xl font-bold'
-            }
-          >
-            {hero.headline || brandName}
-          </h1>
-          <p className={spec.hero === 'bleed' ? 'mt-2 text-base opacity-90' : 'mt-1 text-sm opacity-90'}>
-            {hero.tagline || 'Schedules, standings, and teams — live.'}
-          </p>
+          {/* S1: the club's photo (a site asset through the tokenless
+              streamer — /api/media/* is never optimizer-eligible, so
+              unoptimized is mandatory) under a translucent accent wash
+              that keeps the white text legible on any photo. */}
+          {heroImage && (
+            <>
+              <Image
+                src={heroImage}
+                alt={hero.imageAlt ?? ''}
+                fill
+                unoptimized
+                sizes="100vw"
+                className="object-cover"
+                priority
+              />
+              <div
+                aria-hidden="true"
+                className="absolute inset-0"
+                style={{
+                  backgroundImage:
+                    'linear-gradient(to top, var(--org-accent-strong) 0%, rgba(0,0,0,0.35) 60%, rgba(0,0,0,0.15) 100%)',
+                }}
+              />
+            </>
+          )}
+          <div className="relative">
+            <h1
+              className={
+                spec.hero === 'bleed'
+                  ? 'text-3xl sm:text-5xl font-extrabold uppercase tracking-tight'
+                  : 'text-2xl sm:text-3xl font-bold'
+              }
+            >
+              {hero.headline || brandName}
+            </h1>
+            <p className={spec.hero === 'bleed' ? 'mt-2 text-base opacity-90' : 'mt-1 text-sm opacity-90'}>
+              {hero.tagline || 'Schedules, standings, and teams — live.'}
+            </p>
+            {hero.ctaLabel && hero.ctaUrl && (
+              <a
+                href={hero.ctaUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="mt-4 inline-block rounded-md bg-white/95 px-4 py-2 text-sm font-semibold shadow-sm"
+                style={{ color: 'var(--org-accent-strong)' }}
+              >
+                {hero.ctaLabel}
+                <span className="sr-only"> (opens in a new tab)</span>
+              </a>
+            )}
+          </div>
         </section>
       )}
       <div className={spec.sections === 'grid' ? 'grid gap-6 sm:grid-cols-2' : 'space-y-6'}>

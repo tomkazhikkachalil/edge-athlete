@@ -268,17 +268,64 @@ export function moduleLabel(key: string, nav: NavConfig, side?: 'league' | 'club
 export interface PublicHero {
   headline: string;
   tagline: string;
+  /** Phase 6e S1 — a golf club's front door: a photo (a site asset), one
+   *  loud button ("Book a tee time"), and a notice ("Cart path only")
+   *  that every page carries until a date. */
+  imagePath?: string;
+  imageAlt?: string;
+  ctaLabel?: string;
+  ctaUrl?: string;
+  notice?: string;
+  noticeUntil?: string;
 }
 
+export const HERO_CTA_LABEL_MAX = 24;
+export const HERO_NOTICE_MAX = 200;
+export const HERO_IMAGE_ALT_MAX = 200;
+/** YYYY-MM-DD (a DATE, compared as a string — no timezone). */
+export const ISO_DAY_RE = /^\d{4}-\d{2}-\d{2}$/;
+
 /** Defensive render-side parse: unknown hero_config jsonb → strings
- *  ('' = use the default). Never throws. */
+ *  ('' = use the default). Every S1 key is re-validated at render (the
+ *  inline-attribute defense — never interpolate the raw jsonb); the CTA
+ *  needs BOTH a label and an https URL or neither shows. Never throws. */
 export function parseHeroConfig(config: unknown): PublicHero {
   const record =
     config && typeof config === 'object' ? (config as Record<string, unknown>) : {};
-  return {
+  const out: PublicHero = {
     headline: typeof record.headline === 'string' ? record.headline.slice(0, 80) : '',
     tagline: typeof record.tagline === 'string' ? record.tagline.slice(0, 140) : '',
   };
+  if (typeof record.imagePath === 'string' && ORG_IMAGE_PATH_RE.test(record.imagePath)) {
+    out.imagePath = record.imagePath;
+    if (typeof record.imageAlt === 'string' && record.imageAlt.trim()) {
+      out.imageAlt = record.imageAlt.trim().slice(0, HERO_IMAGE_ALT_MAX);
+    }
+  }
+  const ctaLabel =
+    typeof record.ctaLabel === 'string' ? record.ctaLabel.trim().slice(0, HERO_CTA_LABEL_MAX) : '';
+  const ctaUrl = typeof record.ctaUrl === 'string' ? record.ctaUrl : '';
+  if (ctaLabel && httpsUrl.safeParse(ctaUrl).success) {
+    out.ctaLabel = ctaLabel;
+    out.ctaUrl = ctaUrl;
+  }
+  const notice = typeof record.notice === 'string' ? record.notice.trim().slice(0, HERO_NOTICE_MAX) : '';
+  if (notice) {
+    out.notice = notice;
+    if (typeof record.noticeUntil === 'string' && ISO_DAY_RE.test(record.noticeUntil)) {
+      out.noticeUntil = record.noticeUntil;
+    }
+  }
+  return out;
+}
+
+/** Is the notice showing today? A notice with no end date shows until a
+ *  manager clears it; with one, through that day inclusive. Pure, so the
+ *  boundary is testable without a clock. */
+export function noticeActive(hero: Pick<PublicHero, 'notice' | 'noticeUntil'>, today: string): boolean {
+  if (!hero.notice) return false;
+  if (!hero.noticeUntil) return true;
+  return today <= hero.noticeUntil;
 }
 
 export interface PublicSponsor {
@@ -351,6 +398,51 @@ export interface PublicContact {
   email?: string;
   phone?: string;
   website?: string;
+  /** Phase 6e S1 — what a golf club's contact card actually needs. */
+  address?: string[];
+  hours?: string;
+  directionsUrl?: string;
+  social?: Partial<Record<SocialNetwork, string>>;
+}
+
+export const SOCIAL_NETWORKS = ['instagram', 'facebook', 'x', 'youtube'] as const;
+export type SocialNetwork = (typeof SOCIAL_NETWORKS)[number];
+export const SOCIAL_LABELS: Record<SocialNetwork, string> = {
+  instagram: 'Instagram',
+  facebook: 'Facebook',
+  x: 'X',
+  youtube: 'YouTube',
+};
+/** A social link must point at THAT network's host (so JSON-LD `sameAs`
+ *  stays honest and a manager can't turn "Instagram" into any link). */
+export const SOCIAL_HOSTS: Record<SocialNetwork, string[]> = {
+  instagram: ['instagram.com'],
+  facebook: ['facebook.com', 'fb.com'],
+  x: ['x.com', 'twitter.com'],
+  youtube: ['youtube.com', 'youtu.be'],
+};
+export const CONTACT_ADDRESS_LINES = 3;
+export const CONTACT_ADDRESS_LINE_MAX = 80;
+export const CONTACT_HOURS_MAX = 200;
+
+export function socialHostOk(network: SocialNetwork, url: string): boolean {
+  if (!httpsUrl.safeParse(url).success) return false;
+  let host = '';
+  try {
+    host = new URL(url).hostname.toLowerCase().replace(/^www\./, '');
+  } catch {
+    return false;
+  }
+  return SOCIAL_HOSTS[network].some(h => host === h || host.endsWith(`.${h}`));
+}
+
+/** Where "Directions →" goes: an explicit link wins; else a maps search
+ *  on the typed address; else nothing. Pure. */
+export function directionsHref(contact: Pick<PublicContact, 'address' | 'directionsUrl'>): string | null {
+  if (contact.directionsUrl) return contact.directionsUrl;
+  const address = (contact.address ?? []).filter(Boolean).join(', ');
+  if (!address) return null;
+  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`;
 }
 
 /** Defensive render-side parse: unknown contact_config → the three
@@ -369,6 +461,30 @@ export function parseContact(config: unknown): PublicContact {
   if (typeof record.website === 'string' && httpsUrl.safeParse(record.website).success) {
     out.website = record.website;
   }
+  // S1: address lines, hours, directions, socials — each re-validated.
+  if (Array.isArray(record.address)) {
+    const lines = record.address
+      .filter((l): l is string => typeof l === 'string')
+      .map(l => l.trim().slice(0, CONTACT_ADDRESS_LINE_MAX))
+      .filter(Boolean)
+      .slice(0, CONTACT_ADDRESS_LINES);
+    if (lines.length) out.address = lines;
+  }
+  if (typeof record.hours === 'string' && record.hours.trim()) {
+    out.hours = record.hours.trim().slice(0, CONTACT_HOURS_MAX);
+  }
+  if (typeof record.directionsUrl === 'string' && httpsUrl.safeParse(record.directionsUrl).success) {
+    out.directionsUrl = record.directionsUrl;
+  }
+  if (record.social && typeof record.social === 'object') {
+    const raw = record.social as Record<string, unknown>;
+    const social: Partial<Record<SocialNetwork, string>> = {};
+    for (const network of SOCIAL_NETWORKS) {
+      const url = raw[network];
+      if (typeof url === 'string' && socialHostOk(network, url)) social[network] = url;
+    }
+    if (Object.keys(social).length) out.social = social;
+  }
   return out;
 }
 
@@ -382,6 +498,10 @@ export const ORG_MEDIA_PATH_RE =
 /** A stored PDF under the site's asset prefix (B3 documents). */
 export const ORG_DOCUMENT_PATH_RE =
   /^org-media\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\/[a-z0-9-]{1,80}\.pdf$/;
+/** A stored IMAGE under the site's asset prefix (S1 hero photo, S2
+ *  course photos) — ORG_MEDIA_PATH_RE admits pdf; a photo slot must not. */
+export const ORG_IMAGE_PATH_RE =
+  /^org-media\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\/[a-z0-9-]{1,80}\.(jpg|jpeg|png|webp|gif)$/;
 
 const boundedTrimmed = (max: number) => z.string().trim().min(1).max(max);
 const optionalTrimmed = (max: number) =>
@@ -399,11 +519,25 @@ export const SitePatchSchema = z.union([
     moduleKey: z.enum(TOGGLEABLE_MODULE_KEYS),
     enabled: z.boolean(),
   }),
-  z.object({
-    action: z.literal('set_hero'),
-    headline: optionalTrimmed(80),
-    tagline: optionalTrimmed(140),
-  }),
+  z
+    .object({
+      action: z.literal('set_hero'),
+      headline: optionalTrimmed(80),
+      tagline: optionalTrimmed(140),
+      // S1: a site IMAGE asset (server re-asserts THIS site's prefix), the
+      // one CTA (label + https URL together or neither), the notice.
+      imagePath: z.string().regex(ORG_IMAGE_PATH_RE, 'Not a site image').optional(),
+      imageAlt: optionalTrimmed(HERO_IMAGE_ALT_MAX),
+      ctaLabel: optionalTrimmed(HERO_CTA_LABEL_MAX),
+      ctaUrl: httpsUrl.optional(),
+      notice: optionalTrimmed(HERO_NOTICE_MAX),
+      noticeUntil: z.string().regex(ISO_DAY_RE, 'YYYY-MM-DD').optional(),
+    })
+    .superRefine((val, ctx) => {
+      if (!!val.ctaLabel !== !!val.ctaUrl) {
+        ctx.addIssue({ code: 'custom', path: ['ctaUrl'], message: 'A button needs both a label and a link' });
+      }
+    }),
   z.object({
     action: z.literal('set_theme'),
     accent: z
@@ -474,6 +608,18 @@ export const SitePatchSchema = z.union([
     email: z.string().trim().toLowerCase().max(200).pipe(z.email()).optional(),
     phone: z.string().trim().min(3).max(40).optional(),
     website: httpsUrl.optional(),
+    // S1: the golf club's contact card.
+    address: z.array(boundedTrimmed(CONTACT_ADDRESS_LINE_MAX)).max(CONTACT_ADDRESS_LINES).optional(),
+    hours: optionalTrimmed(CONTACT_HOURS_MAX),
+    directionsUrl: httpsUrl.optional(),
+    social: z
+      .object({
+        instagram: httpsUrl.refine(v => socialHostOk('instagram', v), 'Not an Instagram link').optional(),
+        facebook: httpsUrl.refine(v => socialHostOk('facebook', v), 'Not a Facebook link').optional(),
+        x: httpsUrl.refine(v => socialHostOk('x', v), 'Not an X link').optional(),
+        youtube: httpsUrl.refine(v => socialHostOk('youtube', v), 'Not a YouTube link').optional(),
+      })
+      .optional(),
   }),
 ]);
 export type SitePatchInput = z.infer<typeof SitePatchSchema>;
