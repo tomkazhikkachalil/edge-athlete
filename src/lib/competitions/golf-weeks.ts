@@ -14,6 +14,8 @@
 // already masked; supervised athletes are OMITTED from `results` and only
 // counted in `posted` (a count reveals nothing).
 
+import { awardRoundPoints, type PointsPreset } from './golf-points';
+
 export type GolfWeekState = 'open' | 'upcoming' | 'closed';
 
 export interface PublicGolfWeekResult {
@@ -26,6 +28,8 @@ export interface PublicGolfWeekResult {
    *  organizer; 'final' = confirmed (or entered by the organizer). */
   status: 'posted' | 'final';
   disputed: boolean;
+  /** C6: season points awarded for this round (points leagues only). */
+  points?: number;
 }
 
 export interface PublicGolfWeek {
@@ -176,7 +180,11 @@ export interface BuildGolfBlockInput {
   /** Course (or venue) name per venue id. */
   courseNameByVenue: Map<string, string>;
   pick: 'first' | 'best';
+  /** The ROUND rule (golf_net / golf_gross / stroke_total — never
+   *  golf_points; the caller resolves it with roundRuleFor). */
   scoringRule: string | null;
+  /** C6: set on a points league — each week's results carry `points`. */
+  pointsPreset?: PointsPreset | null;
   today: string;
 }
 
@@ -243,6 +251,22 @@ export function buildGolfBlock(input: BuildGolfBlockInput): PublicGolfBlock | nu
       if (ka !== kb) return ka - kb;
       return a.entrant_name.localeCompare(b.entrant_name);
     });
+    if (input.pointsPreset) {
+      // C6: the week's points by finishing position (ties share). Omitted
+      // (supervised) rows are absent here, so their places are not counted —
+      // the public week shows the public field's points; the standings
+      // table (recompute) is the authority.
+      const awards = new Map(
+        awardRoundPoints(
+          results.map((r, i) => ({ entry_id: String(i), score: key(r) })),
+          input.pointsPreset
+        ).map(a => [a.entry_id, a.points])
+      );
+      results.forEach((r, i) => {
+        const pts = awards.get(String(i));
+        if (pts !== undefined) r.points = pts;
+      });
+    }
     return {
       id: c.id,
       round: c.round,

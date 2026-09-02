@@ -174,7 +174,7 @@ describe('golf leaderboard rules (G1)', () => {
     expect(resolveLeaderboardRule('golf', 'golf_net').columns.map(c => c.shortLabel)).toEqual(['RDS', 'NET', 'GRS']);
     expect(resolveLeaderboardRule('golf', 'golf_gross').columns.map(c => c.shortLabel)).toEqual(['RDS', 'GRS']);
     expect(resolveLeaderboardRule('golf', 'nonsense').key).toBe('stroke_total');
-    expect([...GOLF_LEADERBOARD_RULES]).toEqual(['golf_gross', 'golf_net', 'stroke_total']);
+    expect([...GOLF_LEADERBOARD_RULES]).toEqual(['golf_gross', 'golf_net', 'stroke_total', 'golf_points']); // C6: season points
   });
 
   it('sums payload gross into stats on a net board; unplayed sit last with null points', () => {

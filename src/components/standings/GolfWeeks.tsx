@@ -43,6 +43,8 @@ function ResultsTable({ week, competitionId }: { week: PublicGolfWeek; competiti
   }
   const showNet = week.results.some(r => r.net !== null);
   const showGross = week.results.some(r => r.gross !== null);
+  // C6: a points league's week shows the points each round earned.
+  const showPoints = week.results.some(r => typeof r.points === 'number');
   return (
     <div className="mt-2 overflow-x-auto">
       <table className="w-full text-sm">
@@ -54,6 +56,9 @@ function ResultsTable({ week, competitionId }: { week: PublicGolfWeek; competiti
             )}
             {showNet && (
               <th scope="col" className="py-1.5 px-2 font-medium text-right">Net</th>
+            )}
+            {showPoints && (
+              <th scope="col" className="py-1.5 px-2 font-medium text-right">PTS</th>
             )}
             <th scope="col" className="py-1.5 pl-2 font-medium text-right">
               <span className="sr-only">Status</span>
@@ -72,6 +77,9 @@ function ResultsTable({ week, competitionId }: { week: PublicGolfWeek; competiti
               )}
               {showNet && (
                 <td className="py-1.5 px-2 text-right text-secondary">{r.net ?? '—'}</td>
+              )}
+              {showPoints && (
+                <td className="py-1.5 px-2 text-right font-medium text-primary">{r.points ?? '—'}</td>
               )}
               <td className="py-1.5 pl-2 text-right">
                 <Chip status={r.status} />

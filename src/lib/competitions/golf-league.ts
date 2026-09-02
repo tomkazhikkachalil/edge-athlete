@@ -24,6 +24,19 @@ import {
 export type GolfPick = 'first' | 'best';
 export type GolfRule = 'golf_gross' | 'golf_net' | 'stroke_total';
 
+/** The ROUND rule behind a competition's scoring_rule — what the sync
+ *  writes as `score`. Phase 7 C6: a `golf_points` league ranks rounds on
+ *  gross or net strokes per its config (points are derived at standings
+ *  time, never written); anything unknown is plain strokes. */
+export function roundRuleFor(scoringRule: string | null, config: unknown): GolfRule {
+  if (scoringRule === 'golf_net' || scoringRule === 'golf_gross') return scoringRule;
+  if (scoringRule === 'golf_points') {
+    const score = (config as { golf?: { score?: unknown } } | null | undefined)?.golf?.score;
+    return score === 'gross' ? 'golf_gross' : 'golf_net';
+  }
+  return 'stroke_total';
+}
+
 export interface GolfContestSpec {
   holes: 9 | 18;
   /** YYYY-MM-DD, inclusive. */

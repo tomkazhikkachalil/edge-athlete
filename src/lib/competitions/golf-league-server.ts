@@ -42,9 +42,9 @@ import {
   scoreForRule,
   type CourseRatingRow,
   type GolfPick,
-  type GolfRule,
   type HoleRow,
   type RoundRow,
+  roundRuleFor,
 } from './golf-league';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- matches the authz.ts Admin alias; schema-agnostic helper
@@ -108,9 +108,6 @@ async function loadContest(
   return { contest: contest as ContestRow, competition: competition as CompetitionRow };
 }
 
-function golfRule(scoringRule: string | null): GolfRule {
-  return scoringRule === 'golf_net' || scoringRule === 'golf_gross' ? scoringRule : 'stroke_total';
-}
 function golfPick(config: Record<string, unknown> | null): GolfPick {
   const pick = (config?.golf as { pick?: unknown } | undefined)?.pick;
   return pick === 'best' ? 'best' : 'first';
@@ -232,7 +229,7 @@ export async function syncGolfContest(admin: Admin, contestId: string): Promise<
     roundsByProfile.get(r.profile_id)!.push(r);
   }
 
-  const rule = golfRule(competition.scoring_rule);
+  const rule = roundRuleFor(competition.scoring_rule, competition.config);
   const pick = golfPick(competition.config);
   const spec = { holes: contest.holes as 9 | 18, playFrom: contest.play_from, playTo: contest.play_to };
   const indexCache = new Map<string, number | null>();

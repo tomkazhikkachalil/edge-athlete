@@ -47,7 +47,15 @@ export const CompetitionCreateSchema = z
     // golf league's counting-round choice.
     config: z
       .object({
-        golf: z.object({ pick: z.enum(['first', 'best']) }).optional(),
+        golf: z
+          .object({
+            pick: z.enum(['first', 'best']),
+            // Phase 7 C6 (golf_points): the strokes rounds are ranked on and
+            // the points table.
+            score: z.enum(['gross', 'net']).optional(),
+            points: z.enum(['pga', 'linear']).optional(),
+          })
+          .optional(),
       })
       .optional(),
   });

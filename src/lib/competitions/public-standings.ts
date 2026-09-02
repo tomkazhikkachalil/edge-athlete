@@ -10,6 +10,8 @@
 // session, so one cached entry serves everyone (authed or not).
 
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { parseGolfPointsConfig } from './golf-points';
+import { roundRuleFor } from './golf-league';
 import { readApproval } from '@/lib/orgs/approval';
 import type { OrgSide } from '@/lib/orgs/authz';
 import { resolveFixtureRule, resolveLeaderboardRule, type StandingsColumn } from './scoring';
@@ -211,6 +213,9 @@ export async function fetchPublicStandings(
     const contests = golfRaw.contestsByCompetition.get(competitionId);
     if (!contests || contests.length === 0) return {};
     const contestIds = new Set(contests.map(c => c.id));
+    // C6: a points league's weeks rank on their ROUND rule and carry points.
+    const config = golfRaw.configByCompetition.get(competitionId) ?? null;
+    const pointsPreset = scoringRule === 'golf_points' ? parseGolfPointsConfig(config).preset : null;
     const block = buildGolfBlock({
       contests,
       participants: golfRaw.participants.filter(p => contestIds.has(p.contest_id)),
@@ -219,7 +224,8 @@ export async function fetchPublicStandings(
       omittedEntries,
       courseNameByVenue: golfRaw.courseNameByVenue,
       pick: golfRaw.pickByCompetition.get(competitionId) ?? 'first',
-      scoringRule,
+      scoringRule: roundRuleFor(scoringRule, config),
+      pointsPreset,
       today: utcToday(),
     });
     return block ? { golf: block } : {};
@@ -261,6 +267,8 @@ interface GolfWeeksRaw {
   results: GolfResultRaw[];
   courseNameByVenue: Map<string, string>;
   pickByCompetition: Map<string, 'first' | 'best'>;
+  /** C6: the raw config per competition (the points setup rides in it). */
+  configByCompetition: Map<string, Record<string, unknown> | null>;
 }
 
 const EMPTY_GOLF_RAW: GolfWeeksRaw = {
@@ -269,6 +277,7 @@ const EMPTY_GOLF_RAW: GolfWeeksRaw = {
   results: [],
   courseNameByVenue: new Map(),
   pickByCompetition: new Map(),
+  configByCompetition: new Map(),
 };
 
 /** The windowed rounds of the org's public golf leaderboards, with their
@@ -319,9 +328,11 @@ async function readGolfWeeksRaw(admin: Admin, competitionIds: string[]): Promise
     }
 
     const pickByCompetition = new Map<string, 'first' | 'best'>();
+    const configByCompetition = new Map<string, Record<string, unknown> | null>();
     for (const c of configRes.data ?? []) {
       const pick = ((c.config as Record<string, unknown> | null)?.golf as { pick?: unknown } | undefined)?.pick;
       pickByCompetition.set(c.id as string, pick === 'best' ? 'best' : 'first');
+      configByCompetition.set(c.id as string, (c.config as Record<string, unknown> | null) ?? null);
     }
 
     const contestsByCompetition = new Map<string, GolfContestRaw[]>();
@@ -356,6 +367,7 @@ async function readGolfWeeksRaw(admin: Admin, competitionIds: string[]): Promise
       })),
       courseNameByVenue,
       pickByCompetition,
+      configByCompetition,
     };
   } catch {
     // pre-172 (no holes/play_from) or an embed failure — the block is absent
