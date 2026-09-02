@@ -308,26 +308,59 @@ export async function sitePATCH(
   orgId: string,
   input: SitePatchInput
 ): Promise<NextResponse> {
-  if (
-    input.action === 'set_hero' ||
-    input.action === 'set_theme' ||
-    input.action === 'set_contact'
-  ) {
+  if (input.action === 'set_hero') {
+    // S1: the hero photo is a site IMAGE asset — the set_sponsors recipe:
+    // load the site first so the stored path can be re-asserted against
+    // THIS site's prefix (the cross-site guard the schema can't apply).
+    const { data: site } = await admin
+      .from('org_sites')
+      .select('id, subdomain')
+      .eq(orgColumn(side), orgId)
+      .maybeSingle();
+    if (!site) return NextResponse.json({ error: 'Site not found' }, { status: 404 });
+    if (input.imagePath && !input.imagePath.startsWith(`org-media/${site.id}/`)) {
+      return NextResponse.json({ error: 'Photo is not one of this site’s assets' }, { status: 400 });
+    }
+    // Whole-object replace — the console always sends every field,
+    // seeded from GET (a partial save would otherwise clear the rest).
+    const hero_config = {
+      ...(input.headline ? { headline: input.headline } : {}),
+      ...(input.tagline ? { tagline: input.tagline } : {}),
+      ...(input.imagePath ? { imagePath: input.imagePath } : {}),
+      ...(input.imagePath && input.imageAlt ? { imageAlt: input.imageAlt } : {}),
+      ...(input.ctaLabel && input.ctaUrl ? { ctaLabel: input.ctaLabel, ctaUrl: input.ctaUrl } : {}),
+      ...(input.notice ? { notice: input.notice } : {}),
+      ...(input.notice && input.noticeUntil ? { noticeUntil: input.noticeUntil } : {}),
+    };
+    const { error } = await admin.from('org_sites').update({ hero_config }).eq('id', site.id);
+    if (error) {
+      console.error(`${TAG} hero patch error:`, error);
+      return NextResponse.json({ error: 'Failed to update the site' }, { status: 500 });
+    }
+    revalidateTag(`org-site:${site.subdomain}`, { expire: 0 });
+    return NextResponse.json({ ok: true });
+  }
+
+  if (input.action === 'set_theme' || input.action === 'set_contact') {
     const patch =
-      input.action === 'set_hero'
-        ? {
-            hero_config: {
-              ...(input.headline ? { headline: input.headline } : {}),
-              ...(input.tagline ? { tagline: input.tagline } : {}),
-            },
-          }
-        : input.action === 'set_contact'
+      input.action === 'set_contact'
           ? {
               // Deliberately public, manager-entered org contact info.
               contact_config: {
                 ...(input.email ? { email: input.email } : {}),
                 ...(input.phone ? { phone: input.phone } : {}),
                 ...(input.website ? { website: input.website } : {}),
+                // S1: the golf club's contact card.
+                ...(input.address && input.address.length ? { address: input.address } : {}),
+                ...(input.hours ? { hours: input.hours } : {}),
+                ...(input.directionsUrl ? { directionsUrl: input.directionsUrl } : {}),
+                ...(input.social && Object.values(input.social).some(Boolean)
+                  ? {
+                      social: Object.fromEntries(
+                        Object.entries(input.social).filter(([, v]) => typeof v === 'string' && v)
+                      ),
+                    }
+                  : {}),
               },
             }
           : // null clears back to the violet defaults. Whole-object replace on

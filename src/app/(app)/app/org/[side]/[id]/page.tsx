@@ -275,6 +275,23 @@ export default function OrgConsolePage() {
   const [contactEmail, setContactEmail] = useState('');
   const [contactPhone, setContactPhone] = useState('');
   const [contactWebsite, setContactWebsite] = useState('');
+  // Phase 6e S1: the golf club's front door + contact card. Every field
+  // rides the whole-object save (replace semantics), seeded from GET.
+  const [heroImagePath, setHeroImagePath] = useState('');
+  const [heroImageAlt, setHeroImageAlt] = useState('');
+  const [heroCtaLabel, setHeroCtaLabel] = useState('');
+  const [heroCtaUrl, setHeroCtaUrl] = useState('');
+  const [heroNotice, setHeroNotice] = useState('');
+  const [heroNoticeUntil, setHeroNoticeUntil] = useState('');
+  const [contactAddress, setContactAddress] = useState<string[]>(['', '', '']);
+  const [contactHours, setContactHours] = useState('');
+  const [contactDirections, setContactDirections] = useState('');
+  const [contactSocial, setContactSocial] = useState<Record<'instagram' | 'facebook' | 'x' | 'youtube', string>>({
+    instagram: '',
+    facebook: '',
+    x: '',
+    youtube: '',
+  });
   // Phase 6 R1 — the slug picker (create flow): identity-composed
   // suggestions + a custom candidate with live availability/policy check.
   const [slugPickerOpen, setSlugPickerOpen] = useState(false);
@@ -390,9 +407,40 @@ export default function OrgConsolePage() {
             const heroConfig = (siteBody.site?.hero_config ?? {}) as {
               headline?: string;
               tagline?: string;
+              imagePath?: string;
+              imageAlt?: string;
+              ctaLabel?: string;
+              ctaUrl?: string;
+              notice?: string;
+              noticeUntil?: string;
             };
-            setHeroHeadline(typeof heroConfig.headline === 'string' ? heroConfig.headline : '');
-            setHeroTagline(typeof heroConfig.tagline === 'string' ? heroConfig.tagline : '');
+            const str = (v: unknown) => (typeof v === 'string' ? v : '');
+            setHeroHeadline(str(heroConfig.headline));
+            setHeroTagline(str(heroConfig.tagline));
+            setHeroImagePath(str(heroConfig.imagePath));
+            setHeroImageAlt(str(heroConfig.imageAlt));
+            setHeroCtaLabel(str(heroConfig.ctaLabel));
+            setHeroCtaUrl(str(heroConfig.ctaUrl));
+            setHeroNotice(str(heroConfig.notice));
+            setHeroNoticeUntil(str(heroConfig.noticeUntil));
+            const contactExtra = (siteBody.site?.contact_config ?? {}) as {
+              address?: unknown;
+              hours?: unknown;
+              directionsUrl?: unknown;
+              social?: Record<string, unknown>;
+            };
+            const addr = Array.isArray(contactExtra.address)
+              ? contactExtra.address.filter((l): l is string => typeof l === 'string')
+              : [];
+            setContactAddress([addr[0] ?? '', addr[1] ?? '', addr[2] ?? '']);
+            setContactHours(str(contactExtra.hours));
+            setContactDirections(str(contactExtra.directionsUrl));
+            setContactSocial({
+              instagram: str(contactExtra.social?.instagram),
+              facebook: str(contactExtra.social?.facebook),
+              x: str(contactExtra.social?.x),
+              youtube: str(contactExtra.social?.youtube),
+            });
             const themeSet = (siteBody.site?.theme_token_set ?? {}) as { accent?: string };
             setThemeAccent(typeof themeSet.accent === 'string' ? themeSet.accent : '');
             // B1: the rest of the token set + nav labels, seeded the same way.
@@ -2934,6 +2982,106 @@ export default function OrgConsolePage() {
                     aria-label="Hero tagline"
                     className="px-3 py-2 border border-border-strong rounded-md outline-none text-sm min-w-0 flex-1"
                   />
+                </div>
+                {/* S1: photo (a site image asset), the one button, the notice. */}
+                <div className="flex flex-wrap items-center gap-2">
+                  {heroImagePath && (
+                    <Image
+                      src={orgMediaUrl(site.id, heroImagePath) ?? ''}
+                      alt=""
+                      width={96}
+                      height={54}
+                      unoptimized
+                      className="h-14 w-24 rounded object-cover border border-border"
+                    />
+                  )}
+                  <label className="text-xs text-secondary">
+                    {heroImagePath ? 'Replace photo' : 'Hero photo'}
+                    <input
+                      type="file"
+                      accept="image/*"
+                      aria-label="Hero photo"
+                      className="block w-48 text-xs"
+                      onChange={async e => {
+                        const file = e.target.files?.[0];
+                        e.target.value = '';
+                        if (!file) return;
+                        const formData = new FormData();
+                        formData.append('image', file);
+                        try {
+                          const res = await fetch(`/api/${plural}/${orgId}/site/assets`, {
+                            method: 'POST',
+                            body: formData,
+                          });
+                          const body = await res.json();
+                          if (!res.ok) {
+                            showError('Website', body.error || 'Failed to upload the photo');
+                            return;
+                          }
+                          setHeroImagePath(body.path);
+                        } catch {
+                          showError('Website', 'Upload failed — please try again');
+                        }
+                      }}
+                    />
+                  </label>
+                  {heroImagePath && (
+                    <button
+                      type="button"
+                      onClick={() => setHeroImagePath('')}
+                      className="px-2 py-1 text-xs rounded-md text-tertiary hover:bg-surface-sunken transition-colors"
+                    >
+                      Remove photo
+                    </button>
+                  )}
+                  <input
+                    type="text"
+                    value={heroImageAlt}
+                    onChange={e => setHeroImageAlt(e.target.value)}
+                    maxLength={200}
+                    placeholder="Photo description (for screen readers)"
+                    aria-label="Hero photo description"
+                    className="px-3 py-2 border border-border-strong rounded-md outline-none text-sm min-w-0 flex-1"
+                  />
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <input
+                    type="text"
+                    value={heroCtaLabel}
+                    onChange={e => setHeroCtaLabel(e.target.value)}
+                    maxLength={24}
+                    placeholder="Button label (e.g. Book a tee time)"
+                    aria-label="Hero button label"
+                    className="px-3 py-2 border border-border-strong rounded-md outline-none text-sm min-w-0 flex-1"
+                  />
+                  <input
+                    type="url"
+                    value={heroCtaUrl}
+                    onChange={e => setHeroCtaUrl(e.target.value)}
+                    maxLength={200}
+                    placeholder="https:// (where the button goes)"
+                    aria-label="Hero button link"
+                    className="px-3 py-2 border border-border-strong rounded-md outline-none text-sm min-w-0 flex-1"
+                  />
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <input
+                    type="text"
+                    value={heroNotice}
+                    onChange={e => setHeroNotice(e.target.value)}
+                    maxLength={200}
+                    placeholder="Notice on every page (e.g. Cart path only this week)"
+                    aria-label="Site notice"
+                    className="px-3 py-2 border border-border-strong rounded-md outline-none text-sm min-w-0 flex-1"
+                  />
+                  <input
+                    type="date"
+                    value={heroNoticeUntil}
+                    onChange={e => setHeroNoticeUntil(e.target.value)}
+                    aria-label="Notice shown until"
+                    title="Shown through this day"
+                    className="px-3 py-2 border border-border-strong rounded-md outline-none text-sm"
+                  />
                   <button
                     type="button"
                     onClick={() =>
@@ -2942,6 +3090,12 @@ export default function OrgConsolePage() {
                           action: 'set_hero',
                           ...(heroHeadline.trim() ? { headline: heroHeadline.trim() } : {}),
                           ...(heroTagline.trim() ? { tagline: heroTagline.trim() } : {}),
+                          ...(heroImagePath ? { imagePath: heroImagePath } : {}),
+                          ...(heroImagePath && heroImageAlt.trim() ? { imageAlt: heroImageAlt.trim() } : {}),
+                          ...(heroCtaLabel.trim() ? { ctaLabel: heroCtaLabel.trim() } : {}),
+                          ...(heroCtaUrl.trim() ? { ctaUrl: heroCtaUrl.trim() } : {}),
+                          ...(heroNotice.trim() ? { notice: heroNotice.trim() } : {}),
+                          ...(heroNotice.trim() && heroNoticeUntil ? { noticeUntil: heroNoticeUntil } : {}),
                         },
                         'Hero updated',
                         'Failed to update the hero'
@@ -3395,20 +3549,81 @@ export default function OrgConsolePage() {
                     aria-label="Contact website"
                     className="px-3 py-2 border border-border-strong rounded-md outline-none text-sm min-w-0 flex-1"
                   />
+                </div>
+                {/* S1: address, hours, directions, socials — the golf club's card. */}
+                <div className="flex flex-wrap gap-2">
+                  {contactAddress.map((line, i) => (
+                    <input
+                      key={i}
+                      type="text"
+                      value={line}
+                      onChange={e =>
+                        setContactAddress(a => a.map((v, j) => (j === i ? e.target.value : v)))
+                      }
+                      maxLength={80}
+                      placeholder={i === 0 ? 'Street address' : i === 1 ? 'City, region' : 'Postal code, country'}
+                      aria-label={`Address line ${i + 1}`}
+                      className="px-3 py-2 border border-border-strong rounded-md outline-none text-sm min-w-0 flex-1"
+                    />
+                  ))}
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <textarea
+                    value={contactHours}
+                    onChange={e => setContactHours(e.target.value)}
+                    maxLength={200}
+                    rows={2}
+                    placeholder={'Hours (e.g. Pro shop 7am–8pm daily\nRange closes at dusk)'}
+                    aria-label="Hours"
+                    className="px-3 py-2 border border-border-strong rounded-md outline-none text-sm min-w-0 flex-1"
+                  />
+                  <input
+                    type="url"
+                    value={contactDirections}
+                    onChange={e => setContactDirections(e.target.value)}
+                    maxLength={200}
+                    placeholder="Directions link (optional — the address makes one)"
+                    aria-label="Directions link"
+                    className="px-3 py-2 border border-border-strong rounded-md outline-none text-sm min-w-0 flex-1"
+                  />
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {(['instagram', 'facebook', 'x', 'youtube'] as const).map(n => (
+                    <input
+                      key={n}
+                      type="url"
+                      value={contactSocial[n]}
+                      onChange={e => setContactSocial(s => ({ ...s, [n]: e.target.value }))}
+                      maxLength={200}
+                      placeholder={`${n === 'x' ? 'X' : n[0].toUpperCase() + n.slice(1)} URL`}
+                      aria-label={`${n === 'x' ? 'X' : n[0].toUpperCase() + n.slice(1)} link`}
+                      className="px-3 py-2 border border-border-strong rounded-md outline-none text-sm min-w-0 flex-1"
+                    />
+                  ))}
                   <button
                     type="button"
-                    onClick={() =>
+                    onClick={() => {
+                      const address = contactAddress.map(l => l.trim()).filter(Boolean);
+                      const social = Object.fromEntries(
+                        Object.entries(contactSocial)
+                          .map(([k, v]) => [k, v.trim()])
+                          .filter(([, v]) => v)
+                      );
                       void siteAct(
                         {
                           action: 'set_contact',
                           ...(contactEmail.trim() ? { email: contactEmail.trim() } : {}),
                           ...(contactPhone.trim() ? { phone: contactPhone.trim() } : {}),
                           ...(contactWebsite.trim() ? { website: contactWebsite.trim() } : {}),
+                          ...(address.length ? { address } : {}),
+                          ...(contactHours.trim() ? { hours: contactHours.trim() } : {}),
+                          ...(contactDirections.trim() ? { directionsUrl: contactDirections.trim() } : {}),
+                          ...(Object.keys(social).length ? { social } : {}),
                         },
                         'Contact updated',
                         'Failed to update contact'
-                      )
-                    }
+                      );
+                    }}
                     className="px-3 py-1.5 text-sm rounded-md border border-border-strong text-secondary hover:bg-surface-sunken transition-colors"
                   >
                     Save contact

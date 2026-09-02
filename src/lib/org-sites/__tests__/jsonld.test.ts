@@ -121,3 +121,22 @@ describe('buildEventsJsonLd', () => {
     expect(out).not.toContain('athlete');
   });
 });
+
+describe('phase 6e S1 — the contact card feeds the org structured data', () => {
+  it('telephone, streetAddress and sameAs appear only when the card has them', () => {
+    const plain = buildOrgJsonLd(baseSite as unknown as PublicSite);
+    expect(plain).not.toHaveProperty('telephone');
+    expect(plain).not.toHaveProperty('sameAs');
+    const rich = buildOrgJsonLd({
+      ...baseSite,
+      contact_config: {
+        phone: '+1 613 555 0100',
+        address: ['1 Fairway Dr', 'Kanata, ON'],
+        social: { instagram: 'https://instagram.com/club', facebook: 'https://facebook.com/club' },
+      },
+    } as unknown as PublicSite);
+    expect(rich.telephone).toBe('+1 613 555 0100');
+    expect((rich.address as { streetAddress: string }).streetAddress).toBe('1 Fairway Dr, Kanata, ON');
+    expect(rich.sameAs).toEqual(['https://instagram.com/club', 'https://facebook.com/club']);
+  });
+});

@@ -7,10 +7,13 @@ import type { Metadata } from 'next';
 import {
   MODULE_SUBPAGE_KEYS,
   moduleLabel,
+  noticeActive,
+  parseHeroConfig,
   parseNavConfig,
   parseThemeTokens,
   resolveAccentPair,
 } from '@/lib/org-sites/validate';
+import { utcToday } from '@/lib/competitions/golf-weeks';
 import { siteBasePath } from '@/lib/org-sites/urls';
 import { templateSpec } from '@/lib/org-sites/templates';
 
@@ -64,6 +67,7 @@ export default async function OrgSiteLayout({
   // inline-style injection defense — never interpolate the raw jsonb.
   const tokens = parseThemeTokens(site.theme_token_set);
   const { accent, strong } = resolveAccentPair(tokens);
+  const hero = parseHeroConfig(site.hero_config);
   const accentStyle =
     tokens.accent || tokens.accentStrong
       ? ({ '--org-accent': accent, '--org-accent-strong': strong } as React.CSSProperties)
@@ -148,6 +152,18 @@ export default async function OrgSiteLayout({
           </nav>
         )}
       </header>
+      {/* S1: the notice ("Cart path only until Friday") — every page
+          carries it, no dismiss (ISR renders it the same for everyone),
+          until its end date. Boundary reads ≤300s stale, like the rest. */}
+      {noticeActive(hero, utcToday()) && (
+        <aside
+          role="status"
+          aria-label="Notice"
+          className="bg-amber-50 border-b border-amber-200 text-amber-900"
+        >
+          <p className="max-w-4xl mx-auto px-4 py-2 text-sm">{hero.notice}</p>
+        </aside>
+      )}
       <main id="main" className="flex-1">{children}</main>
       <footer className="border-t border-border">
         <div className="max-w-4xl mx-auto px-4 py-4 text-xs text-muted">

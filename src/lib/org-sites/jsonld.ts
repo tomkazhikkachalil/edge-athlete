@@ -9,6 +9,7 @@ import type { OrgEvent } from '@/lib/calendar/org-events-server';
 import type { PublicCourse } from './public-data';
 import type { PublicSite } from './server';
 import { appBaseUrl, siteAbsoluteUrl } from './urls';
+import { parseContact } from './validate';
 
 export const JSONLD_EVENTS_MAX = 10;
 
@@ -32,7 +33,18 @@ function postalAddress(site: PublicSite): Record<string, unknown> | undefined {
 export function buildOrgJsonLd(site: PublicSite): Record<string, unknown> {
   const url = siteAbsoluteUrl(site);
   const logo = orgLogoUrl(site.id, site.logo_path);
-  const address = postalAddress(site);
+  // S1: the contact card feeds the org's structured data — a street
+  // address line, a phone, and `sameAs` socials (host-checked by the
+  // parser, so the links are honest). Free-text hours are NOT
+  // structured (openingHours needs a schema we don't collect).
+  const contact = parseContact(site.contact_config);
+  const base = postalAddress(site);
+  const street = contact.address?.length ? contact.address.join(', ') : null;
+  const address =
+    street || base
+      ? { '@type': 'PostalAddress', ...(street ? { streetAddress: street } : {}), ...(base ?? {}) }
+      : undefined;
+  const sameAs = Object.values(contact.social ?? {}).filter(Boolean);
   return {
     '@context': 'https://schema.org',
     '@type': 'SportsOrganization',
@@ -40,6 +52,8 @@ export function buildOrgJsonLd(site: PublicSite): Record<string, unknown> {
     url,
     ...(logo ? { logo: `${appBaseUrl()}${logo}` } : {}),
     ...(address ? { address } : {}),
+    ...(contact.phone ? { telephone: contact.phone } : {}),
+    ...(sameAs.length ? { sameAs } : {}),
     ...(site.orgSportKey ? { sport: site.orgSportKey } : {}),
   };
 }
