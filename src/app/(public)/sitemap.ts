@@ -16,7 +16,9 @@ export const dynamic = 'force-dynamic';
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   try {
     const base = appBaseUrl();
-    const sites = await getCachedSitemapSites();
+    // C2: sites live on their own domain get their own sitemap (served
+    // through the middleware rewrite); cross-host URLs don't belong here.
+    const sites = (await getCachedSitemapSites()).filter(site => !site.customDomain);
     return sites.flatMap(site => [
       {
         url: `${base}${orgSitePath(site.subdomain)}`,

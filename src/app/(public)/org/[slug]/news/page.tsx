@@ -3,7 +3,7 @@ import Link from 'next/link';
 import { getCachedNewsList, getCachedSite } from '@/lib/org-sites/cached';
 import { formatEventWhen } from '@/lib/org-sites/format';
 import { requireSiteModule } from '../_components/require-module';
-import { orgSitePath } from '@/lib/org-sites/urls';
+import { siteBasePath, siteAbsoluteUrl } from '@/lib/org-sites/urls';
 
 // ── /org/[slug]/news — the news feed (phase 3.5) ───────────────────────────
 // Published posts only, newest first, title + date + first-paragraph
@@ -25,12 +25,12 @@ export async function generateMetadata({ params }: PageParams): Promise<Metadata
   if (!site) return { title: 'Not found' };
   const title = `${site.orgName} News`;
   const description = `News and announcements from ${site.orgName} on Edge Athlete.`;
-  const canonical = `${orgSitePath(site.subdomain)}/news`;
+  const canonical = `${siteAbsoluteUrl(site)}/news`;
   return {
     title,
     description,
     alternates: { canonical },
-    openGraph: { title, description, url: canonical, siteName: 'Edge Athlete', type: 'website', images: [`${orgSitePath(site.subdomain)}/card.png`] },
+    openGraph: { title, description, url: canonical, siteName: 'Edge Athlete', type: 'website', images: [`${siteAbsoluteUrl(site)}/card.png`] },
   };
 }
 
@@ -53,7 +53,7 @@ export default async function OrgSiteNewsPage({ params }: PageParams) {
             {posts.map(post => (
               <li key={post.slug} className="py-3">
                 <Link
-                  href={`${orgSitePath(site.subdomain)}/news/${post.slug}`}
+                  href={`${siteBasePath(site)}/news/${post.slug}`}
                   className="text-base font-semibold text-brand-fg"
                 >
                   {post.title}

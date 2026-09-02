@@ -3,7 +3,7 @@ import { notFound } from 'next/navigation';
 import { getCachedPage, getCachedSite } from '@/lib/org-sites/cached';
 import { isValidPageSlug, parsePageBody } from '@/lib/org-sites/validate';
 import PageBlocks from '../_components/PageBlocks';
-import { orgSitePath } from '@/lib/org-sites/urls';
+import { siteAbsoluteUrl } from '@/lib/org-sites/urls';
 
 // ── /org/[slug]/[pageSlug] — a custom site page (phase 3 R3) ───────────────
 // PUBLIC pages only (draft ⇔ missing, both notFound). The static module
@@ -34,12 +34,12 @@ export async function generateMetadata({ params }: PageParams): Promise<Metadata
   if (!page) return { title: 'Not found' };
   const title = `${page.title} — ${site.orgName}`;
   const description = `${page.title} — ${site.orgName} on Edge Athlete.`;
-  const canonical = `${orgSitePath(site.subdomain)}/${page.slug}`;
+  const canonical = `${siteAbsoluteUrl(site)}/${page.slug}`;
   return {
     title,
     description,
     alternates: { canonical },
-    openGraph: { title, description, url: canonical, siteName: 'Edge Athlete', type: 'website', images: [`${orgSitePath(site.subdomain)}/card.png`] },
+    openGraph: { title, description, url: canonical, siteName: 'Edge Athlete', type: 'website', images: [`${siteAbsoluteUrl(site)}/card.png`] },
   };
 }
 

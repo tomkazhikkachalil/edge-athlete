@@ -22,3 +22,33 @@ export function appBaseUrl(): string {
 export function orgSitePath(slug: string): string {
   return process.env.NEXT_PUBLIC_VANITY_CANONICAL === '1' ? `/${slug}` : `/org/${slug}`;
 }
+
+// ── The custom-domain render seam (phase 6b C2) ─────────────────────────────
+// Once a site's own domain is ACTIVE (C1's reachability proof), the ISR
+// document for /{slug} is only ever seen on that host (the apex 301s), so
+// its links must be host-relative WITHOUT the slug prefix, and its
+// canonical/OG/JSON-LD URLs absolute on the domain. Every public mint
+// funnels through these two so activation is a row state, not a sweep.
+
+export interface SiteAddress {
+  subdomain: string;
+  custom_domain?: string | null;
+  domain_active_at?: string | null;
+}
+
+export function siteDomainActive(site: SiteAddress): boolean {
+  return !!site.custom_domain && !!site.domain_active_at;
+}
+
+/** Root-relative base for links inside the site: '' on an active custom
+ *  domain (so `${base}/teams` = /teams), else the canonical org path. */
+export function siteBasePath(site: SiteAddress): string {
+  return siteDomainActive(site) ? '' : orgSitePath(site.subdomain);
+}
+
+/** Absolute URL of the site's home — canonicals, OG, JSON-LD, sitemaps. */
+export function siteAbsoluteUrl(site: SiteAddress): string {
+  return siteDomainActive(site)
+    ? `https://${site.custom_domain}`
+    : `${appBaseUrl()}${orgSitePath(site.subdomain)}`;
+}

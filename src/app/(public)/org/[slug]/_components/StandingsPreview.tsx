@@ -1,6 +1,5 @@
 import Link from 'next/link';
 import type { PublicStandingsPayload } from '@/lib/competitions/public-standings';
-import { orgSitePath } from '@/lib/org-sites/urls';
 
 // Home-page standings preview: the first competition with rows, top 5,
 // three columns only (the full column engine lives on /standings via
@@ -9,10 +8,10 @@ import { orgSitePath } from '@/lib/org-sites/urls';
 // styling, no client hooks.
 export default function StandingsPreview({
   standings,
-  slug,
+  basePath,
 }: {
   standings: PublicStandingsPayload | null;
-  slug: string;
+  basePath: string;
 }) {
   const first = standings?.competitions.find(c => c.rows.length > 0);
   if (!first) {
@@ -52,7 +51,7 @@ export default function StandingsPreview({
         </table>
       </div>
       <Link
-        href={`${orgSitePath(slug)}/standings`}
+        href={`${basePath}/standings`}
         className="mt-3 inline-block text-sm text-brand-fg font-medium"
       >
         Full standings →

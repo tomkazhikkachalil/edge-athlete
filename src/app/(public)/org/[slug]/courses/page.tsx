@@ -3,7 +3,7 @@ import { getCachedCourses, getCachedSite } from '@/lib/org-sites/cached';
 import { buildCoursesJsonLd, safeJsonLd } from '@/lib/org-sites/jsonld';
 import CoursesList from '../_components/CoursesList';
 import { requireSiteModule } from '../_components/require-module';
-import { orgSitePath } from '@/lib/org-sites/urls';
+import { siteBasePath, siteAbsoluteUrl } from '@/lib/org-sites/urls';
 
 // ── /org/[slug]/courses — the golf club's courses subpage (phase 6b A2) ──
 // Every catalog course linked to the org's venues, with its tee sheet.
@@ -28,12 +28,12 @@ export async function generateMetadata({ params }: PageParams): Promise<Metadata
   if (!site) return { title: 'Not found' };
   const title = `${site.orgName} Courses`;
   const description = `Courses, tee sheets and ratings at ${site.orgName} on Edge Athlete.`;
-  const canonical = `${orgSitePath(site.subdomain)}/courses`;
+  const canonical = `${siteAbsoluteUrl(site)}/courses`;
   return {
     title,
     description,
     alternates: { canonical },
-    openGraph: { title, description, url: canonical, siteName: 'Edge Athlete', type: 'website', images: [`${orgSitePath(site.subdomain)}/card.png`] },
+    openGraph: { title, description, url: canonical, siteName: 'Edge Athlete', type: 'website', images: [`${siteAbsoluteUrl(site)}/card.png`] },
   };
 }
 
@@ -52,7 +52,7 @@ export default async function OrgSiteCoursesPage({ params }: PageParams) {
       {courses.length === 0 ? (
         <p className="text-sm text-tertiary">No courses listed yet.</p>
       ) : (
-        <CoursesList courses={courses} detailed basePath={orgSitePath(site.subdomain)} />
+        <CoursesList courses={courses} detailed basePath={siteBasePath(site)} />
       )}
     </div>
   );

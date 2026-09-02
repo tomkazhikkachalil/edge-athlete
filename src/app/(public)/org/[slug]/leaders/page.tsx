@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import { getCachedLeaders, getCachedSite } from '@/lib/org-sites/cached';
 import LeadersTable from '../_components/LeadersTable';
 import { requireSiteModule } from '../_components/require-module';
-import { orgSitePath } from '@/lib/org-sites/urls';
+import { siteBasePath, siteAbsoluteUrl } from '@/lib/org-sites/urls';
 
 // ── /org/[slug]/leaders — the Stat leaders subpage (phase 6b B3) ──
 // Module disabled → notFound (disabled modules don't exist).
@@ -26,12 +26,12 @@ export async function generateMetadata({ params }: PageParams): Promise<Metadata
   if (!site) return { title: 'Not found' };
   const title = `${site.orgName} Stat leaders`;
   const description = `Stat leaders at ${site.orgName} on Edge Athlete.`;
-  const canonical = `${orgSitePath(site.subdomain)}/leaders`;
+  const canonical = `${siteAbsoluteUrl(site)}/leaders`;
   return {
     title,
     description,
     alternates: { canonical },
-    openGraph: { title, description, url: canonical, siteName: 'Edge Athlete', type: 'website', images: [`${orgSitePath(site.subdomain)}/card.png`] },
+    openGraph: { title, description, url: canonical, siteName: 'Edge Athlete', type: 'website', images: [`${siteAbsoluteUrl(site)}/card.png`] },
   };
 }
 
@@ -46,7 +46,7 @@ export default async function OrgSiteLeadersTablePage({ params }: PageParams) {
       {items.length === 0 ? (
         <p className="text-sm text-tertiary">No stats recorded yet.</p>
       ) : (
-        <LeadersTable boards={items} basePath={orgSitePath(site.subdomain)} detailed />
+        <LeadersTable boards={items} basePath={siteBasePath(site)} detailed />
       )}
     </div>
   );

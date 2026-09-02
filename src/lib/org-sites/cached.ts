@@ -211,3 +211,8 @@ export const getCachedLeaders = (
   perSlug(['org-site-leaders', slug], slug, () =>
     fetchPublicStatLeaders(getSupabaseAdmin(), side, orgId)
   );
+
+/** C2: one site's sitemap entry, from the same hourly enumeration —
+ *  the per-host /sitemap.xml route on a custom domain reads this. */
+export const getCachedSiteSitemap = async (slug: string): Promise<SitemapSiteEntry | null> =>
+  (await getCachedSitemapSites()).find(s => s.subdomain === slug) ?? null;
