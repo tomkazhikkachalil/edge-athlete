@@ -7,7 +7,9 @@ import { getPublicSiteBySlug, type PublicSite } from './server';
 import {
   fetchPublicAffiliations,
   fetchPublicCourses,
+  fetchPublicDivisions,
   fetchPublicGallery,
+  fetchPublicStatLeaders,
   fetchPublicNewsList,
   fetchPublicOpenWindows,
   fetchPublicNewsPost,
@@ -20,7 +22,9 @@ import {
   fetchPublishedSitesForSitemap,
   type PublicAffiliation,
   type PublicCourse,
+  type PublicDivision,
   type PublicGalleryItem,
+  type PublicLeaderBoard,
   type PublicNewsItem,
   type PublicOpenWindow,
   type PublicNewsPost,
@@ -187,4 +191,23 @@ export const getCachedCourses = (
 ): Promise<PublicCourse[]> =>
   perSlug(['org-site-courses', slug], slug, () =>
     fetchPublicCourses(getSupabaseAdmin(), side, orgId)
+  );
+
+// Phase 6b B3: divisions + stat leaders (both viewer-independent reads).
+export const getCachedDivisions = (
+  slug: string,
+  side: OrgSide,
+  orgId: string
+): Promise<PublicDivision[]> =>
+  perSlug(['org-site-divisions', slug], slug, () =>
+    fetchPublicDivisions(getSupabaseAdmin(), side, orgId)
+  );
+
+export const getCachedLeaders = (
+  slug: string,
+  side: OrgSide,
+  orgId: string
+): Promise<PublicLeaderBoard[]> =>
+  perSlug(['org-site-leaders', slug], slug, () =>
+    fetchPublicStatLeaders(getSupabaseAdmin(), side, orgId)
   );

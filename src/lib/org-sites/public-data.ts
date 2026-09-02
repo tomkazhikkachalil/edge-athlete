@@ -22,6 +22,7 @@ import { type OrgEvent } from '@/lib/calendar/org-events-server';
 import { isMissingTableError, MODULE_SUBPAGE_KEYS } from './validate';
 import { CATALOG_ROW_COLUMNS, rowToCourse, type CatalogRow } from '@/lib/golf/course-catalog';
 import type { GolfCourse } from '@/types/golf';
+import { getStatSchema } from '@/lib/sports/stat-schemas';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- matches the authz.ts Admin alias; schema-agnostic helper
 type Admin = SupabaseClient<any, 'public', any>;
@@ -815,4 +816,212 @@ export async function fetchPublicCourses(
     for (const row of rows) out.push({ venueName: v.name, course: rowToCourse(row) });
   }
   return out;
+}
+
+// ── Divisions (phase 6b B3) ─────────────────────────────────────────────────
+// Teams grouped by division for the org's CURRENT seasons (not ended —
+// ends_on null or today or later; the newest three by start). Reuses the
+// teams walk in reverse: season → division → entry → active team.
+
+export interface PublicDivision {
+  seasonLabel: string;
+  divisionName: string;
+  ageBand: string | null;
+  tier: string | null;
+  teams: { id: string; name: string }[];
+}
+
+export async function fetchPublicDivisions(
+  admin: Admin,
+  side: OrgSide,
+  orgId: string
+): Promise<PublicDivision[]> {
+  const col = orgColumn(side);
+  const today = new Date().toISOString().slice(0, 10);
+  const { data: seasons, error } = await admin
+    .from('seasons')
+    .select('id, label, starts_on, ends_on')
+    .eq(col, orgId)
+    .or(`ends_on.is.null,ends_on.gte.${today}`)
+    .order('starts_on', { ascending: false, nullsFirst: false })
+    .limit(3);
+  if (degraded('divisions seasons', error) || !seasons || seasons.length === 0) return [];
+
+  const seasonIds = seasons.map(s => s.id as string);
+  const { data: divisions, error: divError } = await admin
+    .from('divisions')
+    .select('id, season_id, name, age_band, tier')
+    .in('season_id', seasonIds)
+    .order('name', { ascending: true })
+    .limit(100);
+  if (degraded('divisions', divError) || !divisions || divisions.length === 0) return [];
+
+  const divisionIds = divisions.map(d => d.id as string);
+  const { data: entries } = await admin
+    .from('team_entries')
+    .select('team_id, division_id')
+    .in('division_id', divisionIds)
+    .limit(1000);
+  const teamIds = [...new Set((entries ?? []).map(e => e.team_id as string))];
+  const { data: teams } = teamIds.length
+    ? await admin
+        .from('teams')
+        .select('id, name, display_name')
+        .in('id', teamIds)
+        .eq('status', 'active')
+    : { data: [] };
+  const teamName = new Map(
+    (teams ?? []).map(t => [t.id as string, (t.display_name || t.name) as string])
+  );
+  const teamsByDivision = new Map<string, { id: string; name: string }[]>();
+  for (const e of entries ?? []) {
+    const name = teamName.get(e.team_id as string);
+    if (!name) continue;
+    if (!teamsByDivision.has(e.division_id)) teamsByDivision.set(e.division_id, []);
+    teamsByDivision.get(e.division_id)!.push({ id: e.team_id as string, name });
+  }
+  const seasonLabel = new Map(seasons.map(s => [s.id as string, s.label as string]));
+
+  return divisions.map(d => ({
+    seasonLabel: seasonLabel.get(d.season_id as string) ?? '',
+    divisionName: d.name as string,
+    ageBand: (d.age_band ?? null) as string | null,
+    tier: (d.tier ?? null) as string | null,
+    teams: (teamsByDivision.get(d.id as string) ?? []).sort((a, b) =>
+      a.name.localeCompare(b.name)
+    ),
+  }));
+}
+
+// ── Stat leaders (phase 6b B3) ──────────────────────────────────────────────
+// Per PUBLIC competition: the schema's sum-type profile tiles (Goals,
+// Points, Kills…) aggregated over contest_stat_lines, top five each.
+// THE PEOPLE RULES: names pass through publicDisplayName, and SUPERVISED
+// athletes are OMITTED ENTIRELY — a masked "First L." still names a minor
+// on a crawlable page (the gallery's tag rule, applied to a leaderboard).
+// A sport with no stat-line schema (golf) answers `unsupported: true`.
+
+export interface PublicLeaderRow {
+  name: string;
+  teamName: string | null;
+  value: number;
+}
+export interface PublicLeaderBoard {
+  competitionId: string;
+  competitionName: string;
+  sportKey: string;
+  unsupported: boolean;
+  stats: { label: string; rows: PublicLeaderRow[] }[];
+}
+
+export async function fetchPublicStatLeaders(
+  admin: Admin,
+  side: OrgSide,
+  orgId: string
+): Promise<PublicLeaderBoard[]> {
+  const col = orgColumn(side);
+  const { data: comps, error } = await admin
+    .from('competitions')
+    .select('id, name, sport_key')
+    .eq(col, orgId)
+    .eq('visibility', 'public')
+    .in('status', ['active', 'completed'])
+    .order('created_at', { ascending: false })
+    .limit(20);
+  if (degraded('leaders competitions', error) || !comps || comps.length === 0) return [];
+
+  const compIds = comps.map(c => c.id as string);
+  const { data: contests } = await admin
+    .from('contests')
+    .select('id, competition_id')
+    .in('competition_id', compIds)
+    .limit(300);
+  const contestComp = new Map((contests ?? []).map(c => [c.id as string, c.competition_id as string]));
+  if (contestComp.size === 0) return [];
+
+  const { data: lines, error: linesError } = await admin
+    .from('contest_stat_lines')
+    .select('contest_id, profile_id, team_id, stats')
+    .in('contest_id', [...contestComp.keys()])
+    .limit(2000);
+  if (degraded('leaders lines', linesError) || !lines || lines.length === 0) return [];
+
+  const profileIds = [...new Set(lines.map(l => l.profile_id as string))];
+  const teamIds = [...new Set(lines.map(l => l.team_id as string | null).filter((t): t is string => !!t))];
+  const [{ data: profiles }, { data: teams }] = await Promise.all([
+    admin
+      .from('profiles')
+      .select('id, first_name, last_name, full_name, visibility, email, supervision_state')
+      .in('id', profileIds),
+    teamIds.length
+      ? admin.from('teams').select('id, name, display_name').in('id', teamIds)
+      : Promise.resolve({ data: [] as { id: string; name: string; display_name: string | null }[] }),
+  ]);
+  // Supervised → null → the athlete never appears (omission, not masking).
+  const nameById = new Map<string, string | null>(
+    (profiles ?? []).map(p => [
+      p.id as string,
+      p.supervision_state === 'supervised' ? null : publicDisplayName(p as MaskableProfile),
+    ])
+  );
+  const teamNameById = new Map(
+    (teams ?? []).map(t => [t.id as string, (t.display_name || t.name) as string])
+  );
+
+  // Aggregate per competition → per profile → the stat keys.
+  const perComp = new Map<string, Map<string, { teamId: string | null; sums: Record<string, number> }>>();
+  for (const line of lines) {
+    const compId = contestComp.get(line.contest_id as string);
+    if (!compId) continue;
+    const stats = (line.stats ?? {}) as Record<string, unknown>;
+    if (!perComp.has(compId)) perComp.set(compId, new Map());
+    const byProfile = perComp.get(compId)!;
+    const profileId = line.profile_id as string;
+    if (!byProfile.has(profileId)) byProfile.set(profileId, { teamId: (line.team_id ?? null) as string | null, sums: {} });
+    const acc = byProfile.get(profileId)!;
+    for (const [key, v] of Object.entries(stats)) {
+      if (typeof v === 'number' && Number.isFinite(v)) acc.sums[key] = (acc.sums[key] ?? 0) + v;
+    }
+  }
+
+  const boards: PublicLeaderBoard[] = [];
+  for (const comp of comps) {
+    const byProfile = perComp.get(comp.id as string);
+    if (!byProfile) continue;
+    const schema = getStatSchema(comp.sport_key as string);
+    if (!schema) {
+      boards.push({
+        competitionId: comp.id as string,
+        competitionName: comp.name as string,
+        sportKey: comp.sport_key as string,
+        unsupported: true,
+        stats: [],
+      });
+      continue;
+    }
+    const stats = schema.profileTiles
+      .filter(tile => tile.compute.kind === 'sum')
+      .map(tile => {
+        const keys = tile.compute.kind === 'sum' ? tile.compute.keys : [];
+        const rows: PublicLeaderRow[] = [];
+        for (const [profileId, acc] of byProfile) {
+          const name = nameById.get(profileId);
+          if (!name) continue;
+          const value = keys.reduce((sum, k) => sum + (acc.sums[k] ?? 0), 0);
+          if (value <= 0) continue;
+          rows.push({ name, teamName: acc.teamId ? (teamNameById.get(acc.teamId) ?? null) : null, value });
+        }
+        rows.sort((a, b) => b.value - a.value || a.name.localeCompare(b.name));
+        return { label: tile.label, rows: rows.slice(0, 5) };
+      })
+      .filter(s => s.rows.length > 0);
+    boards.push({
+      competitionId: comp.id as string,
+      competitionName: comp.name as string,
+      sportKey: comp.sport_key as string,
+      unsupported: false,
+      stats,
+    });
+  }
+  return boards;
 }

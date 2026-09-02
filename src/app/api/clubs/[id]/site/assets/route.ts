@@ -26,11 +26,14 @@ export async function POST(
     if (!gate.ok) return gate.response;
 
     const formData = await request.formData();
-    const file = formData.get('image') as File | null;
+    // B3: a `document` part is a PDF for the documents module; `image`
+    // stays the page-image/sponsor-logo shape.
+    const document = formData.get('document') as File | null;
+    const file = document ?? (formData.get('image') as File | null);
     if (!file) {
       return NextResponse.json({ error: 'No file provided' }, { status: 400 });
     }
-    return await siteAssetPOST(admin, 'club', id, file);
+    return await siteAssetPOST(admin, 'club', id, file, document ? 'document' : 'image');
   } catch (error) {
     if (error instanceof Response) return error;
     console.error('[ORG SITE PAGES] club asset POST error:', error);

@@ -235,6 +235,10 @@ export default function OrgConsolePage() {
   const [siteModules, setSiteModules] = useState<
     { module_key: string; enabled: boolean; config?: unknown }[]
   >([]);
+  // B3: documents & policies drafts (stored PDF path OR https link).
+  const [documentDrafts, setDocumentDrafts] = useState<
+    { title: string; path: string; url: string }[]
+  >([]);
   // B1: brand tokens beyond the accent, and the per-section labels.
   const [themeStrong, setThemeStrong] = useState('');
   const [themeSurface, setThemeSurface] = useState<'plain' | 'tinted'>('plain');
@@ -381,6 +385,16 @@ export default function OrgConsolePage() {
             setThemeTypeface(tokens.typeface);
             setThemeWordmark(tokens.wordmark ?? '');
             setNavLabels(parseNavConfig(siteBody.site?.nav_config).labels);
+            const documentsConfig = (siteBody.modules ?? []).find(
+              (m: { module_key: string }) => m.module_key === 'documents'
+            )?.config as { documents?: { title?: string; path?: string; url?: string }[] } | undefined;
+            setDocumentDrafts(
+              (documentsConfig?.documents ?? []).map(d => ({
+                title: d.title ?? '',
+                path: d.path ?? '',
+                url: d.url ?? '',
+              }))
+            );
             const sponsorsConfig = (siteBody.modules ?? []).find(
               (m: { module_key: string }) => m.module_key === 'sponsors'
             )?.config as { sponsors?: { name?: string; url?: string }[] } | undefined;
@@ -2831,6 +2845,138 @@ export default function OrgConsolePage() {
                     className="px-3 py-1.5 text-sm rounded-md text-tertiary hover:bg-surface-sunken transition-colors"
                   >
                     Reset
+                  </button>
+                </div>
+              </div>
+              <div className="pt-2 space-y-1.5">
+                <p className="text-sm font-medium text-primary">Documents &amp; policies</p>
+                <p className="text-xs text-tertiary">
+                  Upload a PDF or link to one hosted elsewhere. Shown when the Documents section is on.
+                </p>
+                {documentDrafts.map((d, index) => (
+                  <div key={index} className="flex flex-wrap gap-2">
+                    <input
+                      type="text"
+                      value={d.title}
+                      onChange={e =>
+                        setDocumentDrafts(list =>
+                          list.map((row, i) => (i === index ? { ...row, title: e.target.value } : row))
+                        )
+                      }
+                      maxLength={80}
+                      placeholder="Title (e.g. Code of conduct)"
+                      aria-label={`Document ${index + 1} title`}
+                      className="px-3 py-2 border border-border-strong rounded-md outline-none text-sm min-w-0 flex-1"
+                    />
+                    {d.path ? (
+                      <span className="inline-flex items-center gap-1 text-xs text-secondary">
+                        PDF attached
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setDocumentDrafts(list =>
+                              list.map((row, i) => (i === index ? { ...row, path: '' } : row))
+                            )
+                          }
+                          className="text-tertiary hover:text-primary"
+                          aria-label={`Detach document ${index + 1} file`}
+                        >
+                          ✕
+                        </button>
+                      </span>
+                    ) : (
+                      <>
+                        <input
+                          type="url"
+                          value={d.url}
+                          onChange={e =>
+                            setDocumentDrafts(list =>
+                              list.map((row, i) => (i === index ? { ...row, url: e.target.value } : row))
+                            )
+                          }
+                          maxLength={200}
+                          placeholder="https:// link (or upload)"
+                          aria-label={`Document ${index + 1} link`}
+                          className="px-3 py-2 border border-border-strong rounded-md outline-none text-sm min-w-0 flex-1"
+                        />
+                        <label className="flex items-center gap-1.5 text-xs text-tertiary">
+                          PDF
+                          <input
+                            type="file"
+                            accept="application/pdf"
+                            aria-label={`Document ${index + 1} file`}
+                            className="w-32 text-xs"
+                            onChange={async e => {
+                              const file = e.target.files?.[0];
+                              e.target.value = '';
+                              if (!file) return;
+                              const formData = new FormData();
+                              formData.append('document', file);
+                              try {
+                                const res = await fetch(`/api/${plural}/${orgId}/site/assets`, {
+                                  method: 'POST',
+                                  body: formData,
+                                });
+                                const body = await res.json();
+                                if (!res.ok) {
+                                  showError('Website', body.error || 'Failed to upload the document');
+                                  return;
+                                }
+                                setDocumentDrafts(list =>
+                                  list.map((row, i) =>
+                                    i === index ? { ...row, path: body.path, url: '' } : row
+                                  )
+                                );
+                              } catch {
+                                showError('Website', 'Upload failed — please try again');
+                              }
+                            }}
+                          />
+                        </label>
+                      </>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => setDocumentDrafts(list => list.filter((_, i) => i !== index))}
+                      aria-label={`Remove document ${index + 1}`}
+                      className="px-2 text-tertiary hover:text-primary"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                ))}
+                <div className="flex flex-wrap gap-2">
+                  {documentDrafts.length < 20 && (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setDocumentDrafts(list => [...list, { title: '', path: '', url: '' }])
+                      }
+                      className="px-3 py-1.5 text-sm rounded-md text-tertiary hover:bg-surface-sunken transition-colors"
+                    >
+                      + Add document
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() =>
+                      void siteAct(
+                        {
+                          action: 'set_documents',
+                          documents: documentDrafts
+                            .filter(d => d.title.trim() && (d.path || d.url.trim()))
+                            .map(d => ({
+                              title: d.title.trim(),
+                              ...(d.path ? { path: d.path } : { url: d.url.trim() }),
+                            })),
+                        },
+                        'Documents saved',
+                        'Failed to save documents'
+                      )
+                    }
+                    className="px-3 py-1.5 text-sm rounded-md border border-border-strong text-secondary hover:bg-surface-sunken transition-colors"
+                  >
+                    Save documents
                   </button>
                 </div>
               </div>
