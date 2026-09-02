@@ -12,6 +12,7 @@ import AffiliationSection from '@/components/affiliations/AffiliationSection';
 import ParentLeaguesSection from '@/components/affiliations/ParentLeaguesSection';
 import OrgUpcomingEvents from '@/components/affiliations/OrgUpcomingEvents';
 import OrgStandings from '@/components/orgs/OrgStandings';
+import GolfYourWeek from '@/components/orgs/GolfYourWeek';
 import OrgVenues from '@/components/orgs/OrgVenues';
 import { orgSitePath } from '@/lib/org-sites/urls';
 import OrgRecentActivity from '@/components/affiliations/OrgRecentActivity';
@@ -746,6 +747,8 @@ export default function LeaguePage() {
             <p className="mt-3 text-xs text-muted">Showing {members.length} of {memberCount} members.</p>
           )}
         </div>
+
+        <GolfYourWeek side="league" orgId={league.id} />
 
         <OrgStandings side="league" orgId={league.id} />
 

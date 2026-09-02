@@ -41,7 +41,12 @@ export type GuardianNotificationType =
   | 'roster_invite'
   // Phase 5 (mig 163): the registrar placed/released a supervised child.
   | 'org_registration_placed'
-  | 'org_registration_released';
+  | 'org_registration_released'
+  // Phase 6d W2 (mig 173): a supervised child's golf league week — their
+  // round counted / the week is final / the window closes tomorrow.
+  | 'golf_league_round_counted'
+  | 'golf_league_round_confirmed'
+  | 'golf_league_window_closing';
 
 export interface GuardianNotification {
   type: GuardianNotificationType;

@@ -106,6 +106,10 @@ describe('tab buckets (behavior frozen from the pre-registry literal arrays)', (
       'event_reminder',
       'follow_request_guardian',
       'follow_update',
+      // Phase 6d W2 (mig 173): golf league bells.
+      'golf_league_round_confirmed',
+      'golf_league_round_counted',
+      'golf_league_window_closing',
       'group_invite',
       'group_update',
       'guardian_invite',

@@ -1,5 +1,73 @@
 # Development Log
 
+## September 2, 2026 — Phase 6d W2: golf league depth, part 2 — the member feedback loop (#519, mig 173)
+
+W1 made the week visible to visitors; nothing yet spoke to the MEMBER.
+The engine's only side effects were `contest_results`, `contests.status`,
+standings and a cache purge — a member who posted a round learned it
+counted only by finding themselves on the board, and an athlete had no
+surface at all for the leagues they play in (`competition_entries` is
+service-role only). This round closes the loop, both ways.
+
+- **Migration 173** — the 154 ritual: the notifications CHECK widens
+  51 → 54 with `golf_league_round_counted`, `golf_league_round_confirmed`,
+  `golf_league_window_closing`. ORDER-STRICT after 172, any order relative
+  to the deploy: every sender is best-effort and a 23514 on the old CHECK
+  only drops the bell, never the sync, the confirm or the cron. Registry +
+  the guardian sender union updated together (the parity test parses the
+  highest-numbered migration, so `verify` enforces it).
+- **`golf-league-notify.ts`** (the registration/notify charter: direct
+  admin inserts, self-contained titles because they ARE the digest,
+  metadata as the dedupe key). Pure, node-tested copy — "Your 9-hole 41
+  (net 36) counts for Week 2 in Thursday Nine" / "…now counts…" on a
+  re-count; "Week 2 in Thursday Nine is final — you're 3rd of 12"; "Week
+  2 in Thursday Nine closes tomorrow — no round posted yet" + "Post a
+  round at {course} by Sep 7." — and `planWindowReminders` (no result +
+  no nudge yet ⇒ nudge; pure so the once-per-member-per-round rule is
+  testable without a clock). **A supervised member's bell is COPIED to
+  their guardians** (the roster-invite cross-notify model): a guardian
+  sees exactly what their child sees; nothing here relaxes a rail. These
+  are convenience surfaces, never safety surfaces.
+- **Hooks in the engine**: `syncGolfContest` now reads the prior result's
+  score + round ref and bells only members whose result is NEW or
+  CHANGED — never `kept`, never an unchanged re-sync (idempotence keeps
+  its meaning). `confirmGolfContest` uses `.select()` on the update so
+  only the rows it actually flipped get "final" bells with the rank from
+  the recomputed standings — a second click bells nobody.
+  `runGolfWindowReminders` is a new daily cron phase AFTER the sync (a
+  round posted today is counted before anyone is nudged): rounds whose
+  `play_to` is tomorrow, members with no result, deduped on
+  `metadata.contest_id` filtered to MEMBER ids (a guardian copy neither
+  suppresses nor duplicates). `action_url` is the org page, which now
+  shows the week.
+- **"Your week"** — `GET /api/{leagues,clubs}/[id]/golf/mine`
+  (`golf-league-mine.ts`): the ONE viewer-dependent golf-league read
+  (`requireAuth`, `private, no-store`), entry-gated so a member of a
+  PRIVATE league sees their own week; the round the league leads with
+  (`selectCurrentWeek`) and the caller's result in it. `GolfYourWeek`
+  (client, the OrgStandings contract: additive, nothing for visitors or
+  non-members, `initialAuthCheckComplete` before `user`) sits above the
+  standings on `/league/[id]` and `/club/[id]`: "Gross 41 · posted|final"
+  or "Not posted yet — closes Sep 7. Post a round →" (a plain link to the
+  member's rounds page — the golf write path stays frozen). No acting-as:
+  a guardian viewing as themselves sees their own entries only.
+- Known limit, recorded: the confirm rank is the member's CUMULATIVE
+  standings rank after the week, not their finish within the week — the
+  board is what the league reads; revisit if a league asks.
+- e2e `golf-league-notify.spec.ts` (bell assertions gated on a live
+  probe insert of the new type — 23514 ⇒ skipped, everything else runs):
+  a PRIVATE gross league, the owner's 41 and a supervised child's 35 →
+  sync → one "counted" bell per member with a round, alpha none, the
+  guardian copy for the child, an idempotent re-sync adds nothing →
+  `mine`: anon 401, the owner's 41 posted, alpha's open week with no
+  result → the org page at 375px shows "Your week" with the score for
+  the owner and the "Post a round →" door for alpha → confirm → "final"
+  bells with "you're Nth of M", once. Regression: rules, sync and weeks
+  specs green vs the live DB.
+
+Next: W3 — the season generator (N weekly rounds in one request, dry-run
+first, duplicate windows skipped).
+
 ## September 2, 2026 — Phase 6d W1: golf league depth, part 1 — the week visible (#518, zero DDL)
 
 Phase 6c left a golf league that fills itself (G2) but shows the filling

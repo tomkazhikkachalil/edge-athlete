@@ -96,6 +96,11 @@ export const NOTIFICATION_TYPE_META = {
   // Phase 6 R4 (mig 168): result disputes — manager-facing.
   contest_dispute_raised: { tab: null, icon: 'fa-flag' },
   contest_dispute_resolved: { tab: null, icon: 'fa-flag-checkered' },
+  // Phase 6d W2 (mig 173): golf league bells — member-facing (guardians
+  // copied when supervised). All/Unread-only like their org siblings.
+  golf_league_round_counted: { tab: null, icon: 'fa-golf-ball-tee' },
+  golf_league_round_confirmed: { tab: null, icon: 'fa-golf-ball-tee' },
+  golf_league_window_closing: { tab: null, icon: 'fa-golf-ball-tee' },
 } as const satisfies Record<string, NotificationTypeMeta>;
 
 export type KnownNotificationType = keyof typeof NOTIFICATION_TYPE_META;
