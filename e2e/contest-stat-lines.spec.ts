@@ -247,7 +247,7 @@ test('contest stat lines: roster gate, provenance stamps, participant path; 375p
       await expect(
         page.getByRole('heading', { name: `House League ${stamp}` })
       ).toBeVisible({ timeout: 20_000 });
-      await page.getByRole('button', { name: 'Player stats' }).click();
+      await page.getByRole('button', { name: 'Player stats', exact: true }).click();
       // The bare team name also lives in the create-form <option>s —
       // assert the panel's own save button instead (strict mode).
       await expect(
@@ -273,7 +273,7 @@ test('contest stat lines: roster gate, provenance stamps, participant path; 375p
         page.getByRole('heading', { name: `House League ${stamp}` })
       ).toBeVisible({ timeout: 20_000 });
       await expect(page.getByText('recorded as club stats', { exact: false })).toBeVisible();
-      await page.getByRole('button', { name: 'Player stats' }).click();
+      await page.getByRole('button', { name: 'Player stats', exact: true }).click();
       await expect(
         page.getByRole('button', { name: `Save Comets ${stamp} stats` })
       ).toBeVisible({ timeout: 15_000 });

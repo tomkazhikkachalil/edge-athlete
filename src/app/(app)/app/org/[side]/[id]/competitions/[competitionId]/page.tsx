@@ -146,6 +146,15 @@ export default function CompetitionDetailPage() {
   // Phase 6 R6: schedule/results CSV import (dry-run-first).
   const [schedImportOpen, setSchedImportOpen] = useState(false);
   const [schedCsvText, setSchedCsvText] = useState('');
+  // I2: per-athlete stat lines by CSV (fixture competitions with a stat schema).
+  const [statsImportOpen, setStatsImportOpen] = useState(false);
+  const [statsCsvText, setStatsCsvText] = useState('');
+  const [statsBusy, setStatsBusy] = useState(false);
+  const [statsReport, setStatsReport] = useState<{
+    dryRun: boolean;
+    report: { row: number; date: string; matchup: string; player: string; action: string; error?: string }[];
+    summary: { rows: number; errors: number; imported: number; games: number };
+  } | null>(null);
   const [schedBusy, setSchedBusy] = useState(false);
   const [schedReport, setSchedReport] = useState<{
     dryRun: boolean;
@@ -411,6 +420,36 @@ export default function CompetitionDetailPage() {
       showError('Schedule import', 'Import failed');
     } finally {
       setSchedBusy(false);
+    }
+  };
+
+  const runStatsImport = async (dryRun: boolean) => {
+    if (statsBusy) return;
+    setStatsBusy(true);
+    try {
+      const response = await fetch(`${base}/stat-lines-import`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          csv: statsCsvText,
+          timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
+          dryRun,
+        }),
+      });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        showError('Player stats import', body.error || 'Import failed');
+        return;
+      }
+      setStatsReport(body);
+      if (!dryRun) {
+        showSuccess('Player stats import', 'Imported — stats are on the games');
+        refresh();
+      }
+    } catch {
+      showError('Player stats import', 'Import failed');
+    } finally {
+      setStatsBusy(false);
     }
   };
 
@@ -858,6 +897,84 @@ export default function CompetitionDetailPage() {
                               #{r.row} {r.matchup} — {r.action}
                               {r.withResult ? ' + result' : ''}
                               {r.error ? ` — ${r.error}` : r.warning ? ` — ${r.warning}` : ''}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Phase 6c I2: per-athlete stat lines by CSV — the last §10 importer. */}
+          {competition.format === 'fixture' && !!getStatSchema(competition.sport_key) && (
+            <div className="mb-4">
+              <button
+                type="button"
+                onClick={() => {
+                  setStatsImportOpen(o => !o);
+                  setStatsReport(null);
+                }}
+                className="px-2 py-1 text-xs rounded-md border border-border-strong text-secondary hover:bg-surface-sunken transition-colors"
+              >
+                {statsImportOpen ? 'Close player stats import' : 'Import player stats CSV'}
+              </button>
+              {statsImportOpen && (
+                <div className="mt-2 border border-border rounded-lg p-3">
+                  <p className="text-xs text-muted mb-2">
+                    Columns: <code>date, home, away, team, player</code> plus any of{' '}
+                    <code>{(getStatSchema(competition.sport_key)?.fields ?? []).map(f => f.key).join(', ')}</code>.
+                    Each row names a game already on the schedule (that date, those teams), the
+                    player&apos;s team and the player exactly as on the roster. Imported stats are
+                    labeled <em>imported</em>.
+                  </p>
+                  <textarea
+                    value={statsCsvText}
+                    onChange={e => {
+                      setStatsCsvText(e.target.value);
+                      setStatsReport(null);
+                    }}
+                    rows={5}
+                    placeholder={'date,home,away,team,player,goals,assists\n2026-10-03,Blazers,Comets,Blazers,Ava Chen,2,1'}
+                    aria-label="Player stats CSV"
+                    className="w-full px-3 py-2 border border-border-strong rounded-md outline-none text-sm font-mono"
+                  />
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      disabled={statsBusy || !statsCsvText.trim()}
+                      onClick={() => void runStatsImport(true)}
+                      className="px-3 py-1.5 text-sm min-h-[36px] rounded-lg border border-border-strong text-secondary hover:bg-surface-sunken transition-colors disabled:opacity-50"
+                    >
+                      Preview
+                    </button>
+                    <button
+                      type="button"
+                      disabled={statsBusy || statsReport === null || statsReport.dryRun !== true}
+                      onClick={() => void runStatsImport(false)}
+                      title={statsReport?.dryRun !== true ? 'Preview first' : undefined}
+                      className="px-3 py-1.5 text-sm min-h-[36px] rounded-lg bg-brand text-white font-medium hover:bg-brand-hover transition-colors disabled:opacity-50"
+                    >
+                      Import
+                    </button>
+                  </div>
+                  {statsReport && (
+                    <div className="mt-2 text-xs text-secondary">
+                      <p className="font-medium text-primary mb-1">
+                        {statsReport.dryRun ? 'Preview' : 'Imported'}: {statsReport.summary.imported} stat lines across{' '}
+                        {statsReport.summary.games} games
+                        {statsReport.summary.errors > 0 && (
+                          <span className="text-red-600"> · {statsReport.summary.errors} errors</span>
+                        )}
+                      </p>
+                      <div className="overflow-x-auto">
+                        <ul className="space-y-0.5">
+                          {statsReport.report.map(r => (
+                            <li key={r.row} className={r.error ? 'text-red-600' : ''}>
+                              #{r.row} {r.date} {r.matchup} · {r.player} — {r.action}
+                              {r.error ? ` — ${r.error}` : ''}
                             </li>
                           ))}
                         </ul>

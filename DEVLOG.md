@@ -1,5 +1,53 @@
 # Development Log
 
+## September 2, 2026 — Phase 6c I2: per-athlete stat-line CSV import (#517, zero DDL) — PHASE 6c CODE-COMPLETE
+
+The last §10 importer, and the last round of the phase-6c program:
+
+- **`roster-match.ts`** (pure, node-tested): `normalizeName` (NFD,
+  diacritics stripped, lowercased, whitespace collapsed) and
+  `matchRosterName` — exact after normalization, UNIQUE or a row error
+  ("José Núñez" vs "Jose Nunez" is ambiguous, never a guess — a wrong
+  athlete on a stat line is a provenance lie); "Last, First" flips.
+- **`stat-lines-import.ts`**: rows `date, home, away, team, player` plus
+  any of the sport's stat keys (the STAT_SCHEMAS vocabulary — one
+  language for typed, self-posted and imported stats; `checkHeaders`
+  lists the keys on a miss). Each row resolves to ONE game (the contest
+  between those teams on that date, dates read in the manager's zone),
+  ONE side (the named team must be one of the two) and ONE roster
+  athlete; stats are range-checked by the schema. Dry-run is the
+  default; per-row best-effort; one upsert per game.
+- **The seam**: `statLinesUpsertPOST` takes an optional
+  `{ provenance: 'imported' }` honoured only under OWNER authority —
+  the attribution gate (active team roster or nothing), the sport check
+  and the range check run exactly as for the per-game panel; only the
+  label changes. Imports are the organizer's act (participating club
+  staff get 403; they keep the panel).
+- Route twins `…/competitions/[competitionId]/stat-lines-import`
+  (manager-gated, org-competitions bucket); console: an "Import player
+  stats CSV" expander on fixture competitions with a stat schema
+  (header hint from the schema, Preview → Import gated on a fresh
+  preview, per-row report).
+- e2e `stat-lines-import.spec.ts`: two temp QA users whose names
+  normalize equal → member 403, bad header 400, dry-run 2 imports + 4
+  row errors (ambiguous / wrong team / no game that day / out of
+  range) with zero writes, commit lands two `imported` lines on the
+  right teams and the panel aggregate labels them, console preview at
+  375px. Trap: Playwright's `getByRole` name is a case-insensitive
+  SUBSTRING match — the new "Import player stats CSV" button made the
+  panel spec's `{ name: 'Player stats' }` a strict-mode violation; that
+  locator is now `exact: true`. Second trap: a multi-row PostgREST
+  insert fills a key some rows omit with NULL, not the column default
+  (`memberships.kind` is NOT NULL) — seed every row with every key.
+
+**Phase 6c is code-complete** (D1 #512, G1 #513, G2 #514, G3 #515 merged
+and prod-proven; I1 #516 and I2 #517 open). The masterplan's phase-6
+leftovers are closed except payments (skipped by decision), and golf
+has its first vertical: a club page that shows its courses and the
+leagues that play there, a league page whose weekly rounds fill
+themselves from members' posted rounds with net and gross, and the
+import doors an association needs to move in.
+
 ## September 2, 2026 — Phase 6c I1: ICS schedule import + org-scoped venues (#516, zero DDL)
 
 Masterplan §10 said "schedule by CSV or ICS"; R6 shipped the CSV half.

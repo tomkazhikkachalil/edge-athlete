@@ -272,7 +272,10 @@ export async function statLinesUpsertPOST(
   admin: Admin,
   input: StatLinesUpsertInput,
   scope: CompetitionScope | null,
-  enteredBy: string
+  enteredBy: string,
+  /** Phase 6c I2: the CSV importer stamps 'imported' (owner authority
+   *  only — the gate below still runs; only the label changes). */
+  opts: { provenance?: 'imported' } = {}
 ): Promise<NextResponse> {
   const { data: contestRow } = await admin
     .from('contests')
@@ -358,7 +361,10 @@ export async function statLinesUpsertPOST(
     }
   }
 
-  const provenance = stampProvenance(access.authority);
+  const provenance =
+    opts.provenance === 'imported' && access.authority === 'owner'
+      ? 'imported'
+      : stampProvenance(access.authority);
   if (access.authority === 'participant') {
     // No silent downgrade: never overwrite the owner's verified rows.
     const { data: existing, error } = await admin
