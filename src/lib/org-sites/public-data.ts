@@ -1073,7 +1073,13 @@ export async function fetchPublicClubGolfBoards(
       if (!payload) return;
       for (const c of payload.competitions) {
         if (c.sport_key !== 'golf' || c.format !== 'leaderboard' || c.rows.length === 0) continue;
-        boards.push({ orgName: payload.orgName, competition: { ...c, rows: c.rows.slice(0, 5) } });
+        // W1: the teaser stays the CUMULATIVE board — the week-by-week
+        // view belongs to the league's own page (club page ≠ league page),
+        // and carrying it here would render every affiliated league's
+        // rounds twice.
+        const { golf: _golf, ...cumulative } = c;
+        void _golf;
+        boards.push({ orgName: payload.orgName, competition: { ...cumulative, rows: c.rows.slice(0, 5) } });
       }
     };
     take(await fetchPublicStandings(admin, 'club', clubId));

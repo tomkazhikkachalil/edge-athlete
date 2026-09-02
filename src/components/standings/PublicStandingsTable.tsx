@@ -1,4 +1,5 @@
 import type { PublicCompetitionStandings } from '@/lib/competitions/public-standings';
+import GolfWeeks from './GolfWeeks';
 
 // One competition's standings card — the SSR markup shared by the
 // league/club standings pages and the public org-site standings module.
@@ -23,6 +24,10 @@ export default function PublicStandingsTable({
           <span className="text-sm font-normal text-muted"> · {competition.season_label}</span>
         ) : null}
       </h2>
+      {/* W1: a fresh golf league has an open window before anyone has a
+          standings row (standings count completed rounds only) — the
+          table is skipped, the week below still renders. */}
+      {competition.rows.length > 0 && (
       <div className="mt-3 overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
@@ -70,6 +75,8 @@ export default function PublicStandingsTable({
           </tbody>
         </table>
       </div>
+      )}
+      {competition.golf && <GolfWeeks golf={competition.golf} competitionId={competition.id} />}
       {/* Phase 6 R4: a disputed result must never read as settled —
           shared markup, so console twins and the public site all carry
           the same footnote (unconfirmed semantics, no new visual

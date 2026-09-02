@@ -40,7 +40,9 @@ export default async function OrgSiteStandingsPage({ params }: PageParams) {
   const { slug } = await params;
   const site = await requireSiteModule(slug, 'standings');
   const payload = await getCachedStandings(slug, site.side, site.orgId);
-  const withRows = payload?.competitions.filter(c => c.rows.length > 0) ?? [];
+  // W1: a golf league with an open window (no completed round yet) has a
+  // week to show before it has rows.
+  const withRows = payload?.competitions.filter(c => c.rows.length > 0 || c.golf) ?? [];
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-8 space-y-6">

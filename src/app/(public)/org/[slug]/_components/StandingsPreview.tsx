@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import type { PublicStandingsPayload } from '@/lib/competitions/public-standings';
+import { formatDateRange } from '@/lib/competitions/golf-weeks';
 
 // Home-page standings preview: the first competition with rows, top 5,
 // three columns only (the full column engine lives on /standings via
@@ -13,10 +14,20 @@ export default function StandingsPreview({
   standings: PublicStandingsPayload | null;
   basePath: string;
 }) {
-  const first = standings?.competitions.find(c => c.rows.length > 0);
+  // W1: a golf league with an open window but no completed round yet has
+  // no rows — it still has a week to show.
+  const first = standings?.competitions.find(c => c.rows.length > 0 || c.golf);
   if (!first) {
     return <p className="mt-1 text-sm text-tertiary">No published standings yet.</p>;
   }
+  const currentWeek = first.golf?.weeks.find(w => w.id === first.golf?.currentWeekId) ?? null;
+  const weekLead = currentWeek
+    ? currentWeek.state === 'open'
+      ? 'This week'
+      : currentWeek.state === 'upcoming'
+        ? 'Next round'
+        : 'Last round'
+    : null;
   // G1: the sort key's own label (Pts / Net / Gross / Total), never a fixed "Pts".
   const pointsColumn = first.columns.find(c => c.key === 'points') ?? {
     key: 'points',
@@ -31,6 +42,14 @@ export default function StandingsPreview({
           <span className="font-normal text-muted"> · {first.season_label}</span>
         ) : null}
       </p>
+      {currentWeek && (
+        <p className="mt-1 text-sm text-secondary">
+          <span className="font-medium text-primary">{weekLead}:</span>{' '}
+          {currentWeek.round ?? 'Round'} · {formatDateRange(currentWeek.playFrom, currentWeek.playTo)} ·{' '}
+          {currentWeek.posted} of {currentWeek.participants} posted
+        </p>
+      )}
+      {first.rows.length > 0 && (
       <div className="mt-2 overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
@@ -58,6 +77,7 @@ export default function StandingsPreview({
           </tbody>
         </table>
       </div>
+      )}
       <Link
         href={`${basePath}/standings`}
         className="mt-3 inline-block text-sm text-brand-fg font-medium"

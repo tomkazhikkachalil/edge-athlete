@@ -1,5 +1,78 @@
 # Development Log
 
+## September 2, 2026 — Phase 6d W1: golf league depth, part 1 — the week visible (#518, zero DDL)
+
+Phase 6c left a golf league that fills itself (G2) but shows the filling
+to nobody but the manager: every public route rendered the cumulative
+board only, the schedule module reads the `events` table (no window, no
+holes, no course), and the G3 "This week at the club" teaser was — despite
+its name — the cumulative table. Worse: the four `rows.length > 0` filters
+hid a FRESH league entirely, because standings count completed rounds only
+and `contestCreatePOST` recomputes nothing — a league whose first window
+had just opened rendered "No published standings yet." This round makes
+the week visible on every route (Tom's principle 2, seen).
+
+- **`golf-weeks.ts`** (pure, node-tested): date-only helpers
+  (`addDaysIso`, `utcToday` — the cron's UTC date slice, so the page and
+  the sync agree on which window is open; `weekState`,
+  `selectCurrentWeek` = containing window → next to open → last closed;
+  `formatDateRange` with no Intl) and `buildGolfBlock`, which turns
+  windowed contests + participants + results into `PublicGolfBlock`
+  (`{pick, today, currentWeekId, weeks[]}`; a week = round label, holes,
+  window, course name, state, `participants`, `posted`, results
+  `{entrant_name, gross, net, holes, tee, status: posted|final,
+  disputed}`). An organizer-typed score (`{}` payload) lands in the
+  rule's column only, never invented for the other.
+- **The payload carries it**: `PublicCompetitionStandings.golf?` is
+  filled by `fetchPublicStandings` for golf leaderboards with ≥1
+  windowed round (mig 172) and ABSENT otherwise — legacy boards and
+  non-golf payloads are byte-identical to before. Names now resolve from
+  the UNION of standings entries and week-result entries (a member who
+  posted this week has no standings row yet). Supervised athletes are
+  OMITTED from the rows and only COUNTED in `posted` (a count reveals
+  nothing). The read is bounded (≤300 rounds, ≤2000 participants, ≤1000
+  results per org) and never-throw; pre-172 yields no block. Every
+  consumer inherits it: the CDN-cached API twins, the SSR `/standings`
+  twins, the ISR org-site reader (same `org-site:{slug}` tag, already
+  purged by sync/confirm/cron/create), the preview, `OrgStandings`.
+- **Club page ≠ league page**: `fetchPublicClubGolfBoards` strips the
+  block, so the club teaser stays cumulative and never renders every
+  affiliated league's rounds twice.
+- **`GolfWeeks.tsx`** — props-only, hook-free, FA-free, `dark:`-free
+  (it renders under `(public)` through `PublicStandingsTable` AND inside
+  the client `OrgStandings`): the lead round ("This week" / "Next round"
+  / "Last round"), its meta line, "{posted} of {participants} posted",
+  the results table with posted/final chips, closed rounds as native
+  `<details>` (collapsed, no JS), upcoming rounds one line each.
+  `PublicStandingsTable`, `StandingsPreview` (a one-line week summary on
+  the home module), the three `/standings` pages and `OrgStandings` all
+  render it; the `rows.length > 0` filters widened to `|| c.golf` and
+  the cumulative table itself is skipped when there are no rows.
+- Console: the sync report's skip lines now match on `entryId` (the
+  `profileId` route printed a raw UUID whenever the entries list hadn't
+  resolved).
+- e2e `golf-league-weeks.spec.ts`: a public gross league with three
+  windows (closed / open around today / upcoming), the owner's 44 last
+  week and 41 this week, nothing from Alpha, a supervised child's 35
+  (flag on) → BEFORE any sync the board is present with zero rows and
+  the open week at 0 posted → sync → `currentWeekId` = the open round,
+  weeks ordered, the child counted but never listed, `posted` chips →
+  confirm last week → `final` + a standings row → the anonymous SSR
+  twin carries "This week", the label, both chips, "Player", no minor →
+  `/club/{id}` (route parity) and the twin at 375px → the console sync
+  names Alpha's skip. Finding while writing it: the recompute writes a
+  row per entrant even with nothing completed, so "zero rows" is only
+  the pre-first-sync state — which is exactly the fresh-league case.
+- Known limit, recorded: "today" is the UTC date, so a window ending
+  Sunday reads closed from Sunday evening in the Americas — consistent
+  with the cron (the page never says "open" for a round the sync would
+  no longer fill).
+- Regression: golf-league-rules, golf-league-sync, org-leaderboard and
+  org-site-two-pages all green vs the live DB.
+
+Next: W2 — the member feedback loop (mig 173: counted / confirmed /
+window-closing bells; a member-only "your week" strip on the org page).
+
 ## September 2, 2026 — Phase 6c I2: per-athlete stat-line CSV import (#517, zero DDL) — PHASE 6c CODE-COMPLETE
 
 The last §10 importer, and the last round of the phase-6c program:

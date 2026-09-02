@@ -136,7 +136,7 @@ export default function CompetitionDetailPage() {
   const [scoreContestId, setScoreContestId] = useState<string | null>(null);
   // G2: the last sync report per contest (synced / kept / skipped with reasons).
   const [syncReports, setSyncReports] = useState<
-    Record<string, { synced: number; kept: number; skipped: { profileId: string; reason: string }[]; blocked?: string }>
+    Record<string, { synced: number; kept: number; skipped: { entryId: string; profileId: string; reason: string }[]; blocked?: string }>
   >({});
   const [syncBusy, setSyncBusy] = useState<string | null>(null);
   // Phase 6 R4 (mig 168): dispute controls — inline note expander, never
@@ -1242,8 +1242,13 @@ export default function CompetitionDetailPage() {
                             <p className="text-amber-700">Nothing synced — {syncReports[contest.id].blocked}</p>
                           )}
                           {syncReports[contest.id]?.skipped.map(s => (
-                            <p key={s.profileId} className="text-tertiary">
-                              {contest.participants.find(p => p.entry_id && entries.find(e => e.id === p.entry_id)?.profile_id === s.profileId)?.entrant_name ?? 'A member'}
+                            <p key={s.entryId ?? s.profileId} className="text-tertiary">
+                              {/* W1: match on the participant's entry id — the
+                                  profileId route printed a raw UUID whenever
+                                  the entries list hadn't resolved. */}
+                              {contest.participants.find(p => p.entry_id === s.entryId)?.entrant_name
+                                ?? contest.participants.find(p => p.entry_id && entries.find(e => e.id === p.entry_id)?.profile_id === s.profileId)?.entrant_name
+                                ?? 'A member'}
                               {' — '}
                               {s.reason}
                             </p>

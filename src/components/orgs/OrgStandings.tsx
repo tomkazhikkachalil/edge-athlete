@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import GolfWeeks from '@/components/standings/GolfWeeks';
+import type { PublicGolfBlock } from '@/lib/competitions/golf-weeks';
 
 // The org page's standings section (phase 2 R3) — public competitions'
 // materialized tables. The OrgUpcomingEvents contract: additive, renders
@@ -25,6 +27,8 @@ interface CompetitionStandings {
   rows: StandingRow[];
   /** G1: 'athlete' boards head the entrant column "Player". */
   entrant_type?: string;
+  /** W1: the golf week-to-week block (present only for windowed rounds). */
+  golf?: PublicGolfBlock;
 }
 
 interface OrgStandingsProps {
@@ -45,7 +49,9 @@ export default function OrgStandings({ side, orgId }: OrgStandingsProps) {
         const data = await response.json();
         if (!cancelled) {
           setCompetitions(
-            (data.competitions ?? []).filter((c: CompetitionStandings) => c.rows.length > 0)
+            // W1: a golf league with an open window has a week to show
+            // before it has rows.
+            (data.competitions ?? []).filter((c: CompetitionStandings) => c.rows.length > 0 || c.golf)
           );
         }
       } catch {
@@ -77,6 +83,7 @@ export default function OrgStandings({ side, orgId }: OrgStandingsProps) {
               {comp.name}
               {comp.season_label ? <span className="text-muted"> · {comp.season_label}</span> : null}
             </p>
+            {comp.rows.length > 0 && (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
@@ -111,6 +118,8 @@ export default function OrgStandings({ side, orgId }: OrgStandingsProps) {
                 </tbody>
               </table>
             </div>
+            )}
+            {comp.golf && <GolfWeeks golf={comp.golf} competitionId={comp.id} />}
           </div>
         ))}
       </div>
