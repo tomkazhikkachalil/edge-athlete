@@ -6,6 +6,8 @@ import type { PublicOpenWindow } from '@/lib/org-sites/public-data';
 import type {
   PublicAffiliation,
   PublicCourse,
+  PublicDivision,
+  PublicLeaderBoard,
   PublicStaffRow,
   PublicTeam,
   PublicVenue,
@@ -13,6 +15,7 @@ import type {
 import {
   moduleLabel,
   parseContact,
+  parseDocuments,
   parseHeroConfig,
   parseNavConfig,
   parseSponsors,
@@ -21,6 +24,9 @@ import {
 import AffiliationsList from './AffiliationsList';
 import ContactCard from './ContactCard';
 import CoursesList from './CoursesList';
+import DivisionsList from './DivisionsList';
+import DocumentsList from './DocumentsList';
+import LeadersTable from './LeadersTable';
 import RegisterCard from './RegisterCard';
 import ScheduleList from './ScheduleList';
 import SponsorsList from './SponsorsList';
@@ -46,6 +52,9 @@ export interface SiteHomeData {
   openWindows: PublicOpenWindow[];
   /** Phase 6b A2 — the golf club's linked catalog courses. */
   courses: PublicCourse[];
+  /** Phase 6b B3 — divisions + stat leaders (documents ride module config). */
+  divisions: PublicDivision[];
+  leaders: PublicLeaderBoard[];
 }
 
 export default function SiteHomeBody({
@@ -55,7 +64,7 @@ export default function SiteHomeBody({
   site: PublicSite;
   data: SiteHomeData;
 }) {
-  const { standings, events, teams, staff, venues, affiliations, openWindows, courses } = data;
+  const { standings, events, teams, staff, venues, affiliations, openWindows, courses, divisions, leaders } = data;
   const enabled = site.modules.filter(m => m.enabled);
   const has = (key: string) => enabled.some(m => m.module_key === key);
   const hero = parseHeroConfig(site.hero_config);
@@ -138,6 +147,33 @@ export default function SiteHomeBody({
         ) : (
           empty('No courses listed yet.')
         );
+      case 'divisions':
+        return divisions.length > 0 ? (
+          <DivisionsList divisions={divisions} basePath={orgSitePath(site.subdomain)} detailed={false} />
+        ) : (
+          empty('No divisions this season.')
+        );
+      case 'leaders':
+        return leaders.length > 0 ? (
+          <LeadersTable boards={leaders} basePath={orgSitePath(site.subdomain)} detailed={false} />
+        ) : (
+          empty('No stats recorded yet.')
+        );
+      case 'documents': {
+        const documents = parseDocuments(
+          site.modules.find(m => m.module_key === 'documents')?.config
+        );
+        return documents.length > 0 ? (
+          <DocumentsList
+            documents={documents}
+            siteId={site.id}
+            basePath={orgSitePath(site.subdomain)}
+            detailed={false}
+          />
+        ) : (
+          empty('No documents yet.')
+        );
+      }
       case 'gallery':
         // The gallery is a subpage module — the home section is a teaser
         // (it used to fall to the default "Coming soon.").

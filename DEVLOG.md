@@ -1,5 +1,39 @@
 # Development Log
 
+## September 1, 2026 — Phase 6b B3: builder depth, part 3 — divisions, stat leaders, documents (#508, zero DDL)
+
+The three masterplan §6 modules that were still unbuilt (169 already
+admitted the keys, so this round is zero-DDL):
+
+- **Divisions** — `fetchPublicDivisions`: the org's CURRENT seasons
+  (not ended; newest three) → divisions (age band / tier) → entries →
+  active teams. Home lists names + counts; `/divisions` renders each
+  division with its team chips linking to the team pages.
+- **Stat leaders** — `fetchPublicStatLeaders`: PUBLIC competitions →
+  contests → `contest_stat_lines` (bounded) → per competition the
+  schema's SUM tiles (Goals, Assists, Points, Kills…) as top-five
+  tables with team names. THE PEOPLE RULES, applied to a leaderboard:
+  names pass through `publicDisplayName`, and **supervised athletes are
+  OMITTED entirely** — a masked "First L." still names a minor on a
+  crawlable page (Tom's call this session). A sport with no stat-line
+  schema (golf) answers `unsupported` and the section says so.
+  `leaders` spans the bold template's grid.
+- **Documents & policies** — PDFs in org-media: `siteAssetPOST` takes a
+  `document` part (application/pdf, 10MB) under the same
+  `org-media/{siteId}/` prefix; `ORG_MEDIA_FILE_RE` admits `.pdf`, so
+  the existing tokenless streamer serves them inline with the stored
+  content-type. Module config `{ documents: [{ title, path | url }] }`
+  via `set_documents` (file XOR https link; the sponsors' cross-site
+  prefix guard). Console: title + upload PDF or link, Save documents.
+- All three have subpages + vanity twins, join `MODULE_SUBPAGE_KEYS`
+  (sitemap), and render on home through `SiteHomeBody`.
+- e2e `org-site-modules.spec.ts`: seeded season/division/team/entry, a
+  public hockey competition with a stat line and a golf one → home
+  carries all three sections; `/divisions` (age band/tier, team chip);
+  `/leaders` (Goals/Points, team, owner's name; golf degrade copy);
+  `/documents` (PDF streams inline as application/pdf; https link;
+  foreign path 400); 375px on `/leaders`.
+
 ## September 1, 2026 — Phase 6b B2: builder depth, part 2 — the second template, `bold` (#507, mig 170)
 
 155 shipped one template and promised the CHECK "widens additively";

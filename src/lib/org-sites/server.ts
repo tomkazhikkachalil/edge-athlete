@@ -341,6 +341,52 @@ export async function sitePATCH(
     return NextResponse.json({ ok: true });
   }
 
+  if (input.action === 'set_documents') {
+    // Phase 6b B3 — the set_sponsors recipe: cross-site guard on stored
+    // PDFs, UPDATE-then-insert on the module row (never upsert).
+    const { data: site } = await admin
+      .from('org_sites')
+      .select('id, subdomain')
+      .eq(orgColumn(side), orgId)
+      .maybeSingle();
+    if (!site) {
+      return NextResponse.json({ error: 'Site not found' }, { status: 404 });
+    }
+    for (const doc of input.documents) {
+      if (doc.path && !doc.path.startsWith(`org-media/${site.id}/`)) {
+        return NextResponse.json(
+          { error: 'Document is not one of this site’s files' },
+          { status: 400 }
+        );
+      }
+    }
+    const { data: updated, error } = await admin
+      .from('org_site_modules')
+      .update({ config: { documents: input.documents } })
+      .eq('site_id', site.id)
+      .eq('module_key', 'documents')
+      .select('module_key');
+    if (error) {
+      console.error(`${TAG} documents patch error:`, error);
+      return NextResponse.json({ error: 'Failed to update documents' }, { status: 500 });
+    }
+    if (!updated || updated.length === 0) {
+      const { error: insertError } = await admin.from('org_site_modules').insert({
+        site_id: site.id,
+        module_key: 'documents',
+        enabled: true,
+        sort_order: MODULE_KEYS.indexOf('documents'),
+        config: { documents: input.documents },
+      });
+      if (insertError) {
+        console.error(`${TAG} documents insert error:`, insertError);
+        return NextResponse.json({ error: 'Failed to update documents' }, { status: 500 });
+      }
+    }
+    revalidateTag(`org-site:${site.subdomain}`, { expire: 0 });
+    return NextResponse.json({ ok: true });
+  }
+
   if (input.action === 'set_template') {
     // Phase 6b B2: the id is a render decision; the CHECK (170) admits it.
     // Pre-170 the old CHECK rejects 'bold' with 23514 → a friendly 409.

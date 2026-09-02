@@ -226,14 +226,35 @@ export async function siteAssetPOST(
   admin: Admin,
   side: OrgSide,
   orgId: string,
-  file: File
+  file: File,
+  kind: 'image' | 'document' = 'image'
 ): Promise<NextResponse> {
   const site = await getSiteForOrg(admin, side, orgId);
   if (!site) {
     return NextResponse.json({ error: 'Site not found' }, { status: 404 });
   }
   if (file.size > MAX_ASSET_BYTES) {
-    return NextResponse.json({ error: 'Image must be less than 10MB' }, { status: 400 });
+    return NextResponse.json(
+      { error: `${kind === 'document' ? 'Document' : 'Image'} must be less than 10MB` },
+      { status: 400 }
+    );
+  }
+  // Phase 6b B3: PDFs (the documents module) ride the same prefix and
+  // streamer; the org-media route passes content-type through and serves
+  // inline, so a browser opens them like any hosted policy PDF.
+  if (kind === 'document') {
+    if (file.type !== 'application/pdf') {
+      return NextResponse.json({ error: 'Please select a PDF file' }, { status: 400 });
+    }
+    const pdfPath = `${ORG_MEDIA_PREFIX}${site.id}/${crypto.randomUUID()}.pdf`;
+    const { error: pdfError } = await admin.storage
+      .from('uploads')
+      .upload(pdfPath, file, { cacheControl: '3600', upsert: false, contentType: 'application/pdf' });
+    if (pdfError) {
+      console.error(`${TAG} document upload error:`, pdfError);
+      return NextResponse.json({ error: 'Failed to upload the document' }, { status: 500 });
+    }
+    return NextResponse.json({ path: pdfPath });
   }
   if (!(ALLOWED_IMAGE_MIME as readonly string[]).includes(file.type)) {
     return NextResponse.json(

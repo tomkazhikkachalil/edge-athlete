@@ -521,3 +521,52 @@ describe('parseNavConfig / moduleLabel', () => {
     expect(parseNavConfig(null)).toEqual({ order: [], labels: {} });
   });
 });
+
+// ── Phase 6b B3: documents module ───────────────────────────────────────────
+import { ORG_DOCUMENT_PATH_RE, ORG_MEDIA_FILE_RE, parseDocuments } from '../validate';
+
+describe('documents (B3)', () => {
+  const SITE = '2f1b46c8-2964-4139-9689-d1c3f736ed93';
+  const pdf = `org-media/${SITE}/abc-123.pdf`;
+
+  it('PDFs join the org-media namespace; the document regex is PDF-only', () => {
+    expect(ORG_MEDIA_FILE_RE.test('abc-123.pdf')).toBe(true);
+    expect(ORG_DOCUMENT_PATH_RE.test(pdf)).toBe(true);
+    expect(ORG_DOCUMENT_PATH_RE.test(`org-media/${SITE}/abc.png`)).toBe(false);
+  });
+
+  it('set_documents: file XOR link, bounded', () => {
+    expect(
+      SitePatchSchema.safeParse({ action: 'set_documents', documents: [{ title: 'Code', path: pdf }] }).success
+    ).toBe(true);
+    expect(
+      SitePatchSchema.safeParse({ action: 'set_documents', documents: [{ title: 'Code', url: 'https://x.org/a.pdf' }] }).success
+    ).toBe(true);
+    expect(
+      SitePatchSchema.safeParse({ action: 'set_documents', documents: [{ title: 'Code' }] }).success
+    ).toBe(false);
+    expect(
+      SitePatchSchema.safeParse({ action: 'set_documents', documents: [{ title: 'Code', path: pdf, url: 'https://x.org' }] }).success
+    ).toBe(false);
+    expect(
+      SitePatchSchema.safeParse({ action: 'set_documents', documents: [{ title: 'Code', url: 'http://x.org' }] }).success
+    ).toBe(false);
+  });
+
+  it('parseDocuments drops junk and prefers the stored file', () => {
+    const docs = parseDocuments({
+      documents: [
+        { title: ' Code ', path: pdf, url: 'https://ignored.org' },
+        { title: 'Policy', url: 'https://x.org/p.pdf' },
+        { title: 'Bad', url: 'javascript:alert(1)' },
+        { title: '', path: pdf },
+        'garbage',
+      ],
+    });
+    expect(docs).toEqual([
+      { title: 'Code', path: pdf },
+      { title: 'Policy', url: 'https://x.org/p.pdf' },
+    ]);
+    expect(parseDocuments(null)).toEqual([]);
+  });
+});

@@ -57,13 +57,16 @@ export const MODULE_KEYS = [
   'gallery', // phase 4 R5 (mig 160; consent-gated contest media)
   'register', // phase 5 R5 (mig 164; the registration CTA card)
   'courses', // phase 6b A2 (mig 169; the golf club's linked catalog courses)
+  'divisions', // phase 6b B3 (mig 169 admitted it; teams grouped by division)
+  'leaders', // phase 6b B3 (stat leaders from contest_stat_lines)
+  'documents', // phase 6b B3 (PDFs in org-media + external links)
 ] as const;
 export type ModuleKey = (typeof MODULE_KEYS)[number];
 
 /** Keys newer than the 155 base CHECK, NEWEST LAST — siteCreatePOST's
  *  pre-migration 23514 retry strips them from the end until the insert
  *  fits the database it's talking to. */
-export const POST_155_MODULE_KEYS = ['news', 'gallery', 'register', 'courses'] as const;
+export const POST_155_MODULE_KEYS = ['news', 'gallery', 'register', 'courses', 'divisions', 'leaders', 'documents'] as const;
 
 /** Every module except hero can be toggled from the console (hero is the
  *  site's identity — excluded at the SCHEMA level, not just the UI). */
@@ -80,6 +83,9 @@ export const TOGGLEABLE_MODULE_KEYS = [
   'gallery',
   'register',
   'courses',
+  'divisions',
+  'leaders',
+  'documents',
 ] as const;
 export type ToggleableModuleKey = (typeof TOGGLEABLE_MODULE_KEYS)[number];
 
@@ -280,6 +286,40 @@ export function parseSponsors(config: unknown): PublicSponsor[] {
   return out;
 }
 
+// ── Documents module (phase 6b B3) ──────────────────────────────────────────
+export interface PublicDocument {
+  title: string;
+  /** A stored PDF under org-media/{siteId}/ — streamed by the org-media route. */
+  path?: string;
+  /** Or an external https link (policies hosted elsewhere). */
+  url?: string;
+}
+
+/** Defensive render-side parse of the documents module config. */
+export function parseDocuments(config: unknown): PublicDocument[] {
+  if (!config || typeof config !== 'object') return [];
+  const raw = (config as Record<string, unknown>).documents;
+  if (!Array.isArray(raw)) return [];
+  const out: PublicDocument[] = [];
+  for (const item of raw.slice(0, 20)) {
+    if (!item || typeof item !== 'object') continue;
+    const title = (item as Record<string, unknown>).title;
+    if (typeof title !== 'string' || !title.trim()) continue;
+    const path = (item as Record<string, unknown>).path;
+    const url = (item as Record<string, unknown>).url;
+    const safePath = typeof path === 'string' && ORG_DOCUMENT_PATH_RE.test(path) ? path : undefined;
+    const safeUrl =
+      !safePath && typeof url === 'string' && httpsUrl.safeParse(url).success ? url : undefined;
+    if (!safePath && !safeUrl) continue;
+    out.push({
+      title: title.trim().slice(0, 80),
+      ...(safePath ? { path: safePath } : {}),
+      ...(safeUrl ? { url: safeUrl } : {}),
+    });
+  }
+  return out;
+}
+
 export interface PublicContact {
   email?: string;
   phone?: string;
@@ -308,10 +348,13 @@ export function parseContact(config: unknown): PublicContact {
 /** One filename segment of an org-media asset — the streamer's gate.
  *  (Declared here, above SitePatchSchema, which references the path RE
  *  at module-eval time — TDZ ordering matters.) */
-export const ORG_MEDIA_FILE_RE = /^[a-z0-9-]{1,80}\.(jpg|jpeg|png|webp|gif)$/;
+export const ORG_MEDIA_FILE_RE = /^[a-z0-9-]{1,80}\.(jpg|jpeg|png|webp|gif|pdf)$/;
 /** A full stored asset path: org-media/{siteId uuid}/{file}. */
 export const ORG_MEDIA_PATH_RE =
-  /^org-media\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\/[a-z0-9-]{1,80}\.(jpg|jpeg|png|webp|gif)$/;
+  /^org-media\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\/[a-z0-9-]{1,80}\.(jpg|jpeg|png|webp|gif|pdf)$/;
+/** A stored PDF under the site's asset prefix (B3 documents). */
+export const ORG_DOCUMENT_PATH_RE =
+  /^org-media\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\/[a-z0-9-]{1,80}\.pdf$/;
 
 const boundedTrimmed = (max: number) => z.string().trim().min(1).max(max);
 const optionalTrimmed = (max: number) =>
@@ -384,6 +427,21 @@ export const SitePatchSchema = z.union([
       .max(20),
   }),
   z.object({
+    action: z.literal('set_documents'),
+    documents: z
+      .array(
+        z
+          .object({
+            title: boundedTrimmed(80),
+            // A stored PDF (server re-asserts THIS site's prefix) OR an https link.
+            path: z.string().regex(ORG_DOCUMENT_PATH_RE, 'Not a site document').optional(),
+            url: httpsUrl.optional(),
+          })
+          .refine(d => !!d.path !== !!d.url, 'Provide a file or a link, not both')
+      )
+      .max(20),
+  }),
+  z.object({
     action: z.literal('set_contact'),
     email: z.string().trim().toLowerCase().max(200).pipe(z.email()).optional(),
     phone: z.string().trim().min(3).max(40).optional(),
@@ -407,12 +465,25 @@ export const MODULE_TITLES: Record<string, string> = {
   gallery: 'Gallery',
   register: 'Register',
   courses: 'Courses',
+  divisions: 'Divisions',
+  leaders: 'Stat leaders',
+  documents: 'Documents',
 };
 
 /** The module keys that have their own subpage under /org/{slug}/.
  *  An entry must land WITH its route (a nav link must never precede its
  *  destination). */
-export const MODULE_SUBPAGE_KEYS = ['news', 'standings', 'schedule', 'teams', 'gallery', 'courses'] as const;
+export const MODULE_SUBPAGE_KEYS = [
+  'news',
+  'standings',
+  'schedule',
+  'teams',
+  'gallery',
+  'courses',
+  'divisions',
+  'leaders',
+  'documents',
+] as const;
 
 // ── Custom pages (phase 3 R3) ───────────────────────────────────────────────
 // org_site_pages.body is an ORDERED BLOCK ARRAY (the masterplan's own

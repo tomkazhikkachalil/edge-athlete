@@ -63,4 +63,10 @@ export function templateSpec(id: unknown): TemplateSpec {
 }
 
 /** Modules that always span the full width in the grid template. */
-export const FULL_WIDTH_MODULES: ReadonlySet<string> = new Set(['teams', 'news', 'gallery', 'courses']);
+export const FULL_WIDTH_MODULES: ReadonlySet<string> = new Set([
+  'teams',
+  'news',
+  'gallery',
+  'courses',
+  'leaders',
+]);
