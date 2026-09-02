@@ -119,3 +119,34 @@ export function buildCoursesJsonLd(
     })),
   };
 }
+
+/** S2: one course's own structured data — place data only (the people
+ *  rule untouched): its name, own city/region/country, phone, website,
+ *  geo, and the org it is home to. */
+export function buildCourseJsonLd(
+  site: PublicSite,
+  entry: { course: PublicCourse['course']; phone?: string },
+  url: string
+): Record<string, unknown> {
+  const { course } = entry;
+  const place = {
+    ...(course.city ? { addressLocality: course.city } : {}),
+    ...(course.state ? { addressRegion: course.state } : {}),
+    ...(course.country ? { addressCountry: course.country } : {}),
+  };
+  return {
+    '@context': 'https://schema.org',
+    '@type': 'GolfCourse',
+    name: course.clubName && !course.name.includes(course.clubName)
+      ? `${course.clubName} – ${course.name}`
+      : course.name,
+    url,
+    ...(course.website ? { sameAs: course.website } : {}),
+    ...(entry.phone ? { telephone: entry.phone } : {}),
+    ...(Object.keys(place).length ? { address: { '@type': 'PostalAddress', ...place } } : {}),
+    ...(typeof course.lat === 'number' && typeof course.lng === 'number'
+      ? { geo: { '@type': 'GeoCoordinates', latitude: course.lat, longitude: course.lng } }
+      : {}),
+    containedInPlace: { '@type': 'SportsOrganization', name: site.orgName, url: siteAbsoluteUrl(site) },
+  };
+}

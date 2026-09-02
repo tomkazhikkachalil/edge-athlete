@@ -1,5 +1,62 @@
 # Development Log
 
+## September 2, 2026 — Phase 6e S2: golf sites, part 2 — a page per course: hole maps, sections, photos (#522, zero DDL)
+
+A2 gave a golf club's site a course LIST: one card per catalog course
+with the tee sheet and a "View on map" link out to the app. A club's own
+website shows a course as a place — this round gives every course its
+page, and draws it.
+
+- **The hole map without tiles**: the catalog already caches each hole's
+  OSM tee→green polyline (`golf_courses.hole_geometry`, mig 102) and a
+  polyline needs no map: `src/lib/golf/hole-svg.ts` (pure, node-tested)
+  validates the STORED shape (`parseStoredHoleGeometry` — not the
+  Overpass parser), projects it equirectangularly around its own centre
+  (x scaled by cos(lat), aspect preserved, padded) into a square viewBox,
+  and hands back paths + tee/green/label anchors. `HoleMap.tsx` (server,
+  no client JS) emits the `<svg>` — a diagram per hole in the hole-by-
+  hole table and a numbered course overview — with the ODbL line
+  "Hole lines © OpenStreetMap contributors" wherever geometry renders,
+  and "≈ N yds" from the drawn line (never the card).
+- **`/courses/[courseId]`** (+ the vanity twin, literal segment config):
+  the section label ("North Nine · 9 holes" from `section_name` /
+  `section_kind`), the place line, the catalog `phone` (now carried on
+  `PublicCourse` — `rowToCourse` drops it, so the reader adds it back),
+  Website, "Directions →" from lat/lng, "View on map →" into the app,
+  rating/slope per tee, the scorecard, the hole-by-hole table (Par /
+  HCP / yardage per tee / diagram), the overview, the sibling layouts at
+  the same golf club, "Home of {org}", and `GolfCourse` JSON-LD with
+  `telephone`, its own address and `geo`. The reader
+  (`fetchPublicCoursePage`) is the org's own course list plus a SECOND
+  select for `hole_geometry` — `CATALOG_ROW_COLUMNS` feeds the app's
+  pickers and must not grow. A course the org's venues don't link is
+  indistinguishable from a missing one (404); module off → 404.
+- **Course photos** ride the `courses` module config
+  (`{photos: {[courseId]: {path, alt?}}}`, `parseCoursePhotos`,
+  `set_course_photo` — the set_sponsors recipe: prefix re-asserted,
+  UPDATE-then-insert, a merge of ONE course's slot). Console: a
+  "Course photo" picker under each linked course in Venues & courses.
+- `CoursesList` groups a golf club's layouts under one heading (a club
+  with ≥2 sections), every card links to its page, "Hole by hole →".
+  The sitemap enumerator adds `courseIds` (venues' golf links → catalog
+  ids, bounded, pre-169-safe) and both emitters add `/courses/{id}`.
+- e2e `org-site-course-page.spec.ts`: a linked North Nine with two
+  OSM holes, phone, lat/lng, website; an unlinked course → the page
+  carries the section label, `<path d="M`, the attribution, the hole
+  aria-label with its ≈ yards, the overview, `tel:`, the maps Directions
+  link, `35.2 / 118`, GolfCourse + telephone, canonical, "Home of" →
+  the list links to it and keeps `/explore?course=` → unlinked /
+  unknown / non-uuid → 404 → sitemap carries the page → a foreign photo
+  path 400, a real one streams with its alt while the module row keeps
+  `enabled` → 375px (the table scrolls in its container) → module off
+  → 404. Trap hit again: `Home of {site.orgName}` splits into two SSR
+  text nodes — render it as ONE template literal. Regressions: courses,
+  identity, two-pages, org-site (5) green vs the live DB.
+
+Next: S3 — the course fills itself (course record, scoring average by
+tee, hardest holes, recent rounds from members' public rounds — the
+two-key rule).
+
 ## September 2, 2026 — Phase 6e S1: golf sites, part 1 — club identity: hero photo, CTA, notice, a real contact card (#521, zero DDL)
 
 Phase 6e, "the best website for golf clubs and golf leagues" (Tom, Sep 2:

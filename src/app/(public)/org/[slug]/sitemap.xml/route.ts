@@ -20,6 +20,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ slu
     ...(entry?.moduleKeys ?? []).map(key => `${base}/${key}`),
     ...(entry?.pageSlugs ?? []).map(p => `${base}/${p}`),
     ...(entry?.teamIds ?? []).map(id => `${base}/teams/${id}`),
+    ...(entry?.courseIds ?? []).map(id => `${base}/courses/${id}`),
     ...(entry?.newsSlugs ?? []).map(ns => `${base}/news/${ns}`),
   ];
   const body =

@@ -6,6 +6,7 @@ import {
   parseContact,
   parseHeroConfig,
   noticeActive,
+  parseCoursePhotos,
   directionsHref,
   socialHostOk,
   HERO_CTA_LABEL_MAX,
@@ -682,5 +683,23 @@ describe('phase 6e S1 — the contact card (parseContact)', () => {
       'https://www.google.com/maps/search/?api=1&query=1%20Fairway%20Dr%2C%20Kanata%2C%20ON'
     );
     expect(directionsHref({})).toBeNull();
+  });
+});
+
+describe('phase 6e S2 — course photos (parseCoursePhotos)', () => {
+  const site = '01234567-89ab-4cde-8f01-23456789abcd';
+  const courseA = '11111111-1111-4111-8111-111111111111';
+  it('keeps image paths keyed by course id; drops pdf, junk keys, junk values', () => {
+    const photos = parseCoursePhotos({
+      photos: {
+        [courseA]: { path: `org-media/${site}/a.jpg`, alt: ' The 9th ' },
+        'not-a-uuid': { path: `org-media/${site}/b.jpg` },
+        '22222222-2222-4222-8222-222222222222': { path: `org-media/${site}/rules.pdf` },
+        '33333333-3333-4333-8333-333333333333': 'x',
+      },
+    });
+    expect(photos).toEqual({ [courseA]: { path: `org-media/${site}/a.jpg`, alt: 'The 9th' } });
+    expect(parseCoursePhotos(null)).toEqual({});
+    expect(parseCoursePhotos({ photos: 'x' })).toEqual({});
   });
 });

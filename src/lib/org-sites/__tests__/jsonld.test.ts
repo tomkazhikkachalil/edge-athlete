@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  buildCourseJsonLd,
   buildEventsJsonLd,
   buildOrgJsonLd,
   buildTeamJsonLd,
@@ -7,6 +8,7 @@ import {
   safeJsonLd,
 } from '../jsonld';
 import type { PublicSite } from '../server';
+import type { PublicCourse } from '../public-data';
 import type { OrgEvent } from '@/lib/calendar/org-events-server';
 
 const baseSite = {
@@ -138,5 +140,29 @@ describe('phase 6e S1 — the contact card feeds the org structured data', () =>
     expect(rich.telephone).toBe('+1 613 555 0100');
     expect((rich.address as { streetAddress: string }).streetAddress).toBe('1 Fairway Dr, Kanata, ON');
     expect(rich.sameAs).toEqual(['https://instagram.com/club', 'https://facebook.com/club']);
+  });
+});
+
+describe('phase 6e S2 — one course page (buildCourseJsonLd)', () => {
+  it('is a GolfCourse with its own place, phone, website, geo and its home org', () => {
+    const ld = buildCourseJsonLd(
+      baseSite as unknown as PublicSite,
+      {
+        course: {
+          id: 'c', name: 'North Nine', clubName: 'QA Links', city: 'Kanata', state: 'Ontario', country: 'Canada',
+          holes: [], totalPar: 36, courseRating: {}, slopeRating: {}, lat: 45.3, lng: -75.9, website: 'https://qa.example',
+        } as unknown as PublicCourse['course'],
+        phone: '+1 613 555 0100',
+      },
+      'https://edge-athlete.vercel.app/org/qa/courses/c'
+    );
+    expect(ld['@type']).toBe('GolfCourse');
+    expect(ld.name).toBe('QA Links – North Nine');
+    expect(ld.telephone).toBe('+1 613 555 0100');
+    expect(ld.sameAs).toBe('https://qa.example');
+    expect((ld.address as { addressLocality: string }).addressLocality).toBe('Kanata');
+    expect((ld.geo as { latitude: number }).latitude).toBe(45.3);
+    expect((ld.containedInPlace as { name: string }).name).toBe(baseSite.orgName);
+    expect(ld.url).toBe('https://edge-athlete.vercel.app/org/qa/courses/c');
   });
 });

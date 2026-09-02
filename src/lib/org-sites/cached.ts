@@ -8,6 +8,7 @@ import {
   fetchPublicAffiliations,
   fetchPublicClubGolfBoards,
   fetchPublicCourses,
+  fetchPublicCoursePage,
   fetchPublicDivisions,
   fetchPublicGallery,
   fetchPublicStatLeaders,
@@ -24,6 +25,7 @@ import {
   type PublicAffiliation,
   type PublicClubGolfBoard,
   type PublicCourse,
+  type PublicCoursePage,
   type PublicDivision,
   type PublicGalleryItem,
   type PublicLeaderBoard,
@@ -193,6 +195,18 @@ export const getCachedCourses = (
 ): Promise<PublicCourse[]> =>
   perSlug(['org-site-courses', slug], slug, () =>
     fetchPublicCourses(getSupabaseAdmin(), side, orgId)
+  );
+
+// Phase 6e S2: one course page (org-gated; null → 404). keyParts carry
+// the course id — the getCachedTeamPage rule.
+export const getCachedCoursePage = (
+  slug: string,
+  side: OrgSide,
+  orgId: string,
+  courseId: string
+): Promise<PublicCoursePage | null> =>
+  perSlug(['org-site-course', slug, courseId], slug, () =>
+    fetchPublicCoursePage(getSupabaseAdmin(), side, orgId, courseId)
   );
 
 // Phase 6b B3: divisions + stat leaders (both viewer-independent reads).
