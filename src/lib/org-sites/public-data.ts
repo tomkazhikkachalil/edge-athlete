@@ -27,6 +27,7 @@ import type { GolfCourse } from '@/types/golf';
 import { getStatSchema } from '@/lib/sports/stat-schemas';
 import type { PublicCompetitionStandings } from '@/lib/competitions/public-standings';
 import { sortWeeks, utcToday, weekState, type GolfWeekState } from '@/lib/competitions/golf-weeks';
+import { buildGolfLeaderBoards, type GolfLeaderInputRow } from '@/lib/competitions/golf-leaders';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- matches the authz.ts Admin alias; schema-agnostic helper
 type Admin = SupabaseClient<any, 'public', any>;
@@ -1117,13 +1118,106 @@ export interface PublicLeaderRow {
   name: string;
   teamName: string | null;
   value: number;
+  /** S5: a golf board's context line ("Week 3 · 2026-09-15"). */
+  note?: string;
 }
 export interface PublicLeaderBoard {
   competitionId: string;
   competitionName: string;
   sportKey: string;
   unsupported: boolean;
-  stats: { label: string; rows: PublicLeaderRow[] }[];
+  /** S5: `valueLabel` heads the value column ("Gross", "Net", "Rounds"); absent = "Total". */
+  stats: { label: string; valueLabel?: string; rows: PublicLeaderRow[] }[];
+}
+
+/** S5: golf leaderboards have no stat lines — their boards come from
+ *  contest_results (completed rounds only, the confirmed record). Names
+ *  masked; supervised athletes omitted (null name → no row). */
+async function fetchGolfLeaderBoards(
+  admin: Admin,
+  comps: { id: string; name: string; scoring_rule: string | null }[]
+): Promise<Map<string, PublicLeaderBoard['stats']>> {
+  const out = new Map<string, PublicLeaderBoard['stats']>();
+  if (comps.length === 0) return out;
+  try {
+    const compIds = comps.map(c => c.id);
+    const { data: contests, error } = await admin
+      .from('contests')
+      .select('id, competition_id, round, play_from')
+      .in('competition_id', compIds)
+      .eq('status', 'completed')
+      .limit(300);
+    if (degraded('golf leaders contests', error) || !contests || contests.length === 0) return out;
+    const contestById = new Map(contests.map(c => [c.id as string, c]));
+    const { data: results } = await admin
+      .from('contest_results')
+      .select('contest_id, participant_id, score, payload')
+      .in('contest_id', [...contestById.keys()])
+      .limit(1000);
+    if (!results || results.length === 0) return out;
+    const { data: participants } = await admin
+      .from('contest_participants')
+      .select('id, entry_id')
+      .in('id', [...new Set(results.map(r => r.participant_id as string))])
+      .limit(1000);
+    const entryByParticipant = new Map((participants ?? []).map(p => [p.id as string, p.entry_id as string]));
+    const entryIds = [...new Set(entryByParticipant.values())];
+    const { data: entries } = entryIds.length
+      ? await admin.from('competition_entries').select('id, profile_id').in('id', entryIds)
+      : { data: [] as { id: string; profile_id: string | null }[] };
+    const profileByEntry = new Map((entries ?? []).map(e => [e.id as string, e.profile_id as string | null]));
+    const profileIds = [...new Set([...profileByEntry.values()].filter((id): id is string => !!id))];
+    const { data: profiles } = profileIds.length
+      ? await admin
+          .from('profiles')
+          .select('id, first_name, last_name, full_name, visibility, email, supervision_state')
+          .in('id', profileIds)
+      : { data: [] as (MaskableProfile & { id: string })[] };
+    const nameByProfile = new Map<string, string | null>(
+      ((profiles ?? []) as (MaskableProfile & { id: string })[]).map(p => [
+        p.id,
+        p.supervision_state === 'supervised' ? null : publicDisplayName(p),
+      ])
+    );
+    const nameByEntry = new Map<string, string | null>();
+    for (const [entryId, profileId] of profileByEntry) {
+      nameByEntry.set(entryId, profileId ? (nameByProfile.get(profileId) ?? null) : null);
+    }
+    const num = (v: unknown): number | null => (typeof v === 'number' && Number.isFinite(v) ? v : null);
+    const rowsByComp = new Map<string, GolfLeaderInputRow[]>();
+    for (const r of results) {
+      const contest = contestById.get(r.contest_id as string);
+      const entryId = entryByParticipant.get(r.participant_id as string);
+      if (!contest || !entryId) continue;
+      const compId = contest.competition_id as string;
+      const payload = ((r.payload as Record<string, unknown> | null) ?? {}) as Record<string, unknown>;
+      if (!rowsByComp.has(compId)) rowsByComp.set(compId, []);
+      rowsByComp.get(compId)!.push({
+        contestId: contest.id as string,
+        contestRound: (contest.round as string | null) ?? null,
+        contestPlayFrom: (contest.play_from as string | null) ?? null,
+        entryId,
+        gross: num(payload.gross),
+        net: num(payload.net),
+        holes: num(payload.holes),
+        score: num(r.score),
+      });
+    }
+    for (const comp of comps) {
+      const rows = rowsByComp.get(comp.id) ?? [];
+      out.set(
+        comp.id,
+        buildGolfLeaderBoards({ rows, nameByEntry, scoringRule: comp.scoring_rule }).map(b => ({
+          label: b.label,
+          valueLabel: b.valueLabel,
+          rows: b.rows.map(r => ({ name: r.name, teamName: null, value: r.value, ...(r.note ? { note: r.note } : {}) })),
+        }))
+      );
+    }
+  } catch (error) {
+    console.error(`${TAG} golf leaders failed:`, error);
+  }
+  return out;
 }
 
 export async function fetchPublicStatLeaders(
@@ -1134,13 +1228,23 @@ export async function fetchPublicStatLeaders(
   const col = orgColumn(side);
   const { data: comps, error } = await admin
     .from('competitions')
-    .select('id, name, sport_key')
+    .select('id, name, sport_key, format, scoring_rule')
     .eq(col, orgId)
     .eq('visibility', 'public')
     .in('status', ['active', 'completed'])
     .order('created_at', { ascending: false })
     .limit(20);
   if (degraded('leaders competitions', error) || !comps || comps.length === 0) return [];
+
+  // S5: golf LEADERBOARDS come from contest_results (their own boards);
+  // everything else (incl. a golf fixture, still unsupported) keeps the
+  // stat-lines path below.
+  const golfComps = comps.filter(c => c.sport_key === 'golf' && c.format === 'leaderboard');
+  const golfBoards = await fetchGolfLeaderBoards(
+    admin,
+    golfComps.map(c => ({ id: c.id as string, name: c.name as string, scoring_rule: (c.scoring_rule as string | null) ?? null }))
+  );
+  const golfIds = new Set(golfComps.map(c => c.id as string));
 
   const compIds = comps.map(c => c.id as string);
   const { data: contests } = await admin
@@ -1149,14 +1253,25 @@ export async function fetchPublicStatLeaders(
     .in('competition_id', compIds)
     .limit(300);
   const contestComp = new Map((contests ?? []).map(c => [c.id as string, c.competition_id as string]));
-  if (contestComp.size === 0) return [];
+  const golfOnly = (): PublicLeaderBoard[] =>
+    comps
+      .filter(c => golfIds.has(c.id as string))
+      .map(c => ({
+        competitionId: c.id as string,
+        competitionName: c.name as string,
+        sportKey: c.sport_key as string,
+        unsupported: false,
+        stats: golfBoards.get(c.id as string) ?? [],
+      }))
+      .filter(b => b.stats.length > 0);
+  if (contestComp.size === 0) return golfOnly();
 
   const { data: lines, error: linesError } = await admin
     .from('contest_stat_lines')
     .select('contest_id, profile_id, team_id, stats')
     .in('contest_id', [...contestComp.keys()])
     .limit(2000);
-  if (degraded('leaders lines', linesError) || !lines || lines.length === 0) return [];
+  if (degraded('leaders lines', linesError) || !lines || lines.length === 0) return golfOnly();
 
   const profileIds = [...new Set(lines.map(l => l.profile_id as string))];
   const teamIds = [...new Set(lines.map(l => l.team_id as string | null).filter((t): t is string => !!t))];
@@ -1198,6 +1313,19 @@ export async function fetchPublicStatLeaders(
 
   const boards: PublicLeaderBoard[] = [];
   for (const comp of comps) {
+    if (golfIds.has(comp.id as string)) {
+      const stats = golfBoards.get(comp.id as string) ?? [];
+      if (stats.length > 0) {
+        boards.push({
+          competitionId: comp.id as string,
+          competitionName: comp.name as string,
+          sportKey: comp.sport_key as string,
+          unsupported: false,
+          stats,
+        });
+      }
+      continue;
+    }
     const byProfile = perComp.get(comp.id as string);
     if (!byProfile) continue;
     const schema = getStatSchema(comp.sport_key as string);
