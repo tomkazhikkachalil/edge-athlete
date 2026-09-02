@@ -15,6 +15,9 @@ import { MODULE_TITLES, TOGGLEABLE_MODULE_KEYS } from '@/lib/org-sites/validate'
 import { orgSitePath } from '@/lib/org-sites/urls';
 import { SPORT_REGISTRY } from '@/lib/sports/SportRegistry';
 import OrgLogoUploader from '@/components/org/OrgLogoUploader';
+import PlacePicker, { type PlaceValue } from '@/components/PlacePicker';
+import { courseDisplayName } from '@/lib/golf/tees';
+import type { GolfCourse } from '@/types/golf';
 
 // ── The org-manager console (phase 1, round 1) ──────────────────────────────
 // The guardian-console shape (AppHeader — a recurring signed-in
@@ -139,6 +142,7 @@ export default function OrgConsolePage() {
     | { kind: 'division'; id: string; label: string }
     | { kind: 'page'; id: string; label: string }
     | { kind: 'news'; id: string; label: string }
+    | { kind: 'venue'; id: string; label: string }
     | null
   >(null);
 
@@ -252,6 +256,24 @@ export default function OrgConsolePage() {
     { id: string; slug: string; title: string; published_at: string | null }[]
   >([]);
   const [newsTitle, setNewsTitle] = useState('');
+  // Phase 6b A1: venues & courses — the org's PROPERTY (141); a golf link
+  // is a catalog course pick, split server-side into club/course.
+  const [venues, setVenues] = useState<
+    {
+      id: string;
+      name: string;
+      city: string | null;
+      region: string | null;
+      facilities: { id: string; name: string; kind: string | null }[];
+      courses: GolfCourse[];
+    }[]
+  >([]);
+  const [venueName, setVenueName] = useState('');
+  const [venuePlace, setVenuePlace] = useState<PlaceValue | null>(null);
+  const [venuePlaceText, setVenuePlaceText] = useState('');
+  const [linkingVenueId, setLinkingVenueId] = useState<string | null>(null);
+  const [courseQuery, setCourseQuery] = useState('');
+  const [courseResults, setCourseResults] = useState<GolfCourse[]>([]);
 
   useEffect(() => {
     if (!validSide || !user?.id) return;
@@ -286,6 +308,16 @@ export default function OrgConsolePage() {
         setSeasons(structure.seasons ?? []);
         setTeams(structure.teams ?? []);
         setCounts(structure.counts ?? { managers: 0, rosterAthletes: 0 });
+        // Phase 6b A1: venues (best-effort; pre-141 reads as an empty list).
+        try {
+          const venuesRes = await fetch(`/api/${plural}/${orgId}/venues`);
+          if (venuesRes.ok) {
+            const venuesBody = await venuesRes.json();
+            if (!cancelled) setVenues(venuesBody.venues ?? []);
+          }
+        } catch {
+          /* the section renders empty */
+        }
         // Pre-151 the route degrades to an empty list; any other failure
         // renders the section empty rather than blocking the console.
         if (competitionsRes.ok) {
@@ -368,6 +400,29 @@ export default function OrgConsolePage() {
       cancelled = true;
     };
   }, [validSide, side, plural, orgId, user?.id, reloadKey]);
+
+  // Phase 6b A1: the catalog search behind "Link golf course" — debounced,
+  // never per keystroke (the course-search bucket is IP-keyed). Short
+  // queries clear results in the onChange handler, not here.
+  useEffect(() => {
+    const q = courseQuery.trim();
+    if (!linkingVenueId || q.length < 2) return;
+    let cancelled = false;
+    const timer = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/golf/courses?q=${encodeURIComponent(q)}&limit=8`);
+        if (!res.ok || cancelled) return;
+        const body = await res.json();
+        if (!cancelled) setCourseResults(body.courses ?? []);
+      } catch {
+        /* results keep their last value */
+      }
+    }, 250);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [linkingVenueId, courseQuery]);
 
   const refresh = () => setReloadKey(k => k + 1);
 
@@ -641,6 +696,16 @@ export default function OrgConsolePage() {
     );
 
   const remove = (target: NonNullable<typeof confirmTarget>) => {
+    if (target.kind === 'venue') {
+      void act(
+        `/api/${plural}/${orgId}/venues/${target.id}`,
+        { method: 'DELETE' },
+        'Venue removed',
+        'Delete failed',
+        'Venues'
+      );
+      return;
+    }
     if (target.kind === 'page' || target.kind === 'news') {
       void act(
         `/api/${plural}/${orgId}/site/${target.kind === 'page' ? 'pages' : 'news'}/${target.id}`,
@@ -658,6 +723,49 @@ export default function OrgConsolePage() {
       `${target.kind === 'season' ? 'Season' : 'Division'} deleted`,
       'Delete failed'
     );
+  };
+
+  // Phase 6b A1: venue actions. act() refreshes, which re-reads the list.
+  const venuesBase = `/api/${plural}/${orgId}/venues`;
+  const createVenue = async () => {
+    if (!venueName.trim()) {
+      showError('Venues', 'A venue name is required');
+      return;
+    }
+    const ok = await act(
+      venuesBase,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: venueName.trim(), place: venuePlace }),
+      },
+      'Venue added',
+      'Could not add the venue',
+      'Venues'
+    );
+    if (ok) {
+      setVenueName('');
+      setVenuePlace(null);
+      setVenuePlaceText('');
+    }
+  };
+  const linkCourse = async (venueId: string, courseId: string | null) => {
+    const ok = await act(
+      `${venuesBase}/${venueId}`,
+      {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ golfCourseId: courseId }),
+      },
+      courseId ? 'Course linked' : 'Course unlinked',
+      'Could not update the venue',
+      'Venues'
+    );
+    if (ok) {
+      setLinkingVenueId(null);
+      setCourseQuery('');
+      setCourseResults([]);
+    }
   };
 
   const teamById = new Map(teams.map(t => [t.id, t]));
@@ -1977,6 +2085,166 @@ export default function OrgConsolePage() {
           </section>
         )}
 
+        {/* Venues & courses (phase 6b A1) — the org's PROPERTY (141). A golf
+            club recognizes its catalog course here; that is what puts tees,
+            scorecards and the map on the club page and the public site. */}
+        <section
+          aria-label="Venues and courses"
+          className="bg-surface rounded-lg shadow-sm border border-border p-4 sm:p-6"
+        >
+          <h2 className="text-lg font-semibold text-primary mb-1">Venues &amp; courses</h2>
+          <p className="text-sm text-tertiary mb-3">
+            Where you play. Link a golf course from the catalog to show its tees, scorecard
+            and map on your pages.
+          </p>
+          {venues.length > 0 && (
+            <ul className="space-y-3 mb-4">
+              {venues.map(venue => {
+                const linking = linkingVenueId === venue.id;
+                return (
+                  <li key={venue.id} className="rounded-lg border border-border p-3">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium text-primary truncate">{venue.name}</p>
+                        <p className="text-xs text-muted">
+                          {[venue.city, venue.region].filter(Boolean).join(', ') || 'No location'}
+                          {venue.facilities.length > 0 &&
+                            ` · ${venue.facilities.length} ${venue.facilities.length === 1 ? 'facility' : 'facilities'}`}
+                        </p>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        {venue.courses.length > 0 ? (
+                          <button
+                            type="button"
+                            onClick={() => linkCourse(venue.id, null)}
+                            className="px-3 py-1.5 text-sm rounded-md border border-border-strong text-secondary hover:bg-surface-sunken transition-colors"
+                          >
+                            Unlink course
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            aria-expanded={linking}
+                            onClick={() => {
+                              setLinkingVenueId(linking ? null : venue.id);
+                              setCourseQuery('');
+                              setCourseResults([]);
+                            }}
+                            className="px-3 py-1.5 text-sm rounded-md border border-border-strong text-secondary hover:bg-surface-sunken transition-colors"
+                          >
+                            {linking ? 'Cancel' : 'Link golf course'}
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setConfirmTarget({ kind: 'venue', id: venue.id, label: venue.name })
+                          }
+                          className="px-3 py-1.5 text-sm rounded-md text-tertiary hover:text-red-600 hover:bg-surface-sunken transition-colors"
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    </div>
+                    {venue.courses.length > 0 && (
+                      <ul className="mt-2 space-y-1">
+                        {venue.courses.map(c => (
+                          <li key={c.id} className="text-sm text-secondary">
+                            {courseDisplayName(c.clubName, c.name)}
+                            {c.holesCount ? ` · ${c.holesCount} holes` : ''}
+                            {c.totalPar ? ` · par ${c.totalPar}` : ''}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                    {linking && (
+                      <div className="mt-3">
+                        <label
+                          htmlFor={`course-search-${venue.id}`}
+                          className="block text-xs font-medium text-secondary mb-1"
+                        >
+                          Search the course catalog
+                        </label>
+                        <input
+                          id={`course-search-${venue.id}`}
+                          value={courseQuery}
+                          onChange={e => {
+                            const next = e.target.value;
+                            setCourseQuery(next);
+                            if (next.trim().length < 2) setCourseResults([]);
+                          }}
+                          placeholder="Course or club name"
+                          className="w-full px-3 py-2 border border-border-strong rounded-md outline-none text-sm"
+                        />
+                        {courseResults.length > 0 && (
+                          <ul className="mt-2 divide-y divide-border rounded-lg border border-border">
+                            {courseResults.map(c => (
+                              <li key={c.id}>
+                                <button
+                                  type="button"
+                                  onClick={() => linkCourse(venue.id, c.id)}
+                                  className="w-full text-left px-3 py-2 text-sm hover:bg-surface-sunken transition-colors"
+                                >
+                                  <span className="font-medium text-primary">
+                                    {courseDisplayName(c.clubName, c.name)}
+                                  </span>
+                                  {(c.city || c.state) && (
+                                    <span className="text-tertiary">
+                                      {' '}· {[c.city, c.state].filter(Boolean).join(', ')}
+                                    </span>
+                                  )}
+                                </button>
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                      </div>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+          <div className="grid gap-2 sm:grid-cols-[1fr_1fr_auto] items-end">
+            <div>
+              <label htmlFor="venue-name" className="block text-xs font-medium text-secondary mb-1">
+                Venue name
+              </label>
+              <input
+                id="venue-name"
+                value={venueName}
+                onChange={e => setVenueName(e.target.value)}
+                placeholder="e.g. Kanata Golf & Country Club"
+                className="w-full px-3 py-2 border border-border-strong rounded-md outline-none text-sm"
+              />
+            </div>
+            <div>
+              <label htmlFor="venue-place" className="block text-xs font-medium text-secondary mb-1">
+                Location
+              </label>
+              <PlacePicker
+                id="venue-place"
+                value={venuePlace}
+                text={venuePlaceText}
+                allowFreeText={false}
+                placeholder="City or town"
+                onChange={(nextPlace, text) => {
+                  setVenuePlace(nextPlace);
+                  setVenuePlaceText(text);
+                }}
+                className="w-full px-3 py-2 border border-border-strong rounded-md outline-none text-sm"
+              />
+            </div>
+            <button
+              type="button"
+              onClick={createVenue}
+              className="px-4 py-2 text-sm min-h-[40px] rounded-lg bg-brand text-white font-medium hover:bg-brand-hover transition-colors"
+            >
+              Add venue
+            </button>
+          </div>
+        </section>
+
         {/* Website (phase 3 R1) — create → preview → publish. The public
             site lives at /org/{subdomain}; draft = 404 out there. */}
         <section
@@ -2672,6 +2940,8 @@ export default function OrgConsolePage() {
         message={
           confirmTarget?.kind === 'season'
             ? 'Its divisions and their entries are removed too. Teams persist.'
+            : confirmTarget?.kind === 'venue'
+              ? 'Its facilities are removed too. Events keep their dates.'
             : confirmTarget?.kind === 'page' || confirmTarget?.kind === 'news'
               ? `The ${confirmTarget.kind === 'page' ? 'page' : 'post'} comes off your site immediately.`
               : 'Its entries are removed too. Teams persist.'
