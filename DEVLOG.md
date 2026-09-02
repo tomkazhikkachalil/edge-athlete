@@ -1,5 +1,61 @@
 # Development Log
 
+## September 1, 2026 — Phase 6c G2: golf leagues, part 2 — the page fills itself (#514, zero DDL)
+
+Tom's principle 2 in code: members post rounds anyway, so a league
+round's results come from those rounds — no admin retyping.
+
+- **`golf-league.ts`** (pure, node-tested): `matchCourseIds` (a linked
+  club recognizes every section/nine; a linked course itself),
+  `qualifyRound` (complete, outdoor, dated inside the play window, at
+  the course, and the hole count taken FROM THE CARD ROWS via
+  `playedHoleCount` — an 18-hole card never counts for a nine, whatever
+  the round row says; a quick-entry round with no card falls back to
+  its own declaration, never the course's), `pickRound` (first posted
+  by default, best by score), `ratingForRound` (the round's own tee
+  pair when plausible for the hole count, else the course row's pair
+  for the round's tee when that row IS a course of that length — an
+  18-hole rating is never halved into a nine; no pair ⇒ no net),
+  `netScore` (Rule 6.1a course handicap, index halved for nine holes),
+  `buildResultPayload` (gross, net, holes + source, tee, course
+  handicap, index, the rating pair + its source, `noRating` (the tee has
+  no pair for that length) or `noIndex` (rated tee, but the member has no
+  handicap index yet — the first real run found this case), the round
+  ref), `scoreForRule`.
+- **`golf-league-server.ts`**: `syncGolfContest` — ONE `golf_rounds`
+  read per round (members × window × course ids), `golf_holes` chunked
+  ≤55 rounds (the handicap reader's cap), the member's index via
+  `fetchHandicapComputation` only for net leagues, results upserted on
+  `participant_id` with provenance **`self_reported`** and
+  `entered_by` = the member; a league_verified/imported row is never
+  overwritten (`canOverwriteProvenance`, participant authority);
+  standings recompute + site freshness. `confirmGolfContest` promotes
+  self_reported → league_verified with `confirmed_by` and completes the
+  round. `runGolfLeagueSync` is the daily cron phase (after the round
+  sweep): open windows + 3 days grace re-sync; windows closed >3 days
+  complete (their posted rows stay "posted" until confirmed).
+- Routes (twins): `…/competitions/[competitionId]/golf-sync`
+  (`{contestId?}`) and `…/golf-sync/confirm`. Console: `Sync rounds` +
+  `Confirm rounds` on a declared round, the synced rows with
+  gross/net/holes/tee and a provenance chip (posted / verified), the
+  "no rating for this tee — gross only" reason, and the skip reasons.
+  Manual score entry stays the fallback.
+- **The frozen-path audit**: reads `golf_rounds`, `golf_holes`,
+  `golf_courses`, `venues`; writes `contest_results`, `contests.status`,
+  `competition_standings`; zero imports from the round composer, the
+  shared-round hook or the mirror; no triggers; nothing under
+  `api/golf/**` or `api/group-posts/**` changed.
+- Known limit, recorded: the index is the member's CURRENT index, not
+  the index as of the round's date; revisit if a league asks.
+- e2e `golf-league-sync.spec.ts` (self-skips pre-172): rounds seeded
+  straight into `golf_rounds`/`golf_holes` — a 9-hole 41 and a better
+  38 (best wins), an 18-hole card in the window (rejected by the card),
+  a nine outside the window, and an unrated-tee nine (gross-only) →
+  Sync → payloads/provenance/entered_by/roundRef → console chips +
+  reason at 375px → Confirm → league_verified + completed → standings
+  ascend on net with gross in stats → public payload → re-sync keeps
+  every confirmed row.
+
 ## September 1, 2026 — Phase 6c G1: golf leagues, part 1 — rules, the round's declaration, direction to the renderers (#513, mig 172)
 
 The golf-first program's first code round (Tom's principles: the page

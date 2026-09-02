@@ -5,6 +5,7 @@ import { runTransferSweep } from '@/lib/transfers';
 import { extendRecurringSeries } from '@/lib/calendar/series-server';
 import { runReminderSweep } from '@/lib/calendar/reminders-server';
 import { runRoundSweep } from '@/lib/golf/round-sweep';
+import { runGolfLeagueSync } from '@/lib/competitions/golf-league-server';
 import { runDeletionPurge } from '@/lib/account-park';
 import { runPendingNudge } from '@/lib/guardian-nudge';
 import { runRiskSweep } from '@/lib/risk-sweep';
@@ -83,6 +84,16 @@ export async function GET(request: NextRequest) {
   } catch (e) {
     console.error('[DAILY] round sweep phase failed:', e);
     summary.rounds = { ok: false };
+  }
+
+  // Phase 6c G2: golf league rounds fill themselves from members' posted
+  // rounds — AFTER the round sweep (which mirrors abandoned rounds first).
+  // Open windows (+3 days grace) re-sync; windows closed >3 days complete.
+  try {
+    summary.golfLeague = await runGolfLeagueSync(admin);
+  } catch (e) {
+    console.error('[DAILY] golf league phase failed:', e);
+    summary.golfLeague = { ok: false };
   }
 
   // 5. Soft-delete purge (Wave 1e, migration 128): hard-delete accounts
