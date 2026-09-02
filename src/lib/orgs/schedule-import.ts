@@ -19,7 +19,9 @@
 import { NextResponse } from 'next/server';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { parseCsv, checkHeaders } from './csv';
-import { zonedWallClockToUtc } from '@/lib/calendar/recurrence';
+import { wallClockInZone, zonedWallClockToUtc } from '@/lib/calendar/recurrence';
+import { parseIcs, summaryToMatchup } from '@/lib/calendar/ics-parse';
+import type { OrgSide } from '@/lib/orgs/authz';
 import { recomputeStandingsBestEffort } from '@/lib/competitions/standings';
 import { revalidateOrgSiteForCompetition } from '@/lib/org-sites/revalidate';
 
@@ -44,11 +46,33 @@ export interface ScheduleRowReport {
   error?: string;
 }
 
+/** One schedule row in the importer's own shape — CSV and ICS both
+ *  produce it (phase 6c I1). `timezone` overrides the caller's zone for
+ *  that row (an ICS TZID / Z instant). */
+export interface ScheduleRow {
+  date: string;
+  time: string;
+  home: string;
+  away: string;
+  venue?: string;
+  home_score?: string;
+  away_score?: string;
+  timezone?: string;
+  /** A parse-level error for this row (the row still reports). */
+  error?: string;
+}
+
+export interface ScheduleImportScope {
+  side: OrgSide;
+  orgId: string;
+}
+
 export async function scheduleImportPOST(
   admin: Admin,
   competition: { id: string; format: string; status: string },
   enteredBy: string,
-  input: { csv: string; timezone: string; dryRun: boolean }
+  input: { csv: string; timezone: string; dryRun: boolean },
+  scope: ScheduleImportScope
 ): Promise<NextResponse> {
   if (competition.format !== 'fixture') {
     return NextResponse.json(
@@ -63,7 +87,76 @@ export async function scheduleImportPOST(
   }
   const headerProblem = checkHeaders(parsed.headers, REQUIRED, OPTIONAL);
   if (headerProblem) return NextResponse.json({ error: headerProblem }, { status: 400 });
+  return importScheduleRows(admin, competition, enteredBy, parsed.rows as unknown as ScheduleRow[], input, scope);
+}
 
+/** Phase 6c I1: the same importer fed by a calendar export. Each VEVENT
+ *  becomes a row — SUMMARY "Home vs Away" (or "Away @ Home"), the start's
+ *  own zone (TZID / Z) or the caller's for floating times, LOCATION as the
+ *  venue. Parse-level refusals (RRULE, all-day, no matchup) report per row. */
+export async function scheduleIcsImportPOST(
+  admin: Admin,
+  competition: { id: string; format: string; status: string },
+  enteredBy: string,
+  input: { ics: string; timezone: string; dryRun: boolean },
+  scope: ScheduleImportScope
+): Promise<NextResponse> {
+  if (competition.format !== 'fixture') {
+    return NextResponse.json(
+      { error: 'Schedule import works on fixture competitions (home/away games)' },
+      { status: 400 }
+    );
+  }
+  const parsed = parseIcs(input.ics);
+  if (parsed.events.length === 0 && parsed.errors.length === 0) {
+    return NextResponse.json({ error: 'No events found — paste the contents of an .ics file' }, { status: 400 });
+  }
+  const total = parsed.events.length + parsed.errors.length;
+  if (total > 200) {
+    return NextResponse.json({ error: 'Too many events — 200 per paste' }, { status: 400 });
+  }
+  const rows: ScheduleRow[] = [];
+  const byIndex = new Map<number, ScheduleRow>();
+  for (const e of parsed.events) {
+    const matchup = summaryToMatchup(e.summary);
+    const pad = (n: number) => String(n).padStart(2, '0');
+    // Instants (Z) and TZID starts are converted to the CALLER's zone wall
+    // clock so the row shape stays date+time; floating times are already
+    // in the caller's zone by RFC 5545's definition.
+    let y = e.start.y, m = e.start.m, d = e.start.d, hh = e.start.hh, mm = e.start.mm;
+    if (e.timeZone) {
+      const ms = zonedWallClockToUtc(y, m, d, hh, mm, e.timeZone);
+      ({ y, m, d, hh, mm } = wallClockInZone(ms, input.timezone));
+    }
+    byIndex.set(e.index, {
+      date: `${y}-${pad(m)}-${pad(d)}`,
+      time: `${pad(hh)}:${pad(mm)}`,
+      home: matchup?.home ?? e.summary,
+      away: matchup?.away ?? '',
+      venue: e.location ?? undefined,
+      ...(matchup ? {} : { error: `"${e.summary}" is not a "Home vs Away" line` }),
+    });
+  }
+  for (const err of parsed.errors) {
+    byIndex.set(err.index, { date: '', time: '', home: '?', away: '?', error: err.error });
+  }
+  for (let i = 1; i <= total; i++) {
+    const row = byIndex.get(i);
+    if (row) rows.push(row);
+  }
+  return importScheduleRows(admin, competition, enteredBy, rows, input, scope);
+}
+
+/** The importer proper: resolve, dedupe, mint — shared by CSV and ICS. */
+export async function importScheduleRows(
+  admin: Admin,
+  competition: { id: string; format: string; status: string },
+  enteredBy: string,
+  rowsIn: ScheduleRow[],
+  input: { timezone: string; dryRun: boolean },
+  scope: ScheduleImportScope
+): Promise<NextResponse> {
+  const parsed = { rows: rowsIn };
   // The resolution tables: entries by team name, venues by name, and
   // the existing contests for the dedupe key.
   const { data: entries } = await admin
@@ -90,7 +183,13 @@ export async function scheduleImportPOST(
   ];
   const venueByName = new Map<string, string>();
   if (venueNames.length) {
-    const { data: venues } = await admin.from('venues').select('id, name').limit(500);
+    // I1: scoped to THIS org's venues — a same-named venue under another
+    // org must never resolve (it used to: the lookup was global).
+    const { data: venues } = await admin
+      .from('venues')
+      .select('id, name')
+      .eq(scope.side === 'league' ? 'league_id' : 'club_id', scope.orgId)
+      .limit(500);
     for (const v of venues ?? []) {
       const key = (v.name as string).toLowerCase();
       if (venueNames.includes(key)) venueByName.set(key, v.id as string);
@@ -140,13 +239,17 @@ export async function scheduleImportPOST(
     };
     report.push(entry);
 
+    if (raw.error) {
+      entry.error = raw.error;
+      continue;
+    }
     if (!DATE_RE.test(raw.date) || !TIME_RE.test(raw.time)) {
       entry.error = 'date must be YYYY-MM-DD and time HH:MM (24h)';
       continue;
     }
     const [y, m, d] = raw.date.split('-').map(Number);
     const [hh, mm] = raw.time.split(':').map(Number);
-    const scheduledMs = zonedWallClockToUtc(y, m, d, hh, mm, input.timezone);
+    const scheduledMs = zonedWallClockToUtc(y, m, d, hh, mm, raw.timezone ?? input.timezone);
     const scheduledIso = new Date(scheduledMs).toISOString();
     entry.scheduledAt = scheduledIso;
 
