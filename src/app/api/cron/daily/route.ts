@@ -5,7 +5,7 @@ import { runTransferSweep } from '@/lib/transfers';
 import { extendRecurringSeries } from '@/lib/calendar/series-server';
 import { runReminderSweep } from '@/lib/calendar/reminders-server';
 import { runRoundSweep } from '@/lib/golf/round-sweep';
-import { runGolfLeagueSync } from '@/lib/competitions/golf-league-server';
+import { runGolfLeagueSync, runGolfWindowReminders } from '@/lib/competitions/golf-league-server';
 import { runDeletionPurge } from '@/lib/account-park';
 import { runPendingNudge } from '@/lib/guardian-nudge';
 import { runRiskSweep } from '@/lib/risk-sweep';
@@ -94,6 +94,16 @@ export async function GET(request: NextRequest) {
   } catch (e) {
     console.error('[DAILY] golf league phase failed:', e);
     summary.golfLeague = { ok: false };
+  }
+
+  // Phase 6d W2: "closes tomorrow, nothing posted" — AFTER the sync, so a
+  // round posted today is counted before the member is nudged. Once per
+  // member per round (deduped on the bell's metadata).
+  try {
+    summary.golfReminders = await runGolfWindowReminders(admin);
+  } catch (e) {
+    console.error('[DAILY] golf reminders phase failed:', e);
+    summary.golfReminders = { ok: false };
   }
 
   // 5. Soft-delete purge (Wave 1e, migration 128): hard-delete accounts

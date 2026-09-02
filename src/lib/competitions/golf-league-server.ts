@@ -24,6 +24,15 @@ import { fetchHandicapComputation } from '@/lib/golf/handicap-server';
 import { canOverwriteProvenance, type ResultProvenance } from '@/lib/orgs/provenance';
 import { revalidateOrgSiteForCompetition } from '@/lib/org-sites/revalidate';
 import { recomputeStandingsBestEffort } from './standings';
+import { addDaysIso, utcToday } from './golf-weeks';
+import {
+  loadGolfLeagueBellContext,
+  notifyGolfRoundConfirmed,
+  notifyGolfRoundsCounted,
+  notifyGolfWindowClosing,
+  planWindowReminders,
+  type CountedMember,
+} from './golf-league-notify';
 import {
   buildResultPayload,
   matchCourseIds,
@@ -61,6 +70,7 @@ export interface SyncReport {
 interface ContestRow {
   id: string;
   competition_id: string;
+  round: string | null;
   status: string;
   venue_id: string | null;
   holes: number | null;
@@ -69,6 +79,7 @@ interface ContestRow {
 }
 interface CompetitionRow {
   id: string;
+  name: string | null;
   sport_key: string;
   format: string;
   status: string;
@@ -84,13 +95,13 @@ async function loadContest(
 ): Promise<{ contest: ContestRow; competition: CompetitionRow } | null> {
   const { data: contest, error } = await admin
     .from('contests')
-    .select('id, competition_id, status, venue_id, holes, play_from, play_to')
+    .select('id, competition_id, round, status, venue_id, holes, play_from, play_to')
     .eq('id', contestId)
     .maybeSingle();
   if (error || !contest) return null;
   const { data: competition } = await admin
     .from('competitions')
-    .select('id, sport_key, format, status, scoring_rule, config, league_id, club_id')
+    .select('id, name, sport_key, format, status, scoring_rule, config, league_id, club_id')
     .eq('id', contest.competition_id)
     .maybeSingle();
   if (!competition) return null;
@@ -166,14 +177,28 @@ export async function syncGolfContest(admin: Admin, contestId: string): Promise<
     .filter((m): m is { participantId: string; entryId: string; profileId: string } => !!m.profileId);
   if (members.length === 0) return report;
 
-  // Existing results — never downgrade a verified/imported row.
+  // Existing results — never downgrade a verified/imported row. Score +
+  // round ref ride along so the bell fires only when the result is NEW or
+  // CHANGED (W2): an idempotent re-sync sends nothing.
   const { data: existing } = await admin
     .from('contest_results')
-    .select('participant_id, provenance')
+    .select('participant_id, provenance, score, payload')
     .in('participant_id', members.map(m => m.participantId));
   const existingProvenance = new Map(
     (existing ?? []).map(r => [r.participant_id as string, r.provenance as ResultProvenance])
   );
+  const existingResult = new Map(
+    (existing ?? []).map(r => [
+      r.participant_id as string,
+      {
+        score: (r.score as number | null) ?? null,
+        roundId:
+          ((r.payload as { roundRef?: { roundId?: unknown } } | null)?.roundRef?.roundId as string | undefined) ??
+          null,
+      },
+    ])
+  );
+  const counted: CountedMember[] = [];
 
   // ONE rounds read for every member in the window at the course(s).
   const { data: roundsData } = await admin
@@ -267,15 +292,27 @@ export async function syncGolfContest(admin: Admin, contestId: string): Promise<
       index,
       par,
     });
+    const score = scoreForRule(rule, payload);
     upserts.push({
       contest_id: contest.id,
       participant_id: m.participantId,
-      score: scoreForRule(rule, payload),
+      score,
       payload,
       provenance: 'self_reported',
       entered_by: m.profileId,
     });
     report.synced += 1;
+    const priorResult = existingResult.get(m.participantId);
+    if (!priorResult || priorResult.score !== score || priorResult.roundId !== chosen.round.id) {
+      counted.push({
+        profileId: m.profileId,
+        gross: payload.gross,
+        net: typeof payload.net === 'number' ? payload.net : null,
+        holes: payload.holes,
+        roundId: chosen.round.id,
+        changed: !!priorResult,
+      });
+    }
   }
 
   if (upserts.length > 0) {
@@ -288,6 +325,12 @@ export async function syncGolfContest(admin: Admin, contestId: string): Promise<
     }
     await recomputeStandingsBestEffort(admin, competition.id);
     await revalidateOrgSiteForCompetition(admin, competition.id);
+    // W2: tell the members whose result is new or changed (never the kept,
+    // never an unchanged re-sync). Best-effort; a pre-173 CHECK drops it.
+    if (counted.length > 0) {
+      const ctx = await loadGolfLeagueBellContext(admin, { competition, contest });
+      if (ctx) await notifyGolfRoundsCounted(admin, ctx, counted);
+    }
   }
   return report;
 }
@@ -302,11 +345,14 @@ export async function confirmGolfContest(
   const loaded = await loadContest(admin, contestId);
   if (!loaded) return NextResponse.json({ error: 'Round not found' }, { status: 404 });
   const { contest, competition } = loaded;
-  const { error } = await admin
+  // `.select()` returns the rows this call actually flipped — a second
+  // click flips nothing and therefore bells nobody (W2).
+  const { data: flipped, error } = await admin
     .from('contest_results')
     .update({ provenance: 'league_verified', confirmed_by: confirmedBy })
     .eq('contest_id', contest.id)
-    .eq('provenance', 'self_reported');
+    .eq('provenance', 'self_reported')
+    .select('participant_id');
   if (error) {
     console.error(`${TAG} confirm error:`, error);
     return NextResponse.json({ error: 'Failed to confirm the round' }, { status: 500 });
@@ -316,6 +362,37 @@ export async function confirmGolfContest(
   }
   await recomputeStandingsBestEffort(admin, competition.id);
   await revalidateOrgSiteForCompetition(admin, competition.id);
+  const flippedIds = (flipped ?? []).map(r => r.participant_id as string);
+  if (flippedIds.length > 0) {
+    try {
+      const [{ data: participants }, { data: standings }] = await Promise.all([
+        admin
+          .from('contest_participants')
+          .select('id, competition_entries!inner(id, profile_id)')
+          .in('id', flippedIds),
+        admin
+          .from('competition_standings')
+          .select('entry_id, rank')
+          .eq('competition_id', competition.id)
+          .limit(1000),
+      ]);
+      const rankByEntry = new Map((standings ?? []).map(s => [s.entry_id as string, s.rank as number]));
+      const of = (standings ?? []).length;
+      const members = (participants ?? [])
+        .map(p => {
+          const e = p.competition_entries as { id: string; profile_id: string | null } | { id: string; profile_id: string | null }[];
+          const entry = Array.isArray(e) ? e[0] : e;
+          return entry?.profile_id
+            ? { profileId: entry.profile_id, rank: rankByEntry.get(entry.id) ?? null, of }
+            : null;
+        })
+        .filter((m): m is { profileId: string; rank: number | null; of: number } => !!m);
+      const ctx = await loadGolfLeagueBellContext(admin, { competition, contest });
+      if (ctx && members.length > 0) await notifyGolfRoundConfirmed(admin, ctx, members);
+    } catch (e) {
+      console.error(`${TAG} confirm bells failed:`, e);
+    }
+  }
   return NextResponse.json({ ok: true, contestId: contest.id });
 }
 
@@ -399,6 +476,100 @@ export async function runGolfLeagueSync(
     }
   } catch (error) {
     console.error(`${TAG} cron phase failed:`, error);
+  }
+  return out;
+}
+
+/** The daily reminder phase (W2): a round whose window closes TOMORROW
+ *  nudges every member with nothing posted — once per member per round
+ *  (deduped on the bell's metadata.contest_id, member ids only so a
+ *  guardian copy neither suppresses nor duplicates). Runs AFTER the sync
+ *  phase so a round posted today is counted first. Bounded; never throws. */
+export async function runGolfWindowReminders(
+  admin: Admin
+): Promise<{ contests: number; reminded: number }> {
+  const out = { contests: 0, reminded: 0 };
+  try {
+    const tomorrow = addDaysIso(utcToday(), 1);
+    const { data: closing } = await admin
+      .from('contests')
+      .select('id, competition_id, round, venue_id, play_to, competitions!inner(sport_key, format, status)')
+      .not('holes', 'is', null)
+      .eq('play_to', tomorrow)
+      .in('status', ['scheduled', 'in_progress'])
+      .eq('competitions.sport_key', 'golf')
+      .eq('competitions.format', 'leaderboard')
+      .eq('competitions.status', 'active')
+      .limit(100);
+    for (const c of closing ?? []) {
+      out.contests += 1;
+      const loaded = await loadContest(admin, c.id as string);
+      if (!loaded) continue;
+      const { contest, competition } = loaded;
+      const { data: participants } = await admin
+        .from('contest_participants')
+        .select('id, competition_entries!inner(profile_id, status)')
+        .eq('contest_id', contest.id)
+        .limit(500);
+      const members = (participants ?? [])
+        .map(p => {
+          const e = p.competition_entries as { profile_id: string | null; status: string } | { profile_id: string | null; status: string }[];
+          const entry = Array.isArray(e) ? e[0] : e;
+          return entry?.profile_id && entry.status === 'approved'
+            ? { profileId: entry.profile_id, participantId: p.id as string }
+            : null;
+        })
+        .filter((m): m is { profileId: string; participantId: string } => !!m);
+      if (members.length === 0) continue;
+      const [{ data: results }, { data: sent }] = await Promise.all([
+        admin
+          .from('contest_results')
+          .select('participant_id')
+          .in('participant_id', members.map(m => m.participantId)),
+        admin
+          .from('notifications')
+          .select('user_id')
+          .eq('type', 'golf_league_window_closing')
+          .contains('metadata', { contest_id: contest.id })
+          .limit(1000),
+      ]);
+      const memberIds = new Set(members.map(m => m.profileId));
+      const profileIds = planWindowReminders({
+        members,
+        resultParticipantIds: new Set((results ?? []).map(r => r.participant_id as string)),
+        alreadyNotifiedProfileIds: new Set(
+          (sent ?? []).map(n => n.user_id as string).filter(id => memberIds.has(id))
+        ),
+      });
+      if (profileIds.length === 0) continue;
+      const ctx = await loadGolfLeagueBellContext(admin, { competition, contest });
+      if (!ctx) continue;
+      let courseName: string | null = null;
+      if (contest.venue_id) {
+        const { data: venue } = await admin
+          .from('venues')
+          .select('name, golf_course_id')
+          .eq('id', contest.venue_id)
+          .maybeSingle();
+        courseName = (venue?.name as string | undefined) ?? null;
+        if (venue?.golf_course_id) {
+          const { data: course } = await admin
+            .from('golf_courses')
+            .select('name')
+            .eq('id', venue.golf_course_id)
+            .maybeSingle();
+          if (course?.name) courseName = course.name as string;
+        }
+      }
+      await notifyGolfWindowClosing(
+        admin,
+        { ...ctx, courseName, playTo: contest.play_to as string },
+        profileIds
+      );
+      out.reminded += profileIds.length;
+    }
+  } catch (error) {
+    console.error(`${TAG} reminder phase failed:`, error);
   }
   return out;
 }
