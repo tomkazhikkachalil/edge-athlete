@@ -1,5 +1,6 @@
 import type { PublicCompetitionStandings } from '@/lib/competitions/public-standings';
 import GolfWeeks from './GolfWeeks';
+import PointsRaceTable from './PointsRaceTable';
 
 // One competition's standings card — the SSR markup shared by the
 // league/club standings pages and the public org-site standings module.
@@ -77,6 +78,7 @@ export default function PublicStandingsTable({
       </div>
       )}
       {competition.golf && <GolfWeeks golf={competition.golf} competitionId={competition.id} />}
+      {competition.race && <PointsRaceTable race={competition.race} competitionId={competition.id} />}
       {/* Phase 6 R4: a disputed result must never read as settled —
           shared markup, so console twins and the public site all carry
           the same footnote (unconfirmed semantics, no new visual

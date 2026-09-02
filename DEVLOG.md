@@ -1,5 +1,54 @@
 # Development Log
 
+## September 2, 2026 — Phase 8 P1: PGA depth, part 1 — the points race: a golf_points league week by week, derived at read time (#533, zero DDL)
+
+Phase 8 ("PGA depth", Tom, Sep 2 — after phase 7): the club and league
+site should read like the Tour site — player pages, a week-by-week
+points race, a "this week" hub. P1 is the race. Plan in the session's
+plan file; two decisions recorded there (player pages for PUBLIC
+profiles only, keyed by handle; rounds in progress = a count for
+visitors).
+
+- **`golf-race.ts`** (pure, tested): `buildPointsRace({contests,
+  participants, results, preset, entryName, omittedEntries})` → the
+  completed weeks in `play_from` order and, per entrant, points per week
+  (`awardRoundPoints` — the C6 engine), the running total, the rank
+  after every week (ties share) and the movement into the latest one.
+  Nothing is stored — `competition_standings` is rewritten whole (mig
+  153) — the race is derived from `contest_results` at read time, from
+  the SAME raw rows `fetchPublicStandings` already loads for the golf
+  block (no second read; the 300/1000 caps unchanged).
+- **The divergence, fixed**: `buildGolfBlock` awarded a week's points
+  over the PUBLIC field (supervised rows already omitted) while the
+  recompute awards over the FULL field — on any league with a supervised
+  member the public week and the table disagreed. Both now award over
+  the full field and omit AFTER (the rank gap stays, the totals match);
+  a test pins the race, the week block and the table together.
+- `PublicCompetitionStandings.race?` — present only on a `golf_points`
+  league with ≥1 completed round; legacy payloads byte-identical.
+  `PointsRaceTable` (props-only, no hooks/FA/dark: — it renders inside
+  `(public)`): W1…Wn columns, Total, Move (▲2 / ▼1 / ·), inside the
+  card's `overflow-x-auto` (the 375px rule). Rendered under the
+  standings table on the site's standings page, the `/club|/league/
+  [id]/standings` twins and the in-app `OrgStandings`.
+- e2e `golf-points-race.spec.ts` (user-b + alpha + a supervised child
+  under the guardian flag): three windowed rounds through the API →
+  week 1 100/75, week 2 a tie 87.5 each, week 3 a lead change (alpha
+  262.5 over 247.5 with the child second; a dead heat without) →
+  weekly, cumulative, ranks, movement +1/−1; the child's row omitted
+  while the others' week-3 points reflect its presence (the divergence
+  pin); the race totals equal the table's; the public week's points
+  match; the site standings page and the twin draw the race at 375px
+  with no overflow. FOUND: a round completes only when EVERY participant
+  has a result (the results route's rule) — a seeded entrant who never
+  posts keeps the week open and out of every board. Regressions green
+  vs the live DB: golf-season-points, golf-league-rules, golf-league-
+  sync, golf-league-weeks, org-leaderboard, org-site-golf-leaders,
+  org-site (5), org-site-two-pages.
+
+Next: P2 — player pages on the site for public profiles (by handle),
+names on standings / weeks / leaders / race become links.
+
 ## September 2, 2026 — Phase 7 C6: club sign-up, part 6 — FedEx-style season points: a `golf_points` league ranks rounds on strokes and awards points by place (#532, zero DDL)
 
 The last piece of Tom's PGA brief: season points. A `golf_points` league

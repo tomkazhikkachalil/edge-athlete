@@ -11,6 +11,7 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { parseGolfPointsConfig } from './golf-points';
+import { buildPointsRace, type PointsRace } from './golf-race';
 import { roundRuleFor } from './golf-league';
 import { readApproval } from '@/lib/orgs/approval';
 import type { OrgSide } from '@/lib/orgs/authz';
@@ -60,6 +61,10 @@ export interface PublicCompetitionStandings {
    *  the competition has at least one windowed round (mig 172), so
    *  legacy boards and non-golf payloads are byte-identical to before. */
   golf?: PublicGolfBlock;
+  /** Phase 8 P1: the week-by-week points race — PRESENT ONLY on a
+   *  `golf_points` league with at least one completed round. Derived at
+   *  read time from the same raw rows as `golf`. */
+  race?: PointsRace;
 }
 
 export interface PublicStandingsPayload {
@@ -209,6 +214,22 @@ export async function fetchPublicStandings(
     });
   }
 
+  function raceFor(competitionId: string, scoringRule: string | null): { race?: PointsRace } {
+    if (scoringRule !== 'golf_points') return {};
+    const contests = golfRaw.contestsByCompetition.get(competitionId);
+    if (!contests || contests.length === 0) return {};
+    const contestIds = new Set(contests.map(c => c.id));
+    const race = buildPointsRace({
+      contests,
+      participants: golfRaw.participants.filter(p => contestIds.has(p.contest_id)),
+      results: golfRaw.results.filter(r => contestIds.has(r.contest_id)),
+      preset: parseGolfPointsConfig(golfRaw.configByCompetition.get(competitionId) ?? null).preset,
+      entryName,
+      omittedEntries,
+    });
+    return race ? { race } : {};
+  }
+
   function golfBlockFor(competitionId: string, scoringRule: string | null): { golf?: PublicGolfBlock } {
     const contests = golfRaw.contestsByCompetition.get(competitionId);
     if (!contests || contests.length === 0) return {};
@@ -256,6 +277,7 @@ export async function fetchPublicStandings(
       entrant_type: (c.entrant_type as string | null) ?? 'team',
       sport_key: c.sport_key as string,
       ...golfBlockFor(c.id, c.scoring_rule as string | null),
+      ...raceFor(c.id, c.scoring_rule as string | null),
     })),
   };
 

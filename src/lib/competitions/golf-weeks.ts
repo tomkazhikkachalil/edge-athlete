@@ -233,40 +233,42 @@ export function buildGolfBlock(input: BuildGolfBlockInput): PublicGolfBlock | nu
 
   const weeks: PublicGolfWeek[] = windowed.map(c => {
     const rows = resultsByContest.get(c.id) ?? [];
-    const results: PublicGolfWeekResult[] = [];
+    // Every row of the field first (supervised rows included) — points are
+    // awarded over the FULL field, exactly as the standings recompute, and
+    // only THEN are supervised rows omitted (P1: the race and the table
+    // must never disagree on a point total).
+    const field: { entryId: string; result: PublicGolfWeekResult }[] = [];
     for (const r of rows) {
       const entryId = participantEntry.get(r.participant_id);
-      if (!entryId || input.omittedEntries.has(entryId)) continue;
-      results.push(publicResultFromRow(r, input.entryName.get(entryId) ?? 'Athlete', input.scoringRule));
+      if (!entryId) continue;
+      field.push({ entryId, result: publicResultFromRow(r, input.entryName.get(entryId) ?? 'Athlete', input.scoringRule) });
     }
     // Fewer strokes first (both golf rules ascend); a null key sorts last;
     // ties by name so the order is stable across renders.
     const key = (r: PublicGolfWeekResult) => (input.scoringRule === 'golf_net' ? r.net : r.gross);
-    results.sort((a, b) => {
-      const ka = key(a);
-      const kb = key(b);
-      if (ka === null && kb === null) return a.entrant_name.localeCompare(b.entrant_name);
+    field.sort((a, b) => {
+      const ka = key(a.result);
+      const kb = key(b.result);
+      if (ka === null && kb === null) return a.result.entrant_name.localeCompare(b.result.entrant_name);
       if (ka === null) return 1;
       if (kb === null) return -1;
       if (ka !== kb) return ka - kb;
-      return a.entrant_name.localeCompare(b.entrant_name);
+      return a.result.entrant_name.localeCompare(b.result.entrant_name);
     });
     if (input.pointsPreset) {
-      // C6: the week's points by finishing position (ties share). Omitted
-      // (supervised) rows are absent here, so their places are not counted —
-      // the public week shows the public field's points; the standings
-      // table (recompute) is the authority.
+      // C6: the week's points by finishing position (ties share).
       const awards = new Map(
         awardRoundPoints(
-          results.map((r, i) => ({ entry_id: String(i), score: key(r) })),
+          field.map((f, i) => ({ entry_id: String(i), score: key(f.result) })),
           input.pointsPreset
         ).map(a => [a.entry_id, a.points])
       );
-      results.forEach((r, i) => {
+      field.forEach((f, i) => {
         const pts = awards.get(String(i));
-        if (pts !== undefined) r.points = pts;
+        if (pts !== undefined) f.result.points = pts;
       });
     }
+    const results = field.filter(f => !input.omittedEntries.has(f.entryId)).map(f => f.result);
     return {
       id: c.id,
       round: c.round,
