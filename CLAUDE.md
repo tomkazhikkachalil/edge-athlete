@@ -397,10 +397,12 @@ addition below as a promise to keep it true.
   media-proxy arc: flipping the `uploads` bucket to private. Verify with
   `npm run verify:media-privacy` (`scripts/verify-media-privacy.mjs`).
 - `docs/ORG_PLATFORM_MASTERPLAN.md` — the org-platform master plan. Status:
-  **phases 0–3 SHIPPED** (console/claim → competition model → public org
-  sites with SEO, Aug 30–Sep 2 2026; `DEVLOG.md` is the round-by-round
-  record). The doc remains the design reference for phases 3.5+ (news,
-  media galleries w/ photo consent, custom domains).
+  **phases 0–6b SHIPPED** (console/claim → competition model → public org
+  sites with SEO → automatic flows → registration → vanity paths/sanctioning/
+  disputes/import → golf club page, builder depth, custom domains; Aug 30–
+  Sep 1 2026; `DEVLOG.md` is the round-by-round record). Payments skipped by
+  decision. The doc remains the design reference; phase 6c (golf leagues
+  that fill themselves, import leftovers) is the live program.
 - `docs/` — roadmaps (`docs/ROADMAP_2026-07.md`, `docs/MULTI_SPORT_ROADMAP.md`), a
   security audit, and feature write-ups. **`docs/devlog/` is the OLD devlog** (entries
   001–010, superseded by `DEVLOG.md` at the repo root) — history, not current
