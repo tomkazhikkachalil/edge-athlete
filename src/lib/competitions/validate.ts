@@ -29,6 +29,9 @@ export const FORMAT_ENTRANTS: Record<(typeof COMPETITION_FORMATS_V1)[number], 't
   leaderboard: 'athlete',
 };
 
+/** Phase 6c G1: a bare calendar date (golf_rounds.date is a DATE). */
+export const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+
 export const CompetitionCreateSchema = z
   .object({
     side: OrgSideSchema,
@@ -40,6 +43,13 @@ export const CompetitionCreateSchema = z
     format: z.enum(COMPETITION_FORMATS_V1),
     scoringRule: optionalText(40),
     visibility: z.enum(['public', 'private']).default('private'),
+    // Phase 6c G1: shape-blind competition config; the first key is the
+    // golf league's counting-round choice.
+    config: z
+      .object({
+        golf: z.object({ pick: z.enum(['first', 'best']) }).optional(),
+      })
+      .optional(),
   });
 export type CompetitionCreateInput = z.infer<typeof CompetitionCreateSchema>;
 
@@ -71,10 +81,21 @@ export const ContestCreateSchema = z
     facilityId: uuid.optional(),
     homeEntryId: uuid.optional(),
     awayEntryId: uuid.optional(),
+    // Phase 6c G1: a golf league round declares its hole count and its
+    // PLAY WINDOW (members play any day of it). Dates, like golf_rounds.date.
+    holes: z.union([z.literal(9), z.literal(18)]).optional(),
+    playFrom: z.string().regex(ISO_DATE_RE, 'YYYY-MM-DD').optional(),
+    playTo: z.string().regex(ISO_DATE_RE, 'YYYY-MM-DD').optional(),
   })
   .superRefine((val, ctx) => {
     if (val.facilityId && !val.venueId) {
       ctx.addIssue({ code: 'custom', path: ['facilityId'], message: 'A facility needs its venue' });
+    }
+    if (val.playFrom && val.playTo && val.playTo < val.playFrom) {
+      ctx.addIssue({ code: 'custom', path: ['playTo'], message: 'The window ends before it starts' });
+    }
+    if ((val.playFrom && !val.playTo) || (val.playTo && !val.playFrom)) {
+      ctx.addIssue({ code: 'custom', path: ['playTo'], message: 'A play window needs both dates' });
     }
     if ((val.homeEntryId || val.awayEntryId) && val.homeEntryId === val.awayEntryId) {
       ctx.addIssue({ code: 'custom', path: ['awayEntryId'], message: 'Home and away must differ' });
@@ -90,9 +111,15 @@ export const ContestPatchSchema = z
     round: optionalText(40).nullable().optional(),
     venueId: uuid.nullable().optional(),
     facilityId: uuid.nullable().optional(),
+    holes: z.union([z.literal(9), z.literal(18)]).nullable().optional(),
+    playFrom: z.string().regex(ISO_DATE_RE, 'YYYY-MM-DD').nullable().optional(),
+    playTo: z.string().regex(ISO_DATE_RE, 'YYYY-MM-DD').nullable().optional(),
   })
   .superRefine((val, ctx) => {
-    const changes = [val.status, val.scheduledAt, val.round, val.venueId, val.facilityId];
+    if (val.playFrom && val.playTo && val.playTo < val.playFrom) {
+      ctx.addIssue({ code: 'custom', path: ['playTo'], message: 'The window ends before it starts' });
+    }
+    const changes = [val.status, val.scheduledAt, val.round, val.venueId, val.facilityId, val.holes, val.playFrom, val.playTo];
     if (changes.every(v => v === undefined)) {
       ctx.addIssue({ code: 'custom', path: ['status'], message: 'Nothing to change' });
     }

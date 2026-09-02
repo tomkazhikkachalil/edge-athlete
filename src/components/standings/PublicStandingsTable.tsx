@@ -28,7 +28,9 @@ export default function PublicStandingsTable({
           <thead>
             <tr className="text-left text-xs text-muted">
               <th scope="col" className="py-1.5 pr-2 font-medium">#</th>
-              <th scope="col" className="py-1.5 pr-3 font-medium">Team</th>
+              <th scope="col" className="py-1.5 pr-3 font-medium">
+                {competition.entrant_type === 'athlete' ? 'Player' : 'Team'}
+              </th>
               {competition.columns.map(col => (
                 // aria-label carries the full column name — title alone is
                 // not a reliable accessible name for the abbreviation.
@@ -54,11 +56,13 @@ export default function PublicStandingsTable({
                 <td className="py-1.5 pr-3 font-medium text-primary">{row.entrant_name}</td>
                 {competition.columns.map(col => (
                   <td key={col.key} className="py-1.5 px-2 text-right text-secondary">
+                    {/* G1: a null total is "no round yet", never 0 — on an
+                        ascending board a 0 would read as the leader. */}
                     {col.key === 'played'
                       ? row.played
                       : col.key === 'points'
-                        ? (row.points ?? 0)
-                        : (row.stats[col.key] ?? 0)}
+                        ? (row.points ?? '—')
+                        : (row.stats[col.key] ?? '—')}
                   </td>
                 ))}
               </tr>

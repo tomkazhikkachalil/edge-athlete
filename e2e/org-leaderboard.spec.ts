@@ -54,6 +54,8 @@ test('leaderboard: club championship — rounds, totals ascending, public board;
       await page.getByLabel('Competition season').selectOption(season!.id);
       await page.getByLabel('Competition sport').selectOption('golf');
       await page.getByLabel('Competition format').selectOption('leaderboard');
+      // G1: golf leaderboards pick a rule; this spec is the plain-total board.
+      await page.getByLabel('Scoring rule').selectOption('stroke_total');
       await page.getByLabel('Public competition').check();
       await page.getByRole('button', { name: 'Add competition' }).click();
       await expect(page.getByText('Club Championship', { exact: true })).toBeVisible({
