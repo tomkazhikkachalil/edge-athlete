@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import Image from 'next/image';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { getCachedCoursePage, getCachedSite } from '@/lib/org-sites/cached';
+import { getCachedCoursePage, getCachedCourseStats, getCachedSite } from '@/lib/org-sites/cached';
 import { buildCourseJsonLd, safeJsonLd } from '@/lib/org-sites/jsonld';
 import { parseCoursePhotos } from '@/lib/org-sites/validate';
 import { orgMediaUrl } from '@/lib/media/org-site-media';
@@ -13,6 +13,7 @@ import CourseScorecardTable from '@/components/golf/CourseScorecardTable';
 import { requireSiteModule } from '../../_components/require-module';
 import { CourseOverview, GeometryAttribution, HoleDiagram } from '../../_components/HoleMap';
 import { placeLine, sectionLabel, teeSummary } from '../../_components/CoursesList';
+import CourseStatsCard from '../../_components/CourseStatsCard';
 import { appBaseUrl, siteAbsoluteUrl, siteBasePath } from '@/lib/org-sites/urls';
 
 // ── /org/[slug]/courses/[courseId] — the FULL course page (phase 6e S2) ────
@@ -67,6 +68,15 @@ export default async function OrgSiteCoursePage({ params }: PageParams) {
   if (!page) notFound();
 
   const { course, venueName, phone, siblings, geometry } = page;
+  // S3: the course fills itself — members' public rounds here (par per
+  // hole from the catalog fills a holes row that carries none).
+  const stats = await getCachedCourseStats(
+    slug,
+    site.side,
+    site.orgId,
+    course.id,
+    new Map((course.holes ?? []).filter(h => h.par > 0).map(h => [h.number, h.par]))
+  );
   const name = courseDisplayName(course.clubName, course.name);
   const base = siteBasePath(site);
   const photo = parseCoursePhotos(site.modules.find(m => m.module_key === 'courses')?.config)[course.id];
@@ -225,6 +235,8 @@ export default async function OrgSiteCoursePage({ params }: PageParams) {
           )}
         </section>
       )}
+
+      <CourseStatsCard stats={stats} />
 
       {siblings.length > 0 && (
         <section aria-label="Other layouts" className="bg-surface rounded-lg shadow-sm border border-border p-4 sm:p-6">

@@ -40,6 +40,8 @@ import TeamsList from './TeamsList';
 import VenuesList from './VenuesList';
 import { siteBasePath } from '@/lib/org-sites/urls';
 import { FULL_WIDTH_MODULES, templateSpec } from '@/lib/org-sites/templates';
+import type { CourseStats } from '@/lib/golf/course-stats';
+import { courseRecordLine } from './CourseStatsCard';
 
 // The site home's module rendering, extracted (cleanup round) so the
 // PUBLISHED home page and the token-gated draft PREVIEW render the exact
@@ -61,6 +63,8 @@ export interface SiteHomeData {
   leaders: PublicLeaderBoard[];
   /** Phase 6c G3 — a CLUB page's golf boards (own + affiliated leagues'). */
   clubGolfBoards?: PublicClubGolfBoard[];
+  /** Phase 6e S3 — the club's courses fill themselves from members' public rounds. */
+  courseStrip?: CourseStats | null;
 }
 
 export default function SiteHomeBody({
@@ -156,6 +160,18 @@ export default function SiteHomeBody({
               <CoursesList courses={courses} detailed={false} basePath={siteBasePath(site)} />
             ) : (
               empty('No courses listed yet.')
+            )}
+            {/* S3: the page fills itself — members' public rounds at the club's
+                courses (record + count); the detail lives on each course page. */}
+            {data.courseStrip && data.courseStrip.roundsPosted > 0 && (
+              <p className="mt-3 text-sm text-secondary" aria-label="Rounds at the club">
+                <span className="font-medium text-primary">
+                  {`${data.courseStrip.roundsPosted} ${data.courseStrip.roundsPosted === 1 ? 'round' : 'rounds'} posted this year`}
+                </span>
+                {courseRecordLine(data.courseStrip) ? (
+                  <span className="text-muted">{` · ${courseRecordLine(data.courseStrip)}`}</span>
+                ) : null}
+              </p>
             )}
             {/* G3: "this week at the club" — the leagues playing here. */}
             {clubGolfBoards.length > 0 && (

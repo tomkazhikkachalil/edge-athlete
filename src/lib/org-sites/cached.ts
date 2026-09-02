@@ -4,6 +4,8 @@ import type { OrgSide } from '@/lib/orgs/authz';
 import { fetchPublicStandings, type PublicStandingsPayload } from '@/lib/competitions/public-standings';
 import { fetchOrgEvents, type OrgEvent } from '@/lib/calendar/org-events-server';
 import { getPublicSiteBySlug, type PublicSite } from './server';
+import { fetchPublicCourseStats } from './course-stats';
+import type { CourseStats } from '@/lib/golf/course-stats';
 import {
   fetchPublicAffiliations,
   fetchPublicClubGolfBoards,
@@ -208,6 +210,33 @@ export const getCachedCoursePage = (
   perSlug(['org-site-course', slug, courseId], slug, () =>
     fetchPublicCoursePage(getSupabaseAdmin(), side, orgId, courseId)
   );
+
+// Phase 6e S3: the course fills itself — stats from members' public
+// rounds. courseId varies per slug → in the keyParts; parByHole is
+// derived from the course's own catalog rows (1:1 with courseId).
+export const getCachedCourseStats = (
+  slug: string,
+  side: OrgSide,
+  orgId: string,
+  courseId: string,
+  parByHole?: Map<number, number>
+): Promise<CourseStats> =>
+  perSlug(['org-site-course-stats', slug, courseId], slug, () =>
+    fetchPublicCourseStats(getSupabaseAdmin(), side, orgId, [courseId], { parByHole })
+  );
+
+/** The club home strip: one read over EVERY linked course (a club's
+ *  nines and eighteens together — the record is per (holes, tee) inside). */
+export const getCachedClubCourseStrip = (
+  slug: string,
+  side: OrgSide,
+  orgId: string
+): Promise<CourseStats> =>
+  perSlug(['org-site-course-strip', slug], slug, async () => {
+    const admin = getSupabaseAdmin();
+    const courses = await fetchPublicCourses(admin, side, orgId);
+    return fetchPublicCourseStats(admin, side, orgId, [...new Set(courses.map(c => c.course.id))]);
+  });
 
 // Phase 6b B3: divisions + stat leaders (both viewer-independent reads).
 export const getCachedDivisions = (
