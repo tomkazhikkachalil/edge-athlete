@@ -595,7 +595,9 @@ export default function CompetitionDetailPage() {
                       value={roundVenueId}
                       onChange={e => setRoundVenueId(e.target.value)}
                       aria-label="Round course"
-                      className="px-3 py-2 border border-border-strong rounded-md outline-none text-sm"
+                      // max-w-full: a select's intrinsic width is its widest option;
+                      // without the cap it pushes the 375px page sideways.
+                      className="max-w-full px-3 py-2 border border-border-strong rounded-md outline-none text-sm"
                     >
                       <option value="">Course (optional)</option>
                       {venues.map(v => (
