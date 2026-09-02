@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { getCachedSite, getCachedStandings } from '@/lib/org-sites/cached';
 import PublicStandingsTable from '@/components/standings/PublicStandingsTable';
 import { requireSiteModule } from '../_components/require-module';
+import { moduleLabel, parseNavConfig } from '@/lib/org-sites/validate';
 import { siteAbsoluteUrl } from '@/lib/org-sites/urls';
 
 // ── /org/[slug]/standings — the full standings subpage (phase 3 R2) ────────
@@ -46,7 +47,9 @@ export default async function OrgSiteStandingsPage({ params }: PageParams) {
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-8 space-y-6">
-      <h1 className="text-2xl font-bold text-primary">Standings</h1>
+      <h1 className="text-2xl font-bold text-primary">
+        {moduleLabel('standings', parseNavConfig(site.nav_config), site.side, site.sportKey)}
+      </h1>
       {withRows.length === 0 ? (
         <p className="text-sm text-tertiary">No published standings yet.</p>
       ) : (

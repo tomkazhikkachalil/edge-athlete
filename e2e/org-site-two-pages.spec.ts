@@ -111,7 +111,9 @@ test('two pages: side default orders, side labels, reset, and the club golf teas
     const clubOrder = await orderOf(sites.club!.id);
     const leagueOrder = await orderOf(sites.league!.id);
     expect(clubOrder.slice(0, 3)).toEqual(['hero', 'courses', 'affiliations']);
-    expect(leagueOrder.slice(0, 3)).toEqual(['hero', 'standings', 'schedule']);
+    // C3: a GOLF league takes the golf shape (standings, then leaders); a club
+    // without a sport keeps the classic order.
+    expect(leagueOrder.slice(0, 3)).toEqual(['hero', 'standings', 'leaders']);
 
     // Scramble the club, then reset → back to the recommended order.
     let res = await ownerApi.patch(`/api/clubs/${clubId}/site`, {
@@ -153,7 +155,7 @@ test('two pages: side default orders, side labels, reset, and the club golf teas
       // League page: "Clubs", standings first, no teaser.
       const leagueHtml = await settleBody(anonCtx.request, leaguePath, 'aria-label="Clubs"');
       expect(leagueHtml).toContain('aria-label="Clubs"');
-      expect(leagueHtml.indexOf('aria-label="Standings"')).toBeLessThan(leagueHtml.indexOf('aria-label="Clubs"'));
+      expect(leagueHtml.indexOf('aria-label="Season standings"')).toBeLessThan(leagueHtml.indexOf('aria-label="Clubs"'));
       expect(leagueHtml).not.toContain('This week at');
 
       // 375px on both.

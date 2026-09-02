@@ -252,6 +252,39 @@ export const DEFAULT_MODULE_ORDER: Record<'league' | 'club', readonly ModuleKey[
   ],
 };
 
+/** Phase 7 C3 — the PGA shape (Tom): a GOLF org's page reads like a tour
+ *  site — season standings, leaders, the week's play, news and media
+ *  first; where you play, registration and the org's structure after.
+ *  Keyed off the org's sport (clubs.primary_sport / leagues.sport_key —
+ *  a golf club is NOT course-specific, so `courses` is a supporting
+ *  section, not the lead). Chosen at site creation and by reset_order;
+ *  managers still reorder freely. Every MODULE_KEY exactly once (pinned). */
+export const GOLF_MODULE_ORDER: Record<'league' | 'club', readonly ModuleKey[]> = {
+  club: [
+    'hero', 'standings', 'leaders', 'schedule', 'news', 'gallery', 'courses',
+    'register', 'affiliations', 'venues', 'teams', 'divisions', 'staff',
+    'sponsors', 'documents', 'contact',
+  ],
+  league: [
+    'hero', 'standings', 'leaders', 'schedule', 'news', 'gallery', 'register',
+    'courses', 'affiliations', 'venues', 'teams', 'divisions', 'staff',
+    'sponsors', 'documents', 'contact',
+  ],
+};
+
+/** The recommended order for an org: its sport's shape when it has one. */
+export function defaultModuleOrder(
+  side: 'league' | 'club',
+  sportKey?: string | null
+): readonly ModuleKey[] {
+  return sportKey === 'golf' ? GOLF_MODULE_ORDER[side] : DEFAULT_MODULE_ORDER[side];
+}
+
+/** The golf site's stock tagline — seeded into hero_config at creation
+ *  (editable via set_hero) and the render fallback for golf sites made
+ *  before C3. */
+export const GOLF_TAGLINE = "Standings, leaderboards and the week's play — live.";
+
 /** Side-aware default titles: the affiliations module reads "Leagues" on a
  *  club site and "Clubs" on a league site (the relationship seen from
  *  that page). Nav labels still override. */
@@ -260,9 +293,27 @@ const SIDE_TITLES: Record<'league' | 'club', Partial<Record<string, string>>> = 
   league: { affiliations: 'Clubs' },
 };
 
+/** Sport-aware default titles (C3): golf speaks tour — a season table, a
+ *  leaders board, rounds rather than games. Above the side titles, below
+ *  the nav labels. */
+const SPORT_TITLES: Record<string, Partial<Record<string, string>>> = {
+  golf: { standings: 'Season standings', leaders: 'Leaders', schedule: 'Rounds & events' },
+};
+
 /** The visible name of a module on the public site. */
-export function moduleLabel(key: string, nav: NavConfig, side?: 'league' | 'club'): string {
-  return nav.labels[key] ?? (side ? SIDE_TITLES[side][key] : undefined) ?? MODULE_TITLES[key] ?? key;
+export function moduleLabel(
+  key: string,
+  nav: NavConfig,
+  side?: 'league' | 'club',
+  sportKey?: string | null
+): string {
+  return (
+    nav.labels[key] ??
+    (sportKey ? SPORT_TITLES[sportKey]?.[key] : undefined) ??
+    (side ? SIDE_TITLES[side][key] : undefined) ??
+    MODULE_TITLES[key] ??
+    key
+  );
 }
 
 export interface PublicHero {
