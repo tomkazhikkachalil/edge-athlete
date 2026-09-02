@@ -283,6 +283,8 @@ export default function OrgConsolePage() {
   const [heroCtaUrl, setHeroCtaUrl] = useState('');
   const [heroNotice, setHeroNotice] = useState('');
   const [heroNoticeUntil, setHeroNoticeUntil] = useState('');
+  // Phase 6e S2: per-course photos (the `courses` module config).
+  const [coursePhotos, setCoursePhotos] = useState<Record<string, string>>({});
   const [contactAddress, setContactAddress] = useState<string[]>(['', '', '']);
   const [contactHours, setContactHours] = useState('');
   const [contactDirections, setContactDirections] = useState('');
@@ -474,6 +476,17 @@ export default function OrgConsolePage() {
                 path: d.path ?? '',
                 url: d.url ?? '',
               }))
+            );
+            // S2: per-course photos ride the courses module config.
+            const coursesConfig = (siteBody.modules ?? []).find(
+              (m: { module_key: string }) => m.module_key === 'courses'
+            )?.config as { photos?: Record<string, { path?: string }> } | undefined;
+            setCoursePhotos(
+              Object.fromEntries(
+                Object.entries(coursesConfig?.photos ?? {})
+                  .filter(([, v]) => typeof v?.path === 'string')
+                  .map(([k, v]) => [k, v.path as string])
+              )
             );
             const sponsorsConfig = (siteBody.modules ?? []).find(
               (m: { module_key: string }) => m.module_key === 'sponsors'
@@ -2338,6 +2351,78 @@ export default function OrgConsolePage() {
                             {courseDisplayName(c.clubName, c.name)}
                             {c.holesCount ? ` · ${c.holesCount} holes` : ''}
                             {c.totalPar ? ` · par ${c.totalPar}` : ''}
+                            {/* S2: the course page's photo (a site image asset;
+                                needs a site — the assets route 404s without one). */}
+                            {site && (
+                              <span className="mt-1 flex flex-wrap items-center gap-2">
+                                {coursePhotos[c.id] && (
+                                  <Image
+                                    src={orgMediaUrl(site.id, coursePhotos[c.id]) ?? ''}
+                                    alt=""
+                                    width={64}
+                                    height={36}
+                                    unoptimized
+                                    className="h-9 w-16 rounded object-cover border border-border"
+                                  />
+                                )}
+                                <label className="text-xs text-tertiary">
+                                  {coursePhotos[c.id] ? 'Replace course photo' : 'Course photo'}
+                                  <input
+                                    type="file"
+                                    accept="image/*"
+                                    aria-label={`Course photo for ${c.name}`}
+                                    className="block w-44 text-xs"
+                                    onChange={async e => {
+                                      const file = e.target.files?.[0];
+                                      e.target.value = '';
+                                      if (!file) return;
+                                      const formData = new FormData();
+                                      formData.append('image', file);
+                                      try {
+                                        const res = await fetch(`/api/${plural}/${orgId}/site/assets`, {
+                                          method: 'POST',
+                                          body: formData,
+                                        });
+                                        const body = await res.json();
+                                        if (!res.ok) {
+                                          showError('Website', body.error || 'Failed to upload the photo');
+                                          return;
+                                        }
+                                        const ok = await siteAct(
+                                          { action: 'set_course_photo', courseId: c.id, path: body.path },
+                                          'Course photo saved',
+                                          'Failed to save the course photo'
+                                        );
+                                        if (ok) setCoursePhotos(p => ({ ...p, [c.id]: body.path }));
+                                      } catch {
+                                        showError('Website', 'Upload failed — please try again');
+                                      }
+                                    }}
+                                  />
+                                </label>
+                                {coursePhotos[c.id] && (
+                                  <button
+                                    type="button"
+                                    onClick={async () => {
+                                      const ok = await siteAct(
+                                        { action: 'set_course_photo', courseId: c.id },
+                                        'Course photo removed',
+                                        'Failed to remove the course photo'
+                                      );
+                                      if (ok)
+                                        setCoursePhotos(p => {
+                                          const next = { ...p };
+                                          delete next[c.id];
+                                          return next;
+                                        });
+                                    }}
+                                    className="px-2 py-1 text-xs rounded-md text-tertiary hover:bg-surface-sunken transition-colors"
+                                  >
+                                    Remove photo
+                                  </button>
+                                )}
+                              </span>
+                            )}
                           </li>
                         ))}
                       </ul>

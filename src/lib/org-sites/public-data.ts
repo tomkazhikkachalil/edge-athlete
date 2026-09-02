@@ -21,6 +21,8 @@ import { listAffiliations } from '@/lib/affiliations/server';
 import { type OrgEvent } from '@/lib/calendar/org-events-server';
 import { isMissingTableError, MODULE_SUBPAGE_KEYS } from './validate';
 import { CATALOG_ROW_COLUMNS, rowToCourse, type CatalogRow } from '@/lib/golf/course-catalog';
+import { parseStoredHoleGeometry } from '@/lib/golf/hole-svg';
+import type { HoleGeometry } from '@/lib/golf/hole-geometry';
 import type { GolfCourse } from '@/types/golf';
 import { getStatSchema } from '@/lib/sports/stat-schemas';
 import type { PublicCompetitionStandings } from '@/lib/competitions/public-standings';
@@ -435,6 +437,7 @@ export interface SitemapSiteEntry {
   pageSlugs: string[]; // public custom pages
   teamIds: string[]; // active teams, only when the teams module is enabled
   newsSlugs: string[]; // published posts, only when the news module is enabled
+  courseIds: string[]; // S2: linked catalog courses, only when the courses module is enabled
 }
 
 /** Every published site with its crawlable sub-URLs — the repo's first
@@ -539,6 +542,57 @@ export async function fetchPublishedSitesForSitemap(
     teamsByOrg.get(key)!.push(t.id as string);
   }
 
+  // S2: course pages — the venues' golf links → catalog ids (a club link
+  // is every section at that club; the matchCourseIds rule). Bounded and
+  // best-effort: a pre-169 database simply lists no course pages.
+  const coursesByOrg = new Map<string, string[]>();
+  try {
+    const [lv, cv] = await Promise.all([
+      leagueIds.length
+        ? admin.from('venues').select('league_id, golf_club_id, golf_course_id').in('league_id', leagueIds).limit(2000)
+        : Promise.resolve({ data: [] as Record<string, unknown>[], error: null }),
+      clubIds.length
+        ? admin.from('venues').select('club_id, golf_club_id, golf_course_id').in('club_id', clubIds).limit(2000)
+        : Promise.resolve({ data: [] as Record<string, unknown>[], error: null }),
+    ]);
+    type VenueLink = { key: string; golf_club_id: unknown; golf_course_id: unknown };
+    const venueRows: VenueLink[] = [
+      ...((lv.data ?? []) as Record<string, unknown>[]).map(v => ({
+        key: `league:${v.league_id}`,
+        golf_club_id: v.golf_club_id,
+        golf_course_id: v.golf_course_id,
+      })),
+      ...((cv.data ?? []) as Record<string, unknown>[]).map(v => ({
+        key: `club:${v.club_id}`,
+        golf_club_id: v.golf_club_id,
+        golf_course_id: v.golf_course_id,
+      })),
+    ];
+    const golfClubIds = [...new Set(venueRows.map(v => v.golf_club_id).filter((id): id is string => typeof id === 'string'))];
+    const { data: sectionRows } = golfClubIds.length
+      ? await admin.from('golf_courses').select('id, club_id').in('club_id', golfClubIds).limit(2000)
+      : { data: [] as { id: string; club_id: string }[] };
+    const sectionsByClub = new Map<string, string[]>();
+    for (const r of sectionRows ?? []) {
+      const cid = r.club_id as string;
+      if (!sectionsByClub.has(cid)) sectionsByClub.set(cid, []);
+      sectionsByClub.get(cid)!.push(r.id as string);
+    }
+    for (const v of venueRows) {
+      const ids = typeof v.golf_club_id === 'string'
+        ? (sectionsByClub.get(v.golf_club_id) ?? [])
+        : typeof v.golf_course_id === 'string'
+          ? [v.golf_course_id]
+          : [];
+      if (ids.length === 0) continue;
+      if (!coursesByOrg.has(v.key)) coursesByOrg.set(v.key, []);
+      const bucket = coursesByOrg.get(v.key)!;
+      for (const id of ids) if (!bucket.includes(id)) bucket.push(id);
+    }
+  } catch {
+    /* pre-169 — no course pages in the sitemap */
+  }
+
   return siteRows.map(s => {
     const moduleKeys = modulesBySite.get(s.id) ?? [];
     const orgKey = s.league_id ? `league:${s.league_id}` : `club:${s.club_id}`;
@@ -552,6 +606,7 @@ export async function fetchPublishedSitesForSitemap(
       // Team pages 404 when the module is off — gate like requireSiteModule.
       teamIds: moduleKeys.includes('teams') ? (teamsByOrg.get(orgKey) ?? []) : [],
       newsSlugs: moduleKeys.includes('news') ? (newsBySite.get(s.id) ?? []) : [],
+      courseIds: moduleKeys.includes('courses') ? (coursesByOrg.get(orgKey) ?? []) : [],
     };
   });
 }
@@ -771,6 +826,15 @@ export async function fetchPublicNewsPost(
 export interface PublicCourse {
   venueName: string;
   course: GolfCourse;
+  /** S2: the catalog's phone (rowToCourse drops it; the course page shows it). */
+  phone?: string;
+}
+
+/** S2: the full course page — the org-gated course, its sibling
+ *  layouts (same golf club), and the cached OSM hole geometry. */
+export interface PublicCoursePage extends PublicCourse {
+  siblings: { id: string; name: string; sectionName?: string; sectionKind?: string }[];
+  geometry: HoleGeometry | null;
 }
 
 export async function fetchPublicCourses(
@@ -837,9 +901,51 @@ export async function fetchPublicCourses(
       : v.golf_course_id && idRows.has(v.golf_course_id)
         ? [idRows.get(v.golf_course_id)!]
         : [];
-    for (const row of rows) out.push({ venueName: v.name, course: rowToCourse(row) });
+    for (const row of rows) {
+      out.push({
+        venueName: v.name,
+        course: rowToCourse(row),
+        ...(row.phone ? { phone: row.phone } : {}),
+      });
+    }
   }
   return out;
+}
+
+/** S2: one course page. The ORG GATE is the list itself — a course the
+ *  org's venues don't link is indistinguishable from a missing one
+ *  (null → 404). Siblings = the other layouts at the same golf club.
+ *  `hole_geometry` is read by a second select on purpose:
+ *  CATALOG_ROW_COLUMNS feeds the app's pickers and must not grow. */
+export async function fetchPublicCoursePage(
+  admin: Admin,
+  side: OrgSide,
+  orgId: string,
+  courseId: string
+): Promise<PublicCoursePage | null> {
+  const list = await fetchPublicCourses(admin, side, orgId);
+  const hit = list.find(c => c.course.id === courseId);
+  if (!hit) return null;
+  const siblings = list
+    .filter(c => c.course.id !== courseId && !!hit.course.clubId && c.course.clubId === hit.course.clubId)
+    .map(c => ({
+      id: c.course.id,
+      name: c.course.name,
+      ...(c.course.sectionName ? { sectionName: c.course.sectionName } : {}),
+      ...(c.course.sectionKind ? { sectionKind: c.course.sectionKind } : {}),
+    }));
+  let geometry: HoleGeometry | null = null;
+  try {
+    const { data, error } = await admin
+      .from('golf_courses')
+      .select('hole_geometry')
+      .eq('id', courseId)
+      .maybeSingle();
+    if (!degraded('course geometry', error)) geometry = parseStoredHoleGeometry(data?.hole_geometry);
+  } catch {
+    geometry = null; // pre-102: no column — the page renders without diagrams
+  }
+  return { ...hit, siblings, geometry };
 }
 
 // ── Divisions (phase 6b B3) ─────────────────────────────────────────────────

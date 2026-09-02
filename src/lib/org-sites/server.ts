@@ -579,6 +579,63 @@ export async function sitePATCH(
     return NextResponse.json({ ok: true });
   }
 
+  if (input.action === 'set_course_photo') {
+    // S2 — the set_sponsors recipe on the `courses` module row: cross-site
+    // guard on the stored image, merge ONE course's photo into the
+    // config's `photos` map, UPDATE-then-insert (never upsert).
+    const { data: site } = await admin
+      .from('org_sites')
+      .select('id, subdomain')
+      .eq(orgColumn(side), orgId)
+      .maybeSingle();
+    if (!site) return NextResponse.json({ error: 'Site not found' }, { status: 404 });
+    if (input.path && !input.path.startsWith(`org-media/${site.id}/`)) {
+      return NextResponse.json({ error: 'Photo is not one of this site’s assets' }, { status: 400 });
+    }
+    const { data: row } = await admin
+      .from('org_site_modules')
+      .select('config')
+      .eq('site_id', site.id)
+      .eq('module_key', 'courses')
+      .maybeSingle();
+    const existing = ((row?.config as { photos?: Record<string, unknown> } | null)?.photos ?? {}) as Record<
+      string,
+      unknown
+    >;
+    const photos: Record<string, unknown> = { ...existing };
+    if (input.path) {
+      photos[input.courseId] = { path: input.path, ...(input.alt ? { alt: input.alt } : {}) };
+    } else {
+      delete photos[input.courseId];
+    }
+    const config = { ...((row?.config as Record<string, unknown> | null) ?? {}), photos };
+    if (row) {
+      const { error } = await admin
+        .from('org_site_modules')
+        .update({ config })
+        .eq('site_id', site.id)
+        .eq('module_key', 'courses');
+      if (error) {
+        console.error(`${TAG} course photo patch error:`, error);
+        return NextResponse.json({ error: 'Failed to update the course photo' }, { status: 500 });
+      }
+    } else {
+      const { error } = await admin.from('org_site_modules').insert({
+        site_id: site.id,
+        module_key: 'courses',
+        enabled: false,
+        sort_order: MODULE_KEYS.indexOf('courses'),
+        config,
+      });
+      if (error) {
+        console.error(`${TAG} course photo insert error:`, error);
+        return NextResponse.json({ error: 'Failed to update the course photo' }, { status: 500 });
+      }
+    }
+    revalidateTag(`org-site:${site.subdomain}`, { expire: 0 });
+    return NextResponse.json({ ok: true });
+  }
+
   if (input.action === 'set_module') {
     const { data: site } = await admin
       .from('org_sites')

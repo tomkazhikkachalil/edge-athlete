@@ -503,6 +503,31 @@ export const ORG_DOCUMENT_PATH_RE =
 export const ORG_IMAGE_PATH_RE =
   /^org-media\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\/[a-z0-9-]{1,80}\.(jpg|jpeg|png|webp|gif)$/;
 
+/** Phase 6e S2 — per-course photos ride the `courses` module's config:
+ *  `{ photos: { [courseId]: { path, alt? } } }` (≤40 courses). */
+export const COURSE_PHOTOS_MAX = 40;
+const COURSE_ID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+export interface PublicCoursePhoto {
+  path: string;
+  alt?: string;
+}
+export function parseCoursePhotos(config: unknown): Record<string, PublicCoursePhoto> {
+  const out: Record<string, PublicCoursePhoto> = {};
+  const photos = (config as { photos?: unknown } | null)?.photos;
+  if (!photos || typeof photos !== 'object') return out;
+  for (const [courseId, raw] of Object.entries(photos as Record<string, unknown>)) {
+    if (Object.keys(out).length >= COURSE_PHOTOS_MAX) break;
+    if (!COURSE_ID_RE.test(courseId) || !raw || typeof raw !== 'object') continue;
+    const { path, alt } = raw as { path?: unknown; alt?: unknown };
+    if (typeof path !== 'string' || !ORG_IMAGE_PATH_RE.test(path)) continue;
+    out[courseId] = {
+      path,
+      ...(typeof alt === 'string' && alt.trim() ? { alt: alt.trim().slice(0, HERO_IMAGE_ALT_MAX) } : {}),
+    };
+  }
+  return out;
+}
+
 const boundedTrimmed = (max: number) => z.string().trim().min(1).max(max);
 const optionalTrimmed = (max: number) =>
   z
@@ -602,6 +627,14 @@ export const SitePatchSchema = z.union([
           .refine(d => !!d.path !== !!d.url, 'Provide a file or a link, not both')
       )
       .max(20),
+  }),
+  z.object({
+    // S2: one course's photo on the `courses` module config (absent path
+    // = remove). The server re-asserts THIS site's asset prefix.
+    action: z.literal('set_course_photo'),
+    courseId: z.string().regex(COURSE_ID_RE, 'Not a course id'),
+    path: z.string().regex(ORG_IMAGE_PATH_RE, 'Not a site image').optional(),
+    alt: optionalTrimmed(HERO_IMAGE_ALT_MAX),
   }),
   z.object({
     action: z.literal('set_contact'),
