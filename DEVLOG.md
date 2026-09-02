@@ -1,5 +1,60 @@
 # Development Log
 
+## September 1, 2026 — Phase 6b A1: the golf club page, part 1 — manager venues + the catalog link (#504, mig 169)
+
+Tom's next program after the phase-6 close: finish the masterplan's
+phase-6 leftovers (custom domains, builder depth — payments stays
+skipped) **and give golf a real club page**, one sport at a time, golf
+first. Today an org club and its golf property were deliberately
+separate (117 vs 125), bridged only by `venues.golf_club_id` (141) —
+which only ADMIN routes could write, and which single-course facilities
+could never use (125 creates `golf_clubs` rows lazily; a one-course
+club has none). Round A1 closes both gaps:
+
+- **Migration 169**: `venues.golf_course_id` (FK golf_courses, SET
+  NULL, partial index) + `venues_golf_link_check` (club OR course,
+  never both); the `org_site_modules` CHECK widens ONCE to the whole
+  phase-6b set (`courses`, `divisions`, `leaders`, `documents`) with
+  only `courses` seeded (DISABLED) for existing sites — a wider DB
+  CHECK than the app is harmless, and B3's keys get rows lazily from
+  the toggle. ORDER-STRICT before this PR merges; app code ahead
+  DEGRADES (the reader retries its select without the column, the
+  link PATCH answers a friendly 409).
+- **Manager venue CRUD** — `src/lib/venues/org-venues-server.ts`
+  behind the twins `/api/{clubs,leagues}/[id]/venues` (GET
+  anonymous-tolerant: venues/facilities/golf_courses are public
+  reference tables; POST `requireOrgManager` + the org-structure
+  bucket) and `.../venues/[venueId]` (PATCH/DELETE, same gate). The
+  golf link is a catalog COURSE pick: `golfLinkColumns` (pure, tested)
+  lands it in `golf_club_id` when the row carries `club_id` (every
+  section of the facility shows) else `golf_course_id`; readers UNION
+  both. The org-column filter on UPDATE/DELETE is the security line
+  (a foreign venueId 404s). Every write purges the org's published
+  site through `revalidateOrgSiteForOrg`.
+- **Console**: a "Venues & courses" section (name + PlacePicker →
+  Add; per venue "Link golf course" → a debounced catalog search over
+  the existing anonymous `/api/golf/courses?q=` → Link / Unlink /
+  Remove with ConfirmModal). No new search endpoint.
+- **Org pages**: `OrgVenues` (the OrgStandings contract — additive,
+  renders nothing when empty) on `/club/[id]` and `/league/[id]`
+  rendering venues, facilities and linked courses through the shared
+  `CourseCard` + `CourseInfoCard` (tees, scorecard, map). Both pages
+  also gain the two doors they lacked: "Public site →"
+  (`orgSitePath`, published only — the org GETs now carry `site` via
+  a shared `findPublishedSite`, which `revalidateOrgSiteForOrg` reuses
+  so both surfaces agree on "published") and "Manage →" for managers.
+- `courseDisplayName` moved to the pure `src/lib/golf/tees.ts`
+  (re-exported from course-catalog) so client components can label
+  courses without bundling the catalog's server half.
+- e2e `org-venues.spec.ts` (self-skips pre-169): member 403 → owner
+  create → link (club null / course set, totalPar through) → anon GET
+  → the club page's Courses section + scorecard → foreign venue 404 →
+  publish → "Public site →" + "Manage club →" → console section at
+  375px → unlink → delete. Runs for real once Tom runs 169.
+
+Next: A2 — the public site's `courses` module + `/courses` subpage and
+the reverse "Home of {club} →" link from the catalog card.
+
 ## September 1, 2026 — Maintenance round at the phase-6 close: all gates green (#503)
 
 Tom's requested full sweep at the arc's close, no code changes needed:

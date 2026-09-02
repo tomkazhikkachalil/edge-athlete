@@ -11,6 +11,8 @@ import ClubEditModal from '@/components/clubs/ClubEditModal';
 import AffiliationSection from '@/components/affiliations/AffiliationSection';
 import OrgUpcomingEvents from '@/components/affiliations/OrgUpcomingEvents';
 import OrgStandings from '@/components/orgs/OrgStandings';
+import OrgVenues from '@/components/orgs/OrgVenues';
+import { orgSitePath } from '@/lib/org-sites/urls';
 import OrgRecentActivity from '@/components/affiliations/OrgRecentActivity';
 import { useToast } from '@/components/Toast';
 import { formatDisplayName, getInitials } from '@/lib/formatters';
@@ -85,6 +87,8 @@ interface ClubResponse {
   club: ClubInfo;
   /** 0.6b: derived sports (distinct division sports; [] until structure exists). */
   sports?: string[];
+  /** Phase 6b A1: the published public site, or null (draft/none). */
+  site?: { subdomain: string } | null;
   memberCount: number;
   members: MemberRow[];
   viewerRole: string | null;
@@ -454,6 +458,24 @@ export default function ClubPage() {
                     Edit club
                   </button>
                 )}
+                {/* Phase 6b A1: the two doors this page lacked — the org's
+                    public site (published only) and its console. */}
+                {data.site?.subdomain && (
+                  <Link
+                    href={orgSitePath(data.site.subdomain)}
+                    className="text-sm text-brand-fg hover:text-brand-fg-strong hover:underline"
+                  >
+                    Public site →
+                  </Link>
+                )}
+                {canManage && (
+                  <Link
+                    href={`/app/org/club/${club.id}`}
+                    className="text-sm text-brand-fg hover:text-brand-fg-strong hover:underline"
+                  >
+                    Manage club →
+                  </Link>
+                )}
               </div>
             </div>
           </div>
@@ -727,6 +749,8 @@ export default function ClubPage() {
         </div>
 
         <OrgStandings side="club" orgId={club.id} />
+
+        <OrgVenues side="club" orgId={club.id} />
 
         <OrgUpcomingEvents side="club" orgId={club.id} />
 
