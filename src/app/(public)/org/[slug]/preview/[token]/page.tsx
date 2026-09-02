@@ -6,6 +6,7 @@ import { fetchPublicStandings } from '@/lib/competitions/public-standings';
 import {
   fetchPublicOpenWindows,
   fetchPublicAffiliations,
+  fetchPublicClubGolfBoards,
   fetchPublicCourses,
   fetchPublicDivisions,
   fetchPublicStaff,
@@ -46,7 +47,7 @@ export default async function OrgSitePreview({
 
   const has = (key: string) => site.modules.some(m => m.module_key === key && m.enabled);
   const { side, orgId } = site;
-  const [standings, events, teams, staff, venues, affiliations, openWindows, courses, divisions, leaders] =
+  const [standings, events, teams, staff, venues, affiliations, openWindows, courses, divisions, leaders, clubGolfBoards] =
     await Promise.all([
     has('standings') ? fetchPublicStandings(admin, side, orgId) : Promise.resolve(null),
     has('schedule') ? fetchOrgEvents(admin, side, orgId, { limit: 25 }) : Promise.resolve(null),
@@ -58,6 +59,7 @@ export default async function OrgSitePreview({
     has('courses') ? fetchPublicCourses(admin, side, orgId) : Promise.resolve([]),
     has('divisions') ? fetchPublicDivisions(admin, side, orgId) : Promise.resolve([]),
     has('leaders') ? fetchPublicStatLeaders(admin, side, orgId) : Promise.resolve([]),
+    has('courses') && side === 'club' ? fetchPublicClubGolfBoards(admin, orgId) : Promise.resolve([]),
   ]);
 
   return (
@@ -70,7 +72,7 @@ export default async function OrgSitePreview({
       </div>
       <SiteHomeBody
         site={site}
-        data={{ standings, events, teams, staff, venues, affiliations, openWindows, courses, divisions, leaders }}
+        data={{ standings, events, teams, staff, venues, affiliations, openWindows, courses, divisions, leaders, clubGolfBoards }}
       />
     </>
   );

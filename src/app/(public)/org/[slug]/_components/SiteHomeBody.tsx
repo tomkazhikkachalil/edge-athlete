@@ -5,6 +5,7 @@ import type { PublicSite } from '@/lib/org-sites/server';
 import type { PublicOpenWindow } from '@/lib/org-sites/public-data';
 import type {
   PublicAffiliation,
+  PublicClubGolfBoard,
   PublicCourse,
   PublicDivision,
   PublicLeaderBoard,
@@ -24,6 +25,7 @@ import {
 import AffiliationsList from './AffiliationsList';
 import ContactCard from './ContactCard';
 import CoursesList from './CoursesList';
+import PublicStandingsTable from '@/components/standings/PublicStandingsTable';
 import DivisionsList from './DivisionsList';
 import DocumentsList from './DocumentsList';
 import LeadersTable from './LeadersTable';
@@ -55,6 +57,8 @@ export interface SiteHomeData {
   /** Phase 6b B3 — divisions + stat leaders (documents ride module config). */
   divisions: PublicDivision[];
   leaders: PublicLeaderBoard[];
+  /** Phase 6c G3 — a CLUB page's golf boards (own + affiliated leagues'). */
+  clubGolfBoards?: PublicClubGolfBoard[];
 }
 
 export default function SiteHomeBody({
@@ -65,6 +69,7 @@ export default function SiteHomeBody({
   data: SiteHomeData;
 }) {
   const { standings, events, teams, staff, venues, affiliations, openWindows, courses, divisions, leaders } = data;
+  const clubGolfBoards = data.clubGolfBoards ?? [];
   const enabled = site.modules.filter(m => m.enabled);
   const has = (key: string) => enabled.some(m => m.module_key === key);
   const hero = parseHeroConfig(site.hero_config);
@@ -142,10 +147,28 @@ export default function SiteHomeBody({
           empty('Registration is currently closed.')
         );
       case 'courses':
-        return courses.length > 0 ? (
-          <CoursesList courses={courses} detailed={false} basePath={siteBasePath(site)} />
-        ) : (
-          empty('No courses listed yet.')
+        return (
+          <>
+            {courses.length > 0 ? (
+              <CoursesList courses={courses} detailed={false} basePath={siteBasePath(site)} />
+            ) : (
+              empty('No courses listed yet.')
+            )}
+            {/* G3: "this week at the club" — the leagues playing here. */}
+            {clubGolfBoards.length > 0 && (
+              <div className="mt-5 space-y-4">
+                <h3 className="text-sm font-semibold text-primary">This week at {brandName}</h3>
+                {clubGolfBoards.map(b => (
+                  <div key={b.competition.id}>
+                    {b.orgName !== site.orgName && (
+                      <p className="mb-1 text-xs text-tertiary">{b.orgName}</p>
+                    )}
+                    <PublicStandingsTable competition={b.competition} />
+                  </div>
+                ))}
+              </div>
+            )}
+          </>
         );
       case 'divisions':
         return divisions.length > 0 ? (
@@ -239,12 +262,12 @@ export default function SiteHomeBody({
           .map(m => (
             <section
               key={m.module_key}
-              aria-label={moduleLabel(m.module_key, nav)}
+              aria-label={moduleLabel(m.module_key, nav, site.side)}
               className={`${sectionClass} ${
                 spec.sections === 'grid' && FULL_WIDTH_MODULES.has(m.module_key) ? 'sm:col-span-2' : ''
               }`}
             >
-              <h2 className={headingClass}>{moduleLabel(m.module_key, nav)}</h2>
+              <h2 className={headingClass}>{moduleLabel(m.module_key, nav, site.side)}</h2>
               {moduleBody(m.module_key)}
             </section>
           ))}

@@ -23,6 +23,7 @@ import { isMissingTableError, MODULE_SUBPAGE_KEYS } from './validate';
 import { CATALOG_ROW_COLUMNS, rowToCourse, type CatalogRow } from '@/lib/golf/course-catalog';
 import type { GolfCourse } from '@/types/golf';
 import { getStatSchema } from '@/lib/sports/stat-schemas';
+import type { PublicCompetitionStandings } from '@/lib/competitions/public-standings';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- matches the authz.ts Admin alias; schema-agnostic helper
 type Admin = SupabaseClient<any, 'public', any>;
@@ -1047,4 +1048,47 @@ export async function fetchPublicStatLeaders(
     });
   }
   return boards;
+}
+
+// ── Club golf boards (phase 6c G3) ──────────────────────────────────────────
+// "This week at the club": the club's OWN public golf leaderboards plus
+// those of the leagues actively affiliated with it (league_clubs) — the
+// leagues that play here. Reuses fetchPublicStandings (viewer-independent,
+// masked, supervised omitted), so the teaser inherits every people rule.
+// Bounded (≤5 leagues, top 5 rows per board); never throws.
+
+export interface PublicClubGolfBoard {
+  orgName: string;
+  competition: PublicCompetitionStandings;
+}
+
+export async function fetchPublicClubGolfBoards(
+  admin: Admin,
+  clubId: string
+): Promise<PublicClubGolfBoard[]> {
+  try {
+    const { fetchPublicStandings } = await import('@/lib/competitions/public-standings');
+    const boards: PublicClubGolfBoard[] = [];
+    const take = (payload: Awaited<ReturnType<typeof fetchPublicStandings>>) => {
+      if (!payload) return;
+      for (const c of payload.competitions) {
+        if (c.sport_key !== 'golf' || c.format !== 'leaderboard' || c.rows.length === 0) continue;
+        boards.push({ orgName: payload.orgName, competition: { ...c, rows: c.rows.slice(0, 5) } });
+      }
+    };
+    take(await fetchPublicStandings(admin, 'club', clubId));
+    const { data: edges, error } = await admin
+      .from('league_clubs')
+      .select('league_id')
+      .eq('club_id', clubId)
+      .eq('status', 'active')
+      .limit(5);
+    if (!degraded('club golf boards', error)) {
+      for (const e of edges ?? []) take(await fetchPublicStandings(admin, 'league', e.league_id as string));
+    }
+    return boards.slice(0, 4);
+  } catch (error) {
+    console.error(`${TAG} club golf boards error:`, error);
+    return [];
+  }
 }

@@ -152,6 +152,7 @@ export default function OrgConsolePage() {
     | { kind: 'news'; id: string; label: string }
     | { kind: 'venue'; id: string; label: string }
     | { kind: 'domain'; id: string; label: string }
+    | { kind: 'layout'; id: string; label: string }
     | null
   >(null);
 
@@ -770,6 +771,13 @@ export default function OrgConsolePage() {
     );
 
   const remove = (target: NonNullable<typeof confirmTarget>) => {
+    if (target.kind === 'layout') {
+      void (async () => {
+        const ok = await siteAct({ action: 'reset_order' }, 'Layout reset to the recommended order', 'Failed to reset the layout');
+        if (ok) setNavOrder(null);
+      })();
+      return;
+    }
     if (target.kind === 'domain') {
       void act(
         `/api/${plural}/${orgId}/site/domain`,
@@ -2835,6 +2843,15 @@ export default function OrgConsolePage() {
                         >
                           Save layout
                         </button>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setConfirmTarget({ kind: 'layout', id: site.id, label: 'the section order' })
+                          }
+                          className="mt-2 ml-2 px-3 py-1.5 text-sm rounded-md text-tertiary hover:bg-surface-sunken transition-colors"
+                        >
+                          Reset to recommended order
+                        </button>
                       </>
                     );
                   })()}
@@ -3538,19 +3555,21 @@ export default function OrgConsolePage() {
 
       <ConfirmModal
         isOpen={!!confirmTarget}
-        title={`Delete ${confirmTarget?.label ?? 'this'}?`}
+        title={confirmTarget?.kind === 'layout' ? 'Reset the section order?' : `Delete ${confirmTarget?.label ?? 'this'}?`}
         message={
           confirmTarget?.kind === 'season'
             ? 'Its divisions and their entries are removed too. Teams persist.'
             : confirmTarget?.kind === 'venue'
               ? 'Its facilities are removed too. Events keep their dates.'
+            : confirmTarget?.kind === 'layout'
+              ? `Sections go back to the recommended ${side} order. Your section labels are kept.`
             : confirmTarget?.kind === 'domain'
               ? 'Visitors on that domain will stop reaching your site. Your Edge Athlete address keeps working.'
             : confirmTarget?.kind === 'page' || confirmTarget?.kind === 'news'
               ? `The ${confirmTarget.kind === 'page' ? 'page' : 'post'} comes off your site immediately.`
               : 'Its entries are removed too. Teams persist.'
         }
-        confirmText="Delete"
+        confirmText={confirmTarget?.kind === 'layout' ? 'Reset' : 'Delete'}
         confirmButtonClass="bg-red-600 hover:bg-red-700 text-white"
         onConfirm={() => {
           const target = confirmTarget;

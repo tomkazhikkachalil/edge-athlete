@@ -233,9 +233,36 @@ export function parseNavConfig(navConfig: unknown): NavConfig {
   return { order, labels };
 }
 
+/** Phase 6c G3 — Tom's principle 1: a CLUB page and a LEAGUE page answer
+ *  different questions on different clocks, so their default module ORDER
+ *  differs. A club leads with where you play (courses) and who runs
+ *  leagues there; a league leads with the table and the schedule. Every
+ *  MODULE_KEY appears exactly once per side (a test pins it). Managers
+ *  still reorder freely (set_nav) and can come back here (reset_order). */
+export const DEFAULT_MODULE_ORDER: Record<'league' | 'club', readonly ModuleKey[]> = {
+  club: [
+    'hero', 'courses', 'affiliations', 'schedule', 'standings', 'news', 'register',
+    'teams', 'divisions', 'leaders', 'gallery', 'venues', 'staff', 'documents',
+    'sponsors', 'contact',
+  ],
+  league: [
+    'hero', 'standings', 'schedule', 'teams', 'divisions', 'affiliations', 'news',
+    'register', 'leaders', 'gallery', 'venues', 'courses', 'staff', 'documents',
+    'sponsors', 'contact',
+  ],
+};
+
+/** Side-aware default titles: the affiliations module reads "Leagues" on a
+ *  club site and "Clubs" on a league site (the relationship seen from
+ *  that page). Nav labels still override. */
+const SIDE_TITLES: Record<'league' | 'club', Partial<Record<string, string>>> = {
+  club: { affiliations: 'Leagues' },
+  league: { affiliations: 'Clubs' },
+};
+
 /** The visible name of a module on the public site. */
-export function moduleLabel(key: string, nav: NavConfig): string {
-  return nav.labels[key] ?? MODULE_TITLES[key] ?? key;
+export function moduleLabel(key: string, nav: NavConfig, side?: 'league' | 'club'): string {
+  return nav.labels[key] ?? (side ? SIDE_TITLES[side][key] : undefined) ?? MODULE_TITLES[key] ?? key;
 }
 
 export interface PublicHero {
@@ -401,6 +428,7 @@ export const SitePatchSchema = z.union([
     action: z.literal('set_template'),
     templateId: z.enum(TEMPLATE_IDS),
   }),
+  z.object({ action: z.literal('reset_order') }),
   z.object({
     action: z.literal('set_nav'),
     items: z

@@ -42,6 +42,8 @@ export interface PublicCompetitionStandings {
   direction: 'asc' | 'desc' | null;
   /** 'team' | 'athlete' — the entrant column header + the people rules. */
   entrant_type: string;
+  /** G3: the club golf teaser filters on it. */
+  sport_key: string;
 }
 
 export interface PublicStandingsPayload {
@@ -192,6 +194,7 @@ export async function fetchPublicStandings(
             ? 'desc'
             : null,
       entrant_type: (c.entrant_type as string | null) ?? 'team',
+      sport_key: c.sport_key as string,
     })),
   };
 }

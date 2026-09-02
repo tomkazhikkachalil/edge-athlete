@@ -570,3 +570,28 @@ describe('documents (B3)', () => {
     expect(parseDocuments(null)).toEqual([]);
   });
 });
+
+// ── Phase 6c G3: two pages ──────────────────────────────────────────────────
+import { DEFAULT_MODULE_ORDER } from '../validate';
+
+describe('DEFAULT_MODULE_ORDER (G3)', () => {
+  it('lists every module exactly once per side, hero first, and differs by side', () => {
+    for (const side of ['club', 'league'] as const) {
+      const order = DEFAULT_MODULE_ORDER[side];
+      expect([...order].sort()).toEqual([...MODULE_KEYS].sort());
+      expect(new Set(order).size).toBe(order.length);
+      expect(order[0]).toBe('hero');
+    }
+    expect(DEFAULT_MODULE_ORDER.club[1]).toBe('courses');
+    expect(DEFAULT_MODULE_ORDER.league[1]).toBe('standings');
+    expect(SitePatchSchema.safeParse({ action: 'reset_order' }).success).toBe(true);
+  });
+
+  it('moduleLabel reads the relationship from the page it is on', () => {
+    const nav = parseNavConfig([]);
+    expect(moduleLabel('affiliations', nav, 'club')).toBe('Leagues');
+    expect(moduleLabel('affiliations', nav, 'league')).toBe('Clubs');
+    expect(moduleLabel('affiliations', nav)).toBe('Affiliations');
+    expect(moduleLabel('affiliations', parseNavConfig([{ key: 'affiliations', label: 'Partners' }]), 'club')).toBe('Partners');
+  });
+});

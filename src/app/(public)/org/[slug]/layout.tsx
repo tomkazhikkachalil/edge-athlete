@@ -132,7 +132,7 @@ export default async function OrgSiteLayout({
                   href={`${siteBasePath(site)}/${key}`}
                   className={navLinkClass}
                 >
-                  {moduleLabel(key, nav)}
+                  {moduleLabel(key, nav, site.side)}
                 </Link>
               ))}
               {pages.map(p => (

@@ -17,9 +17,11 @@ import { NextResponse } from 'next/server';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { OrgSide } from '@/lib/orgs/authz';
 import {
+  DEFAULT_MODULE_ORDER,
   isMissingTableError,
   isValidSubdomain,
   MODULE_KEYS,
+  parseNavConfig,
   POST_155_MODULE_KEYS,
   slugifyOrgName,
   type SitePatchInput,
@@ -266,7 +268,8 @@ export async function siteCreatePOST(
       site_id: site.id,
       module_key: key,
       enabled: true,
-      sort_order: MODULE_KEYS.indexOf(key as (typeof MODULE_KEYS)[number]),
+      // G3: the side's recommended order (club ≠ league — Tom's principle 1).
+      sort_order: DEFAULT_MODULE_ORDER[side].indexOf(key as (typeof MODULE_KEYS)[number]),
       config: {},
     }));
   let { error: modulesError } = await admin
@@ -424,6 +427,39 @@ export async function sitePATCH(
       return NextResponse.json({ error: 'Site not found' }, { status: 404 });
     }
     revalidateTag(`org-site:${updated[0].subdomain}`, { expire: 0 });
+    return NextResponse.json({ ok: true });
+  }
+
+  if (input.action === 'reset_order') {
+    // G3: back to the side's recommended order — per-row UPDATE (never
+    // upsert), nav order cleared, nav LABELS kept.
+    const { data: site } = await admin
+      .from('org_sites')
+      .select('id, subdomain, nav_config')
+      .eq(orgColumn(side), orgId)
+      .maybeSingle();
+    if (!site) {
+      return NextResponse.json({ error: 'Site not found' }, { status: 404 });
+    }
+    const order = DEFAULT_MODULE_ORDER[side];
+    for (let i = 0; i < order.length; i++) {
+      const { error: orderError } = await admin
+        .from('org_site_modules')
+        .update({ sort_order: i })
+        .eq('site_id', site.id)
+        .eq('module_key', order[i]);
+      if (orderError) console.error(`${TAG} reset_order patch error:`, orderError);
+    }
+    const labels = parseNavConfig(site.nav_config).labels;
+    const navConfig = order
+      .filter(key => labels[key])
+      .map(key => ({ key, label: labels[key] }));
+    const { error } = await admin.from('org_sites').update({ nav_config: navConfig }).eq('id', site.id);
+    if (error) {
+      console.error(`${TAG} reset_order nav error:`, error);
+      return NextResponse.json({ error: 'Failed to reset the layout' }, { status: 500 });
+    }
+    revalidateTag(`org-site:${site.subdomain}`, { expire: 0 });
     return NextResponse.json({ ok: true });
   }
 
