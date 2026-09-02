@@ -1,5 +1,39 @@
 # Development Log
 
+## September 1, 2026 — Phase 6c G3: two pages — a club page and a league page are different pages (#515, zero DDL)
+
+Tom's principle 1: a club page and a league page answer different
+questions on different clocks, so their module ORDER differs; a club
+optionally runs leagues and a league optionally belongs to a club.
+
+- **`DEFAULT_MODULE_ORDER[side]`** (validate.ts; a test pins every key
+  exactly once per side, hero first): a club leads with `courses` and
+  `affiliations` (the leagues that play here), then schedule/standings;
+  a league leads with `standings` and `schedule`, then teams/divisions.
+  `siteCreatePOST` seeds `sort_order` from it; managers still reorder
+  (set_nav) and can come back with the new `reset_order` action
+  (per-row UPDATE, nav ORDER cleared, nav LABELS kept). Console: "Reset
+  to recommended order" beside Save layout, with a confirm.
+- **Side-aware labels**: `moduleLabel(key, nav, side)` — the
+  affiliations section reads "Leagues" on a club site and "Clubs" on a
+  league site (the relationship seen from that page); nav labels still
+  override.
+- **"This week at the club"**: `fetchPublicClubGolfBoards` — the club's
+  own public golf leaderboards plus those of its ACTIVE affiliated
+  leagues (`league_clubs`), through `fetchPublicStandings` so every
+  people rule rides along (masking; supervised omitted since G1); top 5
+  rows, ≤4 boards, cached under the club's site tag, rendered under the
+  `courses` module with the shared `PublicStandingsTable` (no new
+  module key — no CHECK widening). A league's competition write now
+  also purges its affiliated clubs' sites (≤10, best-effort) so the
+  teaser stays fresh. `PublicCompetitionStandings` gains `sport_key`.
+- e2e `org-site-two-pages.spec.ts`: both sites created from the API →
+  seeded orders differ by side → scramble → reset (labels survive) →
+  club page shows "Leagues", the affiliated league's board under
+  "This week at {club}" with a "Player" header, Courses before the
+  renamed standings → league page shows "Clubs", standings first, no
+  teaser → 375px on both → the console reset button.
+
 ## September 1, 2026 — Phase 6c G2: golf leagues, part 2 — the page fills itself (#514, zero DDL)
 
 Tom's principle 2 in code: members post rounds anyway, so a league

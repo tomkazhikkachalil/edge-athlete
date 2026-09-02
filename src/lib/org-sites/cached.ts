@@ -6,6 +6,7 @@ import { fetchOrgEvents, type OrgEvent } from '@/lib/calendar/org-events-server'
 import { getPublicSiteBySlug, type PublicSite } from './server';
 import {
   fetchPublicAffiliations,
+  fetchPublicClubGolfBoards,
   fetchPublicCourses,
   fetchPublicDivisions,
   fetchPublicGallery,
@@ -21,6 +22,7 @@ import {
   fetchPublicVenues,
   fetchPublishedSitesForSitemap,
   type PublicAffiliation,
+  type PublicClubGolfBoard,
   type PublicCourse,
   type PublicDivision,
   type PublicGalleryItem,
@@ -216,3 +218,9 @@ export const getCachedLeaders = (
  *  the per-host /sitemap.xml route on a custom domain reads this. */
 export const getCachedSiteSitemap = async (slug: string): Promise<SitemapSiteEntry | null> =>
   (await getCachedSitemapSites()).find(s => s.subdomain === slug) ?? null;
+
+// Phase 6c G3: the club's golf boards (its own + affiliated leagues').
+export const getCachedClubGolfBoards = (slug: string, clubId: string): Promise<PublicClubGolfBoard[]> =>
+  perSlug(['org-site-club-golf', slug], slug, () =>
+    fetchPublicClubGolfBoards(getSupabaseAdmin(), clubId)
+  );

@@ -71,6 +71,17 @@ export async function revalidateOrgSiteForCompetition(
     const side: OrgSide = comp.league_id ? 'league' : 'club';
     const orgId = (comp.league_id ?? comp.club_id) as string | null;
     if (orgId) await revalidateOrgSiteForOrg(admin, side, orgId);
+    // Phase 6c G3: a league's boards also show on its affiliated clubs'
+    // pages ("this week at the club") — purge those too, bounded.
+    if (side === 'league') {
+      const { data: edges } = await admin
+        .from('league_clubs')
+        .select('club_id')
+        .eq('league_id', orgId)
+        .eq('status', 'active')
+        .limit(10);
+      for (const e of edges ?? []) await revalidateOrgSiteForOrg(admin, 'club', e.club_id as string);
+    }
   } catch (error) {
     console.warn(`${TAG} competition lookup failed (write unaffected):`, error);
   }
