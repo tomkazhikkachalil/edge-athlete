@@ -13,6 +13,7 @@
 // only, viewer-independent by construction (the standings contract).
 
 import { revalidateTag } from 'next/cache';
+import { readApproval } from '@/lib/orgs/approval';
 import { NextResponse } from 'next/server';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { OrgSide } from '@/lib/orgs/authz';
@@ -700,6 +701,15 @@ export async function sitePATCH(
     return NextResponse.json({ module: { module_key: input.moduleKey, enabled: input.enabled } });
   }
 
+  // Phase 7 C4: publishing waits for approval (the org exists from the
+  // request; the site is built while waiting — 174). The server is the
+  // truth; the console mirrors this with a disabled button.
+  if (input.action === 'publish' && (await readApproval(admin, side, orgId)).pending) {
+    return NextResponse.json(
+      { error: 'Awaiting approval — you can keep building; publishing unlocks when approved' },
+      { status: 409 }
+    );
+  }
   const { data: updated, error } = await admin
     .from('org_sites')
     .update({ published_at: input.action === 'publish' ? new Date().toISOString() : null })

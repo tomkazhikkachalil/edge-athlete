@@ -6,6 +6,7 @@ import { placeToClubColumns, isMissingTableError } from '@/lib/clubs/validate';
 import { ClubRequestWizardSchema } from '@/lib/orgs/wizard-validate';
 import { isSportEnabled } from '@/lib/features';
 import type { SportKey } from '@/lib/sports/SportRegistry';
+import { provisionPendingOrg } from '@/lib/orgs/pending-org';
 
 // ── /api/clubs/requests — self-service "Start a club" (117) ─────────────────
 // Mirror of /api/leagues/requests, minus sport (clubs are multi-sport by
@@ -82,7 +83,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Failed to submit request' }, { status: 500 });
     }
 
-    return NextResponse.json({ request: row });
+    // Phase 7 C4: build while waiting — the pending club, its owner row,
+    // the optional home course and a draft site exist from now.
+    const provisioned = await provisionPendingOrg(supabase, 'club', row);
+    return NextResponse.json({
+      request: provisioned ? { ...row, created_club_id: provisioned.orgId } : row,
+      orgId: provisioned?.orgId ?? null,
+    });
   } catch (error) {
     if (error instanceof Response) return error;
     console.error('[CLUB REQUESTS] POST error:', error);

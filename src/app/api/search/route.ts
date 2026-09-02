@@ -8,6 +8,34 @@ import { searchAll } from '@/lib/search/all-server';
 import { ALL_QUOTAS, FACET_WIDEN_LIMIT, TYPED_QUOTAS, groupByType, orderByIds, typesForRequest } from '@/lib/search/all';
 import { enforceRateLimit } from '@/lib/rate-limit';
 
+// Phase 7 C4: a PENDING org (approved_at NULL — migration 174) never
+// surfaces in search. The 112 triggers index on insert with no status
+// concept, so the filter is app-side: select approved_at alongside, drop
+// pending rows, strip the column. A pre-174 database (42703) → everything
+// is live.
+async function approvedOnly<T extends Record<string, unknown>>(
+  run: (cols: string) => PromiseLike<{ data: unknown; error: { code?: string; message?: string } | null }>,
+  cols: string
+): Promise<T[]> {
+  const first = await run(`${cols}, approved_at`);
+  if (first.error?.code === '42703') {
+    const again = await run(cols);
+    if (again.error) console.error('[SEARCH] org read error:', again.error);
+    return ((again.data ?? []) as T[]);
+  }
+  if (first.error) {
+    console.error('[SEARCH] org read error:', first.error);
+    return [];
+  }
+  return ((first.data ?? []) as Array<T & { approved_at?: unknown }>)
+    .filter(r => r.approved_at !== null)
+    .map(r => {
+      const copy: T & { approved_at?: unknown } = { ...r };
+      delete copy.approved_at;
+      return copy as T;
+    });
+}
+
 // Minimum query length, per kind of result.
 //
 // People suggest from the FIRST keystroke: migration 087 makes a 1-character
@@ -205,10 +233,10 @@ export async function GET(request: NextRequest) {
         (async () => {
           if (clubDocs.length === 0) return;
           const ids = clubDocs.map(d => d.entity_id);
-          const { data } = await supabase
-            .from('clubs')
-            .select('id, name, description, location, city, region, region_code, country, country_code, lat, lng')
-            .in('id', ids);
+          const data = await approvedOnly(cols =>
+            supabase.from('clubs').select(cols).in('id', ids),
+            'id, name, description, location, city, region, region_code, country, country_code, lat, lng'
+          );
           const byDoc = new Map(clubDocs.map(d => [d.entity_id, d]));
           results.clubs = orderByIds(ids, (data ?? []) as Array<{ id: string }>)
             .slice(0, quotas.club)
@@ -221,10 +249,10 @@ export async function GET(request: NextRequest) {
         (async () => {
           if (leagueDocs.length === 0) return;
           const ids = leagueDocs.map(d => d.entity_id);
-          const { data } = await supabase
-            .from('leagues')
-            .select('id, name, description, sport_key, city, region, region_code, country, country_code, lat, lng')
-            .in('id', ids);
+          const data = await approvedOnly(cols =>
+            supabase.from('leagues').select(cols).in('id', ids),
+            'id, name, description, sport_key, city, region, region_code, country, country_code, lat, lng'
+          );
           const byDoc = new Map(leagueDocs.map(d => [d.entity_id, d]));
           results.leagues = orderByIds(ids, (data ?? []) as Array<{ id: string }>)
             .slice(0, quotas.league)
@@ -444,11 +472,15 @@ export async function GET(request: NextRequest) {
         const safeClubQuery = sanitizeForFilter(query ?? '');
         const searchPattern = `%${safeClubQuery}%`;
 
-        const { data: clubs, error: clubsError } = await supabase
-          .from('clubs')
-          .select('id, name, description, location')
-          .or(`name.ilike.${searchPattern},description.ilike.${searchPattern},location.ilike.${searchPattern}`)  // hardening-ok: sanitizeForFilter above
-          .limit(10);
+        const clubs = await approvedOnly(cols =>
+          supabase
+            .from('clubs')
+            .select(cols)
+            .or(`name.ilike.${searchPattern},description.ilike.${searchPattern},location.ilike.${searchPattern}`)  // hardening-ok: sanitizeForFilter above
+            .limit(10),
+          'id, name, description, location'
+        );
+        const clubsError = null;
 
         if (!clubsError && clubs) {
           results.clubs = clubs;

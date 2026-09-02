@@ -443,6 +443,8 @@ export interface ProfileOrganization {
   region: string | null;
   country: string | null;
   sport_key?: string | null;
+  /** Phase 7 C4: awaiting admin approval (174) — a chip on the cards. */
+  pending?: boolean;
 }
 
 /**
@@ -471,9 +473,16 @@ export async function getProfileOrganizations(
     const selectCols = side === 'league'
       ? 'id, name, sport_key, city, region, country'
       : 'id, name, city, region, country';
-    const { data: orgs } = await admin.from(cfg.orgTable).select(selectCols).in('id', orgIds);
+    // C4: approved_at rides along (pending → a chip); pre-174 → retry without.
+    let { data: orgs, error: orgsError } = await admin
+      .from(cfg.orgTable)
+      .select(`${selectCols}, approved_at`)
+      .in('id', orgIds);
+    if (orgsError?.code === '42703') {
+      ({ data: orgs, error: orgsError } = await admin.from(cfg.orgTable).select(selectCols).in('id', orgIds));
+    }
     const orgRows = (orgs ?? []) as unknown as Array<{
-      id: string; name: string; sport_key?: string | null;
+      id: string; name: string; sport_key?: string | null; approved_at?: string | null;
       city: string | null; region: string | null; country: string | null;
     }>;
     const byId = new Map(orgRows.map(o => [o.id, o]));
@@ -489,6 +498,7 @@ export async function getProfileOrganizations(
         region: org.region,
         country: org.country,
         ...(side === 'league' ? { sport_key: org.sport_key ?? null } : {}),
+        ...(org.approved_at === null ? { pending: true } : {}),
       });
     }
   }

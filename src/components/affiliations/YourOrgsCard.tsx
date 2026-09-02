@@ -54,6 +54,11 @@ export default function YourOrgsCard() {
                     aria-hidden="true"
                   ></i>
                   <span className="text-sm font-medium text-primary truncate">{org.name}</span>
+                  {org.pending && (
+                    <span className="text-[10px] font-semibold uppercase text-amber-700 dark:text-amber-300 shrink-0">
+                      Pending approval
+                    </span>
+                  )}
                   {org.role === 'member' && sport && (
                     <span className="ml-auto text-xs text-muted shrink-0">{sport}</span>
                   )}

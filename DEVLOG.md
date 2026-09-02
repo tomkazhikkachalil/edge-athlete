@@ -1,5 +1,78 @@
 # Development Log
 
+## September 2, 2026 — Phase 7 C4: club sign-up, part 4 — build while waiting: the club, its owner, the home course and a draft site exist from the request; approval unlocks publish (#530, migration 175)
+
+Tom's decision: keep the admin approval queue, but don't make a new club
+wait to start building. So a request now PROVISIONS the org — pending —
+and approval flips it live. Nothing about approval moved; only when the
+work can start.
+
+- **Provisioning** (`orgs/pending-org.ts`, best-effort AFTER the request
+  row — the request is the deliverable): `createClubWithOwner` /
+  `createLeagueWithOwner` gain `approvedAt` (undefined ⇒ live now, so
+  every direct/admin create is unchanged; null ⇒ pending) and clubs
+  `primarySport` (= the draft's first sport → the golf shape in C3); the
+  request row links `created_*_id`; the OPTIONAL home course becomes a
+  venue linked to the catalog row (169); `siteCreatePOST` mints the DRAFT
+  site (its order and tagline off the org's sport) and the draft's
+  contact seeds `contact_config`. A pre-174 database has no approval
+  state — the fresh org would be LIVE — so provisioning verifies
+  `approved_at IS NULL` and rolls itself back otherwise. The requests
+  routes answer `orgId`.
+- **Approval adopts, decline deletes** (`admin/*-requests`): approve reads
+  the provisioned org (`approved_at IS NULL`), replays the structure INTO
+  it (a failure leaves it — it holds the owner's work — and the request
+  stays pending), stamps `approved_at`, then claims the request; no
+  provisioned org → today's create path, now stamped live. Decline, after
+  the claim, deletes the org ONLY while `approved_at IS NULL`
+  (`shouldDeleteOnDecline`, pure) — the cascade is the rollback create.ts
+  already relies on, the 112 doc-delete trigger keeps search convergent,
+  and the request keeps its name and drafts (FK SET NULL). The admin GET
+  adds `created_*_id` + a signed **preview URL** of the draft site →
+  "Preview draft site" on `/dashboard/clubs` and `/dashboard/leagues`
+  (`requireOrgManager` gives admins nothing, so the queue mints it).
+- **Migration 175** (found by the regression run, not the plan): 174 gave
+  `approved_at` NO default, so every org inserted after it without naming
+  the column — the admin create form, the wizard's stub orgs
+  (`replayConnections`), seeds, e2e fixtures — was born NULL = pending:
+  hidden and unable to publish. The only writer that MEANS pending is
+  `pending-org.ts`, and it says so explicitly. So 175 sets the default
+  to `now()` (live unless told otherwise) and repairs any org born NULL
+  in between that no pending request links. Order-strict before #530.
+- **Pending gates**, one reader (`orgs/approval.ts readApproval` — 42703
+  ⇒ "everything approved", pre-174 never darkens anything): the org GET
+  404s to anyone but its managers or an admin (`isAdminEmail`) and
+  answers `pending`; the club/league page shows managers an "Awaiting
+  approval — build your site while you wait →" banner; the standings
+  twins render the empty state; `sitePATCH publish` → 409 "Awaiting
+  approval — you can keep building; publishing unlocks when approved";
+  `/api/search` drops pending orgs app-side (`approvedOnly`: select
+  `approved_at` alongside, filter, strip — the 112 triggers have no
+  status concept); the profile organizations feed carries `pending` →
+  "Pending approval" chips on `YourOrgsCard` and `OrgMembershipsStrip`;
+  `/club/start` (+ league) pending banner gains "Open your console —
+  build your site while you wait"; the console header shows the chip
+  and disables Publish with the same copy (the server 409 is the truth).
+- e2e `club-pending-build.spec.ts` (user-b): request with a site draft →
+  `orgId`; DB: `approved_at NULL`, `primary_sport='golf'`, owner row,
+  the venue with `golf_course_id`, the draft site with `contact_config`
+  and the golf order, `created_club_id` → anon API 404 + page "Club Not
+  Found" + search silent → owner `pending:true`, the start-page console
+  link, the page banner, the console chip with Publish disabled at
+  375px, publish 409, standings empty → approval via the service role
+  (no spec drives `/api/admin/*`; recorded) → publish 200, anon API 200,
+  the public site settles with the home course and the seeded contact.
+  Decline's deletion: the pure guard is unit-tested; the route path was
+  read, not driven. The three request specs now delete the orgs they
+  provision (FK SET NULL would leak them). Regressions green vs the live
+  DB: club-request, club-request-golf, league-request, org-site-golf-order,
+  people-location-search; org-site (5) and affiliation seed orgs directly
+  and read as pending until 175 runs — re-run after it (recorded below
+  when green).
+
+Next: C5 — the golf-first console (Website and Venues & courses on top,
+a golf checklist).
+
 ## September 2, 2026 — Phase 7 C3: club sign-up, part 3 — the PGA shape: a golf org's site leads with standings, leaders and the week's play (#529, zero DDL)
 
 Tom's brief for the golf club and league pages: "look like the PGA

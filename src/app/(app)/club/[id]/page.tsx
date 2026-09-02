@@ -85,6 +85,8 @@ interface MemberRow {
 }
 
 interface ClubResponse {
+  /** Phase 7 C4: awaiting approval — only managers/admins ever see the page then. */
+  pending?: boolean;
   club: ClubInfo;
   /** 0.6b: derived sports (distinct division sports; [] until structure exists). */
   sports?: string[];
@@ -396,6 +398,20 @@ export default function ClubPage() {
       <AppHeader showSearch={false} />
 
       <div className="max-w-4xl mx-auto px-4 sm:px-6 py-6">
+        {data.pending && (
+          <div
+            role="status"
+            className="mb-4 rounded-xl border border-amber-300 bg-amber-50 dark:bg-amber-950/30 px-4 py-3 text-sm"
+          >
+            <p className="font-medium text-primary">Awaiting approval</p>
+            <p className="text-secondary mt-0.5">
+              Only you and your managers can see this page until an Edge Athlete admin approves your club.
+            </p>
+            <Link href={`/app/org/club/${club.id}`} className="inline-block mt-1 text-brand-fg font-medium hover:text-brand-fg-strong">
+              Build your site while you wait →
+            </Link>
+          </div>
+        )}
         <div className="bg-surface rounded-xl shadow-sm border border-border overflow-hidden">
           <div className="h-20 sm:h-24 bg-gradient-to-r from-violet-500 to-violet-600" />
           <div className="px-4 sm:px-6 py-5">

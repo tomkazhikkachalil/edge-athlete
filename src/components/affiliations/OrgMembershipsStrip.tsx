@@ -16,6 +16,8 @@ export interface OrgMembership {
   id: string;
   name: string;
   role: string;
+  /** Phase 7 C4: awaiting admin approval. */
+  pending?: boolean;
   city: string | null;
   region: string | null;
   country: string | null;
@@ -75,6 +77,9 @@ export default function OrgMembershipsStrip({ profileId, initialData }: OrgMembe
                   aria-hidden="true"
                 ></i>
                 <span className="max-w-[10rem] truncate">{org.name}</span>
+                {org.pending && (
+                  <span className="text-[10px] font-semibold uppercase text-amber-700 dark:text-amber-300">Pending approval</span>
+                )}
                 {org.role !== 'member' && (
                   <span className="text-[10px] font-semibold text-brand-fg uppercase">{org.role}</span>
                 )}
