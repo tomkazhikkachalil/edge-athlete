@@ -39,6 +39,14 @@ export function teeLabel(key: string): string {
 // they sort as noise and read as data errors. Reshape to
 // "Ponkapoag Golf Club (Course 1)" / "University Park Country Club
 // (Nines 10 & 19)". Anything not matching the pattern passes through.
+/** "{club} – {course}" unless the course name already carries the club. */
+export function courseDisplayName(clubName: string | null | undefined, courseName: string): string {
+  const club = (clubName ?? '').trim();
+  const course = courseName.trim();
+  if (!club || course.toLowerCase().includes(club.toLowerCase())) return course;
+  return `${club} – ${course}`;
+}
+
 export function tidyCourseName(name: string): string {
   const m = /^(\d{1,2})(?:[\s/]+(\d{1,2}))?\s+at\s+(.+)$/i.exec(name.trim());
   if (!m) return name;

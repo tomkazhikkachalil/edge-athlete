@@ -42,7 +42,7 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { GolfCourse, CourseHole } from '@/types/golf';
-import { tidyCourseName } from '@/lib/golf/tees';
+import { tidyCourseName, courseDisplayName } from '@/lib/golf/tees';
 import { acceptGeocode, geocodeGolfCourse, reverseGeocodeCourse, shouldReplaceCoords } from '@/lib/golf/geocode';
 import { courseNameScore } from '@/lib/golf/hole-geometry';
 import { normalizeCountry, normalizeRegion } from '@/lib/geo/regions';
@@ -205,13 +205,9 @@ export function rankCourseFields(
   return Math.min(nameRank, otherRank);
 }
 
-/** "{club} – {course}" unless the course name already carries the club. */
-export function courseDisplayName(clubName: string | null | undefined, courseName: string): string {
-  const club = (clubName ?? '').trim();
-  const course = courseName.trim();
-  if (!club || course.toLowerCase().includes(club.toLowerCase())) return course;
-  return `${club} – ${course}`;
-}
+// courseDisplayName lives in the pure tees module (client-safe) since phase
+// 6b A1; re-exported here so the server callers keep their import.
+export { courseDisplayName } from '@/lib/golf/tees';
 
 const nullIfUnknown = (v: string | null | undefined): string | null => {
   const s = (v ?? '').trim();

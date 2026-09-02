@@ -1,5 +1,39 @@
 # Development Log
 
+## September 1, 2026 — Phase 6b A2: the golf club page, part 2 — the public `courses` module + "Home of" (#505, zero DDL)
+
+The public half of the golf club page (A1 #504 put the courses on the
+app-side org pages; this puts them on the org's public site):
+
+- **`courses` module** — `MODULE_KEYS`/`TOGGLEABLE`/`MODULE_TITLES`/
+  `MODULE_SUBPAGE_KEYS` gain it (169 already widened the DB CHECK and
+  seeded the row DISABLED for existing sites, so the console's Sections
+  toggle simply appears). `fetchPublicCourses` (public-data, never
+  throws, pre-169 falls back to the club link) unions a linked club's
+  sections with a linked course; `getCachedCourses` rides the
+  `org-site:{slug}` tag, so A1's venue writes purge it.
+- **Rendering, server components only** (the (public) iron rule):
+  `CoursesList` — home teaser (names, holes, par, "Scorecards &
+  details →") and the `/courses` subpage with the full tee sheet
+  (`CourseScorecardTable` lost its `'use client'` — it has no hooks or
+  handlers, so the same markup now serves the ISR page and the client
+  cards), rating/slope per tee, architect/year/type, the description WITH
+  its CC BY-SA attribution, an https-only website link and "View on
+  map →" as an ABSOLUTE app URL into `/explore?course=` (no Leaflet in
+  the public segment; resolves on a custom host later). Vanity twin
+  under `[slug]/courses`; sitemap picks the subpage up through
+  `MODULE_SUBPAGE_KEYS`; `buildCoursesJsonLd` emits schema.org
+  `GolfCourse` entries (place data only — the people rule untouched).
+- **"Home of {org} →"** — the reverse door from the catalog: the
+  `?id=` read (and a new lightweight `?id=&home=1` that skips
+  hydration, so the card's per-mount read never spends provider budget)
+  reports the org whose venue recognized the course, when that org has
+  a PUBLISHED site; `CourseInfoCard` renders it next to Website.
+- e2e `org-site-courses.spec.ts`: seeded venue→course link → site
+  create → enable `courses` → publish → home teaser (settled) →
+  `/courses` with the tee sheet + JSON-LD → `?id=&home=1` →
+  `homeOf.path` = the site → disable → 404 → sitemap needle; 375px.
+
 ## September 1, 2026 — Maintenance round at the phase-6 close: all gates green (#503)
 
 Tom's requested full sweep at the arc's close, no code changes needed:
