@@ -116,6 +116,9 @@ export const GolfSeasonGenerateSchema = z.object({
   venueId: uuid,
   labelPattern: optionalText(34),
   dryRun: z.boolean().default(true),
+  // S4: the generated rounds land on members' calendars as all-day windows.
+  publishToCalendar: z.boolean().default(true),
+  timezone: boundedText(64).default('UTC'),
 });
 export type GolfSeasonGenerateInput = z.infer<typeof GolfSeasonGenerateSchema>;
 
@@ -150,6 +153,13 @@ export const ContestPublishSchema = z.object({
   timezone: boundedText(64).default('UTC'),
 });
 export type ContestPublishInput = z.infer<typeof ContestPublishSchema>;
+
+/** S4: publish every unpublished scheduled/windowed round of a competition. */
+export const ContestPublishSeasonSchema = z.object({
+  competitionId: uuid,
+  timezone: boundedText(64).default('UTC'),
+});
+export type ContestPublishSeasonInput = z.infer<typeof ContestPublishSeasonSchema>;
 
 /** Result entry (R2): one batch per contest — a fixture's "3 – 2" is one
  *  submit. payload is the adapter-typed blob (stats_data precedent);

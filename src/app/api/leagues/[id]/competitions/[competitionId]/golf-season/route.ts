@@ -33,7 +33,7 @@ export async function POST(
     if (parsed.data.competitionId !== competitionId) {
       return NextResponse.json({ error: 'Body competition does not match the URL' }, { status: 400 });
     }
-    return await golfSeasonGeneratePOST(admin, parsed.data, { side: 'league', orgId: id });
+    return await golfSeasonGeneratePOST(admin, parsed.data, { side: 'league', orgId: id }, user.id);
   } catch (error) {
     if (error instanceof Response) return error;
     console.error('[COMPETITIONS] league golf-season POST error:', error);

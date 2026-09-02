@@ -26,9 +26,12 @@ test('org calendar: member sees org event, RSVP creates guest row, decline hides
     .single();
   expect(error, error?.message).toBeNull();
   const leagueId = league!.id as string;
+  // The read-time merge places org events for ROSTER members only (the
+  // consolidation round retired the flag); every row carries `kind` (a
+  // multi-row insert NULLs an omitted key instead of defaulting it).
   await admin.from('memberships').insert([
-    { league_id: leagueId, profile_id: userB.id, role: 'owner' },
-    { league_id: leagueId, profile_id: userA.id, role: 'member' },
+    { league_id: leagueId, profile_id: userB.id, role: 'owner', kind: 'follow' },
+    { league_id: leagueId, profile_id: userA.id, role: 'member', kind: 'roster' },
   ]);
 
   const starts = new Date(Date.now() + 3 * 86_400_000);

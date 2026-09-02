@@ -2,15 +2,14 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth, getSupabaseAdmin } from '@/lib/auth-server';
 import { enforceRateLimit } from '@/lib/rate-limit';
 import { parseBody } from '@/lib/validation';
-import { GolfSeasonGenerateSchema } from '@/lib/competitions/validate';
-import { golfSeasonGeneratePOST, requireCompetitionManager } from '@/lib/orgs/competition-server';
+import { ContestPublishSeasonSchema } from '@/lib/competitions/validate';
+import { contestPublishSeasonPOST, requireCompetitionManager } from '@/lib/orgs/competition-server';
 import { UUID_RE } from '@/lib/golf/course-catalog';
 
-// ── /api/clubs/[id]/competitions/[competitionId]/golf-season (phase 6d W3) ──
-// "Generate rounds": N weekly play windows from one declaration, dry-run
-// by default, existing windows reused. ONE request per season, so the
-// org-competitions bucket is not burned per round. Manager-gated; the
-// body/URL competition mismatch guard runs BEFORE the lib call.
+// ── .../contests/publish-season (phase 6e S4) — every unpublished round ────
+// A golf league's season lands on members' calendars as all-day play
+// windows (timed games publish as before). Idempotent: a second call
+// publishes zero. Manager-gated; the org-competitions bucket.
 
 export async function POST(
   request: NextRequest,
@@ -25,18 +24,18 @@ export async function POST(
       return NextResponse.json({ error: 'Competition not found' }, { status: 404 });
     }
     const admin = getSupabaseAdmin();
-    const gate = await requireCompetitionManager(admin, user, 'club', id);
+    const gate = await requireCompetitionManager(admin, user, 'league', id);
     if (!gate.ok) return gate.response;
 
-    const parsed = await parseBody(request, GolfSeasonGenerateSchema);
+    const parsed = await parseBody(request, ContestPublishSeasonSchema);
     if (!parsed.success) return parsed.response;
     if (parsed.data.competitionId !== competitionId) {
       return NextResponse.json({ error: 'Body competition does not match the URL' }, { status: 400 });
     }
-    return await golfSeasonGeneratePOST(admin, parsed.data, { side: 'club', orgId: id }, user.id);
+    return await contestPublishSeasonPOST(admin, competitionId, { side: 'league', orgId: id }, user.id, parsed.data.timezone);
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[COMPETITIONS] club golf-season POST error:', error);
+    console.error('[COMPETITIONS] league publish-season POST error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

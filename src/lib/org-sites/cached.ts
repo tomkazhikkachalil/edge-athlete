@@ -5,6 +5,7 @@ import { fetchPublicStandings, type PublicStandingsPayload } from '@/lib/competi
 import { fetchOrgEvents, type OrgEvent } from '@/lib/calendar/org-events-server';
 import { getPublicSiteBySlug, type PublicSite } from './server';
 import { fetchPublicCourseStats } from './course-stats';
+import { buildSiteFeed } from './schedule-feed';
 import type { CourseStats } from '@/lib/golf/course-stats';
 import {
   fetchPublicAffiliations,
@@ -13,6 +14,7 @@ import {
   fetchPublicCoursePage,
   fetchPublicDivisions,
   fetchPublicGallery,
+  fetchPublicGolfRounds,
   fetchPublicStatLeaders,
   fetchPublicNewsList,
   fetchPublicOpenWindows,
@@ -30,6 +32,7 @@ import {
   type PublicCoursePage,
   type PublicDivision,
   type PublicGalleryItem,
+  type PublicGolfRound,
   type PublicLeaderBoard,
   type PublicNewsItem,
   type PublicOpenWindow,
@@ -236,6 +239,32 @@ export const getCachedClubCourseStrip = (
     const admin = getSupabaseAdmin();
     const courses = await fetchPublicCourses(admin, side, orgId);
     return fetchPublicCourseStats(admin, side, orgId, [...new Set(courses.map(c => c.course.id))]);
+  });
+
+// Phase 6e S4: a golf league's play windows on the public schedule, and
+// the site's ICS feed (events over a year + the rounds no mirror covers).
+export const getCachedGolfRounds = (
+  slug: string,
+  side: OrgSide,
+  orgId: string
+): Promise<PublicGolfRound[]> =>
+  perSlug(['org-site-golf-rounds', slug], slug, () =>
+    fetchPublicGolfRounds(getSupabaseAdmin(), side, orgId)
+  );
+
+export const getCachedScheduleFeed = (
+  slug: string,
+  side: OrgSide,
+  orgId: string,
+  name: string
+): Promise<string> =>
+  perSlug(['org-site-schedule-feed', slug], slug, async () => {
+    const admin = getSupabaseAdmin();
+    const [events, rounds] = await Promise.all([
+      fetchOrgEvents(admin, side, orgId, { limit: 50, rangeDays: 365 }),
+      fetchPublicGolfRounds(admin, side, orgId),
+    ]);
+    return buildSiteFeed({ name, events: events ?? [], rounds, dtstampMs: Date.now() });
   });
 
 // Phase 6b B3: divisions + stat leaders (both viewer-independent reads).

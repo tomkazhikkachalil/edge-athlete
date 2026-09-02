@@ -150,3 +150,20 @@ export function buildCourseJsonLd(
     containedInPlace: { '@type': 'SportsOrganization', name: site.orgName, url: siteAbsoluteUrl(site) },
   };
 }
+
+/** S4: a golf league's play windows as SportsEvent (start/end = the
+ *  window's days; the course as the place). Capped like the events. */
+export function buildGolfRoundsJsonLd(
+  site: PublicSite,
+  rounds: { round: string | null; competitionName: string; playFrom: string; playTo: string; courseName: string | null }[]
+): Record<string, unknown>[] {
+  return rounds.slice(0, JSONLD_EVENTS_MAX).map(r => ({
+    '@context': 'https://schema.org',
+    '@type': 'SportsEvent',
+    name: `${r.round ?? 'Round'} — ${r.competitionName}`,
+    startDate: r.playFrom,
+    endDate: r.playTo,
+    ...(r.courseName ? { location: { '@type': 'Place', name: r.courseName } } : {}),
+    organizer: { '@type': 'SportsOrganization', name: site.orgName, url: siteAbsoluteUrl(site) },
+  }));
+}
