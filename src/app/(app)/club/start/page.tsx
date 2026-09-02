@@ -73,15 +73,20 @@ export default function StartClubPage() {
             <div className="w-16 h-16 bg-surface-sunken rounded-full flex items-center justify-center mx-auto mb-4">
               <Building2 className="w-8 h-8 text-faint" />
             </div>
-            <h1 className="text-2xl font-bold text-primary mb-2">Sign in to start a club</h1>
+            <h1 className="text-2xl font-bold text-primary mb-2">Create an account to start your club</h1>
             <p className="text-tertiary mb-6">
               Club requests are reviewed by an Edge Athlete admin; approved clubs are yours to run.
             </p>
+            {/* Phase 7 C1: park the intent both ways — ?next= for the plain
+                sign-in, sessionStorage for the registration hard-reload. */}
             <Link
-              href="/"
+              href="/?next=%2Fclub%2Fstart%3Fsport%3Dgolf"
+              onClick={() => {
+                try { window.sessionStorage.setItem('ea:invite-return', '/club/start?sport=golf'); } catch { /* ignore */ }
+              }}
               className="inline-flex items-center px-4 py-2 bg-brand text-white rounded-lg hover:bg-brand-hover transition-colors"
             >
-              Sign In
+              Create an account or sign in
             </Link>
           </div>
         </div>

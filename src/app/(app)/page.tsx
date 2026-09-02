@@ -17,6 +17,7 @@ import { FEATURE_FLAGS } from '@/lib/features';
 
 export default function Home() {
   const [showAthleteRegistration, setShowAthleteRegistration] = useState(false);
+  const [orgIntent, setOrgIntent] = useState<'club' | 'league' | null>(null);
   const [formData, setFormData] = useState({
     firstName: '',
     lastName: '',
@@ -141,6 +142,19 @@ export default function Home() {
   const handleWaitlistClick = (userType: string) => {
     setWaitlistUserType(userType);
     setShowWaitlist(true);
+  };
+
+  // Phase 7 C1: the Club / League doors. The account comes first (an org
+  // is owned by a normal profile — mig 116), then the wizard. The intent
+  // rides sessionStorage, the one channel that survives the registration
+  // hard-reload in BOTH flag states: `/` honours `ea:invite-return` after
+  // sign-in (the invite-claim precedent above).
+  const handleOrgClick = (kind: 'club' | 'league') => {
+    try {
+      window.sessionStorage.setItem('ea:invite-return', `/${kind}/start?sport=golf`);
+    } catch { /* storage unavailable — the start page's own CTA still parks it */ }
+    setOrgIntent(kind);
+    handleAthleteClick();
   };
 
   const handleCloseWaitlist = () => {
@@ -354,7 +368,7 @@ export default function Home() {
       return (
         <div className="min-h-screen flex flex-col bg-brand-soft">
           <BrandBar />
-          <RegistrationSteps onBackToLogin={handleBackToLogin} />
+          <RegistrationSteps onBackToLogin={handleBackToLogin} initialOrg={orgIntent} />
         </div>
       );
     }
@@ -686,14 +700,14 @@ export default function Home() {
                   <span>Athlete</span>
                 </button>
                 <button 
-                  onClick={() => handleWaitlistClick('Club')}
+                  onClick={() => handleOrgClick('club')}
                   className="bg-white text-violet-600 py-3 px-3 sm:px-4 rounded-md font-semibold hover:bg-violet-100 transition duration-300 flex flex-col sm:flex-row items-center justify-center text-xs sm:text-sm"
                 >
                   <i className="fas fa-shield mb-1 sm:mb-0 sm:mr-2 text-lg sm:text-base"></i>
                   <span>Club</span>
                 </button>
                 <button 
-                  onClick={() => handleWaitlistClick('League')}
+                  onClick={() => handleOrgClick('league')}
                   className="bg-white text-violet-600 py-3 px-3 sm:px-4 rounded-md font-semibold hover:bg-violet-100 transition duration-300 flex flex-col sm:flex-row items-center justify-center text-xs sm:text-sm"
                 >
                   <i className="fas fa-trophy mb-1 sm:mb-0 sm:mr-2 text-lg sm:text-base"></i>
@@ -710,7 +724,7 @@ export default function Home() {
             </div>
             <div className="mt-6 sm:mt-8">
               <button 
-                onClick={() => handleWaitlistClick('Guest')}
+                onClick={() => router.push('/explore')}
                 className="w-full bg-transparent border-2 border-white text-white py-3 px-4 rounded-md font-semibold hover:bg-surface hover:text-brand-fg transition duration-300 flex items-center justify-center text-sm sm:text-base"
               >
                 <i className="fas fa-binoculars mr-2"></i> Explore as Guest
