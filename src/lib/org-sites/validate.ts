@@ -653,3 +653,14 @@ export function clampScheduleQuery(
   if (rangeRaw === null) return { limit };
   return { limit, rangeDays: Math.min(Math.max(rangeRaw, 1), SCHEDULE_RANGE_MAX_DAYS) };
 }
+
+// ── Custom domains (phase 6b C1) ────────────────────────────────────────────
+// Normalization + reserve checks live in domains.ts (pure); the schema
+// only bounds the raw text a manager pastes.
+export const DomainClaimSchema = z.object({
+  domain: z.string().trim().min(3).max(300),
+});
+export const AdminDomainActionSchema = z.object({
+  siteId: z.uuid(),
+  action: z.enum(['retry-attach', 'probe']),
+});

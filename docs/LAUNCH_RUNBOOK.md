@@ -90,6 +90,26 @@ Flow list: `docs/qa-test-guide.md`, plus these launch-round additions:
 - [ ] Guardian funnel end-to-end **after #1 is green** (the invite email is
       the step that's been dark).
 
+## 5a. Org custom domains (phase 6b C1) — the platform env + the recipe
+
+Orgs can point THEIR domain (kmha.ca) at their Edge Athlete site from the
+console (Website → Custom domain). The flow is claim → TXT verify → Vercel
+attach → reachability check → live. The attach/detach steps need three
+server-only env vars in Vercel (a redeploy suffices; no build):
+
+- `VERCEL_API_TOKEN` — a token scoped to the team (Account → Tokens)
+- `VERCEL_TEAM_ID` — `team_YCHm8MTPTQxzmyaTTRVoMqlU` (from `.vercel/project.json`)
+- `VERCEL_PROJECT_ID` — `prj_ypEuQssAysbZQO68InlkjDZa6tIn`
+
+Until they are set, a verified domain parks as "verified — awaiting
+platform" and the admin dashboard's **Custom domains** list offers *Retry
+connect* once the env lands. The org's DNS side is prescribed in the
+console: `TXT _edgeathlete.<domain>` = the token, plus `CNAME <domain> →
+cname.vercel-dns.com` (apex domains: `A 76.76.21.21`). Serving on the
+custom host and the apex 301 arrive with C2 (`CUSTOM_DOMAINS=1`, a real
+build). Test hostname for the prod probe: any Tom-controlled subdomain of
+`edgeathlete.ca`.
+
 ## 5. (Optional decision) Custom domain — currently NOT pointed at Vercel
 
 Found Aug 23: `edgeathlete.ca`'s root A records are GoDaddy forwarding IPs —
