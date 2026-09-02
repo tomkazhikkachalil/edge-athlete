@@ -15,6 +15,8 @@
 // never labeled).
 
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { parseGolfPointsConfig } from '@/lib/competitions/golf-points';
+import { roundRuleFor } from '@/lib/competitions/golf-league';
 import type { OrgSide } from '@/lib/orgs/authz';
 import { publicDisplayName, type MaskableProfile } from '@/lib/orgs/public-names';
 import { listAffiliations } from '@/lib/affiliations/server';
@@ -1135,7 +1137,7 @@ export interface PublicLeaderBoard {
  *  masked; supervised athletes omitted (null name → no row). */
 async function fetchGolfLeaderBoards(
   admin: Admin,
-  comps: { id: string; name: string; scoring_rule: string | null }[]
+  comps: { id: string; name: string; scoring_rule: string | null; config?: unknown }[]
 ): Promise<Map<string, PublicLeaderBoard['stats']>> {
   const out = new Map<string, PublicLeaderBoard['stats']>();
   if (comps.length === 0) return out;
@@ -1207,7 +1209,12 @@ async function fetchGolfLeaderBoards(
       const rows = rowsByComp.get(comp.id) ?? [];
       out.set(
         comp.id,
-        buildGolfLeaderBoards({ rows, nameByEntry, scoringRule: comp.scoring_rule }).map(b => ({
+        buildGolfLeaderBoards({
+          rows,
+          nameByEntry,
+          scoringRule: roundRuleFor(comp.scoring_rule, comp.config),
+          pointsPreset: comp.scoring_rule === 'golf_points' ? parseGolfPointsConfig(comp.config).preset : null,
+        }).map(b => ({
           label: b.label,
           valueLabel: b.valueLabel,
           rows: b.rows.map(r => ({ name: r.name, teamName: null, value: r.value, ...(r.note ? { note: r.note } : {}) })),
@@ -1228,7 +1235,7 @@ export async function fetchPublicStatLeaders(
   const col = orgColumn(side);
   const { data: comps, error } = await admin
     .from('competitions')
-    .select('id, name, sport_key, format, scoring_rule')
+    .select('id, name, sport_key, format, scoring_rule, config')
     .eq(col, orgId)
     .eq('visibility', 'public')
     .in('status', ['active', 'completed'])
@@ -1242,7 +1249,7 @@ export async function fetchPublicStatLeaders(
   const golfComps = comps.filter(c => c.sport_key === 'golf' && c.format === 'leaderboard');
   const golfBoards = await fetchGolfLeaderBoards(
     admin,
-    golfComps.map(c => ({ id: c.id as string, name: c.name as string, scoring_rule: (c.scoring_rule as string | null) ?? null }))
+    golfComps.map(c => ({ id: c.id as string, name: c.name as string, scoring_rule: (c.scoring_rule as string | null) ?? null, config: c.config ?? null }))
   );
   const golfIds = new Set(golfComps.map(c => c.id as string));
 

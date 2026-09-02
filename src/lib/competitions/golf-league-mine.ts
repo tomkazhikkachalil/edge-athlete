@@ -8,6 +8,7 @@
 // bells are copied to the guardian by golf-league-notify.
 
 import { NextResponse } from 'next/server';
+import { roundRuleFor } from './golf-league';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { OrgSide } from '@/lib/orgs/authz';
 import { selectCurrentWeek, sortWeeks, utcToday, weekState, type GolfWeekState } from './golf-weeks';
@@ -54,7 +55,7 @@ export async function golfMineGET(
 
   const { data: competitions, error } = await admin
     .from('competitions')
-    .select('id, name, scoring_rule')
+    .select('id, name, scoring_rule, config')
     .eq(orgColumn, orgId)
     .eq('sport_key', 'golf')
     .eq('format', 'leaderboard')
@@ -148,7 +149,7 @@ export async function golfMineGET(
       const r = pid ? resultByParticipant.get(pid) : undefined;
       if (r) {
         const payload = (r.payload as Record<string, unknown> | null) ?? {};
-        const isNet = c.scoring_rule === 'golf_net';
+        const isNet = roundRuleFor((c.scoring_rule as string | null) ?? null, c.config) === 'golf_net';
         result = {
           gross: num(payload.gross) ?? (isNet ? null : num(r.score)),
           net: num(payload.net) ?? (isNet ? num(r.score) : null),

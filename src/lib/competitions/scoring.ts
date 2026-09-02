@@ -197,6 +197,18 @@ const GOLF_NET_COLUMNS: StandingsColumn[] = [
   { key: 'gross', label: 'Gross', shortLabel: 'GRS' },
 ];
 
+// Phase 7 C6 — FedEx-style season points. The per-round `score` is still
+// strokes (gross or net per config); standings.ts turns each completed
+// round's strokes into POINTS (golf-points.ts) before the sum, so the
+// table's total is points (highest wins) with rounds, wins and the gross
+// strokes alongside.
+const GOLF_POINTS_COLUMNS: StandingsColumn[] = [
+  { key: 'played', label: 'Rounds', shortLabel: 'RDS' },
+  { key: 'points', label: 'Points', shortLabel: 'PTS' },
+  { key: 'win', label: 'Wins', shortLabel: 'W' },
+  { key: 'gross', label: 'Gross', shortLabel: 'GRS' },
+];
+
 export const LEADERBOARD_RULES: Record<string, LeaderboardScoringRule> = {
   stroke_total: {
     key: 'stroke_total',
@@ -224,10 +236,17 @@ export const LEADERBOARD_RULES: Record<string, LeaderboardScoringRule> = {
     columns: GOLF_NET_COLUMNS,
     sumStats: ['gross'],
   },
+  golf_points: {
+    key: 'golf_points',
+    kind: 'leaderboard',
+    direction: 'desc',
+    columns: GOLF_POINTS_COLUMNS,
+    sumStats: ['gross', 'win'],
+  },
 };
 
 /** The rules a golf leaderboard may pick from in the console (G1). */
-export const GOLF_LEADERBOARD_RULES = ['golf_gross', 'golf_net', 'stroke_total'] as const;
+export const GOLF_LEADERBOARD_RULES = ['golf_gross', 'golf_net', 'stroke_total', 'golf_points'] as const;
 
 const SPORT_DEFAULT_LEADERBOARD_RULE: Record<string, string> = {
   golf: 'stroke_total',

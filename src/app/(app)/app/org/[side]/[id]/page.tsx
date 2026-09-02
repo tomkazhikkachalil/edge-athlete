@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState, Fragment, type ReactNode } from 'react';
+import { previewPoints } from '@/lib/competitions/golf-points';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/lib/auth';
@@ -214,8 +215,11 @@ export default function OrgConsolePage() {
   const [compDivisionId, setCompDivisionId] = useState('');
   const [compSport, setCompSport] = useState('ice_hockey');
   // G1: golf leaderboards pick their scoring rule + counting round.
-  const [compScoringRule, setCompScoringRule] = useState<'golf_gross' | 'golf_net' | 'stroke_total'>('golf_net');
+  const [compScoringRule, setCompScoringRule] = useState<'golf_gross' | 'golf_net' | 'stroke_total' | 'golf_points'>('golf_net');
   const [compGolfPick, setCompGolfPick] = useState<'first' | 'best'>('first');
+  // Phase 7 C6: FedEx-style season points — the table and the base strokes.
+  const [compPointsPreset, setCompPointsPreset] = useState<'pga' | 'linear'>('pga');
+  const [compPointsScore, setCompPointsScore] = useState<'gross' | 'net'>('net');
   const [compPublic, setCompPublic] = useState(false);
   const [entriesCompetitionId, setEntriesCompetitionId] = useState<string | null>(null);
   // Phase 4 R1 (club side only): competitions this club's teams are
@@ -841,7 +845,17 @@ export default function OrgConsolePage() {
           format: compFormat,
           visibility: compPublic ? 'public' : 'private',
           ...(compFormat === 'leaderboard' && compSport === 'golf'
-            ? { scoringRule: compScoringRule, config: { golf: { pick: compGolfPick } } }
+            ? {
+                scoringRule: compScoringRule,
+                config: {
+                  golf: {
+                    pick: compGolfPick,
+                    ...(compScoringRule === 'golf_points'
+                      ? { points: compPointsPreset, score: compPointsScore }
+                      : {}),
+                  },
+                },
+              }
             : {}),
         }),
       },
@@ -1678,14 +1692,43 @@ export default function OrgConsolePage() {
                 <>
                   <select
                     value={compScoringRule}
-                    onChange={e => setCompScoringRule(e.target.value as 'golf_gross' | 'golf_net' | 'stroke_total')}
+                    onChange={e => setCompScoringRule(e.target.value as 'golf_gross' | 'golf_net' | 'stroke_total' | 'golf_points')}
                     aria-label="Scoring rule"
                     className="px-3 py-2 border border-border-strong rounded-md outline-none text-sm"
                   >
                     <option value="golf_net">Net strokes (handicap)</option>
                     <option value="golf_gross">Gross strokes</option>
                     <option value="stroke_total">Strokes (plain total)</option>
+                    <option value="golf_points">Season points (FedEx-style)</option>
                   </select>
+                  {compScoringRule === 'golf_points' && (
+                    <>
+                      <select
+                        value={compPointsPreset}
+                        onChange={e => setCompPointsPreset(e.target.value as 'pga' | 'linear')}
+                        aria-label="Points table"
+                        className="max-w-full px-3 py-2 border border-border-strong rounded-md outline-none text-sm"
+                      >
+                        <option value="pga">PGA table (100, 75, 60 …)</option>
+                        <option value="linear">Linear (last place 1, +1 per place)</option>
+                      </select>
+                      <select
+                        value={compPointsScore}
+                        onChange={e => setCompPointsScore(e.target.value as 'gross' | 'net')}
+                        aria-label="Points base score"
+                        className="max-w-full px-3 py-2 border border-border-strong rounded-md outline-none text-sm"
+                      >
+                        <option value="net">Rank on net strokes</option>
+                        <option value="gross">Rank on gross strokes</option>
+                      </select>
+                      <div className="basis-full min-w-0 break-words text-xs text-muted" aria-label="Points preview">
+                        {previewPoints(compPointsPreset, 10)
+                          .map(p => `${p.position}${p.position === 1 ? 'st' : p.position === 2 ? 'nd' : p.position === 3 ? 'rd' : 'th'} ${p.points}`)
+                          .join(' · ')}
+                        {compPointsPreset === 'linear' ? ' (for a field of 20)' : ' · ties share'}
+                      </div>
+                    </>
+                  )}
                   <select
                     value={compGolfPick}
                     onChange={e => setCompGolfPick(e.target.value as 'first' | 'best')}

@@ -9,6 +9,8 @@
 // never reaches a row. Completed rounds only — the board is the
 // confirmed record, like the standings.
 
+import { awardRoundPoints, type PointsPreset } from './golf-points';
+
 export interface GolfLeaderInputRow {
   contestId: string;
   contestRound: string | null;
@@ -50,6 +52,9 @@ export function buildGolfLeaderBoards(input: {
   /** Masked name per entry id; null/absent = omitted (supervised). */
   nameByEntry: Map<string, string | null>;
   scoringRule: string | null;
+  /** C6: set on a points league — adds "Most points" (per-round awards
+   *  over the rows' rule score, summed per entrant). */
+  pointsPreset?: PointsPreset | null;
   top?: number;
 }): GolfLeaderBoard[] {
   const top = input.top ?? 5;
@@ -111,6 +116,24 @@ export function buildGolfLeaderBoards(input: {
   );
   if (bestRows.length) {
     boards.push({ label: 'Best week', valueLabel: input.scoringRule === 'golf_net' ? 'Net' : 'Gross', rows: bestRows });
+  }
+  if (input.pointsPreset) {
+    const byContest = new Map<string, GolfLeaderInputRow[]>();
+    for (const r of rows) {
+      if (!byContest.has(r.contestId)) byContest.set(r.contestId, []);
+      byContest.get(r.contestId)!.push(r);
+    }
+    const totals = new Map<string, number>();
+    for (const contestRows of byContest.values()) {
+      for (const a of awardRoundPoints(contestRows.map(r => ({ entry_id: r.entryId, score: r.score })), input.pointsPreset)) {
+        totals.set(a.entry_id, (totals.get(a.entry_id) ?? 0) + a.points);
+      }
+    }
+    const pointRows: GolfLeaderRow[] = [...totals.entries()].map(([entryId, value]) => ({
+      name: name(entryId)!,
+      value: Math.round(value * 100) / 100,
+    }));
+    if (pointRows.length) boards.unshift({ label: 'Most points', valueLabel: 'PTS', rows: topN(pointRows, 'desc', top) });
   }
   return boards;
 }

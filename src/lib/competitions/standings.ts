@@ -8,6 +8,7 @@
 // the §12 scale risk is bounded HERE, not at the callers.
 
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { awardRoundPoints, parseGolfPointsConfig } from './golf-points';
 import {
   computeFixtureStandings,
   computeLeaderboardStandings,
@@ -58,7 +59,7 @@ export async function recomputeStandings(
   try {
     const { data: comp } = await admin
       .from('competitions')
-      .select('id, format, sport_key, scoring_rule')
+      .select('id, format, sport_key, scoring_rule, config')
       .eq('id', competitionId)
       .maybeSingle();
     if (!comp) return null;
@@ -117,14 +118,30 @@ export async function recomputeStandings(
       const rule = resolveFixtureRule(comp.sport_key as string, comp.scoring_rule as string | null);
       rows = computeFixtureStandings(entryIds, contestInputs, rule);
     } else {
-      const contestInputs: LeaderboardContestInput[] = contestIds.map(id => ({
-        status: statusOf.get(id) ?? 'scheduled',
-        scores: sidesByContest.get(id) ?? [],
-      }));
       const rule = resolveLeaderboardRule(
         comp.sport_key as string,
         comp.scoring_rule as string | null
       );
+      // C6: a points league — each round's STROKES become POINTS by
+      // finishing position (ties share), and a win rides as a stat. The
+      // stored score stays strokes; points exist only in this table.
+      const pointsPreset = rule.key === 'golf_points' ? parseGolfPointsConfig(comp.config).preset : null;
+      const contestInputs: LeaderboardContestInput[] = contestIds.map(id => {
+        const sides = sidesByContest.get(id) ?? [];
+        if (!pointsPreset) return { status: statusOf.get(id) ?? 'scheduled', scores: sides };
+        const awards = new Map(awardRoundPoints(sides, pointsPreset).map(a => [a.entry_id, a]));
+        return {
+          status: statusOf.get(id) ?? 'scheduled',
+          scores: sides.map(side => {
+            const award = awards.get(side.entry_id);
+            return {
+              entry_id: side.entry_id,
+              score: award ? award.points : null,
+              stats: { ...side.stats, win: award && award.position === 1 ? 1 : 0 },
+            };
+          }),
+        };
+      });
       rows = computeLeaderboardStandings(entryIds, contestInputs, rule);
     }
 

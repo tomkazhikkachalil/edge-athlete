@@ -1,5 +1,62 @@
 # Development Log
 
+## September 2, 2026 — Phase 7 C6: club sign-up, part 6 — FedEx-style season points: a `golf_points` league ranks rounds on strokes and awards points by place (#532, zero DDL)
+
+The last piece of Tom's PGA brief: season points. A `golf_points` league
+scores each round in STROKES (gross or net, per config) and awards points
+by finishing position; the season table sums the points, highest wins.
+
+- **Points are DERIVED at recompute, never stored** (`golf-points.ts`,
+  pure): a stored `payload.points` would be auto-summed into stats by the
+  recompute's `numericKeys`, and points are relational — one late round
+  re-ranks the whole week. `PGA_POINTS` (100, 75, 60 … 2 for 30th, 1
+  after), `pointsForPosition(preset, position, finishers)` (`linear` =
+  last place 1, one more per place), `awardRoundPoints(scores, preset)`
+  — ascending by strokes, **ties share the mean of the tied positions**
+  (a two-way tie for 1st = 87.5 each; `competition_standings.points` is
+  numeric — mig 153), unscored entrants get nothing;
+  `parseGolfPointsConfig` reads `config.golf.{points, score}`
+  (defaults: PGA table on net). `previewPoints` for the console.
+- **The rule**: `LEADERBOARD_RULES.golf_points` (desc; RDS / PTS / W /
+  GRS; `sumStats: gross, win`), offered to golf leaderboards.
+  `standings.ts` selects `config` and, for a points league, turns each
+  round's scores into points (+ a `win` stat) BEFORE
+  `computeLeaderboardStandings` sums them. The stored `contest_results
+  .score` stays strokes: `roundRuleFor(scoringRule, config)`
+  (`golf-league.ts`) resolves the ROUND rule — a points league writes
+  net or gross per its config — and every reader that keyed on
+  `golf_net` (the sync, the member "Your week", the public week block,
+  the leaders) goes through it.
+- **Public**: `PublicGolfWeekResult.points` on a points league's weeks
+  (the week's results, ranked on the round rule, awarded per preset —
+  the public field's points; the recompute is the authority), a PTS
+  column on the week table; `buildGolfLeaderBoards` gains "Most points"
+  (first on the list) when a preset is set; the standings table draws
+  the PTS / W / GRS columns blindly through the existing column engine.
+  `competitions/validate.ts` config widens to `golf.{pick, score?,
+  points?}`.
+- **Console**: scoring rule "Season points (FedEx-style)" with a points
+  table (PGA / Linear), a base score (net / gross) and a 10-place
+  preview ("1st 100 · 2nd 75 · 3rd 60 …", ties share); the POST config
+  carries `points` + `score`. Kept inside 375px (short option labels,
+  `max-w-full`).
+- e2e `golf-season-points.spec.ts`: a `golf_points` (PGA, gross) league
+  → two API rounds → Week 1 78/82 → standings 100 / 75, `stats.win`
+  1 / 0, `stats.gross`, the stored scores still 78 / 82 with no points
+  in the payload → Week 2 a tie at 80 → 87.5 each, totals 187.5 / 162.5,
+  wins 2 / 1 → the public standings payload draws RDS / PTS / W / GRS,
+  rows[0] 187.5, week 2 results 87.5 / 87.5, week 1 [78, 100] / [82, 75]
+  → the published site's leaders page says "Most points" and 187.5 →
+  the console at 375px offers the rule, its preview switches PGA →
+  linear. Regressions green vs the live DB: golf-league-sync,
+  golf-league-rules, org-leaderboard, golf-league-weeks,
+  org-site-golf-leaders, org-console-golf. C4 + C5 prod-proven earlier
+  today (pending-build + golf-console specs vs the deployed build).
+
+Phase 7 (club sign-up) is CODE COMPLETE with this round: C1 door → C2
+golf wizard (174) → C3 PGA shape → C4 build while waiting (175) → C5
+golf-first console → C6 season points.
+
 ## September 2, 2026 — Phase 7 C5: club sign-up, part 5 — the golf-first console: Website and courses on top, "Leagues & events", a golf checklist (#531, zero DDL)
 
 A golf club's console opened on Roster / Seasons / Teams and put Website
