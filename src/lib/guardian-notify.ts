@@ -46,7 +46,10 @@ export type GuardianNotificationType =
   // round counted / the week is final / the window closes tomorrow.
   | 'golf_league_round_counted'
   | 'golf_league_round_confirmed'
-  | 'golf_league_window_closing';
+  | 'golf_league_window_closing'
+  // Phase 6e S6: an org's announcement, copied to a supervised member's guardians.
+  | 'league_update'
+  | 'club_update';
 
 export interface GuardianNotification {
   type: GuardianNotificationType;

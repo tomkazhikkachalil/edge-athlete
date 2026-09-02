@@ -285,6 +285,13 @@ export default function OrgConsolePage() {
   const [heroNoticeUntil, setHeroNoticeUntil] = useState('');
   // Phase 6e S2: per-course photos (the `courses` module config).
   const [coursePhotos, setCoursePhotos] = useState<Record<string, string>>({});
+  // Phase 6e S6: announce to members (a megaphone — bells every member,
+  // optionally mirrored to the site's notice band).
+  const [announceTitle, setAnnounceTitle] = useState('');
+  const [announceMessage, setAnnounceMessage] = useState('');
+  const [announceOnSite, setAnnounceOnSite] = useState(false);
+  const [announceUntil, setAnnounceUntil] = useState('');
+  const [announceBusy, setAnnounceBusy] = useState(false);
   const [contactAddress, setContactAddress] = useState<string[]>(['', '', '']);
   const [contactHours, setContactHours] = useState('');
   const [contactDirections, setContactDirections] = useState('');
@@ -3041,6 +3048,91 @@ export default function OrgConsolePage() {
                       Remove
                     </button>
                   )}
+                </div>
+              </div>
+              {/* S6: announce to members — every member is belled (guardians
+                  of supervised members too); optionally the title becomes
+                  the site's notice band until a day. Rate-limited: a
+                  megaphone, not a chat. */}
+              <div className="pt-2 space-y-1.5">
+                <p className="text-sm font-medium text-primary">Announce to members</p>
+                <div className="flex flex-wrap gap-2">
+                  <input
+                    type="text"
+                    value={announceTitle}
+                    onChange={e => setAnnounceTitle(e.target.value)}
+                    maxLength={80}
+                    placeholder="Title (e.g. Rain-out: Week 3 extended to Sunday)"
+                    aria-label="Announcement title"
+                    className="px-3 py-2 border border-border-strong rounded-md outline-none text-sm min-w-0 flex-1"
+                  />
+                </div>
+                <textarea
+                  value={announceMessage}
+                  onChange={e => setAnnounceMessage(e.target.value)}
+                  maxLength={500}
+                  rows={3}
+                  placeholder="The message every member receives."
+                  aria-label="Announcement message"
+                  className="w-full px-3 py-2 border border-border-strong rounded-md outline-none text-sm"
+                />
+                <div className="flex flex-wrap items-center gap-2">
+                  <label className="flex items-center gap-2 text-sm text-secondary">
+                    <input
+                      type="checkbox"
+                      checked={announceOnSite}
+                      onChange={e => setAnnounceOnSite(e.target.checked)}
+                      aria-label="Also show on the site"
+                    />
+                    Also show on the site until
+                  </label>
+                  <input
+                    type="date"
+                    value={announceUntil}
+                    onChange={e => setAnnounceUntil(e.target.value)}
+                    disabled={!announceOnSite}
+                    aria-label="Show on the site until"
+                    className="px-3 py-2 border border-border-strong rounded-md outline-none text-sm disabled:opacity-50"
+                  />
+                  <button
+                    type="button"
+                    disabled={announceBusy || !announceTitle.trim() || !announceMessage.trim() || (announceOnSite && !announceUntil)}
+                    onClick={async () => {
+                      setAnnounceBusy(true);
+                      try {
+                        const res = await fetch(`/api/${plural}/${orgId}/announce`, {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({
+                            title: announceTitle.trim(),
+                            message: announceMessage.trim(),
+                            ...(announceOnSite && announceUntil ? { siteNoticeUntil: announceUntil } : {}),
+                          }),
+                        });
+                        const body = await res.json().catch(() => ({}));
+                        if (!res.ok) {
+                          showError('Announce', body.error || 'Failed to send the announcement');
+                          return;
+                        }
+                        showSuccess(
+                          'Announce',
+                          `Sent to ${body.sent ?? 0} ${body.sent === 1 ? 'member' : 'members'}${body.siteNotice ? ' · shown on the site' : ''}`
+                        );
+                        setAnnounceTitle('');
+                        setAnnounceMessage('');
+                        setAnnounceOnSite(false);
+                        setAnnounceUntil('');
+                        if (body.siteNotice) refresh();
+                      } catch {
+                        showError('Announce', 'Failed to send the announcement');
+                      } finally {
+                        setAnnounceBusy(false);
+                      }
+                    }}
+                    className="px-3 py-1.5 text-sm min-h-[36px] rounded-lg bg-brand text-white font-medium hover:bg-brand-hover transition-colors disabled:opacity-50"
+                  >
+                    Send announcement
+                  </button>
                 </div>
               </div>
               {/* R3 branding editors — flat inline forms (house pattern,

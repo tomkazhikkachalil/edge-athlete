@@ -104,6 +104,8 @@ export const RATE_LIMITS = {
   'org-competitions': { max: 120, windowSeconds: 3600, keyBy: 'user' },
   // Site create/publish (phase 3) — rare, deliberate actions.
   'org-site': { max: 30, windowSeconds: 3600, keyBy: 'user' },
+  // Phase 6e S6: announce to members — a megaphone, a few a day.
+  'org-announce': { max: 5, windowSeconds: 86400, keyBy: 'user' },
   // Page CRUD (phase 3 R3) — its own bucket: a save-happy block-editor
   // session must not burn the 30/h org-site budget.
   'org-site-pages': { max: 120, windowSeconds: 3600, keyBy: 'user' },
