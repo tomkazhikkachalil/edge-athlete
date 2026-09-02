@@ -16,6 +16,7 @@ import {
   type CatalogRow,
 } from '@/lib/golf/course-catalog';
 import { getCourseHoleGeometry } from '@/lib/golf/hole-geometry';
+import { orgSitePath } from '@/lib/org-sites/urls';
 
 // ── GET /api/golf/courses ────────────────────────────────────────────────────
 // The course picker's data source, over the golf_courses catalog (migration
@@ -65,7 +66,17 @@ export async function GET(request: NextRequest) {
       if (!row) {
         return NextResponse.json({ error: 'Course not found' }, { status: 404 });
       }
+      // ?home=1 — the info card's lightweight "Home of" read: no hydration
+      // (no provider budget spent), just the org link or nothing.
+      if (searchParams.get('home') === '1') {
+        const home = await findHomeOrg(admin, row);
+        return NextResponse.json(home ? { homeOf: home } : {});
+      }
       const course = await hydrateCourse(admin, row);
+      // Phase 6b A2: "Home of {org}" — the org whose venue recognized this
+      // course (169's club/course pair) and has a PUBLISHED site. Best-
+      // effort and additive; pre-169 or no link → absent.
+      const homeOf = await findHomeOrg(admin, row);
       // Multi-course clubs (migration 125): a row linked to a club also
       // reports the club and its sibling sections, so the picker can prompt
       // "which course/nines?". Additive — old clients ignore both fields.
@@ -82,6 +93,7 @@ export async function GET(request: NextRequest) {
         ]);
         return NextResponse.json({
           course,
+          ...(homeOf ? { homeOf } : {}),
           club: club ? { id: club.id, name: club.name } : undefined,
           siblings: (siblingRows ?? []).map(s => ({
             id: s.id,
@@ -92,7 +104,7 @@ export async function GET(request: NextRequest) {
           })),
         });
       }
-      return NextResponse.json({ course });
+      return NextResponse.json({ course, ...(homeOf ? { homeOf } : {}) });
     }
 
     // ── Explicit worldwide search: fetch → upsert → fall through to the
@@ -297,5 +309,50 @@ export async function GET(request: NextRequest) {
     if (error instanceof Response) return error;
     console.error('Golf courses API error:', error);
     return NextResponse.json({ error: 'Failed to search courses' }, { status: 500 });
+  }
+}
+
+/** The org (league or club) whose venue links this course, if it has a
+ *  published public site: `{ orgName, path }`. Never throws. */
+async function findHomeOrg(
+  admin: ReturnType<typeof getSupabaseAdmin>,
+  row: CatalogRow
+): Promise<{ orgName: string; path: string } | null> {
+  try {
+    const filter = row.club_id
+      ? `golf_club_id.eq.${row.club_id},golf_course_id.eq.${row.id}`
+      : `golf_course_id.eq.${row.id}`;
+    let venues = await admin
+      .from('venues')
+      .select('league_id, club_id')
+      // Both ids are UUIDs (getCatalogRow + the FK), so the filter carries
+      // no free text — the guardrail's interpolation advisory doesn't apply.
+      .or(filter)
+      .limit(5);
+    if (venues.error?.code === '42703' && row.club_id) {
+      venues = await admin
+        .from('venues')
+        .select('league_id, club_id')
+        .eq('golf_club_id', row.club_id)
+        .limit(5);
+    }
+    for (const v of venues.data ?? []) {
+      const side = v.league_id ? 'league' : v.club_id ? 'club' : null;
+      if (!side) continue;
+      const orgId = (v.league_id ?? v.club_id) as string;
+      const { data: site } = await admin
+        .from('org_sites')
+        .select('subdomain')
+        .eq(side === 'league' ? 'league_id' : 'club_id', orgId)
+        .not('published_at', 'is', null)
+        .maybeSingle();
+      if (!site?.subdomain) continue;
+      const { data: org } = await admin.from(side === 'league' ? 'leagues' : 'clubs').select('name').eq('id', orgId).maybeSingle();
+      if (!org?.name) continue;
+      return { orgName: org.name as string, path: orgSitePath(site.subdomain as string) };
+    }
+    return null;
+  } catch {
+    return null;
   }
 }

@@ -20,6 +20,8 @@ import { publicDisplayName, type MaskableProfile } from '@/lib/orgs/public-names
 import { listAffiliations } from '@/lib/affiliations/server';
 import { type OrgEvent } from '@/lib/calendar/org-events-server';
 import { isMissingTableError, MODULE_SUBPAGE_KEYS } from './validate';
+import { CATALOG_ROW_COLUMNS, rowToCourse, type CatalogRow } from '@/lib/golf/course-catalog';
+import type { GolfCourse } from '@/types/golf';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- matches the authz.ts Admin alias; schema-agnostic helper
 type Admin = SupabaseClient<any, 'public', any>;
@@ -424,7 +426,7 @@ export async function fetchPublicPage(
 export interface SitemapSiteEntry {
   subdomain: string;
   lastModified: string | null;
-  moduleKeys: string[]; // enabled subpage modules (news/standings/schedule/teams)
+  moduleKeys: string[]; // enabled subpage modules (news/standings/schedule/teams/gallery/courses)
   pageSlugs: string[]; // public custom pages
   teamIds: string[]; // active teams, only when the teams module is enabled
   newsSlugs: string[]; // published posts, only when the news module is enabled
@@ -731,4 +733,86 @@ export async function fetchPublicNewsPost(
     publishedAt: data.published_at as string,
     body: data.body,
   };
+}
+
+// ── Courses (phase 6b A2) ───────────────────────────────────────────────────
+// The golf club page's public half: the catalog courses a manager
+// recognized on the org's venues (169's golf_club_id / golf_course_id
+// pair — a linked club contributes EVERY section/nine, a linked course
+// contributes itself). Pure reference data (no people); the description's
+// CC BY-SA attribution rides along because it MUST render wherever the
+// description does.
+
+export interface PublicCourse {
+  venueName: string;
+  course: GolfCourse;
+}
+
+export async function fetchPublicCourses(
+  admin: Admin,
+  side: OrgSide,
+  orgId: string
+): Promise<PublicCourse[]> {
+  let res: { data: unknown[] | null; error: { code?: string } | null } = await admin
+    .from('venues')
+    .select('id, name, golf_club_id, golf_course_id')
+    .eq(orgColumn(side), orgId)
+    .order('name', { ascending: true })
+    .limit(50);
+  // Pre-169 database: no golf_course_id column — fall back to the club link.
+  if (res.error?.code === '42703') {
+    res = await admin
+      .from('venues')
+      .select('id, name, golf_club_id')
+      .eq(orgColumn(side), orgId)
+      .order('name', { ascending: true })
+      .limit(50);
+  }
+  if (degraded('courses', res.error) || !res.data || res.data.length === 0) return [];
+  const venues = res.data as {
+    id: string;
+    name: string;
+    golf_club_id: string | null;
+    golf_course_id?: string | null;
+  }[];
+
+  const clubIds = [...new Set(venues.map(v => v.golf_club_id).filter((id): id is string => !!id))];
+  const courseIds = [
+    ...new Set(venues.map(v => v.golf_course_id ?? null).filter((id): id is string => !!id)),
+  ];
+  if (clubIds.length === 0 && courseIds.length === 0) return [];
+
+  const [byClub, byId] = await Promise.all([
+    clubIds.length
+      ? admin
+          .from('golf_courses')
+          .select(CATALOG_ROW_COLUMNS)
+          .in('club_id', clubIds)
+          .order('section_name', { ascending: true })
+          .limit(40)
+      : Promise.resolve({ data: [] as unknown[], error: null }),
+    courseIds.length
+      ? admin.from('golf_courses').select(CATALOG_ROW_COLUMNS).in('id', courseIds)
+      : Promise.resolve({ data: [] as unknown[], error: null }),
+  ]);
+  if (degraded('courses rows', byClub.error) || degraded('courses rows', byId.error)) return [];
+
+  const clubRows = new Map<string, CatalogRow[]>();
+  for (const row of (byClub.data ?? []) as unknown as CatalogRow[]) {
+    const clubId = row.club_id as string;
+    if (!clubRows.has(clubId)) clubRows.set(clubId, []);
+    clubRows.get(clubId)!.push(row);
+  }
+  const idRows = new Map(((byId.data ?? []) as unknown as CatalogRow[]).map(r => [r.id, r]));
+
+  const out: PublicCourse[] = [];
+  for (const v of venues) {
+    const rows = v.golf_club_id
+      ? (clubRows.get(v.golf_club_id) ?? [])
+      : v.golf_course_id && idRows.has(v.golf_course_id)
+        ? [idRows.get(v.golf_course_id)!]
+        : [];
+    for (const row of rows) out.push({ venueName: v.name, course: rowToCourse(row) });
+  }
+  return out;
 }

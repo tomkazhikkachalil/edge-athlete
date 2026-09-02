@@ -1,4 +1,6 @@
-'use client';
+// NO 'use client' on purpose (phase 6b A2): this table has no hooks or
+// handlers, so it renders as a server component inside the (public) org
+// segment (the courses module) and as plain markup inside client cards.
 
 // The official scorecard: the tee-sheet table golfers know — holes across,
 // Par / handicap (stroke index) rows, then one yardage row per tee in

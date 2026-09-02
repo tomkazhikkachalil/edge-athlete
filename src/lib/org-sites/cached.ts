@@ -6,6 +6,7 @@ import { fetchOrgEvents, type OrgEvent } from '@/lib/calendar/org-events-server'
 import { getPublicSiteBySlug, type PublicSite } from './server';
 import {
   fetchPublicAffiliations,
+  fetchPublicCourses,
   fetchPublicGallery,
   fetchPublicNewsList,
   fetchPublicOpenWindows,
@@ -18,6 +19,7 @@ import {
   fetchPublicVenues,
   fetchPublishedSitesForSitemap,
   type PublicAffiliation,
+  type PublicCourse,
   type PublicGalleryItem,
   type PublicNewsItem,
   type PublicOpenWindow,
@@ -174,4 +176,15 @@ export const getCachedPage = (
 ): Promise<PublicPageRow | null> =>
   perSlug(['org-site-page', slug, pageSlug], slug, () =>
     fetchPublicPage(getSupabaseAdmin(), siteId, pageSlug)
+  );
+
+// Phase 6b A2: the golf club's linked catalog courses (pure reference
+// data; side/orgId are 1:1 with slug — safe in the closure).
+export const getCachedCourses = (
+  slug: string,
+  side: OrgSide,
+  orgId: string
+): Promise<PublicCourse[]> =>
+  perSlug(['org-site-courses', slug], slug, () =>
+    fetchPublicCourses(getSupabaseAdmin(), side, orgId)
   );
