@@ -9,6 +9,7 @@
  */
 
 import { z } from 'zod';
+import { TEMPLATE_IDS } from './templates';
 
 export { isMissingTableError } from '@/lib/leagues/validate';
 
@@ -352,6 +353,10 @@ export const SitePatchSchema = z.union([
     surface: z.enum(THEME_SURFACES).optional(),
     typeface: z.enum(THEME_TYPEFACES).optional(),
     wordmark: optionalTrimmed(WORDMARK_MAX),
+  }),
+  z.object({
+    action: z.literal('set_template'),
+    templateId: z.enum(TEMPLATE_IDS),
   }),
   z.object({
     action: z.literal('set_nav'),

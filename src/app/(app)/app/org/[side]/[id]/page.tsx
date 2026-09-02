@@ -20,6 +20,7 @@ import {
   parseThemeTokens,
 } from '@/lib/org-sites/validate';
 import { orgSitePath } from '@/lib/org-sites/urls';
+import { TEMPLATE_IDS, templateSpec } from '@/lib/org-sites/templates';
 import { SPORT_REGISTRY } from '@/lib/sports/SportRegistry';
 import OrgLogoUploader from '@/components/org/OrgLogoUploader';
 import PlacePicker, { type PlaceValue } from '@/components/PlacePicker';
@@ -227,6 +228,8 @@ export default function OrgConsolePage() {
     subdomain: string;
     published_at: string | null;
     logo_path?: string | null;
+    /** B2: the render template ('classic' | 'bold'); unknown → classic. */
+    template_id?: string | null;
   } | null>(null);
   // R2: the site's module rows — the Sections toggles (+R3: config).
   const [siteModules, setSiteModules] = useState<
@@ -2673,6 +2676,42 @@ export default function OrgConsolePage() {
                   >
                     Save hero
                   </button>
+                </div>
+              </div>
+              <div className="pt-2 space-y-1.5">
+                <p className="text-sm font-medium text-primary">Template</p>
+                <div className="grid gap-2 sm:grid-cols-2">
+                  {TEMPLATE_IDS.map(id => {
+                    const t = templateSpec(id);
+                    const current = templateSpec(site.template_id).id === id;
+                    return (
+                      <label
+                        key={id}
+                        className={`flex items-start gap-2 rounded-lg border p-3 text-sm cursor-pointer ${
+                          current ? 'border-brand bg-brand-soft' : 'border-border hover:bg-surface-sunken'
+                        }`}
+                      >
+                        <input
+                          type="radio"
+                          name="site-template"
+                          checked={current}
+                          aria-label={`${t.name} template`}
+                          onChange={() =>
+                            void siteAct(
+                              { action: 'set_template', templateId: id },
+                              `${t.name} template applied`,
+                              'Failed to change the template'
+                            )
+                          }
+                          className="mt-0.5"
+                        />
+                        <span>
+                          <span className="block font-medium text-primary">{t.name}</span>
+                          <span className="block text-xs text-tertiary">{t.description}</span>
+                        </span>
+                      </label>
+                    );
+                  })}
                 </div>
               </div>
               <div className="pt-2 space-y-1.5">

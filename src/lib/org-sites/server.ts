@@ -341,6 +341,31 @@ export async function sitePATCH(
     return NextResponse.json({ ok: true });
   }
 
+  if (input.action === 'set_template') {
+    // Phase 6b B2: the id is a render decision; the CHECK (170) admits it.
+    // Pre-170 the old CHECK rejects 'bold' with 23514 → a friendly 409.
+    const { data: updated, error } = await admin
+      .from('org_sites')
+      .update({ template_id: input.templateId })
+      .eq(orgColumn(side), orgId)
+      .select('id, subdomain');
+    if (error) {
+      if (error.code === '23514') {
+        return NextResponse.json(
+          { error: 'This template needs a database migration first (170)' },
+          { status: 409 }
+        );
+      }
+      console.error(`${TAG} template patch error:`, error);
+      return NextResponse.json({ error: 'Failed to update the template' }, { status: 500 });
+    }
+    if (!updated || updated.length === 0) {
+      return NextResponse.json({ error: 'Site not found' }, { status: 404 });
+    }
+    revalidateTag(`org-site:${updated[0].subdomain}`, { expire: 0 });
+    return NextResponse.json({ ok: true });
+  }
+
   if (input.action === 'set_nav') {
     // Phase 6b B1: nav_config (labels + display order) AND the module
     // rows' sort_order follow the same list — per-row UPDATE, never

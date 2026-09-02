@@ -29,6 +29,7 @@ import StandingsPreview from './StandingsPreview';
 import TeamsList from './TeamsList';
 import VenuesList from './VenuesList';
 import { orgSitePath } from '@/lib/org-sites/urls';
+import { FULL_WIDTH_MODULES, templateSpec } from '@/lib/org-sites/templates';
 
 // The site home's module rendering, extracted (cleanup round) so the
 // PUBLISHED home page and the token-gated draft PREVIEW render the exact
@@ -61,6 +62,15 @@ export default function SiteHomeBody({
   // B1: label overrides + wordmark (the header/hero name, never <title>).
   const nav = parseNavConfig(site.nav_config);
   const brandName = parseThemeTokens(site.theme_token_set).wordmark ?? site.orgName;
+  // B2: the template's render decisions (classic = the shipped markup).
+  const spec = templateSpec(site.template_id);
+  const compact = spec.density === 'compact';
+  const sectionClass = `bg-surface rounded-lg shadow-sm border border-border ${
+    compact ? 'p-3 sm:p-4' : 'p-4 sm:p-6'
+  }`;
+  const headingClass = compact
+    ? 'text-sm font-semibold uppercase tracking-wide text-secondary'
+    : 'text-lg font-semibold text-primary';
 
   const empty = (text: string) => <p className="mt-1 text-sm text-tertiary">{text}</p>;
 
@@ -85,7 +95,7 @@ export default function SiteHomeBody({
       case 'teams':
         return teams.length > 0 ? (
           <>
-            <TeamsList teams={teams.slice(0, 12)} slug={site.subdomain} />
+            <TeamsList teams={teams.slice(0, 12)} slug={site.subdomain} variant={spec.teams} />
             <Link
               href={`${orgSitePath(site.subdomain)}/teams`}
               className="mt-3 inline-block text-sm text-brand-fg font-medium"
@@ -163,30 +173,46 @@ export default function SiteHomeBody({
         // site's theme_token_set overrides via the layout's inline style).
         <section
           aria-label="Welcome"
-          className="rounded-xl px-6 py-10 text-white"
+          className={
+            spec.hero === 'bleed'
+              ? '-mx-4 px-6 py-14 sm:py-20 text-white'
+              : 'rounded-xl px-6 py-10 text-white'
+          }
           style={{
             backgroundImage:
               'linear-gradient(to right, var(--org-accent), var(--org-accent-strong))',
           }}
         >
-          <h1 className="text-2xl sm:text-3xl font-bold">{hero.headline || brandName}</h1>
-          <p className="mt-1 text-sm opacity-90">
+          <h1
+            className={
+              spec.hero === 'bleed'
+                ? 'text-3xl sm:text-5xl font-extrabold uppercase tracking-tight'
+                : 'text-2xl sm:text-3xl font-bold'
+            }
+          >
+            {hero.headline || brandName}
+          </h1>
+          <p className={spec.hero === 'bleed' ? 'mt-2 text-base opacity-90' : 'mt-1 text-sm opacity-90'}>
             {hero.tagline || 'Schedules, standings, and teams — live.'}
           </p>
         </section>
       )}
-      {enabled
-        .filter(m => m.module_key !== 'hero')
-        .map(m => (
-          <section
-            key={m.module_key}
-            aria-label={moduleLabel(m.module_key, nav)}
-            className="bg-surface rounded-lg shadow-sm border border-border p-4 sm:p-6"
-          >
-            <h2 className="text-lg font-semibold text-primary">{moduleLabel(m.module_key, nav)}</h2>
-            {moduleBody(m.module_key)}
-          </section>
-        ))}
+      <div className={spec.sections === 'grid' ? 'grid gap-6 sm:grid-cols-2' : 'space-y-6'}>
+        {enabled
+          .filter(m => m.module_key !== 'hero')
+          .map(m => (
+            <section
+              key={m.module_key}
+              aria-label={moduleLabel(m.module_key, nav)}
+              className={`${sectionClass} ${
+                spec.sections === 'grid' && FULL_WIDTH_MODULES.has(m.module_key) ? 'sm:col-span-2' : ''
+              }`}
+            >
+              <h2 className={headingClass}>{moduleLabel(m.module_key, nav)}</h2>
+              {moduleBody(m.module_key)}
+            </section>
+          ))}
+      </div>
     </div>
   );
 }

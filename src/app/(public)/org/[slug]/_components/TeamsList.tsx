@@ -9,10 +9,13 @@ export default function TeamsList({
   teams,
   slug,
   detailed = false,
+  variant = 'chips',
 }: {
   teams: PublicTeam[];
   slug: string;
   detailed?: boolean;
+  /** B2: the home render — chips (classic) or a tile grid (bold). */
+  variant?: 'chips' | 'tiles';
 }) {
   if (detailed) {
     return (
@@ -31,6 +34,26 @@ export default function TeamsList({
           </li>
         ))}
       </ul>
+    );
+  }
+  if (variant === 'tiles') {
+    return (
+      <div className="mt-3 grid grid-cols-2 sm:grid-cols-3 gap-2">
+        {teams.map(t => (
+          <Link
+            key={t.id}
+            href={`${orgSitePath(slug)}/teams/${t.id}`}
+            className="block rounded-lg border border-border bg-canvas px-3 py-3 text-sm font-semibold text-primary"
+          >
+            {t.name}
+            {t.divisionLabels.length > 0 ? (
+              <span className="mt-0.5 block text-xs font-normal text-tertiary">
+                {t.divisionLabels[0]}
+              </span>
+            ) : null}
+          </Link>
+        ))}
+      </div>
     );
   }
   return (
