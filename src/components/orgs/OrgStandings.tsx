@@ -3,6 +3,8 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import GolfWeeks from '@/components/standings/GolfWeeks';
+import PointsRaceTable from '@/components/standings/PointsRaceTable';
+import type { PointsRace } from '@/lib/competitions/golf-race';
 import type { PublicGolfBlock } from '@/lib/competitions/golf-weeks';
 
 // The org page's standings section (phase 2 R3) — public competitions'
@@ -29,6 +31,7 @@ interface CompetitionStandings {
   entrant_type?: string;
   /** W1: the golf week-to-week block (present only for windowed rounds). */
   golf?: PublicGolfBlock;
+  race?: PointsRace;
 }
 
 interface OrgStandingsProps {
@@ -120,6 +123,7 @@ export default function OrgStandings({ side, orgId }: OrgStandingsProps) {
             </div>
             )}
             {comp.golf && <GolfWeeks golf={comp.golf} competitionId={comp.id} />}
+            {comp.race && <PointsRaceTable race={comp.race} competitionId={comp.id} />}
           </div>
         ))}
       </div>
