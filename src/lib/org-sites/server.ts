@@ -679,6 +679,67 @@ export async function sitePATCH(
     return NextResponse.json({ ok: true });
   }
 
+  if (input.action === 'set_gallery_pick' || input.action === 'remove_gallery_pick') {
+    // M2: the picks live in the gallery module's config — the
+    // set_course_photo recipe (UPDATE-then-insert, never upsert), with the
+    // member-photo gate re-run BEFORE a pick is stored (the site need not
+    // be live yet; nothing streams until it is, and public).
+    const { data: site } = await admin
+      .from('org_sites')
+      .select('id, subdomain')
+      .eq(orgColumn(side), orgId)
+      .maybeSingle();
+    if (!site) return NextResponse.json({ error: 'Site not found' }, { status: 404 });
+    const { data: row } = await admin
+      .from('org_site_modules')
+      .select('config')
+      .eq('site_id', site.id)
+      .eq('module_key', 'gallery')
+      .maybeSingle();
+    const { readGalleryPicks, evaluateMemberPhotos, GALLERY_PICKS_MAX } = await import('./member-photo-gate');
+    const current = readGalleryPicks(row?.config).filter(p => p.mediaId !== input.mediaId);
+    let picks = current;
+    if (input.action === 'set_gallery_pick') {
+      const [eligible] = await evaluateMemberPhotos(admin, site.id, [input.mediaId], { requirePick: false, requireLive: false });
+      if (!eligible) {
+        return NextResponse.json(
+          { error: 'That photo can’t go on the site: it must be on a member’s public round post, and the member must have opted in' },
+          { status: 400 }
+        );
+      }
+      picks = [
+        { mediaId: eligible.mediaId, postId: eligible.postId, profileId: eligible.profileId, addedAt: new Date().toISOString() },
+        ...current,
+      ].slice(0, GALLERY_PICKS_MAX);
+    }
+    const config = { ...((row?.config as Record<string, unknown> | null) ?? {}), picks };
+    if (row) {
+      const { error } = await admin
+        .from('org_site_modules')
+        .update({ config })
+        .eq('site_id', site.id)
+        .eq('module_key', 'gallery');
+      if (error) {
+        console.error(`${TAG} gallery pick patch error:`, error);
+        return NextResponse.json({ error: 'Failed to update the gallery' }, { status: 500 });
+      }
+    } else {
+      const { error } = await admin.from('org_site_modules').insert({
+        site_id: site.id,
+        module_key: 'gallery',
+        enabled: false,
+        sort_order: MODULE_KEYS.indexOf('gallery'),
+        config,
+      });
+      if (error) {
+        console.error(`${TAG} gallery pick insert error:`, error);
+        return NextResponse.json({ error: 'Failed to update the gallery' }, { status: 500 });
+      }
+    }
+    revalidateTag(`org-site:${site.subdomain}`, { expire: 0 });
+    return NextResponse.json({ ok: true, picks: picks.length });
+  }
+
   if (input.action === 'set_module') {
     const { data: site } = await admin
       .from('org_sites')

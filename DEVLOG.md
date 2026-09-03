@@ -1,5 +1,91 @@
 # Development Log
 
+## September 3, 2026 — Program 10 M2 (N4 + N5): members' round photos on the club site — the member opts in, the manager curates, the gate re-decides every read (#548, zero DDL)
+
+The last PR of the program, and the one with rails. Tom's policy: the
+MEMBER opts in ("share my round photos with this club"), only photos on
+their PUBLIC round posts are candidates, a MANAGER picks which go on the
+site; minors never, private profiles never.
+
+### N4 — the opt-in and the manager's candidate browser
+- **A separate grant on the FOLLOW row.** `setPhotoConsent` takes a
+  `kind` (roster default); `setRoundPhotoConsent` / `roundPhotoConsentFor`
+  write and read the member's own follow membership. The contest
+  gallery gate and the guardian queue keep reading roster rows only — a
+  follow-row grant is invisible to them by design; the two grants are
+  never OR'd (a rostered member holds both rows and decides each).
+- **`/api/clubs/[id]/photo-consent`** (GET + PATCH, self only, member
+  required): a supervised member is 403 with the reason and reads as
+  ineligible — no guardian path here at all (minors never appear on a
+  club site). A flip purges the site so a revoke drops tiles within the
+  ISR window; the streamer refuses at once.
+- **`RoundPhotoConsentSwitch`** on the in-app club page ("Share my round
+  photos with this club" — public posts only, off any time; the switch
+  is optimistic and reverts on failure).
+- **`/api/clubs/[id]/site/photo-candidates`** (manager-gated): photos on
+  PUBLIC golf round posts (published, on a round, last 90 days) by
+  consenting, public, unsupervised members, with the current picks
+  marked; thumbnails ride the signed proxy. **`MemberPhotoPicker`** in
+  the console's Website section: Add to / Remove from gallery per photo.
+- **Picks live in the gallery module's config** (`{ picks: [{mediaId,
+  postId, profileId, addedAt}] }`, newest first, cap 80): `SitePatchSchema`
+  actions `set_gallery_pick` / `remove_gallery_pick` — the server re-runs
+  the gate BEFORE storing a pick (a photo on a private post is 400), the
+  UPDATE-then-insert recipe, the site tag purged.
+
+### N5 — the site: the gate, the gallery, the streamer, the player page
+- **`member-photo-gate.ts` — one function, three callers.** The five
+  keys, in order: the site published AND the club public (`readClubAccess`
+  — visibility lives on the clubs row); the gallery module on AND the
+  pick present (postId/profileId are hints — everything re-derived from
+  rows); the post public + published + golf + on a round; the author a
+  public, non-stub, UNSUPERVISED profile (`isPublicProfile`); the
+  author's active org-scope FOLLOW row with `photo_consent=true`. Every
+  miss ⇒ dropped, never a throw. `authorizePost` is deliberately not
+  reused (it ignores status and supervision). `readGalleryPicks` is pure
+  and tested.
+- **`fetchPublicGallery`** now returns the members' picks FIRST, then
+  the contest media — and independently of the contest branch's
+  "no public competitions" early return (a golf club rarely has one).
+  Captions: the round's course + date; the credit is the author's
+  `publicDisplayName` (they passed `isPublicProfile`, so their real name).
+- **`/api/media/org-gallery/[siteId]/[mediaId]`** — the tokenless public
+  streamer: the gate per request, a 60s signed URL, the SHORT shared
+  cache (the contest-media precedent). A consent revoke, a post made
+  private, or a club gone private stops the bytes at once even while a
+  stale ISR tile still links here (the tile follows on the ISR clock).
+  Allowlisted in the route-authz audit (`api-route-authz.test.ts`) with
+  its reason, the contest-media precedent — the first verify run caught
+  the missing entry.
+- **The player page** gains a Photos strip (`data-player-photos`): that
+  member's picked photos, the same gate.
+
+### Verification
+- e2e `club-photo-optin.spec.ts`: the switch off→on writes the FOLLOW
+  row (kind/consent/by); a supervised member is 403 + ineligible; two
+  round posts (public + private) with a stored object each
+  (`e2e/helpers/member-photos.ts` seeds the round, the post, the
+  post_media row and the object under `posts/{user}/`) → candidates list
+  the public one only, a member can't browse; the private one's pick is
+  400, the public one lands with post/profile ids, remove clears it; the
+  member's club page switch and the console's Add at 375px.
+- e2e `org-site-member-photos.spec.ts`: consent → post → pick → the
+  streamer 404s while the site is a draft → publish → the gallery tile +
+  the author's real first name + the bytes (200, short cache); revoke →
+  404 at once and the tile leaves on revalidate; re-consent → 200; the
+  post private → 404, public → 200; the club private → 404, public → 200;
+  375px. `org-site-players.spec.ts` gained the Photos strip (a player
+  page exists only for a golf-leaderboard member, so the strip is
+  asserted where a leaderboard is seeded).
+- Regressions green: org-site-gallery (the contest gate + revoke),
+  photo-consent (the roster grant), club-private-gates, org-site (5),
+  org-console-golf, org-site-modules, org-site-course-page.
+- Spec traps found: QA users are minted PRIVATE and handle-less — the
+  gate needs a public profile (restored in finally); the optimistic
+  switch reports "on" before the save lands — poll the API before a
+  console read depends on it; the seed upload can hit the same
+  "fetch failed" storage hiccup as the asset uploads (rerun).
+
 ## September 3, 2026 — Program 10 M1 (N3 + N6): the announcement archive with site Notices, and per-hole course photos (#547, zero DDL)
 
 Tom asked to combine the program's remaining four rounds into two PRs.

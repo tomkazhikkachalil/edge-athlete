@@ -13,6 +13,7 @@ import OrgUpcomingEvents from '@/components/affiliations/OrgUpcomingEvents';
 import OrgStandings from '@/components/orgs/OrgStandings';
 import ClubNewsCard from '@/components/orgs/ClubNewsCard';
 import OrgAnnouncementsCard from '@/components/orgs/OrgAnnouncementsCard';
+import RoundPhotoConsentSwitch from '@/components/orgs/RoundPhotoConsentSwitch';
 import GolfYourWeek from '@/components/orgs/GolfYourWeek';
 import OrgVenues from '@/components/orgs/OrgVenues';
 import { orgSitePath } from '@/lib/org-sites/urls';
@@ -794,6 +795,9 @@ export default function ClubPage() {
 
         {/* N3: the announcement archive — members read every notice here. */}
         <OrgAnnouncementsCard side="club" orgId={club.id} isMember={!!viewerRole || isOwner} />
+
+        {/* M2: a member's own round-photo sharing switch (their follow row). */}
+        {viewerRole && <RoundPhotoConsentSwitch clubId={club.id} />}
 
         <OrgStandings side="club" orgId={club.id} scope={data.visibility === 'private' && viewerRole ? 'mine' : 'public'} />
 

@@ -47,6 +47,8 @@ const PUBLIC_ROUTES: Record<string, string> = {
     'public org-site logo streamer (phase 3 R3); resolves org_sites.logo_path itself and hard-asserts the org-logos/ prefix — can only ever serve org-authored public artwork',
   'media/org-media/[siteId]/[file]':
     'public org-site page-image streamer (phase 3 R3); key built server-side from strictly validated segments under the fixed org-media/ prefix — org-authored public-site content by construction',
+  'media/org-gallery/[siteId]/[mediaId]':
+    'public member-photo streamer for club sites (program 10 M2); anonymous by design but NOTHING is public by default — every request re-runs the member-photo gate (site published + club public, the manager’s pick, a public published round post, a public unsupervised author, the member’s follow-row photo_consent) before a 60s signed URL; the site is an anonymous ISR surface',
   'media/contest-media/[mediaId]':
     'anonymous public-gallery streamer (phase 4 R5); the full consent gate (published + public competition + every tag photo-consented) re-runs per request',
   'calendar/feed/[token]': 'capability URL; sha256 token lookup + supervised re-check',

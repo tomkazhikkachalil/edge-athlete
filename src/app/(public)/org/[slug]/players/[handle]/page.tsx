@@ -154,6 +154,21 @@ export default async function OrgSitePlayerPage({ params }: PageParams) {
         </section>
       )}
 
+      {player.photos.length > 0 && (
+        <section aria-label="Photos" className="bg-surface rounded-lg shadow-sm border border-border p-4 sm:p-6" data-player-photos={player.photos.length}>
+          <h2 className="text-lg font-semibold text-primary">Photos</h2>
+          <p className="text-xs text-muted">From public round posts, shared with the club.</p>
+          <ul className="mt-2 grid grid-cols-3 sm:grid-cols-4 gap-2">
+            {player.photos.map(photo => (
+              <li key={photo.mediaId} className="min-w-0">
+                {/* eslint-disable-next-line @next/next/no-img-element -- gate-checked streamer bytes; not an optimizable public asset */}
+                <img src={photo.url} alt={[photo.courseName, photo.date].filter(Boolean).join(', ') || 'Round photo'} loading="lazy" className="aspect-square w-full object-cover rounded-lg border border-border" />
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
       {player.recentRounds.length > 0 && (
         <section aria-label="Recent rounds" className="bg-surface rounded-lg shadow-sm border border-border p-4 sm:p-6">
           <h2 className="text-lg font-semibold text-primary">Recent rounds</h2>

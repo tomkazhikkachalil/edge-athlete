@@ -82,7 +82,13 @@ export async function setPhotoConsent(
   orgId: string,
   profileId: string,
   consent: boolean,
-  byUserId: string
+  byUserId: string,
+  /** M2 (program 10): which row carries the grant. 'roster' = the
+   *  contest-media grant (phase 4); 'follow' = the ROUND-PHOTO grant a
+   *  golf club member gives on their own membership row. Two separate
+   *  grants — never OR them (roster ⊆ follow, so a rostered member
+   *  holds both rows and decides each on its own). */
+  kind: 'roster' | 'follow' = 'roster'
 ): Promise<'ok' | 'no_row' | 'unavailable' | 'error'> {
   const { data, error } = await admin
     .from('memberships')
@@ -93,7 +99,7 @@ export async function setPhotoConsent(
     })
     .eq(orgColumn(side), orgId)
     .eq('profile_id', profileId)
-    .eq('kind', 'roster')
+    .eq('kind', kind)
     .eq('scope_type', 'org')
     .select('id');
   if (error) {
@@ -102,4 +108,46 @@ export async function setPhotoConsent(
     return 'error';
   }
   return (data ?? []).length > 0 ? 'ok' : 'no_row';
+}
+
+// ── M2 (program 10): the round-photo grant on the FOLLOW row ────────────────
+// "Share my round photos with this club": a member's own decision, stored
+// on their follow membership (golf club members are follow rows; rostering
+// stays manual). The contest gallery gate and the guardian queue keep
+// reading roster rows only — this grant is invisible to them by design.
+// Same fail-safe reads: anything but `true` on an active org-scope follow
+// row is "no".
+
+export function setRoundPhotoConsent(
+  admin: Admin,
+  side: OrgSide,
+  orgId: string,
+  profileId: string,
+  consent: boolean,
+  byUserId: string
+): Promise<'ok' | 'no_row' | 'unavailable' | 'error'> {
+  return setPhotoConsent(admin, side, orgId, profileId, consent, byUserId, 'follow');
+}
+
+export async function roundPhotoConsentFor(
+  admin: Admin,
+  side: OrgSide,
+  orgId: string,
+  profileId: string
+): Promise<boolean> {
+  try {
+    const { data, error } = await admin
+      .from('memberships')
+      .select('photo_consent')
+      .eq(orgColumn(side), orgId)
+      .eq('profile_id', profileId)
+      .eq('kind', 'follow')
+      .eq('scope_type', 'org')
+      .eq('status', 'active')
+      .limit(1);
+    if (error || !data || data.length === 0) return false;
+    return data[0].photo_consent === true;
+  } catch {
+    return false;
+  }
 }

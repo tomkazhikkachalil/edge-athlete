@@ -1,5 +1,10 @@
 import { test, expect } from '@playwright/test';
 import { adminClient, apiAs, createQaChild, deleteQaUser, guardianFlagOn, loadQaUser, resetRateBucket } from './helpers/qa-user';
+import { cleanRoundPost, seedRoundPost } from './helpers/member-photos';
+
+// M2 (program 10): the player page also carries the member's round photos
+// the manager picked for the gallery — seeded below on the public member.
+let photoSeed: Awaited<ReturnType<typeof seedRoundPost>> | null = null;
 
 // Phase 8 P2 — player pages. A club/league site gets a page per PUBLIC
 // player (public + claimed + unsupervised — Tom's decision), keyed by the
@@ -216,6 +221,25 @@ test('player pages: public member linked + paged; private member unlinked + 404;
     expect(standingsHtml).not.toContain(`/players/${alphaHandle}`);
     expect(standingsHtml).not.toContain('Casey M.');
 
+    // M2: the public member opts in, posts a public round photo, the manager
+    // picks it → the player page shows a Photos strip through the gated streamer.
+    {
+      let r = await ownerApi.patch(`/api/clubs/${clubId}/site`, { data: { action: 'set_module', moduleKey: 'gallery', enabled: true } });
+      expect(r.status(), await r.text()).toBe(200);
+      r = await ownerApi.patch(`/api/clubs/${clubId}/photo-consent`, { data: { consent: true } });
+      expect(r.status(), await r.text()).toBe(200);
+      photoSeed = await seedRoundPost(admin, owner.id, { stamp: String(stamp), visibility: 'public', course: `QA Photo Links ${stamp}` });
+      r = await ownerApi.patch(`/api/clubs/${clubId}/site`, { data: { action: 'set_gallery_pick', mediaId: photoSeed.mediaId } });
+      expect(r.status(), await r.text()).toBe(200);
+      const { data: siteRow } = await admin.from('org_sites').select('id').eq('club_id', clubId).single();
+      const streamer = `/api/media/org-gallery/${siteRow!.id as string}/${photoSeed.mediaId}`;
+      await expect
+        .poll(async () => { const pr = await anon.request.get(`/org/${subdomain}/players/${ownerHandle}`); return pr.ok() ? (await pr.text()).includes('data-player-photos="1"') : false; }, { timeout: 30_000, intervals: [1000, 2000, 3000] })
+        .toBe(true);
+      expect(await (await anon.request.get(`/org/${subdomain}/players/${ownerHandle}`)).text()).toContain(streamer);
+      expect((await anon.request.get(streamer)).status()).toBe(200);
+    }
+
     // The player page (and its twin): the public member; the private member 404s; a stranger 404s; the other org 404s.
     const playerRes = await anon.request.get(`/org/${subdomain}/players/${ownerHandle}`);
     expect(playerRes.status()).toBe(200);
@@ -270,6 +294,7 @@ test('player pages: public member linked + paged; private member unlinked + 404;
     await ownerApi.dispose();
     await admin.from('profiles').update({ visibility: priorVisibility, handle: priorHandles.owner }).eq('id', owner.id);
     await admin.from('profiles').update({ handle: priorHandles.alpha }).eq('id', alpha.id);
+    await cleanRoundPost(admin, photoSeed);
     await admin.from('clubs').delete().in('id', [clubId, otherClubId]);
     if (postIds.length) await admin.from('posts').delete().in('id', postIds);
     if (roundIds.length) await admin.from('golf_rounds').delete().in('id', roundIds);
