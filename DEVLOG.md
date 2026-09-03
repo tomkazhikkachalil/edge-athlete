@@ -1,5 +1,66 @@
 # Development Log
 
+## September 3, 2026 — Round 9: measure the phone before guessing again — /app/diag/media (zero DDL)
+
+After the reset (#571) went live, Tom's report turned over again: a restart
+made the camera "work better", then the library Upload did "nothing after
+picking", and camera photo AND video both failed — in Safari and Chrome. An
+hour earlier, on the round-7 build, the library had worked and the camera
+had not. The phone (iPhone 12 Pro Max, iOS 15) is the variable that changed.
+
+Tom asked two things. **Was the reset really live on the phone?** Yes: one
+build serves every device, there is no service worker or offline cache, the
+HTML is `no-store`, and the served chunks were downloaded and shown to carry
+none of the rounds' code (`/app/capture` → 404). **Why so many issues?**
+Honestly: (1) no visibility — no old-iOS runtime here and no on-device log,
+so every round was a hypothesis Tom tested for us; (2) iOS 15 WebKit is the
+weakest platform for in-browser media (the camera reloads the page under
+memory pressure, IndexedDB quirks, `createImageBitmap` EXIF and WebGL bugs)
+and this phone changed behaviour across a restart; (3) the app does real
+work on the client for media — full-resolution decode, a WebGL2 editor,
+canvas re-encode, metadata strip — exactly what a memory-starved old-iOS
+browser fails at; (4) the path changed several times in one day, so the
+reports were never comparable. Guessing against that produced eight rounds.
+
+This round ships a measurement instead. **`/app/diag/media`** (signed in,
+URL only, not linked) runs the same steps the composer runs, one at a time,
+timed, every failure caught, and prints a mono log to screenshot or copy:
+
+- environment: UA (iOS version + browser), viewport, WebGL2 + max texture,
+  `createImageBitmap` presence, an IndexedDB open with a 3s timeout (the
+  Safari 14/15 first-load hang shows as `TIMEOUT`), storage estimate, and
+  `window.onerror` / `unhandledrejection` hooks;
+- the SAME inputs the composer uses — `CaptureInputs` for the camera, a plain
+  `multiple` library input — logging `change` (ms after the tap), each file's
+  name/type/size, `validateFiles`;
+- both decoders, always: `createImageBitmap` and `<img>.decode`, dims + ms
+  or the thrown error; for video, `loadedmetadata` dims/duration with a 15s
+  timeout and the WebCodecs gate;
+- the editor's open path (`decodeImage` → `renderGeometry` → engine
+  `setSource`/`draw` on a hidden canvas) and the export bake (`renderImage`
+  at the canvas cap) — the two places "Edit media" can die;
+- an opt-in Upload of the last file through `uploadPostMedia` (orphans fall
+  to the 48h storage sweep).
+
+The log persists in sessionStorage with a per-boot id, so a page iOS reloads
+while the camera is up still shows what ran before, marked `[reload]`. Heavy
+modules load lazily at the step that needs them; nothing above the iOS 15
+floor is used unguarded (gate stays at 0). `e2e/diag-media.spec.ts`
+(@mobile, so WebKit too) pins that a library pick produces every line.
+
+What to read on the phone: `[change]` never appears ⇒ the picker/camera
+never hands the file back (device, not app); `[createImageBitmap] THREW` with
+`[img.decode]` fine ⇒ decoder choice; `[editor] FAILED` ⇒ WebGL on that
+device; `[renderImage] FAILED` ⇒ the bake; `[upload] FAILED` ⇒ the server
+side. The fix follows from the line.
+
+Verification: `npm run verify`; `diag-media` on desktop/mobile/webkit-mobile
+plus `feed-post` and `media-editor`; after merge, the gate on the live chunks.
+Then Tom, Safari and Chrome: Upload one photo, Take photo, Record video —
+Copy log after each.
+
+---
+
 ## September 3, 2026 — Round 8: the camera flow is reset to its September 1 state (zero DDL)
 
 Tom, after #570, with the fact that outranks every hypothesis of the day: on
