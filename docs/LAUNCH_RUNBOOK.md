@@ -89,6 +89,11 @@ Flow list: `docs/qa-test-guide.md`, plus these launch-round additions:
 - [ ] A round with untracked fairways/greens shows "—", not 0/9 with ✗.
 - [ ] Guardian funnel end-to-end **after #1 is green** (the invite email is
       the step that's been dark).
+- [ ] **Media pipeline on the phone**: signed in, open `/app/diag/media`
+      (URL only, not linked) → Upload one library photo, Take photo, Record
+      video → every step logs a line; screenshot or Copy log. Any `FAILED`,
+      `THREW` or `TIMEOUT` line names the broken step and decoder — read it
+      before changing any camera code (DEVLOG Sep 3 2026, round 9).
 
 ## 5a. Org custom domains (phase 6b C1) — the platform env + the recipe
 
