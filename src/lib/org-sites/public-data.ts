@@ -841,6 +841,45 @@ export async function fetchPublicGallery(
   side: OrgSide,
   orgId: string
 ): Promise<PublicGalleryItem[]> {
+  // M2 (program 10): the members' round photos a manager picked come
+  // FIRST (newest pick first) — and independently of the contest media
+  // below, which returns early when the org has no public competitions
+  // (a golf club rarely has one).
+  const memberItems = await fetchMemberGalleryItems(admin, side, orgId);
+  const contestItems = await fetchContestGalleryItems(admin, side, orgId);
+  return [...memberItems, ...contestItems];
+}
+
+async function fetchMemberGalleryItems(admin: Admin, side: OrgSide, orgId: string): Promise<PublicGalleryItem[]> {
+  try {
+    const { data: site } = await admin.from('org_sites').select('id').eq(orgColumn(side), orgId).maybeSingle();
+    if (!site) return [];
+    const { data: mod } = await admin
+      .from('org_site_modules')
+      .select('config')
+      .eq('site_id', site.id)
+      .eq('module_key', 'gallery')
+      .maybeSingle();
+    const { readGalleryPicks, evaluateMemberPhotos } = await import('./member-photo-gate');
+    const picks = readGalleryPicks(mod?.config);
+    if (picks.length === 0) return [];
+    const photos = await evaluateMemberPhotos(admin, site.id as string, picks.map(p => p.mediaId));
+    return photos.map(p => ({
+      id: p.mediaId,
+      url: `/api/media/org-gallery/${site.id}/${p.mediaId}`,
+      mediaType: 'image' as const,
+      caption: null,
+      date: p.date,
+      competitionName: p.courseName ?? 'A round',
+      tagLabels: [p.authorName],
+    }));
+  } catch (error) {
+    console.error(`${TAG} member gallery failed:`, error);
+    return [];
+  }
+}
+
+async function fetchContestGalleryItems(admin: Admin, side: OrgSide, orgId: string): Promise<PublicGalleryItem[]> {
   const col = orgColumn(side);
   const { data: comps, error: compsError } = await admin
     .from('competitions')
@@ -1621,6 +1660,16 @@ export interface PublicPlayerPage {
   season: PublicPlayerSeason;
   handicap: PublicPlayerHandicap | null;
   recentRounds: PublicPlayerRound[];
+  /** M2 (program 10) — this member's round photos the manager put on the
+   *  site (picks only; the gate re-decides each). Empty when none. */
+  photos: PublicPlayerPhoto[];
+}
+
+export interface PublicPlayerPhoto {
+  mediaId: string;
+  url: string;
+  date: string | null;
+  courseName: string | null;
 }
 
 export async function fetchPublicPlayerPage(
@@ -1782,7 +1831,37 @@ export async function fetchPublicPlayerPage(
       console.error(`${TAG} player rounds failed:`, error);
     }
 
-    return { handle: publicHandleValue, name: publicDisplayName(p), competitions, season, handicap, recentRounds };
+    // M2 — the member's picked round photos (the site gate, per item).
+    let photos: PublicPlayerPhoto[] = [];
+    try {
+      const { data: site } = await admin.from('org_sites').select('id').eq(orgColumn(side), orgId).maybeSingle();
+      if (site) {
+        const { data: mod } = await admin
+          .from('org_site_modules')
+          .select('config')
+          .eq('site_id', site.id)
+          .eq('module_key', 'gallery')
+          .maybeSingle();
+        const { readGalleryPicks, evaluateMemberPhotos } = await import('./member-photo-gate');
+        const mine = readGalleryPicks(mod?.config).filter(pick => pick.profileId === p.id);
+        if (mine.length > 0) {
+          const eligible = await evaluateMemberPhotos(admin, site.id as string, mine.map(pick => pick.mediaId));
+          photos = eligible
+            .filter(photo => photo.profileId === p.id)
+            .slice(0, 12)
+            .map(photo => ({
+              mediaId: photo.mediaId,
+              url: `/api/media/org-gallery/${site.id}/${photo.mediaId}`,
+              date: photo.date,
+              courseName: photo.courseName,
+            }));
+        }
+      }
+    } catch (error) {
+      console.error(`${TAG} player photos failed:`, error);
+    }
+
+    return { handle: publicHandleValue, name: publicDisplayName(p), competitions, season, handicap, recentRounds, photos };
   } catch (error) {
     console.error(`${TAG} player page failed:`, error);
     return null;

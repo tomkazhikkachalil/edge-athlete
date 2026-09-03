@@ -28,6 +28,7 @@ import PlacePicker, { type PlaceValue } from '@/components/PlacePicker';
 import { courseDisplayName } from '@/lib/golf/tees';
 import type { GolfCourse } from '@/types/golf';
 import AnnouncementHistory from '@/components/orgs/AnnouncementHistory';
+import MemberPhotoPicker from '@/components/orgs/MemberPhotoPicker';
 
 // ── The org-manager console (phase 1, round 1) ──────────────────────────────
 // The guardian-console shape (AppHeader — a recurring signed-in
@@ -3482,6 +3483,10 @@ export default function OrgConsolePage() {
                 {/* N3: the archive — what was sent, and which went to the site. */}
                 <AnnouncementHistory plural={plural as 'clubs' | 'leagues'} orgId={orgId} refreshKey={announceSentAt} />
               </div>
+              {/* M2: the manager curates members' round photos onto the gallery. */}
+              {plural === 'clubs' && site && (
+                <MemberPhotoPicker clubId={orgId} onError={message => showError('Website', message)} />
+              )}
               {/* R3 branding editors — flat inline forms (house pattern,
                   never a modal). Saves send the COMPLETE object (replace
                   semantics), seeded from the GET above. */}

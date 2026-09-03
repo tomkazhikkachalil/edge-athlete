@@ -718,6 +718,12 @@ export const SitePatchSchema = z.union([
     /** N6: set/clear ONE hole's photo instead of the course photo. */
     hole: z.number().int().min(1).max(HOLE_PHOTO_MAX_HOLE).optional(),
   }),
+  // M2 (program 10): curate a member's round photo onto the gallery
+  // (the server re-runs the member-photo gate before storing).
+  z.object({
+    action: z.enum(['set_gallery_pick', 'remove_gallery_pick']),
+    mediaId: z.uuid(),
+  }),
   z.object({
     action: z.literal('set_contact'),
     email: z.string().trim().toLowerCase().max(200).pipe(z.email()).optional(),
