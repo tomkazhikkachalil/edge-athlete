@@ -36,6 +36,12 @@ picks, the streamer), so this round removed the club pins.
   live DB: club-photo-optin, org-site-member-photos, org-site-gallery,
   org-site-players, org-site (5).
 
+**Close-out (Sep 3, #559, docs only):** #558 prod-proven — both specs
+green against the deployed build, alone. Program 12 complete; leagues and
+clubs now share every org-side feature of programs 9–11 plus the M2
+member-photo layer. `docs/SESSION_PROMPT.md` re-aligned (program 12; no
+program open).
+
 ---
 
 ## September 3, 2026 — Program 11 L3: leagues parity, part 3 — the public league directory: /leagues by region (#556, zero DDL)

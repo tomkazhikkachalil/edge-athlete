@@ -2,7 +2,7 @@
 
 > Tom's session-start prompt. Paste this (or point Claude at it) when opening a
 > development session. Last aligned with project state: **September 3, 2026**
-> (post program 11, leagues parity; migration 177). If the "Where
+> (post program 12, league round photos; migration 177). If the "Where
 > the project actually is" section drifts stale, ask Claude to re-align it
 > against DEVLOG.md and session memory.
 
@@ -62,7 +62,7 @@ ops/console gates (docs/LAUNCH_RUNBOOK.md), not code.
   follow-on (dispatcher, autonomy/viewer seats, archive, carpool) are
   COMPLETE (Aug 28–29).
 - **Organizations (multi-tenant)** — the org platform, phases 0–6b (Aug 30–
-  Sep 1) then 6c–9 and programs 10–11 (Sep 2–3): org console + athlete claim,
+  Sep 1) then 6c–9 and programs 10–12 (Sep 2–3): org console + athlete claim,
   the competition model (house/rep/leaderboard, standings, calendar mirror),
   public org sites with SEO (own root layout, ISR + CDN, custom domains,
   /{slug} vanity paths, share cards), automatic flows (stat lines → profile,
@@ -76,16 +76,18 @@ ops/console gates (docs/LAUNCH_RUNBOOK.md), not code.
   site Notices, per-hole course photos, members' round-photo galleries with
   member opt-in + manager curation), and leagues parity (program 11: one
   side-generic membership-and-privacy layer — visibility, join approval, the
-  join door, private-site gates, members' reads, the /leagues directory).
-  Payments skipped by decision.
+  join door, private-site gates, members' reads, the /leagues directory),
+  and league round photos (program 12: the members' round-photo layer for
+  both sides). Payments skipped by decision.
 - **Search & geo** — instant search, places, clubs, leagues, affiliations,
   facets.
 - **Hardening** — RLS everywhere, CI route-authorization audit, enforced CSP,
   rate limiting, RPC grant audits, soft-delete/purge cron, dark mode, e2e
   smoke suite (desktop + @mobile projects) run against prod after merges.
 
-**No program is open.** Program 11 (leagues parity, #554–#556, migration
-177) closed Sep 3, after program 10 and the quick-fixes round the same day.
+**No program is open.** Program 12 (league round photos, #558, zero DDL)
+closed Sep 3, after program 11 (leagues parity, #554–#556, migration 177),
+program 10 and the quick-fixes round the same day.
 The next program is Tom's call; candidates in session memory. Tom still owes
 ops: Search Console, custom-domain env, device passes.
 
