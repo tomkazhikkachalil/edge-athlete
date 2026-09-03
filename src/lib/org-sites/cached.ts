@@ -179,19 +179,22 @@ export const getCachedGallery = (
     fetchPublicGallery(getSupabaseAdmin(), side, orgId)
   );
 
-export const getCachedNewsList = (slug: string, siteId: string): Promise<PublicNewsItem[]> =>
+// V5: `publicOnly` is the site's visibility — 1:1 with the slug, so safe to
+// close over (a flip revalidates the tag).
+export const getCachedNewsList = (slug: string, siteId: string, publicOnly = false): Promise<PublicNewsItem[]> =>
   perSlug(['org-site-news', slug], slug, () =>
-    fetchPublicNewsList(getSupabaseAdmin(), siteId)
+    fetchPublicNewsList(getSupabaseAdmin(), siteId, { publicOnly })
   );
 
 // newsSlug varies per slug → it MUST be in the keyParts (the closure trap).
 export const getCachedNewsPost = (
   slug: string,
   siteId: string,
-  newsSlug: string
+  newsSlug: string,
+  publicOnly = false
 ): Promise<PublicNewsPost | null> =>
   perSlug(['org-site-news-post', slug, newsSlug], slug, () =>
-    fetchPublicNewsPost(getSupabaseAdmin(), siteId, newsSlug)
+    fetchPublicNewsPost(getSupabaseAdmin(), siteId, newsSlug, { publicOnly })
   );
 
 export const getCachedPages = (slug: string, siteId: string): Promise<PublicPageLink[]> =>

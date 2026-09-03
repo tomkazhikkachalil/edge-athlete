@@ -860,9 +860,11 @@ export const NewsPatchSchema = z
     title: boundedTrimmed(120).optional(),
     body: PageBodySchema.optional(),
     publish: z.boolean().optional(),
+    // Phase 9 V5 (176): 'members' hides the post from a PRIVATE club's site.
+    audience: z.enum(['public', 'members']).optional(),
   })
   .refine(
-    o => o.title !== undefined || o.body !== undefined || o.publish !== undefined,
+    o => o.title !== undefined || o.body !== undefined || o.publish !== undefined || o.audience !== undefined,
     'Nothing to update'
   );
 export type NewsPatchInput = z.infer<typeof NewsPatchSchema>;

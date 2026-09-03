@@ -37,7 +37,7 @@ export async function generateMetadata({ params }: PageParams): Promise<Metadata
 export default async function OrgSiteNewsPage({ params }: PageParams) {
   const { slug } = await params;
   const site = await requireSiteModule(slug, 'news');
-  const posts = await getCachedNewsList(slug, site.id);
+  const posts = await getCachedNewsList(slug, site.id, site.visibility === 'private');
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-8 space-y-6">

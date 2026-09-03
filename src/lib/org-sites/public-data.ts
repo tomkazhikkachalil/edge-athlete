@@ -647,6 +647,8 @@ export interface PublicNewsItem {
   title: string;
   publishedAt: string;
   excerpt: string | null; // first paragraph block, truncated
+  /** Phase 9 V5 (176): 'members' posts leave a PRIVATE club's site. */
+  audience?: 'public' | 'members';
 }
 
 export interface PublicNewsPost {
@@ -675,22 +677,33 @@ function firstParagraph(body: unknown): string | null {
 /** The published news feed, newest first. */
 export async function fetchPublicNewsList(
   admin: Admin,
-  siteId: string
+  siteId: string,
+  opts: {
+    /** Phase 9 V5: a PRIVATE club's site lists public posts only (a
+     *  public club shows everything). Pre-176 (no audience) ⇒ all. */
+    publicOnly?: boolean;
+  } = {}
 ): Promise<PublicNewsItem[]> {
-  const { data, error } = await admin
-    .from('org_site_news')
-    .select('slug, title, body, published_at')
-    .eq('site_id', siteId)
-    .not('published_at', 'is', null)
-    .order('published_at', { ascending: false })
-    .limit(50);
+  const read = (fields: string) =>
+    admin
+      .from('org_site_news')
+      .select(fields)
+      .eq('site_id', siteId)
+      .not('published_at', 'is', null)
+      .order('published_at', { ascending: false })
+      .limit(50);
+  let { data, error } = await read('slug, title, body, published_at, audience');
+  if (error?.code === '42703') ({ data, error } = await read('slug, title, body, published_at'));
   if (degraded('news list', error) || !data) return [];
-  return data.map(n => ({
-    slug: n.slug as string,
-    title: n.title as string,
-    publishedAt: n.published_at as string,
-    excerpt: firstParagraph(n.body),
-  }));
+  return (data as unknown as Record<string, unknown>[])
+    .filter(n => !opts.publicOnly || n.audience === undefined || n.audience === 'public')
+    .map(n => ({
+      slug: n.slug as string,
+      title: n.title as string,
+      publishedAt: n.published_at as string,
+      excerpt: firstParagraph(n.body),
+      ...(n.audience === 'members' ? { audience: 'members' as const } : n.audience === 'public' ? { audience: 'public' as const } : {}),
+    }));
 }
 
 // ── Register (phase 5 R5 — the registration CTA card) ───────────────────────
@@ -826,21 +839,28 @@ export async function fetchPublicGallery(
 export async function fetchPublicNewsPost(
   admin: Admin,
   siteId: string,
-  newsSlug: string
+  newsSlug: string,
+  opts: { publicOnly?: boolean } = {}
 ): Promise<PublicNewsPost | null> {
-  const { data, error } = await admin
-    .from('org_site_news')
-    .select('slug, title, body, published_at')
-    .eq('site_id', siteId)
-    .eq('slug', newsSlug)
-    .not('published_at', 'is', null)
-    .maybeSingle();
+  const read = (fields: string) =>
+    admin
+      .from('org_site_news')
+      .select(fields)
+      .eq('site_id', siteId)
+      .eq('slug', newsSlug)
+      .not('published_at', 'is', null)
+      .maybeSingle();
+  let { data, error } = await read('slug, title, body, published_at, audience');
+  if (error?.code === '42703') ({ data, error } = await read('slug, title, body, published_at'));
   if (degraded('news post', error) || !data) return null;
+  // V5: a members-only post on a private club's site is indistinguishable from missing.
+  if (opts.publicOnly && (data as unknown as { audience?: string }).audience === 'members') return null;
+  const row = data as unknown as { slug: string; title: string; published_at: string; body: unknown };
   return {
-    slug: data.slug as string,
-    title: data.title as string,
-    publishedAt: data.published_at as string,
-    body: data.body,
+    slug: row.slug,
+    title: row.title,
+    publishedAt: row.published_at,
+    body: row.body,
   };
 }
 

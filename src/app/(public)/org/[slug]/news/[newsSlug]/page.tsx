@@ -30,7 +30,7 @@ export async function generateMetadata({ params }: PageParams): Promise<Metadata
   if (!isValidPageSlug(newsSlug)) return { title: 'Not found' };
   const site = await getCachedSite(slug);
   if (!site) return { title: 'Not found' };
-  const post = await getCachedNewsPost(slug, site.id, newsSlug);
+  const post = await getCachedNewsPost(slug, site.id, newsSlug, site.visibility === 'private');
   if (!post) return { title: 'Not found' };
   const title = `${post.title} — ${site.orgName}`;
   const description = `${post.title} — news from ${site.orgName} on Edge Athlete.`;
@@ -47,7 +47,7 @@ export default async function OrgSiteNewsPostPage({ params }: PageParams) {
   const { slug, newsSlug } = await params;
   if (!isValidPageSlug(newsSlug)) notFound();
   const site = await requireSiteModule(slug, 'news');
-  const post = await getCachedNewsPost(slug, site.id, newsSlug);
+  const post = await getCachedNewsPost(slug, site.id, newsSlug, site.visibility === 'private');
   if (!post) notFound();
 
   return (
