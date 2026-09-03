@@ -629,11 +629,28 @@ export async function sitePATCH(
       unknown
     >;
     const photos: Record<string, unknown> = { ...existing };
-    if (input.path) {
-      photos[input.courseId] = { path: input.path, ...(input.alt ? { alt: input.alt } : {}) };
+    // N6: a course entry = { path?, alt?, holes? } — set/clear ONE slot,
+    // keep the rest; an entry with nothing left disappears.
+    const prior = existing[input.courseId];
+    const entry: Record<string, unknown> = prior && typeof prior === 'object' ? { ...(prior as Record<string, unknown>) } : {};
+    if (input.hole) {
+      const holes: Record<string, unknown> =
+        entry.holes && typeof entry.holes === 'object' ? { ...(entry.holes as Record<string, unknown>) } : {};
+      if (input.path) holes[String(input.hole)] = { path: input.path, ...(input.alt ? { alt: input.alt } : {}) };
+      else delete holes[String(input.hole)];
+      if (Object.keys(holes).length > 0) entry.holes = holes;
+      else delete entry.holes;
+    } else if (input.path) {
+      entry.path = input.path;
+      if (input.alt) entry.alt = input.alt;
+      else delete entry.alt;
     } else {
-      delete photos[input.courseId];
+      delete entry.path;
+      delete entry.alt;
     }
+    const hasHoles = !!entry.holes && Object.keys(entry.holes as Record<string, unknown>).length > 0;
+    if (entry.path || hasHoles) photos[input.courseId] = entry;
+    else delete photos[input.courseId];
     const config = { ...((row?.config as Record<string, unknown> | null) ?? {}), photos };
     if (row) {
       const { error } = await admin

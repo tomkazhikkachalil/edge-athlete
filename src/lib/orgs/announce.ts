@@ -32,6 +32,10 @@ export interface AnnouncementContext {
   /** P6: extra keys merged into every row's metadata (a dedupe handle
    *  for a generated announcement, e.g. season_competition_id). */
   extraMetadata?: Record<string, string>;
+  /** N3 (program 10): set ONLY when the site's notice band actually took
+   *  the title (the mirror runs before the insert now) — the archive's
+   *  "shown on the site until" stamp. */
+  siteNoticeUntil?: string;
 }
 
 export interface AnnouncementRow {
@@ -74,6 +78,7 @@ export function buildAnnouncementRows(
       is_read: false,
       metadata: {
         ...(ctx.extraMetadata ?? {}),
+        ...siteNoticeMetadata(ctx.siteNoticeUntil),
         org: `${ctx.side}:${ctx.orgId}`,
         announcement_id: ctx.announcementId,
         announcement: true,
@@ -81,4 +86,66 @@ export function buildAnnouncementRows(
     });
   }
   return rows;
+}
+
+/** The archive stamp — the same keys on member rows and guardian copies. */
+export function siteNoticeMetadata(until: string | undefined): { site_notice: true; notice_until: string } | Record<string, never> {
+  return until ? { site_notice: true, notice_until: until } : {};
+}
+
+// ── N3: the archive — the rows ARE the record, read back ────────────────────
+// One announcement fans out to N rows (members + guardian copies) that
+// all share `announcement_id`; the archive collapses them. Grouped over
+// EVERY row of the org (never filtered by member ids — a guardian copy
+// carries the id too), so an announcement survives as long as any one
+// bell does. Pure; node-tested.
+
+export interface ArchivedAnnouncement {
+  id: string;
+  title: string; // the org-prefixed title as belled ("{org}: {title}")
+  message: string;
+  createdAt: string;
+  siteNotice: boolean;
+  noticeUntil: string | null;
+}
+
+export interface AnnouncementNotificationRow {
+  title: string | null;
+  message: string | null;
+  created_at: string;
+  metadata: unknown;
+}
+
+export function groupAnnouncements(rows: AnnouncementNotificationRow[], limit = 50): ArchivedAnnouncement[] {
+  const byId = new Map<string, ArchivedAnnouncement>();
+  for (const row of rows) {
+    const meta = (row.metadata && typeof row.metadata === 'object' ? row.metadata : {}) as Record<string, unknown>;
+    const id = typeof meta.announcement_id === 'string' ? meta.announcement_id : '';
+    if (!id || meta.announcement !== true) continue;
+    // A guardian copy is titled "{org} announced for {child}: …" — prefer
+    // the member row's title; any row's stamp counts.
+    const isGuardianCopy = typeof meta.profile_id === 'string';
+    const current = byId.get(id);
+    const siteNotice = meta.site_notice === true;
+    const noticeUntil = typeof meta.notice_until === 'string' ? meta.notice_until : null;
+    if (!current) {
+      byId.set(id, {
+        id,
+        title: row.title ?? '',
+        message: row.message ?? '',
+        createdAt: row.created_at,
+        siteNotice,
+        noticeUntil,
+      });
+      if (isGuardianCopy) byId.get(id)!.title = row.title ?? '';
+      continue;
+    }
+    if (!isGuardianCopy && current.title !== (row.title ?? '')) current.title = row.title ?? '';
+    if (siteNotice) {
+      current.siteNotice = true;
+      current.noticeUntil = current.noticeUntil ?? noticeUntil;
+    }
+    if (row.created_at < current.createdAt) current.createdAt = row.created_at;
+  }
+  return [...byId.values()].sort((a, b) => (a.createdAt < b.createdAt ? 1 : a.createdAt > b.createdAt ? -1 : 0)).slice(0, limit);
 }

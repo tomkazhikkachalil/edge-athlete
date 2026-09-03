@@ -81,7 +81,10 @@ export default async function OrgSiteCoursePage({ params }: PageParams) {
   const name = courseDisplayName(course.clubName, course.name);
   const base = siteBasePath(site);
   const photo = parseCoursePhotos(site.modules.find(m => m.module_key === 'courses')?.config)[course.id];
-  const photoUrl = photo ? orgMediaUrl(site.id, photo.path) : null;
+  const photoUrl = photo?.path ? orgMediaUrl(site.id, photo.path) : null;
+  // N6: per-hole photos ride the same config entry.
+  const holePhotos = photo?.holes ?? {};
+  const hasHolePhotos = Object.keys(holePhotos).length > 0;
   const tees = teeSummary(course);
   const holes = [...(course.holes ?? [])].sort((a, b) => a.number - b.number);
   const yardTees = courseTeeOptions(course).filter(tee => holes.some(h => typeof h.yardage?.[tee] === 'number'));
@@ -194,6 +197,7 @@ export default async function OrgSiteCoursePage({ params }: PageParams) {
                     </th>
                   ))}
                   {lineByHole.size > 0 && <th scope="col" className="py-1.5 pl-2 font-medium">Map</th>}
+                  {hasHolePhotos && <th scope="col" className="py-1.5 pl-2 font-medium">Photo</th>}
                 </tr>
               </thead>
               <tbody>
@@ -216,6 +220,23 @@ export default async function OrgSiteCoursePage({ params }: PageParams) {
                               <HoleDiagram hole={line} size={72} />
                               {holeYards(line) ? <span className="text-xs text-muted">≈ {holeYards(line)} yds</span> : null}
                             </span>
+                          ) : (
+                            <span className="text-xs text-faint">—</span>
+                          )}
+                        </td>
+                      )}
+                      {hasHolePhotos && (
+                        <td className="py-1.5 pl-2">
+                          {holePhotos[h.number] && orgMediaUrl(site.id, holePhotos[h.number].path) ? (
+                            <Image
+                              src={orgMediaUrl(site.id, holePhotos[h.number].path) ?? ''}
+                              alt={holePhotos[h.number].alt ?? `Hole ${h.number}`}
+                              width={96}
+                              height={54}
+                              unoptimized
+                              className="h-14 w-24 rounded object-cover border border-border"
+                              data-hole-photo={h.number}
+                            />
                           ) : (
                             <span className="text-xs text-faint">—</span>
                           )}

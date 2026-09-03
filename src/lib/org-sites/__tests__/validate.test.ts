@@ -730,4 +730,20 @@ describe('phase 6e S2 — course photos (parseCoursePhotos)', () => {
     expect(parseCoursePhotos(null)).toEqual({});
     expect(parseCoursePhotos({ photos: 'x' })).toEqual({});
   });
+  it('N6: per-hole photos — holes 1–18 only, junk dropped, holes-only entries stand, legacy entries unchanged', () => {
+    const photos = parseCoursePhotos({
+      photos: {
+        [courseA]: {
+          path: `org-media/${site}/a.jpg`,
+          holes: { '3': { path: `org-media/${site}/h3.jpg`, alt: ' The 3rd ' }, '19': { path: `org-media/${site}/x.jpg` }, '0': { path: `org-media/${site}/x.jpg` }, 'x': { path: `org-media/${site}/x.jpg` }, '7': { path: `org-media/${site}/rules.pdf` }, '9': 'junk' },
+        },
+        '22222222-2222-4222-8222-222222222222': { holes: { '1': { path: `org-media/${site}/one.png` } } },
+        '33333333-3333-4333-8333-333333333333': { holes: { '1': { path: 'https://evil/x.png' } } },
+      },
+    });
+    expect(photos).toEqual({
+      [courseA]: { path: `org-media/${site}/a.jpg`, holes: { 3: { path: `org-media/${site}/h3.jpg`, alt: 'The 3rd' } } },
+      '22222222-2222-4222-8222-222222222222': { holes: { 1: { path: `org-media/${site}/one.png` } } },
+    });
+  });
 });

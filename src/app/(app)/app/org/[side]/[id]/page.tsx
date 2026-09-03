@@ -27,6 +27,7 @@ import OrgLogoUploader from '@/components/org/OrgLogoUploader';
 import PlacePicker, { type PlaceValue } from '@/components/PlacePicker';
 import { courseDisplayName } from '@/lib/golf/tees';
 import type { GolfCourse } from '@/types/golf';
+import AnnouncementHistory from '@/components/orgs/AnnouncementHistory';
 
 // ── The org-manager console (phase 1, round 1) ──────────────────────────────
 // The guardian-console shape (AppHeader — a recurring signed-in
@@ -300,6 +301,9 @@ export default function OrgConsolePage() {
   const [heroNoticeUntil, setHeroNoticeUntil] = useState('');
   // Phase 6e S2: per-course photos (the `courses` module config).
   const [coursePhotos, setCoursePhotos] = useState<Record<string, string>>({});
+  /** N6: courseId → hole number → photo path (the same config entry). */
+  const [courseHolePhotos, setCourseHolePhotos] = useState<Record<string, Record<string, string>>>({});
+  const [holePick, setHolePick] = useState<Record<string, number>>({});
   // Phase 6e S6: announce to members (a megaphone — bells every member,
   // optionally mirrored to the site's notice band).
   const [announceTitle, setAnnounceTitle] = useState('');
@@ -307,6 +311,8 @@ export default function OrgConsolePage() {
   const [announceOnSite, setAnnounceOnSite] = useState(false);
   const [announceUntil, setAnnounceUntil] = useState('');
   const [announceBusy, setAnnounceBusy] = useState(false);
+  /** N3: bumps after a send so the history below the form re-reads. */
+  const [announceSentAt, setAnnounceSentAt] = useState(0);
   const [contactAddress, setContactAddress] = useState<string[]>(['', '', '']);
   const [contactHours, setContactHours] = useState('');
   const [contactDirections, setContactDirections] = useState('');
@@ -533,6 +539,24 @@ export default function OrgConsolePage() {
                 path: d.path ?? '',
                 url: d.url ?? '',
               }))
+            );
+            // N6: per-hole photos ride the same entries.
+            const holeCfg = (siteBody.modules ?? []).find(
+              (m: { module_key: string }) => m.module_key === 'courses'
+            )?.config as { photos?: Record<string, { holes?: Record<string, { path?: string }> }> } | undefined;
+            setCourseHolePhotos(
+              Object.fromEntries(
+                Object.entries(holeCfg?.photos ?? {})
+                  .map(([id, v]) => [
+                    id,
+                    Object.fromEntries(
+                      Object.entries(v?.holes ?? {})
+                        .filter(([, h]) => typeof h?.path === 'string')
+                        .map(([n, h]) => [n, h.path as string])
+                    ),
+                  ] as [string, Record<string, string>])
+                  .filter(([, m]) => Object.keys(m).length > 0)
+              )
             );
             // S2: per-course photos ride the courses module config.
             const coursesConfig = (siteBody.modules ?? []).find(
@@ -2659,6 +2683,91 @@ export default function OrgConsolePage() {
                                 )}
                               </span>
                             )}
+                            {/* N6: per-hole photos — pick a hole, upload; chips remove. */}
+                            {site && (
+                              <span className="mt-1 flex flex-wrap items-center gap-2" data-hole-photos={c.id}>
+                                <label className="text-xs text-tertiary">
+                                  Hole
+                                  <select
+                                    aria-label={`Hole for a photo, ${c.name}`}
+                                    value={holePick[c.id] ?? 1}
+                                    onChange={e => setHolePick(p => ({ ...p, [c.id]: Number(e.target.value) }))}
+                                    className="ml-1 text-xs border border-border-strong rounded px-1 py-0.5 max-w-full"
+                                  >
+                                    {Array.from({ length: 18 }, (_, i) => (
+                                      <option key={i + 1} value={i + 1}>
+                                        {i + 1}
+                                      </option>
+                                    ))}
+                                  </select>
+                                </label>
+                                <label className="text-xs text-tertiary">
+                                  Hole photo
+                                  <input
+                                    type="file"
+                                    accept="image/*"
+                                    aria-label={`Hole photo for ${c.name}`}
+                                    className="block w-44 text-xs"
+                                    onChange={async e => {
+                                      const file = e.target.files?.[0];
+                                      e.target.value = '';
+                                      if (!file) return;
+                                      const hole = holePick[c.id] ?? 1;
+                                      const formData = new FormData();
+                                      formData.append('image', file);
+                                      try {
+                                        const res = await fetch(`/api/${plural}/${orgId}/site/assets`, {
+                                          method: 'POST',
+                                          body: formData,
+                                        });
+                                        const body = await res.json();
+                                        if (!res.ok) {
+                                          showError('Website', body.error || 'Failed to upload the photo');
+                                          return;
+                                        }
+                                        const ok = await siteAct(
+                                          { action: 'set_course_photo', courseId: c.id, hole, path: body.path },
+                                          `Hole ${hole} photo saved`,
+                                          'Failed to save the hole photo'
+                                        );
+                                        if (ok)
+                                          setCourseHolePhotos(p => ({ ...p, [c.id]: { ...(p[c.id] ?? {}), [String(hole)]: body.path } }));
+                                      } catch {
+                                        showError('Website', 'Upload failed — please try again');
+                                      }
+                                    }}
+                                  />
+                                </label>
+                                {Object.keys(courseHolePhotos[c.id] ?? {})
+                                  .sort((a, b) => Number(a) - Number(b))
+                                  .map(n => (
+                                    <button
+                                      key={n}
+                                      type="button"
+                                      aria-label={`Remove hole ${n} photo`}
+                                      onClick={async () => {
+                                        const ok = await siteAct(
+                                          { action: 'set_course_photo', courseId: c.id, hole: Number(n) },
+                                          `Hole ${n} photo removed`,
+                                          'Failed to remove the hole photo'
+                                        );
+                                        if (ok)
+                                          setCourseHolePhotos(p => {
+                                            const next = { ...(p[c.id] ?? {}) };
+                                            delete next[n];
+                                            const all = { ...p };
+                                            if (Object.keys(next).length > 0) all[c.id] = next;
+                                            else delete all[c.id];
+                                            return all;
+                                          });
+                                      }}
+                                      className="px-2 py-1 text-xs rounded-md border border-border text-secondary hover:bg-surface-sunken transition-colors"
+                                    >
+                                      Hole {n} ×
+                                    </button>
+                                  ))}
+                              </span>
+                            )}
                           </li>
                         ))}
                       </ul>
@@ -3357,6 +3466,7 @@ export default function OrgConsolePage() {
                         setAnnounceMessage('');
                         setAnnounceOnSite(false);
                         setAnnounceUntil('');
+                        setAnnounceSentAt(Date.now());
                         if (body.siteNotice) refresh();
                       } catch {
                         showError('Announce', 'Failed to send the announcement');
@@ -3369,6 +3479,8 @@ export default function OrgConsolePage() {
                     Send announcement
                   </button>
                 </div>
+                {/* N3: the archive — what was sent, and which went to the site. */}
+                <AnnouncementHistory plural={plural as 'clubs' | 'leagues'} orgId={orgId} refreshKey={announceSentAt} />
               </div>
               {/* R3 branding editors — flat inline forms (house pattern,
                   never a modal). Saves send the COMPLETE object (replace

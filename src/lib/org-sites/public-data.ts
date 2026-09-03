@@ -19,6 +19,7 @@ import { publicSubpageKeys } from './private';
 import { parseGolfPointsConfig } from '@/lib/competitions/golf-points';
 import { roundRuleFor } from '@/lib/competitions/golf-league';
 import type { OrgSide } from '@/lib/orgs/authz';
+import { groupAnnouncements, type AnnouncementNotificationRow } from '@/lib/orgs/announce';
 import { publicDisplayName, type MaskableProfile, publicHandle } from '@/lib/orgs/public-names';
 import { listAffiliations } from '@/lib/affiliations/server';
 import { type OrgEvent } from '@/lib/calendar/org-events-server';
@@ -732,6 +733,39 @@ export async function fetchPublicNewsList(
       cover: firstImage(n.body),
       ...(n.audience === 'members' ? { audience: 'members' as const } : n.audience === 'public' ? { audience: 'public' as const } : {}),
     }));
+}
+
+// ── Notices (N3, program 10) ────────────────────────────────────────────────
+// The announcements a manager ALSO put on the site's notice band, listed
+// under News as "Notices" — title, message, date, nothing about a person
+// (the rows are notification rows; only the announcement's own text is
+// read). Viewer-independent by construction; announce purges the site
+// tag whenever it mirrors, so the list is fresh the moment the band is.
+
+export interface PublicNotice {
+  id: string;
+  title: string; // the announcement title WITHOUT the "{org}: " prefix
+  message: string;
+  createdAt: string;
+  noticeUntil: string | null;
+}
+
+export async function fetchPublicNotices(admin: Admin, side: OrgSide, orgId: string, orgName: string): Promise<PublicNotice[]> {
+  const { data, error } = await admin
+    .from('notifications')
+    .select('title, message, created_at, metadata')
+    .contains('metadata', { org: `${side}:${orgId}`, announcement: true, site_notice: true })
+    .order('created_at', { ascending: false })
+    .limit(2000);
+  if (degraded('notices', error) || !data) return [];
+  const prefix = `${orgName}: `;
+  return groupAnnouncements(data as AnnouncementNotificationRow[], 20).map(a => ({
+    id: a.id,
+    title: a.title.startsWith(prefix) ? a.title.slice(prefix.length) : a.title,
+    message: a.message,
+    createdAt: a.createdAt,
+    noticeUntil: a.noticeUntil,
+  }));
 }
 
 // ── Register (phase 5 R5 — the registration CTA card) ───────────────────────

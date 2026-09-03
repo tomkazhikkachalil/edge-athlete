@@ -16,7 +16,7 @@ import { memberProfileIds } from './members';
 import { chunk } from '@/lib/chunk';
 import { notifyGuardians } from '@/lib/guardian-notify';
 import { parseHeroConfig } from '@/lib/org-sites/validate';
-import { announcementType, buildAnnouncementRows, type OrgAnnounceInput } from './announce';
+import { announcementType, buildAnnouncementRows, siteNoticeMetadata, type OrgAnnounceInput } from './announce';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- matches the authz.ts Admin alias; schema-agnostic helper
 type Admin = SupabaseClient<any, 'public', any>;
@@ -45,6 +45,13 @@ export async function orgAnnouncePOST(
     return NextResponse.json({ error: 'Failed to load members' }, { status: 500 });
   }
   const announcementId = randomUUID();
+
+  // N3: the site mirror runs BEFORE the insert so every row carries the
+  // truth — `site_notice` is stamped only when the band actually took
+  // the title (it used to run after, so a stamp would have been a
+  // promise). A missing site is a no-op.
+  const siteNotice = input.siteNoticeUntil ? await mirrorSiteNotice(admin, side, orgId, input.title, input.siteNoticeUntil) : false;
+
   const ctx = {
     side,
     orgId,
@@ -54,6 +61,7 @@ export async function orgAnnouncePOST(
     actorId,
     announcementId,
     ...(opts.extraMetadata ? { extraMetadata: opts.extraMetadata } : {}),
+    ...(siteNotice && input.siteNoticeUntil ? { siteNoticeUntil: input.siteNoticeUntil } : {}),
   };
   const rows = buildAnnouncementRows(profileIds, ctx);
   for (const batch of chunk(rows, NOTIFY_CHUNK)) {
@@ -89,7 +97,12 @@ export async function orgAnnouncePOST(
             message: input.message,
             actionUrl: `/app/guardian/athlete/${child.id}`,
             actorId,
-            metadata: { org: `${side}:${orgId}`, announcement_id: announcementId, announcement: true },
+            metadata: {
+              ...siteNoticeMetadata(ctx.siteNoticeUntil),
+              org: `${side}:${orgId}`,
+              announcement_id: announcementId,
+              announcement: true,
+            },
           },
           actorId
         );
@@ -100,33 +113,33 @@ export async function orgAnnouncePOST(
     console.error(`${TAG} guardian fan-out failed:`, e);
   }
 
-  // Mirror to the site's notice band (S1) — a missing site is a no-op.
-  let siteNotice = false;
-  if (input.siteNoticeUntil) {
-    try {
-      const { data: site } = await admin
-        .from('org_sites')
-        .select('id, subdomain, hero_config')
-        .eq(side === 'league' ? 'league_id' : 'club_id', orgId)
-        .maybeSingle();
-      if (site) {
-        const hero = parseHeroConfig(site.hero_config);
-        const hero_config = {
-          ...((site.hero_config as Record<string, unknown> | null) ?? {}),
-          ...(hero.headline ? { headline: hero.headline } : {}),
-          notice: input.title.slice(0, 200),
-          noticeUntil: input.siteNoticeUntil,
-        };
-        const { error } = await admin.from('org_sites').update({ hero_config }).eq('id', site.id);
-        if (!error) {
-          revalidateTag(`org-site:${site.subdomain}`, { expire: 0 });
-          siteNotice = true;
-        }
-      }
-    } catch (e) {
-      console.error(`${TAG} site notice failed:`, e);
-    }
-  }
-
   return NextResponse.json({ ok: true, announcementId, sent: rows.length, guardians, siteNotice });
+}
+
+/** Mirror to the site's notice band (S1); true only when the band took
+ *  it. A missing site or a failed write is false (never throws). The tag
+ *  purge also refreshes the site's News page "Notices" (N3). */
+async function mirrorSiteNotice(admin: Admin, side: OrgSide, orgId: string, title: string, until: string): Promise<boolean> {
+  try {
+    const { data: site } = await admin
+      .from('org_sites')
+      .select('id, subdomain, hero_config')
+      .eq(side === 'league' ? 'league_id' : 'club_id', orgId)
+      .maybeSingle();
+    if (!site) return false;
+    const hero = parseHeroConfig(site.hero_config);
+    const hero_config = {
+      ...((site.hero_config as Record<string, unknown> | null) ?? {}),
+      ...(hero.headline ? { headline: hero.headline } : {}),
+      notice: title.slice(0, 200),
+      noticeUntil: until,
+    };
+    const { error } = await admin.from('org_sites').update({ hero_config }).eq('id', site.id);
+    if (error) return false;
+    revalidateTag(`org-site:${site.subdomain}`, { expire: 0 });
+    return true;
+  } catch (e) {
+    console.error(`${TAG} site notice failed:`, e);
+    return false;
+  }
 }

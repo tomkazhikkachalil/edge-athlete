@@ -19,6 +19,7 @@ import {
   fetchPublicNewsList,
   fetchPublicOpenWindows,
   fetchPublicNewsPost,
+  fetchPublicNotices,
   fetchPublicPage,
   fetchPublicPages,
   fetchPublicStaff,
@@ -37,6 +38,7 @@ import {
   type PublicNewsItem,
   type PublicOpenWindow,
   type PublicNewsPost,
+  type PublicNotice,
   type PublicPageLink,
   type PublicPageRow,
   type PublicStaffRow,
@@ -204,6 +206,13 @@ export const getCachedNewsPost = (
 ): Promise<PublicNewsPost | null> =>
   perSlug(['org-site-news-post', slug, newsSlug], slug, () =>
     fetchPublicNewsPost(getSupabaseAdmin(), siteId, newsSlug, { publicOnly })
+  );
+
+// N3: the site's Notices (announcements mirrored to the band); side/orgId/
+// orgName are 1:1 with the slug — safe in the closure.
+export const getCachedNotices = (slug: string, side: OrgSide, orgId: string, orgName: string): Promise<PublicNotice[]> =>
+  perSlug(['org-site-notices', slug], slug, () =>
+    fetchPublicNotices(getSupabaseAdmin(), side, orgId, orgName)
   );
 
 export const getCachedPages = (slug: string, siteId: string): Promise<PublicPageLink[]> =>
