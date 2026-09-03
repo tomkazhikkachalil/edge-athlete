@@ -1,5 +1,70 @@
 # Development Log
 
+## September 3, 2026 — Program 10 M1 (N3 + N6): the announcement archive with site Notices, and per-hole course photos (#547, zero DDL)
+
+Tom asked to combine the program's remaining four rounds into two PRs.
+This is the first: two independent, low-risk site-content features.
+
+### N3 — announcements are readable again: the members' archive + site "Notices"
+- **The rows are still the record, now read back.** `groupAnnouncements`
+  (`announce.ts`, pure, node-tested) collapses an announcement's fan-out
+  (member rows + guardian copies) by `announcement_id`, newest first; a
+  lone guardian copy keeps an announcement alive; the org's rows are
+  grouped WITHOUT a member-id filter. `GET /api/{clubs,leagues}/[id]/announcements`
+  (`announce-archive-server.ts`; `requireAuth` + a role or the owner
+  column; `private, no-store`) serves it. The archive lives as long as
+  its last row — a member may delete a bell and account deletion wipes
+  rows by actor; accepted and documented.
+- **The stamp is the truth.** `orgAnnouncePOST` now mirrors to the site
+  band FIRST (`mirrorSiteNotice`) and inserts the rows afterwards with
+  `site_notice: true` + `notice_until` only when the band actually took
+  the title (it used to mirror after the insert, so a stamp would have
+  been a promise); guardian copies carry the same keys
+  (`siteNoticeMetadata`).
+- **Where it shows.** The in-app club and league pages gain an
+  "Announcements" card for members (`OrgAnnouncementsCard`, the
+  ClubNewsCard pattern, hidden for visitors); the console's Send
+  announcement form gains a compact "Sent" history that re-reads after a
+  send (`AnnouncementHistory`); the site's News page gains a **Notices**
+  section — the announcements a manager also put on the band, the org
+  prefix stripped, title/message/date only, never a person
+  (`fetchPublicNotices` + `getCachedNotices` under `org-site:{slug}`,
+  which announce already purges when it mirrors). A private club's
+  notices are public by definition.
+- e2e `org-announce-archive.spec.ts`: a golf league with a non-actor
+  member (the actor is never belled, so a one-member org has no archive
+  rows), one plain + one mirrored announcement → the rows carry the
+  stamp only for the mirrored one; the members' read lists both newest
+  first with the flag, the owner reads it, an outsider (a third QA user
+  via `mintStorageState`) 403s, anon 401s; the site's News page lists
+  the mirrored one only under Notices; the member's league page card
+  and the console history at 375px.
+
+### N6 — per-hole course photos
+- `parseCoursePhotos` (`validate.ts`) widens the courses-module entry to
+  `{ path?, alt?, holes?: { [1–18]: { path, alt? } } }` — junk holes
+  dropped, a holes-only entry stands, a legacy `{path}` parses unchanged
+  (tests). `set_course_photo` takes `hole?` (1–18): the handler
+  (`server.ts`) sets/clears ONE slot and keeps the rest; an entry with
+  nothing left disappears; the cross-site image guard is unchanged.
+- The course page's hole table gains a Photo column when any hole has
+  one (`data-hole-photo={n}`, the 96×54 `next/image unoptimized` over
+  `orgMediaUrl`); the console's course row gains a hole picker + "Hole
+  photo" upload and a chip per set hole that removes it.
+- e2e `org-site-hole-photos.spec.ts`: a course photo + hole 3 → the
+  page draws hole 3 only with the course photo intact; hole 19 and a
+  foreign path 400; remove → gone, the course photo survives and the
+  entry is back to the legacy shape; the console at 375px uploads a
+  photo onto hole 5 through the picker and shows the chip.
+
+Regressions green: org-announce, golf-season-wrap (the generated
+season announcement still stamps/dedupes), org-site-course-page,
+org-site-courses, org-site (5), org-site-news-cover, club-public-items,
+org-console-golf, org-site-modules. Also in this PR: the share-card
+spec's hour-cache assertion is local-only — Vercel's CDN consumes
+`s-maxage` and clients get `public, max-age=0` (the N2 prod probe
+failed on that line alone; green after).
+
 ## September 3, 2026 — Program 10 N2: media and news depth, part 2 — the share card draws the hero photo (and the logo) (#546, zero DDL)
 
 `card.png` (the per-org share card behind every page's og:image) was a

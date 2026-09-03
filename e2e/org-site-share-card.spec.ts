@@ -70,7 +70,9 @@ test('share card: hero photo drawn when set; plain gradient otherwise; both PNG 
       const r = await anon.request.get(`/org/${subdomain}/card.png`);
       expect(r.status(), `card for ${subdomain}`).toBe(200);
       expect(r.headers()['content-type'] ?? '').toContain('image/png');
-      expect(r.headers()['cache-control'] ?? '').toContain('s-maxage=3600');
+      // Vercel's CDN CONSUMES s-maxage (clients get `public, max-age=0`),
+      // so the hour cache is only observable against a local server.
+      if (!process.env.E2E_BASE_URL) expect(r.headers()['cache-control'] ?? '').toContain('s-maxage=3600');
       const body = await r.body();
       expect(body.subarray(0, 4).equals(PNG_MAGIC), 'PNG magic').toBe(true);
       return body;

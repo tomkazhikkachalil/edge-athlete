@@ -12,6 +12,7 @@ import AffiliationSection from '@/components/affiliations/AffiliationSection';
 import ParentLeaguesSection from '@/components/affiliations/ParentLeaguesSection';
 import OrgUpcomingEvents from '@/components/affiliations/OrgUpcomingEvents';
 import OrgStandings from '@/components/orgs/OrgStandings';
+import OrgAnnouncementsCard from '@/components/orgs/OrgAnnouncementsCard';
 import GolfYourWeek from '@/components/orgs/GolfYourWeek';
 import OrgVenues from '@/components/orgs/OrgVenues';
 import { orgSitePath } from '@/lib/org-sites/urls';
@@ -765,6 +766,9 @@ export default function LeaguePage() {
         </div>
 
         <GolfYourWeek side="league" orgId={league.id} />
+
+        {/* N3: the announcement archive — members read every notice here. */}
+        <OrgAnnouncementsCard side="league" orgId={league.id} isMember={!!viewerRole || isOwner} />
 
         <OrgStandings side="league" orgId={league.id} />
 

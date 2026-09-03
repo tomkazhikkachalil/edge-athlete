@@ -555,12 +555,31 @@ export const ORG_IMAGE_PATH_RE =
   /^org-media\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\/[a-z0-9-]{1,80}\.(jpg|jpeg|png|webp|gif)$/;
 
 /** Phase 6e S2 — per-course photos ride the `courses` module's config:
- *  `{ photos: { [courseId]: { path, alt? } } }` (≤40 courses). */
+ *  `{ photos: { [courseId]: { path, alt?, holes?: { [n]: { path, alt? } } } } }`
+ *  (≤40 courses; N6 widened it with per-hole photos, holes 1–18 — a
+ *  course entry stands on a course photo OR at least one hole photo). */
 export const COURSE_PHOTOS_MAX = 40;
+export const HOLE_PHOTO_MAX_HOLE = 18;
 const COURSE_ID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
-export interface PublicCoursePhoto {
+export interface PublicHolePhoto {
   path: string;
   alt?: string;
+}
+export interface PublicCoursePhoto {
+  /** The course photo (absent when only hole photos are set). */
+  path?: string;
+  alt?: string;
+  /** N6: hole number (1–18) → photo. */
+  holes?: Record<number, PublicHolePhoto>;
+}
+function parseHolePhoto(raw: unknown): PublicHolePhoto | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const { path, alt } = raw as { path?: unknown; alt?: unknown };
+  if (typeof path !== 'string' || !ORG_IMAGE_PATH_RE.test(path)) return null;
+  return {
+    path,
+    ...(typeof alt === 'string' && alt.trim() ? { alt: alt.trim().slice(0, HERO_IMAGE_ALT_MAX) } : {}),
+  };
 }
 export function parseCoursePhotos(config: unknown): Record<string, PublicCoursePhoto> {
   const out: Record<string, PublicCoursePhoto> = {};
@@ -569,11 +588,21 @@ export function parseCoursePhotos(config: unknown): Record<string, PublicCourseP
   for (const [courseId, raw] of Object.entries(photos as Record<string, unknown>)) {
     if (Object.keys(out).length >= COURSE_PHOTOS_MAX) break;
     if (!COURSE_ID_RE.test(courseId) || !raw || typeof raw !== 'object') continue;
-    const { path, alt } = raw as { path?: unknown; alt?: unknown };
-    if (typeof path !== 'string' || !ORG_IMAGE_PATH_RE.test(path)) continue;
+    const course = parseHolePhoto(raw); // the same {path, alt} shape
+    const holesRaw = (raw as { holes?: unknown }).holes;
+    const holes: Record<number, PublicHolePhoto> = {};
+    if (holesRaw && typeof holesRaw === 'object') {
+      for (const [key, hraw] of Object.entries(holesRaw as Record<string, unknown>)) {
+        const n = Number(key);
+        if (!Number.isInteger(n) || n < 1 || n > HOLE_PHOTO_MAX_HOLE) continue;
+        const hole = parseHolePhoto(hraw);
+        if (hole) holes[n] = hole;
+      }
+    }
+    if (!course && Object.keys(holes).length === 0) continue;
     out[courseId] = {
-      path,
-      ...(typeof alt === 'string' && alt.trim() ? { alt: alt.trim().slice(0, HERO_IMAGE_ALT_MAX) } : {}),
+      ...(course ?? {}),
+      ...(Object.keys(holes).length > 0 ? { holes } : {}),
     };
   }
   return out;
@@ -686,6 +715,8 @@ export const SitePatchSchema = z.union([
     courseId: z.string().regex(COURSE_ID_RE, 'Not a course id'),
     path: z.string().regex(ORG_IMAGE_PATH_RE, 'Not a site image').optional(),
     alt: optionalTrimmed(HERO_IMAGE_ALT_MAX),
+    /** N6: set/clear ONE hole's photo instead of the course photo. */
+    hole: z.number().int().min(1).max(HOLE_PHOTO_MAX_HOLE).optional(),
   }),
   z.object({
     action: z.literal('set_contact'),
