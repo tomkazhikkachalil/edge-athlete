@@ -1,5 +1,43 @@
 # Development Log
 
+## September 3, 2026 — Program 12: league round photos — members' round photos on a league site, the same policy as clubs (#558, zero DDL)
+
+Program 12 (Tom, Sep 3 — after program 11 closed): program 10 M2 built
+"Share my round photos with this club" for clubs only, by that program's
+policy; leagues get the same layer. The policy is unchanged either side:
+the MEMBER opts in on their own follow row (a supervised member never can
+— minors never appear on an org site), only photos on their PUBLIC golf
+round posts are candidates, a MANAGER curates the picks, and the site gate
+re-decides every read. One PR: the layer underneath was already
+side-generic (`photo-consent.ts`, `member-photos-server.ts`, the gallery
+picks, the streamer), so this round removed the club pins.
+
+- **The gate** (`member-photo-gate.ts`): the "org public" check reads the
+  org's visibility by side (`readOrgAccess`; 177 for leagues) — a private
+  league's picks never stream, exactly like a private club's.
+- **The routes** move to one module, **`org-sites/member-photos-routes.ts`**
+  (`photoConsentGET` / `photoConsentPATCH` — self only, the supervised rail,
+  the site purge; `photoCandidatesGET` — `requireOrgManager`); the four
+  routes `/api/{leagues,clubs}/[id]/photo-consent` and
+  `…/site/photo-candidates` call `requireAuth` themselves and hand the user
+  in (the route-authz audit; the L2 precedent). The league pair is new.
+- **In the app**: `RoundPhotoConsentSwitch` and `MemberPhotoPicker` take
+  `side` + `orgId` ("Share my round photos with this league", "members opt
+  in from the league page"); the league page renders the member's switch;
+  the console renders the picker for both sides.
+- The public gallery and the player-page strip already merged picks by
+  site id — nothing to change there.
+- e2e `league-photo-optin.spec.ts` (the club spec's shape on a league: the
+  follow-row grant, supervised 403, candidates = public posts only, an
+  ineligible pick 400, pick → config → unpick; the league page switch and
+  the console picker at 375px) and `org-site-league-member-photos.spec.ts`
+  (pick → publish → tile + streamer 200 → revoke 404 + tile gone → private
+  post 404 → private LEAGUE 404 → 375px grid). Regressions green vs the
+  live DB: club-photo-optin, org-site-member-photos, org-site-gallery,
+  org-site-players, org-site (5).
+
+---
+
 ## September 3, 2026 — Program 11 L3: leagues parity, part 3 — the public league directory: /leagues by region (#556, zero DDL)
 
 The last round of program 11 — the league twin of phase 9 V6, and the

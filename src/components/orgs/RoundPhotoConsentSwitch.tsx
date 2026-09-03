@@ -2,13 +2,15 @@
 
 import { useEffect, useState } from 'react';
 
-// "Share my round photos with this club" (M2, program 10): a MEMBER's own
-// switch on the in-app club page. Off by default; on = the club's
-// manager may pick photos from this member's PUBLIC round posts for the
-// club site (the member's private posts never qualify). A supervised
-// member sees why the switch is unavailable instead of a switch.
+// "Share my round photos with this club/league" (M2, program 10; both
+// sides since program 12): a MEMBER's own switch on the in-app org page.
+// Off by default; on = the org's manager may pick photos from this
+// member's PUBLIC round posts for the org site (the member's private posts
+// never qualify). A supervised member sees why the switch is unavailable
+// instead of a switch.
 
-export default function RoundPhotoConsentSwitch({ clubId }: { clubId: string }) {
+export default function RoundPhotoConsentSwitch({ side, orgId }: { side: 'league' | 'club'; orgId: string }) {
+  const plural = side === 'league' ? 'leagues' : 'clubs';
   const [state, setState] = useState<{ consent: boolean; eligible: boolean } | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -17,7 +19,7 @@ export default function RoundPhotoConsentSwitch({ clubId }: { clubId: string }) 
     let cancelled = false;
     (async () => {
       try {
-        const res = await fetch(`/api/clubs/${encodeURIComponent(clubId)}/photo-consent`);
+        const res = await fetch(`/api/${plural}/${encodeURIComponent(orgId)}/photo-consent`);
         if (!res.ok || cancelled) return;
         const body = (await res.json()) as { consent: boolean; eligible: boolean };
         if (!cancelled) setState(body);
@@ -28,7 +30,7 @@ export default function RoundPhotoConsentSwitch({ clubId }: { clubId: string }) 
     return () => {
       cancelled = true;
     };
-  }, [clubId]);
+  }, [plural, orgId]);
 
   if (!state) return null;
 
@@ -38,7 +40,7 @@ export default function RoundPhotoConsentSwitch({ clubId }: { clubId: string }) 
     setBusy(true);
     setError(null);
     try {
-      const res = await fetch(`/api/clubs/${encodeURIComponent(clubId)}/photo-consent`, {
+      const res = await fetch(`/api/${plural}/${encodeURIComponent(orgId)}/photo-consent`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ consent }),
@@ -74,18 +76,18 @@ export default function RoundPhotoConsentSwitch({ clubId }: { clubId: string }) 
               checked={state.consent}
               disabled={busy}
               onChange={e => flip(e.target.checked)}
-              aria-label="Share my round photos with this club"
+              aria-label={`Share my round photos with this ${side}`}
             />
             <span>
-              <span className="font-medium text-primary">Share my round photos with this club.</span>{' '}
-              The club may put photos from your <strong>public</strong> round posts on its website. Private posts never qualify,
+              <span className="font-medium text-primary">{`Share my round photos with this ${side}.`}</span>{' '}
+              {`The ${side} may put photos from your `}<strong>public</strong> round posts on its website. Private posts never qualify,
               and you can switch this off any time.
             </span>
           </label>
           {error && <p className="mt-2 text-sm text-error">{error}</p>}
         </>
       ) : (
-        <p className="mt-2 text-sm text-secondary">Round photos of a supervised athlete never go on a club website.</p>
+        <p className="mt-2 text-sm text-secondary">{`Round photos of a supervised athlete never go on a ${side} website.`}</p>
       )}
     </section>
   );

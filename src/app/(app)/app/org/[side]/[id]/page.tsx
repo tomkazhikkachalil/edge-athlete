@@ -3483,9 +3483,9 @@ export default function OrgConsolePage() {
                 {/* N3: the archive — what was sent, and which went to the site. */}
                 <AnnouncementHistory plural={plural as 'clubs' | 'leagues'} orgId={orgId} refreshKey={announceSentAt} />
               </div>
-              {/* M2: the manager curates members' round photos onto the gallery. */}
-              {plural === 'clubs' && site && (
-                <MemberPhotoPicker clubId={orgId} onError={message => showError('Website', message)} />
+              {/* M2 (both sides since program 12): the manager curates members' round photos onto the gallery. */}
+              {site && (
+                <MemberPhotoPicker side={side as 'league' | 'club'} orgId={orgId} onError={message => showError('Website', message)} />
               )}
               {/* R3 branding editors — flat inline forms (house pattern,
                   never a modal). Saves send the COMPLETE object (replace

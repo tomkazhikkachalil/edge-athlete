@@ -22,7 +22,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { parsePublicUrl } from '@/lib/media/proxy-url';
 import { isPublicProfile, publicDisplayName, type MaskableProfile } from '@/lib/orgs/public-names';
-import { readClubAccess } from '@/lib/orgs/access';
+import { readOrgAccess } from '@/lib/orgs/access';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- matches the authz.ts Admin alias; schema-agnostic helper
 type Admin = SupabaseClient<any, 'public', any>;
@@ -94,8 +94,9 @@ export async function evaluateMemberPhotos(
   const ids = [...new Set(mediaIds.filter(id => UUID_RE.test(id)))];
   if (ids.length === 0 || !UUID_RE.test(siteId)) return [];
   try {
-    // (1) the site — published, and the CLUB public (visibility lives on
-    // the clubs row, 176; readClubAccess is 42703-safe ⇒ public pre-176).
+    // (1) the site — published, and the ORG public (visibility lives on
+    // the clubs row, 176, or the leagues row, 177 — program 12 opened the
+    // layer to leagues; readOrgAccess is 42703-safe ⇒ public pre-176/177).
     const { data: site } = await admin
       .from('org_sites')
       .select('id, club_id, league_id, published_at')
@@ -107,7 +108,7 @@ export async function evaluateMemberPhotos(
     if (!orgId) return [];
     if (requireLive) {
       if (!site.published_at) return [];
-      if (site.club_id && (await readClubAccess(admin, site.club_id as string)).visibility === 'private') return [];
+      if ((await readOrgAccess(admin, site.club_id ? 'club' : 'league', orgId)).visibility === 'private') return [];
     }
 
     // (2) the picks.

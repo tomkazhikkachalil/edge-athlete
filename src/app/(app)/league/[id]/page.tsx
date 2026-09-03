@@ -14,6 +14,7 @@ import OrgUpcomingEvents from '@/components/affiliations/OrgUpcomingEvents';
 import OrgStandings from '@/components/orgs/OrgStandings';
 import OrgAnnouncementsCard from '@/components/orgs/OrgAnnouncementsCard';
 import OrgNewsCard from '@/components/orgs/OrgNewsCard';
+import RoundPhotoConsentSwitch from '@/components/orgs/RoundPhotoConsentSwitch';
 import GolfYourWeek from '@/components/orgs/GolfYourWeek';
 import OrgVenues from '@/components/orgs/OrgVenues';
 import { orgSitePath } from '@/lib/org-sites/urls';
@@ -791,6 +792,8 @@ export default function LeaguePage() {
         {/* Program 11 L2: members read every published post (incl. members-only). */}
         <OrgNewsCard side="league" orgId={league.id} isMember={!!viewerRole || isOwner} />
         <OrgAnnouncementsCard side="league" orgId={league.id} isMember={!!viewerRole || isOwner} />
+        {/* Program 12: the member's own round-photo switch (M2's policy, both sides). */}
+        {viewerRole && <RoundPhotoConsentSwitch side="league" orgId={league.id} />}
 
         <OrgStandings side="league" orgId={league.id} scope={data.visibility === 'private' && viewerRole ? 'mine' : 'public'} />
 
