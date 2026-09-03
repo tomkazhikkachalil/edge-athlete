@@ -1,5 +1,24 @@
 # Development Log
 
+## September 3, 2026 — Maintenance sweep after programs 11–12 (#560, docs only)
+
+The full checklist on `main` at the #559 merge (be5fc04), nothing red:
+
+- `npm run verify` green — typecheck, `eslint . --max-warnings 0` (still
+  zero), 2,709 unit tests, production build; `scripts/hardening-guardrails.sh`
+  passed; `npm audit --omit=dev` reports 0 vulnerabilities.
+- Git: `main` clean and in sync with GitHub; no open PRs; no local or remote
+  feature branches left (every program 11/12 branch was deleted at merge).
+- Vercel: the #559 production deployment reached Ready one minute after the
+  merge and carries the live aliases; the live `/leagues` directory answers
+  200 from the prerender cache. Every round of programs 11 and 12 was
+  probed against its own deployed build before the next began (L1 3/3,
+  L2 2/2, L3 1/1, program 12 2/2).
+- No code changed in this sweep. Open items stay with Tom's ops list
+  (Search Console, custom-domain env, device passes); no program is open.
+
+---
+
 ## September 3, 2026 — Program 12: league round photos — members' round photos on a league site, the same policy as clubs (#558, zero DDL)
 
 Program 12 (Tom, Sep 3 — after program 11 closed): program 10 M2 built
