@@ -1,5 +1,69 @@
 # Development Log
 
+## September 3, 2026 — Quick fixes: feed tab gap, sidebar calendar with viewer-relevant filters, phone photos stored upright (#551, zero DDL)
+
+Three fixes Tom asked for after program 10 closed. One branch, one PR.
+
+**Feed spacing.** The All / Following / My orgs strip on `/feed` had no bottom
+margin, so it sat flush on the first post's border. It now carries the same
+`mb-4 sm:mb-6` rhythm as every other block in that column. Pinned by the new
+sidebar spec (tab strip → next sibling gap ≥ 16px).
+
+**Sidebar calendar.** `FeedCalendarWidget` no longer hides its month grid
+behind a "Show calendar" link. It is a segmented **Upcoming | Month** control
+(the choice persists per user), and above both views a filter row shows only
+what applies to the viewer — Tom's rule: "if they have kids, their options; if
+they're solo, their own":
+
+- person chips (You + each supervised child) only for a household — the
+  roster fetch is now `useHouseholdRoster` (extracted from `CalendarPage`,
+  which uses it unchanged);
+- category chips only for categories present in the loaded events, and only
+  when there is more than one;
+- a "Needs reply" chip only while an invite is pending.
+
+Semantics match `/calendar` (AND across groups, OR within, via
+`filterLayeredEvents`); the data is the same layered fetch (own range plus
+one request per child, merged by `lib/calendar/layers`). The pill markup that
+`/calendar` repeated three times is now `FilterChip`, shared by both surfaces.
+`MonthView` is deliberately NOT reused in the ~370px column: it branches on
+the `sm:` viewport breakpoint and renders `min-h-24` cells with chips. A
+household nuance the spec pins: a child-only invite carries the CHILD's
+unanswered status through the layer, so "Needs reply" keeps it — that is the
+item a guardian answers for them.
+
+**Phone-photo orientation (root cause).** Un-edited phone portraits displayed
+sideways. The browser-side privacy strip (`exif-strip.ts`, Wave 1) drops the
+whole EXIF APP1 segment — GPS, but also the **Orientation** tag — without
+touching pixels, so the stored JPEG had sideways pixels and nothing left for
+the browser to auto-orient from. Edited photos were fine (`decodeImage` bakes
+orientation via `createImageBitmap(..., { imageOrientation: 'from-image' })`,
+and the canvas re-encode drops EXIF); the broken path was every upload that
+skipped the render: the composer's no-op pass-through, the batch uploader, the
+preserved non-destructive original, message attachments. Fix, at the one
+choke point every caller uses (`uploadPostMedia`): read the tag with the new
+pure `jpegOrientation` (IFD0 walk, bounds-checked, null on anything odd), and
+when it is not 1 bake the photo upright through the editor's own
+`renderImage` path first (full resolution up to the 4096 canvas cap, JPEG
+0.92; the render module is imported lazily). Upright photos still take the
+byte-level path and lose nothing; a failed bake falls back to the strip, so a
+sideways photo still beats a failed upload. Second, independent instance:
+`card.png` ran `sharp().resize()` without `.rotate()`, so an EXIF-rotated org
+hero (site assets upload raw) was cover-cropped on the wrong axis — fixed.
+**Already-stored sideways photos are not repaired**: their bytes carry no
+orientation any more; a re-upload is the fix. Six unit cases cover the reader;
+`media-orientation.spec.ts` drives a real Orientation-6 fixture through the
+composer with no edit and reads the STORED object back with sharp: 400×200,
+red left / blue right, no orientation tag.
+
+Verification: `npm run verify` green (2,707 unit tests, lint at zero, build);
+new specs `feed-calendar-widget` (desktop + `@mobile` at 390px, incl. a
+no-horizontal-overflow check) and `media-orientation` green vs the local
+build; `calendar-layers` (desktop + mobile), `media-editor` and `feed-post`
+regressions green.
+
+---
+
 ## September 3, 2026 — Maintenance sweep after program 10 (#550, DEVLOG only)
 
 The full checklist on `main` at the #549 merge (07a36af), nothing red:

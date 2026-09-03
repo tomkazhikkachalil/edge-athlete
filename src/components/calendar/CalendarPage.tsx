@@ -10,9 +10,10 @@ import { monthMatrix, weekDays } from '@/lib/calendar/grid';
 import { ME, mergeLayeredEvents, filterLayeredEvents, personDotClass, type LayeredEvent } from '@/lib/calendar/layers';
 import { EVENT_CATEGORIES } from '@/lib/calendar/events';
 import { CATEGORY_LABELS, categoryColor } from '@/lib/calendar/categories';
-import { FEATURE_FLAGS } from '@/lib/features';
 import type { ActivityPayload } from '@/lib/calendar/activity-overlay';
 import MonthView from './MonthView';
+import FilterChip from './FilterChip';
+import { useHouseholdRoster } from './useHouseholdRoster';
 import TimeGridView from './TimeGridView';
 import AgendaView from './AgendaView';
 import type { CalendarViewKind, EventDetail, EventListItem } from './types';
@@ -69,39 +70,7 @@ export default function CalendarPage({
     };
   }, [view, focusDate]);
 
-  // Household roster for the layered view (guardian OR view-only seats;
-  // supervised, non-deleted — hub-strip semantics). Failure → empty roster,
-  // the caller's own calendar is never hostage to this fetch. Deliberately
-  // its own effect: the roster must not refetch on every range navigation.
-  const [people, setPeople] = useState<{ id: string; name: string }[] | null>(null);
-  useEffect(() => {
-    if (!FEATURE_FLAGS.FEATURE_GUARDIAN_PROFILES || !user?.id || people !== null) return;
-    let cancelled = false;
-    (async () => {
-      try {
-        const res = await fetch('/api/guardian/athletes', { credentials: 'include' });
-        if (!res.ok) throw new Error(String(res.status));
-        const data = await res.json();
-        if (!cancelled) {
-          const athletes = (data.athletes ?? []) as {
-            id: string;
-            first_name: string | null;
-            display_name: string | null;
-            supervision_state: string | null;
-            deletion_requested_at: string | null;
-          }[];
-          setPeople(
-            athletes
-              .filter(a => a.supervision_state === 'supervised' && !a.deletion_requested_at)
-              .map(a => ({ id: a.id, name: a.first_name || a.display_name || 'Athlete' }))
-          );
-        }
-      } catch {
-        if (!cancelled) setPeople([]);
-      }
-    })();
-    return () => { cancelled = true; };
-  }, [user?.id, people]);
+  const people = useHouseholdRoster();
 
   // Inlined cancellable IIFE rather than a useCallback called from an effect:
   // the lint rule flags the CALL SITE of any function containing setState, and
@@ -376,51 +345,30 @@ export default function CalendarPage({
           groups, OR within one; an empty group filters nothing. */}
       {(people?.length ?? 0) > 0 && (
         <div className="flex flex-wrap items-center gap-2">
-          <button
-            type="button"
-            onClick={() => togglePerson(ME)}
-            aria-pressed={selectedPeople.has(ME)}
-            className={`inline-flex min-h-[44px] items-center gap-1.5 px-3 py-1 rounded-full text-sm font-medium border transition ${
-              selectedPeople.has(ME)
-                ? 'border-brand bg-brand-soft text-brand-fg-strong'
-                : 'border-border-strong text-tertiary hover:border-violet-300 dark:hover:border-violet-700'
-            }`}
-          >
-            <span className="w-2 h-2 rounded-full bg-brand" />
+          <FilterChip selected={selectedPeople.has(ME)} onClick={() => togglePerson(ME)} dot="bg-brand">
             You
-          </button>
+          </FilterChip>
           {(people ?? []).map(p => (
-            <button
+            <FilterChip
               key={p.id}
-              type="button"
+              selected={selectedPeople.has(p.id)}
               onClick={() => togglePerson(p.id)}
-              aria-pressed={selectedPeople.has(p.id)}
-              className={`inline-flex min-h-[44px] items-center gap-1.5 px-3 py-1 rounded-full text-sm font-medium border transition ${
-                selectedPeople.has(p.id)
-                  ? 'border-brand bg-brand-soft text-brand-fg-strong'
-                  : 'border-border-strong text-tertiary hover:border-violet-300 dark:hover:border-violet-700'
-              }`}
+              dot={personDotClass(p.id, rosterIds)}
             >
-              <span className={`w-2 h-2 rounded-full ${personDotClass(p.id, rosterIds)}`} />
               {p.name}
-            </button>
+            </FilterChip>
           ))}
           <span className="h-5 w-px bg-border-strong mx-1" aria-hidden="true" />
           {EVENT_CATEGORIES.map(cat => (
-            <button
+            <FilterChip
               key={cat}
-              type="button"
+              size="sm"
+              selected={selectedCategories.has(cat)}
               onClick={() => toggleCategory(cat)}
-              aria-pressed={selectedCategories.has(cat)}
-              className={`inline-flex min-h-[44px] items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium border transition ${
-                selectedCategories.has(cat)
-                  ? 'border-brand bg-brand-soft text-brand-fg-strong'
-                  : 'border-border-strong text-tertiary hover:border-violet-300 dark:hover:border-violet-700'
-              }`}
+              dot={categoryColor(cat).dot}
             >
-              <span className={`w-2 h-2 rounded-full ${categoryColor(cat).dot}`} />
               {CATEGORY_LABELS[cat] ?? cat}
-            </button>
+            </FilterChip>
           ))}
           {anyFilterActive && (
             <button

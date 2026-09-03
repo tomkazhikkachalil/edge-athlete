@@ -603,7 +603,7 @@ export default function FeedPage() {
                 guidance (self-hiding: age gate, dismissal, all-steps-done). */}
             <GetStartedCard onLogRound={() => setIsCreatePostModalOpen(true)} />
 
-            <div className="flex gap-2" role="tablist" aria-label="Feed scope">
+            <div className="flex gap-2 mb-4 sm:mb-6" role="tablist" aria-label="Feed scope">
               {([['all', 'All'], ['following', 'Following'], ['orgs', 'My orgs']] as const).map(([value, label]) => (
                 <button
                   key={value}
