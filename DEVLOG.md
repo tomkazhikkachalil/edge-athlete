@@ -1,5 +1,68 @@
 # Development Log
 
+## September 3, 2026 — Round 4: the phone is WebKit — measured on the engine at last; the stash never worked there; iPhone camera goes through the light page (zero DDL)
+
+Tom, after #566: the app "seems very broken" on the phone — tapping the
+create-post box freezes it, the camera still reloads the page, and photos
+he uploaded before today display sideways. And the fact that reframed the
+whole day: **his iPhone runs Chrome for iOS, which is Apple's WebKit under
+Chrome's UI.** Every probe so far had run in headless Chromium.
+
+**Stage 1 — measure on WebKit.** `npx playwright install webkit` and a new
+`webkit-mobile` Playwright project (the same `@mobile` specs on the phone
+ENGINE, not just the phone width — a permanent upgrade to the parity rule).
+Against prod:
+
+- `media-orientation` (three 12MP rotated photos) — **green on WebKit**:
+  `createImageBitmap` honours EXIF on a current WebKit, the bake is upright.
+- The diagnostic notice (sessionStorage) — green on WebKit.
+- **`capture-page` hand-off and `capture-stash` restore — RED on WebKit,
+  green on Chromium.** A direct probe found why: `IDBObjectStore.put` of a
+  record holding a Blob/File fails on WebKit with *"UnknownError: Error
+  preparing Blob/File data to be stored in object store"*. **The #565 stash
+  never worked on Tom's phone**, so "no notice appeared" (the evidence round
+  3 was built on) meant nothing — the change event may well have fired.
+- A timing probe (composer open, editor open with the 12MP photo, Done,
+  post) on WebKit at 390×844: composer visible in 147ms, longest main-
+  thread gap 38ms, the composer scrolls, editor in 961ms, post in 1.7s. The
+  engine does not reproduce a freeze; what Tom feels is the device (memory,
+  an older iPhone), which no desktop engine can show. That is where the
+  camera reload lives too: WebKit bug 172533, "A problem occurred with this
+  webpage so it was reloaded" — the camera on a heavy page on a low-memory
+  device.
+
+**Stage 2 — what changed:**
+
+- **`capture-stash.ts` stores `ArrayBuffer`s, never Blobs** (name/type/
+  lastModified + bytes; the File is rebuilt on read). Pinned by the two
+  stash specs on `webkit-mobile`.
+- **`decode.ts` probes before trusting `imageOrientation: 'from-image'`**:
+  one 955-byte JPEG (stored 1×2, Orientation 6 — `orientation-probe.ts`)
+  decoded once per session; only a 2×1 result proves the tag was applied.
+  Otherwise the `<img>` + `decode()` path, which applies EXIF on every
+  WebKit since 13.1. WebKit accepted the option for years before honouring
+  it (EXIF in ImageBitmap: Safari/iOS 16.x); on an older iOS the old code
+  produced sideways bakes at full cost. Covers the bake, the editor
+  preview/export and the dims probe through the one `decodeImage`.
+- **iPhone/iPad composer camera buttons go through `/app/capture`**
+  (`platform.ts` `isIOSWebKit`, UA-coarse on purpose, for this one
+  decision). The light page hands the photo back into the editor via
+  `/feed?create=1&restore=1` (#566); the crash-draft carries the caption.
+  Desktop and Android keep the in-place native input.
+- **Old sideways photos (uploaded Aug 28 – Sep 3)**: no code — their bytes
+  carry no orientation. The fix already exists in the app: Edit post →
+  pencil on the photo → Rotate 90 degrees → Done saves an upright render
+  (`e2e/media-reedit.spec.ts`).
+- Composer-open cost: NO change — the engine measured no stall, and the
+  rule this round is no product change without a number.
+
+Verification: `npm run verify`; the media suite on `desktop`, `mobile`
+AND `webkit-mobile` locally, then against prod after merge. Then Tom, on
+Chrome on the phone: create box (freeze?), Take photo → light page → Keep →
+editor, and one old post → Edit → Rotate → Done.
+
+---
+
 ## September 3, 2026 — iPhone camera capture, round 3: a diagnostic that names the killer, and a light page for the camera (zero DDL)
 
 Tom re-tested #565 on the device: camera → Keep → the page still comes

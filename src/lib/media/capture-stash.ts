@@ -16,9 +16,14 @@
  *
  * Contract: every function fails OPEN and quietly (private mode, quota, no
  * IndexedDB) — the stash is a safety net, never a gate on the pick. Files
- * are stored as {name, type, lastModified, blob} rather than File objects:
- * Safari has historically been unreliable cloning File into IndexedDB, and
- * reconstructing is free. `isFreshStash` is the one pure piece (unit-tested).
+ * are stored as {name, type, lastModified, bytes: ArrayBuffer}, NEVER as a
+ * Blob or File: WebKit rejects both with "UnknownError: Error preparing
+ * Blob/File data to be stored in object store" (measured on Playwright's
+ * WebKit, Sep 3 2026 — the reason the first stash never showed a notice on
+ * Tom's iPhone, which runs Chrome-for-iOS = WebKit). An ArrayBuffer clones
+ * everywhere; reconstructing the File is free. `isFreshStash` is the one
+ * pure piece (unit-tested); the round-trip is pinned by the @mobile specs on
+ * the `webkit-mobile` project.
  */
 
 const DB_NAME = 'ea-capture-stash';
@@ -35,7 +40,7 @@ interface StoredFile {
   name: string;
   type: string;
   lastModified: number;
-  blob: Blob;
+  bytes: ArrayBuffer;
 }
 
 interface StashRecord {
@@ -83,12 +88,17 @@ async function run<T>(
   }
 }
 
-function toStored(file: File): StoredFile {
-  return { name: file.name, type: file.type, lastModified: file.lastModified, blob: file };
+async function toStored(file: File): Promise<StoredFile> {
+  return {
+    name: file.name,
+    type: file.type,
+    lastModified: file.lastModified,
+    bytes: await file.arrayBuffer(),
+  };
 }
 
 function toFile(stored: StoredFile): File {
-  return new File([stored.blob], stored.name, {
+  return new File([stored.bytes], stored.name, {
     type: stored.type,
     lastModified: stored.lastModified,
   });
@@ -105,7 +115,8 @@ export async function stashCaptures(key: string, files: File[]): Promise<void> {
       await run('readwrite', store => store.delete(key));
       return;
     }
-    const record: StashRecord = { key, savedAt: Date.now(), files: files.map(toStored) };
+    const stored = await Promise.all(files.map(toStored));
+    const record: StashRecord = { key, savedAt: Date.now(), files: stored };
     await run('readwrite', store => store.put(record));
   } catch (err) {
     console.warn('[capture-stash] write failed (fail-open):', err);
@@ -118,10 +129,11 @@ export async function appendStashedCaptures(key: string, files: File[]): Promise
   try {
     const current = await readRecord(key);
     const existing = current && isFreshStash(current.savedAt) ? current.files : [];
+    const added = await Promise.all(files.map(toStored));
     const record: StashRecord = {
       key,
       savedAt: Date.now(),
-      files: [...existing, ...files.map(toStored)],
+      files: [...existing, ...added],
     };
     await run('readwrite', store => store.put(record));
   } catch (err) {
