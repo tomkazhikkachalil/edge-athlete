@@ -1,5 +1,67 @@
 # Development Log
 
+## September 3, 2026 — Photo/video capture on phones: the orientation bake ran full-res, in parallel, at post time (fix round, zero DDL)
+
+Tom, the afternoon after #551 deployed: taking a photo or video is "very
+slow and glitchy once the photo is taken, it's not being saved, the editor
+screen is not showing up." The capture → editor code had not changed since
+Aug 25 (`CaptureInputs`, every surface's handler, the lazy `MediaEditor`,
+`export.ts`, `render.ts`); CSP, middleware (which excludes `/api/*`), the
+upload route, rate limits and `next.config.ts` were all unchanged. The one
+change on the path was #551's orientation bake in `upload.ts`, and it was
+the regression:
+
+- **The bake is the common case, not the rare one.** A phone stamps every
+  portrait shot (and half the landscape ones) with Orientation 6/8/3, so
+  nearly every un-edited capture now did a full-resolution
+  `createImageBitmap` + 12MP canvas + JPEG encode on the main thread — at
+  post time, behind nothing but the submit spinner. The #551 comment called
+  upright photos "the majority"; on a phone they are not.
+- **The composer ran them in parallel.** `CreatePostModal` uploaded with
+  `Promise.all`, so a three-photo post ran three 12MP bakes at once (plus
+  a whole-file mediabunny re-mux per video) — exactly what `export.ts` and
+  the editor's Done loop forbid ("ten simultaneous 12MP decodes is how
+  mobile Safari tabs die"). Jank, then a tab reload that lost the post: the
+  crash-draft restores the caption, never media. Every scrubber error is
+  `console.warn`, so nothing surfaced.
+- **"The editor doesn't show up"** has no code cause. The lazy editor chunk
+  had no `loading` UI, so on a slow connection — or in a tab Safari had
+  just reloaded under that memory pressure — a capture rendered nothing
+  until the chunk arrived.
+
+What changed — surgical, no new deps:
+
+- **`media/scrub-queue.ts`** — a single-flight promise chain; `uploadPostMedia`
+  runs every scrub (bake or re-mux) through it, so at most ONE decode is
+  alive app-wide regardless of how many callers race. The network request
+  stays outside the queue. A rejected task never poisons the chain (unit-
+  tested: order, no overlap, pass-through of value and rejection).
+- **`upload.ts`** reads only the first 256KB for the orientation probe
+  (an APP1 is ≤64KB and phones write it first) and materialises the whole
+  file only on the strip path, so the bake never holds a second full copy.
+  A tag past the slice reads as `null` → the pre-#551 lossless strip.
+- **`CreatePostModal`** uploads sequentially (the `useBatchUpload` rule).
+  `EditPostModal`, `RoundMediaManager` and the batch uploader already did.
+- **`media-editor/index.tsx`** gives the `next/dynamic` a `loading` shell
+  (same fixed z-[65] black frame, spinner, "Opening editor…").
+- The bake keeps full resolution up to the 4096 canvas cap (Tom's
+  maximize-input steer); a decode-time resize was considered and dropped —
+  the resize/orientation order of `createImageBitmap` options is not
+  something to bet a stored photo on, and one full decode at a time is the
+  same work the editor already does on open.
+
+Verification: `npm run verify`; `e2e/media-orientation.spec.ts` gains an
+`@mobile` case — three 4032×3024 Orientation-6 fixtures
+(`e2e/fixtures/rotated6-12mp.jpg`, flat colour so ~75KB but a full 12MP
+decode) posted un-edited at 390px: the three uploads must not overlap
+(each request starts after the previous response ends) and every stored
+object must be 4032×3024, upright, EXIF-free. Lesson for the parity rule:
+the phone-width pass covers layout, not memory — a phone-SIZED fixture is
+what would have caught this. Tom's device pass on the deployed build is the
+last step.
+
+---
+
 ## September 3, 2026 — Maintenance sweep after programs 11–12 (#560, docs only)
 
 The full checklist on `main` at the #559 merge (be5fc04), nothing red:
