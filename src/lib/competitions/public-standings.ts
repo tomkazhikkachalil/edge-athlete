@@ -16,7 +16,7 @@ import { roundRuleFor } from './golf-league';
 import { readApproval } from '@/lib/orgs/approval';
 import type { OrgSide } from '@/lib/orgs/authz';
 import { resolveFixtureRule, resolveLeaderboardRule, type StandingsColumn } from './scoring';
-import { publicDisplayName, type MaskableProfile } from '@/lib/orgs/public-names';
+import { publicDisplayName, type MaskableProfile, publicHandle } from '@/lib/orgs/public-names';
 import {
   buildGolfBlock,
   utcToday,
@@ -32,6 +32,10 @@ type Admin = SupabaseClient<any, 'public', any>;
 export interface PublicStandingRow {
   rank: number;
   entrant_name: string;
+  /** Phase 8 P2: the entrant's handle — ONLY for a public, unsupervised,
+   *  claimed profile (isPublicProfile); absent for everyone else, so a
+   *  masked name never links. */
+  playerHandle?: string;
   played: number;
   points: number | null;
   stats: Record<string, number>;
@@ -174,7 +178,7 @@ export async function fetchPublicStandings(
         // public org-site surface; email is selected ONLY to feed it.
         admin
           .from('profiles')
-          .select('id, first_name, last_name, full_name, visibility, email, supervision_state')
+          .select('id, first_name, last_name, full_name, visibility, email, supervision_state, handle')
           .in('id', profileIds)
       : Promise.resolve({ data: [] as never[] }),
   ]);
@@ -182,6 +186,12 @@ export async function fetchPublicStandings(
   const profileName = new Map(
     (profilesRes.data ?? []).map(p => [p.id, publicDisplayName(p as MaskableProfile)])
   );
+  // P2: handles for PUBLIC profiles only — a link target, never an id.
+  const profileHandle = new Map<string, string>();
+  for (const p of profilesRes.data ?? []) {
+    const h = publicHandle(p as MaskableProfile & { handle?: string | null });
+    if (h) profileHandle.set(p.id as string, h);
+  }
   // Phase 6c G1 — THE PEOPLE RULE on a crawlable board: supervised
   // athletes are OMITTED, not masked (the gallery/leaders rule from 6b
   // widened to standings). Their rank is left as a gap, which reveals
@@ -200,14 +210,21 @@ export async function fetchPublicStandings(
       e.team_id ? (teamName.get(e.team_id) ?? 'Team') : (profileName.get(e.profile_id) ?? 'Athlete'),
     ])
   );
+  const entryHandle = new Map<string, string>();
+  for (const e of entries ?? []) {
+    const h = !e.team_id && e.profile_id ? profileHandle.get(e.profile_id) : undefined;
+    if (h) entryHandle.set(e.id as string, h);
+  }
 
   const rowsByCompetition = new Map<string, PublicStandingRow[]>();
   for (const r of standingsRes.data ?? []) {
     if (omittedEntries.has(r.entry_id)) continue;
     if (!rowsByCompetition.has(r.competition_id)) rowsByCompetition.set(r.competition_id, []);
+    const handle = entryHandle.get(r.entry_id);
     rowsByCompetition.get(r.competition_id)!.push({
       rank: r.rank,
       entrant_name: entryName.get(r.entry_id) ?? 'Entrant',
+      ...(handle ? { playerHandle: handle } : {}),
       played: r.played,
       points: r.points,
       stats: (r.stats ?? {}) as Record<string, number>,
@@ -226,6 +243,7 @@ export async function fetchPublicStandings(
       preset: parseGolfPointsConfig(golfRaw.configByCompetition.get(competitionId) ?? null).preset,
       entryName,
       omittedEntries,
+      entryHandle,
     });
     return race ? { race } : {};
   }
@@ -242,6 +260,7 @@ export async function fetchPublicStandings(
       participants: golfRaw.participants.filter(p => contestIds.has(p.contest_id)),
       results: golfRaw.results.filter(r => contestIds.has(r.contest_id)),
       entryName,
+      entryHandle,
       omittedEntries,
       courseNameByVenue: golfRaw.courseNameByVenue,
       pick: golfRaw.pickByCompetition.get(competitionId) ?? 'first',

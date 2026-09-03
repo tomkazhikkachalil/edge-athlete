@@ -1,4 +1,5 @@
 import { formatDateRange, formatIsoDate, type PublicGolfBlock, type PublicGolfWeek } from '@/lib/competitions/golf-weeks';
+import { playerHref } from '@/lib/org-sites/player-links';
 
 // A golf leaderboard's week-to-week view (phase 6d W1): the round the
 // page leads with (open → "This week"; next to open → "Next round"; the
@@ -33,7 +34,7 @@ function Chip({ status }: { status: 'posted' | 'final' }) {
   );
 }
 
-function ResultsTable({ week, competitionId }: { week: PublicGolfWeek; competitionId: string }) {
+function ResultsTable({ week, competitionId, basePath }: { week: PublicGolfWeek; competitionId: string; basePath?: string }) {
   if (week.results.length === 0) {
     return (
       <p className="mt-2 text-sm text-tertiary">
@@ -46,7 +47,7 @@ function ResultsTable({ week, competitionId }: { week: PublicGolfWeek; competiti
   // C6: a points league's week shows the points each round earned.
   const showPoints = week.results.some(r => typeof r.points === 'number');
   return (
-    <div className="mt-2 overflow-x-auto">
+    <div className="relative mt-2 overflow-x-auto">
       <table className="w-full text-sm">
         <thead>
           <tr className="text-left text-xs text-muted">
@@ -69,7 +70,13 @@ function ResultsTable({ week, competitionId }: { week: PublicGolfWeek; competiti
           {week.results.map(r => (
             <tr key={`${competitionId}-${week.id}-${r.entrant_name}`} className="border-t border-border-subtle">
               <td className="py-1.5 pr-3 font-medium text-primary">
-                {r.entrant_name}
+                {r.playerHandle ? (
+                  <a href={playerHref(r.playerHandle, basePath)} className="hover:underline">
+                    {r.entrant_name}
+                  </a>
+                ) : (
+                  r.entrant_name
+                )}
                 {r.tee ? <span className="ml-1 text-xs font-normal text-muted">{r.tee}</span> : null}
               </td>
               {showGross && (
@@ -96,9 +103,12 @@ function ResultsTable({ week, competitionId }: { week: PublicGolfWeek; competiti
 export default function GolfWeeks({
   golf,
   competitionId,
+  basePath,
 }: {
   golf: PublicGolfBlock;
   competitionId: string;
+  /** P2: the org site's base path for player-page links; omit in the app. */
+  basePath?: string;
 }) {
   const current = golf.weeks.find(w => w.id === golf.currentWeekId) ?? null;
   const closed = golf.weeks.filter(w => w.state === 'closed' && w.id !== golf.currentWeekId);
@@ -117,7 +127,7 @@ export default function GolfWeeks({
             {current.posted} of {current.participants} posted
             {golf.pick === 'best' ? ' · best round of the week counts' : ''}
           </p>
-          <ResultsTable week={current} competitionId={competitionId} />
+          <ResultsTable week={current} competitionId={competitionId} basePath={basePath} />
         </section>
       )}
       {closed.length > 0 && (
@@ -129,7 +139,7 @@ export default function GolfWeeks({
                 <span className="text-muted"> · {meta(week)}</span>
                 <span className="ml-2 text-xs text-secondary">{week.posted} posted</span>
               </summary>
-              <ResultsTable week={week} competitionId={competitionId} />
+              <ResultsTable week={week} competitionId={competitionId} basePath={basePath} />
             </details>
           ))}
         </div>

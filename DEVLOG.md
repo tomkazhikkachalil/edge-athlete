@@ -1,5 +1,65 @@
 # Development Log
 
+## September 2, 2026 — Phase 8 P2: PGA depth, part 2 — player pages on the site for PUBLIC profiles, keyed by handle; public names become links (#534, zero DDL)
+
+The Tour site has a page per player. Ours has one per PUBLIC player —
+Tom's decision: a page exists only for a member whose profile is public,
+claimed (no stub email) and unsupervised; everyone else stays exactly as
+today (masked "First L.", no link, no page). No new privacy surface: the
+key is `profiles.handle`, already public via `/u/[username]`, and the
+gate is STRICTER than that route's (which checks visibility alone).
+
+- **`isPublicProfile(p)`** + **`publicHandle(p)`** in `orgs/public-names.ts`
+  — the one predicate (the two-key rule's three-way test, named), and
+  the handle only when it passes. `publicDisplayName` now reads it.
+- **`playerHandle?`** rides the public payloads for those profiles only:
+  `PublicStandingRow`, `PublicGolfWeekResult`, the race rows
+  (`entryHandle` into `buildPointsRace`/`buildGolfBlock`) and the golf
+  leader rows (`handleByEntry` into `buildGolfLeaderBoards` →
+  `PublicLeaderRow.playerHandle`). `player-links.ts playerHref(handle,
+  basePath?)`: on a site the name links to `${basePath}/players/{handle}`;
+  in the app (the `/club|/league/[id]/standings` twins, `OrgStandings`)
+  to the athlete profile. `PublicStandingsTable`, `GolfWeeks`,
+  `PointsRaceTable`, `LeadersTable` take `basePath`; masked names never
+  link.
+- **`/org/[slug]/players/[handle]`** (+ the vanity twin), gated by the
+  `standings` module: `fetchPublicPlayerPage` (public-data.ts) reads the
+  profile by handle → null unless `isPublicProfile` → builds the page
+  FROM the public standings payload (the same dynamic import the club
+  golf teaser uses) by picking the rows whose `playerHandle` is this
+  player's — position (rank of ranked), points, rounds, movement, and
+  the weeks played (round, dates, course, gross/net, PTS, posted/final)
+  — so the page can never show more than the boards do; no matching
+  competition → null → the same 404 as a private member, a stranger or
+  a foreign org's handle. Header: full name, "Member of {org}", a link to
+  the athlete profile (absolute — `appBaseUrl()` — so a custom domain
+  doesn't swallow it). No Person JSON-LD. `getCachedPlayerPage(slug,
+  side, orgId, handle)` with the handle IN the key parts.
+- `players` and `week` join `RESERVED_PAGE_SLUGS` (a custom page must
+  never claim a static route). Sitemap: `SitemapSiteEntry.playerHandles`
+  from `fetchPlayerHandlesForOrgs` (public golf leaderboards → approved
+  entries → public profiles; cap 200/org; only when standings is
+  enabled) — both emitters list `/players/{handle}`.
+- 375px trap, new: an `sr-only` (absolute) header cell inside an
+  `overflow-x-auto` table widened the DOCUMENT (absolute descendants
+  aren't clipped by an unpositioned scroller); the scroller is now
+  `relative` on the player page and in `GolfWeeks`.
+- e2e `org-site-players.spec.ts` (QA users are minted without a handle
+  and private — the spec gives user-b a handle + public, alpha a handle
+  only; a supervised child under the flag): the payload carries the
+  handle for the public member only; the site standings page links it
+  and not the private member's; `/players/{handle}` 200 with the name,
+  "Member of", "1st of 2", both weeks, no Person JSON-LD; the private
+  member's handle, a stranger and the other org's site all 404; the
+  leaders page links "Most points"; the site sitemap lists the public
+  player only; 375px. Regressions green vs the live DB: golf-points-race,
+  golf-season-points, golf-league-weeks, org-site-golf-leaders,
+  org-site-modules, org-site (5), org-site-two-pages, org-leaderboard,
+  org-site-courses.
+
+Next: P3 — player depth (handicap trend, recent rounds under the two-key
+rule, season numbers).
+
 ## September 2, 2026 — Phase 8 P1: PGA depth, part 1 — the points race: a golf_points league week by week, derived at read time (#533, zero DDL)
 
 Phase 8 ("PGA depth", Tom, Sep 2 — after phase 7): the club and league

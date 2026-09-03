@@ -28,11 +28,23 @@ export interface MaskableProfile {
   supervision_state: string | null;
 }
 
+/** Phase 8 P2 — THE public-profile predicate: a claimed, UNSUPERVISED
+ *  profile that chose visibility='public'. The one gate for a player page
+ *  or a linked name on an org site (Tom: public profiles only). */
+export function isPublicProfile(p: MaskableProfile): boolean {
+  return p.visibility === 'public' && !isStubEmail(p.email) && p.supervision_state !== 'supervised';
+}
+
+/** The handle a public surface may link to — only for a public profile
+ *  with a handle; null for everyone else (masked names never link). */
+export function publicHandle(p: MaskableProfile & { handle?: string | null }): string | null {
+  return isPublicProfile(p) && typeof p.handle === 'string' && p.handle ? p.handle : null;
+}
+
 export function publicDisplayName(p: MaskableProfile): string {
   const first = p.first_name || p.full_name?.split(' ')[0] || 'Athlete';
   const last = p.last_name || '';
-  const isPublic =
-    p.visibility === 'public' && !isStubEmail(p.email) && p.supervision_state !== 'supervised';
+  const isPublic = isPublicProfile(p);
   return isPublic
     ? [p.first_name, p.last_name].filter(Boolean).join(' ') || p.full_name || 'Athlete'
     : `${first}${last ? ` ${last[0]}.` : ''}`;

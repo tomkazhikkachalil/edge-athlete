@@ -18,7 +18,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { parseGolfPointsConfig } from '@/lib/competitions/golf-points';
 import { roundRuleFor } from '@/lib/competitions/golf-league';
 import type { OrgSide } from '@/lib/orgs/authz';
-import { publicDisplayName, type MaskableProfile } from '@/lib/orgs/public-names';
+import { publicDisplayName, type MaskableProfile, publicHandle } from '@/lib/orgs/public-names';
 import { listAffiliations } from '@/lib/affiliations/server';
 import { type OrgEvent } from '@/lib/calendar/org-events-server';
 import { isMissingTableError, MODULE_SUBPAGE_KEYS } from './validate';
@@ -442,6 +442,7 @@ export interface SitemapSiteEntry {
   teamIds: string[]; // active teams, only when the teams module is enabled
   newsSlugs: string[]; // published posts, only when the news module is enabled
   courseIds: string[]; // S2: linked catalog courses, only when the courses module is enabled
+  playerHandles: string[]; // P2: public players, only when the standings module is enabled
 }
 
 /** Every published site with its crawlable sub-URLs — the repo's first
@@ -597,6 +598,18 @@ export async function fetchPublishedSitesForSitemap(
     /* pre-169 — no course pages in the sitemap */
   }
 
+  // P2: public players per org (bounded; the standings module gates).
+  const playersByOrg = await fetchPlayerHandlesForOrgs(
+    admin,
+    siteRows
+      .filter(r => (modulesBySite.get(r.id) ?? []).includes('standings'))
+      .map(r =>
+        r.league_id
+          ? { key: `league:${r.league_id}`, side: 'league' as const, orgId: r.league_id }
+          : { key: `club:${r.club_id}`, side: 'club' as const, orgId: r.club_id as string }
+      )
+  );
+
   return siteRows.map(s => {
     const moduleKeys = modulesBySite.get(s.id) ?? [];
     const orgKey = s.league_id ? `league:${s.league_id}` : `club:${s.club_id}`;
@@ -611,6 +624,7 @@ export async function fetchPublishedSitesForSitemap(
       teamIds: moduleKeys.includes('teams') ? (teamsByOrg.get(orgKey) ?? []) : [],
       newsSlugs: moduleKeys.includes('news') ? (newsBySite.get(s.id) ?? []) : [],
       courseIds: moduleKeys.includes('courses') ? (coursesByOrg.get(orgKey) ?? []) : [],
+      playerHandles: moduleKeys.includes('standings') ? (playersByOrg.get(orgKey) ?? []) : [],
     };
   });
 }
@@ -1120,6 +1134,8 @@ export interface PublicLeaderRow {
   name: string;
   teamName: string | null;
   value: number;
+  /** P2: the public profile's handle (a link); absent for masked names. */
+  playerHandle?: string;
   /** S5: a golf board's context line ("Week 3 · 2026-09-15"). */
   note?: string;
 }
@@ -1172,7 +1188,7 @@ async function fetchGolfLeaderBoards(
     const { data: profiles } = profileIds.length
       ? await admin
           .from('profiles')
-          .select('id, first_name, last_name, full_name, visibility, email, supervision_state')
+          .select('id, first_name, last_name, full_name, visibility, email, supervision_state, handle')
           .in('id', profileIds)
       : { data: [] as (MaskableProfile & { id: string })[] };
     const nameByProfile = new Map<string, string | null>(
@@ -1181,9 +1197,17 @@ async function fetchGolfLeaderBoards(
         p.supervision_state === 'supervised' ? null : publicDisplayName(p),
       ])
     );
+    const handleByProfile = new Map<string, string>();
+    for (const p of (profiles ?? []) as (MaskableProfile & { id: string; handle?: string | null })[]) {
+      const h = publicHandle(p);
+      if (h) handleByProfile.set(p.id, h);
+    }
+    const handleByEntry = new Map<string, string>();
     const nameByEntry = new Map<string, string | null>();
     for (const [entryId, profileId] of profileByEntry) {
       nameByEntry.set(entryId, profileId ? (nameByProfile.get(profileId) ?? null) : null);
+      const h = profileId ? handleByProfile.get(profileId) : undefined;
+      if (h) handleByEntry.set(entryId, h);
     }
     const num = (v: unknown): number | null => (typeof v === 'number' && Number.isFinite(v) ? v : null);
     const rowsByComp = new Map<string, GolfLeaderInputRow[]>();
@@ -1212,12 +1236,19 @@ async function fetchGolfLeaderBoards(
         buildGolfLeaderBoards({
           rows,
           nameByEntry,
+          handleByEntry,
           scoringRule: roundRuleFor(comp.scoring_rule, comp.config),
           pointsPreset: comp.scoring_rule === 'golf_points' ? parseGolfPointsConfig(comp.config).preset : null,
         }).map(b => ({
           label: b.label,
           valueLabel: b.valueLabel,
-          rows: b.rows.map(r => ({ name: r.name, teamName: null, value: r.value, ...(r.note ? { note: r.note } : {}) })),
+          rows: b.rows.map(r => ({
+            name: r.name,
+            teamName: null,
+            value: r.value,
+            ...(r.note ? { note: r.note } : {}),
+            ...(r.handle ? { playerHandle: r.handle } : {}),
+          })),
         }))
       );
     }
@@ -1420,4 +1451,179 @@ export async function fetchPublicClubGolfBoards(
     console.error(`${TAG} club golf boards error:`, error);
     return [];
   }
+}
+
+// ── Player pages (phase 8 P2) ───────────────────────────────────────────────
+// A player page exists ONLY for a public, unsupervised, claimed profile
+// (isPublicProfile — Tom's decision) who holds an approved entry in one of
+// the org's PUBLIC golf leaderboards. Keyed by the profile's handle (the
+// only stable public per-person key; /u/[username] already exposes it).
+// Built from the public standings payload — the same rows, the same
+// masking, the same omission — by picking the rows whose `playerHandle`
+// is this player's, so the page can never show more than the boards do.
+
+export interface PublicPlayerWeek {
+  round: string | null;
+  playFrom: string;
+  playTo: string;
+  state: 'open' | 'upcoming' | 'closed';
+  courseName: string | null;
+  gross: number | null;
+  net: number | null;
+  holes: number | null;
+  points?: number;
+  status: 'posted' | 'final';
+}
+
+export interface PublicPlayerCompetition {
+  competitionId: string;
+  name: string;
+  seasonLabel: string | null;
+  status: string;
+  /** From the standings table (null before a completed round). */
+  rank: number | null;
+  points: number | null;
+  played: number;
+  /** Ranked entrants on the public board. */
+  of: number;
+  /** The race row (points leagues): places gained/lost into the latest week. */
+  movement: number | null;
+  weeks: PublicPlayerWeek[];
+}
+
+export interface PublicPlayerPage {
+  handle: string;
+  name: string;
+  competitions: PublicPlayerCompetition[];
+}
+
+export async function fetchPublicPlayerPage(
+  admin: Admin,
+  side: OrgSide,
+  orgId: string,
+  handle: string
+): Promise<PublicPlayerPage | null> {
+  try {
+    const wanted = handle.trim().toLowerCase();
+    if (!wanted || wanted.length > 40) return null;
+    const { data: profile, error } = await admin
+      .from('profiles')
+      .select('id, handle, first_name, last_name, full_name, visibility, email, supervision_state')
+      .ilike('handle', wanted)
+      .maybeSingle();
+    if (degraded('player profile', error) || !profile) return null;
+    const p = profile as unknown as MaskableProfile & { id: string; handle: string | null };
+    const publicHandleValue = publicHandle(p);
+    if (!publicHandleValue) return null;
+
+    // The same dynamic import the club golf teaser uses (no static cycle).
+    const { fetchPublicStandings } = await import('@/lib/competitions/public-standings');
+    const standings = await fetchPublicStandings(admin, side, orgId);
+    if (!standings) return null;
+    const competitions: PublicPlayerCompetition[] = [];
+    for (const c of standings.competitions) {
+      if (c.sport_key !== 'golf' || c.format !== 'leaderboard') continue;
+      const row = c.rows.find(r => r.playerHandle === publicHandleValue) ?? null;
+      const weeks: PublicPlayerWeek[] = [];
+      for (const w of c.golf?.weeks ?? []) {
+        const mine = w.results.find(r => r.playerHandle === publicHandleValue);
+        if (!mine) continue;
+        weeks.push({
+          round: w.round,
+          playFrom: w.playFrom,
+          playTo: w.playTo,
+          state: w.state,
+          courseName: w.courseName,
+          gross: mine.gross,
+          net: mine.net,
+          holes: mine.holes,
+          ...(typeof mine.points === 'number' ? { points: mine.points } : {}),
+          status: mine.status,
+        });
+      }
+      if (!row && weeks.length === 0) continue;
+      const race = c.race?.rows.find(r => r.playerHandle === publicHandleValue) ?? null;
+      competitions.push({
+        competitionId: c.id,
+        name: c.name,
+        seasonLabel: c.season_label,
+        status: c.status,
+        rank: row?.rank ?? null,
+        points: row?.points ?? null,
+        played: row?.played ?? 0,
+        of: c.rows.length,
+        movement: race?.movement ?? null,
+        weeks,
+      });
+    }
+    if (competitions.length === 0) return null;
+    return { handle: publicHandleValue, name: publicDisplayName(p), competitions };
+  } catch (error) {
+    console.error(`${TAG} player page failed:`, error);
+    return null;
+  }
+}
+
+/** The handles a site's player pages exist for — public profiles with an
+ *  approved entry in the org's PUBLIC golf leaderboards. Bounded (cap per
+ *  org); the sitemap's enumerator. */
+export async function fetchPlayerHandlesForOrgs(
+  admin: Admin,
+  orgs: { key: string; side: OrgSide; orgId: string }[],
+  capPerOrg = 200
+): Promise<Map<string, string[]>> {
+  const out = new Map<string, string[]>();
+  if (orgs.length === 0) return out;
+  try {
+    for (const side of ['league', 'club'] as const) {
+      const ids = orgs.filter(o => o.side === side).map(o => o.orgId);
+      if (ids.length === 0) continue;
+      const column = side === 'league' ? 'league_id' : 'club_id';
+      const { data: comps } = await admin
+        .from('competitions')
+        .select(`id, ${column}`)
+        .in(column, ids)
+        .eq('sport_key', 'golf')
+        .eq('format', 'leaderboard')
+        .eq('visibility', 'public')
+        .in('status', ['active', 'completed'])
+        .limit(2000);
+      const compRows = (comps ?? []) as unknown as Record<string, unknown>[];
+      if (compRows.length === 0) continue;
+      const orgByComp = new Map(compRows.map(c => [c.id as string, c[column] as string]));
+      const { data: entries } = await admin
+        .from('competition_entries')
+        .select('competition_id, profile_id')
+        .in('competition_id', [...orgByComp.keys()])
+        .eq('status', 'approved')
+        .not('profile_id', 'is', null)
+        .limit(5000);
+      const profileIds = [...new Set((entries ?? []).map(e => e.profile_id as string))];
+      if (profileIds.length === 0) continue;
+      const handleByProfile = new Map<string, string>();
+      for (let i = 0; i < profileIds.length; i += 500) {
+        const { data: profiles } = await admin
+          .from('profiles')
+          .select('id, handle, first_name, last_name, full_name, visibility, email, supervision_state')
+          .in('id', profileIds.slice(i, i + 500))
+          .eq('visibility', 'public');
+        for (const pr of (profiles ?? []) as (MaskableProfile & { id: string; handle: string | null })[]) {
+          const h = publicHandle(pr);
+          if (h) handleByProfile.set(pr.id, h);
+        }
+      }
+      for (const e of entries ?? []) {
+        const orgId = orgByComp.get(e.competition_id as string);
+        const h = handleByProfile.get(e.profile_id as string);
+        if (!orgId || !h) continue;
+        const key = `${side}:${orgId}`;
+        if (!out.has(key)) out.set(key, []);
+        const bucket = out.get(key)!;
+        if (bucket.length < capPerOrg && !bucket.includes(h)) bucket.push(h);
+      }
+    }
+  } catch (error) {
+    console.error(`${TAG} player handles failed:`, error);
+  }
+  return out;
 }

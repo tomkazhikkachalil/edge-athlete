@@ -27,6 +27,8 @@ export interface GolfLeaderRow {
   name: string;
   value: number;
   note?: string;
+  /** P2: the public profile's handle (a link); absent for masked names. */
+  handle?: string;
 }
 
 export interface GolfLeaderBoard {
@@ -52,6 +54,8 @@ export function buildGolfLeaderBoards(input: {
   /** Masked name per entry id; null/absent = omitted (supervised). */
   nameByEntry: Map<string, string | null>;
   scoringRule: string | null;
+  /** P2: handles by entry id — PUBLIC profiles only. */
+  handleByEntry?: Map<string, string>;
   /** C6: set on a points league — adds "Most points" (per-round awards
    *  over the rows' rule score, summed per entrant). */
   pointsPreset?: PointsPreset | null;
@@ -59,6 +63,10 @@ export function buildGolfLeaderBoards(input: {
 }): GolfLeaderBoard[] {
   const top = input.top ?? 5;
   const name = (entryId: string) => input.nameByEntry.get(entryId) ?? null;
+  const handleOf = (entryId: string) => {
+    const h = input.handleByEntry?.get(entryId);
+    return h ? { handle: h } : {};
+  };
   const rows = input.rows.filter(r => !!name(r.entryId));
   if (rows.length === 0) return [];
   const boards: GolfLeaderBoard[] = [];
@@ -73,7 +81,7 @@ export function buildGolfLeaderBoards(input: {
       const cur = best.get(r.entryId);
       if (cur === undefined || v < cur) best.set(r.entryId, v);
     }
-    return topN([...best.entries()].map(([entryId, value]) => ({ name: name(entryId)!, value })), 'asc', top);
+    return topN([...best.entries()].map(([entryId, value]) => ({ name: name(entryId)!, ...handleOf(entryId), value })), 'asc', top);
   };
   for (const holes of [9, 18]) {
     const gross = lowest(r => r.gross, holes);
@@ -93,7 +101,7 @@ export function buildGolfLeaderBoards(input: {
     contestsByEntry.get(r.entryId)!.add(r.contestId);
   }
   const most = topN(
-    [...contestsByEntry.entries()].map(([entryId, set]) => ({ name: name(entryId)!, value: set.size })),
+    [...contestsByEntry.entries()].map(([entryId, set]) => ({ name: name(entryId)!, ...handleOf(entryId), value: set.size })),
     'desc',
     top
   );
@@ -110,7 +118,7 @@ export function buildGolfLeaderBoards(input: {
     }
   }
   const bestRows = topN(
-    [...best.entries()].map(([entryId, b]) => ({ name: name(entryId)!, value: b.value, ...(b.note ? { note: b.note } : {}) })),
+    [...best.entries()].map(([entryId, b]) => ({ name: name(entryId)!, ...handleOf(entryId), value: b.value, ...(b.note ? { note: b.note } : {}) })),
     'asc',
     top
   );
@@ -130,7 +138,7 @@ export function buildGolfLeaderBoards(input: {
       }
     }
     const pointRows: GolfLeaderRow[] = [...totals.entries()].map(([entryId, value]) => ({
-      name: name(entryId)!,
+      name: name(entryId)!, ...handleOf(entryId),
       value: Math.round(value * 100) / 100,
     }));
     if (pointRows.length) boards.unshift({ label: 'Most points', valueLabel: 'PTS', rows: topN(pointRows, 'desc', top) });
