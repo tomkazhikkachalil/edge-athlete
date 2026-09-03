@@ -4,6 +4,8 @@ import { parseBody } from '@/lib/validation';
 import { ClubUpdateSchema, placeToClubColumns, isMissingTableError } from '@/lib/clubs/validate';
 import { getOrgAndRole, roleAllows } from '@/lib/orgs/authz';
 import { canViewPending, readApproval } from '@/lib/orgs/approval';
+import { readClubAccess } from '@/lib/orgs/access';
+import { revalidateOrgSiteForOrg } from '@/lib/org-sites/revalidate';
 import { isAdminEmail } from '@/lib/auth-server';
 import { orgMemberPreview, redactPendingRoster } from '@/lib/orgs/members';
 import { viewerRegistrationSummary } from '@/lib/orgs/registration-server';
@@ -68,6 +70,7 @@ export async function GET(
     // approval — 174) is visible to its managers and an admin only;
     // everyone else gets the same 404 as a missing club.
     const approval = await readApproval(supabase, 'club', id);
+    const access = await readClubAccess(supabase, id);
     if (
       approval.pending &&
       !canViewPending({ canManage, isAdmin: isAdminEmail(user?.email, process.env.ADMIN_EMAILS) })
@@ -87,6 +90,9 @@ export async function GET(
       pending: approval.pending,
       // C5: the sport the club leads with (174) — shapes the console.
       primarySport: approval.primarySport,
+      // Phase 9 V1: the membership settings (176; pre-176 ⇒ public / open).
+      visibility: access.visibility,
+      joinPolicy: access.joinPolicy,
       sports,
       // Phase 6b A1: the club page's "Public site" link — published only;
       // pre-155 or draft reads null (link hidden), never an error.
@@ -146,6 +152,9 @@ export async function PATCH(
     if (parsed.data.place !== undefined) {
       Object.assign(updates, placeToClubColumns(parsed.data.place));
     }
+    // Phase 9 V1: the membership settings (176).
+    if (parsed.data.visibility !== undefined) updates.visibility = parsed.data.visibility;
+    if (parsed.data.joinPolicy !== undefined) updates.join_policy = parsed.data.joinPolicy;
     if (Object.keys(updates).length === 0) {
       return NextResponse.json({ error: 'Nothing to update' }, { status: 400 });
     }
@@ -157,9 +166,17 @@ export async function PATCH(
       .select()
       .single();
     if (updateError || !updated) {
+      if (updateError?.code === 'PGRST204' && /visibility|join_policy/.test(updateError.message ?? '')) {
+        return NextResponse.json({ error: 'Membership settings are not available yet' }, { status: 503 });
+      }
       console.error('[CLUBS] update error:', updateError);
       return NextResponse.json({ error: 'Failed to update club' }, { status: 500 });
     }
+
+    // Phase 9 V1: the org site reads the club's visibility — a flip must not
+    // serve members-only content for another 300s (this PATCH never
+    // revalidated; the name/place edits ride along now too).
+    await revalidateOrgSiteForOrg(supabase, 'club', id);
 
     return NextResponse.json({ club: updated });
   } catch (error) {

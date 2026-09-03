@@ -1,5 +1,51 @@
 # Development Log
 
+## September 2, 2026 — Phase 9 V1: membership and privacy, part 1 — the settings: club visibility, join policy, the approval queue's table (#539, migration 176)
+
+Phase 9 ("Membership and privacy", Tom, Sep 2 — after phase 8): growth
+with the rules that make a club trust it. Tom: joining "needs an
+approval process"; clubs get a "private or public setting" — a private
+club's site shows identity + public items only (hero, contact, courses,
+registration, public news, the notice band); standings, results,
+players and the roster are members-only; members see everything in the
+app once approved. CLUBS ONLY for now; rostering and league entry stay
+manual. Six rounds, one migration — this one.
+
+- **Migration 176** (`176_club_membership.sql`, Tom runs it BEFORE this
+  merges): `clubs.visibility` (public|private, default public),
+  `clubs.join_policy` (open|approval, default open),
+  `org_site_news.audience` (public|members, default public — V5), and
+  **`club_join_requests`** (club, profile, message, created_at; one open
+  request per pair; RLS on with zero policies — the memberships
+  precedent). The approval queue is its OWN table on purpose: every
+  membership reader is status-blind by design (`getOrgRole`, the counts,
+  the org cards), so a "pending" memberships row would grant member
+  privileges — `memberships` keeps meaning "you are in".
+- **`orgs/access.ts`** (pure + one reader, tested): `accessFromRow` /
+  `readClubAccess` (42703 ⇒ public / open — a pre-176 target never
+  darkens anything), `canSeeMembersContent`, `isPrivate`. The ONE reader
+  every later gate uses (the club GET, the org-site modules, the
+  standings twins, search, the join route).
+- The club `PATCH` (`ClubUpdateSchema`) takes `visibility` / `joinPolicy`
+  and now **revalidates the org site** (it never did — a flip must not
+  serve members-only content for another 300s; name/place edits ride
+  along); a pre-176 PGRST204 → 503 "not available yet". The club GET
+  answers `visibility` + `joinPolicy`.
+- Console: a **Membership** section (`CONSOLE_SECTION_ORDER`, both
+  variants, right after Roster; clubs only) — Visibility and Joining
+  selects with plain-language copy, saved on change through the PATCH
+  (the checklist and the roster door are untouched until V2).
+- e2e `club-membership-settings.spec.ts` (self-skips pre-176): defaults
+  public/open on the row and the GET; a member's PATCH 403s; the
+  manager's flip → GET and row reflect; a bad value 400s; the console
+  at 375px shows the selects, flips visibility back with the toast and
+  the row follows. Regressions green vs the live DB: club-pending-build,
+  club-request, org-site-identity, org-console-golf (its classic-order
+  pin now reads Roster, Membership, Seasons).
+
+Next: V2 — join with approval (`club_join_requests`, the manager queue,
+the bells, the club page's request state).
+
 ## September 2, 2026 — Phase 8 P6: PGA depth, part 6 — the season wrap: "Season complete" on the standings, announced once from the console (#538, zero DDL)
 
 The last round of "PGA depth" — the season has an ending. Phase 8 is
