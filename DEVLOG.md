@@ -85,6 +85,21 @@ site; minors never, private profiles never.
   switch reports "on" before the save lands — poll the API before a
   console read depends on it; the seed upload can hit the same
   "fetch failed" storage hiccup as the asset uploads (rerun).
+- **Prod probe (#549, spec-only):** opt-in and players green first
+  try; member-photos failed at the revoke check — Vercel's CDN served
+  the streamer's earlier 200 for its short `s-maxage` (the documented
+  ≤5-minute lag the contest streamer also has; locally there is no CDN,
+  so the gate answered at once). The spec now asks a FRESH URL
+  (`?t=…`, the route ignores the query) for every post-change check, so
+  the gate itself is what answers; green vs prod after. The product
+  behaviour is unchanged and as designed: a revoke stops new URLs at
+  once and an already-cached one within five minutes.
+
+**Program 10 (media and news depth) is closed:** #545–#548 merged and
+prod-proven — news covers, the share card's hero, the announcement
+archive with site Notices, per-hole course photos, and members' round
+photos on the club site under the member's opt-in and the manager's
+curation. Zero DDL across the program.
 
 ## September 3, 2026 — Program 10 M1 (N3 + N6): the announcement archive with site Notices, and per-hole course photos (#547, zero DDL)
 
