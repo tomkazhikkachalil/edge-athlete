@@ -5,12 +5,16 @@ import { formatEventWhen } from '@/lib/org-sites/format';
 import { isValidPageSlug, parsePageBody } from '@/lib/org-sites/validate';
 import PageBlocks from '../../_components/PageBlocks';
 import { requireSiteModule } from '../../_components/require-module';
-import { siteAbsoluteUrl } from '@/lib/org-sites/urls';
+import { appBaseUrl, siteAbsoluteUrl } from '@/lib/org-sites/urls';
+import { orgMediaUrl } from '@/lib/media/org-site-media';
 
 // ── /org/[slug]/news/[newsSlug] — one news post (phase 3.5) ────────────────
 // PUBLISHED posts only (draft ⇔ missing, both notFound). The body is the
 // shared block array rendered by PageBlocks; the slug rides the shared
-// regex + denylist and gates before any query.
+// regex + denylist and gates before any query. N1: the post's og:image
+// is its cover (the first image block) through the ABSOLUTE app-origin
+// streamer URL — the bytes are public and uuid-immutable; a custom domain
+// must not swallow the path — else the org card, as before.
 
 export const revalidate = 300;
 
@@ -35,11 +39,13 @@ export async function generateMetadata({ params }: PageParams): Promise<Metadata
   const title = `${post.title} — ${site.orgName}`;
   const description = `${post.title} — news from ${site.orgName} on Edge Athlete.`;
   const canonical = `${siteAbsoluteUrl(site)}/news/${post.slug}`;
+  const coverPath = post.cover ? orgMediaUrl(site.id, post.cover.path) : null;
+  const image = coverPath ? `${appBaseUrl()}${coverPath}` : `${siteAbsoluteUrl(site)}/card.png`;
   return {
     title,
     description,
     alternates: { canonical },
-    openGraph: { title, description, url: canonical, siteName: 'Edge Athlete', type: 'article', images: [`${siteAbsoluteUrl(site)}/card.png`] },
+    openGraph: { title, description, url: canonical, siteName: 'Edge Athlete', type: 'article', images: [image] },
   };
 }
 

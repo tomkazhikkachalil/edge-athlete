@@ -1,13 +1,13 @@
 import type { Metadata } from 'next';
-import Link from 'next/link';
 import { getCachedNewsList, getCachedSite } from '@/lib/org-sites/cached';
-import { formatEventWhen } from '@/lib/org-sites/format';
+import NewsItems from '../_components/NewsItems';
 import { requireSiteModule } from '../_components/require-module';
 import { siteBasePath, siteAbsoluteUrl } from '@/lib/org-sites/urls';
 
 // ── /org/[slug]/news — the news feed (phase 3.5) ───────────────────────────
 // Published posts only, newest first, title + date + first-paragraph
-// excerpt. Module disabled → notFound (disabled modules don't exist).
+// excerpt + (N1) a cover thumbnail derived from the first image block.
+// Module disabled → notFound (disabled modules don't exist).
 
 export const revalidate = 300;
 
@@ -49,28 +49,7 @@ export default async function OrgSiteNewsPage({ params }: PageParams) {
         {posts.length === 0 ? (
           <p className="text-sm text-tertiary">No news yet.</p>
         ) : (
-          <ul className="divide-y divide-border-subtle">
-            {posts.map(post => (
-              <li key={post.slug} className="py-3">
-                <Link
-                  href={`${siteBasePath(site)}/news/${post.slug}`}
-                  className="text-base font-semibold text-brand-fg"
-                >
-                  {post.title}
-                </Link>
-                <p className="mt-0.5 text-xs text-muted">
-                  {formatEventWhen({
-                    starts_at: post.publishedAt,
-                    all_day: true,
-                    timezone: null,
-                  })}
-                </p>
-                {post.excerpt && (
-                  <p className="mt-1 text-sm text-secondary">{post.excerpt}</p>
-                )}
-              </li>
-            ))}
-          </ul>
+          <NewsItems posts={posts} siteId={site.id} basePath={siteBasePath(site)} />
         )}
       </section>
     </div>

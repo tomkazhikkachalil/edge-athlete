@@ -1,5 +1,45 @@
 # Development Log
 
+## September 3, 2026 — Program 10 N1: media and news depth, part 1 — news covers: a thumbnail on the list, a "Latest news" home teaser, the cover as og:image (#545, zero DDL)
+
+Program 10 (media and news depth; Tom's two policies — member round
+photos are opt-in + manager-curated, announcements archive for members
+in the app and public notices on the site — land in N3–N5) opens with
+the cheapest depth: a news post's cover, DERIVED from its first image
+block. No column, no upload slot.
+
+- **`firstImage(body)`** (`public-data.ts`, beside `firstParagraph`, both
+  now exported + node-tested in `news-cover.test.ts`): the first `image`
+  block under the `org-media/` prefix → `PublicNewsItem.cover` /
+  `PublicNewsPost.cover` `{path, alt, width?, height?}`; malformed dims
+  dropped, foreign paths ignored, non-arrays null. It rides the existing
+  news cache entries under `org-site:{slug}` (`newsPATCH` purges on
+  every write), so no new cache key.
+- **`NewsItems`** (`_components/NewsItems.tsx`): the /news rows moved
+  into one shared server component — title, date, excerpt and, when
+  the post has a cover, a fixed 16:9 thumbnail (`data-news-cover=slug`,
+  `next/image unoptimized` over `orgMediaUrl`, the PageBlocks rule) that
+  can never grow the row at 375px.
+- **The home's news module is no longer "Coming soon."**: `case 'news'`
+  in `SiteHomeBody` renders the three newest posts (`data-home-news`)
+  with "All news →"; the home page and the draft preview fetch the list
+  (`getCachedNewsList` / `fetchPublicNewsList`, audience-filtered for a
+  private club exactly like /news).
+- **og:image**: a covered post's `generateMetadata` points crawlers at
+  the cover through the ABSOLUTE app-origin org-media streamer
+  (`${appBaseUrl()}/api/media/org-media/{siteId}/{file}` — public,
+  uuid-immutable bytes; a custom domain must not swallow the path); a
+  post without an image keeps the org card, as before.
+- e2e `org-site-news-cover.spec.ts`: a public golf club + site, an asset
+  upload, a covered post and a plain one → the list carries the
+  thumbnail for the covered slug only and the streamer path; the covered
+  post's og:image is the streamer URL and its bytes answer 200 `image/*`;
+  the plain post's og:image is `card.png`; the home shows the teaser
+  with the cover; 375px no overflow. Regressions: org-site (5),
+  club-public-items, org-site-modules, org-site-golf-order green (one
+  transient "Failed to upload the image" 500 in the branding test —
+  green alone; a storage hiccup, not this change).
+
 ## September 2, 2026 — Phase 9 V6: membership and privacy, part 6 — the public club directory: /clubs by region, private clubs marked "request to join" (#544, zero DDL)
 
 The last round of phase 9 — and the growth door the program started
