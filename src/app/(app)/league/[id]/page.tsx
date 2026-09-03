@@ -13,6 +13,7 @@ import ParentLeaguesSection from '@/components/affiliations/ParentLeaguesSection
 import OrgUpcomingEvents from '@/components/affiliations/OrgUpcomingEvents';
 import OrgStandings from '@/components/orgs/OrgStandings';
 import OrgAnnouncementsCard from '@/components/orgs/OrgAnnouncementsCard';
+import OrgNewsCard from '@/components/orgs/OrgNewsCard';
 import GolfYourWeek from '@/components/orgs/GolfYourWeek';
 import OrgVenues from '@/components/orgs/OrgVenues';
 import { orgSitePath } from '@/lib/org-sites/urls';
@@ -787,9 +788,11 @@ export default function LeaguePage() {
         <GolfYourWeek side="league" orgId={league.id} />
 
         {/* N3: the announcement archive — members read every notice here. */}
+        {/* Program 11 L2: members read every published post (incl. members-only). */}
+        <OrgNewsCard side="league" orgId={league.id} isMember={!!viewerRole || isOwner} />
         <OrgAnnouncementsCard side="league" orgId={league.id} isMember={!!viewerRole || isOwner} />
 
-        <OrgStandings side="league" orgId={league.id} />
+        <OrgStandings side="league" orgId={league.id} scope={data.visibility === 'private' && viewerRole ? 'mine' : 'public'} />
 
         <OrgVenues side="league" orgId={league.id} />
 

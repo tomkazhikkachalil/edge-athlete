@@ -11,7 +11,7 @@ import ClubEditModal from '@/components/clubs/ClubEditModal';
 import AffiliationSection from '@/components/affiliations/AffiliationSection';
 import OrgUpcomingEvents from '@/components/affiliations/OrgUpcomingEvents';
 import OrgStandings from '@/components/orgs/OrgStandings';
-import ClubNewsCard from '@/components/orgs/ClubNewsCard';
+import OrgNewsCard from '@/components/orgs/OrgNewsCard';
 import OrgAnnouncementsCard from '@/components/orgs/OrgAnnouncementsCard';
 import RoundPhotoConsentSwitch from '@/components/orgs/RoundPhotoConsentSwitch';
 import GolfYourWeek from '@/components/orgs/GolfYourWeek';
@@ -791,7 +791,7 @@ export default function ClubPage() {
 
         {/* Phase 9 V5: members read every published post here — a private
             club keeps the members-only ones off its site. */}
-        <ClubNewsCard clubId={club.id} isMember={!!viewerRole || isOwner} />
+        <OrgNewsCard side="club" orgId={club.id} isMember={!!viewerRole || isOwner} />
 
         {/* N3: the announcement archive — members read every notice here. */}
         <OrgAnnouncementsCard side="club" orgId={club.id} isMember={!!viewerRole || isOwner} />

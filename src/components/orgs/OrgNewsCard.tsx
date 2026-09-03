@@ -4,11 +4,12 @@ import { useEffect, useState } from 'react';
 import { orgMediaUrl } from '@/lib/media/org-site-media';
 import { orgSitePath } from '@/lib/org-sites/urls';
 
-// Club news for MEMBERS (phase 9 V5): every published post, including the
-// members-only ones a private club keeps off its site. Reads the session-
-// gated /news/mine; renders nothing for visitors, non-members or when
-// there is no site. Public posts link to the site; the rest expand here
-// (headings, paragraphs, images — the block model, text-first).
+// Org news for MEMBERS (phase 9 V5; leagues in program 11 L2): every
+// published post, including the members-only ones a private org keeps off
+// its site. Reads the session-gated /news/mine; renders nothing for
+// visitors, non-members or when there is no site. Public posts link to the
+// site; the rest expand here (headings, paragraphs, images — the block
+// model, text-first).
 
 interface NewsBlock {
   type: string;
@@ -26,7 +27,9 @@ interface MemberPost {
   blocks: NewsBlock[];
 }
 
-export default function ClubNewsCard({ clubId, isMember }: { clubId: string; isMember: boolean }) {
+export default function OrgNewsCard({ side, orgId, isMember }: { side: 'league' | 'club'; orgId: string; isMember: boolean }) {
+  const plural = side === 'league' ? 'leagues' : 'clubs';
+  const label = side === 'league' ? 'League news' : 'Club news';
   const [posts, setPosts] = useState<MemberPost[] | null>(null);
   const [site, setSite] = useState<{ id: string; subdomain: string; published: boolean } | null>(null);
   const [open, setOpen] = useState<string | null>(null);
@@ -36,7 +39,7 @@ export default function ClubNewsCard({ clubId, isMember }: { clubId: string; isM
     let cancelled = false;
     (async () => {
       try {
-        const res = await fetch(`/api/clubs/${encodeURIComponent(clubId)}/news/mine`);
+        const res = await fetch(`/api/${plural}/${encodeURIComponent(orgId)}/news/mine`);
         if (!res.ok || cancelled) return;
         const body = (await res.json()) as { posts: MemberPost[]; site: { id: string; subdomain: string; published: boolean } | null };
         if (!cancelled) {
@@ -50,13 +53,13 @@ export default function ClubNewsCard({ clubId, isMember }: { clubId: string; isM
     return () => {
       cancelled = true;
     };
-  }, [clubId, isMember]);
+  }, [plural, orgId, isMember]);
 
   if (!isMember || !posts || posts.length === 0) return null;
 
   return (
-    <section aria-label="Club news" className="bg-surface rounded-lg shadow-sm border border-border p-4 sm:p-6" data-club-news={posts.length}>
-      <h2 className="text-lg font-semibold text-primary">Club news</h2>
+    <section aria-label={label} className="bg-surface rounded-lg shadow-sm border border-border p-4 sm:p-6" data-org-news={posts.length}>
+      <h2 className="text-lg font-semibold text-primary">{label}</h2>
       <ul className="mt-2 divide-y divide-border-subtle">
         {posts.map(p => (
           <li key={p.id} className="py-2">

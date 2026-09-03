@@ -251,7 +251,7 @@ export async function GET(request: NextRequest) {
           const ids = leagueDocs.map(d => d.entity_id);
           const data = await approvedOnly(cols =>
             supabase.from('leagues').select(cols).in('id', ids),
-            'id, name, description, sport_key, city, region, region_code, country, country_code, lat, lng'
+            'id, name, description, sport_key, city, region, region_code, country, country_code, lat, lng, visibility'
           );
           const byDoc = new Map(leagueDocs.map(d => [d.entity_id, d]));
           results.leagues = orderByIds(ids, (data ?? []) as Array<{ id: string }>)
