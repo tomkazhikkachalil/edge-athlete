@@ -54,10 +54,10 @@ ops/console gates (docs/LAUNCH_RUNBOOK.md), not code.
   person/category chips (on /calendar and in the feed sidebar).
 - **Media** — in-house WebGL2 photo editor (Lightroom-class), video editing,
   capture inputs on all 9 media surfaces, private storage bucket behind an
-  authenticated same-origin proxy, EXIF/GPS stripping with orientation baked
-  upright first. The client-side scrub is single-flight (one decode alive at
-  a time, composer uploads sequential) since the Sep 3 phone-capture
-  regression — never `Promise.all` over `uploadPostMedia`.
+  authenticated same-origin proxy, EXIF/GPS stripping. The camera flow
+  (composer → native camera → editor → upload) is the Sep 1 code by decision:
+  the Sep 3 fix rounds (orientation bake, single-flight scrub, capture stash,
+  light capture page) were rolled back the same day — see DEVLOG round 8.
 - **Family console (guardian layer)** — supervised child profiles, consent
   workflow, approvals (posts/comments/follows), acting-as posting, transfers,
   co-guardians, 30-day soft-delete with restore, safety-rail semantics

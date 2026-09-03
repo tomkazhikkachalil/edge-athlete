@@ -2,7 +2,6 @@
 
 import { useState, useCallback, useRef, useEffect, type ComponentType } from 'react';
 import { useRouter } from 'next/navigation';
-import Link from 'next/link';
 import { useAuth } from '@/lib/auth';
 import { shouldEnterScorerAfterCreate } from '@/lib/golf/round-route';
 import { calcPlayerTotals } from '@/lib/golf/scoring';
@@ -30,22 +29,6 @@ import { validateFiles } from '@/lib/media/validation';
 import { recipeEnvelope } from '@/lib/media/recipes';
 import { loadComposerDraft, saveComposerDraft, clearComposerDraft, type ComposerDraft } from '@/lib/posts/composer-draft';
 import { uploadPostMedia } from '@/lib/media/upload';
-import { isIOSWebKit } from '@/lib/platform';
-import {
-  COMPOSER_STASH_KEY,
-  appendStashedCaptures,
-  clearCaptureStash,
-  loadStashedCaptures,
-  stashCaptures,
-} from '@/lib/media/capture-stash';
-import {
-  armCapture,
-  describeCaptureOutcome,
-  disarmCapture,
-  isAnomalousOutcome,
-  readCaptureOutcome,
-  type CaptureOutcome,
-} from '@/lib/media/capture-diag';
 import type { EditRecipe, EditedMedia, EditorConfig, MediaAsset } from '@/lib/media/types';
 
 interface CreatePostModalProps {
@@ -57,16 +40,6 @@ interface CreatePostModalProps {
   /** Cross-cutting category stamped on the created post (077) — the vitals
    *  tab passes 'training'. Not user-editable in the composer. */
   defaultPostCategory?: 'training';
-  /** `/feed?create=1&restore=1`: open the editor straight onto the stashed
-   *  capture instead of the notice (the URL-addressable restore entry). */
-  autoRestoreStash?: boolean;
-  /** The light capture page (/app/capture) HOSTS this composer and passes the
-   *  camera's files straight in: the editor opens on them with no storage
-   *  and no navigation in between. Mount the modal only once they exist —
-   *  they seed state at mount. IndexedDB is not on this path on purpose: on
-   *  iOS 15 the stash → navigate → restore hand-off lost the photo silently
-   *  (Sep 3 2026, round 7). */
-  initialCaptures?: File[];
 }
 
 interface MediaFile {
@@ -147,17 +120,6 @@ interface PostPreviewProps {
 // Tag chips + hashtag suggestions are registry-driven — see
 // src/lib/sports/post-tags.ts (per-sport lists live on SportDefinition).
 
-const MAX_MEDIA_FILES = 10;
-
-/** Stashed originals → editor assets (capture-stash restore + light-capture hand-off). */
-function stashToAssets(files: File[]): MediaAsset[] {
-  return files.slice(0, MAX_MEDIA_FILES).map(file => ({
-    id: `${Date.now()}-${Math.random()}`,
-    file,
-    kind: file.type.startsWith('video/') ? ('video' as const) : ('image' as const),
-  }));
-}
-
 // Sport composer slot entries, resolved once at module scope so the section
 // components are identity-stable across renders (a new array per render would
 // still reuse elements by key, but there is no reason to rebuild it).
@@ -172,9 +134,7 @@ export default function CreatePostModal({
   userId,
   onPostCreated,
   defaultSportKey = 'general',
-  defaultPostCategory,
-  autoRestoreStash = false,
-  initialCaptures,
+  defaultPostCategory
 }: CreatePostModalProps) {
   const { showSuccess, showError } = useToast();
   const router = useRouter();
@@ -240,55 +200,8 @@ export default function CreatePostModal({
 
   // Shared media editor session (null = closed). editingExistingId set when
   // re-editing an already-attached asset (result replaces it in place).
-  const [editorAssets, setEditorAssets] = useState<MediaAsset[] | null>(() =>
-    initialCaptures && initialCaptures.length > 0 ? stashToAssets(initialCaptures) : null
-  );
+  const [editorAssets, setEditorAssets] = useState<MediaAsset[] | null>(null);
   const [editingExistingId, setEditingExistingId] = useState<string | null>(null);
-
-  // Capture recovery (Sep 2026): picked/captured files are stashed in
-  // IndexedDB the instant they arrive (capture-stash.ts), so a tab that iOS
-  // reloads while the editor opens can offer the photos back. Offered on the
-  // next open, never auto-applied — the crash-draft rule.
-  const [stashedCaptures, setStashedCaptures] = useState<File[] | null>(null);
-  useEffect(() => {
-    if (!isOpen) return;
-    // Hosted by the light page on its own captures: the stash holds those very
-    // files (written for crash recovery), so offering them back would be noise.
-    if (initialCaptures && initialCaptures.length > 0) return;
-    let cancelled = false;
-    loadStashedCaptures(COMPOSER_STASH_KEY).then(files => {
-      if (cancelled) return;
-      if (autoRestoreStash && files && files.length > 0) {
-        // Light-capture hand-off (/feed?create=1&restore=1): the stash IS the
-        // capture — straight to the editor, no notice (a deliberate
-        // navigation from /app/capture, not a crash).
-        setEditingExistingId(null);
-        setEditorAssets(stashToAssets(files));
-        setStashedCaptures(null);
-        return;
-      }
-      setStashedCaptures(files);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [isOpen, autoRestoreStash, initialCaptures]);
-  /** The files a restore would need: the untouched originals behind each tile. */
-  const originalsOf = (files: MediaFile[]): File[] =>
-    files.flatMap(f => {
-      const source = f.sourceFile ?? f.file;
-      return source ? [source] : [];
-    });
-  // Capture diagnostic (capture-diag.ts): a camera session that ended without
-  // a file AND with a reload or a composer unmount. Read once at mount — the
-  // modal mounts with the page, which is exactly when a post-reload record
-  // exists; a plain cancel is cleared silently.
-  const [captureOutcome, setCaptureOutcome] = useState<CaptureOutcome | null>(() => {
-    const found = readCaptureOutcome();
-    if (found && isAnomalousOutcome(found)) return found;
-    if (found) disarmCapture();
-    return null;
-  });
 
   // Persist the recoverable half of the composer while open (storage write
   // only — media Files and the uncontrolled golf section can't ride
@@ -317,6 +230,7 @@ export default function CreatePostModal({
   // Character limits
   const MAX_CAPTION_LENGTH = 500;
   const MAX_HASHTAGS = 10;
+  const MAX_MEDIA_FILES = 10;
 
   const COMPOSER_EDITOR_CONFIG: EditorConfig = {
     aspectRatios: ['free', '1:1', '4:5', '9:16', '16:9'],
@@ -355,11 +269,9 @@ export default function CreatePostModal({
   // requestClose below, which asks before discarding unsaved work.
   const closeAndReset = () => {
     // Explicit exit (confirmed discard or successful post) — the draft's job
-    // is crash recovery, not resurrecting decisions. Same for the stash.
+    // is crash recovery, not resurrecting decisions.
     clearComposerDraft();
     setAvailableDraft(null);
-    void clearCaptureStash(COMPOSER_STASH_KEY);
-    setStashedCaptures(null);
     reset();
     onClose();
   };
@@ -396,10 +308,6 @@ export default function CreatePostModal({
       showError('File not added', r.message);
     }
     if (accepted.length === 0) return;
-    disarmCapture(); // the camera returned a file — nothing to diagnose
-    // Stash FIRST — before the editor's decode, which is where a phone tab
-    // under memory pressure reloads. Fail-open, off the pick's critical path.
-    void appendStashedCaptures(COMPOSER_STASH_KEY, accepted);
     setEditingExistingId(null);
     setEditorAssets(
       accepted.map(file => ({
@@ -477,9 +385,7 @@ export default function CreatePostModal({
     if (file?.preview) {
       URL.revokeObjectURL(file.preview);
     }
-    const remaining = mediaFiles.filter(f => f.id !== fileId);
-    setMediaFiles(remaining);
-    void stashCaptures(COMPOSER_STASH_KEY, originalsOf(remaining)); // empty ⇒ cleared
+    setMediaFiles(prev => prev.filter(f => f.id !== fileId));
   };
 
   // Toggle tag selection
@@ -654,15 +560,13 @@ export default function CreatePostModal({
         return;
       }
 
-      // Upload media files (for individual posts) — SEQUENTIAL, never
-      // Promise.all (the useBatchUpload rule): each upload may bake a
-      // rotated phone photo at full resolution (upload.ts), and running N
-      // of those at once is how a phone tab dies mid-post (Sep 2026).
-      const uploadedMedia: Array<MediaFile & { thumbnailUrl?: string; sourceUrl?: string }> = [];
-      for (const file of mediaFiles) {
-        const { url, thumbnailUrl, sourceUrl } = await uploadMediaWithPoster(file);
-        uploadedMedia.push({ ...file, url, thumbnailUrl, sourceUrl });
-      }
+      // Upload media files (for individual posts)
+      const uploadedMedia = await Promise.all(
+        mediaFiles.map(async (file) => {
+          const { url, thumbnailUrl, sourceUrl } = await uploadMediaWithPoster(file);
+          return { ...file, url, thumbnailUrl, sourceUrl };
+        })
+      );
 
       // Prepare post data (userId comes from auth)
       const postData = {
@@ -784,81 +688,6 @@ export default function CreatePostModal({
 
         {/* Content - Scrollable */}
         <div className="flex-1 overflow-y-auto p-4 sm:p-6">
-          {/* Capture-failure notice (capture-diag.ts): the camera closed
-              without a file and the page reloaded or the composer was reset.
-              Real UX (the user got silence before) and the measurement in
-              one — the mono line says which of the two it was. */}
-          {captureOutcome && mediaFiles.length === 0 && !editorAssets && (
-            <div
-              role="status"
-              className="mb-4 flex flex-wrap items-center gap-2 rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/40 px-3 py-2"
-            >
-              <i className="fas fa-camera text-amber-700 dark:text-amber-300" aria-hidden="true"></i>
-              <p className="text-sm text-amber-900 dark:text-amber-100 flex-1 min-w-40">
-                The camera closed without returning a photo.{' '}
-                {captureOutcome.reloaded
-                  ? `Safari reloaded the page after ${Math.round(captureOutcome.elapsedMs / 1000)}s.`
-                  : 'The page stayed loaded but the composer was reset.'}
-                <span className="block mt-1 font-mono text-xs text-muted">
-                  {describeCaptureOutcome(captureOutcome)}
-                </span>
-              </p>
-              <Link
-                href="/app/capture"
-                className="min-h-[44px] inline-flex items-center px-3 rounded-full bg-brand text-white text-sm font-semibold hover:bg-brand-hover"
-              >
-                Try the light capture page
-              </Link>
-              <button
-                type="button"
-                onClick={() => {
-                  disarmCapture();
-                  setCaptureOutcome(null);
-                }}
-                className="min-h-[44px] px-3 rounded-full text-sm font-semibold text-amber-900 dark:text-amber-100 hover:bg-amber-100 dark:hover:bg-amber-900/40"
-              >
-                Dismiss
-              </button>
-            </div>
-          )}
-          {/* Capture-recovery notice: media that reached the page before a
-              reload (capture-stash.ts). Shown only while nothing is attached
-              and the editor is closed; restore re-opens the editor on the
-              originals (edits from the lost session are gone — say so). */}
-          {stashedCaptures && mediaFiles.length === 0 && !editorAssets && (
-            <div
-              role="status"
-              className="mb-4 flex flex-wrap items-center gap-2 rounded-lg border border-violet-200 dark:border-violet-800 bg-brand-soft px-3 py-2"
-            >
-              <i className="fas fa-clock-rotate-left text-brand-fg" aria-hidden="true"></i>
-              <p className="text-sm text-violet-900 dark:text-violet-200 flex-1 min-w-40">
-                {stashedCaptures.length === 1
-                  ? `Your ${stashedCaptures[0].type.startsWith('video/') ? 'video' : 'photo'} from before the page reloaded is saved`
-                  : `${stashedCaptures.length} files from before the page reloaded are saved`}
-              </p>
-              <button
-                type="button"
-                onClick={() => {
-                  setEditingExistingId(null);
-                  setEditorAssets(stashToAssets(stashedCaptures));
-                  setStashedCaptures(null);
-                }}
-                className="min-h-[44px] px-3 rounded-full bg-brand text-white text-sm font-semibold hover:bg-brand-hover"
-              >
-                Restore
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  void clearCaptureStash(COMPOSER_STASH_KEY);
-                  setStashedCaptures(null);
-                }}
-                className="min-h-[44px] px-3 rounded-full text-sm font-semibold text-violet-900 dark:text-violet-200 hover:bg-violet-100 dark:hover:bg-violet-900/40"
-              >
-                Discard
-              </button>
-            </div>
-          )}
           {/* Crash-recovery draft notice — restore is a choice, never automatic */}
           {availableDraft && caption.trim() === '' && (
             <div className="mb-4 flex flex-wrap items-center gap-2 rounded-lg border border-violet-200 dark:border-violet-800 bg-brand-soft px-3 py-2">
@@ -948,22 +777,7 @@ export default function CreatePostModal({
                   />
                   <button
                     type="button"
-                    onClick={() => {
-                      // iPhone/iPad: the camera opens from the light page, not
-                      // over the feed — WebKit discards a heavy page while the
-                      // camera is up (bug 172533) and the photo is lost. The
-                      // page hands the photo back into this editor; the
-                      // crash-draft carries the caption across the hop.
-                      if (isIOSWebKit()) {
-                        // Armed for the hop too: a photo lost between here and
-                        // the light page must still leave a diagnostic record.
-                        armCapture('composer');
-                        router.push('/app/capture');
-                        return;
-                      }
-                      armCapture('composer'); // capture-diag: before the camera takes over
-                      openPhoto();
-                    }}
+                    onClick={openPhoto}
                     className="flex flex-col items-center justify-center gap-1 min-h-[64px] rounded-lg border-2 border-border-strong hover:border-violet-500 hover:bg-brand-soft transition-all text-secondary"
                   >
                     <i className="fas fa-camera text-lg text-brand-fg" aria-hidden="true"></i>
@@ -971,15 +785,7 @@ export default function CreatePostModal({
                   </button>
                   <button
                     type="button"
-                    onClick={() => {
-                      if (isIOSWebKit()) {
-                        armCapture('composer');
-                        router.push('/app/capture');
-                        return;
-                      }
-                      armCapture('composer');
-                      openVideo?.();
-                    }}
+                    onClick={openVideo}
                     className="flex flex-col items-center justify-center gap-1 min-h-[64px] rounded-lg border-2 border-border-strong hover:border-violet-500 hover:bg-brand-soft transition-all text-secondary"
                   >
                     <i className="fas fa-video text-lg text-brand-fg" aria-hidden="true"></i>
@@ -1489,9 +1295,6 @@ export default function CreatePostModal({
           config={COMPOSER_EDITOR_CONFIG}
           onDone={handleEditorDone}
           onCancel={() => {
-            // Cancelling NEW picks drops them from the stash too; a cancelled
-            // re-edit changes nothing the stash holds.
-            if (!editingExistingId) void stashCaptures(COMPOSER_STASH_KEY, originalsOf(mediaFiles));
             setEditorAssets(null);
             setEditingExistingId(null);
           }}

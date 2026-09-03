@@ -1,5 +1,59 @@
 # Development Log
 
+## September 3, 2026 — Round 8: the camera flow is reset to its September 1 state (zero DDL)
+
+Tom, after #570, with the fact that outranks every hypothesis of the day: on
+his iPhone 12 Pro Max (iOS 15) **the camera had no issues until today**; now
+video does not work at all. His decision: "Reset it to what it was like 2 days
+ago. It shouldn't affect the rest of the app." Scope confirmed with him:
+**the camera flow only** — and the upload-time orientation bake goes with it,
+because it is on that path and was the change that opened the day (the first
+report after #551 was "slow, glitchy once taken, not being saved").
+
+Only eight commits touched capture → editor → upload since Sep 1, all today,
+so "2 days ago" is the parent of #551 for every file. What returns to that
+state:
+
+- `src/components/CreatePostModal.tsx` — restored whole: the camera buttons
+  open the native camera directly again (no iOS detour), no capture stash or
+  its notices, no capture diagnostic, no `initialCaptures`/`autoRestoreStash`,
+  uploads back to `Promise.all`.
+- `src/lib/media/upload.ts`, `exif-strip.ts` (+ test), `decode.ts` — restored
+  whole: no orientation bake, no header probe, no scrub queue, no EXIF probe
+  before `createImageBitmap`.
+- Deleted: `scrub-queue.ts`, `capture-stash.ts`, `capture-diag.ts`,
+  `orientation-probe.ts` (+ tests), `src/lib/platform.ts`, the `/app/capture`
+  route, the three specs that pinned them (`capture-page`, `capture-stash`,
+  `media-orientation`) and the rotated fixtures.
+- `feed/page.tsx` — the `restore=1` hand-off and the gate-flip counter are
+  gone; the tab-strip gap from #551 stays (not the camera).
+
+**What this brings back, by decision:** an un-edited portrait phone photo
+can store sideways again (the strip erases the Orientation tag — the very
+thing #551 fixed). Orientation is to be revisited separately and lightly
+(preserve the tag, never decode at upload) once the camera is confirmed
+working on the phone.
+
+**What stays** — none of it is the camera flow: the browser floor, its gate,
+the head polyfill and the header fix (#568/#569 — they fixed real breaks for
+other devices); `look.ts` and the AI runner's floor-safe calls; the feed
+video `preload="none"`; the editor's loading shell; the `webkit-mobile`
+Playwright project; the day's league and calendar work.
+
+Lesson recorded plainly: seven rounds chased a camera bug through memory,
+storage engines, parse floors and hand-offs on a device none of them could
+run, while the report that would have ended it on round one — "it worked
+before today" — arrived after round seven. Ask for the last-known-good state
+first.
+
+Verification: `npm run verify`; `git diff 7d02d55^ -- <the four restored
+files>` empty; `feed-post`, `media-editor`, `media-reedit` on `desktop`,
+`mobile`, `webkit-mobile`; after merge the floor gate against the live chunks
+and `/app/capture` → 404. Then Tom: composer → Take photo → Use Photo →
+editor → post; Record video the same.
+
+---
+
 ## September 3, 2026 — Round 7: the photo never leaves the light page — the composer is hosted there; no IndexedDB, no navigation between camera and editor (zero DDL)
 
 Tom, after #569, with the facts that finally pinned it: **the feed always
