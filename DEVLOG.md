@@ -1,5 +1,30 @@
 # Development Log
 
+## September 3, 2026 — Maintenance sweep after the quick-fixes round + session prompt re-aligned (#552, docs only)
+
+The full checklist on `main` at the #551 merge (7d02d55), nothing red:
+
+- `npm run verify` green — typecheck, `eslint . --max-warnings 0` (still
+  zero), 2,707 unit tests, production build; `scripts/hardening-guardrails.sh`
+  passed; `npm audit --omit=dev` reports 0 vulnerabilities.
+- Git: `main` clean and in sync with GitHub; no local or remote feature
+  branches left (the #550 sweep pruned 47, #551's branch was deleted at
+  merge).
+- Vercel: the #551 production deployment reached Ready one minute after the
+  merge and carries the live aliases; both new specs were green against it
+  (see the #551 entry).
+- `docs/SESSION_PROMPT.md` re-aligned to Sep 3 — the five drifts the session
+  start flagged: migrations at 176 (was 128); the family console is complete
+  and the org platform (phases 0–9 + program 10) is the shipped focus, no
+  program open; the long-term direction's first three steps are live, with
+  ranking/scouting/verification remaining; the feature inventory gains the
+  Organizations block (sites, registration, golf leagues, club privacy, the
+  media/news layer); the golf cleanup date reads August 2026.
+- No code changed in this sweep. Open items stay with Tom's ops list
+  (Search Console, custom-domain env, device passes).
+
+---
+
 ## September 3, 2026 — Quick fixes: feed tab gap, sidebar calendar with viewer-relevant filters, phone photos stored upright (#551, zero DDL)
 
 Three fixes Tom asked for after program 10 closed. One branch, one PR.
