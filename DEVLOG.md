@@ -1,5 +1,75 @@
 # Development Log
 
+## September 3, 2026 — Round 6: the second floor break — a `toSpliced` in the app header; the gate learns that syntax is not runtime (zero DDL)
+
+Review of the live deploy after #568 (the 27 client chunks production serves,
+downloaded and parsed with acorn at ES2022): **0 class static blocks, 0 `#x in`,
+0 `d`/`v` regex flags**, and the runtime chunk now carries Next's polyfills for
+`Array.prototype.at` / `Object.hasOwn`. Round 5 is live; the parse failure is
+fixed. Then a sweep of the same chunks for APIs newer than iOS 15 that a
+syntax gate cannot see — runtime methods, which parse fine and throw at call
+time — found the break that survived it:
+
+- **`src/components/AppHeader.tsx` — `placeLinks.toSpliced(...)`.** ES2023,
+  **Safari/iOS 16.4+**, not in Next's polyfill set (which is exactly flat/
+  flatMap/finally/fromEntries/at/hasOwn/URL.canParse). Shipped verbatim in the
+  live chunk; it runs on every render of the header. On an iPhone below iOS
+  16.4: `TypeError: toSpliced is not a function` → the `(app)/error.tsx`
+  boundary ("Something went wrong") on **every page with the header** — `/feed`,
+  `/explore`, `/athlete`, i.e. the composer's host AND the light capture page's
+  own destination. Login and `/app/capture` (BrandBar, no header) work, so
+  after round 5 the phone died one screen later. Introduced Aug 1 (`7a38e28e`),
+  untouched by rounds 1–5. Fixed with a copy-then-`splice`.
+- **`structuredClone` in Next's own router chunk** (rootMainFiles, route-tree
+  / param interpolation), unpolyfilled — **iOS 15.4+**, so iOS 15.0–15.3
+  breaks. Nothing we write can guard a call inside the framework, so
+  `src/lib/floor-polyfills.ts` installs a JSON-round-trip stand-in from a
+  BLOCKING head script ahead of the theme script and every chunk (documented
+  lossiness — plain objects only, which is all Next clones there). `(public)`
+  keeps its static, nonce-free CSP and gets no inline script; the framework
+  call there is the same narrow 15.0–15.3 case on read-only pages.
+- **`src/lib/media/ai/remote-runner.ts` — `AbortSignal.timeout`** (Safari
+  16+): in a client chunk, reachable only with `NEXT_PUBLIC_AI_RUNNER_URL`
+  set (it is not). `AbortController` + `setTimeout` now, so the gate is clean.
+- **`CreatePostModal` iOS branch** now `armCapture('composer')` BEFORE
+  `router.push('/app/capture')`, so a photo lost on the hop leaves a record.
+
+**The gate grows a second half.** `scripts/browser-floor-rules.mjs` (the
+classifier, unit-tested from `src/lib/__tests__/browser-floor-rules.test.ts`)
++ `scripts/check-browser-syntax.mjs` (the runner): the syntax rules from round
+5 plus a runtime denylist — instance methods on any receiver (`toSpliced`,
+`toSorted`, `toReversed`, `findLast`, `findLastIndex`), statics on their global
+(`Array.fromAsync`, `Promise.withResolvers`, `Object/Map.groupBy`,
+`AbortSignal.timeout/any`, `Intl.Segmenter`), bare globals (`structuredClone`,
+exempted only because the head script installs it — `floor-polyfills.test.ts`
+pins that the script really does, and that it is ES5). Feature-detect and
+install shapes pass (`typeof x.m`, `x.m || …`, `x.m ?? …`, `x.m ? :`, `if (x.m)`,
+`!x.m`, `x.m === …`, `X.prototype.m…`, `x.m = …`) — a gate that cries wolf on
+every polyfill gets disabled. The runner also takes a directory argument, so
+the same rules run against downloaded production chunks after a merge.
+
+Proof, the way round 5 did it: the extended gate against the pre-fix build of
+main (21ddfb8b) reported **exactly four** findings — `structuredClone` ×2 in
+Next's runtime chunk, `AbortSignal.timeout` in the AI runner chunk, and
+`.toSpliced()` in the header's chunk — and 0 after.
+
+Everything else the sweep found is guarded and stays: `createImageBitmap`
+behind the EXIF probe, WebCodecs behind `isVideoEditingSupported`,
+`requestVideoFrameCallback`, `requestIdleCallback`, `navigator.share`,
+`Notification`. Tailwind v4's emitted CSS (`@property`, `color-mix`, `oklab`)
+carries `@supports` fallbacks — a fidelity risk on iOS 15, not a failure, and
+outside this gate's remit.
+
+Verification: `npm run verify` (gate: 0 findings); the media suite on
+`desktop`, `mobile`, `webkit-mobile` (the header renders on every one); after
+merge, the live chunks re-downloaded and the gate run against them. Then
+Tom's phone — still the only real old-iOS runtime: iOS version from Settings
+(below 16.4 explains the post-#568 result; below 15.4 makes the head polyfill
+load-bearing), then `/feed` without "Something went wrong", composer → Take
+photo → light page → Keep → editor → post.
+
+---
+
 ## September 3, 2026 — Round 5, the actual cause: the app was built for Safari 16.4+ only. A real browser floor, enforced (zero DDL)
 
 Tom, after round 4, in Safari AND Chrome on his older iPhone: the create-post

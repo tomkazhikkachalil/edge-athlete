@@ -180,13 +180,18 @@ export default function AppHeader({ onCreatePost, onEditProfile }: AppHeaderProp
   // Calendar is flag-gated — the nav is 4 items in production and 5 with the
   // flag on, so a fixed index would centre Live in one environment and not the
   // other. `ceil` keeps Feed and Explore together on the 4-item nav.
+  // Copy-then-splice, NOT `toSpliced`: that is ES2023 (Safari/iOS 16.4+), below
+  // the project's iOS 15 floor and outside Next's polyfill set — it threw on
+  // every render of this header on an older iPhone (Sep 3 round 6).
+  const placeLinksWithLive = [...placeLinks];
+  placeLinksWithLive.splice(Math.ceil(placeLinks.length / 2), 0, {
+    path: '/live',
+    label: 'Live',
+    icon: 'fa-circle',
+    accent: 'live' as const,
+  });
   const navLinks: NavLink[] = [
-    ...placeLinks.toSpliced(Math.ceil(placeLinks.length / 2), 0, {
-      path: '/live',
-      label: 'Live',
-      icon: 'fa-circle',
-      accent: 'live' as const,
-    }),
+    ...placeLinksWithLive,
     // `iconOnly` = reachable from the icon cluster on desktop, so the nav
     // doesn't say it twice. They STAY in this array because the mobile drawer
     // renders from it and, below `lg`, the drawer is the only route to them —

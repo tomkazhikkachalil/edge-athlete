@@ -11,6 +11,7 @@ import DeletionScheduledBanner from "@/components/DeletionScheduledBanner";
 import ChatDock from "@/components/chat-dock/ChatDock";
 import ThemeApplier from "@/components/ThemeApplier";
 import { THEME_INIT_SCRIPT } from "@/lib/theme-script";
+import { FLOOR_POLYFILLS_SCRIPT } from "@/lib/floor-polyfills";
 import { THEME_COLOR } from "@/lib/theme-colors";
 import "../globals.css";
 import "@fortawesome/fontawesome-free/css/all.min.css";
@@ -98,6 +99,10 @@ export default async function RootLayout({
             schedule and any override) and stamps <html> before first paint,
             so there is no flash of the wrong theme. Must stay ahead of any
             stylesheet-dependent paint; see src/lib/theme-script.ts. */}
+        {/* Also blocking, and FIRST: installs the globals the iOS 15 floor lacks
+            but Next's own client runtime calls bare (structuredClone). Must run
+            before any chunk; see src/lib/floor-polyfills.ts. */}
+        <script nonce={nonce} dangerouslySetInnerHTML={{ __html: FLOOR_POLYFILLS_SCRIPT }} />
         <script nonce={nonce} dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
         {/* use-credentials is load-bearing: without it the browser fetches the
             manifest without cookies, app/manifest.ts never sees the resolved
