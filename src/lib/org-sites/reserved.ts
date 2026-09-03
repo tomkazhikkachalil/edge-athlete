@@ -29,6 +29,7 @@ export const RESERVED_ROOT_SLUGS: ReadonlySet<string> = new Set([
   'forgot-password',
   'goodbye',
   'invite',
+  'join', // phase 9 V3: the club join door
   'league',
   'live',
   'login',

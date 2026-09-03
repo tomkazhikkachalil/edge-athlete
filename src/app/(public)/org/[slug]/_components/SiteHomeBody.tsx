@@ -39,7 +39,7 @@ import StaffList from './StaffList';
 import StandingsPreview from './StandingsPreview';
 import TeamsList from './TeamsList';
 import VenuesList from './VenuesList';
-import { siteBasePath } from '@/lib/org-sites/urls';
+import { appBaseUrl, siteBasePath } from '@/lib/org-sites/urls';
 import { FULL_WIDTH_MODULES, templateSpec } from '@/lib/org-sites/templates';
 import type { CourseStats } from '@/lib/golf/course-stats';
 import type { PublicGolfRound } from '@/lib/org-sites/public-data';
@@ -308,18 +308,31 @@ export default function SiteHomeBody({
             <p className={spec.hero === 'bleed' ? 'mt-2 text-base opacity-90' : 'mt-1 text-sm opacity-90'}>
               {hero.tagline || (site.sportKey === 'golf' ? GOLF_TAGLINE : 'Schedules, standings, and teams — live.')}
             </p>
-            {hero.ctaLabel && hero.ctaUrl && (
-              <a
-                href={hero.ctaUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="mt-4 inline-block rounded-md bg-white/95 px-4 py-2 text-sm font-semibold shadow-sm"
-                style={{ color: 'var(--org-accent-strong)' }}
-              >
-                {hero.ctaLabel}
-                <span className="sr-only"> (opens in a new tab)</span>
-              </a>
-            )}
+            <div className="mt-4 flex flex-wrap gap-2">
+              {hero.ctaLabel && hero.ctaUrl && (
+                <a
+                  href={hero.ctaUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-block rounded-md bg-white/95 px-4 py-2 text-sm font-semibold shadow-sm"
+                  style={{ color: 'var(--org-accent-strong)' }}
+                >
+                  {hero.ctaLabel}
+                  <span className="sr-only"> (opens in a new tab)</span>
+                </a>
+              )}
+              {/* Phase 9 V3: the join door — the app's account-first join page
+                  (an absolute app URL: a custom domain must not swallow it). */}
+              {site.side === 'club' && (
+                <a
+                  href={`${appBaseUrl()}/join/club/${site.orgId}`}
+                  className="inline-block rounded-md border border-white/80 px-4 py-2 text-sm font-semibold text-white"
+                  data-join-door="1"
+                >
+                  {`Join ${brandName}`}
+                </a>
+              )}
+            </div>
           </div>
         </section>
       )}
