@@ -29,6 +29,9 @@ export interface AnnouncementContext {
   message: string;
   actorId: string;
   announcementId: string;
+  /** P6: extra keys merged into every row's metadata (a dedupe handle
+   *  for a generated announcement, e.g. season_competition_id). */
+  extraMetadata?: Record<string, string>;
 }
 
 export interface AnnouncementRow {
@@ -39,7 +42,7 @@ export interface AnnouncementRow {
   message: string;
   action_url: string;
   is_read: false;
-  metadata: { org: string; announcement_id: string; announcement: true };
+  metadata: { org: string; announcement_id: string; announcement: true } & Record<string, string | true>;
 }
 
 export function announcementType(side: OrgSide): AnnouncementRow['type'] {
@@ -69,7 +72,12 @@ export function buildAnnouncementRows(
       message: ctx.message,
       action_url: `/${ctx.side}/${ctx.orgId}`,
       is_read: false,
-      metadata: { org: `${ctx.side}:${ctx.orgId}`, announcement_id: ctx.announcementId, announcement: true },
+      metadata: {
+        ...(ctx.extraMetadata ?? {}),
+        org: `${ctx.side}:${ctx.orgId}`,
+        announcement_id: ctx.announcementId,
+        announcement: true,
+      },
     });
   }
   return rows;

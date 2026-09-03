@@ -13,6 +13,8 @@ import PlayerStatsPanel from '@/components/org/PlayerStatsPanel';
 import ContestMediaPanel from '@/components/org/ContestMediaPanel';
 import PointsRaceTable from '@/components/standings/PointsRaceTable';
 import type { PointsRace } from '@/lib/competitions/golf-race';
+import type { SeasonSummary } from '@/lib/competitions/golf-season-wrap';
+import SeasonSummaryCard from '@/components/standings/SeasonSummaryCard';
 
 // ── The competition detail console (phase 2 R2) ─────────────────────────────
 // The org-console template one level deeper: schedule (contests) + score
@@ -144,6 +146,10 @@ export default function CompetitionDetailPage() {
   // Phase 8 P5: the points race (from the public standings payload) and the reminder.
   const [race, setRace] = useState<PointsRace | null>(null);
   const [nudgeBusy, setNudgeBusy] = useState<string | null>(null);
+  // Phase 8 P6: the season wrap + its one-time announcement.
+  const [seasonSummary, setSeasonSummary] = useState<SeasonSummary | null>(null);
+  const [seasonAnnouncedAt, setSeasonAnnouncedAt] = useState<string | null>(null);
+  const [wrapBusy, setWrapBusy] = useState(false);
   // Phase 6 R4 (mig 168): dispute controls — inline note expander, never
   // a modal. Raising is withdrawable, so no confirm.
   const [disputeContestId, setDisputeContestId] = useState<string | null>(null);
@@ -235,9 +241,19 @@ export default function CompetitionDetailPage() {
             try {
               const raceRes = await fetch(`/api/${plural}/${orgId}/standings?_cb=${Date.now()}`);
               if (raceRes.ok) {
-                const body = (await raceRes.json()) as { competitions?: { id: string; race?: PointsRace }[] };
+                const body = (await raceRes.json()) as { competitions?: { id: string; race?: PointsRace; seasonSummary?: SeasonSummary }[] };
                 const mine = body.competitions?.find(c => c.id === competitionId);
-                if (!cancelled) setRace(mine?.race ?? null);
+                if (!cancelled) {
+                  setRace(mine?.race ?? null);
+                  setSeasonSummary(mine?.seasonSummary ?? null);
+                }
+                if (mine?.seasonSummary) {
+                  const stateRes = await fetch(`${base}/season-announce`);
+                  if (stateRes.ok && !cancelled) {
+                    const st = (await stateRes.json()) as { announcedAt: string | null };
+                    setSeasonAnnouncedAt(st.announcedAt);
+                  }
+                }
               }
             } catch {
               /* the race simply stays hidden */
@@ -396,6 +412,30 @@ export default function CompetitionDetailPage() {
       showError('Reminder', 'Could not send the reminder');
     } finally {
       setNudgeBusy(null);
+    }
+  };
+
+  // P6: announce the season result once (bells, guardian copies, the site notice).
+  const announceSeason = async () => {
+    setWrapBusy(true);
+    try {
+      const res = await fetch(`${base}/season-announce`, { method: 'POST' });
+      const body = (await res.json().catch(() => ({}))) as { error?: string; announcedAt?: string; sent?: number };
+      if (res.status === 409 && body.announcedAt) {
+        setSeasonAnnouncedAt(body.announcedAt);
+        showError('Season', 'Already announced');
+        return;
+      }
+      if (!res.ok) {
+        showError('Season', body.error || 'Could not announce the season');
+        return;
+      }
+      setSeasonAnnouncedAt(new Date().toISOString());
+      showSuccess('Season', `Announced to ${body.sent ?? 0} member${body.sent === 1 ? '' : 's'}`);
+    } catch {
+      showError('Season', 'Could not announce the season');
+    } finally {
+      setWrapBusy(false);
     }
   };
 
@@ -1613,6 +1653,23 @@ export default function CompetitionDetailPage() {
             className="bg-surface rounded-lg shadow-sm border border-border p-4 sm:p-6"
           >
             <h2 className="text-lg font-semibold text-primary mb-4">Standings</h2>
+            {seasonSummary && (
+              <div className="mb-4">
+                <SeasonSummaryCard summary={seasonSummary} />
+                <button
+                  type="button"
+                  disabled={wrapBusy || !!seasonAnnouncedAt}
+                  onClick={() => void announceSeason()}
+                  className="mt-2 px-3 py-1.5 text-sm rounded-md bg-brand text-white font-medium hover:bg-brand-hover transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+                >
+                  {seasonAnnouncedAt
+                    ? `Announced ${seasonAnnouncedAt.slice(0, 10)}`
+                    : wrapBusy
+                      ? 'Announcing…'
+                      : 'Announce the season result'}
+                </button>
+              </div>
+            )}
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>

@@ -29,7 +29,8 @@ export async function orgAnnouncePOST(
   side: OrgSide,
   orgId: string,
   input: OrgAnnounceInput,
-  actorId: string
+  actorId: string,
+  opts: { extraMetadata?: Record<string, string> } = {}
 ): Promise<NextResponse> {
   const { data: org } = await admin
     .from(side === 'league' ? 'leagues' : 'clubs')
@@ -52,6 +53,7 @@ export async function orgAnnouncePOST(
     message: input.message,
     actorId,
     announcementId,
+    ...(opts.extraMetadata ? { extraMetadata: opts.extraMetadata } : {}),
   };
   const rows = buildAnnouncementRows(profileIds, ctx);
   for (const batch of chunk(rows, NOTIFY_CHUNK)) {

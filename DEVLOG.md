@@ -1,5 +1,52 @@
 # Development Log
 
+## September 2, 2026 — Phase 8 P6: PGA depth, part 6 — the season wrap: "Season complete" on the standings, announced once from the console (#538, zero DDL)
+
+The last round of "PGA depth" — the season has an ending. Phase 8 is
+CODE COMPLETE with this: P1 race → P2 player pages → P3 depth → P4 the
+week hub → P5 the console → P6 the wrap.
+
+- **`golf-season-wrap.ts`** (pure, tested): `buildSeasonSummary({weeks,
+  rows, scoringRule})` → null while any windowed week is still open (a
+  canceled week doesn't count) or nothing was played; else the champion
+  and runner-up off the standings rows, the most wins (a week's top
+  points — or, with no points, the lowest rule score, net on a net
+  league), the best round (lowest gross, with its week), `weeksPlayed`.
+  `seasonAnnouncement(name, summary)` → a self-contained title + message
+  inside the announce caps. Both use the PUBLIC rows and weeks — the same
+  masking and omission as the boards; nothing is stored.
+- `PublicCompetitionStandings.seasonSummary?` (present only when the
+  summary exists) → `SeasonSummaryCard` (props-only) at the top of the
+  standings card on the site, the `/club|/league/[id]/standings` twins
+  and `OrgStandings`; names link where a handle exists (P2).
+- **Announce once**: the announce rails gained an `extraMetadata` hook
+  (`buildAnnouncementRows` merges it into every row's metadata; `orgAnnouncePOST`
+  passes it through). `golf-season-wrap-server.ts`: GET answers
+  `{summary, announcedAt}` (the first row stamped `season_competition_id`);
+  POST 409s when announced, 400s when the season isn't complete, else
+  announces with `seasonAnnouncement`'s copy + a 14-day site notice —
+  bells to every member (never the sender), guardian copies, the notice
+  band. Route twins `…/competitions/[competitionId]/season-announce`
+  (manager gate, the `org-announce` bucket). The console draws the card
+  under "Standings" with "Announce the season result" → "Announced
+  {date}" (disabled).
+- e2e `golf-season-wrap.spec.ts`: three closed weeks (a dead heat after
+  two, broken by the third) → the payload's summary (275 pts, most wins
+  2, best round 76 in Week 2), "Season complete … wins with 275 pts" on
+  the site; the console GET (`announcedAt` null), a member's POST 403,
+  the manager's POST → bells to alpha (+ the child with a guardian copy)
+  carrying `season_competition_id`, the copy "with 275 pts over 3
+  weeks", `siteNotice: true`; a repeat 409s and the GET reports the date;
+  the home page carries "wins the season"; the console at 375px shows
+  the card and a disabled "Announced {date}"; an added OPEN week removes
+  the summary. Regressions green vs the live DB: org-announce,
+  golf-points-race, golf-season-points, golf-console-race,
+  golf-league-notify, org-leaderboard, org-site (5), org-site-two-pages.
+- P5 (#537) prod-proven: the console-race spec green against the
+  deployed build.
+
+Phase 8 (PGA depth) is code complete. Every round zero DDL.
+
 ## September 2, 2026 — Phase 8 P5: PGA depth, part 5 — the console: the race, "not yet posted" with a one-click reminder, and the member's season standing (#537, zero DDL)
 
 - **The race in the console**: the competition page fetches the public

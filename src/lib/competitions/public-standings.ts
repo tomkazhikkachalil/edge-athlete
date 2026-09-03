@@ -12,6 +12,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { parseGolfPointsConfig } from './golf-points';
 import { buildPointsRace, type PointsRace } from './golf-race';
+import { buildSeasonSummary, type SeasonSummary } from './golf-season-wrap';
 import { roundRuleFor } from './golf-league';
 import { readApproval } from '@/lib/orgs/approval';
 import type { OrgSide } from '@/lib/orgs/authz';
@@ -65,6 +66,9 @@ export interface PublicCompetitionStandings {
    *  the competition has at least one windowed round (mig 172), so
    *  legacy boards and non-golf payloads are byte-identical to before. */
   golf?: PublicGolfBlock;
+  /** Phase 8 P6: the season wrap — PRESENT ONLY once every windowed week
+   *  has closed and something was played. Derived; never stored. */
+  seasonSummary?: SeasonSummary;
   /** Phase 8 P1: the week-by-week points race — PRESENT ONLY on a
    *  `golf_points` league with at least one completed round. Derived at
    *  read time from the same raw rows as `golf`. */
@@ -231,6 +235,17 @@ export async function fetchPublicStandings(
     });
   }
 
+  function seasonFor(competitionId: string, scoringRule: string | null): { seasonSummary?: SeasonSummary } {
+    const golf = golfBlockFor(competitionId, scoringRule).golf;
+    if (!golf) return {};
+    const summary = buildSeasonSummary({
+      weeks: golf.weeks,
+      rows: rowsByCompetition.get(competitionId) ?? [],
+      scoringRule: roundRuleFor(scoringRule, golfRaw.configByCompetition.get(competitionId) ?? null),
+    });
+    return summary ? { seasonSummary: summary } : {};
+  }
+
   function raceFor(competitionId: string, scoringRule: string | null): { race?: PointsRace } {
     if (scoringRule !== 'golf_points') return {};
     const contests = golfRaw.contestsByCompetition.get(competitionId);
@@ -297,6 +312,7 @@ export async function fetchPublicStandings(
       sport_key: c.sport_key as string,
       ...golfBlockFor(c.id, c.scoring_rule as string | null),
       ...raceFor(c.id, c.scoring_rule as string | null),
+      ...seasonFor(c.id, c.scoring_rule as string | null),
     })),
   };
 

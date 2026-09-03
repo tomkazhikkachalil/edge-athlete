@@ -5,6 +5,8 @@ import Link from 'next/link';
 import GolfWeeks from '@/components/standings/GolfWeeks';
 import PointsRaceTable from '@/components/standings/PointsRaceTable';
 import type { PointsRace } from '@/lib/competitions/golf-race';
+import type { SeasonSummary } from '@/lib/competitions/golf-season-wrap';
+import SeasonSummaryCard from '@/components/standings/SeasonSummaryCard';
 import { playerHref } from '@/lib/org-sites/player-links';
 import type { PublicGolfBlock } from '@/lib/competitions/golf-weeks';
 
@@ -34,6 +36,7 @@ interface CompetitionStandings {
   /** W1: the golf week-to-week block (present only for windowed rounds). */
   golf?: PublicGolfBlock;
   race?: PointsRace;
+  seasonSummary?: SeasonSummary;
 }
 
 interface OrgStandingsProps {
@@ -132,6 +135,7 @@ export default function OrgStandings({ side, orgId }: OrgStandingsProps) {
               </table>
             </div>
             )}
+            {comp.seasonSummary && <SeasonSummaryCard summary={comp.seasonSummary} />}
             {comp.golf && <GolfWeeks golf={comp.golf} competitionId={comp.id} />}
             {comp.race && <PointsRaceTable race={comp.race} competitionId={comp.id} />}
           </div>
