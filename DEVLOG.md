@@ -1,5 +1,48 @@
 # Development Log
 
+## September 3, 2026 — Round 5, the actual cause: the app was built for Safari 16.4+ only. A real browser floor, enforced (zero DDL)
+
+Tom, after round 4, in Safari AND Chrome on his older iPhone: the create-post
+box freezes the page, the camera never opens even from the near-empty light
+page, "everything is broken." Every desktop browser and Playwright's current
+WebKit pass. One phone, every browser on it, every screen = a JavaScript
+PARSE failure on that engine version.
+
+In the production bundle (`es-check` + acorn): two chunks contain **class
+static blocks** — Safari 16.4+ syntax — and one of them is **Next.js's own
+client runtime** (the App Router error boundary, on every page); the other
+is Sentry. Next.js 16's default browserslist is `chrome 111, edge 111,
+firefox 111, safari 16.4`; vercel/next.js discussion #93152 reports exactly
+this failure on iOS 15/16. We moved to Next 16 on Jul 31 and nothing said
+the floor had moved. On an iPhone below iOS 16.4 the runtime chunk fails to
+parse, nothing hydrates, and every interaction is dead — every symptom of
+the day, including the ones rounds 1–4 chased as memory. (Rounds 1–4 fixed
+real, secondary things — the parallel bake, the WebKit-rejected stash, the
+EXIF probe — and stay. None of them was this.)
+
+Tom's rule, now a project rule: **it must work on every device.** So:
+
+- **`package.json` `browserslist`** — iOS 15 / Safari 15, Chrome/ChromeAndroid/
+  Firefox/Edge 100, Samsung 16, not dead. iOS 15 (Sept 2021) is every iPhone
+  from the 6s/SE up. Next/SWC lowers syntax and injects polyfills for it.
+- **`scripts/check-browser-syntax.mjs`**, the last step of `npm run verify`:
+  parses every client chunk with acorn at ES2022 and fails on class static
+  blocks, `#x in obj`, regex `d`/`v` flags, or any parse error. Run against
+  the pre-floor build it fails on exactly the two static blocks; the floor
+  cannot silently move again.
+- **`look.ts`**: `structuredClone` (iOS 15.4+) → a JSON deep copy; the rest
+  of our own code was already inside the floor (`requestIdleCallback`
+  guarded, `dvh` with a `vh` fallback, `crypto.randomUUID` server-only,
+  Tailwind 4.3 carries the Safari-15 fallbacks).
+- `CLAUDE.md` records the floor and the gate under Web & Mobile.
+
+No local way exists to run an old iOS (no Xcode simulator on this Mac;
+Playwright ships current WebKit only), so the proof is the gate plus Tom's
+phone. Verification: `npm run verify` (gate included); the media suite on
+desktop, mobile and webkit-mobile; prod probe after merge; then the phone.
+
+---
+
 ## September 3, 2026 — Round 4: the phone is WebKit — measured on the engine at last; the stash never worked there; iPhone camera goes through the light page (zero DDL)
 
 Tom, after #566: the app "seems very broken" on the phone — tapping the

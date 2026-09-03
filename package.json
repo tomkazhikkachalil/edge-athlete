@@ -15,9 +15,20 @@
     "test:watch": "vitest",
     "test:e2e": "playwright test",
     "test:e2e:prod": "E2E_BASE_URL=https://edge-athlete.vercel.app playwright test",
-    "verify": "npm run typecheck && npm run lint && npm run test && npm run build",
+    "check:syntax": "node scripts/check-browser-syntax.mjs",
+    "verify": "npm run typecheck && npm run lint && npm run test && npm run build && npm run check:syntax",
     "verify:media-privacy": "node scripts/verify-media-privacy.mjs"
   },
+  "browserslist": [
+    "iOS >= 15",
+    "Safari >= 15",
+    "Chrome >= 100",
+    "ChromeAndroid >= 100",
+    "Firefox >= 100",
+    "Edge >= 100",
+    "Samsung >= 16",
+    "not dead"
+  ],
   "dependencies": {
     "@fortawesome/fontawesome-free": "^7.2.0",
     "@hello-pangea/dnd": "^18.0.1",

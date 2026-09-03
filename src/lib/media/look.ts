@@ -23,6 +23,12 @@ import { isNeutralHsl } from './engine/hsl-math';
 import { isNeutralCurves } from './engine/curves-math';
 import type { ImageRecipe } from './types';
 
+/** Plain-data copy. NOT structuredClone: that is iOS 15.4+, and the browser
+ *  floor (package.json browserslist) is iOS 15 — a look is JSON-safe data. */
+function deepClone<T>(value: T): T {
+  return JSON.parse(JSON.stringify(value)) as T;
+}
+
 export interface Look {
   adjustments: ImageRecipe['adjustments'];
   light: ImageRecipe['light'];
@@ -44,8 +50,8 @@ export function extractLook(recipe: ImageRecipe): Look {
     detail: { ...recipe.detail },
     filterId: recipe.filterId,
     filterStrength: recipe.filterStrength,
-    hsl: recipe.hsl ? structuredClone(recipe.hsl) : undefined,
-    curves: recipe.curves ? structuredClone(recipe.curves) : undefined,
+    hsl: recipe.hsl ? deepClone(recipe.hsl) : undefined,
+    curves: recipe.curves ? deepClone(recipe.curves) : undefined,
     grain: recipe.grain ? { ...recipe.grain } : undefined,
   };
 }
@@ -61,8 +67,8 @@ export function lookToPatch(look: Look): Partial<ImageRecipe> {
     detail: { ...look.detail },
     filterId: look.filterId,
     filterStrength: look.filterStrength,
-    hsl: look.hsl ? structuredClone(look.hsl) : undefined,
-    curves: look.curves ? structuredClone(look.curves) : undefined,
+    hsl: look.hsl ? deepClone(look.hsl) : undefined,
+    curves: look.curves ? deepClone(look.curves) : undefined,
     grain: look.grain ? { ...look.grain } : undefined,
   };
 }
