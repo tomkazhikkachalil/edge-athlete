@@ -1,5 +1,22 @@
 # Development Log
 
+## September 3, 2026 — Maintenance sweep after program 10 (#550, DEVLOG only)
+
+The full checklist on `main` at the #549 merge (07a36af), nothing red:
+
+- `npm run verify` green — typecheck, `eslint . --max-warnings 0` (still
+  zero), 2,701 unit tests, production build; `scripts/hardening-guardrails.sh`
+  passed; `npm audit --omit=dev` reports 0 vulnerabilities.
+- Git: `main` clean and in sync with GitHub; the last unmerged remote
+  branch (`fix/member-photos-probe`) closed with #549; 47 local branches
+  already merged into `main` pruned (feature branches from phases 6c
+  through program 10). No remote branch deleted.
+- Vercel: the #548 production deployment was Ready; the #549 build was
+  verified to reach Ready before this entry (deploys are automatic on
+  merge — the "webhook can miss a merge" trap did not bite).
+- No code changed in this sweep. Open items stay with Tom's ops list
+  (Search Console, custom-domain env, device passes).
+
 ## September 3, 2026 — Program 10 M2 (N4 + N5): members' round photos on the club site — the member opts in, the manager curates, the gate re-decides every read (#548, zero DDL)
 
 The last PR of the program, and the one with rails. Tom's policy: the
