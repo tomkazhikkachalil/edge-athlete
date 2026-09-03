@@ -139,6 +139,12 @@ export default async function OrgSiteLayout({
                   {moduleLabel(key, nav, site.side, site.sportKey)}
                 </Link>
               ))}
+              {/* P4: a golf org's "This week" hub rides the standings module. */}
+              {site.sportKey === 'golf' && navKeys.includes('standings') && (
+                <Link href={`${siteBasePath(site)}/week`} className={navLinkClass}>
+                  This week
+                </Link>
+              )}
               {pages.map(p => (
                 <Link
                   key={p.slug}

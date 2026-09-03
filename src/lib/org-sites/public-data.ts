@@ -1758,3 +1758,184 @@ export async function fetchPlayerHandlesForOrgs(
   }
   return out;
 }
+
+// ── The week hub (phase 8 P4) ───────────────────────────────────────────────
+// "This week" on the org site: every active golf leaderboard's current
+// window — who has posted, points so far — and how many entrants are ON
+// THE COURSE right now. The count is the only live-round fact a public
+// page may carry (anonymous viewers cannot see live-round detail —
+// canViewSharedRound); it names nobody, branches on no viewer, and is
+// therefore CDN-safe. Members reach names through the app's /live door.
+// Built from the public standings payload (the same rows, masking and
+// omission) plus one bounded read of the live rounds at the week's
+// course(s) — 300s ISR, labelled "as of".
+
+export interface PublicWeekHubResult {
+  entrant_name: string;
+  playerHandle?: string;
+  gross: number | null;
+  net: number | null;
+  points?: number;
+  status: 'posted' | 'final';
+}
+
+export interface PublicWeekHubLeague {
+  competitionId: string;
+  name: string;
+  seasonLabel: string | null;
+  week: {
+    round: string | null;
+    playFrom: string;
+    playTo: string;
+    state: 'open' | 'upcoming' | 'closed';
+    courseName: string | null;
+    holes: number;
+    posted: number;
+    participants: number;
+    /** Days until the window closes (open weeks), or until it opens. */
+    daysLeft: number;
+    results: PublicWeekHubResult[];
+  } | null;
+  /** Entrants with a live round at the week's course(s), right now. */
+  onCourseNow: number;
+}
+
+export interface PublicWeekHub {
+  /** ISO timestamp of the read (the page shows "as of"). */
+  asOf: string;
+  today: string;
+  leagues: PublicWeekHubLeague[];
+}
+
+function daysBetween(fromIso: string, toIso: string): number {
+  const a = Date.parse(`${fromIso}T00:00:00Z`);
+  const b = Date.parse(`${toIso}T00:00:00Z`);
+  if (Number.isNaN(a) || Number.isNaN(b)) return 0;
+  return Math.round((b - a) / 86_400_000);
+}
+
+/** Distinct ENTRANT profiles with a live round at the courses, within the
+ *  window. Service-role read; count only. */
+async function countEntrantsOnCourse(
+  admin: Admin,
+  input: { courseIds: string[]; entrantProfiles: Set<string>; playFrom: string; playTo: string; now: number }
+): Promise<number> {
+  if (input.courseIds.length === 0 || input.entrantProfiles.size === 0) return 0;
+  const { data: cards } = await admin
+    .from('golf_scorecard_data')
+    .select('group_post_id')
+    .in('course_id', input.courseIds)
+    .limit(400);
+  const postIds = [...new Set((cards ?? []).map(c => c.group_post_id as string))];
+  if (postIds.length === 0) return 0;
+  const { data: rounds } = await admin
+    .from('group_posts')
+    .select('id, status, date, participants:group_post_participants(profile_id, status, scores:golf_participant_scores(updated_at))')
+    .in('id', postIds)
+    .eq('type', 'golf_round')
+    .in('status', ['pending', 'active'])
+    .gte('date', input.playFrom)
+    .lte('date', input.playTo)
+    .limit(200);
+  const { isRoundLive, isActiveParticipant } = await import('@/lib/golf/round-status');
+  const onCourse = new Set<string>();
+  for (const r of (rounds ?? []) as Array<{
+    id: string;
+    status: string | null;
+    date: string | null;
+    participants?: Array<{
+      profile_id: string;
+      status: string | null;
+      scores?: { updated_at: string | null } | Array<{ updated_at: string | null }> | null;
+    }> | null;
+  }>) {
+    let lastActivity: string | null = null;
+    for (const pt of r.participants ?? []) {
+      const sc = Array.isArray(pt.scores) ? pt.scores[0] : pt.scores;
+      if (sc?.updated_at && (!lastActivity || sc.updated_at > lastActivity)) lastActivity = sc.updated_at;
+    }
+    if (!isRoundLive({ status: r.status, date: r.date, last_score_activity_at: lastActivity }, input.now)) continue;
+    for (const pt of r.participants ?? []) {
+      if (isActiveParticipant(pt.status) && input.entrantProfiles.has(pt.profile_id)) onCourse.add(pt.profile_id);
+    }
+  }
+  return onCourse.size;
+}
+
+export async function fetchPublicWeekHub(admin: Admin, side: OrgSide, orgId: string): Promise<PublicWeekHub> {
+  const now = Date.now();
+  const { utcToday } = await import('@/lib/competitions/golf-weeks');
+  const today = utcToday();
+  const hub: PublicWeekHub = { asOf: new Date(now).toISOString(), today, leagues: [] };
+  try {
+    const { fetchPublicStandings } = await import('@/lib/competitions/public-standings');
+    const standings = await fetchPublicStandings(admin, side, orgId);
+    if (!standings) return hub;
+    for (const c of standings.competitions) {
+      if (c.sport_key !== 'golf' || c.format !== 'leaderboard' || c.status !== 'active' || !c.golf) continue;
+      const current = c.golf.weeks.find(w => w.id === c.golf!.currentWeekId) ?? null;
+      let onCourseNow = 0;
+      if (current && current.state === 'open') {
+        // The week's course(s) — the venue's golf link → catalog rows.
+        const { data: contest } = await admin.from('contests').select('id, venue_id').eq('id', current.id).maybeSingle();
+        const { data: venue } = contest?.venue_id
+          ? await admin.from('venues').select('golf_club_id, golf_course_id').eq('id', contest.venue_id).maybeSingle()
+          : { data: null };
+        const courseIds = new Set<string>();
+        if (venue?.golf_course_id) courseIds.add(venue.golf_course_id as string);
+        if (venue?.golf_club_id) {
+          const { data: sections } = await admin.from('golf_courses').select('id').eq('club_id', venue.golf_club_id).limit(40);
+          for (const sec of sections ?? []) courseIds.add(sec.id as string);
+        }
+        // The week's entrants — profiles behind the contest's participants.
+        const { data: parts } = await admin
+          .from('contest_participants')
+          .select('entry_id')
+          .eq('contest_id', current.id)
+          .limit(1000);
+        const entryIds = [...new Set((parts ?? []).map(pr => pr.entry_id as string))];
+        const { data: entries } = entryIds.length
+          ? await admin.from('competition_entries').select('profile_id').in('id', entryIds)
+          : { data: [] as { profile_id: string | null }[] };
+        const entrantProfiles = new Set((entries ?? []).map(e => e.profile_id as string | null).filter((id): id is string => !!id));
+        onCourseNow = await countEntrantsOnCourse(admin, {
+          courseIds: [...courseIds],
+          entrantProfiles,
+          playFrom: current.playFrom,
+          playTo: current.playTo,
+          now,
+        });
+      }
+      hub.leagues.push({
+        competitionId: c.id,
+        name: c.name,
+        seasonLabel: c.season_label,
+        week: current
+          ? {
+              round: current.round,
+              playFrom: current.playFrom,
+              playTo: current.playTo,
+              state: current.state,
+              courseName: current.courseName,
+              holes: current.holes,
+              posted: current.posted,
+              participants: current.participants,
+              daysLeft: current.state === 'upcoming' ? daysBetween(today, current.playFrom) : daysBetween(today, current.playTo),
+              results: current.results.map(r => ({
+                entrant_name: r.entrant_name,
+                ...(r.playerHandle ? { playerHandle: r.playerHandle } : {}),
+                gross: r.gross,
+                net: r.net,
+                ...(typeof r.points === 'number' ? { points: r.points } : {}),
+                status: r.status,
+              })),
+            }
+          : null,
+        onCourseNow,
+      });
+    }
+  } catch (error) {
+    console.error(`${TAG} week hub failed:`, error);
+  }
+  return hub;
+}
