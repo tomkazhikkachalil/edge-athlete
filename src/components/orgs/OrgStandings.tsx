@@ -42,7 +42,7 @@ interface CompetitionStandings {
 interface OrgStandingsProps {
   side: 'league' | 'club';
   orgId: string;
-  /** Phase 9 V4: a private club's members read the session-gated path. */
+  /** Phase 9 V4 (leagues in program 11 L2): a private org's members read the session-gated path. */
   scope?: 'public' | 'mine';
 }
 
@@ -53,7 +53,8 @@ export default function OrgStandings({ side, orgId, scope = 'public' }: OrgStand
     let cancelled = false;
     (async () => {
       try {
-        const base = side === 'league' ? `/api/leagues/${orgId}/standings` : scope === 'mine' ? `/api/clubs/${orgId}/standings/mine` : `/api/clubs/${orgId}/standings`;
+        const plural = side === 'league' ? 'leagues' : 'clubs';
+        const base = scope === 'mine' ? `/api/${plural}/${orgId}/standings/mine` : `/api/${plural}/${orgId}/standings`;
         const response = await fetch(base);
         if (!response.ok || cancelled) return;
         const data = await response.json();

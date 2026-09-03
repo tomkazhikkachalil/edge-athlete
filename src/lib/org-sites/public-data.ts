@@ -600,14 +600,17 @@ export async function fetchPublishedSitesForSitemap(
     /* pre-169 — no course pages in the sitemap */
   }
 
-  // Phase 9 V4: private clubs — the members-only subpages leave the sitemap.
-  const privateClubs = new Set<string>();
-  if (clubIds.length) {
-    const { data: vis } = await admin.from('clubs').select('id, visibility').in('id', clubIds);
-    for (const c of vis ?? []) if ((c as { visibility?: string }).visibility === 'private') privateClubs.add(c.id as string);
-  }
+  // Phase 9 V4 (leagues in program 11 L2): private orgs — the members-only
+  // subpages leave the sitemap. Pre-176/177 (42703) ⇒ nothing is private.
+  const privateOrgs = new Set<string>();
+  const collectPrivate = async (table: 'leagues' | 'clubs', ids: string[]) => {
+    if (!ids.length) return;
+    const { data: vis } = await admin.from(table).select('id, visibility').in('id', ids);
+    for (const c of vis ?? []) if ((c as { visibility?: string }).visibility === 'private') privateOrgs.add(`${table}:${c.id as string}`);
+  };
+  await Promise.all([collectPrivate('clubs', clubIds), collectPrivate('leagues', leagueIds)]);
   const visibilityOf = (r: { league_id: string | null; club_id: string | null }): 'public' | 'private' =>
-    r.club_id && privateClubs.has(r.club_id) ? 'private' : 'public';
+    (r.club_id && privateOrgs.has(`clubs:${r.club_id}`)) || (r.league_id && privateOrgs.has(`leagues:${r.league_id}`)) ? 'private' : 'public';
 
   // P2: public players per org (bounded; the standings module gates).
   const playersByOrg = await fetchPlayerHandlesForOrgs(

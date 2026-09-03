@@ -15,7 +15,7 @@ import { buildPointsRace, type PointsRace } from './golf-race';
 import { buildSeasonSummary, type SeasonSummary } from './golf-season-wrap';
 import { roundRuleFor } from './golf-league';
 import { readApproval } from '@/lib/orgs/approval';
-import { readClubAccess } from '@/lib/orgs/access';
+import { readOrgAccess } from '@/lib/orgs/access';
 import type { OrgSide } from '@/lib/orgs/authz';
 import { resolveFixtureRule, resolveLeaderboardRule, type StandingsColumn } from './scoring';
 import { publicDisplayName, type MaskableProfile, publicHandle } from '@/lib/orgs/public-names';
@@ -104,7 +104,9 @@ export async function fetchPublicStandings(
   if ((await readApproval(admin, side, orgId)).pending) {
     return { orgName: org.name as string, competitions: [] };
   }
-  if (side === 'club' && !opts.membersView && (await readClubAccess(admin, orgId)).visibility === 'private') {
+  // Phase 9 V4 (both sides since program 11 L2): a private org's PUBLIC
+  // standings are the empty state; members read via /standings/mine.
+  if (!opts.membersView && (await readOrgAccess(admin, side, orgId)).visibility === 'private') {
     return { orgName: org.name as string, competitions: [] };
   }
 

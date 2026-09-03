@@ -1,5 +1,60 @@
 # Development Log
 
+## September 3, 2026 — Program 11 L2: leagues parity, part 2 — a private league on the public site, the members' reads, search and the sitemap (#555, zero DDL)
+
+The phase-9 V4/V5 rule for leagues (Tom: the SAME rule as clubs — teams
+and divisions included): a private league's site shows identity + public
+items; standings, the week, players, leaders, teams, divisions, the gallery
+and the staff panel are "Members only"; members read everything in the
+app. The (public) segment stays viewer-independent throughout.
+
+- **`PublicSite.visibility` for leagues**: `getSiteBySlugInternal` selects
+  the league's `visibility` (177) with the 42703 step-down, and the site's
+  visibility is decided from the org row alone, either side. Every gate
+  built on it in V4 (`isMembersOnly`, `MembersOnlyPage`, the panels on the
+  home and the eight subpages, `publicSubpageKeys`) is now live for leagues
+  with no change of its own.
+- **Standings**: `fetchPublicStandings` answers the empty state for a
+  private org on the PUBLIC path for BOTH sides (`readOrgAccess`) — the
+  CDN-cached `/api/leagues/[id]/standings`, the SSR twin and the site
+  modules go dark; the players page, the week hub and the leaders build
+  from it and follow.
+- **The members' reads** move to one module, **`orgs/mine-server.ts`**
+  (`standingsMineGET`, `newsMineGET`: `requireAuth` + a membership or the
+  owner column, `Cache-Control: private, no-store`); the four routes
+  `/api/{leagues,clubs}/[id]/{standings,news}/mine` are two-liners over it
+  (the two league ones are new; the club ones lose nothing).
+- **In the app**: `OrgStandings` builds the `mine` path for either side;
+  `ClubNewsCard` is **`OrgNewsCard`** (`side`, `orgId`; "League news" /
+  "Club news"; `data-org-news`) and the league page renders it for members
+  and passes the standings scope like the club page.
+- **Search** carries `visibility` on league results (the Explore chip
+  already read it); the **sitemap** reads private leagues too, so a
+  private league's members-only subpages, players and teams drop out.
+- e2e `league-private-gates.spec.ts` (the club spec's shape against a
+  private, approval league with a completed golf week: the home names
+  nobody, carries the league door and "Join the league"; each gated subpage
+  200 with the panel; the schedule stays; the public API + SSR twin empty;
+  `/standings/mine` 401/403/200 + private cache; the league GET hides the
+  list from a stranger; search says private; the sitemap keeps `/schedule`
+  and drops `/standings` + `/teams`; the member's league page at 375px; the
+  private home at 375px; a flip to public brings the names back) and
+  `league-public-items.spec.ts` (a public + a members-only post on a
+  private league → the site lists the public one and 404s the other;
+  `/news/mine` 401/200 with the parsed body; the member's league page card
+  ("League news") expands the members-only post at 375px; the console chip;
+  the editor flips it public → the site follows; a public league shows a
+  members-only post). Regressions green vs the live DB: club-private-gates,
+  club-public-items (its card selector follows the rename), org-site (5),
+  org-site-news, org-site-players, org-site-week, golf-league-weeks,
+  league-standings.
+- L1 (#554) prod-proven: the three league specs green against the deployed
+  build (probed alone).
+
+Next: L3 — the `/leagues` directory (zero DDL).
+
+---
+
 ## September 3, 2026 — Program 11 L1: leagues parity, part 1 — visibility, join policy, the approval queue and the join door for leagues (#554, migration 177)
 
 Program 11 ("Leagues parity", Tom, Sep 3 — after program 10 and the

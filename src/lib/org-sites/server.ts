@@ -882,7 +882,7 @@ async function getSiteBySlugInternal(
   const [orgRead, { data: modules }] = await Promise.all([
     readOrg(
       side === 'league'
-        ? 'id, name, city, region, country, sport_key'
+        ? 'id, name, city, region, country, sport_key, visibility'
         : 'id, name, city, region, country, primary_sport, visibility'
     ),
     admin
@@ -894,8 +894,8 @@ async function getSiteBySlugInternal(
   ]);
   let org = orgRead.data;
   if (orgRead.error?.code === '42703') {
-    // Pre-176 (no visibility) or pre-174 (no primary_sport): step down.
-    ({ data: org } = await readOrg(side === 'league' ? 'id, name, city, region, country' : 'id, name, city, region, country, primary_sport'));
+    // Pre-176/177 (no visibility) or pre-174 (no primary_sport): step down.
+    ({ data: org } = await readOrg(side === 'league' ? 'id, name, city, region, country, sport_key' : 'id, name, city, region, country, primary_sport'));
     if (!org) ({ data: org } = await readOrg('id, name, city, region, country'));
   }
   if (!org) return null;
@@ -920,7 +920,8 @@ async function getSiteBySlugInternal(
     orgCountry: orgRow.country ?? null,
     orgSportKey: orgRow.sport_key ?? null,
     sportKey: (side === 'league' ? orgRow.sport_key : orgRow.primary_sport) ?? null,
-    visibility: side === 'club' && orgRow.visibility === 'private' ? 'private' : 'public',
+    // Phase 9 V4 (leagues in program 11 L2): decided from the org row alone.
+    visibility: orgRow.visibility === 'private' ? 'private' : 'public',
     modules: modules ?? [],
   };
 }
