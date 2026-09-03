@@ -19,31 +19,34 @@ interface Candidate {
 }
 
 export default function MemberPhotoPicker({
-  clubId,
+  side,
+  orgId,
   onError,
 }: {
-  clubId: string;
+  side: 'league' | 'club';
+  orgId: string;
   onError: (message: string) => void;
 }) {
+  const plural = side === 'league' ? 'leagues' : 'clubs';
   const [items, setItems] = useState<Candidate[] | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     try {
-      const res = await fetch(`/api/clubs/${encodeURIComponent(clubId)}/site/photo-candidates`);
+      const res = await fetch(`/api/${plural}/${encodeURIComponent(orgId)}/site/photo-candidates`);
       if (!res.ok) return;
       const body = (await res.json()) as { candidates: Candidate[] };
       setItems(body.candidates);
     } catch {
       /* stays hidden */
     }
-  }, [clubId]);
+  }, [plural, orgId]);
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
-        const res = await fetch(`/api/clubs/${encodeURIComponent(clubId)}/site/photo-candidates`);
+        const res = await fetch(`/api/${plural}/${encodeURIComponent(orgId)}/site/photo-candidates`);
         if (!res.ok || cancelled) return;
         const body = (await res.json()) as { candidates: Candidate[] };
         if (!cancelled) setItems(body.candidates);
@@ -54,12 +57,12 @@ export default function MemberPhotoPicker({
     return () => {
       cancelled = true;
     };
-  }, [clubId]);
+  }, [plural, orgId]);
 
   const toggle = async (c: Candidate) => {
     setBusy(c.mediaId);
     try {
-      const res = await fetch(`/api/clubs/${encodeURIComponent(clubId)}/site`, {
+      const res = await fetch(`/api/${plural}/${encodeURIComponent(orgId)}/site`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: c.picked ? 'remove_gallery_pick' : 'set_gallery_pick', mediaId: c.mediaId }),
@@ -87,7 +90,7 @@ export default function MemberPhotoPicker({
         gallery; a member switching off, or hiding the post, removes it automatically.
       </p>
       {items === null ? null : items.length === 0 ? (
-        <p className="text-sm text-tertiary">No member photos yet — members opt in from the club page.</p>
+        <p className="text-sm text-tertiary">{`No member photos yet — members opt in from the ${side} page.`}</p>
       ) : (
         <ul className="grid grid-cols-2 sm:grid-cols-3 gap-3">
           {items.map(c => (

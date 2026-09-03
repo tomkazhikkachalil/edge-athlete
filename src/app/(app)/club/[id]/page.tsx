@@ -797,7 +797,7 @@ export default function ClubPage() {
         <OrgAnnouncementsCard side="club" orgId={club.id} isMember={!!viewerRole || isOwner} />
 
         {/* M2: a member's own round-photo sharing switch (their follow row). */}
-        {viewerRole && <RoundPhotoConsentSwitch clubId={club.id} />}
+        {viewerRole && <RoundPhotoConsentSwitch side="club" orgId={club.id} />}
 
         <OrgStandings side="club" orgId={club.id} scope={data.visibility === 'private' && viewerRole ? 'mine' : 'public'} />
 
