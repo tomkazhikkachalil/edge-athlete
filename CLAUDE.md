@@ -229,8 +229,23 @@ The lessons generalize:
 - **Give important tabs/sections a deep link** (`?tab=…`) so they are addressable
   from navigation, tests, and shares regardless of viewport.
 - e2e runs default to 1280×800 (`playwright.config.ts`); specs tagged `@mobile` run
-  in the narrow `mobile` project (390×844) — add one for any surface whose phone
-  behavior matters.
+  in the narrow `mobile` project (390×844) AND in `webkit-mobile` (the same specs on
+  WebKit — every iPhone browser, Chrome included, is WebKit) — add one for any
+  surface whose phone behavior matters.
+
+### The browser floor is a rule, not a framework default (Sep 2026)
+
+**The app must run on every device people actually carry** (Tom: "iOS, Android,
+Google, etc."). `package.json` `browserslist` is the floor — **iOS 15 / Safari 15,
+Chrome/Firefox/Edge 100, Samsung 16** — and `scripts/check-browser-syntax.mjs`
+(`npm run check:syntax`, the last step of `npm run verify`) parses every built
+client chunk and fails on syntax the floor cannot run. Why it exists: Next.js 16's
+own default is Safari 16.4+, and when we upgraded nothing said so — the framework
+runtime and Sentry shipped class static blocks into every page, an older iPhone
+could not parse the app at all (every tap dead, every browser on that phone), and
+every desktop check stayed green for a month. Do not raise the floor without a
+DEVLOG entry; when adding an API newer than iOS 15 (`structuredClone`, `.at()`,
+`Object.hasOwn`, `crypto.randomUUID` in the browser…), guard or polyfill it.
 
 ### Strict Spacing Rhythm
 - **12px** (`space-micro`) - Label-to-value, icon-to-text
