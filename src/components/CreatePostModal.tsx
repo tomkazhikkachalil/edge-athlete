@@ -29,6 +29,13 @@ import { validateFiles } from '@/lib/media/validation';
 import { recipeEnvelope } from '@/lib/media/recipes';
 import { loadComposerDraft, saveComposerDraft, clearComposerDraft, type ComposerDraft } from '@/lib/posts/composer-draft';
 import { uploadPostMedia } from '@/lib/media/upload';
+import {
+  COMPOSER_STASH_KEY,
+  appendStashedCaptures,
+  clearCaptureStash,
+  loadStashedCaptures,
+  stashCaptures,
+} from '@/lib/media/capture-stash';
 import type { EditRecipe, EditedMedia, EditorConfig, MediaAsset } from '@/lib/media/types';
 
 interface CreatePostModalProps {
@@ -203,6 +210,28 @@ export default function CreatePostModal({
   const [editorAssets, setEditorAssets] = useState<MediaAsset[] | null>(null);
   const [editingExistingId, setEditingExistingId] = useState<string | null>(null);
 
+  // Capture recovery (Sep 2026): picked/captured files are stashed in
+  // IndexedDB the instant they arrive (capture-stash.ts), so a tab that iOS
+  // reloads while the editor opens can offer the photos back. Offered on the
+  // next open, never auto-applied — the crash-draft rule.
+  const [stashedCaptures, setStashedCaptures] = useState<File[] | null>(null);
+  useEffect(() => {
+    if (!isOpen) return;
+    let cancelled = false;
+    loadStashedCaptures(COMPOSER_STASH_KEY).then(files => {
+      if (!cancelled) setStashedCaptures(files);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen]);
+  /** The files a restore would need: the untouched originals behind each tile. */
+  const originalsOf = (files: MediaFile[]): File[] =>
+    files.flatMap(f => {
+      const source = f.sourceFile ?? f.file;
+      return source ? [source] : [];
+    });
+
   // Persist the recoverable half of the composer while open (storage write
   // only — media Files and the uncontrolled golf section can't ride
   // localStorage; see composer-draft.ts).
@@ -269,9 +298,11 @@ export default function CreatePostModal({
   // requestClose below, which asks before discarding unsaved work.
   const closeAndReset = () => {
     // Explicit exit (confirmed discard or successful post) — the draft's job
-    // is crash recovery, not resurrecting decisions.
+    // is crash recovery, not resurrecting decisions. Same for the stash.
     clearComposerDraft();
     setAvailableDraft(null);
+    void clearCaptureStash(COMPOSER_STASH_KEY);
+    setStashedCaptures(null);
     reset();
     onClose();
   };
@@ -308,6 +339,9 @@ export default function CreatePostModal({
       showError('File not added', r.message);
     }
     if (accepted.length === 0) return;
+    // Stash FIRST — before the editor's decode, which is where a phone tab
+    // under memory pressure reloads. Fail-open, off the pick's critical path.
+    void appendStashedCaptures(COMPOSER_STASH_KEY, accepted);
     setEditingExistingId(null);
     setEditorAssets(
       accepted.map(file => ({
@@ -385,7 +419,9 @@ export default function CreatePostModal({
     if (file?.preview) {
       URL.revokeObjectURL(file.preview);
     }
-    setMediaFiles(prev => prev.filter(f => f.id !== fileId));
+    const remaining = mediaFiles.filter(f => f.id !== fileId);
+    setMediaFiles(remaining);
+    void stashCaptures(COMPOSER_STASH_KEY, originalsOf(remaining)); // empty ⇒ cleared
   };
 
   // Toggle tag selection
@@ -690,6 +726,50 @@ export default function CreatePostModal({
 
         {/* Content - Scrollable */}
         <div className="flex-1 overflow-y-auto p-4 sm:p-6">
+          {/* Capture-recovery notice: media that reached the page before a
+              reload (capture-stash.ts). Shown only while nothing is attached
+              and the editor is closed; restore re-opens the editor on the
+              originals (edits from the lost session are gone — say so). */}
+          {stashedCaptures && mediaFiles.length === 0 && !editorAssets && (
+            <div
+              role="status"
+              className="mb-4 flex flex-wrap items-center gap-2 rounded-lg border border-violet-200 dark:border-violet-800 bg-brand-soft px-3 py-2"
+            >
+              <i className="fas fa-clock-rotate-left text-brand-fg" aria-hidden="true"></i>
+              <p className="text-sm text-violet-900 dark:text-violet-200 flex-1 min-w-40">
+                {stashedCaptures.length === 1
+                  ? `Your ${stashedCaptures[0].type.startsWith('video/') ? 'video' : 'photo'} from before the page reloaded is saved`
+                  : `${stashedCaptures.length} files from before the page reloaded are saved`}
+              </p>
+              <button
+                type="button"
+                onClick={() => {
+                  setEditingExistingId(null);
+                  setEditorAssets(
+                    stashedCaptures.slice(0, MAX_MEDIA_FILES).map(file => ({
+                      id: `${Date.now()}-${Math.random()}`,
+                      file,
+                      kind: file.type.startsWith('video/') ? ('video' as const) : ('image' as const),
+                    }))
+                  );
+                  setStashedCaptures(null);
+                }}
+                className="min-h-[44px] px-3 rounded-full bg-brand text-white text-sm font-semibold hover:bg-brand-hover"
+              >
+                Restore
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  void clearCaptureStash(COMPOSER_STASH_KEY);
+                  setStashedCaptures(null);
+                }}
+                className="min-h-[44px] px-3 rounded-full text-sm font-semibold text-violet-900 dark:text-violet-200 hover:bg-violet-100 dark:hover:bg-violet-900/40"
+              >
+                Discard
+              </button>
+            </div>
+          )}
           {/* Crash-recovery draft notice — restore is a choice, never automatic */}
           {availableDraft && caption.trim() === '' && (
             <div className="mb-4 flex flex-wrap items-center gap-2 rounded-lg border border-violet-200 dark:border-violet-800 bg-brand-soft px-3 py-2">
@@ -1297,6 +1377,9 @@ export default function CreatePostModal({
           config={COMPOSER_EDITOR_CONFIG}
           onDone={handleEditorDone}
           onCancel={() => {
+            // Cancelling NEW picks drops them from the stash too; a cancelled
+            // re-edit changes nothing the stash holds.
+            if (!editingExistingId) void stashCaptures(COMPOSER_STASH_KEY, originalsOf(mediaFiles));
             setEditorAssets(null);
             setEditingExistingId(null);
           }}

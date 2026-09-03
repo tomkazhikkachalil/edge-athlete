@@ -1,5 +1,51 @@
 # Development Log
 
+## September 3, 2026 — Capture recovery: media survives the reload iOS inflicts (fix round 2, zero DDL)
+
+Tom's device pass after #561, on an iPhone in Safari, feed composer: "when
+I take a photo it freezes, then I get retake/keep, then it glitches and I
+lose the photo" — the page reloads. From the library: the picker's confirm
+looks stuck for a while, then the editor is there with the photo intact.
+
+What that tells us. The #561 fix was at POST time; this is at CAPTURE
+time, on a path the earlier round did not touch. The library case proves
+the editor-open path survives on that phone (the stall is iOS converting
+a 24MP HEIC in the picker — off our thread). The camera case ends in a
+reload, which is iOS Safari discarding the WebContent process under memory
+pressure while the native camera is up, then reloading the page on return.
+Two sub-cases, and only one is observable from code: the reload happens
+AFTER the file reached the page (our change event fired, then the editor's
+full-resolution decode tipped it), or BEFORE (while the camera was still
+open — nothing of ours ran). Until now both looked identical: photo gone.
+
+What changed:
+
+- **`media/capture-stash.ts`** — IndexedDB. Picked or captured files are
+  written the instant they arrive in `handleFileUpload`, BEFORE the editor
+  mounts and decodes; stored as {name, type, lastModified, blob} (Safari and
+  cloned Files have history), 30-minute TTL, every call fails open and
+  quietly. `composer-draft.ts` has always said "media Files can't ride
+  localStorage" — IndexedDB is where they can.
+- **Composer**: the next open offers a "Your photo from before the page
+  reloaded is saved — Restore / Discard" notice (the crash-draft rule: a
+  choice, never automatic). Restore re-opens the editor on the originals.
+  The stash follows the composer: removing a tile or cancelling new picks
+  rewrites it; a posted or confirmed-discarded composer clears it.
+- **The diagnostic this buys**: on the next camera reload, the notice
+  appearing means the file DID reach the page and the editor's decode is
+  what tips the phone — the next lever is editor-open memory (a preview-
+  sized derivative for the crop stage instead of the full-resolution
+  `<img>`). The notice NOT appearing means the process was discarded while
+  the camera was open — the lever is the feed page's footprint when the
+  camera opens. Tom reports which.
+
+Verification: `npm run verify`; `e2e/capture-stash.spec.ts` (@mobile):
+pick → editor → `page.reload()` → notice → Restore → editor on the same
+file → Done → tile; remove the tile → reload → no notice. Headless cannot
+run the camera itself; the device pass is the real test.
+
+---
+
 ## September 3, 2026 — Maintenance sweep after the capture fix round (#563, docs only)
 
 The full checklist on `main` at the #562 merge (cfaceab), nothing red:
