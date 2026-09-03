@@ -57,6 +57,11 @@ test('member photos on the site: gallery tile + streamer + player page; revoke �
     const streamer = `/api/media/org-gallery/${site.id}/${seed.mediaId}`;
     // Not live yet → the streamer refuses even with the pick.
     expect((await anon.request.get(streamer)).status()).toBe(404);
+    // Vercel's CDN keeps a streamer 200 for its short s-maxage (the
+    // documented ≤5-minute lag, the contest-media precedent) — every
+    // post-change check below asks a FRESH URL so the gate itself is what
+    // answers (the route ignores the query).
+    const fresh = () => `${streamer}?t=${Date.now()}${Math.random().toString(36).slice(2, 6)}`;
     res = await ownerApi.patch(`/api/clubs/${clubId}/site`, { data: { action: 'publish' } });
     expect(res.status(), await readErrorBody(res)).toBe(200);
 
@@ -79,24 +84,24 @@ test('member photos on the site: gallery tile + streamer + player page; revoke �
     // Revoke → the streamer 404s at once; the tile leaves on revalidate.
     res = await alphaApi.patch(`/api/clubs/${clubId}/photo-consent`, { data: { consent: false } });
     expect(res.status(), await readErrorBody(res)).toBe(200);
-    expect((await anon.request.get(streamer)).status()).toBe(404);
+    expect((await anon.request.get(fresh())).status()).toBe(404);
     await expect
       .poll(async () => { const r = await anon.request.get(galleryUrl); return r.ok() ? !(await r.text()).includes(streamer) : false; }, { timeout: 30_000, intervals: [1000, 2000, 3000] })
       .toBe(true);
     res = await alphaApi.patch(`/api/clubs/${clubId}/photo-consent`, { data: { consent: true } });
     expect(res.status()).toBe(200);
-    expect((await anon.request.get(streamer)).status()).toBe(200);
+    expect((await anon.request.get(fresh())).status()).toBe(200);
 
     // The post made private → 404; public again → 200.
     await admin.from('posts').update({ visibility: 'private' }).eq('id', seed.postId);
-    expect((await anon.request.get(streamer)).status()).toBe(404);
+    expect((await anon.request.get(fresh())).status()).toBe(404);
     await admin.from('posts').update({ visibility: 'public' }).eq('id', seed.postId);
-    expect((await anon.request.get(streamer)).status()).toBe(200);
+    expect((await anon.request.get(fresh())).status()).toBe(200);
 
     // The club gone private → 404 even with the pick (the phase-9 rail).
     res = await ownerApi.patch(`/api/clubs/${clubId}`, { data: { visibility: 'private' } });
     expect(res.status(), await readErrorBody(res)).toBe(200);
-    expect((await anon.request.get(streamer)).status()).toBe(404);
+    expect((await anon.request.get(fresh())).status()).toBe(404);
     res = await ownerApi.patch(`/api/clubs/${clubId}`, { data: { visibility: 'public' } });
     expect(res.status()).toBe(200);
 
