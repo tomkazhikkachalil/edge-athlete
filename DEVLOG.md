@@ -1,5 +1,35 @@
 # Development Log
 
+## September 2, 2026 — Phase 9 V3: membership and privacy, part 3 — the join door: "Join {club}" on the site, an account-first join page (#541, zero DDL)
+
+- **`/join/club/[id]`** (the app; `join` added to `RESERVED_ROOT_SLUGS` —
+  the pin test): signed-out → "Create an account to join this club" with
+  the C1 door (the intent parks in sessionStorage `ea:invite-return`
+  and rides `?next=`, so `/` returns here after sign-in or sign-up);
+  signed-in → the club's name, place, member count ("Private club" when
+  it is) and ONE button: "Join {club}" on an open club (joins on the
+  spot → "You're in — open the club"), "Request to join" on an approval
+  club (→ "Request sent — a manager will approve it"); a member or a
+  pending requester lands on the matching state straight from the club
+  GET (`viewerRole`, `viewerRequestPending`). `initialAuthCheckComplete`
+  before `!user` (the house rule).
+- **The site**: the home hero gains **"Join {club}"** beside the
+  manager's own CTA (clubs only; the CTA row wraps at 375px) — an
+  ABSOLUTE app URL (`appBaseUrl()`), so a custom domain can't swallow it.
+  V4's members-only panels will carry the same door.
+- e2e `club-join-door.spec.ts` (an anonymous 375px context): the
+  published site carries "Join QA Door Club" with the app link; the
+  signed-out door's CTA carries `next=/join/club/{id}`; sign in (alpha)
+  returns to the door → "This club approves new members" → Request to
+  join → the request row, and a reload keeps the state; the open club
+  joins on the spot → the member row, "You're in" survives a reload; no
+  horizontal overflow on the site or the door. Regressions green vs the
+  live DB: org-site (5), org-site-identity, org-site-two-pages,
+  org-site-players, club-join-approval, club-signup-door.
+
+Next: V4 — private-club gates on the site (members-only panels) and
+`/api/clubs/[id]/standings/mine` for members.
+
 ## September 2, 2026 — Phase 9 V2: membership and privacy, part 2 — join with approval: the request queue, the manager's decision, the bells (#540, zero DDL)
 
 - **The request**: `POST /api/clubs/[id]/members` on an approval club
