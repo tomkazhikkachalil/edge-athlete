@@ -78,12 +78,16 @@ export default function StandingsPreview({
         </table>
       </div>
       )}
-      <Link
-        href={`${basePath}/standings`}
-        className="mt-3 inline-block text-sm text-brand-fg font-medium"
-      >
-        Full standings →
-      </Link>
+      <span className="mt-3 flex flex-wrap gap-x-4">
+        {currentWeek && (
+          <Link href={`${basePath}/week`} className="inline-block text-sm text-brand-fg font-medium">
+            This week →
+          </Link>
+        )}
+        <Link href={`${basePath}/standings`} className="inline-block text-sm text-brand-fg font-medium">
+          Full standings →
+        </Link>
+      </span>
     </div>
   );
 }

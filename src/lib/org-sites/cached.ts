@@ -46,6 +46,8 @@ import {
   type SitemapSiteEntry,
   fetchPublicPlayerPage,
   type PublicPlayerPage,
+  fetchPublicWeekHub,
+  type PublicWeekHub,
 } from './public-data';
 
 // The (public) segment's per-slug cached reads: unstable_cache with the
@@ -144,6 +146,10 @@ export const getCachedPlayerPage = (
   perSlug(['org-site-player', slug, handle], slug, () =>
     fetchPublicPlayerPage(getSupabaseAdmin(), side, orgId, handle)
   );
+
+/** P4: the week hub — one entry per site. */
+export const getCachedWeekHub = (slug: string, side: OrgSide, orgId: string): Promise<PublicWeekHub> =>
+  perSlug(['org-site-week', slug], slug, () => fetchPublicWeekHub(getSupabaseAdmin(), side, orgId));
 
 export const getCachedSitemapSites = (): Promise<SitemapSiteEntry[]> =>
   unstable_cache(

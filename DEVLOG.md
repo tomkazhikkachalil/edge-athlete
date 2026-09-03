@@ -1,5 +1,53 @@
 # Development Log
 
+## September 2, 2026 — Phase 8 P4: PGA depth, part 4 — "This week": every league's open window, who has posted, points so far, and how many members are on the course (#536, zero DDL)
+
+The Tour site's live page, the members' edition. Tom's decision: rounds
+in progress show as a COUNT to visitors (anonymous viewers cannot see
+live-round detail — `canViewSharedRound`); members reach names through
+the app's `/live` door. The page branches on no viewer, so it is ISR +
+CDN like every other public page, labelled "as of".
+
+- **`fetchPublicWeekHub`** (public-data.ts): for each ACTIVE public golf
+  leaderboard, the current week off the public standings payload (the
+  same rows, masking and omission; `selectCurrentWeek`) — round, window,
+  holes, course, days left, posted-of-field, the public results so far
+  with their points (P1's award) — and **`onCourseNow`**: the week's
+  course(s) (the venue's golf link → the catalog rows, the sync's
+  resolution) → `golf_scorecard_data` rows at those courses (cap 400) →
+  their `group_posts` (`type='golf_round'`, status pending|active,
+  `date` inside the window, cap 200) with participants + score
+  `updated_at` → `isRoundLive` (the ±48h window and the 6h quiet rule
+  off the latest score write) → distinct participants who are ENTRANTS
+  of the round (`contest_participants → competition_entries.profile_id`,
+  never memberships). Count only. `getCachedWeekHub(slug)`.
+- **`/org/[slug]/week`** (+ the vanity twin), gated by `standings`: per
+  league the window line, "N days left / Closes today / Opens in N
+  days", "x of y posted", "N members on the course now · See who's
+  playing (members) →" (absolute app URL — a custom domain must not
+  swallow it), the results table (linked public names, gross/net, PTS,
+  posted/final), "Standings →". No league → "No league rounds are
+  scheduled right now."; no current week → "No round open this week."
+- **Doors**: the site nav gains "This week" for a golf org with the
+  standings module on (no extra read in the layout — the hub itself
+  says when nothing is open); the home standings teaser links "This
+  week →" beside "Full standings →" whenever it shows a current week.
+  `week` was reserved as a page slug in P2.
+- e2e `org-site-week.spec.ts`: an OPEN window around today at a linked
+  course; the owner has posted (79 → PTS 100 so far); three live rounds
+  at the course dated today — the owner's (live), alpha's (quiet for 8h
+  → over), a stranger's (live, not an entrant) → the hub says "1 of 2
+  posted", the days left, the course, `data-on-course="1"`, "1 member
+  on the course now", the members' door, the posted result and its
+  points, "as of", and never the stranger's name; the home page carries
+  "This week" and the `/week` link; 375px. Regressions green vs the live
+  DB: org-site (5), org-site-two-pages, golf-league-weeks,
+  org-site-players, org-site-golf-leaders.
+
+Next: P5 — the console: the race, a "not yet posted" list with a
+one-click reminder (deduped apart from the cron's), and points + rank on
+the member's "Your week".
+
 ## September 2, 2026 — Phase 8 P3: PGA depth, part 3 — player depth: the season at a glance, the handicap trend, recent rounds under the two-key rule (#535, zero DDL)
 
 - **`PublicPlayerPage`** (public-data.ts `fetchPublicPlayerPage`) gains
