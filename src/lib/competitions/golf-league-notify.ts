@@ -86,6 +86,14 @@ export function closingTitle(ctx: Pick<GolfLeagueBellContext, 'roundLabel' | 'co
   return `${roundName(ctx)} in ${ctx.competitionName} closes tomorrow — no round posted yet`;
 }
 
+/** Phase 8 P5: the manager's one-click reminder — the window is OPEN (not
+ *  necessarily closing tomorrow), so it carries its own copy and its own
+ *  metadata key (`golf_league:'nudge'`) so the cron's closing reminder and
+ *  this never dedupe each other away. */
+export function nudgeTitle(ctx: Pick<GolfLeagueBellContext, 'roundLabel' | 'competitionName'>): string {
+  return `${roundName(ctx)} in ${ctx.competitionName} is open — post your round`;
+}
+
 export function closingMessage(courseName: string | null, playTo: string): string {
   return courseName
     ? `Post a round at ${courseName} by ${formatIsoDate(playTo)}.`
@@ -115,6 +123,25 @@ export function planWindowReminders(input: {
 // ── I/O ─────────────────────────────────────────────────────────────────────
 
 const actionUrl = (ctx: GolfLeagueBellContext) => `/${ctx.side}/${ctx.orgId}`;
+
+/** P5: the manager's nudge to members with no round on file for the week. */
+export async function notifyGolfWindowNudge(
+  admin: Admin,
+  ctx: GolfLeagueBellContext & { courseName: string | null; playTo: string },
+  profileIds: string[]
+): Promise<void> {
+  await sendBells(
+    admin,
+    'golf_league_window_closing',
+    ctx,
+    profileIds.map(profileId => ({
+      profileId,
+      title: nudgeTitle(ctx),
+      message: closingMessage(ctx.courseName, ctx.playTo),
+      metadata: { golf_league: 'nudge', contest_id: ctx.contestId, competition_id: ctx.competitionId },
+    }))
+  );
+}
 
 /** The org's name + side for the copy — one read, never throws. */
 export async function loadGolfLeagueBellContext(

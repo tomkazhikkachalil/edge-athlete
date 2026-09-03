@@ -64,3 +64,16 @@ describe('planWindowReminders — once per member per round, only when nothing i
     ).toEqual(['a']);
   });
 });
+
+// Phase 8 P5 — the manager's nudge has its own copy (the window is open, not
+// closing) and shares the closing reminder's planner.
+import { nudgeTitle } from '../golf-league-notify';
+
+describe('nudgeTitle (P5)', () => {
+  it('says the round is open — never "closes tomorrow"', () => {
+    const ctx = { roundLabel: 'Week 3', competitionName: 'Thursday Nine' };
+    expect(nudgeTitle(ctx)).toBe('Week 3 in Thursday Nine is open — post your round');
+    expect(closingTitle(ctx)).toContain('closes tomorrow');
+    expect(nudgeTitle(ctx)).not.toContain('closes tomorrow');
+  });
+});

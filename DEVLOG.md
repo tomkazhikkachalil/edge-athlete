@@ -1,5 +1,45 @@
 # Development Log
 
+## September 2, 2026 — Phase 8 P5: PGA depth, part 5 — the console: the race, "not yet posted" with a one-click reminder, and the member's season standing (#537, zero DDL)
+
+- **The race in the console**: the competition page fetches the public
+  standings payload (cache-busted — the API is CDN-cached) and draws
+  `PointsRaceTable` under the standings table (in-app: names link to the
+  athlete profile).
+- **"Not yet posted"** under every open golf round: the manager sees who
+  still owes a round (a manager surface — real names) and a **"Send a
+  reminder"** button → `POST …/golf-sync/nudge {contestId}` (route twins,
+  the `org-announce` bucket, 5/day) → `nudgeGolfContest` (golf-league-
+  server.ts): every approved entrant with no result on file and no nudge
+  already sent for this round gets ONE bell (`notifyGolfWindowNudge` —
+  type `golf_league_window_closing`, its own copy "{round} in {league}
+  is open — post your round", metadata `golf_league:'nudge'`); guardian
+  copies ride `sendBells`. A repeat answers `nudged: 0`; a completed or
+  canceled round 409s; a member 403s. **Keyed apart from the cron**: the
+  daily closing reminder now dedupes on `golf_league:'closing'` + the
+  contest, so the two never mask each other (the cron's reminder still
+  fires the day before the window closes even after a nudge).
+- **The member's "Your week"** (`golf-league-mine.ts`) carries
+  `standing {rank, points, of}` off `competition_standings`;
+  `GolfYourWeek` shows "Season: 2nd of 3 · 75 pts".
+- e2e `golf-console-race.spec.ts` (user-b manages; alpha + a supervised
+  child under the flag): a completed week (the race exists) + an open
+  week where only the manager posted → the nudge reports `unposted` and
+  bells alpha (+ the child, with a guardian copy to alpha), never the
+  manager; the titles say "is open — post your round" and carry
+  `golf_league:'nudge'`; a repeat sends nothing; no `closing` bell exists
+  (the cron's own key); a member's nudge 403s; the member's `/golf/mine`
+  answers `standing {rank 2, of, points 75}`; the console at 375px draws
+  the race (W1), the "Not yet posted" line without the manager, and the
+  button; the member page shows "Season: 2nd of". Regressions green vs
+  the live DB: golf-league-notify, golf-league-sync, golf-league-weeks,
+  golf-season-points, golf-points-race, org-competitions-rep.
+- P4 (#536) prod-proven: the week-hub spec green against the deployed
+  build.
+
+Next: P6 — the season wrap (a derived summary when every week closes,
+and a one-click season announcement).
+
 ## September 2, 2026 — Phase 8 P4: PGA depth, part 4 — "This week": every league's open window, who has posted, points so far, and how many members are on the course (#536, zero DDL)
 
 The Tour site's live page, the members' edition. Tom's decision: rounds

@@ -33,12 +33,20 @@ export interface MyGolfResult {
   provenance: string;
 }
 
+/** P5: where the member stands in the season table. */
+export interface MyGolfStanding {
+  rank: number;
+  points: number | null;
+  of: number;
+}
+
 export interface MyGolfEntry {
   competitionId: string;
   competitionName: string;
   scoringRule: string | null;
   week: MyGolfWeek | null;
   result: MyGolfResult | null;
+  standing: MyGolfStanding | null;
 }
 
 const num = (v: unknown): number | null => (typeof v === 'number' && Number.isFinite(v) ? v : null);
@@ -125,6 +133,24 @@ export async function golfMineGET(
     courseNameByVenue.set(v.id as string, linked ?? (v.name as string));
   }
 
+  // P5: the member's season standing — their row and the field size.
+  const { data: standingRows } = entryIds.length
+    ? await admin
+        .from('competition_standings')
+        .select('competition_id, entry_id, rank, points')
+        .in('competition_id', competitions.map(c => c.id as string))
+        .limit(2000)
+    : { data: [] as { competition_id: string; entry_id: string; rank: number; points: number | null }[] };
+  const fieldSize = new Map<string, number>();
+  const myStanding = new Map<string, MyGolfStanding>();
+  const myEntryIds = new Set(entryIds);
+  for (const r of standingRows ?? []) {
+    const cid = r.competition_id as string;
+    fieldSize.set(cid, (fieldSize.get(cid) ?? 0) + 1);
+    if (myEntryIds.has(r.entry_id as string)) myStanding.set(cid, { rank: r.rank as number, points: (r.points as number | null) ?? null, of: 0 });
+  }
+  for (const [cid, st] of myStanding) st.of = fieldSize.get(cid) ?? 0;
+
   const today = utcToday();
   const out: MyGolfEntry[] = [];
   for (const c of competitions) {
@@ -162,6 +188,7 @@ export async function golfMineGET(
       competitionId: c.id as string,
       competitionName: c.name as string,
       scoringRule: (c.scoring_rule as string | null) ?? null,
+      standing: myStanding.get(c.id as string) ?? null,
       week: current
         ? {
             contestId: current.id,

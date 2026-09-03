@@ -20,6 +20,12 @@ interface GolfYourWeekProps {
   orgId: string;
 }
 
+function ordinal(n: number): string {
+  const s = ['th', 'st', 'nd', 'rd'];
+  const v = n % 100;
+  return `${n}${s[(v - 20) % 10] ?? s[v] ?? s[0]}`;
+}
+
 export default function GolfYourWeek({ side, orgId }: GolfYourWeekProps) {
   const { user, initialAuthCheckComplete } = useAuth();
   const [entries, setEntries] = useState<MyGolfEntry[] | null>(null);
@@ -63,6 +69,13 @@ export default function GolfYourWeek({ side, orgId }: GolfYourWeekProps) {
                   </span>
                 ) : null}
               </p>
+              {/* P5: the season standing — where the member sits in the table. */}
+              {entry.standing && (
+                <p className="text-xs text-secondary" data-standing={entry.standing.rank}>
+                  {`Season: ${ordinal(entry.standing.rank)} of ${entry.standing.of}`}
+                  {entry.standing.points !== null ? ` · ${entry.standing.points} pts` : ''}
+                </p>
+              )}
               {!week ? (
                 <p className="text-secondary">No rounds scheduled yet.</p>
               ) : result ? (

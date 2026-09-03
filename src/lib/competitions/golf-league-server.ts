@@ -32,6 +32,7 @@ import {
   notifyGolfWindowClosing,
   planWindowReminders,
   type CountedMember,
+  notifyGolfWindowNudge,
 } from './golf-league-notify';
 import {
   buildResultPayload,
@@ -527,7 +528,8 @@ export async function runGolfWindowReminders(
           .from('notifications')
           .select('user_id')
           .eq('type', 'golf_league_window_closing')
-          .contains('metadata', { contest_id: contest.id })
+          // P5: keyed apart from the manager's nudge (golf_league:'nudge').
+          .contains('metadata', { golf_league: 'closing', contest_id: contest.id })
           .limit(1000),
       ]);
       const memberIds = new Set(members.map(m => m.profileId));
@@ -569,4 +571,72 @@ export async function runGolfWindowReminders(
     console.error(`${TAG} reminder phase failed:`, error);
   }
   return out;
+}
+
+/** Phase 8 P5 — the manager's one-click reminder: every approved entrant
+ *  of the round with NO result on file and no nudge already sent for this
+ *  round gets one bell (guardian copies for supervised members ride
+ *  sendBells). Deduped on `metadata.golf_league:'nudge'` + the contest, so
+ *  the cron's closing reminder still fires independently. */
+export async function nudgeGolfContest(
+  admin: Admin,
+  contestId: string
+): Promise<NextResponse> {
+  const loaded = await loadContest(admin, contestId);
+  if (!loaded) return NextResponse.json({ error: 'Round not found' }, { status: 404 });
+  const { contest, competition } = loaded;
+  if (competition.sport_key !== 'golf' || competition.format !== 'leaderboard' || !contest.holes) {
+    return NextResponse.json({ error: 'Not a golf league round' }, { status: 400 });
+  }
+  if (contest.status === 'canceled' || contest.status === 'completed') {
+    return NextResponse.json({ error: 'This round is over' }, { status: 409 });
+  }
+  const { data: participants } = await admin
+    .from('contest_participants')
+    .select('id, competition_entries!inner(profile_id, status)')
+    .eq('contest_id', contest.id)
+    .limit(500);
+  const members = (participants ?? [])
+    .map(p => {
+      const e = p.competition_entries as { profile_id: string | null; status: string } | { profile_id: string | null; status: string }[];
+      const entry = Array.isArray(e) ? e[0] : e;
+      return entry?.profile_id && entry.status === 'approved'
+        ? { profileId: entry.profile_id, participantId: p.id as string }
+        : null;
+    })
+    .filter((m): m is { profileId: string; participantId: string } => !!m);
+  const [{ data: results }, { data: sent }] = await Promise.all([
+    members.length
+      ? admin.from('contest_results').select('participant_id').in('participant_id', members.map(m => m.participantId))
+      : Promise.resolve({ data: [] as { participant_id: string }[] }),
+    admin
+      .from('notifications')
+      .select('user_id')
+      .eq('type', 'golf_league_window_closing')
+      .contains('metadata', { golf_league: 'nudge', contest_id: contest.id })
+      .limit(1000),
+  ]);
+  const memberIds = new Set(members.map(m => m.profileId));
+  const profileIds = planWindowReminders({
+    members,
+    resultParticipantIds: new Set((results ?? []).map(r => r.participant_id as string)),
+    alreadyNotifiedProfileIds: new Set((sent ?? []).map(n => n.user_id as string).filter(id => memberIds.has(id))),
+  });
+  const unposted = members.filter(m => !(results ?? []).some(r => r.participant_id === m.participantId)).length;
+  if (profileIds.length === 0) {
+    return NextResponse.json({ ok: true, nudged: 0, unposted, alreadyNudged: unposted });
+  }
+  const ctx = await loadGolfLeagueBellContext(admin, { competition, contest });
+  if (!ctx) return NextResponse.json({ error: 'Organization not found' }, { status: 404 });
+  let courseName: string | null = null;
+  if (contest.venue_id) {
+    const { data: venue } = await admin.from('venues').select('name, golf_course_id').eq('id', contest.venue_id).maybeSingle();
+    courseName = (venue?.name as string | undefined) ?? null;
+    if (venue?.golf_course_id) {
+      const { data: course } = await admin.from('golf_courses').select('name').eq('id', venue.golf_course_id).maybeSingle();
+      if (course?.name) courseName = course.name as string;
+    }
+  }
+  await notifyGolfWindowNudge(admin, { ...ctx, courseName, playTo: contest.play_to as string }, profileIds);
+  return NextResponse.json({ ok: true, nudged: profileIds.length, unposted, alreadyNudged: unposted - profileIds.length });
 }
