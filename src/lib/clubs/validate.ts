@@ -29,6 +29,9 @@ export const ClubUpdateSchema = z.object({
   name: boundedText(120).optional(),
   description: optionalText(2000),
   place: PlaceValueSchema.nullable().optional(),
+  // Phase 9 V1 (176): the membership settings.
+  visibility: z.enum(['public', 'private']).optional(),
+  joinPolicy: z.enum(['open', 'approval']).optional(),
 });
 export type ClubUpdateInput = z.infer<typeof ClubUpdateSchema>;
 
