@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { revalidateTag } from 'next/cache';
 import { getServerAuth, requireAuth, getSupabaseAdmin } from '@/lib/auth-server';
 import { parseBody } from '@/lib/validation';
 import { ClubUpdateSchema, placeToClubColumns, isMissingTableError } from '@/lib/clubs/validate';
@@ -183,6 +184,8 @@ export async function PATCH(
     // serve members-only content for another 300s (this PATCH never
     // revalidated; the name/place edits ride along now too).
     await revalidateOrgSiteForOrg(supabase, 'club', id);
+    // V6: the club directory shows "Private club" — a flip purges it too.
+    if (parsed.data.visibility !== undefined) revalidateTag('org-sitemap', { expire: 0 });
 
     return NextResponse.json({ club: updated });
   } catch (error) {

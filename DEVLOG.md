@@ -1,5 +1,50 @@
 # Development Log
 
+## September 2, 2026 — Phase 9 V6: membership and privacy, part 6 — the public club directory: /clubs by region, private clubs marked "request to join" (#544, zero DDL)
+
+The last round of phase 9 — and the growth door the program started
+from: a crawlable list of every club with a published site.
+
+- **`/clubs`** (`src/app/(public)/clubs/page.tsx`, ISR 3600, the (public)
+  iron rules — server-only, viewer-independent, identity only, no
+  people): every PUBLISHED club site grouped by region ("Ontario,
+  Canada"; "Elsewhere" last), each row the club's name (linking to its
+  site — `orgSitePath`, or the active custom domain), its town and
+  sport, and either "Open to visitors" or **"Private club · request to
+  join"**; a pending (C4) club never lists, nor does an unpublished
+  site. "Start a club →" doors to the golf wizard. `fetchPublicClubDirectory`
+  (public-data.ts; 42703 step-downs for pre-176/174) cached under the
+  sitemap's tag (`getCachedClubDirectory`) — publish/unpublish purge it,
+  and the club PATCH purges it on a visibility flip.
+- **`clubs` is a reserved root slug** (`RESERVED_ROOT_SLUGS`): the
+  middleware's vanity path skips it and `slugAvailability` refuses it as
+  a site address, so no org can shadow the directory.
+- Doors: the main `/sitemap.xml` lists `/clubs` first; the login page's
+  guest section gains "Find a golf club near you" (a `Link` — the
+  no-html-link rule).
+- e2e `club-directory.spec.ts` (an anonymous 375px context): four clubs
+  — public + private published, one with a draft site, one pending —
+  → the directory lists the two published ones under "Ontario, Canada"
+  with their site links (either path form: the vanity canonical is a
+  build flag), the private chip, town and sport, and neither the draft
+  nor the pending club nor any person; the sitemap carries `/clubs`;
+  the login page's link (rendered client-side after the auth boot, so
+  asserted on a page, not the SSR HTML); `clubs` refused as a site
+  address; no horizontal overflow. Regressions green vs the live DB:
+  org-site (5), club-private-gates, org-site-courses, and
+  club-signup-door after a spec-only fix: its `onboarded_at` read raced
+  the best-effort PUT the org sign-up fires right before its hard
+  navigation (the PUT answers 200 — the flaky "first attempt" of that
+  spec on every production probe since C1 was this line) — it polls now.
+  The dev server also died mid-batch on a Turbopack internal panic
+  (restarted with a bigger heap; not ours).
+- V5 (#543) prod-proven: the public-items spec green against the
+  deployed build (probed alone).
+
+Phase 9 (membership and privacy) is CODE COMPLETE: V1 settings (176) →
+V2 approval → V3 the join door → V4 private gates → V5 public items →
+V6 the directory.
+
 ## September 2, 2026 — Phase 9 V5: membership and privacy, part 5 — public items on a private site: the news audience, and the members' news in the app (#543, zero DDL)
 
 Tom: a private club can still "post items that are public like

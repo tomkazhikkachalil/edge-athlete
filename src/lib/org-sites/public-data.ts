@@ -1970,3 +1970,71 @@ export async function fetchPublicWeekHub(admin: Admin, side: OrgSide, orgId: str
   }
   return hub;
 }
+
+// ── The club directory (phase 9 V6) ─────────────────────────────────────────
+// /clubs: every PUBLISHED club site, grouped by region — name, place, sport,
+// and "Private club · request to join" for a private one. Identity only
+// (no people); bounded; cached under the sitemap tag (publish/unpublish
+// purge it; the club PATCH purges it on a visibility flip).
+
+export interface DirectoryClub {
+  name: string;
+  subdomain: string;
+  customDomain: string | null;
+  city: string | null;
+  region: string | null;
+  country: string | null;
+  sport: string | null;
+  visibility: 'public' | 'private';
+}
+
+export interface DirectoryRegion {
+  label: string;
+  clubs: DirectoryClub[];
+}
+
+export async function fetchPublicClubDirectory(admin: Admin): Promise<DirectoryRegion[]> {
+  try {
+    const readSites = (fields: string) =>
+      admin.from('org_sites').select(fields).not('published_at', 'is', null).not('club_id', 'is', null).limit(500);
+    let { data: sites, error } = await readSites('subdomain, club_id, custom_domain, domain_active_at');
+    if (error?.code === '42703') ({ data: sites, error } = await readSites('subdomain, club_id'));
+    if (degraded('directory sites', error) || !sites || sites.length === 0) return [];
+    const siteRows = sites as unknown as { subdomain: string; club_id: string; custom_domain?: string | null; domain_active_at?: string | null }[];
+    const clubIds = [...new Set(siteRows.map(r => r.club_id))];
+    const readClubs = (fields: string) => admin.from('clubs').select(fields).in('id', clubIds);
+    let { data: clubs, error: clubError } = await readClubs('id, name, city, region, country, primary_sport, visibility, approved_at');
+    if (clubError?.code === '42703') ({ data: clubs, error: clubError } = await readClubs('id, name, city, region, country'));
+    if (degraded('directory clubs', clubError) || !clubs) return [];
+    const byId = new Map((clubs as unknown as Record<string, unknown>[]).map(c => [c.id as string, c]));
+    const entries: DirectoryClub[] = [];
+    for (const site of siteRows) {
+      const c = byId.get(site.club_id);
+      if (!c) continue;
+      // Pending (C4) clubs never list; pre-174 (no column) reads live.
+      if ('approved_at' in c && c.approved_at === null) continue;
+      entries.push({
+        name: c.name as string,
+        subdomain: site.subdomain,
+        customDomain: site.custom_domain && site.domain_active_at ? site.custom_domain : null,
+        city: (c.city as string | null) ?? null,
+        region: (c.region as string | null) ?? null,
+        country: (c.country as string | null) ?? null,
+        sport: (c.primary_sport as string | null) ?? null,
+        visibility: c.visibility === 'private' ? 'private' : 'public',
+      });
+    }
+    const groups = new Map<string, DirectoryClub[]>();
+    for (const e of entries) {
+      const label = [e.region, e.country].filter(Boolean).join(', ') || e.country || 'Elsewhere';
+      if (!groups.has(label)) groups.set(label, []);
+      groups.get(label)!.push(e);
+    }
+    return [...groups.entries()]
+      .sort(([a], [b]) => (a === 'Elsewhere' ? 1 : b === 'Elsewhere' ? -1 : a.localeCompare(b)))
+      .map(([label, list]) => ({ label, clubs: list.sort((a, b) => a.name.localeCompare(b.name)) }));
+  } catch (error) {
+    console.error(`${TAG} directory failed:`, error);
+    return [];
+  }
+}

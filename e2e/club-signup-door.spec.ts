@@ -94,7 +94,13 @@ test('the Club door: account → /club/start?sport=golf; signed-out /club/start 
     createdId = prof?.id ?? null;
     expect(createdId, 'the account exists').toBeTruthy();
     expect(prof!.user_type).toBe('athlete'); // an org owner is a normal profile
-    if (guardianFlagOn()) expect(prof!.onboarded_at).toBeTruthy();
+    // The onboarding stamp is a best-effort PUT fired right before the hard
+    // navigation — poll for it instead of racing it (the flaky first attempt).
+    if (guardianFlagOn()) {
+      await expect
+        .poll(async () => (await admin.from('profiles').select('onboarded_at').eq('id', createdId!).single()).data?.onboarded_at ?? null, { timeout: 15_000 })
+        .toBeTruthy();
+    }
 
     // A plain sign-in with ?next= (an existing user) lands in the wizard too.
     const userB = loadQaUser('user-b.json');
