@@ -1,6 +1,7 @@
 import type { PublicCompetitionStandings } from '@/lib/competitions/public-standings';
 import GolfWeeks from './GolfWeeks';
 import PointsRaceTable from './PointsRaceTable';
+import SeasonSummaryCard from './SeasonSummaryCard';
 import { playerHref } from '@/lib/org-sites/player-links';
 
 // One competition's standings card — the SSR markup shared by the
@@ -30,6 +31,7 @@ export default function PublicStandingsTable({
           <span className="text-sm font-normal text-muted"> · {competition.season_label}</span>
         ) : null}
       </h2>
+      {competition.seasonSummary && <SeasonSummaryCard summary={competition.seasonSummary} basePath={basePath} />}
       {/* W1: a fresh golf league has an open window before anyone has a
           standings row (standings count completed rounds only) — the
           table is skipped, the week below still renders. */}
