@@ -239,13 +239,21 @@ The lessons generalize:
 Google, etc."). `package.json` `browserslist` is the floor — **iOS 15 / Safari 15,
 Chrome/Firefox/Edge 100, Samsung 16** — and `scripts/check-browser-syntax.mjs`
 (`npm run check:syntax`, the last step of `npm run verify`) parses every built
-client chunk and fails on syntax the floor cannot run. Why it exists: Next.js 16's
-own default is Safari 16.4+, and when we upgraded nothing said so — the framework
-runtime and Sentry shipped class static blocks into every page, an older iPhone
-could not parse the app at all (every tap dead, every browser on that phone), and
-every desktop check stayed green for a month. Do not raise the floor without a
-DEVLOG entry; when adding an API newer than iOS 15 (`structuredClone`, `.at()`,
-`Object.hasOwn`, `crypto.randomUUID` in the browser…), guard or polyfill it.
+client chunk and fails on **syntax** the floor cannot parse AND on **runtime
+methods** it cannot call (`toSpliced`, `findLast`, `AbortSignal.timeout`,
+`Object.groupBy`… — the denylist is `scripts/browser-floor-rules.mjs`). Why both:
+Next.js 16's own default is Safari 16.4+, and when we upgraded nothing said so — the
+framework runtime and Sentry shipped class static blocks into every page, an older
+iPhone could not parse the app at all (every tap dead, every browser on that phone),
+and every desktop check stayed green for a month. The same day the parse failure was
+fixed, a `toSpliced` in `AppHeader` — valid syntax, missing method — threw on every
+page with the header on the same phone; a syntax check cannot see that class. Do
+not raise the floor without a DEVLOG entry; when adding an API newer than iOS 15,
+feature-detect it (`typeof x.m === 'function'`, `x.m || fallback` — shapes the gate
+recognises) or install it. Globals the FRAMEWORK calls bare (`structuredClone`) are
+installed by the blocking head script in `src/lib/floor-polyfills.ts`. The gate also
+runs against a directory of downloaded chunks (`node scripts/check-browser-syntax.mjs
+<dir>`) — the post-merge prod check.
 
 ### Strict Spacing Rhythm
 - **12px** (`space-micro`) - Label-to-value, icon-to-text

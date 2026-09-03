@@ -942,6 +942,9 @@ export default function CreatePostModal({
                       // page hands the photo back into this editor; the
                       // crash-draft carries the caption across the hop.
                       if (isIOSWebKit()) {
+                        // Armed for the hop too: a photo lost between here and
+                        // the light page must still leave a diagnostic record.
+                        armCapture('composer');
                         router.push('/app/capture');
                         return;
                       }
@@ -957,6 +960,7 @@ export default function CreatePostModal({
                     type="button"
                     onClick={() => {
                       if (isIOSWebKit()) {
+                        armCapture('composer');
                         router.push('/app/capture');
                         return;
                       }

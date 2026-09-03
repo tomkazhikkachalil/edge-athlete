@@ -24,12 +24,16 @@ export function createRemoteRunner(endpoint: string, fetchImpl: typeof fetch = f
   return {
     endpoint: base,
     async segmentSubject(image: Blob): Promise<SegmentSubjectResult | null> {
+      // AbortController + setTimeout rather than AbortSignal.timeout (Safari
+      // 16+): this chunk ships to the browser and the floor is iOS 15.
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
       try {
         const response = await fetchImpl(`${base}/segment`, {
           method: 'POST',
           headers: { 'Content-Type': image.type || 'application/octet-stream' },
           body: image,
-          signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+          signal: controller.signal,
         });
         if (!response.ok) return null;
         const parsed = segmentResponseSchema.safeParse(await response.json());
@@ -40,6 +44,8 @@ export function createRemoteRunner(endpoint: string, fetchImpl: typeof fetch = f
         return parsed.data;
       } catch {
         return null;
+      } finally {
+        clearTimeout(timer);
       }
     },
   };
