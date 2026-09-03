@@ -1,5 +1,30 @@
 # Development Log
 
+## September 3, 2026 — Maintenance sweep after the capture fix round (#563, docs only)
+
+The full checklist on `main` at the #562 merge (cfaceab), nothing red:
+
+- `npm run verify` green — typecheck, `eslint . --max-warnings 0` (still
+  zero), 2,714 unit tests (251 files; +3 scrub-queue, +2 header-slice
+  cases from #561), production build. Run with
+  `NODE_OPTIONS=--max-old-space-size=8192`: the build's type check hit the
+  known heap OOM once earlier today on a plain run.
+- `scripts/hardening-guardrails.sh` passed (no high/critical advisories;
+  the two review-only advisories — 95 `.select('id'|'*')` sites, 1
+  interpolated `.or()` — are the standing annotation contract, unchanged).
+  `npm audit --omit=dev` reports 0 vulnerabilities.
+- Git: `main` clean and in sync with GitHub; no open PRs; the #561 and
+  #562 branches deleted locally and remotely.
+- Vercel: the #562 production deployment was created three seconds after
+  the merge and reached Ready; the live `/leagues` directory and `/`
+  answer 200. #561 (the capture fix) was probed against its own deployed
+  build before #562 landed — `media-orientation` desktop + @mobile 2/2.
+- No code changed in this sweep. No program is open; Tom owes the capture
+  device pass (three portrait photos un-edited, one edited photo + a
+  video, a live-round hole photo) plus the standing ops list.
+
+---
+
 ## September 3, 2026 — Photo/video capture on phones: the orientation bake ran full-res, in parallel, at post time (fix round, zero DDL)
 
 Tom, the afternoon after #551 deployed: taking a photo or video is "very
