@@ -1,8 +1,9 @@
 # Start Session — Edge Athlete Development
 
 > Tom's session-start prompt. Paste this (or point Claude at it) when opening a
-> development session. Last aligned with project state: **September 3, 2026**
-> (post program 12, league round photos; migration 177). If the "Where
+> development session. Last aligned with project state: **September 3, 2026
+> (afternoon)** — post program 12 (league round photos; migration 177) and
+> the phone-capture fix round (#561). If the "Where
 > the project actually is" section drifts stale, ask Claude to re-align it
 > against DEVLOG.md and session memory.
 
@@ -54,7 +55,9 @@ ops/console gates (docs/LAUNCH_RUNBOOK.md), not code.
 - **Media** — in-house WebGL2 photo editor (Lightroom-class), video editing,
   capture inputs on all 9 media surfaces, private storage bucket behind an
   authenticated same-origin proxy, EXIF/GPS stripping with orientation baked
-  upright first.
+  upright first. The client-side scrub is single-flight (one decode alive at
+  a time, composer uploads sequential) since the Sep 3 phone-capture
+  regression — never `Promise.all` over `uploadPostMedia`.
 - **Family console (guardian layer)** — supervised child profiles, consent
   workflow, approvals (posts/comments/follows), acting-as posting, transfers,
   co-guardians, 30-day soft-delete with restore, safety-rail semantics
@@ -87,9 +90,14 @@ ops/console gates (docs/LAUNCH_RUNBOOK.md), not code.
 
 **No program is open.** Program 12 (league round photos, #558, zero DDL)
 closed Sep 3, after program 11 (leagues parity, #554–#556, migration 177),
-program 10 and the quick-fixes round the same day.
+program 10 and the quick-fixes round the same day. The same afternoon a fix
+round (#561, zero DDL) closed the phone-capture regression that #551's
+orientation bake introduced (full-res bakes running in parallel at post
+time); prod-probed 2/2 at desktop and phone width.
 The next program is Tom's call; candidates in session memory. Tom still owes
-ops: Search Console, custom-domain env, device passes.
+ops: Search Console, custom-domain env, device passes — including the
+capture-fix pass (three portrait photos un-edited, one edited photo + a
+video, a live-round hole photo).
 
 ## Production standard (the baseline, already in force)
 
@@ -99,9 +107,11 @@ ops: Search Console, custom-domain env, device passes.
   round ends with a prod probe against the live deployment and a DEVLOG entry.
 - **Web + mobile ship together**: every change is verified at phone width
   (~375px), including reachability and route parity (/athlete vs /u).
-  Responsive design is a verification duty, not a porting task.
+  Responsive design is a verification duty, not a porting task. Phone width
+  covers layout, not memory: media work is verified with phone-SIZED inputs
+  (`e2e/fixtures/rotated6-12mp.jpg`), not thumbnails.
 - Schema changes are numbered migrations in database/migrations/ (currently
-  at 176), the source of truth for the schema.
+  at 177), the source of truth for the schema.
 - Secrets live in environment variables (Vercel-managed); guardian/minor data
   follows the standing safety lines (no DM transcripts, never auto-publish a
   minor's post, append-only consent/audit).
