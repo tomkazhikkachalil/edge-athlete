@@ -96,6 +96,7 @@ interface ClubResponse {
   members: MemberRow[];
   viewerRole: string | null;
   /** Phase 9: the membership settings + the viewer's queued request. */
+  visibility?: 'public' | 'private';
   joinPolicy?: 'open' | 'approval';
   viewerRequestPending?: boolean;
   viewerRoster: RosterChipStatus | null;
@@ -785,7 +786,7 @@ export default function ClubPage() {
 
         <GolfYourWeek side="club" orgId={club.id} />
 
-        <OrgStandings side="club" orgId={club.id} />
+        <OrgStandings side="club" orgId={club.id} scope={data.visibility === 'private' && viewerRole ? 'mine' : 'public'} />
 
         <OrgVenues side="club" orgId={club.id} />
 

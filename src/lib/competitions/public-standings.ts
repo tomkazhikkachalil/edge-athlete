@@ -15,6 +15,7 @@ import { buildPointsRace, type PointsRace } from './golf-race';
 import { buildSeasonSummary, type SeasonSummary } from './golf-season-wrap';
 import { roundRuleFor } from './golf-league';
 import { readApproval } from '@/lib/orgs/approval';
+import { readClubAccess } from '@/lib/orgs/access';
 import type { OrgSide } from '@/lib/orgs/authz';
 import { resolveFixtureRule, resolveLeaderboardRule, type StandingsColumn } from './scoring';
 import { publicDisplayName, type MaskableProfile, publicHandle } from '@/lib/orgs/public-names';
@@ -83,7 +84,14 @@ export interface PublicStandingsPayload {
 export async function fetchPublicStandings(
   admin: Admin,
   side: OrgSide,
-  orgId: string
+  orgId: string,
+  opts: {
+    /** Phase 9 V4: the members' read (the app's /standings/mine — session-
+     *  gated by its route). The PUBLIC read of a private club is the empty
+     *  state, so the CDN-cached API, the SSR twin and the site modules stay
+     *  viewer-independent. */
+    membersView?: boolean;
+  } = {}
 ): Promise<PublicStandingsPayload | null> {
   const orgTable = side === 'league' ? 'leagues' : 'clubs';
   const orgColumn = side === 'league' ? 'league_id' : 'club_id';
@@ -94,6 +102,9 @@ export async function fetchPublicStandings(
   // its shape (the org name, the empty state), never a 404 for managers
   // previewing their own twin.
   if ((await readApproval(admin, side, orgId)).pending) {
+    return { orgName: org.name as string, competitions: [] };
+  }
+  if (side === 'club' && !opts.membersView && (await readClubAccess(admin, orgId)).visibility === 'private') {
     return { orgName: org.name as string, competitions: [] };
   }
 

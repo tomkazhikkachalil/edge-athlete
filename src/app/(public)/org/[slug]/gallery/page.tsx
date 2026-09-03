@@ -1,4 +1,7 @@
 import type { Metadata } from 'next';
+import { moduleLabel, parseNavConfig } from '@/lib/org-sites/validate';
+import { isMembersOnly } from '@/lib/org-sites/private';
+import MembersOnlyPage from '../_components/MembersOnlyPage';
 import { getCachedGallery, getCachedSite } from '@/lib/org-sites/cached';
 import { requireSiteModule } from '../_components/require-module';
 import { siteAbsoluteUrl } from '@/lib/org-sites/urls';
@@ -46,6 +49,8 @@ const galleryDate = (iso: string | null): string | null => {
 export default async function OrgSiteGalleryPage({ params }: PageParams) {
   const { slug } = await params;
   const site = await requireSiteModule(slug, 'gallery');
+  // Phase 9 V4: a private club renders the members-only panel here.
+  if (isMembersOnly(site, 'gallery')) return <MembersOnlyPage site={site} title={moduleLabel('gallery', parseNavConfig(site.nav_config), site.side, site.sportKey)} what={'The gallery'} />;
   const items = await getCachedGallery(slug, site.side, site.orgId);
 
   return (

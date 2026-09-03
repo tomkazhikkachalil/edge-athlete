@@ -1,4 +1,6 @@
 import type { Metadata } from 'next';
+import { isMembersOnly } from '@/lib/org-sites/private';
+import MembersOnlyPage from '../../_components/MembersOnlyPage';
 import { notFound } from 'next/navigation';
 import { getCachedSite, getCachedTeamPage } from '@/lib/org-sites/cached';
 import { buildTeamJsonLd, safeJsonLd } from '@/lib/org-sites/jsonld';
@@ -47,6 +49,8 @@ export async function generateMetadata({ params }: PageParams): Promise<Metadata
 export default async function OrgSiteTeamPage({ params }: PageParams) {
   const { slug, teamId } = await params;
   const site = await requireSiteModule(slug, 'teams');
+  // Phase 9 V4: a private club renders the members-only panel here.
+  if (isMembersOnly(site, 'teams')) return <MembersOnlyPage site={site} title={'Team'} what={'A team’s page'} />;
   if (!UUID_RE.test(teamId)) notFound();
   const teamPage = await getCachedTeamPage(slug, site.side, site.orgId, teamId);
   if (!teamPage) notFound();

@@ -15,6 +15,7 @@
 // never labeled).
 
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { publicSubpageKeys } from './private';
 import { parseGolfPointsConfig } from '@/lib/competitions/golf-points';
 import { roundRuleFor } from '@/lib/competitions/golf-league';
 import type { OrgSide } from '@/lib/orgs/authz';
@@ -598,11 +599,20 @@ export async function fetchPublishedSitesForSitemap(
     /* pre-169 — no course pages in the sitemap */
   }
 
+  // Phase 9 V4: private clubs — the members-only subpages leave the sitemap.
+  const privateClubs = new Set<string>();
+  if (clubIds.length) {
+    const { data: vis } = await admin.from('clubs').select('id, visibility').in('id', clubIds);
+    for (const c of vis ?? []) if ((c as { visibility?: string }).visibility === 'private') privateClubs.add(c.id as string);
+  }
+  const visibilityOf = (r: { league_id: string | null; club_id: string | null }): 'public' | 'private' =>
+    r.club_id && privateClubs.has(r.club_id) ? 'private' : 'public';
+
   // P2: public players per org (bounded; the standings module gates).
   const playersByOrg = await fetchPlayerHandlesForOrgs(
     admin,
     siteRows
-      .filter(r => (modulesBySite.get(r.id) ?? []).includes('standings'))
+      .filter(r => (modulesBySite.get(r.id) ?? []).includes('standings') && visibilityOf(r) === 'public')
       .map(r =>
         r.league_id
           ? { key: `league:${r.league_id}`, side: 'league' as const, orgId: r.league_id }
@@ -611,7 +621,8 @@ export async function fetchPublishedSitesForSitemap(
   );
 
   return siteRows.map(s => {
-    const moduleKeys = modulesBySite.get(s.id) ?? [];
+    const visibility = visibilityOf(s);
+    const moduleKeys = publicSubpageKeys(visibility, modulesBySite.get(s.id) ?? []);
     const orgKey = s.league_id ? `league:${s.league_id}` : `club:${s.club_id}`;
     return {
       subdomain: s.subdomain as string,

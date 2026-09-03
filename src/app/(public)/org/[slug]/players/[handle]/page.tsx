@@ -1,4 +1,6 @@
 import type { Metadata } from 'next';
+import { isMembersOnly } from '@/lib/org-sites/private';
+import MembersOnlyPage from '../../_components/MembersOnlyPage';
 import { notFound } from 'next/navigation';
 import { getCachedPlayerPage, getCachedSite } from '@/lib/org-sites/cached';
 import { formatDateRange } from '@/lib/competitions/golf-weeks';
@@ -85,6 +87,8 @@ function ordinal(n: number): string {
 export default async function OrgSitePlayerPage({ params }: PageParams) {
   const { slug, handle } = await params;
   const site = await requireSiteModule(slug, 'standings');
+  // Phase 9 V4: a private club renders the members-only panel here.
+  if (isMembersOnly(site, 'standings')) return <MembersOnlyPage site={site} title={'Players'} what={'A player’s page'} />;
   if (!HANDLE_RE.test(handle)) notFound();
   const player = await getCachedPlayerPage(slug, site.side, site.orgId, handle);
   if (!player) notFound();

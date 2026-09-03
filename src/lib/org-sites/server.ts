@@ -745,6 +745,10 @@ export interface PublicSite extends SiteRow {
    *  clubs.primary_sport (174; null pre-174 or when unset). Picks the
    *  sport titles and the golf tagline fallback at render. */
   sportKey: string | null;
+  /** Phase 9 V4: a PRIVATE club's site shows identity + public items only;
+   *  members-only modules render a panel (decided from this field alone —
+   *  the (public) segment never reads a session). Leagues: public. */
+  visibility: 'public' | 'private';
   modules: { module_key: string; enabled: boolean; sort_order: number; config: unknown }[];
 }
 
@@ -801,7 +805,7 @@ async function getSiteBySlugInternal(
     readOrg(
       side === 'league'
         ? 'id, name, city, region, country, sport_key'
-        : 'id, name, city, region, country, primary_sport'
+        : 'id, name, city, region, country, primary_sport, visibility'
     ),
     admin
       .from('org_site_modules')
@@ -811,7 +815,11 @@ async function getSiteBySlugInternal(
       .limit(20),
   ]);
   let org = orgRead.data;
-  if (orgRead.error?.code === '42703') ({ data: org } = await readOrg('id, name, city, region, country'));
+  if (orgRead.error?.code === '42703') {
+    // Pre-176 (no visibility) or pre-174 (no primary_sport): step down.
+    ({ data: org } = await readOrg(side === 'league' ? 'id, name, city, region, country' : 'id, name, city, region, country, primary_sport'));
+    if (!org) ({ data: org } = await readOrg('id, name, city, region, country'));
+  }
   if (!org) return null;
 
   // The dynamic select string defeats supabase-js's type parser; cast once.
@@ -822,6 +830,7 @@ async function getSiteBySlugInternal(
     country?: string | null;
     sport_key?: string | null;
     primary_sport?: string | null;
+    visibility?: string | null;
   };
   return {
     ...site,
@@ -833,6 +842,7 @@ async function getSiteBySlugInternal(
     orgCountry: orgRow.country ?? null,
     orgSportKey: orgRow.sport_key ?? null,
     sportKey: (side === 'league' ? orgRow.sport_key : orgRow.primary_sport) ?? null,
+    visibility: side === 'club' && orgRow.visibility === 'private' ? 'private' : 'public',
     modules: modules ?? [],
   };
 }

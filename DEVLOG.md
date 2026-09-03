@@ -1,5 +1,64 @@
 # Development Log
 
+## September 2, 2026 — Phase 9 V4: membership and privacy, part 4 — a private club on the public site: members-only panels, the empty public standings, the members' read (#542, zero DDL)
+
+Tom's rule made concrete: a PRIVATE club's site shows identity + public
+items; standings, results, players and the roster are members-only;
+members see everything in the app. The (public) segment stays
+viewer-independent throughout — private = panels decided from
+`site.visibility`, never a session read.
+
+- **`PublicSite.visibility`** (`getSiteBySlugInternal` selects the club's
+  `visibility` with the 42703 step-down; leagues read public). The pure
+  gate **`org-sites/private.ts`**: `MEMBERS_ONLY_MODULE_KEYS` = standings,
+  teams, divisions, leaders, gallery — and **staff** (the spec caught the
+  owner's masked name on a private home: managers' names are people, not
+  identity); `isMembersOnly(site, key)`, `publicSubpageKeys` (tested).
+- **The panels**: `MembersOnlyPanel` ("Members only — join the club, or
+  sign in": the join door and a sign-in link, absolute app URLs) replaces
+  the module on the home; the subpages standings / week / players /
+  leaders / teams / team / divisions / gallery render `MembersOnlyPage`
+  (the heading the nav promised + the panel) — a stable, cacheable 200,
+  never a 404. The course page keeps its holes and info but the member
+  round stats card becomes the panel. Hero, contact, courses, schedule,
+  news, documents, register and the notice band stay public.
+- **Standings**: `fetchPublicStandings` answers the empty state for a
+  private club on the PUBLIC path — the CDN-cached API, the SSR twin
+  (which rides the `PUBLIC_STANDINGS_CACHE` carve-out and can never
+  branch) and the site modules all stay viewer-independent; the players
+  page, the week hub and the leaders build from it and so go dark too.
+  Members read the full payload through **`GET /api/clubs/[id]/standings/
+  mine`** — a separate path (never a `?scope=` on the cached URL),
+  `requireAuth` + a membership (or the owner column), `Cache-Control:
+  private, no-store` (the golf/mine precedent). `OrgStandings` takes
+  `scope: 'mine'`; the in-app club page uses it for members of a private
+  club (V5 widens the rest).
+- The club GET hides the member preview from outsiders of a private club
+  (`memberCount` stays); the search API carries `visibility` and Explore
+  shows a "Private" chip; the sitemap keeps the public subpages only and
+  lists no players or teams for a private club.
+- e2e `club-private-gates.spec.ts` (a private, approval club with a
+  completed golf week; user-b owns, alpha is a member, a minted
+  stranger): the home carries the name, the join door and the panels and
+  names nobody; standings / week / players / leaders / teams / gallery /
+  divisions each 200 with the panel and no names; the schedule page has
+  no panel; the public API answers no competitions and the SSR twin the
+  empty state; `/standings/mine` 401 anon, 403 stranger, 200 member with
+  both names and a private cache header; the club GET hides the list
+  from the stranger and shows it to the member; search says private; the
+  sitemap keeps `/schedule` and drops `/standings` + `/teams`; the
+  member's club page shows the league at 375px; the private home at
+  375px; a flip to public revalidates and the names return. Regressions
+  green vs the live DB: org-site (5), org-site-players, org-site-week,
+  org-site-golf-leaders, org-site-modules, org-site-courses,
+  org-site-course-stats, golf-points-race, club-join-door,
+  club-join-approval.
+- V3 (#541) prod-proven: the join-door spec green against the deployed
+  build (probed alone).
+
+Next: V5 — public items on a private site (the news audience toggle) and
+the rest of the members' app view.
+
 ## September 2, 2026 — Phase 9 V3: membership and privacy, part 3 — the join door: "Join {club}" on the site, an account-first join page (#541, zero DDL)
 
 - **`/join/club/[id]`** (the app; `join` added to `RESERVED_ROOT_SLUGS` —
