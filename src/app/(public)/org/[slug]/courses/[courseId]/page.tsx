@@ -14,6 +14,7 @@ import { requireSiteModule } from '../../_components/require-module';
 import { CourseOverview, GeometryAttribution, HoleDiagram } from '../../_components/HoleMap';
 import { placeLine, sectionLabel, teeSummary } from '../../_components/CoursesList';
 import CourseStatsCard from '../../_components/CourseStatsCard';
+import MembersOnlyPanel from '../../_components/MembersOnlyPanel';
 import { appBaseUrl, siteAbsoluteUrl, siteBasePath } from '@/lib/org-sites/urls';
 
 // ── /org/[slug]/courses/[courseId] — the FULL course page (phase 6e S2) ────
@@ -236,7 +237,8 @@ export default async function OrgSiteCoursePage({ params }: PageParams) {
         </section>
       )}
 
-      <CourseStatsCard stats={stats} />
+      {/* Phase 9 V4: a private club's member round stats are members-only. */}
+      {site.visibility === 'private' ? <MembersOnlyPanel site={site} what="Course stats" /> : <CourseStatsCard stats={stats} />}
 
       {siblings.length > 0 && (
         <section aria-label="Other layouts" className="bg-surface rounded-lg shadow-sm border border-border p-4 sm:p-6">

@@ -1,4 +1,6 @@
 import type { Metadata } from 'next';
+import { isMembersOnly } from '@/lib/org-sites/private';
+import MembersOnlyPage from '../_components/MembersOnlyPage';
 import { getCachedLeaders, getCachedSite } from '@/lib/org-sites/cached';
 import LeadersTable from '../_components/LeadersTable';
 import { requireSiteModule } from '../_components/require-module';
@@ -39,6 +41,8 @@ export async function generateMetadata({ params }: PageParams): Promise<Metadata
 export default async function OrgSiteLeadersTablePage({ params }: PageParams) {
   const { slug } = await params;
   const site = await requireSiteModule(slug, 'leaders');
+  // Phase 9 V4: a private club renders the members-only panel here.
+  if (isMembersOnly(site, 'leaders')) return <MembersOnlyPage site={site} title={moduleLabel('leaders', parseNavConfig(site.nav_config), site.side, site.sportKey)} what={'The leaders'} />;
   const items = await getCachedLeaders(slug, site.side, site.orgId);
 
   return (

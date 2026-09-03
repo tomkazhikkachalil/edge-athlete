@@ -1,4 +1,6 @@
 import type { Metadata } from 'next';
+import { isMembersOnly } from '@/lib/org-sites/private';
+import MembersOnlyPage from '../_components/MembersOnlyPage';
 import { getCachedSite, getCachedWeekHub } from '@/lib/org-sites/cached';
 import { formatDateRange } from '@/lib/competitions/golf-weeks';
 import { playerHref } from '@/lib/org-sites/player-links';
@@ -58,6 +60,8 @@ function asOfLabel(iso: string): string {
 export default async function OrgSiteWeekPage({ params }: PageParams) {
   const { slug } = await params;
   const site = await requireSiteModule(slug, 'standings');
+  // Phase 9 V4: a private club renders the members-only panel here.
+  if (isMembersOnly(site, 'standings')) return <MembersOnlyPage site={site} title={'This week'} what={'This week’s play'} />;
   const hub = await getCachedWeekHub(slug, site.side, site.orgId);
   const base = siteBasePath(site);
 

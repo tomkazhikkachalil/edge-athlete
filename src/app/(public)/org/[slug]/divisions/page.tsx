@@ -1,4 +1,7 @@
 import type { Metadata } from 'next';
+import { moduleLabel, parseNavConfig } from '@/lib/org-sites/validate';
+import { isMembersOnly } from '@/lib/org-sites/private';
+import MembersOnlyPage from '../_components/MembersOnlyPage';
 import { getCachedDivisions, getCachedSite } from '@/lib/org-sites/cached';
 import DivisionsList from '../_components/DivisionsList';
 import { requireSiteModule } from '../_components/require-module';
@@ -38,6 +41,8 @@ export async function generateMetadata({ params }: PageParams): Promise<Metadata
 export default async function OrgSiteDivisionsListPage({ params }: PageParams) {
   const { slug } = await params;
   const site = await requireSiteModule(slug, 'divisions');
+  // Phase 9 V4: a private club renders the members-only panel here.
+  if (isMembersOnly(site, 'divisions')) return <MembersOnlyPage site={site} title={moduleLabel('divisions', parseNavConfig(site.nav_config), site.side, site.sportKey)} what={'The divisions'} />;
   const items = await getCachedDivisions(slug, site.side, site.orgId);
 
   return (

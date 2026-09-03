@@ -20,6 +20,8 @@ interface OrgRow {
   region: string | null;
   country: string | null;
   sport_key?: string | null;
+  /** Phase 9 V4: a private club (request to join). */
+  visibility?: string | null;
 }
 
 interface ExploreOrgsSectionProps {
@@ -116,7 +118,14 @@ export default function ExploreOrgsSection({ sportKey }: ExploreOrgsSectionProps
             aria-hidden="true"
           ></i>
           <div className="min-w-0">
-            <p className="font-medium text-primary truncate">{org.name}</p>
+            <p className="font-medium text-primary truncate">
+              {org.name}
+              {org.visibility === 'private' && (
+                <span className="ml-2 align-middle inline-block px-1.5 py-0.5 text-[10px] font-semibold uppercase rounded-full bg-surface-sunken text-secondary">
+                  Private
+                </span>
+              )}
+            </p>
             <p className="text-sm text-muted truncate">
               {[sport, place].filter(Boolean).join(' · ') || '—'}
             </p>

@@ -42,16 +42,18 @@ interface CompetitionStandings {
 interface OrgStandingsProps {
   side: 'league' | 'club';
   orgId: string;
+  /** Phase 9 V4: a private club's members read the session-gated path. */
+  scope?: 'public' | 'mine';
 }
 
-export default function OrgStandings({ side, orgId }: OrgStandingsProps) {
+export default function OrgStandings({ side, orgId, scope = 'public' }: OrgStandingsProps) {
   const [competitions, setCompetitions] = useState<CompetitionStandings[] | null>(null);
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
-        const base = side === 'league' ? `/api/leagues/${orgId}/standings` : `/api/clubs/${orgId}/standings`;
+        const base = side === 'league' ? `/api/leagues/${orgId}/standings` : scope === 'mine' ? `/api/clubs/${orgId}/standings/mine` : `/api/clubs/${orgId}/standings`;
         const response = await fetch(base);
         if (!response.ok || cancelled) return;
         const data = await response.json();
@@ -67,7 +69,7 @@ export default function OrgStandings({ side, orgId }: OrgStandingsProps) {
       }
     })();
     return () => { cancelled = true; };
-  }, [side, orgId]);
+  }, [side, orgId, scope]);
 
   if (!competitions || competitions.length === 0) return null;
 

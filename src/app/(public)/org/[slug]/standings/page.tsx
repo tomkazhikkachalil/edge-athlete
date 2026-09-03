@@ -1,4 +1,6 @@
 import type { Metadata } from 'next';
+import { isMembersOnly } from '@/lib/org-sites/private';
+import MembersOnlyPage from '../_components/MembersOnlyPage';
 import { getCachedSite, getCachedStandings } from '@/lib/org-sites/cached';
 import PublicStandingsTable from '@/components/standings/PublicStandingsTable';
 import { requireSiteModule } from '../_components/require-module';
@@ -40,6 +42,8 @@ export async function generateMetadata({ params }: PageParams): Promise<Metadata
 export default async function OrgSiteStandingsPage({ params }: PageParams) {
   const { slug } = await params;
   const site = await requireSiteModule(slug, 'standings');
+  // Phase 9 V4: a private club renders the members-only panel here.
+  if (isMembersOnly(site, 'standings')) return <MembersOnlyPage site={site} title={moduleLabel('standings', parseNavConfig(site.nav_config), site.side, site.sportKey)} what={'The standings'} />;
   const payload = await getCachedStandings(slug, site.side, site.orgId);
   // W1: a golf league with an open window (no completed round yet) has a
   // week to show before it has rows.

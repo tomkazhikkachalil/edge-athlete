@@ -235,7 +235,7 @@ export async function GET(request: NextRequest) {
           const ids = clubDocs.map(d => d.entity_id);
           const data = await approvedOnly(cols =>
             supabase.from('clubs').select(cols).in('id', ids),
-            'id, name, description, location, city, region, region_code, country, country_code, lat, lng'
+            'id, name, description, location, city, region, region_code, country, country_code, lat, lng, visibility'
           );
           const byDoc = new Map(clubDocs.map(d => [d.entity_id, d]));
           results.clubs = orderByIds(ids, (data ?? []) as Array<{ id: string }>)

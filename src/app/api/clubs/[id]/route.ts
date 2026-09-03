@@ -85,6 +85,9 @@ export async function GET(
     // 0.6b: derived sports (clubs have no cached sport — divisions only).
     const sports = await deriveOrgSports(supabase, { side: 'club', orgId: id }, null);
 
+    // Phase 9 V4: a private club's member list is for members.
+    const privateOutsider = access.visibility === 'private' && !viewerRole && viewerId !== club.owner_profile_id;
+
     return NextResponse.json({
       club,
       // C4: awaiting approval (managers/admins only ever see this true).
@@ -101,7 +104,7 @@ export async function GET(
       // pre-155 or draft reads null (link hidden), never an error.
       site: await findPublishedSite(supabase, 'club', id),
       memberCount: count,
-      members,
+      members: privateOutsider ? [] : members,
       viewerRole,
       viewerRoster,
       // Phase 5 R3: the Register banner's data — flag-off/pre-162 reads

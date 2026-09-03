@@ -40,6 +40,8 @@ import StandingsPreview from './StandingsPreview';
 import TeamsList from './TeamsList';
 import VenuesList from './VenuesList';
 import { appBaseUrl, siteBasePath } from '@/lib/org-sites/urls';
+import { isMembersOnly } from '@/lib/org-sites/private';
+import MembersOnlyPanel from './MembersOnlyPanel';
 import { FULL_WIDTH_MODULES, templateSpec } from '@/lib/org-sites/templates';
 import type { CourseStats } from '@/lib/golf/course-stats';
 import type { PublicGolfRound } from '@/lib/org-sites/public-data';
@@ -101,6 +103,8 @@ export default function SiteHomeBody({
   const empty = (text: string) => <p className="mt-1 text-sm text-tertiary">{text}</p>;
 
   const moduleBody = (key: string) => {
+    // Phase 9 V4: a private club's members-only modules become the panel.
+    if (isMembersOnly(site, key)) return <MembersOnlyPanel site={site} />;
     switch (key) {
       case 'standings':
         return <StandingsPreview standings={standings} basePath={siteBasePath(site)} />;
