@@ -87,6 +87,55 @@ test('player pages: public member linked + paged; private member unlinked + 404;
     .select('id, profile_id');
   const entryOf = new Map(entries!.map(e => [e.profile_id as string, e.id as string]));
 
+  // P3: the owner's OWN rounds — one shared publicly (a public post), one
+  // private (a private post) — both rated so the handicap can compute.
+  const { data: course } = await admin
+    .from('golf_courses')
+    .insert({
+      external_source: 'seed',
+      external_id: `qa-players-${stamp}`,
+      name: `QA Players Course ${stamp}`,
+      total_par: 72,
+      holes_count: 18,
+      hole_data: Array.from({ length: 18 }, (_, i) => ({ number: i + 1, par: 4, yardage: { white: 380 }, handicap: i + 1 })),
+      course_rating: { white: 71.2 },
+      slope_rating: { white: 128 },
+    })
+    .select('id')
+    .single();
+  const courseId = course!.id as string;
+  const roundIds: string[] = [];
+  const postIds: string[] = [];
+  const seedRound = async (date: string, gross: number, post: 'public' | 'private') => {
+    const { data: r } = await admin
+      .from('golf_rounds')
+      .insert({
+        profile_id: owner.id,
+        date,
+        course: `QA Players Course ${stamp}`,
+        course_id: courseId,
+        tee: 'white',
+        holes: 18,
+        par: 72,
+        gross_score: gross,
+        course_rating: 71.2,
+        slope_rating: 128,
+        is_complete: true,
+        round_type: 'outdoor',
+      })
+      .select('id')
+      .single();
+    roundIds.push(r!.id as string);
+    const { data: p } = await admin
+      .from('posts')
+      .insert({ profile_id: owner.id, caption: `QA ${stamp}`, visibility: post, status: 'published', sport_key: 'golf', round_id: r!.id })
+      .select('id')
+      .single();
+    postIds.push(p!.id as string);
+  };
+  await seedRound('2026-08-20', 77, 'public');
+  await seedRound('2026-08-27', 99, 'private');
+
   const ownerApi = await apiAs('state-b.json');
   const anon = await browser.newContext({ storageState: { cookies: [], origins: [] } });
   const base = `/api/clubs/${clubId}/competitions`;
@@ -178,6 +227,17 @@ test('player pages: public member linked + paged; private member unlinked + 404;
     expect(playerHtml).toContain('Week 2');
     expect(playerHtml).toContain('Full standings');
     expect(playerHtml).not.toContain('"@type":"Person"');
+    // P3: the season strip, the handicap (both rated rounds count — the index
+    // is the profile's public data), and ONLY the publicly shared round.
+    expect(playerHtml).toContain('League rounds');
+    expect(playerHtml).toContain('Handicap');
+    expect(playerHtml).toContain('provisional');
+    expect(playerHtml).toMatch(/data-points="2"/);
+    expect(playerHtml).toContain('Recent rounds');
+    expect(playerHtml).toContain('>77<');
+    expect(playerHtml).not.toContain('>99<');
+    expect(playerHtml).toContain('2026-08-20');
+    expect(playerHtml).not.toContain('2026-08-27');
     expect((await anon.request.get(`/org/${subdomain}/players/${alphaHandle}`)).status()).toBe(404);
     expect((await anon.request.get(`/org/${subdomain}/players/nobody-${stamp}`)).status()).toBe(404);
     expect((await anon.request.get(`/org/${otherSubdomain}/players/${ownerHandle}`)).status()).toBe(404);
@@ -189,11 +249,14 @@ test('player pages: public member linked + paged; private member unlinked + 404;
     expect(leadersHtml).toContain('Most points');
     expect(leadersHtml).toContain(`/players/${ownerHandle}"`);
 
-    // The site's sitemap lists the public player only.
-    const sm = await anon.request.get(`/org/${subdomain}/sitemap.xml`);
+    // The MAIN sitemap lists the public player only (publish purges its
+    // tag). The per-site /org/{slug}/sitemap.xml twin is the custom-domain
+    // route (rewritten from <domain>/sitemap.xml) and 404s on the apex in
+    // production — not asserted here.
+    const sm = await anon.request.get('/sitemap.xml');
     expect(sm.status()).toBe(200);
     const smText = await sm.text();
-    expect(smText).toContain(`/players/${ownerHandle}`);
+    expect(smText).toContain(`${subdomain}/players/${ownerHandle}`);
     expect(smText).not.toContain(`/players/${alphaHandle}`);
 
     // 375px.
@@ -208,6 +271,9 @@ test('player pages: public member linked + paged; private member unlinked + 404;
     await admin.from('profiles').update({ visibility: priorVisibility, handle: priorHandles.owner }).eq('id', owner.id);
     await admin.from('profiles').update({ handle: priorHandles.alpha }).eq('id', alpha.id);
     await admin.from('clubs').delete().in('id', [clubId, otherClubId]);
+    if (postIds.length) await admin.from('posts').delete().in('id', postIds);
+    if (roundIds.length) await admin.from('golf_rounds').delete().in('id', roundIds);
+    await admin.from('golf_courses').delete().eq('id', courseId);
     if (childId) await deleteQaUser(childId);
   }
 });

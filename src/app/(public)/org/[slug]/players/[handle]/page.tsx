@@ -43,6 +43,39 @@ export async function generateMetadata({ params }: PageParams): Promise<Metadata
   };
 }
 
+/** P3: the handicap trend as a server-rendered inline SVG (no client lib;
+ *  the (public) segment ships no JS for this). */
+function TrendSvg({ series }: { series: { date: string; index: number }[] }) {
+  const w = 320;
+  const h = 96;
+  const pad = 8;
+  const xs = series.map((_, i) => (series.length === 1 ? w / 2 : pad + (i * (w - pad * 2)) / (series.length - 1)));
+  const values = series.map(s => s.index);
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  const span = max - min || 1;
+  // Lower is better in golf: a falling line is the good direction, so the
+  // axis is NOT inverted — a lower index sits lower on the chart.
+  const ys = values.map(v => pad + ((v - min) / span) * (h - pad * 2));
+  const points = xs.map((x, i) => `${x.toFixed(1)},${ys[i].toFixed(1)}`).join(' ');
+  return (
+    <svg
+      viewBox={`0 0 ${w} ${h}`}
+      className="mt-2 w-full max-w-md h-24"
+      role="img"
+      aria-label={`Handicap index over ${series.length} counted rounds, from ${values[0]} to ${values[values.length - 1]}`}
+      data-points={series.length}
+    >
+      <polyline points={points} fill="none" stroke="currentColor" strokeWidth="2" className="text-brand-fg" />
+      {xs.map((x, i) => (
+        // Keyed by position: keys ride the RSC payload, and a date key would
+        // print a private round's date into the page source.
+        <circle key={i} cx={x} cy={ys[i]} r="2.5" fill="currentColor" className="text-brand-fg" />
+      ))}
+    </svg>
+  );
+}
+
 function ordinal(n: number): string {
   const s = ['th', 'st', 'nd', 'rd'];
   const v = n % 100;
@@ -69,6 +102,84 @@ export default async function OrgSitePlayerPage({ params }: PageParams) {
           </a>
         </p>
       </header>
+
+      {/* P3 — the season at a glance (league play only). */}
+      <section aria-label="Season" className="bg-surface rounded-lg shadow-sm border border-border p-4 sm:p-6">
+        <h2 className="text-lg font-semibold text-primary">Season</h2>
+        <dl className="mt-2 grid grid-cols-3 sm:grid-cols-6 gap-3 text-sm">
+          <div>
+            <dt className="text-xs text-muted">League rounds</dt>
+            <dd className="font-semibold text-primary">{player.season.leagueRounds}</dd>
+          </div>
+          <div>
+            <dt className="text-xs text-muted">Wins</dt>
+            <dd className="font-semibold text-primary">{player.season.wins}</dd>
+          </div>
+          <div>
+            <dt className="text-xs text-muted">Low gross (18)</dt>
+            <dd className="font-semibold text-primary">{player.season.lowGross18 ?? '—'}</dd>
+          </div>
+          <div>
+            <dt className="text-xs text-muted">Low gross (9)</dt>
+            <dd className="font-semibold text-primary">{player.season.lowGross9 ?? '—'}</dd>
+          </div>
+          <div>
+            <dt className="text-xs text-muted">Low net (18)</dt>
+            <dd className="font-semibold text-primary">{player.season.lowNet18 ?? '—'}</dd>
+          </div>
+          <div>
+            <dt className="text-xs text-muted">Low net (9)</dt>
+            <dd className="font-semibold text-primary">{player.season.lowNet9 ?? '—'}</dd>
+          </div>
+        </dl>
+      </section>
+
+      {player.handicap && (
+        <section aria-label="Handicap" className="bg-surface rounded-lg shadow-sm border border-border p-4 sm:p-6">
+          <h2 className="text-lg font-semibold text-primary">
+            Handicap
+            <span className="ml-2 text-base font-semibold text-brand-fg">{player.handicap.current}</span>
+            {player.handicap.provisional ? (
+              <span className="ml-2 align-middle inline-block rounded-full bg-surface-sunken px-2 py-0.5 text-[10px] font-semibold uppercase text-secondary">
+                provisional
+              </span>
+            ) : null}
+          </h2>
+          <p className="text-xs text-muted">{`Index after each of the last ${player.handicap.series.length} counted rounds — lower is better.`}</p>
+          {player.handicap.series.length >= 2 ? <TrendSvg series={player.handicap.series} /> : null}
+        </section>
+      )}
+
+      {player.recentRounds.length > 0 && (
+        <section aria-label="Recent rounds" className="bg-surface rounded-lg shadow-sm border border-border p-4 sm:p-6">
+          <h2 className="text-lg font-semibold text-primary">Recent rounds</h2>
+          <p className="text-xs text-muted">Rounds shared publicly in the last year.</p>
+          <div className="relative mt-2 overflow-x-auto">
+            <table className="w-full text-sm whitespace-nowrap">
+              <thead>
+                <tr className="text-left text-xs text-muted">
+                  <th scope="col" className="py-1.5 pr-3 font-medium">Date</th>
+                  <th scope="col" className="py-1.5 px-2 font-medium">Course</th>
+                  <th scope="col" className="py-1.5 px-2 font-medium text-right">Holes</th>
+                  <th scope="col" className="py-1.5 px-2 font-medium text-right">Gross</th>
+                  <th scope="col" className="py-1.5 pl-2 font-medium">Tee</th>
+                </tr>
+              </thead>
+              <tbody>
+                {player.recentRounds.map(r => (
+                  <tr key={r.id} className="border-t border-border-subtle">
+                    <td className="py-1.5 pr-3 text-primary">{r.date}</td>
+                    <td className="py-1.5 px-2 text-secondary">{r.courseName ?? '—'}</td>
+                    <td className="py-1.5 px-2 text-right text-secondary">{r.holes}</td>
+                    <td className="py-1.5 px-2 text-right font-medium text-primary">{r.gross}</td>
+                    <td className="py-1.5 pl-2 text-secondary">{r.tee ?? '—'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      )}
 
       {player.competitions.map(comp => (
         <section
