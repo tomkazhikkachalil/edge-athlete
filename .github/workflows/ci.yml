@@ -102,9 +102,11 @@ jobs:
         if: steps.gate.outputs.run == 'true'
         run: npm ci
 
-      - name: Install Playwright Chromium
+      # WebKit too (Sep 2026): the `webkit-mobile` project runs the @mobile
+      # specs on the phone ENGINE — every iPhone browser is WebKit.
+      - name: Install Playwright browsers
         if: steps.gate.outputs.run == 'true'
-        run: npx playwright install chromium --with-deps
+        run: npx playwright install chromium webkit --with-deps
 
       - name: Run smoke suite
         if: steps.gate.outputs.run == 'true'

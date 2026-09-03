@@ -48,6 +48,16 @@ export default defineConfig({
   projects: [
     { name: 'desktop', grepInvert: /@mobile/ },
     { name: 'mobile', grep: /@mobile/, use: { viewport: { width: 390, height: 844 } } },
+    // The phone ENGINE, not just the phone width (Sep 2026): Tom's iPhone runs
+    // Chrome for iOS, which is WebKit under Chrome's UI. Everything above is
+    // Chromium; this project runs the same @mobile specs on WebKit so an
+    // engine-only difference (EXIF in createImageBitmap, IndexedDB, WebGL)
+    // fails here before it fails on a phone. `npx playwright install webkit`.
+    {
+      name: 'webkit-mobile',
+      grep: /@mobile/,
+      use: { browserName: 'webkit', viewport: { width: 390, height: 844 } },
+    },
   ],
   // Only build/serve locally. Targeting a real deployment (E2E_BASE_URL) must
   // NOT spin up a local server — it would be the wrong code under test and

@@ -30,6 +30,7 @@ import { validateFiles } from '@/lib/media/validation';
 import { recipeEnvelope } from '@/lib/media/recipes';
 import { loadComposerDraft, saveComposerDraft, clearComposerDraft, type ComposerDraft } from '@/lib/posts/composer-draft';
 import { uploadPostMedia } from '@/lib/media/upload';
+import { isIOSWebKit } from '@/lib/platform';
 import {
   COMPOSER_STASH_KEY,
   appendStashedCaptures,
@@ -935,6 +936,15 @@ export default function CreatePostModal({
                   <button
                     type="button"
                     onClick={() => {
+                      // iPhone/iPad: the camera opens from the light page, not
+                      // over the feed — WebKit discards a heavy page while the
+                      // camera is up (bug 172533) and the photo is lost. The
+                      // page hands the photo back into this editor; the
+                      // crash-draft carries the caption across the hop.
+                      if (isIOSWebKit()) {
+                        router.push('/app/capture');
+                        return;
+                      }
                       armCapture('composer'); // capture-diag: before the camera takes over
                       openPhoto();
                     }}
@@ -946,6 +956,10 @@ export default function CreatePostModal({
                   <button
                     type="button"
                     onClick={() => {
+                      if (isIOSWebKit()) {
+                        router.push('/app/capture');
+                        return;
+                      }
                       armCapture('composer');
                       openVideo?.();
                     }}
