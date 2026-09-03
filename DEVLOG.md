@@ -1,5 +1,48 @@
 # Development Log
 
+## September 3, 2026 — Program 11 L3: leagues parity, part 3 — the public league directory: /leagues by region (#556, zero DDL)
+
+The last round of program 11 — the league twin of phase 9 V6, and the
+growth door for leagues: a crawlable list of every league with a published
+site.
+
+- **`/leagues`** (`src/app/(public)/leagues/page.tsx`, ISR 3600, the
+  (public) iron rules — server-only, viewer-independent, identity only, no
+  people): every PUBLISHED league site grouped by region ("Ontario,
+  Canada"; "Elsewhere" last), each row the league's name (linking to its
+  site — `orgSitePath`, or the active custom domain), its town and sport
+  (leagues carry `sport_key`), and either "Open to visitors" or **"Private
+  league · request to join"**; a pending (C4) league never lists, nor does
+  an unpublished site. "Start a league →" doors to `/league/start`.
+- The directory reader is side-generic now: **`fetchPublicOrgDirectory(admin,
+  side)`** (`DirectoryRegion.orgs`; `fetchPublicClubDirectory` stays as the
+  club wrapper) with the 42703 step-downs for pre-177/174; cached as
+  `getCachedLeagueDirectory` under the sitemap's tag (publish/unpublish
+  purge it; the league PATCH purges it on a visibility flip since L1).
+- **`leagues` is a reserved root slug** (`RESERVED_ROOT_SLUGS`, the pin
+  test): the middleware's vanity path skips it and `slugAvailability`
+  refuses it as a site address.
+- Doors: the main `/sitemap.xml` lists `/leagues` beside `/clubs`; the
+  login page's guest section gains "Find a league near you" under the club
+  link (a `Link` — the no-html-link rule).
+- e2e `league-directory.spec.ts` (an anonymous 375px context): four leagues
+  — public + private published, one with a draft site, one pending → the
+  directory lists the two published ones under "Ontario, Canada" with
+  their site links (either path form), the private chip, town and sport,
+  and neither the draft nor the pending league nor any person; `/clubs`
+  does not list a league; the sitemap carries `/leagues`; the login page's
+  link; `leagues` refused as a site address; no horizontal overflow.
+  Regressions green vs the live DB: club-directory, org-site (5),
+  club-signup-door.
+- L2 (#555) prod-proven: the two league specs green against the deployed
+  build (probed alone).
+
+Program 11 (leagues parity) is CODE COMPLETE: L1 settings + approval + the
+door (177) → L2 the private site + the members' reads → L3 the directory.
+Leagues and clubs now share one membership-and-privacy layer.
+
+---
+
 ## September 3, 2026 — Program 11 L2: leagues parity, part 2 — a private league on the public site, the members' reads, search and the sitemap (#555, zero DDL)
 
 The phase-9 V4/V5 rule for leagues (Tom: the SAME rule as clubs — teams

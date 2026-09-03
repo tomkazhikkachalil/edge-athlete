@@ -50,7 +50,7 @@ import {
   type PublicPlayerPage,
   fetchPublicWeekHub,
   type PublicWeekHub,
-  fetchPublicClubDirectory,
+  fetchPublicOrgDirectory,
   type DirectoryRegion,
 } from './public-data';
 
@@ -157,7 +157,14 @@ export const getCachedWeekHub = (slug: string, side: OrgSide, orgId: string): Pr
 
 /** V6: the club directory — one entry, the sitemap's tag (publish purges). */
 export const getCachedClubDirectory = (): Promise<DirectoryRegion[]> =>
-  unstable_cache(() => fetchPublicClubDirectory(getSupabaseAdmin()), ['org-club-directory'], {
+  unstable_cache(() => fetchPublicOrgDirectory(getSupabaseAdmin(), 'club'), ['org-club-directory'], {
+    tags: ['org-sitemap'],
+    revalidate: 3600,
+  })();
+
+/** Program 11 L3: the league directory — the same shape and tag. */
+export const getCachedLeagueDirectory = (): Promise<DirectoryRegion[]> =>
+  unstable_cache(() => fetchPublicOrgDirectory(getSupabaseAdmin(), 'league'), ['org-league-directory'], {
     tags: ['org-sitemap'],
     revalidate: 3600,
   })();

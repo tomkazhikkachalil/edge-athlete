@@ -46,6 +46,7 @@ export const RESERVED_ROOT_SLUGS: ReadonlySet<string> = new Set([
   // Root-level entries outside the (app) group.
   'api',
   'clubs', // phase 9 V6: the public club directory (src/app/(public)/clubs)
+  'leagues', // program 11 L3: the public league directory (src/app/(public)/leagues)
   'org',
   'robots.txt',
   'sitemap.xml',

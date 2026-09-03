@@ -729,12 +729,18 @@ export default function Home() {
               >
                 <i className="fas fa-binoculars mr-2"></i> Explore as Guest
               </button>
-              {/* Phase 9 V6: the public club directory — a real page, no account. */}
+              {/* Phase 9 V6 + program 11 L3: the public directories — real pages, no account. */}
               <Link
                 href="/clubs"
                 className="mt-3 block text-center text-sm text-white/90 underline underline-offset-2 hover:text-white"
               >
                 Find a golf club near you
+              </Link>
+              <Link
+                href="/leagues"
+                className="mt-2 block text-center text-sm text-white/90 underline underline-offset-2 hover:text-white"
+              >
+                Find a league near you
               </Link>
             </div>
           </div>

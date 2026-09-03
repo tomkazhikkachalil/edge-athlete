@@ -2116,13 +2116,14 @@ export async function fetchPublicWeekHub(admin: Admin, side: OrgSide, orgId: str
   return hub;
 }
 
-// ── The club directory (phase 9 V6) ─────────────────────────────────────────
-// /clubs: every PUBLISHED club site, grouped by region — name, place, sport,
-// and "Private club · request to join" for a private one. Identity only
-// (no people); bounded; cached under the sitemap tag (publish/unpublish
-// purge it; the club PATCH purges it on a visibility flip).
+// ── The org directories (phase 9 V6 clubs; program 11 L3 leagues) ──────────
+// /clubs and /leagues: every PUBLISHED site of that side, grouped by region
+// — name, place, sport, and "Private … · request to join" for a private
+// one. Identity only (no people); bounded; cached under the sitemap tag
+// (publish/unpublish purge it; the org PATCH purges it on a visibility
+// flip). Leagues carry `sport_key`; clubs `primary_sport` (174).
 
-export interface DirectoryClub {
+export interface DirectoryOrg {
   name: string;
   subdomain: string;
   customDomain: string | null;
@@ -2133,30 +2134,42 @@ export interface DirectoryClub {
   visibility: 'public' | 'private';
 }
 
+/** @deprecated the phase-9 name — the same shape. */
+export type DirectoryClub = DirectoryOrg;
+
 export interface DirectoryRegion {
   label: string;
-  clubs: DirectoryClub[];
+  orgs: DirectoryOrg[];
 }
 
-export async function fetchPublicClubDirectory(admin: Admin): Promise<DirectoryRegion[]> {
+export async function fetchPublicOrgDirectory(admin: Admin, side: OrgSide): Promise<DirectoryRegion[]> {
+  const col = orgColumn(side);
+  const table = side === 'league' ? 'leagues' : 'clubs';
+  const sportCol = side === 'league' ? 'sport_key' : 'primary_sport';
   try {
     const readSites = (fields: string) =>
-      admin.from('org_sites').select(fields).not('published_at', 'is', null).not('club_id', 'is', null).limit(500);
-    let { data: sites, error } = await readSites('subdomain, club_id, custom_domain, domain_active_at');
-    if (error?.code === '42703') ({ data: sites, error } = await readSites('subdomain, club_id'));
+      admin.from('org_sites').select(fields).not('published_at', 'is', null).not(col, 'is', null).limit(500);
+    let { data: sites, error } = await readSites(`subdomain, ${col}, custom_domain, domain_active_at`);
+    if (error?.code === '42703') ({ data: sites, error } = await readSites(`subdomain, ${col}`));
     if (degraded('directory sites', error) || !sites || sites.length === 0) return [];
-    const siteRows = sites as unknown as { subdomain: string; club_id: string; custom_domain?: string | null; domain_active_at?: string | null }[];
-    const clubIds = [...new Set(siteRows.map(r => r.club_id))];
-    const readClubs = (fields: string) => admin.from('clubs').select(fields).in('id', clubIds);
-    let { data: clubs, error: clubError } = await readClubs('id, name, city, region, country, primary_sport, visibility, approved_at');
-    if (clubError?.code === '42703') ({ data: clubs, error: clubError } = await readClubs('id, name, city, region, country'));
-    if (degraded('directory clubs', clubError) || !clubs) return [];
-    const byId = new Map((clubs as unknown as Record<string, unknown>[]).map(c => [c.id as string, c]));
-    const entries: DirectoryClub[] = [];
+    const siteRows = (sites as unknown as Record<string, unknown>[]).map(r => ({
+      subdomain: r.subdomain as string,
+      orgId: r[col] as string,
+      custom_domain: (r.custom_domain as string | null | undefined) ?? null,
+      domain_active_at: (r.domain_active_at as string | null | undefined) ?? null,
+    }));
+    const orgIds = [...new Set(siteRows.map(r => r.orgId))];
+    const readOrgs = (fields: string) => admin.from(table).select(fields).in('id', orgIds);
+    let { data: orgs, error: orgError } = await readOrgs(`id, name, city, region, country, ${sportCol}, visibility, approved_at`);
+    // Pre-176/177 (no visibility) / pre-174 (no approved_at, no primary_sport): step down.
+    if (orgError?.code === '42703') ({ data: orgs, error: orgError } = await readOrgs(`id, name, city, region, country${side === 'league' ? ', sport_key' : ''}`));
+    if (degraded('directory orgs', orgError) || !orgs) return [];
+    const byId = new Map((orgs as unknown as Record<string, unknown>[]).map(c => [c.id as string, c]));
+    const entries: DirectoryOrg[] = [];
     for (const site of siteRows) {
-      const c = byId.get(site.club_id);
+      const c = byId.get(site.orgId);
       if (!c) continue;
-      // Pending (C4) clubs never list; pre-174 (no column) reads live.
+      // Pending (C4) orgs never list; pre-174 (no column) reads live.
       if ('approved_at' in c && c.approved_at === null) continue;
       entries.push({
         name: c.name as string,
@@ -2165,11 +2178,11 @@ export async function fetchPublicClubDirectory(admin: Admin): Promise<DirectoryR
         city: (c.city as string | null) ?? null,
         region: (c.region as string | null) ?? null,
         country: (c.country as string | null) ?? null,
-        sport: (c.primary_sport as string | null) ?? null,
+        sport: (c[sportCol] as string | null) ?? null,
         visibility: c.visibility === 'private' ? 'private' : 'public',
       });
     }
-    const groups = new Map<string, DirectoryClub[]>();
+    const groups = new Map<string, DirectoryOrg[]>();
     for (const e of entries) {
       const label = [e.region, e.country].filter(Boolean).join(', ') || e.country || 'Elsewhere';
       if (!groups.has(label)) groups.set(label, []);
@@ -2177,9 +2190,14 @@ export async function fetchPublicClubDirectory(admin: Admin): Promise<DirectoryR
     }
     return [...groups.entries()]
       .sort(([a], [b]) => (a === 'Elsewhere' ? 1 : b === 'Elsewhere' ? -1 : a.localeCompare(b)))
-      .map(([label, list]) => ({ label, clubs: list.sort((a, b) => a.name.localeCompare(b.name)) }));
+      .map(([label, list]) => ({ label, orgs: list.sort((a, b) => a.name.localeCompare(b.name)) }));
   } catch (error) {
     console.error(`${TAG} directory failed:`, error);
     return [];
   }
+}
+
+/** The phase-9 club reader — `fetchPublicOrgDirectory(admin, 'club')`. */
+export function fetchPublicClubDirectory(admin: Admin): Promise<DirectoryRegion[]> {
+  return fetchPublicOrgDirectory(admin, 'club');
 }
