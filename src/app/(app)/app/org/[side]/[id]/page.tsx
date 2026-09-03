@@ -363,6 +363,9 @@ export default function OrgConsolePage() {
   const [clubVisibility, setClubVisibility] = useState<'public' | 'private'>('public');
   const [clubJoinPolicy, setClubJoinPolicy] = useState<'open' | 'approval'>('open');
   const [membershipSaving, setMembershipSaving] = useState(false);
+  // Phase 9 V2: the approval queue (clubs only; managers).
+  const [joinRequests, setJoinRequests] = useState<{ id: string; name: string; handle: string | null; createdAt: string }[]>([]);
+  const [joinBusy, setJoinBusy] = useState<string | null>(null);
   const [memberCount, setMemberCount] = useState(0);
 
   useEffect(() => {
@@ -387,6 +390,12 @@ export default function OrgConsolePage() {
           if (!cancelled && side === 'club') {
             setClubVisibility(data.visibility === 'private' ? 'private' : 'public');
             setClubJoinPolicy(data.joinPolicy === 'approval' ? 'approval' : 'open');
+            try {
+              const jr = await fetch(`/api/clubs/${orgId}/join-requests`);
+              if (jr.ok && !cancelled) setJoinRequests(((await jr.json()) as { requests?: typeof joinRequests }).requests ?? []);
+            } catch {
+              /* the queue simply stays empty */
+            }
           }
           // C5: leagues carry sport_key; clubs answer primarySport (174).
           const sport = (data.league?.sport_key ?? data.primarySport ?? null) as string | null;
@@ -1055,6 +1064,30 @@ export default function OrgConsolePage() {
 
   const golfFirst = orgSport === 'golf';
 
+  // Phase 9 V2: decide a join request.
+  const decideJoin = async (requestId: string, decision: 'approve' | 'decline') => {
+    setJoinBusy(requestId);
+    try {
+      const res = await fetch(`/api/clubs/${orgId}/join-requests`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ requestId, decision }),
+      });
+      const body = (await res.json().catch(() => ({}))) as { error?: string };
+      if (!res.ok && res.status !== 409) {
+        showError('Membership', body.error || 'Could not decide the request');
+        return;
+      }
+      setJoinRequests(list => list.filter(r => r.id !== requestId));
+      showSuccess('Membership', res.status === 409 ? 'Already decided' : decision === 'approve' ? 'Member approved' : 'Request declined');
+      if (decision === 'approve') refresh();
+    } catch {
+      showError('Membership', 'Could not decide the request');
+    } finally {
+      setJoinBusy(null);
+    }
+  };
+
   // Phase 9 V1: save a membership setting (the club PATCH revalidates the site).
   const saveMembership = async (patch: { visibility?: 'public' | 'private'; joinPolicy?: 'open' | 'approval' }) => {
     setMembershipSaving(true);
@@ -1159,6 +1192,47 @@ export default function OrgConsolePage() {
           >
             View members &amp; roster →
           </Link>
+          {/* Phase 9 V2: the approval queue (a manager surface — real names). */}
+          {side === 'club' && (clubJoinPolicy === 'approval' || joinRequests.length > 0) && (
+            <div className="mt-4" data-join-requests={joinRequests.length}>
+              <h3 className="text-sm font-semibold text-primary">
+                Membership requests{joinRequests.length > 0 ? ` (${joinRequests.length})` : ''}
+              </h3>
+              {joinRequests.length === 0 ? (
+                <p className="text-xs text-muted">No one is waiting.</p>
+              ) : (
+                <ul className="mt-2 divide-y divide-border-subtle">
+                  {joinRequests.map(r => (
+                    <li key={r.id} className="py-2 flex flex-wrap items-center justify-between gap-2">
+                      <span className="text-sm text-primary min-w-0">
+                        {r.name}
+                        {r.handle ? <span className="text-muted"> · @{r.handle}</span> : null}
+                        <span className="block text-xs text-muted">{new Date(r.createdAt).toLocaleDateString()}</span>
+                      </span>
+                      <span className="flex gap-2 shrink-0">
+                        <button
+                          type="button"
+                          disabled={joinBusy === r.id}
+                          onClick={() => void decideJoin(r.id, 'approve')}
+                          className="px-2 py-1 text-xs rounded-md bg-brand text-white font-medium hover:bg-brand-hover disabled:opacity-60"
+                        >
+                          Approve
+                        </button>
+                        <button
+                          type="button"
+                          disabled={joinBusy === r.id}
+                          onClick={() => void decideJoin(r.id, 'decline')}
+                          className="px-2 py-1 text-xs rounded-md border border-border-strong text-secondary hover:bg-surface-sunken disabled:opacity-60"
+                        >
+                          Decline
+                        </button>
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          )}
         </section>
       </>
     ),

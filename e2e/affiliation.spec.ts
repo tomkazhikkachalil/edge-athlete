@@ -45,7 +45,9 @@ test('affiliation: league invites, club accepts, both pages cross-list', async (
       await expect(inviteBox).toBeVisible({ timeout: 15_000 });
       // 143: pick a non-default type BEFORE clicking the candidate (the
       // click POSTs immediately).
-      await pageB.getByLabel('Affiliation type').selectOption('member_of');
+      // Two selects carry this label since phase 6 (the invite form and the
+      // League chain section) — the invite form's comes first in the DOM.
+      await pageB.getByLabel('Affiliation type').first().selectOption('member_of');
       await inviteBox.fill(clubName);
       await pageB.getByRole('button', { name: new RegExp(clubName) }).click();
       await expect(pageB.getByRole('button', { name: 'Withdraw' })).toBeVisible({ timeout: 15_000 });

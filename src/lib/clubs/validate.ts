@@ -59,6 +59,13 @@ export type ClubRequestDecisionInput = z.infer<typeof ClubRequestDecisionSchema>
 export const ClubMemberRoleSchema = z.object({
   role: z.enum(['manager', 'member']),
 });
+
+/** Phase 9 V2: a manager decides a join request. */
+export const ClubJoinDecisionSchema = z.object({
+  requestId: uuid,
+  decision: z.enum(['approve', 'decline']),
+});
+export type ClubJoinDecisionInput = z.infer<typeof ClubJoinDecisionSchema>;
 export type ClubMemberRoleInput = z.infer<typeof ClubMemberRoleSchema>;
 
 /** PlaceValue → the clubs location columns, NULLs when cleared (the direct

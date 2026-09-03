@@ -5,6 +5,7 @@ import { ClubUpdateSchema, placeToClubColumns, isMissingTableError } from '@/lib
 import { getOrgAndRole, roleAllows } from '@/lib/orgs/authz';
 import { canViewPending, readApproval } from '@/lib/orgs/approval';
 import { readClubAccess } from '@/lib/orgs/access';
+import { viewerJoinRequest } from '@/lib/clubs/join-requests-server';
 import { revalidateOrgSiteForOrg } from '@/lib/org-sites/revalidate';
 import { isAdminEmail } from '@/lib/auth-server';
 import { orgMemberPreview, redactPendingRoster } from '@/lib/orgs/members';
@@ -93,6 +94,8 @@ export async function GET(
       // Phase 9 V1: the membership settings (176; pre-176 ⇒ public / open).
       visibility: access.visibility,
       joinPolicy: access.joinPolicy,
+      // V2: the viewer's own queued request (approval clubs).
+      viewerRequestPending: !!(await viewerJoinRequest(supabase, id, viewerId)),
       sports,
       // Phase 6b A1: the club page's "Public site" link — published only;
       // pre-155 or draft reads null (link hidden), never an error.
