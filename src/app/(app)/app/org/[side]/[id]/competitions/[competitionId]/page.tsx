@@ -11,6 +11,8 @@ import { SPORT_REGISTRY } from '@/lib/sports/SportRegistry';
 import { getStatSchema } from '@/lib/sports/stat-schemas';
 import PlayerStatsPanel from '@/components/org/PlayerStatsPanel';
 import ContestMediaPanel from '@/components/org/ContestMediaPanel';
+import PointsRaceTable from '@/components/standings/PointsRaceTable';
+import type { PointsRace } from '@/lib/competitions/golf-race';
 
 // ── The competition detail console (phase 2 R2) ─────────────────────────────
 // The org-console template one level deeper: schedule (contests) + score
@@ -139,6 +141,9 @@ export default function CompetitionDetailPage() {
     Record<string, { synced: number; kept: number; skipped: { entryId: string; profileId: string; reason: string }[]; blocked?: string }>
   >({});
   const [syncBusy, setSyncBusy] = useState<string | null>(null);
+  // Phase 8 P5: the points race (from the public standings payload) and the reminder.
+  const [race, setRace] = useState<PointsRace | null>(null);
+  const [nudgeBusy, setNudgeBusy] = useState<string | null>(null);
   // Phase 6 R4 (mig 168): dispute controls — inline note expander, never
   // a modal. Raising is withdrawable, so no confirm.
   const [disputeContestId, setDisputeContestId] = useState<string | null>(null);
@@ -225,6 +230,18 @@ export default function CompetitionDetailPage() {
         // G1: the org's venues for the golf round form (best-effort).
         if (body.competition?.sport_key === 'golf') {
           try {
+            // P5: the race rides the public standings payload (cache-busted —
+            // the API is CDN-cached).
+            try {
+              const raceRes = await fetch(`/api/${plural}/${orgId}/standings?_cb=${Date.now()}`);
+              if (raceRes.ok) {
+                const body = (await raceRes.json()) as { competitions?: { id: string; race?: PointsRace }[] };
+                const mine = body.competitions?.find(c => c.id === competitionId);
+                if (!cancelled) setRace(mine?.race ?? null);
+              }
+            } catch {
+              /* the race simply stays hidden */
+            }
             const venuesRes = await fetch(`/api/${plural}/${orgId}/venues`);
             if (venuesRes.ok) {
               const venuesBody = await venuesRes.json();
@@ -241,7 +258,7 @@ export default function CompetitionDetailPage() {
     return () => {
       cancelled = true;
     };
-  }, [validSide, side, base, user?.id, reloadKey, orgId, plural]);
+  }, [competitionId, validSide, side, base, user?.id, reloadKey, orgId, plural]);
 
   const refresh = () => setReloadKey(k => k + 1);
 
@@ -352,6 +369,36 @@ export default function CompetitionDetailPage() {
       setSyncBusy(null);
     }
   };
+  // P5: one bell to every entrant with no round on file for the week.
+  const nudgeRound = async (contestId: string) => {
+    setNudgeBusy(contestId);
+    try {
+      const res = await fetch(`${base}/golf-sync/nudge`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ contestId }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        showError('Reminder', body.error || 'Could not send the reminder');
+        return;
+      }
+      const n = body.nudged as number;
+      showSuccess(
+        'Reminder',
+        n === 0
+          ? body.unposted === 0
+            ? 'Everyone has posted'
+            : 'Already reminded — nothing new to send'
+          : `Reminded ${n} member${n === 1 ? '' : 's'}`
+      );
+    } catch {
+      showError('Reminder', 'Could not send the reminder');
+    } finally {
+      setNudgeBusy(null);
+    }
+  };
+
   const confirmRounds = (contestId: string) =>
     act(
       `${base}/golf-sync/confirm`,
@@ -1258,6 +1305,21 @@ export default function CompetitionDetailPage() {
                             </span>
                           )}
                         </p>
+                        {/* P5: the manager sees who still owes a round (a manager surface — real names). */}
+                        {competition.sport_key === 'golf' &&
+                          competition.format === 'leaderboard' &&
+                          !!contest.holes &&
+                          contest.status !== 'completed' &&
+                          contest.status !== 'canceled' &&
+                          contest.participants.some(p => !p.result) && (
+                            <p className="mt-0.5 text-xs text-muted" data-not-posted={contest.participants.filter(p => !p.result).length}>
+                              Not yet posted:{' '}
+                              {contest.participants
+                                .filter(p => !p.result)
+                                .map(p => p.entrant_name)
+                                .join(', ')}
+                            </p>
+                          )}
                       </div>
                       <div className="flex flex-wrap gap-2 min-w-0">
                         {contest.status !== 'canceled' && (
@@ -1297,6 +1359,18 @@ export default function CompetitionDetailPage() {
                               >
                                 {syncBusy === contest.id ? 'Syncing…' : 'Sync rounds'}
                               </button>
+                              {contest.status !== 'completed' &&
+                                contest.participants.some(p => !p.result) && (
+                                  <button
+                                    type="button"
+                                    aria-label="Send a reminder"
+                                    disabled={nudgeBusy === contest.id}
+                                    onClick={() => void nudgeRound(contest.id)}
+                                    className="px-2 py-1 text-xs rounded-md border border-border-strong text-secondary hover:bg-surface-sunken transition-colors disabled:opacity-60"
+                                  >
+                                    {nudgeBusy === contest.id ? 'Sending…' : 'Send a reminder'}
+                                  </button>
+                                )}
                               {contest.participants.some(p => p.result?.provenance === 'self_reported') && (
                                 <button
                                   type="button"
@@ -1573,6 +1647,7 @@ export default function CompetitionDetailPage() {
                 </tbody>
               </table>
             </div>
+            {race && <PointsRaceTable race={race} competitionId={competition.id} />}
           </section>
         )}
       </main>
