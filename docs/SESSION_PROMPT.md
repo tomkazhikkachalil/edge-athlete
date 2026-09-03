@@ -2,8 +2,8 @@
 
 > Tom's session-start prompt. Paste this (or point Claude at it) when opening a
 > development session. Last aligned with project state: **September 3, 2026
-> (afternoon)** — post program 12 (league round photos; migration 177) and
-> the phone-capture fix round (#561). If the "Where
+> (close of day)** — post program 12 (league round photos; migration 177),
+> the phone-capture fix round (#561) and its close-out sweep (#563). If the "Where
 > the project actually is" section drifts stale, ask Claude to re-align it
 > against DEVLOG.md and session memory.
 
@@ -93,7 +93,10 @@ closed Sep 3, after program 11 (leagues parity, #554–#556, migration 177),
 program 10 and the quick-fixes round the same day. The same afternoon a fix
 round (#561, zero DDL) closed the phone-capture regression that #551's
 orientation bake introduced (full-res bakes running in parallel at post
-time); prod-probed 2/2 at desktop and phone width.
+time); prod-probed 2/2 at desktop and phone width. The session doc
+(#562) and a maintenance sweep (#563: gate green on main, guardrails +
+audit clean, deploy verified, no open PRs or stray branches) closed the
+day; `main` is at the #563 merge (d8de590) with nothing in flight.
 The next program is Tom's call; candidates in session memory. Tom still owes
 ops: Search Console, custom-domain env, device passes — including the
 capture-fix pass (three portrait photos un-edited, one edited photo + a
