@@ -41,6 +41,12 @@ Program 11 (leagues parity) is CODE COMPLETE: L1 settings + approval + the
 door (177) → L2 the private site + the members' reads → L3 the directory.
 Leagues and clubs now share one membership-and-privacy layer.
 
+**Close-out (Sep 3, #557, docs only):** L3 (#556) prod-proven — the
+directory spec green against the deployed build, alone. Every round of
+program 11 is merged and prod-proven (L1 3/3, L2 2/2, L3 1/1); nothing
+open. `docs/SESSION_PROMPT.md` re-aligned (migration 177; program 11 in the
+Organizations block; leagues no longer the exception).
+
 ---
 
 ## September 3, 2026 — Program 11 L2: leagues parity, part 2 — a private league on the public site, the members' reads, search and the sitemap (#555, zero DDL)
