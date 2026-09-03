@@ -48,6 +48,8 @@ import {
   type PublicPlayerPage,
   fetchPublicWeekHub,
   type PublicWeekHub,
+  fetchPublicClubDirectory,
+  type DirectoryRegion,
 } from './public-data';
 
 // The (public) segment's per-slug cached reads: unstable_cache with the
@@ -150,6 +152,13 @@ export const getCachedPlayerPage = (
 /** P4: the week hub — one entry per site. */
 export const getCachedWeekHub = (slug: string, side: OrgSide, orgId: string): Promise<PublicWeekHub> =>
   perSlug(['org-site-week', slug], slug, () => fetchPublicWeekHub(getSupabaseAdmin(), side, orgId));
+
+/** V6: the club directory — one entry, the sitemap's tag (publish purges). */
+export const getCachedClubDirectory = (): Promise<DirectoryRegion[]> =>
+  unstable_cache(() => fetchPublicClubDirectory(getSupabaseAdmin()), ['org-club-directory'], {
+    tags: ['org-sitemap'],
+    revalidate: 3600,
+  })();
 
 export const getCachedSitemapSites = (): Promise<SitemapSiteEntry[]> =>
   unstable_cache(
