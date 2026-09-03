@@ -1491,10 +1491,42 @@ export interface PublicPlayerCompetition {
   weeks: PublicPlayerWeek[];
 }
 
+/** P3: a public round of the player's own (the two-key rule: a public
+ *  post on the round AND the public profile — the course-stats rule). */
+export interface PublicPlayerRound {
+  id: string;
+  date: string;
+  courseName: string | null;
+  holes: number;
+  gross: number;
+  tee: string | null;
+}
+
+export interface PublicPlayerHandicap {
+  /** Formatted index ("12.4" / "+1.2"). */
+  current: string;
+  provisional: boolean;
+  /** The published index after every counted round (chronological). */
+  series: { date: string; index: number }[];
+}
+
+export interface PublicPlayerSeason {
+  leagueRounds: number;
+  wins: number;
+  lowGross9: number | null;
+  lowGross18: number | null;
+  lowNet9: number | null;
+  lowNet18: number | null;
+}
+
 export interface PublicPlayerPage {
   handle: string;
   name: string;
   competitions: PublicPlayerCompetition[];
+  /** P3 — depth; each part absent/empty when there is nothing public to say. */
+  season: PublicPlayerSeason;
+  handicap: PublicPlayerHandicap | null;
+  recentRounds: PublicPlayerRound[];
 }
 
 export async function fetchPublicPlayerPage(
@@ -1557,7 +1589,106 @@ export async function fetchPublicPlayerPage(
       });
     }
     if (competitions.length === 0) return null;
-    return { handle: publicHandleValue, name: publicDisplayName(p), competitions };
+
+    // P3 — the season numbers off the weeks (9 and 18 never mixed — the
+    // leaders rule; a win = the week's top points among the public field).
+    const season: PublicPlayerSeason = { leagueRounds: 0, wins: 0, lowGross9: null, lowGross18: null, lowNet9: null, lowNet18: null };
+    const low = (cur: number | null, v: number | null) => (v === null ? cur : cur === null ? v : Math.min(cur, v));
+    for (const c of standings.competitions) {
+      for (const w of c.golf?.weeks ?? []) {
+        const mine = w.results.find(r => r.playerHandle === publicHandleValue);
+        if (!mine) continue;
+        season.leagueRounds += 1;
+        if (mine.holes === 9) {
+          season.lowGross9 = low(season.lowGross9, mine.gross);
+          season.lowNet9 = low(season.lowNet9, mine.net);
+        } else if (mine.holes === 18) {
+          season.lowGross18 = low(season.lowGross18, mine.gross);
+          season.lowNet18 = low(season.lowNet18, mine.net);
+        }
+        if (typeof mine.points === 'number') {
+          const top = Math.max(...w.results.map(r => (typeof r.points === 'number' ? r.points : -Infinity)));
+          if (mine.points === top) season.wins += 1;
+        }
+      }
+    }
+
+    // P3 — the handicap trend. The index is ALREADY public data for a
+    // public profile (/api/public/profile's golf skill card computes the
+    // same thing), so the gate is the profile's, not per round.
+    let handicap: PublicPlayerHandicap | null = null;
+    try {
+      const { fetchHandicapComputation } = await import('@/lib/golf/handicap-server');
+      const { formatHandicapIndex } = await import('@/lib/golf/handicap');
+      const hc = await fetchHandicapComputation(p.id, admin);
+      if (hc.current) {
+        handicap = {
+          current: formatHandicapIndex(hc.current.index),
+          provisional: hc.current.provisional === true,
+          series: hc.series.map(pt => ({ date: pt.date, index: pt.index })),
+        };
+      }
+    } catch (error) {
+      console.error(`${TAG} player handicap failed:`, error);
+    }
+
+    // P3 — recent rounds under the TWO-KEY rule (the course-stats recipe):
+    // a public, published post on the round AND the public profile.
+    const recentRounds: PublicPlayerRound[] = [];
+    try {
+      const { selectPublicRounds } = await import('@/lib/golf/course-stats');
+      const { addDaysIso, utcToday } = await import('@/lib/competitions/golf-weeks');
+      const since = addDaysIso(utcToday(), -365);
+      const readRounds = (withType: boolean) => {
+        let q = admin
+          .from('golf_rounds')
+          .select('id, date, course, course_id, tee, holes, gross_score, created_at')
+          .eq('profile_id', p.id)
+          .eq('is_complete', true)
+          .gte('date', since)
+          .order('date', { ascending: false })
+          .limit(40);
+        if (withType) q = q.eq('round_type', 'outdoor');
+        return q;
+      };
+      let res = await readRounds(true);
+      if (res.error?.code === '42703') res = await readRounds(false);
+      const rows = (res.data ?? []) as Record<string, unknown>[];
+      if (rows.length > 0) {
+        const { data: posts } = await admin
+          .from('posts')
+          .select('round_id, status')
+          .in('round_id', rows.map(r => r.id as string))
+          .eq('visibility', 'public');
+        const publicPostRoundIds = new Set(
+          (posts ?? []).filter(x => x.status == null || x.status === 'published').map(x => x.round_id as string)
+        );
+        const candidates = rows.map(r => ({ id: r.id as string, profileId: p.id, row: r }));
+        const visible = selectPublicRounds(candidates, publicPostRoundIds, new Set([p.id])).slice(0, 20);
+        const courseIds = [...new Set(visible.map(v => v.row.course_id as string | null).filter((id): id is string => !!id))];
+        const { data: courses } = courseIds.length
+          ? await admin.from('golf_courses').select('id, name, club_name').in('id', courseIds)
+          : { data: [] as { id: string; name: string; club_name: string | null }[] };
+        const courseName = new Map((courses ?? []).map(c => [c.id as string, (c.club_name as string | null) ?? (c.name as string)]));
+        for (const v of visible) {
+          const r = v.row;
+          recentRounds.push({
+            id: v.id,
+            date: String(r.date),
+            courseName:
+              (typeof r.course_id === 'string' ? courseName.get(r.course_id) : undefined) ??
+              (typeof r.course === 'string' && r.course ? r.course : null),
+            holes: Number(r.holes ?? 18),
+            gross: Number(r.gross_score ?? 0),
+            tee: (r.tee as string | null) ?? null,
+          });
+        }
+      }
+    } catch (error) {
+      console.error(`${TAG} player rounds failed:`, error);
+    }
+
+    return { handle: publicHandleValue, name: publicDisplayName(p), competitions, season, handicap, recentRounds };
   } catch (error) {
     console.error(`${TAG} player page failed:`, error);
     return null;

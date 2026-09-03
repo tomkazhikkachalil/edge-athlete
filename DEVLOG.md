@@ -1,5 +1,48 @@
 # Development Log
 
+## September 2, 2026 — Phase 8 P3: PGA depth, part 3 — player depth: the season at a glance, the handicap trend, recent rounds under the two-key rule (#535, zero DDL)
+
+- **`PublicPlayerPage`** (public-data.ts `fetchPublicPlayerPage`) gains
+  three parts, each empty/absent when there is nothing public to say:
+  `season` (league rounds, wins = the week's top points among the public
+  field, low gross/net with 9 and 18 never mixed — the leaders rule), off
+  the weeks the page already picks; `handicap` (`fetchHandicapComputation`
+  → `formatHandicapIndex` + the published index after every counted round
+  — the index is ALREADY public data for a public profile: `/api/public/
+  profile`'s golf skill card computes the same thing, so the gate is the
+  profile's, not per round); `recentRounds` — the player's OWN rounds
+  under the **two-key rule** (`selectPublicRounds`, the course-stats
+  recipe: a public, published post on the round AND the public profile;
+  last 365 days, `round_type='outdoor'` with the 42703 retry, cap 20)
+  with the catalog course name (club name over course name) or the
+  round's own course text. All three via the same dynamic imports the
+  reader already uses (no static cycle).
+- **The page**: a "Season" strip, a "Handicap" card (index, a
+  "provisional" chip, a server-rendered inline SVG polyline — no client
+  lib, lower sits lower, `data-points`), a "Recent rounds" table (date,
+  course, holes, gross, tee) — "Rounds shared publicly in the last year."
+- **A leak caught by the spec**: the SVG's circles were keyed by the
+  round DATE; React keys ride the RSC payload, so a PRIVATE round's date
+  printed into the page source. Keys are positional now. The rule: keys
+  on public pages are content too.
+- The P2 production probe found the per-site `/org/{slug}/sitemap.xml`
+  twin answers 404 on the apex in production (it is the custom-domain
+  route, reached through the middleware rewrite from `<domain>/
+  sitemap.xml`); every player-page assertion passed. The spec now asserts
+  the MAIN `/sitemap.xml` (publish purges its tag) — P2 is prod-proven on
+  that basis, and the per-site route is left as it was.
+- e2e `org-site-players.spec.ts` extended: a catalog course, two rated
+  rounds of the owner's — one behind a public post, one behind a private
+  post → the page shows the season strip, "Handicap" with the
+  provisional index and a two-point trend (both rated rounds count, as
+  on the profile), and ONLY the public round (its gross and date; the
+  private one's absent — including from the page source). Regressions
+  green vs the live DB: org-site-course-stats, org-site-golf-leaders,
+  golf-points-race, org-site (5).
+
+Next: P4 — the week hub (`/week`): each league's current window, who has
+posted, points so far, an on-course count for visitors.
+
 ## September 2, 2026 — Phase 8 P2: PGA depth, part 2 — player pages on the site for PUBLIC profiles, keyed by handle; public names become links (#534, zero DDL)
 
 The Tour site has a page per player. Ours has one per PUBLIC player —
