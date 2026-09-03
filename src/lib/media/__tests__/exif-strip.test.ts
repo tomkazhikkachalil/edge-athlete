@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { stripJpegMetadata } from '../exif-strip';
+import { jpegOrientation, stripJpegMetadata } from '../exif-strip';
 
 /** Build a JPEG segment: FF <marker> <len hi> <len lo> <payload…>. */
 function seg(marker: number, payload: number[]): number[] {
@@ -64,5 +64,63 @@ describe('stripJpegMetadata', () => {
     const out = stripJpegMetadata(input);
     const scanHex = Buffer.from(SCAN).toString('hex');
     expect(Buffer.from(out).toString('hex').endsWith(scanHex)).toBe(true);
+  });
+});
+
+/**
+ * A minimal EXIF APP1 payload: "Exif\0\0" + TIFF header + a one-entry IFD0
+ * carrying Orientation (0x0112, SHORT, count 1). `extra` entries precede it so
+ * the walk has to skip unrelated tags.
+ */
+function exifPayload(orientation: number, little: boolean, extraEntries = 1): number[] {
+  const u16 = (v: number) => (little ? [v & 0xff, v >> 8] : [v >> 8, v & 0xff]);
+  const u32 = (v: number) =>
+    little
+      ? [v & 0xff, (v >> 8) & 0xff, (v >> 16) & 0xff, (v >>> 24) & 0xff]
+      : [(v >>> 24) & 0xff, (v >> 16) & 0xff, (v >> 8) & 0xff, v & 0xff];
+  const entries: number[] = [];
+  for (let n = 0; n < extraEntries; n++) {
+    // 0x010F Make, ASCII (2), count 4, value "abc\0" inline — irrelevant tag
+    entries.push(...u16(0x010f), ...u16(2), ...u32(4), 0x61, 0x62, 0x63, 0x00);
+  }
+  entries.push(...u16(0x0112), ...u16(3), ...u32(1), ...u16(orientation), 0x00, 0x00);
+  const ifd0 = [...u16(extraEntries + 1), ...entries, ...u32(0)];
+  const tiff = [...(little ? [0x49, 0x49] : [0x4d, 0x4d]), ...u16(0x2a), ...u32(8), ...ifd0];
+  return [0x45, 0x78, 0x69, 0x66, 0x00, 0x00, ...tiff];
+}
+
+describe('jpegOrientation', () => {
+  it('reads Orientation 6 from a little-endian (II) EXIF block', () => {
+    const input = jpeg(seg(0xe0, JFIF_PAYLOAD), seg(0xe1, exifPayload(6, true)));
+    expect(jpegOrientation(input)).toBe(6);
+  });
+
+  it('reads Orientation 3 from a big-endian (MM) EXIF block', () => {
+    const input = jpeg(seg(0xe1, exifPayload(3, false, 2)));
+    expect(jpegOrientation(input)).toBe(3);
+  });
+
+  it('returns null with no APP1 at all', () => {
+    expect(jpegOrientation(jpeg(seg(0xe0, JFIF_PAYLOAD), seg(0xdb, [0x00])))).toBeNull();
+  });
+
+  it('skips an XMP APP1 and still finds a later EXIF APP1', () => {
+    const xmp = [0x68, 0x74, 0x74, 0x70, 0x3a, 0x2f, 0x2f, 0x6e, 0x73, 0x2e, 0x00, 0x00, 0x00, 0x00, 0x00];
+    expect(jpegOrientation(jpeg(seg(0xe1, xmp)))).toBeNull();
+    expect(jpegOrientation(jpeg(seg(0xe1, xmp), seg(0xe1, exifPayload(8, true))))).toBe(8);
+  });
+
+  it('returns null for a truncated IFD, an out-of-range value, and non-JPEG bytes', () => {
+    const full = exifPayload(6, true);
+    const truncated = full.slice(0, full.length - 10); // cut inside the Orientation entry
+    expect(jpegOrientation(jpeg(seg(0xe1, truncated)))).toBeNull();
+    expect(jpegOrientation(jpeg(seg(0xe1, exifPayload(9, true))))).toBeNull();
+    expect(jpegOrientation(new Uint8Array([0x89, 0x50, 0x4e, 0x47]))).toBeNull();
+  });
+
+  it('does not change what stripJpegMetadata does with the same bytes', () => {
+    const input = jpeg(seg(0xe1, exifPayload(6, true)));
+    const hex = Buffer.from(stripJpegMetadata(input)).toString('hex');
+    expect(hex).not.toContain('ffe1');
   });
 });

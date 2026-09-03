@@ -60,6 +60,11 @@ async function loadImageBytes(
       const bytes = await res.arrayBuffer();
       if (bytes.byteLength === 0 || bytes.byteLength > IMAGE_MAX_BYTES) return null;
       const cropped = await sharp(Buffer.from(bytes), { animated: false })
+        // Apply EXIF orientation BEFORE the cover crop: sharp does not auto-orient,
+        // and org site assets are uploaded raw (no client-side strip), so a phone-shot
+        // hero still carries its Orientation tag. Without this the crop runs on the
+        // sideways axis and the card ships rotated.
+        .rotate()
         .resize(w, h, { fit: 'cover', position: 'centre' })
         .png()
         .toBuffer();

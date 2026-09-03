@@ -6,7 +6,9 @@
  * Every JPEG is metadata-stripped (lossless, see exif-strip.ts) before it
  * leaves the device: editor-rendered files are already clean (canvas
  * re-encode), but un-edited uploads and the preserved non-destructive
- * originals used to ship phone-camera GPS byte-for-byte. Since Wave 6,
+ * originals used to ship phone-camera GPS byte-for-byte. A JPEG whose EXIF
+ * says it is rotated is baked upright FIRST (see bakeOrientation) — the
+ * strip alone erased the Orientation tag and shipped sideways pixels. Since Wave 6,
  * MP4/MOV containers get the same treatment via a mediabunny stream-copy
  * re-mux (packets copied, container rewritten — the phone-camera GPS/©xyz
  * and creation atoms don't survive; rotation rides the track matrix, which
@@ -14,17 +16,57 @@
  * Both scrubs fail OPEN — an upload must never die in the scrubber.
  */
 
-import { stripJpegMetadata } from './exif-strip';
+import { jpegOrientation, stripJpegMetadata } from './exif-strip';
 
 export interface UploadedMedia {
   url: string;
   type: 'image' | 'video';
 }
 
+/**
+ * Rotated phone photos (EXIF Orientation ≠ 1) are baked upright first: the
+ * lossless strip below removes the APP1 segment that carries Orientation, so
+ * stripping alone left portraits stored sideways with nothing for the browser
+ * to auto-orient from (Sep 2026). The bake goes through the editor's own
+ * decode → canvas → JPEG path (orientation applied at decode, EXIF gone with
+ * the re-encode), at full resolution up to the canvas cap. Upright photos —
+ * the majority — still take the byte-level path and lose no quality. The
+ * render module is imported lazily so surfaces that never see a rotated
+ * photo (messages, vitals) don't carry it.
+ */
+const BAKE_QUALITY = 0.92;
+
+async function bakeOrientation(file: File): Promise<File> {
+  const [{ renderImage }, { defaultImageRecipe }, { MAX_CANVAS_DIM }] = await Promise.all([
+    import('./render'),
+    import('./recipes'),
+    import('./limits'),
+  ]);
+  const blob = await renderImage(file, defaultImageRecipe(), {
+    maxDimension: MAX_CANVAS_DIM,
+    mime: 'image/jpeg',
+    quality: BAKE_QUALITY,
+  });
+  // Safari can fall back to PNG when it lacks an encoder; trust the bytes.
+  const mime = blob.type || 'image/jpeg';
+  const name = mime === 'image/jpeg' ? file.name : file.name.replace(/\.[^.]+$/, '') + '.png';
+  return new File([blob], name, { type: mime });
+}
+
 async function withoutJpegMetadata(file: File): Promise<File> {
   if (file.type !== 'image/jpeg') return file;
   try {
     const bytes = new Uint8Array(await file.arrayBuffer());
+    const orientation = jpegOrientation(bytes);
+    if (orientation !== null && orientation !== 1) {
+      try {
+        return await bakeOrientation(file); // canvas output carries no EXIF
+      } catch (err) {
+        // Fall through to the lossless strip: a sideways photo beats a failed
+        // upload, and the strip is still the privacy control.
+        console.warn('[upload] orientation bake failed; stripping metadata only:', err);
+      }
+    }
     const out = stripJpegMetadata(bytes);
     if (out === bytes) return file; // nothing to strip
     // TS 5.7 typed-array generics: Uint8Array<ArrayBufferLike> isn't a
