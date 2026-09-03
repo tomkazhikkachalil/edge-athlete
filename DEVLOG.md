@@ -1,5 +1,37 @@
 # Development Log
 
+## September 3, 2026 — Program 10 N2: media and news depth, part 2 — the share card draws the hero photo (and the logo) (#546, zero DDL)
+
+`card.png` (the per-org share card behind every page's og:image) was a
+two-colour gradient with the name. A golf club with a hero photo now
+shares that photo.
+
+- **`card.png/route.ts`**: `loadImageBytes(key, w, h)` signs the stored
+  asset for 60s (service role), fetches the SUPABASE origin (the
+  org-media streamer's own recipe — a same-origin fetch inside OG
+  generation was the thing refused earlier) under a 3s abort and a 4MB
+  cap, requires an image content-type, then **cover-crops it to the
+  slot with `sharp`** (already a dependency) and re-encodes as PNG —
+  Satori's own `objectFit: cover` is not trusted, and sharp also makes a
+  webp/gif hero drawable. The bytes go to Satori as an `ArrayBuffer`
+  `<img>`. The hero fills the card under a dark foot gradient with the
+  name and strap at the bottom; the org logo (`logo_path`) rides along
+  as a 120px rounded tile on BOTH layouts. Any miss → the gradient card,
+  so a photo can never break the card. The 1h `s-maxage` stays (a hero
+  change reaches shares within the hour, as a rename does; the card is
+  untagged — a known, accepted lag).
+- e2e `org-site-share-card.spec.ts`: two published clubs, one given a
+  hero photo BEFORE its card is first fetched (the prod CDN caches the
+  card an hour) → both cards 200 `image/png` (PNG magic) with the hour
+  cache; the hero card is a different, heavier picture than the plain
+  one. `E2E_DUMP_DIR=…` writes both PNGs for a by-hand look (done: the
+  photo fills the whole card — the band on the right is IN the fixture).
+  Regressions: org-site (5), org-site-brand, org-vanity-path (incl. the
+  card exemption) green.
+- Session finding: two `POST …/site/assets` 500s ("Failed to upload the
+  image") in one evening were `StorageUnknownError: fetch failed` from
+  this Mac to Supabase storage — a network hiccup, green on rerun.
+
 ## September 3, 2026 — Program 10 N1: media and news depth, part 1 — news covers: a thumbnail on the list, a "Latest news" home teaser, the cover as og:image (#545, zero DDL)
 
 Program 10 (media and news depth; Tom's two policies — member round
