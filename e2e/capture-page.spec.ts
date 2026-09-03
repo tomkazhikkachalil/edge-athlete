@@ -1,16 +1,18 @@
 import path from 'path';
 import { test, expect } from '@playwright/test';
 
-// Round 3 of the iPhone camera bug (Sep 3 2026). Headless cannot run the
-// native camera, but both halves of this round are reproducible:
-//  1. the light capture page hands a picked file to the feed composer, which
-//     opens the editor on it directly (stash + `?create=1&restore=1`);
+// Rounds 3 and 7 of the iPhone camera bug (Sep 3 2026). Headless cannot run
+// the native camera, but both halves are reproducible:
+//  1. the light capture page opens the composer's editor ON THE PAGE, on the
+//     picked file — no storage, no navigation until the post exists (round 7:
+//     the IndexedDB hand-off to /feed lost the photo silently on iOS 15);
 //  2. a camera session that ends in a reload is reported by the composer's
 //     capture-failure notice, mono diagnostic line included.
 
-test('the light capture page lands the photo in the feed editor @mobile', async ({ page }) => {
+test('the light capture page opens the editor on the photo and posts from there @mobile', async ({ page }) => {
   test.setTimeout(120_000);
   const fixture = path.join(__dirname, 'fixtures', 'rotated6.jpg');
+  const marker = `Capture page post ${Date.now()}`;
 
   await page.goto('/app/capture');
   await expect(page.getByRole('heading', { name: 'Take a photo' })).toBeVisible({ timeout: 20_000 });
@@ -19,13 +21,20 @@ test('the light capture page lands the photo in the feed editor @mobile', async 
   // hand-back, minus the camera.
   await page.locator('input[type="file"][accept="image/*"]').setInputFiles(fixture);
 
-  await expect(page).toHaveURL(/\/feed/, { timeout: 30_000 });
+  // The editor opens HERE — the photo never leaves the page.
   await expect(page.getByRole('heading', { name: 'Edit media' })).toBeVisible({ timeout: 20_000 });
+  await expect(page).toHaveURL(/\/app\/capture/);
   await page.getByRole('button', { name: 'Done', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Edit media' })).toBeHidden({ timeout: 30_000 });
   await expect(page.getByRole('button', { name: 'Edit media', exact: true })).toBeVisible();
-  // No recovery notice — the hand-off consumed the stash.
+  // No recovery notice — these are the page's own captures, not a crash's.
   await expect(page.getByRole('status').filter({ hasText: 'before the page reloaded' })).toHaveCount(0);
+
+  // Post from the light page; the feed is where the post lands.
+  await page.getByPlaceholder('Share your thoughts...').fill(marker);
+  await page.getByRole('button', { name: 'Create Post', exact: true }).click();
+  await expect(page).toHaveURL(/\/feed/, { timeout: 30_000 });
+  await expect(page.getByText(marker).first()).toBeVisible({ timeout: 30_000 });
 });
 
 test('a camera session that ends in a reload is reported with its diagnostic @mobile', async ({ page }) => {

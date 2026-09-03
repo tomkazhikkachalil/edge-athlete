@@ -1,5 +1,57 @@
 # Development Log
 
+## September 3, 2026 — Round 7: the photo never leaves the light page — the composer is hosted there; no IndexedDB, no navigation between camera and editor (zero DDL)
+
+Tom, after #569, with the facts that finally pinned it: **the feed always
+loaded** (his phone was never below the parse floor — rounds 5 and 6 fixed
+real breaks for other devices, not his), **it is iOS 15**, and the camera
+symptom is: camera opens, photo taken, *"feed comes back, no editor"*. Video
+identical. **Library picks work end to end.**
+
+That is the signature of the light page's hand-off, not of the camera. Since
+#566/#567 the iOS path was: `/app/capture` → validate → **stash in
+IndexedDB** → `router.push('/feed?create=1&restore=1')` → the composer reads
+the stash back → editor. The stash is fail-open by design (a crash-recovery
+extra must never block a pick), so when the write or the read fails you get
+exactly this: the feed, the composer open, no photo, no notice. Library picks
+never touch that path — the File goes straight into the editor — which is
+why they work on the same phone. IndexedDB on Safari 14–15 is the notorious
+part of that chain (open requests that never fire on a fresh load, WebKit
+226547; the Blob rejection round 4 already met), and nobody has run it on
+this phone. Round 3's diagnostic covered the camera session; nothing
+measured the restore.
+
+Rather than instrument the fragile step, remove it:
+
+- **`/app/capture` hosts the composer.** Once the camera hands files back,
+  the page mounts `CreatePostModal` with the new **`initialCaptures`** prop
+  and the editor opens on them **from memory**. The post is created from
+  this page; the feed is only the destination after it exists (`onPostCreated`
+  → `/feed`). Closing without posting returns to the two buttons (retake).
+  The composer chunk is the same lazy import the feed uses and loads only
+  after a capture exists, so the page the camera opens FROM is still light.
+- **`CreatePostModal.initialCaptures`** seeds `editorAssets` at mount (the
+  page mounts the modal only once files exist — no set-state-in-effect) and
+  suppresses the stash-recovery notice, which would otherwise offer the very
+  files being edited.
+- The stash is still written, fire-and-forget, as crash recovery: if the
+  editor's decode reloads the tab, the feed composer offers the photo back.
+  `/feed?create=1&restore=1` stays as the URL-addressable restore entry.
+
+`e2e/capture-page.spec.ts` (@mobile, so desktop-WebKit too) now pins the
+whole loop on the page: file → editor on `/app/capture` → Done → tile →
+caption → Create Post → lands on `/feed` with the post.
+
+Verification: `npm run verify`; `feed-post`, `capture-page`, `capture-stash`,
+`media-orientation` on `desktop`, `mobile`, `webkit-mobile`; after merge, the
+gate against the live chunks; then Tom, on the phone: feed → Take photo →
+camera → Use Photo → the editor opens ON the light page → Done → caption →
+Create Post → feed shows the post. If the editor still does not appear, the
+failure is now in the editor's decode on iOS 15 itself — a different, and
+finally measurable, problem.
+
+---
+
 ## September 3, 2026 — Round 6: the second floor break — a `toSpliced` in the app header; the gate learns that syntax is not runtime (zero DDL)
 
 Review of the live deploy after #568 (the 27 client chunks production serves,

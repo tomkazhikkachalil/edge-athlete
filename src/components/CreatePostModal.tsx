@@ -57,9 +57,16 @@ interface CreatePostModalProps {
   /** Cross-cutting category stamped on the created post (077) — the vitals
    *  tab passes 'training'. Not user-editable in the composer. */
   defaultPostCategory?: 'training';
-  /** The light capture page hands off via `/feed?create=1&restore=1`: open
-   *  the editor straight onto the stashed capture instead of the notice. */
+  /** `/feed?create=1&restore=1`: open the editor straight onto the stashed
+   *  capture instead of the notice (the URL-addressable restore entry). */
   autoRestoreStash?: boolean;
+  /** The light capture page (/app/capture) HOSTS this composer and passes the
+   *  camera's files straight in: the editor opens on them with no storage
+   *  and no navigation in between. Mount the modal only once they exist —
+   *  they seed state at mount. IndexedDB is not on this path on purpose: on
+   *  iOS 15 the stash → navigate → restore hand-off lost the photo silently
+   *  (Sep 3 2026, round 7). */
+  initialCaptures?: File[];
 }
 
 interface MediaFile {
@@ -167,6 +174,7 @@ export default function CreatePostModal({
   defaultSportKey = 'general',
   defaultPostCategory,
   autoRestoreStash = false,
+  initialCaptures,
 }: CreatePostModalProps) {
   const { showSuccess, showError } = useToast();
   const router = useRouter();
@@ -232,7 +240,9 @@ export default function CreatePostModal({
 
   // Shared media editor session (null = closed). editingExistingId set when
   // re-editing an already-attached asset (result replaces it in place).
-  const [editorAssets, setEditorAssets] = useState<MediaAsset[] | null>(null);
+  const [editorAssets, setEditorAssets] = useState<MediaAsset[] | null>(() =>
+    initialCaptures && initialCaptures.length > 0 ? stashToAssets(initialCaptures) : null
+  );
   const [editingExistingId, setEditingExistingId] = useState<string | null>(null);
 
   // Capture recovery (Sep 2026): picked/captured files are stashed in
@@ -242,6 +252,9 @@ export default function CreatePostModal({
   const [stashedCaptures, setStashedCaptures] = useState<File[] | null>(null);
   useEffect(() => {
     if (!isOpen) return;
+    // Hosted by the light page on its own captures: the stash holds those very
+    // files (written for crash recovery), so offering them back would be noise.
+    if (initialCaptures && initialCaptures.length > 0) return;
     let cancelled = false;
     loadStashedCaptures(COMPOSER_STASH_KEY).then(files => {
       if (cancelled) return;
@@ -259,7 +272,7 @@ export default function CreatePostModal({
     return () => {
       cancelled = true;
     };
-  }, [isOpen, autoRestoreStash]);
+  }, [isOpen, autoRestoreStash, initialCaptures]);
   /** The files a restore would need: the untouched originals behind each tile. */
   const originalsOf = (files: MediaFile[]): File[] =>
     files.flatMap(f => {
