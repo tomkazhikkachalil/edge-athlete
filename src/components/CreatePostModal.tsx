@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useRef, useEffect, type ComponentType } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { useAuth } from '@/lib/auth';
 import { shouldEnterScorerAfterCreate } from '@/lib/golf/round-route';
 import { calcPlayerTotals } from '@/lib/golf/scoring';
@@ -36,6 +37,14 @@ import {
   loadStashedCaptures,
   stashCaptures,
 } from '@/lib/media/capture-stash';
+import {
+  armCapture,
+  describeCaptureOutcome,
+  disarmCapture,
+  isAnomalousOutcome,
+  readCaptureOutcome,
+  type CaptureOutcome,
+} from '@/lib/media/capture-diag';
 import type { EditRecipe, EditedMedia, EditorConfig, MediaAsset } from '@/lib/media/types';
 
 interface CreatePostModalProps {
@@ -47,6 +56,9 @@ interface CreatePostModalProps {
   /** Cross-cutting category stamped on the created post (077) — the vitals
    *  tab passes 'training'. Not user-editable in the composer. */
   defaultPostCategory?: 'training';
+  /** The light capture page hands off via `/feed?create=1&restore=1`: open
+   *  the editor straight onto the stashed capture instead of the notice. */
+  autoRestoreStash?: boolean;
 }
 
 interface MediaFile {
@@ -127,6 +139,17 @@ interface PostPreviewProps {
 // Tag chips + hashtag suggestions are registry-driven — see
 // src/lib/sports/post-tags.ts (per-sport lists live on SportDefinition).
 
+const MAX_MEDIA_FILES = 10;
+
+/** Stashed originals → editor assets (capture-stash restore + light-capture hand-off). */
+function stashToAssets(files: File[]): MediaAsset[] {
+  return files.slice(0, MAX_MEDIA_FILES).map(file => ({
+    id: `${Date.now()}-${Math.random()}`,
+    file,
+    kind: file.type.startsWith('video/') ? ('video' as const) : ('image' as const),
+  }));
+}
+
 // Sport composer slot entries, resolved once at module scope so the section
 // components are identity-stable across renders (a new array per render would
 // still reuse elements by key, but there is no reason to rebuild it).
@@ -141,7 +164,8 @@ export default function CreatePostModal({
   userId,
   onPostCreated,
   defaultSportKey = 'general',
-  defaultPostCategory
+  defaultPostCategory,
+  autoRestoreStash = false,
 }: CreatePostModalProps) {
   const { showSuccess, showError } = useToast();
   const router = useRouter();
@@ -219,18 +243,38 @@ export default function CreatePostModal({
     if (!isOpen) return;
     let cancelled = false;
     loadStashedCaptures(COMPOSER_STASH_KEY).then(files => {
-      if (!cancelled) setStashedCaptures(files);
+      if (cancelled) return;
+      if (autoRestoreStash && files && files.length > 0) {
+        // Light-capture hand-off (/feed?create=1&restore=1): the stash IS the
+        // capture — straight to the editor, no notice (a deliberate
+        // navigation from /app/capture, not a crash).
+        setEditingExistingId(null);
+        setEditorAssets(stashToAssets(files));
+        setStashedCaptures(null);
+        return;
+      }
+      setStashedCaptures(files);
     });
     return () => {
       cancelled = true;
     };
-  }, [isOpen]);
+  }, [isOpen, autoRestoreStash]);
   /** The files a restore would need: the untouched originals behind each tile. */
   const originalsOf = (files: MediaFile[]): File[] =>
     files.flatMap(f => {
       const source = f.sourceFile ?? f.file;
       return source ? [source] : [];
     });
+  // Capture diagnostic (capture-diag.ts): a camera session that ended without
+  // a file AND with a reload or a composer unmount. Read once at mount — the
+  // modal mounts with the page, which is exactly when a post-reload record
+  // exists; a plain cancel is cleared silently.
+  const [captureOutcome, setCaptureOutcome] = useState<CaptureOutcome | null>(() => {
+    const found = readCaptureOutcome();
+    if (found && isAnomalousOutcome(found)) return found;
+    if (found) disarmCapture();
+    return null;
+  });
 
   // Persist the recoverable half of the composer while open (storage write
   // only — media Files and the uncontrolled golf section can't ride
@@ -259,7 +303,6 @@ export default function CreatePostModal({
   // Character limits
   const MAX_CAPTION_LENGTH = 500;
   const MAX_HASHTAGS = 10;
-  const MAX_MEDIA_FILES = 10;
 
   const COMPOSER_EDITOR_CONFIG: EditorConfig = {
     aspectRatios: ['free', '1:1', '4:5', '9:16', '16:9'],
@@ -339,6 +382,7 @@ export default function CreatePostModal({
       showError('File not added', r.message);
     }
     if (accepted.length === 0) return;
+    disarmCapture(); // the camera returned a file — nothing to diagnose
     // Stash FIRST — before the editor's decode, which is where a phone tab
     // under memory pressure reloads. Fail-open, off the pick's critical path.
     void appendStashedCaptures(COMPOSER_STASH_KEY, accepted);
@@ -726,6 +770,43 @@ export default function CreatePostModal({
 
         {/* Content - Scrollable */}
         <div className="flex-1 overflow-y-auto p-4 sm:p-6">
+          {/* Capture-failure notice (capture-diag.ts): the camera closed
+              without a file and the page reloaded or the composer was reset.
+              Real UX (the user got silence before) and the measurement in
+              one — the mono line says which of the two it was. */}
+          {captureOutcome && mediaFiles.length === 0 && !editorAssets && (
+            <div
+              role="status"
+              className="mb-4 flex flex-wrap items-center gap-2 rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/40 px-3 py-2"
+            >
+              <i className="fas fa-camera text-amber-700 dark:text-amber-300" aria-hidden="true"></i>
+              <p className="text-sm text-amber-900 dark:text-amber-100 flex-1 min-w-40">
+                The camera closed without returning a photo.{' '}
+                {captureOutcome.reloaded
+                  ? `Safari reloaded the page after ${Math.round(captureOutcome.elapsedMs / 1000)}s.`
+                  : 'The page stayed loaded but the composer was reset.'}
+                <span className="block mt-1 font-mono text-xs text-muted">
+                  {describeCaptureOutcome(captureOutcome)}
+                </span>
+              </p>
+              <Link
+                href="/app/capture"
+                className="min-h-[44px] inline-flex items-center px-3 rounded-full bg-brand text-white text-sm font-semibold hover:bg-brand-hover"
+              >
+                Try the light capture page
+              </Link>
+              <button
+                type="button"
+                onClick={() => {
+                  disarmCapture();
+                  setCaptureOutcome(null);
+                }}
+                className="min-h-[44px] px-3 rounded-full text-sm font-semibold text-amber-900 dark:text-amber-100 hover:bg-amber-100 dark:hover:bg-amber-900/40"
+              >
+                Dismiss
+              </button>
+            </div>
+          )}
           {/* Capture-recovery notice: media that reached the page before a
               reload (capture-stash.ts). Shown only while nothing is attached
               and the editor is closed; restore re-opens the editor on the
@@ -745,13 +826,7 @@ export default function CreatePostModal({
                 type="button"
                 onClick={() => {
                   setEditingExistingId(null);
-                  setEditorAssets(
-                    stashedCaptures.slice(0, MAX_MEDIA_FILES).map(file => ({
-                      id: `${Date.now()}-${Math.random()}`,
-                      file,
-                      kind: file.type.startsWith('video/') ? ('video' as const) : ('image' as const),
-                    }))
-                  );
+                  setEditorAssets(stashToAssets(stashedCaptures));
                   setStashedCaptures(null);
                 }}
                 className="min-h-[44px] px-3 rounded-full bg-brand text-white text-sm font-semibold hover:bg-brand-hover"
@@ -859,7 +934,10 @@ export default function CreatePostModal({
                   />
                   <button
                     type="button"
-                    onClick={openPhoto}
+                    onClick={() => {
+                      armCapture('composer'); // capture-diag: before the camera takes over
+                      openPhoto();
+                    }}
                     className="flex flex-col items-center justify-center gap-1 min-h-[64px] rounded-lg border-2 border-border-strong hover:border-violet-500 hover:bg-brand-soft transition-all text-secondary"
                   >
                     <i className="fas fa-camera text-lg text-brand-fg" aria-hidden="true"></i>
@@ -867,7 +945,10 @@ export default function CreatePostModal({
                   </button>
                   <button
                     type="button"
-                    onClick={openVideo}
+                    onClick={() => {
+                      armCapture('composer');
+                      openVideo?.();
+                    }}
                     className="flex flex-col items-center justify-center gap-1 min-h-[64px] rounded-lg border-2 border-border-strong hover:border-violet-500 hover:bg-brand-soft transition-all text-secondary"
                   >
                     <i className="fas fa-video text-lg text-brand-fg" aria-hidden="true"></i>
