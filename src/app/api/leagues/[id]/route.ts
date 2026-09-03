@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { revalidateTag } from 'next/cache';
 import { getServerAuth, requireAuth, getSupabaseAdmin } from '@/lib/auth-server';
 import { parseBody } from '@/lib/validation';
 import { LeagueUpdateSchema, placeToLeagueColumns, isMissingTableError } from '@/lib/leagues/validate';
@@ -11,12 +12,15 @@ import { FEATURE_FLAGS } from '@/lib/features';
 import { deriveOrgSports } from '@/lib/orgs/sports';
 import type { OrgRole } from '@/lib/orgs/authz';
 import { UUID_RE } from '@/lib/golf/course-catalog';
-import { findPublishedSite } from '@/lib/org-sites/revalidate';
+import { findPublishedSite, revalidateOrgSiteForOrg } from '@/lib/org-sites/revalidate';
+import { readOrgAccess } from '@/lib/orgs/access';
+import { viewerJoinRequest } from '@/lib/orgs/join-requests-server';
 
 // ── /api/leagues/[id] — the public league read + owner/manager edit ──────────
-// Leagues are always public (their search documents carry visibility
-// 'public'), so GET needs no viewer gate — optional auth only resolves the
-// viewer's own membership role for the page's Join/Leave/manage affordances.
+// The GET needs no viewer gate — optional auth only resolves the viewer's
+// own membership role for the page's Join/Leave/manage affordances. Program
+// 11: a league can be private (177) — the member preview is then for
+// members, and the site's gates read the same column.
 
 const MEMBER_PREVIEW = 12;
 const ROLE_ORDER: Record<string, number> = { owner: 0, manager: 1, member: 2 };
@@ -67,6 +71,7 @@ export async function GET(
     // approval — 174) is visible to its managers and an admin only;
     // everyone else gets the same 404 as a missing league.
     const approval = await readApproval(supabase, 'league', id);
+    const access = await readOrgAccess(supabase, 'league', id);
     if (
       approval.pending &&
       !canViewPending({ canManage, isAdmin: isAdminEmail(user?.email, process.env.ADMIN_EMAILS) })
@@ -86,16 +91,24 @@ export async function GET(
       (league.sport_key as string | null) ?? null
     );
 
+    // Program 11: a private league's member list is for members.
+    const privateOutsider = access.visibility === 'private' && !viewerRole && viewerId !== league.owner_profile_id;
+
     return NextResponse.json({
       league,
       // C4: awaiting approval (managers/admins only ever see this true).
       pending: approval.pending,
       sports,
+      // Program 11: the membership settings (177; pre-177 ⇒ public / open).
+      visibility: access.visibility,
+      joinPolicy: access.joinPolicy,
+      // The viewer's own queued request (approval leagues).
+      viewerRequestPending: !!(await viewerJoinRequest(supabase, 'league', id, viewerId)),
       // Phase 6b A1: the league page's "Public site" link — published only;
       // pre-155 or draft reads null (link hidden), never an error.
       site: await findPublishedSite(supabase, 'league', id),
       memberCount: count,
-      members,
+      members: privateOutsider ? [] : members,
       viewerRole,
       viewerRoster,
       // Phase 5 R3: the Register banner's data — flag-off/pre-162 reads
@@ -152,6 +165,9 @@ export async function PATCH(
     if (parsed.data.place !== undefined) {
       Object.assign(updates, placeToLeagueColumns(parsed.data.place));
     }
+    // Program 11: the membership settings (177).
+    if (parsed.data.visibility !== undefined) updates.visibility = parsed.data.visibility;
+    if (parsed.data.joinPolicy !== undefined) updates.join_policy = parsed.data.joinPolicy;
     if (Object.keys(updates).length === 0) {
       return NextResponse.json({ error: 'Nothing to update' }, { status: 400 });
     }
@@ -163,9 +179,19 @@ export async function PATCH(
       .select()
       .single();
     if (updateError || !updated) {
+      if (updateError?.code === 'PGRST204' && /visibility|join_policy/.test(updateError.message ?? '')) {
+        return NextResponse.json({ error: 'Membership settings are not available yet' }, { status: 503 });
+      }
       console.error('[LEAGUES] update error:', updateError);
       return NextResponse.json({ error: 'Failed to update league' }, { status: 500 });
     }
+
+    // Program 11: the org site reads the league's visibility — a flip must
+    // not serve members-only content for another 300s (this PATCH never
+    // revalidated; the name/place edits ride along now too).
+    await revalidateOrgSiteForOrg(supabase, 'league', id);
+    // The league directory (L3) and the sitemap follow a visibility flip.
+    if (parsed.data.visibility !== undefined) revalidateTag('org-sitemap', { expire: 0 });
 
     return NextResponse.json({ league: updated });
   } catch (error) {

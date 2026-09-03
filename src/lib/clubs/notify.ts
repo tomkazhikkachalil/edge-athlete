@@ -6,6 +6,7 @@
 // now — the front-loading rule paying off years later).
 
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { joinDecisionMessage, joinDecisionTitle, joinRequestTitle } from '@/lib/orgs/join-requests';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- matches guardian-notify's Admin alias; the notifier is schema-agnostic
 type Admin = SupabaseClient<any, 'public', any>;
@@ -197,15 +198,8 @@ export async function notifyRosterRemoved(admin: Admin, n: ClubRosterRemovedNoti
   }
 }
 
-// ── Phase 9 V2: join requests ───────────────────────────────────────────────
-
-export function joinRequestTitle(actorName: string, clubName: string): string {
-  return `${actorName} asked to join ${clubName}`;
-}
-
-export function joinDecisionTitle(clubName: string, approved: boolean): string {
-  return approved ? `You're now a member of ${clubName}` : `Your request to join ${clubName} was declined`;
-}
+// ── Phase 9 V2: join requests (the copy is shared with leagues/notify.ts —
+// orgs/join-requests.ts; the I/O is orgs/join-requests-server.ts) ──────────
 
 export interface ClubJoinRequestNotification {
   /** Owners + managers (the actor excluded, duplicates collapsed). */
@@ -261,7 +255,7 @@ export async function notifyClubJoinDecision(admin: Admin, n: ClubJoinDecisionNo
       type: 'club_update',
       actor_id: null,
       title: joinDecisionTitle(n.clubName, n.approved),
-      message: n.approved ? 'Welcome — the club page and its leagues are open to you.' : null,
+      message: joinDecisionMessage('club', n.approved),
       action_url: `/club/${n.clubId}`,
       is_read: false,
       metadata: { club_id: n.clubId, request_id: n.requestId, join_decision: n.approved ? 'approved' : 'declined' },

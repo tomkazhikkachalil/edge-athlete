@@ -95,6 +95,10 @@ interface LeagueResponse {
   memberCount: number;
   members: MemberRow[];
   viewerRole: string | null;
+  /** Program 11: the membership settings + the viewer's queued request. */
+  visibility?: 'public' | 'private';
+  joinPolicy?: 'open' | 'approval';
+  viewerRequestPending?: boolean;
   viewerRoster: RosterChipStatus | null;
   /** Phase 5 R3: the Register banner's data (flag-off reads closed/none). */
   viewerRegistration?: {
@@ -184,7 +188,16 @@ export default function LeaguePage() {
         showError('League', body.error || 'Something went wrong');
         return;
       }
-      showSuccess('League', body.action === 'joined' ? 'You joined the league' : 'You left the league');
+      showSuccess(
+        'League',
+        body.action === 'joined'
+          ? 'You joined the league'
+          : body.action === 'requested'
+            ? 'Request sent — a manager will approve it'
+            : body.action === 'request_cancelled'
+              ? 'Request withdrawn'
+              : 'You left the league'
+      );
       refresh();
     } catch (e) {
       console.error('Membership toggle failed:', e);
@@ -456,12 +469,18 @@ export default function LeaguePage() {
                       onClick={() => (viewerRole ? setConfirmLeave(true) : toggleMembership())}
                       disabled={busy}
                       className={`px-4 py-2 text-sm min-h-[40px] rounded-lg font-medium transition-colors disabled:opacity-60 ${
-                        viewerRole
+                        viewerRole || data.viewerRequestPending
                           ? 'border border-border-strong text-secondary hover:bg-surface-sunken'
                           : 'bg-brand text-white hover:bg-brand-hover'
                       }`}
                     >
-                      {viewerRole ? 'Leave league' : 'Join league'}
+                      {viewerRole
+                        ? 'Leave league'
+                        : data.viewerRequestPending
+                          ? 'Request sent · withdraw'
+                          : data.joinPolicy === 'approval'
+                            ? 'Request to join'
+                            : 'Join league'}
                     </button>
                   )
                 )}

@@ -344,17 +344,16 @@ export default function SiteHomeBody({
                   <span className="sr-only"> (opens in a new tab)</span>
                 </a>
               )}
-              {/* Phase 9 V3: the join door — the app's account-first join page
-                  (an absolute app URL: a custom domain must not swallow it). */}
-              {site.side === 'club' && (
-                <a
-                  href={`${appBaseUrl()}/join/club/${site.orgId}`}
-                  className="inline-block rounded-md border border-white/80 px-4 py-2 text-sm font-semibold text-white"
-                  data-join-door="1"
-                >
-                  {`Join ${brandName}`}
-                </a>
-              )}
+              {/* Phase 9 V3 (leagues in program 11): the join door — the app's
+                  account-first join page (an absolute app URL: a custom
+                  domain must not swallow it). */}
+              <a
+                href={`${appBaseUrl()}/join/${site.side}/${site.orgId}`}
+                className="inline-block rounded-md border border-white/80 px-4 py-2 text-sm font-semibold text-white"
+                data-join-door="1"
+              >
+                {`Join ${brandName}`}
+              </a>
             </div>
           </div>
         </section>

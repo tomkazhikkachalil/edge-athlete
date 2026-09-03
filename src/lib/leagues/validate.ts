@@ -45,8 +45,18 @@ export const LeagueUpdateSchema = z.object({
   name: boundedText(120).optional(),
   description: optionalText(2000),
   place: PlaceValueSchema.nullable().optional(),
+  // Program 11: the membership settings (177).
+  visibility: z.enum(['public', 'private']).optional(),
+  joinPolicy: z.enum(['open', 'approval']).optional(),
 });
 export type LeagueUpdateInput = z.infer<typeof LeagueUpdateSchema>;
+
+/** Program 11: a manager decides a join request. */
+export const LeagueJoinDecisionSchema = z.object({
+  requestId: uuid,
+  decision: z.enum(['approve', 'decline']),
+});
+export type LeagueJoinDecisionInput = z.infer<typeof LeagueJoinDecisionSchema>;
 
 /**
  * PlaceValue → the leagues location columns, as NULLs when cleared.

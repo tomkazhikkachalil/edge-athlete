@@ -73,11 +73,11 @@ export async function POST(
     if (club.owner_profile_id !== user.id) {
       const access = await readClubAccess(supabase, id);
       if (access.joinPolicy === 'approval') {
-        const { cancelJoinRequest, requestJoin } = await import('@/lib/clubs/join-requests-server');
-        if (await cancelJoinRequest(supabase, id, user.id)) {
+        const { cancelJoinRequest, requestJoin } = await import('@/lib/orgs/join-requests-server');
+        if (await cancelJoinRequest(supabase, 'club', id, user.id)) {
           return NextResponse.json({ action: 'request_cancelled' });
         }
-        const asked = await requestJoin(supabase, { id: club.id, name: club.name }, user.id);
+        const asked = await requestJoin(supabase, 'club', { id: club.id, name: club.name }, user.id);
         if ('error' in asked) return NextResponse.json({ error: asked.error }, { status: asked.status });
         return NextResponse.json({ action: 'requested', requestId: asked.requestId });
       }
