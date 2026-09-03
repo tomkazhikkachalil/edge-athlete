@@ -15,6 +15,7 @@ import {
   getCachedVenues,
   getCachedClubCourseStrip,
   getCachedGolfRounds,
+  getCachedNewsList,
 } from '@/lib/org-sites/cached';
 import { buildOrgJsonLd, safeJsonLd } from '@/lib/org-sites/jsonld';
 import SiteHomeBody from './_components/SiteHomeBody';
@@ -72,7 +73,7 @@ export default async function OrgSiteHome({ params }: PageParams) {
   const has = (key: string) => site.modules.some(m => m.module_key === key && m.enabled);
   const { side, orgId } = site;
 
-  const [standings, events, teams, staff, venues, affiliations, openWindows, courses, divisions, leaders, clubGolfBoards, courseStrip, golfRounds] =
+  const [standings, events, teams, staff, venues, affiliations, openWindows, courses, divisions, leaders, clubGolfBoards, courseStrip, golfRounds, news] =
     await Promise.all([
     has('standings') ? getCachedStandings(slug, side, orgId) : Promise.resolve(null),
     has('schedule') ? getCachedSchedule(slug, side, orgId) : Promise.resolve(null),
@@ -87,6 +88,7 @@ export default async function OrgSiteHome({ params }: PageParams) {
     has('courses') && side === 'club' ? getCachedClubGolfBoards(slug, orgId) : Promise.resolve([]),
     has('courses') && side === 'club' ? getCachedClubCourseStrip(slug, side, orgId) : Promise.resolve(null),
     has('schedule') ? getCachedGolfRounds(slug, side, orgId) : Promise.resolve([]),
+    has('news') ? getCachedNewsList(slug, site.id, site.visibility === 'private') : Promise.resolve([]),
   ]);
 
   return (
@@ -99,7 +101,7 @@ export default async function OrgSiteHome({ params }: PageParams) {
       />
       <SiteHomeBody
         site={site}
-        data={{ standings, events, teams, staff, venues, affiliations, openWindows, courses, divisions, leaders, clubGolfBoards, courseStrip, golfRounds }}
+        data={{ standings, events, teams, staff, venues, affiliations, openWindows, courses, divisions, leaders, clubGolfBoards, courseStrip, golfRounds, news }}
       />
     </>
   );

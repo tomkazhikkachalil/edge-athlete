@@ -4,7 +4,8 @@ import { orgMediaUrl } from '@/lib/media/org-site-media';
 import type { OrgEvent } from '@/lib/calendar/org-events-server';
 import type { PublicStandingsPayload } from '@/lib/competitions/public-standings';
 import type { PublicSite } from '@/lib/org-sites/server';
-import type { PublicOpenWindow } from '@/lib/org-sites/public-data';
+import type { PublicNewsItem, PublicOpenWindow } from '@/lib/org-sites/public-data';
+import NewsItems from './NewsItems';
 import type {
   PublicAffiliation,
   PublicClubGolfBoard,
@@ -72,6 +73,9 @@ export interface SiteHomeData {
   courseStrip?: CourseStats | null;
   /** Phase 6e S4 — a golf league's play windows on the schedule. */
   golfRounds?: PublicGolfRound[];
+  /** N1 (program 10) — the latest posts for the home's news teaser
+   *  (already audience-filtered for a private club). */
+  news?: PublicNewsItem[];
 }
 
 export default function SiteHomeBody({
@@ -227,6 +231,21 @@ export default function SiteHomeBody({
           />
         ) : (
           empty('No documents yet.')
+        );
+      }
+      case 'news': {
+        // N1: the three newest posts with their covers (it used to fall
+        // to the default "Coming soon.").
+        const latest = (data.news ?? []).slice(0, 3);
+        return latest.length === 0 ? (
+          empty('No news yet.')
+        ) : (
+          <div data-home-news={latest.length}>
+            <NewsItems posts={latest} siteId={site.id} basePath={siteBasePath(site)} />
+            <Link href={`${siteBasePath(site)}/news`} className="mt-2 inline-block text-sm text-brand-fg font-medium">
+              All news →
+            </Link>
+          </div>
         );
       }
       case 'gallery':

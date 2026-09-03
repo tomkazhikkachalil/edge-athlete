@@ -649,6 +649,8 @@ export interface PublicNewsItem {
   excerpt: string | null; // first paragraph block, truncated
   /** Phase 9 V5 (176): 'members' posts leave a PRIVATE club's site. */
   audience?: 'public' | 'members';
+  /** N1: the post's cover — its first image block (no cover column). */
+  cover: NewsCover | null;
 }
 
 export interface PublicNewsPost {
@@ -656,9 +658,34 @@ export interface PublicNewsPost {
   title: string;
   publishedAt: string;
   body: unknown; // parsed defensively at render (parsePageBody)
+  cover: NewsCover | null;
 }
 
-function firstParagraph(body: unknown): string | null {
+/** N1 (program 10): a news post's cover is DERIVED — the first image
+ *  block of its body. No column, no upload slot: the thumbnail on the
+ *  list, the home teaser and the post's og:image all read this. */
+export interface NewsCover {
+  path: string; // org-media/{siteId}/{file} — orgMediaUrl re-asserts the prefix
+  alt: string;
+  width?: number;
+  height?: number;
+}
+
+export function firstImage(body: unknown): NewsCover | null {
+  if (!Array.isArray(body)) return null;
+  for (const block of body) {
+    if (!block || typeof block !== 'object') continue;
+    const b = block as { type?: unknown; path?: unknown; alt?: unknown; width?: unknown; height?: unknown };
+    if (b.type !== 'image' || typeof b.path !== 'string' || !b.path.startsWith('org-media/')) continue;
+    const dims: { width?: number; height?: number } = {};
+    if (typeof b.width === 'number' && Number.isInteger(b.width) && b.width > 0) dims.width = b.width;
+    if (typeof b.height === 'number' && Number.isInteger(b.height) && b.height > 0) dims.height = b.height;
+    return { path: b.path, alt: typeof b.alt === 'string' ? b.alt.trim() : '', ...dims };
+  }
+  return null;
+}
+
+export function firstParagraph(body: unknown): string | null {
   if (!Array.isArray(body)) return null;
   for (const block of body) {
     if (
@@ -702,6 +729,7 @@ export async function fetchPublicNewsList(
       title: n.title as string,
       publishedAt: n.published_at as string,
       excerpt: firstParagraph(n.body),
+      cover: firstImage(n.body),
       ...(n.audience === 'members' ? { audience: 'members' as const } : n.audience === 'public' ? { audience: 'public' as const } : {}),
     }));
 }
@@ -861,6 +889,7 @@ export async function fetchPublicNewsPost(
     title: row.title,
     publishedAt: row.published_at,
     body: row.body,
+    cover: firstImage(row.body),
   };
 }
 

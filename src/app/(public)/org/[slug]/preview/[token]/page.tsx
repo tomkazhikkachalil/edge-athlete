@@ -10,6 +10,7 @@ import {
   fetchPublicCourses,
   fetchPublicDivisions,
   fetchPublicGolfRounds,
+  fetchPublicNewsList,
   fetchPublicStaff,
   fetchPublicStatLeaders,
   fetchPublicTeams,
@@ -49,7 +50,7 @@ export default async function OrgSitePreview({
 
   const has = (key: string) => site.modules.some(m => m.module_key === key && m.enabled);
   const { side, orgId } = site;
-  const [standings, events, teams, staff, venues, affiliations, openWindows, courses, divisions, leaders, clubGolfBoards, golfRounds] =
+  const [standings, events, teams, staff, venues, affiliations, openWindows, courses, divisions, leaders, clubGolfBoards, golfRounds, news] =
     await Promise.all([
     has('standings') ? fetchPublicStandings(admin, side, orgId) : Promise.resolve(null),
     has('schedule') ? fetchOrgEvents(admin, side, orgId, { limit: 25 }) : Promise.resolve(null),
@@ -63,6 +64,7 @@ export default async function OrgSitePreview({
     has('leaders') ? fetchPublicStatLeaders(admin, side, orgId) : Promise.resolve([]),
     has('courses') && side === 'club' ? fetchPublicClubGolfBoards(admin, orgId) : Promise.resolve([]),
     has('schedule') ? fetchPublicGolfRounds(admin, side, orgId) : Promise.resolve([]),
+    has('news') ? fetchPublicNewsList(admin, site.id, { publicOnly: site.visibility === 'private' }) : Promise.resolve([]),
   ]);
   // S3: the club strip (needs the course ids from the read above).
   const courseStrip =
@@ -80,7 +82,7 @@ export default async function OrgSitePreview({
       </div>
       <SiteHomeBody
         site={site}
-        data={{ standings, events, teams, staff, venues, affiliations, openWindows, courses, divisions, leaders, clubGolfBoards, courseStrip, golfRounds }}
+        data={{ standings, events, teams, staff, venues, affiliations, openWindows, courses, divisions, leaders, clubGolfBoards, courseStrip, golfRounds, news }}
       />
     </>
   );
