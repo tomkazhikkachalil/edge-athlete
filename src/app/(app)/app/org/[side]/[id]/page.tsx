@@ -334,7 +334,7 @@ export default function OrgConsolePage() {
   const [pageTitle, setPageTitle] = useState('');
   // Phase 3.5: news posts (published_at is the state).
   const [siteNews, setSiteNews] = useState<
-    { id: string; slug: string; title: string; published_at: string | null }[]
+    { id: string; slug: string; title: string; published_at: string | null; audience?: 'public' | 'members' }[]
   >([]);
   const [newsTitle, setNewsTitle] = useState('');
   // Phase 6b A1: venues & courses — the org's PROPERTY (141); a golf link
@@ -4123,6 +4123,9 @@ export default function OrgConsolePage() {
                       <span className="text-xs text-emerald-600">published</span>
                     ) : (
                       <span className="text-xs text-amber-600">draft</span>
+                    )}
+                    {n.audience === 'members' && (
+                      <span className="text-xs text-secondary" data-news-audience="members">members only</span>
                     )}
                     <Link
                       href={`/app/org/${side}/${orgId}/site/news/${n.id}`}

@@ -85,6 +85,8 @@ export default function SiteBlockEditor({ mode }: { mode: 'page' | 'news' }) {
   const [siteId, setSiteId] = useState('');
   const [title, setTitle] = useState('');
   const [visibility, setVisibility] = useState<'public' | 'draft'>('draft');
+  // Phase 9 V5 (news only): the post's audience.
+  const [audience, setAudience] = useState<'public' | 'members'>('public');
   const [blocks, setBlocks] = useState<PageBlock[]>([]);
   const [savedSnapshot, setSavedSnapshot] = useState('');
   const [saving, setSaving] = useState(false);
@@ -116,6 +118,7 @@ export default function SiteBlockEditor({ mode }: { mode: 'page' | 'news' }) {
             ? 'public'
             : 'draft'
         );
+        if (mode === 'news') setAudience((page as { audience?: string }).audience === 'members' ? 'members' : 'public');
         const parsedBlocks = parsePageBody(page.body);
         setBlocks(parsedBlocks);
         setSavedSnapshot(JSON.stringify({ title: page.title ?? '', blocks: parsedBlocks }));
@@ -214,6 +217,27 @@ export default function SiteBlockEditor({ mode }: { mode: 'page' | 'news' }) {
       showError('Website', 'Failed to save the page');
     } finally {
       setSaving(false);
+    }
+  };
+
+  // Phase 9 V5 (news only): who the post is for. A private club's site
+  // lists public posts only; members read the rest in the app.
+  const setPostAudience = async (next: 'public' | 'members') => {
+    try {
+      const res = await fetch(base, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ audience: next }),
+      });
+      const body = await res.json();
+      if (!res.ok) {
+        showError('Website', body.error || 'Failed to update the audience');
+        return;
+      }
+      setAudience(next);
+      showSuccess('Website', next === 'members' ? 'Members only — hidden on a private club’s site' : 'Public — shown on the site');
+    } catch {
+      showError('Website', 'Failed to update the audience');
     }
   };
 
@@ -501,6 +525,20 @@ export default function SiteBlockEditor({ mode }: { mode: 'page' | 'news' }) {
           >
             {visibility === 'public' ? copy.unpublishLabel : copy.publishLabel}
           </button>
+          {mode === 'news' && (
+            <label className="flex items-center gap-2 text-sm text-secondary">
+              <span>Audience</span>
+              <select
+                value={audience}
+                onChange={e => void setPostAudience(e.target.value as 'public' | 'members')}
+                aria-label="Post audience"
+                className="max-w-full px-2 py-1.5 border border-border-strong rounded-md outline-none text-sm"
+              >
+                <option value="public">Public — on the site</option>
+                <option value="members">Members only</option>
+              </select>
+            </label>
+          )}
           {dirty && <span className="text-xs text-amber-600">Unsaved changes</span>}
         </div>
       </main>

@@ -1,5 +1,46 @@
 # Development Log
 
+## September 2, 2026 — Phase 9 V5: membership and privacy, part 5 — public items on a private site: the news audience, and the members' news in the app (#543, zero DDL)
+
+Tom: a private club can still "post items that are public like
+registration, announcements that are meant for the public." Registration
+and the notice band were public by nature; news gets a switch.
+
+- **`org_site_news.audience`** (176) rides `NewsPatchSchema` /
+  `newsPATCH` (`NEWS_FIELDS` returns it). The public readers
+  `fetchPublicNewsList` / `fetchPublicNewsPost` take `publicOnly` (42703
+  ⇒ all): a PRIVATE club's site lists public posts only and a
+  members-only post's URL is indistinguishable from missing; a public
+  club shows everything — the audience only bites when private. The
+  cached wrappers pass `site.visibility === 'private'` (1:1 with the
+  slug — safe to close over; a flip revalidates the tag).
+- **The editor** (`SiteBlockEditor`, news mode): an "Audience" select
+  (Public — on the site / Members only) PATCHing `{audience}`; the
+  console's news list shows a "members only" chip.
+- **Members read every published post in the app**: `GET /api/clubs/
+  [id]/news/mine` (session-gated, `private, no-store`; the parsed block
+  list per post + the site's subdomain) → `ClubNewsCard` on the in-app
+  club page for members: titles and dates, "members only" marked,
+  each post expanding inline (headings, paragraphs, images through the
+  org-media streamer, link lists), public posts linking to the site.
+  The `/standings/mine` switch from V4 already covers the standings,
+  weeks, race and season summary for members of a private club.
+- e2e `club-public-items.spec.ts` (a private club, user-b owns, alpha is
+  a member): a public and a members-only post → the site lists the
+  public one and 404s the other's URL; `/news/mine` 401 anon, 200 member
+  with both and the parsed body; the member's club page card lists
+  both and expands the members-only body at 375px; the console shows
+  the chip; the editor's control flips the post to public → the row and
+  the site follow; flipping the CLUB to public shows a members-only post
+  on the site (the audience bites only when private). Regressions green
+  vs the live DB: org-site (5), org-site-two-pages, org-site-players,
+  club-private-gates, club-join-approval.
+- V4 (#542) prod-proven: the private-gates spec green against the
+  deployed build (probed alone).
+
+Next: V6 — the public club directory (optional; a crawlable list of clubs
+by region, private ones marked "request to join").
+
 ## September 2, 2026 — Phase 9 V4: membership and privacy, part 4 — a private club on the public site: members-only panels, the empty public standings, the members' read (#542, zero DDL)
 
 Tom's rule made concrete: a PRIVATE club's site shows identity + public

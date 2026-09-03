@@ -25,7 +25,7 @@ import { ORG_MEDIA_PREFIX } from './pages-server';
 type Admin = SupabaseClient<any, 'public', any>;
 
 const TAG = '[ORG SITE NEWS]';
-const NEWS_FIELDS = 'id, site_id, slug, title, body, published_at, created_at, updated_at';
+const NEWS_FIELDS = 'id, site_id, slug, title, body, published_at, created_at, updated_at, audience';
 
 function orgColumn(side: OrgSide): 'league_id' | 'club_id' {
   return side === 'league' ? 'league_id' : 'club_id';
@@ -184,6 +184,7 @@ export async function newsPATCH(
   const patch: Record<string, unknown> = {
     ...(input.title !== undefined ? { title: input.title } : {}),
     ...(input.body !== undefined ? { body: input.body } : {}),
+    ...(input.audience !== undefined ? { audience: input.audience } : {}),
   };
   if (input.publish !== undefined) {
     if (input.publish) {
