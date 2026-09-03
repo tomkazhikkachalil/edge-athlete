@@ -6,6 +6,7 @@ import { getOrgAndRole, roleAllows } from '@/lib/orgs/authz';
 import { getMemberRole, insertOwnerRow, joinOrg, leaveOrg, removeMember, setMemberRole } from '@/lib/orgs/members';
 import { parseBody } from '@/lib/validation';
 import { UUID_RE } from '@/lib/golf/course-catalog';
+import { readClubAccess } from '@/lib/orgs/access';
 
 // ── /api/clubs/[id]/members — open join/leave + roles + removal ─────────────
 // Mirror of /api/leagues/[id]/members: actor is ALWAYS the session user,
@@ -64,6 +65,22 @@ export async function POST(
         return NextResponse.json({ error: 'Failed to leave club' }, { status: 500 });
       }
       return NextResponse.json({ action: 'left' });
+    }
+
+    // Phase 9 V2: an approval club queues the join (never a pending
+    // membership). A second POST while queued WITHDRAWS the request (the
+    // same toggle shape as join/leave). The column-only owner still joins.
+    if (club.owner_profile_id !== user.id) {
+      const access = await readClubAccess(supabase, id);
+      if (access.joinPolicy === 'approval') {
+        const { cancelJoinRequest, requestJoin } = await import('@/lib/clubs/join-requests-server');
+        if (await cancelJoinRequest(supabase, id, user.id)) {
+          return NextResponse.json({ action: 'request_cancelled' });
+        }
+        const asked = await requestJoin(supabase, { id: club.id, name: club.name }, user.id);
+        if ('error' in asked) return NextResponse.json({ error: asked.error }, { status: asked.status });
+        return NextResponse.json({ action: 'requested', requestId: asked.requestId });
+      }
     }
 
     // DEVLOG 0.1 quirk closed (Sep 2026): a column-only owner joining

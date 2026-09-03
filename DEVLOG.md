@@ -1,5 +1,50 @@
 # Development Log
 
+## September 2, 2026 — Phase 9 V2: membership and privacy, part 2 — join with approval: the request queue, the manager's decision, the bells (#540, zero DDL)
+
+- **The request**: `POST /api/clubs/[id]/members` on an approval club
+  (176's `join_policy`, read through `readClubAccess`) queues a
+  `club_join_requests` row instead of joining — `requestJoin`
+  (`clubs/join-requests-server.ts`; idempotent on the unique pair) — and
+  bells every owner and manager (`notifyClubJoinRequest`, type
+  `club_join`, "{name} asked to join {club}", `metadata.request_id`,
+  the console's roster anchor). The requester is NOT a member: no
+  membership row, no role, no count change (every membership reader is
+  status-blind by design — the whole reason the queue is its own
+  table). A second POST while queued WITHDRAWS (the join/leave toggle
+  shape); an open club still joins instantly; the column-only owner
+  still joins as owner.
+- **The decision**: `GET/PATCH /api/clubs/[id]/join-requests`
+  (`manage_members` or the owner column): the queue with real names and
+  handles (a manager surface); `{requestId, decision}` → the DELETE is
+  the claim (zero rows ⇒ 409 "already decided") → approve = the existing
+  `joinOrg` + a bell to the member (`notifyClubJoinDecision`, type
+  `club_update`, "You're now a member of {club}"); decline = a bell
+  ("… was declined"). `ClubJoinDecisionSchema`.
+- The club GET answers `viewerRequestPending`; the club page's button
+  reads Join club / Request to join / "Request sent · withdraw" / Leave
+  club with the matching toasts. The console's Roster section shows
+  **Membership requests (N)** with Approve / Decline whenever the policy
+  is approval or a request is waiting.
+- e2e `club-join-approval.spec.ts` (user-b owns; alpha asks; a minted
+  third user for the decline path): request → `requested`, the row, the
+  owner's bell, no membership, count unchanged, `viewerRequestPending`;
+  withdraw → re-ask; a member's queue read 403s; the owner's queue lists
+  it; approve → member + bell + 409 on a repeat; decline → no membership
+  + bell; the open club joins instantly; the club page shows "Request
+  sent · withdraw" and the console queue approves at 375px, after which
+  the page reads "Leave club" and the row is gone. Regressions green vs
+  the live DB: club-membership-settings, club-pending-build,
+  org-console-golf, club-request, org-site-identity, and affiliation
+  after a spec-only fix: its `getByLabel('Affiliation type')` has
+  matched two selects since phase 6 (the invite form and the League
+  chain section) — now `.first()`.
+- V1 (#539) prod-proven: the settings spec green against the deployed
+  build.
+
+Next: V3 — the join door (`/join/club/[id]`, account-first, a "Join
+{club}" CTA on the public site).
+
 ## September 2, 2026 — Phase 9 V1: membership and privacy, part 1 — the settings: club visibility, join policy, the approval queue's table (#539, migration 176)
 
 Phase 9 ("Membership and privacy", Tom, Sep 2 — after phase 8): growth

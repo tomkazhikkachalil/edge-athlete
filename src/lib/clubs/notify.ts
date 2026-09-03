@@ -196,3 +196,78 @@ export async function notifyRosterRemoved(admin: Admin, n: ClubRosterRemovedNoti
     console.error('[CLUB NOTIFY] roster removed notify failed:', e);
   }
 }
+
+// ── Phase 9 V2: join requests ───────────────────────────────────────────────
+
+export function joinRequestTitle(actorName: string, clubName: string): string {
+  return `${actorName} asked to join ${clubName}`;
+}
+
+export function joinDecisionTitle(clubName: string, approved: boolean): string {
+  return approved ? `You're now a member of ${clubName}` : `Your request to join ${clubName} was declined`;
+}
+
+export interface ClubJoinRequestNotification {
+  /** Owners + managers (the actor excluded, duplicates collapsed). */
+  managerIds: string[];
+  actorId: string;
+  clubId: string;
+  clubName: string;
+  requestId: string;
+}
+
+/** Tell the managers someone asked to join (the approval policy). */
+export async function notifyClubJoinRequest(admin: Admin, n: ClubJoinRequestNotification): Promise<void> {
+  try {
+    const targets = [...new Set(n.managerIds)].filter(id => id && id !== n.actorId);
+    if (targets.length === 0) return;
+    const { data: actor } = await admin
+      .from('profiles')
+      .select('first_name, full_name, display_name')
+      .eq('id', n.actorId)
+      .maybeSingle();
+    const actorName = actor?.first_name || actor?.display_name || actor?.full_name || 'Someone';
+    const { error } = await admin.from('notifications').insert(
+      targets.map(userId => ({
+        user_id: userId,
+        type: 'club_join',
+        actor_id: n.actorId,
+        title: joinRequestTitle(actorName, n.clubName),
+        message: 'Approve or decline from your console.',
+        action_url: `/app/org/club/${n.clubId}#roster`,
+        is_read: false,
+        metadata: { club_id: n.clubId, request_id: n.requestId, join_request: true },
+      }))
+    );
+    if (error) console.error('[CLUB NOTIFY] join request notify failed:', error);
+  } catch (e) {
+    console.error('[CLUB NOTIFY] join request notify failed:', e);
+  }
+}
+
+export interface ClubJoinDecisionNotification {
+  profileId: string;
+  clubId: string;
+  clubName: string;
+  approved: boolean;
+  requestId: string;
+}
+
+/** Tell the requester the decision (club_update — a club telling a person). */
+export async function notifyClubJoinDecision(admin: Admin, n: ClubJoinDecisionNotification): Promise<void> {
+  try {
+    const { error } = await admin.from('notifications').insert({
+      user_id: n.profileId,
+      type: 'club_update',
+      actor_id: null,
+      title: joinDecisionTitle(n.clubName, n.approved),
+      message: n.approved ? 'Welcome — the club page and its leagues are open to you.' : null,
+      action_url: `/club/${n.clubId}`,
+      is_read: false,
+      metadata: { club_id: n.clubId, request_id: n.requestId, join_decision: n.approved ? 'approved' : 'declined' },
+    });
+    if (error) console.error('[CLUB NOTIFY] join decision notify failed:', error);
+  } catch (e) {
+    console.error('[CLUB NOTIFY] join decision notify failed:', e);
+  }
+}

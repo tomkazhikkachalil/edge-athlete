@@ -95,6 +95,9 @@ interface ClubResponse {
   memberCount: number;
   members: MemberRow[];
   viewerRole: string | null;
+  /** Phase 9: the membership settings + the viewer's queued request. */
+  joinPolicy?: 'open' | 'approval';
+  viewerRequestPending?: boolean;
   viewerRoster: RosterChipStatus | null;
   /** Phase 5 R3: the Register banner's data (flag-off reads closed/none). */
   viewerRegistration?: {
@@ -183,7 +186,16 @@ export default function ClubPage() {
         showError('Club', body.error || 'Something went wrong');
         return;
       }
-      showSuccess('Club', body.action === 'joined' ? 'You joined the club' : 'You left the club');
+      showSuccess(
+        'Club',
+        body.action === 'joined'
+          ? 'You joined the club'
+          : body.action === 'requested'
+            ? 'Request sent — a manager will approve it'
+            : body.action === 'request_cancelled'
+              ? 'Request withdrawn'
+              : 'You left the club'
+      );
       refresh();
     } catch (e) {
       console.error('Membership toggle failed:', e);
@@ -457,12 +469,18 @@ export default function ClubPage() {
                       onClick={() => (viewerRole ? setConfirmLeave(true) : toggleMembership())}
                       disabled={busy}
                       className={`px-4 py-2 text-sm min-h-[40px] rounded-lg font-medium transition-colors disabled:opacity-60 ${
-                        viewerRole
+                        viewerRole || data.viewerRequestPending
                           ? 'border border-border-strong text-secondary hover:bg-surface-sunken'
                           : 'bg-brand text-white hover:bg-brand-hover'
                       }`}
                     >
-                      {viewerRole ? 'Leave club' : 'Join club'}
+                      {viewerRole
+                        ? 'Leave club'
+                        : data.viewerRequestPending
+                          ? 'Request sent · withdraw'
+                          : data.joinPolicy === 'approval'
+                            ? 'Request to join'
+                            : 'Join club'}
                     </button>
                   )
                 )}
