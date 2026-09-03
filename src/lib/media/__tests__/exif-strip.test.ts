@@ -124,3 +124,26 @@ describe('jpegOrientation', () => {
     expect(hex).not.toContain('ffe1');
   });
 });
+
+describe('jpegOrientation on a header slice (upload.ts reads only the first 256KB)', () => {
+  const ifd = (orientation: number) => [
+    0x49, 0x49, 0x2a, 0x00, 0x08, 0x00, 0x00, 0x00, // II, 42, IFD0 at 8
+    0x01, 0x00, // one entry
+    0x12, 0x01, 0x03, 0x00, 0x01, 0x00, 0x00, 0x00, orientation, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, // next IFD
+  ];
+  const exif = (orientation: number) => [0x45, 0x78, 0x69, 0x66, 0x00, 0x00, ...ifd(orientation)];
+
+  it('reads the tag when the slice ends after the EXIF APP1, even mid-file', () => {
+    const full = jpeg(seg(0xe1, exif(6)), seg(0xdb, new Array(200).fill(0)));
+    const head = full.subarray(0, 60); // cuts inside the later DQT segment
+    expect(jpegOrientation(head)).toBe(6);
+  });
+
+  it('returns null (→ lossless-strip path) when the slice ends before the EXIF APP1', () => {
+    const full = jpeg(seg(0xe0, JFIF_PAYLOAD), seg(0xe2, new Array(300).fill(0)), seg(0xe1, exif(6)));
+    const head = full.subarray(0, 100); // truncated inside the ICC segment
+    expect(jpegOrientation(head)).toBeNull();
+    expect(jpegOrientation(full)).toBe(6); // the whole file still reads it
+  });
+});

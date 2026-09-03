@@ -560,13 +560,15 @@ export default function CreatePostModal({
         return;
       }
 
-      // Upload media files (for individual posts)
-      const uploadedMedia = await Promise.all(
-        mediaFiles.map(async (file) => {
-          const { url, thumbnailUrl, sourceUrl } = await uploadMediaWithPoster(file);
-          return { ...file, url, thumbnailUrl, sourceUrl };
-        })
-      );
+      // Upload media files (for individual posts) — SEQUENTIAL, never
+      // Promise.all (the useBatchUpload rule): each upload may bake a
+      // rotated phone photo at full resolution (upload.ts), and running N
+      // of those at once is how a phone tab dies mid-post (Sep 2026).
+      const uploadedMedia: Array<MediaFile & { thumbnailUrl?: string; sourceUrl?: string }> = [];
+      for (const file of mediaFiles) {
+        const { url, thumbnailUrl, sourceUrl } = await uploadMediaWithPoster(file);
+        uploadedMedia.push({ ...file, url, thumbnailUrl, sourceUrl });
+      }
 
       // Prepare post data (userId comes from auth)
       const postData = {

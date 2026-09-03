@@ -17,6 +17,7 @@
  */
 
 import { jpegOrientation, stripJpegMetadata } from './exif-strip';
+import { serialize } from './scrub-queue';
 
 export interface UploadedMedia {
   url: string;
@@ -29,12 +30,30 @@ export interface UploadedMedia {
  * stripping alone left portraits stored sideways with nothing for the browser
  * to auto-orient from (Sep 2026). The bake goes through the editor's own
  * decode → canvas → JPEG path (orientation applied at decode, EXIF gone with
- * the re-encode), at full resolution up to the canvas cap. Upright photos —
- * the majority — still take the byte-level path and lose no quality. The
- * render module is imported lazily so surfaces that never see a rotated
- * photo (messages, vitals) don't carry it.
+ * the re-encode), at full resolution up to the canvas cap. Photos whose tag
+ * says upright (or that carry none) still take the byte-level path and lose
+ * no quality. The render module is imported lazily so surfaces that never
+ * see a rotated photo (messages, vitals) don't carry it.
+ *
+ * COST — this is NOT the rare path. A phone camera stamps every portrait
+ * shot (and half the landscape ones) with Orientation 6/8/3, so on a phone
+ * nearly every un-edited capture bakes: a full-resolution decode plus a
+ * 12MP canvas and a JPEG encode on the main thread. One at a time that is
+ * the same work the editor does on open; several at once killed mobile
+ * Safari tabs the day this shipped (the composer uploaded in parallel).
+ * Hence `serialize` around every scrub in uploadPostMedia, and the header-
+ * slice probe below so the bake never holds a second full copy of the file.
  */
 const BAKE_QUALITY = 0.92;
+
+/**
+ * Bytes read to decide whether a bake is needed. An APP1 segment is at most
+ * 64KB and phone cameras write it first, so this always covers the EXIF.
+ * An orientation tag that somehow sits past the slice reads as `null` and
+ * the photo takes the pre-Sep-2026 lossless-strip path — the failure mode is
+ * "sideways", never "an extra 12MB in memory during the bake".
+ */
+const ORIENTATION_PROBE_BYTES = 256 * 1024;
 
 async function bakeOrientation(file: File): Promise<File> {
   const [{ renderImage }, { defaultImageRecipe }, { MAX_CANVAS_DIM }] = await Promise.all([
@@ -56,8 +75,8 @@ async function bakeOrientation(file: File): Promise<File> {
 async function withoutJpegMetadata(file: File): Promise<File> {
   if (file.type !== 'image/jpeg') return file;
   try {
-    const bytes = new Uint8Array(await file.arrayBuffer());
-    const orientation = jpegOrientation(bytes);
+    const head = new Uint8Array(await file.slice(0, ORIENTATION_PROBE_BYTES).arrayBuffer());
+    const orientation = jpegOrientation(head);
     if (orientation !== null && orientation !== 1) {
       try {
         return await bakeOrientation(file); // canvas output carries no EXIF
@@ -67,6 +86,9 @@ async function withoutJpegMetadata(file: File): Promise<File> {
         console.warn('[upload] orientation bake failed; stripping metadata only:', err);
       }
     }
+    // Only the strip needs the whole file in memory — read it after the bake
+    // decision so the decode above never coexists with a second full copy.
+    const bytes = new Uint8Array(await file.arrayBuffer());
     const out = stripJpegMetadata(bytes);
     if (out === bytes) return file; // nothing to strip
     // TS 5.7 typed-array generics: Uint8Array<ArrayBufferLike> isn't a
@@ -126,9 +148,12 @@ async function withoutVideoMetadata(file: File): Promise<File> {
  */
 export async function uploadPostMedia(file: File, targetProfileId?: string): Promise<UploadedMedia> {
   const formData = new FormData();
-  const scrubbed = file.type.startsWith('video/')
-    ? await withoutVideoMetadata(file)
-    : await withoutJpegMetadata(file);
+  // ONE scrub alive at a time app-wide (scrub-queue.ts) — the bake and the
+  // re-mux are each a full-file decode in memory. The request below is
+  // outside the queue, so uploads still overlap with the next scrub.
+  const scrubbed = await serialize(() =>
+    file.type.startsWith('video/') ? withoutVideoMetadata(file) : withoutJpegMetadata(file)
+  );
   formData.append('file', scrubbed);
   if (targetProfileId) formData.append('targetProfileId', targetProfileId);
   const response = await fetch('/api/upload/post-media', { method: 'POST', body: formData });
