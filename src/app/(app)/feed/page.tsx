@@ -4,6 +4,7 @@ import { useEffect, useState, useRef, Suspense } from 'react';
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import { useAuth } from '@/lib/auth';
+import { recordCaptureGateFlip } from '@/lib/media/capture-diag';
 import { liveRoundPath } from '@/lib/golf/round-route';
 import { useRouter, useSearchParams } from 'next/navigation';
 import PostCard from '@/components/PostCard';
@@ -110,6 +111,9 @@ export default function FeedPage() {
   // need a Suspense wrap. The sport must be captured BEFORE replaceState
   // scrubs the URL.
   const [deepLinkSport, setDeepLinkSport] = useState<SportKey | null>(null);
+  // `&restore=1`: the light capture page (/app/capture) stashed a photo —
+  // the composer opens straight into the editor on it (capture-stash.ts).
+  const [autoRestoreStash, setAutoRestoreStash] = useState(false);
   // Effect-owned deliberately: reads window.location and scrubs it with
   // replaceState — neither is possible during render.
   useEffect(() => {
@@ -119,6 +123,7 @@ export default function FeedPage() {
       const sportKey = resolveSportKey(params.get('sport'));
       // eslint-disable-next-line react-hooks/set-state-in-effect
       if (isComposerSport(sportKey)) setDeepLinkSport(sportKey);
+      if (params.get('restore') === '1') setAutoRestoreStash(true);
       setIsCreatePostModalOpen(true);
       window.history.replaceState(null, '', '/feed');
     }
@@ -487,6 +492,17 @@ export default function FeedPage() {
     }
   };
 
+  // Capture diagnostic (capture-diag.ts, hypothesis B): the branch below
+  // unmounts the composer and its <input capture>. Count re-engagements
+  // after the page was once open so a lost camera photo can say whether
+  // this — not a reload — is what destroyed the pending file.
+  const gateWasOpenRef = useRef(false);
+  useEffect(() => {
+    const gated = loading || !user;
+    if (gated && gateWasOpenRef.current) recordCaptureGateFlip();
+    if (!gated) gateWasOpenRef.current = true;
+  }, [loading, user]);
+
   // Show loading state
   if (loading || !user) {
     return (
@@ -818,8 +834,12 @@ export default function FeedPage() {
       {/* Create Post Modal */}
       <CreatePostModal
         isOpen={isCreatePostModalOpen}
-        onClose={() => setIsCreatePostModalOpen(false)}
+        onClose={() => {
+          setIsCreatePostModalOpen(false);
+          setAutoRestoreStash(false); // one hand-off per capture-page visit
+        }}
         userId={user?.id || ''}
+        autoRestoreStash={autoRestoreStash}
         onPostCreated={handlePostCreated}
         defaultSportKey={deepLinkSport ?? profileDefaultSport ?? 'general'}
       />

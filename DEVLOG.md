@@ -1,5 +1,59 @@
 # Development Log
 
+## September 3, 2026 — iPhone camera capture, round 3: a diagnostic that names the killer, and a light page for the camera (zero DDL)
+
+Tom re-tested #565 on the device: camera → Keep → the page still comes
+back reloaded, and the recovery notice did NOT appear. So the file never
+reached the page — the change event never fired; whatever ends the session
+does so while the native camera is up. The library picker works on the same
+phone, so the editor-open path is not the killer.
+
+Two explanations remain and the code cannot tell them apart: (A) iOS
+discarded the WebContent process under memory pressure while the camera was
+open and reloaded the page on return; (B) the page never reloaded but a
+refocus auth event (`onAuthStateChange` fires SIGNED_IN on refocus — the
+codebase says so) flipped the feed's `loading || !user` gate, which unmounts
+the composer and the `<input capture>` holding the pending file. B is the
+less likely (the only path that nulls `user` ends on the login page), but
+"less likely" is not a measurement. This round makes the next device test
+decisive and ships the fix for A:
+
+- **`media/capture-diag.ts`** — ARM in sessionStorage at the tap that opens
+  the camera (a per-JS-boot id: a remount keeps it, a reload changes it),
+  DISARM when a file arrives, count the feed gate's re-engagements, read the
+  outcome on the next composer open. A record with neither anomaly is a
+  plain camera cancel and clears silently.
+- **Composer**: a capture-failure notice — "The camera closed without
+  returning a photo. Safari reloaded the page after 12s." (or "the composer
+  was reset") with a mono line (`reload · boot changed · gate flips 0 ·
+  12.4s · composer`), a link to the light page, Dismiss. Real UX (the user
+  got silence) and the measurement in one.
+- **`/app/capture`** — the light capture page: BrandBar, two buttons, the
+  same validate → stash pipeline, then `/feed?create=1&restore=1`, where the
+  composer opens straight into the editor on the stash (the `restore=1`
+  hand-off; the feed clears it on close). If the camera works from here and
+  not from the feed, A is proven and the follow-up routes iOS capture
+  through it.
+- **Feed `<video>`**: `preload="none"`. The feed is an unbounded list and
+  every video post kept a fetched, decoder-backed element alive — the one
+  trim the inventory justified on its own (MediaTile's rule, which PostCard
+  bypassed). Everything else found (no virtualization, the refocus
+  `loadFeed` reset keyed on `user` identity, always-resident modal chunks)
+  is a real follow-up but speculative for this bug.
+
+What the next device test says: `/app/capture` works ⇒ A (feed footprint).
+Feed notice reads `boot changed` ⇒ A; `gate flips ≥ 1` on the same boot ⇒ B,
+fix in `auth.tsx`/the feed gate. Both reload ⇒ not our page's memory.
+
+Verification: `npm run verify`; `e2e/capture-page.spec.ts` (@mobile): the
+hand-off (capture page → file → feed editor → tile) and the diagnostic
+(Take photo → reload → notice with the mono line → Dismiss → gone).
+TRAP from this afternoon: `pkill -f "next start"` does not stop the server
+(the process is `next-server`); a stale one served a rebuilt `.next` and
+every spec timed out. Kill by port.
+
+---
+
 ## September 3, 2026 — Capture recovery: media survives the reload iOS inflicts (fix round 2, zero DDL)
 
 Tom's device pass after #561, on an iPhone in Safari, feed composer: "when

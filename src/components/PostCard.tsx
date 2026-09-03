@@ -640,6 +640,11 @@ function PostCard({
                 className="absolute inset-0 h-full w-full object-contain"
                 controls
                 playsInline
+                // The feed is an unbounded list; without this every video
+                // that ever scrolled in keeps a fetched, decoder-backed
+                // element alive (MediaTile's own rule). The poster is the
+                // preview; playback starts on tap. (Sep 2026, phone memory.)
+                preload="none"
               />
             )}
 
