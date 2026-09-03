@@ -5,6 +5,7 @@
 // fails the join that triggered it. Lazily imported by the members route.
 
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { joinDecisionMessage, joinDecisionTitle, joinRequestTitle } from '@/lib/orgs/join-requests';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- matches guardian-notify's Admin alias; the notifier is schema-agnostic
 type Admin = SupabaseClient<any, 'public', any>;
@@ -211,5 +212,72 @@ export async function notifyRosterRemoved(admin: Admin, n: RosterRemovedNotifica
     if (error) console.error('[LEAGUE NOTIFY] roster removed notify failed:', error);
   } catch (e) {
     console.error('[LEAGUE NOTIFY] roster removed notify failed:', e);
+  }
+}
+
+// ── Program 11 L1: join requests (the league twin of clubs/notify.ts) ───────
+
+export interface LeagueJoinRequestNotification {
+  /** Owners + managers (the actor excluded, duplicates collapsed). */
+  managerIds: string[];
+  actorId: string;
+  leagueId: string;
+  leagueName: string;
+  requestId: string;
+}
+
+/** Tell the managers someone asked to join (the approval policy). */
+export async function notifyLeagueJoinRequest(admin: Admin, n: LeagueJoinRequestNotification): Promise<void> {
+  try {
+    const targets = [...new Set(n.managerIds)].filter(id => id && id !== n.actorId);
+    if (targets.length === 0) return;
+    const { data: actor } = await admin
+      .from('profiles')
+      .select('first_name, full_name, display_name')
+      .eq('id', n.actorId)
+      .maybeSingle();
+    const actorName = actor?.first_name || actor?.display_name || actor?.full_name || 'Someone';
+    const { error } = await admin.from('notifications').insert(
+      targets.map(userId => ({
+        user_id: userId,
+        type: 'league_join',
+        actor_id: n.actorId,
+        title: joinRequestTitle(actorName, n.leagueName),
+        message: 'Approve or decline from your console.',
+        action_url: `/app/org/league/${n.leagueId}#roster`,
+        is_read: false,
+        metadata: { league_id: n.leagueId, request_id: n.requestId, join_request: true },
+      }))
+    );
+    if (error) console.error('[LEAGUE NOTIFY] join request notify failed:', error);
+  } catch (e) {
+    console.error('[LEAGUE NOTIFY] join request notify failed:', e);
+  }
+}
+
+export interface LeagueJoinDecisionNotification {
+  profileId: string;
+  leagueId: string;
+  leagueName: string;
+  approved: boolean;
+  requestId: string;
+}
+
+/** Tell the requester the decision (league_update — a league telling a person). */
+export async function notifyLeagueJoinDecision(admin: Admin, n: LeagueJoinDecisionNotification): Promise<void> {
+  try {
+    const { error } = await admin.from('notifications').insert({
+      user_id: n.profileId,
+      type: 'league_update',
+      actor_id: null,
+      title: joinDecisionTitle(n.leagueName, n.approved),
+      message: joinDecisionMessage('league', n.approved),
+      action_url: `/league/${n.leagueId}`,
+      is_read: false,
+      metadata: { league_id: n.leagueId, request_id: n.requestId, join_decision: n.approved ? 'approved' : 'declined' },
+    });
+    if (error) console.error('[LEAGUE NOTIFY] join decision notify failed:', error);
+  } catch (e) {
+    console.error('[LEAGUE NOTIFY] join decision notify failed:', e);
   }
 }

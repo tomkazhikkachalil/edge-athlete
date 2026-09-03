@@ -366,11 +366,12 @@ export default function OrgConsolePage() {
   const [pending, setPending] = useState(false);
   // Phase 7 C5: the org's sport shapes the console (golf-first).
   const [orgSport, setOrgSport] = useState<string | null>(null);
-  // Phase 9 V1: the club's membership settings (176; clubs only).
-  const [clubVisibility, setClubVisibility] = useState<'public' | 'private'>('public');
-  const [clubJoinPolicy, setClubJoinPolicy] = useState<'open' | 'approval'>('open');
+  // Phase 9 V1: the org's membership settings (176 clubs; 177 leagues —
+  // program 11 made the section side-generic).
+  const [orgVisibility, setOrgVisibility] = useState<'public' | 'private'>('public');
+  const [orgJoinPolicy, setOrgJoinPolicy] = useState<'open' | 'approval'>('open');
   const [membershipSaving, setMembershipSaving] = useState(false);
-  // Phase 9 V2: the approval queue (clubs only; managers).
+  // Phase 9 V2: the approval queue (managers; both sides).
   const [joinRequests, setJoinRequests] = useState<{ id: string; name: string; handle: string | null; createdAt: string }[]>([]);
   const [joinBusy, setJoinBusy] = useState<string | null>(null);
   const [memberCount, setMemberCount] = useState(0);
@@ -394,11 +395,11 @@ export default function OrgConsolePage() {
           const data = await orgRes.json();
           if (!cancelled) setOrgName((data.league ?? data.club)?.name ?? null);
           if (!cancelled) setPending(data.pending === true);
-          if (!cancelled && side === 'club') {
-            setClubVisibility(data.visibility === 'private' ? 'private' : 'public');
-            setClubJoinPolicy(data.joinPolicy === 'approval' ? 'approval' : 'open');
+          if (!cancelled) {
+            setOrgVisibility(data.visibility === 'private' ? 'private' : 'public');
+            setOrgJoinPolicy(data.joinPolicy === 'approval' ? 'approval' : 'open');
             try {
-              const jr = await fetch(`/api/clubs/${orgId}/join-requests`);
+              const jr = await fetch(`/api/${plural}/${orgId}/join-requests`);
               if (jr.ok && !cancelled) setJoinRequests(((await jr.json()) as { requests?: typeof joinRequests }).requests ?? []);
             } catch {
               /* the queue simply stays empty */
@@ -1093,7 +1094,7 @@ export default function OrgConsolePage() {
   const decideJoin = async (requestId: string, decision: 'approve' | 'decline') => {
     setJoinBusy(requestId);
     try {
-      const res = await fetch(`/api/clubs/${orgId}/join-requests`, {
+      const res = await fetch(`/api/${plural}/${orgId}/join-requests`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ requestId, decision }),
@@ -1113,11 +1114,11 @@ export default function OrgConsolePage() {
     }
   };
 
-  // Phase 9 V1: save a membership setting (the club PATCH revalidates the site).
+  // Phase 9 V1: save a membership setting (the org PATCH revalidates the site).
   const saveMembership = async (patch: { visibility?: 'public' | 'private'; joinPolicy?: 'open' | 'approval' }) => {
     setMembershipSaving(true);
     try {
-      const res = await fetch(`/api/clubs/${orgId}`, {
+      const res = await fetch(`/api/${plural}/${orgId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(patch),
@@ -1127,9 +1128,9 @@ export default function OrgConsolePage() {
         showError('Membership', body.error || 'Could not save the setting');
         return;
       }
-      if (patch.visibility) setClubVisibility(patch.visibility);
-      if (patch.joinPolicy) setClubJoinPolicy(patch.joinPolicy);
-      showSuccess('Membership', patch.visibility ? (patch.visibility === 'private' ? 'Your club is now private' : 'Your club is now public') : patch.joinPolicy === 'approval' ? 'New members now need your approval' : 'Anyone can join with one tap');
+      if (patch.visibility) setOrgVisibility(patch.visibility);
+      if (patch.joinPolicy) setOrgJoinPolicy(patch.joinPolicy);
+      showSuccess('Membership', patch.visibility ? (patch.visibility === 'private' ? `Your ${side} is now private` : `Your ${side} is now public`) : patch.joinPolicy === 'approval' ? 'New members now need your approval' : 'Anyone can join with one tap');
     } catch {
       showError('Membership', 'Could not save the setting');
     } finally {
@@ -1141,8 +1142,7 @@ export default function OrgConsolePage() {
   // (phase 7 C5: golf-first — Website and Venues on top). A pure hoist of
   // the JSX that used to sit inline in <main>; every closure is unchanged.
   const sectionNodes: Record<ConsoleSectionKey, ReactNode> = {
-    membership:
-      side === 'club' ? (
+    membership: (
         <section
           id="membership"
           aria-label="Membership"
@@ -1150,16 +1150,16 @@ export default function OrgConsolePage() {
         >
           <h2 className="text-lg font-semibold text-primary mb-1">Membership</h2>
           <p className="text-sm text-tertiary mb-4">
-            Who can see your club, and how people join it.
+            {`Who can see your ${side}, and how people join it.`}
           </p>
           <div className="grid gap-4 sm:grid-cols-2">
             <div>
-              <label htmlFor="club-visibility" className="block text-sm font-medium text-secondary mb-1">
+              <label htmlFor="org-visibility" className="block text-sm font-medium text-secondary mb-1">
                 Visibility
               </label>
               <select
-                id="club-visibility"
-                value={clubVisibility}
+                id="org-visibility"
+                value={orgVisibility}
                 disabled={membershipSaving}
                 onChange={e => void saveMembership({ visibility: e.target.value as 'public' | 'private' })}
                 className="w-full max-w-full px-3 py-2 border border-border-strong rounded-md outline-none text-sm"
@@ -1168,18 +1168,18 @@ export default function OrgConsolePage() {
                 <option value="private">Private — members-only content</option>
               </select>
               <p className="mt-1 text-xs text-muted">
-                {clubVisibility === 'private'
-                  ? 'Standings, results, players and the roster are members-only on your site; your name, contact, courses, registration and public news stay visible.'
+                {orgVisibility === 'private'
+                  ? `Standings, results, players, teams and the roster are members-only on your site; your name, contact${side === 'club' ? ', courses' : ''}, schedule, registration and public news stay visible.`
                   : 'Anyone can read your standings, results and players.'}
               </p>
             </div>
             <div>
-              <label htmlFor="club-join-policy" className="block text-sm font-medium text-secondary mb-1">
+              <label htmlFor="org-join-policy" className="block text-sm font-medium text-secondary mb-1">
                 Joining
               </label>
               <select
-                id="club-join-policy"
-                value={clubJoinPolicy}
+                id="org-join-policy"
+                value={orgJoinPolicy}
                 disabled={membershipSaving}
                 onChange={e => void saveMembership({ joinPolicy: e.target.value as 'open' | 'approval' })}
                 className="w-full max-w-full px-3 py-2 border border-border-strong rounded-md outline-none text-sm"
@@ -1188,14 +1188,14 @@ export default function OrgConsolePage() {
                 <option value="approval">Approval — you approve each request</option>
               </select>
               <p className="mt-1 text-xs text-muted">
-                {clubJoinPolicy === 'approval'
+                {orgJoinPolicy === 'approval'
                   ? 'Requests queue here and bell your managers.'
                   : 'New members appear on the roster immediately.'}
               </p>
             </div>
           </div>
         </section>
-      ) : null,
+      ),
     roster: (
       <>
         {/* Roster (R3) — counts + the door; per-team import lives on the
@@ -1218,7 +1218,7 @@ export default function OrgConsolePage() {
             View members &amp; roster →
           </Link>
           {/* Phase 9 V2: the approval queue (a manager surface — real names). */}
-          {side === 'club' && (clubJoinPolicy === 'approval' || joinRequests.length > 0) && (
+          {(orgJoinPolicy === 'approval' || joinRequests.length > 0) && (
             <div className="mt-4" data-join-requests={joinRequests.length}>
               <h3 className="text-sm font-semibold text-primary">
                 Membership requests{joinRequests.length > 0 ? ` (${joinRequests.length})` : ''}

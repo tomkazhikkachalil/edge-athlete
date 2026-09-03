@@ -1,26 +1,33 @@
-// ── Join requests (phase 9 V2) — the approval queue's I/O ───────────────────
-// A club with join_policy 'approval' queues joins in club_join_requests
-// (mig 176) — NOT a pending membership (every membership reader is
-// status-blind by design). Approve = the existing joinOrg + delete the
-// request; decline = delete. Every write is service-role, gated by the
-// routes (managers decide; the requester owns their own request).
+// ── Join requests (phase 9 V2, both sides in program 11) — the queue's I/O ──
+// An org with join_policy 'approval' queues joins in club_join_requests
+// (mig 176) / league_join_requests (mig 177) — NOT a pending membership
+// (every membership reader is status-blind by design). Approve = the
+// existing joinOrg + delete the request; decline = delete. Every write is
+// service-role, gated by the routes (managers decide; the requester owns
+// their own request). Side-generic: the table, the org column and the bells
+// follow `side`.
 
 import { NextResponse } from 'next/server';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { joinOrg } from '@/lib/orgs/members';
-import { notifyClubJoinDecision, notifyClubJoinRequest } from './notify';
+import type { OrgSide } from './authz';
+import { joinOrg } from './members';
+import { joinRequestsTable } from './join-requests';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- the notify.ts Admin alias; schema-agnostic
 type Admin = SupabaseClient<any, 'public', any>;
 
-const TAG = '[CLUB JOIN REQUESTS]';
+const TAG = '[ORG JOIN REQUESTS]';
 
-/** Owners + managers of the club (follow rows). */
-export async function clubManagerIds(admin: Admin, clubId: string): Promise<string[]> {
+function orgColumn(side: OrgSide): 'league_id' | 'club_id' {
+  return side === 'league' ? 'league_id' : 'club_id';
+}
+
+/** Owners + managers of the org (follow rows). */
+export async function orgManagerIds(admin: Admin, side: OrgSide, orgId: string): Promise<string[]> {
   const { data } = await admin
     .from('memberships')
     .select('profile_id')
-    .eq('club_id', clubId)
+    .eq(orgColumn(side), orgId)
     .eq('scope_type', 'org')
     .eq('kind', 'follow')
     .in('role', ['owner', 'manager'])
@@ -28,34 +35,61 @@ export async function clubManagerIds(admin: Admin, clubId: string): Promise<stri
   return [...new Set((data ?? []).map(r => r.profile_id as string))];
 }
 
-export async function viewerJoinRequest(admin: Admin, clubId: string, profileId: string | null): Promise<{ id: string } | null> {
+export async function viewerJoinRequest(
+  admin: Admin,
+  side: OrgSide,
+  orgId: string,
+  profileId: string | null
+): Promise<{ id: string } | null> {
   if (!profileId) return null;
   const { data, error } = await admin
-    .from('club_join_requests')
+    .from(joinRequestsTable(side))
     .select('id')
-    .eq('club_id', clubId)
+    .eq(orgColumn(side), orgId)
     .eq('profile_id', profileId)
     .maybeSingle();
   if (error || !data) return null;
   return { id: data.id as string };
 }
 
+async function notifyRequest(admin: Admin, side: OrgSide, org: { id: string; name: string }, actorId: string, requestId: string) {
+  const managerIds = await orgManagerIds(admin, side, org.id);
+  if (side === 'league') {
+    const { notifyLeagueJoinRequest } = await import('@/lib/leagues/notify');
+    await notifyLeagueJoinRequest(admin, { managerIds, actorId, leagueId: org.id, leagueName: org.name, requestId });
+  } else {
+    const { notifyClubJoinRequest } = await import('@/lib/clubs/notify');
+    await notifyClubJoinRequest(admin, { managerIds, actorId, clubId: org.id, clubName: org.name, requestId });
+  }
+}
+
+async function notifyDecision(admin: Admin, side: OrgSide, org: { id: string; name: string }, profileId: string, approved: boolean, requestId: string) {
+  if (side === 'league') {
+    const { notifyLeagueJoinDecision } = await import('@/lib/leagues/notify');
+    await notifyLeagueJoinDecision(admin, { profileId, leagueId: org.id, leagueName: org.name, approved, requestId });
+  } else {
+    const { notifyClubJoinDecision } = await import('@/lib/clubs/notify');
+    await notifyClubJoinDecision(admin, { profileId, clubId: org.id, clubName: org.name, approved, requestId });
+  }
+}
+
 /** The requester asks (idempotent — a second ask answers the same request). */
 export async function requestJoin(
   admin: Admin,
-  club: { id: string; name: string },
+  side: OrgSide,
+  org: { id: string; name: string },
   profileId: string
 ): Promise<{ requestId: string; created: boolean } | { error: string; status: number }> {
-  const existing = await viewerJoinRequest(admin, club.id, profileId);
+  const existing = await viewerJoinRequest(admin, side, org.id, profileId);
   if (existing) return { requestId: existing.id, created: false };
   const { data, error } = await admin
-    .from('club_join_requests')
-    .insert({ club_id: club.id, profile_id: profileId })
+    .from(joinRequestsTable(side))
+    .insert({ [orgColumn(side)]: org.id, profile_id: profileId })
     .select('id')
     .single();
   if (error || !data) {
     if (error?.code === '23505') {
-      const again = await viewerJoinRequest(admin, club.id, profileId);
+      const again = await viewerJoinRequest(admin, side, org.id, profileId);
       if (again) return { requestId: again.id, created: false };
     }
     if (error?.code === '42P01' || error?.code === 'PGRST205') {
@@ -64,22 +98,16 @@ export async function requestJoin(
     console.error(`${TAG} insert error:`, error);
     return { error: 'Failed to send the request', status: 500 };
   }
-  await notifyClubJoinRequest(admin, {
-    managerIds: await clubManagerIds(admin, club.id),
-    actorId: profileId,
-    clubId: club.id,
-    clubName: club.name,
-    requestId: data.id as string,
-  });
+  await notifyRequest(admin, side, org, profileId, data.id as string);
   return { requestId: data.id as string, created: true };
 }
 
 /** The requester withdraws. */
-export async function cancelJoinRequest(admin: Admin, clubId: string, profileId: string): Promise<boolean> {
+export async function cancelJoinRequest(admin: Admin, side: OrgSide, orgId: string, profileId: string): Promise<boolean> {
   const { data } = await admin
-    .from('club_join_requests')
+    .from(joinRequestsTable(side))
     .delete()
-    .eq('club_id', clubId)
+    .eq(orgColumn(side), orgId)
     .eq('profile_id', profileId)
     .select('id');
   return (data ?? []).length > 0;
@@ -95,11 +123,11 @@ export interface JoinRequestRow {
 }
 
 /** The manager's queue (a manager surface — real names). */
-export async function listJoinRequests(admin: Admin, clubId: string): Promise<NextResponse> {
+export async function listJoinRequests(admin: Admin, side: OrgSide, orgId: string): Promise<NextResponse> {
   const { data, error } = await admin
-    .from('club_join_requests')
+    .from(joinRequestsTable(side))
     .select('id, profile_id, message, created_at')
-    .eq('club_id', clubId)
+    .eq(orgColumn(side), orgId)
     .order('created_at', { ascending: true })
     .limit(200);
   if (error) {
@@ -135,15 +163,16 @@ export async function listJoinRequests(admin: Admin, clubId: string): Promise<Ne
 /** A manager decides. The delete is the claim (zero rows ⇒ already decided). */
 export async function decideJoinRequest(
   admin: Admin,
-  club: { id: string; name: string },
+  side: OrgSide,
+  org: { id: string; name: string },
   requestId: string,
   decision: 'approve' | 'decline'
 ): Promise<NextResponse> {
   const { data: claimed, error } = await admin
-    .from('club_join_requests')
+    .from(joinRequestsTable(side))
     .delete()
     .eq('id', requestId)
-    .eq('club_id', club.id)
+    .eq(orgColumn(side), org.id)
     .select('id, profile_id');
   if (error) {
     console.error(`${TAG} claim error:`, error);
@@ -153,13 +182,13 @@ export async function decideJoinRequest(
   if (!row) return NextResponse.json({ error: 'Request already decided' }, { status: 409 });
   const profileId = row.profile_id as string;
   if (decision === 'approve') {
-    const { error: joinError } = await joinOrg(admin, { side: 'club', orgId: club.id }, profileId);
+    const { error: joinError } = await joinOrg(admin, { side, orgId: org.id }, profileId);
     if (joinError && joinError.code !== '23505') {
       console.error(`${TAG} join error:`, joinError);
       // The request is gone; the member can ask again.
       return NextResponse.json({ error: 'Failed to add the member' }, { status: 500 });
     }
   }
-  await notifyClubJoinDecision(admin, { profileId, clubId: club.id, clubName: club.name, approved: decision === 'approve', requestId });
+  await notifyDecision(admin, side, org, profileId, decision === 'approve', requestId);
   return NextResponse.json({ ok: true, decision, profileId });
 }

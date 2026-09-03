@@ -1,5 +1,76 @@
 # Development Log
 
+## September 3, 2026 — Program 11 L1: leagues parity, part 1 — visibility, join policy, the approval queue and the join door for leagues (#554, migration 177)
+
+Program 11 ("Leagues parity", Tom, Sep 3 — after program 10 and the
+quick-fixes round): everything phase 9 (#539–#544, migration 176) gave
+clubs, for leagues. Tom's two calls: the `/leagues` directory lands as the
+LAST round, and a private league's site follows the SAME members-only rule
+as clubs (teams and divisions included — one rule, one gate). Three rounds:
+L1 settings + approval + the door (this one, the only migration) → L2 the
+private site, the members' reads, search → L3 the directory.
+
+The build generalises rather than copies: every primitive under phase 9
+(`joinOrg`, `getOrgAndRole`, `revalidateOrgSiteForOrg`, `fetchPublicStandings`,
+the site reader, the console) was already generic over `league | club`; only
+the phase-9 layer itself was pinned to clubs. It now takes a side.
+
+- **Migration 177** (`177_league_membership.sql`, Tom runs it BEFORE this
+  merges): `leagues.visibility` (public|private), `leagues.join_policy`
+  (open|approval) and **`league_join_requests`** — the mirror of 176's club
+  table (one open request per pair; RLS on, zero policies; approve = join +
+  delete). A separate table on purpose: `memberships` already carries
+  `league_id` / `club_id` side by side, and renaming a prod-proven table
+  would force a code/DDL ordering dance for nothing. `org_site_news.audience`
+  (176) already serves both sides.
+- **`orgs/access.ts`** → `readOrgAccess(admin, side, id)` (`readClubAccess`
+  stays as the club wrapper; pre-176/177 ⇒ public / open, never darker).
+  **`orgs/join-requests-server.ts`** (moved from `clubs/`; the table and the
+  org column follow the side; the bells pick the side's notifier) and the
+  pure **`orgs/join-requests.ts`** (the shared titles + the welcome line by
+  side + `joinRequestsTable`, node-tested). `clubs/join-requests-server.ts`
+  is gone — the club routes import the shared module.
+- **Leagues**: the GET answers `visibility`, `joinPolicy`,
+  `viewerRequestPending` and hides the member preview from outsiders of a
+  private league (`memberCount` stays); the PATCH takes the two settings
+  (PGRST204 → 503 "not available yet") and now **revalidates the org site**
+  (it never did; name/place edits ride along) plus the sitemap tag on a
+  visibility flip. `POST /members` on an approval league queues a request
+  instead of joining (a second POST withdraws; the column-only owner still
+  joins). New `GET/PATCH /api/leagues/[id]/join-requests` (manage_members).
+  `leagues/notify.ts` gains `notifyLeagueJoinRequest` (`league_join`, a
+  `join_request` bell to owners + managers, action → the console's roster)
+  and `notifyLeagueJoinDecision` (`league_update` to the requester).
+- **Console**: the Membership section renders for BOTH sides (the state is
+  `orgVisibility` / `orgJoinPolicy`, the control ids `org-visibility` /
+  `org-join-policy`, copy "your club/league"); the queue ("Membership
+  requests (N)") and the decide/save calls go through `/api/${plural}/…`.
+- **The league page** gets the four button states (Join league / Request to
+  join / Request sent · withdraw / Leave league) with the matching toasts.
+- **The door** is now `/join/[side]/[id]` (validates the side; `/join/club/
+  {id}` — the URL published sites already link to — unchanged; a bogus side
+  is a not-found, never a crash). The site hero's "Join {name}" and the
+  Members-only panel's doors are absolute `/join/{side}/{id}` links for
+  either side; the panel's copy says "Join the league/club".
+- e2e (all self-skip pre-177): `league-membership-settings.spec.ts` (defaults
+  → PATCH flips → GET + row → member 403 → bad value 400 → the console's
+  selects at 375px with the toast), `league-join-approval.spec.ts` (request →
+  the row + the owner's `league_join` bell, no membership, count unchanged
+  → withdraw → re-ask → a member's queue read 403s → approve → member +
+  `league_update` bell + 409 on a repeat → decline path with a minted third
+  user → the open league joins instantly → the league page's "Request sent ·
+  withdraw" and the console queue approving at 375px), `league-join-door.
+  spec.ts` (the published site's door → the signed-out door parks the intent
+  → sign-in returns → request; the open league joins on the spot; a bogus
+  side 404s; 375px). Regressions green vs the live DB: club-membership-
+  settings, club-join-approval, club-join-door (the moved code), league-join,
+  league-managers, org-console-golf, org-site (5).
+
+Next: L2 — a private league on the site (the gates, `/standings/mine`,
+`/news/mine`, search + sitemap visibility), zero DDL.
+
+---
+
 ## September 3, 2026 — Maintenance sweep after the quick-fixes round + session prompt re-aligned (#552, docs only)
 
 The full checklist on `main` at the #551 merge (7d02d55), nothing red:
