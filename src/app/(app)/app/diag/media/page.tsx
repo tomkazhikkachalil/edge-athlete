@@ -22,6 +22,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
 import BrandBar from '@/components/BrandBar';
 import CaptureInputs from '@/components/media/CaptureInputs';
+import InAppCamera, { hasCameraStreamApi } from '@/components/media/InAppCamera';
 import { validateFiles } from '@/lib/media/validation';
 import { MAX_CANVAS_DIM, PREVIEW_MAX_DIM } from '@/lib/media/limits';
 
@@ -78,6 +79,7 @@ export default function MediaDiagPage() {
   const [lines, setLines] = useState<string[]>([]);
   const [lastFile, setLastFile] = useState<File | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
+  const [streamCameraOpen, setStreamCameraOpen] = useState(false);
   const tapAtRef = useRef<number | null>(null);
   const linesRef = useRef<string[]>([]);
 
@@ -276,7 +278,7 @@ export default function MediaDiagPage() {
     }
   }, [append]);
 
-  const handleFiles = useCallback(async (files: FileList, source: string) => {
+  const handleFiles = useCallback(async (files: FileList | File[], source: string) => {
     const tapped = tapAtRef.current;
     tapAtRef.current = null;
     append(`[change] ${source}: ${files.length} file(s)${tapped !== null ? ` · ${ms(tapped)} after the tap` : ''}`);
@@ -350,7 +352,7 @@ export default function MediaDiagPage() {
           within 48 hours.
         </p>
 
-        <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
           <label className="ea-cta min-h-[52px] rounded-lg text-white font-semibold flex items-center justify-center cursor-pointer">
             Upload (library)
             <input
@@ -366,6 +368,16 @@ export default function MediaDiagPage() {
               onChange={e => e.target.files && e.target.files.length > 0 && void handleFiles(e.target.files, 'library')}
             />
           </label>
+          {hasCameraStreamApi() && (
+            <button
+              type="button"
+              disabled={busy !== null}
+              onClick={() => { append('[tap] In-app camera (getUserMedia)'); setStreamCameraOpen(true); }}
+              className="min-h-[52px] rounded-lg border border-border-strong text-primary font-semibold hover:bg-surface disabled:opacity-50"
+            >
+              In-app camera
+            </button>
+          )}
           <CaptureInputs onFiles={files => void handleFiles(files, 'camera')} allowVideo>
             {({ openPhoto, openVideo }) => (
               <>
@@ -417,6 +429,17 @@ export default function MediaDiagPage() {
           {lines.join('\n')}
         </pre>
       </main>
+      {streamCameraOpen && (
+        <InAppCamera
+          onClose={() => { append('[stream] closed without a photo'); setStreamCameraOpen(false); }}
+          onStreamReady={(w, h, facing) => append(`[stream] ${w}×${h} · ${facing}`)}
+          onCapture={file => {
+            setStreamCameraOpen(false);
+            tapAtRef.current = performance.now();
+            void handleFiles([file], 'in-app camera');
+          }}
+        />
+      )}
     </div>
   );
 }

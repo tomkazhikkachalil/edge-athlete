@@ -94,6 +94,12 @@ Flow list: `docs/qa-test-guide.md`, plus these launch-round additions:
       video → every step logs a line; screenshot or Copy log. Any `FAILED`,
       `THREW` or `TIMEOUT` line names the broken step and decoder — read it
       before changing any camera code (DEVLOG Sep 3 2026, round 9).
+- [ ] **Native camera shows a BLACK preview after the shutter** (iOS's own
+      screen, "Use Photo" hands nothing back): that is iOS, not the app
+      (DEVLOG round 10). Device checks first — another site's photo input,
+      Settings → Camera → Formats → Most Compatible, reboot, browser camera
+      permission. The composer's "Camera not working? Use the in-app camera"
+      link is the documented fallback; confirm it reaches the editor.
 
 ## 5a. Org custom domains (phase 6b C1) — the platform env + the recipe
 

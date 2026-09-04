@@ -1,5 +1,58 @@
 # Development Log
 
+## September 3, 2026 — Round 10: the sweep says nothing in the app broke; iOS's photo capture did. An in-app camera as the fallback (zero DDL)
+
+The facts that finally held still (Tom, iPhone 12 Pro Max, **iOS 26.6.1** —
+not iOS 15; camera format High Efficiency; Safari and Chrome alike): library
+upload → editor → post works; camera **video** → editor → post works; camera
+**photo**: shutter → the camera UI freezes → iOS's own preview is **black**
+with Retake / Use Photo → Use Photo → back to the composer, no editor. Same
+through the library sheet's "Take Photo or Video". Tom: "figure out what
+broke, run a sweep, compare it to older versions."
+
+**The sweep.** Camera path, Sep 1 evening → production now: `CreatePostModal`,
+`CaptureInputs`, `upload.ts`, `decode.ts`, `exif-strip.ts`, `validation.ts`
+are **byte-identical** (`git diff` empty). The one change on the path is the
+editor's loading spinner, shown after a file arrives. Everything else that
+changed since Sep 1 and runs on the feed page — the browserslist floor, the
+head `structuredClone` polyfill, the AppHeader fix, the tab-strip gap,
+PostCard `preload="none"` — never touches the camera picker, because the
+picker is iOS's screen, not ours. **Nothing in the app broke.** The black
+picture is drawn by iOS before the page receives anything; video through the
+same picker works; Apple's developer forums document this exact failure from
+iOS 18.4 on (black preview, permissions fine, third-party apps and web views,
+reboot the only relief; a capture session interrupted under resource
+contention — threads 789087, 791199, 785206). HEIF adds a conversion step to
+the photo path that video does not have. Device checks come first: another
+site's photo input, Settings → Camera → Formats → Most Compatible, reboot,
+browser camera permission.
+
+**The one lever the app has**: a photo path that never enters the iOS picker.
+`src/components/media/InAppCamera.tsx` — a camera stream in the page
+(`getUserMedia`, rear/front flip), a shutter, one frame drawn to a canvas and
+handed back as a JPEG `File` through the SAME `handleFileUpload` → editor →
+upload pipeline as a picked file. It is a **fallback, never the default**:
+the composer keeps "Take photo" on the native camera (the full-sensor rule in
+`CaptureInputs.tsx` stands, now with its one documented exception) and adds a
+small link under the media row, on touch devices with the stream API only —
+"Camera not working? Use the in-app camera". Stream stills are video-frame
+resolution (up to 4K on that phone), below the native 12MP; the copy says so.
+Every track stops on close and unmount; errors (blocked, none, in use) show
+inline with "Try the device camera instead". `/app/diag/media` gets the same
+shutter as an extra button, logging `[stream] W×H` and the capture's steps.
+
+`e2e/in-app-camera.spec.ts` (@mobile): the `mobile` Playwright project now
+launches Chromium with a fake camera device, so stream → shutter → File →
+editor → tile is pinned; WebKit has no fake device and the spec skips there.
+
+Verification: `npm run verify` (gate 0); `in-app-camera`, `diag-media`,
+`feed-post`, `media-editor`; a 375px pass of the row and the modal; after
+merge, the live chunks. Then Tom: composer → the link → shutter → editor →
+post; and the device checks — if Most Compatible revives the native picker,
+that becomes a runbook line.
+
+---
+
 ## September 3, 2026 — Round 9: measure the phone before guessing again — /app/diag/media (zero DDL)
 
 After the reset (#571) went live, Tom's report turned over again: a restart
