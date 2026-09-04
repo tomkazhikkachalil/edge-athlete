@@ -1,5 +1,75 @@
 # Development Log
 
+## September 4, 2026 — Org Staff Program, round 4: staff invites — the loop an owner actually runs (#579, zero DDL)
+
+Rounds 2 and 3 are prod-proven (a Teams-only staff row reads structure and
+creates a team, and is refused everywhere else). Round 4 is the way such a
+row comes to exist: an OWNER invites a person by email to manage sections,
+optionally inside one division or team; the person accepts with the
+account that uses that email; the grant lands; the trail is written.
+
+**`src/lib/orgs/staff-invites.ts`** — org-claim's semantics on
+`org_staff_invites` (178): hashed at rest, single-use, atomic redeem,
+restore-on-failed-precondition. Unlike a stub-org handover the invite is
+addressed to a person: `invited_email` must match the redeemer's account
+email (case-insensitive); a mismatch is a 403 that says so and keeps the
+token intact — never silently bind a token to whoever holds the link. A
+supervised profile can never hold a staff row (checked before the redeem).
+`grantStaffRow` lands the grant as ONE `kind='staff'` row per (profile,
+scope, season): an existing row at that scope takes the union of sections
+(grants are additive, masterplan §5), an admin grant absorbs a staff row.
+`writeStaffAudit` appends to `org_staff_audit` (best-effort; never blocks a
+grant). `staff-validate.ts` is the pure zod mirror of the DB shape CHECK
+(admin ⇒ org scope, no sections; staff ⇒ ≥1 known section; scope id iff a
+sub-scope) plus `normalizeSections` / `mergeSections` / `describeGrant`
+("Teams, Venues"). `staff.ts` lists everyone with authority — ladder rows
+and live staff rows — joined to profiles for NAME and avatar only (never
+email, never guardian fields; charter 2).
+
+**Routes** (`orgs/staff-routes.ts`, side-parametrised; thin twins under
+`/api/{leagues,clubs}/[id]/staff/**`): GET (the staff list + open invites)
+is `enter_console` — the hierarchy section shows grant-holders to anyone in
+the console; POST invite, PATCH sections, DELETE grant, DELETE invite are
+`change_roles` — **owners only**, the standing rule: an admin cannot mint
+peers. The invite's division/team/season must belong to THIS org (400
+otherwise). The link is ALWAYS in the POST response (the guaranteed
+channel); the email (`sendOrgStaffInvite`, SMTP-guarded) and the bell
+(`org_staff_invite`, only when the email already has a profile) are
+conveniences. Accepting bells the owners (`org_staff_accepted`); a revoke
+bells the person (`org_staff_revoked`). Rate buckets `staff-invite` (20/h
+per owner), `staff-invite-peek` (30/min per IP), `staff-invite-redeem`
+(10/h per user). Public `GET/POST /api/org-invite/[token]`: the peek never
+carries the invited email; uniform 404s keep guessing uninformative.
+
+**The landing page** `/org-invite/[token]` (the org-claim page's shape):
+BrandBar, string-union state machine, every terminal state a real CTA;
+shows the org, the summary line and the scope ("Division: U13 Boys ·
+Season: 2026"), and says plainly what the person will NOT get ("the
+organization's owners keep its settings and identity"). Signed-out
+visitors park the token (`org-invite-parked.ts`, own key, 30-day TTL) and
+`ResumeOrgInviteBanner` (AppHeader, next to the claim banner) brings them
+back after sign-in or the organizer signup. Wrong account → "Switch
+account", token kept.
+
+Tests: `staff-validate.test.ts` (the shape rule, email normalisation,
+union/dedupe/describe, the row shape from input, the parked-token parse).
+e2e `org-staff-invite.spec.ts`: owner mints for user A's email (upper-cased
+on purpose) at division scope; a stranger cannot mint; a foreign division
+is 400; the owner accepting A's invite is 403 wrong-account with the token
+intact; anonymous peek 200; A accepts at 375px and the console shows only
+Teams; the second accept is 410; capabilities carry the scoped grant; an
+entry in THAT division 201, another division 403, an org-level team 403,
+seasons 403, org rename 403, site 403; the owner's list shows A; A cannot
+revoke; PATCH to Teams+Venues shows in capabilities; revoke empties them
+and structure is 403 again; the audit trail reads invited → accepted →
+changed → revoked. Cleanup deletes the seeded league (cascade) and its trail.
+
+Not in this round (round 5): the console's Hierarchy section and the invite
+modal — today the invite is minted through the API; the e2e is the only
+inviter UI until round 5 lands.
+
+---
+
 ## September 4, 2026 — Org Staff Program, round 3: every route family names its intent (#578, zero DDL)
 
 Round 2's reader is prod-proven (a real staff row on a live league answered

@@ -272,6 +272,51 @@ This email was sent from your website's contact form.
   }
 
   /**
+   * Org staff invite (org staff program, 178): an owner invited this email
+   * to help run the org — the grant summary and the single-use link. The
+   * link is always returned to the inviter too; email is a convenience.
+   */
+  async sendOrgStaffInvite(
+    to: string,
+    orgName: string,
+    inviterName: string,
+    summary: string,
+    inviteUrl: string
+  ): Promise<boolean> {
+    const org = escapeHtml(orgName);
+    const inviter = escapeHtml(inviterName);
+    const what = escapeHtml(summary);
+    const htmlContent = `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <h2 style="color:#6d28d9;">${inviter} invited you to help run ${org}</h2>
+        <p style="color:#333;font-size:15px;line-height:1.6;">
+          You've been given access to: <strong>${what}</strong>. Accept the
+          invite with the Edge Athlete account that uses this email address
+          (create one first if you don't have it yet — no athlete details needed).
+        </p>
+        <a href="${inviteUrl}"
+           style="display:inline-block;background:#7c3aed;color:#fff;text-decoration:none;padding:10px 20px;border-radius:6px;font-size:14px;margin-top:8px;">
+          Accept the invite
+        </a>
+        <p style="color:#888;font-size:12px;margin-top:16px;">
+          This link is single-use and expires in 30 days. If you weren't
+          expecting it, you can ignore this email — nothing changes.
+        </p>
+        <div style="margin-top:20px;padding-top:20px;border-top:1px solid #eee;color:#888;font-size:12px;">
+          <p>— Edge Athlete</p>
+        </div>
+      </div>
+    `;
+    return this.deliver('org_staff_invite', {
+      from: fromAddress(),
+      to,
+      subject: `${inviterName} invited you to help run ${orgName} on Edge Athlete`,
+      html: htmlContent,
+      text: `${inviterName} invited you to help run ${orgName} on Edge Athlete.\n\nAccess: ${summary}.\n\nAccept with the account that uses this email (single-use link, expires in 30 days):\n\n${inviteUrl}\n\nIf you weren't expecting this, you can ignore it.\n\n— Edge Athlete`,
+    });
+  }
+
+  /**
    * Calendar event invitation for an EMAIL invitee (not an app user yet) —
    * read-only v1: full details + a join-the-app path. Registered guests get
    * in-app notifications instead, never this email. whenText is formatted

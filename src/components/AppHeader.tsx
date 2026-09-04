@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { useRouter, usePathname } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
 import ResumeOrgClaimBanner from '@/components/orgs/ResumeOrgClaimBanner';
+import ResumeOrgInviteBanner from '@/components/orgs/ResumeOrgInviteBanner';
 import { formatDisplayName, getInitials } from '@/lib/formatters';
 import { AvatarImage } from '@/components/OptimizedImage';
 import NotificationBell from '@/components/NotificationBell';
@@ -338,6 +339,7 @@ export default function AppHeader({ onCreatePost, onEditProfile }: AppHeaderProp
   return (
     <>
       <ResumeOrgClaimBanner />
+      <ResumeOrgInviteBanner />
       {/* Desktop & Tablet Header */}
       <header className={headerShell(scrolled)}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6">

@@ -37,6 +37,7 @@ export const RESERVED_ROOT_SLUGS: ReadonlySet<string> = new Set([
   'notifications',
   'onboarding',
   'org-claim',
+  'org-invite',
   'privacy',
   'register',
   'reset-password',
