@@ -100,7 +100,8 @@ export default function AppHeader({ onCreatePost, onEditProfile }: AppHeaderProp
         const data = await res.json();
         if (!cancelled) {
           const all = (data.organizations ?? []) as { kind: 'league' | 'club'; id: string; name: string; role: string }[];
-          setManagedOrgs(all.filter(o => o.role === 'owner' || o.role === 'manager').slice(0, 3));
+          // Org staff program: admins and section staff manage too (178).
+          setManagedOrgs(all.filter(o => ['owner', 'manager', 'admin', 'staff'].includes(o.role)).slice(0, 3));
         }
       } catch {
         if (!cancelled) setManagedOrgs([]);
