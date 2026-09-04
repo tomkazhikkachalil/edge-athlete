@@ -475,21 +475,43 @@ export async function profileMembershipRows(
   profileId: string
 ): Promise<{ rows: Array<{ orgId: string; role: string }>; error: PostgrestError | null }> {
   const col = orgColumn(side);
-  const { data, error } = await admin
+  // Org staff program (178): staff rows ride along — a section manager's
+  // org must reach their org lists (the header, the feed card, the profile
+  // strip) or the console is unreachable. Ladder rows stay org-scope;
+  // staff rows count at ANY scope (a division grant still opens the
+  // console); expired staff rows are inert. 42703-safe: pre-178 columns
+  // fall back to the ladder read.
+  const wide = await admin
     .from('memberships')
-    .select(`${col}, role`)
+    .select(`${col}, role, kind, scope_type, expires_at`)
     .eq('profile_id', profileId)
-    .eq('scope_type', 'org');
-  // One entry per org: a dual-edge profile reduces to their max role.
-  const byOrg = new Map<string, string[]>();
-  for (const r of (data ?? []) as unknown as Array<Record<string, string>>) {
-    if (!byOrg.has(r[col])) byOrg.set(r[col], []);
-    byOrg.get(r[col])!.push(r.role);
+    .in('kind', ['follow', 'roster', 'staff']);
+  const { data, error } = wide.error
+    ? await admin.from('memberships').select(`${col}, role`).eq('profile_id', profileId).eq('scope_type', 'org')
+    : wide;
+  const now = Date.now();
+  // One entry per org: a dual-edge profile reduces to their max role; a
+  // staff-only profile reads admin | staff.
+  const byOrg = new Map<string, { ladder: string[]; admin: boolean; staff: boolean }>();
+  for (const r of (data ?? []) as unknown as Array<Record<string, string | null>>) {
+    const orgId = r[col] as string;
+    if (!byOrg.has(orgId)) byOrg.set(orgId, { ladder: [], admin: false, staff: false });
+    const entry = byOrg.get(orgId)!;
+    if (r.kind === 'staff') {
+      if (r.expires_at && new Date(r.expires_at).getTime() <= now) continue;
+      if (r.role === 'admin' && (r.scope_type ?? 'org') === 'org') entry.admin = true;
+      else if (r.role === 'staff') entry.staff = true;
+    } else if ((r.scope_type ?? 'org') === 'org') {
+      entry.ladder.push(r.role ?? '');
+    }
   }
-  const rows = [...byOrg.entries()].map(([orgId, roles]) => ({
-    orgId,
-    role: (maxOrgRole(roles) ?? 'member') as string,
-  }));
+  const rows = [...byOrg.entries()]
+    .map(([orgId, e]) => {
+      const ladder = maxOrgRole(e.ladder);
+      const role = ladder === 'owner' || ladder === 'manager' ? ladder : e.admin ? 'admin' : e.staff ? 'staff' : (ladder ?? null);
+      return role ? { orgId, role: role as string } : null;
+    })
+    .filter((r): r is { orgId: string; role: string } => r !== null);
   return { rows, error };
 }
 

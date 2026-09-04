@@ -1,5 +1,65 @@
 # Development Log
 
+## September 4, 2026 — Org Staff Program, round 5: the Hierarchy section — who runs what, and the invite on every node (#580, zero DDL)
+
+Round 4's loop is prod-proven (the full invite spec passed against
+production). Round 5 gives the owner the picture and the door: a console
+section that draws the org as a tree and lets them invite from any node.
+
+**`Hierarchy & people`** (`src/components/orgs/console/HierarchySection.tsx`;
+`src/lib/orgs/hierarchy.ts` is the pure tree builder, node-tested): org →
+seasons (newest live one open, archived kept but collapsed so a
+season-pinned grant still has a home) → divisions → the teams entered in
+them, plus "Teams not in a division"; on every node the people who hold
+authority there — the ladder and org-wide grants on the org node, scoped
+grants on their division or team — as chips reading "Pat · Teams, Venues".
+Owners get **Invite** on every node and a ✕ on every grant chip; open
+invites list at the top with Revoke. Everyone else in the console sees the
+tree read-only. A league's affiliated clubs are read-only leaves with the
+rule stated in place: a league never grants roles inside a club. The key
+`'hierarchy'` is a console VIEW, not a grant section — it is never in a
+grant and always renders for a console entrant.
+
+**The invite modal** (`StaffInviteModal.tsx`): email, "Where" (the whole
+org / any division / any team — prefilled from the node pressed), an
+**Admin** toggle that only exists at org scope and says what it still
+excludes, the nine section checkboxes (`SECTION_LABELS`), an optional
+season ("ends at rollover"). On success the single-use link with Copy, and
+whether the email and the bell went. A bottom sheet at phone width, a
+dialog above it; Escape and backdrop close; a started form asks before
+discarding (`useDirtyClose` + `ConfirmModal`, the house pattern). The
+admin toggle clears when the scope leaves the org — the DB shape rule,
+enforced in the UI too.
+
+**Reachability, the parity duty.** A section manager's org must reach
+their org lists or the console is a URL they never see:
+`profileMembershipRows` (the one reader behind the header's org menu, the
+feed's "Your Clubs & Leagues" card and the profile strip) now counts live
+staff rows at ANY scope and reports `admin` / `staff` for a staff-only
+profile; the header's filter includes both; the feed card's Manage link
+and the strip's role badge (STAFF / ADMIN, like MANAGER) follow for free.
+42703-safe: pre-178 columns fall back to the ladder read.
+
+Lint taught two things on the way: components defined inside a component
+(`react-hooks/static-components`) — hoisted with explicit props; and
+`set-state-in-effect` sees through a callback — the loads run in a
+deferred macrotask (the RegistrationSteps precedent).
+
+Tests: `hierarchy.test.ts` (nodes, dedupe, unknown/archived teams dropped,
+the open season). e2e `org-hierarchy.spec.ts` **@mobile** (Chromium and
+WebKit at 390×844): the owner sees the tree with A on the division, no
+horizontal overflow, opens the sheet from the division node with the
+scope prefilled and no Admin toggle, mints an invite (Competitions &
+schedule · U13 Boys under Open invites), revokes the invite and then A's
+grant; A, re-granted org-wide Teams, sees the tree with no Invite buttons
+and a console showing Teams but not Website.
+
+Verification: `npm run verify` (6 GB heap); the spec on both mobile
+engines locally; after merge the same against production. Round 6 closes
+the program: season expiry at rollover, the org page's Staff link, docs.
+
+---
+
 ## September 4, 2026 — Org Staff Program, round 4: staff invites — the loop an owner actually runs (#579, zero DDL)
 
 Rounds 2 and 3 are prod-proven (a Teams-only staff row reads structure and

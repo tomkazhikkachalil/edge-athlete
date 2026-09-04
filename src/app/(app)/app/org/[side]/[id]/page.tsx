@@ -32,6 +32,7 @@ import { courseDisplayName } from '@/lib/golf/tees';
 import type { GolfCourse } from '@/types/golf';
 import AnnouncementHistory from '@/components/orgs/AnnouncementHistory';
 import MemberPhotoPicker from '@/components/orgs/MemberPhotoPicker';
+import HierarchySection from '@/components/orgs/console/HierarchySection';
 
 // ── The org-manager console (phase 1, round 1) ──────────────────────────────
 // The guardian-console shape (AppHeader — a recurring signed-in
@@ -87,10 +88,12 @@ interface CompetitionEntryRow {
  *  them. Classic = the phase-1 order (roster first); golf leads with the
  *  site, the courses and the leagues (a golf club's console is a site
  *  builder first). Every key appears exactly once per variant (pinned). */
-export type ConsoleSectionKey = OrgSection;
+/** 'hierarchy' (org staff program, round 5) is a console VIEW, not a grant
+ *  section — every console entrant sees it; it never appears in a grant. */
+export type ConsoleSectionKey = OrgSection | 'hierarchy';
 export const CONSOLE_SECTION_ORDER: Record<'default' | 'golf', readonly ConsoleSectionKey[]> = {
-  default: ['roster', 'membership', 'seasons', 'teams', 'competitions', 'registrations', 'external', 'venues', 'website'],
-  golf: ['website', 'venues', 'competitions', 'roster', 'membership', 'seasons', 'teams', 'registrations', 'external'],
+  default: ['roster', 'hierarchy', 'membership', 'seasons', 'teams', 'competitions', 'registrations', 'external', 'venues', 'website'],
+  golf: ['website', 'venues', 'competitions', 'hierarchy', 'roster', 'membership', 'seasons', 'teams', 'registrations', 'external'],
 };
 
 interface CompetitionRow {
@@ -159,6 +162,8 @@ export default function OrgConsolePage() {
   // managers. null until /capabilities answers (pre-178 it answers the
   // ladder alone, which is the old behaviour exactly).
   const [visibleKeys, setVisibleKeys] = useState<readonly ConsoleSectionKey[] | null>(null);
+  // Owners invite / revoke staff from the Hierarchy section (change_roles).
+  const [viewerIsOwner, setViewerIsOwner] = useState(false);
   const [seasons, setSeasons] = useState<SeasonRow[]>([]);
   const [teams, setTeams] = useState<TeamRow[]>([]);
   const [counts, setCounts] = useState<{ managers: number; rosterAthletes: number }>({
@@ -430,10 +435,11 @@ export default function OrgConsolePage() {
         // status is the fallback for a database/deploy without the route.
         let capsDecided = false;
         if (capsRes.ok) {
-          const caps = (await capsRes.json()) as { canEnterConsole?: boolean; visibleSections?: ConsoleSectionKey[] };
+          const caps = (await capsRes.json()) as { canEnterConsole?: boolean; visibleSections?: ConsoleSectionKey[]; isOwner?: boolean };
           if (cancelled) return;
           capsDecided = true;
           setVisibleKeys(caps.visibleSections ?? []);
+          setViewerIsOwner(caps.isOwner === true);
           setAuthorized(caps.canEnterConsole === true);
           if (caps.canEnterConsole !== true) return;
         }
@@ -1161,6 +1167,16 @@ export default function OrgConsolePage() {
   // (phase 7 C5: golf-first — Website and Venues on top). A pure hoist of
   // the JSX that used to sit inline in <main>; every closure is unchanged.
   const sectionNodes: Record<ConsoleSectionKey, ReactNode> = {
+    hierarchy: (
+      <HierarchySection
+        side={side as 'league' | 'club'}
+        orgId={orgId}
+        seasons={seasons}
+        teams={teams}
+        isOwner={viewerIsOwner}
+        onError={message => showError('Hierarchy', message)}
+      />
+    ),
     membership: (
         <section
           id="membership"
@@ -4378,7 +4394,7 @@ export default function OrgConsolePage() {
         />
 
         {CONSOLE_SECTION_ORDER[golfFirst ? 'golf' : 'default']
-          .filter(key => !visibleKeys || visibleKeys.includes(key))
+          .filter(key => key === 'hierarchy' || !visibleKeys || visibleKeys.includes(key))
           .map(key => (
             <Fragment key={key}>{sectionNodes[key]}</Fragment>
           ))}
