@@ -30,6 +30,8 @@ import { recipeEnvelope } from '@/lib/media/recipes';
 import { loadComposerDraft, saveComposerDraft, clearComposerDraft, type ComposerDraft } from '@/lib/posts/composer-draft';
 import { uploadPostMedia } from '@/lib/media/upload';
 import InAppCamera, { canUseInAppCamera } from '@/components/media/InAppCamera';
+import { planCaptureAttach, usableDuration } from '@/lib/media/capture-attach';
+import { MAX_VIDEO_SECONDS } from '@/lib/media/limits';
 import type { EditRecipe, EditedMedia, EditorConfig, MediaAsset } from '@/lib/media/types';
 
 interface CreatePostModalProps {
@@ -54,8 +56,11 @@ interface MediaFile {
   sourceFile?: File;
   /** The edit that produced `file`; rehydrates the editor on re-edit. */
   recipe?: EditRecipe;
+  /** Object URL of `posterBlob`, for an attached video tile's poster (Capture v2). */
+  posterPreviewUrl?: string;
   /** Video cover frame from the editor — uploaded as post_media.thumbnail_url. */
-  posterBlob?: Blob;
+  /** undefined = not attempted yet; null = attempted, none (Capture v2 lazy poster). */
+  posterBlob?: Blob | null;
   /** Output metadata from the editor's probe — persisted to post_media. */
   width?: number;
   height?: number;
@@ -300,7 +305,13 @@ export default function CreatePostModal({
   // Validation now mirrors the server allowlist AT PICK (HEIC no longer fails
   // after a full upload — it re-encodes in the editor), and the size cap
   // matches the server's 50MB (edited images re-encode far smaller anyway).
-  const handleFileUpload = useCallback((files: FileList | File[]) => {
+  //
+  // CAPTURE V2 (Sep 2026): a CAMERA capture attaches immediately as a tile —
+  // the original File is the tile and the upload; the editor is one tap away
+  // (the tile's Edit button), never mandatory. Nothing heavy runs between the
+  // camera's hand-back and the tile (capture-attach.ts explains why). Library
+  // picks and drops keep the editor-first flow. HEIC still opens the editor.
+  const handleFileUpload = useCallback((files: FileList | File[], source: 'camera' | 'library' = 'library') => {
     if (files.length === 0) return;
     const { accepted, rejected } = validateFiles(Array.from(files), {
       maxBytes: 50 * 1024 * 1024,
@@ -312,15 +323,92 @@ export default function CreatePostModal({
       showError('File not added', r.message);
     }
     if (accepted.length === 0) return;
+    const toAsset = (file: File) => ({
+      id: `${Date.now()}-${Math.random()}`,
+      file,
+      kind: file.type.startsWith('video/') ? 'video' as const : 'image' as const,
+    });
+    if (source === 'camera') {
+      const { attach, editor } = planCaptureAttach(accepted);
+      if (attach.length > 0) {
+        setMediaFiles(prev => [
+          ...prev,
+          ...attach.map((file): MediaFile => {
+            const objectUrl = URL.createObjectURL(file);
+            return {
+              id: `${Date.now()}-${Math.random()}`,
+              url: objectUrl,
+              type: file.type.startsWith('video/') ? 'video' : 'image',
+              size: file.size,
+              file,
+              preview: objectUrl,
+              sourceFile: file,
+              edited: false,
+            };
+          }),
+        ]);
+      }
+      if (editor.length === 0) return;
+      setEditingExistingId(null);
+      setEditorAssets(editor.map(toAsset));
+      return;
+    }
     setEditingExistingId(null);
-    setEditorAssets(
-      accepted.map(file => ({
-        id: `${Date.now()}-${Math.random()}`,
-        file,
-        kind: file.type.startsWith('video/') ? 'video' as const : 'image' as const,
-      }))
-    );
+    setEditorAssets(accepted.map(toAsset));
   }, [mediaFiles.length, showError]);
+
+  // Capture v2: an attached video's own <video preload="metadata"> reports its
+  // size and duration for free — no extra probe load. MediaRecorder files say
+  // Infinity until seeked; that reads as "unknown", never as "too long".
+  const noteVideoMeta = (id: string, el: HTMLVideoElement) => {
+    const duration = usableDuration(el.duration);
+    setMediaFiles(prev =>
+      prev.map(f => {
+        if (f.id !== id || f.width) return f;
+        return {
+          ...f,
+          width: el.videoWidth || undefined,
+          height: el.videoHeight || undefined,
+          durationSeconds: duration ?? f.durationSeconds,
+        };
+      })
+    );
+  };
+  const hasTooLongVideo = mediaFiles.some(f => f.type === 'video' && (f.durationSeconds ?? 0) > MAX_VIDEO_SECONDS);
+
+  // Capture v2: a poster for an attached video, AFTER the tile is on screen,
+  // one at a time, with a deadline — never on the path to the tile. A miss
+  // leaves the tile on its own first frame and the post without a thumbnail.
+  const posterInFlightRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    if (posterInFlightRef.current.size > 0) return;
+    const candidate = mediaFiles.find(
+      f => f.type === 'video' && !f.edited && f.posterBlob === undefined && !!f.sourceFile
+    );
+    if (!candidate || !candidate.sourceFile) return;
+    const id = candidate.id;
+    const source = candidate.sourceFile;
+    posterInFlightRef.current.add(id);
+    let settled = false;
+    const finish = (blob: Blob | null) => {
+      if (settled) return;
+      settled = true;
+      posterInFlightRef.current.delete(id);
+      setMediaFiles(prev =>
+        prev.map(f =>
+          f.id === id && f.posterBlob === undefined
+            ? { ...f, posterBlob: blob ?? null, posterPreviewUrl: blob ? URL.createObjectURL(blob) : undefined }
+            : f
+        )
+      );
+    };
+    const timer = setTimeout(() => finish(null), 6000);
+    void import('@/lib/media/poster')
+      .then(({ capturePoster }) => capturePoster(source, 0.1))
+      .then(blob => finish(blob))
+      .catch(() => finish(null))
+      .finally(() => clearTimeout(timer));
+  }, [mediaFiles]);
 
   // Editor finished: append new assets, or swap the re-edited one in place
   const handleEditorDone = (results: EditedMedia[]) => {
@@ -389,6 +477,7 @@ export default function CreatePostModal({
     if (file?.preview) {
       URL.revokeObjectURL(file.preview);
     }
+    if (file?.posterPreviewUrl) URL.revokeObjectURL(file.posterPreviewUrl);
     setMediaFiles(prev => prev.filter(f => f.id !== fileId));
   };
 
@@ -480,6 +569,8 @@ export default function CreatePostModal({
 
   // Validation
   const isValidForSubmission = () => {
+    // Capture v2: a video over the cap waits for a trim (the tile says so).
+    if (hasTooLongVideo) return false;
     // General posts need either caption or media
     if (postType === 'general') {
       return caption.trim().length > 0 || mediaFiles.length > 0;
@@ -565,12 +656,13 @@ export default function CreatePostModal({
       }
 
       // Upload media files (for individual posts)
-      const uploadedMedia = await Promise.all(
-        mediaFiles.map(async (file) => {
-          const { url, thumbnailUrl, sourceUrl } = await uploadMediaWithPoster(file);
-          return { ...file, url, thumbnailUrl, sourceUrl };
-        })
-      );
+      // One at a time (Capture v2): nothing heavy runs client-side any more,
+      // but one file in flight is the safe default on a phone.
+      const uploadedMedia: Array<MediaFile & { thumbnailUrl?: string; sourceUrl?: string }> = [];
+      for (const file of mediaFiles) {
+        const { url, thumbnailUrl, sourceUrl } = await uploadMediaWithPoster(file);
+        uploadedMedia.push({ ...file, url, thumbnailUrl, sourceUrl });
+      }
 
       // Prepare post data (userId comes from auth)
       const postData = {
@@ -649,6 +741,7 @@ export default function CreatePostModal({
         if (file.preview) {
           URL.revokeObjectURL(file.preview);
         }
+        if (file.posterPreviewUrl) URL.revokeObjectURL(file.posterPreviewUrl);
       });
     };
   }, [mediaFiles]);
@@ -767,7 +860,7 @@ export default function CreatePostModal({
             {/* Capture row — media is the headline act (Tom, Aug 24): take it
                 NOW at full native-camera quality, or upload. `capture` is a
                 mobile hint; on desktop these open the file picker. */}
-            <CaptureInputs onFiles={handleFileUpload} allowVideo>
+            <CaptureInputs onFiles={files => handleFileUpload(files, 'camera')} allowVideo>
               {({ openPhoto, openVideo }) => (
                 <div className="grid grid-cols-3 gap-2 mb-3">
                   <input
@@ -868,7 +961,25 @@ export default function CreatePostModal({
                         sizes="(max-width: 640px) 45vw, (max-width: 768px) 30vw, 200px"
                       />
                     ) : (
-                      <video src={file.url} className="w-full h-full object-cover" />
+                      <>
+                        {/* Capture v2: metadata only, muted, inline; the poster
+                            arrives after the tile; the element's own metadata
+                            fills width/height/duration (no probe load). */}
+                        <video
+                          src={file.url}
+                          poster={file.posterPreviewUrl}
+                          preload="metadata"
+                          muted
+                          playsInline
+                          onLoadedMetadata={e => noteVideoMeta(file.id, e.currentTarget)}
+                          className="w-full h-full object-cover"
+                        />
+                        {(file.durationSeconds ?? 0) > MAX_VIDEO_SECONDS && (
+                          <div role="status" className="absolute inset-x-0 bottom-0 bg-amber-500/90 text-black text-[11px] font-semibold px-2 py-1">
+                            Too long — trim in the editor
+                          </div>
+                        )}
+                      </>
                     )}
 
                     {/* Remove button. Padding grows the 24px circle to a 40px
@@ -1311,7 +1422,7 @@ export default function CreatePostModal({
           onClose={() => setInAppCameraOpen(false)}
           onCapture={file => {
             setInAppCameraOpen(false);
-            handleFileUpload([file]);
+            handleFileUpload([file], 'camera');
           }}
         />
       )}

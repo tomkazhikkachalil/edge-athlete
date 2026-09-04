@@ -3,6 +3,13 @@ import { requireAuth, getSupabaseAdmin, getProfileRole } from '@/lib/auth-server
 import { resolveActingProfile } from '@/lib/guardian-gate';
 import { enforceRateLimit } from '@/lib/rate-limit';
 import { isUuid } from '@/lib/uuid';
+import { scrubVideoMetadata, SCRUBBABLE_VIDEO } from '@/lib/media/video-scrub-server';
+
+// Capture v2 (Sep 2026): MP4/MOV metadata (GPS ©xyz, udta) is scrubbed HERE,
+// before the storage write, instead of on the phone — a 50MB stream-copy
+// re-mux needs headroom past the default. Fail-open: the original is stored
+// and the response says `scrubbed: false`.
+export const maxDuration = 120;
 
 export async function POST(request: NextRequest) {
   try {
@@ -62,15 +69,29 @@ export async function POST(request: NextRequest) {
     // Generate unique filename — extension from the validated type, random
     // name (crypto.randomUUID, same as upload/route.ts) so nothing in the key
     // is caller-controlled.
-    const fileExt = EXT_BY_TYPE[file.type];
+    // Server-side video metadata scrub (video-scrub-server.ts). A scrubbed
+    // MOV becomes an MP4 — extension and content type follow the OUTPUT.
+    let body: Blob = file;
+    let contentType = file.type;
+    let scrubbed = false;
+    if (SCRUBBABLE_VIDEO.has(file.type)) {
+      const result = await scrubVideoMetadata(new Uint8Array(await file.arrayBuffer()), file.type);
+      if (result.scrubbed) {
+        body = new Blob([result.bytes as BlobPart], { type: result.mime });
+        contentType = result.mime;
+        scrubbed = true;
+      }
+    }
+
+    const fileExt = EXT_BY_TYPE[contentType] ?? EXT_BY_TYPE[file.type];
     const fileName = `${userId}/${crypto.randomUUID()}.${fileExt}`;
     const filePath = `posts/${fileName}`;
 
     // Upload file to Supabase Storage
     const { error: uploadError } = await supabase.storage
       .from('uploads')
-      .upload(filePath, file, {
-        contentType: file.type,
+      .upload(filePath, body, {
+        contentType,
         cacheControl: '3600',
         upsert: false
       });
@@ -92,7 +113,8 @@ export async function POST(request: NextRequest) {
     // Return simplified response that matches what modal expects
     return NextResponse.json({
       url: urlData.publicUrl,
-      type: allowedImageTypes.includes(file.type) ? 'image' : 'video'
+      type: allowedImageTypes.includes(file.type) ? 'image' : 'video',
+      scrubbed,
     });
 
   } catch (error) {

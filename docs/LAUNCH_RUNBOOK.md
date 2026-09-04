@@ -100,6 +100,12 @@ Flow list: `docs/qa-test-guide.md`, plus these launch-round additions:
       Settings → Camera → Formats → Most Compatible, reboot, browser camera
       permission. The composer's "Camera not working? Use the in-app camera"
       link is the documented fallback; confirm it reaches the editor.
+- [ ] **Capture v2 (Sep 3 2026)**: from the composer, Take photo → the tile
+      appears at once (no editor); Record video 10s → tile at once → Create
+      Post → the feed plays it; tap a tile's pencil → editor → Done. A video
+      over 3 minutes shows "Too long — trim in the editor". The stored video
+      carries no ©xyz (server scrub — the diag page's Upload line says
+      `server scrub: yes`).
 
 ## 5a. Org custom domains (phase 6b C1) — the platform env + the recipe
 

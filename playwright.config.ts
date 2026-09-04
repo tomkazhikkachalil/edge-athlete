@@ -54,7 +54,7 @@ export default defineConfig({
         viewport: { width: 390, height: 844 },
         // A fake camera for the in-app camera spec (Chromium only; WebKit has
         // no fake device, so that spec skips itself there).
-        permissions: ['camera'],
+        permissions: ['camera', 'microphone'],
         launchOptions: { args: ['--use-fake-device-for-media-stream', '--use-fake-ui-for-media-stream'] },
       },
     },

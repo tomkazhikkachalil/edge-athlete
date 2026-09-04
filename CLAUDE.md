@@ -351,6 +351,13 @@ const { canView } = await response.json();
 5. **Design tokens** - Import from `src/lib/design-tokens.ts`, never hardcode sizes/colors
 6. **Optimistic updates** - Update UI immediately, sync with server after
 7. **Path alias** - `@/*` maps to `src/*`
+8. **Media capture attaches first (Capture v2, Sep 2026)** — in the composer a
+   camera capture becomes a tile immediately; the editor is the tile's pencil,
+   never a gate. Nothing heavy (decode, thumbnails, container parse, re-mux)
+   may run between the camera's hand-back and the tile. Video metadata is
+   scrubbed **server-side** in `/api/upload/post-media`; the client JPEG strip
+   keeps the Orientation tag. See `src/lib/media/capture-attach.ts` and DEVLOG
+   Sep 3 2026 round 11 before touching the capture path.
 
 ---
 
