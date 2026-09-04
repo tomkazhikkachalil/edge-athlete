@@ -127,6 +127,11 @@ export const RATE_LIMITS = {
   'athlete-claim': { max: 10, windowSeconds: 3600, keyBy: 'ip' },
   'org-claim-peek': { max: 30, windowSeconds: 60, keyBy: 'ip' },
   'org-claim': { max: 10, windowSeconds: 3600, keyBy: 'user' },
+  // Org staff program (178): invites are owner-minted (20/h is a busy
+  // season's staffing); the public peek and the redeem mirror org-claim.
+  'staff-invite': { max: 20, windowSeconds: 3600, keyBy: 'user' },
+  'staff-invite-peek': { max: 30, windowSeconds: 60, keyBy: 'ip' },
+  'staff-invite-redeem': { max: 10, windowSeconds: 3600, keyBy: 'user' },
   // Calendar event creation — org events fan a team_update out to every
   // member (uncapped membership), so creation gets post-create parity.
   'event-create': { max: 30, windowSeconds: 3600, keyBy: 'user' },
