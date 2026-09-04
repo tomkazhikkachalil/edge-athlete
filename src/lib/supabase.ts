@@ -85,7 +85,7 @@ export interface Profile {
   lat?: number | null;
   lng?: number | null;
   location_source?: string | null;
-  user_type: 'athlete' | 'club' | 'league' | 'fan' | 'parent';
+  user_type: 'athlete' | 'club' | 'league' | 'fan' | 'parent' | 'organizer';
   onboarded_at?: string | null; // null = first-run onboarding not yet completed
   created_at: string;
   updated_at: string;

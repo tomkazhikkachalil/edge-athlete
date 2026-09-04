@@ -3,14 +3,19 @@ import { adminClient, deleteQaUser, guardianFlagOn, loadQaUser } from './helpers
 
 // Club sign-up, part 1 (phase 7 C1): the door. The login page's Club and
 // League buttons no longer end in a waitlist popup: the account comes
-// first (an org is owned by a normal profile), then the wizard. The intent
-// rides sessionStorage through the registration hard-reload; `/` honours
-// it after sign-in; the signed-out /club/start card parks it too; "Explore
-// as Guest" is a real anonymous door.
+// first, then the wizard. The intent rides sessionStorage through the
+// registration hard-reload; `/` honours it after sign-in; the signed-out
+// /club/start card parks it too; "Explore as Guest" is a real anonymous door.
+//
+// Org staff program (Sep 4 2026, mig 178): the door now opens on "Do you
+// already have an account?" and the create path is the ORGANIZER account —
+// name, email, password, NO date of birth, no handle — landing as
+// user_type 'organizer'. Self-skips (the organizer assertion only) on a
+// pre-178 database, where the signup answers 503 "not available yet".
 
 const rand = () => Math.random().toString(36).slice(2, 8);
 
-test('the Club door: account → /club/start?sport=golf; signed-out /club/start parks the intent; ?next= honoured; Explore as Guest; 375px', async ({
+test('the Club door: existing-account question → organizer account (no DOB) → /club/start?sport=golf; signed-out /club/start parks the intent; ?next= honoured; Explore as Guest; 375px', async ({
   browser,
 }) => {
   test.setTimeout(240_000);
@@ -46,26 +51,38 @@ test('the Club door: account → /club/start?sport=golf; signed-out /club/start 
     await page.goto('/');
     await page.getByRole('button', { name: /Club/ }).click();
     if (guardianFlagOn()) {
-      // The third role card (preselected/highlighted) → DOB first (an adult), then details.
-      const orgCard = page.getByRole('button', { name: /I run a club or league/ });
-      await expect(orgCard).toBeVisible({ timeout: 20_000 });
-      await orgCard.click();
-      const dob = page.locator('input[type="date"]').first();
-      await dob.fill('1985-06-15');
-      await page.getByRole('button', { name: /Continue/ }).click();
-      await expect(page.getByRole('heading', { name: 'Create your account' })).toBeVisible({ timeout: 20_000 });
+      // "Do you already have an account?" comes FIRST — never "athlete or
+      // parent". "No, create one" → the organizer form: no DOB step, no
+      // handle, no athlete fields (still no horizontal overflow at 375px).
+      await expect(page.getByRole('heading', { name: 'Set up your club' })).toBeVisible({ timeout: 20_000 });
+      await expect(page.getByRole('button', { name: /Yes, sign me in/ })).toBeVisible();
+      await expect(page.getByRole('button', { name: /I'm the athlete/ })).toHaveCount(0);
+      await page.getByRole('button', { name: /No, create one/ }).click();
+      await expect(page.getByRole('heading', { name: 'Create your organizer account' })).toBeVisible({ timeout: 20_000 });
+      await expect(page.locator('input[type="date"]')).toHaveCount(0);
+      await expect(page.locator('#handle')).toHaveCount(0);
       await expect(page.getByRole('radio', { name: 'Club' })).toBeChecked();
+      expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(375);
       await page.getByLabel('First Name').fill('Door');
       await page.getByLabel('Last Name').fill('Tester');
-      await page.locator('#handle').fill(`door${rand()}`);
-      await expect(page.getByText('✓ Handle is available!')).toBeVisible({ timeout: 20_000 });
       await page.getByLabel('Email').fill(email);
       const pw = page.locator('input[type="password"]');
       await pw.nth(0).fill(password);
       await pw.nth(1).fill(password);
-      const gender = page.getByRole('radio').first();
-      if (await gender.count()) await gender.check().catch(() => {});
       await page.getByRole('button', { name: /Create Account/i }).click();
+      // Pre-178 database: the branch answers 503 "not available yet" and the
+      // auth user is rolled back — nothing else in this spec depends on it.
+      const notYet = page.getByText(/not available yet/);
+      const wizard = page.waitForURL(/\/club\/start\?sport=golf/, { timeout: 30_000 }).then(() => 'wizard' as const);
+      const outcome = await Promise.race([
+        wizard,
+        notYet.waitFor({ timeout: 30_000 }).then(() => 'pre-178' as const),
+      ]).catch(() => 'timeout' as const);
+      if (outcome === 'pre-178') {
+        test.skip(true, 'migration 178 not applied: organizer accounts answer 503 here');
+        return;
+      }
+      expect(outcome).toBe('wizard');
     } else {
       // The legacy single form, then a manual sign-in — `/` still honours the parked intent.
       await page.getByLabel('First Name').fill('Door');
@@ -81,25 +98,34 @@ test('the Club door: account → /club/start?sport=golf; signed-out /club/start 
       await page.locator('input[name="email"]').fill(email);
       await page.locator('input[name="password"]').fill(password);
       await page.getByRole('button', { name: 'Login', exact: true }).click();
+      await page.waitForURL(/\/club\/start\?sport=golf/, { timeout: 30_000 });
     }
-    await page.waitForURL(/\/club\/start\?sport=golf/, { timeout: 30_000 });
     await expect(page.getByRole('heading', { name: 'Start a club' })).toBeVisible({ timeout: 20_000 });
     // By profile email — auth.admin.listUsers pages in creation order and
     // missed a brand-new account on the first production run.
     const { data: prof } = await admin
       .from('profiles')
-      .select('id, user_type, onboarded_at')
+      .select('id, user_type, onboarded_at, handle, dob')
       .eq('email', email)
       .maybeSingle();
     createdId = prof?.id ?? null;
     expect(createdId, 'the account exists').toBeTruthy();
-    expect(prof!.user_type).toBe('athlete'); // an org owner is a normal profile
-    // The onboarding stamp is a best-effort PUT fired right before the hard
-    // navigation — poll for it instead of racing it (the flaky first attempt).
     if (guardianFlagOn()) {
+      // The organizer account: its own kind, no handle, no date of birth.
+      expect(prof!.user_type).toBe('organizer');
+      expect(prof!.handle).toBeNull();
+      expect(prof!.dob).toBeNull();
+      // The onboarding stamp is a best-effort PUT fired right before the hard
+      // navigation — poll for it instead of racing it (the flaky first attempt).
       await expect
         .poll(async () => (await admin.from('profiles').select('onboarded_at').eq('id', createdId!).single()).data?.onboarded_at ?? null, { timeout: 15_000 })
         .toBeTruthy();
+      // `/` routes an onboarded organizer to the feed, never the athlete wizard;
+      // the feed carries the header door to their orgs card.
+      await page.goto('/');
+      await page.waitForURL(/\/feed/, { timeout: 30_000 });
+    } else {
+      expect(prof!.user_type).toBe('athlete');
     }
 
     // A plain sign-in with ?next= (an existing user) lands in the wizard too.

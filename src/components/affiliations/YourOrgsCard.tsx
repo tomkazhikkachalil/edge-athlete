@@ -31,7 +31,7 @@ export default function YourOrgsCard() {
   }, [user?.id]);
 
   return (
-    <div className="bg-surface rounded-lg shadow-sm border border-border p-4">
+    <div id="your-orgs" className="bg-surface rounded-lg shadow-sm border border-border p-4">
       <div className="flex items-center justify-between mb-3">
         <h3 className="font-bold text-primary">Your Clubs &amp; Leagues</h3>
       </div>

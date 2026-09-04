@@ -35,6 +35,10 @@ export async function POST(request: NextRequest) {
     // athlete.
     const isGuardian =
       FEATURE_FLAGS.FEATURE_GUARDIAN_PROFILES && body.actorRole === 'guardian';
+    // Org staff program (mig 178): the organizer actor — same shape as the
+    // guardian branch (no handle, no DOB gate), user_type 'organizer'.
+    const isOrganizer = body.actorRole === 'organizer';
+    const noHandle = isGuardian || isOrganizer;
 
     // display_name has a not-empty check constraint — require a first name.
     if (!first_name) {
@@ -47,7 +51,7 @@ export async function POST(request: NextRequest) {
     // created — park in pending_profiles (with auth_user_id, since the OAuth
     // identity already exists) and invite the guardian. The client signs the
     // user out after a parked response.
-    if (FEATURE_FLAGS.FEATURE_GUARDIAN_PROFILES && !isGuardian) {
+    if (FEATURE_FLAGS.FEATURE_GUARDIAN_PROFILES && !noHandle) {
       const dob = typeof body.dob === 'string' ? body.dob : '';
       if (!dob || !isValidDateString(dob) || !isNotFutureDate(dob)) {
         return NextResponse.json(
@@ -126,7 +130,7 @@ export async function POST(request: NextRequest) {
         });
       }
     }
-    if (!isGuardian) {
+    if (!noHandle) {
       const formatResult = validateHandleFormat(handle);
       if (!formatResult.isValid) {
         return NextResponse.json(
@@ -197,11 +201,11 @@ export async function POST(request: NextRequest) {
       email: user.email ? user.email.toLowerCase() : null,
       first_name,
       last_name: last_name || null,
-      // Parents: no handle (the /api/signup parent branch's exact shape).
-      user_type: isGuardian ? 'parent' : 'athlete',
+      // Parents and organizers: no handle (the /api/signup branches' exact shape).
+      user_type: isGuardian ? 'parent' : isOrganizer ? 'organizer' : 'athlete',
       full_name: fullName || null,
-      handle: isGuardian ? null : handle,
-      display_name: fullName || (isGuardian ? first_name : handle) || 'Athlete',
+      handle: noHandle ? null : handle,
+      display_name: fullName || (noHandle ? first_name : handle) || 'Athlete',
       avatar_url: deriveAvatarUrl(meta),
     });
 

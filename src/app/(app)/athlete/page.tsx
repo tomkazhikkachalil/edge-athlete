@@ -814,6 +814,11 @@ export default function AthleteProfilePage() {
                       {getHandle(profile)}
                     </p>
                   )}
+                  {profile?.user_type === 'organizer' && (
+                    <span className="inline-flex items-center gap-2 rounded-full bg-brand-soft px-3 py-1 text-xs font-semibold text-brand-fg-strong mb-2">
+                      <i className="fas fa-building" aria-hidden="true"></i> Organizer account
+                    </span>
+                  )}
 
                   {/* Top achievements — real athlete_achievements rows, the
                       same source as the Achievements tab (no fabricated

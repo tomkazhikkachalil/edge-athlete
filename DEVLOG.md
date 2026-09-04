@@ -1,5 +1,81 @@
 # Development Log
 
+## September 4, 2026 — Org Staff Program, round 0 + 1: migration 178 and the organizer account (#576)
+
+Tom, after the camera incident closed: **"we need to get the golf league page
+set up … there needs to be a master account. Users should be able to create a
+league or club with an account or an email that is an admin account. Right now
+we can create a league with options like athlete or parent, but it should ask
+if you have an existing account … they should also be able to sign up with a
+general email without security checks like age … then you can send invites for
+individuals to manage sections, they have different privileges … edits to
+certain areas or sub areas, but not the overall site. Need a hierarchy
+section."** A new program, opened with four decisions (plan file
+`what-should-be-next-valiant-sunrise.md`; masterplan §3.4 + §5 is the spec):
+
+1. **Organizer account** — a new account kind, `user_type = 'organizer'`: name,
+   email, password. No date of birth, no handle, no athlete fields; an adult is
+   assumed. Existing athlete/parent accounts can still own orgs (mig 116's rule
+   stands); co-owners already exist for the volunteer-turnover case.
+2. **Grants = pick sections + optional sub-area** — the nine console sections
+   as checkboxes, optionally narrowed to one division or team; "Admin" = every
+   section. `manage_org` (identity, settings, slug/domain, delete, owners,
+   roles) stays owner|manager|admin — nine ticked boxes is not admin.
+3. **A Hierarchy section** in the console: org → season → divisions → teams
+   with the grant-holders on each node and Invite on any node; a league's
+   affiliated clubs as read-only leaves (a league never grants inside a club).
+4. "Getting the golf league page set up" is this program, not a separate page.
+
+Rounds: 0 migration 178 + 1 organizer accounts (this PR) → 2 capabilities core
+→ 3 route-family intents → 4 staff invites → 5 hierarchy section → 6 season
+expiry + close. Rounds 1–6 are zero-DDL.
+
+**Migration 178** (ORDER-STRICT, Tom runs it before this deploys): `'organizer'`
+on the user_type CHECK; `memberships` gains `kind 'staff'`, roles
+`admin | staff`, `sections text[]`, `granted_by/granted_at/expires_at` and a
+shape CHECK whose first branch covers every existing row (a staff grant is a
+`kind='staff'` row because `memberships_uniq` excludes role — a second follow
+row would collide, and adding role to the key breaks the one-row-per-profile
+readers); `org_staff_invites` (149's claim-invite shape plus the grant;
+`invited_email NOT NULL` — an invite is addressed to a person); `org_staff_audit`
+(the 048/091 append-only pattern); three bells. Nothing in this round reads the
+new columns — `maxOrgRole` ignores unknown role strings, so an `admin` row grants
+nothing until round 2's reader.
+
+**Round 1 — the door, rebuilt.** The login page's Club / League buttons now open
+on **"Do you already have an account?"** — *Yes, sign me in* (the parked intent
+lands them in the wizard after login, as before) or *No, create one* → the
+organizer form: club/league radio, name, email, password. No DOB step, no
+handle, no athlete or parent card on the org path (`RegistrationSteps`
+'entry' → 'organizer'; the old third role card and its DOB detour are gone).
+`/api/signup` gains the organizer actor through `resolveSignupActorRole` (the
+shared actor contract; the DOB gate was always athlete-actor-only), mints
+`user_type 'organizer'`, `handle: null`, display name from the full name; on a
+pre-178 database the user_type CHECK's 23514 maps to a 503 "not available yet"
+and the auth user is rolled back, so a retry after the migration is clean. The
+OAuth twin: the `ea-signup-role` cookie value is `organizer`, `complete-profile`
+treats it like the parent branch (no handle, no DOB) and the club/league kind
+rides the parked `ea:invite-return` (the radio re-parks it). Routing: an
+organizer never sees the athlete wizard — `/`, the OAuth callback,
+complete-profile and `/onboarding` send them to `/feed` (onboarded) or
+`/club/start`; the feed's "Your Clubs & Leagues" card is their home (anchor
+`#your-orgs`, a "Your organizations" door in both header menus); the first-run
+checklist hides for them; `/athlete` shows an "Organizer account" chip.
+
+Tests: `signup-user-type` (organizer actor, the three-valued actor contract);
+the notification registry gains the three staff types (the DB-parity test
+caught the gap on the first verify — the registry and its frozen bucket list
+move with every CHECK change). e2e `club-signup-door.spec.ts` REWRITTEN for the new
+door (existing-account question first, no DOB/handle inputs, organizer profile
+with null handle and dob, `/` → `/feed`; self-skips the organizer assertions on
+a pre-178 database); no new spec file.
+
+Verification: `npm run verify`; after Tom runs 178 and merges, the door spec
+against production on desktop and `mobile`, plus a phone-width look at the two
+new steps.
+
+---
+
 ## September 4, 2026 — The camera incident, closed: the app works on other phones; the one failing device fails at the OS camera boundary
 
 Tom, morning after: **"the application is working well on other phones, it's

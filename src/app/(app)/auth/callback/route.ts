@@ -76,7 +76,9 @@ export async function GET(request: Request) {
       // Parents (097) route to the console/add-athlete, never the wizard.
       dest = profile.user_type === 'parent'
         ? (profile.onboarded_at ? '/app/guardian' : '/app/guardian/add-athlete')
-        : (profile.onboarded_at ? '/athlete' : '/onboarding');
+        : profile.user_type === 'organizer'
+          ? (profile.onboarded_at ? '/feed' : '/club/start') // mig 178: never the athlete wizard
+          : (profile.onboarded_at ? '/athlete' : '/onboarding');
     }
   } catch (lookupError) {
     // Fall through to complete-profile — its own already-has-profile gate

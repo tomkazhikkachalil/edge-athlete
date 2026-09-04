@@ -101,6 +101,12 @@ export const NOTIFICATION_TYPE_META = {
   golf_league_round_counted: { tab: null, icon: 'fa-golf-ball-tee' },
   golf_league_round_confirmed: { tab: null, icon: 'fa-golf-ball-tee' },
   golf_league_window_closing: { tab: null, icon: 'fa-golf-ball-tee' },
+  // Org staff program (178): staff invite / accept / revoke bells. Senders
+  // arrive in round 4; the types are registered with the migration so the
+  // DB-parity test holds at every step.
+  org_staff_invite: { tab: null, icon: 'fa-building' },
+  org_staff_accepted: { tab: null, icon: 'fa-building' },
+  org_staff_revoked: { tab: null, icon: 'fa-building' },
 } as const satisfies Record<string, NotificationTypeMeta>;
 
 export type KnownNotificationType = keyof typeof NOTIFICATION_TYPE_META;

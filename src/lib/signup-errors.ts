@@ -55,6 +55,16 @@ export function mapProfileUpsertError(e: ProfileErrorLike): MappedError {
         'Account setup failed due to a data error. Please try again or contact support.',
     };
   }
+  // 23514 on the user_type CHECK = the organizer branch running against a
+  // pre-178 database (ORDER-STRICT: the migration runs before this deploys).
+  // A plain "not available yet" — the auth user is rolled back by the
+  // caller, so a retry after the migration succeeds cleanly.
+  if (e.code === '23514' && /user_type/i.test(text)) {
+    return {
+      status: 503,
+      error: 'This account type is not available yet. Please try again shortly.',
+    };
+  }
   return { status: 500, error: `Database error: ${e.message ?? 'unknown'}` };
 }
 
