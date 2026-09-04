@@ -23,7 +23,7 @@
 
 import { NextResponse } from 'next/server';
 import type { SupabaseClient, User } from '@supabase/supabase-js';
-import { getOrgAndRole, roleAllows, type OrgSide } from './authz';
+import { type OrgSide, capabilityAllows, getOrgAndCapabilities } from './authz';
 import {
   FORMAT_ENTRANTS,
   isMissingTableError,
@@ -64,14 +64,18 @@ function orgColumn(side: OrgSide): 'league_id' | 'club_id' {
 }
 
 /** The manager gate for the twin routes (admin routes keep requireAdmin).
- *  Same shape as requireOrgManager, on the 'manage_competitions' intent. */
+ *  Same shape as requireOrgManager, on the 'manage_competitions' intent.
+ *  Org staff program: a Competitions grant on the competition's division
+ *  is enough when the route names the competition — the division is read
+ *  here (one lookup, only when the org-level check fails). */
 export async function requireCompetitionManager(
   admin: Admin,
   user: User,
   side: OrgSide,
-  orgId: string
+  orgId: string,
+  opts: { competitionId?: string } = {}
 ): Promise<{ ok: true; org: { id: string; name: string } } | { ok: false; response: NextResponse }> {
-  const loaded = await getOrgAndRole(admin, side, orgId, user.id);
+  const loaded = await getOrgAndCapabilities(admin, side, orgId, user.id);
   if (loaded.status === 'error') {
     console.error(`${TAG} org fetch error:`, loaded.error);
     return {
@@ -88,7 +92,19 @@ export async function requireCompetitionManager(
       ),
     };
   }
-  if (!roleAllows(loaded.role, 'manage_competitions')) {
+  let allowed = capabilityAllows(loaded.caps, 'manage_competitions');
+  if (!allowed && opts.competitionId && loaded.caps.scoped.length > 0) {
+    const { data: comp } = await admin
+      .from('competitions')
+      .select('division_id')
+      .eq('id', opts.competitionId)
+      .eq(side === 'league' ? 'league_id' : 'club_id', orgId)
+      .maybeSingle();
+    if (comp?.division_id) {
+      allowed = capabilityAllows(loaded.caps, 'manage_competitions', { type: 'division', id: comp.division_id as string });
+    }
+  }
+  if (!allowed) {
     return { ok: false, response: NextResponse.json({ error: 'Not authorized' }, { status: 403 }) };
   }
   return { ok: true, org: { id: loaded.org.id, name: loaded.org.name } };

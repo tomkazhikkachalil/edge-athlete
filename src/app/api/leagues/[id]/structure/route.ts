@@ -18,7 +18,7 @@ export async function GET(
       return NextResponse.json({ error: 'League not found' }, { status: 404 });
     }
     const admin = getSupabaseAdmin();
-    const gate = await requireOrgManager(admin, user, 'league', id);
+    const gate = await requireOrgManager(admin, user, 'league', id, { intent: 'enter_console' });
     if (!gate.ok) return gate.response;
     return await structureAggregateGET(admin, { side: 'league', orgId: id }, { includeCounts: true });
   } catch (error) {

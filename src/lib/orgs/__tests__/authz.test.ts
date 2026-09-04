@@ -114,6 +114,7 @@ describe('roleAllows', () => {
     manage_teams: [true, true, false, false],
     manage_affiliations: [true, true, false, false],
     manage_venues: [true, true, false, false],
+    enter_console: [true, true, false, false],
     change_roles: [true, false, false, false],
     manage_owners: [true, false, false, false],
   };
@@ -200,6 +201,10 @@ describe('capabilityAllows (178)', () => {
     expect(capabilityAllows(manager, 'change_roles')).toBe(false);
     expect(capabilityAllows(admin, 'change_roles')).toBe(false);
     expect(capabilityAllows(admin, 'manage_owners')).toBe(false);
+    // enter_console = any capability at all
+    expect(capabilityAllows(teamsOnly, 'enter_console')).toBe(true);
+    expect(capabilityAllows(divTeams, 'enter_console')).toBe(true);
+    expect(capabilityAllows(member, 'enter_console')).toBe(false);
   });
 
   it('manage_org is never reached by section grants — nine ticked boxes is not admin', () => {

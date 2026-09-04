@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth, getSupabaseAdmin } from '@/lib/auth-server';
 import { parseBody } from '@/lib/validation';
 import { ClubJoinDecisionSchema } from '@/lib/clubs/validate';
-import { getOrgAndRole, roleAllows } from '@/lib/orgs/authz';
+import { capabilityAllows, getOrgAndCapabilities } from '@/lib/orgs/authz';
 import { decideJoinRequest, listJoinRequests } from '@/lib/orgs/join-requests-server';
 import { UUID_RE } from '@/lib/golf/course-catalog';
 
@@ -15,10 +15,10 @@ async function gate(request: NextRequest, params: Promise<{ id: string }>) {
   const { id } = await params;
   if (!UUID_RE.test(id)) return { response: NextResponse.json({ error: 'Club not found' }, { status: 404 }) };
   const admin = getSupabaseAdmin();
-  const loaded = await getOrgAndRole(admin, 'club', id, user.id);
+  const loaded = await getOrgAndCapabilities(admin, 'club', id, user.id);
   if (loaded.status !== 'found') return { response: NextResponse.json({ error: 'Club not found' }, { status: 404 }) };
   const isOwnerColumn = loaded.org.owner_profile_id === user.id;
-  if (!roleAllows(loaded.role, 'manage_members') && !isOwnerColumn) {
+  if (!capabilityAllows(loaded.caps, 'manage_membership') && !isOwnerColumn) {
     return { response: NextResponse.json({ error: 'Not authorized' }, { status: 403 }) };
   }
   return { user, admin, club: { id, name: loaded.org.name as string } };

@@ -23,8 +23,9 @@ async function orgManagerIds(admin: Admin, side: OrgSide, orgId: string): Promis
     .select('profile_id')
     .eq(col, orgId)
     .eq('scope_type', 'org')
-    .eq('kind', 'follow')
-    .in('role', ['owner', 'manager'])
+    // Org staff program: org-scope admins are managers for bells too.
+    .in('kind', ['follow', 'staff'])
+    .in('role', ['owner', 'manager', 'admin'])
     .limit(200);
   return [...new Set((data ?? []).map(r => r.profile_id as string))];
 }

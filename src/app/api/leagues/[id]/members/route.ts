@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth, getSupabaseAdmin } from '@/lib/auth-server';
 import { enforceRateLimit } from '@/lib/rate-limit';
 import { LeagueMemberRoleSchema, isMissingTableError } from '@/lib/leagues/validate';
-import { getOrgAndRole, roleAllows } from '@/lib/orgs/authz';
+import { capabilityAllows, getOrgAndCapabilities, getOrgAndRole, roleAllows } from '@/lib/orgs/authz';
 import { getMemberRole, insertOwnerRow, joinOrg, leaveOrg, removeMember, setMemberRole } from '@/lib/orgs/members';
 import { parseBody } from '@/lib/validation';
 import { UUID_RE } from '@/lib/golf/course-catalog';
@@ -204,7 +204,7 @@ export async function DELETE(
     }
 
     const supabase = getSupabaseAdmin();
-    const loaded = await getOrgAndRole(supabase, 'league', id, user.id);
+    const loaded = await getOrgAndCapabilities(supabase, 'league', id, user.id);
     if (loaded.status === 'error') {
       console.error('[LEAGUE MEMBERS] league fetch error:', loaded.error);
       return NextResponse.json({ error: 'Failed to load league' }, { status: 500 });
@@ -212,7 +212,7 @@ export async function DELETE(
     if (loaded.status === 'not_found') {
       return NextResponse.json({ error: 'League not found' }, { status: 404 });
     }
-    if (!roleAllows(loaded.role, 'manage_members')) {
+    if (!capabilityAllows(loaded.caps, 'manage_members')) {
       return NextResponse.json({ error: 'Not authorized to manage members' }, { status: 403 });
     }
 

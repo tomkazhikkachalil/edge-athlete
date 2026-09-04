@@ -25,7 +25,7 @@ export async function POST(
       return NextResponse.json({ error: 'Competition not found' }, { status: 404 });
     }
     const admin = getSupabaseAdmin();
-    const gate = await requireCompetitionManager(admin, user, 'league', id);
+    const gate = await requireCompetitionManager(admin, user, 'league', id, { competitionId });
     if (!gate.ok) return gate.response;
 
     const parsed = await parseBody(request, ResultUpsertSchema);

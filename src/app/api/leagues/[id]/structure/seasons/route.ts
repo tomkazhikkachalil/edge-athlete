@@ -26,7 +26,7 @@ export async function POST(
       return NextResponse.json({ error: 'League not found' }, { status: 404 });
     }
     const admin = getSupabaseAdmin();
-    const gate = await requireOrgManager(admin, user, 'league', id);
+    const gate = await requireOrgManager(admin, user, 'league', id, { intent: 'manage_structure' });
     if (!gate.ok) return gate.response;
 
     const parsed = await parseBody(request, SeasonCreateSchema);
@@ -64,7 +64,7 @@ export async function DELETE(
       return NextResponse.json({ error: 'id is required' }, { status: 400 });
     }
     const admin = getSupabaseAdmin();
-    const gate = await requireOrgManager(admin, user, 'league', id);
+    const gate = await requireOrgManager(admin, user, 'league', id, { intent: 'manage_structure' });
     if (!gate.ok) return gate.response;
     return await seasonDELETE(admin, seasonId, { side: 'league', orgId: id });
   } catch (error) {

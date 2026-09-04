@@ -19,7 +19,7 @@ export async function GET(
       return NextResponse.json({ error: 'Competition not found' }, { status: 404 });
     }
     const admin = getSupabaseAdmin();
-    const gate = await requireCompetitionManager(admin, user, 'club', id);
+    const gate = await requireCompetitionManager(admin, user, 'club', id, { competitionId });
     if (!gate.ok) return gate.response;
     return await competitionDetailGET(admin, competitionId, { side: 'club', orgId: id });
   } catch (error) {

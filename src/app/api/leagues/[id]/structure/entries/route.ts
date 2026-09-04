@@ -23,11 +23,15 @@ export async function POST(
       return NextResponse.json({ error: 'League not found' }, { status: 404 });
     }
     const admin = getSupabaseAdmin();
-    const gate = await requireOrgManager(admin, user, 'league', id);
-    if (!gate.ok) return gate.response;
-
+    // Org staff program: the division comes from the body, so parse first —
+    // a grant on that division (or org-wide Teams) is enough.
     const parsed = await parseBody(request, EntryCreateSchema);
     if (!parsed.success) return parsed.response;
+    const gate = await requireOrgManager(admin, user, 'league', id, {
+      intent: 'manage_teams',
+      scope: { type: 'division', id: parsed.data.divisionId },
+    });
+    if (!gate.ok) return gate.response;
     return await entryCreatePOST(admin, parsed.data, { side: 'league', orgId: id });
   } catch (error) {
     if (error instanceof Response) return error;
@@ -52,7 +56,16 @@ export async function DELETE(
       return NextResponse.json({ error: 'id is required' }, { status: 400 });
     }
     const admin = getSupabaseAdmin();
-    const gate = await requireOrgManager(admin, user, 'league', id);
+    // The entry's division is the scope (entryDELETE re-verifies the join).
+    const { data: entryRow } = await admin
+      .from('team_entries')
+      .select('division_id')
+      .eq('id', entryId)
+      .maybeSingle();
+    const gate = await requireOrgManager(admin, user, 'league', id, {
+      intent: 'manage_teams',
+      ...(entryRow?.division_id ? { scope: { type: 'division', id: entryRow.division_id as string } } : {}),
+    });
     if (!gate.ok) return gate.response;
     return await entryDELETE(admin, entryId, { side: 'league', orgId: id });
   } catch (error) {

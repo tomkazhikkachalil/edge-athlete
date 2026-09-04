@@ -31,7 +31,7 @@ import {
   type WindowCreateInput,
 } from '@/lib/registration/validate';
 import { eligibilityWarnings, type EligibilityWarning } from './eligibility';
-import { getOrgAndRole, roleAllows, type OrgSide } from './authz';
+import { capabilityAllows, getOrgAndCapabilities, getOrgAndRole, type OrgSide } from './authz';
 import { membershipEdges, type RosterEdge } from './members';
 import { canGrantPhotoConsent, setPhotoConsent } from './photo-consent';
 import { seasonArchivedMap } from './rollover-server';
@@ -57,7 +57,7 @@ export async function requireRegistrar(
   side: OrgSide,
   orgId: string
 ): Promise<{ ok: true; org: { id: string; name: string } } | { ok: false; response: NextResponse }> {
-  const loaded = await getOrgAndRole(admin, side, orgId, user.id);
+  const loaded = await getOrgAndCapabilities(admin, side, orgId, user.id);
   if (loaded.status === 'error') {
     console.error(`${TAG} org fetch error:`, loaded.error);
     return {
@@ -74,7 +74,7 @@ export async function requireRegistrar(
       ),
     };
   }
-  if (!roleAllows(loaded.role, 'manage_registration')) {
+  if (!capabilityAllows(loaded.caps, 'manage_registration')) {
     return { ok: false, response: NextResponse.json({ error: 'Not authorized' }, { status: 403 }) };
   }
   return { ok: true, org: { id: loaded.org.id, name: loaded.org.name } };

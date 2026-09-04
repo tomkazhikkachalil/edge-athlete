@@ -105,7 +105,10 @@ export type OrgIntent =
   | 'manage_structure'
   | 'manage_teams'
   | 'manage_affiliations'
-  | 'manage_venues';
+  | 'manage_venues'
+  // The console's read aggregates (structure GET): anyone who may enter the
+  // console at all — ladder, admin, or any section grant.
+  | 'enter_console';
 
 export function roleAllows(role: OrgRole | null, intent: OrgIntent): boolean {
   if (intent === 'change_roles' || intent === 'manage_owners') return role === 'owner';
@@ -253,6 +256,7 @@ export interface IntentScope {
  *  never satisfies an org-level (scope-less) write. */
 export function capabilityAllows(caps: OrgCapabilities, intent: OrgIntent, scope?: IntentScope): boolean {
   if (intent === 'change_roles' || intent === 'manage_owners') return caps.role === 'owner';
+  if (intent === 'enter_console') return hasAnyCapability(caps);
   if (roleAllows(caps.role, intent) || caps.admin) return true;
   const section = INTENT_SECTION[intent];
   if (!section) return false;

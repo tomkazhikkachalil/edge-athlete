@@ -20,7 +20,7 @@ async function gate(request: NextRequest, params: Promise<{ id: string; venueId:
     return { response: NextResponse.json({ error: 'Venue not found' }, { status: 404 }) };
   }
   const admin = getSupabaseAdmin();
-  const managed = await requireOrgManager(admin, user, 'league', id);
+  const managed = await requireOrgManager(admin, user, 'league', id, { intent: 'manage_venues' });
   if (!managed.ok) return { response: managed.response };
   return { admin, id, venueId };
 }

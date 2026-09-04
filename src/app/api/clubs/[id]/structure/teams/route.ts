@@ -5,6 +5,7 @@ import { parseBody } from '@/lib/validation';
 import { TeamCreateSchema, TeamPatchSchema } from '@/lib/structure/validate';
 import { requireOrgManager, teamCreatePOST, teamPATCH } from '@/lib/orgs/structure-server';
 import { UUID_RE } from '@/lib/golf/course-catalog';
+import { divisionIdsForTeam } from '@/lib/orgs/scoped-members';
 
 // ── /api/clubs/[id]/structure/teams — manager team CRUD (phase 1) ────────
 // NO manager DELETE on purpose: archive is the manager affordance; teams
@@ -24,7 +25,7 @@ export async function POST(
       return NextResponse.json({ error: 'Club not found' }, { status: 404 });
     }
     const admin = getSupabaseAdmin();
-    const gate = await requireOrgManager(admin, user, 'club', id);
+    const gate = await requireOrgManager(admin, user, 'club', id, { intent: 'manage_teams' });
     if (!gate.ok) return gate.response;
 
     const parsed = await parseBody(request, TeamCreateSchema);
@@ -54,11 +55,15 @@ export async function PATCH(
       return NextResponse.json({ error: 'Club not found' }, { status: 404 });
     }
     const admin = getSupabaseAdmin();
-    const gate = await requireOrgManager(admin, user, 'club', id);
-    if (!gate.ok) return gate.response;
-
+    // Org staff program: the scope comes from the body, so parse first — a
+    // division-scoped grant covers the teams entered in that division.
     const parsed = await parseBody(request, TeamPatchSchema);
     if (!parsed.success) return parsed.response;
+    const gate = await requireOrgManager(admin, user, 'club', id, {
+      intent: 'manage_teams',
+      scope: { type: 'team', id: parsed.data.id, parentDivisionIds: await divisionIdsForTeam(admin, parsed.data.id) },
+    });
+    if (!gate.ok) return gate.response;
     return await teamPATCH(admin, parsed.data, { side: 'club', orgId: id });
   } catch (error) {
     if (error instanceof Response) return error;
