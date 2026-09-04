@@ -1,5 +1,70 @@
 # Development Log
 
+## September 4, 2026 — Org Staff Program, round 2: the capabilities core (#577, zero DDL)
+
+Round 1's door is prod-proven (a real organizer account end to end, after
+Tom ran 178 — the merge landed first and the 503 "not available yet" path
+held, rollback clean). Round 2 teaches the app to READ the grants 178 can
+hold, without changing any decision a route makes today.
+
+**`src/lib/orgs/authz.ts`** — the one module that answers "what may this
+profile do to this org" gains the section model:
+- `ORG_SECTIONS` — the nine console keys, now the console's `ConsoleSectionKey`
+  by type-only import: one vocabulary for the DB CHECK, the invite form (round
+  4), the console and this module.
+- `OrgIntent` widened one-per-section (`manage_site`, `manage_membership`,
+  `manage_structure`, `manage_teams`, `manage_affiliations`, `manage_venues`);
+  `roleAllows` treats them like their siblings (owner-or-manager), so the
+  ladder matrix test only grew rows.
+- `capabilitiesFromRows` (pure) → `OrgCapabilities { role, admin, sections,
+  scoped }`: follow rows feed the ladder (org scope only — a scoped role never
+  leaks into org authorization, the 0.5 rule kept); staff rows feed
+  admin / org-wide sections / division-team grants merged per scope; expired
+  rows, unknown roles and unknown section keys are inert.
+- `capabilityAllows(caps, intent, scope?)` — the decision. Owner-only intents
+  stay owner-only (an admin cannot change roles or owners); `manage_org` is
+  ladder-or-admin only — **nine ticked sections is not admin** (Tom: "not the
+  overall site"); a section intent passes on the ladder, on admin, on an
+  org-wide grant of its section, or — only when the caller names the scope
+  being written — on a grant at that exact scope or a parent division
+  (parent implies child, never the reverse; a scoped grant never satisfies an
+  org-level write).
+- `getOrgCapabilities` / `getOrgAndCapabilities` — one read over the
+  profile's follow + staff rows; 42703-safe (a pre-178 database answers the
+  ladder alone). `divisionIdsForTeam` (a reader in scoped-members, not
+  authority) resolves a team's parent divisions for the caller.
+
+**`requireOrgManager(admin, user, side, orgId, opts?)`** — THE shared gate
+(131 call sites) takes an optional `{ intent, scope }`. With nothing passed
+it is `manage_org` exactly as before, plus an org-scope `admin` staff row
+(no such row exists yet — round 4 mints them). Round 3 passes intents family
+by family; the result now carries `caps` for gates that go further.
+
+**`GET /api/{leagues,clubs}/[id]/capabilities`** (thin twins over
+`orgs/capabilities-server.ts`): the viewer's own grants for one org —
+`role, isOwner, admin, sections, scoped, canEnterConsole, visibleSections`.
+Any signed-in user may ask about any org; the answer is their own grants
+(empty for a stranger), never a roster.
+
+**The console** fetches it alongside the org and structure reads. Entry is
+`canEnterConsole` (the structure GET's status remains the fallback for a
+deploy without the route); `visibleSections` filters the section order, so a
+section manager sees only their sections once they exist; lockout copy names
+owners, admins and invited section managers. No layout change.
+
+Tests: `authz.test.ts` grows from 19 to 33 — the ladder matrix over the wider
+intent list, `capabilitiesFromRows` (ladder from follow rows only, scoped
+merge, admin org-scope-only, expiry/unknown inert) and the `capabilityAllows`
+matrix (ladder/admin pass every section intent; nine sections fails
+`manage_org`; own section only; own scope + child team, never org level or a
+sibling; a team grant never climbs).
+
+Verification: `npm run verify`; after merge, `/capabilities` as an owner and
+as a stranger against production (minted cookies), and the golf console spec
+vs prod to prove the console still enters.
+
+---
+
 ## September 4, 2026 — Org Staff Program, round 0 + 1: migration 178 and the organizer account (#576)
 
 Tom, after the camera incident closed: **"we need to get the golf league page

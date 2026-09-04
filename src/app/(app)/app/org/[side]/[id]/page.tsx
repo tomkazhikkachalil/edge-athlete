@@ -1,6 +1,9 @@
 'use client';
 
 import { useEffect, useState, Fragment, type ReactNode } from 'react';
+// Org staff program (178): the console's section vocabulary IS authz's
+// ORG_SECTIONS (a type-only import — this is a client component).
+import type { OrgSection } from '@/lib/orgs/authz';
 import { previewPoints } from '@/lib/competitions/golf-points';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
@@ -84,8 +87,7 @@ interface CompetitionEntryRow {
  *  them. Classic = the phase-1 order (roster first); golf leads with the
  *  site, the courses and the leagues (a golf club's console is a site
  *  builder first). Every key appears exactly once per variant (pinned). */
-export type ConsoleSectionKey =
-  | 'roster' | 'membership' | 'seasons' | 'teams' | 'competitions' | 'registrations' | 'external' | 'venues' | 'website';
+export type ConsoleSectionKey = OrgSection;
 export const CONSOLE_SECTION_ORDER: Record<'default' | 'golf', readonly ConsoleSectionKey[]> = {
   default: ['roster', 'membership', 'seasons', 'teams', 'competitions', 'registrations', 'external', 'venues', 'website'],
   golf: ['website', 'venues', 'competitions', 'roster', 'membership', 'seasons', 'teams', 'registrations', 'external'],
@@ -152,6 +154,11 @@ export default function OrgConsolePage() {
 
   const [orgName, setOrgName] = useState<string | null>(null);
   const [authorized, setAuthorized] = useState<boolean | null>(null);
+  // Org staff program (178): the sections THIS viewer may see — everything
+  // for owners/managers/admins, the union of their grants for section
+  // managers. null until /capabilities answers (pre-178 it answers the
+  // ladder alone, which is the old behaviour exactly).
+  const [visibleKeys, setVisibleKeys] = useState<readonly ConsoleSectionKey[] | null>(null);
   const [seasons, setSeasons] = useState<SeasonRow[]>([]);
   const [teams, setTeams] = useState<TeamRow[]>([]);
   const [counts, setCounts] = useState<{ managers: number; rosterAthletes: number }>({
@@ -381,9 +388,10 @@ export default function OrgConsolePage() {
     let cancelled = false;
     (async () => {
       try {
-        const [orgRes, structureRes, competitionsRes, siteRes, pagesRes, newsRes] =
+        const [orgRes, capsRes, structureRes, competitionsRes, siteRes, pagesRes, newsRes] =
           await Promise.all([
             fetch(`/api/${plural}/${orgId}`),
+            fetch(`/api/${plural}/${orgId}/capabilities`),
             fetch(`/api/${plural}/${orgId}/structure`),
             fetch(`/api/${plural}/${orgId}/competitions`),
             fetch(`/api/${plural}/${orgId}/site`),
@@ -418,12 +426,23 @@ export default function OrgConsolePage() {
             }
           }
         }
+        // The capabilities answer decides entry (178); the structure GET's
+        // status is the fallback for a database/deploy without the route.
+        let capsDecided = false;
+        if (capsRes.ok) {
+          const caps = (await capsRes.json()) as { canEnterConsole?: boolean; visibleSections?: ConsoleSectionKey[] };
+          if (cancelled) return;
+          capsDecided = true;
+          setVisibleKeys(caps.visibleSections ?? []);
+          setAuthorized(caps.canEnterConsole === true);
+          if (caps.canEnterConsole !== true) return;
+        }
         if (structureRes.status === 403 || structureRes.status === 401) {
-          setAuthorized(false);
+          if (!capsDecided) setAuthorized(false);
           return;
         }
         if (!structureRes.ok) {
-          setAuthorized(false);
+          if (!capsDecided) setAuthorized(false);
           return;
         }
         const structure = await structureRes.json();
@@ -1074,7 +1093,7 @@ export default function OrgConsolePage() {
             </div>
             <h1 className="text-2xl font-bold text-primary mb-2">Managers only</h1>
             <p className="text-sm text-tertiary mb-4">
-              This console is for the organization&apos;s owner and managers.
+              This console is for the organization&apos;s owners, admins and invited section managers.
             </p>
             <Link
               href={`/${side}/${orgId}`}
@@ -4358,9 +4377,11 @@ export default function OrgConsolePage() {
           }}
         />
 
-        {CONSOLE_SECTION_ORDER[golfFirst ? 'golf' : 'default'].map(key => (
-          <Fragment key={key}>{sectionNodes[key]}</Fragment>
-        ))}
+        {CONSOLE_SECTION_ORDER[golfFirst ? 'golf' : 'default']
+          .filter(key => !visibleKeys || visibleKeys.includes(key))
+          .map(key => (
+            <Fragment key={key}>{sectionNodes[key]}</Fragment>
+          ))}
       </main>
 
       <ConfirmModal

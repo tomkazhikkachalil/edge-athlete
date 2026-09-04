@@ -16,7 +16,14 @@
 
 import { NextResponse } from 'next/server';
 import type { SupabaseClient, User } from '@supabase/supabase-js';
-import { getOrgAndRole, roleAllows, type OrgSide } from './authz';
+import {
+  capabilityAllows,
+  getOrgAndCapabilities,
+  type IntentScope,
+  type OrgCapabilities,
+  type OrgIntent,
+  type OrgSide,
+} from './authz';
 import { refreshLeagueSportCache } from './sports';
 import {
   isMissingTableError,
@@ -44,15 +51,23 @@ function orgColumn(side: OrgSide): 'league_id' | 'club_id' {
 }
 
 /** The manager gate for the twin routes (admin routes keep requireAdmin).
- *  structure-options' exact mapping, intent 'manage_org' — the intended,
- *  previously-unused gate. */
+ *  Default intent 'manage_org' — owner | manager | admin, exactly the
+ *  pre-178 behaviour for every caller that passes nothing. A route family
+ *  that belongs to a console section passes its intent (and, for a write
+ *  inside a division/team, the scope) so a matching staff grant is enough
+ *  (org staff program, round 3 adopts them family by family). The result
+ *  carries the capabilities for callers that gate further. */
 export async function requireOrgManager(
   admin: Admin,
   user: User,
   side: OrgSide,
-  orgId: string
-): Promise<{ ok: true; org: { id: string; name: string } } | { ok: false; response: NextResponse }> {
-  const loaded = await getOrgAndRole(admin, side, orgId, user.id);
+  orgId: string,
+  opts: { intent?: OrgIntent; scope?: IntentScope } = {}
+): Promise<
+  | { ok: true; org: { id: string; name: string }; caps: OrgCapabilities }
+  | { ok: false; response: NextResponse }
+> {
+  const loaded = await getOrgAndCapabilities(admin, side, orgId, user.id);
   if (loaded.status === 'error') {
     console.error(`${TAG} org fetch error:`, loaded.error);
     return {
@@ -69,10 +84,10 @@ export async function requireOrgManager(
       ),
     };
   }
-  if (!roleAllows(loaded.role, 'manage_org')) {
+  if (!capabilityAllows(loaded.caps, opts.intent ?? 'manage_org', opts.scope)) {
     return { ok: false, response: NextResponse.json({ error: 'Not authorized' }, { status: 403 }) };
   }
-  return { ok: true, org: { id: loaded.org.id, name: loaded.org.name } };
+  return { ok: true, org: { id: loaded.org.id, name: loaded.org.name }, caps: loaded.caps };
 }
 
 // ── Read ─────────────────────────────────────────────────────────────────────
