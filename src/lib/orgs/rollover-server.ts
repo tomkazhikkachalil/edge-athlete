@@ -80,7 +80,9 @@ export async function seasonRolloverPOST(
   admin: Admin,
   side: OrgSide,
   orgId: string,
-  input: RolloverInput
+  input: RolloverInput,
+  /** The manager performing the rollover — the staff-expiry trail's actor. */
+  actorId: string | null = null
 ): Promise<NextResponse> {
   const col = orgColumn(side);
 
@@ -228,6 +230,10 @@ export async function seasonRolloverPOST(
   if (windowError && !isMissingTableError(windowError.code)) {
     console.error(`${TAG} window close error:`, windowError);
   }
+  // Org staff program (178): season-pinned staff grants expire at rollover
+  // (masterplan §5) — stamp expires_at on the old season's live staff rows
+  // and write the trail. Best-effort, 42703-safe (pre-178 columns).
+  const staffExpired = await expireSeasonStaff(admin, side, orgId, oldSeason.id, actorId);
 
   return NextResponse.json({
     season: newSeason,
@@ -237,5 +243,51 @@ export async function seasonRolloverPOST(
       teamEntries: entriesCloned,
     },
     archivedOld,
+    staffExpired,
   });
+}
+
+/** Expire the live staff grants pinned to a season (rollover). Returns the
+ *  number expired; 0 on a pre-178 database or any failure — the rollover
+ *  itself already succeeded, and an un-expired grant is inert once the
+ *  season is archived only in the sense that its scope is history; the
+ *  console shows it until the next rollover pass, which is acceptable. */
+export async function expireSeasonStaff(
+  admin: Admin,
+  side: OrgSide,
+  orgId: string,
+  seasonId: string,
+  actorId: string | null
+): Promise<number> {
+  const col = orgColumn(side);
+  const now = new Date().toISOString();
+  const { data, error } = await admin
+    .from('memberships')
+    .update({ expires_at: now })
+    .eq(col, orgId)
+    .eq('kind', 'staff')
+    .eq('season_id', seasonId)
+    .or(`expires_at.is.null,expires_at.gt.${now}`)
+    .select('id, profile_id, role, scope_type, scope_id, sections');
+  if (error) {
+    if (error.code !== '42703') console.error(`${TAG} staff expiry error:`, error);
+    return 0;
+  }
+  const rows = data ?? [];
+  if (rows.length === 0) return 0;
+  const { error: auditError } = await admin.from('org_staff_audit').insert(
+    rows.map(r => ({
+      [col]: orgId,
+      profile_id: r.profile_id,
+      actor_id: actorId,
+      action: 'expired',
+      role: r.role,
+      scope_type: r.scope_type,
+      scope_id: r.scope_id,
+      season_id: seasonId,
+      old_sections: r.sections,
+    }))
+  );
+  if (auditError) console.error(`${TAG} staff expiry audit error:`, auditError);
+  return rows.length;
 }

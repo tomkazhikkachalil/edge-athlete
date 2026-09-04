@@ -513,6 +513,15 @@ export default function LeaguePage() {
                     Manage league →
                   </Link>
                 )}
+                {/* Org staff program (178): owners' door to who-runs-what + invites. */}
+                {isOwner && (
+                  <Link
+                    href={`/app/org/league/${league.id}#hierarchy`}
+                    className="text-sm text-brand-fg hover:text-brand-fg-strong hover:underline"
+                  >
+                    Staff &amp; hierarchy →
+                  </Link>
+                )}
               </div>
             </div>
           </div>

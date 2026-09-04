@@ -358,6 +358,18 @@ const { canView } = await response.json();
    scrubbed **server-side** in `/api/upload/post-media`; the client JPEG strip
    keeps the Orientation tag. See `src/lib/media/capture-attach.ts` and DEVLOG
    Sep 3 2026 round 11 before touching the capture path.
+9. **Org authority is capabilities, not a role string (Org Staff Program,
+   Sep 2026, mig 178)** — `src/lib/orgs/authz.ts` answers every "may this
+   profile do X to this org" question: the ladder (owner > manager > member,
+   follow rows) plus `kind='staff'` grant rows (`admin`, or `staff` with a
+   `sections[]` subset of the nine console keys, at org | division | team
+   scope). Routes pass an **intent** to `requireOrgManager(..., { intent,
+   scope })`; `manage_org` (identity, settings, slug/domain, delete) is
+   ladder-or-admin only — nine ticked sections is never admin; only OWNERS
+   change roles, owners or grants. Organizer accounts (`user_type
+   'organizer'`) have no DOB and never enter the athlete wizard. Staff
+   authority never implies guardian visibility. Read DEVLOG Sep 4 2026
+   rounds 0–6 before touching any of it.
 
 ---
 

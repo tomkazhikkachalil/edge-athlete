@@ -89,6 +89,15 @@ test('season rollover: clone forward, archive the old, console controls; 375px',
       });
       expect(res.status(), await readErrorBody(res)).toBe(200);
 
+      // Org staff program (178): a staff grant pinned to the OLD season
+      // expires at rollover (masterplan §5) — seeded here, asserted below.
+      // Self-tolerant pre-178 (the insert fails → staffExpired reads 0).
+      const staffSeed = await admin.from('memberships').insert({
+        league_id: leagueId, profile_id: loadQaUser('user.json').id, kind: 'staff', role: 'staff',
+        scope_type: 'org', season_id: oldSeason!.id, sections: ['teams'],
+      }).select('id').single();
+      const staffSeeded = !staffSeed.error;
+
       // The one button.
       res = await ownerApi.post(`/api/leagues/${leagueId}/structure/rollover`, {
         data: { seasonId: oldSeason!.id, label: '2027-28', startsOn: '2027-09-01' },
@@ -96,6 +105,13 @@ test('season rollover: clone forward, archive the old, console controls; 375px',
       expect(res.status(), await readErrorBody(res)).toBe(200);
       const body = await res.json();
       expect(body.archivedOld).toBe(true);
+      if (staffSeeded) {
+        expect(body.staffExpired).toBe(1);
+        const { data: expiredRow } = await admin.from('memberships').select('expires_at').eq('id', staffSeed.data!.id).single();
+        expect(expiredRow!.expires_at).not.toBeNull();
+        const { data: trail } = await admin.from('org_staff_audit').select('action').eq('league_id', leagueId).eq('season_id', oldSeason!.id);
+        expect((trail ?? []).map(t => t.action)).toEqual(['expired']);
+      }
       expect(body.cloned).toMatchObject({ divisions: 2, programs: 1, teamEntries: 2 });
       const newSeasonId = body.season.id as string;
 
@@ -179,6 +195,7 @@ test('season rollover: clone forward, archive the old, console controls; 375px',
       await ctx.close();
     }
   } finally {
+    await admin.from('org_staff_audit').delete().eq('league_id', leagueId);
     await admin.from('leagues').delete().eq('id', leagueId);
   }
 });
