@@ -31,12 +31,13 @@ export default function CompleteProfilePage() {
   // Round J: which signup branch launched OAuth (OAuthButtons writes the
   // short-lived cookie before the redirect). Parents get a parent profile —
   // no handle, no DOB — instead of being silently minted as athletes.
-  const [signupRole] = useState<'parent' | 'athlete' | 'club' | 'league'>(() => {
+  const [signupRole] = useState<'parent' | 'athlete' | 'organizer'>(() => {
     try {
       if (typeof document !== 'undefined') {
-        // Phase 7 C1: the org door's OAuth twin — an org owner is a normal
-        // athlete profile that lands in the wizard instead of onboarding.
-        for (const role of ['parent', 'club', 'league'] as const) {
+        // Org staff program (mig 178): the org door's OAuth twin creates an
+        // ORGANIZER profile (no handle, no DOB) and lands in the wizard; the
+        // club/league kind rides the parked `ea:invite-return` intent.
+        for (const role of ['parent', 'organizer'] as const) {
           if (document.cookie.includes(`ea-signup-role=${role}`)) return role;
         }
       }
@@ -44,7 +45,9 @@ export default function CompleteProfilePage() {
     return 'athlete';
   });
   const isParent = signupRole === 'parent';
-  const orgKind = signupRole === 'club' || signupRole === 'league' ? signupRole : null;
+  const isOrganizer = signupRole === 'organizer';
+  // No handle, no DOB for either privileged branch.
+  const noHandle = isParent || isOrganizer;
   const errorRef = useRef<HTMLDivElement>(null);
 
   // Route guards: unauthenticated → login; already has a profile → onward.
@@ -56,6 +59,8 @@ export default function CompleteProfilePage() {
       // Parents (097) route to the console/add-athlete, never the wizard.
       if (profile.user_type === 'parent') {
         router.replace(profile.onboarded_at ? '/app/guardian' : '/app/guardian/add-athlete');
+      } else if (profile.user_type === 'organizer') {
+        router.replace(profile.onboarded_at ? '/feed' : '/club/start');
       } else {
         router.replace(profile.onboarded_at ? '/athlete' : '/onboarding');
       }
@@ -104,12 +109,12 @@ export default function CompleteProfilePage() {
       setError('Please enter your first name.');
       return;
     }
-    if (!isParent && !handle) {
+    if (!noHandle && !handle) {
       setError('Please wait for your handle to be confirmed as available, or pick another handle.');
       return;
     }
 
-    if (!isParent && FEATURE_FLAGS.FEATURE_GUARDIAN_PROFILES && !dob) {
+    if (!noHandle && FEATURE_FLAGS.FEATURE_GUARDIAN_PROFILES && !dob) {
       setError('Please enter your date of birth.');
       return;
     }
@@ -124,6 +129,8 @@ export default function CompleteProfilePage() {
           last_name: lastName.trim(),
           ...(isParent
             ? { actorRole: 'guardian' }
+            : isOrganizer
+            ? { actorRole: 'organizer' }
             : {
                 handle,
                 ...(FEATURE_FLAGS.FEATURE_GUARDIAN_PROFILES ? { dob } : {}),
@@ -158,9 +165,16 @@ export default function CompleteProfilePage() {
         window.location.href = '/app/guardian/add-athlete';
         return;
       }
-      if (orgKind) {
-        // Phase 7 C1: stamp onboarding (best-effort) and hard-navigate into
-        // the wizard before the profile-arrives guard above can race us.
+      if (isOrganizer) {
+        // Phase 7 C1 / mig 178: stamp onboarding (best-effort) and hard-navigate
+        // into the wizard before the profile-arrives guard above can race us.
+        // The parked intent names the kind; club is the default door.
+        let dest = '/club/start?sport=golf';
+        try {
+          const parked = window.sessionStorage.getItem('ea:invite-return');
+          if (parked && /^\/(club|league)\/start/.test(parked)) dest = parked;
+          window.sessionStorage.removeItem('ea:invite-return');
+        } catch { /* storage unavailable — the club door */ }
         try {
           await fetch('/api/profile', {
             method: 'PUT',
@@ -168,8 +182,8 @@ export default function CompleteProfilePage() {
             body: JSON.stringify({ profileData: { onboarded_at: new Date().toISOString() } }),
           });
         } catch { /* the wizard works either way */ }
-        // eslint-disable-next-line @next/next/no-location-assign-relative-destination -- profile was just created server-side; the auth provider must boot fresh (house pattern)
-        window.location.href = `/${orgKind}/start?sport=golf`;
+        // Hard navigation (house pattern after a session change): the auth provider must boot fresh.
+        window.location.href = dest;
         return;
       }
       await refreshProfile();
@@ -227,7 +241,9 @@ export default function CompleteProfilePage() {
           <p className="text-sm text-tertiary mb-4">
             {isParent
               ? "You're almost in — confirm your name and you'll add your athlete next."
-              : "You're almost in — confirm your name and pick a handle."}
+              : isOrganizer
+                ? "You're almost in — confirm your name and you'll set up your organization next."
+                : "You're almost in — confirm your name and pick a handle."}
           </p>
 
           {error && (
@@ -289,7 +305,7 @@ export default function CompleteProfilePage() {
               />
             </div>
 
-            {FEATURE_FLAGS.FEATURE_GUARDIAN_PROFILES && !isParent && (
+            {FEATURE_FLAGS.FEATURE_GUARDIAN_PROFILES && !noHandle && (
               <div>
                 <label htmlFor="cp-dob" className="block text-sm font-medium text-secondary mb-1">
                   Date of birth
@@ -326,7 +342,7 @@ export default function CompleteProfilePage() {
               </div>
             )}
 
-            {!isParent && (
+            {!noHandle && (
               <HandleSelector
                 firstName={firstName}
                 lastName={lastName}

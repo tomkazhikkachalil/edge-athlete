@@ -121,6 +121,10 @@ describe('tab buckets (behavior frozen from the pre-registry literal arrays)', (
       'org_registration_placed',
       'org_registration_received',
       'org_registration_released',
+      // Org staff program (mig 178): staff invite / accept / revoke.
+      'org_staff_accepted',
+      'org_staff_invite',
+      'org_staff_revoked',
       'profile_change',
       'roster_invite',
       'tag_alert',

@@ -40,7 +40,7 @@ interface OAuthButtonsProps {
    *  through the provider round-trip so /auth/complete-profile knows whether
    *  to create a parent or an athlete profile (it used to hardcode athlete —
    *  a parent using Google became an athlete with no way back). */
-  signupRole?: 'parent' | 'athlete' | 'club' | 'league';
+  signupRole?: 'parent' | 'athlete' | 'organizer';
 }
 
 export default function OAuthButtons({ onError, divider = 'above', signupRole = 'athlete' }: OAuthButtonsProps) {

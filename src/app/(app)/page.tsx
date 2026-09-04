@@ -82,6 +82,10 @@ export default function Home() {
       // (prefilled from the DOB the signup flow stored).
       if (profile.user_type === 'parent') {
         router.push(profile.onboarded_at ? '/app/guardian' : '/app/guardian/add-athlete');
+      } else if (profile.user_type === 'organizer') {
+        // Organizers (mig 178) never see the athlete wizard: the feed carries
+        // their orgs card; a first run with no org goes to the org door.
+        router.push(profile.onboarded_at ? '/feed' : '/club/start');
       } else {
         router.push(profile.onboarded_at ? '/athlete' : '/onboarding');
       }

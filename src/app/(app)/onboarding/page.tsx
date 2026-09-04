@@ -77,7 +77,10 @@ export default function OnboardingPage() {
   useEffect(() => {
     if (loading || finishing || !user) return;
     const isParent = profile?.user_type === 'parent' || managedProfiles.length > 0;
-    if (!isParent || profile?.onboarded_at) return;
+    // Organizers (mig 178) likewise never belong here — stamp and send them
+    // to the org door (their feed carries the orgs card once one exists).
+    const isOrganizer = profile?.user_type === 'organizer';
+    if ((!isParent && !isOrganizer) || profile?.onboarded_at) return;
     (async () => {
       try {
         await fetch('/api/profile', {
@@ -86,7 +89,7 @@ export default function OnboardingPage() {
           body: JSON.stringify({ profileData: { onboarded_at: new Date().toISOString() } }),
         });
       } catch { /* non-fatal — console still works un-stamped */ }
-      router.replace('/app/guardian');
+      router.replace(isOrganizer ? '/club/start' : '/app/guardian');
     })();
   }, [loading, finishing, user, profile?.user_type, profile?.onboarded_at, managedProfiles.length, router]);
 

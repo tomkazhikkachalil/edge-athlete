@@ -67,7 +67,8 @@ export default function GetStartedCard({ onLogRound }: { onLogRound: () => void 
     };
   }, [user, createdAtIso]);
 
-  if (!user || dismissed || !state) return null;
+  // Organizers (mig 178) run orgs, not rounds — the checklist is an athlete's.
+  if (!user || dismissed || !state || profile?.user_type === 'organizer') return null;
 
   const steps = [
     {

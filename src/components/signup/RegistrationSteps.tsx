@@ -27,8 +27,13 @@ import { isValidDateString, isNotFutureDate } from '@/lib/date-validation';
 // Routing is server-enforced (/api/signup actorRole guard); this UI never
 // computes ages locally, so it can't leak the threshold either.
 
-type Step = 'role' | 'dob' | 'details' | 'parent' | 'parent-done' | 'guardian' | 'parked';
-type Role = 'athlete' | 'parent' | 'org';
+// Org staff program (mig 178): the org door opens on 'entry' — "Do you
+// already have an account?" — then 'organizer', a name/email/password form
+// with NO date of birth (an adult is assumed, Tom's decision) that mints a
+// user_type 'organizer' profile and lands in the wizard. The athlete/parent
+// role cards are never shown on the org path.
+type Step = 'entry' | 'organizer' | 'role' | 'dob' | 'details' | 'parent' | 'parent-done' | 'guardian' | 'parked';
+type Role = 'athlete' | 'parent';
 type OrgKind = 'club' | 'league';
 /** Phase 7 C1: the org door lands in the wizard with golf preselected. */
 const ORG_DEFAULT_SPORT = 'golf';
@@ -51,9 +56,15 @@ export default function RegistrationSteps({
   /** Phase 7 C1: launched from the login page's Club / League door. */
   initialOrg?: OrgKind | null;
 }) {
-  const [step, setStep] = useState<Step>('role');
-  const [role, setRole] = useState<Role>(initialOrg ? 'org' : 'athlete');
+  const [step, setStep] = useState<Step>(initialOrg ? 'entry' : 'role');
+  const [role, setRole] = useState<Role>('athlete');
   const [orgKind, setOrgKind] = useState<OrgKind>(initialOrg ?? 'club');
+  // The radio re-parks the intent: the OAuth twin (complete-profile) reads
+  // `ea:invite-return` to pick the club vs league door after the round-trip.
+  const pickOrgKind = (kind: OrgKind) => {
+    setOrgKind(kind);
+    try { window.sessionStorage.setItem('ea:invite-return', `/${kind}/start?sport=${ORG_DEFAULT_SPORT}`); } catch { /* ignore */ }
+  };
   const [dob, setDob] = useState('');
   const [guardianEmail, setGuardianEmail] = useState('');
   const [parkedMessage, setParkedMessage] = useState('');
@@ -181,6 +192,68 @@ export default function RegistrationSteps({
     }
   };
 
+  const submitOrganizerAccount = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    if (form.password !== form.confirmPassword) {
+      setError('Passwords do not match');
+      return;
+    }
+    if (!form.email || !form.password || !form.firstName || !form.lastName) {
+      setError('Please fill in all required fields');
+      return;
+    }
+    setSubmitting(true);
+    try {
+      const response = await fetch('/api/signup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: form.email,
+          password: form.password,
+          actorRole: 'organizer',
+          profileData: { first_name: form.firstName, last_name: form.lastName },
+        }),
+      });
+      const result = await response.json();
+      if (!response.ok) {
+        setError(result.error || 'An error occurred during registration');
+        return;
+      }
+      // Sign straight in (confirmations are OFF) and land in the wizard —
+      // the parent branch's exact hand-off. Stamp onboarding first so `/`
+      // never bounces an organizer into the athlete wizard.
+      try {
+        const { supabase } = await import('@/lib/supabase');
+        const { error: signInError } = await supabase.auth.signInWithPassword({
+          email: form.email,
+          password: form.password,
+        });
+        if (!signInError) {
+          try {
+            await fetch('/api/profile', {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ profileData: { onboarded_at: new Date().toISOString() } }),
+            });
+          } catch { /* the wizard works either way; `/` routes organizers by user_type */ }
+          try { window.sessionStorage.removeItem('ea:invite-return'); } catch { /* ignore */ }
+          // eslint-disable-next-line @next/next/no-location-assign-relative-destination -- a session was just created; the auth provider must boot fresh (house pattern)
+          window.location.href = `/${orgKind}/start?sport=${ORG_DEFAULT_SPORT}`;
+          return;
+        }
+      } catch { /* fall through to the manual sign-in screen */ }
+      setSuccess('Account created successfully! Please sign in to continue.');
+      setTimeout(onBackToLogin, 2000);
+    } catch (err) {
+      console.error('Organizer registration error:', err);
+      Sentry.captureException(err);
+      setError('An unexpected error occurred. Please try again.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   const submitAccount = async (withGuardianEmail?: string, handleOverride?: string) => {
     setError('');
     // handleOverride: the auto-continued submit fires from the same event
@@ -264,22 +337,6 @@ export default function RegistrationSteps({
           password: form.password,
         });
         if (!signInError) {
-          if (role === 'org') {
-            // Phase 7 C1: an org owner never runs the athlete onboarding —
-            // stamp it (best-effort) so `/` never bounces them there, drop the
-            // parked intent, and land in the wizard with golf preselected.
-            try {
-              await fetch('/api/profile', {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ profileData: { onboarded_at: new Date().toISOString() } }),
-              });
-            } catch { /* the wizard works either way; `/` would just show onboarding once */ }
-            try { window.sessionStorage.removeItem('ea:invite-return'); } catch { /* ignore */ }
-            // eslint-disable-next-line @next/next/no-location-assign-relative-destination -- a session was just created; the auth provider must boot fresh (house pattern)
-            window.location.href = `/${orgKind}/start?sport=${ORG_DEFAULT_SPORT}`;
-            return;
-          }
           // eslint-disable-next-line @next/next/no-location-assign-relative-destination -- a session was just created; the auth provider must boot fresh (house pattern)
           window.location.href = '/onboarding';
           return;
@@ -311,6 +368,112 @@ export default function RegistrationSteps({
     <div className="flex-grow flex items-center justify-center p-4">
       <div className="w-full max-w-3xl bg-surface rounded-lg shadow-lg overflow-hidden">
         <div className="w-full p-6 sm:p-8">
+          {step === 'entry' && (
+            <>
+              <h2 className="text-xl sm:text-2xl font-bold text-violet-800 dark:text-violet-200 mb-1">
+                Set up your {orgKind}
+              </h2>
+              <p className="text-sm text-tertiary mb-4">
+                Do you already have an Edge Athlete account? Any account can run a {orgKind} — you don&apos;t need to be an athlete or a parent.
+              </p>
+              {errorBox}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-lg">
+                <button
+                  type="button"
+                  onClick={onBackToLogin}
+                  className="border-2 border-violet-200 dark:border-violet-800 hover:border-brand rounded-lg p-6 text-left transition"
+                >
+                  <i className="fas fa-right-to-bracket text-brand-fg text-2xl mb-2"></i>
+                  <p className="font-bold text-primary">Yes, sign me in</p>
+                  <p className="text-sm text-tertiary mt-1">You&apos;ll land in the {orgKind} setup right after.</p>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setStep('organizer')}
+                  className="border-2 border-violet-200 dark:border-violet-800 hover:border-brand rounded-lg p-6 text-left transition"
+                >
+                  <i className="fas fa-building text-brand-fg text-2xl mb-2"></i>
+                  <p className="font-bold text-primary">No, create one</p>
+                  <p className="text-sm text-tertiary mt-1">An organizer account: just your name, email and a password.</p>
+                </button>
+              </div>
+              <button type="button" onClick={onBackToLogin} className="inline-flex min-h-[44px] items-center mt-4 text-xs text-brand-fg hover:underline active:underline">
+                Back to login
+              </button>
+            </>
+          )}
+
+          {step === 'organizer' && (
+            <>
+              <h2 className="text-xl sm:text-2xl font-bold text-violet-800 dark:text-violet-200 mb-1">Create your organizer account</h2>
+              <p className="text-sm text-tertiary mb-4">
+                Your account is yours; the {orgKind} is set up right after. No date of birth or athlete details needed.
+              </p>
+              <OAuthButtons onError={setError} divider="below" signupRole="organizer" />
+              {errorBox}
+              {success && (
+                <div className="bg-green-50 dark:bg-green-950/40 border border-green-200 dark:border-green-800 text-green-600 dark:text-green-400 px-4 py-3 rounded-md text-sm mb-4">
+                  {success}
+                </div>
+              )}
+              <form onSubmit={submitOrganizerAccount} className="flex flex-col gap-4 max-w-md">
+                <fieldset>
+                  <legend className="text-sm font-medium text-secondary mb-1">I&apos;m setting up a</legend>
+                  <div className="flex gap-4 text-sm text-primary">
+                    <label className="flex items-center gap-2">
+                      <input type="radio" name="orgKind" value="club" checked={orgKind === 'club'} onChange={() => pickOrgKind('club')} />
+                      Club
+                    </label>
+                    <label className="flex items-center gap-2">
+                      <input type="radio" name="orgKind" value="league" checked={orgKind === 'league'} onChange={() => pickOrgKind('league')} />
+                      League
+                    </label>
+                  </div>
+                </fieldset>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label htmlFor="oa-first" className={labelClass}>First Name</label>
+                    <input type="text" id="oa-first" value={form.firstName} onChange={set('firstName')} className={inputClass} required />
+                  </div>
+                  <div>
+                    <label htmlFor="oa-last" className={labelClass}>Last Name</label>
+                    <input type="text" id="oa-last" value={form.lastName} onChange={set('lastName')} className={inputClass} required />
+                  </div>
+                </div>
+                <div>
+                  <label htmlFor="oa-email" className={labelClass}>Email</label>
+                  <input type="email" id="oa-email" value={form.email} onChange={set('email')} className={inputClass} required />
+                </div>
+                <div>
+                  <label htmlFor="oa-password" className={labelClass}>Password</label>
+                  <input type="password" id="oa-password" value={form.password} onChange={set('password')} className={inputClass} required minLength={6} />
+                </div>
+                <div>
+                  <label htmlFor="oa-confirm" className={labelClass}>Confirm Password</label>
+                  <input type="password" id="oa-confirm" value={form.confirmPassword} onChange={set('confirmPassword')} className={inputClass} required minLength={6} />
+                </div>
+                <button type="submit" disabled={submitting} className={primaryBtn}>
+                  {submitting ? (
+                    <><i className="fas fa-spinner fa-spin mr-2"></i> Creating Account...</>
+                  ) : (
+                    'Create Account'
+                  )}
+                </button>
+                <div className="flex items-center justify-between">
+                  <button type="button" onClick={() => setStep('entry')} className="inline-flex min-h-[44px] items-center text-xs text-brand-fg hover:underline active:underline">
+                    Back
+                  </button>
+                  <p className="text-xs text-tertiary">
+                    Already have an account?
+                    <span className="text-brand-fg hover:underline cursor-pointer ml-1" onClick={onBackToLogin}>
+                      Log in
+                    </span>
+                  </p>
+                </div>
+              </form>
+            </>
+          )}
+
           {step === 'role' && (
             <>
               <h2 className="text-xl sm:text-2xl font-bold text-violet-800 dark:text-violet-200 mb-1">Who&apos;s setting this up?</h2>
@@ -334,19 +497,6 @@ export default function RegistrationSteps({
                   <i className="fas fa-user-shield text-brand-fg text-2xl mb-2"></i>
                   <p className="font-bold text-primary">I&apos;m a parent or guardian</p>
                   <p className="text-sm text-tertiary mt-1">I&apos;m setting this up for my athlete.</p>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => { setRole('org'); setStep('dob'); }}
-                  className={`border-2 rounded-lg p-6 text-left transition sm:col-span-2 ${
-                    role === 'org' ? 'border-brand' : 'border-violet-200 dark:border-violet-800 hover:border-brand'
-                  }`}
-                >
-                  <i className="fas fa-building text-brand-fg text-2xl mb-2"></i>
-                  <p className="font-bold text-primary">I run a club or league</p>
-                  <p className="text-sm text-tertiary mt-1">
-                    Create your account, then set up your {orgKind === 'league' ? 'league' : 'club'} and its website.
-                  </p>
                 </button>
               </div>
               <button type="button" onClick={onBackToLogin} className="inline-flex min-h-[44px] items-center mt-4 text-xs text-brand-fg hover:underline active:underline">
@@ -460,25 +610,9 @@ export default function RegistrationSteps({
           {step === 'details' && (
             <>
               <h2 className="text-xl sm:text-2xl font-bold text-violet-800 dark:text-violet-200 space-micro">
-                {role === 'org' ? 'Create your account' : 'Create Athlete Account'}
+                Create Athlete Account
               </h2>
-              {role === 'org' && (
-                <fieldset className="mb-4">
-                  <legend className="text-sm font-medium text-secondary mb-1">I&apos;m setting up a</legend>
-                  <div className="flex gap-4 text-sm text-primary">
-                    <label className="flex items-center gap-2">
-                      <input type="radio" name="orgKind" value="club" checked={orgKind === 'club'} onChange={() => setOrgKind('club')} />
-                      Club
-                    </label>
-                    <label className="flex items-center gap-2">
-                      <input type="radio" name="orgKind" value="league" checked={orgKind === 'league'} onChange={() => setOrgKind('league')} />
-                      League
-                    </label>
-                  </div>
-                  <p className="text-xs text-tertiary mt-1">Your account is yours; the {orgKind} is set up right after.</p>
-                </fieldset>
-              )}
-              <OAuthButtons onError={setError} divider="below" signupRole={role === 'org' ? orgKind : 'athlete'} />
+              <OAuthButtons onError={setError} divider="below" signupRole="athlete" />
               {errorBox}
               {success && (
                 <div className="bg-green-50 dark:bg-green-950/40 border border-green-200 dark:border-green-800 text-green-600 dark:text-green-400 px-4 py-3 rounded-md text-sm mb-4">

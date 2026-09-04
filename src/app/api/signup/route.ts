@@ -13,7 +13,7 @@ import {
 import { createGuardianInvite } from '@/lib/guardian-invites';
 import { emailService } from '@/lib/email-service';
 import { enforceRateLimit } from '@/lib/rate-limit';
-import { resolveSignupUserType } from '@/lib/signup-user-type';
+import { resolveSignupActorRole, resolveSignupUserType } from '@/lib/signup-user-type';
 
 export async function POST(request: NextRequest) {
   try {
@@ -46,7 +46,12 @@ export async function POST(request: NextRequest) {
     //   actor == 'athlete' && age <  threshold → pending_guardian (park +
     //                                            invite; NO auth user —
     //                                            COPPA data minimization)
-    const actorRole = body.actorRole === 'guardian' ? 'guardian' : 'athlete';
+    //   actor == 'organizer'                   → organizer_signup (org staff
+    //                                             program, mig 178: name +
+    //                                             email + password, NO DOB —
+    //                                             an adult is assumed, Tom's
+    //                                             decision; no handle either)
+    const actorRole = resolveSignupActorRole(body.actorRole);
     if (FEATURE_FLAGS.FEATURE_GUARDIAN_PROFILES && actorRole === 'athlete') {
       const dob: string | undefined = profileData?.birthday;
       if (!dob || !isValidDateString(dob) || !isNotFutureDate(dob)) {
@@ -299,8 +304,11 @@ export async function POST(request: NextRequest) {
         // org types come only from their own flows.
         user_type: resolveSignupUserType(actorRole, profileData.user_type),
         full_name: fullName || null,
-        handle: profileData.handle ? profileData.handle.toLowerCase().trim() : null,
-        display_name: profileData.nickname || fullName || profileData.handle || 'Athlete',
+        // Organizers have no handle (the parent precedent) — /u/ never
+        // renders them; the org site is their public face.
+        handle: actorRole !== 'organizer' && profileData.handle ? profileData.handle.toLowerCase().trim() : null,
+        display_name: profileData.nickname || fullName || profileData.handle
+          || (actorRole === 'organizer' ? 'Organizer' : 'Athlete'),
       };
 
 
