@@ -29,6 +29,7 @@ import { validateFiles } from '@/lib/media/validation';
 import { recipeEnvelope } from '@/lib/media/recipes';
 import { loadComposerDraft, saveComposerDraft, clearComposerDraft, type ComposerDraft } from '@/lib/posts/composer-draft';
 import { uploadPostMedia } from '@/lib/media/upload';
+import InAppCamera, { canUseInAppCamera } from '@/components/media/InAppCamera';
 import type { EditRecipe, EditedMedia, EditorConfig, MediaAsset } from '@/lib/media/types';
 
 interface CreatePostModalProps {
@@ -202,6 +203,9 @@ export default function CreatePostModal({
   // re-editing an already-attached asset (result replaces it in place).
   const [editorAssets, setEditorAssets] = useState<MediaAsset[] | null>(null);
   const [editingExistingId, setEditingExistingId] = useState<string | null>(null);
+  // In-app camera (media/InAppCamera.tsx): the fallback for a native photo
+  // picker that fails inside iOS's own screen. Offered on touch devices only.
+  const [inAppCameraOpen, setInAppCameraOpen] = useState(false);
 
   // Persist the recoverable half of the composer while open (storage write
   // only — media Files and the uncontrolled golf section can't ride
@@ -296,7 +300,7 @@ export default function CreatePostModal({
   // Validation now mirrors the server allowlist AT PICK (HEIC no longer fails
   // after a full upload — it re-encodes in the editor), and the size cap
   // matches the server's 50MB (edited images re-encode far smaller anyway).
-  const handleFileUpload = useCallback((files: FileList) => {
+  const handleFileUpload = useCallback((files: FileList | File[]) => {
     if (files.length === 0) return;
     const { accepted, rejected } = validateFiles(Array.from(files), {
       maxBytes: 50 * 1024 * 1024,
@@ -802,6 +806,17 @@ export default function CreatePostModal({
                 </div>
               )}
             </CaptureInputs>
+            {/* Rendered only while the modal is open (after a tap), so the
+                navigator read here can never disagree with a server render. */}
+            {canUseInAppCamera() && (
+              <button
+                type="button"
+                onClick={() => setInAppCameraOpen(true)}
+                className="mb-2 min-h-[44px] text-xs font-semibold text-brand-fg underline underline-offset-2"
+              >
+                Camera not working? Use the in-app camera
+              </button>
+            )}
 
             <p className={`text-xs ${draggedOver ? 'font-semibold text-brand-fg' : 'text-muted'}`}>
               {draggedOver
@@ -1285,6 +1300,19 @@ export default function CreatePostModal({
             setStatLineData(null); // stat entries are per-sport
           }}
           onClose={() => setShowSportSelector(false)}
+        />
+      )}
+
+      {/* In-app camera — the fallback for a native photo picker that fails
+          inside iOS's own screen (media/InAppCamera.tsx). Same layer as the
+          editor; it closes itself before the editor opens on its photo. */}
+      {inAppCameraOpen && (
+        <InAppCamera
+          onClose={() => setInAppCameraOpen(false)}
+          onCapture={file => {
+            setInAppCameraOpen(false);
+            handleFileUpload([file]);
+          }}
         />
       )}
 

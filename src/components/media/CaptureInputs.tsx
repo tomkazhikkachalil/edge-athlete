@@ -23,6 +23,12 @@
  * MOUNT-POINT WARNING: an `inert` ancestor swallows programmatic
  * `.click()`. On surfaces with inert-collapsing clusters (MessageInput),
  * mount this at the component root, next to the existing input.
+ *
+ * THE ONE EXCEPTION TO "never getUserMedia" (Sep 3 2026): `InAppCamera.tsx`
+ * is a FALLBACK the composer offers on touch devices when the native photo
+ * picker fails inside iOS's own screen (black preview, nothing handed back
+ * — iOS 26.6, while the same picker's video capture worked). The quality
+ * rule above is unchanged: the native camera stays the primary path.
  */
 
 import { useCallback, useState, type ReactNode } from 'react';

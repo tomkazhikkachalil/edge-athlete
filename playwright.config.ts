@@ -47,7 +47,17 @@ export default defineConfig({
   // complementary so each spec runs in exactly one project.
   projects: [
     { name: 'desktop', grepInvert: /@mobile/ },
-    { name: 'mobile', grep: /@mobile/, use: { viewport: { width: 390, height: 844 } } },
+    {
+      name: 'mobile',
+      grep: /@mobile/,
+      use: {
+        viewport: { width: 390, height: 844 },
+        // A fake camera for the in-app camera spec (Chromium only; WebKit has
+        // no fake device, so that spec skips itself there).
+        permissions: ['camera'],
+        launchOptions: { args: ['--use-fake-device-for-media-stream', '--use-fake-ui-for-media-stream'] },
+      },
+    },
     // The phone ENGINE, not just the phone width (Sep 2026): Tom's iPhone runs
     // Chrome for iOS, which is WebKit under Chrome's UI. Everything above is
     // Chromium; this project runs the same @mobile specs on WebKit so an
