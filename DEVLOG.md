@@ -1,5 +1,30 @@
 # Development Log
 
+## September 4, 2026 — The camera incident, closed: the app works on other phones; the one failing device fails at the OS camera boundary
+
+Tom, morning after: **"the application is working well on other phones, it's
+just mine that is the issue. Think it was related to the update Apple just
+did."** Camera photo and video → tile → post confirmed on other devices. On
+his iPhone 12 Pro Max (iOS 26.6.1) the tap on Take photo / Record video
+freezes at the moment iOS opens its camera, in Safari and Chrome alike, and
+the in-app camera's stream request is never answered — every route to the
+camera hardware, none of them the page's. Closed as a device issue; the fix
+is Apple's (reboot / the next iOS update).
+
+What the eleven rounds of Sep 3 leave behind, all live and prod-proven:
+Capture v2 (captures attach first, the editor optional, server-side video
+scrub, an Orientation-keeping JPEG strip, sequential uploads), the in-app
+camera fallback with deadlines and video recording, the browser floor and its
+gate (rounds 5–6 fixed real breaks for older devices), `/app/diag/media`, and
+the `webkit-mobile` Playwright project. The reset (round 8) and the
+measurement-first rule (round 9) are the lessons: **ask for the last-known-
+good state and the exact iOS version first; get the on-device log before
+changing code; probe production with the built specs after every merge.**
+
+No code in this entry. `docs/SESSION_PROMPT.md` re-aligned.
+
+---
+
 ## September 3, 2026 — Round 11, Capture v2: the composer's photo/video capture process, rebuilt (zero DDL)
 
 Tom, after #573: video now froze past ~5 seconds, the in-app camera sat on
