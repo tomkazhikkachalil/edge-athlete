@@ -1,5 +1,88 @@
 # Development Log
 
+## September 3, 2026 — Round 11, Capture v2: the composer's photo/video capture process, rebuilt (zero DDL)
+
+Tom, after #573: video now froze past ~5 seconds, the in-app camera sat on
+"Starting camera…" and sometimes froze the app on close. "Can we go through
+the process of rebuilding it to get it to work? Just the video and photo
+capture process. Everything else stays in place." The premise stated plainly
+first: on his phone the OPERATING SYSTEM's camera would not start for any
+browser path that day (black preview in iOS's own screen, a stream request
+never answered) — no web page fixes that; a reboot / iOS update does. What a
+rebuild can do, on every device, is make our half light and un-freezable.
+
+**Why the old process was heavy (the pipeline map):** every capture opened
+the editor at once. For a video: three `<video>` elements on the file, eight
+sequential seeks and eight JPEG data-URL encodes for thumbnails (again on the
+Cover tab), a full mediabunny container parse on the main thread just to show
+"30fps", a presets fetch; Done ran a poster capture and a metadata probe (two
+more loads); upload ran a **whole-file stream-copy re-mux in memory on the
+main thread**, N videos in parallel, no size or time guard. For a photo: a
+12MP decode on any non-crop tab, another for dims on pass-through, the whole
+JPEG read into memory for the strip. That is where a 5-second clip froze.
+
+**Capture v2 — composer only** (library Upload, messages, golf, guardian
+surfaces unchanged):
+
+- **A camera capture attaches immediately as a tile** (`capture-attach.ts`,
+  `planCaptureAttach`): the original File is the tile and the upload; `url`
+  is one object URL; no decode, no probe, no editor. The tile's pencil opens
+  the editor on `sourceFile` through the existing re-edit path. HEIC/HEIF is
+  the one exception (must re-encode) and still opens the editor. Library
+  picks and drops keep the editor-first flow by decision.
+- **Video tile**: `preload="metadata" muted playsInline`, and its own
+  `loadedmetadata` fills width/height/duration (no probe load; MediaRecorder's
+  `Infinity` reads as unknown — `usableDuration`). A poster is captured
+  AFTER the tile is on screen, one at a time, 6s deadline; a miss leaves the
+  tile on its first frame. Over `MAX_VIDEO_SECONDS` (180) the tile says "Too
+  long — trim in the editor" and Create Post waits.
+- **Upload does no heavy work on the phone.** The MP4/MOV metadata scrub moved
+  to the server: `src/lib/media/video-scrub-server.ts` runs the same
+  mediabunny stream-copy (`tags: () => ({})`, no WebCodecs — verified to load
+  in Node) inside `/api/upload/post-media` before the storage write, fail-open,
+  `scrubbed` reported in the response; `maxDuration = 120`. **Policy shift,
+  named:** GPS is scrubbed "before it is stored" rather than "before it leaves
+  the device" — the bytes transit TLS to our own function, as JPEG bytes
+  always did; nothing with GPS is ever written to storage. Uploads run
+  sequentially.
+- **The JPEG strip keeps Orientation** — the light fix deferred at the reset,
+  now load-bearing because un-edited captures are the default path.
+  `stripJpegMetadataKeepOrientation` drops APP1/APP13 and writes back a
+  36-byte APP1 whose only tag is Orientation (after APP0 when present).
+  Byte-level, zero decode; `jpegOrientation` (from #551) returns as a pure
+  reader. Pinned by fixture bytes carrying a GPS IFD pointer: the pointer is
+  gone, the orientation survives, upright/untagged files are untouched.
+- **The in-app camera cannot hang or freeze**: every await has a deadline
+  (stream 8s, first frame 5s, play 3s, encode 5s) and ends in a visible error
+  pointing at the device camera / a restart; constraints relaxed to 1080p
+  ideal first; teardown is synchronous (pause → `srcObject = null` → stop
+  every track) and never awaited; a stream that resolves after we gave up
+  stops itself. **Video mode**: `MediaRecorder` (MP4 on WebKit, WebM elsewhere
+  — both server-allowed), 60s cap, into the same attach path. Still a
+  fallback behind the touch-only link; the native camera stays the default.
+- **Editor (optional, unchanged in shape)**: `useFrameStep`'s mediabunny
+  packet scan now runs on the first frame-step, not on open;
+  `useTimelineThumbs` caches the strip per (object URL, duration) so the
+  Cover tab does not re-seek.
+- `/app/diag/media` logs `server scrub: yes/no` on its Upload line.
+
+Tests: `e2e/capture-attach.spec.ts` (@mobile): camera photo → tile in <5s,
+no editor heading, pencil → editor → Done; library pick still editor-first;
+an in-browser MediaRecorder clip through the video capture input → tile →
+post on the feed. `in-app-camera.spec.ts`: photo → tile; Video → record 2s →
+stop → second tile (fake device, Chromium). Unit: orientation round-trip,
+capture plan, server-scrub fail-open contract.
+
+Verification: `npm run verify`; the specs above plus `diag-media`, `feed-post`,
+`media-editor`, `media-reedit` on desktop/mobile/webkit-mobile; after merge,
+the gate on the live chunks and a real MOV through the diag page → `server
+scrub: yes`. Then Tom, any phone: Record video 10s → tile → post; Take photo
+→ tile → post; pencil → editor → Done. If the OS camera still shows black or
+never starts, that is the device's line in the diag log, and the app no
+longer freezes around it.
+
+---
+
 ## September 3, 2026 — Round 10: the sweep says nothing in the app broke; iOS's photo capture did. An in-app camera as the fallback (zero DDL)
 
 The facts that finally held still (Tom, iPhone 12 Pro Max, **iOS 26.6.1** —

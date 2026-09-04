@@ -1,77 +1,41 @@
 /**
- * The one post-media upload call (browser-only). Replaces the FormData block
- * that was copy-pasted across five surfaces. Editor output or original file
- * in, public URL out — auth comes from the session cookie server-side.
+ * Post-media upload (client). Capture v2 (Sep 3 2026) — the phone does NO
+ * heavy work here:
  *
- * Every JPEG is metadata-stripped (lossless, see exif-strip.ts) before it
- * leaves the device: editor-rendered files are already clean (canvas
- * re-encode), but un-edited uploads and the preserved non-destructive
- * originals used to ship phone-camera GPS byte-for-byte. Since Wave 6,
- * MP4/MOV containers get the same treatment via a mediabunny stream-copy
- * re-mux (packets copied, container rewritten — the phone-camera GPS/©xyz
- * and creation atoms don't survive; rotation rides the track matrix, which
- * does). WebM is skipped like non-JPEG images: no phone writes GPS there.
- * Both scrubs fail OPEN — an upload must never die in the scrubber.
+ * - JPEG: a byte-level metadata strip that KEEPS the Orientation tag
+ *   (exif-strip.ts). Phone-camera GPS never leaves the device; un-edited
+ *   portraits stay upright by tag. No decode, no canvas.
+ * - Video: nothing client-side. The MP4/MOV metadata scrub (GPS ©xyz, udta)
+ *   runs on the SERVER now — src/lib/media/video-scrub-server.ts, inside
+ *   /api/upload/post-media, before the storage write. The client re-mux it
+ *   replaces loaded the whole file into memory on the main thread of the
+ *   phone, N videos at once; that is where a 5-second clip froze. Policy
+ *   shift, recorded in the DEVLOG: GPS is scrubbed "before it is stored"
+ *   rather than "before it leaves the device" — the bytes transit TLS to our
+ *   own function, as the JPEG bytes always did.
+ *
+ * Every scrub fails OPEN — an upload must never die in the scrubber.
  */
 
-import { stripJpegMetadata } from './exif-strip';
+import { stripJpegMetadataKeepOrientation } from './exif-strip';
 
 export interface UploadedMedia {
   url: string;
   type: 'image' | 'video';
+  /** True when the server re-muxed the video to drop its metadata. */
+  scrubbed?: boolean;
 }
 
 async function withoutJpegMetadata(file: File): Promise<File> {
   if (file.type !== 'image/jpeg') return file;
   try {
     const bytes = new Uint8Array(await file.arrayBuffer());
-    const out = stripJpegMetadata(bytes);
+    const out = stripJpegMetadataKeepOrientation(bytes);
     if (out === bytes) return file; // nothing to strip
-    // TS 5.7 typed-array generics: Uint8Array<ArrayBufferLike> isn't a
-    // BlobPart; the array was freshly allocated over a plain ArrayBuffer.
-    return new File([out as Uint8Array<ArrayBuffer>], file.name, { type: file.type });
+    return new File([out as BlobPart], file.name, { type: file.type, lastModified: file.lastModified });
   } catch (err) {
-    // Fail open — an upload must never die in the scrubber — but never
-    // silently: this is a privacy control.
+    // Fail open, never silently — this is a privacy control.
     console.warn('[upload] JPEG metadata strip failed; uploading as-is:', err);
-    return file;
-  }
-}
-
-/** Containers phones actually write GPS into (MOV ©xyz / MP4 udta+keys). */
-const SCRUBBABLE_VIDEO = new Set(['video/mp4', 'video/quicktime']);
-
-async function withoutVideoMetadata(file: File): Promise<File> {
-  if (!SCRUBBABLE_VIDEO.has(file.type)) return file;
-  try {
-    // Dynamic import — house rule (video.ts): mediabunny stays out of every
-    // bundle until a video is actually touched. A metadata-only Conversion
-    // stream-copies packets (no WebCodecs decode/encode), so this runs even
-    // on browsers the editor's trim path can't serve.
-    const { Input, Output, Conversion, ALL_FORMATS, BlobSource, BufferTarget, Mp4OutputFormat } =
-      await import('mediabunny');
-    const input = new Input({ source: new BlobSource(file), formats: ALL_FORMATS });
-    const output = new Output({ format: new Mp4OutputFormat(), target: new BufferTarget() });
-    // `tags` is load-bearing: without it Conversion COPIES the input's
-    // descriptive metadata — GPS ©xyz included — into the fresh container,
-    // making the re-mux a privacy no-op (caught by the Wave-6 prod probe:
-    // an injected coordinate atom survived). Empty tags = write none;
-    // rotation is track-matrix data, not a tag, and still carries over.
-    const conversion = await Conversion.init({ input, output, tags: () => ({}) });
-    // A dropped track (codec the container can't carry and this browser
-    // can't transcode) would lose CONTENT to save metadata — wrong trade;
-    // upload the original and let the composer's caveat stand for it.
-    if (!conversion.isValid || conversion.discardedTracks.length > 0) {
-      console.warn('[upload] video metadata strip unsupported for this file; uploading as-is');
-      return file;
-    }
-    await conversion.execute();
-    const buffer = (output.target as InstanceType<typeof BufferTarget>).buffer;
-    if (!buffer) return file;
-    return new File([buffer], file.name.replace(/\.(mov|qt)$/i, '.mp4'), { type: 'video/mp4' });
-  } catch (err) {
-    // Fail open, never silently — this is a privacy control (JPEG stance).
-    console.warn('[upload] video metadata strip failed; uploading as-is:', err);
     return file;
   }
 }
@@ -84,9 +48,7 @@ async function withoutVideoMetadata(file: File): Promise<File> {
  */
 export async function uploadPostMedia(file: File, targetProfileId?: string): Promise<UploadedMedia> {
   const formData = new FormData();
-  const scrubbed = file.type.startsWith('video/')
-    ? await withoutVideoMetadata(file)
-    : await withoutJpegMetadata(file);
+  const scrubbed = file.type.startsWith('video/') ? file : await withoutJpegMetadata(file);
   formData.append('file', scrubbed);
   if (targetProfileId) formData.append('targetProfileId', targetProfileId);
   const response = await fetch('/api/upload/post-media', { method: 'POST', body: formData });
@@ -94,5 +56,5 @@ export async function uploadPostMedia(file: File, targetProfileId?: string): Pro
   if (!response.ok || !payload.url) {
     throw new Error(payload.error || 'Failed to upload media');
   }
-  return { url: payload.url, type: payload.type === 'video' ? 'video' : 'image' };
+  return { url: payload.url, type: payload.type === 'video' ? 'video' : 'image', scrubbed: payload.scrubbed === true };
 }

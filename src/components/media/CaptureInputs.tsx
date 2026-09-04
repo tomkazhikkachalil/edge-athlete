@@ -24,6 +24,10 @@
  * `.click()`. On surfaces with inert-collapsing clusters (MessageInput),
  * mount this at the component root, next to the existing input.
  *
+ * CAPTURE V2 (Sep 3 2026): in the composer, a file from these inputs ATTACHES
+ * IMMEDIATELY as a tile (capture-attach.ts); the editor is one tap away, never
+ * mandatory. Nothing heavy runs between the camera's hand-back and the tile.
+ *
  * THE ONE EXCEPTION TO "never getUserMedia" (Sep 3 2026): `InAppCamera.tsx`
  * is a FALLBACK the composer offers on touch devices when the native photo
  * picker fails inside iOS's own screen (black preview, nothing handed back

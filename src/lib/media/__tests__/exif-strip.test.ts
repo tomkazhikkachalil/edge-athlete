@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { stripJpegMetadata } from '../exif-strip';
+import { stripJpegMetadata, stripJpegMetadataKeepOrientation, jpegOrientation, orientationApp1 } from '../exif-strip';
 
 /** Build a JPEG segment: FF <marker> <len hi> <len lo> <payload…>. */
 function seg(marker: number, payload: number[]): number[] {
@@ -64,5 +64,81 @@ describe('stripJpegMetadata', () => {
     const out = stripJpegMetadata(input);
     const scanHex = Buffer.from(SCAN).toString('hex');
     expect(Buffer.from(out).toString('hex').endsWith(scanHex)).toBe(true);
+  });
+});
+
+/** A real-shaped EXIF APP1 payload: "Exif\0\0" + big-endian TIFF with one Orientation entry
+ *  and one GPS-IFD pointer entry (the thing the strip exists to remove). */
+function exifWithOrientation(orientation: number, little = false): number[] {
+  const u16 = (v: number) => (little ? [v & 0xff, v >> 8] : [v >> 8, v & 0xff]);
+  const u32 = (v: number) =>
+    little ? [v & 0xff, (v >> 8) & 0xff, (v >> 16) & 0xff, (v >> 24) & 0xff] : [(v >> 24) & 0xff, (v >> 16) & 0xff, (v >> 8) & 0xff, v & 0xff];
+  const shortValue = (v: number) => (little ? [v & 0xff, v >> 8, 0, 0] : [v >> 8, v & 0xff, 0, 0]);
+  const tiff = [
+    ...(little ? [0x49, 0x49] : [0x4d, 0x4d]),
+    ...u16(0x2a),
+    ...u32(8),
+    ...u16(2), // two entries
+    ...u16(0x0112), ...u16(3), ...u32(1), ...shortValue(orientation), // Orientation
+    ...u16(0x8825), ...u16(4), ...u32(1), ...u32(38), // GPS IFD pointer → offset 38
+    ...u32(0), // next IFD
+    // a GPS IFD with one entry (GPSLatitudeRef = "N")
+    ...u16(1), ...u16(0x0001), ...u16(2), ...u32(2), 0x4e, 0x00, 0x00, 0x00, ...u32(0),
+  ];
+  return [0x45, 0x78, 0x69, 0x66, 0x00, 0x00, ...tiff];
+}
+
+describe('jpegOrientation', () => {
+  it('reads Orientation from big- and little-endian EXIF', () => {
+    expect(jpegOrientation(jpeg(seg(0xe1, exifWithOrientation(6))))).toBe(6);
+    expect(jpegOrientation(jpeg(seg(0xe1, exifWithOrientation(8, true))))).toBe(8);
+    expect(jpegOrientation(jpeg(seg(0xe0, JFIF_PAYLOAD), seg(0xe1, exifWithOrientation(3))))).toBe(3);
+  });
+  it('is null without EXIF, for XMP-only APP1, for non-JPEG and for corrupt bytes', () => {
+    expect(jpegOrientation(jpeg(seg(0xe0, JFIF_PAYLOAD)))).toBeNull();
+    expect(jpegOrientation(jpeg(seg(0xe1, [0x68, 0x74, 0x74, 0x70, 0x3a, 0x2f, 0x2f, 0x6e, 0x73, 0x2e, 0x61, 0x64, 0x6f, 0x62, 0x65])))).toBeNull();
+    expect(jpegOrientation(new Uint8Array([0x89, 0x50, 0x4e, 0x47]))).toBeNull();
+    expect(jpegOrientation(new Uint8Array([0xff, 0xd8, 0xff, 0xe1, 0x03, 0xe8, 0x45, 0x78]))).toBeNull();
+  });
+  it('round-trips the minimal APP1 it writes', () => {
+    for (const o of [2, 3, 4, 5, 6, 7, 8]) {
+      const bytes = new Uint8Array([0xff, 0xd8, ...orientationApp1(o), ...SCAN]);
+      expect(jpegOrientation(bytes)).toBe(o);
+    }
+    expect(orientationApp1(6).length).toBe(36);
+  });
+});
+
+describe('stripJpegMetadataKeepOrientation', () => {
+  it('drops the GPS-bearing APP1 but keeps a minimal Orientation-only APP1', () => {
+    const input = jpeg(seg(0xe0, JFIF_PAYLOAD), seg(0xe1, exifWithOrientation(6)), seg(0xed, [0x50]), seg(0xdb, [0x00]));
+    const out = stripJpegMetadataKeepOrientation(input);
+    expect(out).not.toBe(input);
+    const hex = Buffer.from(out).toString('hex');
+    expect(hex).not.toContain('8825'); // the GPS pointer is gone
+    expect(hex).not.toContain('ffed'); // IPTC gone
+    expect(jpegOrientation(out)).toBe(6); // orientation survives
+    // placed after APP0 (JFIF convention), before the tables and the scan
+    expect(hex.indexOf('ffe0')).toBeLessThan(hex.indexOf('ffe1'));
+    expect(hex.indexOf('ffe1')).toBeLessThan(hex.indexOf('ffdb'));
+    expect(hex.endsWith(Buffer.from(SCAN).toString('hex'))).toBe(true);
+    expect(out.length).toBeLessThan(input.length);
+  });
+  it('places the APP1 right after SOI when there is no APP0', () => {
+    const out = stripJpegMetadataKeepOrientation(jpeg(seg(0xe1, exifWithOrientation(8)), seg(0xdb, [0x00])));
+    expect(out[2]).toBe(0xff);
+    expect(out[3]).toBe(0xe1);
+    expect(jpegOrientation(out)).toBe(8);
+  });
+  it('behaves exactly like the plain strip when the photo is upright or untagged', () => {
+    const upright = jpeg(seg(0xe1, exifWithOrientation(1)), seg(0xdb, [0x00]));
+    expect(Buffer.from(stripJpegMetadataKeepOrientation(upright))).toEqual(Buffer.from(stripJpegMetadata(upright)));
+    expect(jpegOrientation(stripJpegMetadataKeepOrientation(upright))).toBeNull();
+    const untagged = jpeg(seg(0xe0, JFIF_PAYLOAD), seg(0xdb, [0x00]));
+    expect(stripJpegMetadataKeepOrientation(untagged)).toBe(untagged); // by reference
+  });
+  it('fails open on corrupt input', () => {
+    const corrupt = new Uint8Array([0xff, 0xd8, 0xff, 0xe1, 0x03, 0xe8, 0x45, 0x78]);
+    expect(stripJpegMetadataKeepOrientation(corrupt)).toBe(corrupt);
   });
 });

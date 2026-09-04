@@ -49,3 +49,11 @@ export function downscaleSteps(
   steps.push({ width: toWidth, height: toHeight });
   return steps;
 }
+
+/**
+ * Composer video cap in SECONDS (Capture v2, Sep 2026). Checked from the
+ * tile's own metadata after attach — never at pick, since reading a duration
+ * is a video load. Over the cap the tile says "trim in the editor" and Create
+ * Post waits; the 50MB byte cap stays the hard server limit.
+ */
+export const MAX_VIDEO_SECONDS = 180;

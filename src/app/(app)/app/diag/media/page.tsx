@@ -307,7 +307,7 @@ export default function MediaDiagPage() {
     try {
       const { uploadPostMedia } = await import('@/lib/media/upload');
       const result = await uploadPostMedia(lastFile);
-      append(`[upload] ok ${result.type} ${ms(t0)} → ${result.url}`);
+      append(`[upload] ok ${result.type} · server scrub: ${result.scrubbed ? 'yes' : 'no'} ${ms(t0)} → ${result.url}`);
     } catch (e) {
       append(`[upload] FAILED ${ms(t0)}: ${errText(e)}`);
     } finally {
