@@ -1,5 +1,60 @@
 # Development Log
 
+## September 4, 2026 — Org Staff Program, round 3: every route family names its intent (#578, zero DDL)
+
+Round 2's reader is prod-proven (a real staff row on a live league answered
+its sections; expired rows inert; strangers empty). Round 3 makes the
+routes ASK the right question: each console section's API family passes
+its intent to the shared gate, so a section grant — once round 4 mints
+them — is enough for that family and nothing else.
+
+**The map** (both org sides; the club twins mirror the league files):
+- `structure` GET → `enter_console` (the aggregate every section renders
+  from: anyone who may enter the console at all).
+- `structure/{seasons,programs,rollover}`, `structure-import` →
+  `manage_structure`; `structure/divisions` POST org-level, DELETE at the
+  division's scope.
+- `structure/teams` POST → `manage_teams`; PATCH parses first, then gates at
+  the team's scope with its parent divisions (`divisionIdsForTeam`) — a
+  division grant covers the teams entered in it. `structure/entries` POST
+  gates at the body's division; DELETE looks the entry's division up.
+- `roster-import`, roster offer/remove (`roster-server`), the members
+  route's manager paths → `manage_members`. `join-requests`, `announce` →
+  `manage_membership`.
+- `competitions/**` → `manage_competitions` through `requireCompetitionManager`,
+  which now takes `{ competitionId }` from the 30 `[competitionId]` twins and,
+  only when the org-level check fails and the viewer holds scoped grants,
+  reads the competition's division and re-asks at that scope.
+  `structure-options` (`schedule_events`) and `registration-server`
+  (`manage_registration`) switch to the capabilities reader.
+- `venues/**` → `manage_venues`. `site/**` → `manage_site` — assets, logo,
+  news, pages, preview, the member-photo picks, the site GET — EXCEPT the
+  identity acts, which stay `manage_org`: minting the subdomain (site POST),
+  `site/domain/**`, `site/slug-options`, and the site PATCH's
+  publish/unpublish (parsed first, gated by action). The org route's own
+  PATCH/DELETE, owners, role changes, `parents` and `photo-consent` were
+  never touched — "not the overall site".
+
+**Admins ride along where managers are counted or belled:** the console
+checklist's manager count, the registration and competition fan-outs, and
+the competition-media manager check now include org-scope `admin` staff
+rows (section staff stay out of all three).
+
+Nothing changes for an owner or a manager: every gate's default is still
+`manage_org`-or-wider on the ladder, and the widened intents are
+owner-or-manager on the ladder (the matrix test pins it). No new rows exist
+until round 4, so production behaviour is byte-identical today; the probe
+after merge inserts a disposable Teams-only staff row and proves the
+matrix: structure GET 200, team create 201, season create 403, org rename 403.
+
+Tests: authz matrix + `enter_console`; the structure-server count pin
+updated; the org library suites green. TRAP (twice today): `tsc` and
+`next build`'s type check run out of Node heap on the 8 GB box —
+`NODE_OPTIONS=--max-old-space-size=6144 npm run verify` is the working
+invocation; identical code passes with room.
+
+---
+
 ## September 4, 2026 — Org Staff Program, round 2: the capabilities core (#577, zero DDL)
 
 Round 1's door is prod-proven (a real organizer account end to end, after

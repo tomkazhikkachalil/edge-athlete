@@ -23,7 +23,7 @@ async function gateAndParams(
     return { limited: NextResponse.json({ error: 'Competition not found' }, { status: 404 }) };
   }
   const admin = getSupabaseAdmin();
-  const gate = await requireCompetitionManager(admin, user, 'league', id);
+  const gate = await requireCompetitionManager(admin, user, 'league', id, { competitionId });
   if (!gate.ok) return { limited: gate.response };
   return { user, admin, id, competitionId };
 }

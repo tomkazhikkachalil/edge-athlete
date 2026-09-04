@@ -215,8 +215,9 @@ describe('structureAggregateGET', () => {
     expect(membershipCalls[0].filters).toMatchObject({
       league_id: 'org-1',
       scope_type: 'org',
-      kind: 'follow',
-      role: ['owner', 'manager'],
+      // Org staff program (178): org-scope admins count as managers.
+      kind: ['follow', 'staff'],
+      role: ['owner', 'manager', 'admin'],
     });
     expect(membershipCalls[1].filters).toMatchObject({
       league_id: 'org-1',

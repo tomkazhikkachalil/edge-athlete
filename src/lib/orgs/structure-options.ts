@@ -9,7 +9,7 @@
 
 import { NextResponse } from 'next/server';
 import type { SupabaseClient, User } from '@supabase/supabase-js';
-import { getOrgAndRole, roleAllows, type OrgSide } from './authz';
+import { capabilityAllows, getOrgAndCapabilities, type OrgSide } from './authz';
 import { isMissingTableError } from '@/lib/leagues/validate';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- matches the authz.ts Admin alias; schema-agnostic helper
@@ -26,7 +26,7 @@ export async function structureOptionsGET(
   side: OrgSide,
   orgId: string
 ): Promise<NextResponse> {
-  const loaded = await getOrgAndRole(admin, side, orgId, user.id);
+  const loaded = await getOrgAndCapabilities(admin, side, orgId, user.id);
   if (loaded.status === 'error') {
     console.error('[STRUCTURE OPTIONS] org fetch error:', loaded.error);
     return NextResponse.json({ error: 'Failed to load organization' }, { status: 500 });
@@ -37,7 +37,7 @@ export async function structureOptionsGET(
       { status: 404 }
     );
   }
-  if (!roleAllows(loaded.role, 'schedule_events')) {
+  if (!capabilityAllows(loaded.caps, 'schedule_events')) {
     return NextResponse.json({ error: 'Not authorized' }, { status: 403 });
   }
 

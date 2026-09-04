@@ -20,7 +20,7 @@ export async function GET(
       return NextResponse.json({ error: 'Not found' }, { status: 404 });
     }
     const admin = getSupabaseAdmin();
-    const gate = await requireOrgManager(admin, user, 'league', id);
+    const gate = await requireOrgManager(admin, user, 'league', id, { intent: 'manage_site' });
     if (!gate.ok) return gate.response;
     return await newsGET(admin, 'league', id, newsId);
   } catch (error) {
@@ -43,7 +43,7 @@ export async function PATCH(
       return NextResponse.json({ error: 'Not found' }, { status: 404 });
     }
     const admin = getSupabaseAdmin();
-    const gate = await requireOrgManager(admin, user, 'league', id);
+    const gate = await requireOrgManager(admin, user, 'league', id, { intent: 'manage_site' });
     if (!gate.ok) return gate.response;
 
     const parsed = await parseBody(request, NewsPatchSchema);
@@ -69,7 +69,7 @@ export async function DELETE(
       return NextResponse.json({ error: 'Not found' }, { status: 404 });
     }
     const admin = getSupabaseAdmin();
-    const gate = await requireOrgManager(admin, user, 'league', id);
+    const gate = await requireOrgManager(admin, user, 'league', id, { intent: 'manage_site' });
     if (!gate.ok) return gate.response;
     return await newsDELETE(admin, 'league', id, newsId);
   } catch (error) {

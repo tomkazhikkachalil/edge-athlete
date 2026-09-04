@@ -28,7 +28,7 @@ export async function POST(
       return NextResponse.json({ error: 'Competition not found' }, { status: 404 });
     }
     const admin = getSupabaseAdmin();
-    const gate = await requireCompetitionManager(admin, user, 'club', id);
+    const gate = await requireCompetitionManager(admin, user, 'club', id, { competitionId });
     if (!gate.ok) return gate.response;
 
     const parsed = await parseBody(request, ContestCreateSchema);
@@ -57,7 +57,7 @@ export async function PATCH(
       return NextResponse.json({ error: 'Competition not found' }, { status: 404 });
     }
     const admin = getSupabaseAdmin();
-    const gate = await requireCompetitionManager(admin, user, 'club', id);
+    const gate = await requireCompetitionManager(admin, user, 'club', id, { competitionId });
     if (!gate.ok) return gate.response;
 
     const parsed = await parseBody(request, ContestPatchSchema);
@@ -86,7 +86,7 @@ export async function DELETE(
       return NextResponse.json({ error: 'id is required' }, { status: 400 });
     }
     const admin = getSupabaseAdmin();
-    const gate = await requireCompetitionManager(admin, user, 'club', id);
+    const gate = await requireCompetitionManager(admin, user, 'club', id, { competitionId });
     if (!gate.ok) return gate.response;
     return await contestDELETE(admin, contestId, { side: 'club', orgId: id });
   } catch (error) {

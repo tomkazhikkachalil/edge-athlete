@@ -22,7 +22,7 @@ export async function GET(
       return NextResponse.json({ error: 'League not found' }, { status: 404 });
     }
     const admin = getSupabaseAdmin();
-    const gate = await requireOrgManager(admin, user, 'league', id);
+    const gate = await requireOrgManager(admin, user, 'league', id, { intent: 'manage_site' });
     if (!gate.ok) return gate.response;
     return await siteGET(admin, 'league', id);
   } catch (error) {
@@ -72,11 +72,16 @@ export async function PATCH(
       return NextResponse.json({ error: 'League not found' }, { status: 404 });
     }
     const admin = getSupabaseAdmin();
-    const gate = await requireOrgManager(admin, user, 'league', id);
-    if (!gate.ok) return gate.response;
-
+    // Org staff program: publish / unpublish is the org's identity act
+    // (manage_org — "not the overall site"); everything else on the site
+    // is the Website section.
     const parsed = await parseBody(request, SitePatchSchema);
     if (!parsed.success) return parsed.response;
+    const identityAct = parsed.data.action === 'publish' || parsed.data.action === 'unpublish';
+    const gate = await requireOrgManager(admin, user, 'league', id, {
+      intent: identityAct ? 'manage_org' : 'manage_site',
+    });
+    if (!gate.ok) return gate.response;
     return await sitePATCH(admin, 'league', id, parsed.data);
   } catch (error) {
     if (error instanceof Response) return error;

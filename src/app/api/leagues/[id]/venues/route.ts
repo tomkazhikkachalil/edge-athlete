@@ -43,7 +43,7 @@ export async function POST(
       return NextResponse.json({ error: 'League not found' }, { status: 404 });
     }
     const admin = getSupabaseAdmin();
-    const gate = await requireOrgManager(admin, user, 'league', id);
+    const gate = await requireOrgManager(admin, user, 'league', id, { intent: 'manage_venues' });
     if (!gate.ok) return gate.response;
     const parsed = await parseBody(request, OrgVenueCreateSchema);
     if (!parsed.success) return parsed.response;

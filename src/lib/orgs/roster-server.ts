@@ -32,7 +32,7 @@
 import { NextResponse } from 'next/server';
 import type { SupabaseClient, User } from '@supabase/supabase-js';
 import { revalidateOrgSiteForOrg } from '@/lib/org-sites/revalidate';
-import { getOrgAndRole, roleAllows, type OrgSide } from './authz';
+import { capabilityAllows, getOrgAndCapabilities, getOrgAndRole, type OrgSide } from './authz';
 import {
   acceptRosterOffer,
   deleteRosterRow,
@@ -84,7 +84,7 @@ export async function rosterPost(
   targetProfileId: string
 ): Promise<NextResponse> {
   const cfg = SIDES[side];
-  const loaded = await getOrgAndRole(admin, side, orgId, user.id);
+  const loaded = await getOrgAndCapabilities(admin, side, orgId, user.id);
   if (loaded.status === 'error') {
     console.error('[ROSTER] org fetch error:', loaded.error);
     return NextResponse.json({ error: `Failed to load ${cfg.noun}` }, { status: 500 });
@@ -92,7 +92,7 @@ export async function rosterPost(
   if (loaded.status === 'not_found') {
     return NextResponse.json({ error: cfg.notFound }, { status: 404 });
   }
-  if (!roleAllows(loaded.role, 'manage_members')) {
+  if (!capabilityAllows(loaded.caps, 'manage_members')) {
     return NextResponse.json({ error: 'Not authorized to manage the roster' }, { status: 403 });
   }
 
@@ -292,7 +292,7 @@ export async function rosterDelete(
   guardianActing = false
 ): Promise<NextResponse> {
   const cfg = SIDES[side];
-  const loaded = await getOrgAndRole(admin, side, orgId, user.id);
+  const loaded = await getOrgAndCapabilities(admin, side, orgId, user.id);
   if (loaded.status === 'error') {
     console.error('[ROSTER] org fetch error:', loaded.error);
     return NextResponse.json({ error: `Failed to load ${cfg.noun}` }, { status: 500 });
@@ -306,7 +306,7 @@ export async function rosterDelete(
   // is the athlete side of the matrix, never the org side — the safety
   // boundary keeps the two authorities separate).
   const isSelf = target === user.id || guardianActing;
-  if (!isSelf && !roleAllows(loaded.role, 'manage_members')) {
+  if (!isSelf && !capabilityAllows(loaded.caps, 'manage_members')) {
     return NextResponse.json({ error: 'Not authorized to manage the roster' }, { status: 403 });
   }
 

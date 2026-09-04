@@ -158,8 +158,9 @@ export async function structureAggregateGET(
         .select('id', { count: 'exact', head: true })
         .eq(col, scope.orgId)
         .eq('scope_type', 'org')
-        .eq('kind', 'follow')
-        .in('role', ['owner', 'manager']),
+        // Org staff program: admins count as managers on the checklist.
+        .in('kind', ['follow', 'staff'])
+        .in('role', ['owner', 'manager', 'admin']),
       admin
         .from('memberships')
         .select('id', { count: 'exact', head: true })

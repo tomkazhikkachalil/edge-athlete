@@ -16,7 +16,7 @@ async function gate(request: NextRequest, params: Promise<{ id: string; competit
     return { response: NextResponse.json({ error: 'Competition not found' }, { status: 404 }) };
   }
   const admin = getSupabaseAdmin();
-  const managerGate = await requireCompetitionManager(admin, user, 'league', id);
+  const managerGate = await requireCompetitionManager(admin, user, 'league', id, { competitionId });
   if (!managerGate.ok) return { response: managerGate.response };
   const { data: comp } = await admin.from('competitions').select('id, league_id').eq('id', competitionId).maybeSingle();
   if (!comp || (comp as { league_id: string | null }).league_id !== id) {

@@ -24,7 +24,7 @@ export async function POST(
       return NextResponse.json({ error: 'Club not found' }, { status: 404 });
     }
     const admin = getSupabaseAdmin();
-    const gate = await requireOrgManager(admin, user, 'club', id);
+    const gate = await requireOrgManager(admin, user, 'club', id, { intent: 'manage_structure' });
     if (!gate.ok) return gate.response;
 
     const parsed = await parseBody(request, DivisionCreateSchema);
@@ -59,7 +59,10 @@ export async function DELETE(
       return NextResponse.json({ error: 'id is required' }, { status: 400 });
     }
     const admin = getSupabaseAdmin();
-    const gate = await requireOrgManager(admin, user, 'club', id);
+    const gate = await requireOrgManager(admin, user, 'club', id, {
+      intent: 'manage_structure',
+      scope: { type: 'division', id: divisionId },
+    });
     if (!gate.ok) return gate.response;
     return await divisionDELETE(admin, divisionId, { side: 'club', orgId: id });
   } catch (error) {

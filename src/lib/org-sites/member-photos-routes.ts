@@ -86,7 +86,7 @@ export async function photoCandidatesGET(user: SessionUser, side: OrgSide, param
     const { id } = await params;
     if (!UUID_RE.test(id)) return notFound(side);
     const admin = getSupabaseAdmin();
-    const gate = await requireOrgManager(admin, user, side, id);
+    const gate = await requireOrgManager(admin, user, side, id, { intent: 'manage_site' });
     if (!gate.ok) return gate.response;
     const { data: site } = await admin
       .from('org_sites')

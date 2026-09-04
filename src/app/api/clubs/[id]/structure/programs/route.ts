@@ -25,7 +25,7 @@ export async function POST(
       return NextResponse.json({ error: 'Club not found' }, { status: 404 });
     }
     const admin = getSupabaseAdmin();
-    const gate = await requireOrgManager(admin, user, 'club', id);
+    const gate = await requireOrgManager(admin, user, 'club', id, { intent: 'manage_structure' });
     if (!gate.ok) return gate.response;
 
     const parsed = await parseBody(request, ProgramCreateSchema);
@@ -52,7 +52,7 @@ export async function DELETE(
       return NextResponse.json({ error: 'Club not found' }, { status: 404 });
     }
     const admin = getSupabaseAdmin();
-    const gate = await requireOrgManager(admin, user, 'club', id);
+    const gate = await requireOrgManager(admin, user, 'club', id, { intent: 'manage_structure' });
     if (!gate.ok) return gate.response;
 
     const programId = new URL(request.url).searchParams.get('id');
