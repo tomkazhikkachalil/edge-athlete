@@ -526,6 +526,7 @@ entry, phone-width parity.
 | 6b | Golf club page, builder depth (tokens, second template, three modules), custom domains | SHIPPED (migs 169–171) |
 | — | Payments | SKIPPED by decision (registrations stays the invoice anchor) |
 | 6c | Golf leagues that fill themselves from member rounds, ICS + stat-line imports, the two-page club/league defaults | IN FLIGHT |
+| 7 | Org Staff Program (§3.4 + §5 delivered): organizer accounts, section-scoped staff grants on the one membership table, owner-minted email invites, the Hierarchy console section, season expiry at rollover, audit trail | SHIPPED (mig 178; Sep 4 2026 rounds 0–6; the §5 named-role ladder is expressed as section sets, not ten role strings) |
 
 The public projection spike (phase 2) resolved to posture A — service-role,
 viewer-independent reads in the (public) segment — with one recorded

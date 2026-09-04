@@ -1,11 +1,11 @@
 # Start Session — Edge Athlete Development
 
 > Tom's session-start prompt. Paste this (or point Claude at it) when opening a
-> development session. Last aligned with project state: **September 3, 2026
-> (close of day)** — post program 12 (league round photos; migration 177),
-> the phone-capture fix round (#561) and its close-out sweep (#563). If the "Where
-> the project actually is" section drifts stale, ask Claude to re-align it
-> against DEVLOG.md and session memory.
+> development session. Last aligned with project state: **September 4, 2026
+> (close of day)** — post the Org Staff Program (#576–#581, migration 178)
+> and the camera incident's close (#575). If the "Where the project
+> actually is" section drifts stale, ask Claude to re-align it against
+> DEVLOG.md and session memory.
 
 ## Context & Vision
 
@@ -92,19 +92,27 @@ ops/console gates (docs/LAUNCH_RUNBOOK.md), not code.
   rate limiting, RPC grant audits, soft-delete/purge cron, dark mode, e2e
   smoke suite (desktop + @mobile projects) run against prod after merges.
 
-**No program is open.** Program 12 (league round photos, #558, zero DDL)
-closed Sep 3, after program 11 (leagues parity, #554–#556, migration 177),
-program 10 and the quick-fixes round the same day. The same afternoon a fix
-round (#561, zero DDL) closed the phone-capture regression that #551's
-orientation bake introduced (full-res bakes running in parallel at post
-time); prod-probed 2/2 at desktop and phone width. The session doc
-(#562) and a maintenance sweep (#563: gate green on main, guardrails +
-audit clean, deploy verified, no open PRs or stray branches) closed the
-day; `main` is at the #563 merge (d8de590) with nothing in flight.
-The next program is Tom's call; candidates in session memory. Tom still owes
-ops: Search Console, custom-domain env, device passes — including the
-capture-fix pass (three portrait photos un-edited, one edited photo + a
-video, a live-round hole photo).
+**No program is open.** The **Org Staff Program** (Sep 4, #576–#581,
+migration 178 — RUN) closed the same day it opened: **organizer accounts**
+(a `user_type 'organizer'` with no date of birth; the Club/League door asks
+"Do you already have an account?" first), **section-scoped staff grants**
+on the one membership table (`kind='staff'`, `admin` or a `sections[]`
+subset of the nine console keys at org | division | team scope; the
+capabilities reader in `src/lib/orgs/authz.ts`; every route family names
+its intent; `manage_org` stays owner|manager|admin — "not the overall
+site"), **owner-minted email invites** (`/org-invite/[token]`, wrong-account
+safe, audit-trailed), the console's **Hierarchy & people** section with
+Invite on every node, reachability for section staff, and **season expiry
+at rollover**. Every round prod-proven (the door, capabilities, the intent
+matrix, the invite loop, the hierarchy on both mobile engines). Before it,
+program 12 (league round photos), program 11 (leagues parity, migration
+177), program 10 and the quick-fixes round all closed Sep 3; the camera
+incident closed Sep 4 as a device issue. `main` is at the #581 merge with
+nothing in flight. The next program is Tom's call; candidates in session
+memory. Tom still owes ops: Search Console, custom-domain env, device
+passes — including the capture-fix pass (three portrait photos un-edited,
+one edited photo + a video, a live-round hole photo) and a first real
+staff invite on his own league.
 
 ## Production standard (the baseline, already in force)
 
@@ -118,7 +126,7 @@ video, a live-round hole photo).
   covers layout, not memory: media work is verified with phone-SIZED inputs
   (`e2e/fixtures/rotated6-12mp.jpg`), not thumbnails.
 - Schema changes are numbered migrations in database/migrations/ (currently
-  at 177), the source of truth for the schema.
+  at 178), the source of truth for the schema.
 - Secrets live in environment variables (Vercel-managed); guardian/minor data
   follows the standing safety lines (no DM transcripts, never auto-publish a
   minor's post, append-only consent/audit).

@@ -515,6 +515,15 @@ export default function ClubPage() {
                     Manage club →
                   </Link>
                 )}
+                {/* Org staff program (178): owners' door to who-runs-what + invites. */}
+                {isOwner && (
+                  <Link
+                    href={`/app/org/club/${club.id}#hierarchy`}
+                    className="text-sm text-brand-fg hover:text-brand-fg-strong hover:underline"
+                  >
+                    Staff &amp; hierarchy →
+                  </Link>
+                )}
               </div>
             </div>
           </div>

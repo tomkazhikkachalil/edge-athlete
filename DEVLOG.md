@@ -1,5 +1,60 @@
 # Development Log
 
+## September 4, 2026 — Org Staff Program, round 6: season expiry at rollover, the owners' Staff door, and the program's close (#581, zero DDL)
+
+Round 5 is prod-proven on both mobile engines. Round 6 closes the program
+Tom opened this morning with "there needs to be a master account".
+
+**Season expiry at rollover** (masterplan §5: "season-scoped grants expire
+at rollover"). `seasonRolloverPOST` gains a best-effort close-out step
+after the archive stamp: `expireSeasonStaff` sets `expires_at = now()` on
+the old season's live staff rows and appends one `expired` row per grant
+to `org_staff_audit` (the manager performing the rollover is the actor —
+the route twins pass `user.id`). 42703-safe; the response reports
+`staffExpired`. The rollover spec seeds a season-pinned Teams grant before
+the one button and asserts `staffExpired: 1`, the stamped row and the
+trail; pre-178 the seed fails and the assertion self-skips.
+
+**The owners' door on the org page.** Next to "Manage league →" /
+"Manage club →", owners get "Staff & hierarchy →" straight to the
+console's section (`#hierarchy`). Section staff already reach the console
+through their org lists (round 5).
+
+**Docs.** CLAUDE.md gains Key Convention 9 — org authority is capabilities,
+not a role string; intents on the shared gate; `manage_org` never reached
+by section grants; only owners change roles, owners or grants; organizer
+accounts have no DOB; staff never implies guardian visibility. The
+masterplan's §8 status table gets a row 7 (§3.4 + §5 delivered as section
+sets, not ten role strings). `docs/SESSION_PROMPT.md` re-aligned to the
+close of Sep 4.
+
+**The program, in one place** (all Sep 4, all prod-proven):
+
+| Round | PR | What |
+|---|---|---|
+| 0 | #576 | Migration 178: `organizer` user type; staff rows on `memberships` (`kind='staff'`, `admin`/`staff` + `sections[]` + grant metadata + shape CHECK); `org_staff_invites`; `org_staff_audit`; three bells |
+| 1 | #576 | The organizer account: "Do you already have an account?" first; name/email/password, no DOB, no handle; organizers route to the feed, never the athlete wizard |
+| 2 | #577 | The capabilities core: `ORG_SECTIONS`, per-section intents, `capabilitiesFromRows` / `capabilityAllows`, `requireOrgManager(..., { intent, scope })`, `/capabilities`, the console reads it |
+| 3 | #578 | Every route family names its intent; scoped checks for divisions/teams/entries/competitions; the identity acts stay `manage_org`; admins ride along in counts and bells |
+| 4 | #579 | Staff invites: owner-minted by email with sections + optional division/team/season; `/org-invite/[token]` (wrong-account safe); grants land as one row per scope; audit trail; bells; email |
+| 5 | #580 | Hierarchy & people: the org as a tree with who runs each node, Invite on every node, open invites, revoke; reachability for section staff |
+| 6 | #581 | Season expiry at rollover; the owners' Staff door; docs |
+
+What the masterplan asked for in §5 — "a master admin plus separate
+admins per section, and the ability to manage at a high or a low level"
+— is delivered by one role table where scope does the work, exactly as
+§3.4 drew it; the ten named roles are expressed as section sets, which is
+what Tom asked to see on the invite form.
+
+**Not built, on purpose or deferred:** a Communications / Board Viewer
+read-only grade (no section means no access; a read-only tier is a later
+intent); invites minted by admins (owners only, the standing rule);
+per-competition scope (`scope_type` stays org | division | team);
+`parents` and `photo-consent` stay `manage_org`. Tom owes a first real
+invite on his own league from a phone.
+
+---
+
 ## September 4, 2026 — Org Staff Program, round 5: the Hierarchy section — who runs what, and the invite on every node (#580, zero DDL)
 
 Round 4's loop is prod-proven (the full invite spec passed against
