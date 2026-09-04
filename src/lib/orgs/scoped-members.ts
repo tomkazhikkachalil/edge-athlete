@@ -156,3 +156,16 @@ export async function scopedMemberProfileIds(
   }
   return { profileIds: [...new Set((data ?? []).map(r => r.profile_id as string))], error: null };
 }
+
+/** The divisions a team is entered in (any season) — the parent scopes a
+ *  division-level staff grant covers (org staff program, 178: parent
+ *  implies child for GRANTS). A reader, not authority: authz's
+ *  capabilityAllows makes the decision. Empty on a pre-145 database. */
+export async function divisionIdsForTeam(admin: Admin, teamId: string): Promise<string[]> {
+  const { data, error } = await admin
+    .from('team_entries')
+    .select('division_id')
+    .eq('team_id', teamId);
+  if (error || !data) return [];
+  return [...new Set(data.map(r => r.division_id as string).filter(Boolean))];
+}
