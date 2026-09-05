@@ -2,8 +2,8 @@
 
 > Tom's session-start prompt. Paste this (or point Claude at it) when opening a
 > development session. Last aligned with project state: **September 4, 2026
-> (close of day)** — post the Org Staff Program (#576–#581, migration 178)
-> and the camera incident's close (#575). If the "Where the project
+> (close of day, after the maintenance sweep #582)** — post the Org Staff
+> Program (#576–#581, migration 178) and the camera incident's close (#575). If the "Where the project
 > actually is" section drifts stale, ask Claude to re-align it against
 > DEVLOG.md and session memory.
 
@@ -85,7 +85,11 @@ ops/console gates (docs/LAUNCH_RUNBOOK.md), not code.
   side-generic membership-and-privacy layer — visibility, join approval, the
   join door, private-site gates, members' reads, the /leagues directory),
   and league round photos (program 12: the members' round-photo layer for
-  both sides). Payments skipped by decision.
+  both sides), then the **Org Staff Program** (Sep 4, #576–#581, migration
+  178): organizer accounts, section-scoped staff grants read by one
+  capabilities module, intents on every route family, owner-minted email
+  invites, the Hierarchy & people console section, season expiry at
+  rollover. Payments skipped by decision.
 - **Search & geo** — instant search, places, clubs, leagues, affiliations,
   facets.
 - **Hardening** — RLS everywhere, CI route-authorization audit, enforced CSP,
@@ -107,8 +111,10 @@ at rollover**. Every round prod-proven (the door, capabilities, the intent
 matrix, the invite loop, the hierarchy on both mobile engines). Before it,
 program 12 (league round photos), program 11 (leagues parity, migration
 177), program 10 and the quick-fixes round all closed Sep 3; the camera
-incident closed Sep 4 as a device issue. `main` is at the #581 merge with
-nothing in flight. The next program is Tom's call; candidates in session
+incident closed Sep 4 as a device issue. The close-of-day maintenance
+sweep (#582: gate green on `main` — 2,759 tests, floor gate, lint at zero —
+guardrails + `npm audit` clean, branches pruned, deploy verified) leaves
+`main` at the #582 merge (1441646) with nothing in flight. The next program is Tom's call; candidates in session
 memory. Tom still owes ops: Search Console, custom-domain env, device
 passes — including the capture-fix pass (three portrait photos un-edited,
 one edited photo + a video, a live-round hole photo) and a first real
