@@ -1,5 +1,37 @@
 # Development Log
 
+## September 4, 2026 — Maintenance sweep, close of day (#582, docs + one annotation)
+
+Tom: "run the full project maintenance checklist: lint, build, devlog, and
+commit and sync to github and vercel." Run on `main` at the #581 merge
+(7b74b92), the Org Staff Program's close.
+
+- **Gate:** `npm run verify` green — typecheck, lint at zero warnings, 256
+  test files / 2,759 tests, `next build`, the browser-floor gate (165 client
+  chunks within iOS 15 / Safari 15). Run with `NODE_OPTIONS=
+  --max-old-space-size=6144` — the day's standing trap on the 8 GB box.
+- **Hardening guardrails:** pass. `npm audit` (high+): 0 vulnerabilities.
+  One advisory moved and moved back: round 6's rollover expiry filter
+  interpolates the server clock into `.or()` — annotated `hardening-ok:
+  server clock, no user input` (the transfers.ts precedent). The one
+  remaining interpolated site is the pre-existing course-catalog pattern.
+- **GitHub:** no open PRs. Every feature branch of the day was already
+  deleted on origin (fetch --prune found none); the six merged local
+  branches were deleted after `git branch --merged main` asserted them.
+- **Vercel:** the newest production deployment is the #581 merge, Ready;
+  `/` answers 200. The GitHub → Vercel webhook fired for every merge today
+  (the Sep 2 miss did not recur).
+- **Docs:** `docs/SESSION_PROMPT.md` was re-aligned in #581 to the close of
+  Sep 4 (no program open, migration 178 at the head); CLAUDE.md carries Key
+  Convention 9; the masterplan's §8 table has row 7. Nothing further drifted.
+- **Memory index** within its size limit after the morning's trim.
+
+Nothing in code changes behaviour in this PR: one same-line comment and
+this entry. Next program = Tom's call; he owes the first real staff invite
+from his phone.
+
+---
+
 ## September 4, 2026 — Org Staff Program, round 6: season expiry at rollover, the owners' Staff door, and the program's close (#581, zero DDL)
 
 Round 5 is prod-proven on both mobile engines. Round 6 closes the program
