@@ -267,7 +267,7 @@ export async function expireSeasonStaff(
     .eq(col, orgId)
     .eq('kind', 'staff')
     .eq('season_id', seasonId)
-    .or(`expires_at.is.null,expires_at.gt.${now}`)
+    .or(`expires_at.is.null,expires_at.gt.${now}`) // hardening-ok: server clock, no user input
     .select('id, profile_id, role, scope_type, scope_id, sections');
   if (error) {
     if (error.code !== '42703') console.error(`${TAG} staff expiry error:`, error);
