@@ -1,9 +1,9 @@
 # Start Session — Edge Athlete Development
 
 > Tom's session-start prompt. Paste this (or point Claude at it) when opening a
-> development session. Last aligned with project state: **September 4, 2026
-> (close of day, after the maintenance sweep #582)** — post the Org Staff
-> Program (#576–#581, migration 178) and the camera incident's close (#575). If the "Where the project
+> development session. Last aligned with project state: **September 8, 2026
+> (after the small-refinements round #584–#586 and the maintenance sweep
+> that followed)** — migration head still 178. If the "Where the project
 > actually is" section drifts stale, ask Claude to re-align it against
 > DEVLOG.md and session memory.
 
@@ -113,8 +113,21 @@ program 12 (league round photos), program 11 (leagues parity, migration
 177), program 10 and the quick-fixes round all closed Sep 3; the camera
 incident closed Sep 4 as a device issue. The close-of-day maintenance
 sweep (#582: gate green on `main` — 2,759 tests, floor gate, lint at zero —
-guardrails + `npm audit` clean, branches pruned, deploy verified) leaves
-`main` at the #582 merge (1441646) with nothing in flight. The next program is Tom's call; candidates in session
+guardrails + `npm audit` clean, branches pruned, deploy verified) left
+`main` at the #582 merge (1441646) with nothing in flight.
+
+**Sep 8 — a small-refinements round, one PR per fix, each prod-proven, zero
+DDL** (Tom: "before we make any big changes, let's work on a few small
+aspects"): #584 mentions and post tags render the person's chosen name
+instead of the `@handle` (display only — stored text keeps the handle;
+the Aug 9 id+handle-only hydration rule was reversed on the record);
+#585 the "Private" badge no longer sits on the author's name at phone
+width (root cause: the nowrap timestamp drawing under the owner cluster;
+a lock glyph below `sm`); #586 an owner's pin/edit/delete collapse into
+one "…" menu below `sm` (`PostOwnerMenu`, portaled, `placeMenu`;
+`usePopoverDismiss` now takes several refs and makes Escape close the
+topmost popover only). `main` is at the #586 merge with nothing in
+flight. The next fix or program is Tom's call; candidates in session
 memory. Tom still owes ops: Search Console, custom-domain env, device
 passes — including the capture-fix pass (three portrait photos un-edited,
 one edited photo + a video, a live-round hole photo) and a first real
