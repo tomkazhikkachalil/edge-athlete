@@ -57,9 +57,19 @@ export interface StatPlayer {
   toPar: number | null;
   /** The viewer's own row, so the card can mark it. */
   isViewer: boolean;
-  /** Hole-by-hole preview, sorted by hole. Empty when nothing per-hole was
-   *  recorded (quick-entry rounds, score-only shared participants). */
+  /** Hole-by-hole record, sorted by hole. Empty when nothing per-hole was
+   *  recorded (quick-entry rounds, score-only shared participants). The card
+   *  no longer draws these as a strip (Tom, Sep 8 2026: the grid is the
+   *  detail's job) — they feed the meta line's played-hole union and
+   *  `progress`. */
   holes: StatPlayerHole[];
+  /** "13 of 18 holes" — this player's own progress, the same line the detail
+   *  Overview prints under each name. Only when the roster has MORE THAN ONE
+   *  player: with a single row (solo, or a shared round nobody else scored)
+   *  the card's meta line already says it once, and rows must not restate
+   *  the card (the Aug 9 rule that retired the hero). Null when no per-hole
+   *  scores exist. */
+  progress: string | null;
 }
 
 export interface StatHighlights {
@@ -211,9 +221,21 @@ function sharedRoundScores(
   // detail card and score entry exactly. The hero still picks viewer-else-
   // leader independently of this order.
   const holeData = golfData.hole_data ?? null;
+  const configuredHoles = typeof golfData.holes_played === 'number' ? golfData.holes_played : null;
+  // One row restating the meta line is noise; two rows at different holes is
+  // information. Same reason the solo builder never sets it.
+  const rowsGetProgress = scored.length > 1;
   const players: StatPlayer[] = scored
     .map(p => {
       const prof = p.participant?.profile ?? null;
+      const holes: StatPlayerHole[] = (p.scores?.hole_scores ?? [])
+        .filter(hs => typeof hs?.hole_number === 'number' && typeof hs?.strokes === 'number')
+        .map(hs => ({
+          hole: hs.hole_number as number,
+          strokes: hs.strokes as number,
+          par: holePar(hs.hole_number as number, holeData),
+        }))
+        .sort((a, b) => a.hole - b.hole);
       return {
         profileId: p.participant?.profile_id ?? null,
         name: formatDisplayName(prof?.first_name, null, prof?.last_name, prof?.full_name),
@@ -222,14 +244,11 @@ function sharedRoundScores(
         score: p.scores!.total_score as number,
         toPar: typeof p.scores?.to_par === 'number' ? p.scores.to_par : null,
         isViewer: !!viewerId && p.participant?.profile_id === viewerId,
-        holes: (p.scores?.hole_scores ?? [])
-          .filter(hs => typeof hs?.hole_number === 'number' && typeof hs?.strokes === 'number')
-          .map(hs => ({
-            hole: hs.hole_number as number,
-            strokes: hs.strokes as number,
-            par: holePar(hs.hole_number as number, holeData),
-          }))
-          .sort((a, b) => a.hole - b.hole),
+        holes,
+        progress:
+          rowsGetProgress && holes.length > 0 && configuredHoles !== null
+            ? holeCountLabel(holes.length, configuredHoles)
+            : null,
       };
     });
 
@@ -357,6 +376,7 @@ export function buildStatHighlights(input: BuildInput): StatHighlights | null {
               toPar,
               isViewer: !!viewerId && author.id === viewerId,
               holes: soloHoles,
+              progress: null,
             },
           ]
         : [];

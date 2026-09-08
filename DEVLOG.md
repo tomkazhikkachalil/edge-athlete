@@ -1,5 +1,55 @@
 # Development Log
 
+## September 8, 2026 — Golf post: Overview rows in the feed, outlined par cells (#602)
+
+Tom, opening the session: *"When a post is created with stats … it's not
+clear the borders between holes on the round. … I want it to actually show
+outlines even for pars … so it doesn't look like it's floating. It may be
+best to make it appear the same way it's showing in the 'overview' vs the
+score card view when looking at from the initial post perspective … leave
+the scorecard view … saved for the detailed breakdown."* Two decisions on
+the follow-up: the feed rows take the **Overview look with no hole strip**,
+and they stay in **creation order with no medals** (the Aug 9 rule holds;
+the ranked leaderboard is the modal's). Zero DDL, no new deps.
+
+**The freeze.** The Aug 10 "feed golf rendering is frozen" rule (reinstated
+Aug 29 after the round-post round) was lifted for this round by Tom's own
+request — it named `post-stat-highlights.ts` and the feed card, both of
+which change here. It stands again now, minus these changes.
+
+**Root cause of "floating".** `SCORE_CELL_RING.par.ring` in
+`src/lib/golf/scoring.ts` was the empty string, and none of the grids draw
+vertical cell rules, so a par cell had no edge at all; every surface that
+consumed the map inherited it — the feed strip, both nines of the solo
+expanded card, the shared Full Scorecard tab. Par now carries
+`ring-1 ring-border-strong ring-inset` (a theme token with its own dark
+value, so no `dark:` twin; `ring-inset` costs no layout). Bogey moved from
+`border` to the same inset ring at the same colour and weight — it was the
+one `border` in an inset-ring map, and a bogey box sat 2px larger than the
+outlined par beside it. Hue untouched at every `SEMANTIC COLOUR — DO NOT
+NEUTRALISE` site. Both legends gained a Par swatch and the composer grid's
+read-only cells draw the neutral border their legend already promised.
+
+**The card.** `StatHighlightCard`'s player rows are now the Overview's row
+scaled to the card: 40px face · full name with the player's own progress
+under it · score over coloured to-par, hairline-divided. `HoleStrip` and
+its fixed `w-[84px]` name column are gone — the hole-by-hole grid lives
+behind View details (solo: the inline expanded card; shared: the Full
+Scorecard tab). `StatPlayer` gains `progress` ("13 of 18 holes", via
+`holeCountLabel`), set only when the roster has MORE than one scored
+player: with a single row — solo, or a shared round nobody else scored —
+the meta line already says it once and rows must not restate the card
+(the probe caught the shared single-player case printing "13 of 18 holes"
+twice). `holes` stays on the type — it still feeds the meta line's
+played-hole union and the count.
+
+Nothing pinned the strip: no vitest test asserted `SCORE_CELL_RING`
+contents (no jsdom, by design), and `e2e/round-details.spec.ts` asserts the
+meta line, both detail buttons, the Overview tab and the 375px overflow
+budget — all of which the redesign keeps. Verified with `npm run verify`
+(6 GB heap — the plain run OOMs in `tsc` on the 8 GB box, reproduced at the
+top of the session) and the round-details spec at 1280 and 375.
+
 ## September 8, 2026 — Maintenance sweep, end of session (docs only)
 
 Tom: "run the full project maintenance checklist and sync" — the third

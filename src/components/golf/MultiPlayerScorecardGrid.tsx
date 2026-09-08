@@ -103,6 +103,14 @@ function MultiPlayerScorecardGrid({
     const cls = classifyScore(strokes, par);
     return cls ? SCORE_CELL_FILL[cls] : '';
   };
+  // Read-only cells: the legend below promises a neutral-bordered Par swatch,
+  // but SCORE_CELL_FILL.par is text-only and no-score is '' — so pars and
+  // blanks floated as bare digits. The coloured chips carry their own
+  // border-2; only the neutral cases get the hairline here.
+  const readOnlyCellChrome = (strokes: number | undefined, par: number = 4) => {
+    const cls = classifyScore(strokes, par);
+    return cls === null || cls === 'par' ? 'border border-border-strong rounded' : '';
+  };
 
   // Handle score input change
   const handleScoreChange = (playerId: string, holeNum: number, field: keyof PlayerHoleScore, value: string | boolean) => {
@@ -330,7 +338,7 @@ function MultiPlayerScorecardGrid({
                             placeholder="-"
                           />
                         ) : (
-                          <div className={`w-12 h-10 mx-auto flex items-center justify-center text-sm ${getScoreStyle(strokes, getHolePar(holeNum))}`}>
+                          <div className={`w-12 h-10 mx-auto flex items-center justify-center text-sm ${readOnlyCellChrome(strokes, getHolePar(holeNum))} ${getScoreStyle(strokes, getHolePar(holeNum))}`}>
                             {strokes || '-'}
                           </div>
                         )}

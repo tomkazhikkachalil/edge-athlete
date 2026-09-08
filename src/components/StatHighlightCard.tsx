@@ -11,8 +11,8 @@
  * between them.
  */
 
-import { buildStatHighlights, type StatPlayerHole } from '@/lib/sports/post-stat-highlights';
-import { classifyScore, SCORE_CELL_RING, toParColorClass } from '@/lib/golf/scoring';
+import { buildStatHighlights } from '@/lib/sports/post-stat-highlights';
+import { toParColorClass } from '@/lib/golf/scoring';
 import { getSportDefinition, type SportKey } from '@/lib/sports/SportRegistry';
 import { AvatarImage } from '@/components/OptimizedImage';
 import { getInitials, parseDateLocal } from '@/lib/formatters';
@@ -43,32 +43,6 @@ export function formatCardDate(raw: string): string {
 
 function unitLabel(value: string, label: string): string {
   return value === '1' && label.endsWith('s') ? label.slice(0, -1) : label;
-}
-
-/** Glimpseable hole-by-hole strip inside a player row: the quick scan Tom
- *  asked for without opening the full scorecard. Cells reuse the SEMANTIC
- *  scorecard colours (classifyScore + SCORE_CELL_RING — never reinvent);
- *  scrolls sideways past what fits. Cells are non-interactive, so the
- *  overflow container's pseudo-element clipping rule doesn't apply. */
-function HoleStrip({ holes }: { holes: StatPlayerHole[] }) {
-  return (
-    <div className="flex-1 min-w-0 overflow-x-auto scrollbar-hide" aria-label="Hole by hole scores">
-      <div className="flex w-max items-center gap-0.5">
-        {holes.map(h => {
-          const cls = h.par !== null ? classifyScore(h.strokes, h.par) : null;
-          const style = cls ? SCORE_CELL_RING[cls] : SCORE_CELL_RING.par;
-          return (
-            <span
-              key={h.hole}
-              className={`flex h-6 w-6 shrink-0 items-center justify-center rounded bg-surface text-xs tabular-nums ${style.ring} ${style.text}`}
-            >
-              {h.strokes}
-            </span>
-          );
-        })}
-      </div>
-    </div>
-  );
 }
 
 interface StatHighlightCardProps {
@@ -203,40 +177,49 @@ export default function StatHighlightCard({
           the content — and their profiles (avatar included) already arrive
           with the feed payload. */}
       {players && players.length > 0 && (
-        <div className="mt-4 border-t border-border pt-3 space-y-2">
-          {players.map((p, i) => (
-            <div key={p.profileId ?? `${p.name}-${i}`} className="flex items-center gap-2.5">
-              <AvatarImage
-                src={p.avatarUrl}
-                alt={p.name}
-                size={28}
-                fallbackInitials={getInitials(p.name)}
-              />
-              {/* FIXED name column when a strip renders (Tom: rows must stack
-                  aligned — variable name widths made every strip and score
-                  start at a different x). shortName ("Tom K.") fits the
-                  budget; the full name lives in the detail card. title=
-                  carries the full name for hover/long-press. */}
-              <span
-                title={p.name}
-                className={`${p.holes.length > 0 ? 'w-[84px] sm:w-24 shrink-0' : 'flex-1 min-w-0'} truncate text-sm ${
-                  p.isViewer ? 'font-bold text-primary' : 'font-medium text-secondary'
-                }`}
-              >
-                {p.shortName}
-              </span>
-              {p.holes.length > 0 && <HoleStrip holes={p.holes} />}
-              <span className="text-base font-black text-primary tabular-nums shrink-0">
-                {p.score}
-              </span>
-              {p.toPar !== null && (
-                /* SEMANTIC COLOUR — DO NOT NEUTRALISE: under/over par. */
-                <span className={`text-xs font-bold shrink-0 w-8 text-right ${toParColorClass(p.toPar)}`}>
-                  {p.toPar > 0 ? `+${p.toPar}` : p.toPar === 0 ? 'E' : p.toPar}
-                </span>
-              )}
-            </div>
-          ))}
+        <div className="mt-4 border-t border-border pt-1">
+          {/* The Overview's row, scaled to the card: face · name with the
+              player's own progress under it · score over to-par. The
+              hole-by-hole strip that used to sit between name and score is
+              gone (Tom, Sep 8 2026: "leave the scorecard view … for the
+              detailed breakdown"); the grid lives behind View details.
+              CREATION ORDER, no medals — Tom kept the Aug 9 rule for this
+              card; the ranked leaderboard is the modal's. divide-y, not
+              space-y: with taller rows the hairline is what keeps four
+              players readable as four lines. */}
+          <div className="divide-y divide-border">
+            {players.map((p, i) => (
+              <div key={p.profileId ?? `${p.name}-${i}`} className="flex items-center gap-3 py-2">
+                <AvatarImage
+                  src={p.avatarUrl}
+                  alt={p.name}
+                  size={40}
+                  fallbackInitials={getInitials(p.name)}
+                />
+                <div className="flex-1 min-w-0">
+                  <div
+                    className={`truncate text-sm ${
+                      p.isViewer ? 'font-bold text-primary' : 'font-semibold text-secondary'
+                    }`}
+                  >
+                    {p.name}
+                  </div>
+                  {p.progress && <div className="text-xs text-tertiary">{p.progress}</div>}
+                </div>
+                <div className="text-right shrink-0">
+                  <div className="text-2xl font-black leading-none text-primary tabular-nums">
+                    {p.score}
+                  </div>
+                  {p.toPar !== null && (
+                    /* SEMANTIC COLOUR — DO NOT NEUTRALISE: under/over par. */
+                    <div className={`mt-0.5 text-xs font-bold tabular-nums ${toParColorClass(p.toPar)}`}>
+                      {p.toPar > 0 ? `+${p.toPar}` : p.toPar === 0 ? 'E' : p.toPar}
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
           {onExpand && (
             /* min-h-[44px] + flex, not bare text: at text-xs + pt-1 this was a
                20px-tall target sitting 8px under the last player row, so a

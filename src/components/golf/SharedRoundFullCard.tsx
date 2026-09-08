@@ -1022,7 +1022,11 @@ export default function SharedRoundFullCard({
                   <span>Birdie (-1)</span>
                 </div>
                 <div className="flex items-center gap-1">
-                  <div className="w-5 h-5 rounded border border-red-400 dark:border-red-500 bg-surface"></div>
+                  <div className="w-5 h-5 rounded ring-1 ring-border-strong ring-inset bg-surface"></div>
+                  <span>Par</span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <div className="w-5 h-5 rounded ring-1 ring-red-400 ring-inset dark:ring-red-500 bg-surface"></div>
                   <span>Bogey (+1)</span>
                 </div>
                 <div className="flex items-center gap-1">

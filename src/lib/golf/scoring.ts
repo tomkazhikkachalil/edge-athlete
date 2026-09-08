@@ -138,8 +138,14 @@ export const SCORE_CELL_FILL: Record<Exclude<ScoreClass, null>, string> = {
 export const SCORE_CELL_RING: Record<Exclude<ScoreClass, null>, { ring: string; text: string }> = {
   eagle: { ring: 'ring-2 ring-violet-500 ring-inset dark:ring-violet-400', text: 'text-violet-600 font-black dark:text-violet-400' },
   birdie: { ring: 'ring-1 ring-violet-400 ring-inset dark:ring-violet-400', text: 'text-violet-600 font-bold dark:text-violet-400' },
-  par: { ring: '', text: 'text-primary font-semibold' },
-  bogey: { ring: 'border border-red-400 dark:border-red-500', text: 'text-red-600 font-semibold dark:text-red-400' },
+  // A neutral hairline, NOT nothing: with no ring a par cell had no edge at
+  // all (the grids draw no vertical rules), so a run of pars floated as bare
+  // digits on the card (Tom, Sep 8 2026). border-strong is a theme token with
+  // its own dark value, so no dark: twin is needed here.
+  par: { ring: 'ring-1 ring-border-strong ring-inset', text: 'text-primary font-semibold' },
+  // Inset ring like its siblings — `border` added 2px to the box, so a bogey
+  // sat visibly larger than the outlined par beside it. Colour unchanged.
+  bogey: { ring: 'ring-1 ring-red-400 ring-inset dark:ring-red-500', text: 'text-red-600 font-semibold dark:text-red-400' },
   double: { ring: 'ring-2 ring-red-500 ring-inset dark:ring-red-400', text: 'text-red-600 font-bold dark:text-red-400' },
 };
 
