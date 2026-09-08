@@ -86,7 +86,7 @@ export function buildOrgChecklistSteps(
         key: 'league',
         done: input.hasGolfLeague === true,
         label: 'Create your first league',
-        hint: 'A golf leaderboard with weekly rounds — it fills itself from posted scores.',
+        hint: 'One tap — weekly rounds fill from members’ posted scores.',
         href: '#competitions',
       },
       {

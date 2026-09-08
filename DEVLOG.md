@@ -1,5 +1,64 @@
 # Development Log
 
+## September 8, 2026 — Onboarding v2 round 4: the implicit season and "Start our season" — a golf league in one tap, at any course (zero DDL)
+
+Three rounds in, a club is live, quick to create and easy to join. This
+round removes the last wall between a friends club and its first standings.
+
+**The wall.** `competitions.season_id` is NOT NULL (151) and the console
+said "Create a season first."; then a competition (format, scoring rule,
+config), then every rostered member entered by hand, then activation, then
+the season generator — found only on the competition detail page — which
+required ONE venue linked to ONE catalog course. The Club Model's line:
+"where they play is an attribute of each round, not a property of the club."
+
+**The implicit season.** `default-season.ts`: `ensureDefaultSeason` mints a
+calendar-year season with no dates (or finds it — `seasons_org_label_uniq`
+makes it idempotent). The schema keeps `season_id NOT NULL`; the wall goes
+from the UI, not the column (a dozen readers key on it).
+
+**One tap.** `POST /api/{clubs,leagues}/[id]/competitions/quickstart` (new
+routes, manager-gated, one `org-competitions` hit) → `golfQuickstartPOST`
+composes the existing server functions in order: `ensureDefaultSeason` →
+`competitionCreatePOST` (golf leaderboard, gross, first-posted, public) →
+the actor rosters themselves via R3's `rosterSelfPost` (the owner plays
+too; an owner is never supervised — the R0 gate) → `entryAddPOST` for every
+active/placed roster athlete → `competitionPATCH` active →
+`golfSeasonGeneratePOST`. Idempotent: a live golf leaderboard already
+present comes back as `exists`; a second tap never doubles a league. The
+pure `quickstartPlan` (tested) names the league "{year} League" and lays
+out the weekly windows from today.
+
+**Any course.** `config.golf.anyCourse` (a new key in the 172 jsonb, no
+DDL). The generator's `venueId` is now optional: absent, the competition
+must be any-course, and the rounds are written with `venue_id NULL`.
+`syncGolfContest` grows the branch: a venue-less round on an any-course
+league reads the participants first, collects the catalog courses their
+rounds in the window name, and feeds that set to `qualifyRound` — which is
+unchanged (a round still needs a catalog course for its ratings). A venue
+named at start keeps the 6c rule exactly.
+
+**The console.** For a golf org the "Create a season first." line becomes
+the "Start our season" card — holes, weeks, days per round, start date,
+and a course select (default "Any course") shown only when a linked venue
+exists; it hides once a live golf leaderboard exists. The Seasons empty
+copy explains where the season comes from; the checklist's league hint
+reads "One tap — weekly rounds fill from members' posted scores."
+
+**Verification.** `npm run verify` green. Unit: `defaultSeasonLabel`,
+`quickstartPlan` (18/9 holes, windows, explicit start), the generator
+schema's optional course. Probe on the local production build then prod
+(scratchpad `r4-probe.mts`, 390px): A creates a link-only club, B joins
+counted; A's console shows the card with no season wall and no overflow;
+one tap → toast, the card hides; DB: one dateless season labelled with the
+year, one ACTIVE public golf leaderboard with `anyCourse`, three rounds
+with `venue_id NULL` from today, entries for the owner (auto-rostered) and
+B, all approved; a second tap → `exists` and still one competition; B's
+18-hole round at an arbitrary rated catalog course inside week 1 → the
+golf-sync writes B's result (88).
+
+---
+
 ## September 8, 2026 — Onboarding v2 round 3: members without friction — the join link, and "count my rounds" (zero DDL)
 
 Rounds 1 and 2 made a club live and quick to create. This round makes
