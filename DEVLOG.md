@@ -1,5 +1,39 @@
 # Development Log
 
+## September 8, 2026 — Next 16.3.1 → 16.3.4 for GHSA-p293-qw3h-jr36 (lockfile only)
+
+The end-of-session maintenance sweep found the hardening guardrails red for
+the first time since the audit step was added: `npm audit` reports
+**GHSA-p293-qw3h-jr36**, critical, "Unauthenticated Remote Code Execution on
+windows-hosted servers" (CWE-22), range `next >=16.0.0 <16.3.3`. We were on
+16.3.1. The advisory published this evening — the #596 sweep two hours
+earlier saw 0 high/critical.
+
+- **Exposure:** none in production. The vulnerable path is Windows-only and
+  the app runs on Vercel's Linux runtime; local dev is macOS. The bump is
+  taken because the gate is red, not because prod was at risk — and because
+  the fix is a patch release with no API surface.
+- **What moved:** only `package-lock.json`. `next` and `eslint-config-next`
+  16.3.1 → **16.3.4** (both ranges are already `^16.2.12`, so `package.json`
+  is untouched, the same shape as the Aug 14 #161 bump); `@next/*` swc
+  binaries with it; one transitive (`fastq` 1.20.1 → 1.20.3). Taken with
+  `npm update next eslint-config-next`, not `npm audit fix`, so nothing else
+  drifted.
+- **Gate:** `npm run verify` green on the branch — typecheck, lint at zero
+  (eslint-config-next 16.3.4 turned on no new rule), 2,792 tests, `next
+  build` (171 static pages), the browser-floor gate: **165 client chunks
+  parse and call within iOS 15 / Safari 15**. That last line is the one
+  that matters for a framework bump — the Sep 2026 floor incident was a
+  framework runtime change nobody checked. Guardrails pass again; `npm
+  audit` 0.
+- **Unchanged:** the `middleware` → `proxy` deprecation is still a warning,
+  not an error; the deliberately-kept `middleware` convention needs nothing.
+
+Prod check after merge: the deployment row for the merge sha, `/` 200, and
+the downloaded-chunks floor gate against the deployed build.
+
+---
+
 ## September 8, 2026 — Maintenance sweep, close of day (docs only)
 
 Tom: "run the full project maintenance checklist and sync." Run on `main`
