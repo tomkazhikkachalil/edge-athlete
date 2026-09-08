@@ -92,10 +92,8 @@ export default function QuotedPostEmbed({ post, compact = false, onClick }: Quot
               {getInitials(authorName)}
             </div>
           )}
+          {/* Name only, like the card header (Sep 8 2026) — no @handle. */}
           <span className="text-xs font-bold text-primary truncate">{authorName}</span>
-          {post.profile?.handle && (
-            <span className="text-xs text-tertiary truncate">@{post.profile.handle}</span>
-          )}
         </div>
         {post.caption && (
           <p className={`text-sm text-primary line-clamp-2 mt-1.5 ${compact ? '' : 'whitespace-pre-wrap'}`}>

@@ -508,19 +508,14 @@ function PostCard({
 
           <div className="flex-1 min-w-0">
             <div className="flex flex-col">
-              {/* min-w-0 + truncate: long name/handle must shrink, not push the
-                  owner edit/delete buttons off a 360px card. The handle used
-                  to carry flex-shrink-[2], which under an owner's 148px
-                  button cluster truncated it down to a bare "@" — zero
-                  information. Equal shrink + floors instead: the name keeps
-                  at least ~4 chars, the handle at least "@abc…", and when
-                  even that can't fit the handle hides entirely (a truncated
-                  name alone beats a lone "@"). */}
+              {/* Name only — the @handle that used to sit beside it is gone
+                  (Tom, Sep 8 2026: "just the given name is fine"). The name
+                  still links to the profile, so the handle lost nothing but
+                  its restatement. min-w-0 + truncate: a long name must
+                  shrink, not push the owner edit/delete buttons off a 360px
+                  card. */}
               <div className="flex items-center gap-2 min-w-0">
                 <h3 className="font-bold text-primary text-base hover:text-brand-fg transition-colors truncate min-w-[3.5rem]">{displayName}</h3>
-                {getHandle(post.profile) && (
-                  <span className="hidden min-[400px]:inline text-sm text-primary font-medium truncate min-w-[3rem]">{getHandle(post.profile)}</span>
-                )}
               </div>
               {/* No flex-wrap: under squeeze this row must degrade by
                   ellipsis like the name row above it, not stack into extra
