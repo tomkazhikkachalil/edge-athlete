@@ -1,5 +1,64 @@
 # Development Log
 
+## September 8, 2026 — Onboarding v2 round 5: the zero-admin club page — members and leaders from posted rounds (zero DDL)
+
+The Club Model's design note: "all seven surfaces are aggregations over
+rounds, scoped by membership. A club that plays and posts has a full page
+with zero admin work." Until this round a published club site with no
+competition rendered nothing from its members' rounds — standings,
+leaders, schedule and gallery each needed a competition or a manager's
+pick, and the one raw-round reader (course stats, 6e) was keyed by a
+venue a club had to create. The club's own description never reached
+its public page at all.
+
+**A membership-keyed reader.** `src/lib/golf/member-stats.ts` (pure,
+tested) and `src/lib/org-sites/member-stats.ts` (I/O) — the sibling of
+course-stats keyed by MEMBERSHIP alone: every member, the golf rounds
+they posted anywhere this year. The two-key rule holds (a PUBLIC post on
+the round AND a public profile); a log-only round never appears; a
+private profile's rounds never count toward a crawlable board and its
+name is masked "First L." with no link (`publicDisplayName` /
+`publicHandle`); supervised athletes and stubs are dropped from the list
+entirely. Nine and eighteen never compete (per-holes averages and lows).
+The handicap index rides along for public profiles only — already public
+data there (the player page computes the same thing) — bounded to 40
+computations per read.
+
+**The `members` module** (migration 179 admitted the key; seeded off for
+existing sites, and `siteCreatePOST` enables it for golf orgs only).
+`MembersTable`: name (linked for public profiles), HI, rounds this
+season, scoring average and best round at 18 (the subpage adds 9), most
+active first, plus the recent rounds. Home section and `/org/[slug]/
+members` subpage share the component; the module is members-only on a
+private club (`MEMBERS_ONLY_MODULE_KEYS`) and sits after `schedule` in
+the golf order (the pinned "hero, standings, leaders, schedule" head
+stays). **Leaders fall back**: `getCachedLeaders` takes the sport and,
+when no competition exists on a golf org, renders the members' boards
+(low round 18/9, scoring average with ≥3 rounds, most rounds) as one
+board titled "From members' posted rounds" through the same
+`LeadersTable`. **The description** written at creation renders under
+the hero's tagline (`PublicSite.orgDescription`, from R1's org read). The
+subpage ships in BOTH route trees — `/org/[slug]/members` and the vanity
+twin `/[slug]/members` (a thin re-export): with the canonical flipped the
+middleware 301s `/org/{slug}/*` to `/{slug}/*`, so a subpage added to one
+tree only is a 404 on the other — the probe caught exactly that.
+
+**Verification.** `npm run verify` green. Unit: `buildMemberStats` (zero-
+round members listed, most-active order, 9/18 separation, the ≥3-round
+average rule, masked names never link, seasonFrom, recent order, junk
+rounds dropped). Probe on the local production build then prod
+(scratchpad `r5-probe.mts`, 390px): a link-only club with a description,
+published with no season/competition/venue; B (public), C (private
+profile) and D (supervised) join; B, C, D each post a round with a public
+post, B also a log-only one → the served home shows the description; the
+Members table lists Ava, Bea and "Cal P." (masked, unlinked), never Dee,
+"3 members · 1 round posted this year"; Bea's row rounds 1 / best 88 and
+links; Leaders reads "From members' posted rounds" with Bea's 88 and
+zero competitions; the `/members` subpage renders the detailed table; no
+overflow at 390.
+
+---
+
 ## September 8, 2026 — Onboarding v2 round 4: the implicit season and "Start our season" — a golf league in one tap, at any course (zero DDL)
 
 Three rounds in, a club is live, quick to create and easy to join. This

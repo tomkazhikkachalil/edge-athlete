@@ -43,7 +43,7 @@ export default async function OrgSiteLeadersTablePage({ params }: PageParams) {
   const site = await requireSiteModule(slug, 'leaders');
   // Phase 9 V4: a private club renders the members-only panel here.
   if (isMembersOnly(site, 'leaders')) return <MembersOnlyPage site={site} title={moduleLabel('leaders', parseNavConfig(site.nav_config), site.side, site.sportKey)} what={'The leaders'} />;
-  const items = await getCachedLeaders(slug, site.side, site.orgId);
+  const items = await getCachedLeaders(slug, site.side, site.orgId, site.sportKey);
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-8 space-y-6">
@@ -51,7 +51,7 @@ export default async function OrgSiteLeadersTablePage({ params }: PageParams) {
         {moduleLabel('leaders', parseNavConfig(site.nav_config), site.side, site.sportKey)}
       </h1>
       {items.length === 0 ? (
-        <p className="text-sm text-tertiary">No stats recorded yet.</p>
+        <p className="text-sm text-tertiary">{"No stats recorded yet — members' posted rounds appear here."}</p>
       ) : (
         <LeadersTable boards={items} basePath={siteBasePath(site)} detailed />
       )}

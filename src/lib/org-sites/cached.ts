@@ -53,6 +53,9 @@ import {
   fetchPublicOrgDirectory,
   type DirectoryRegion,
 } from './public-data';
+import { fetchPublicMemberStats } from '@/lib/org-sites/member-stats';
+import { leadersFromMemberStats } from '@/lib/org-sites/member-leaders';
+import type { MemberStats } from '@/lib/golf/member-stats';
 
 // The (public) segment's per-slug cached reads: unstable_cache with the
 // `org-site:{slug}` tag (console writes revalidateTag it — publish,
@@ -327,11 +330,21 @@ export const getCachedDivisions = (
 export const getCachedLeaders = (
   slug: string,
   side: OrgSide,
-  orgId: string
+  orgId: string,
+  sportKey: string | null = null
 ): Promise<PublicLeaderBoard[]> =>
-  perSlug(['org-site-leaders', slug], slug, () =>
-    fetchPublicStatLeaders(getSupabaseAdmin(), side, orgId)
-  );
+  perSlug(['org-site-leaders', slug], slug, async () => {
+    const admin = getSupabaseAdmin();
+    const boards = await fetchPublicStatLeaders(admin, side, orgId);
+    // R5: a golf org with no competition yet still has leaders — from its
+    // members' posted rounds (the zero-admin page).
+    if (boards.length > 0 || sportKey !== 'golf') return boards;
+    return leadersFromMemberStats(await fetchPublicMemberStats(admin, side, orgId));
+  });
+
+/** R5: the members table — every member, their posted rounds this year. */
+export const getCachedMemberStats = (slug: string, side: OrgSide, orgId: string): Promise<MemberStats> =>
+  perSlug(['org-site-member-stats', slug], slug, () => fetchPublicMemberStats(getSupabaseAdmin(), side, orgId));
 
 /** C2: one site's sitemap entry, from the same hourly enumeration —
  *  the per-host /sitemap.xml route on a custom domain reads this. */

@@ -48,6 +48,8 @@ import type { CourseStats } from '@/lib/golf/course-stats';
 import type { PublicGolfRound } from '@/lib/org-sites/public-data';
 import GolfRoundsSchedule from './GolfRoundsSchedule';
 import { courseRecordLine } from './CourseStatsCard';
+import MembersTable from './MembersTable';
+import type { MemberStats } from '@/lib/golf/member-stats';
 
 // The site home's module rendering, extracted (cleanup round) so the
 // PUBLISHED home page and the token-gated draft PREVIEW render the exact
@@ -76,6 +78,8 @@ export interface SiteHomeData {
   /** N1 (program 10) — the latest posts for the home's news teaser
    *  (already audience-filtered for a private club). */
   news?: PublicNewsItem[];
+  /** R5: the members table — null when the module is off. */
+  memberStats?: MemberStats | null;
 }
 
 export default function SiteHomeBody({
@@ -216,7 +220,13 @@ export default function SiteHomeBody({
         return leaders.length > 0 ? (
           <LeadersTable boards={leaders} basePath={siteBasePath(site)} detailed={false} />
         ) : (
-          empty('No stats recorded yet.')
+          empty("No stats recorded yet — members' posted rounds appear here.")
+        );
+      case 'members':
+        return data.memberStats ? (
+          <MembersTable stats={data.memberStats} basePath={siteBasePath(site)} detailed={false} />
+        ) : (
+          empty('No members yet.')
         );
       case 'documents': {
         const documents = parseDocuments(
@@ -331,6 +341,11 @@ export default function SiteHomeBody({
             <p className={spec.hero === 'bleed' ? 'mt-2 text-base opacity-90' : 'mt-1 text-sm opacity-90'}>
               {hero.tagline || (site.sportKey === 'golf' ? GOLF_TAGLINE : 'Schedules, standings, and teams — live.')}
             </p>
+            {/* R5: the org's own description, written once at creation, finally
+                reaches its public page. */}
+            {site.orgDescription && (
+              <p className="mt-3 max-w-2xl text-sm opacity-90 whitespace-pre-wrap">{site.orgDescription}</p>
+            )}
             <div className="mt-4 flex flex-wrap gap-2">
               {hero.ctaLabel && hero.ctaUrl && (
                 <a

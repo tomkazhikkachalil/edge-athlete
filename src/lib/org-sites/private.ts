@@ -7,7 +7,7 @@
 
 // `staff` too: the managers' names are people, not identity (the spec caught
 // the owner's masked name on a private home).
-export const MEMBERS_ONLY_MODULE_KEYS = ['standings', 'teams', 'divisions', 'leaders', 'gallery', 'staff'] as const;
+export const MEMBERS_ONLY_MODULE_KEYS = ['standings', 'teams', 'divisions', 'leaders', 'gallery', 'staff', 'members'] as const;
 
 export function isMembersOnly(site: { visibility: 'public' | 'private' }, moduleKey: string): boolean {
   return site.visibility === 'private' && (MEMBERS_ONLY_MODULE_KEYS as readonly string[]).includes(moduleKey);

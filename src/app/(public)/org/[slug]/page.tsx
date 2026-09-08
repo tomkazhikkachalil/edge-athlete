@@ -7,6 +7,7 @@ import {
   getCachedCourses,
   getCachedDivisions,
   getCachedLeaders,
+  getCachedMemberStats,
   getCachedSchedule,
   getCachedSite,
   getCachedStaff,
@@ -73,7 +74,7 @@ export default async function OrgSiteHome({ params }: PageParams) {
   const has = (key: string) => site.modules.some(m => m.module_key === key && m.enabled);
   const { side, orgId } = site;
 
-  const [standings, events, teams, staff, venues, affiliations, openWindows, courses, divisions, leaders, clubGolfBoards, courseStrip, golfRounds, news] =
+  const [standings, events, teams, staff, venues, affiliations, openWindows, courses, divisions, leaders, clubGolfBoards, courseStrip, golfRounds, news, memberStats] =
     await Promise.all([
     has('standings') ? getCachedStandings(slug, side, orgId) : Promise.resolve(null),
     has('schedule') ? getCachedSchedule(slug, side, orgId) : Promise.resolve(null),
@@ -84,11 +85,13 @@ export default async function OrgSiteHome({ params }: PageParams) {
     has('register') ? getCachedOpenWindows(slug, side, orgId) : Promise.resolve([]),
     has('courses') ? getCachedCourses(slug, side, orgId) : Promise.resolve([]),
     has('divisions') ? getCachedDivisions(slug, side, orgId) : Promise.resolve([]),
-    has('leaders') ? getCachedLeaders(slug, side, orgId) : Promise.resolve([]),
+    has('leaders') ? getCachedLeaders(slug, side, orgId, site.sportKey) : Promise.resolve([]),
     has('courses') && side === 'club' ? getCachedClubGolfBoards(slug, orgId) : Promise.resolve([]),
     has('courses') && side === 'club' ? getCachedClubCourseStrip(slug, side, orgId) : Promise.resolve(null),
     has('schedule') ? getCachedGolfRounds(slug, side, orgId) : Promise.resolve([]),
     has('news') ? getCachedNewsList(slug, site.id, site.visibility === 'private') : Promise.resolve([]),
+    // R5: the zero-admin members table (rounds members posted anyway).
+    has('members') ? getCachedMemberStats(slug, side, orgId) : Promise.resolve(null),
   ]);
 
   return (
@@ -101,7 +104,7 @@ export default async function OrgSiteHome({ params }: PageParams) {
       />
       <SiteHomeBody
         site={site}
-        data={{ standings, events, teams, staff, venues, affiliations, openWindows, courses, divisions, leaders, clubGolfBoards, courseStrip, golfRounds, news }}
+        data={{ standings, events, teams, staff, venues, affiliations, openWindows, courses, divisions, leaders, clubGolfBoards, courseStrip, golfRounds, news, memberStats }}
       />
     </>
   );

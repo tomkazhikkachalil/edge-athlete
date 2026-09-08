@@ -60,13 +60,14 @@ export const MODULE_KEYS = [
   'divisions', // phase 6b B3 (mig 169 admitted it; teams grouped by division)
   'leaders', // phase 6b B3 (stat leaders from contest_stat_lines)
   'documents', // phase 6b B3 (PDFs in org-media + external links)
+  'members', // Onboarding v2 R5 (mig 179; the zero-admin members table from posted rounds)
 ] as const;
 export type ModuleKey = (typeof MODULE_KEYS)[number];
 
 /** Keys newer than the 155 base CHECK, NEWEST LAST — siteCreatePOST's
  *  pre-migration 23514 retry strips them from the end until the insert
  *  fits the database it's talking to. */
-export const POST_155_MODULE_KEYS = ['news', 'gallery', 'register', 'courses', 'divisions', 'leaders', 'documents'] as const;
+export const POST_155_MODULE_KEYS = ['news', 'gallery', 'register', 'courses', 'divisions', 'leaders', 'documents', 'members'] as const;
 
 /** Every module except hero can be toggled from the console (hero is the
  *  site's identity — excluded at the SCHEMA level, not just the UI). */
@@ -86,6 +87,7 @@ export const TOGGLEABLE_MODULE_KEYS = [
   'divisions',
   'leaders',
   'documents',
+  'members',
 ] as const;
 export type ToggleableModuleKey = (typeof TOGGLEABLE_MODULE_KEYS)[number];
 
@@ -242,12 +244,12 @@ export function parseNavConfig(navConfig: unknown): NavConfig {
 export const DEFAULT_MODULE_ORDER: Record<'league' | 'club', readonly ModuleKey[]> = {
   club: [
     'hero', 'courses', 'affiliations', 'schedule', 'standings', 'news', 'register',
-    'teams', 'divisions', 'leaders', 'gallery', 'venues', 'staff', 'documents',
+    'teams', 'divisions', 'leaders', 'members', 'gallery', 'venues', 'staff', 'documents',
     'sponsors', 'contact',
   ],
   league: [
     'hero', 'standings', 'schedule', 'teams', 'divisions', 'affiliations', 'news',
-    'register', 'leaders', 'gallery', 'venues', 'courses', 'staff', 'documents',
+    'register', 'leaders', 'members', 'gallery', 'venues', 'courses', 'staff', 'documents',
     'sponsors', 'contact',
   ],
 };
@@ -261,12 +263,12 @@ export const DEFAULT_MODULE_ORDER: Record<'league' | 'club', readonly ModuleKey[
  *  managers still reorder freely. Every MODULE_KEY exactly once (pinned). */
 export const GOLF_MODULE_ORDER: Record<'league' | 'club', readonly ModuleKey[]> = {
   club: [
-    'hero', 'standings', 'leaders', 'schedule', 'news', 'gallery', 'courses',
+    'hero', 'standings', 'leaders', 'schedule', 'members', 'news', 'gallery', 'courses',
     'register', 'affiliations', 'venues', 'teams', 'divisions', 'staff',
     'sponsors', 'documents', 'contact',
   ],
   league: [
-    'hero', 'standings', 'leaders', 'schedule', 'news', 'gallery', 'register',
+    'hero', 'standings', 'leaders', 'schedule', 'members', 'news', 'gallery', 'register',
     'courses', 'affiliations', 'venues', 'teams', 'divisions', 'staff',
     'sponsors', 'documents', 'contact',
   ],
@@ -763,6 +765,7 @@ export const MODULE_TITLES: Record<string, string> = {
   divisions: 'Divisions',
   leaders: 'Stat leaders',
   documents: 'Documents',
+  members: 'Members',
 };
 
 /** The module keys that have their own subpage under /org/{slug}/.
@@ -778,6 +781,7 @@ export const MODULE_SUBPAGE_KEYS = [
   'divisions',
   'leaders',
   'documents',
+  'members',
 ] as const;
 
 // ── Custom pages (phase 3 R3) ───────────────────────────────────────────────
