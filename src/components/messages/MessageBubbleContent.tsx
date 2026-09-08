@@ -4,6 +4,7 @@ import LazyImage from '@/components/LazyImage';
 import SharedPostPreview from './SharedPostPreview';
 import SharedProfilePreview from './SharedProfilePreview';
 import MentionText from '@/components/MentionText';
+import { formatDisplayName } from '@/lib/formatters';
 import type { Message, ParticipantProfile } from '@/types/messages';
 
 interface Props {
@@ -28,7 +29,13 @@ export default function MessageBubbleContent({ message, isOwn, onViewPost, parti
     const p = participants?.find(
       (x) => x.handle && x.handle.toLowerCase() === handle
     );
-    return p?.handle ? { id: p.id, handle: p.handle } : null;
+    return p?.handle
+      ? {
+          id: p.id,
+          handle: p.handle,
+          name: formatDisplayName(p.first_name, null, p.last_name, p.full_name),
+        }
+      : null;
   };
   const renderText = (content: string) => (
     <MentionText text={content} resolve={resolveMention} styleUnresolved />

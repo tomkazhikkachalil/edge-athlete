@@ -18,7 +18,7 @@ import {
   initialLeadingOpen,
 } from '@/components/messages/composer-layout';
 import { flattenReplies, collectDescendantIds } from '@/lib/comment-thread';
-import MentionText from '@/components/MentionText';
+import MentionText, { type MentionResolvedProfile } from '@/components/MentionText';
 import MentionSuggestions from '@/components/MentionSuggestions';
 import { useMentionTypeahead, type MentionCandidate } from '@/hooks/useMentionTypeahead';
 
@@ -70,9 +70,10 @@ export default function CommentSection({
   // Anchors for the portaled mention dropdown (spans the composer row).
   const mainRowRef = useRef<HTMLDivElement>(null);
   const replyRowRef = useRef<HTMLDivElement>(null);
-  // handle → {id, handle} for every mention hydrated from the API; grows as
-  // new comments post. MentionText renders only tokens found here.
-  const [mentionMap, setMentionMap] = useState<Record<string, { id: string; handle: string }>>({});
+  // handle → {id, handle, name} for every mention hydrated from the API;
+  // grows as new comments post. MentionText renders only tokens found here,
+  // and shows `name` (the person's chosen name) in place of the @handle.
+  const [mentionMap, setMentionMap] = useState<Record<string, MentionResolvedProfile>>({});
   // iMessage-style leading cluster (emoji + GIF), one per composer: typing
   // collapses it to a chevron; the chevron brings it back; posting reopens.
   // Same tested reducer as MessageInput — never fork the latch rules.
@@ -88,7 +89,7 @@ export default function CommentSection({
   );
 
   const mergeMentionProfiles = useCallback(
-    (profiles?: { id: string; handle: string }[]) => {
+    (profiles?: MentionResolvedProfile[]) => {
       if (!profiles || profiles.length === 0) return;
       setMentionMap(prev => {
         const next = { ...prev };

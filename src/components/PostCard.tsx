@@ -752,6 +752,9 @@ function PostCard({
                 taggedProfile.last_name,
                 taggedProfile.full_name
               );
+              // The chip shows the person's chosen name; the @handle rides
+              // the title (Sep 8 2026 — names, not handles, everywhere a
+              // person is named in a post).
               const taggedHandle = getHandle(taggedProfile);
 
               return (
@@ -766,6 +769,7 @@ function PostCard({
                       router.push(`/athlete/${taggedProfile.id}`);
                     }
                   }}
+                  title={taggedHandle || undefined}
                   className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-brand-soft hover:bg-violet-100 dark:hover:bg-violet-950/60 text-brand-fg-strong text-sm rounded-full font-semibold border border-violet-200 dark:border-violet-800 transition-colors"
                 >
                   {taggedProfile.avatar_url ? (
@@ -783,7 +787,7 @@ function PostCard({
                       </span>
                     </div>
                   )}
-                  <span>{taggedHandle || taggedDisplayName}</span>
+                  <span>{taggedDisplayName}</span>
                 </button>
               );
             })}
