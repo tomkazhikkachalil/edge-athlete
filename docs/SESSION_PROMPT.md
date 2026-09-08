@@ -4,7 +4,7 @@
 > development session. Last aligned with project state: **September 8, 2026
 > (end of session, after the Onboarding v2 close #595–#597, the advisory
 > bumps #598 + #600 and the final sweep #599)** — migration head 179; `main`
-> at the #600 merge plus the #599 docs. If the "Where the project
+> at the #599 merge (64c3ef8e), deployed and Ready. If the "Where the project
 > actually is" section drifts stale, ask Claude to re-align it against
 > DEVLOG.md and session memory.
 
@@ -164,12 +164,15 @@ turned the guardrails' `npm audit` step red for every PR — fixed by #598,
 `next` + `eslint-config-next` 16.3.1 → 16.3.4 within the existing ranges,
 lockfile only, verify green incl. the browser-floor gate; then sharp
 (libheif, via the `overrides` pin → 0.35.4) and nodemailer (→ 9.1.1) in
-#600 when two more advisories landed mid-sweep. A temporary demo
+#600 when two more advisories landed mid-sweep (prod after #600: Ready on
+the alias, `/_next/image` encodes AVIF and WebP; the floor gate was run on
+the downloaded deployed chunks after #598). A temporary demo
 golf club (Tom as owner, unlisted, 8 QA members, 47 rounds, a running
 points-race league) was seeded on prod for screenshots and torn down the
 same evening; the sweep verified nothing of it remains. The public-site
 breakdown/wireframes artifact from that walk-through is linked in session
-memory. `main` is at the #600 merge with nothing in flight. The
+memory. `main` is at the #599 merge (64c3ef8e), deployed and Ready, with
+nothing in flight; every branch of the day is deleted. The
 next program is Tom's call; candidates in session memory (the parked spec
 items above, the club/league page twins fold, the name-helper
 consolidation). Tom still owes ops: Search Console, custom-domain env, device
