@@ -27,6 +27,7 @@ import { formatDisplayName, getInitials } from '@/lib/formatters';
 import { useAuth } from '@/lib/auth';
 import WorkoutPostCard from './workouts/WorkoutPostCard';
 import { getHandle } from '@/lib/profile-display';
+import PostOwnerMenu from '@/components/PostOwnerMenu';
 import type { CompleteGolfScorecard } from '@/types/group-posts';
 import type { GolfRound } from '@/types/golf';
 
@@ -578,9 +579,15 @@ function PostCard({
             </>
           )}
 
-          {/* Pin, Edit and Delete buttons - only show for post owner */}
+          {/* Pin, Edit and Delete — owner only. From sm up: three 44px
+              buttons. Below sm: ONE "…" menu (PostOwnerMenu, portaled) —
+              three 44px targets were 148px of a ~326px card and left the
+              author column ~66px ("Prob…"); 44px is the touch floor, so
+              the count had to drop, not the size. The sm+ buttons come
+              FIRST in DOM order so role queries by name resolve to them.
+              (Sep 8 2026, refinement 3.) */}
           {isOwner && (
-            <>
+            <div className="hidden sm:flex items-center gap-2">
               <button
                 onClick={handleTogglePin}
                 disabled={pinBusy}
@@ -612,7 +619,16 @@ function PostCard({
                   <i className="fas fa-trash text-sm"></i>
                 </button>
               )}
-            </>
+            </div>
+          )}
+          {isOwner && (
+            <PostOwnerMenu
+              isPinned={isPinned}
+              pinBusy={pinBusy}
+              onTogglePin={handleTogglePin}
+              onEdit={() => onEdit?.(post.id)}
+              onDelete={onDelete ? handleDeleteClick : undefined}
+            />
           )}
         </div>
       </div>

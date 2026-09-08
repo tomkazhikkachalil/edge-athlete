@@ -1,5 +1,72 @@
 # Development Log
 
+## September 8, 2026 — An owner's post actions become one "…" menu on phones (zero DDL)
+
+Third small refinement, the follow-up the previous entry promised. Tom: "yes
+do the … menu as fix 3."
+
+**The problem left over.** With the badge fixed, an OWNER's card at 390px
+was still starved: pin / edit / delete are three 44px touch targets — 148px
+of a ~326px card — and 44px is the floor, so the name stayed "Prob…" and
+the meta row "l… • g". The count had to drop, not the size.
+
+**The change.** From `sm` up nothing moves: the three buttons stay, now
+wrapped in `hidden sm:flex` and placed FIRST in DOM order (role queries by
+name keep resolving to them; `media-reedit.spec` and `round-delete.spec`
+are desktop-only and untouched). Below `sm`, one 44px "…" trigger
+(`aria-label="Post options"`, `aria-haspopup="menu"`, `aria-expanded`)
+opens the new `PostOwnerMenu` (`src/components/PostOwnerMenu.tsx`): three
+44px rows — Pin/Unpin (disabled while `pinBusy`, amber when pinned), Edit
+post, and Delete post only when the mount wired `onDelete` (no dead row —
+the trash-that-did-nothing lesson). Every row closes the menu first, then
+acts, so the delete confirm and the edit modal never mount under an open
+panel. The author column gets ~90px back on phones.
+
+**House rules honoured, deliberately.** The panel is PORTALED to body and
+`position: fixed` — PostCard's root is `rounded-lg overflow-hidden` and the
+detail modal stacks two more clippers on the same path (the Aug 9 clipping
+rule; an in-tree dropdown would be cut at the card edge). Placement is a
+new pure `placeMenu` in `src/lib/panel-placement.ts` (5 node tests): BELOW
+the trigger, right edge aligned to it, flips above only when the visible
+strip has no room, clamped 8px inside the layout viewport — the placePanel
+model (raw client coordinates; the visual viewport only as bounds; always
+top-anchored) but below-first, because a header menu that pops upward reads
+as broken. It repositions on scroll / resize / visualViewport moves and
+never closes on them (the #100 rules). Dismissal is `usePopoverDismiss`,
+which now accepts one ref OR an array — a portaled panel is not a DOM
+descendant of its trigger, so "inside" must consult both, or the trigger's
+mousedown closes the menu and its click reopens it (the portal lesson).
+Existing callers pass a single ref and are unchanged. The same hook now
+handles Escape in the CAPTURE phase and stops propagation: the first probe
+run showed Escape closing the menu AND the post-detail modal behind it
+(both listened on window in the bubble phase), so Escape now closes the
+topmost popover only — which is what every existing caller wanted too.
+Two lint traps for the next new panel: `useRef([...]).current` during render is a
+`react-hooks/refs` error (pin the array with `useMemo` instead), and the
+`exhaustive-deps` disable that MentionSuggestions carries is UNUSED in a
+fresh file under the current rule set — a warning, and warnings fail the
+gate.
+
+**Verification.** `npm run verify` green. Probe on the local production
+build then prod (scratchpad `menu-probe.mts`, the badge probe extended):
+at 390 the three buttons are out of the accessibility tree and the "…"
+is visible; the name's `h3` is ≥100px wide (was ~56); the open menu's
+parent is `document.body`, three rows in order, first row ≥44px and
+hit-testable via `elementFromPoint`, panel inside the viewport; Escape
+closes and the modal behind it stays open; an outside press closes; the
+Edit row closes the menu and opens the edit dialog; the panel's computed
+background is opaque once the 140ms fade ends (a screenshot mid-fade reads
+as see-through — wait it out before judging). At 1280 the "…" is hidden,
+the three buttons visible, exactly one "Delete post" by name. Probe traps:
+`isVisible()` never waits (EditPostModal is a dynamic import — `waitFor`);
+an "outside press" must land inside the card, not on the modal backdrop
+(that closes the modal) and not under the panel; after the edit dialog,
+locate the feed card by `data-testid="post-card"` — a loose `div` matcher
+found the edit modal's container instead (React renders a textarea's value
+as DOM text).
+
+---
+
 ## September 8, 2026 — The "Private" badge no longer sits on the author's name at phone width (zero DDL)
 
 Second small refinement. Seen in the mentions probe's 390px screenshot and

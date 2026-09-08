@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { placePanel } from '../panel-placement';
+import { placePanel, placeMenu } from '../panel-placement';
 
 const desktop = { viewportTop: 0, viewportHeight: 800 };
 
@@ -70,5 +70,41 @@ describe('placePanel', () => {
       maxHeightCap: 288,
     });
     expect(p.maxHeight).toBe(96);
+  });
+});
+
+describe('placeMenu', () => {
+  const phone = { viewportTop: 0, viewportHeight: 844, viewportWidth: 390, margin: 8 };
+
+  it('opens below the trigger, right-aligned to it', () => {
+    const m = placeMenu({ anchorTop: 100, anchorBottom: 144, anchorRight: 360, panelW: 200, panelH: 140, gap: 4, ...phone });
+    expect(m.top).toBe(144 + 4);
+    expect(m.left).toBe(360 - 200);
+  });
+
+  it('flips above when the visible strip has no room below', () => {
+    const m = placeMenu({ anchorTop: 760, anchorBottom: 804, anchorRight: 360, panelW: 200, panelH: 140, gap: 4, ...phone });
+    expect(m.top).toBe(760 - 4 - 140);
+    expect(m.top + 140 + 4).toBe(760);
+  });
+
+  it('keyboard-shrunk strip: flips against the visible strip, not the layout viewport', () => {
+    // Layout viewport still 844 tall, but the visible strip is the top 400px.
+    const m = placeMenu({ anchorTop: 300, anchorBottom: 344, anchorRight: 360, panelW: 200, panelH: 140, gap: 4, ...phone, viewportHeight: 400 });
+    expect(m.top).toBe(300 - 4 - 140);
+  });
+
+  it('clamps horizontally inside the margin on both sides', () => {
+    // Trigger near the LEFT edge: right-aligning would push the panel off-screen left.
+    const left = placeMenu({ anchorTop: 100, anchorBottom: 144, anchorRight: 60, panelW: 200, panelH: 140, gap: 4, ...phone });
+    expect(left.left).toBe(8);
+    // Trigger past the RIGHT edge (over-wide anchor): clamp to the right margin.
+    const right = placeMenu({ anchorTop: 100, anchorBottom: 144, anchorRight: 700, panelW: 200, panelH: 140, gap: 4, ...phone });
+    expect(right.left).toBe(390 - 8 - 200);
+  });
+
+  it('never rises above the visible strip when flipping a tall panel', () => {
+    const m = placeMenu({ anchorTop: 700, anchorBottom: 744, anchorRight: 360, panelW: 200, panelH: 900, gap: 4, ...phone });
+    expect(m.top).toBe(8);
   });
 });
