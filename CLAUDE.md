@@ -370,6 +370,18 @@ const { canView } = await response.json();
    'organizer'`) have no DOB and never enter the athlete wizard. Staff
    authority never implies guardian visibility. Read DEVLOG Sep 4 2026
    rounds 0–6 before touching any of it.
+10. **An org is live by link; approval gates the listing (Onboarding v2,
+   Sep 8 2026, mig 179)** — `clubs.listing_status` / `leagues.listing_status`
+   (`unlisted | pending | listed`, read through `src/lib/orgs/listing.ts`)
+   decides the directories, the sitemap, search and the robots index —
+   never the door: the org GET, the join door, the console, publishing and
+   member rounds work from creation. `approved_at` is only the listing's
+   timestamp. Every org-site subpage exists in TWO route trees
+   (`/org/[slug]/…` and the vanity twin `/[slug]/…`). A member reaches the
+   roster by their OWN opt-in (`rosterSelfPost`): an adult in one act, a
+   supervised athlete through the guardian offer — the follow edge is still
+   never a pipe. A supervised profile can never create an org
+   (`requireOrgCreator`). Read DEVLOG Sep 8 2026 rounds 0–5 first.
 
 ---
 

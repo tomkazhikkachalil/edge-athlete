@@ -3,7 +3,7 @@
 > Tom's session-start prompt. Paste this (or point Claude at it) when opening a
 > development session. Last aligned with project state: **September 8, 2026
 > (close of day, after the maintenance sweep #587)** — post the
-> small-refinements round (#584–#586); migration head still 178. If the "Where the project
+> small-refinements round (#584–#586) and Onboarding v2 (#589–#594, migration 179); If the "Where the project
 > actually is" section drifts stale, ask Claude to re-align it against
 > DEVLOG.md and session memory.
 
@@ -133,8 +133,27 @@ merge (02caee0) with nothing in flight. One incident from the sweep: the
 GitHub → Vercel webhook missed the docs-only #587 merge (the three fix
 merges all fired); production was deployed manually from the synced
 `main` and carries the merge SHA — check for a deployment row after
-every merge, and re-fire by hand when there is none. The next fix or
-program is Tom's call; candidates in session memory. Tom still owes ops: Search Console, custom-domain env, device
+every merge, and re-fire by hand when there is none.
+
+**Sep 8 — Onboarding v2 (the Club Model's onboarding slice; #589–#594,
+migration 179, every round prod-proven the same day).** Tom pasted "The
+Club Model" and asked to improve club and league onboarding with it. Three
+audits found its principle already law (golf principle 2) and its
+inventory stale — most "new" objects were built; five small walls blocked
+a four-friends club. Now: an org is LIVE BY LINK from creation and admin
+approval gates only the LISTING (`listing_status`; directory, sitemap,
+search, noindex); a supervised profile can never create an org; the wizard
+is one screen on the small path from every entry point (name, sport, home
+town, directory-or-link-only, a collapsed "more details") and hands off
+into the console; members join by a link the console shares and can count
+themselves in leagues (adults in one act, supervised via the guardian
+offer); a golf org's season, league and weekly windows start with one tap
+at any course; the public site fills from members' posted rounds (a
+members table and leaders, description under the hero) with zero admin.
+Parked from the spec: competition formats (Stableford, match play,
+allowance, order of merit), brackets, ad hoc teams, external athlete
+entries, hole-level contest media. `main` is at the #594 merge with
+nothing in flight. The next program is Tom's call. Tom still owes ops: Search Console, custom-domain env, device
 passes — including the capture-fix pass (three portrait photos un-edited,
 one edited photo + a video, a live-round hole photo) and a first real
 staff invite on his own league.
@@ -151,7 +170,7 @@ staff invite on his own league.
   covers layout, not memory: media work is verified with phone-SIZED inputs
   (`e2e/fixtures/rotated6-12mp.jpg`), not thumbnails.
 - Schema changes are numbered migrations in database/migrations/ (currently
-  at 178), the source of truth for the schema.
+  at 179), the source of truth for the schema.
 - Secrets live in environment variables (Vercel-managed); guardian/minor data
   follows the standing safety lines (no DM transcripts, never auto-publish a
   minor's post, append-only consent/audit).
