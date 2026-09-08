@@ -292,7 +292,9 @@ export async function siteCreatePOST(
     keys.map(key => ({
       site_id: site.id,
       module_key: key,
-      enabled: true,
+      // R5: the members table is a golf surface (rounds) — enabled for golf
+      // orgs, seeded off elsewhere (managers can toggle it on).
+      enabled: key === 'members' ? sportKey === 'golf' : true,
       // G3: the side's recommended order (club ≠ league — Tom's principle 1);
       // C3: the sport's shape when the org has one.
       sort_order: order.indexOf(key as (typeof MODULE_KEYS)[number]),
