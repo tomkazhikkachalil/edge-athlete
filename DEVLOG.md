@@ -1,5 +1,38 @@
 # Development Log
 
+## September 8, 2026 — Maintenance sweep, close of day (docs only)
+
+Tom: "run the full project maintenance checklist and sync." Run on `main`
+at the #595 merge (c496f14), the Onboarding v2 close — seven rounds
+(#589–#595) shipped and prod-proven in one day on one migration (179).
+
+- **Gate:** `npm run verify` green on `main` — typecheck, lint at zero
+  warnings, 2,792 tests (33 new today across the two programs), `next
+  build`, the browser-floor gate (165 client chunks). `NODE_OPTIONS=
+  --max-old-space-size=6144` remains the standing trap.
+- **Hardening guardrails:** pass. `npm audit` (high+): 0. The review-only
+  advisories: 97 bare `.select` sites (two new reads today — the members
+  reader and the listing batch read — neither counts via `.length`) and the
+  one pre-existing interpolated course-catalog filter.
+- **GitHub:** no open PRs; every branch of the day deleted on merge; only
+  `origin/main` remains; no merged local branches.
+- **Vercel:** the newest production deployment is the #595 merge, Ready;
+  `/` answers 200. The webhook fired for every merge since the #587 miss.
+- **Docs:** `docs/SESSION_PROMPT.md` header and status re-aligned to this
+  close (Onboarding v2 shipped, migration head 179, candidates named).
+  CLAUDE.md carries Key Convention 10 and the masterplan its row 8 and
+  invariant 4 (#595).
+- **Memory index** trimmed (five older program lines shortened) to stay
+  within its size limit after today's two new entries.
+- **Housekeeping:** the day's probe scripts live in the session scratchpad
+  (r0–r5, mention, badge, menu) and are recorded in memory by name; QA
+  users and fixtures were deleted by each probe's cleanup.
+
+Nothing in code changes in this PR. Next program = Tom's call; he still
+owes the first real staff invite from his phone and the device passes.
+
+---
+
 ## September 8, 2026 — Onboarding v2 round 6: the docs (masterplan §4/§6/§8/§11, CLAUDE.md convention 10, the session doc)
 
 Rounds 0–5 are merged and prod-proven; this round makes the documents say
