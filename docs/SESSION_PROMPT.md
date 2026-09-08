@@ -3,7 +3,8 @@
 > Tom's session-start prompt. Paste this (or point Claude at it) when opening a
 > development session. Last aligned with project state: **September 8, 2026
 > (close of day, after the Onboarding v2 docs close #595 and the evening
-> maintenance sweep)** — migration head 179. If the "Where the project
+> maintenance sweep #596)** — migration head 179; `main` at the #596 merge
+> (23651e6). If the "Where the project
 > actually is" section drifts stale, ask Claude to re-align it against
 > DEVLOG.md and session memory.
 
@@ -154,9 +155,10 @@ Parked from the spec: competition formats (Stableford, match play,
 allowance, order of merit), brackets, ad hoc teams, external athlete
 entries, hole-level contest media. The docs close (#595: masterplan
 §4/§6/§8/§11, CLAUDE.md convention 10, this doc) and the evening sweep
-(gate green on `main` — 2,792 tests, floor gate, lint at zero — guardrails
-+ `npm audit` clean, branches pruned, memory index trimmed) leave `main`
-at the sweep merge with nothing in flight. The next program is Tom's
+(#596: gate green on `main` — 2,792 tests, floor gate, lint at zero —
+guardrails + `npm audit` clean, branches pruned, memory index trimmed;
+the webhook fired for every merge since the #587 miss) leave `main` at
+the #596 merge (23651e6) with nothing in flight. The next program is Tom's
 call; candidates in session memory (the parked spec items above, the
 club/league page twins fold, the name-helper consolidation). Tom still owes ops: Search Console, custom-domain env, device
 passes — including the capture-fix pass (three portrait photos un-edited,
