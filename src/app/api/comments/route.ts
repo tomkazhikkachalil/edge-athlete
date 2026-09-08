@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { UUID_RE } from '@/lib/uuid';
 import { getSupabaseAdmin, getServerAuth } from '@/lib/auth-server';
 import { extractHandles } from '@/lib/mentions';
+import { formatDisplayName } from '@/lib/formatters';
 import { notifyCommentMentions } from '@/lib/mentions/notify';
 import { canViewProfile } from '@/lib/privacy';
 import { enforceRateLimit } from '@/lib/rate-limit';
@@ -17,13 +18,13 @@ async function resolveMentions(
   admin: ReturnType<typeof getSupabaseAdmin>,
   authorId: string,
   content: string | null
-): Promise<{ id: string; handle: string }[]> {
+): Promise<MentionProfile[]> {
   if (!content) return [];
   const handles = extractHandles(content);
   if (handles.length === 0) return [];
   const { data: profs } = await admin
     .from('profiles')
-    .select('id, handle, visibility')
+    .select('id, handle, visibility, first_name, last_name, full_name')
     .in('handle', handles)
     // The AUTHOR is the mentioner — acting-as makes that the athlete, so the
     // taggable set is the athlete's follow graph (the comment is theirs).
@@ -42,7 +43,39 @@ async function resolveMentions(
   }
   return profs
     .filter(p => p.visibility === 'public' || followed.has(p.id))
-    .map(p => ({ id: p.id, handle: p.handle as string }));
+    .map(toMentionProfile);
+}
+
+/**
+ * The shape the client renders a resolved mention from. `name` is the
+ * person's chosen name ("First Last", else full_name) and REPLACES the
+ * @handle in the rendered link (Sep 8 2026). Names only — never an avatar.
+ *
+ * This reverses the Aug 9 rule that hydrated id + handle only "so no names
+ * of possibly-private users leak": every comment already ships its AUTHOR's
+ * first/last/full name to every viewer, and getProfileWithPrivacy's limited
+ * shape returns the same fields for a private profile to anyone, so a
+ * mentioned person's name is no new exposure.
+ */
+interface MentionProfile {
+  id: string;
+  handle: string;
+  name: string;
+}
+
+function toMentionProfile(p: {
+  id: string;
+  handle: string | null;
+  first_name?: string | null;
+  last_name?: string | null;
+  full_name?: string | null;
+}): MentionProfile {
+  const handle = p.handle as string;
+  return {
+    id: p.id,
+    handle,
+    name: formatDisplayName(p.first_name ?? null, null, p.last_name ?? null, p.full_name ?? handle),
+  };
 }
 
 // GET - Fetch comments for a post
@@ -116,20 +149,20 @@ export async function GET(request: NextRequest) {
     const hasMore = rows.length > limit;
     const pageRows = hasMore ? rows.slice(0, limit) : rows;
 
-    // Hydrate mentioned profiles: id + handle ONLY. The handle is already in
-    // the comment text; this just confirms which tokens are real mentions —
-    // no names/avatars of possibly-private users are exposed.
+    // Hydrate mentioned profiles: id + handle + chosen name (see
+    // MentionProfile). The handle confirms which tokens are real mentions;
+    // the name is what the link renders. No avatars.
     const mentionIds = [
       ...new Set(pageRows.flatMap((c: { mentions?: string[] }) => c.mentions ?? [])),
     ];
-    let mentionProfiles: { id: string; handle: string }[] = [];
+    let mentionProfiles: MentionProfile[] = [];
     if (mentionIds.length > 0) {
       const { data: profs } = await getSupabaseAdmin()
         .from('profiles')
-        .select('id, handle')
+        .select('id, handle, first_name, last_name, full_name')
         .in('id', mentionIds)
         .not('handle', 'is', null);
-      mentionProfiles = (profs ?? []) as { id: string; handle: string }[];
+      mentionProfiles = (profs ?? []).map(toMentionProfile);
     }
 
     return NextResponse.json({

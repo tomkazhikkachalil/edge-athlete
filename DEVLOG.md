@@ -1,5 +1,55 @@
 # Development Log
 
+## September 8, 2026 — Mentions and tags show the person's chosen name, not the @handle (zero DDL)
+
+First of a set of small refinements before the next program. Tom: "when you
+tag someone in a post or their name appears, it's an @ with their unique
+name. I want their Name as they have selected it to appear. Even when they
+reply to comments, it shows their @ unique name."
+
+**What changed — display only, four render sites.** `MentionResolvedProfile`
+gains `name`; `MentionText` renders it in place of the token and moves the
+`@handle` to the link's `title`. The comments API ships the name with every
+hydrated mention (GET, POST and the guardian edit path share one
+`toMentionProfile`, built on `formatDisplayName(first, null, last,
+full_name)` — the app's de-facto "chosen name", the same string the mention
+picker already shows). Chat's resolver already held the participant's names
+and threw them away; it now passes them through. The post card's "with …"
+tag chip renders the name with the handle on `title`.
+
+**What deliberately did not change.** Stored text keeps the literal
+`@handle` — migration 073's contract (server re-parses content, `mentions
+uuid[]` unforgeable, the grammar has no spaces). The reply-to-reply
+prefill is still `@handle ` inside the textarea (a plain textarea cannot
+show a rich chip and the handle is what the parser needs); the posted
+reply renders the name. A renamed handle still degrades to plain text.
+The guardian approvals page still shows a child's comment as the literal
+words under review. `@handle` subtitles under names in pickers, rosters
+and settings are secondary labels and stay.
+
+**A privacy rule reversed, on purpose.** Aug 9 hydrated mentions as id +
+handle only "so no names of possibly-private users leak". That was more
+conservative than the rest of the app: every comment already ships its
+AUTHOR's first/last/full name to every viewer, and `getProfileWithPrivacy`'s
+limited shape returns the same fields for a private profile to anyone. A
+mentioned person's name is therefore no new exposure. Names only — never
+an avatar. The rule is restated at the hydration site.
+
+**Verification.** `npm run verify` green (256 files / 2,759 tests, floor
+gate 165 chunks). Probe against the local production build with two
+disposable QA users (scratchpad `mention-probe.mts`: tagged private post,
+root comment mentioning B, reply-to-reply, direct chat with a mention) —
+17/17 at 1280 and 390: the API's `mentionProfiles[].name`, the two comment
+links reading "Mira Quintero" with `title="@handle"`, no raw handle inside
+any comment row, the tag chip, the chat bubble. QA helper note: minted QA
+users have NO handle — set one before a mention probe or the picker set is
+empty (the Aug 9 "@ broken everywhere" data gap, in miniature).
+
+Seen in passing, not touched: at 390px the "Private" badge overlaps the
+author's name in the post-detail header.
+
+---
+
 ## September 4, 2026 — Maintenance sweep, close of day (#582, docs + one annotation)
 
 Tom: "run the full project maintenance checklist: lint, build, devlog, and

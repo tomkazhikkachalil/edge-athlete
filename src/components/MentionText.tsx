@@ -6,6 +6,13 @@ import { parseMentionTokens } from '@/lib/mentions';
 export interface MentionResolvedProfile {
   id: string;
   handle: string;
+  /**
+   * The person's chosen name ("First Last", else full_name). When present it
+   * REPLACES the @handle in the rendered link (Tom, Sep 8 2026: "I want their
+   * Name as they have selected it to appear"); the handle moves to the title.
+   * The stored text keeps the literal @handle — this is display only.
+   */
+  name?: string;
 }
 
 interface Props {
@@ -41,10 +48,11 @@ export default function MentionText({ text, resolve, styleUnresolved }: Props) {
               <Link
                 key={i}
                 href={`/u/@${profile.handle}`}
+                title={`@${profile.handle}`}
                 className="font-semibold text-brand-fg hover:text-brand-fg-strong hover:underline"
                 onClick={(e) => e.stopPropagation()}
               >
-                {seg.value}
+                {profile.name || seg.value}
               </Link>
             );
           }
