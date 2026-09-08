@@ -1,5 +1,40 @@
 # Development Log
 
+## September 8, 2026 — Maintenance sweep after the refinements round (docs only)
+
+Tom: "run the full project maintenance checklist and sync." Run on `main`
+at the #586 merge (f7fc660), the close of the small-refinements round
+(#584 chosen names for mentions/tags, #585 the Private badge, #586 the
+owner "…" menu — each prod-proven the same day).
+
+- **Gate:** `npm run verify` green on `main` — typecheck, lint at zero
+  warnings, 2,764 tests (five new placement tests from #586), `next
+  build`, the browser-floor gate (165 client chunks within iOS 15 /
+  Safari 15). `NODE_OPTIONS=--max-old-space-size=6144` remains the
+  standing trap on the 8 GB box.
+- **Hardening guardrails:** pass. `npm audit` (high+): 0 vulnerabilities.
+  The two review-only advisories are unchanged since Sep 4 (95 bare
+  `.select` sites; the one pre-existing interpolated course-catalog
+  filter). #586's new panel followed the panel rules on the record
+  (portal, `placePanel` model, reposition-never-close, both-refs
+  dismissal) — nothing to annotate.
+- **GitHub:** no open PRs. Every branch of the day was deleted on merge;
+  `fetch --prune` leaves only `origin/main`; no merged local branches.
+- **Vercel:** the newest production deployment is the #586 merge, Ready;
+  `/` answers 200. The GitHub → Vercel webhook fired for all three merges.
+- **Docs:** `docs/SESSION_PROMPT.md` re-aligned to Sep 8 (the refinements
+  round in the shipped list; `main` at #586, nothing in flight; migration
+  head still 178). CLAUDE.md needed nothing: Key Convention 9 and the
+  navigation/interaction rules still describe the code.
+- **Memory index:** five older lines trimmed to stay within its size limit
+  after the day's new entry.
+
+Nothing in code changes in this PR: this entry and the session doc. Next
+fix or program = Tom's call; he still owes the first real staff invite
+from his phone and the device passes listed in the session doc.
+
+---
+
 ## September 8, 2026 — An owner's post actions become one "…" menu on phones (zero DDL)
 
 Third small refinement, the follow-up the previous entry promised. Tom: "yes
