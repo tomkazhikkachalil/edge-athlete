@@ -32,6 +32,7 @@ import { getStatSchema } from '@/lib/sports/stat-schemas';
 import type { PublicCompetitionStandings } from '@/lib/competitions/public-standings';
 import { sortWeeks, utcToday, weekState, type GolfWeekState } from '@/lib/competitions/golf-weeks';
 import { buildGolfLeaderBoards, type GolfLeaderInputRow } from '@/lib/competitions/golf-leaders';
+import { LISTING_NOT_KNOWN, isListed, listingFromRow, readListingMap } from '@/lib/orgs/listing';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- matches the authz.ts Admin alias; schema-agnostic helper
 type Admin = SupabaseClient<any, 'public', any>;
@@ -470,7 +471,7 @@ export async function fetchPublishedSitesForSitemap(
   }
   if (degraded('sitemap sites', error) || !sites || sites.length === 0) return [];
   // The dynamic select string defeats supabase-js's type parser; cast once.
-  const siteRows = sites as unknown as {
+  const allSiteRows = sites as unknown as {
     id: string;
     subdomain: string;
     updated_at: string | null;
@@ -479,6 +480,17 @@ export async function fetchPublishedSitesForSitemap(
     custom_domain?: string | null;
     domain_active_at?: string | null;
   }[];
+  // R1 (179): only LISTED orgs are in the sitemap — an unlisted or pending
+  // site is reachable by link, never enumerated (pre-179 derives; pre-174 listed).
+  const [leagueListing, clubListing] = await Promise.all([
+    readListingMap(admin, 'league', allSiteRows.map(s => s.league_id).filter((id): id is string => !!id)),
+    readListingMap(admin, 'club', allSiteRows.map(s => s.club_id).filter((id): id is string => !!id)),
+  ]);
+  const siteRows = allSiteRows.filter(s => {
+    const state = s.league_id ? leagueListing.get(s.league_id) : s.club_id ? clubListing.get(s.club_id) : undefined;
+    return isListed(state ?? LISTING_NOT_KNOWN);
+  });
+  if (siteRows.length === 0) return [];
 
   const siteIds = siteRows.map(s => s.id);
   const leagueIds = siteRows.map(s => s.league_id).filter(Boolean) as string[];
@@ -2160,8 +2172,10 @@ export async function fetchPublicOrgDirectory(admin: Admin, side: OrgSide): Prom
     }));
     const orgIds = [...new Set(siteRows.map(r => r.orgId))];
     const readOrgs = (fields: string) => admin.from(table).select(fields).in('id', orgIds);
-    let { data: orgs, error: orgError } = await readOrgs(`id, name, city, region, country, ${sportCol}, visibility, approved_at`);
-    // Pre-176/177 (no visibility) / pre-174 (no approved_at, no primary_sport): step down.
+    let { data: orgs, error: orgError } = await readOrgs(`id, name, city, region, country, ${sportCol}, visibility, listing_status, approved_at`);
+    // Pre-179 (no listing_status) → the 176/177 shape; pre-176/177 (no
+    // visibility) / pre-174 (no approved_at, no primary_sport): step down.
+    if (orgError?.code === '42703') ({ data: orgs, error: orgError } = await readOrgs(`id, name, city, region, country, ${sportCol}, visibility, approved_at`));
     if (orgError?.code === '42703') ({ data: orgs, error: orgError } = await readOrgs(`id, name, city, region, country${side === 'league' ? ', sport_key' : ''}`));
     if (degraded('directory orgs', orgError) || !orgs) return [];
     const byId = new Map((orgs as unknown as Record<string, unknown>[]).map(c => [c.id as string, c]));
@@ -2169,8 +2183,8 @@ export async function fetchPublicOrgDirectory(admin: Admin, side: OrgSide): Prom
     for (const site of siteRows) {
       const c = byId.get(site.orgId);
       if (!c) continue;
-      // Pending (C4) orgs never list; pre-174 (no column) reads live.
-      if ('approved_at' in c && c.approved_at === null) continue;
+      // R1 (179): only LISTED orgs are in the directory; pre-174 reads listed.
+      if (!isListed(listingFromRow(c))) continue;
       entries.push({
         name: c.name as string,
         subdomain: site.subdomain,

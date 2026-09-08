@@ -4,8 +4,8 @@ import { getServerAuth, requireAuth, getSupabaseAdmin } from '@/lib/auth-server'
 import { parseBody } from '@/lib/validation';
 import { LeagueUpdateSchema, placeToLeagueColumns, isMissingTableError } from '@/lib/leagues/validate';
 import { getOrgAndRole, roleAllows } from '@/lib/orgs/authz';
-import { canViewPending, readApproval } from '@/lib/orgs/approval';
-import { isAdminEmail } from '@/lib/auth-server';
+import { readListing } from '@/lib/orgs/listing';
+import { applyListing } from '@/lib/orgs/listing-server';
 import { orgMemberPreview, redactPendingRoster } from '@/lib/orgs/members';
 import { viewerRegistrationSummary } from '@/lib/orgs/registration-server';
 import { FEATURE_FLAGS } from '@/lib/features';
@@ -67,17 +67,12 @@ export async function GET(
       roleAllows((viewerRole as OrgRole | null) ?? null, 'manage_members') ||
       (!!viewerId && viewerId === league.owner_profile_id);
 
-    // Phase 7 C4: a PENDING league (provisioned at request time, awaiting
-    // approval — 174) is visible to its managers and an admin only;
-    // everyone else gets the same 404 as a missing league.
-    const approval = await readApproval(supabase, 'league', id);
+    // Onboarding v2 R1 (179): an org is LIVE BY LINK from creation — the
+    // pending 404 is gone (the join door depends on this GET). The listing
+    // state rides along for the chips; approval gates only the directory,
+    // the sitemap, search and the robots index.
+    const listing = await readListing(supabase, 'league', id);
     const access = await readOrgAccess(supabase, 'league', id);
-    if (
-      approval.pending &&
-      !canViewPending({ canManage, isAdmin: isAdminEmail(user?.email, process.env.ADMIN_EMAILS) })
-    ) {
-      return NextResponse.json({ error: 'League not found' }, { status: 404 });
-    }
     // Owner first, then managers, then members by join date (SQL can't order
     // by this role ranking without a CASE PostgREST won't emit).
     const members = redactPendingRoster([...memberRows], canManage, viewerId).sort(
@@ -96,8 +91,9 @@ export async function GET(
 
     return NextResponse.json({
       league,
-      // C4: awaiting approval (managers/admins only ever see this true).
-      pending: approval.pending,
+      // R1: the listing state (pending = a listing request is in the queue).
+      pending: listing.status === 'pending',
+      listing: listing.status,
       sports,
       // Program 11: the membership settings (177; pre-177 ⇒ public / open).
       visibility: access.visibility,
@@ -168,22 +164,34 @@ export async function PATCH(
     // Program 11: the membership settings (177).
     if (parsed.data.visibility !== undefined) updates.visibility = parsed.data.visibility;
     if (parsed.data.joinPolicy !== undefined) updates.join_policy = parsed.data.joinPolicy;
-    if (Object.keys(updates).length === 0) {
+    // Onboarding v2 R1 (179): the directory listing has its own path (the
+    // request row + the admin bell) — applied after the column updates.
+    const listingChange = parsed.data.listing;
+    if (Object.keys(updates).length === 0 && !listingChange) {
       return NextResponse.json({ error: 'Nothing to update' }, { status: 400 });
     }
 
-    const { data: updated, error: updateError } = await supabase
-      .from('leagues')
-      .update(updates)
-      .eq('id', id)
-      .select()
-      .single();
-    if (updateError || !updated) {
-      if (updateError?.code === 'PGRST204' && /visibility|join_policy/.test(updateError.message ?? '')) {
-        return NextResponse.json({ error: 'Membership settings are not available yet' }, { status: 503 });
+    let updated: Record<string, unknown> | null = null;
+    if (Object.keys(updates).length > 0) {
+      const { data: row, error: updateError } = await supabase
+        .from('leagues')
+        .update(updates)
+        .eq('id', id)
+        .select()
+        .single();
+      if (updateError || !row) {
+        if (updateError?.code === 'PGRST204' && /visibility|join_policy/.test(updateError.message ?? '')) {
+          return NextResponse.json({ error: 'Membership settings are not available yet' }, { status: 503 });
+        }
+        console.error('[LEAGUES] update error:', updateError);
+        return NextResponse.json({ error: 'Failed to update league' }, { status: 500 });
       }
-      console.error('[LEAGUES] update error:', updateError);
-      return NextResponse.json({ error: 'Failed to update league' }, { status: 500 });
+      updated = row as Record<string, unknown>;
+    }
+    if (listingChange) {
+      const orgName = (updated?.name as string | undefined) ?? loaded.org.name;
+      const applied = await applyListing(supabase, { side: 'league', orgId: id, orgName, actorId: user.id, target: listingChange });
+      if (applied instanceof NextResponse) return applied;
     }
 
     // Program 11: the org site reads the league's visibility — a flip must
@@ -193,7 +201,10 @@ export async function PATCH(
     // The league directory (L3) and the sitemap follow a visibility flip.
     if (parsed.data.visibility !== undefined) revalidateTag('org-sitemap', { expire: 0 });
 
-    return NextResponse.json({ league: updated });
+    return NextResponse.json({
+      league: updated ?? (await supabase.from('leagues').select('*').eq('id', id).maybeSingle()).data,
+      ...(listingChange ? { listing: listingChange } : {}),
+    });
   } catch (error) {
     if (error instanceof Response) return error;
     console.error('[LEAGUES] PATCH error:', error);

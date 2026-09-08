@@ -48,6 +48,8 @@ export const LeagueUpdateSchema = z.object({
   // Program 11: the membership settings (177).
   visibility: z.enum(['public', 'private']).optional(),
   joinPolicy: z.enum(['open', 'approval']).optional(),
+  // Onboarding v2 R1 (179): the directory listing — ask (pending) or link only.
+  listing: z.enum(['pending', 'unlisted']).optional(),
 });
 export type LeagueUpdateInput = z.infer<typeof LeagueUpdateSchema>;
 

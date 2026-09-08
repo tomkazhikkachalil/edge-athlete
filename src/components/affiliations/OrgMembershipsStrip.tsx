@@ -78,7 +78,7 @@ export default function OrgMembershipsStrip({ profileId, initialData }: OrgMembe
                 ></i>
                 <span className="max-w-[10rem] truncate">{org.name}</span>
                 {org.pending && (
-                  <span className="text-[10px] font-semibold uppercase text-amber-700 dark:text-amber-300">Pending approval</span>
+                  <span className="text-[10px] font-semibold uppercase text-amber-700 dark:text-amber-300">Listing pending</span>
                 )}
                 {org.role !== 'member' && (
                   <span className="text-[10px] font-semibold text-brand-fg uppercase">{org.role}</span>

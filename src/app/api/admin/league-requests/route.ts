@@ -3,7 +3,8 @@ import { requireAuth, requireAdmin, getSupabaseAdmin } from '@/lib/auth-server';
 import { parseBody } from '@/lib/validation';
 import { LeagueRequestDecisionSchema, isMissingTableError } from '@/lib/leagues/validate';
 import { createLeagueWithOwner } from '@/lib/leagues/create';
-import { readApproval, shouldDeleteOnDecline } from '@/lib/orgs/approval';
+import { revalidateTag } from 'next/cache';
+import { revalidateOrgSiteForOrg } from '@/lib/org-sites/revalidate';
 import { draftPreviewUrls } from '@/lib/orgs/pending-org';
 
 // ── /api/admin/league-requests — the decision queue (116) ────────────────────
@@ -102,7 +103,7 @@ export async function PATCH(request: NextRequest) {
       // it, approval stamps approved_at, and a failure never deletes it (it
       // holds the owner's work). No provisioned league → today's create path.
       const { data: adoptedRow } = row.created_league_id
-        ? await supabase.from('leagues').select('*').eq('id', row.created_league_id).is('approved_at', null).maybeSingle()
+        ? await supabase.from('leagues').select('*').eq('id', row.created_league_id).maybeSingle()
         : { data: null };
       const adopted = (adoptedRow as { id: string; name: string } | null) ?? null;
       const created = adopted ? { league: adopted } : await createLeagueWithOwner(supabase, {
@@ -156,11 +157,15 @@ export async function PATCH(request: NextRequest) {
       // 2. Claim the row. Zero rows = another admin decided mid-flight —
       //    roll the new league back (members cascade) and report the race.
       if (adopted) {
-        const { error: stampError } = await supabase
+        // R1 (179): approval LISTS the org (and stamps the approval time; a
+        // re-listing after "link only" re-stamps). Pre-179: approved_at only.
+        let { error: stampError } = await supabase
           .from('leagues')
-          .update({ approved_at: decidedAt })
-          .eq('id', adopted.id)
-          .is('approved_at', null);
+          .update({ approved_at: decidedAt, listing_status: 'listed' })
+          .eq('id', adopted.id);
+        if (stampError?.code === 'PGRST204' && /listing_status/.test(stampError.message ?? '')) {
+          ({ error: stampError } = await supabase.from('leagues').update({ approved_at: decidedAt }).eq('id', adopted.id));
+        }
         if (stampError) {
           console.error('[ADMIN LEAGUE REQUESTS] approve stamp error:', stampError);
           return NextResponse.json({ error: 'Failed to approve the league — try again' }, { status: 500 });
@@ -185,6 +190,10 @@ export async function PATCH(request: NextRequest) {
 
       // 2b. CONNECTIONS REPLAY — BEST-EFFORT after the claim: a partner
       //     hiccup never forces deleting a fully-built approved org.
+      // R1: the site's cached `listed` and the directory/sitemap follow.
+      await revalidateOrgSiteForOrg(supabase, 'league', created.league.id);
+      revalidateTag('org-sitemap', { expire: 0 });
+
       const { replayConnections } = await import('@/lib/orgs/wizard-replay');
       const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://edge-athlete.vercel.app';
       const connectionReport = await replayConnections(
@@ -236,20 +245,19 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: 'Request was decided by someone else' }, { status: 409 });
     }
 
-    // C4: a declined request's provisioned league goes away — ONLY while it
-    // is still pending (an approved league is never collateral). The
-    // cascade is the same rollback create.ts relies on; the request row
-    // keeps its name and drafts (FK SET NULL) so a resubmit is one click.
+    // R1 (179): a declined LISTING leaves the org alive as link-only — it is
+    // someone's live work now (was C4: delete the pending org). The request
+    // row keeps its drafts; the owner can ask again from the console.
     if (row.created_league_id) {
-      const approval = await readApproval(supabase, 'league', row.created_league_id);
-      if (approval.known && shouldDeleteOnDecline({ createdOrgId: row.created_league_id, approvedAt: approval.approvedAt })) {
-        const { error: deleteError } = await supabase
-          .from('leagues')
-          .delete()
-          .eq('id', row.created_league_id)
-          .is('approved_at', null);
-        if (deleteError) console.error('[ADMIN LEAGUE REQUESTS] pending league delete error:', deleteError);
+      const { error: unlistError } = await supabase
+        .from('leagues')
+        .update({ listing_status: 'unlisted' })
+        .eq('id', row.created_league_id);
+      if (unlistError && !(unlistError.code === 'PGRST204' && /listing_status/.test(unlistError.message ?? ''))) {
+        console.error('[ADMIN LEAGUE REQUESTS] unlist error:', unlistError);
       }
+      await revalidateOrgSiteForOrg(supabase, 'league', row.created_league_id);
+      revalidateTag('org-sitemap', { expire: 0 });
     }
 
     const { notifyLeagueRequestResult } = await import('@/lib/leagues/notify');

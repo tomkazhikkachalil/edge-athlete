@@ -13,7 +13,7 @@
 // only, viewer-independent by construction (the standings contract).
 
 import { revalidateTag } from 'next/cache';
-import { readApproval } from '@/lib/orgs/approval';
+import { isListed, listingFromRow } from '@/lib/orgs/listing';
 import { NextResponse } from 'next/server';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { OrgSide } from '@/lib/orgs/authz';
@@ -779,15 +779,9 @@ export async function sitePATCH(
     return NextResponse.json({ module: { module_key: input.moduleKey, enabled: input.enabled } });
   }
 
-  // Phase 7 C4: publishing waits for approval (the org exists from the
-  // request; the site is built while waiting — 174). The server is the
-  // truth; the console mirrors this with a disabled button.
-  if (input.action === 'publish' && (await readApproval(admin, side, orgId)).pending) {
-    return NextResponse.json(
-      { error: 'Awaiting approval — you can keep building; publishing unlocks when approved' },
-      { status: 409 }
-    );
-  }
+  // Onboarding v2 R1 (179): publishing no longer waits for approval — an
+  // org is live by link; an unlisted/pending site serves noindex and stays
+  // out of the directory, the sitemap and search until it is LISTED.
   const { data: updated, error } = await admin
     .from('org_sites')
     .update({ published_at: input.action === 'publish' ? new Date().toISOString() : null })
@@ -827,6 +821,13 @@ export interface PublicSite extends SiteRow {
    *  members-only modules render a panel (decided from this field alone —
    *  the (public) segment never reads a session). Leagues: public. */
   visibility: 'public' | 'private';
+  /** Onboarding v2 R1 (179): LISTED = in the directory, the sitemap and
+   *  the index. Unlisted/pending sites serve — by link — with noindex, an
+   *  empty per-site sitemap and a disallowing robots.txt. Pre-179 derives
+   *  from approved_at; pre-174 reads listed. */
+  listed: boolean;
+  /** The org record's description (R5 renders it under the hero). */
+  orgDescription: string | null;
   modules: { module_key: string; enabled: boolean; sort_order: number; config: unknown }[];
 }
 
@@ -882,8 +883,8 @@ async function getSiteBySlugInternal(
   const [orgRead, { data: modules }] = await Promise.all([
     readOrg(
       side === 'league'
-        ? 'id, name, city, region, country, sport_key, visibility'
-        : 'id, name, city, region, country, primary_sport, visibility'
+        ? 'id, name, description, city, region, country, sport_key, visibility, listing_status, approved_at'
+        : 'id, name, description, city, region, country, primary_sport, visibility, listing_status, approved_at'
     ),
     admin
       .from('org_site_modules')
@@ -894,8 +895,14 @@ async function getSiteBySlugInternal(
   ]);
   let org = orgRead.data;
   if (orgRead.error?.code === '42703') {
-    // Pre-176/177 (no visibility) or pre-174 (no primary_sport): step down.
-    ({ data: org } = await readOrg(side === 'league' ? 'id, name, city, region, country, sport_key' : 'id, name, city, region, country, primary_sport'));
+    // Pre-179 (no listing_status): the 176/177 shape; then pre-176/177 (no
+    // visibility) or pre-174 (no primary_sport): step down.
+    ({ data: org } = await readOrg(
+      side === 'league'
+        ? 'id, name, description, city, region, country, sport_key, visibility, approved_at'
+        : 'id, name, description, city, region, country, primary_sport, visibility, approved_at'
+    ));
+    if (!org) ({ data: org } = await readOrg(side === 'league' ? 'id, name, city, region, country, sport_key' : 'id, name, city, region, country, primary_sport'));
     if (!org) ({ data: org } = await readOrg('id, name, city, region, country'));
   }
   if (!org) return null;
@@ -909,6 +916,9 @@ async function getSiteBySlugInternal(
     sport_key?: string | null;
     primary_sport?: string | null;
     visibility?: string | null;
+    description?: string | null;
+    listing_status?: string | null;
+    approved_at?: string | null;
   };
   return {
     ...site,
@@ -922,6 +932,9 @@ async function getSiteBySlugInternal(
     sportKey: (side === 'league' ? orgRow.sport_key : orgRow.primary_sport) ?? null,
     // Phase 9 V4 (leagues in program 11 L2): decided from the org row alone.
     visibility: orgRow.visibility === 'private' ? 'private' : 'public',
+    // R1: decided from the org row alone (viewer-independent, like visibility).
+    listed: isListed(listingFromRow(orgRow as unknown as Record<string, unknown>)),
+    orgDescription: orgRow.description ?? null,
     modules: modules ?? [],
   };
 }

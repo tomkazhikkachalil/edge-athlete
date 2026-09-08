@@ -419,12 +419,12 @@ export default function ClubPage() {
             role="status"
             className="mb-4 rounded-xl border border-amber-300 bg-amber-50 dark:bg-amber-950/30 px-4 py-3 text-sm"
           >
-            <p className="font-medium text-primary">Awaiting approval</p>
+            <p className="font-medium text-primary">Listing under review</p>
             <p className="text-secondary mt-0.5">
-              Only you and your managers can see this page until an Edge Athlete admin approves your club.
+              Your club is live — anyone with the link can join. It appears in the directory and search once an Edge Athlete admin approves the listing.
             </p>
             <Link href={`/app/org/club/${club.id}`} className="inline-block mt-1 text-brand-fg font-medium hover:text-brand-fg-strong">
-              Build your site while you wait →
+              Open your console →
             </Link>
           </div>
         )}

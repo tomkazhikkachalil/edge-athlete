@@ -32,6 +32,8 @@ export const ClubUpdateSchema = z.object({
   // Phase 9 V1 (176): the membership settings.
   visibility: z.enum(['public', 'private']).optional(),
   joinPolicy: z.enum(['open', 'approval']).optional(),
+  // Onboarding v2 R1 (179): the directory listing — ask (pending) or link only.
+  listing: z.enum(['pending', 'unlisted']).optional(),
 });
 export type ClubUpdateInput = z.infer<typeof ClubUpdateSchema>;
 

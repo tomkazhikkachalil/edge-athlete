@@ -14,6 +14,8 @@ export async function GET(_request: Request, { params }: { params: Promise<{ slu
   const { slug } = await params;
   const [site, entry] = await Promise.all([getCachedSite(slug), getCachedSiteSitemap(slug)]);
   if (!site) return new Response('Not Found', { status: 404 });
+  // R1 (179): an unlisted or pending site enumerates nothing.
+  const listed = site.listed;
   const base = siteAbsoluteUrl(site);
   const urls = [
     base,
@@ -26,7 +28,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ slu
   ];
   const body =
     `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n` +
-    urls.map(u => `  <url><loc>${escapeXml(u)}</loc></url>`).join('\n') +
+    (listed ? urls.map(u => `  <url><loc>${escapeXml(u)}</loc></url>`).join('\n') : '') +
     `\n</urlset>\n`;
   return new Response(body, {
     status: 200,

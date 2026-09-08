@@ -374,8 +374,9 @@ export default function OrgConsolePage() {
   const [linkingVenueId, setLinkingVenueId] = useState<string | null>(null);
   const [courseQuery, setCourseQuery] = useState('');
   const [courseResults, setCourseResults] = useState<GolfCourse[]>([]);
-  // Phase 7 C4: awaiting approval — the console works, publishing waits.
-  const [pending, setPending] = useState(false);
+  // Onboarding v2 R1 (179): the directory listing — the console works and
+  // publishes regardless; 'pending' = a listing request is in the queue.
+  const [listing, setListing] = useState<'unlisted' | 'pending' | 'listed'>('listed');
   // Phase 7 C5: the org's sport shapes the console (golf-first).
   const [orgSport, setOrgSport] = useState<string | null>(null);
   // Phase 9 V1: the org's membership settings (176 clubs; 177 leagues —
@@ -407,7 +408,7 @@ export default function OrgConsolePage() {
         if (orgRes.ok) {
           const data = await orgRes.json();
           if (!cancelled) setOrgName((data.league ?? data.club)?.name ?? null);
-          if (!cancelled) setPending(data.pending === true);
+          if (!cancelled) setListing(data.listing === 'unlisted' || data.listing === 'pending' ? data.listing : 'listed');
           if (!cancelled) {
             setOrgVisibility(data.visibility === 'private' ? 'private' : 'public');
             setOrgJoinPolicy(data.joinPolicy === 'approval' ? 'approval' : 'open');
@@ -1140,7 +1141,7 @@ export default function OrgConsolePage() {
   };
 
   // Phase 9 V1: save a membership setting (the org PATCH revalidates the site).
-  const saveMembership = async (patch: { visibility?: 'public' | 'private'; joinPolicy?: 'open' | 'approval' }) => {
+  const saveMembership = async (patch: { visibility?: 'public' | 'private'; joinPolicy?: 'open' | 'approval'; listing?: 'pending' | 'unlisted' }) => {
     setMembershipSaving(true);
     try {
       const res = await fetch(`/api/${plural}/${orgId}`, {
@@ -1155,7 +1156,21 @@ export default function OrgConsolePage() {
       }
       if (patch.visibility) setOrgVisibility(patch.visibility);
       if (patch.joinPolicy) setOrgJoinPolicy(patch.joinPolicy);
-      showSuccess('Membership', patch.visibility ? (patch.visibility === 'private' ? `Your ${side} is now private` : `Your ${side} is now public`) : patch.joinPolicy === 'approval' ? 'New members now need your approval' : 'Anyone can join with one tap');
+      if (patch.listing) setListing(patch.listing);
+      showSuccess(
+        'Membership',
+        patch.listing
+          ? patch.listing === 'pending'
+            ? 'Listing requested — an Edge Athlete admin will review it'
+            : `Your ${side} is link-only now`
+          : patch.visibility
+            ? patch.visibility === 'private'
+              ? `Your ${side} is now private`
+              : `Your ${side} is now public`
+            : patch.joinPolicy === 'approval'
+              ? 'New members now need your approval'
+              : 'Anyone can join with one tap'
+      );
     } catch {
       showError('Membership', 'Could not save the setting');
     } finally {
@@ -1226,6 +1241,32 @@ export default function OrgConsolePage() {
                 {orgJoinPolicy === 'approval'
                   ? 'Requests queue here and bell your managers.'
                   : 'New members appear on the roster immediately.'}
+              </p>
+            </div>
+            <div>
+              <label htmlFor="org-listing" className="block text-sm font-medium text-secondary mb-1">
+                Directory listing
+              </label>
+              <select
+                id="org-listing"
+                value={listing}
+                disabled={membershipSaving}
+                onChange={e => {
+                  const next = e.target.value;
+                  if (next === 'pending' || next === 'unlisted') void saveMembership({ listing: next });
+                }}
+                className="w-full max-w-full px-3 py-2 border border-border-strong rounded-md outline-none text-sm"
+              >
+                {listing === 'listed' && <option value="listed">Listed — in the directory and search</option>}
+                <option value="pending">{listing === 'pending' ? 'Ask to be listed — under review' : 'Ask to be listed (reviewed by Edge Athlete)'}</option>
+                <option value="unlisted">Link only — share your join link</option>
+              </select>
+              <p className="mt-1 text-xs text-muted">
+                {listing === 'listed'
+                  ? `Your ${side} appears in the directory, search and search engines. Switch to link only to withdraw it.`
+                  : listing === 'pending'
+                    ? `Your ${side} is live at its link now; it joins the directory once an Edge Athlete admin approves the listing.`
+                    : `Your ${side} is live for anyone with the link — not in the directory, search or search engines.`}
               </p>
             </div>
           </div>
@@ -3086,8 +3127,6 @@ export default function OrgConsolePage() {
                       'Failed to update the site'
                     )
                   }
-                  disabled={!site.published_at && pending}
-                  title={!site.published_at && pending ? 'Awaiting approval — publishing unlocks when approved' : undefined}
                   className="px-3 py-1.5 text-sm rounded-md bg-brand text-white font-medium hover:bg-brand-hover transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {site.published_at ? 'Unpublish' : 'Publish'}
@@ -4346,15 +4385,17 @@ export default function OrgConsolePage() {
           <h1 className="text-2xl sm:text-3xl font-bold text-primary">
             <i className="fas fa-sitemap mr-2 text-brand-fg" aria-hidden="true"></i>
             {orgName ?? 'Organization'}
-            {pending && (
+            {listing !== 'listed' && (
               <span className="ml-3 align-middle inline-block px-2 py-0.5 text-xs font-semibold uppercase rounded-full bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300">
-                Pending approval
+                {listing === 'pending' ? 'Listing under review' : 'Link only'}
               </span>
             )}
           </h1>
-          {pending && (
+          {listing !== 'listed' && (
             <p className="mt-1 text-sm text-secondary">
-              Awaiting approval — you can keep building; publishing unlocks when approved.
+              {listing === 'pending'
+                ? `Your ${side} is live at its link now — it joins the directory and search once an Edge Athlete admin approves the listing.`
+                : `Your ${side} is live for anyone with the link. Ask to be listed from Membership when you want it in the directory.`}
             </p>
           )}
           <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-sm">

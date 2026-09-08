@@ -91,3 +91,53 @@ export async function readListing(admin: Admin, side: OrgSide, orgId: string): P
   if (second.error || !second.data) return LISTING_NOT_KNOWN;
   return listingFromRow(second.data as unknown as Record<string, unknown>);
 }
+
+/** PURE: what an owner's switch does from the current state.
+ *  → pending from unlisted files/reopens the request; → unlisted from
+ *  pending or listed withdraws; the same state is a no-op; asking to be
+ *  listed when already listed is a no-op too (nothing to queue). */
+export function nextListingChange(input: {
+  current: ListingStatus;
+  target: Extract<ListingStatus, 'pending' | 'unlisted'>;
+}): 'noop' | 'apply' {
+  if (input.current === input.target) return 'noop';
+  if (input.target === 'pending' && input.current === 'listed') return 'noop';
+  return 'apply';
+}
+
+/** PURE: keep the LISTED rows and strip the listing columns off them — the
+ *  search / directory shape (rows selected `..., listing_status, approved_at`). */
+export function filterListedRows<T extends Record<string, unknown>>(rows: readonly T[]): T[] {
+  return rows
+    .filter(r => isListed(listingFromRow(r)))
+    .map(r => {
+      const copy: Record<string, unknown> = { ...r };
+      delete copy.listing_status;
+      delete copy.approved_at;
+      return copy as T;
+    });
+}
+
+/** The select-string ladder every listing-aware reader walks on 42703:
+ *  179 → 174 → bare. */
+export function listingSelectLadder(cols: string): string[] {
+  return [`${cols}, listing_status, approved_at`, `${cols}, approved_at`, cols];
+}
+
+/** Batch read: org id → state, for the sitemap and the org lists. Missing
+ *  ids read not known (listed). Any non-42703 error → all not known. */
+export async function readListingMap(admin: Admin, side: OrgSide, ids: readonly string[]): Promise<Map<string, ListingState>> {
+  const out = new Map<string, ListingState>();
+  if (ids.length === 0) return out;
+  const table = side === 'league' ? 'leagues' : 'clubs';
+  for (const sel of listingSelectLadder('id')) {
+    const { data, error } = await admin.from(table).select(sel).in('id', [...ids]);
+    if (error?.code === '42703') continue;
+    if (error) return out;
+    for (const row of (data ?? []) as unknown as Record<string, unknown>[]) {
+      out.set(row.id as string, listingFromRow(row));
+    }
+    return out;
+  }
+  return out;
+}
