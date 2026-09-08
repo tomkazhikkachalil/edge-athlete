@@ -384,7 +384,11 @@ export default function GolfRoundCard({
                 <span>Birdie</span>
               </div>
               <div className="flex items-center gap-1">
-                <div className="w-4 h-4 rounded border border-red-400 dark:border-red-600"></div>
+                <div className="w-4 h-4 rounded ring-1 ring-border-strong ring-inset"></div>
+                <span>Par</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <div className="w-4 h-4 rounded ring-1 ring-red-400 ring-inset dark:ring-red-500"></div>
                 <span>Bogey</span>
               </div>
               <div className="flex items-center gap-1">

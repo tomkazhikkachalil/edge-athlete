@@ -329,6 +329,42 @@ describe('buildStatHighlights — golf players and round metadata', () => {
       expect(h.meta![0]).toBe('18 holes');
     });
 
+    it('each player carries their OWN progress line — the Overview row, on the card', () => {
+      // Sep 8 2026: the feed rows mirror the detail Overview (name over
+      // "N of M holes") instead of drawing the hole strip. One player through
+      // 18, one through 13, one score-only: three different lines, and the
+      // meta line still reports the group's union (18).
+      const h = buildStatHighlights({
+        sportKey: 'golf',
+        groupScorecard: card([
+          scored('a', Array.from({ length: 18 }, (_, i) => i + 1)),
+          scored('b', Array.from({ length: 13 }, (_, i) => i + 1)),
+          player('c', 'C', 'One', null, 72, 0),
+        ]),
+      })!;
+      expect(h.players!.map(p => p.progress)).toEqual(['18 holes', '13 of 18 holes', null]);
+      expect(h.meta![0]).toBe('18 holes');
+    });
+
+    it('a card with no configured length has no progress line to print', () => {
+      const h = buildStatHighlights({
+        sportKey: 'golf',
+        groupScorecard: card([scored('a', [1, 2, 3]), scored('b', [1, 2])], { holes_played: null }),
+      })!;
+      expect(h.players!.map(p => p.progress)).toEqual([null, null]);
+    });
+
+    it('a single scored player gets no progress line — the meta line already says it', () => {
+      // A shared round where only one person scored reads like a solo round:
+      // "13 of 18 holes" once, in the meta, never again under the name.
+      const h = buildStatHighlights({
+        sportKey: 'golf',
+        groupScorecard: card([scored('a', Array.from({ length: 13 }, (_, i) => i + 1))]),
+      })!;
+      expect(h.meta![0]).toBe('13 of 18 holes');
+      expect(h.players![0].progress).toBeNull();
+    });
+
     it('unions across the group, and reads the SAME to every viewer', () => {
       // A public post must not report a different length depending on who is
       // looking, so the count is the round's extent, not the viewer's row.
@@ -404,7 +440,7 @@ describe('buildStatHighlights — golf players and round metadata', () => {
     it('shows the post author as the single player', () => {
       const h = buildStatHighlights({ sportKey: 'golf', golfRound: solo(), author, viewerId: 'tom' })!;
       expect(h.players).toEqual([
-        { profileId: 'tom', name: 'Tom K', shortName: 'Tom K', avatarUrl: 'https://cdn/tom.jpg', score: 89, toPar: 17, isViewer: true, holes: [] },
+        { profileId: 'tom', name: 'Tom K', shortName: 'Tom K', avatarUrl: 'https://cdn/tom.jpg', score: 89, toPar: 17, isViewer: true, holes: [], progress: null },
       ]);
     });
 
@@ -426,6 +462,10 @@ describe('buildStatHighlights — golf players and round metadata', () => {
         { hole: 1, strokes: 5, par: 4 },
         { hole: 3, strokes: 4, par: 5 },
       ]);
+      // The meta line already reads "2 of 18 holes"; the single row must not
+      // say it again under the author's name (the Aug 9 no-restating rule).
+      expect(h.meta).toEqual(['2 of 18 holes']);
+      expect(h.players![0].progress).toBeNull();
     });
 
     it('sums recorded-hole pars for a PARTIALLY recorded round', () => {
