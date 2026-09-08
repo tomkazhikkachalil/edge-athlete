@@ -87,6 +87,9 @@ export async function POST(
 
     // their own league gets an OWNER row, not a member row — the column
     // and the membership table must never disagree about who owns.
+    // Onboarding v2 R3: "Count my rounds in league leagues" rides the join.
+    const joinBody = (await request.json().catch(() => ({}))) as { rosterConsent?: unknown };
+    const rosterConsent = joinBody.rosterConsent === true;
     const { error: insertError } =
       league.owner_profile_id === user.id
         ? await insertOwnerRow(supabase, { side: 'league', orgId: id }, user.id)
@@ -105,7 +108,14 @@ export async function POST(
       leagueName: league.name,
     });
 
-    return NextResponse.json({ action: 'joined' });
+    let roster: string | null = null;
+    if (rosterConsent && league.owner_profile_id !== user.id) {
+      const { rosterSelfPost } = await import('@/lib/orgs/roster-server');
+      const res = await rosterSelfPost(supabase, user, 'league', id);
+      const out = (await res.json().catch(() => ({}))) as { action?: string };
+      roster = res.ok ? (out.action ?? null) : null;
+    }
+    return NextResponse.json({ action: 'joined', ...(roster ? { roster } : {}) });
   } catch (error) {
     if (error instanceof Response) return error;
     console.error('[LEAGUE MEMBERS] POST error:', error);

@@ -36,7 +36,12 @@ export default function JoinOrgPage() {
   const side: Side | null = rawSide === 'club' || rawSide === 'league' ? rawSide : null;
   const orgId = String(params.id ?? '');
   const plural = side === 'league' ? 'leagues' : 'clubs';
-  const { user, initialAuthCheckComplete } = useAuth();
+  const { user, profile, initialAuthCheckComplete } = useAuth();
+  // R3: "Count my rounds in this club's leagues" — the roster opt-in rides
+  // the join. Default on for adults; a supervised athlete's guardian is asked.
+  const [rosterConsent, setRosterConsent] = useState(true);
+  const [rosterOutcome, setRosterOutcome] = useState<string | null>(null);
+  const supervised = profile?.supervision_state === 'supervised';
   const { showError } = useToast();
   const [view, setView] = useState<OrgView | null>(null);
   const [notFound, setNotFound] = useState(false);
@@ -69,13 +74,18 @@ export default function JoinOrgPage() {
     if (busy) return;
     setBusy(true);
     try {
-      const res = await fetch(`/api/${plural}/${orgId}/members`, { method: 'POST' });
-      const body = (await res.json().catch(() => ({}))) as { action?: string; error?: string };
+      const res = await fetch(`/api/${plural}/${orgId}/members`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ rosterConsent }),
+      });
+      const body = (await res.json().catch(() => ({}))) as { action?: string; roster?: string; error?: string };
       if (!res.ok) {
         showError('Join', body.error || 'Something went wrong');
         return;
       }
       if (body.action === 'joined' || body.action === 'requested') setOutcome(body.action);
+      if (body.roster) setRosterOutcome(body.roster);
       setReloadKey(k => k + 1);
     } catch {
       showError('Join', 'Something went wrong');
@@ -168,6 +178,12 @@ export default function JoinOrgPage() {
       {isMember || outcome === 'joined' ? (
         <div className="mt-5" data-join-state="member">
           <p className="text-primary font-medium">You’re in.</p>
+          {rosterOutcome === 'counted' && (
+            <p className="mt-1 text-sm text-tertiary" data-roster-outcome="counted">{`Your rounds count in ${org.name} leagues.`}</p>
+          )}
+          {rosterOutcome === 'guardian_asked' && (
+            <p className="mt-1 text-sm text-tertiary" data-roster-outcome="guardian_asked">Your guardian has been asked to confirm your roster spot.</p>
+          )}
           <Link href={orgPath} className="mt-3 inline-flex items-center px-4 py-2 bg-brand text-white rounded-lg hover:bg-brand-hover transition-colors">
             {`Open the ${noun} →`}
           </Link>
@@ -187,6 +203,24 @@ export default function JoinOrgPage() {
               ? `This ${noun} approves new members. Send a request and a manager will let you in.`
               : 'Join in one tap — you can leave any time.'}
           </p>
+          {!approval && (
+            <label className="mt-3 flex items-start gap-2 text-sm text-secondary">
+              <input
+                type="checkbox"
+                checked={rosterConsent}
+                onChange={e => setRosterConsent(e.target.checked)}
+                className="mt-0.5"
+              />
+              <span>
+                {`Count my rounds in ${org.name} leagues`}
+                <span className="block text-xs text-muted">
+                  {supervised
+                    ? 'Your guardian will be asked to confirm your roster spot.'
+                    : 'Puts you on the roster so your posted rounds count. You can leave any time.'}
+                </span>
+              </span>
+            </label>
+          )}
           <button
             type="button"
             disabled={busy}

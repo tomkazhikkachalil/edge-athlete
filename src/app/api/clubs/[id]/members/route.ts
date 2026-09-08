@@ -86,6 +86,9 @@ export async function POST(
     // DEVLOG 0.1 quirk closed (Sep 2026): a column-only owner joining
     // their own club gets an OWNER row, not a member row — the column and
     // the membership table must never disagree about who owns.
+    // Onboarding v2 R3: "Count my rounds in club leagues" rides the join.
+    const joinBody = (await request.json().catch(() => ({}))) as { rosterConsent?: unknown };
+    const rosterConsent = joinBody.rosterConsent === true;
     const { error: insertError } =
       club.owner_profile_id === user.id
         ? await insertOwnerRow(supabase, { side: 'club', orgId: id }, user.id)
@@ -103,7 +106,14 @@ export async function POST(
       clubName: club.name,
     });
 
-    return NextResponse.json({ action: 'joined' });
+    let roster: string | null = null;
+    if (rosterConsent && club.owner_profile_id !== user.id) {
+      const { rosterSelfPost } = await import('@/lib/orgs/roster-server');
+      const res = await rosterSelfPost(supabase, user, 'club', id);
+      const out = (await res.json().catch(() => ({}))) as { action?: string };
+      roster = res.ok ? (out.action ?? null) : null;
+    }
+    return NextResponse.json({ action: 'joined', ...(roster ? { roster } : {}) });
   } catch (error) {
     if (error instanceof Response) return error;
     console.error('[CLUB MEMBERS] POST error:', error);

@@ -377,6 +377,8 @@ export default function OrgConsolePage() {
   // Onboarding v2 R1 (179): the directory listing — the console works and
   // publishes regardless; 'pending' = a listing request is in the queue.
   const [listing, setListing] = useState<'unlisted' | 'pending' | 'listed'>('listed');
+  // R3: "Copied" state for the join link (hooks stay above every early return).
+  const [joinLinkCopied, setJoinLinkCopied] = useState(false);
   // R2: the wizard lands here with ?welcome=1. Read in an effect, one tick
   // deferred: on a client-side router.push the FIRST render still sees the
   // previous URL in window.location (a lazy useState read missed it), and a
@@ -1153,6 +1155,26 @@ export default function OrgConsolePage() {
   };
 
   // Phase 9 V1: save a membership setting (the org PATCH revalidates the site).
+  // R3: the join link + copy / share (share is feature-detected — the
+  // browser floor: `typeof navigator.share === 'function'`).
+  const joinLink = typeof window !== 'undefined' ? `${window.location.origin}/join/${side}/${orgId}` : `/join/${side}/${orgId}`;
+  const canShare = typeof navigator !== 'undefined' && typeof navigator.share === 'function';
+  const copyJoinLink = async () => {
+    try {
+      await navigator.clipboard.writeText(joinLink);
+      setJoinLinkCopied(true);
+    } catch {
+      /* the link is selectable */
+    }
+  };
+  const shareJoinLink = async () => {
+    try {
+      await navigator.share({ title: orgName ?? `Join my ${side}`, url: joinLink });
+    } catch {
+      /* dismissed */
+    }
+  };
+
   const saveMembership = async (patch: { visibility?: 'public' | 'private'; joinPolicy?: 'open' | 'approval'; listing?: 'pending' | 'unlisted' }) => {
     setMembershipSaving(true);
     try {
@@ -1214,6 +1236,29 @@ export default function OrgConsolePage() {
           <p className="text-sm text-tertiary mb-4">
             {`Who can see your ${side}, and how people join it.`}
           </p>
+          {/* R3: the join link — the door every member walks through. Works
+              from the moment the org exists (179), published site or not. */}
+          <div className="mb-4 rounded-lg border border-border p-3">
+            <p className="text-sm font-medium text-secondary mb-2">Your join link</p>
+            <div className="flex flex-col sm:flex-row gap-2">
+              <input
+                readOnly
+                value={joinLink}
+                onFocus={e => e.currentTarget.select()}
+                aria-label="Join link"
+                className="flex-1 min-w-0 px-3 py-2 text-xs border border-border-strong rounded-md bg-surface text-primary"
+              />
+              <button type="button" onClick={() => void copyJoinLink()} className="ea-interactive min-h-[44px] px-4 rounded-lg bg-brand text-white text-sm font-medium">
+                {joinLinkCopied ? 'Copied' : 'Copy link'}
+              </button>
+              {canShare && (
+                <button type="button" onClick={() => void shareJoinLink()} className="ea-interactive min-h-[44px] px-4 rounded-lg border border-border-strong text-sm font-medium text-primary">
+                  Share
+                </button>
+              )}
+            </div>
+            <p className="mt-1 text-xs text-muted">Anyone who joins can count their rounds in your leagues — no invite needed.</p>
+          </div>
           <div className="grid gap-4 sm:grid-cols-2">
             <div>
               <label htmlFor="org-visibility" className="block text-sm font-medium text-secondary mb-1">

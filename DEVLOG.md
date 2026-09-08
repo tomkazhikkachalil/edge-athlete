@@ -1,5 +1,59 @@
 # Development Log
 
+## September 8, 2026 — Onboarding v2 round 3: members without friction — the join link, and "count my rounds" (zero DDL)
+
+Rounds 1 and 2 made a club live and quick to create. This round makes
+getting PEOPLE into it — and counted — match.
+
+**The wall.** Joining writes a `follow` row; competition entry needs a
+`roster` row (`competition-server.ts`: "Only rostered athletes can be
+entered" — the follow edge is never a pipe, masterplan §8 invariant 3).
+The only ways onto the roster were a manager's invite + the member's
+accept, or a CSV import that requires a team. And the join door
+`/join/[side]/[id]` was surfaced in exactly two places, both on the
+PUBLISHED public site — the console never showed it, though the
+checklist's "Invite members" hint promised it.
+
+**Self-serve roster opt-in.** A pure `autoRosterDecision` (tested) and
+`rosterSelfPost` in `roster-server.ts` (a new row in its authorization
+matrix): a MEMBER counts themselves in. Roster ⊆ follow still holds (join
+first → 400). An unsupervised adult is active in one act — the offer and
+the accept they would have done anyway; consent is explicit. A supervised
+athlete gets the pending row and the GUARDIAN `roster_invite` bell, and
+either-approves accepts — the rail is untouched, no flag, no shortcut.
+Photo consent is never written here (NULL = never asked). No owner bell:
+the join already rang once. Reached three ways: `POST …/roster { self:
+true }` (both sides), the join's `rosterConsent` body field (the open-
+policy path; approval clubs opt in after approval), and the org page's
+"Count my rounds" card for a member with no roster edge ("Ask my
+guardian" for a supervised one).
+
+**The join door** grows the checkbox "Count my rounds in {club} leagues",
+on by default for adults, with the guardian line for supervised viewers;
+after joining it says "Your rounds count in {club} leagues" or "Your
+guardian has been asked to confirm your roster spot".
+
+**The join link, where owners work.** The console's Membership section
+opens with "Your join link": the URL, Copy, and Share (feature-detected —
+`typeof navigator.share === 'function'`, the browser-floor recipe); the
+org pages give managers a "Share join link" button (share sheet, else
+clipboard). The checklist's "Invite members" step points at `#membership`
+with the hint "Copy your join link — anyone who joins can be counted in
+your leagues." The link works from the moment the org exists (R1) —
+published site or not.
+
+**Verification.** `npm run verify` green. Unit: `autoRosterDecision`
+(adult / supervised / live edge / no consent). Probe on the local
+production build then prod (scratchpad `r3-probe.mts`, 390px): A creates
+a link-only club; B opens the join door — checkbox on, no overflow —
+joins, sees the counted line; DB: `follow` + `roster/active`. C
+(supervised) joins with consent → `roster/pending`, never active, response
+`guardian_asked`. B's second self POST → `already`; a stranger's → 400.
+A's console shows the join link with the right URL, Copy, no overflow;
+the checklist step links to `#membership`.
+
+---
+
 ## September 8, 2026 — Onboarding v2 round 2: wizard v2 — one screen for the small case, structure only when asked (zero DDL)
 
 Round 1 made every org live by link. This round makes CREATING one match:
