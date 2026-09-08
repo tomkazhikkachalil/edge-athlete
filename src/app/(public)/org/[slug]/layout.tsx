@@ -40,7 +40,9 @@ export async function generateMetadata({
   const site = await getCachedSite(slug);
   if (!site) return {};
   const icon = orgLogoUrl(site.id, site.logo_path) ?? `${siteBasePath(site)}/favicon.svg`;
-  return { icons: { icon } };
+  // Onboarding v2 R1 (179): an unlisted or pending site serves by link but
+  // is never indexed — the layout's robots applies to every subpage.
+  return { icons: { icon }, ...(site.listed ? {} : { robots: { index: false, follow: false } }) };
 }
 
 export default async function OrgSiteLayout({

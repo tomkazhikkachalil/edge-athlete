@@ -1,5 +1,65 @@
 # Development Log
 
+## September 8, 2026 — Onboarding v2 round 1: live by link — approval gates the listing, never the door (zero DDL)
+
+Round 0 landed migration 179 and its reader; this round moves the gate.
+Tom: "auto-approve unlisted, queue public." An org WORKS the moment it
+exists — the console, the join door, member rounds, publishing — and an
+Edge Athlete admin decides only whether it is LISTED.
+
+**The pending gates, removed.** The org GET no longer 404s a pending org to
+outsiders (the join door depends on that GET — it was unreachable for
+every new club); publish no longer 409s; the public standings twin no
+longer empties itself; the console's Publish is always enabled. The GET
+now carries `listing` (unlisted | pending | listed) beside the older
+`pending` boolean the chips still read.
+
+**Discoverability = listed only.** `fetchPublicOrgDirectory`, the sitemap's
+site list (a new `readListingMap` batch read — the sitemap never checked
+approval before because pending sites could not publish), search's
+`approvedOnly` (now `listedOnly`, walking the 179 → 174 → bare select
+ladder) and the org lists' pending chip all read `src/lib/orgs/listing.ts`.
+`PublicSite` gains `listed` (viewer-independent, like `visibility`) and
+`orgDescription` (R5 renders it): an unlisted or pending site serves by
+link with `robots: noindex` from the layout's metadata (so every subpage
+inherits it), a `Disallow: /` per-site robots.txt and an empty per-site
+sitemap. `private` (members-only content) and `unlisted` (not
+discoverable) are orthogonal and compose.
+
+**The listing lifecycle.** The owner's switch lives in the console's
+Membership section beside Visibility and Joining: "Ask to be listed"
+(→ pending: reopens the org's own request row, or files one, and bells
+every `ADMIN_EMAILS` account — the first admin bell this queue has ever
+had; 23505 from the one-pending index → 409) or "Link only" (→ unlisted:
+the queued row leaves the queue, the org stays live). It rides the org
+PATCH beside `visibility`/`joinPolicy` (same `manage_org` gate, no new
+route) through `applyListing` in `listing-server.ts`; a pure
+`nextListingChange` decides no-ops (already listed, same state). Approve
+now stamps `listing_status='listed'` with `approved_at` (PGRST204-safe),
+ADOPTS the org regardless of `approved_at` — an org unlisted after a past
+approval that asks again must not spawn a duplicate — and purges the site
+tag + the sitemap tag. **Decline no longer deletes the org**: it sets
+`unlisted` and the request row keeps its drafts. `approval.ts` shrinks to
+`siteDraftToContact`; its gates are gone with their tests.
+
+**Copy.** Console chip "Listing under review" / "Link only" with one line
+each; org pages "Listing under review — your club is live, anyone with the
+link can join"; feed card and strip "Listing pending".
+
+**Verification.** `npm run verify` green. Unit: the listing helpers
+(`nextListingChange`, `filterListedRows`, the ladder). e2e
+`club-pending-build.spec.ts` rewritten to the live-by-link contract:
+outsider GET 200 with `listing: 'pending'`, the org page renders, a join
+lands a member row, search/directory/sitemap exclude it, the console
+shows the chip with Publish enabled at 375px, publish 200, the served
+page carries the noindex meta, robots.txt disallows, the per-site sitemap
+is empty; a service-role approval flips the GET to `listed` and search
+finds it. Prod probe after merge: the same script against the deployment
+(the cached page's `listed` needs the admin route's purge — the probe
+asserts the uncached GET and search).
+
+---
+
 ## September 8, 2026 — Onboarding v2 opens: round 0 — migration 179 (listing state), the listing reader, and the minor gate
 
 Tom pasted "The Club Model" — a club is a group of people who compete

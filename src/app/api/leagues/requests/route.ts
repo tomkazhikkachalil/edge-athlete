@@ -8,6 +8,7 @@ import { isSportEnabled } from '@/lib/features';
 import type { SportKey } from '@/lib/sports/SportRegistry';
 import { provisionPendingOrg } from '@/lib/orgs/pending-org';
 import { requireOrgCreator } from '@/lib/orgs/org-creator-gate';
+import { notifyAdminsOfListingRequest } from '@/lib/orgs/listing-notify';
 
 // ── /api/leagues/requests — self-service "Start a league" (116) ─────────────
 // The org-signup flow: any signed-in user submits a request; admins decide
@@ -92,6 +93,10 @@ export async function POST(request: NextRequest) {
     // Phase 7 C4: build while waiting — the pending league, its owner row,
     // the optional home course and a draft site exist from now.
     const provisioned = await provisionPendingOrg(supabase, 'league', row);
+    // Onboarding v2 R1: the public default files a listing request — bell the admins.
+    if (provisioned) {
+      await notifyAdminsOfListingRequest(supabase, { side: 'league', orgId: provisioned.orgId, orgName: row.name, requesterId: user.id });
+    }
     return NextResponse.json({
       request: provisioned ? { ...row, created_league_id: provisioned.orgId } : row,
       orgId: provisioned?.orgId ?? null,

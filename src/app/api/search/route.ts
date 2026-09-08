@@ -7,33 +7,33 @@ import { CATALOG_ROW_COLUMNS, rowToCourse, searchCatalog, type CatalogRow } from
 import { searchAll } from '@/lib/search/all-server';
 import { ALL_QUOTAS, FACET_WIDEN_LIMIT, TYPED_QUOTAS, groupByType, orderByIds, typesForRequest } from '@/lib/search/all';
 import { enforceRateLimit } from '@/lib/rate-limit';
+import { filterListedRows, listingSelectLadder } from '@/lib/orgs/listing';
 
-// Phase 7 C4: a PENDING org (approved_at NULL — migration 174) never
+// Onboarding v2 R1 (179): an org surfaces in search only when LISTED
+// (listing_status; pre-179 derives from approved_at). Was: phase 7 C4 —
+// a PENDING org (approved_at NULL — migration 174) never
 // surfaces in search. The 112 triggers index on insert with no status
 // concept, so the filter is app-side: select approved_at alongside, drop
 // pending rows, strip the column. A pre-174 database (42703) → everything
 // is live.
-async function approvedOnly<T extends Record<string, unknown>>(
+async function listedOnly<T extends Record<string, unknown>>(
   run: (cols: string) => PromiseLike<{ data: unknown; error: { code?: string; message?: string } | null }>,
   cols: string
 ): Promise<T[]> {
-  const first = await run(`${cols}, approved_at`);
-  if (first.error?.code === '42703') {
-    const again = await run(cols);
-    if (again.error) console.error('[SEARCH] org read error:', again.error);
-    return ((again.data ?? []) as T[]);
+  // Onboarding v2 R1 (179): only LISTED orgs surface in search. The select
+  // ladder steps down on 42703 (179 → 174 → bare); the filter is app-side
+  // because the search triggers have no listing concept.
+  const ladder = listingSelectLadder(cols);
+  for (const [i, sel] of ladder.entries()) {
+    const res = await run(sel);
+    if (res.error?.code === '42703' && i < ladder.length - 1) continue;
+    if (res.error) {
+      console.error('[SEARCH] org read error:', res.error);
+      return [];
+    }
+    return filterListedRows((res.data ?? []) as T[]);
   }
-  if (first.error) {
-    console.error('[SEARCH] org read error:', first.error);
-    return [];
-  }
-  return ((first.data ?? []) as Array<T & { approved_at?: unknown }>)
-    .filter(r => r.approved_at !== null)
-    .map(r => {
-      const copy: T & { approved_at?: unknown } = { ...r };
-      delete copy.approved_at;
-      return copy as T;
-    });
+  return [];
 }
 
 // Minimum query length, per kind of result.
@@ -233,7 +233,7 @@ export async function GET(request: NextRequest) {
         (async () => {
           if (clubDocs.length === 0) return;
           const ids = clubDocs.map(d => d.entity_id);
-          const data = await approvedOnly(cols =>
+          const data = await listedOnly(cols =>
             supabase.from('clubs').select(cols).in('id', ids),
             'id, name, description, location, city, region, region_code, country, country_code, lat, lng, visibility'
           );
@@ -249,7 +249,7 @@ export async function GET(request: NextRequest) {
         (async () => {
           if (leagueDocs.length === 0) return;
           const ids = leagueDocs.map(d => d.entity_id);
-          const data = await approvedOnly(cols =>
+          const data = await listedOnly(cols =>
             supabase.from('leagues').select(cols).in('id', ids),
             'id, name, description, sport_key, city, region, region_code, country, country_code, lat, lng, visibility'
           );
@@ -472,7 +472,7 @@ export async function GET(request: NextRequest) {
         const safeClubQuery = sanitizeForFilter(query ?? '');
         const searchPattern = `%${safeClubQuery}%`;
 
-        const clubs = await approvedOnly(cols =>
+        const clubs = await listedOnly(cols =>
           supabase
             .from('clubs')
             .select(cols)

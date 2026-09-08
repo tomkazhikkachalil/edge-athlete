@@ -8,6 +8,7 @@ import { isSportEnabled } from '@/lib/features';
 import type { SportKey } from '@/lib/sports/SportRegistry';
 import { provisionPendingOrg } from '@/lib/orgs/pending-org';
 import { requireOrgCreator } from '@/lib/orgs/org-creator-gate';
+import { notifyAdminsOfListingRequest } from '@/lib/orgs/listing-notify';
 
 // ── /api/clubs/requests — self-service "Start a club" (117) ─────────────────
 // Mirror of /api/leagues/requests, minus sport (clubs are multi-sport by
@@ -91,6 +92,10 @@ export async function POST(request: NextRequest) {
     // Phase 7 C4: build while waiting — the pending club, its owner row,
     // the optional home course and a draft site exist from now.
     const provisioned = await provisionPendingOrg(supabase, 'club', row);
+    // Onboarding v2 R1: the public default files a listing request — bell the admins.
+    if (provisioned) {
+      await notifyAdminsOfListingRequest(supabase, { side: 'club', orgId: provisioned.orgId, orgName: row.name, requesterId: user.id });
+    }
     return NextResponse.json({
       request: provisioned ? { ...row, created_club_id: provisioned.orgId } : row,
       orgId: provisioned?.orgId ?? null,

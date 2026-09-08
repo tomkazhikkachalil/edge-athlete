@@ -26,6 +26,7 @@ import { profileMembershipRows } from '@/lib/orgs/members';
 import { isMissingTableError } from '@/lib/leagues/validate';
 import type { AffiliationType } from './validate';
 import { UUID_RE } from '@/lib/golf/course-catalog';
+import { listingFromRow } from '@/lib/orgs/listing';
 
 export type AffSide = 'league' | 'club';
 
@@ -473,16 +474,20 @@ export async function getProfileOrganizations(
     const selectCols = side === 'league'
       ? 'id, name, sport_key, city, region, country'
       : 'id, name, city, region, country';
-    // C4: approved_at rides along (pending → a chip); pre-174 → retry without.
+    // R1 (179): the listing state rides along (pending → a chip); the select
+    // ladder steps down on 42703 (179 → 174 → bare).
     let { data: orgs, error: orgsError } = await admin
       .from(cfg.orgTable)
-      .select(`${selectCols}, approved_at`)
+      .select(`${selectCols}, listing_status, approved_at`)
       .in('id', orgIds);
+    if (orgsError?.code === '42703') {
+      ({ data: orgs, error: orgsError } = await admin.from(cfg.orgTable).select(`${selectCols}, approved_at`).in('id', orgIds));
+    }
     if (orgsError?.code === '42703') {
       ({ data: orgs, error: orgsError } = await admin.from(cfg.orgTable).select(selectCols).in('id', orgIds));
     }
     const orgRows = (orgs ?? []) as unknown as Array<{
-      id: string; name: string; sport_key?: string | null; approved_at?: string | null;
+      id: string; name: string; sport_key?: string | null; approved_at?: string | null; listing_status?: string | null;
       city: string | null; region: string | null; country: string | null;
     }>;
     const byId = new Map(orgRows.map(o => [o.id, o]));
@@ -498,7 +503,7 @@ export async function getProfileOrganizations(
         region: org.region,
         country: org.country,
         ...(side === 'league' ? { sport_key: org.sport_key ?? null } : {}),
-        ...(org.approved_at === null ? { pending: true } : {}),
+        ...(listingFromRow(org as unknown as Record<string, unknown>).status === 'pending' ? { pending: true } : {}),
       });
     }
   }

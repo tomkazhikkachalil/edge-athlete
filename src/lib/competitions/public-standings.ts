@@ -14,7 +14,6 @@ import { parseGolfPointsConfig } from './golf-points';
 import { buildPointsRace, type PointsRace } from './golf-race';
 import { buildSeasonSummary, type SeasonSummary } from './golf-season-wrap';
 import { roundRuleFor } from './golf-league';
-import { readApproval } from '@/lib/orgs/approval';
 import { readOrgAccess } from '@/lib/orgs/access';
 import type { OrgSide } from '@/lib/orgs/authz';
 import { resolveFixtureRule, resolveLeaderboardRule, type StandingsColumn } from './scoring';
@@ -98,12 +97,8 @@ export async function fetchPublicStandings(
 
   const { data: org } = await admin.from(orgTable).select('id, name').eq('id', orgId).maybeSingle();
   if (!org) return null;
-  // Phase 7 C4: a pending org (174) publishes nothing yet — the page keeps
-  // its shape (the org name, the empty state), never a 404 for managers
-  // previewing their own twin.
-  if ((await readApproval(admin, side, orgId)).pending) {
-    return { orgName: org.name as string, competitions: [] };
-  }
+  // Onboarding v2 R1 (179): a pending listing no longer empties the
+  // standings — the org is live by link; listing gates discoverability only.
   // Phase 9 V4 (both sides since program 11 L2): a private org's PUBLIC
   // standings are the empty state; members read via /standings/mine.
   if (!opts.membersView && (await readOrgAccess(admin, side, orgId)).visibility === 'private') {
