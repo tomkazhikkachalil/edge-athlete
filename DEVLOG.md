@@ -1,5 +1,72 @@
 # Development Log
 
+## September 8, 2026 — Maintenance sweep, end of session (docs only)
+
+Tom: "run the full project maintenance checklist and sync" — the third
+sweep of the day, run on `main` at the #597 merge (d7b2211) after the demo
+club walk-through. One real finding, one new check.
+
+- **Gate:** `npm run verify` green on `main` — typecheck, lint at zero,
+  2,792 tests, `next build`, the browser-floor gate (165 client chunks
+  within iOS 15 / Safari 15).
+- **Hardening guardrails: RED on first run**, the first time since the
+  audit step landed. Not a regression in the tree — `npm audit` picked up
+  **GHSA-p293-qw3h-jr36** (critical, Windows-hosted servers only) for
+  `next <16.3.3`, published after the #596 sweep two hours earlier. Because
+  the audit runs inside the guardrails CI job, every PR was blocked,
+  docs-only included; so the bump went first, as its own PR: **#598**,
+  `next` + `eslint-config-next` 16.3.1 → 16.3.4, lockfile only, verify
+  green on the branch and CI green (guardrails, verify, smoke) before the
+  merge (fb3fd9d0). Then this PR's own CI went red on the same step forty
+  minutes later — sharp (GHSA-rgj7-g3m4-5g8c, libheif) and nodemailer
+  (GHSA-8m3c-c648-2xjj) had published in between — so a second bump PR went
+  first too: **#600**, the sharp override 0.35.3 → 0.35.4 and nodemailer
+  9.0.5 → 9.1.1, verify green, sharp encoders smoke-tested. Three upstream
+  advisories in one evening; the job did exactly what it is for. Guardrails
+  pass; `npm audit` 0. The review-only advisories are unchanged (97 bare
+  `.select` sites, the one interpolated course-catalog filter).
+- **Prod after #598:** the merge's production row (`edge-athlete-58hen51pc`) is Ready
+  on the `edge-athlete.vercel.app` alias; `/`, `/explore`, `/clubs`,
+  `/leagues`, `/robots.txt` and `/sitemap.xml` answer 200; and the floor gate
+  run against the **downloaded deployed chunks** (36 from five pages) passes
+  — the post-merge check a framework bump must never skip.
+- **GitHub:** no open PRs; `build/next-16-3-4` deleted on merge; only
+  `origin/main` remains; no merged local branches.
+- **Vercel before the bump:** the #597 merge (d7b2211) had its Ready
+  production row and `/` answered 200 — the webhook fired for the docs-only
+  merge this time.
+- **The demo club, and its cleanliness check.** For Tom's "show me how the
+  site looks", a temporary golf club ("Rideau Valley Golf Society", Tom as
+  owner, `listing_status 'unlisted'` so it never reached the directory,
+  search or the index) was seeded on prod through the app's own APIs plus
+  admin inserts for the rounds: 8 QA-domain members, 47 rounds with hole
+  rows at rated Ottawa courses, 44 public posts (3 deliberately log-only to
+  show the two-key rule holding), a `golf_points` any-course league with
+  six confirmed weeks and a points race, two news posts, hero + notice.
+  Screenshots at 390 and 1280 of home, standings and members were delivered,
+  then everything was torn down on Tom's word. The sweep **verified the
+  ground truth rather than trusting the script's counts**: zero `clubs`
+  rows by slug or id, zero `edgeqa-%@example.com` profiles, zero rounds or
+  posts by those ids, zero competitions or requests for the club. Tom's
+  account and every real row untouched. Two things learned that the seed
+  recipe should carry: past weeks are "posted" until the cron **confirms**
+  them, so standings read all zeros until `golf-sync/confirm` runs (a
+  manager can do it by hand); `golf_rounds.course` is TEXT NOT NULL and
+  `posts` has no `post_type` (use `sport_key`).
+- **Site anatomy artifact:** a breakdown/wireframes page of the public org
+  site as built (both route trees, the home modules by data source, the
+  standings/members/leaders wireframes, the listing × visibility × join
+  matrix, the console-to-surface map, templates, the surrounding flow) was
+  published for Tom and is linked from session memory. It is a reference,
+  not a spec — update it when the site changes.
+- **Docs:** `docs/SESSION_PROMPT.md` header and status re-aligned to this
+  close (#598 in the record, the demo and its teardown, `main` at fb3fd9d0).
+- **Memory:** the Next entry records 16.3.4 and the lesson that a new
+  upstream advisory reds every PR through the guardrails job; the
+  Onboarding v2 entry records the demo as seeded-and-torn-down.
+
+Nothing in code changes in this PR. Next program = Tom's call; he still
+owes the first real staff invite from his phone and the device passes.
 ## September 8, 2026 — sharp 0.35.3 → 0.35.4 and nodemailer 9.0.5 → 9.1.1 for the two advisories that landed during the sweep
 
 Forty minutes after #598 turned the guardrails green, the end-of-session
