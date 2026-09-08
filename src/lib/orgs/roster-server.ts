@@ -8,6 +8,9 @@
 //   manager                   supervised target     POST    flag OFF: 403; flag ON: pending row
 //                                                           + child bell + GUARDIAN roster_invite
 //   manager                   pending / active      POST    400 already invited / already on roster
+//   member (self)             follow, no roster     POST    { self: true } (R3): adult → active
+//                                                           in one act; supervised → pending +
+//                                                           GUARDIAN roster_invite (either-approves)
 //   athlete (self)            pending               PATCH   status → active, notify owner
 //   supervised athlete (self) pending               PATCH   flag OFF: 403; flag ON: accepted
 //                                                           (either-approves) + guardians told
@@ -43,6 +46,7 @@ import {
 } from './members';
 import { canGrantPhotoConsent, setPhotoConsent } from './photo-consent';
 import { readSupervisionState } from './org-creator-gate';
+import { autoRosterDecision } from './auto-roster';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- matches the authz.ts Admin alias; schema-agnostic helper
 type Admin = SupabaseClient<any, 'public', any>;
@@ -143,6 +147,71 @@ export async function rosterPost(
     await notifyGuardiansOfRoster(admin, side, orgId, loaded.org.name, targetProfileId, 'offer', user.id);
   }
   return NextResponse.json({ action: 'invited' });
+}
+
+/** POST { self: true } — Onboarding v2 R3: a MEMBER puts themselves on
+ *  the roster ("count my rounds in this club's leagues"). Roster ⊆ follow
+ *  still holds (join first). An unsupervised adult is active in one act
+ *  (the offer + the accept they would do anyway — consent is explicit);
+ *  a supervised athlete gets the pending row and the GUARDIAN roster_invite
+ *  bell, and either-approves accepts — the rail is untouched. Photo consent
+ *  is never written here (NULL = never asked). No owner bell: the join
+ *  already rang once, and a friends club would hear every member twice. */
+export async function rosterSelfPost(
+  admin: Admin,
+  user: User,
+  side: OrgSide,
+  orgId: string
+): Promise<NextResponse> {
+  const cfg = SIDES[side];
+  const loaded = await getOrgAndRole(admin, side, orgId, user.id);
+  if (loaded.status === 'error') {
+    console.error('[ROSTER] org fetch error:', loaded.error);
+    return NextResponse.json({ error: `Failed to load ${cfg.noun}` }, { status: 500 });
+  }
+  if (loaded.status === 'not_found') {
+    return NextResponse.json({ error: cfg.notFound }, { status: 404 });
+  }
+  const supervision = await readSupervisionState(admin, user.id);
+  if (supervision === undefined) {
+    return NextResponse.json({ error: 'Profile not found' }, { status: 404 });
+  }
+  const supervised = supervision === 'supervised';
+
+  const { followRole, rosterEdges, error: edgesError } = await membershipEdges(admin, { side, orgId }, user.id);
+  if (edgesError) {
+    console.error('[ROSTER] edges fetch error:', edgesError);
+    return NextResponse.json({ error: 'Failed to check membership' }, { status: 500 });
+  }
+  if (!followRole) {
+    return NextResponse.json({ error: `Join the ${cfg.noun} first` }, { status: 400 });
+  }
+  const liveEdge = pickRosterEdge(rosterEdges.filter(e => e.status !== 'released'));
+  const decision = autoRosterDecision({ consent: true, supervised, liveEdgeStatus: liveEdge?.status ?? null });
+  if (decision === 'skip') {
+    return NextResponse.json({ action: 'already', status: liveEdge?.status ?? null });
+  }
+
+  if (!liveEdge) {
+    const { error: insertError } = await insertRosterOffer(admin, { side, orgId }, user.id);
+    if (insertError && insertError.code !== '23505') {
+      console.error('[ROSTER] self offer insert error:', insertError);
+      return NextResponse.json({ error: 'Failed to join the roster' }, { status: 500 });
+    }
+  }
+  if (decision === 'offer_pending') {
+    await notifyGuardiansOfRoster(admin, side, orgId, loaded.org.name, user.id, 'offer', user.id);
+    return NextResponse.json({ action: 'guardian_asked' });
+  }
+  const { accepted, error: acceptError } = await acceptRosterOffer(admin, { side, orgId }, user.id);
+  if (acceptError) {
+    console.error('[ROSTER] self accept error:', acceptError);
+    return NextResponse.json({ error: 'Failed to join the roster' }, { status: 500 });
+  }
+  if (!accepted) {
+    return NextResponse.json({ action: 'already', status: 'active' });
+  }
+  return NextResponse.json({ action: 'counted' });
 }
 
 /** PATCH { action: 'accept', profileId?, photoConsent? } — the athlete

@@ -3,13 +3,14 @@ import { requireAuth, requireProfileRole, getSupabaseAdmin } from '@/lib/auth-se
 import { enforceRateLimit } from '@/lib/rate-limit';
 import { parseBody } from '@/lib/validation';
 import { RosterAcceptSchema } from '@/lib/clubs/validate';
-import { rosterConsentPatch, rosterDelete, rosterPatch, rosterPost } from '@/lib/orgs/roster-server';
+import { rosterConsentPatch, rosterDelete, rosterPatch, rosterPost, rosterSelfPost } from '@/lib/orgs/roster-server';
 import { UUID_RE } from '@/lib/golf/course-catalog';
 
 // ── /api/clubs/[id]/roster — offers, accepts, declines (0.3) ──────────────
 // Thin wrapper; the authorization matrix lives in orgs/roster-server.ts.
 
-/** POST ?profileId= — a manager invites an existing member to the roster. */
+/** POST ?profileId= — a manager invites an existing member to the roster;
+ *  POST { self: true } — a member counts themselves in (R3). */
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -25,7 +26,13 @@ export async function POST(
     }
     const { searchParams } = new URL(request.url);
     const profileId = searchParams.get('profileId');
-    if (!profileId || !UUID_RE.test(profileId)) {
+    if (!profileId) {
+      // Onboarding v2 R3: { self: true } — a member counts themselves in.
+      const body = (await request.json().catch(() => ({}))) as { self?: unknown };
+      if (body.self === true) return await rosterSelfPost(getSupabaseAdmin(), user, 'club', id);
+      return NextResponse.json({ error: 'profileId is required' }, { status: 400 });
+    }
+    if (!UUID_RE.test(profileId)) {
       return NextResponse.json({ error: 'profileId is required' }, { status: 400 });
     }
 

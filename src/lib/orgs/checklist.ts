@@ -79,8 +79,8 @@ export function buildOrgChecklistSteps(
         key: 'members',
         done: (input.memberCount ?? 0) > 1,
         label: 'Invite members',
-        hint: 'Share your join link or import a roster — leagues fill from your members.',
-        href: '#roster',
+        hint: 'Copy your join link — anyone who joins can be counted in your leagues.',
+        href: '#membership',
       },
       {
         key: 'league',

@@ -316,6 +316,39 @@ export default function LeaguePage() {
     rosterAction('PATCH', null, "You're on the roster", 'Failed to accept the invitation');
   const declineRoster = () =>
     rosterAction('DELETE', null, 'Invitation declined', 'Failed to decline the invitation');
+  // R3: a member counts themselves in (adult → active; supervised → the
+  // guardian is asked). The join link is what the console shares too.
+  const countMyRounds = async () => {
+    try {
+      const response = await fetch(`/api/leagues/${encodeURIComponent(leagueId)}/roster`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ self: true }),
+      });
+      const body = (await response.json().catch(() => ({}))) as { action?: string; error?: string };
+      if (!response.ok) {
+        showError('League', body.error || 'Could not join the roster');
+        return;
+      }
+      showSuccess('League', body.action === 'guardian_asked' ? 'Your guardian has been asked to confirm' : 'Your rounds now count in league leagues');
+      refresh();
+    } catch {
+      showError('League', 'Could not join the roster');
+    }
+  };
+  const shareJoinLink = async () => {
+    const url = `${window.location.origin}/join/league/${leagueId}`;
+    try {
+      if (typeof navigator.share === 'function') {
+        await navigator.share({ title: `Join ${data?.league.name ?? 'us'}`, url });
+        return;
+      }
+      await navigator.clipboard.writeText(url);
+      showSuccess('League', 'Join link copied');
+    } catch {
+      /* dismissed */
+    }
+  };
 
   // Re-mint a claim link for an unclaimed stub (R3): the import report is
   // the only other place the URL ever appeared, and it may be long gone.
@@ -495,6 +528,15 @@ export default function LeaguePage() {
                     Edit league
                   </button>
                 )}
+                {canManage && (
+                  <button
+                    type="button"
+                    onClick={() => void shareJoinLink()}
+                    className="px-4 py-2 text-sm min-h-[40px] rounded-lg border border-border-strong text-secondary hover:bg-surface-sunken transition-colors"
+                  >
+                    Share join link
+                  </button>
+                )}
                 {/* Phase 6b A1: the two doors this page lacked — the org's
                     public site (published only) and its console. */}
                 {data.site?.subdomain && (
@@ -567,6 +609,24 @@ export default function LeaguePage() {
           </div>
         ) : null}
 
+        {/* R3: count my rounds — a member who isn't on the roster yet. */}
+        {user && viewerRole && viewerRole !== 'owner' && !viewerRoster && (
+          <div className="mt-6 bg-surface rounded-xl shadow-sm border border-border p-4 sm:p-6" data-self-roster="offer">
+            <p className="font-medium text-primary">{`Count your rounds in ${league.name} leagues`}</p>
+            <p className="mt-1 text-sm text-secondary">
+              {viewerProfile?.supervision_state === 'supervised'
+                ? 'Your guardian will be asked to confirm your roster spot.'
+                : 'Puts you on the roster so your posted rounds count. You can leave any time.'}
+            </p>
+            <button
+              type="button"
+              onClick={() => void countMyRounds()}
+              className="mt-3 px-4 py-2 text-sm min-h-[44px] rounded-lg bg-brand text-white font-medium hover:bg-brand-hover transition-colors"
+            >
+              {viewerProfile?.supervision_state === 'supervised' ? 'Ask my guardian' : 'Count my rounds'}
+            </button>
+          </div>
+        )}
         {/* Roster invitation banner (0.3) */}
         {viewerRoster === 'pending' && (
           <div className="mt-6 bg-surface rounded-xl shadow-sm border border-brand p-4 sm:p-6">

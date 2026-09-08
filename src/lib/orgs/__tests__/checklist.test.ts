@@ -18,7 +18,7 @@ describe('buildOrgChecklistSteps (phase 7 C5)', () => {
     expect(steps.every(s => !s.done)).toBe(true);
     expect(steps.find(s => s.key === 'course')?.optional).toBe(true);
     expect(steps.find(s => s.key === 'league')?.href).toBe('#competitions');
-    expect(steps.find(s => s.key === 'members')?.href).toBe('#roster');
+    expect(steps.find(s => s.key === 'members')?.href).toBe('#membership'); // R3: the join link lives in Membership
   });
 
   it('golf: done derives from the console rows; a lone owner is not "members"', () => {
