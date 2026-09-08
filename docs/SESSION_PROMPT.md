@@ -2,9 +2,9 @@
 
 > Tom's session-start prompt. Paste this (or point Claude at it) when opening a
 > development session. Last aligned with project state: **September 8, 2026
-> (close of day, after the Onboarding v2 docs close #595 and the evening
-> maintenance sweep #596)** — migration head 179; `main` at the #596 merge
-> (23651e6). If the "Where the project
+> (end of session, after the Onboarding v2 close #595–#597, the advisory
+> bumps #598 + #600 and the final sweep #599)** — migration head 179; `main`
+> at the #600 merge plus the #599 docs. If the "Where the project
 > actually is" section drifts stale, ask Claude to re-align it against
 > DEVLOG.md and session memory.
 
@@ -157,10 +157,22 @@ entries, hole-level contest media. The docs close (#595: masterplan
 §4/§6/§8/§11, CLAUDE.md convention 10, this doc) and the evening sweep
 (#596: gate green on `main` — 2,792 tests, floor gate, lint at zero —
 guardrails + `npm audit` clean, branches pruned, memory index trimmed;
-the webhook fired for every merge since the #587 miss) leave `main` at
-the #596 merge (23651e6) with nothing in flight. The next program is Tom's
-call; candidates in session memory (the parked spec items above, the
-club/league page twins fold, the name-helper consolidation). Tom still owes ops: Search Console, custom-domain env, device
+the webhook fired for every merge since the #587 miss) closed the program.
+The end-of-session sweep (#599) found one new item: GHSA-p293-qw3h-jr36, a
+critical Next advisory (Windows-hosted servers only; prod is Linux) that
+turned the guardrails' `npm audit` step red for every PR — fixed by #598,
+`next` + `eslint-config-next` 16.3.1 → 16.3.4 within the existing ranges,
+lockfile only, verify green incl. the browser-floor gate; then sharp
+(libheif, via the `overrides` pin → 0.35.4) and nodemailer (→ 9.1.1) in
+#600 when two more advisories landed mid-sweep. A temporary demo
+golf club (Tom as owner, unlisted, 8 QA members, 47 rounds, a running
+points-race league) was seeded on prod for screenshots and torn down the
+same evening; the sweep verified nothing of it remains. The public-site
+breakdown/wireframes artifact from that walk-through is linked in session
+memory. `main` is at the #600 merge with nothing in flight. The
+next program is Tom's call; candidates in session memory (the parked spec
+items above, the club/league page twins fold, the name-helper
+consolidation). Tom still owes ops: Search Console, custom-domain env, device
 passes — including the capture-fix pass (three portrait photos un-edited,
 one edited photo + a video, a live-round hole photo) and a first real
 staff invite on his own league.
