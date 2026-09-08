@@ -377,6 +377,18 @@ export default function OrgConsolePage() {
   // Onboarding v2 R1 (179): the directory listing — the console works and
   // publishes regardless; 'pending' = a listing request is in the queue.
   const [listing, setListing] = useState<'unlisted' | 'pending' | 'listed'>('listed');
+  // R2: the wizard lands here with ?welcome=1. Read in an effect, one tick
+  // deferred: on a client-side router.push the FIRST render still sees the
+  // previous URL in window.location (a lazy useState read missed it), and a
+  // sync setState in an effect trips the cascading-render lint (the
+  // RegistrationSteps recipe).
+  const [welcome, setWelcome] = useState(false);
+  useEffect(() => {
+    const t = setTimeout(() => {
+      if (new URLSearchParams(window.location.search).get('welcome') === '1') setWelcome(true);
+    }, 0);
+    return () => clearTimeout(t);
+  }, []);
   // Phase 7 C5: the org's sport shapes the console (golf-first).
   const [orgSport, setOrgSport] = useState<string | null>(null);
   // Phase 9 V1: the org's membership settings (176 clubs; 177 leagues —
@@ -4381,6 +4393,24 @@ export default function OrgConsolePage() {
       <AppHeader showSearch={false} />
 
       <main className="max-w-3xl mx-auto px-4 py-8 space-y-6">
+        {welcome && (
+          <div role="status" className="rounded-xl border border-brand bg-brand-soft p-4 flex items-start justify-between gap-3">
+            <div>
+              <p className="font-medium text-primary">{`Your ${side} is live.`}</p>
+              <p className="text-sm text-secondary mt-0.5">
+                {`Share your join link from Membership, and start your season from here — everything below is optional until you need it.`}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setWelcome(false)}
+              aria-label="Dismiss"
+              className="ea-icon-btn inline-flex items-center justify-center shrink-0"
+            >
+              <i className="fas fa-times" aria-hidden="true"></i>
+            </button>
+          </div>
+        )}
         <div>
           <h1 className="text-2xl sm:text-3xl font-bold text-primary">
             <i className="fas fa-sitemap mr-2 text-brand-fg" aria-hidden="true"></i>

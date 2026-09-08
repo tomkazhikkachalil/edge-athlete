@@ -64,11 +64,17 @@ export async function POST(request: NextRequest) {
       structure_draft: structureDraft,
       connections_draft: connections ?? null,
     };
+    // Onboarding v2 R2 (179): "link only" files a row outside the queue.
+    const requestStatus = siteDraft?.listing === 'unlisted' ? 'unlisted' : 'pending';
     let { data: row, error } = await supabase
       .from('league_requests')
-      .insert({ ...insertRow, site_draft: siteDraftRow })
+      .insert({ ...insertRow, status: requestStatus, site_draft: siteDraftRow })
       .select()
       .single();
+    if (error?.code === '23514' && requestStatus === 'unlisted') {
+      // Pre-179 CHECK: the row still lands, as a listing request.
+      ({ data: row, error } = await supabase.from('league_requests').insert({ ...insertRow, site_draft: siteDraftRow }).select().single());
+    }
     if (error?.code === 'PGRST204' && /site_draft/.test(error.message ?? '')) {
       // Pre-174 database: the request still lands; only the site draft is dropped.
       console.warn('[LEAGUE REQUESTS] site_draft column missing — run migration 174');
@@ -94,7 +100,7 @@ export async function POST(request: NextRequest) {
     // the optional home course and a draft site exist from now.
     const provisioned = await provisionPendingOrg(supabase, 'league', row);
     // Onboarding v2 R1: the public default files a listing request — bell the admins.
-    if (provisioned) {
+    if (provisioned && requestStatus === 'pending') {
       await notifyAdminsOfListingRequest(supabase, { side: 'league', orgId: provisioned.orgId, orgName: row.name, requesterId: user.id });
     }
     return NextResponse.json({

@@ -76,6 +76,9 @@ export type ConnectionsDraftInput = z.infer<typeof ConnectionsDraftSchema>;
 // convention — the routes gate each sport key.
 export const SiteDraftSchema = z.object({
   sports: z.array(boundedText(40)).max(12).optional(),
+  // Onboarding v2 R2 (179): where the org lives — the directory (a listing
+  // request, the default) or link only. Absent ⇒ pending.
+  listing: z.enum(['pending', 'unlisted']).optional(),
   homeCourseId: uuid.optional(),
   contact: z
     .object({

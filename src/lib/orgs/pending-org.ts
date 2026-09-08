@@ -81,8 +81,9 @@ export async function provisionPendingOrg(
           ? undefined
           : { operatesCompetitions: row.operates_competitions, operatesTeams: row.operates_teams ?? false },
       approvedAt: null,
-      // 179: the ONE writer that means pending — the column DEFAULT is 'listed'.
-      listingStatus: 'pending' as const,
+      // 179: the ONE writer that means pending (or link-only) — the column
+      // DEFAULT is 'listed'. R2: the wizard's choice rides in the site draft.
+      listingStatus: (siteDraft.listing === 'unlisted' ? 'unlisted' : 'pending') as 'unlisted' | 'pending',
     };
 
     let orgId: string;
@@ -118,7 +119,9 @@ export async function provisionPendingOrg(
       .from(side === 'league' ? 'league_requests' : 'club_requests')
       .update({ [linkColumn]: orgId })
       .eq('id', row.id)
-      .eq('status', 'pending');
+      // R2 (179): a link-only creation files its row as 'unlisted' — link
+      // it too, or a later "ask to be listed" cannot find its own row.
+      .in('status', ['pending', 'unlisted']);
 
     // The OPTIONAL home course → a venue linked to the catalog row (169).
     let venueId: string | null = null;

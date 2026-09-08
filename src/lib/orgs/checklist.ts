@@ -72,7 +72,7 @@ export function buildOrgChecklistSteps(
         key: 'publish',
         done: input.sitePublished === true,
         label: 'Publish your site',
-        hint: 'Preview it, then go live — approval unlocks this.',
+        hint: 'Preview it, then go live — it is link-only until you are listed.',
         href: '#website',
       },
       {
