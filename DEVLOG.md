@@ -1,5 +1,45 @@
 # Development Log
 
+## September 8, 2026 — sharp 0.35.3 → 0.35.4 and nodemailer 9.0.5 → 9.1.1 for the two advisories that landed during the sweep
+
+Forty minutes after #598 turned the guardrails green, the end-of-session
+sweep's own PR (#599) went red on the same step: two more advisories had
+published in between. `npm audit` is live against the registry, so a CI run
+can fail on a package nobody touched — that is the job doing what it was
+built for, and it is why the bumps land as their own PRs rather than
+inside a docs sweep.
+
+- **sharp** — GHSA-rgj7-g3m4-5g8c (high, CVSS 8.9): heap overflows in the
+  bundled libheif ≤1.23.1, triggered by decoding **untrusted AVIF/HEIF
+  input**, `sharp <0.35.4`. Unlike the Next advisory this one is real for
+  us: `/_next/image` decodes whatever users uploaded (avatars, post media —
+  iPhones shoot HEIF), and the `card.png` route composes the org hero photo
+  through sharp directly. sharp is not a direct dependency; it is pinned through the
+  `package.json` **`overrides`** block (0.35.3, set Jul 31 when Next 16
+  landed), so the override moves to **0.35.4** — the one `package.json` line
+  in this PR. `@img/sharp-libvips-*` 1.3.2 → 1.3.3 with it (libheif 1.23.2).
+  sharp also powers `/_next/image`, so the encoders were smoke-tested before
+  the gate: libvips 8.18.6, libheif 1.23.2, AVIF / WebP / JPEG encode +
+  rotate all good.
+- **nodemailer** — GHSA-8m3c-c648-2xjj (moderate, CVSS 5.9; the CI audit
+  graded the chain high): `mail.resolveContent(data, key, callback)` with
+  the legacy signature bypasses `disableFileAccess`/`disableUrlAccess`,
+  `<=9.1.0`. The advisory itself says the default `transporter.sendMail()`
+  path is unaffected, and that is the only path we use (one transporter
+  class, `createTransport` + `sendMail`, plain text/HTML). 9.1.1 fixes it
+  and sits inside `^9.0.3`: lockfile-only. 10.x exists but is a major and is
+  not taken today.
+- **Gate:** `npm run verify` green on the branch — typecheck, lint at zero,
+  2,792 tests, `next build` (171 static pages), 165 client chunks within the
+  iOS 15 / Safari 15 floor. Guardrails pass; `npm audit --omit=dev` 0.
+
+Prod check after merge: deployment row Ready, `/` 200, and a `/_next/image`
+fetch that actually encodes (200 with an `image/webp` or `image/avif`
+content-type), since the override is the piece that could silently break
+image serving.
+
+---
+
 ## September 8, 2026 — Next 16.3.1 → 16.3.4 for GHSA-p293-qw3h-jr36 (lockfile only)
 
 The end-of-session maintenance sweep found the hardening guardrails red for
