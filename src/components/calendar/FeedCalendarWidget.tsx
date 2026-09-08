@@ -19,8 +19,9 @@ const EventDetailModal = dynamic(() => import('./EventDetailModal'), { ssr: fals
 const PostDetailModal = dynamic(() => import('@/components/PostDetailModal'), { ssr: false });
 const ActivityPreviewModal = dynamic(() => import('./ActivityPreviewModal'), { ssr: false });
 
-// Feed-sidebar calendar: two views behind a segmented control — Upcoming (the
-// next few events) and Month (a mini grid; tap a day for its events) — with a
+// Feed-sidebar calendar: two views behind a segmented control — Month (a mini
+// grid; tap a day for its events) FIRST and by default, then Upcoming (the
+// next few events) (Tom, Sep 8 2026: "Month to show up first") — with a
 // filter row that shows only what applies to THIS viewer: person chips for a
 // household, category chips for the categories they actually have, and a
 // "Needs reply" chip while an invite is pending. Reading and RSVPing happen
@@ -45,7 +46,12 @@ interface SidebarPrefs {
   needsReply?: unknown;
 }
 
-const prefsKey = (userId: string) => `calendar:sidebar:v1:${userId}`;
+// v2 (Sep 8 2026): the default view flipped to Month. The key is bumped so the
+// flip lands for everyone — persist() writes `view` on every filter change, so
+// almost every existing v1 record pinned 'upcoming' and would have hidden it.
+// The v1 record is a per-viewer convenience (a view + filter chips); losing it
+// once is the documented cost.
+const prefsKey = (userId: string) => `calendar:sidebar:v2:${userId}`;
 
 function EventRow({ event, onClick }: { event: EventListItem; onClick: () => void }) {
   const color = categoryColor(event.category);
@@ -88,7 +94,7 @@ export default function FeedCalendarWidget() {
   const { user } = useAuth();
   const people = useHouseholdRoster();
 
-  const [view, setView] = useState<SidebarView>('upcoming');
+  const [view, setView] = useState<SidebarView>('month');
   const [focusMonth, setFocusMonth] = useState<Date>(() => new Date());
   const [events, setEvents] = useState<LayeredEvent[]>([]);
   const [failed, setFailed] = useState(false);
@@ -330,7 +336,7 @@ export default function FeedCalendarWidget() {
         role="tablist"
         aria-label="Sidebar calendar view"
       >
-        {([['upcoming', 'Upcoming'], ['month', 'Month']] as const).map(([key, label]) => (
+        {([['month', 'Month'], ['upcoming', 'Upcoming']] as const).map(([key, label]) => (
           <button
             key={key}
             type="button"

@@ -1,5 +1,24 @@
 # Development Log
 
+## September 8, 2026 — Feed sidebar calendar: Month first (#603)
+
+Tom: *"the calendar option. I want the Month to show up first so it's the
+first view, then the list of upcoming events. Let's do a quick swap without
+breaking functionality."* `FeedCalendarWidget`'s segmented control is now
+**Month | Upcoming**, and Month is the default view; nothing else about
+either view, the filter chips, the day quick-list or the detail modal
+changed. Zero DDL.
+
+One non-obvious edit: the localStorage prefs key moved `calendar:sidebar:v1`
+→ `v2`. `persist()` writes `view` on EVERY filter-chip change, so nearly
+every existing v1 record pinned `'upcoming'` and the new default would have
+been invisible to exactly the people who use the widget — Tom included.
+The record is a per-viewer convenience (a view + chip selections); losing
+it once is the documented cost. `e2e/feed-calendar-widget.spec.ts` now
+asserts Month is selected on first load and the upcoming list is one tap
+away with every layered event still in it; the reload case (Month persists)
+was already there.
+
 ## September 8, 2026 — Golf post: Overview rows in the feed, outlined par cells (#602)
 
 Tom, opening the session: *"When a post is created with stats … it's not

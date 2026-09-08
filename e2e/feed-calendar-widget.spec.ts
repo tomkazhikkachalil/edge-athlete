@@ -118,6 +118,11 @@ test('feed: tab-strip gap; sidebar Upcoming with viewer-relevant chips; Month da
 
   const widget = page.getByTestId('feed-calendar');
   await widget.scrollIntoViewIfNeeded();
+  // Month is the first view and the default (Tom, Sep 8 2026); the upcoming
+  // list is one tap away and must still carry every layered event.
+  await expect(widget.getByRole('tab', { name: 'Month' })).toHaveAttribute('aria-selected', 'true');
+  await expect(page.getByTestId('feed-calendar-month')).toBeVisible({ timeout: 20_000 });
+  await widget.getByRole('tab', { name: 'Upcoming' }).click();
   await expect(widget.getByRole('tab', { name: 'Upcoming' })).toHaveAttribute('aria-selected', 'true');
   await expect(widget.getByText(CHILD_GAME)).toBeVisible({ timeout: 20_000 });
   await expect(widget.getByText(OWN_PRACTICE)).toBeVisible();
@@ -234,6 +239,9 @@ test('sidebar calendar at phone width: reachable, chips wrap, Month grid fits @m
     await page.goto('/feed');
     const widget = page.getByTestId('feed-calendar');
     await widget.scrollIntoViewIfNeeded();
+    // Month opens first (Sep 8 2026); the list is one tap away at phone width.
+    await expect(widget.getByRole('tab', { name: 'Month' })).toHaveAttribute('aria-selected', 'true', { timeout: 20_000 });
+    await widget.getByRole('tab', { name: 'Upcoming' }).click();
     await expect(widget.getByText(practice)).toBeVisible({ timeout: 20_000 });
     const filters = widget.getByTestId('feed-calendar-filters');
     await expect(filters.getByRole('button', { name: 'Practice', exact: true })).toBeVisible();
