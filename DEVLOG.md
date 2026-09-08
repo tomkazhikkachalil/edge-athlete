@@ -1,5 +1,47 @@
 # Development Log
 
+## September 8, 2026 — The "Private" badge no longer sits on the author's name at phone width (zero DDL)
+
+Second small refinement. Seen in the mentions probe's 390px screenshot and
+confirmed by Tom: an owner's private post showed the "Private" badge drawn
+across the author block, the name cut to "Prob…".
+
+**What was happening.** The post header is one flex row: the author button
+(avatar, name row, meta row) and a `shrink-0` cluster holding the badge and,
+for the owner, three 44px buttons. Inside the detail modal at 390px the card
+has ~326px; the owner cluster took ~200px and would not shrink, leaving the
+author column ~66px after the avatar. The name row truncated (contained). The
+meta row did not: the timestamp is `whitespace-nowrap` with no `truncate`
+and its row had no `overflow-hidden`, so a nowrap span wider than 66px kept
+drawing rightward UNDER the cluster. The badge, vertically centred on the
+cluster, landed on the seam between the name and the timestamp — the
+"badge on the name" reading. Symptom: badge. Bug: timestamp overflow.
+Pressure: the 200px cluster. Only an owner's private post on a phone.
+
+**The fix, `PostCard.tsx`, three lines of classes.** (1) `overflow-hidden`
+on the meta row + `truncate` on the timestamp — the row now degrades by
+ellipsis, which its own comment already promised. (2) Below `sm` the badge
+is the app's private glyph (`fa-lock`, the composer's own symbol for the
+Private choice) with `aria-label`/`title` "Private"; from `sm` up the text
+badge is untouched. ~35px back to the name on phones. (3) `gap-2` on the
+header row so the author block and the cluster can never touch.
+
+**Verification.** `npm run verify` green (256 files / 2,759 tests, floor
+gate). Geometry probe on the local production build then prod (scratchpad
+`badge-probe.mts`: owner + private post, `/feed?post=`, modal AND feed
+card, 390 and 1280): author block's right edge ≤ cluster's left edge, meta
+row `overflow: hidden` with the timestamp clipped inside it, lock glyph at
+390 / text badge at 1280.
+
+**Still true after this, deliberately not in this PR:** at 390px an OWNER's
+card is still starved — the name reads "Prob…" and the meta row "l… • g" —
+because pin/edit/delete are three 44px touch targets (148px of a ~326px
+card) and 44px is the floor. The fix for that is a different change:
+collapse the three into one "…" menu below `sm`. Candidate for the next
+refinement; Tom's call.
+
+---
+
 ## September 8, 2026 — Mentions and tags show the person's chosen name, not the @handle (zero DDL)
 
 First of a set of small refinements before the next program. Tom: "when you

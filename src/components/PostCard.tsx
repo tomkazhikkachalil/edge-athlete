@@ -476,7 +476,7 @@ function PostCard({
       )}
       {/* Header. p-4 below sm: 24px padding each side cost a 390px card a
           third of its author-row budget. */}
-      <div className="p-4 sm:p-base flex items-center justify-between">
+      <div className="p-4 sm:p-base flex items-center justify-between gap-2">
         <button
           onClick={() => {
             // Navigate to own profile page if viewing own post, otherwise to athlete's profile
@@ -523,9 +523,13 @@ function PostCard({
               </div>
               {/* No flex-wrap: under squeeze this row must degrade by
                   ellipsis like the name row above it, not stack into extra
-                  lines (the "author row wraps at 390px" nit). */}
-              <div className="flex items-center gap-2 min-w-0">
-                <span className="text-sm text-secondary font-medium whitespace-nowrap">{timeAgo}</span>
+                  lines (the "author row wraps at 390px" nit). overflow-hidden
+                  + truncate on the timestamp are what make that true: a
+                  nowrap span wider than its column otherwise keeps drawing
+                  rightward UNDER the owner cluster, which read as "the
+                  Private badge sits on the name" at 390px. */}
+              <div className="flex items-center gap-2 min-w-0 overflow-hidden">
+                <span className="text-sm text-secondary font-medium whitespace-nowrap truncate">{timeAgo}</span>
                 {chipKey && (
                   <>
                     <span className="text-sm text-secondary font-medium">•</span>
@@ -555,11 +559,23 @@ function PostCard({
             buttons never shrank anyway — the author column takes the squeeze
             and truncates). */}
         <div className="flex items-center gap-2 shrink-0">
-          {/* Privacy indicator */}
+          {/* Privacy indicator. Below sm it is the app's private glyph (the
+              composer's fa-lock) — the ~52px text badge plus three 44px owner
+              buttons left a 390px author column ~66px for the name. */}
           {post.visibility === 'private' && (
-            <div className="text-xs text-muted bg-surface-sunken px-2 py-1 rounded">
-              Private
-            </div>
+            <>
+              <span
+                className="sm:hidden text-muted text-sm px-1"
+                role="img"
+                aria-label="Private"
+                title="Private"
+              >
+                <i className="fas fa-lock" aria-hidden="true"></i>
+              </span>
+              <div className="hidden sm:block text-xs text-muted bg-surface-sunken px-2 py-1 rounded">
+                Private
+              </div>
+            </>
           )}
 
           {/* Pin, Edit and Delete buttons - only show for post owner */}
