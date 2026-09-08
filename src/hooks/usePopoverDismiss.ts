@@ -25,29 +25,41 @@ import { useEffect, type RefObject } from 'react';
  * different: there, swallowing the outside click is correct dialog
  * semantics — but the overlay must be PORTALED to document.body so the
  * backdrop actually spans the viewport.
+ *
+ * `refs` may be one ref or several: a PORTALED panel is no longer a DOM
+ * descendant of its trigger, so "inside" must consult both — otherwise the
+ * mousedown on the trigger closes the popover and the trigger's click
+ * reopens it (the Aug 9 2026 portal lesson).
  */
 export function usePopoverDismiss(
-  ref: RefObject<HTMLElement | null>,
+  refs: RefObject<HTMLElement | null> | RefObject<HTMLElement | null>[],
   open: boolean,
   onClose: () => void
 ): void {
   useEffect(() => {
     if (!open) return;
 
+    const list = Array.isArray(refs) ? refs : [refs];
     const onMouseDown = (event: MouseEvent) => {
-      if (ref.current && !ref.current.contains(event.target as Node)) {
-        onClose();
-      }
+      const target = event.target as Node;
+      const inside = list.some(r => r.current && r.current.contains(target));
+      if (!inside) onClose();
     };
+    // Escape closes the TOPMOST layer only: capture phase + stopPropagation,
+    // so a popover open inside a modal (the post card's owner menu in the
+    // post-detail modal, Sep 8 2026) does not take the modal down with it —
+    // the modal's own bubble-phase window listener never sees the key.
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onClose();
+      if (event.key !== 'Escape') return;
+      event.stopPropagation();
+      onClose();
     };
 
     document.addEventListener('mousedown', onMouseDown);
-    window.addEventListener('keydown', onKeyDown);
+    window.addEventListener('keydown', onKeyDown, true);
     return () => {
       document.removeEventListener('mousedown', onMouseDown);
-      window.removeEventListener('keydown', onKeyDown);
+      window.removeEventListener('keydown', onKeyDown, true);
     };
-  }, [ref, open, onClose]);
+  }, [refs, open, onClose]);
 }

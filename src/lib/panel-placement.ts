@@ -78,3 +78,39 @@ export function placePanel(args: PanelPlacementArgs): PanelPlacement {
   if (maxHeight !== undefined) out.maxHeight = maxHeight;
   return out;
 }
+
+/**
+ * Placement for a small anchored MENU (the post card's owner "…" on phones):
+ * opens BELOW the trigger, right edge aligned to the trigger's right edge,
+ * and flips ABOVE only when the visible strip has no room below. Same
+ * model as placePanel — raw client coordinates, the visual viewport enters
+ * only as bounds, always top-anchored — but below-first, because a header
+ * menu that pops upward reads as broken. Horizontal position is clamped to
+ * `margin` inside the layout viewport so the panel never leaves the screen.
+ */
+export interface MenuPlacementArgs {
+  anchorTop: number;
+  anchorBottom: number;
+  anchorRight: number;
+  panelW: number;
+  panelH: number;
+  gap: number;
+  viewportTop: number;
+  viewportHeight: number;
+  viewportWidth: number;
+  margin: number;
+}
+
+export function placeMenu(args: MenuPlacementArgs): { top: number; left: number } {
+  const {
+    anchorTop, anchorBottom, anchorRight, panelW, panelH, gap,
+    viewportTop, viewportHeight, viewportWidth, margin,
+  } = args;
+  const roomBelow = viewportTop + viewportHeight - anchorBottom;
+  const top =
+    roomBelow >= panelH + gap + 4
+      ? anchorBottom + gap
+      : Math.max(viewportTop + margin, anchorTop - gap - panelH);
+  const left = Math.max(margin, Math.min(anchorRight - panelW, viewportWidth - margin - panelW));
+  return { top, left };
+}
