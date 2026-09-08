@@ -54,6 +54,9 @@ export const CompetitionCreateSchema = z
             // the points table.
             score: z.enum(['gross', 'net']).optional(),
             points: z.enum(['pga', 'linear']).optional(),
+            // Onboarding v2 R4: a club is NOT a course — rounds at ANY
+            // catalog course count when set (contests carry no venue).
+            anyCourse: z.boolean().optional(),
           })
           .optional(),
       })
@@ -112,16 +115,18 @@ export const ContestCreateSchema = z
 export type ContestCreateInput = z.infer<typeof ContestCreateSchema>;
 
 /** Phase 6d W3: a golf league's whole season in one declaration — N
- *  weekly rounds from a start date, each a windowDays-long play window
- *  at ONE course. venueId is REQUIRED: a windowed round without a course
- *  can never fill itself ("round has no course"). Dry-run by default. */
+ *  weekly rounds from a start date, each a windowDays-long play window.
+ *  venueId names ONE course; absent (Onboarding v2 R4) the league must be
+ *  any-course (config.golf.anyCourse) and members' rounds count wherever
+ *  they were played. Dry-run by default. */
 export const GolfSeasonGenerateSchema = z.object({
   competitionId: uuid,
   startDate: z.string().regex(ISO_DATE_RE, 'YYYY-MM-DD'),
   weeks: z.number().int().min(1).max(52),
   windowDays: z.number().int().min(1).max(14),
   holes: z.union([z.literal(9), z.literal(18)]),
-  venueId: uuid,
+  // R4: null/absent ⇒ any course (the competition's config.golf.anyCourse must be set).
+  venueId: uuid.nullable().optional(),
   labelPattern: optionalText(34),
   dryRun: z.boolean().default(true),
   // S4: the generated rounds land on members' calendars as all-day windows.
@@ -237,3 +242,17 @@ export const EntryAddSchema = z
     }
   });
 export type EntryAddInput = z.infer<typeof EntryAddSchema>;
+
+// Onboarding v2 R4: "Start our season" — one POST composes season +
+// golf leaderboard + entries + activation + weekly windows.
+export const GolfQuickstartSchema = z.object({
+  holes: z.union([z.literal(9), z.literal(18)]),
+  weeks: z.number().int().min(1).max(52),
+  windowDays: z.number().int().min(1).max(14),
+  startDate: z.string().regex(ISO_DATE_RE, 'YYYY-MM-DD').optional(),
+  /** A venue linked to a catalog course; absent ⇒ any course counts. */
+  venueId: uuid.nullable().optional(),
+  publishToCalendar: z.boolean().optional(),
+  timezone: boundedText(64).optional(),
+});
+export type GolfQuickstartInput = z.infer<typeof GolfQuickstartSchema>;

@@ -127,37 +127,88 @@ export async function syncGolfContest(admin: Admin, contestId: string): Promise<
   if (!contest.holes || !contest.play_from || !contest.play_to) {
     return { ...report, blocked: 'round has no hole count or play window' };
   }
-  if (!contest.venue_id) return { ...report, blocked: 'round has no course' };
+  // R4 (Onboarding v2): a club is not a course. A round with NO venue on an
+  // any-course league counts members' rounds wherever they were played —
+  // the course set is whatever catalog courses the members' rounds in the
+  // window name. Otherwise (a named venue) the 6c rule: the venue's course(s).
+  const anyCourse =
+    !contest.venue_id &&
+    ((competition.config as { golf?: { anyCourse?: unknown } } | null)?.golf?.anyCourse) === true;
+  if (!contest.venue_id && !anyCourse) return { ...report, blocked: 'round has no course' };
 
-  // The course(s): the venue's golf link → catalog rows (club = every section).
-  const { data: venue } = await admin
-    .from('venues')
-    .select('id, golf_club_id, golf_course_id')
-    .eq('id', contest.venue_id)
-    .maybeSingle();
-  const link = {
-    golfClubId: (venue?.golf_club_id ?? null) as string | null,
-    golfCourseId: (venue?.golf_course_id ?? null) as string | null,
-  };
-  if (!link.golfClubId && !link.golfCourseId) {
-    return { ...report, blocked: 'the venue has no golf course linked' };
+  let courseRows: CourseRatingRow[] = [];
+  let courseIds = new Set<string>();
+  if (anyCourse) {
+    // Participants first (the same read as below) — the course set is
+    // derived from THEIR rounds inside the window.
+    const { data: earlyParticipants } = await admin
+      .from('contest_participants')
+      .select('id, entry_id, competition_entries!inner(profile_id, status)')
+      .eq('contest_id', contest.id)
+      .limit(500);
+    const earlyProfileIds = (earlyParticipants ?? [])
+      .map(p => {
+        const e = p.competition_entries as { profile_id: string | null } | { profile_id: string | null }[];
+        const entry = Array.isArray(e) ? e[0] : e;
+        return entry?.profile_id ?? null;
+      })
+      .filter((id): id is string => !!id);
+    if (earlyProfileIds.length === 0) return report;
+    const { data: windowRounds } = await admin
+      .from('golf_rounds')
+      .select('course_id')
+      .in('profile_id', earlyProfileIds)
+      .gte('date', contest.play_from)
+      .lte('date', contest.play_to)
+      .not('course_id', 'is', null)
+      .limit(2000);
+    const ids = [...new Set((windowRounds ?? []).map(r => r.course_id as string))];
+    if (ids.length === 0) return report;
+    const courseRes = await admin.from('golf_courses').select(CATALOG_ROW_COLUMNS).in('id', ids).limit(200);
+    courseRows = ((courseRes.data ?? []) as unknown as CatalogRow[]).map(
+      (r): CourseRatingRow => ({
+        id: r.id,
+        club_id: r.club_id ?? null,
+        section_kind: r.section_kind ?? null,
+        total_par: r.total_par,
+        holes_count: r.holes_count,
+        course_rating: r.course_rating ?? null,
+        slope_rating: r.slope_rating ?? null,
+      })
+    );
+    courseIds = new Set(courseRows.map(c => c.id));
+    if (courseIds.size === 0) return { ...report, blocked: 'no catalog course among the posted rounds' };
+  } else {
+    // The course(s): the venue's golf link → catalog rows (club = every section).
+    const { data: venue } = await admin
+      .from('venues')
+      .select('id, golf_club_id, golf_course_id')
+      .eq('id', contest.venue_id as string)
+      .maybeSingle();
+    const link = {
+      golfClubId: (venue?.golf_club_id ?? null) as string | null,
+      golfCourseId: (venue?.golf_course_id ?? null) as string | null,
+    };
+    if (!link.golfClubId && !link.golfCourseId) {
+      return { ...report, blocked: 'the venue has no golf course linked' };
+    }
+    const courseRes = link.golfClubId
+      ? await admin.from('golf_courses').select(CATALOG_ROW_COLUMNS).eq('club_id', link.golfClubId).limit(40)
+      : await admin.from('golf_courses').select(CATALOG_ROW_COLUMNS).eq('id', link.golfCourseId as string);
+    courseRows = ((courseRes.data ?? []) as unknown as CatalogRow[]).map(
+      (r): CourseRatingRow => ({
+        id: r.id,
+        club_id: r.club_id ?? null,
+        section_kind: r.section_kind ?? null,
+        total_par: r.total_par,
+        holes_count: r.holes_count,
+        course_rating: r.course_rating ?? null,
+        slope_rating: r.slope_rating ?? null,
+      })
+    );
+    courseIds = matchCourseIds(link, courseRows);
+    if (courseIds.size === 0) return { ...report, blocked: 'the linked course is not in the catalog' };
   }
-  const courseRes = link.golfClubId
-    ? await admin.from('golf_courses').select(CATALOG_ROW_COLUMNS).eq('club_id', link.golfClubId).limit(40)
-    : await admin.from('golf_courses').select(CATALOG_ROW_COLUMNS).eq('id', link.golfCourseId as string);
-  const courseRows = ((courseRes.data ?? []) as unknown as CatalogRow[]).map(
-    (r): CourseRatingRow => ({
-      id: r.id,
-      club_id: r.club_id ?? null,
-      section_kind: r.section_kind ?? null,
-      total_par: r.total_par,
-      holes_count: r.holes_count,
-      course_rating: r.course_rating ?? null,
-      slope_rating: r.slope_rating ?? null,
-    })
-  );
-  const courseIds = matchCourseIds(link, courseRows);
-  if (courseIds.size === 0) return { ...report, blocked: 'the linked course is not in the catalog' };
   const courseById = new Map(courseRows.map(c => [c.id, c]));
 
   // Participants → entries → profiles.

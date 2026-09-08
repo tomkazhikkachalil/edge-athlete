@@ -970,20 +970,32 @@ export async function golfSeasonGeneratePOST(
   if (comp.status === 'completed' || comp.status === 'archived') {
     return NextResponse.json({ error: 'This competition is closed' }, { status: 400 });
   }
-  const { data: compRow } = await admin.from('competitions').select('sport_key').eq('id', comp.id).maybeSingle();
+  const { data: compRow } = await admin.from('competitions').select('sport_key, config').eq('id', comp.id).maybeSingle();
   if (comp.format !== 'leaderboard' || compRow?.sport_key !== 'golf') {
     return NextResponse.json({ error: 'The season generator is for golf leaderboards' }, { status: 400 });
   }
-  const { data: venue } = await admin
-    .from('venues')
-    .select('id, golf_club_id, golf_course_id')
-    .eq('id', input.venueId)
-    .eq(orgColumn(scope.side), scope.orgId)
-    .maybeSingle();
-  if (!venue) return NextResponse.json({ error: 'That course is not one of this organization’s venues' }, { status: 400 });
-  if (!venue.golf_club_id && !venue.golf_course_id) {
-    return NextResponse.json({ error: 'Link a golf course to that venue first' }, { status: 400 });
+  // R4: a club is not a course. With config.golf.anyCourse the rounds carry
+  // no venue and the sync matches members' rounds at ANY catalog course.
+  const anyCourse = ((compRow?.config as { golf?: { anyCourse?: unknown } } | null)?.golf?.anyCourse) === true;
+  type VenueLink = { id: string; golf_club_id: string | null; golf_course_id: string | null };
+  let venue: VenueLink | null = null;
+  if (input.venueId) {
+    const { data: found } = await admin
+      .from('venues')
+      .select('id, golf_club_id, golf_course_id')
+      .eq('id', input.venueId)
+      .eq(orgColumn(scope.side), scope.orgId)
+      .maybeSingle();
+    const link = (found as VenueLink | null) ?? null;
+    if (!link) return NextResponse.json({ error: 'That course is not one of this organization’s venues' }, { status: 400 });
+    if (!link.golf_club_id && !link.golf_course_id) {
+      return NextResponse.json({ error: 'Link a golf course to that venue first' }, { status: 400 });
+    }
+    venue = link;
+  } else if (!anyCourse) {
+    return NextResponse.json({ error: 'Pick a course, or start the league as any-course' }, { status: 400 });
   }
+  const venueId: string | null = venue ? venue.id : null;
   const { data: allEntries } = await admin
     .from('competition_entries')
     .select('id, status')
@@ -1039,7 +1051,7 @@ export async function golfSeasonGeneratePOST(
         competition_id: comp.id,
         scheduled_at: null,
         round: s.round,
-        venue_id: venue.id as string,
+        venue_id: venueId,
         facility_id: null,
         holes: s.holes,
         play_from: s.playFrom,
@@ -1070,7 +1082,7 @@ export async function golfSeasonGeneratePOST(
           id: written.contest.id,
           event_id: null,
           scheduled_at: null,
-          venue_id: venue.id as string,
+          venue_id: venueId,
           facility_id: null,
           round: s.round,
           play_from: s.playFrom,

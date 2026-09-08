@@ -219,6 +219,13 @@ export default function OrgConsolePage() {
   // Competitions (phase 2). Fixture (team) and leaderboard (athlete)
   // formats — the entrant type is derived server-side from the format.
   const [competitions, setCompetitions] = useState<CompetitionRow[]>([]);
+  // R4: "Start our season" — the one-tap golf league.
+  const [qsHoles, setQsHoles] = useState<9 | 18>(18);
+  const [qsWeeks, setQsWeeks] = useState(12);
+  const [qsWindowDays, setQsWindowDays] = useState(7);
+  const [qsStartDate, setQsStartDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [qsVenueId, setQsVenueId] = useState('');
+  const [qsBusy, setQsBusy] = useState(false);
   const [affiliatedTeams, setAffiliatedTeams] = useState<
     { id: string; name: string; club_name: string }[]
   >([]);
@@ -952,6 +959,36 @@ export default function OrgConsolePage() {
     }
   };
 
+  // R4: one POST — season + league + entries + activation + weekly windows.
+  const startSeason = async () => {
+    if (qsBusy) return;
+    setQsBusy(true);
+    try {
+      const ok = await act(
+        `/api/${plural}/${orgId}/competitions/quickstart`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            holes: qsHoles,
+            weeks: qsWeeks,
+            windowDays: qsWindowDays,
+            startDate: qsStartDate,
+            ...(qsVenueId ? { venueId: qsVenueId } : {}),
+            publishToCalendar: true,
+            timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+          }),
+        },
+        'Your season is live — weekly rounds fill from posted scores',
+        'Could not start the season',
+        'Leagues'
+      );
+      if (ok) window.location.hash = '#competitions';
+    } finally {
+      setQsBusy(false);
+    }
+  };
+
   const patchCompetition = (competitionId: string, patch: { status?: string; visibility?: string }) =>
     act(
       `/api/${plural}/${orgId}/competitions`,
@@ -1451,7 +1488,9 @@ export default function OrgConsolePage() {
           </div>
 
           {seasons.length === 0 ? (
-            <p className="text-sm text-tertiary">No seasons yet.</p>
+            <p className="text-sm text-tertiary">
+              {golfFirst ? 'No seasons yet — "Start our season" under Leagues & events creates this year’s for you.' : 'No seasons yet.'}
+            </p>
           ) : (
             <ul className="space-y-3">
               {seasons.map(season => (
@@ -1948,8 +1987,56 @@ export default function OrgConsolePage() {
             A competition holds a schedule and standings. Create one per season — pin it
             to a division for house play.
           </p>
+          {golfFirst && !competitions.some(c => c.sport_key === 'golf' && c.format === 'leaderboard' && (c.status === 'draft' || c.status === 'active')) && (
+            <div className="mb-4 rounded-xl border border-brand bg-brand-soft p-4" data-quickstart="golf">
+              <p className="font-medium text-primary">Start our season</p>
+              <p className="mt-0.5 text-sm text-secondary">
+                One tap: this year’s season, a league that ranks members’ posted rounds week by week, everyone on the roster entered. Rounds count at any course unless you pick one.
+              </p>
+              <div className="mt-3 grid grid-cols-2 sm:grid-cols-4 gap-2">
+                <label className="text-xs text-tertiary">
+                  Holes
+                  <select value={qsHoles} onChange={e => setQsHoles(Number(e.target.value) === 9 ? 9 : 18)} className="mt-1 w-full max-w-full px-2 py-2 border border-border-strong rounded-md text-sm text-primary bg-surface">
+                    <option value={18}>18</option>
+                    <option value={9}>9</option>
+                  </select>
+                </label>
+                <label className="text-xs text-tertiary">
+                  Weeks
+                  <input type="number" min={1} max={52} value={qsWeeks} onChange={e => setQsWeeks(Math.max(1, Math.min(52, Number(e.target.value) || 1)))} className="mt-1 w-full max-w-full px-2 py-2 border border-border-strong rounded-md text-sm text-primary bg-surface" />
+                </label>
+                <label className="text-xs text-tertiary">
+                  Days per round
+                  <input type="number" min={1} max={14} value={qsWindowDays} onChange={e => setQsWindowDays(Math.max(1, Math.min(14, Number(e.target.value) || 1)))} className="mt-1 w-full max-w-full px-2 py-2 border border-border-strong rounded-md text-sm text-primary bg-surface" />
+                </label>
+                <label className="text-xs text-tertiary">
+                  Starts
+                  <input type="date" value={qsStartDate} onChange={e => setQsStartDate(e.target.value)} className="mt-1 w-full max-w-full px-2 py-2 border border-border-strong rounded-md text-sm text-primary bg-surface" />
+                </label>
+              </div>
+              {venues.some(v => v.courses.length > 0) && (
+                <label className="mt-2 block text-xs text-tertiary">
+                  Course
+                  <select value={qsVenueId} onChange={e => setQsVenueId(e.target.value)} className="mt-1 w-full max-w-full px-2 py-2 border border-border-strong rounded-md text-sm text-primary bg-surface">
+                    <option value="">Any course</option>
+                    {venues.filter(v => v.courses.length > 0).map(v => (
+                      <option key={v.id} value={v.id}>{v.name}</option>
+                    ))}
+                  </select>
+                </label>
+              )}
+              <button
+                type="button"
+                disabled={qsBusy}
+                onClick={() => void startSeason()}
+                className="mt-3 px-4 py-2 text-sm min-h-[44px] rounded-lg bg-brand text-white font-medium hover:bg-brand-hover transition-colors disabled:opacity-60"
+              >
+                {qsBusy ? 'Starting…' : 'Start our season'}
+              </button>
+            </div>
+          )}
           {seasons.length === 0 ? (
-            <p className="text-sm text-tertiary">Create a season first.</p>
+            <p className="text-sm text-tertiary">{golfFirst ? 'Or create a season above and build a league by hand.' : 'Create a season first.'}</p>
           ) : (
             <div className="flex flex-wrap gap-2 mb-4">
               <input

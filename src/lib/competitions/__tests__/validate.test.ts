@@ -77,7 +77,7 @@ describe('GolfSeasonGenerateSchema (phase 6d W3)', () => {
     expect(parsed.success).toBe(true);
     if (parsed.success) expect(parsed.data.dryRun).toBe(true);
   });
-  it('bounds weeks 1..52, window 1..14, holes 9|18, a real date, a required course', () => {
+  it('bounds weeks 1..52, window 1..14, holes 9|18, a real date; the course is optional since R4 (any-course leagues)', () => {
     expect(GolfSeasonGenerateSchema.safeParse({ ...base, weeks: 0 }).success).toBe(false);
     expect(GolfSeasonGenerateSchema.safeParse({ ...base, weeks: 53 }).success).toBe(false);
     expect(GolfSeasonGenerateSchema.safeParse({ ...base, windowDays: 15 }).success).toBe(false);
@@ -85,7 +85,8 @@ describe('GolfSeasonGenerateSchema (phase 6d W3)', () => {
     expect(GolfSeasonGenerateSchema.safeParse({ ...base, startDate: '9/1/2026' }).success).toBe(false);
     const { venueId: _venueId, ...noVenue } = base;
     void _venueId;
-    expect(GolfSeasonGenerateSchema.safeParse(noVenue).success).toBe(false);
+    expect(GolfSeasonGenerateSchema.safeParse(noVenue).success).toBe(true);
+    expect(GolfSeasonGenerateSchema.safeParse({ ...base, venueId: null }).success).toBe(true);
   });
   it('the label pattern is bounded so "{n}" always fits the 40-char round column', () => {
     expect(GolfSeasonGenerateSchema.safeParse({ ...base, labelPattern: 'Round {n}' }).success).toBe(true);
