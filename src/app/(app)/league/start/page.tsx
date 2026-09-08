@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
 import AppHeader from '@/components/AppHeader';
 import OrgStartWizard from '@/components/orgs/OrgStartWizard';
@@ -29,6 +30,7 @@ interface MyRequest {
 
 export default function StartLeaguePage() {
   const { user, loading: authLoading } = useAuth();
+  const router = useRouter();
 
   const [requests, setRequests] = useState<MyRequest[]>([]);
   const [loading, setLoading] = useState(true);
@@ -83,7 +85,7 @@ export default function StartLeaguePage() {
             </div>
             <h1 className="text-2xl font-bold text-primary mb-2">Create an account to start your league</h1>
             <p className="text-tertiary mb-6">
-              League requests are reviewed by an Edge Athlete admin; approved leagues are yours to run.
+              Your league is live the moment you create it; directory listing is reviewed by an Edge Athlete admin.
             </p>
             {/* Phase 7 C1: park the intent both ways — ?next= for the plain
                 sign-in, sessionStorage for the registration hard-reload. */}
@@ -114,8 +116,8 @@ export default function StartLeaguePage() {
         <div>
           <h1 className="text-2xl sm:text-3xl font-bold text-primary">Start a league</h1>
           <p className="mt-1 text-sm text-tertiary">
-            Tell us about your league — an Edge Athlete admin reviews every request, and
-            approval makes you its owner.
+            Your league is live the moment you create it — share the link, add members,
+            post rounds. Listing in the directory is reviewed by an Edge Athlete admin.
           </p>
         </div>
 
@@ -123,28 +125,28 @@ export default function StartLeaguePage() {
           <div className="flex justify-center py-10">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand"></div>
           </div>
-        ) : pending ? (
-          <div className="bg-surface rounded-xl border border-violet-300 shadow-sm p-5 flex items-start gap-3">
-            <Clock className="w-5 h-5 text-brand-fg mt-0.5 shrink-0" />
-            <div>
-              <p className="font-medium text-primary">{pending.name} is waiting for review</p>
-              <p className="text-sm text-tertiary mt-1">
-                We&apos;ll notify you here as soon as it&apos;s decided. One request can be open at a time.
-              </p>
-              {/* Phase 7 C4: build while waiting — the league and its draft site
-                  already exist; approval unlocks publishing. */}
-              {pending.created_league_id && (
-                <Link
-                  href={`/app/org/league/${pending.created_league_id}`}
-                  className="mt-3 inline-flex items-center px-3 py-2 text-sm rounded-lg bg-brand text-white font-medium hover:bg-brand-hover transition-colors"
-                >
-                  Open your console — build your site while you wait
-                </Link>
-              )}
-            </div>
-          </div>
         ) : (
           <>
+            {pending && (
+            <div className="bg-surface rounded-xl border border-violet-300 shadow-sm p-5 flex items-start gap-3">
+              <Clock className="w-5 h-5 text-brand-fg mt-0.5 shrink-0" />
+              <div>
+                <p className="font-medium text-primary">{pending.name} — listing under review</p>
+                <p className="text-sm text-tertiary mt-1">
+                  Your league is live now; it joins the directory once an Edge Athlete admin approves the listing. One listing request can be open at a time.
+                </p>
+                {/* R1 (179): the org is live by link; approval lists it. */}
+                {pending.created_league_id && (
+                  <Link
+                    href={`/app/org/league/${pending.created_league_id}`}
+                    className="mt-3 inline-flex items-center px-3 py-2 text-sm rounded-lg bg-brand text-white font-medium hover:bg-brand-hover transition-colors"
+                  >
+                    Open your console
+                  </Link>
+                )}
+              </div>
+            </div>
+            )}
             {latestDeclined && (
               <div className="bg-amber-50 dark:bg-amber-950/30 rounded-xl border border-amber-300 p-5">
                 <p className="font-medium text-primary">
@@ -159,7 +161,10 @@ export default function StartLeaguePage() {
               </div>
             )}
 
-            <OrgStartWizard side="league" initialSport={initialSport} onSubmitted={() => setReloadKey(k => k + 1)} />
+            <OrgStartWizard side="league" initialSport={initialSport} onSubmitted={orgId => {
+                if (orgId) router.push(`/app/org/league/${orgId}?welcome=1`);
+                else setReloadKey(k => k + 1);
+              }} />
           </>
         )}
 

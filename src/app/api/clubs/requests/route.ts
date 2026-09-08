@@ -64,11 +64,17 @@ export async function POST(request: NextRequest) {
       structure_draft: structure ?? null,
       connections_draft: connections ?? null,
     };
+    // Onboarding v2 R2 (179): "link only" files a row outside the queue.
+    const requestStatus = siteDraft?.listing === 'unlisted' ? 'unlisted' : 'pending';
     let { data: row, error } = await supabase
       .from('club_requests')
-      .insert({ ...insertRow, site_draft: siteDraft ?? {} })
+      .insert({ ...insertRow, status: requestStatus, site_draft: siteDraft ?? {} })
       .select()
       .single();
+    if (error?.code === '23514' && requestStatus === 'unlisted') {
+      // Pre-179 CHECK: the row still lands, as a listing request.
+      ({ data: row, error } = await supabase.from('club_requests').insert({ ...insertRow, site_draft: siteDraft ?? {} }).select().single());
+    }
     if (error?.code === 'PGRST204' && /site_draft/.test(error.message ?? '')) {
       // Pre-174 database: the request still lands; only the site draft is
       // dropped (logged — it is the one thing a deploy-before-migrate loses).
@@ -93,7 +99,7 @@ export async function POST(request: NextRequest) {
     // the optional home course and a draft site exist from now.
     const provisioned = await provisionPendingOrg(supabase, 'club', row);
     // Onboarding v2 R1: the public default files a listing request — bell the admins.
-    if (provisioned) {
+    if (provisioned && requestStatus === 'pending') {
       await notifyAdminsOfListingRequest(supabase, { side: 'club', orgId: provisioned.orgId, orgName: row.name, requesterId: user.id });
     }
     return NextResponse.json({

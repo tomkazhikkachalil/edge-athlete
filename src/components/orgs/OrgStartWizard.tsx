@@ -23,25 +23,21 @@ import {
   type OrgWizardDraft,
 } from '@/lib/orgs/wizard-draft';
 import type { ConnectionsDraftInput, DivisionDraftRow } from '@/lib/orgs/wizard-validate';
+import { isSmallPath, stepsFor, type WizardStep } from '@/lib/orgs/wizard-steps';
 
 // ── The org onboarding wizard (phase 1 round 2) ─────────────────────────────
 // RegistrationSteps' named-union machine: all state hoisted here, sibling
 // step blocks, transitions in per-step handlers, drafts autosaved (the
 // composer-draft recipe) and offered back as a notice. The parent start
-// pages keep their three server-truth states — this component is ONLY the
-// form's replacement; submit success bumps the parent's reloadKey and the
-// pending banner arrives from the refetch (no optimistic state).
+// pages keep their server-truth states — this component is ONLY the form;
+// submit success hands the parent the created org's id (Onboarding v2 R2:
+// the org is LIVE from that moment — 179 — and the parent lands in the
+// console), or null on the 409 path (the parent refetches).
 
-type Step = 'identity' | 'sport' | 'structure' | 'connections' | 'review';
-
-const STEPS_LEAGUE: Step[] = ['identity', 'sport', 'structure', 'connections', 'review'];
-const STEPS_CLUB: Step[] = ['identity', 'structure', 'connections', 'review'];
-// Phase 7 C2 — the golf fast path: a golf-only org skips structure and
-// connections (a golf club runs leaderboards, not divisions; both can be
-// built later from the console). "Add divisions and teams now" on the
-// review step expands back to the full flow.
-const STEPS_LEAGUE_GOLF: Step[] = ['identity', 'sport', 'review'];
-const STEPS_CLUB_GOLF: Step[] = ['identity', 'review'];
+type Step = WizardStep;
+// Onboarding v2 R2: the SMALL PATH (identity → review; a league adds its
+// sport step) is the default from every entry point — structure appears
+// only when asked for (src/lib/orgs/wizard-steps.ts, node-tested).
 
 const enabledSport = (key: string | null | undefined): key is string =>
   !!key && (FEATURE_FLAGS.FEATURE_SPORTS as readonly string[]).includes(key);
@@ -52,7 +48,9 @@ export default function OrgStartWizard({
   initialSport = null,
 }: {
   side: 'league' | 'club';
-  onSubmitted: () => void;
+  /** R2: the created org's id when the request provisioned one (the parent
+   *  goes straight to the console); null/undefined on the 409 path. */
+  onSubmitted: (orgId?: string | null) => void;
   /** Phase 7 C2: the start page's `?sport=` — pre-checks the sport (clubs)
    *  or preselects it (leagues); `golf` also applies the golf defaults. */
   initialSport?: string | null;
@@ -66,13 +64,20 @@ export default function OrgStartWizard({
   const [place, setPlace] = useState<PlaceValue | null>(null);
   const [placeText, setPlaceText] = useState('');
   // Golf defaults: a golf org runs competitions (leaderboards), not teams.
-  const [operatesCompetitions, setOperatesCompetitions] = useState(side === 'league' || startsGolf);
-  const [operatesTeams, setOperatesTeams] = useState(side === 'club' && !startsGolf);
+  const startsGolfDefault = side === 'club' ? (enabledSport(initialSport) ? initialSport : FEATURE_FLAGS.FEATURE_SPORTS[0]) === 'golf' : startsGolf;
+  const [operatesCompetitions, setOperatesCompetitions] = useState(side === 'league' || startsGolfDefault);
+  const [operatesTeams, setOperatesTeams] = useState(side === 'club' && !startsGolfDefault);
   const [sportKey, setSportKey] = useState<string>(enabledSport(initialSport) ? initialSport : 'golf');
   // Phase 7 C2 — what the site draft collects beyond the request.
+  // R2: a club starts with ONE sport ticked — the door's `?sport=`, else the
+  // first enabled sport — so bare /club/start is the small path too.
   const [sports, setSports] = useState<string[]>(
-    side === 'club' && enabledSport(initialSport) ? [initialSport] : []
+    side === 'club' ? [enabledSport(initialSport) ? initialSport : FEATURE_FLAGS.FEATURE_SPORTS[0]] : []
   );
+  // R2 (179): where the org lives — the directory (a reviewed listing, the
+  // public default) or link only. Live by link either way.
+  const [listing, setListing] = useState<'pending' | 'unlisted'>('pending');
+  const [moreOpen, setMoreOpen] = useState(false);
   const [homeCourse, setHomeCourse] = useState<{ id: string; label: string } | null>(null);
   const [courseQuery, setCourseQuery] = useState('');
   const [courseResults, setCourseResults] = useState<GolfCourse[]>([]);
@@ -82,7 +87,7 @@ export default function OrgStartWizard({
   const [expandStructure, setExpandStructure] = useState(false);
   // The golf defaults flip the capability boxes ONCE (the first time the
   // sport set becomes exactly golf) — never over a manual choice after.
-  const golfDefaultsApplied = useRef(startsGolf);
+  const golfDefaultsApplied = useRef(startsGolfDefault);
   const [seasonLabel, setSeasonLabel] = useState('');
   const [sections, setSections] = useState<SectionState[]>([]);
   const [teams, setTeams] = useState<string[]>([]);
@@ -99,15 +104,8 @@ export default function OrgStartWizard({
   const allDivisions = (): DivisionDraftRow[] => sections.flatMap(sectionRows);
 
   const hasGolf = side === 'league' ? sportKey === 'golf' : sports.includes('golf');
-  const golfOnly = side === 'league' ? sportKey === 'golf' : sports.length === 1 && sports[0] === 'golf';
-  const golfFast = golfOnly && !expandStructure;
-  const steps = golfFast
-    ? side === 'league'
-      ? STEPS_LEAGUE_GOLF
-      : STEPS_CLUB_GOLF
-    : side === 'league'
-      ? STEPS_LEAGUE
-      : STEPS_CLUB;
+  const smallPath = isSmallPath({ side, sportsCount: sports.length, expandStructure });
+  const steps = stepsFor({ side, sportsCount: sports.length, expandStructure }) as Step[];
 
   const applyGolfDefaults = (nextGolfOnly: boolean) => {
     if (!nextGolfOnly || golfDefaultsApplied.current) return;
@@ -212,10 +210,11 @@ export default function OrgStartWizard({
         homeCourseLabel: homeCourse?.label ?? '',
         website,
         phone,
+        listing,
       });
     }, 400);
     return () => clearTimeout(t);
-  }, [side, step, name, description, place, placeText, operatesCompetitions, operatesTeams, sportKey, seasonLabel, sections, teams, connections, sports, homeCourse, website, phone]);
+  }, [side, step, name, description, place, placeText, operatesCompetitions, operatesTeams, sportKey, seasonLabel, sections, teams, connections, sports, homeCourse, website, phone, listing]);
 
   const untouched =
     name.trim() === '' && description.trim() === '' && sections.length === 0 && teams.length === 0;
@@ -247,6 +246,7 @@ export default function OrgStartWizard({
     );
     setWebsite(draft.website);
     setPhone(draft.phone);
+    if (draft.listing) setListing(draft.listing);
     if (draft.divisions.length > 0 || draft.teams.length > 0) setExpandStructure(true);
     if (steps.includes(draft.step as Step)) setStep(draft.step as Step);
     setAvailableDraft(null);
@@ -302,6 +302,7 @@ export default function OrgStartWizard({
         ...(phone.trim() ? { phone: phone.trim() } : {}),
       };
       const siteDraft = {
+        listing,
         ...(side === 'club' && sports.length > 0 ? { sports } : {}),
         ...(homeCourse ? { homeCourseId: homeCourse.id } : {}),
         ...(Object.keys(contact).length > 0 ? { contact } : {}),
@@ -328,18 +329,21 @@ export default function OrgStartWizard({
           ...(Object.keys(siteDraft).length > 0 ? { siteDraft } : {}),
         }),
       });
-      const data = await response.json().catch(() => ({}));
+      const data = (await response.json().catch(() => ({}))) as { error?: string; orgId?: string | null };
       if (!response.ok) {
         showError(`${side === 'league' ? 'League' : 'Club'} request`, data.error || 'Could not submit the request');
-        if (response.status === 409) onSubmitted();
+        if (response.status === 409) onSubmitted(null);
         return;
       }
       clearOrgWizardDraft(side);
+      // R2: the org is LIVE from this moment (179) — the parent lands in the console.
       showSuccess(
-        `${side === 'league' ? 'League' : 'Club'} request`,
-        "Submitted — we'll notify you when it's reviewed"
+        `Your ${side}`,
+        data.orgId
+          ? `Your ${side} is live — here's your console`
+          : "Submitted — we'll notify you when it's reviewed"
       );
-      onSubmitted();
+      onSubmitted(data.orgId ?? null);
     } catch {
       showError('Request', 'Could not submit the request');
     } finally {
@@ -390,6 +394,19 @@ export default function OrgStartWizard({
 
       {step === 'identity' && (
         <div className="space-y-4">
+          <div>
+            <label htmlFor="wiz-name" className="block text-sm font-medium text-secondary mb-1">
+              Name
+            </label>
+            <input
+              id="wiz-name"
+              type="text"
+              value={name}
+              maxLength={120}
+              onChange={e => setName(e.target.value)}
+              className={inputClass}
+            />
+          </div>
           {side === 'club' && (
             <fieldset>
               <legend className="text-sm font-medium text-secondary mb-1">Sports you play</legend>
@@ -410,95 +427,12 @@ export default function OrgStartWizard({
                 })}
               </div>
               <p className="text-xs text-muted mt-1">
-                {golfOnly
-                  ? 'Golf clubs sign up in two steps — divisions and teams can wait.'
+                {smallPath
+                  ? `Two steps and your ${side} is live. Pick more than one sport for a multi-sport program.`
                   : 'Pick every sport your club runs; you can add more later.'}
               </p>
             </fieldset>
           )}
-          {hasGolf && (
-            <div>
-              <label htmlFor="wiz-home-course" className="block text-sm font-medium text-secondary mb-1">
-                Home course (optional)
-              </label>
-              {homeCourse ? (
-                <div className="flex items-center justify-between gap-2 rounded-lg border border-border px-3 py-2 text-sm">
-                  <span className="text-primary">{homeCourse.label}</span>
-                  <button
-                    type="button"
-                    onClick={() => setHomeCourse(null)}
-                    className="text-xs text-brand-fg hover:text-brand-fg-strong shrink-0"
-                  >
-                    Remove
-                  </button>
-                </div>
-              ) : (
-                <>
-                  <input
-                    id="wiz-home-course"
-                    type="text"
-                    value={courseQuery}
-                    autoComplete="off"
-                    onChange={e => {
-                      const next = e.target.value;
-                      setCourseQuery(next);
-                      if (next.trim().length < 2) setCourseResults([]);
-                    }}
-                    placeholder="Search the course catalog"
-                    className={inputClass}
-                  />
-                  {courseResults.length > 0 && (
-                    <ul className="mt-2 divide-y divide-border rounded-lg border border-border">
-                      {courseResults.map(c => (
-                        <li key={c.id}>
-                          <button
-                            type="button"
-                            onClick={() => pickCourse(c)}
-                            className="w-full text-left px-3 py-2 text-sm hover:bg-surface-sunken transition-colors"
-                          >
-                            <span className="font-medium text-primary">{courseDisplayName(c.clubName, c.name)}</span>
-                            {(c.city || c.state) && (
-                              <span className="text-tertiary"> · {[c.city, c.state].filter(Boolean).join(', ')}</span>
-                            )}
-                          </button>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                </>
-              )}
-              <p className="text-xs text-muted mt-1">
-                {courseHint ||
-                  'Your club can play anywhere — a home course just prefills your details and shows on your site.'}
-              </p>
-            </div>
-          )}
-          <div>
-            <label htmlFor="wiz-name" className="block text-sm font-medium text-secondary mb-1">
-              Name
-            </label>
-            <input
-              id="wiz-name"
-              type="text"
-              value={name}
-              maxLength={120}
-              onChange={e => setName(e.target.value)}
-              className={inputClass}
-            />
-          </div>
-          <div>
-            <label htmlFor="wiz-desc" className="block text-sm font-medium text-secondary mb-1">
-              Description
-            </label>
-            <textarea
-              id="wiz-desc"
-              value={description}
-              maxLength={2000}
-              rows={3}
-              onChange={e => setDescription(e.target.value)}
-              className={inputClass}
-            />
-          </div>
           <div>
             <label htmlFor="wiz-place" className="block text-sm font-medium text-secondary mb-1">
               Home town
@@ -516,69 +450,176 @@ export default function OrgStartWizard({
               className={inputClass}
             />
           </div>
-          <fieldset className="space-y-3">
-            <legend className="text-sm font-medium text-secondary mb-1">Contact (for your site)</legend>
-            <div>
-              <label htmlFor="wiz-website" className="block text-xs text-tertiary mb-1">
-                Website
-              </label>
-              <input
-                id="wiz-website"
-                type="url"
-                inputMode="url"
-                value={website}
-                maxLength={200}
-                onChange={e => setWebsite(e.target.value)}
-                placeholder="https://"
-                className={inputClass}
-              />
-            </div>
-            <div>
-              <label htmlFor="wiz-phone" className="block text-xs text-tertiary mb-1">
-                Phone
-              </label>
-              <input
-                id="wiz-phone"
-                type="tel"
-                value={phone}
-                maxLength={40}
-                onChange={e => setPhone(e.target.value)}
-                className={inputClass}
-              />
-            </div>
-          </fieldset>
           <fieldset>
-            <legend className="text-sm font-medium text-secondary mb-1">
-              What does your organization run?
-            </legend>
-            <label className="flex items-start gap-2 py-1">
-              <input
-                type="checkbox"
-                checked={operatesCompetitions}
-                onChange={e => setOperatesCompetitions(e.target.checked)}
-                className="mt-1"
-              />
-              <span className="text-sm text-primary">
-                We run competitions
-                <span className="block text-xs text-muted">Schedules, standings, a house league</span>
-              </span>
-            </label>
-            <label className="flex items-start gap-2 py-1">
-              <input
-                type="checkbox"
-                checked={operatesTeams}
-                onChange={e => setOperatesTeams(e.target.checked)}
-                className="mt-1"
-              />
-              <span className="text-sm text-primary">
-                We run teams
-                <span className="block text-xs text-muted">Rosters that play in leagues</span>
-              </span>
-            </label>
+            <legend className="text-sm font-medium text-secondary mb-1">Where does your {side} live?</legend>
+            <div className="space-y-2">
+              <label className="flex items-start gap-2 py-1">
+                <input type="radio" name="wiz-listing" value="pending" checked={listing === 'pending'} onChange={() => setListing('pending')} className="mt-1" />
+                <span className="text-sm text-primary">
+                  In the directory
+                  <span className="block text-xs text-muted">Listed in /{side === 'league' ? 'leagues' : 'clubs'} and search once an Edge Athlete admin reviews it.</span>
+                </span>
+              </label>
+              <label className="flex items-start gap-2 py-1">
+                <input type="radio" name="wiz-listing" value="unlisted" checked={listing === 'unlisted'} onChange={() => setListing('unlisted')} className="mt-1" />
+                <span className="text-sm text-primary">
+                  Link only
+                  <span className="block text-xs text-muted">Live for anyone with the link; not listed or indexed.</span>
+                </span>
+              </label>
+            </div>
+            <p className="text-xs text-muted mt-1">Your {side} is live the moment you create it either way.</p>
           </fieldset>
+          <div className="rounded-lg border border-border">
+            <button
+              type="button"
+              onClick={() => setMoreOpen(o => !o)}
+              aria-expanded={moreOpen}
+              className="w-full flex items-center justify-between px-3 py-2 min-h-[44px] text-sm font-medium text-secondary"
+            >
+              More details (optional)
+              <span aria-hidden="true">{moreOpen ? '▴' : '▾'}</span>
+            </button>
+            {moreOpen && (
+              <div className="px-3 pb-3 space-y-4">
+              {hasGolf && (
+                <div>
+                  <label htmlFor="wiz-home-course" className="block text-sm font-medium text-secondary mb-1">
+                    Home course (optional)
+                  </label>
+                  {homeCourse ? (
+                    <div className="flex items-center justify-between gap-2 rounded-lg border border-border px-3 py-2 text-sm">
+                      <span className="text-primary">{homeCourse.label}</span>
+                      <button
+                        type="button"
+                        onClick={() => setHomeCourse(null)}
+                        className="text-xs text-brand-fg hover:text-brand-fg-strong shrink-0"
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  ) : (
+                    <>
+                      <input
+                        id="wiz-home-course"
+                        type="text"
+                        value={courseQuery}
+                        autoComplete="off"
+                        onChange={e => {
+                          const next = e.target.value;
+                          setCourseQuery(next);
+                          if (next.trim().length < 2) setCourseResults([]);
+                        }}
+                        placeholder="Search the course catalog"
+                        className={inputClass}
+                      />
+                      {courseResults.length > 0 && (
+                        <ul className="mt-2 divide-y divide-border rounded-lg border border-border">
+                          {courseResults.map(c => (
+                            <li key={c.id}>
+                              <button
+                                type="button"
+                                onClick={() => pickCourse(c)}
+                                className="w-full text-left px-3 py-2 text-sm hover:bg-surface-sunken transition-colors"
+                              >
+                                <span className="font-medium text-primary">{courseDisplayName(c.clubName, c.name)}</span>
+                                {(c.city || c.state) && (
+                                  <span className="text-tertiary"> · {[c.city, c.state].filter(Boolean).join(', ')}</span>
+                                )}
+                              </button>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </>
+                  )}
+                  <p className="text-xs text-muted mt-1">
+                    {courseHint ||
+                      'Your club can play anywhere — a home course just prefills your details and shows on your site.'}
+                  </p>
+                </div>
+              )}
+              <div>
+                <label htmlFor="wiz-desc" className="block text-sm font-medium text-secondary mb-1">
+                  Description
+                </label>
+                <textarea
+                  id="wiz-desc"
+                  value={description}
+                  maxLength={2000}
+                  rows={3}
+                  onChange={e => setDescription(e.target.value)}
+                  className={inputClass}
+                />
+              </div>
+              <fieldset className="space-y-3">
+                <legend className="text-sm font-medium text-secondary mb-1">Contact (for your site)</legend>
+                <div>
+                  <label htmlFor="wiz-website" className="block text-xs text-tertiary mb-1">
+                    Website
+                  </label>
+                  <input
+                    id="wiz-website"
+                    type="url"
+                    inputMode="url"
+                    value={website}
+                    maxLength={200}
+                    onChange={e => setWebsite(e.target.value)}
+                    placeholder="https://"
+                    className={inputClass}
+                  />
+                </div>
+                <div>
+                  <label htmlFor="wiz-phone" className="block text-xs text-tertiary mb-1">
+                    Phone
+                  </label>
+                  <input
+                    id="wiz-phone"
+                    type="tel"
+                    value={phone}
+                    maxLength={40}
+                    onChange={e => setPhone(e.target.value)}
+                    className={inputClass}
+                  />
+                </div>
+              </fieldset>
+              </div>
+            )}
+          </div>
+          {!smallPath && (
+            <fieldset>
+              <legend className="text-sm font-medium text-secondary mb-1">
+                What does your organization run?
+              </legend>
+              <label className="flex items-start gap-2 py-1">
+                <input
+                  type="checkbox"
+                  checked={operatesCompetitions}
+                  onChange={e => setOperatesCompetitions(e.target.checked)}
+                  className="mt-1"
+                />
+                <span className="text-sm text-primary">
+                  We run competitions
+                  <span className="block text-xs text-muted">Schedules, standings, a house league</span>
+                </span>
+              </label>
+              <label className="flex items-start gap-2 py-1">
+                <input
+                  type="checkbox"
+                  checked={operatesTeams}
+                  onChange={e => setOperatesTeams(e.target.checked)}
+                  className="mt-1"
+                />
+                <span className="text-sm text-primary">
+                  We run teams
+                  <span className="block text-xs text-muted">Rosters that play in leagues</span>
+                </span>
+              </label>
+            </fieldset>
+          )}
           <button
             type="button"
-            disabled={!name.trim() || (!operatesCompetitions && !operatesTeams)}
+            disabled={!name.trim() || (!smallPath && !operatesCompetitions && !operatesTeams)}
             onClick={next}
             className={primaryBtn}
           >
@@ -830,7 +871,7 @@ export default function OrgStartWizard({
       {step === 'review' && (
         <div className="space-y-4">
           {backLink}
-          <p className="font-medium text-primary">Review your request</p>
+          <p className="font-medium text-primary">{smallPath ? 'Review' : 'Review your request'}</p>
           <ul className="space-y-2 text-sm">
             <li className="rounded-lg border border-border p-3">
               <span className="block font-medium text-primary">{name || 'Unnamed'}</span>
@@ -863,11 +904,13 @@ export default function OrgStartWizard({
                 Edit
               </button>
             </li>
-            {golfFast ? (
+            {smallPath ? (
               <li className="rounded-lg border border-border p-3">
-                <span className="block text-primary">Divisions, teams and connections can wait</span>
+                <span className="block text-primary">
+                  {listing === 'pending' ? 'Live now · listing under review' : 'Live now · link only'}
+                </span>
                 <span className="block text-xs text-muted">
-                  Leagues, leaderboards and season points are built from your console.
+                  Leagues, seasons and members are set up from your console.
                 </span>
                 <button
                   type="button"
@@ -877,7 +920,7 @@ export default function OrgStartWizard({
                   }}
                   className="text-xs text-brand-fg mt-1"
                 >
-                  Add divisions and teams now
+                  We run divisions or teams
                 </button>
               </li>
             ) : (
@@ -905,7 +948,7 @@ export default function OrgStartWizard({
             )}
           </ul>
           <button type="button" disabled={submitting || !name.trim()} onClick={() => void submit()} className={primaryBtn}>
-            {submitting ? 'Submitting…' : 'Submit request'}
+            {submitting ? (smallPath ? 'Creating…' : 'Submitting…') : smallPath ? `Create my ${side}` : 'Submit request'}
           </button>
         </div>
       )}

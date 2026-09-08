@@ -31,6 +31,8 @@ export interface OrgWizardDraft {
   homeCourseLabel: string;
   website: string;
   phone: string;
+  /** R2: the directory choice (absent on v1 drafts ⇒ pending). */
+  listing?: 'pending' | 'unlisted';
 }
 
 export const WIZARD_DRAFT_TTL_MS = 48 * 60 * 60 * 1000;
@@ -111,6 +113,7 @@ export function parseOrgWizardDraft(raw: string | null, now: number = Date.now()
       homeCourseLabel: str(parsed.homeCourseLabel),
       website: str(parsed.website),
       phone: str(parsed.phone),
+      ...(parsed.listing === 'pending' || parsed.listing === 'unlisted' ? { listing: parsed.listing } : {}),
     };
     return isEmptyOrgWizardDraft(draft) ? null : draft;
   } catch {

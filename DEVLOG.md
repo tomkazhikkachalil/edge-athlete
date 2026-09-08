@@ -1,5 +1,67 @@
 # Development Log
 
+## September 8, 2026 — Onboarding v2 round 2: wizard v2 — one screen for the small case, structure only when asked (zero DDL)
+
+Round 1 made every org live by link. This round makes CREATING one match:
+the Club Model's rule that "a four-person club never sees the word
+division", from every entry point.
+
+**The small path is the default.** `src/lib/orgs/wizard-steps.ts` (pure,
+tested) decides the steps: a club with zero or one sport → identity →
+review; a league → identity → sport → review; the full path (structure,
+connections) only for a multi-sport club or through the review card's
+"We run divisions or teams". Was: the two-step path only for a golf club
+that arrived via `?sport=golf` — bare `/club/start` (the feed card, the
+search footer, `/leagues`) got four steps with zero sports ticked. A club
+now starts with ONE sport ticked (the door's `?sport=`, else the first
+enabled sport) so every entry is the small path.
+
+**One screen.** Name → sports (clubs) → home town → **"Where does your
+club live?"** (In the directory, reviewed — the public default; or Link
+only) → a collapsed **"More details (optional)"** holding the home course,
+the description and the site contact. The required "What does your
+organization run?" question is gone from the small path: it gated
+nothing, and a golf club's answer is derived exactly as the golf defaults
+already did (competitions on, teams off); the full path still asks. No
+"divisions and teams" copy anywhere on the small path — the sports hint
+reads "Two steps and your club is live", the review card "Live now ·
+listing under review" / "Live now · link only" with "Leagues, seasons and
+members are set up from your console", the submit "Create my club".
+
+**The hand-off.** The request POST always returned the provisioned
+`orgId` and the wizard threw it away — the owner waited for a refetch,
+then clicked "Open your console". Now `onSubmitted(orgId)` and the start
+page pushes straight to `/app/org/{side}/{id}?welcome=1`; the console
+reads the flag in an effect one tick deferred and shows a dismissible
+"Your club is live" strip. (A lazy `useState` read of
+`window.location.search` missed it: on a client-side `router.push` the
+first render still sees the previous URL — the probe caught it.) The 409 path still refetches. The start page's
+pending card became a notice ("{name} — listing under review … your club
+is live now") that no longer REPLACES the wizard: a second, link-only
+creation is never blocked by a queued listing.
+
+**Link only, on the wire.** `siteDraft.listing ∈ pending | unlisted` (the
+draft schema and the local draft carry it; v1 drafts read pending). The
+request routes write the row's `status` from it — `'unlisted'` sits
+outside the admin queue and never trips the one-pending index; a pre-179
+CHECK (23514) lands the row as pending. `pending-org.ts` provisions the
+org with the same status and now LINKS an unlisted row to its org too (the
+link filtered on `status = 'pending'`, so a later "ask to be listed" could
+not have found its own row); the admin bell fires only for pending. The
+checklist's "Publish your site" hint no longer says approval unlocks it.
+
+**Verification.** `npm run verify` green. Unit: `stepsFor` / `isSmallPath`
+(every side × sport count × expander). e2e `club-request-golf.spec.ts`
+updated to the v2 contract: Golf pre-checked, "In the directory" the
+default radio, no capabilities checkbox, the home course under "More
+details", the review card copy, the expander's new label, and — after
+submit — the URL `/app/org/club/<id>?welcome=1` with the welcome strip;
+`site_draft` carries `listing: 'pending'`. Phone-width (390) screenshot of
+the identity step and the welcome strip before the PR. Prod probe after
+merge: the golf spec against the deployment.
+
+---
+
 ## September 8, 2026 — Onboarding v2 round 1: live by link — approval gates the listing, never the door (zero DDL)
 
 Round 0 landed migration 179 and its reader; this round moves the gate.
