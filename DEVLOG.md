@@ -1,5 +1,29 @@
 # Development Log
 
+## September 8, 2026 — Onboarding v2 round 6: the docs (masterplan §4/§6/§8/§11, CLAUDE.md convention 10, the session doc)
+
+Rounds 0–5 are merged and prod-proven; this round makes the documents say
+what the code now does.
+
+- **`docs/ORG_PLATFORM_MASTERPLAN.md`:** header status through phase 7 +
+  Onboarding v2; §4 gains the v2 entry (live by link, listing-gated
+  approval, the small path, the console hand-off, the join link, self-
+  roster, the one-tap golf league, the zero-admin page) above the six
+  full-path steps it keeps as the design reference; §6 SEO records the
+  noindex rule for unlisted/pending sites; §8 gains invariant 4 — "Unlisted
+  is not hidden: live by link from creation; approval gates the listing,
+  never the door; a member's own opt-in, never the follow edge, puts them
+  on the roster"; §11's table fixes the stale 6c row (it shipped Sep 1–2)
+  and adds row 8.
+- **`CLAUDE.md`:** Key Convention 10 — the listing model, the two route
+  trees every org-site subpage lives in, self-roster, the creator gate.
+- **`docs/SESSION_PROMPT.md`:** the program in the shipped list, migration
+  head 179, `main` at the #594 merge, the parked spec items.
+
+No code changes. Next program = Tom's call.
+
+---
+
 ## September 8, 2026 — Onboarding v2 round 5: the zero-admin club page — members and leaders from posted rounds (zero DDL)
 
 The Club Model's design note: "all seven surfaces are aggregations over

@@ -4,7 +4,7 @@ Clubs, schools, and leagues run their entire online presence inside Edge
 Athlete. Their website is not a thing they maintain. It is a rendering of
 their EA data.
 
-**Status: phases 0–6b SHIPPED (Aug 30–Sep 1 2026).** This document is the
+**Status: phases 0–7 SHIPPED (Aug 30–Sep 4 2026), Onboarding v2 SHIPPED (Sep 8 2026).** This document is the
 design reference; `DEVLOG.md` is the round-by-round record and wins on any
 conflict. Payments (§11 phase 6) is deliberately skipped. Phase 6c (golf
 leagues that fill themselves from member rounds, the import leftovers) is
@@ -184,11 +184,28 @@ minutes, with zero athletes loaded. A volunteer registrar has one evening.
 The wizard is resumable, saves a draft at every step, and never blocks
 publish on data completeness.
 
-**The wizard runs inside the existing approval queue.** The org is built
-fully in draft — identity, structure, connections, people, site — and
-approval just flips it live. Review protects the name and (once sites exist)
-the subdomain namespace from squatters without ever slowing onboarding:
-self-serve speed, vetted publication.
+**Onboarding v2 (Sep 8 2026, migration 179) rewrote the entry.** An org is
+LIVE BY LINK the moment it is created — console, join door, member rounds,
+publishing all work — and the approval queue decides only the LISTING (the
+directories, the sitemap, search, the robots index). The public default
+files a listing request; "link only" skips the queue. The small path is
+the default from every entry point: name → sport → home town → where the
+org lives (directory or link only) → a collapsed "more details"; a club
+with zero or one sport never sees the words division or team (the Club
+Model rule — "never make a small club model itself as a big one"). The
+full path below (structure, connections) is opt-in: a multi-sport club, or
+the review card's "We run divisions or teams". After creation the owner
+lands in the console with a join link to share; a member who joins can
+count themselves in the org's leagues (an adult in one act, a supervised
+athlete through the guardian offer); a golf org's season, league and weekly
+windows start with one tap, at any course; and the public site fills from
+members' posted rounds — a members table and leaders — with zero admin
+work. The six steps below remain the FULL path's design reference.
+
+The org is built fully in draft — identity, structure, connections,
+people, site. Review protects the name and the subdomain namespace from
+squatters without ever slowing onboarding: self-serve speed, vetted
+LISTING.
 
 ### Step 1: Identity
 
@@ -390,6 +407,11 @@ schema.org structured data (SportsTeam, SportsEvent, SportsOrganization,
 Person). Athlete pages are indexable only when the athlete is an adult with
 a public profile. Minors are never indexed, regardless of org settings.
 
+An org site is indexed only when the org is LISTED (Onboarding v2, 179):
+an unlisted or pending site serves by link with `robots: noindex`, a
+disallowing per-site robots.txt and an empty per-site sitemap, and is
+absent from the directories, the sitemap and search.
+
 ## 7. The automatic flows
 
 These are the reason an org tolerates switching. They should feel like the
@@ -470,6 +492,10 @@ Three invariants that protect it:
    for minors — and only the roster edge carries stats attribution, media
    attribution, and calendar writes. No future feature may quietly turn the
    follow edge into a pipe.
+4. **Unlisted is not hidden.** An org is live by link from the moment it
+   is created; admin approval gates the LISTING (directory, sitemap, search,
+   index), never the door. A member's own opt-in — never the follow edge —
+   puts them on the roster (Onboarding v2, Sep 8 2026).
 
 ## 9. Season lifecycle
 
@@ -525,8 +551,9 @@ entry, phone-width parity.
 | 6 | Vanity paths + slug engine, sanctioning chain, result disputes, CSV import (Tom's redefined scope) | SHIPPED (migs 166–168) |
 | 6b | Golf club page, builder depth (tokens, second template, three modules), custom domains | SHIPPED (migs 169–171) |
 | — | Payments | SKIPPED by decision (registrations stays the invoice anchor) |
-| 6c | Golf leagues that fill themselves from member rounds, ICS + stat-line imports, the two-page club/league defaults | IN FLIGHT |
+| 6c | Golf leagues that fill themselves from member rounds, ICS + stat-line imports, the two-page club/league defaults | SHIPPED (mig 172–173; Sep 1–2 2026) |
 | 7 | Org Staff Program (§3.4 + §5 delivered): organizer accounts, section-scoped staff grants on the one membership table, owner-minted email invites, the Hierarchy console section, season expiry at rollover, audit trail | SHIPPED (mig 178; Sep 4 2026 rounds 0–6; the §5 named-role ladder is expressed as section sets, not ten role strings) |
+| 8 | Onboarding v2 (the Club Model's onboarding slice): live by link with approval gating the listing, the one-screen small-path wizard, self-serve roster opt-in + the join link, the implicit season + one-tap any-course golf league, the zero-admin members page + leaders from posted rounds, the supervised-minor creator gate | SHIPPED (mig 179; Sep 8 2026 rounds 0–6, #589–#594) |
 
 The public projection spike (phase 2) resolved to posture A — service-role,
 viewer-independent reads in the (public) segment — with one recorded
