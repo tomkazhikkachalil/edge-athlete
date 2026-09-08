@@ -1,5 +1,63 @@
 # Development Log
 
+## September 8, 2026 — Onboarding v2 opens: round 0 — migration 179 (listing state), the listing reader, and the minor gate
+
+Tom pasted "The Club Model" — a club is a group of people who compete
+together and keep the record; structure appears only when needed; the page
+fills itself from rounds — and asked to improve club and league onboarding
+with it. Three audits reconciled the spec against `main`: its principle is
+Tom's golf principle (2) from Sep 1, already law; its inventory is stale
+(memberships with scope/kind/season, seasons/divisions/teams, the
+competition core, the golf self-fill, season points, the calendar merge,
+hole-tagged media and visibility/join policy are all built). What blocks a
+four-friends club is a chain of five small walls — nothing works until
+admin approval and the join door lives only on the published site; the
+wizard's required "what does your organization run" (gates nothing) and
+its division copy; join = a `follow` row while competition entry needs
+`roster`; "Create a season first." and a golf sync that needs one venue;
+a public site that renders nothing from member rounds — plus one safety
+gap: a supervised athlete could create an org.
+
+**Tom's decisions:** scope = onboarding only (formats, brackets, ad hoc
+teams, external athlete entries, hole-level contest media parked);
+"auto-approve unlisted, queue public"; default visibility stays public;
+all member rounds feed Members + Stats, competition-window rounds feed
+standings. The plan reads that as LIVE BY LINK: every org works the moment
+it exists; admin approval gates only the LISTING (directory, sitemap,
+robots index, search). Seven rounds, one migration; plan file in memory.
+
+**Round 0, this PR.** `179_org_listing.sql`: `listing_status ∈ unlisted |
+pending | listed` on clubs and leagues, DEFAULT `'listed'` (the 175
+lesson — the one writer that means pending is `pending-org.ts`, which
+now says so), backfilled from `approved_at IS NULL`; `club_requests` /
+`league_requests` status gains `'unlisted'` (R2's link-only creation);
+`notifications.type` gains `'org_listing_request'` (R1's admin bell, 178's
+list verbatim — the first draft copied 173's and would have dropped the
+three org-staff types; the registry parity test caught it); `org_site_modules.module_key` gains `'members'`, seeded
+disabled per site (R5, the 169 recipe). `src/lib/orgs/listing.ts` is the
+one reader the discoverability surfaces will use: `listing_status` wins,
+a pre-179 row derives today's semantics from `approved_at`, a pre-174 row
+is not known and reads as listed — nothing ever darkens. `readApproval`
+is deprecated in place and R1 rewires its callers. The create helpers
+accept `listingStatus` with a PGRST204 step-down. No behaviour changes.
+
+**The minor gate.** `org-creator-gate.ts`: `canCreateOrg` (pure) +
+`requireOrgCreator`, called right after `requireAuth` on both request
+routes — a supervised profile gets 403 "A guardian starts an organization
+for a supervised athlete" (registration's wording). The `supervisionState`
+helper duplicated in `owners.ts` and `roster-server.ts` is hoisted into
+the same module as `readSupervisionState`. A node test asserts, by
+reading both route files, that the gate follows `requireAuth` — the
+api-route-authz idiom — so a refactor cannot drop it silently.
+
+**Verification.** `npm run verify` green. Tests: listing derivation
+matrix (179 / pre-179 / pre-174 rows, bogus values), the gate's three
+verdicts, the route-source assertion. Prod probe after Tom runs 179 and
+the PR merges: a supervised QA child's `POST /api/clubs/requests` → 403,
+an adult's → 200; the migration's check grid.
+
+---
+
 ## September 8, 2026 — Maintenance sweep after the refinements round (docs only)
 
 Tom: "run the full project maintenance checklist and sync." Run on `main`

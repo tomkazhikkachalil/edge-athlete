@@ -38,7 +38,10 @@ export function approvalFromRow(row: Record<string, unknown> | null | undefined)
   };
 }
 
-/** The live read. Any error (42703 on a pre-174 database included) → NOT_KNOWN. */
+/** The live read. Any error (42703 on a pre-174 database included) → NOT_KNOWN.
+ *  @deprecated Onboarding v2 (179): the gate is the LISTING, not approval —
+ *  read `readListing` from ./listing. R1 rewires every caller; this stays
+ *  one round so nothing darkens in between. */
 export async function readApproval(admin: Admin, side: OrgSide, orgId: string): Promise<ApprovalState> {
   const { data, error } = await admin
     .from(side === 'league' ? 'leagues' : 'clubs')

@@ -42,6 +42,7 @@ import {
   type RosterStatus,
 } from './members';
 import { canGrantPhotoConsent, setPhotoConsent } from './photo-consent';
+import { readSupervisionState } from './org-creator-gate';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- matches the authz.ts Admin alias; schema-agnostic helper
 type Admin = SupabaseClient<any, 'public', any>;
@@ -65,15 +66,6 @@ export function rosterDeleteOutcome(input: {
   return input.status === 'pending' ? 'cancelled' : 'removed';
 }
 
-async function supervisionState(admin: Admin, profileId: string): Promise<string | null | undefined> {
-  const { data } = await admin
-    .from('profiles')
-    .select('id, supervision_state')
-    .eq('id', profileId)
-    .maybeSingle();
-  // undefined = profile missing; null/other = state
-  return data ? (data.supervision_state as string | null) : undefined;
-}
 
 /** POST ?profileId= — a manager offers a roster spot to an existing member. */
 export async function rosterPost(
@@ -96,7 +88,7 @@ export async function rosterPost(
     return NextResponse.json({ error: 'Not authorized to manage the roster' }, { status: 403 });
   }
 
-  const targetSupervision = await supervisionState(admin, targetProfileId);
+  const targetSupervision = await readSupervisionState(admin, targetProfileId);
   if (targetSupervision === undefined) {
     return NextResponse.json({ error: 'Athlete not found' }, { status: 404 });
   }
@@ -180,7 +172,7 @@ export async function rosterPatch(
     return NextResponse.json({ error: cfg.notFound }, { status: 404 });
   }
 
-  const targetSupervision = await supervisionState(admin, target);
+  const targetSupervision = await readSupervisionState(admin, target);
   const targetSupervised = targetSupervision === 'supervised';
 
   const { accepted, error } = await acceptRosterOffer(admin, { side, orgId }, target);
@@ -246,7 +238,7 @@ export async function rosterConsentPatch(
     return NextResponse.json({ error: cfg.notFound }, { status: 404 });
   }
 
-  const targetSupervision = await supervisionState(admin, target);
+  const targetSupervision = await readSupervisionState(admin, target);
   if (targetSupervision === undefined) {
     return NextResponse.json({ error: 'Athlete not found' }, { status: 404 });
   }
@@ -349,7 +341,7 @@ export async function rosterDelete(
   // Cross-notify on the supervised decline path (leaves stay quiet — the
   // withdraw-quiet precedent).
   if (action === 'declined') {
-    const targetSupervision = await supervisionState(admin, target);
+    const targetSupervision = await readSupervisionState(admin, target);
     if (targetSupervision === 'supervised') {
       if (guardianActing) {
         await notifyChildOfGuardianDecision(admin, side, orgId, loaded.org.name, target, 'declined');

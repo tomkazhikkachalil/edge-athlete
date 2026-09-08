@@ -7,6 +7,7 @@ import { LeagueRequestWizardSchema } from '@/lib/orgs/wizard-validate';
 import { isSportEnabled } from '@/lib/features';
 import type { SportKey } from '@/lib/sports/SportRegistry';
 import { provisionPendingOrg } from '@/lib/orgs/pending-org';
+import { requireOrgCreator } from '@/lib/orgs/org-creator-gate';
 
 // ── /api/leagues/requests — self-service "Start a league" (116) ─────────────
 // The org-signup flow: any signed-in user submits a request; admins decide
@@ -19,6 +20,10 @@ import { provisionPendingOrg } from '@/lib/orgs/pending-org';
 export async function POST(request: NextRequest) {
   try {
     const user = await requireAuth(request);
+    // Onboarding v2 R0: a supervised athlete never mints an org owner —
+    // the guardian starts it from their own account.
+    const refused = await requireOrgCreator(getSupabaseAdmin(), user.id);
+    if (refused) return refused;
     const limited = await enforceRateLimit(request, 'league-request', { userId: user.id });
     if (limited) return limited;
 

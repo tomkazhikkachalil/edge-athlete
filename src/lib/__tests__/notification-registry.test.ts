@@ -117,6 +117,8 @@ describe('tab buckets (behavior frozen from the pre-registry literal arrays)', (
       'league_request_result',
       'league_update',
       'new_message',
+      // Onboarding v2 (mig 179): an org asked to be listed — the admin bell.
+      'org_listing_request',
       // Phase 5 (mig 163): the registration lifecycle.
       'org_registration_placed',
       'org_registration_received',
