@@ -2,8 +2,8 @@
 
 > Tom's session-start prompt. Paste this (or point Claude at it) when opening a
 > development session. Last aligned with project state: **September 8, 2026
-> (after the small-refinements round #584–#586 and the maintenance sweep
-> that followed)** — migration head still 178. If the "Where the project
+> (close of day, after the maintenance sweep #587)** — post the
+> small-refinements round (#584–#586); migration head still 178. If the "Where the project
 > actually is" section drifts stale, ask Claude to re-align it against
 > DEVLOG.md and session memory.
 
@@ -126,9 +126,15 @@ width (root cause: the nowrap timestamp drawing under the owner cluster;
 a lock glyph below `sm`); #586 an owner's pin/edit/delete collapse into
 one "…" menu below `sm` (`PostOwnerMenu`, portaled, `placeMenu`;
 `usePopoverDismiss` now takes several refs and makes Escape close the
-topmost popover only). `main` is at the #586 merge with nothing in
-flight. The next fix or program is Tom's call; candidates in session
-memory. Tom still owes ops: Search Console, custom-domain env, device
+topmost popover only). The close-of-day sweep (#587: gate green on
+`main` — 2,764 tests, floor gate, lint at zero — guardrails + `npm audit`
+clean, branches pruned, memory index trimmed) leaves `main` at the #587
+merge (02caee0) with nothing in flight. One incident from the sweep: the
+GitHub → Vercel webhook missed the docs-only #587 merge (the three fix
+merges all fired); production was deployed manually from the synced
+`main` and carries the merge SHA — check for a deployment row after
+every merge, and re-fire by hand when there is none. The next fix or
+program is Tom's call; candidates in session memory. Tom still owes ops: Search Console, custom-domain env, device
 passes — including the capture-fix pass (three portrait photos un-edited,
 one edited photo + a video, a live-round hole photo) and a first real
 staff invite on his own league.
