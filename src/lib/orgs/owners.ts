@@ -36,6 +36,7 @@ import {
   promoteFollowToOwner,
   type OrgRef,
 } from './members';
+import { readSupervisionState } from './org-creator-gate';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- matches the authz.ts Admin alias; schema-agnostic helper
 type Admin = SupabaseClient<any, 'public', any>;
@@ -89,14 +90,6 @@ export function stepDownGuard(input: {
   return { ok: true };
 }
 
-async function supervisionState(admin: Admin, profileId: string): Promise<string | null | undefined> {
-  const { data } = await admin
-    .from('profiles')
-    .select('id, supervision_state')
-    .eq('id', profileId)
-    .maybeSingle();
-  return data ? (data.supervision_state as string | null) : undefined;
-}
 
 /** Recompute the primary-owner cache: earliest remaining owner (id
  *  tie-break). Zero owners → no-op + warn (the column is never NULLed by
@@ -141,7 +134,7 @@ export async function promoteToOwner(
     return NextResponse.json({ error: cfg.notFound }, { status: 404 });
   }
 
-  const targetSupervision = await supervisionState(admin, targetProfileId);
+  const targetSupervision = await readSupervisionState(admin, targetProfileId);
   if (targetSupervision === undefined) {
     return NextResponse.json({ error: 'Athlete not found' }, { status: 404 });
   }

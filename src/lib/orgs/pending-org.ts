@@ -80,6 +80,8 @@ export async function provisionPendingOrg(
           ? undefined
           : { operatesCompetitions: row.operates_competitions, operatesTeams: row.operates_teams ?? false },
       approvedAt: null,
+      // 179: the ONE writer that means pending — the column DEFAULT is 'listed'.
+      listingStatus: 'pending' as const,
     };
 
     let orgId: string;

@@ -33,6 +33,9 @@ export interface CreateClubInput {
   approvedAt?: string | null;
   /** The sport the club leads with (174) — the golf site shape (C3). */
   primarySport?: string | null;
+  /** Listing state (179): undefined ⇒ the column DEFAULT ('listed' — every
+   *  direct/admin create); pending-org.ts passes 'pending' or 'unlisted'. */
+  listingStatus?: 'unlisted' | 'pending' | 'listed';
 }
 
 export type CreateClubResult =
@@ -58,12 +61,19 @@ export async function createClubWithOwner(
   const approval = {
     approved_at: input.approvedAt === undefined ? new Date().toISOString() : input.approvedAt,
     ...(input.primarySport ? { primary_sport: input.primarySport } : {}),
+    ...(input.listingStatus ? { listing_status: input.listingStatus } : {}),
   };
   let { data: club, error: insertError } = await admin
     .from('clubs')
     .insert({ ...base, ...approval })
     .select()
     .single();
+  if (insertError?.code === 'PGRST204' && /listing_status/.test(insertError.message ?? '')) {
+    // Pre-179 database: no listing column — approval state only (174).
+    const { listing_status: _dropped, ...pre179 } = approval;
+    void _dropped;
+    ({ data: club, error: insertError } = await admin.from('clubs').insert({ ...base, ...pre179 }).select().single());
+  }
   if (insertError?.code === 'PGRST204' && /approved_at|primary_sport/.test(insertError.message ?? '')) {
     // Pre-174 database: no approval state exists — the club is simply live.
     ({ data: club, error: insertError } = await admin.from('clubs').insert(base).select().single());

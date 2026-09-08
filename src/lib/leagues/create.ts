@@ -32,6 +32,9 @@ export interface CreateLeagueInput {
   /** Phase 7 C4 (174): undefined ⇒ live now (every direct/admin create);
    *  null ⇒ PENDING (provisioned at request time, approval stamps it). */
   approvedAt?: string | null;
+  /** Listing state (179): undefined ⇒ the column DEFAULT ('listed' — every
+   *  direct/admin create); pending-org.ts passes 'pending' or 'unlisted'. */
+  listingStatus?: 'unlisted' | 'pending' | 'listed';
 }
 
 export type CreateLeagueResult =
@@ -56,11 +59,20 @@ export async function createLeagueWithOwner(
       : {}),
   };
   const approvedAt = input.approvedAt === undefined ? new Date().toISOString() : input.approvedAt;
+  const listing = input.listingStatus ? { listing_status: input.listingStatus } : {};
   let { data: league, error: insertError } = await admin
     .from('leagues')
-    .insert({ ...base, approved_at: approvedAt })
+    .insert({ ...base, approved_at: approvedAt, ...listing })
     .select()
     .single();
+  if (insertError?.code === 'PGRST204' && /listing_status/.test(insertError.message ?? '')) {
+    // Pre-179 database: no listing column — approval state only (174).
+    ({ data: league, error: insertError } = await admin
+      .from('leagues')
+      .insert({ ...base, approved_at: approvedAt })
+      .select()
+      .single());
+  }
   if (insertError?.code === 'PGRST204' && /approved_at/.test(insertError.message ?? '')) {
     // Pre-174 database: no approval state exists — the league is simply live.
     ({ data: league, error: insertError } = await admin.from('leagues').insert(base).select().single());
