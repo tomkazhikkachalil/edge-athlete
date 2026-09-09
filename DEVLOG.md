@@ -1,5 +1,37 @@
 # Development Log
 
+## September 9, 2026 — Site Builder phase 7 (P7-B): the theme panel — the brand in one pane, previewed live, saved through the console's own actions (zero DDL; behind the flag)
+
+- **`ThemePanel.tsx`**, opened from the editor's top bar ("Theme"; one
+  right pane at a time — selecting a tile closes it): start from a
+  template (Classic / Bold — "apply the seed": the design overrides go,
+  colours / face / wordmark stay, mirroring `set_template`), the accent
+  with a colour picker + hex field and a LIVE contrast readout against
+  the white text the hero and band carry (`contrastRatio` vs `#ffffff`,
+  the `ACCENT_MAX_LUMINANCE` rule the server enforces — a too-light
+  colour disables Save with the ratio and a plain sentence), the strong
+  accent (or Auto), the background tint, the heading face — every name
+  shown IN its own face (the panel loads all five; the public site never
+  does), the four design decisions with "Template default (…)" naming
+  what the seed would do, and the wordmark.
+- **Live preview, no write**: the panel edits a `ThemeDraft`; while it is
+  open the editor hands the canvas the site with the draft's template and
+  tokens laid over (`canvasSite`), so `themeAttrs` re-dresses the canvas
+  on every change — nothing reaches the server until Save. Save goes
+  through the console's own actions (`set_template` when the seed
+  changed, then `set_theme` with the WHOLE token set, every design key
+  named so null clears), then the canvas re-reads the site (`refreshSite`
+  → `adoptRev`, so the next layout autosave carries the bumped rev).
+  Discard closes without a write.
+- e2e (editor spec, flagged build): open Theme → `#ffff00` is refused
+  ("too light", Save disabled) → `#0f766e` is readable → the canvas
+  already wears it unsaved → pick the Editorial face → the canvas wears
+  it → header → Bar → the console GET still holds the OLD tokens → Save →
+  the GET holds the new set (accentStrong cleared) → the canvas wears the
+  saved theme → a title edit after the save autosaves (the rev followed)
+  → after publish the public shell carries the teal accent, the bar
+  header (no band), the Lora @font-face + preload and NOT Oswald's.
+
 ## September 9, 2026 — Site Builder phase 7 (P7-A): the template's decisions become theme tokens; self-hosted heading faces; the canvas wears the brand (zero DDL)
 
 Phase 7 opens under the theme: "chrome is fixed; content, order, size and
