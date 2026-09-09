@@ -1,26 +1,11 @@
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { getSupabaseAdmin } from '@/lib/auth-server';
-import { fetchOrgEvents } from '@/lib/calendar/org-events-server';
-import { fetchPublicStandings } from '@/lib/competitions/public-standings';
-import {
-  fetchPublicOpenWindows,
-  fetchPublicAffiliations,
-  fetchPublicClubGolfBoards,
-  fetchPublicCourses,
-  fetchPublicDivisions,
-  fetchPublicGolfRounds,
-  fetchPublicNewsList,
-  fetchPublicPages,
-  fetchPublicStaff,
-  fetchPublicStatLeaders,
-  fetchPublicTeams,
-  fetchPublicVenues,
-} from '@/lib/org-sites/public-data';
-import { fetchPublicCourseStats } from '@/lib/org-sites/course-stats';
+import { fetchPublicPages } from '@/lib/org-sites/public-data';
 import { getDraftSiteBySlug } from '@/lib/org-sites/server';
 import { verifyPreviewToken } from '@/lib/org-sites/preview-token';
-import { deriveLegacyLayout, needsData } from '@/lib/site-builder/layout';
+import { deriveLegacyLayout } from '@/lib/site-builder/layout';
+import { rawSiteReaders, resolveHomeData } from '@/lib/org-sites/widget-data';
 import SiteHomeBody from '@/app/(public)/org/[slug]/_components/SiteHomeBody';
 import SiteShell from '@/app/(public)/org/[slug]/_components/SiteShell';
 
@@ -56,33 +41,15 @@ export default async function OrgSitePreview({
   const tokenSiteId = verifyPreviewToken(token);
   if (!tokenSiteId || tokenSiteId !== site.id) notFound();
 
-  // P1-C: the same derived layout the live home renders from (the preview
-  // has never fetched memberStats — a pre-existing gap, left as is).
+  // P1-C: the same derived layout the live home renders from; P3-A: the
+  // same resolver too, with the RAW reader set (every hit re-reads) — so the
+  // preview now carries everything the home does (members table, the
+  // leaders' golf fallback), which it had drifted from.
   const layout = deriveLegacyLayout(site);
-  const need = (field: Parameters<typeof needsData>[1]) => needsData(layout, field);
-  const { side, orgId } = site;
-  const [standings, events, teams, staff, venues, affiliations, openWindows, courses, divisions, leaders, clubGolfBoards, golfRounds, news, pages] =
-    await Promise.all([
-    need('standings') ? fetchPublicStandings(admin, side, orgId) : Promise.resolve(null),
-    need('events') ? fetchOrgEvents(admin, side, orgId, { limit: 25 }) : Promise.resolve(null),
-    need('teams') ? fetchPublicTeams(admin, side, orgId) : Promise.resolve([]),
-    need('staff') ? fetchPublicStaff(admin, side, orgId) : Promise.resolve([]),
-    need('venues') ? fetchPublicVenues(admin, side, orgId) : Promise.resolve([]),
-    need('affiliations') ? fetchPublicAffiliations(admin, side, orgId) : Promise.resolve([]),
-    need('openWindows') ? fetchPublicOpenWindows(admin, side, orgId) : Promise.resolve([]),
-    need('courses') ? fetchPublicCourses(admin, side, orgId) : Promise.resolve([]),
-    need('divisions') ? fetchPublicDivisions(admin, side, orgId) : Promise.resolve([]),
-    need('leaders') ? fetchPublicStatLeaders(admin, side, orgId) : Promise.resolve([]),
-    need('clubGolfBoards') && side === 'club' ? fetchPublicClubGolfBoards(admin, orgId) : Promise.resolve([]),
-    need('golfRounds') ? fetchPublicGolfRounds(admin, side, orgId) : Promise.resolve([]),
-    need('news') ? fetchPublicNewsList(admin, site.id, { publicOnly: site.visibility === 'private' }) : Promise.resolve([]),
+  const [data, pages] = await Promise.all([
+    resolveHomeData(rawSiteReaders(admin, site), site, layout),
     fetchPublicPages(admin, site.id),
   ]);
-  // S3: the club strip (needs the course ids from the read above).
-  const courseStrip =
-    need('courseStrip') && side === 'club'
-      ? await fetchPublicCourseStats(admin, side, orgId, [...new Set(courses.map(c => c.course.id))])
-      : null;
 
   return (
     <SiteShell site={site} pages={pages}>
@@ -92,11 +59,7 @@ export default async function OrgSitePreview({
           to go live.
         </p>
       </div>
-      <SiteHomeBody
-        site={site}
-        layout={layout}
-        data={{ standings, events, teams, staff, venues, affiliations, openWindows, courses, divisions, leaders, clubGolfBoards, courseStrip, golfRounds, news }}
-      />
+      <SiteHomeBody site={site} layout={layout} data={data} />
     </SiteShell>
   );
 }

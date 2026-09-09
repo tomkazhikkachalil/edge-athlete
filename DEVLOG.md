@@ -1,5 +1,49 @@
 # Development Log
 
+## September 9, 2026 — Site Builder P3-A: one data resolver for the site home (widget-data.ts), the FEATURE_SITE_BUILDER flag, the react-grid-layout pre-install record (zero DDL)
+
+Phase 3 opens where the architecture said it must: **a widget holds a
+QUERY, never data**, so the queries get one home before the grid arrives.
+The public home and the draft preview each carried their own `Promise.all`
+of the same fifteen reads, gated by hand against the module list — and had
+drifted: the preview never fetched `memberStats` and lacked the cached
+leaders' golf fallback (a golf org with no competition still has leaders
+from its members' rounds).
+
+- **`src/lib/org-sites/widget-data.ts`**: `SiteReaders` (one reader per
+  `SiteHomeData` field), two sets with identical semantics —
+  `cachedSiteReaders(slug, site)` (the ISR home, `unstable_cache` per slug)
+  and `rawSiteReaders(admin, site)` (the preview; the editor canvas next) —
+  `neededFields(layout, side)` (the catalog's `data` fields of the widgets on
+  the layout, club-only fields dropped on a league) and `resolveHomeData(
+  readers, site, layout)` (one round, exactly the readers needed, the strip
+  handed the courses already read). `dataKey(key, config)` names the
+  data-affecting part of a widget's config for per-instance cache keys —
+  '' for every widget today; a per-instance cached read MUST put it in its
+  `unstable_cache` keyParts (the cached.ts closure trap).
+- **`home-data.ts`**: `SiteHomeData` moves out of `SiteHomeBody.tsx` so the
+  resolver and the props-only renderer share one type without the renderer
+  importing anything that reads (guardrail §4b). `SiteHomeBody` re-exports it.
+- **Callers 1 and 2**: `(public)/org/[slug]/page.tsx` and the `(preview)`
+  page are each one line now. The home's data bag is identical by
+  construction (same readers, same gating). The PREVIEW gains what it had
+  drifted from — the members table and the leaders' golf fallback — a
+  deliberate change: the preview must show what publish will show.
+- **`FEATURE_SITE_BUILDER`** (`NEXT_PUBLIC_FEATURE_SITE_BUILDER`, build-
+  injected, a SURFACE switch, unused yet): off hides the editor door and
+  404s the editor routes; the public renderer is never flagged.
+- **react-grid-layout, pre-install record** (`npm view`, Sep 9 2026):
+  dist-tags `latest 2.2.4`, `legacy 1.5.4`; 2.2.4 ships its own types
+  (`dist/index.d.ts`) and declares peers `react >= 16.3.0` (React 19 fits);
+  dependencies `react-draggable ^4.4.6` (4.7.1, same peers),
+  `react-resizable ^3.1.3`, `resize-observer-polyfill`, `fast-equals`,
+  `clsx`, `prop-types`. Decision: pin **2.2.4** at install (P3-B), copy its
+  CSS scoped under `.sb-canvas`, and let `check:syntax` judge the editor
+  chunk against the iOS 15 floor on the first build. Not installed here.
+- Tests: `widget-data.test.ts` (8) — empty layout costs nothing, every web
+  widget's fields are covered, club-only fields drop on a league, the strip
+  gets the courses' ids, a disabled module costs nothing, `dataKey` is ''.
+
 ## September 9, 2026 — Site Builder P2-D: the revisions spec and the docs (phase 2 closes; zero DDL)
 
 - **`e2e/org-site-revisions.spec.ts`** — the whole loop against a 180

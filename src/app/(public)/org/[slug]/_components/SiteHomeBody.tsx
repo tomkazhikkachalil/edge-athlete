@@ -1,23 +1,11 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import { orgMediaUrl } from '@/lib/media/org-site-media';
-import type { OrgEvent } from '@/lib/calendar/org-events-server';
-import type { PublicStandingsPayload } from '@/lib/competitions/public-standings';
 import type { PublicSite } from '@/lib/org-sites/server';
-import type { PublicNewsItem, PublicOpenWindow } from '@/lib/org-sites/public-data';
+import type { SiteHomeData } from '@/lib/org-sites/home-data';
 import type { WebWidgetKey } from '@/lib/site-builder/catalog';
 import { widget, type SiteLayout, type WidgetInstance } from '@/lib/site-builder/layout';
 import NewsItems from './NewsItems';
-import type {
-  PublicAffiliation,
-  PublicClubGolfBoard,
-  PublicCourse,
-  PublicDivision,
-  PublicLeaderBoard,
-  PublicStaffRow,
-  PublicTeam,
-  PublicVenue,
-} from '@/lib/org-sites/public-data';
 import {
   GOLF_TAGLINE,
   moduleLabel,
@@ -45,43 +33,16 @@ import VenuesList from './VenuesList';
 import { appBaseUrl, siteBasePath } from '@/lib/org-sites/urls';
 import MembersOnlyPanel from './MembersOnlyPanel';
 import { FULL_WIDTH_MODULES, templateSpec } from '@/lib/org-sites/templates';
-import type { CourseStats } from '@/lib/golf/course-stats';
-import type { PublicGolfRound } from '@/lib/org-sites/public-data';
 import GolfRoundsSchedule from './GolfRoundsSchedule';
 import { courseRecordLine } from './CourseStatsCard';
 import MembersTable from './MembersTable';
-import type { MemberStats } from '@/lib/golf/member-stats';
 
 // The site home's module rendering, extracted (cleanup round) so the
 // PUBLISHED home page and the token-gated draft PREVIEW render the exact
 // same markup from different data paths (cached vs raw). Props-only,
-// server-safe — the public-segment component contract.
-export interface SiteHomeData {
-  standings: PublicStandingsPayload | null;
-  events: OrgEvent[] | null;
-  teams: PublicTeam[];
-  staff: PublicStaffRow[];
-  venues: PublicVenue[];
-  affiliations: PublicAffiliation[];
-  /** Phase 5 R5 — open registration windows (empty = card says closed). */
-  openWindows: PublicOpenWindow[];
-  /** Phase 6b A2 — the golf club's linked catalog courses. */
-  courses: PublicCourse[];
-  /** Phase 6b B3 — divisions + stat leaders (documents ride module config). */
-  divisions: PublicDivision[];
-  leaders: PublicLeaderBoard[];
-  /** Phase 6c G3 — a CLUB page's golf boards (own + affiliated leagues'). */
-  clubGolfBoards?: PublicClubGolfBoard[];
-  /** Phase 6e S3 — the club's courses fill themselves from members' public rounds. */
-  courseStrip?: CourseStats | null;
-  /** Phase 6e S4 — a golf league's play windows on the schedule. */
-  golfRounds?: PublicGolfRound[];
-  /** N1 (program 10) — the latest posts for the home's news teaser
-   *  (already audience-filtered for a private club). */
-  news?: PublicNewsItem[];
-  /** R5: the members table — null when the module is off. */
-  memberStats?: MemberStats | null;
-}
+// server-safe — the public-segment component contract. The data bag's type
+// lives in @/lib/org-sites/home-data (P3-A) — shared with the resolver.
+export type { SiteHomeData };
 
 export default function SiteHomeBody({
   site,
