@@ -1,12 +1,11 @@
 # Start Session — Edge Athlete Development
 
 > Tom's session-start prompt. Paste this (or point Claude at it) when opening a
-> development session. Last aligned with project state: **September 8, 2026
-> (end of session, after the Onboarding v2 close #595–#597, the advisory
-> bumps #598 + #600 and the final sweep #599)** — migration head 179; `main`
-> at the #599 merge (64c3ef8e), deployed and Ready. If the "Where the project
-> actually is" section drifts stale, ask Claude to re-align it against
-> DEVLOG.md and session memory.
+> development session. Last aligned with project state: **September 9, 2026
+> (after the Org Pages Program close #612, the night of Sep 8–9)** —
+> migration head 179; `main` at the #612 merge (b76470a2), deployed and
+> Ready. If the "Where the project actually is" section drifts stale, ask
+> Claude to re-align it against DEVLOG.md and session memory.
 
 ## Context & Vision
 
@@ -171,14 +170,68 @@ golf club (Tom as owner, unlisted, 8 QA members, 47 rounds, a running
 points-race league) was seeded on prod for screenshots and torn down the
 same evening; the sweep verified nothing of it remains. The public-site
 breakdown/wireframes artifact from that walk-through is linked in session
-memory. `main` is at the #599 merge (64c3ef8e), deployed and Ready, with
-nothing in flight; every branch of the day is deleted. The
-next program is Tom's call; candidates in session memory (the parked spec
-items above, the club/league page twins fold, the name-helper
-consolidation). Tom still owes ops: Search Console, custom-domain env, device
-passes — including the capture-fix pass (three portrait photos un-edited,
-one edited photo + a video, a live-round hole photo) and a first real
-staff invite on his own league.
+memory. That close left `main` at the #599 merge (64c3ef8e).
+
+**Sep 8 evening — five quick fixes, one PR each, every one prod-proven,
+zero DDL** (#602–#606): a golf post's hole cells got outlines (the par
+bucket in `SCORE_CELL_RING` had none, so pars floated) and the feed card's
+player rows took the detail Overview's look — no hole strip, creation
+order, no medals (Tom lifted the Aug 10 feed-rendering freeze for it; it
+stands again); the feed sidebar calendar opens on Month (prefs key bumped
+to v2 so the flip landed for everyone); the post header shows the name
+only (no `@handle`, also in the quoted-post embed); the chat dock's
+minimized pills are a translucent light violet (the white `ea-surface`
+chip vanished on the canvas; the dock is desktop-only) and they now order
+newest-at-left (MINIMIZE prepends; cap evictions still append). Two of
+those PRs collided on the DEVLOG's top entry — the second needed a rebase.
+
+**Sep 8–9 night — the Org Pages Program (#607–#612), COMPLETE and
+prod-proven.** Tom: "take the principles from how we polished up the
+Vitals section and apply them to the league and club pages … not enough
+media integration … connected back to the styling of the app." Five
+rounds, one PR each, every one merged by Tom and probed on production
+before the next opened; zero DDL; two routes added (baseline 257).
+**R1** #607 folded the 983-line league/club page twins into one `OrgPage`
+(`side` prop) with a byte-identical DOM proof against production.
+**R2** #608 gave it the `.org-app-scope` dialect (the two shadow levels
+re-pointed, never `--brand`; `.ea-bubble` / `ea-pop-in` / `--ea-spring`
+lifted from Vitals) and a media hero — the site's logo, hero photo and
+accent ride the org GET as `brand`; a DRAFT site's brand shows for
+everyone (Tom's call; the bytes were already anonymous) with a "Site
+draft" pill for managers; a theme-readable text tint is derived per
+surface with no new column. **R3** #609 put every section behind a
+tappable bubble (one big number + a sub-line) whose `LargerWindow` hosts
+the existing section unchanged (`bare`); 13 specs tap the bubble first
+(`e2e/helpers/org-page.ts openWindow`); `?window=` deep links; the page
+hook shows its spinner on the first load only (a refresh used to remount
+the page — and would have closed the window a mutation was made in).
+**R4** #610 brought the site's media in-app: a Photos bubble on a new
+`/api/{leagues,clubs}/[id]/gallery` read under IDENTICAL public gates
+(masked labels — one policy), news covers, course + hole photos, and two
+bug fixes it found (the activity thumbnail broken since the media-privacy
+flip; one Escape closing two layers — `LargerWindow` now yields to the
+topmost dialog). **R5** #611 added the members' posts wall on a new
+`?org=<side>:<id>` arm of the posts route (the org lens's own rule,
+`withMedia=1`, members-only for a private org; supervised authors not
+additionally excluded, by decision). The close (#612) added CLAUDE.md
+convention 11 naming the house pieces. Left for later, on purpose: retire
+the `.vt-card` / `.vt-pop-in` aliases and the two vitals re-export shims;
+the all-day event date semantics on the Events face; logos in the public
+directories. Standing traps from the night (in session memory): the e2e
+global setup mints fresh QA users per run; a gate that stops at typecheck
+leaves the OLD build for any spec run that follows; prod streamer checks
+after a revoke need a cache-busted URL; the pop-in entrance scales cards
+for 350ms, so measure after the animations settle.
+
+`main` is at the #612 merge (b76470a2), deployed and Ready, with nothing in
+flight; every branch of the night is deleted. The next program is Tom's
+call; candidates in session memory (the parked Club Model spec items —
+competition formats, brackets, ad hoc teams, external entries, hole-level
+contest media — and the name-helper consolidation). Tom still owes ops:
+Search Console, custom-domain env, device passes — the capture-fix pass
+(three portrait photos un-edited, one edited photo + a video, a live-round
+hole photo), a first real staff invite on his own league, and a pass over
+a real branded club's in-app page on his phone.
 
 ## Production standard (the baseline, already in force)
 
