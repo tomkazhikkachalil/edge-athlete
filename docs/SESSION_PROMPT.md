@@ -2,9 +2,8 @@
 
 > Tom's session-start prompt. Paste this (or point Claude at it) when opening a
 > development session. Last aligned with project state: **September 9, 2026
-> (after the Org Pages Program close #612, the night of Sep 8–9)** —
-> migration head 179; `main` at the #612 merge (b76470a2), deployed and
-> Ready. If the "Where the project actually is" section drifts stale, ask
+> (after the end-of-session maintenance sweep #614)** — migration head 179;
+> `main` at the #614 merge (0f442fc7), deployed and Ready. If the "Where the project actually is" section drifts stale, ask
 > Claude to re-align it against DEVLOG.md and session memory.
 
 ## Context & Vision
@@ -223,7 +222,18 @@ leaves the OLD build for any spec run that follows; prod streamer checks
 after a revoke need a cache-busted URL; the pop-in entrance scales cards
 for 350ms, so measure after the animations settle.
 
-`main` is at the #612 merge (b76470a2), deployed and Ready, with nothing in
+After the close, Tom asked for a preview of the org pages: an artifact of
+production captures, then rebuilt as a FILLED club (seven disposable
+accounts, a five-week Thursday league two weeks in, news with covers,
+announcements, a course with hole photos, a six-photo gallery, six member
+round posts) seeded against a LOCAL production build and torn down in the
+same run — nothing reached production. The link is in session memory.
+The end-of-session sweep (#614, DEVLOG only) closed the day: gate green on
+`main` — 265 files / 2,815 tests, 171 static pages, the floor gate over
+163 chunks — guardrails green, `npm audit` 0 at every level; the webhook
+fired; the floor gate was re-run on 34 downloaded deployed chunks.
+
+`main` is at the #614 merge (0f442fc7), deployed and Ready, with nothing in
 flight; every branch of the night is deleted. The next program is Tom's
 call; candidates in session memory (the parked Club Model spec items —
 competition formats, brackets, ad hoc teams, external entries, hole-level
