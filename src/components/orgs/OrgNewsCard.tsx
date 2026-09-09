@@ -25,6 +25,8 @@ interface MemberPost {
   publishedAt: string;
   audience: 'public' | 'members';
   blocks: NewsBlock[];
+  /** Org Pages R4: the site's cover rule (first image block), absolute streamer URL. */
+  cover?: { url: string; alt: string; width?: number; height?: number } | null;
 }
 
 export default function OrgNewsCard({ side, orgId, isMember, bare = false }: { side: 'league' | 'club'; orgId: string; isMember: boolean; /** Org Pages R3: hosted in a LargerWindow — no card chrome. */ bare?: boolean }) {
@@ -63,19 +65,32 @@ export default function OrgNewsCard({ side, orgId, isMember, bare = false }: { s
       <ul className="mt-2 divide-y divide-border-subtle">
         {posts.map(p => (
           <li key={p.id} className="py-2">
-            <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
-              <button
-                type="button"
-                onClick={() => setOpen(o => (o === p.id ? null : p.id))}
-                className="text-left text-sm font-medium text-primary hover:text-brand-fg"
-                aria-expanded={open === p.id}
-              >
-                {p.title}
-              </button>
-              <span className="text-xs text-muted">
-                {p.publishedAt.slice(0, 10)}
-                {p.audience === 'members' ? ' · members only' : ''}
-              </span>
+            <div className="flex items-start gap-3">
+              {/* R4: the cover thumbnail — the public site's own cover rule,
+                  through the org-media streamer (never optimizer-eligible). */}
+              {p.cover && (
+                // eslint-disable-next-line @next/next/no-img-element -- org-media rides the tokenless streamer, not next/image (the image policy)
+                <img
+                  src={p.cover.url}
+                  alt={p.cover.alt}
+                  className="w-16 h-16 shrink-0 rounded-lg object-cover bg-surface-muted"
+                  data-news-cover={p.slug}
+                />
+              )}
+              <div className="min-w-0 flex-1 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+                <button
+                  type="button"
+                  onClick={() => setOpen(o => (o === p.id ? null : p.id))}
+                  className="text-left text-sm font-medium text-primary hover:text-brand-fg"
+                  aria-expanded={open === p.id}
+                >
+                  {p.title}
+                </button>
+                <span className="text-xs text-muted">
+                  {p.publishedAt.slice(0, 10)}
+                  {p.audience === 'members' ? ' · members only' : ''}
+                </span>
+              </div>
             </div>
             {open === p.id && (
               <div className="mt-2 space-y-2 text-sm text-secondary" data-news-body={p.slug}>

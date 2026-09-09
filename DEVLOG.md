@@ -1,5 +1,74 @@
 # Development Log
 
+## September 8, 2026 — Org Pages Program R4: the media round (#610)
+
+The fourth round of the program Tom opened tonight — the one his brief
+named directly: *"there isn't enough media integration in the league and
+club pages."* Every asset already existed and was managed in the console;
+what the in-app page lacked was READ endpoints for signed-in members plus
+display. Four surfaces land, all on the R3 grid, all reusing the public
+site's readers and gates rather than inventing a second policy.
+
+**Photos bubble.** `GET /api/{leagues,clubs}/[id]/gallery` (two thin
+routes, `getServerAuth` visible in each for the route-authz audit; handler
+`orgGalleryGET` in `org-sites/app-gallery-server.ts`): org exists →
+`readOrgAccess`; a private org answers members and the owner only (403
+`Members only`, the site's members-only rule in-app); a public org answers
+anyone. Items = `fetchPublicGallery` with IDENTICAL gates to the site —
+NOT relaxed for members on purpose: the streamers re-run the public gate
+per request, so a relaxed list would enumerate items whose bytes 404. A
+draft site or a private org therefore shows no members' round photos
+(contest items still show) and a manager gets "Publish the site to show
+members' round photos →". Labels stay masked as on the site (one label
+policy, Tom's call). `PublicGalleryItem` gains `kind`, `width`, `height`
+additively; `orderGalleryForApp` (pure, tested) turns the site's two lists
+into one timeline (newest first, members before contest on a date,
+undated last, stable). New ip-keyed rate bucket `org-gallery` (60/min —
+the read fans out ~10 queries). Face: count over a four-up `MediaCollage`;
+window: `MediaGrid` → the house `MediaLightbox` (z-[60], above the window)
+with competition · date · labels as the caption. Route count 255 → 257
+(HARDENING change log).
+
+**News covers.** `news/mine` rows gain `cover` via `resolveNewsCover`
+(pure, tested): the site's `firstImage` rule mapped through the
+prefix-re-asserting `orgMediaUrl` — a block under another site's prefix
+reads as no cover. `OrgNewsCard` shows a 64px thumbnail per post
+(`data-news-cover`), members-only posts included for members.
+
+**Course + hole photos.** The venues read gains `photos: Record<courseId,
+{photo?, holes?}>` via `coursePhotoUrls` (pure, tested) from the console's
+`courses` module config — shown regardless of the module's enabled flag or
+the site's `published_at` (org-authored artwork whose bytes are anonymous
+through the org-media streamer). `OrgVenues` leads each course with the
+same 16:9 photo the public course page leads with, and the expanded card
+gains a snap-scrolling hole strip (`data-hole-photos`), every tile opening
+the lightbox.
+
+**The one bug.** `OrgRecentActivity`'s thumbnail has been BROKEN since the
+media-privacy flip: `activity-server.ts` returned the raw `media_url` of a
+private-bucket object. It now selects `thumbnail_url` + `display_order`,
+takes the first item, and returns `toProxyUrl(…, { type: 'post', id })` —
+the proxy's `authorizePost` rule (post public AND owner public) is exactly
+this list's rule, so bytes and list agree. `LazyImage` already goes
+`unoptimized` for `/api/media/`.
+
+**The second bug, found by the new spec.** `LargerWindow` (R2) and the
+`MediaLightbox` it now hosts BOTH listen for Escape on `window`, so one
+Escape in the lightbox closed the lightbox AND the window beneath it (the
+same would have happened with a `ConfirmModal` opened from the Members
+window). `LargerWindow` now yields unless it is the LAST `[role="dialog"]`
+in the DOM — the `usePopoverDismiss` rule from the Sep 8 owner-menu fix
+(Escape = the topmost layer only), applied to sheets.
+
+**e2e.** New `org-app-gallery.spec.ts`: a member's public round photo,
+consented and picked on a published public club site → the Photos face
+counts it, the window's tile opens the lightbox; revoke consent → the list
+omits it AND the streamer 404s; a private org → anonymous 403, member 200.
+Extended: `org-site-news-cover` (the in-app card's `img[data-news-cover]`
+inside the News window), `org-site-hole-photos` (the venues read carries
+`photos`; the Courses window renders the strip), `org-activity` (the thumb
+src is `/api/media/…` and fetches 200). Zero DDL.
+
 ## September 8, 2026 — Org Pages Program R3: the glance grid and the larger windows (#609)
 
 The round the program was for. R1 folded the twins, R2 gave the page its

@@ -13,6 +13,7 @@ import { NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/auth-server';
 import { fetchPublicStandings } from '@/lib/competitions/public-standings';
 import { parsePageBody } from '@/lib/org-sites/validate';
+import { resolveNewsCover } from '@/lib/org-sites/news-cover';
 import { UUID_RE } from '@/lib/golf/course-catalog';
 import { getOrgAndRole, type OrgSide } from './authz';
 
@@ -83,6 +84,9 @@ export async function newsMineGET(user: SessionUser, side: OrgSide, params: Prom
       publishedAt: n.published_at as string,
       audience: n.audience === 'members' ? 'members' : 'public',
       blocks: parsePageBody(n.body),
+      // Org Pages R4: the site's cover rule (the first image block), for
+      // the in-app card's thumbnail and the News bubble's face.
+      cover: resolveNewsCover(site.id as string, n.body),
     }));
     return NextResponse.json(
       { posts, site: { id: site.id as string, subdomain: site.subdomain as string, published: !!site.published_at } },

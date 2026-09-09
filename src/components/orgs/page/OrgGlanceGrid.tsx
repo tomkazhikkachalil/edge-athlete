@@ -6,6 +6,7 @@ import {
   Activity,
   CalendarDays,
   Flag,
+  Image as ImageIcon,
   Landmark,
   Link2,
   Megaphone,
@@ -29,6 +30,7 @@ import OrgVenues from '@/components/orgs/OrgVenues';
 import { formatDisplayName, getInitials } from '@/lib/formatters';
 import { useAuth } from '@/lib/auth';
 import OrgMembersList from './OrgMembersList';
+import { pickPhotos, PhotosEmptyFace, PhotosFace, PhotosWindow } from './OrgPhotos';
 import { SIDE_COPY } from './side-copy';
 import type { OrgPageController } from './useOrgPage';
 import type { MemberRow, OrgSide } from './types';
@@ -54,10 +56,11 @@ export type OrgWindowKey =
   | 'announcements'
   | 'courses'
   | 'activity'
-  | 'affiliations';
+  | 'affiliations'
+  | 'photos';
 
 const WINDOW_KEYS: OrgWindowKey[] = [
-  'members', 'week', 'standings', 'events', 'news', 'announcements', 'courses', 'activity', 'affiliations',
+  'members', 'week', 'standings', 'events', 'news', 'announcements', 'courses', 'activity', 'affiliations', 'photos',
 ];
 
 /** One read per face — the section's own endpoint, the section's own
@@ -239,6 +242,9 @@ export default function OrgGlanceGrid({
     reloadKey
   );
   const chain = useOrgRead(side === 'league' ? `${base}/parents` : null, pickAff, side === 'league', reloadKey);
+  // R4: the gallery — a public org's for everyone, a private org's for
+  // members (the route decides; a 403 reads as nothing here).
+  const photos = useOrgRead(`${base}/gallery`, pickPhotos, true, reloadKey);
 
   // A window's mutations (roles, roster, affiliations) change the faces —
   // refetch them when it closes, the same refetch-on-success discipline.
@@ -374,6 +380,15 @@ export default function OrgGlanceGrid({
     });
   }
 
+  if (photos && show(photos.count)) {
+    bubbles.push({
+      key: 'photos', icon: ImageIcon, label: 'Photos', span: 'md', open: photos.count > 0,
+      face: photos.count > 0
+        ? <PhotosFace read={photos} />
+        : <PhotosEmptyFace read={photos} canManage={canManage} consolePath={consolePath} />,
+    });
+  }
+
   const affCount = (affiliations?.count ?? 0) + (chain?.count ?? 0);
   const affManager = !!affiliations?.manager || !!chain?.manager;
   if (affiliations && (affCount > 0 || affManager)) {
@@ -415,6 +430,8 @@ export default function OrgGlanceGrid({
         return <OrgVenues side={side} orgId={orgId} bare />;
       case 'activity':
         return <OrgRecentActivity side={side} orgId={orgId} bare />;
+      case 'photos':
+        return photos ? <PhotosWindow read={photos} /> : null;
       case 'affiliations':
         return (
           <div className="space-y-6">

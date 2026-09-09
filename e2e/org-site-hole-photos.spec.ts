@@ -2,6 +2,7 @@ import { test, expect } from '@playwright/test';
 import fs from 'fs';
 import path from 'path';
 import { adminClient, apiAs, loadQaUser, readErrorBody, resetRateBucket } from './helpers/qa-user';
+import { openWindow } from './helpers/org-page';
 
 // N6 (program 10) — per-hole photos. The courses module's config entry
 // grows `holes: { [n]: { path, alt? } }`: set_course_photo with `hole`
@@ -99,6 +100,20 @@ test('hole photos: set hole 3 → drawn at hole 3 only; remove → gone; the cou
     expect(html).toContain('alt="The 3rd green"');
     expect(html).not.toContain('data-hole-photo="1"');
     expect(html).toContain('alt="The clubhouse"');
+
+    // R4: the in-app read carries the same photos, and the Courses window
+    // draws the course photo + the hole strip (hole 3 only).
+    res = await anon.request.get(`/api/clubs/${clubId}/venues`);
+    expect(res.status()).toBe(200);
+    const venuesBody = (await res.json()) as { photos: Record<string, { photo?: { url: string }; holes?: Record<string, { url: string }> }> };
+    expect(venuesBody.photos[courseId]?.photo?.url).toMatch(/^\/api\/media\/org-media\//);
+    expect(Object.keys(venuesBody.photos[courseId]?.holes ?? {})).toEqual(['3']);
+    const appPage = await anon.newPage();
+    await appPage.goto(`/club/${clubId}`);
+    const coursesWin = await openWindow(appPage, 'courses');
+    await coursesWin.getByRole('button', { name: new RegExp(`QA Hole Photos Nine ${stamp}`) }).click();
+    await expect(coursesWin.locator(`[data-hole-photos="${courseId}"] [data-media-tile]`)).toHaveCount(1, { timeout: 15_000 });
+    await appPage.close();
 
     // Remove hole 3 → gone; the course photo survives.
     res = await ownerApi.patch(`/api/clubs/${clubId}/site`, { data: { action: 'set_course_photo', courseId, hole: 3 } });

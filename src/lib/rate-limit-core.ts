@@ -43,6 +43,10 @@ export const RATE_LIMITS = {
   // as course-search: a typing user fires one debounced request per
   // keystroke, so 30/min breaks normal use; 120 still crawls enumeration.
   search: { max: 120, windowSeconds: 60, keyBy: 'ip' },
+  // Org Pages R4: the in-app org gallery read fans out ~10 queries (two
+  // gates re-run per read); ip-keyed because visitors of a public org may
+  // call it signed out. One page load = one call.
+  'org-gallery': { max: 60, windowSeconds: 60, keyBy: 'ip' },
   // Guardian-invite peek — unauthenticated (parents open it accountless)
   // and a valid hit names the invited email; keep token guessing costly.
   'invite-peek': { max: 30, windowSeconds: 60, keyBy: 'ip' },

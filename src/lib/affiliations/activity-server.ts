@@ -7,6 +7,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/auth-server';
+import { toProxyUrl } from '@/lib/media/proxy-url';
 import { isMissingTableError } from '@/lib/leagues/validate';
 import { memberProfileIds } from '@/lib/orgs/members';
 import { UUID_RE } from '@/lib/golf/course-catalog';
@@ -38,7 +39,7 @@ export async function orgActivityGET(
   // owner-public filter below may drop rows.
   const { data: posts, error: postsError } = await admin
     .from('posts')
-    .select('id, caption, created_at, profile_id, post_media (media_url)')
+    .select('id, caption, created_at, profile_id, post_media (media_url, thumbnail_url, display_order)')
     .in('profile_id', memberIds)
     .eq('visibility', 'public')
     .eq('status', 'published')
@@ -65,12 +66,18 @@ export async function orgActivityGET(
     .slice(0, LIMIT)
     .map(p => {
       const author = publicAuthors.get(p.profile_id as string)!;
-      const media = (p.post_media ?? []) as Array<{ media_url: string }>;
+      const media = [...((p.post_media ?? []) as Array<{ media_url: string; thumbnail_url: string | null; display_order: number | null }>)]
+        .sort((a, b) => (a.display_order ?? 0) - (b.display_order ?? 0));
+      const first = media[0];
       return {
         id: p.id,
         created_at: p.created_at,
         textExcerpt: p.caption ? String(p.caption).slice(0, EXCERPT) : null,
-        thumbUrl: media[0]?.media_url ?? null,
+        // Org Pages R4: the uploads bucket is PRIVATE (the media-privacy
+        // flip) — a raw media_url 404s. The signed proxy's authorizePost
+        // rule (post public AND owner public) is exactly this list's rule,
+        // so bytes and list agree.
+        thumbUrl: first ? toProxyUrl(first.thumbnail_url ?? first.media_url, { type: 'post', id: p.id as string }) : null,
         author: {
           id: author.id,
           first_name: author.first_name,
