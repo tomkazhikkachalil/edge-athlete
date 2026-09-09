@@ -13,7 +13,7 @@ import { normalizePostIdentity } from '@/lib/posts/post-category';
 import { createGolfRoundEntities } from '@/lib/golf/post-write';
 import { fetchGolfRoundById, fetchGolfRoundsByIds } from '@/lib/golf/post-read';
 import { enforceRateLimit } from '@/lib/rate-limit';
-import { isOrgLensVisible } from '@/lib/affiliations/org-peers';
+import { isOrgLensVisible, parseOrgParam } from '@/lib/affiliations/org-peers';
 import { toProxyUrl } from '@/lib/media/proxy-url';
 
 // Interface for tagged profiles
@@ -618,7 +618,14 @@ export async function GET(request: NextRequest) {
     // scope=orgs → the feed's "My orgs" lens: posts by the viewer's org
     // peers, restricted to ALREADY anonymous-visible content. A scope, not
     // an access grant — main-feed only (ignored on profile/pinned modes).
-    const orgScope = searchParams.get('scope') === 'orgs' && !userId && !pinnedOnly;
+    // Org Pages R5: ONE org's members' public posts (the org page's grid).
+    // `org=` wins over `scope=orgs`; it shares the lens's SQL arm below.
+    const orgFilter = !userId && !pinnedOnly ? parseOrgParam(searchParams.get('org')) : null;
+    if (searchParams.get('org') && !orgFilter && !userId && !pinnedOnly) {
+      return NextResponse.json({ error: 'Invalid org' }, { status: 400 });
+    }
+    const withMedia = searchParams.get('withMedia') === '1';
+    const orgScope = (searchParams.get('scope') === 'orgs' && !userId && !pinnedOnly) || !!orgFilter;
     const followScope = searchParams.get('scope') === 'following' && !userId && !pinnedOnly;
     // Guard against NaN (e.g. ?limit=abc) which would produce an invalid
     // .range() and 500. Clamp to sane bounds.
@@ -930,7 +937,41 @@ export async function GET(request: NextRequest) {
     // Org lens: resolve the peer set up front — anonymous viewers and
     // viewers with no orgs get their empty envelope without touching posts.
     let orgPeerIds: string[] = [];
-    if (orgScope) {
+    let orgFilterHeaders: Record<string, string> | undefined;
+    if (orgFilter) {
+      // R5: org exists → a private org answers members and the owner only;
+      // a public org answers anyone (the activity precedent — the content
+      // is anonymous-visible by construction). Authors = the org's people
+      // (kind-blind org-scope rows, the same definition getOrgPeerIds
+      // uses), capped like the lens.
+      const [{ readOrgAccess }, { getOrgAndRole }, { memberProfileIds }, { unionPeerIds }] = await Promise.all([
+        import('@/lib/orgs/access'),
+        import('@/lib/orgs/authz'),
+        import('@/lib/orgs/members'),
+        import('@/lib/affiliations/org-peers'),
+      ]);
+      const access = await readOrgAccess(supabase, orgFilter.side, orgFilter.orgId);
+      if (!access.known) {
+        return NextResponse.json({ error: orgFilter.side === 'league' ? 'League not found' : 'Club not found' }, { status: 404 });
+      }
+      let isMember = false;
+      if (currentUserId) {
+        const loaded = await getOrgAndRole(supabase, orgFilter.side, orgFilter.orgId, currentUserId);
+        if (loaded.status !== 'found') {
+          return NextResponse.json({ error: orgFilter.side === 'league' ? 'League not found' : 'Club not found' }, { status: 404 });
+        }
+        isMember = !!loaded.role || loaded.org.owner_profile_id === currentUserId;
+      }
+      if (access.visibility === 'private' && !isMember) {
+        return NextResponse.json({ error: 'Members only' }, { status: 403 });
+      }
+      const { profileIds } = await memberProfileIds(supabase, { side: orgFilter.side, orgId: orgFilter.orgId });
+      orgPeerIds = unionPeerIds([profileIds]);
+      orgFilterHeaders = { 'Cache-Control': 'private, no-store' };
+      if (orgPeerIds.length === 0) {
+        return NextResponse.json({ posts: [], hasMore: false }, { headers: orgFilterHeaders });
+      }
+    } else if (orgScope) {
       if (!currentUserId) {
         return NextResponse.json({ posts: [], hasMore: false });
       }
@@ -969,7 +1010,7 @@ export async function GET(request: NextRequest) {
       .from('posts')
       .select(`
         *,
-        post_media (
+        post_media${withMedia && orgFilter ? '!inner' : ''} (
           id,
           media_url,
           media_type,
@@ -1327,7 +1368,7 @@ export async function GET(request: NextRequest) {
       // Additive: present only in cursor mode, so legacy responses stay
       // byte-identical for old clients and the pinned/e2e paths.
       ...(cursorMode ? { nextCursor } : {}),
-    });
+    }, orgFilterHeaders ? { headers: orgFilterHeaders } : undefined);
 
   } catch (error) {
     console.error('Posts fetch error:', error);

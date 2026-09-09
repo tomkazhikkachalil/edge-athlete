@@ -1,5 +1,48 @@
 # Development Log
 
+## September 9, 2026 — Org Pages Program R5: the members' posts wall (#611)
+
+The last round of the program Tom opened on the evening of the 8th. R4
+put the org's OWN media on the page; R5 puts its members' — the posts
+they already share in public, as a wall of the profile page's own tiles.
+
+**The read.** `GET /api/posts?org=<league|club>:<uuid>[&withMedia=1]` — a
+new arm on the posts route, not a new route. `parseOrgParam` (pure,
+tested; malformed → 400). Org exists → `readOrgAccess`; a private org
+answers members and the owner only (403 `Members only`); a public org
+answers anyone (the activity precedent — the content is anonymous-visible
+by construction). Authors = `memberProfileIds` (kind-blind org-scope rows,
+the same definition `getOrgPeerIds` uses), capped like the lens. Then the
+UNCHANGED org-lens arm runs: SQL `visibility='public'`, the strict
+`status='published'` (even for the author), and `isOrgLensVisible` (post
+public AND author public) in the filter — `org=` simply sets the same
+`orgScope` and wins over `scope=orgs`. `withMedia=1` swaps the embed to
+`post_media!inner` so the wall never pages through text-only posts (the
+Recent activity list already shows those). Keyset pagination works as-is
+because the scope is SQL-level; the response carries `private, no-store`.
+
+**Supervised authors — no additional exclusion, on purpose.** The
+galleries exclude supervised athletes because an ORG publishes a minor's
+likeness on a CRAWLABLE site under the org's name. The wall is the
+athlete's OWN public post, under their own name, on a signed-in page —
+the same post already appears in the feed, Explore, `/u/` and this page's
+Recent activity, and a supervised child's post only reaches `published`
+through the guardian queue, whose owner holds the public/private switch.
+A third policy here would contradict the card above it.
+
+**The wall.** `OrgMemberPostsGrid`: a static `lg` bubble ("From members")
+of `MediaGridItem` tiles — the profile grid's tile, so a round's score band
+and "+Stats" badges read identically here — opening `PostDetailModal` with
+prev/next (the `ProfileMediaTabs` idiom). 12 newest on the face; "See all"
+opens a `LargerWindow` that pages by cursor. Nothing at zero for visitors,
+a one-line nudge for managers. `OrgRecentActivity` stays — the text-first
+sibling. Zero DDL; no new routes.
+
+**e2e.** `org-app-posts.spec.ts`: a public member's media post appears
+(tile → the detail modal), a text-only post does not (`withMedia`), a
+private member's post does not (the author rule); a private org → anon
+403, member 200; `org=nonsense` → 400.
+
 ## September 8, 2026 — Org Pages Program R4: the media round (#610)
 
 The fourth round of the program Tom opened tonight — the one his brief

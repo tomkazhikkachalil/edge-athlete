@@ -31,6 +31,7 @@ import { formatDisplayName, getInitials } from '@/lib/formatters';
 import { useAuth } from '@/lib/auth';
 import OrgMembersList from './OrgMembersList';
 import { pickPhotos, PhotosEmptyFace, PhotosFace, PhotosWindow } from './OrgPhotos';
+import OrgMemberPostsGrid from './OrgMemberPostsGrid';
 import { SIDE_COPY } from './side-copy';
 import type { OrgPageController } from './useOrgPage';
 import type { MemberRow, OrgSide } from './types';
@@ -459,6 +460,9 @@ export default function OrgGlanceGrid({
             />
           </div>
         ))}
+        {/* R5: the members' posts wall — a static lg bubble whose tiles are
+            the buttons; it owns its read, its window and its detail modal. */}
+        <OrgMemberPostsGrid side={side} orgId={orgId} viewerId={viewerId} canManage={canManage} staggerIndex={bubbles.length} />
       </div>
       {openBubble && (
         <LargerWindow title={openBubble.label} windowKey={openBubble.key} onClose={close} hostsOwnHeading>
