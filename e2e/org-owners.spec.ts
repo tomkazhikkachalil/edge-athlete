@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { adminClient, apiAs, loadQaUser, readErrorBody } from './helpers/qa-user';
+import { openWindow } from './helpers/org-page';
 
 // Multiple owners + transfer (0.8): B (owner) promotes A to co-owner via
 // confirm; A steps down; B's step-down is blocked as last owner. Cache
@@ -41,6 +42,7 @@ test('org owners: promote co-owner, step down, last-owner blocked', async ({ pag
     try {
       const pageB = await ctxB.newPage();
       await pageB.goto(`/league/${leagueId}`);
+      await openWindow(pageB, 'members');
       await pageB.getByRole('button', { name: 'Make owner' }).click();
       await pageB.getByRole('button', { name: 'Make owner', exact: true }).last().click();
       // A's row now reads owner (raw DOM text; CSS capitalizes).
@@ -85,6 +87,7 @@ test('org owners: promote co-owner, step down, last-owner blocked', async ({ pag
 
     // A (default context) steps down → back to a manager row; cache stays B.
     await page.goto(`/league/${leagueId}`);
+    await openWindow(page, 'members');
     await page.getByRole('button', { name: 'Step down as owner' }).click();
     await page.getByRole('button', { name: 'Step down', exact: true }).click();
     await expect(page.getByRole('button', { name: 'Step down as owner' })).toHaveCount(0, {

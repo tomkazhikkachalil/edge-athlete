@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { adminClient, apiAs, loadQaUser, readErrorBody } from './helpers/qa-user';
+import { openWindow } from './helpers/org-page';
 
 // The club↔league handshake (118) — the headline: NO admin needed. A owns a
 // seeded club, B owns a seeded league; B invites from the league page, A
@@ -41,6 +42,8 @@ test('affiliation: league invites, club accepts, both pages cross-list', async (
     try {
       const pageB = await ctxB.newPage();
       await pageB.goto(`/league/${leagueId}`);
+      // R3: the invite form lives behind the Affiliated clubs bubble.
+      await openWindow(pageB, 'affiliations');
       const inviteBox = pageB.getByPlaceholder('Search clubs to affiliate…');
       await expect(inviteBox).toBeVisible({ timeout: 15_000 });
       // 143: pick a non-default type BEFORE clicking the candidate (the
@@ -82,6 +85,7 @@ test('affiliation: league invites, club accepts, both pages cross-list', async (
 
     // A (club owner, the default page context) accepts from the club page.
     await page.goto(`/club/${clubId}`);
+    await openWindow(page, 'affiliations');
     await expect(page.getByText(leagueName)).toBeVisible({ timeout: 15_000 });
     // Incoming row shows the club-side type label.
     await expect(page.getByText('Member of', { exact: true })).toBeVisible();
@@ -121,6 +125,7 @@ test('affiliation: league invites, club accepts, both pages cross-list', async (
     try {
       const pageB = await ctxB2.newPage();
       await pageB.goto(`/league/${leagueId}`);
+      await openWindow(pageB, 'affiliations');
       await expect(pageB.getByText(clubName).first()).toBeVisible({ timeout: 15_000 });
     } finally {
       await ctxB2.close();

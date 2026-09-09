@@ -61,15 +61,18 @@ export default function OrgAnnouncementsCard({
   side,
   orgId,
   isMember,
+  bare = false,
 }: {
   side: 'club' | 'league';
   orgId: string;
   isMember: boolean;
+  /** Org Pages R3: hosted in a LargerWindow — no card chrome of its own. */
+  bare?: boolean;
 }) {
   const items = useAnnouncements(side === 'club' ? 'clubs' : 'leagues', orgId, isMember);
   if (!isMember || !items || items.length === 0) return null;
   return (
-    <section aria-label="Announcements" className="bg-surface rounded-lg shadow-sm border border-border p-4 sm:p-6" data-announcements={items.length}>
+    <section aria-label="Announcements" className={bare ? '' : 'bg-surface rounded-lg shadow-sm border border-border p-4 sm:p-6'} data-announcements={items.length}>
       <h2 className="text-lg font-semibold text-primary">Announcements</h2>
       <div className="mt-2">
         <AnnouncementList items={items} />

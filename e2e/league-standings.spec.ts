@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { adminClient, apiAs, loadQaUser, readErrorBody } from './helpers/qa-user';
+import { openWindow } from './helpers/org-page';
 
 // THE SPIKE (phase 2, round 3): standings materialize on result entry and
 // reach three public surfaces — the viewer-independent API (with its CDN
@@ -133,6 +134,8 @@ test('standings: recompute on results; public API + org section + SSR page; 375p
       // The org page's additive section renders for the anon viewer.
       await page.goto(`/league/${leagueId}`);
       await expect(page.getByRole('heading', { name })).toBeVisible({ timeout: 20_000 });
+      // R3: the tables live behind the Standings bubble.
+      await openWindow(page, 'standings');
       await expect(page.getByRole('heading', { name: 'Standings', exact: true })).toBeVisible({ timeout: 15_000 });
       await expect(page.getByText('Full standings →')).toBeVisible();
 

@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useAuth } from '@/lib/auth';
 import { useToast } from '@/components/Toast';
 import { SIDE_COPY } from './side-copy';
@@ -44,6 +44,10 @@ export function useOrgPage(side: OrgSide, orgId: string) {
   const [claimLinks, setClaimLinks] = useState<Record<string, string>>({});
   const [confirmStepDown, setConfirmStepDown] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
+  // Set inside the fetch effect once a payload has landed; read there too —
+  // never during render (the refs rule) and never an effect dep (which would
+  // refetch on every payload).
+  const loadedRef = useRef(false);
 
   const base = `/api/${copy.plural}/${encodeURIComponent(orgId)}`;
 
@@ -53,7 +57,12 @@ export function useOrgPage(side: OrgSide, orgId: string) {
     (async () => {
       if (!orgId) return;
       try {
-        setLoading(true);
+        // R3: the spinner is for the FIRST load only. A refresh after a
+        // mutation updates the payload in place — the twins used to flash
+        // the spinner and remount the page, which was merely ugly; with the
+        // sections behind LargerWindows it would close the window the
+        // mutation was made in.
+        if (!loadedRef.current) setLoading(true);
         const response = await fetch(`/api/${copy.plural}/${encodeURIComponent(orgId)}`);
         const body = await response.json();
         if (cancelled) return;
@@ -63,6 +72,7 @@ export function useOrgPage(side: OrgSide, orgId: string) {
         }
         setNotFound(false);
         setData(body as OrgPageResponse);
+        loadedRef.current = true;
       } catch (e) {
         if (cancelled) return;
         console.error(`Failed to load ${copy.noun}:`, e);

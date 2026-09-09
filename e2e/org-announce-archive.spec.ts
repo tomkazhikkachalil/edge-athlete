@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { adminClient, apiAs, createQaUser, deleteQaUser, loadQaUser, mintStorageState, readErrorBody, resetRateBucket } from './helpers/qa-user';
+import { openWindow } from './helpers/org-page';
 
 // N3 (program 10) — the announcement archive. The rows are still the
 // record: the members' read groups them by announcement_id (a non-member
@@ -98,6 +99,8 @@ test('announce archive: members read all, non-member 403, site Notices show the 
       const page = await memberCtx.newPage();
       await page.setViewportSize({ width: 375, height: 812 });
       await page.goto(`/league/${leagueId}`);
+      // R3: the archive lives behind the Announcements bubble.
+      await openWindow(page, 'announcements');
       const card = page.locator('[data-announcements]');
       await expect(card).toBeVisible({ timeout: 20_000 });
       await expect(card).toHaveAttribute('data-announcements', '2');

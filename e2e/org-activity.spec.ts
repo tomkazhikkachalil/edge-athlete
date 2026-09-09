@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { adminClient, loadQaUser } from './helpers/qa-user';
+import { openWindow } from './helpers/org-page';
 
 // Org activity (connections PR D): a PUBLIC member's public post appears in
 // the club's Recent activity; a private member's post does not (the /u/
@@ -46,6 +47,8 @@ test('org activity: public member post shows, private member post does not', asy
 
   try {
     await page.goto(`/club/${clubId}`);
+    // R3: the list lives behind the Recent activity bubble.
+    await openWindow(page, 'activity');
     await expect(page.getByRole('heading', { name: 'Recent activity' })).toBeVisible({ timeout: 15_000 });
     await expect(page.getByText(publicCaption)).toBeVisible();
     // B's profile is private → their post is excluded by the author rule.

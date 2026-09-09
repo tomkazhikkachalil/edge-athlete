@@ -45,9 +45,11 @@ interface AffData {
 interface AffiliationSectionProps {
   side: 'league' | 'club';
   orgId: string;
+  /** Org Pages R3: hosted in a LargerWindow — no card chrome of its own. */
+  bare?: boolean;
 }
 
-export default function AffiliationSection({ side, orgId }: AffiliationSectionProps) {
+export default function AffiliationSection({ side, orgId, bare = false }: AffiliationSectionProps) {
   const { showSuccess, showError } = useToast();
   const other = side === 'league' ? 'club' : 'league';
   const base = side === 'league' ? `/api/leagues/${orgId}/clubs` : `/api/clubs/${orgId}/leagues`;
@@ -208,7 +210,7 @@ export default function AffiliationSection({ side, orgId }: AffiliationSectionPr
   if (!data || (data.active.length === 0 && !data.viewerIsManager)) return null;
 
   return (
-    <div className="mt-6 bg-surface rounded-xl shadow-sm border border-border p-4 sm:p-6">
+    <div className={bare ? '' : 'mt-6 bg-surface rounded-xl shadow-sm border border-border p-4 sm:p-6'}>
       <h2 className="text-lg font-semibold text-primary mb-4">
         {side === 'league' ? 'Affiliated clubs' : 'Leagues'}
       </h2>

@@ -21,9 +21,11 @@ interface OrgEvent {
 interface OrgUpcomingEventsProps {
   side: 'league' | 'club';
   orgId: string;
+  /** Org Pages R3: hosted in a LargerWindow — no card chrome of its own. */
+  bare?: boolean;
 }
 
-export default function OrgUpcomingEvents({ side, orgId }: OrgUpcomingEventsProps) {
+export default function OrgUpcomingEvents({ side, orgId, bare = false }: OrgUpcomingEventsProps) {
   const [events, setEvents] = useState<OrgEvent[] | null>(null);
 
   useEffect(() => {
@@ -63,7 +65,7 @@ export default function OrgUpcomingEvents({ side, orgId }: OrgUpcomingEventsProp
   };
 
   return (
-    <div className="mt-6 bg-surface rounded-xl shadow-sm border border-border p-4 sm:p-6">
+    <div className={bare ? '' : 'mt-6 bg-surface rounded-xl shadow-sm border border-border p-4 sm:p-6'}>
       <h2 className="text-lg font-semibold text-primary mb-4">Upcoming events</h2>
       <ul className="space-y-2">
         {events.map(ev => (

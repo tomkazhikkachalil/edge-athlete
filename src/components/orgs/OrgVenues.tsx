@@ -27,9 +27,11 @@ interface VenueRow {
 interface OrgVenuesProps {
   side: 'league' | 'club';
   orgId: string;
+  /** Org Pages R3: hosted in a LargerWindow — no card chrome of its own. */
+  bare?: boolean;
 }
 
-export default function OrgVenues({ side, orgId }: OrgVenuesProps) {
+export default function OrgVenues({ side, orgId, bare = false }: OrgVenuesProps) {
   const [venues, setVenues] = useState<VenueRow[] | null>(null);
   const [openCourse, setOpenCourse] = useState<string | null>(null);
 
@@ -56,7 +58,7 @@ export default function OrgVenues({ side, orgId }: OrgVenuesProps) {
   return (
     <section
       aria-label={hasCourses ? 'Courses' : 'Venues'}
-      className="mt-6 bg-surface rounded-xl shadow-sm border border-border p-4 sm:p-6"
+      className={bare ? '' : 'mt-6 bg-surface rounded-xl shadow-sm border border-border p-4 sm:p-6'}
     >
       <h2 className="text-lg font-semibold text-primary mb-4">
         {hasCourses ? 'Courses' : 'Venues'}

@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { adminClient, loadQaUser } from './helpers/qa-user';
+import { openWindow } from './helpers/org-page';
 
 // Roster import (phase 1 R3): the owner pastes two athletes into a team
 // from the console → two claimable stub profiles with THREE membership
@@ -99,6 +100,7 @@ test('roster import: paste two athletes → stubs + 3 rows each + claim links; c
     try {
       const pageB = await ctxB.newPage();
       await pageB.goto(`/league/${leagueId}`);
+      await openWindow(pageB, 'members');
       await expect(pageB.getByText('Unclaimed').first()).toBeVisible({ timeout: 20_000 });
 
       // Re-mint (PR-D): "New claim link" mints a fresh invite inline; the
@@ -123,6 +125,7 @@ test('roster import: paste two athletes → stubs + 3 rows each + claim links; c
       const pageAnon = await ctxAnon.newPage();
       await pageAnon.goto(`/league/${leagueId}`);
       await expect(pageAnon.getByRole('heading', { name })).toBeVisible({ timeout: 20_000 });
+      await openWindow(pageAnon, 'members');
       await expect(pageAnon.getByText('Unclaimed')).toHaveCount(0);
     } finally {
       await ctxAnon.close();

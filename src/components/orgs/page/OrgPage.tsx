@@ -6,16 +6,7 @@ import AppHeader from '@/components/AppHeader';
 import ConfirmModal from '@/components/ConfirmModal';
 import LeagueEditModal from '@/components/leagues/LeagueEditModal';
 import ClubEditModal from '@/components/clubs/ClubEditModal';
-import AffiliationSection from '@/components/affiliations/AffiliationSection';
-import ParentLeaguesSection from '@/components/affiliations/ParentLeaguesSection';
-import OrgUpcomingEvents from '@/components/affiliations/OrgUpcomingEvents';
-import OrgStandings from '@/components/orgs/OrgStandings';
-import OrgAnnouncementsCard from '@/components/orgs/OrgAnnouncementsCard';
-import OrgNewsCard from '@/components/orgs/OrgNewsCard';
 import RoundPhotoConsentSwitch from '@/components/orgs/RoundPhotoConsentSwitch';
-import GolfYourWeek from '@/components/orgs/GolfYourWeek';
-import OrgVenues from '@/components/orgs/OrgVenues';
-import OrgRecentActivity from '@/components/affiliations/OrgRecentActivity';
 import { formatDisplayName } from '@/lib/formatters';
 import { SPORT_REGISTRY } from '@/lib/sports/SportRegistry';
 import { formatPlace, GEO_ATTRIBUTION } from '@/lib/geo/regions';
@@ -23,7 +14,7 @@ import { Building2, Trophy } from 'lucide-react';
 import type { CSSProperties } from 'react';
 import { useTheme } from '@/lib/use-theme';
 import OrgHero from './OrgHero';
-import OrgMembersList from './OrgMembersList';
+import OrgGlanceGrid from './OrgGlanceGrid';
 import { SIDE_COPY } from './side-copy';
 import { useOrgPage } from './useOrgPage';
 import type { ClubInfo, LeagueInfo, OrgSide } from './types';
@@ -186,7 +177,7 @@ export default function OrgPage({ side }: { side: OrgSide }) {
             lifecycle as it advances. Never rendered alongside the roster
             invite banner in practice (invite-wins blocks stacking). */}
         {viewerRegistration.current ? (
-          <div className="mt-6 bg-surface rounded-xl shadow-sm border border-brand p-4 sm:p-6">
+          <div className="mt-6 ea-bubble ea-bubble-accent p-4 sm:p-6">
             <p className="font-medium text-primary">
               {viewerRegistration.current.status === 'registered'
                 ? 'Registration received — placement pending'
@@ -207,7 +198,7 @@ export default function OrgPage({ side }: { side: OrgSide }) {
             </p>
           </div>
         ) : viewerRegistration.windowOpen && user ? (
-          <div className="mt-6 bg-surface rounded-xl shadow-sm border border-brand p-4 sm:p-6">
+          <div className="mt-6 ea-bubble ea-bubble-accent p-4 sm:p-6">
             <p className="font-medium text-primary">Registration is open</p>
             <p className="mt-1 text-sm text-secondary">
               Register yourself or your athletes for the season — it takes a couple of minutes.
@@ -223,7 +214,7 @@ export default function OrgPage({ side }: { side: OrgSide }) {
 
         {/* R3: count my rounds — a member who isn't on the roster yet. */}
         {user && viewerRole && viewerRole !== 'owner' && !viewerRoster && (
-          <div className="mt-6 bg-surface rounded-xl shadow-sm border border-border p-4 sm:p-6" data-self-roster="offer">
+          <div className="mt-6 ea-bubble p-4 sm:p-6" data-self-roster="offer">
             <p className="font-medium text-primary">{`Count your rounds in ${org.name} leagues`}</p>
             <p className="mt-1 text-sm text-secondary">
               {viewerProfile?.supervision_state === 'supervised'
@@ -241,7 +232,7 @@ export default function OrgPage({ side }: { side: OrgSide }) {
         )}
         {/* Roster invitation banner (0.3) */}
         {viewerRoster === 'pending' && (
-          <div className="mt-6 bg-surface rounded-xl shadow-sm border border-brand p-4 sm:p-6">
+          <div className="mt-6 ea-bubble ea-bubble-accent p-4 sm:p-6">
             <p className="font-medium text-primary">
               You&apos;ve been invited to the {org.name} roster
             </p>
@@ -285,38 +276,30 @@ export default function OrgPage({ side }: { side: OrgSide }) {
           </div>
         )}
 
-        {/* Members */}
-        <OrgMembersList
-          members={members}
-          memberCount={memberCount}
+        {/* R3: the glance grid — every section behind a tappable bubble
+            whose window hosts it unchanged. */}
+        <OrgGlanceGrid
+          side={side}
+          orgId={org.id}
+          isMember={!!viewerRole || isOwner}
           canManage={canManage}
           isOwner={isOwner}
+          standingsScope={data.visibility === 'private' && viewerRole ? 'mine' : 'public'}
+          members={members}
+          memberCount={memberCount}
           viewerId={user?.id}
           actions={actions}
           dialogs={dialogs}
         />
 
-        <GolfYourWeek side={side} orgId={org.id} />
-
-        {/* N3: the announcement archive — members read every notice here. */}
-        {/* Program 11 L2: members read every published post (incl. members-only). */}
-        <OrgNewsCard side={side} orgId={org.id} isMember={!!viewerRole || isOwner} />
-        <OrgAnnouncementsCard side={side} orgId={org.id} isMember={!!viewerRole || isOwner} />
-        {/* Program 12: the member's own round-photo switch (M2's policy, both sides). */}
-        {viewerRole && <RoundPhotoConsentSwitch side={side} orgId={org.id} />}
-
-        <OrgStandings side={side} orgId={org.id} scope={data.visibility === 'private' && viewerRole ? 'mine' : 'public'} />
-
-        <OrgVenues side={side} orgId={org.id} />
-
-        <OrgUpcomingEvents side={side} orgId={org.id} />
-
-        <OrgRecentActivity side={side} orgId={org.id} />
-
-        <AffiliationSection side={side} orgId={org.id} />
-
-        {/* Phase 6 R3: the league↔league chain (mig 167) — leagues only. */}
-        {side === 'league' && <ParentLeaguesSection leagueId={org.id} />}
+        {/* Program 12: the member's own round-photo switch (M2's policy, both
+            sides) — a control, not a list, so it stays full-width below the
+            grid rather than behind a bubble. */}
+        {viewerRole && (
+          <div className="mt-6">
+            <RoundPhotoConsentSwitch side={side} orgId={org.id} />
+          </div>
+        )}
 
         {/* GeoNames attribution — rendered only when place-derived fields do
             (docs/SEARCH.md). The club's legacy `location` fallback is not

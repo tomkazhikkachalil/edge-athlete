@@ -32,6 +32,8 @@ export interface BubbleCardProps {
   onOpen?: () => void;
   /** Entry-stagger position; sets the pop-in delay. */
   staggerIndex?: number;
+  /** Data attributes for the card's root (e2e hooks like data-org-bubble). */
+  rootAttrs?: Record<`data-${string}`, string>;
   children: ReactNode;
 }
 
@@ -43,6 +45,7 @@ export default function BubbleCard({
   label,
   onOpen,
   staggerIndex = 0,
+  rootAttrs,
   children,
 }: BubbleCardProps) {
   const delay = { animationDelay: `${Math.min(staggerIndex, 10) * 40}ms` };
@@ -65,6 +68,7 @@ export default function BubbleCard({
         type="button"
         onClick={onOpen}
         style={delay}
+        {...rootAttrs}
         className={`ea-bubble ea-pop-in ea-interactive w-full text-left p-4 sm:p-5 ${SPAN_CLASSES[span]}`}
       >
         {header}
@@ -73,7 +77,7 @@ export default function BubbleCard({
     );
   }
   return (
-    <div style={delay} className={`ea-bubble ea-pop-in p-4 sm:p-5 ${SPAN_CLASSES[span]}`}>
+    <div style={delay} {...rootAttrs} className={`ea-bubble ea-pop-in p-4 sm:p-5 ${SPAN_CLASSES[span]}`}>
       {header}
       {children}
     </div>

@@ -63,7 +63,7 @@ export default function RoundPhotoConsentSwitch({ side, orgId }: { side: 'league
   return (
     <section
       aria-label="Round photos"
-      className="bg-surface rounded-lg shadow-sm border border-border p-4 sm:p-6"
+      className="ea-bubble p-4 sm:p-6"
       data-round-photo-consent={state.consent ? 'on' : 'off'}
     >
       <h2 className="text-lg font-semibold text-primary">Round photos</h2>

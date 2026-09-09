@@ -663,6 +663,11 @@ body {
   border-radius: 1.5rem;
   box-shadow: var(--ea-shadow-rest);
 }
+/* An emphasised bubble (the org page's registration / roster-invite
+ * banners). A class, not `border-brand`: .ea-bubble is unlayered CSS, so a
+ * layered Tailwind border utility on the same element would LOSE to its
+ * border shorthand. Rides the org accent where a scope sets one. */
+.ea-bubble-accent { border-color: var(--org-accent-strong, var(--color-brand)); }
 
 /* The global :focus-visible ring hardcodes a 4px radius, which reads squared
  * on round shapes. This corrects the ring's shape on bubble pills/cards; it
