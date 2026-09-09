@@ -75,5 +75,13 @@ export function useDraft(
     setStatus('idle');
   };
 
-  return { status, rev, dirty, adopt };
+  /** A content save through the panel (set_hero, set_contact) writes the
+   *  same draft and bumps its rev; the layout we hold is unchanged, so only
+   *  the rev moves — the next autosave must carry it or it 409s. */
+  const adoptRev = (nextRev: number | null) => {
+    revRef.current = nextRev;
+    setRev(nextRev);
+  };
+
+  return { status, rev, dirty, adopt, adoptRev };
 }

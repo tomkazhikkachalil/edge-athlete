@@ -30,10 +30,12 @@ import {
   ORG_DOCUMENT_PATH_RE,
   ORG_IMAGE_PATH_RE,
   ORG_MEDIA_PATH_RE,
-  PageBlockSchema,
   httpsUrl,
 } from '@/lib/org-sites/validate';
 import type { WidgetKey } from './catalog';
+import { IMAGE_ALT_MAX, IMAGE_CAPTION_MAX, TEXT_WIDGET_BLOCKS_MAX } from './fields';
+
+export { IMAGE_ALT_MAX, IMAGE_CAPTION_MAX, TEXT_WIDGET_BLOCKS_MAX };
 
 const text = (max: number) => z.string().max(max);
 
@@ -171,24 +173,45 @@ export const InstanceOptionsSchema = z
 // brings the words back). Each schema is the options schema PLUS the
 // widget's content; `instanceSchemaFor` is what `PUT draft` validates with.
 
-export const TEXT_WIDGET_BLOCKS_MAX = 12;
-export const IMAGE_CAPTION_MAX = 200;
+/** The text widget's STORED blocks — the page block vocabulary (heading,
+ *  paragraph, link-list, image) with LENIENT strings: the panel binds the
+ *  editor straight to the instance, and a paragraph being typed is empty
+ *  for a moment; the autosave must not 400 on it. The render path is the
+ *  strict one (`parsePageBody` drops what is not yet a block), so a
+ *  half-typed block never shows and an all-blank widget counts as empty. */
+export const TextBlockSchema = z.discriminatedUnion('type', [
+  z.object({ type: z.literal('heading'), text: z.string().max(120) }),
+  z.object({ type: z.literal('paragraph'), text: z.string().max(2000) }),
+  z.object({
+    type: z.literal('image'),
+    path: z.string().regex(ORG_MEDIA_PATH_RE, 'Not a site asset path'),
+    alt: z.string().max(200),
+    width: z.number().int().positive().max(10000).optional(),
+    height: z.number().int().positive().max(10000).optional(),
+  }),
+  z.object({
+    type: z.literal('link-list'),
+    links: z.array(z.object({ label: z.string().max(80), url: z.string().trim().max(200) })).max(20),
+  }),
+]);
 
-/** The text widget's body: the page block vocabulary (heading, paragraph,
- *  image, link-list — `parsePageBody` renders it), capped shorter than a
- *  page so a layout stays a few KB. */
+/** The text widget: its blocks, capped shorter than a page (≤ 12) so a
+ *  layout stays a few KB. `PageBlockSchema` (validate.ts) is the strict
+ *  twin the renderer parses with. */
 export const TextWidgetSchema = InstanceOptionsSchema.extend({
-  blocks: z.array(PageBlockSchema).max(TEXT_WIDGET_BLOCKS_MAX).optional(),
+  blocks: z.array(TextBlockSchema).max(TEXT_WIDGET_BLOCKS_MAX).optional(),
 });
 
 /** One photo from the site's own assets (the server re-asserts the site
  *  prefix — the schema cannot know the site id), with alt, caption, link
- *  and the intrinsic size measured at upload. */
+ *  and the intrinsic size measured at upload. The link is stored as typed
+ *  (a half-typed address must not fail the autosave); the renderer shows
+ *  it only once it is an https:// address. */
 export const ImageWidgetSchema = InstanceOptionsSchema.extend({
   path: z.string().regex(ORG_IMAGE_PATH_RE, 'Not a site image').optional(),
-  alt: z.string().trim().max(HERO_IMAGE_ALT_MAX).optional(),
+  alt: z.string().trim().max(IMAGE_ALT_MAX).optional(),
   caption: z.string().trim().max(IMAGE_CAPTION_MAX).optional(),
-  href: httpsUrl.optional(),
+  href: z.string().trim().max(200).optional(),
   width: z.number().int().positive().max(10000).optional(),
   height: z.number().int().positive().max(10000).optional(),
 });

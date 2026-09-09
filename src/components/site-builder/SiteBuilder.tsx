@@ -9,7 +9,7 @@ import { useToast } from '@/components/Toast';
 import type { PublicSite } from '@/lib/org-sites/server';
 import type { SiteHomeData } from '@/lib/org-sites/home-data';
 import { appendWidget, newInstanceFor, newInstanceId, removeWidget, type SiteLayout } from '@/lib/site-builder/layout';
-import type { WebWidgetKey } from '@/lib/site-builder/catalog';
+import { isContentWidgetKey, type SiteWidgetKey } from '@/lib/site-builder/catalog';
 import Canvas from './Canvas';
 import Picker from './Picker';
 import PropertiesPanel from './PropertiesPanel';
@@ -162,26 +162,20 @@ function Editor({
   // panel saves content — re-read the canvas without touching the layout
   // history (the layout is the manager's; the content is the org's).
   const [site, setSite] = useState<PublicSite>(canvas.site);
-  const refreshSite = async () => {
-    try {
-      const res = await fetch(`/api/${plural}/${orgId}/site/canvas`);
-      if (!res.ok) return;
-      const body = (await res.json()) as CanvasBody;
-      setSite(body.site);
-      setData(prev => ({ ...prev, ...body.data }));
-    } catch {
-      /* the panel's toast already said what happened */
-    }
-  };
-  const changeInstance = (next: WidgetInstance) => {
-    history.commit({ ...history.present, widgets: history.present.widgets.map(w => (w.id === next.id ? next : w)) });
+  // `coalesce`: consecutive edits to the same field fold into ONE undo step
+  // (typing a paragraph is one step, not one per keystroke).
+  const changeInstance = (next: WidgetInstance, coalesce?: string) => {
+    history.commit({ ...history.present, widgets: history.present.widgets.map(w => (w.id === next.id ? next : w)) }, coalesce);
   };
   const selected = selectedId ? history.present.widgets.find(w => w.id === selectedId) ?? null : null;
 
-  const addWidget = (key: WebWidgetKey, resolved: SiteHomeData) => {
-    setData(prev => ({ ...prev, ...resolved }));
-    history.commit(appendWidget(history.present, newInstanceFor(site, key, newInstanceId())));
+  const addWidget = (key: SiteWidgetKey, resolved: SiteHomeData | null) => {
+    if (resolved) setData(prev => ({ ...prev, ...resolved }));
+    const id = newInstanceId();
+    history.commit(appendWidget(history.present, newInstanceFor(site, key, id)));
     setPickerOpen(false);
+    // Phase 6: a content tile is empty until authored — open its panel at once.
+    if (isContentWidgetKey(key)) setSelectedId(id);
   };
   const removeOne = (id: string) => {
     const gone = history.present.widgets.find(w => w.id === id);
@@ -210,6 +204,20 @@ function Editor({
     [plural, orgId]
   );
   const draft = useDraft(history.present, save, canvas.draft?.rev ?? null, true);
+  const refreshSite = async () => {
+    try {
+      const res = await fetch(`/api/${plural}/${orgId}/site/canvas`);
+      if (!res.ok) return;
+      const body = (await res.json()) as CanvasBody;
+      setSite(body.site);
+      setData(prev => ({ ...prev, ...body.data }));
+      // The content save wrote the draft and bumped its rev (P6-B found the
+      // gap: without this the next layout autosave answered 409).
+      draft.adoptRev(body.draft?.rev ?? null);
+    } catch {
+      /* the panel's toast already said what happened */
+    }
+  };
 
   // ⌘Z / ⇧⌘Z (Ctrl on Windows) — always available, alongside the buttons.
   useEffect(() => {

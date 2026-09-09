@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { WEB_WIDGET_KEYS } from '../catalog';
+import { z } from 'zod';
+import { CONTENT_WIDGET_KEYS, SITE_WIDGET_KEYS } from '../catalog';
 import { contentConfigFor, effectiveConfig, instanceTitle } from '../config';
 import { CONTACT_FIELDS, HERO_FIELDS, contentActionFor, fieldsFor } from '../fields';
-import { ContactConfigSchema, HeroConfigSchema, InstanceOptionsSchema } from '../schemas';
+import { ContactConfigSchema, HeroConfigSchema, InstanceOptionsSchema, instanceSchemaFor } from '../schemas';
 import type { WidgetInstance } from '../layout';
 
 const w = (key: WidgetInstance['key'], config: unknown = {}): WidgetInstance => ({ id: key, key, x: 0, y: 0, w: 12, h: 2, cv: 1, config, visibility: 'public' });
@@ -35,18 +36,27 @@ describe('field descriptors are pinned to the schemas', () => {
     for (const f of HERO_FIELDS) expect(heroKeys, f.name).toContain(f.name);
     const contactKeys = Object.keys(ContactConfigSchema.shape);
     for (const f of CONTACT_FIELDS) expect(contactKeys, f.name).toContain(f.name);
-    for (const key of WEB_WIDGET_KEYS) {
+    for (const key of SITE_WIDGET_KEYS) {
+      // Phase 6: a content widget's instance fields fit ITS instance schema
+      // (options + content); a module widget's fit the options schema.
+      const shape = Object.keys((instanceSchemaFor(key) as z.ZodObject).shape);
       for (const f of fieldsFor(key)) {
-        if (f.scope === 'instance' && f.kind !== 'visibility') expect(Object.keys(InstanceOptionsSchema.shape)).toContain(f.name);
+        if (f.scope === 'instance' && f.kind !== 'visibility') expect(shape, `${key}.${f.name}`).toContain(f.name);
         if (f.scope === 'content') expect(contentActionFor(key), `${key}.${f.name} needs a content action`).not.toBeNull();
       }
+    }
+    for (const key of CONTENT_WIDGET_KEYS) {
+      const kinds = fieldsFor(key).map(f => f.kind);
+      expect(kinds, key).toContain(key === 'text' ? 'blocks' : key);
+      expect(fieldsFor(key).every(f => f.scope === 'instance'), `${key} is all instance`).toBe(true);
+      expect(contentActionFor(key)).toBeNull();
     }
     expect(InstanceOptionsSchema.safeParse({ title: 'x'.repeat(61) }).success).toBe(false);
     expect(InstanceOptionsSchema.safeParse({ title: 'Squads', legacyKey: 1 }).success).toBe(true);
   });
   it('hero has content fields only; every other widget has the title and visibility options', () => {
     expect(fieldsFor('hero').every(f => f.scope === 'content')).toBe(true);
-    for (const key of WEB_WIDGET_KEYS.filter(k => k !== 'hero')) {
+    for (const key of SITE_WIDGET_KEYS.filter(k => k !== 'hero')) {
       const names = fieldsFor(key).map(f => f.name);
       expect(names.slice(0, 2)).toEqual(['title', 'visibility']);
     }

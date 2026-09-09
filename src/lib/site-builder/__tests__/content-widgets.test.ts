@@ -82,10 +82,12 @@ describe('content widgets — per-instance config schemas', () => {
     expect(instanceSchemaFor('embed')).toBe(EmbedWidgetSchema);
   });
 
-  it('text: the page block vocabulary, capped, title still allowed, unknown keys kept', () => {
+  it('text: the page block vocabulary (stored leniently — a block being typed may be empty), capped, title still allowed, unknown keys kept', () => {
     const ok = TextWidgetSchema.safeParse({ title: 'About us', blocks: [{ type: 'heading', text: 'Hi' }, { type: 'paragraph', text: 'Welcome.' }], legacy: 1 });
     expect(ok.success).toBe(true);
     if (ok.success) expect((ok.data as Record<string, unknown>).legacy).toBe(1);
+    expect(TextWidgetSchema.safeParse({ blocks: [{ type: 'paragraph', text: '' }, { type: 'link-list', links: [{ label: '', url: 'https://exa' }] }] }).success).toBe(true);
+    expect(TextWidgetSchema.safeParse({ blocks: [{ type: 'paragraph', text: 'x'.repeat(2001) }] }).success).toBe(false);
     expect(TextWidgetSchema.safeParse({ blocks: [{ type: 'html', html: '<b>' }] }).success).toBe(false);
     expect(TextWidgetSchema.safeParse({ blocks: Array.from({ length: TEXT_WIDGET_BLOCKS_MAX + 1 }, () => ({ type: 'paragraph', text: 'x' })) }).success).toBe(false);
     expect(TextWidgetSchema.safeParse({ title: 'x'.repeat(61) }).success).toBe(false);
@@ -95,7 +97,10 @@ describe('content widgets — per-instance config schemas', () => {
     expect(ImageWidgetSchema.safeParse({ path: PATH, alt: 'The first tee', caption: 'Opening day', href: 'https://example.com', width: 1600, height: 900 }).success).toBe(true);
     expect(ImageWidgetSchema.safeParse({ path: `org-media/${SITE_ID}/policy.pdf` }).success).toBe(false);
     expect(ImageWidgetSchema.safeParse({ path: 'https://example.com/x.jpg' }).success).toBe(false);
-    expect(ImageWidgetSchema.safeParse({ path: PATH, href: 'http://example.com' }).success).toBe(false);
+    // The link is STORED as typed (a half-typed address must not fail the
+    // autosave); the renderer shows it only once it is https://.
+    expect(ImageWidgetSchema.safeParse({ path: PATH, href: 'http://exa' }).success).toBe(true);
+    expect(ImageWidgetSchema.safeParse({ path: PATH, href: 'x'.repeat(201) }).success).toBe(false);
     expect(ImageWidgetSchema.safeParse({ path: PATH, caption: 'x'.repeat(201) }).success).toBe(false);
     expect(ImageWidgetSchema.safeParse({ path: PATH, width: 0 }).success).toBe(false);
   });
