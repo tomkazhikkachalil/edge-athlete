@@ -38,7 +38,12 @@ const WINDOW_PX = 336;
 export interface DockState {
   panelOpen: boolean;
   open: string[];      // conversation ids, oldest first; length <= cap
-  minimized: string[]; // conversation ids
+  minimized: string[]; // conversation ids, NEWEST FIRST — the pill row renders
+                       // this order left→right, so the leftmost pill is the
+                       // last chat the user minimized (Tom, Sep 8 2026). Cap
+                       // evictions append at the END (next to the Messages
+                       // pill): they were not the user's act and never take
+                       // the newest slot or shuffle hand-minimized pills.
   cap: number;         // width-aware, in-memory only
 }
 
@@ -106,7 +111,9 @@ export function isDockSuppressedPath(pathname: string | null | undefined): boole
   );
 }
 
-/** Enforce the cap by minimizing the OLDEST open windows. */
+/** Enforce the cap by minimizing the OLDEST open windows. Evicted ids go to
+ *  the END of `minimized` (see DockState): user-minimized pills keep their
+ *  places, and several evictions keep their relative order. */
 function applyCap(state: DockState): DockState {
   if (state.open.length <= state.cap) return state;
   const overflow = state.open.slice(0, state.open.length - state.cap);
@@ -138,9 +145,12 @@ export function dockReducer(state: DockState, action: DockAction): DockState {
       return {
         ...state,
         open: state.open.filter(id => id !== action.id),
+        // Prepend: newest pill at the left edge. Appending put each new pill
+        // next to the Messages pill and pushed the earlier ones left, which
+        // read as the row "re-ordering itself".
         minimized: state.minimized.includes(action.id)
           ? state.minimized
-          : [...state.minimized, action.id],
+          : [action.id, ...state.minimized],
       };
     }
     case 'RESTORE': {

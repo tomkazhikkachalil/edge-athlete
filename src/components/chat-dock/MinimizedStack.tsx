@@ -8,7 +8,9 @@ import type { Conversation } from '@/types/messages';
 // (Tom's layout — they follow along the bottom edge, not stacked above).
 // Each pill: avatar circle + visible name, presence dot on the avatar,
 // inline unread badge, hover/focus close X. Click restores the window;
-// only the X removes it. Unread badges come straight from the provider's
+// only the X removes it. `ids` arrive NEWEST FIRST (dock-state MINIMIZE
+// prepends), so the leftmost pill is the last chat the user minimized;
+// cap-evicted windows sit at the right end. Unread badges come straight from the provider's
 // per-conversation counts; titles come from the dock's shared identity
 // helper so a pill, its row in the panel, and the window it restores all
 // read identically.
