@@ -348,6 +348,38 @@ export async function applyDraftAction(
   return { status: 'conflict' };
 }
 
+// ── The layout (P3-B) ──────────────────────────────────────────────────────
+
+export type WriteLayoutResult =
+  | { status: 'ok'; rev: number }
+  | { status: 'conflict' | 'not_found' | 'pre180' | 'error' };
+
+/** The editor's save: the grid layout into the draft snapshot's `layout`
+ *  slot, rev-guarded. `baseRev` is the rev the editor last saw — a stale one
+ *  answers `conflict` (the editor reloads and re-applies); absent = take the
+ *  current draft. Nothing public is revalidated: the layout goes live with
+ *  the draft, on publish. */
+export async function writeDraftLayout(
+  admin: Admin,
+  side: OrgSide,
+  orgId: string,
+  userId: string | null,
+  layout: unknown,
+  baseRev?: number
+): Promise<WriteLayoutResult> {
+  const { site, support } = await loadSitePointers(admin, side, orgId);
+  if (!site) return { status: 'not_found' };
+  if (support === 'pre180') return { status: 'pre180' };
+  const draft = await getOrCreateDraft(admin, site, userId);
+  if (!draft) return { status: 'pre180' };
+  if (baseRev !== undefined && baseRev !== draft.rev) return { status: 'conflict' };
+  const current = parseSnapshot(draft.snapshot);
+  if (!current) return { status: 'error' };
+  const result = await writeDraft(admin, draft, { ...current, layout });
+  if (result === 'ok') return { status: 'ok', rev: draft.rev + 1 };
+  return { status: result === 'conflict' ? 'conflict' : 'error' };
+}
+
 // ── Publish / discard / restore / label ─────────────────────────────────────
 
 export interface PublishResult {

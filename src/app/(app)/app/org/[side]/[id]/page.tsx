@@ -3314,6 +3314,15 @@ export default function OrgConsolePage() {
                     View site
                   </a>
                 )}
+                {/* Site Builder P3-B: the editor's door (a SURFACE flag). */}
+                {FEATURE_FLAGS.FEATURE_SITE_BUILDER && (
+                  <Link
+                    href={`/app/org/${side}/${orgId}/site/edit`}
+                    className="px-3 py-1.5 text-sm rounded-md border border-border-strong text-secondary hover:bg-surface-sunken transition-colors"
+                  >
+                    Open the editor →
+                  </Link>
+                )}
                 {/* "Take site live / offline" — the site's existence (manage_org);
                     "Publish changes" below is the draft's promotion. Two words
                     for two acts (going live also promotes a dirty draft). */}

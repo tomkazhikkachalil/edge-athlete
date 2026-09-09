@@ -1,0 +1,84 @@
+/* react-grid-layout 2.2.4 + react-resizable 3.x styles, copied and SCOPED
+   under .sb-canvas (Site Builder P3-B, Sep 9 2026). Copied rather than
+   imported so nothing leaks into the app or the (public) tree, and so the
+   placeholder and the resize handle speak the house palette. Pinned to the
+   installed versions in package.json — re-copy on upgrade. */
+.sb-canvas .react-grid-layout {
+  position: relative;
+  transition: height 200ms ease;
+}
+.sb-canvas .react-grid-item {
+  transition: all 200ms ease;
+  transition-property: left, top, width, height;
+}
+.sb-canvas .react-grid-item img {
+  pointer-events: none;
+  user-select: none;
+}
+.sb-canvas .react-grid-item.cssTransforms {
+  transition-property: transform, width, height;
+}
+.sb-canvas .react-grid-item.resizing {
+  transition: none;
+  z-index: 1;
+  will-change: width, height;
+}
+.sb-canvas .react-grid-item.react-draggable-dragging {
+  transition: none;
+  z-index: 3;
+  will-change: transform;
+}
+.sb-canvas .react-grid-item.dropping {
+  visibility: hidden;
+}
+.sb-canvas .react-grid-item.react-grid-placeholder {
+  background: var(--color-brand);
+  opacity: 0.15;
+  border-radius: 0.75rem;
+  transition-duration: 100ms;
+  z-index: 2;
+  user-select: none;
+}
+.sb-canvas .react-grid-item.react-grid-placeholder.placeholder-resizing {
+  transition: none;
+}
+.sb-canvas .react-grid-item > .react-resizable-handle {
+  position: absolute;
+  width: 20px;
+  height: 20px;
+  opacity: 0;
+}
+.sb-canvas .react-grid-item:hover > .react-resizable-handle,
+.sb-canvas .react-grid-item:focus-within > .react-resizable-handle {
+  opacity: 1;
+}
+.sb-canvas .react-grid-item > .react-resizable-handle::after {
+  content: "";
+  position: absolute;
+  right: 3px;
+  bottom: 3px;
+  width: 6px;
+  height: 6px;
+  border-right: 2px solid var(--color-text-tertiary, rgba(0, 0, 0, 0.4));
+  border-bottom: 2px solid var(--color-text-tertiary, rgba(0, 0, 0, 0.4));
+}
+.sb-canvas .react-resizable-hide > .react-resizable-handle {
+  display: none;
+}
+.sb-canvas .react-grid-item > .react-resizable-handle.react-resizable-handle-se {
+  bottom: 0;
+  right: 0;
+  cursor: se-resize;
+}
+/* The widget body is inert on the canvas: the tile is the drag target and a
+   link must never navigate the editor away. */
+.sb-canvas .sb-widget-body {
+  pointer-events: none;
+  user-select: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .sb-canvas .react-grid-layout,
+  .sb-canvas .react-grid-item {
+    transition: none;
+  }
+}

@@ -108,3 +108,75 @@ export function widget(layout: SiteLayout, key: WidgetKey): WidgetInstance | und
 export function needsData(layout: SiteLayout, field: SiteHomeDataKey): boolean {
   return layout.widgets.some(w => WIDGETS[w.key].data.includes(field));
 }
+
+// ── Grid geometry (P3-B) ─────────────────────────────────────────────────────
+// Pure, shared by the editor (react-grid-layout's compaction is the same
+// algorithm) and the public renderer (which re-compacts after dropping
+// empty widgets). `h` stays a MINIMUM height throughout.
+
+type Box = Pick<WidgetInstance, 'x' | 'y' | 'w' | 'h'>;
+
+export function collides(a: Box, b: Box): boolean {
+  return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
+}
+
+/** Reading order: top to bottom, then left to right. */
+export function sortByPosition<T extends Box>(items: readonly T[]): T[] {
+  return [...items].sort((a, b) => a.y - b.y || a.x - b.x);
+}
+
+/** Vertical compaction: in reading order, each widget floats up until it
+ *  would overlap one already placed. Idempotent; never overlaps. */
+export function compactLayout(widgets: readonly WidgetInstance[]): WidgetInstance[] {
+  const placed: WidgetInstance[] = [];
+  for (const w of sortByPosition(widgets)) {
+    let y = w.y;
+    // Float up while nothing placed collides at the row above.
+    while (y > 0 && !placed.some(p => collides({ ...w, y: y - 1 }, p))) y--;
+    // Push down past anything we still overlap (out-of-order input).
+    while (placed.some(p => collides({ ...w, y }, p))) y++;
+    placed.push({ ...w, y });
+  }
+  return placed;
+}
+
+export interface LayoutIssue {
+  id: string;
+  message: string;
+}
+
+/** What a schema cannot say: bounds against the grid, per-widget size
+ *  constraints, and overlaps. Empty = valid. */
+export function validateLayout(layout: SiteLayout): LayoutIssue[] {
+  const issues: LayoutIssue[] = [];
+  for (const w of layout.widgets) {
+    const c = WIDGETS[w.key].constraints;
+    if (w.x < 0 || w.x + w.w > GRID.cols) issues.push({ id: w.id, message: `${w.key} runs past the grid` });
+    if (w.w < c.minW || w.w > c.maxW) issues.push({ id: w.id, message: `${w.key} must be ${c.minW}–${c.maxW} columns wide` });
+    if (w.h < c.minH || w.h > c.maxH) issues.push({ id: w.id, message: `${w.key} must be ${c.minH}–${c.maxH} rows tall` });
+  }
+  for (let i = 0; i < layout.widgets.length; i++) {
+    for (let j = i + 1; j < layout.widgets.length; j++) {
+      const a = layout.widgets[i];
+      const b = layout.widgets[j];
+      if (collides(a, b)) issues.push({ id: b.id, message: `${b.key} overlaps ${a.key}` });
+    }
+  }
+  return issues;
+}
+
+/** A client-safe opaque id: `crypto.getRandomValues` (Safari 11+), never
+ *  `randomUUID` (Safari 15.4+, above the iOS 15 floor). */
+export function newInstanceId(random: (bytes: Uint8Array) => Uint8Array = defaultRandom): string {
+  const bytes = random(new Uint8Array(8));
+  let out = 'w_';
+  for (const b of bytes) out += b.toString(16).padStart(2, '0');
+  return out;
+}
+
+function defaultRandom(bytes: Uint8Array): Uint8Array {
+  const c = (globalThis as { crypto?: { getRandomValues?: (b: Uint8Array) => Uint8Array } }).crypto;
+  if (c && typeof c.getRandomValues === 'function') return c.getRandomValues(bytes);
+  for (let i = 0; i < bytes.length; i++) bytes[i] = Math.floor(Math.random() * 256);
+  return bytes;
+}
