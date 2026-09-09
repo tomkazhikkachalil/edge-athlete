@@ -339,6 +339,26 @@ team and a coach on another.
 
 ## 6. The site builder
 
+> **Superseded (Sep 9 2026) — the Site Builder program.** Tom's design doc
+> replaces this section's v1 decision ("themed templates, module toggles, no
+> free-form layout") with **a widget catalog on a constrained 12-column grid,
+> seeded from templates**: every block is a registered widget bound to a live
+> query (never data), placed with per-widget size constraints and vertical
+> auto-compaction; one composition renders the public site AND the in-app org
+> page (derived by widget priority); mobile is derived from reading order;
+> chrome is fixed. Edits go to a **draft revision** and the live site changes
+> only on publish; history, restore and discard are first-class (migration
+> 180, `org_site_revisions` — one `snapshot` jsonb per revision; the rows of
+> `org_sites` / `org_site_modules` stay the published projection, mirrored on
+> publish). Shipped so far: phase 1 (the registry; both surfaces render from
+> a layout) and phase 2 (draft/publish/revisions). Phases 3–8 (the grid on
+> react-grid-layout, the picker, the schema-generated properties panel,
+> content widgets writing to org objects, the theme editor, templates + the
+> setup checklist) follow. The plan of record is
+> `~/.claude/plans/edge-athlete-site-builder-zesty-pnueli.md`; DEVLOG Sep 9
+> 2026 is the round-by-round record. The text below is kept as the history of
+> the module model the widgets grew out of.
+
 ### Modules
 
 The builder is a set of module toggles. Each module is a route, a component,

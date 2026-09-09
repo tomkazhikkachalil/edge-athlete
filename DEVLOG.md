@@ -1,5 +1,40 @@
 # Development Log
 
+## September 9, 2026 — Site Builder P2-D: the revisions spec and the docs (phase 2 closes; zero DDL)
+
+- **`e2e/org-site-revisions.spec.ts`** — the whole loop against a 180
+  database (green-skips before it, the 171 precedent): take the site live →
+  `set_hero` A + `set_template` bold + `set_theme` → the GET shows the draft
+  view and `hasUnpublishedChanges`, the public page does not change → the
+  preview shows A INSIDE the bold shell with the draft accent (the P2-B
+  shell) → publish changes "Version A" → the public page changes → version
+  B → history lists both, B published, every row stamped → restore A into
+  the draft (public still B) → publish → public A → label B, a foreign id
+  404s → edit C, discard → draft null, GET shows A → the console at **375**:
+  the clean line and "Take site offline", then after an edit the dirty line,
+  "Publish changes", "Discard draft", History with the labelled rows and
+  Restore, no horizontal overflow, and Publish changes from the console
+  flips the line clean and the public page to D. The league is deleted in
+  the same run (revisions cascade).
+- **Docs**: masterplan §6 carries the supersession note (widget catalog on a
+  constrained grid, draft/publish/revisions, what shipped, what follows);
+  CLAUDE.md gains **convention 12** — the registry, one-key-space aliases,
+  the layout-only renderers, the draft gate, the PUBLISHED-PROJECTION
+  invariant, the intents, the preview route group, `publishSite()` in specs.
+
+**Against the real schema.** Tom ran 180 (check grid true × 6) between
+P2-A and P2-B. A production build of this branch on :3002 against that
+database: the `org-site*` sweep + `club-pending-build` + this spec — **27
+passed, 1 flag-gated skip** after one spec fix found by the run:
+`org-site-hole-photos` drives a hole-5 upload through the console UI (now a
+draft write) and then read the module rows — the published projection —
+so it needed a `publishSite` before that read (the P2-B sweep had covered
+the API-driven edits only). No product change.
+
+Phase 2 is code-complete. Phase 3 opens with `widget-data.ts` (one resolver,
+page.tsx + preview as its first callers), then the react-grid-layout
+pre-install checks, then the editor behind `FEATURE_SITE_BUILDER`.
+
 ## September 9, 2026 — Site Builder P2-C: the console's draft line, Publish changes, History with Restore, live/offline wording (zero DDL; hidden pre-180)
 
 The Website section learns the gate (P2-B). Zero server change.

@@ -144,6 +144,9 @@ test('hole photos: set hole 3 → drawn at hole 3 only; remove → gone; the cou
       await expect(page.getByRole('button', { name: 'Remove hole 5 photo' })).toBeVisible({ timeout: 20_000 });
       const scrollWidth = await page.evaluate(() => document.documentElement.scrollWidth);
       expect(scrollWidth, 'no horizontal overflow at 375px').toBeLessThanOrEqual(375);
+      // P2-B: the console's upload landed in the DRAFT (the chip reads the
+      // draft view); the module rows are the published projection.
+      await publishSite(ownerApi, 'club', clubId);
       const { data: viaUi } = await admin.from('org_site_modules').select('config').eq('site_id', site.id).eq('module_key', 'courses').single();
       const holes5 = (viaUi!.config as { photos: Record<string, { holes: Record<string, { path: string }> }> }).photos[courseId].holes;
       expect(Object.keys(holes5)).toEqual(['5']);
