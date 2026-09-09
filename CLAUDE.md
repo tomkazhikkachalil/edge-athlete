@@ -403,6 +403,30 @@ const { canView } = await response.json();
    `e2e/helpers/org-page.ts openWindow(page, key)`. Read DEVLOG Sep 8–9
    2026 R1–R5 before touching any of it.
 
+12. **Sites are compositions of registered widgets; edits go to a draft
+   (Site Builder, Sep 9 2026, mig 180)** — Tom's design doc supersedes
+   masterplan §6 ("themed templates, no free-form layout"): a closed widget
+   CATALOG (`src/lib/site-builder/catalog.ts`, ZERO imports — the org-page
+   client chunk reads it; `WEB_WIDGET_KEYS` is a literal copy of
+   `MODULE_KEYS`, pinned by test) on a 12-column grid, one composition
+   rendering the public site AND the in-app org page (`deriveAppLayout()`
+   orders the glance grid; the app bubbles alias `schedule→events`,
+   `venues→courses`, `gallery→photos`). Phase 1: the public home and the
+   glance grid render ONLY from a layout (`deriveLegacyLayout` today).
+   Phase 2: content edits (order, toggles, hero, theme, template, module
+   configs) go to the DRAFT revision (`org_site_revisions`, one `snapshot`
+   jsonb; `applySiteAction` in `src/lib/site-builder/snapshot.ts` is the one
+   reducer); **the content columns of `org_sites` and all of
+   `org_site_modules` are the PUBLISHED PROJECTION** — the only writers are
+   publish (mirror), the pre-180 fallback and `logo_path`. Logo stays live.
+   Publishing changes is `manage_site`; taking the site live/offline stays
+   `manage_org` and PROMOTES a dirty draft. The preview renders the draft in
+   its own route group `(public)/(preview)/…` inside `SiteShell`. e2e: a spec
+   that edits and then reads the public page calls
+   `e2e/helpers/org-site.ts publishSite()` first. Plan:
+   `~/.claude/plans/edge-athlete-site-builder-zesty-pnueli.md`; read DEVLOG
+   Sep 9 2026 P1-A…P2-D before touching any of it.
+
 ---
 
 ## 🔧 Common Tasks
