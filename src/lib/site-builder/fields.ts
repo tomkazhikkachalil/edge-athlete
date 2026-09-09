@@ -2,22 +2,37 @@
  * Field descriptors for the properties panel — Site Builder phase 5.
  *
  * A typed, explicit description of what the panel shows for a widget —
- * pinned to the zod schemas by test (`fields.test.ts`) rather than derived
- * from them: a form's needs (kind, label, help, scope) are not a schema's.
- * CLIENT-SAFE: no zod, no imports beyond types (the editor bundle reads it).
+ * pinned to the zod schemas by test (`config-fields.test.ts`) rather than
+ * derived from them: a form's needs (kind, label, help, scope) are not a
+ * schema's. CLIENT-SAFE: no zod, no imports beyond types (the editor
+ * bundle reads it; schemas.ts imports the caps from here, never the
+ * reverse).
  *
  * `scope` decides where a value goes:
- *  • 'instance' → the layout instance's config (title today) — one undo
- *    step, autosaved with the layout;
+ *  • 'instance' → the layout instance's config — one undo step per field
+ *    burst, autosaved with the layout;
  *  • 'content'  → the org object, through the console's existing PATCH
  *    action (set_hero, set_contact) — the same write the Website section
  *    makes, so the two surfaces can never disagree.
+ *
+ * Phase 6 adds three editor kinds for the content widgets, whose content
+ * IS the instance: `blocks` (the text widget's compact block editor),
+ * `image` (a photo from the site's assets, uploaded here) and `embed` (a
+ * pasted link, parsed into a structure).
  */
 import type { SiteWidgetKey } from './catalog';
 
 export type FieldSpec =
   | { kind: 'text' | 'textarea' | 'url' | 'email' | 'date'; name: string; label: string; help?: string; max?: number; scope: 'instance' | 'content' }
-  | { kind: 'visibility'; name: 'visibility'; label: string; scope: 'instance' };
+  | { kind: 'visibility'; name: 'visibility'; label: string; scope: 'instance' }
+  | { kind: 'blocks'; name: 'blocks'; label: string; help?: string; scope: 'instance' }
+  | { kind: 'image'; name: 'path'; label: string; help?: string; scope: 'instance' }
+  | { kind: 'embed'; name: 'embed'; label: string; help?: string; scope: 'instance' };
+
+/** Content-widget caps (schemas.ts enforces them; the editors show them). */
+export const TEXT_WIDGET_BLOCKS_MAX = 12;
+export const IMAGE_ALT_MAX = 200;
+export const IMAGE_CAPTION_MAX = 200;
 
 const TITLE: FieldSpec = { kind: 'text', name: 'title', label: 'Section title', help: 'Shown as this section’s heading on the page.', max: 60, scope: 'instance' };
 const VISIBILITY: FieldSpec = { kind: 'visibility', name: 'visibility', label: 'Who sees it', scope: 'instance' };
@@ -41,13 +56,43 @@ export const CONTACT_FIELDS: FieldSpec[] = [
   { kind: 'url', name: 'directionsUrl', label: 'Directions link', max: 200, scope: 'content' },
 ];
 
+/** Phase 6 — the text widget: its blocks ARE the instance. */
+export const TEXT_FIELDS: FieldSpec[] = [
+  { kind: 'blocks', name: 'blocks', label: 'Content', help: 'Paragraphs, headings and link lists. Nothing shows to visitors until you publish.', scope: 'instance' },
+];
+
+/** Phase 6 — the image widget: one photo from the site's assets. */
+export const IMAGE_FIELDS: FieldSpec[] = [
+  { kind: 'image', name: 'path', label: 'Photo', scope: 'instance' },
+  { kind: 'text', name: 'alt', label: 'Describe the photo', help: 'Read aloud by screen readers; shown if the photo cannot load.', max: IMAGE_ALT_MAX, scope: 'instance' },
+  { kind: 'text', name: 'caption', label: 'Caption', max: IMAGE_CAPTION_MAX, scope: 'instance' },
+  { kind: 'url', name: 'href', label: 'Link', help: 'Where a tap on the photo goes — an https:// address.', max: 200, scope: 'instance' },
+];
+
+/** Phase 6 — the embed widget: a pasted link, stored as a structure. */
+export const EMBED_FIELDS: FieldSpec[] = [
+  { kind: 'embed', name: 'embed', label: 'Video or map link', help: 'Paste a YouTube, Vimeo or OpenStreetMap link.', scope: 'instance' },
+];
+
 /** Every non-hero widget gets the instance options; content fields where
- *  the org object has a simple form. Lists (sponsors, documents) and media
- *  (gallery picks, course photos) stay in the console for now (phase 6). */
+ *  the org object has a simple form; the content widgets' editors. Lists
+ *  (sponsors, documents) and media picks (gallery, course photos) stay in
+ *  the console. */
 export function fieldsFor(key: SiteWidgetKey): FieldSpec[] {
-  if (key === 'hero') return HERO_FIELDS;
-  if (key === 'contact') return [TITLE, VISIBILITY, ...CONTACT_FIELDS];
-  return [TITLE, VISIBILITY];
+  switch (key) {
+    case 'hero':
+      return HERO_FIELDS;
+    case 'contact':
+      return [TITLE, VISIBILITY, ...CONTACT_FIELDS];
+    case 'text':
+      return [TITLE, VISIBILITY, ...TEXT_FIELDS];
+    case 'image':
+      return [TITLE, VISIBILITY, ...IMAGE_FIELDS];
+    case 'embed':
+      return [TITLE, VISIBILITY, ...EMBED_FIELDS];
+    default:
+      return [TITLE, VISIBILITY];
+  }
 }
 
 /** The content fields' PATCH action, per widget. */

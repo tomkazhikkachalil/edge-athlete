@@ -163,10 +163,51 @@ test('org site editor: canvas → drag → autosave → undo → reload; phone n
       const draftView = (await (await ownerApi.get(`/api/leagues/${leagueId}/site`)).json()) as { site: { hero_config: { headline?: string } } };
       expect(draftView.site.hero_config.headline).toBe(`Hello ${stamp}`);
 
-      // Phase 6: content widgets (text, image, embed) ride the layout INSTANCE,
-      // under the publish gate — appended here through the draft API (P6-B
-      // adds them to the picker and the panel). A cross-site image path is
-      // refused; an embed is a STRUCTURE, never a URL.
+      // Phase 6 (P6-B): the picker's "Your own content" — add a Text section,
+      // its panel opens at once (a content tile is empty until written); type
+      // a paragraph (one undo step, the tile updates live, autosaved); then an
+      // Embed from a pasted link, then an Image uploaded through the panel.
+      await page.getByRole('button', { name: 'Add section' }).click();
+      await page.locator('[data-sb-picker-tile="text"]').getByRole('button', { name: 'Add' }).click();
+      const textPanel = page.locator('[data-sb-panel="text"]');
+      await expect(textPanel).toBeVisible();
+      await textPanel.getByLabel('Section title').fill(`Story ${stamp}`);
+      await textPanel.getByRole('button', { name: '+ Paragraph' }).click();
+      await textPanel.getByLabel('Paragraph 1', { exact: true }).fill(`Typed paragraph ${stamp}`);
+      await expect(page.locator('[data-sb-widget="text"]').first()).toContainText(`Typed paragraph ${stamp}`);
+      await awaitSaved(page);
+      // One undo step for the whole paragraph: Undo clears the text, Redo brings it back.
+      await page.getByRole('button', { name: 'Undo', exact: true }).click();
+      await expect(textPanel.getByLabel('Paragraph 1', { exact: true })).toHaveValue('');
+      await page.getByRole('button', { name: 'Redo', exact: true }).click();
+      await expect(textPanel.getByLabel('Paragraph 1', { exact: true })).toHaveValue(`Typed paragraph ${stamp}`);
+      // Redo lands on the very layout the server holds — nothing to save, the chip stays clean.
+      await expect(page.locator('[data-sb-dirty="0"]')).toBeVisible();
+
+      await page.getByRole('button', { name: 'Add section' }).click();
+      await page.locator('[data-sb-picker-tile="embed"]').getByRole('button', { name: 'Add' }).click();
+      const embedPanel = page.locator('[data-sb-panel="embed"]');
+      await expect(embedPanel).toBeVisible();
+      await embedPanel.getByLabel('Video or map link').fill('https://vimeo.com/76979871');
+      await expect(embedPanel.locator('[data-sb-embed="vimeo"]')).toContainText('Vimeo video');
+      await expect(page.locator('[data-sb-widget="embed"] iframe').first()).toHaveAttribute('src', 'https://player.vimeo.com/video/76979871');
+      await awaitSaved(page);
+      await embedPanel.getByLabel('Video or map link').fill('https://example.com/not-a-video');
+      await expect(embedPanel.getByText('Not a link we can show')).toBeVisible();
+
+      await page.getByRole('button', { name: 'Add section' }).click();
+      await page.locator('[data-sb-picker-tile="image"]').getByRole('button', { name: 'Add' }).click();
+      const imagePanel = page.locator('[data-sb-panel="image"]');
+      await expect(imagePanel).toBeVisible();
+      await imagePanel.locator('input[type="file"]').setInputFiles('e2e/fixtures/photo.png');
+      await expect(imagePanel.locator('[data-sb-image-preview]')).toBeVisible({ timeout: 20_000 });
+      await imagePanel.getByLabel('Describe the photo').fill(`Photo alt ${stamp}`);
+      await imagePanel.getByLabel('Caption').fill(`Photo caption ${stamp}`);
+      await expect(page.locator('[data-sb-widget="image"] img').first()).toBeVisible();
+      await awaitSaved(page);
+
+      // Phase 6 (P6-A): the same tiles through the draft API — a cross-site
+      // image path is refused; an embed is a STRUCTURE, never a URL.
       const before6 = (await (await ownerApi.get(`/api/leagues/${leagueId}/site/canvas`)).json()) as {
         layout: { version: 1; cols: 12; widgets: { id: string; key: string; x: number; y: number; w: number; h: number; cv: number; config: unknown; visibility: string }[] };
         draft: { rev: number };
@@ -233,7 +274,15 @@ test('org site editor: canvas → drag → autosave → undo → reload; phone n
       expect(publicHtml).toContain(`Notes ${stamp}`);
       expect(publicHtml).toContain(`Welcome paragraph ${stamp}`);
       expect(publicHtml).toContain('https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ');
-      expect(publicHtml).not.toContain('data-widget="image"');
+      // P6-B: the typed story, the pasted Vimeo frame, the uploaded photo with
+      // its alt + caption; the photo-less image tile from the API is the one
+      // image tile that is NOT there.
+      expect(publicHtml).toContain(`Story ${stamp}`);
+      expect(publicHtml).toContain(`Typed paragraph ${stamp}`);
+      expect(publicHtml).toContain('https://player.vimeo.com/video/76979871');
+      expect(publicHtml).toContain(`Photo alt ${stamp}`);
+      expect(publicHtml).toContain(`Photo caption ${stamp}`);
+      expect(publicHtml.match(/data-widget="image"/g)?.length ?? 0).toBe(1);
       // The policy that lets that frame load — on whichever CSP header the build sends.
       const publicRes = await anon.request.get(`/org/${subdomain}`);
       const csp = publicRes.headers()['content-security-policy'] ?? publicRes.headers()['content-security-policy-report-only'] ?? '';

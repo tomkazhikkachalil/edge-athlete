@@ -1,5 +1,59 @@
 # Development Log
 
+## September 9, 2026 — Site Builder phase 6 (P6-B): the picker offers your own content; the panel writes it — blocks, a photo, a pasted link (zero DDL; behind the flag)
+
+P6-A gave the layout three content widgets; this makes them reachable
+without an API call.
+
+- **Picker** (`Picker.tsx`): a first list, "Your own content" — Text,
+  Image, Embed — always offered, any number of times (the catalog's
+  `multiple`), each with a one-line blurb; the data sections follow as
+  before. Adding a content tile SELECTS it (`SiteBuilder.addWidget`), so
+  the panel opens at once: a content tile is empty until written, and the
+  public page hides it until then.
+- **Panel editors, generated from three new descriptor kinds**
+  (`fields.ts` → `PropertiesPanel.tsx`): `blocks` → `BlocksField.tsx`, a
+  compact block editor (paragraphs, headings, link lists; move / remove /
+  add; ≤ 12) bound STRAIGHT to the instance — no local copy, so ⌘Z is
+  honest and the tile updates as you type; `image` → upload through the
+  site's own `…/site/assets` route (the SiteBlockEditor recipe: validate,
+  measure the intrinsic size client-side, keep the path), preview, replace,
+  remove, plus alt / caption / link as plain instance fields; `embed` → a
+  paste-a-link field that parses (`parseEmbedUrl`) and commits the
+  STRUCTURE, shows the provider it recognised and the frame host, and says
+  plainly when a link is not one we host.
+- **Typing is one undo step** (`useHistory`): a commit may carry a coalesce
+  key; consecutive commits with the same key replace the present instead
+  of pushing, and any un-keyed commit (a drag), undo or redo closes the
+  run. `historyReducer` / `initialHistory` are exported and node-tested
+  (`history.test.ts`). The title field coalesces too.
+- **Stored leniently, rendered strictly** (`schemas.ts`): binding the
+  editor to the instance means a paragraph being typed is empty for a
+  moment and a link is half an address — the autosave must not 400 on it.
+  `TextBlockSchema` (the stored twin of `PageBlockSchema`) and the image
+  `href` accept strings as typed; the render path (`parsePageBody`, the
+  https check in WidgetBody) shows only what is a block or a link, and
+  `isWidgetEmpty` reads through the same strict parse — so a half-typed
+  tile never shows publicly. The caps now live in `fields.ts`
+  (client-safe) and `schemas.ts` imports them.
+- **A phase-5 gap the new flow exposed**: saving hero or contact content
+  through the panel writes the same draft revision and bumps its `rev`,
+  but the editor's autosave kept the rev it loaded with — the next layout
+  save after a content save answered 409 ("Changed elsewhere"). The canvas
+  re-read after a content save now adopts the draft's rev
+  (`useDraft.adoptRev`); the layout in hand is unchanged, so only the rev
+  moves. Caught because the spec now types into a tile AFTER the hero save.
+- Tests: `history.test.ts`; the descriptor↔schema pin now runs over every
+  site key against `instanceSchemaFor(key)` and asserts each content
+  widget's editor kind; lenient-storage cases. e2e (editor spec, flagged
+  build): Add section → Text → panel opens → title + paragraph typed →
+  tile shows it → saved → Undo clears the WHOLE paragraph, Redo restores
+  → Embed from a pasted Vimeo link (frame src on `player.vimeo.com`; a
+  non-video link is refused inline) → Image uploaded through the panel
+  with alt + caption → publish → the public page carries the story, the
+  Vimeo frame and the photo with its alt and caption, and exactly one
+  image tile (the photo-less one from the API never renders).
+
 ## September 9, 2026 — Site Builder phase 6 (P6-A): content widgets — text, image, embed on the layout, under the publish gate (zero DDL; behind the flag)
 
 The first tiles with nothing behind them but the manager: a paragraph, a

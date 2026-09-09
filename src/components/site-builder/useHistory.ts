@@ -9,30 +9,49 @@ import { useCallback, useReducer } from 'react';
  * one commit (the canvas commits on drag/resize STOP, never per frame).
  * `replace` swaps the present without touching history — a server reload
  * after a conflict, or a size correction that is not the user's act.
+ *
+ * Phase 6 — COALESCING: a commit may carry a key; when it matches the key
+ * of the commit before it, the present is replaced instead of pushed, so
+ * typing a paragraph is ONE undo step (and the canvas still updates per
+ * keystroke). Any un-keyed commit, undo or redo closes the run.
  */
-interface History<T> {
+export interface History<T> {
   past: T[];
   present: T;
   future: T[];
+  /** The coalesce key of the last commit, if it had one. */
+  lastKey: string | null;
 }
-type Action<T> = { type: 'commit'; next: T } | { type: 'undo' } | { type: 'redo' } | { type: 'replace'; next: T };
+export type HistoryAction<T> =
+  | { type: 'commit'; next: T; coalesce?: string }
+  | { type: 'undo' }
+  | { type: 'redo' }
+  | { type: 'replace'; next: T };
 
 const CAP = 100;
 
-function reducer<T>(state: History<T>, action: Action<T>): History<T> {
+export function initialHistory<T>(present: T): History<T> {
+  return { past: [], present, future: [], lastKey: null };
+}
+
+export function historyReducer<T>(state: History<T>, action: HistoryAction<T>): History<T> {
   switch (action.type) {
-    case 'commit':
+    case 'commit': {
       if (action.next === state.present) return state;
-      return { past: [...state.past.slice(-(CAP - 1)), state.present], present: action.next, future: [] };
+      if (action.coalesce && action.coalesce === state.lastKey) {
+        return { ...state, present: action.next, future: [] };
+      }
+      return { past: [...state.past.slice(-(CAP - 1)), state.present], present: action.next, future: [], lastKey: action.coalesce ?? null };
+    }
     case 'undo': {
       const previous = state.past[state.past.length - 1];
       if (previous === undefined) return state;
-      return { past: state.past.slice(0, -1), present: previous, future: [state.present, ...state.future] };
+      return { past: state.past.slice(0, -1), present: previous, future: [state.present, ...state.future], lastKey: null };
     }
     case 'redo': {
       const [next, ...rest] = state.future;
       if (next === undefined) return state;
-      return { past: [...state.past, state.present], present: next, future: rest };
+      return { past: [...state.past, state.present], present: next, future: rest, lastKey: null };
     }
     case 'replace':
       return { ...state, present: action.next };
@@ -42,8 +61,8 @@ function reducer<T>(state: History<T>, action: Action<T>): History<T> {
 }
 
 export function useHistory<T>(initial: T) {
-  const [state, dispatch] = useReducer(reducer<T>, { past: [], present: initial, future: [] });
-  const commit = useCallback((next: T) => dispatch({ type: 'commit', next }), []);
+  const [state, dispatch] = useReducer(historyReducer<T>, initial, initialHistory);
+  const commit = useCallback((next: T, coalesce?: string) => dispatch({ type: 'commit', next, coalesce }), []);
   const undo = useCallback(() => dispatch({ type: 'undo' }), []);
   const redo = useCallback(() => dispatch({ type: 'redo' }), []);
   const replace = useCallback((next: T) => dispatch({ type: 'replace', next }), []);
