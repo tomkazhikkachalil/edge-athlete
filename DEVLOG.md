@@ -1,5 +1,46 @@
 # Development Log
 
+## September 9, 2026 — Site Builder P1-D: the in-app glance grid reads the widget registry (zero visual change; zero DDL)
+
+Phase 1 closes: the second surface reads the registry. The org page's
+glance grid (Org Pages R3–R5) built its bubbles as an imperative push-list
+— order and span were the order and literals of that file. Now
+`deriveAppLayout()` (P1-B) supplies both, and the file keeps only what is
+genuinely its own: the faces, their gates and their side-dependent labels,
+as a keyed table the registry order walks. Tom's decision: zero visual
+change — the recorded priorities reproduce the push order exactly, and the
+proof below shows it.
+
+- **`OrgGlanceGrid.tsx`**: the local `OrgWindowKey` union and `WINDOW_KEYS`
+  array go (the deep-link check is `isOrgWindowKey`; the type is re-exported
+  from `app-layout.ts`). The push-list becomes `faceFor: Record<OrgWindowKey,
+  () => FaceSpec | null>` — same gates (`show`, `isMember`, `signedIn`), same
+  JSX, same labels (`League news` / `Club news`, `Courses` / `Venues`,
+  `Affiliated clubs` / `Leagues` stay here: they are data-dependent and
+  differ from the web `moduleLabel`). `deriveAppLayout()` → slots: a bubble
+  when its face shows, or the posts wall at its registry slot (`ownsWindow`);
+  span comes from the slot and `BubbleCard` still maps it to LITERAL classes.
+  The posts wall's `staggerIndex` is its index, as before (it is last). The
+  staff empty-state lines (`Set up a competition →` …) now come from the
+  registry's `emptyState`, the same strings. All `useOrgRead` hooks stay
+  top-level; the face table is plain closures called during render.
+- Nothing else changes: `[data-org-bubble]`, `[data-larger-window]`,
+  `windowFor`, the labels the 17 `openWindow` specs match.
+
+**Proof, not promise.** Same rig as P1-C: `main` (post-#617) on :3001, this
+branch on :3002, one local database; a session-scoped Playwright probe
+(never committed) seeded a club (owner, member, one venue) and captured
+`[data-org-glance]` innerHTML for a visitor, a member and the owner at 390
+and 1280 on both ports — after the faces' reads settled and the pop-in
+animations finished, uuids/timestamps/stagger delays normalised. All six
+captures identical: the visitor and the member see two bubbles (Members,
+Courses/Venues), the owner nine (every zero face with its console line, the
+venue, the members' posts wall) — same bytes, same order, at both widths.
+The club was deleted in the same run. Then the 17 `openWindow` callers plus
+`org-page-glance`, `org-app-gallery`, `org-app-posts` and `org-app-brand`
+against the branch build: 24 passed (desktop, mobile and webkit-mobile
+projects).
+
 ## September 9, 2026 — Site Builder P1-C: the site home renders from the derived widget layout (byte-identical; zero DDL)
 
 The public home's first consumer of the registry (P1-B). The page and the

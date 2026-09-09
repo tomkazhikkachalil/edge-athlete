@@ -29,6 +29,8 @@ import GolfYourWeek from '@/components/orgs/GolfYourWeek';
 import OrgVenues from '@/components/orgs/OrgVenues';
 import { formatDisplayName, getInitials } from '@/lib/formatters';
 import { useAuth } from '@/lib/auth';
+import { WIDGETS } from '@/lib/site-builder/catalog';
+import { deriveAppLayout, isOrgWindowKey, type OrgWindowKey } from '@/lib/site-builder/app-layout';
 import OrgMembersList from './OrgMembersList';
 import { pickPhotos, PhotosEmptyFace, PhotosFace, PhotosWindow } from './OrgPhotos';
 import OrgMemberPostsGrid from './OrgMemberPostsGrid';
@@ -47,22 +49,15 @@ import type { MemberRow, OrgSide } from './types';
 // close. Zeros render honestly for managers (with the console as the
 // add-affordance); a non-manager's zero bubble is omitted, as the sections
 // rendered null before. Deep link: ?window=<key> opens that window.
+//
+// Site Builder P1-D (Sep 9 2026): the grid's ORDER and SPANS come from the
+// widget registry (`deriveAppLayout()` — each widget's app priority and
+// bubble span), not from the push order of this file; the faces, their
+// gates and their labels stay here (they are data- and side-dependent), as
+// a keyed table the registry order walks. Zero visual change: the recorded
+// priorities reproduce the R3–R5 push order exactly (pinned by test).
 
-export type OrgWindowKey =
-  | 'members'
-  | 'week'
-  | 'standings'
-  | 'events'
-  | 'news'
-  | 'announcements'
-  | 'courses'
-  | 'activity'
-  | 'affiliations'
-  | 'photos';
-
-const WINDOW_KEYS: OrgWindowKey[] = [
-  'members', 'week', 'standings', 'events', 'news', 'announcements', 'courses', 'activity', 'affiliations', 'photos',
-];
+export type { OrgWindowKey };
 
 /** One read per face — the section's own endpoint, the section's own
  *  swallow-on-failure. `enabled` false = the read never fires. */
@@ -217,7 +212,7 @@ export default function OrgGlanceGrid({
     try {
       const key = new URLSearchParams(window.location.search).get('window');
       // eslint-disable-next-line react-hooks/set-state-in-effect -- the URL is an external input read once after mount (SSR has no window; a lazy initializer would hydrate-mismatch)
-      if (key && (WINDOW_KEYS as string[]).includes(key)) setOpen(key as OrgWindowKey);
+      if (isOrgWindowKey(key)) setOpen(key);
     } catch {
       /* no window (SSR) or malformed search — no deep link */
     }
@@ -266,141 +261,165 @@ export default function OrgGlanceGrid({
   const show = (count: number | null | undefined, memberOnly = false) =>
     (!memberOnly || isMember) && ((count ?? 0) > 0 || canManage);
 
+  // The staff empty-state lines come from the registry (the console anchor
+  // each zero face links to); `emptyLink` renders them for managers only.
+  const staffEmpty = (key: keyof typeof WIDGETS) => {
+    const e = WIDGETS[key].emptyState?.staff;
+    return e ? emptyLink(e.label, e.consoleHash) : null;
+  };
+
   type Bubble = { key: OrgWindowKey; icon: LucideIcon; label: string; span: 'sm' | 'md' | 'lg'; face: ReactNode; open: boolean };
-  const bubbles: Bubble[] = [];
+  type FaceSpec = Omit<Bubble, 'span'>;
 
-  bubbles.push({
-    key: 'members', icon: Users, label: 'Members', span: 'sm', open: true,
-    face: (
-      <Face big={memberCount} sub={memberCount === 1 ? 'member' : 'members'}>
-        {members.length > 0 && (
-          <div className="mt-2 flex -space-x-2">
-            {members.slice(0, 4).map(m => {
-              const name = m.profile
-                ? formatDisplayName(m.profile.first_name, null, m.profile.last_name, m.profile.full_name)
-                : 'Member';
-              return (
-                <span key={m.profile_id} className="rounded-full ring-2 ring-surface">
-                  <AvatarImage src={m.profile?.avatar_url ?? null} alt="" size={24} fallbackInitials={getInitials(name)} />
-                </span>
-              );
-            })}
-          </div>
-        )}
-      </Face>
-    ),
+  // Every face, keyed by its bubble — the gates, the labels and the JSX are
+  // exactly the R3–R5 push-list's; ORDER and SPAN now come from the
+  // registry below. Plain closures, called during render — the reads above
+  // stay top-level hooks.
+  const faceFor: Record<OrgWindowKey, () => FaceSpec | null> = {
+    members: () => ({
+      key: 'members', icon: Users, label: 'Members', open: true,
+      face: (
+        <Face big={memberCount} sub={memberCount === 1 ? 'member' : 'members'}>
+          {members.length > 0 && (
+            <div className="mt-2 flex -space-x-2">
+              {members.slice(0, 4).map(m => {
+                const name = m.profile
+                  ? formatDisplayName(m.profile.first_name, null, m.profile.last_name, m.profile.full_name)
+                  : 'Member';
+                return (
+                  <span key={m.profile_id} className="rounded-full ring-2 ring-surface">
+                    <AvatarImage src={m.profile?.avatar_url ?? null} alt="" size={24} fallbackInitials={getInitials(name)} />
+                  </span>
+                );
+              })}
+            </div>
+          )}
+        </Face>
+      ),
+    }),
+    week: () =>
+      signedIn && isMember && week && week.count > 0
+        ? {
+            key: 'week', icon: Flag, label: 'Your week', open: true,
+            face: (
+              <Face big={week.big} sub={week.sub}>
+                <p className="mt-1 text-xs text-secondary">
+                  This week
+                  {week.season && (
+                    <span className="text-muted" data-standing={week.rank ?? undefined}>{` · ${week.season}`}</span>
+                  )}
+                </p>
+              </Face>
+            ),
+          }
+        : null,
+    standings: () =>
+      standings && show(standings.count)
+        ? {
+            key: 'standings', icon: Trophy, label: 'Standings', open: standings.count > 0,
+            face: standings.count > 0 ? (
+              <Face big={standings.lead ?? '—'} sub={standings.sub ?? undefined}>
+                <p className="mt-1 text-xs text-secondary">{standings.count === 1 ? 'Leader' : `Leader · ${standings.count} competitions`}</p>
+              </Face>
+            ) : (
+              <Face big={0} sub="competitions">{staffEmpty('standings')}</Face>
+            ),
+          }
+        : null,
+    events: () =>
+      events && show(events.count)
+        ? {
+            key: 'events', icon: CalendarDays, label: 'Events', open: events.count > 0,
+            face: events.count > 0 ? (
+              <Face big={<>{events.day}<span className="ml-1 text-base font-semibold text-tertiary">{events.month}</span></>} sub={events.title ?? undefined}>
+                <p className="mt-1 text-xs text-secondary">{events.count === 1 ? '1 upcoming' : `${events.count} upcoming`}</p>
+              </Face>
+            ) : (
+              <Face big={0} sub="upcoming">{staffEmpty('schedule')}</Face>
+            ),
+          }
+        : null,
+    news: () =>
+      isMember && news && show(news.count, true)
+        ? {
+            key: 'news', icon: Newspaper, label: side === 'league' ? 'League news' : 'Club news', open: news.count > 0,
+            face: (
+              <div data-org-news-count={news.count}>
+                {news.count > 0 ? (
+                  <Face big={news.count} sub={news.newest ?? undefined} />
+                ) : (
+                  <Face big={0} sub="posts">{staffEmpty('news')}</Face>
+                )}
+              </div>
+            ),
+          }
+        : null,
+    announcements: () =>
+      isMember && announcements && show(announcements.length, true)
+        ? {
+            key: 'announcements', icon: Megaphone, label: 'Announcements', open: announcements.length > 0,
+            face: (
+              <div data-announcements-count={announcements.length}>
+                {announcements.length > 0 ? (
+                  <Face big={announcements.length} sub={announcements[0]?.title} />
+                ) : (
+                  <Face big={0} sub="notices">{staffEmpty('announcements')}</Face>
+                )}
+              </div>
+            ),
+          }
+        : null,
+    courses: () =>
+      venues && show(venues.count)
+        ? {
+            key: 'courses', icon: Landmark, label: venues.courses ? 'Courses' : 'Venues', open: venues.count > 0,
+            face: venues.count > 0 ? (
+              <Face big={venues.count} sub={venues.first ?? undefined} />
+            ) : (
+              <Face big={0} sub="venues">{staffEmpty('venues')}</Face>
+            ),
+          }
+        : null,
+    activity: () =>
+      activity && activity.count > 0
+        ? {
+            key: 'activity', icon: Activity, label: 'Recent activity', open: true,
+            face: <Face big={activity.count} sub={activity.last ? `Latest · ${activity.last}` : undefined} />,
+          }
+        : null,
+    photos: () =>
+      photos && show(photos.count)
+        ? {
+            key: 'photos', icon: ImageIcon, label: 'Photos', open: photos.count > 0,
+            face: photos.count > 0
+              ? <PhotosFace read={photos} />
+              : <PhotosEmptyFace read={photos} canManage={canManage} consolePath={consolePath} />,
+          }
+        : null,
+    affiliations: () => {
+      const affCount = (affiliations?.count ?? 0) + (chain?.count ?? 0);
+      const affManager = !!affiliations?.manager || !!chain?.manager;
+      if (!affiliations || !(affCount > 0 || affManager)) return null;
+      return {
+        key: 'affiliations', icon: side === 'league' ? Link2 : Landmark,
+        label: side === 'league' ? 'Affiliated clubs' : 'Leagues', open: true,
+        face: affCount > 0
+          ? <Face big={affCount} sub={affiliations.first ?? chain?.first ?? undefined} />
+          : <Face big={0} sub="affiliations"><p className="mt-1.5 text-xs text-muted">Invite one inside →</p></Face>,
+      };
+    },
+  };
+
+  // Registry order → the slots: a bubble (when its face shows) or the
+  // posts wall, which renders its own bubble and window.
+  type Slot = { kind: 'bubble'; bubble: Bubble } | { kind: 'posts' };
+  const slots: Slot[] = deriveAppLayout().flatMap((s): Slot[] => {
+    if (s.ownsWindow) return [{ kind: 'posts' }];
+    if (!isOrgWindowKey(s.bubbleKey)) return [];
+    const face = faceFor[s.bubbleKey]();
+    return face ? [{ kind: 'bubble', bubble: { ...face, span: s.span } }] : [];
   });
-
-  if (signedIn && isMember && week && week.count > 0) {
-    bubbles.push({
-      key: 'week', icon: Flag, label: 'Your week', span: 'md', open: true,
-      face: (
-        <Face big={week.big} sub={week.sub}>
-          <p className="mt-1 text-xs text-secondary">
-            This week
-            {week.season && (
-              <span className="text-muted" data-standing={week.rank ?? undefined}>{` · ${week.season}`}</span>
-            )}
-          </p>
-        </Face>
-      ),
-    });
-  }
-
-  if (standings && show(standings.count)) {
-    bubbles.push({
-      key: 'standings', icon: Trophy, label: 'Standings', span: 'md', open: standings.count > 0,
-      face: standings.count > 0 ? (
-        <Face big={standings.lead ?? '—'} sub={standings.sub ?? undefined}>
-          <p className="mt-1 text-xs text-secondary">{standings.count === 1 ? 'Leader' : `Leader · ${standings.count} competitions`}</p>
-        </Face>
-      ) : (
-        <Face big={0} sub="competitions">{emptyLink('Set up a competition →', '#competitions')}</Face>
-      ),
-    });
-  }
-
-  if (events && show(events.count)) {
-    bubbles.push({
-      key: 'events', icon: CalendarDays, label: 'Events', span: 'sm', open: events.count > 0,
-      face: events.count > 0 ? (
-        <Face big={<>{events.day}<span className="ml-1 text-base font-semibold text-tertiary">{events.month}</span></>} sub={events.title ?? undefined}>
-          <p className="mt-1 text-xs text-secondary">{events.count === 1 ? '1 upcoming' : `${events.count} upcoming`}</p>
-        </Face>
-      ) : (
-        <Face big={0} sub="upcoming">{emptyLink('Add an event →', '#competitions')}</Face>
-      ),
-    });
-  }
-
-  if (isMember && news && show(news.count, true)) {
-    bubbles.push({
-      key: 'news', icon: Newspaper, label: side === 'league' ? 'League news' : 'Club news', span: 'sm', open: news.count > 0,
-      face: (
-        <div data-org-news-count={news.count}>
-          {news.count > 0 ? (
-            <Face big={news.count} sub={news.newest ?? undefined} />
-          ) : (
-            <Face big={0} sub="posts">{emptyLink('Post news →', '#website')}</Face>
-          )}
-        </div>
-      ),
-    });
-  }
-
-  if (isMember && announcements && show(announcements.length, true)) {
-    bubbles.push({
-      key: 'announcements', icon: Megaphone, label: 'Announcements', span: 'sm', open: announcements.length > 0,
-      face: (
-        <div data-announcements-count={announcements.length}>
-          {announcements.length > 0 ? (
-            <Face big={announcements.length} sub={announcements[0]?.title} />
-          ) : (
-            <Face big={0} sub="notices">{emptyLink('Announce →', '#roster')}</Face>
-          )}
-        </div>
-      ),
-    });
-  }
-
-  if (venues && show(venues.count)) {
-    bubbles.push({
-      key: 'courses', icon: Landmark, label: venues.courses ? 'Courses' : 'Venues', span: 'sm', open: venues.count > 0,
-      face: venues.count > 0 ? (
-        <Face big={venues.count} sub={venues.first ?? undefined} />
-      ) : (
-        <Face big={0} sub="venues">{emptyLink('Add a venue →', '#venues')}</Face>
-      ),
-    });
-  }
-
-  if (activity && activity.count > 0) {
-    bubbles.push({
-      key: 'activity', icon: Activity, label: 'Recent activity', span: 'sm', open: true,
-      face: <Face big={activity.count} sub={activity.last ? `Latest · ${activity.last}` : undefined} />,
-    });
-  }
-
-  if (photos && show(photos.count)) {
-    bubbles.push({
-      key: 'photos', icon: ImageIcon, label: 'Photos', span: 'md', open: photos.count > 0,
-      face: photos.count > 0
-        ? <PhotosFace read={photos} />
-        : <PhotosEmptyFace read={photos} canManage={canManage} consolePath={consolePath} />,
-    });
-  }
-
-  const affCount = (affiliations?.count ?? 0) + (chain?.count ?? 0);
-  const affManager = !!affiliations?.manager || !!chain?.manager;
-  if (affiliations && (affCount > 0 || affManager)) {
-    bubbles.push({
-      key: 'affiliations', icon: side === 'league' ? Link2 : Landmark,
-      label: side === 'league' ? 'Affiliated clubs' : 'Leagues', span: 'sm', open: true,
-      face: affCount > 0
-        ? <Face big={affCount} sub={affiliations.first ?? chain?.first ?? undefined} />
-        : <Face big={0} sub="affiliations"><p className="mt-1.5 text-xs text-muted">Invite one inside →</p></Face>,
-    });
-  }
+  const bubbles: Bubble[] = slots.flatMap(s => (s.kind === 'bubble' ? [s.bubble] : []));
 
   const windowFor = (key: OrgWindowKey): ReactNode => {
     switch (key) {
@@ -451,18 +470,21 @@ export default function OrgGlanceGrid({
           phone grid; dense flow lets the next small face fill it (DOM order —
           and the tab order — is unchanged). */}
       <div className="mt-6 grid grid-cols-2 lg:grid-cols-4 grid-flow-row-dense gap-3 sm:gap-4" data-org-glance="">
-        {bubbles.map((b, i) => (
-          <div key={b.key} className={`contents`} data-org-bubble-wrap={b.key}>
-            <BubbleCardWithHook
-              bubble={b}
-              staggerIndex={i}
-              onOpen={b.open ? () => setOpen(b.key) : undefined}
-            />
-          </div>
-        ))}
-        {/* R5: the members' posts wall — a static lg bubble whose tiles are
-            the buttons; it owns its read, its window and its detail modal. */}
-        <OrgMemberPostsGrid side={side} orgId={orgId} viewerId={viewerId} canManage={canManage} staggerIndex={bubbles.length} />
+        {slots.map((s, i) =>
+          s.kind === 'posts' ? (
+            // R5: the members' posts wall — a static lg bubble whose tiles are
+            // the buttons; it owns its read, its window and its detail modal.
+            <OrgMemberPostsGrid key="posts" side={side} orgId={orgId} viewerId={viewerId} canManage={canManage} staggerIndex={i} />
+          ) : (
+            <div key={s.bubble.key} className={`contents`} data-org-bubble-wrap={s.bubble.key}>
+              <BubbleCardWithHook
+                bubble={s.bubble}
+                staggerIndex={i}
+                onOpen={s.bubble.open ? () => setOpen(s.bubble.key) : undefined}
+              />
+            </div>
+          )
+        )}
       </div>
       {openBubble && (
         <LargerWindow title={openBubble.label} windowKey={openBubble.key} onClose={close} hostsOwnHeading>
