@@ -1,5 +1,29 @@
 # Development Log
 
+## September 9, 2026 — Org Pages Program: close (#612, docs only)
+
+Five rounds in one evening and night, one PR each, every one merged by
+Tom and probed on production before the next opened: **R1** #607 folded the
+983-line league/club page twins into one `OrgPage` with a byte-identical
+DOM proof; **R2** #608 gave it the `.org-app-scope` dialect and the media
+hero (brand on the org GET; draft sites show it for everyone); **R3** #609
+put every section behind a bubble whose `LargerWindow` hosts it unchanged
+(13 specs tap first); **R4** #610 brought the site's media in-app (the
+gallery under IDENTICAL public gates, news covers, course + hole photos)
+and fixed two bugs it found (the activity thumbnail broken since the
+media-privacy flip; one Escape closing two layers); **R5** #611 added the
+members' posts wall on a new `?org=` arm of the posts route. Zero DDL
+across the program; two routes added (baseline 257).
+
+This entry records the close: CLAUDE.md convention 11 names the house
+pieces (`BubbleCard`, `LargerWindow`, `.ea-bubble`, the two dialect scopes,
+`OrgPage`, `openWindow`). Left for a later round, on purpose: retiring the
+`.vt-card` / `.vt-pop-in` aliases and the two vitals re-export shims (R3
+was meant to; the grid took the round), the all-day event date semantics
+on the Events face (mirrors the list's `new Date` until verified), and
+logos in the public directories (a viewer-independent join, its own tiny
+round). Tom owes the device pass on a real branded club.
+
 ## September 9, 2026 — Org Pages Program R5: the members' posts wall (#611)
 
 The last round of the program Tom opened on the evening of the 8th. R4

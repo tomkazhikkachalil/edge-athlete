@@ -383,6 +383,26 @@ const { canView } = await response.json();
    never a pipe. A supervised profile can never create an org
    (`requireOrgCreator`). Read DEVLOG Sep 8 2026 rounds 0–5 first.
 
+11. **The bubble language is house-wide; org pages speak it (Org Pages
+   Program, Sep 8–9 2026, #607–#611)** — `src/components/bubbles/`:
+   `BubbleCard` (the whole card is the button; one big number + a sub-line;
+   literal col-spans) and `LargerWindow` (bottom sheet <sm, centered card
+   sm:+, z-50 BELOW PostDetailModal/MediaLightbox/ConfirmModal at z-[60];
+   Escape closes the TOPMOST `[role="dialog"]` only; `hostsOwnHeading` when
+   the hosted section renders its own `<h2>`). CSS: `.ea-bubble` /
+   `ea-pop-in` / `--ea-spring` are the neutral names; `.vt-scope` (Vitals)
+   and `.org-app-scope` (the in-app league/club page) are the two dialect
+   scopes that re-point the TWO shadow levels — never a third, never
+   `--brand` (the PUBLIC site's `.org-scope` does re-point brand; the two
+   never nest). The in-app org page is ONE `OrgPage` (`side` prop) under
+   `src/components/orgs/page/`: hero (brand from the org GET — draft sites
+   show it for everyone), a glance grid whose windows host the existing
+   section components with `bare`, and the media the site already had
+   (gallery under IDENTICAL public gates, news covers, course photos,
+   members' posts via `/api/posts?org=`). e2e taps the bubble first:
+   `e2e/helpers/org-page.ts openWindow(page, key)`. Read DEVLOG Sep 8–9
+   2026 R1–R5 before touching any of it.
+
 ---
 
 ## 🔧 Common Tasks
