@@ -1,5 +1,34 @@
 # Development Log
 
+## September 8, 2026 — Chat dock: minimized chat pills get a translucent violet tint (#605)
+
+Tom: *"when you minimize a chat, the pill for the individual chats … is
+right now the same colour as the background. I think when it gets
+minimized, it should be a lighter purple. Still be that transparent, but
+this makes it easier to identify."*
+
+Root cause: `MinimizedStack`'s `PILL_CLASSES` was `ea-surface
+ea-surface-raised ea-interactive …`. `.ea-surface` paints an OPAQUE
+`var(--color-surface)` — white on the white feed in light, `#1f1a16` on a
+`#171310` canvas in dark — behind a 6% hairline, and `.ea-interactive`'s
+hover is the neutral `--ea-tint`. Nothing about the chip was violet or
+translucent. The file's Aug 5 note had pre-sanctioned a violet variant as
+"a class-constant swap", but that variant was opaque `bg-brand` — the loud
+Messages-pill violet, which the hierarchy reserves.
+
+The swap: `ea-surface*` dropped (it would repaint the chip opaque),
+`ea-interactive` kept for the press scale, and the chip spelled out —
+`bg-violet-100/85 hover:bg-violet-200/90 border-violet-200/80`, dark
+`bg-violet-500/25 hover:bg-violet-500/35 border-violet-400/40`,
+`backdrop-blur-sm shadow-md`. The explicit `hover:bg-*` is what beats the
+neutral tint. Explicit `violet-*/NN` rather than `bg-brand-soft/NN` on
+purpose: under an org theme `--brand-soft` is a `color-mix()`, which takes
+no alpha modifier. The avatar well moved `bg-violet-100` → `bg-surface`
+(it vanished into a violet-100 chip). Presence ring, red badge, name
+colour untouched; `e2e/chat-dock.spec.ts` asserts roles and labels only,
+so nothing pinned the old chrome. Styling-only — minimized state lives in
+`dock-state.ts` and did not change. Zero DDL.
+
 ## September 8, 2026 — Post header: the name, not the name and the @handle (#604)
 
 Tom: *"on the feed, it shows the name at the top of the post, but also, it

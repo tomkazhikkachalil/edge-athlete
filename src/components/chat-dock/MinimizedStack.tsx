@@ -13,16 +13,21 @@ import type { Conversation } from '@/types/messages';
 // helper so a pill, its row in the panel, and the window it restores all
 // read identically.
 
-// White surface chip — violet stays reserved for the Messages pill. To go
-// violet instead, swap to:
-//   pill:  'flex items-center gap-2 h-11 pl-1.5 pr-3 rounded-lg max-w-44
-//           bg-brand text-white hover:bg-brand-hover shadow-2xl
-//           transition-colors'
-//   name:  'text-sm font-medium truncate'
-//   badge: swap bg-red-500 text-white → bg-surface text-brand-fg-strong, and the
-//          presence dot border-white → border-brand.
+// Soft, translucent violet chip (Tom, Sep 8 2026: the white `ea-surface`
+// chip "is the same colour as the background" — opaque surface on a surface
+// canvas, a hair off the page in dark — so a minimized chat was invisible;
+// "a lighter purple, still transparent"). The tint says "this is chat
+// chrome" while the saturated brand-chrome Messages pill keeps the top of
+// the hierarchy. NOT ea-surface: that class paints an opaque
+// var(--color-surface). ea-interactive is kept for the press scale and the
+// transitions, and the explicit hover:bg-* is what beats its neutral
+// --ea-tint hover. Explicit violet-*/NN rather than bg-brand-soft/NN: under
+// an org theme --brand-soft is a color-mix(), which takes no alpha modifier.
 const PILL_CLASSES =
-  'ea-surface ea-surface-raised ea-interactive flex items-center gap-2 h-11 pl-1.5 pr-3 rounded-lg max-w-44';
+  'ea-interactive flex items-center gap-2 h-11 pl-1.5 pr-3 rounded-lg max-w-44 ' +
+  'bg-violet-100/85 hover:bg-violet-200/90 border border-violet-200/80 ' +
+  'dark:bg-violet-500/25 dark:hover:bg-violet-500/35 dark:border-violet-400/40 ' +
+  'backdrop-blur-sm shadow-md';
 const NAME_CLASSES = 'text-sm font-medium text-primary truncate';
 const BADGE_CLASSES =
   'ml-auto shrink-0 bg-red-500 text-white text-[10px] font-bold rounded-full min-w-4.5 h-4.5 px-1 flex items-center justify-center';
@@ -63,7 +68,9 @@ export default function MinimizedStack({
               className={PILL_CLASSES}
             >
               <span className="relative shrink-0">
-                <span className="block w-8 h-8 rounded-full overflow-hidden bg-violet-100 dark:bg-violet-950/60">
+                {/* bg-surface, not violet-100: on the violet-100 pill the old
+                    well disappeared into the chip. */}
+                <span className="block w-8 h-8 rounded-full overflow-hidden bg-surface dark:bg-violet-950/60">
                   {avatarUrl ? (
                     <LazyImage src={avatarUrl} alt="" className="w-full h-full object-cover" />
                   ) : (
