@@ -40,6 +40,9 @@ export const FLOOR_STATIC_MEMBERS = Object.freeze({
   Object: { groupBy: 'Safari 17.4+' },
   Map: { groupBy: 'Safari 17.4+' },
   AbortSignal: { timeout: 'Safari 16+', any: 'Safari 17.4+' },
+  // Site Builder (Sep 2026): widget instance ids are minted client-side —
+  // use crypto.getRandomValues (Safari 11+), never randomUUID.
+  crypto: { randomUUID: 'Safari 15.4+' },
   Intl: { Segmenter: 'Safari 14.1+ but absent on some WebKit builds; keep behind typeof' },
 });
 
