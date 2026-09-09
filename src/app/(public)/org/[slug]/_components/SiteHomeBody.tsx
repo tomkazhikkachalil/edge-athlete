@@ -1,47 +1,23 @@
-import Image from 'next/image';
-import Link from 'next/link';
-import { orgMediaUrl } from '@/lib/media/org-site-media';
 import type { PublicSite } from '@/lib/org-sites/server';
 import type { SiteHomeData } from '@/lib/org-sites/home-data';
-import type { WebWidgetKey } from '@/lib/site-builder/catalog';
-import { widget, type SiteLayout, type WidgetInstance } from '@/lib/site-builder/layout';
-import NewsItems from './NewsItems';
-import {
-  GOLF_TAGLINE,
-  moduleLabel,
-  parseContact,
-  parseDocuments,
-  parseHeroConfig,
-  parseNavConfig,
-  parseSponsors,
-  parseThemeTokens,
-} from '@/lib/org-sites/validate';
-import AffiliationsList from './AffiliationsList';
-import ContactCard from './ContactCard';
-import CoursesList from './CoursesList';
-import PublicStandingsTable from '@/components/standings/PublicStandingsTable';
-import DivisionsList from './DivisionsList';
-import DocumentsList from './DocumentsList';
-import LeadersTable from './LeadersTable';
-import RegisterCard from './RegisterCard';
-import ScheduleList from './ScheduleList';
-import SponsorsList from './SponsorsList';
-import StaffList from './StaffList';
-import StandingsPreview from './StandingsPreview';
-import TeamsList from './TeamsList';
-import VenuesList from './VenuesList';
-import { appBaseUrl, siteBasePath } from '@/lib/org-sites/urls';
-import MembersOnlyPanel from './MembersOnlyPanel';
+import { widget, type SiteLayout } from '@/lib/site-builder/layout';
+import { moduleLabel, parseNavConfig } from '@/lib/org-sites/validate';
 import { FULL_WIDTH_MODULES, templateSpec } from '@/lib/org-sites/templates';
-import GolfRoundsSchedule from './GolfRoundsSchedule';
-import { courseRecordLine } from './CourseStatsCard';
-import MembersTable from './MembersTable';
+import HeroSection from './HeroSection';
+import WidgetBody from './WidgetBody';
 
 // The site home's module rendering, extracted (cleanup round) so the
 // PUBLISHED home page and the token-gated draft PREVIEW render the exact
 // same markup from different data paths (cached vs raw). Props-only,
 // server-safe — the public-segment component contract. The data bag's type
 // lives in @/lib/org-sites/home-data (P3-A) — shared with the resolver.
+//
+// Site Builder P3-B: the hero and each section's body are their own
+// props-only components (HeroSection, WidgetBody) so the editor CANVAS
+// renders a widget from the same code. This file is the FRAME: the linear
+// order, the section chrome and the heading. Phase 3's grid renderer
+// replaces the frame, not the widgets.
+
 export type { SiteHomeData };
 
 export default function SiteHomeBody({
@@ -56,14 +32,9 @@ export default function SiteHomeBody({
   layout: SiteLayout;
   data: SiteHomeData;
 }) {
-  const { standings, events, teams, staff, venues, affiliations, openWindows, courses, divisions, leaders } = data;
-  const clubGolfBoards = data.clubGolfBoards ?? [];
   const heroWidget = widget(layout, 'hero');
-  const hero = parseHeroConfig(heroWidget?.config);
-  const heroImage = orgMediaUrl(site.id, hero.imagePath);
-  // B1: label overrides + wordmark (the header/hero name, never <title>).
+  // B1: label overrides (the section headings, never <title>).
   const nav = parseNavConfig(site.nav_config);
-  const brandName = parseThemeTokens(site.theme_token_set).wordmark ?? site.orgName;
   // B2: the template's render decisions (classic = the shipped markup).
   const spec = templateSpec(site.template_id);
   const compact = spec.density === 'compact';
@@ -74,271 +45,13 @@ export default function SiteHomeBody({
     ? 'text-sm font-semibold uppercase tracking-wide text-secondary'
     : 'text-lg font-semibold text-primary';
 
-  const empty = (text: string) => <p className="mt-1 text-sm text-tertiary">{text}</p>;
-
-  const moduleBody = (w: WidgetInstance) => {
-    const key = w.key as Exclude<WebWidgetKey, 'hero'>;
-    // Phase 9 V4: a private club's members-only modules become the panel
-    // (the instance's visibility carries isMembersOnly — deriveLegacyLayout).
-    if (w.visibility === 'members') return <MembersOnlyPanel site={site} />;
-    switch (key) {
-      case 'standings':
-        return <StandingsPreview standings={standings} basePath={siteBasePath(site)} />;
-      case 'schedule': {
-        const golfRounds = data.golfRounds ?? [];
-        const hasEvents = !!events && events.length > 0;
-        if (!hasEvents && golfRounds.length === 0) return empty('No upcoming events.');
-        return (
-          <>
-            {/* S4: a golf league's season leads — the rounds, then the events. */}
-            {golfRounds.length > 0 && <GolfRoundsSchedule rounds={golfRounds} compact />}
-            {hasEvents && <ScheduleList events={events!.slice(0, 5)} />}
-            <Link
-              href={`${siteBasePath(site)}/schedule`}
-              className="mt-3 inline-block text-sm text-brand-fg font-medium"
-            >
-              Full schedule →
-            </Link>
-          </>
-        );
-      }
-      case 'teams':
-        return teams.length > 0 ? (
-          <>
-            <TeamsList teams={teams.slice(0, 12)} basePath={siteBasePath(site)} variant={spec.teams} />
-            <Link
-              href={`${siteBasePath(site)}/teams`}
-              className="mt-3 inline-block text-sm text-brand-fg font-medium"
-            >
-              All teams →
-            </Link>
-          </>
-        ) : (
-          empty('No teams yet.')
-        );
-      case 'staff':
-        return staff.length > 0 ? <StaffList staff={staff} /> : empty('No staff listed yet.');
-      case 'venues':
-        return venues.length > 0 ? <VenuesList venues={venues} /> : empty('No venues listed yet.');
-      case 'affiliations':
-        return affiliations.length > 0 ? (
-          <AffiliationsList affiliations={affiliations} />
-        ) : (
-          empty('No affiliations yet.')
-        );
-      case 'sponsors': {
-        const sponsors = parseSponsors(w.config);
-        return sponsors.length > 0 ? (
-          <SponsorsList sponsors={sponsors} siteId={site.id} />
-        ) : (
-          empty('No sponsors yet.')
-        );
-      }
-      case 'register':
-        return openWindows.length > 0 ? (
-          <RegisterCard windows={openWindows} side={site.side} orgId={site.orgId} />
-        ) : (
-          empty('Registration is currently closed.')
-        );
-      case 'courses':
-        return (
-          <>
-            {courses.length > 0 ? (
-              <CoursesList courses={courses} detailed={false} basePath={siteBasePath(site)} />
-            ) : (
-              empty('No courses listed yet.')
-            )}
-            {/* S3: the page fills itself — members' public rounds at the club's
-                courses (record + count); the detail lives on each course page. */}
-            {data.courseStrip && data.courseStrip.roundsPosted > 0 && (
-              <p className="mt-3 text-sm text-secondary" aria-label="Rounds at the club">
-                <span className="font-medium text-primary">
-                  {`${data.courseStrip.roundsPosted} ${data.courseStrip.roundsPosted === 1 ? 'round' : 'rounds'} posted this year`}
-                </span>
-                {courseRecordLine(data.courseStrip) ? (
-                  <span className="text-muted">{` · ${courseRecordLine(data.courseStrip)}`}</span>
-                ) : null}
-              </p>
-            )}
-            {/* G3: "this week at the club" — the leagues playing here. */}
-            {clubGolfBoards.length > 0 && (
-              <div className="mt-5 space-y-4">
-                <h3 className="text-sm font-semibold text-primary">This week at {brandName}</h3>
-                {clubGolfBoards.map(b => (
-                  <div key={b.competition.id}>
-                    {b.orgName !== site.orgName && (
-                      <p className="mb-1 text-xs text-tertiary">{b.orgName}</p>
-                    )}
-                    <PublicStandingsTable competition={b.competition} />
-                  </div>
-                ))}
-              </div>
-            )}
-          </>
-        );
-      case 'divisions':
-        return divisions.length > 0 ? (
-          <DivisionsList divisions={divisions} basePath={siteBasePath(site)} detailed={false} />
-        ) : (
-          empty('No divisions this season.')
-        );
-      case 'leaders':
-        return leaders.length > 0 ? (
-          <LeadersTable boards={leaders} basePath={siteBasePath(site)} detailed={false} />
-        ) : (
-          empty("No stats recorded yet — members' posted rounds appear here.")
-        );
-      case 'members':
-        return data.memberStats ? (
-          <MembersTable stats={data.memberStats} basePath={siteBasePath(site)} detailed={false} />
-        ) : (
-          empty('No members yet.')
-        );
-      case 'documents': {
-        const documents = parseDocuments(w.config);
-        return documents.length > 0 ? (
-          <DocumentsList
-            documents={documents}
-            siteId={site.id}
-            basePath={siteBasePath(site)}
-            detailed={false}
-          />
-        ) : (
-          empty('No documents yet.')
-        );
-      }
-      case 'news': {
-        // N1: the three newest posts with their covers (it used to fall
-        // to the default "Coming soon.").
-        const latest = (data.news ?? []).slice(0, 3);
-        return latest.length === 0 ? (
-          empty('No news yet.')
-        ) : (
-          <div data-home-news={latest.length}>
-            <NewsItems posts={latest} siteId={site.id} basePath={siteBasePath(site)} />
-            <Link href={`${siteBasePath(site)}/news`} className="mt-2 inline-block text-sm text-brand-fg font-medium">
-              All news →
-            </Link>
-          </div>
-        );
-      }
-      case 'gallery':
-        // The gallery is a subpage module — the home section is a teaser
-        // (it used to fall to the default "Coming soon.").
-        return (
-          <Link
-            href={`${siteBasePath(site)}/gallery`}
-            className="mt-2 inline-block text-sm text-brand-fg font-medium"
-          >
-            View the gallery →
-          </Link>
-        );
-      case 'contact': {
-        const contact = parseContact(w.config);
-        return Object.keys(contact).length > 0 ? (
-          <ContactCard contact={contact} />
-        ) : (
-          empty('No contact details yet.')
-        );
-      }
-      default:
-        // Every web widget key is handled above; an unknown module key never
-        // reaches here (deriveLegacyLayout drops it).
-        return ((k: never) => k)(key);
-    }
-  };
-
   return (
     <div className="max-w-4xl mx-auto px-4 py-8 space-y-6">
       {/* R5 a11y: the visible h1 lives in the hero — a hero-disabled site
           (DB-level state; the console can't toggle hero) must still open
           its outline at level 1. */}
       {!heroWidget && <h1 className="sr-only">{site.orgName}</h1>}
-      {heroWidget && (
-        // The gradient rides the .org-scope accent vars (violet defaults; a
-        // site's theme_token_set overrides via the layout's inline style).
-        <section
-          aria-label="Welcome"
-          className={`relative overflow-hidden ${
-            spec.hero === 'bleed'
-              ? '-mx-4 px-6 py-14 sm:py-20 text-white'
-              : 'rounded-xl px-6 py-10 text-white'
-          }${heroImage ? ' min-h-[240px] sm:min-h-[320px] flex flex-col justify-end' : ''}`}
-          style={{
-            backgroundImage:
-              'linear-gradient(to right, var(--org-accent), var(--org-accent-strong))',
-          }}
-        >
-          {/* S1: the club's photo (a site asset through the tokenless
-              streamer — /api/media/* is never optimizer-eligible, so
-              unoptimized is mandatory) under a translucent accent wash
-              that keeps the white text legible on any photo. */}
-          {heroImage && (
-            <>
-              <Image
-                src={heroImage}
-                alt={hero.imageAlt ?? ''}
-                fill
-                unoptimized
-                sizes="100vw"
-                className="object-cover"
-                priority
-              />
-              <div
-                aria-hidden="true"
-                className="absolute inset-0"
-                style={{
-                  backgroundImage:
-                    'linear-gradient(to top, var(--org-accent-strong) 0%, rgba(0,0,0,0.35) 60%, rgba(0,0,0,0.15) 100%)',
-                }}
-              />
-            </>
-          )}
-          <div className="relative">
-            <h1
-              className={
-                spec.hero === 'bleed'
-                  ? 'text-3xl sm:text-5xl font-extrabold uppercase tracking-tight'
-                  : 'text-2xl sm:text-3xl font-bold'
-              }
-            >
-              {hero.headline || brandName}
-            </h1>
-            <p className={spec.hero === 'bleed' ? 'mt-2 text-base opacity-90' : 'mt-1 text-sm opacity-90'}>
-              {hero.tagline || (site.sportKey === 'golf' ? GOLF_TAGLINE : 'Schedules, standings, and teams — live.')}
-            </p>
-            {/* R5: the org's own description, written once at creation, finally
-                reaches its public page. */}
-            {site.orgDescription && (
-              <p className="mt-3 max-w-2xl text-sm opacity-90 whitespace-pre-wrap">{site.orgDescription}</p>
-            )}
-            <div className="mt-4 flex flex-wrap gap-2">
-              {hero.ctaLabel && hero.ctaUrl && (
-                <a
-                  href={hero.ctaUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-block rounded-md bg-white/95 px-4 py-2 text-sm font-semibold shadow-sm"
-                  style={{ color: 'var(--org-accent-strong)' }}
-                >
-                  {hero.ctaLabel}
-                  <span className="sr-only"> (opens in a new tab)</span>
-                </a>
-              )}
-              {/* Phase 9 V3 (leagues in program 11): the join door — the app's
-                  account-first join page (an absolute app URL: a custom
-                  domain must not swallow it). */}
-              <a
-                href={`${appBaseUrl()}/join/${site.side}/${site.orgId}`}
-                className="inline-block rounded-md border border-white/80 px-4 py-2 text-sm font-semibold text-white"
-                data-join-door="1"
-              >
-                {`Join ${brandName}`}
-              </a>
-            </div>
-          </div>
-        </section>
-      )}
+      {heroWidget && <HeroSection site={site} w={heroWidget} spec={spec} />}
       <div className={spec.sections === 'grid' ? 'grid gap-6 sm:grid-cols-2' : 'space-y-6'}>
         {/* P1-C: the layout's widgets in order (a linear projection today;
             FULL_WIDTH_MODULES stays the span source until phase 3 reads w.w). */}
@@ -353,7 +66,7 @@ export default function SiteHomeBody({
               }`}
             >
               <h2 className={headingClass}>{moduleLabel(w.key, nav, site.side, site.sportKey)}</h2>
-              {moduleBody(w)}
+              <WidgetBody site={site} w={w} data={data} spec={spec} />
             </section>
           ))}
       </div>

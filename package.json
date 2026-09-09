@@ -51,6 +51,7 @@
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "react-easy-crop": "^6.2.3",
+    "react-grid-layout": "2.2.4",
     "tailwindcss": "^4",
     "typescript": "^6.0.3",
     "zod": "^4.4.3"

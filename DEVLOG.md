@@ -1,5 +1,67 @@
 # Development Log
 
+## September 9, 2026 — Site Builder P3-B: the grid editor scaffold — react-grid-layout, the canvas, the draft layout, behind FEATURE_SITE_BUILDER (zero DDL)
+
+The editor exists. Behind the flag, a manager opens
+`/app/org/{side}/{id}/site/edit` and sees the REAL page — the club's real
+data — as tiles on a 12-column grid: drag to move, corner to resize, undo /
+redo, autosave to the draft. Nothing public changes yet: the renderer still
+draws the linear projection until P3-C reads the published layout.
+
+- **react-grid-layout 2.2.4** installed (the one approved dependency; exact
+  pin). 2.x is the hooks rewrite: `GridLayout` takes `width` +
+  `gridConfig / dragConfig / resizeConfig`, `useContainerWidth` replaces
+  `WidthProvider`; it ships its own types, so no `@types` package. Its CSS is
+  COPIED and scoped under `.sb-canvas` (`src/components/site-builder/
+  grid.css`, pinned to the installed version) — nothing leaks into the app
+  or the (public) tree, the placeholder speaks the house palette, the body
+  of a tile is `pointer-events: none` so the tile is the drag target and a
+  link never navigates the editor away. `check:syntax` judged the editor
+  chunk against the iOS 15 floor (see the gate below).
+- **The widgets are the same components.** `SiteHomeBody`'s hero and its
+  `moduleBody` switch became `_components/HeroSection.tsx` and
+  `_components/WidgetBody.tsx` — props-only, server-safe, verbatim JSX
+  (a component boundary adds no DOM). The published home, the preview and
+  the canvas render a widget from one code path; `SiteHomeBody` is the
+  linear FRAME (order, chrome, heading) that P3-C's grid renderer replaces.
+- **Geometry, pure** (`src/lib/site-builder/layout.ts`): `collides`,
+  `sortByPosition` (reading order), `compactLayout` (vertical compaction,
+  idempotent, never overlaps — the renderer re-compacts after dropping
+  empty widgets), `validateLayout` (bounds, per-widget min/max, overlaps),
+  `newInstanceId` (`crypto.getRandomValues`, never `randomUUID`).
+  `layout-schema.ts`: `LayoutSchema` (the wire envelope: web keys only,
+  unique ids, ints in range, no grid overrun) + `parseStoredLayout`.
+- **The draft holds the layout.** `writeDraftLayout` (revisions-server)
+  writes the grid into the draft snapshot's `layout` slot, rev-guarded;
+  `GET …/site/canvas` answers the DRAFT view + the layout it edits (the
+  stored one, else the projection) + the draft's rev + the home data
+  resolved with the RAW reader set (P3-A's resolver, third caller);
+  `PUT …/site/draft { layout, baseRev? }` validates the envelope and the
+  geometry (400 with issues) and saves (409 on a stale rev). Both are
+  `manage_site` and 404 when the flag is off. The layout goes live with the
+  draft, on publish — draft writes revalidate nothing public.
+- **The editor** (`src/components/site-builder/`): `SiteBuilder` (auth
+  gate, the canvas load, Managers-only / not-enabled panels), `Canvas`
+  (react-grid-layout host; constraints from the catalog; commit on drag /
+  resize STOP → one undo step), `useHistory` (snapshot stack, cap 100,
+  `replace` for non-user changes), `useDraft` (1.5s debounce, the status
+  chip reflects the wire, `conflict` → Reload, `beforeunload` while dirty).
+  ⌘Z / ⇧⌘Z. Preview opens the draft in its own shell; Publish changes
+  promotes it (waits for a pending save). **Below `lg`** the same route is a
+  notice with WORKING doors — Preview, Publish changes, Back — a CSS-only
+  branch, so a phone never hits a dead end. Console: "Open the editor →"
+  beside View site when the flag is on.
+- e2e `org-site-editor.spec.ts` (skips when the flag is off or pre-180):
+  canvas tiles = the layout, the hero shows the org's name, a drag saves
+  (rev ≥ 2, order changed), undo restores and saves, redo + reload keeps the
+  move, the phone notice with its three doors and no overflow, the public
+  page byte-identical before/after the draft edits, the console door.
+- Tests: `layout-geometry.test.ts` (collides, reading order, compaction,
+  validation, ids, the schema).
+
+Deliberately not yet: the picker (P3-D), the properties panel (phase 5),
+remove/duplicate, the public GRID renderer + `layoutFromModules` (P3-C).
+
 ## September 9, 2026 — Site Builder P3-A: one data resolver for the site home (widget-data.ts), the FEATURE_SITE_BUILDER flag, the react-grid-layout pre-install record (zero DDL)
 
 Phase 3 opens where the architecture said it must: **a widget holds a
