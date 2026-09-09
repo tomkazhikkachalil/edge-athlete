@@ -1,5 +1,33 @@
 # Development Log
 
+## September 8, 2026 — Chat dock: minimized pills, newest at the left edge (#606)
+
+Tom: *"when I minimize the chats, it re-orders themselves if there are
+multiple up. How is that order currently selected, and it should minimize
+itself in the order in which the chats are minimized. So the order is
+dependent on the user."*
+
+**How it was selected:** `dock-state.ts` keeps `minimized` as a plain
+array, `MINIMIZE` appended to it, and `MinimizedStack` renders that array
+left→right with no sort and no dependence on the conversations list. So the
+row WAS user-ordered — oldest on the left, newest next to the Messages
+pill. Each new pill appeared at the right and pushed the earlier ones left,
+which is what read as the row re-ordering itself. The only automatic move
+is the width cap (`applyCap`): opening or restoring at the cap, hydrating,
+or resizing auto-minimizes the oldest OPEN window and appends it.
+
+**Decision (Tom, after one contradictory answer round):** newest minimized
+pill at the LEFT edge, oldest next to Messages — `[C][B][A][Messages]`.
+`MINIMIZE` now PREPENDS; array order is display order, no reversal trick in
+the component. `applyCap` deliberately still appends evicted windows at the
+END: an eviction was not the user's act, so it never takes the newest slot
+or shuffles hand-minimized pills, and several evictions keep their relative
+order. `RESTORE` / `CLOSE_WINDOW` / `PRUNE` / `HYDRATE` are order-preserving
+filters and are untouched; persisted `ea:chat-dock:v1` arrays hydrate
+as-is (an existing row flips once — no key bump, the contents are valid).
+Two reducer tests pin the rule; the chat-dock spec asserts labels only.
+Zero DDL.
+
 ## September 8, 2026 — Chat dock: minimized chat pills get a translucent violet tint (#605)
 
 Tom: *"when you minimize a chat, the pill for the individual chats … is

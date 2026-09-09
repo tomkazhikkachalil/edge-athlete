@@ -63,6 +63,34 @@ describe('dockReducer', () => {
     expect(s.minimized).toEqual([]);
   });
 
+  it('MINIMIZE puts the newest pill FIRST — the left edge of the row', () => {
+    // Tom, Sep 8 2026: the pill row is the order the USER minimized in, newest
+    // at the left. Appending had put each new pill next to the Messages pill
+    // and pushed earlier ones left, which read as the row re-ordering itself.
+    let s = state({ open: ['a', 'b', 'c'], cap: 3 });
+    s = dockReducer(s, { type: 'MINIMIZE', id: 'a' });
+    s = dockReducer(s, { type: 'MINIMIZE', id: 'b' });
+    expect(s.minimized).toEqual(['b', 'a']);
+    s = dockReducer(s, { type: 'MINIMIZE', id: 'c' });
+    expect(s.minimized).toEqual(['c', 'b', 'a']);
+    expect(s.open).toEqual([]);
+  });
+
+  it('cap eviction appends BEHIND hand-minimized pills, in eviction order', () => {
+    // An evicted window was not the user's act: it never takes the newest
+    // slot and never shuffles the pills the user placed.
+    let s = state({ open: ['a', 'b'], minimized: ['m'], cap: 2 });
+    s = dockReducer(s, { type: 'OPEN_WINDOW', id: 'c' });
+    expect(s.open).toEqual(['b', 'c']);
+    expect(s.minimized).toEqual(['m', 'a']);
+    s = dockReducer(s, { type: 'OPEN_WINDOW', id: 'd' });
+    expect(s.open).toEqual(['c', 'd']);
+    expect(s.minimized).toEqual(['m', 'a', 'b']);
+    // A hand-minimize after evictions still lands at the left edge.
+    s = dockReducer(s, { type: 'MINIMIZE', id: 'd' });
+    expect(s.minimized).toEqual(['d', 'm', 'a', 'b']);
+  });
+
   it('close removes from both lists', () => {
     let s = state({ open: ['a'], minimized: ['b'] });
     s = dockReducer(s, { type: 'CLOSE_WINDOW', id: 'a' });
