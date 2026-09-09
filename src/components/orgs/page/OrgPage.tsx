@@ -15,12 +15,14 @@ import OrgNewsCard from '@/components/orgs/OrgNewsCard';
 import RoundPhotoConsentSwitch from '@/components/orgs/RoundPhotoConsentSwitch';
 import GolfYourWeek from '@/components/orgs/GolfYourWeek';
 import OrgVenues from '@/components/orgs/OrgVenues';
-import { orgSitePath } from '@/lib/org-sites/urls';
 import OrgRecentActivity from '@/components/affiliations/OrgRecentActivity';
 import { formatDisplayName } from '@/lib/formatters';
 import { SPORT_REGISTRY } from '@/lib/sports/SportRegistry';
 import { formatPlace, GEO_ATTRIBUTION } from '@/lib/geo/regions';
-import { MapPin, Building2, Trophy, Users } from 'lucide-react';
+import { Building2, Trophy } from 'lucide-react';
+import type { CSSProperties } from 'react';
+import { useTheme } from '@/lib/use-theme';
+import OrgHero from './OrgHero';
 import OrgMembersList from './OrgMembersList';
 import { SIDE_COPY } from './side-copy';
 import { useOrgPage } from './useOrgPage';
@@ -34,11 +36,17 @@ import type { ClubInfo, LeagueInfo, OrgSide } from './types';
 // chip only when derived sports exist), the club's legacy `location`
 // fallback, the not-found glyph, and which edit modal opens.
 //
+// R2 (Org Pages Program): the page root carries the in-app dialect scope
+// (`org-app-scope` — bubble shadows + spring; never the brand family) and
+// the org's accent pair as inline vars from the validated brand payload,
+// and the hero is OrgHero (logo tile, hero photo or accent band).
+//
 // Search rows (⌘K) link here — no page, no link is the rule.
 export default function OrgPage({ side }: { side: OrgSide }) {
   const params = useParams();
   const orgId = params.id as string;
   const copy = SIDE_COPY[side];
+  const { theme } = useTheme();
   const { user, viewerProfile, loading, notFound, data, busy, refresh, actions, dialogs } =
     useOrgPage(side, orgId);
   const {
@@ -121,9 +129,20 @@ export default function OrgPage({ side }: { side: OrgSide }) {
   const canManage =
     viewerRole === 'owner' || viewerRole === 'manager' || (!!user && user.id === org.owner_profile_id);
   const isOwner = viewerRole === 'owner' || (!!user && user.id === org.owner_profile_id);
+  const brand = data.brand ?? null;
+  // The accent pair reaches CSS only through buildOrgBrand → parseThemeTokens
+  // (the strict hex check is the inline-style injection defense). No accent
+  // → the scope's violet defaults, i.e. the pre-R2 strip.
+  const accentVars = brand?.accent
+    ? ({
+        '--org-accent': brand.accent.fill,
+        '--org-accent-strong': brand.accent.fillStrong,
+        '--org-accent-fg': theme === 'dark' ? brand.accent.fgDark : brand.accent.fgLight,
+      } as CSSProperties)
+    : undefined;
 
   return (
-    <div className="min-h-screen bg-canvas">
+    <div className="min-h-screen bg-canvas org-app-scope" style={accentVars}>
       <AppHeader showSearch={false} />
 
       <div className="max-w-4xl mx-auto px-4 sm:px-6 py-6">
@@ -141,115 +160,26 @@ export default function OrgPage({ side }: { side: OrgSide }) {
             </Link>
           </div>
         )}
-        <div className="bg-surface rounded-xl shadow-sm border border-border overflow-hidden">
-          <div className="h-20 sm:h-24 bg-gradient-to-r from-violet-500 to-violet-600" />
-          <div className="px-4 sm:px-6 py-5">
-            <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
-              <div className="min-w-0">
-                <h1 className="text-2xl font-bold text-primary break-words">{org.name}</h1>
-                <div className="mt-2 flex flex-wrap gap-x-4 gap-y-2 text-sm text-tertiary">
-                  {(side === 'league' || sportLabels.length > 0) && (
-                    <span className="inline-flex items-center gap-1">
-                      <Trophy className="w-4 h-4" />
-                      {sportLabels.join(' · ')}
-                    </span>
-                  )}
-                  {placeLine && (
-                    <span className="inline-flex items-center gap-1">
-                      <MapPin className="w-4 h-4" />
-                      {placeLine}
-                    </span>
-                  )}
-                  <span className="inline-flex items-center gap-1">
-                    <Users className="w-4 h-4" />
-                    {memberCount} {memberCount === 1 ? 'member' : 'members'}
-                  </span>
-                </div>
-                {org.description && (
-                  <p className="mt-3 text-secondary max-w-xl whitespace-pre-wrap">{org.description}</p>
-                )}
-              </div>
-
-              <div className="flex flex-col items-start sm:items-end gap-2 shrink-0">
-                {user && (
-                  viewerRole === 'owner' ? (
-                    <button
-                      type="button"
-                      disabled
-                      className="px-4 py-2 text-sm min-h-[40px] rounded-lg bg-surface-sunken text-muted cursor-default"
-                    >
-                      Owner
-                    </button>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={() => (viewerRole ? setConfirmLeave(true) : toggleMembership())}
-                      disabled={busy}
-                      className={`px-4 py-2 text-sm min-h-[40px] rounded-lg font-medium transition-colors disabled:opacity-60 ${
-                        viewerRole || data.viewerRequestPending
-                          ? 'border border-border-strong text-secondary hover:bg-surface-sunken'
-                          : 'bg-brand text-white hover:bg-brand-hover'
-                      }`}
-                    >
-                      {viewerRole
-                        ? `Leave ${copy.noun}`
-                        : data.viewerRequestPending
-                          ? 'Request sent · withdraw'
-                          : data.joinPolicy === 'approval'
-                            ? 'Request to join'
-                            : `Join ${copy.noun}`}
-                    </button>
-                  )
-                )}
-                {canManage && (
-                  <button
-                    type="button"
-                    onClick={() => setEditOpen(true)}
-                    className="px-4 py-2 text-sm min-h-[40px] rounded-lg border border-border-strong text-secondary hover:bg-surface-sunken transition-colors"
-                  >
-                    Edit {copy.noun}
-                  </button>
-                )}
-                {canManage && (
-                  <button
-                    type="button"
-                    onClick={() => void shareJoinLink()}
-                    className="px-4 py-2 text-sm min-h-[40px] rounded-lg border border-border-strong text-secondary hover:bg-surface-sunken transition-colors"
-                  >
-                    Share join link
-                  </button>
-                )}
-                {/* Phase 6b A1: the two doors this page lacked — the org's
-                    public site (published only) and its console. */}
-                {data.site?.subdomain && (
-                  <Link
-                    href={orgSitePath(data.site.subdomain)}
-                    className="text-sm text-brand-fg hover:text-brand-fg-strong hover:underline"
-                  >
-                    Public site →
-                  </Link>
-                )}
-                {canManage && (
-                  <Link
-                    href={`/app/org/${side}/${org.id}`}
-                    className="text-sm text-brand-fg hover:text-brand-fg-strong hover:underline"
-                  >
-                    Manage {copy.noun} →
-                  </Link>
-                )}
-                {/* Org staff program (178): owners' door to who-runs-what + invites. */}
-                {isOwner && (
-                  <Link
-                    href={`/app/org/${side}/${org.id}#hierarchy`}
-                    className="text-sm text-brand-fg hover:text-brand-fg-strong hover:underline"
-                  >
-                    Staff &amp; hierarchy →
-                  </Link>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
+        <OrgHero
+          side={side}
+          org={org}
+          brand={brand}
+          sportLabels={sportLabels}
+          showSportChip={side === 'league' || sportLabels.length > 0}
+          placeLine={placeLine}
+          memberCount={memberCount}
+          signedIn={!!user}
+          viewerRole={viewerRole}
+          viewerRequestPending={!!data.viewerRequestPending}
+          joinPolicy={data.joinPolicy}
+          publishedSubdomain={data.site?.subdomain ?? null}
+          canManage={canManage}
+          isOwner={isOwner}
+          busy={busy}
+          onJoinOrLeave={() => (viewerRole ? setConfirmLeave(true) : void toggleMembership())}
+          onEdit={() => setEditOpen(true)}
+          onShareJoinLink={() => void shareJoinLink()}
+        />
 
         {/* Registration banner (phase 5 R3): the family-facing state of
             the season workflow — CTA while a window is open, then the

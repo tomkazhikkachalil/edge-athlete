@@ -5,6 +5,8 @@
 // clubs are multi-sport by decision, mig 117) and the legacy free-text
 // `location` fallback (club, 001).
 
+import type { OrgBrand } from '@/lib/org-sites/brand-types';
+
 export type OrgSide = 'league' | 'club';
 
 // Phase 5 (mig 161): the widened roster lifecycle. 'pending'/'active' keep
@@ -87,6 +89,8 @@ export interface OrgPageResponse {
   sports?: string[];
   /** Phase 6b A1: the published public site, or null (draft/none). */
   site?: { subdomain: string } | null;
+  /** Org Pages R2: the site's brand (draft or published), or null. */
+  brand?: OrgBrand | null;
   memberCount: number;
   members: MemberRow[];
   viewerRole: string | null;
