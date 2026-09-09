@@ -17,7 +17,8 @@ export type OrgWindowKey =
   | 'announcements'
   | 'courses'
   | 'activity'
-  | 'affiliations';
+  | 'affiliations'
+  | 'photos';
 
 /** The bubble's accessible name is its label (the whole card is the button). */
 export const ORG_BUBBLE_LABEL: Record<OrgWindowKey, RegExp> = {
@@ -30,6 +31,7 @@ export const ORG_BUBBLE_LABEL: Record<OrgWindowKey, RegExp> = {
   courses: /^(Courses|Venues)/,
   activity: /^Recent activity/,
   affiliations: /^(Affiliated clubs|Leagues|League chain)/,
+  photos: /^Photos/,
 };
 
 /** Tap the bubble, wait for its window, return the window locator. */

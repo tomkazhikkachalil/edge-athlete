@@ -260,6 +260,12 @@ Ranked, with the source finding. Fix deliberately; each is its own change.
 ---
 
 ## Change log
+- **Sep 8 2026 (Org Pages R4, #610)** — two routes added
+  (`/api/{leagues,clubs}/[id]/gallery`, the in-app Photos bubble; anonymous-
+  tolerant for a public org, members-only for a private one, `private,
+  no-store`, new ip-keyed `org-gallery` bucket 60/min). Route count
+  **257** = the new drift baseline for B3 category 10. The search-GET WAF
+  rule is still owed.
 - **Sep 2026 (consolidation stage gate, #490–#493)** — the re-run after
   phases 4/5/5.5 (the migration 140–165 band; route count now **255**, the
   new drift baseline for B3 category 10). Part A: verify green; guardrails

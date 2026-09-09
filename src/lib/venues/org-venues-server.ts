@@ -15,6 +15,8 @@
  */
 
 import { NextResponse } from 'next/server';
+import { parseCoursePhotos } from '@/lib/org-sites/validate';
+import { coursePhotoUrls, type AppCoursePhotos } from '@/lib/org-sites/course-photos';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { OrgSide } from '@/lib/orgs/authz';
 import { revalidateOrgSiteForOrg } from '@/lib/org-sites/revalidate';
@@ -168,7 +170,33 @@ export async function listOrgVenues(admin: Admin, scope: OrgVenueScope): Promise
 }
 
 export async function orgVenuesGET(admin: Admin, scope: OrgVenueScope): Promise<NextResponse> {
-  return NextResponse.json({ venues: await listOrgVenues(admin, scope) });
+  const venues = await listOrgVenues(admin, scope);
+  return NextResponse.json({ venues, photos: await readCoursePhotos(admin, scope) });
+}
+
+/** Org Pages R4: the console's course + hole photos (the `courses` module
+ *  config) for the in-app Courses card — org-authored artwork whose bytes
+ *  are anonymous through the org-media streamer, so shown regardless of
+ *  the module's enabled flag or the site's published_at. Never throws;
+ *  no site / pre-155 reads as {}. */
+async function readCoursePhotos(admin: Admin, scope: OrgVenueScope): Promise<Record<string, AppCoursePhotos>> {
+  try {
+    const { data: site } = await admin
+      .from('org_sites')
+      .select('id')
+      .eq(scope.side === 'league' ? 'league_id' : 'club_id', scope.orgId)
+      .maybeSingle();
+    if (!site?.id) return {};
+    const { data: mod } = await admin
+      .from('org_site_modules')
+      .select('config')
+      .eq('site_id', site.id)
+      .eq('module_key', 'courses')
+      .maybeSingle();
+    return coursePhotoUrls(site.id as string, parseCoursePhotos(mod?.config));
+  } catch {
+    return {};
+  }
 }
 
 /** Resolve a catalog pick to the golf link pair; null pick = unlink. */

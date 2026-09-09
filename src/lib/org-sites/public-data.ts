@@ -849,6 +849,11 @@ export interface PublicGalleryItem {
   date: string | null; // contest date, else upload date
   competitionName: string;
   tagLabels: string[]; // masked; supervised athletes omitted entirely
+  /** Org Pages R4 (additive): which list the item came from, and the
+   *  stored dimensions when known (members' round photos carry them). */
+  kind: 'member' | 'contest';
+  width: number | null;
+  height: number | null;
 }
 
 export async function fetchPublicGallery(
@@ -887,6 +892,9 @@ async function fetchMemberGalleryItems(admin: Admin, side: OrgSide, orgId: strin
       date: p.date,
       competitionName: p.courseName ?? 'A round',
       tagLabels: [p.authorName],
+      kind: 'member' as const,
+      width: p.width,
+      height: p.height,
     }));
   } catch (error) {
     console.error(`${TAG} member gallery failed:`, error);
@@ -948,6 +956,9 @@ async function fetchContestGalleryItems(admin: Admin, side: OrgSide, orgId: stri
     tagLabels: m.taggedProfileIds
       .map(profileId => labelById.get(profileId) ?? null)
       .filter((v): v is string => !!v),
+    kind: 'contest' as const,
+    width: null,
+    height: null,
   }));
 }
 

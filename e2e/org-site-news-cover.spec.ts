@@ -2,6 +2,7 @@ import { test, expect } from '@playwright/test';
 import fs from 'fs';
 import path from 'path';
 import { adminClient, apiAs, loadQaUser, resetRateBucket } from './helpers/qa-user';
+import { openWindow } from './helpers/org-page';
 
 // N1 (program 10) — news covers. A post's cover is DERIVED from its first
 // image block (no column): the /news list shows a thumbnail per covered
@@ -113,6 +114,21 @@ test('news covers: list thumbnail + home teaser + og:image from the first image 
     await expect(page.locator(`[data-news-cover="${covered.slug}"] img`)).toBeVisible({ timeout: 20_000 });
     const scrollWidth = await page.evaluate(() => document.documentElement.scrollWidth);
     expect(scrollWidth, 'no horizontal overflow at 375px').toBeLessThanOrEqual(375);
+
+    // R4: the in-app card (the owner, a member) shows the same cover, and
+    // the streamer bytes decode.
+    const ownerCtx = await browser.newContext({ storageState: 'e2e/.auth/state-b.json' });
+    try {
+      const inApp = await ownerCtx.newPage();
+      await inApp.goto(`/club/${clubId}`);
+      const win = await openWindow(inApp, 'news');
+      const cover = win.locator(`img[data-news-cover="${covered.slug}"]`);
+      await expect(cover).toBeVisible({ timeout: 15_000 });
+      await expect.poll(() => cover.evaluate(i => (i as HTMLImageElement).naturalWidth), { timeout: 15_000 }).toBeGreaterThan(0);
+      await expect(win.locator(`img[data-news-cover="${plain.slug}"]`)).toHaveCount(0);
+    } finally {
+      await ownerCtx.close();
+    }
   } finally {
     await anon.close();
     await ownerApi.dispose();

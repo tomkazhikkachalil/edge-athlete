@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, type ReactNode } from 'react';
+import { useEffect, useRef, type ReactNode } from 'react';
 import { X } from 'lucide-react';
 import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
 
@@ -37,10 +37,18 @@ export default function LargerWindow({
   windowKey,
 }: LargerWindowProps) {
   useBodyScrollLock(true);
+  const dialogRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
+      if (e.key !== 'Escape') return;
+      // Escape closes the TOPMOST layer only (the usePopoverDismiss rule): a
+      // MediaLightbox or ConfirmModal opened from inside this window renders
+      // later in the DOM (z-[60], above z-50) and owns the key while it is
+      // up — otherwise one Escape would close it AND the window beneath.
+      const dialogs = document.querySelectorAll('[role="dialog"]');
+      if (dialogs.length > 0 && dialogs[dialogs.length - 1] !== dialogRef.current) return;
+      onClose();
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
@@ -54,6 +62,7 @@ export default function LargerWindow({
       }}
     >
       <div
+        ref={dialogRef}
         role="dialog"
         aria-modal="true"
         aria-label={title}
