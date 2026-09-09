@@ -404,29 +404,66 @@ const { canView } = await response.json();
    2026 R1–R5 before touching any of it.
 
 12. **Sites are compositions of registered widgets; edits go to a draft
-   (Site Builder, Sep 9 2026, mig 180)** — Tom's design doc supersedes
-   masterplan §6 ("themed templates, no free-form layout"): a closed widget
-   CATALOG (`src/lib/site-builder/catalog.ts`, ZERO imports — the org-page
-   client chunk reads it; `WEB_WIDGET_KEYS` is a literal copy of
-   `MODULE_KEYS`, pinned by test) on a 12-column grid, one composition
-   rendering the public site AND the in-app org page (`deriveAppLayout()`
-   orders the glance grid; the app bubbles alias `schedule→events`,
-   `venues→courses`, `gallery→photos`). Phase 1: the public home and the
-   glance grid render ONLY from a layout (`deriveLegacyLayout` today).
-   Phase 2: content edits (order, toggles, hero, theme, template, module
-   configs) go to the DRAFT revision (`org_site_revisions`, one `snapshot`
-   jsonb; `applySiteAction` in `src/lib/site-builder/snapshot.ts` is the one
-   reducer); **the content columns of `org_sites` and all of
-   `org_site_modules` are the PUBLISHED PROJECTION** — the only writers are
-   publish (mirror), the pre-180 fallback and `logo_path`. Logo stays live.
-   Publishing changes is `manage_site`; taking the site live/offline stays
-   `manage_org` and PROMOTES a dirty draft. The preview renders the draft in
-   its own route group `(public)/(preview)/…` inside `SiteShell`. e2e: a spec
-   that edits and then reads the public page calls
-   `e2e/helpers/org-site.ts publishSite()` first. Plan:
-   `~/.claude/plans/edge-athlete-site-builder-zesty-pnueli.md`; read DEVLOG
-   Sep 9 2026 P1-A…P2-D before touching any of it.
-
+   (Site Builder, Sep 9 2026, #616–#634, mig 180 — the ONLY migration; phases
+   6–8 were zero DDL)** — Tom's design doc supersedes masterplan §6 ("themed
+   templates, no free-form layout"). The pieces, each with its invariant:
+   - **Catalog** (`src/lib/site-builder/catalog.ts`, ZERO imports — the
+     org-page client chunk reads it): three disjoint key sets — the module-
+     backed web widgets (`WEB_WIDGET_KEYS` ≡ `MODULE_KEYS`, pinned by test),
+     the CONTENT widgets `text | image | embed` (no module, web-only, any
+     number per layout, a heading only when the instance sets a title), and
+     the app-only widgets. `SITE_WIDGET_KEYS` (web + content) is what a
+     layout may hold. One composition renders the public site AND the in-app
+     org page (`deriveAppLayout()`; bubbles alias `schedule→events`,
+     `venues→courses`, `gallery→photos`).
+   - **Layout** (`layout.ts`, `layout-schema.ts`): instances `{id (opaque),
+     key, x, y, w, h (a MINIMUM height), cv, config, visibility}` on a
+     12-column grid (`GRID`); `compactLayout` / `validateLayout` are pure and
+     shared by the editor (react-grid-layout — the one approved dep, CSS
+     scoped to `.sb-canvas`) and the public renderer (`GridRenderer`: DOM =
+     reading order = the phone; **empty widgets never render publicly**,
+     `isWidgetEmpty`). A site with no stored layout renders its SEED
+     (`seeds.ts seedLayout` — order is the side × sport's, pairing the
+     template's); `set_template` re-lays a stored layout with `applySeed`.
+   - **Config** (`config.ts`, phase 5): two owners — CONTENT lives on the
+     org objects the console writes (`hero_config`, `contact_config`, module
+     rows) and WINS over the instance (`effectiveConfig`); INSTANCE OPTIONS
+     (title …) live on the layout. A content widget's content IS its
+     instance (blocks / photo / embed structure), under the publish gate.
+     Embeds are a STRUCTURE, never a URL (`embeds.ts`; `frame-src` in BOTH
+     CSP builders reads `EMBED_FRAME_HOSTS`). The panel is generated from
+     `fields.ts` descriptors, pinned to the zod schemas (`schemas.ts`,
+     `instanceSchemaFor`); the server re-asserts every image path against
+     THIS site's `org-media/{siteId}/` prefix.
+   - **Draft → publish → revisions** (`org_site_revisions`, one `snapshot`
+     jsonb; `applySiteAction` in `snapshot.ts` is the one reducer; `rev`
+     optimistic concurrency): **the content columns of `org_sites` and all
+     of `org_site_modules` are the PUBLISHED PROJECTION** — the only writers
+     are publish (mirror), the pre-180 fallback and `logo_path`. Logo stays
+     live. Publishing changes is `manage_site`; live/offline stays
+     `manage_org` and PROMOTES a dirty draft. The canvas reads the draft's
+     layout, else the PUBLISHED one, else the seed; a fresh draft inherits
+     the published layout. A content save bumps the draft rev — the editor
+     adopts it (`useDraft.adoptRev`). Publish writes `stats` (`metrics.ts`).
+   - **Theme** (`src/lib/org-sites/theme.ts`): the template's decisions
+     (header / hero / density / teams) are tokens with the template as
+     fallback (`effectiveSpec`); `set_theme` MERGES those keys, `set_template`
+     clears them. Heading faces are self-hosted OFL woff2 under
+     `public/fonts` — a site loads ONE, only when it picks it (`SiteShell`
+     emits its @font-face + preload; never `next/font`). `themeAttrs` dresses
+     every themed root (the shell AND the canvas).
+   - **Editor** (`src/components/site-builder/`, behind
+     `NEXT_PUBLIC_FEATURE_SITE_BUILDER` — build-injected, a SURFACE switch;
+     the renderer is never flagged): canvas, picker, properties panel, theme
+     panel (live preview, saved through the console's own actions), the
+     checklist rail (`checklist.ts`, derived, `ChecklistStep` shape), undo
+     with coalescing (`useHistory`), autosave (`useDraft`). Below `lg` the
+     same route shows a notice with working Preview / Publish / Back.
+   - e2e: a spec that edits and then reads the public page calls
+     `e2e/helpers/org-site.ts publishSite()` first; public-order polls
+     compare MODULE keys only; `getByLabel` needs `exact: true` beside sibling
+     aria-labels. Plan: `~/.claude/plans/edge-athlete-site-builder-zesty-pnueli.md`;
+     read DEVLOG Sep 9 2026 P1-A…P8-B before touching any of it.
 ---
 
 ## 🔧 Common Tasks
@@ -499,8 +536,9 @@ addition below as a promise to keep it true.
   sites with SEO → automatic flows → registration → vanity paths/sanctioning/
   disputes/import → golf club page, builder depth, custom domains; Aug 30–
   Sep 1 2026; `DEVLOG.md` is the round-by-round record). Payments skipped by
-  decision. The doc remains the design reference; phase 6c (golf leagues
-  that fill themselves, import leftovers) is the live program.
+  decision. The doc remains the design reference. Its §6 is SUPERSEDED by
+  the Site Builder program (convention 12; #616–#634, Sep 9 2026 — built,
+  editor behind a build-injected flag).
 - `docs/` — roadmaps (`docs/ROADMAP_2026-07.md`, `docs/MULTI_SPORT_ROADMAP.md`), a
   security audit, and feature write-ups. **`docs/devlog/` is the OLD devlog** (entries
   001–010, superseded by `DEVLOG.md` at the repo root) — history, not current

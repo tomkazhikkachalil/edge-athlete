@@ -350,11 +350,17 @@ team and a coach on another.
 > only on publish; history, restore and discard are first-class (migration
 > 180, `org_site_revisions` — one `snapshot` jsonb per revision; the rows of
 > `org_sites` / `org_site_modules` stay the published projection, mirrored on
-> publish). Shipped so far: phase 1 (the registry; both surfaces render from
-> a layout) and phase 2 (draft/publish/revisions). Phases 3–8 (the grid on
-> react-grid-layout, the picker, the schema-generated properties panel,
-> content widgets writing to org objects, the theme editor, templates + the
-> setup checklist) follow. The plan of record is
+> publish). **Built, Sep 9 2026 (#616–#634):** phase 1 (the registry; both
+> surfaces render from a layout), phase 2 (draft/publish/revisions, mig
+> 180 — the only migration), phase 3 (one data resolver, the grid editor on
+> react-grid-layout, the public grid renderer, the picker), phase 5 (the
+> properties panel — content on the org objects, options on the instance),
+> phase 6 (text / image / embed widgets riding the layout instance under the
+> gate; CSP frame-src), phase 7 (theme tokens over the template, self-hosted
+> heading faces, the theme panel), phase 8 (seeds, publish metrics, the
+> checklist). Phase 4 folded into 3 and 5. The editor is behind
+> `NEXT_PUBLIC_FEATURE_SITE_BUILDER` (build-injected); the renderer is live
+> for every site. The plan of record is
 > `~/.claude/plans/edge-athlete-site-builder-zesty-pnueli.md`; DEVLOG Sep 9
 > 2026 is the round-by-round record. The text below is kept as the history of
 > the module model the widgets grew out of.
