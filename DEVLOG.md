@@ -1,5 +1,36 @@
 # Development Log
 
+## September 9, 2026 — Maintenance sweep, end of session (docs only)
+
+Tom asked for the full checklist after the Org Pages Program closed:
+lint, build, DEVLOG, commit, sync. Run on a branch off main at the #613
+merge (`bb891f55`), which is also the production deployment (Vercel row
+READY for that sha).
+
+- **The gate**, `npm run verify` under the 6 GB heap: typecheck clean,
+  lint at zero warnings, **265 files / 2,815 tests** (2,792 at the Sep 8
+  sweep; the Org Pages rounds added the brand, contrast, app-media and
+  `parseOrgParam` suites), production build compiled, 171 static pages,
+  and the browser-floor gate parsed and call-checked **163 client chunks**
+  within iOS 15 / Safari 15.
+- **Guardrails** (`scripts/hardening-guardrails.sh`): all five blocking
+  checks green; `npm audit` reports 0 advisories at every level (the
+  Sep 8 sharp/nodemailer bumps in #598/#600 still hold). The two
+  review-only advisories are unchanged (97 `.select` sites, 1 interpolated
+  `.or()`), both already annotated in `docs/HARDENING.md`.
+- **Nothing else in flight.** The working tree was clean before the
+  sweep; this entry is the only change. The filled-club preview Tom asked
+  for after the close (the Eagle Creek artifact, twelve captures with
+  seven disposable accounts, a five-week league, news, announcements,
+  gallery and posts) ran against a LOCAL production build, and the club,
+  league, course, storage objects and all seven accounts were deleted in
+  the same run — nothing reached production and nothing is left behind.
+  The probe spec that produced it was session-scoped and never committed.
+
+Owed by Tom, unchanged from the program close: the device pass on a real
+branded club, the first real staff invite from his phone, and the Search
+Console / custom-domain env ops.
+
 ## September 9, 2026 — Org Pages Program: close (#612, docs only)
 
 Five rounds in one evening and night, one PR each, every one merged by
