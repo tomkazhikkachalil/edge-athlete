@@ -179,6 +179,8 @@ export default function OrgConsolePage() {
     | { kind: 'venue'; id: string; label: string }
     | { kind: 'domain'; id: string; label: string }
     | { kind: 'layout'; id: string; label: string }
+    | { kind: 'restore'; id: string; label: string }
+    | { kind: 'discard'; id: string; label: string }
     | null
   >(null);
 
@@ -298,6 +300,15 @@ export default function OrgConsolePage() {
   const [themeTypeface, setThemeTypeface] = useState<'sans' | 'serif'>('sans');
   const [themeWordmark, setThemeWordmark] = useState('');
   const [navLabels, setNavLabels] = useState<Record<string, string>>({});
+  // Site Builder P2-C: the draft line and the history from the revisions API
+  // (180). `revisionsSupported` false = a pre-180 database — the block hides.
+  const [siteDraft, setSiteDraft] = useState<{ id: string; rev: number; updatedAt: string; hasUnpublishedChanges: boolean } | null>(null);
+  const [revisionsSupported, setRevisionsSupported] = useState(false);
+  const [revisions, setRevisions] = useState<
+    { id: string; label: string | null; createdAt: string; publishedAt: string | null; createdBy: { id: string; name: string } | null; isPublished: boolean; isDraft: boolean }[]
+  >([]);
+  const [revisionLabel, setRevisionLabel] = useState('');
+  const [renamingRevision, setRenamingRevision] = useState<{ id: string; value: string } | null>(null);
   // Local display order for the Sections list (seeded from the rows' order;
   // ▲/▼ reorder here, Save layout mirrors it into sort_order).
   const [navOrder, setNavOrder] = useState<string[] | null>(null);
@@ -516,6 +527,20 @@ export default function OrgConsolePage() {
           if (!cancelled) {
             setSite(siteBody.site ?? null);
             setSiteModules(siteBody.modules ?? []);
+            // P2-C: the draft line + history (best-effort; pre-180 hides both).
+            setSiteDraft(siteBody.draft ?? null);
+            setRevisionsSupported(siteBody.revisions?.supported === true);
+            if (siteBody.revisions?.supported === true) {
+              try {
+                const revRes = await fetch(`/api/${plural}/${orgId}/site/revisions`);
+                if (revRes.ok) {
+                  const revBody = await revRes.json();
+                  if (!cancelled) setRevisions(revBody.revisions ?? []);
+                }
+              } catch {
+                /* the history simply stays empty */
+              }
+            }
             // R3: seed the branding editors from the stored config so a
             // Save always sends the complete object (replace semantics).
             const heroConfig = (siteBody.site?.hero_config ?? {}) as {
@@ -808,6 +833,48 @@ export default function OrgConsolePage() {
       'Website'
     );
 
+  // P2-C: the revisions API (publish changes, discard, restore, label) —
+  // act() refreshes, which re-reads the site view, the draft line and the
+  // history together.
+  const revisionAct = (bodyJson: Record<string, unknown>, successMessage: string, failMessage: string) =>
+    act(
+      `/api/${plural}/${orgId}/site/revisions`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(bodyJson),
+      },
+      successMessage,
+      failMessage,
+      'Website'
+    );
+  const publishChanges = async () => {
+    const label = revisionLabel.trim();
+    const ok = await revisionAct({ action: 'publish', ...(label ? { label } : {}) }, 'Changes published', 'Could not publish the changes');
+    if (ok) setRevisionLabel('');
+  };
+  const commitRename = async (id: string) => {
+    const pending = renamingRevision;
+    if (!pending || pending.id !== id) return;
+    setRenamingRevision(null);
+    const label = pending.value.trim();
+    if (label === (revisions.find(r => r.id === id)?.label ?? '')) return;
+    await revisionAct({ action: 'label', revisionId: id, label: label || null }, 'Version renamed', 'Could not rename the version');
+  };
+  const previewDraft = async () => {
+    try {
+      const res = await fetch(`/api/${plural}/${orgId}/site/preview`, { method: 'POST' });
+      const body = await res.json();
+      if (!res.ok) {
+        showError('Website', body.error || 'Failed to create a preview link');
+        return;
+      }
+      window.open(body.url, '_blank', 'noopener');
+    } catch {
+      showError('Website', 'Failed to create a preview link');
+    }
+  };
+
   const base = `/api/${plural}/${orgId}/structure`;
 
   const createSeason = async () => {
@@ -1002,6 +1069,14 @@ export default function OrgConsolePage() {
     );
 
   const remove = (target: NonNullable<typeof confirmTarget>) => {
+    if (target.kind === 'restore' || target.kind === 'discard') {
+      void revisionAct(
+        target.kind === 'restore' ? { action: 'restore', revisionId: target.id } : { action: 'discard' },
+        target.kind === 'restore' ? 'Draft replaced with that version' : 'Draft discarded',
+        target.kind === 'restore' ? 'Could not restore that version' : 'Could not discard the draft'
+      );
+      return;
+    }
     if (target.kind === 'layout') {
       void (async () => {
         const ok = await siteAct({ action: 'reset_order' }, 'Layout reset to the recommended order', 'Failed to reset the layout');
@@ -3214,37 +3289,21 @@ export default function OrgConsolePage() {
                 Address: <span className="font-medium text-primary">{orgSitePath(site.subdomain)}</span>
                 {' · '}
                 {site.published_at ? (
-                  <span className="text-emerald-600">published</span>
+                  <span className="text-emerald-600">live</span>
                 ) : (
-                  <span className="text-amber-600">draft — publish to go live</span>
+                  <span className="text-amber-600">offline — take it live when you’re ready</span>
                 )}
               </p>
               <div className="flex flex-wrap gap-2">
-                {/* Drafts get a signed short-lived preview link (the public
-                    route stays a 404 until publish). */}
-                {!site.published_at && (
-                  <button
-                    type="button"
-                    onClick={async () => {
-                      try {
-                        const res = await fetch(`/api/${plural}/${orgId}/site/preview`, {
-                          method: 'POST',
-                        });
-                        const body = await res.json();
-                        if (!res.ok) {
-                          showError('Website', body.error || 'Failed to create a preview link');
-                          return;
-                        }
-                        window.open(body.url, '_blank', 'noopener');
-                      } catch {
-                        showError('Website', 'Failed to create a preview link');
-                      }
-                    }}
-                    className="px-3 py-1.5 text-sm rounded-md border border-border-strong text-secondary hover:bg-surface-sunken transition-colors"
-                  >
-                    Preview draft
-                  </button>
-                )}
+                {/* P2-C: the preview shows the DRAFT in its own shell (P2-B) —
+                    for a live site too, so a manager checks before publishing. */}
+                <button
+                  type="button"
+                  onClick={() => void previewDraft()}
+                  className="px-3 py-1.5 text-sm rounded-md border border-border-strong text-secondary hover:bg-surface-sunken transition-colors"
+                >
+                  Preview draft
+                </button>
                 {site.published_at && (
                   <a
                     href={orgSitePath(site.subdomain)}
@@ -3255,6 +3314,9 @@ export default function OrgConsolePage() {
                     View site
                   </a>
                 )}
+                {/* "Take site live / offline" — the site's existence (manage_org);
+                    "Publish changes" below is the draft's promotion. Two words
+                    for two acts (going live also promotes a dirty draft). */}
                 <button
                   type="button"
                   onClick={() =>
@@ -3267,15 +3329,116 @@ export default function OrgConsolePage() {
                           action: site.published_at ? 'unpublish' : 'publish',
                         }),
                       },
-                      site.published_at ? 'Site unpublished' : 'Site is live',
+                      site.published_at ? 'Site is offline' : 'Site is live',
                       'Failed to update the site'
                     )
                   }
                   className="px-3 py-1.5 text-sm rounded-md bg-brand text-white font-medium hover:bg-brand-hover transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  {site.published_at ? 'Unpublish' : 'Publish'}
+                  {site.published_at ? 'Take site offline' : 'Take site live'}
                 </button>
               </div>
+              {/* P2-C: the draft line + history (180). Edits save to the draft;
+                  the live site changes only on Publish changes. */}
+              {revisionsSupported && (
+                <div
+                  className="rounded-lg border border-border p-3 space-y-2"
+                  data-site-draft-state={siteDraft?.hasUnpublishedChanges ? 'dirty' : 'clean'}
+                >
+                  {siteDraft?.hasUnpublishedChanges ? (
+                    <>
+                      <p className="text-sm font-medium text-amber-700">Draft has unpublished changes</p>
+                      <p className="text-xs text-tertiary">
+                        Your edits are saved to a draft. Preview to check them; publish to make them live.
+                      </p>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <input
+                          type="text"
+                          aria-label="Version label"
+                          value={revisionLabel}
+                          onChange={e => setRevisionLabel(e.target.value)}
+                          placeholder="Label this version (optional)"
+                          maxLength={60}
+                          className="min-w-0 flex-1 basis-48 rounded-md border border-border-strong bg-surface px-3 py-1.5 text-sm text-primary"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => void publishChanges()}
+                          className="px-3 py-1.5 text-sm rounded-md bg-brand text-white font-medium hover:bg-brand-hover transition-colors"
+                        >
+                          Publish changes
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setConfirmTarget({ kind: 'discard', id: siteDraft.id, label: 'the draft' })}
+                          className="px-3 py-1.5 text-sm rounded-md border border-border-strong text-secondary hover:bg-surface-sunken transition-colors"
+                        >
+                          Discard draft
+                        </button>
+                      </div>
+                    </>
+                  ) : (
+                    <p className="text-sm text-secondary">Everything is published.</p>
+                  )}
+                  {revisions.length > 0 && (
+                    <details className="pt-1">
+                      <summary className="cursor-pointer text-sm font-medium text-primary">History</summary>
+                      <ul className="mt-2 divide-y divide-border" aria-label="Version history">
+                        {revisions.map(r => (
+                          <li key={r.id} className="flex flex-wrap items-center gap-2 py-2 text-sm">
+                            {renamingRevision?.id === r.id ? (
+                              <input
+                                type="text"
+                                aria-label="Rename version"
+                                value={renamingRevision.value}
+                                maxLength={60}
+                                onChange={e => setRenamingRevision({ id: r.id, value: e.target.value })}
+                                onBlur={() => void commitRename(r.id)}
+                                onKeyDown={e => {
+                                  if (e.key === 'Enter') {
+                                    e.preventDefault();
+                                    void commitRename(r.id);
+                                  }
+                                  if (e.key === 'Escape') setRenamingRevision(null);
+                                }}
+                                className="min-w-0 basis-40 rounded-md border border-border-strong bg-surface px-2 py-1 text-sm text-primary"
+                              />
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => setRenamingRevision({ id: r.id, value: r.label ?? '' })}
+                                className="min-h-[32px] text-left font-medium text-primary hover:underline"
+                                title="Rename this version"
+                              >
+                                {r.label ?? 'Untitled'}
+                              </button>
+                            )}
+                            <span className="text-xs text-tertiary">
+                              {new Date(r.createdAt).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })}
+                              {r.createdBy ? ` · ${r.createdBy.name}` : ''}
+                            </span>
+                            {r.isPublished && (
+                              <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700">Published</span>
+                            )}
+                            {r.isDraft && (
+                              <span className="rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700">Draft</span>
+                            )}
+                            {!r.isDraft && (
+                              <button
+                                type="button"
+                                onClick={() => setConfirmTarget({ kind: 'restore', id: r.id, label: r.label ?? 'this version' })}
+                                className="ml-auto min-h-[32px] text-xs font-medium text-brand-fg hover:underline"
+                              >
+                                Restore
+                              </button>
+                            )}
+                          </li>
+                        ))}
+                      </ul>
+                    </details>
+                  )}
+                </div>
+              )}
               {/* C1: the custom domain — published sites only. Each step is
                   a proof: TXT (ownership) → Vercel attach → the domain
                   answers /.well-known/edge-athlete (only then does the
@@ -3438,7 +3601,7 @@ export default function OrgConsolePage() {
                 <div className="pt-2">
                   <p className="text-sm font-medium text-primary">Sections</p>
                   <p className="text-xs text-tertiary mb-2">
-                    Toggle, rename and reorder. Changes go live within a few minutes.
+                    Toggle, rename and reorder. Changes save to your draft; publish to make them live.
                   </p>
                   {(() => {
                     // B1: the rows arrive in sort_order; the local order (▲/▼)
@@ -4605,7 +4768,15 @@ export default function OrgConsolePage() {
 
       <ConfirmModal
         isOpen={!!confirmTarget}
-        title={confirmTarget?.kind === 'layout' ? 'Reset the section order?' : `Delete ${confirmTarget?.label ?? 'this'}?`}
+        title={
+          confirmTarget?.kind === 'layout'
+            ? 'Reset the section order?'
+            : confirmTarget?.kind === 'restore'
+              ? 'Restore this version?'
+              : confirmTarget?.kind === 'discard'
+                ? 'Discard the draft?'
+                : `Delete ${confirmTarget?.label ?? 'this'}?`
+        }
         message={
           confirmTarget?.kind === 'season'
             ? 'Its divisions and their entries are removed too. Teams persist.'
@@ -4613,14 +4784,20 @@ export default function OrgConsolePage() {
               ? 'Its facilities are removed too. Events keep their dates.'
             : confirmTarget?.kind === 'layout'
               ? `Sections go back to the recommended ${side} order. Your section labels are kept.`
+            : confirmTarget?.kind === 'restore'
+              ? 'Your draft is replaced with this version. Nothing goes live until you publish.'
+            : confirmTarget?.kind === 'discard'
+              ? 'Your unpublished changes are thrown away. The live site is not affected.'
             : confirmTarget?.kind === 'domain'
               ? 'Visitors on that domain will stop reaching your site. Your Edge Athlete address keeps working.'
             : confirmTarget?.kind === 'page' || confirmTarget?.kind === 'news'
               ? `The ${confirmTarget.kind === 'page' ? 'page' : 'post'} comes off your site immediately.`
               : 'Its entries are removed too. Teams persist.'
         }
-        confirmText={confirmTarget?.kind === 'layout' ? 'Reset' : 'Delete'}
-        confirmButtonClass="bg-red-600 hover:bg-red-700 text-white"
+        confirmText={
+          confirmTarget?.kind === 'layout' ? 'Reset' : confirmTarget?.kind === 'restore' ? 'Restore' : confirmTarget?.kind === 'discard' ? 'Discard' : 'Delete'
+        }
+        confirmButtonClass={confirmTarget?.kind === 'restore' ? 'bg-brand hover:bg-brand-hover text-white' : 'bg-red-600 hover:bg-red-700 text-white'}
         onConfirm={() => {
           const target = confirmTarget;
           setConfirmTarget(null);

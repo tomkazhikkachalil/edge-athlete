@@ -86,7 +86,7 @@ test('org site: create → publish → anon shell; unpublish → 404; member 403
       await expect(page.getByLabel('Site address')).toBeVisible({ timeout: 15_000 });
       await expect(page.getByLabel('Site address')).not.toHaveValue('', { timeout: 15_000 });
       await page.getByRole('button', { name: 'Create', exact: true }).click();
-      await expect(page.getByText('draft — publish to go live')).toBeVisible({ timeout: 15_000 });
+      await expect(page.getByText('offline — take it live when you’re ready')).toBeVisible({ timeout: 15_000 });
 
       const { data: siteRow } = await admin
         .from('org_sites')
@@ -118,8 +118,8 @@ test('org site: create → publish → anon shell; unpublish → 404; member 403
         (await page.request.get(`${previewUrl.slice(0, -4)}XXXX`)).status()
       ).toBe(404);
 
-      await page.getByRole('button', { name: 'Publish', exact: true }).click();
-      await expect(page.getByText('published', { exact: true })).toBeVisible({ timeout: 15_000 });
+      await page.getByRole('button', { name: 'Take site live', exact: true }).click();
+      await expect(page.getByText('live', { exact: true })).toBeVisible({ timeout: 15_000 });
 
       // R2: the Sections toggles render, default-on, hero absent.
       await expect(page.getByLabel('Toggle Standings section')).toBeChecked();

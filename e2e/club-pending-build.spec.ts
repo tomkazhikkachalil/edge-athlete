@@ -82,11 +82,11 @@ test('live by link: provisioned pending → readable, joinable, publishable, NOT
     const searchBody = (await search.json()) as { results?: { clubs?: { id: string }[] }; clubs?: { id: string }[] };
     expect((searchBody.results?.clubs ?? searchBody.clubs ?? []).map(c => c.id)).not.toContain(clubId);
 
-    // The console: chip + Publish ENABLED, no overflow at 375.
+    // The console: chip + "Take site live" ENABLED, no overflow at 375.
     const pageB = await ownerCtx.newPage();
     await pageB.goto(`/app/org/club/${clubId}`);
     await expect(pageB.getByText('Listing under review', { exact: true })).toBeVisible({ timeout: 20_000 });
-    const publishBtn = pageB.getByRole('button', { name: 'Publish', exact: true });
+    const publishBtn = pageB.getByRole('button', { name: 'Take site live', exact: true });
     await expect(publishBtn).toBeVisible({ timeout: 20_000 });
     await expect(publishBtn).toBeEnabled();
     const scrollWidth = await pageB.evaluate(() => document.documentElement.scrollWidth);
