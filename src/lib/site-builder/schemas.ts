@@ -128,22 +128,30 @@ const CoursePhotoSchema = z
   })
   .loose();
 
-/** The courses module's per-course photos, keyed by course id (S2/N6):
- *  `{ [courseId]: { path?, alt?, holes?: { [1..18]: { path, alt? } } } }`. */
-export const CoursesConfigSchema = z.record(
-  z.uuid(),
-  CoursePhotoSchema.extend({
-    holes: z
+/** The courses module's per-course photos (S2/N6), as `set_course_photo`
+ *  stores them: `{ photos: { [courseId]: { path?, alt?, holes?: { [1..18]:
+ *  { path, alt? } } } } }`. (P1-B modelled the map at the top level — a
+ *  misread of the writer, corrected in P2-A before any consumer existed.) */
+export const CoursesConfigSchema = z
+  .object({
+    photos: z
       .record(
-        z.string().refine(k => {
-          const n = Number(k);
-          return Number.isInteger(n) && n >= 1 && n <= HOLE_PHOTO_MAX_HOLE;
-        }),
-        CoursePhotoSchema
+        z.uuid(),
+        CoursePhotoSchema.extend({
+          holes: z
+            .record(
+              z.string().refine(k => {
+                const n = Number(k);
+                return Number.isInteger(n) && n >= 1 && n <= HOLE_PHOTO_MAX_HOLE;
+              }),
+              CoursePhotoSchema
+            )
+            .optional(),
+        })
       )
       .optional(),
   })
-);
+  .loose();
 
 /** Widgets with a typed config. Every other widget's config is `{}`. */
 export const WIDGET_CONFIG_SCHEMAS: Partial<Record<WidgetKey, z.ZodType>> = {

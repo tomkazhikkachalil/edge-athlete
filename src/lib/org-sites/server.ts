@@ -30,6 +30,7 @@ import {
 } from './validate';
 import { RESERVED_ROOT_SLUGS } from './reserved';
 import { judgeSlug, suggestSlugs, type OrgIdentity } from './slug-policy';
+import { draftSummary } from './revisions-server';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- matches the authz.ts Admin alias; schema-agnostic helper
 type Admin = SupabaseClient<any, 'public', any>;
@@ -62,6 +63,9 @@ const SITE_FIELDS_BASE =
 // Phase 6b C1: the render seam needs the active custom domain; pre-171
 // databases lack the columns, so every reader retries on 42703.
 const SITE_FIELDS = `${SITE_FIELDS_BASE}, custom_domain, domain_active_at`;
+// Site Builder phase 2 (180): the console read also wants the two revision
+// pointers; pre-180 databases step down to SITE_FIELDS on 42703.
+const SITE_FIELDS_180 = `${SITE_FIELDS}, draft_revision_id, published_revision_id`;
 
 /** Mint a free subdomain from the org name: base, then base-2..base-20.
  *  Reserved (shared denylist) and taken labels are skipped. */
@@ -94,11 +98,23 @@ export async function siteGET(
   side: OrgSide,
   orgId: string
 ): Promise<NextResponse> {
+  // Site Builder phase 2 (180): the two revision pointers ride the same
+  // read with one more 42703 step-down, so a pre-180 database answers
+  // `revisions: { supported: false }` and everything else as before.
+  let revisionsSupported = true;
   let { data, error } = await admin
     .from('org_sites')
-    .select(SITE_FIELDS)
+    .select(SITE_FIELDS_180)
     .eq(orgColumn(side), orgId)
     .maybeSingle();
+  if (error?.code === '42703') {
+    revisionsSupported = false;
+    ({ data, error } = await admin
+      .from('org_sites')
+      .select(SITE_FIELDS)
+      .eq(orgColumn(side), orgId)
+      .maybeSingle());
+  }
   if (error?.code === '42703') {
     ({ data, error } = await admin
       .from('org_sites')
@@ -110,14 +126,34 @@ export async function siteGET(
     console.error(`${TAG} site read error:`, error);
     return NextResponse.json({ error: 'Failed to load the site' }, { status: 500 });
   }
-  if (!data) return NextResponse.json({ site: null, modules: [] });
+  if (!data) return NextResponse.json({ site: null, modules: [], draft: null, publishedRevisionId: null, revisions: { supported: revisionsSupported } });
   const { data: modules } = await admin
     .from('org_site_modules')
     .select('module_key, enabled, sort_order, config')
     .eq('site_id', data.id)
     .order('sort_order', { ascending: true })
     .limit(20);
-  return NextResponse.json({ site: data, modules: modules ?? [] });
+  // The draft line (P2-A): whether a draft exists and differs from the rows.
+  // The rows stay the response's `site`/`modules` until P2-B routes edits
+  // to the draft; the pointer columns never leave the server.
+  const row = data as unknown as SiteRow & { draft_revision_id?: string | null; published_revision_id?: string | null };
+  const { draft_revision_id, published_revision_id, ...site } = row;
+  const draft = revisionsSupported
+    ? await draftSummary(admin, {
+        id: site.id,
+        subdomain: site.subdomain,
+        published_at: site.published_at,
+        draft_revision_id: draft_revision_id ?? null,
+        published_revision_id: published_revision_id ?? null,
+      })
+    : null;
+  return NextResponse.json({
+    site,
+    modules: modules ?? [],
+    draft,
+    publishedRevisionId: published_revision_id ?? null,
+    revisions: { supported: revisionsSupported },
+  });
 }
 
 /** Phase 7 C3: the org's shaping sport — leagues.sport_key, clubs.primary_sport
