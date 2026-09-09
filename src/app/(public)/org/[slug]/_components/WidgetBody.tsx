@@ -8,6 +8,7 @@ import { moduleLabel, parseContact, parseDocuments, parseNavConfig, parsePageBod
 import type { TemplateSpec } from '@/lib/org-sites/templates';
 import { effectiveConfig, instanceTitle } from '@/lib/site-builder/config';
 import { embedSrc, embedTitle, parseEmbed } from '@/lib/site-builder/embeds';
+import { memberLimit, selectForInstance } from '@/lib/site-builder/select';
 import { orgMediaUrl } from '@/lib/media/org-site-media';
 import { siteBasePath } from '@/lib/org-sites/urls';
 import PublicStandingsTable from '@/components/standings/PublicStandingsTable';
@@ -62,7 +63,10 @@ export function widgetHeading(site: PublicSite, w: WidgetInstance): string | nul
   return widgetTitle(site, w);
 }
 
-export default function WidgetBody({ site, w, data, spec }: WidgetBodyProps) {
+export default function WidgetBody({ site, w, data: raw, spec }: WidgetBodyProps) {
+  // Phase 9: the instance's QUERY narrows the bag first (which competition,
+  // which venue, how many) — the same pick the empty rule makes.
+  const data = selectForInstance(w, raw);
   // Phase 5: content from the org objects over the instance's options.
   const config = effectiveConfig(site, w);
   const { standings, events, teams, staff, venues, affiliations, openWindows, courses, divisions, leaders } = data;
@@ -84,7 +88,7 @@ export default function WidgetBody({ site, w, data, spec }: WidgetBodyProps) {
         <>
           {/* S4: a golf league's season leads — the rounds, then the events. */}
           {golfRounds.length > 0 && <GolfRoundsSchedule rounds={golfRounds} compact />}
-          {hasEvents && <ScheduleList events={events!.slice(0, 5)} />}
+          {hasEvents && <ScheduleList events={events!} />}
           <Link
             href={`${siteBasePath(site)}/schedule`}
             className="mt-3 inline-block text-sm text-brand-fg font-medium"
@@ -97,7 +101,7 @@ export default function WidgetBody({ site, w, data, spec }: WidgetBodyProps) {
     case 'teams':
       return teams.length > 0 ? (
         <>
-          <TeamsList teams={teams.slice(0, 12)} basePath={siteBasePath(site)} variant={spec.teams} />
+          <TeamsList teams={teams} basePath={siteBasePath(site)} variant={spec.teams} />
           <Link
             href={`${siteBasePath(site)}/teams`}
             className="mt-3 inline-block text-sm text-brand-fg font-medium"
@@ -182,7 +186,7 @@ export default function WidgetBody({ site, w, data, spec }: WidgetBodyProps) {
       );
     case 'members':
       return data.memberStats ? (
-        <MembersTable stats={data.memberStats} basePath={siteBasePath(site)} detailed={false} />
+        <MembersTable stats={data.memberStats} basePath={siteBasePath(site)} detailed={false} limit={memberLimit(w)} />
       ) : (
         empty('No members yet.')
       );
@@ -200,9 +204,9 @@ export default function WidgetBody({ site, w, data, spec }: WidgetBodyProps) {
       );
     }
     case 'news': {
-      // N1: the three newest posts with their covers (it used to fall
-      // to the default "Coming soon.").
-      const latest = (data.news ?? []).slice(0, 3);
+      // N1: the newest posts with their covers (three unless the instance
+      // asks for more — the selector already sliced).
+      const latest = data.news ?? [];
       return latest.length === 0 ? (
         empty('No news yet.')
       ) : (

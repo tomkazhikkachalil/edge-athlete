@@ -52,7 +52,7 @@ export default function GridRenderer({ site, layout, data }: { site: PublicSite;
           const half = WIDGETS[w.key].constraints.mobileSpan === 1 ? ' sb-half' : '';
           if (w.key === HERO_KEY) {
             return (
-              <div key={w.id} className={`sb-w${half}`} style={style} data-widget={w.key}>
+              <div key={w.id} className={`sb-w${half}`} style={style} data-widget={w.key} data-widget-id={w.id}>
                 <HeroSection site={site} w={w} spec={spec} />
               </div>
             );
@@ -62,7 +62,7 @@ export default function GridRenderer({ site, layout, data }: { site: PublicSite;
           // sets a title; the aria-label always names the section.
           const heading = widgetHeading(site, w);
           return (
-            <section key={w.id} aria-label={title} className={`sb-w${half} ${sectionClass}`} style={style} data-widget={w.key}>
+            <section key={w.id} aria-label={title} className={`sb-w${half} ${sectionClass}`} style={style} data-widget={w.key} data-widget-id={w.id}>
               {heading && <h2 className={headingClass}>{heading}</h2>}
               <WidgetBody site={site} w={w} data={data} spec={spec} />
             </section>

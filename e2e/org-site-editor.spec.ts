@@ -325,22 +325,26 @@ test('org site editor: canvas → drag → autosave → undo → reload; phone n
       res = await ownerApi.post(`/api/leagues/${leagueId}/site/revisions`, { data: { action: 'publish', label: 'Arranged' } });
       expect(res.status(), await readErrorBody(res)).toBe(200);
       const finalLayout = (await (await ownerApi.get(`/api/leagues/${leagueId}/site/canvas`)).json()) as { layout: { widgets: { id: string; key: string; y: number; x: number }[] } };
-      // Module keys only: content tiles repeat a key (two text sections) and an
-      // empty one (the photo-less image) never renders, so their order is not
-      // comparable by key — the module sections are.
+      // Phase 9: tiles carry their INSTANCE id publicly (`data-widget-id`), so
+      // the order is compared by id — keys can repeat (two standings). Module
+      // tiles only: the content tiles sit at the bottom and an empty one (the
+      // photo-less image) is dropped, after which compaction may lift a
+      // neighbour — the module sections' relative order is the contract.
       const CONTENT_KEYS = ['text', 'image', 'embed'];
+      const moduleIds = new Set(finalLayout.layout.widgets.filter(w => !CONTENT_KEYS.includes(w.key)).map(w => w.id));
       const publishedOrder = [...finalLayout.layout.widgets]
         .sort((a, b) => a.y - b.y || a.x - b.x)
-        .map(w => w.key)
-        .filter(k => !CONTENT_KEYS.includes(k));
+        .map(w => w.id)
+        .filter(id => moduleIds.has(id));
+      const tileIds = (html: string) => [...html.matchAll(/data-widget-id="([^"]+)"/g)].map(m => m[1]).filter(id => moduleIds.has(id));
       let publicHtml = '';
       await expect
         .poll(async () => {
           publicHtml = await (await anon.request.get(`/org/${subdomain}`)).text();
-          const tiles = [...publicHtml.matchAll(/data-widget="([a-z]+)"/g)].map(m => m[1]).filter(k => !CONTENT_KEYS.includes(k));
+          const tiles = tileIds(publicHtml);
           // Empty widgets never render publicly — compare the order of the ones that do.
-          const expected = publishedOrder.filter(k => tiles.includes(k));
-          return JSON.stringify(tiles.filter(k => expected.includes(k))) === JSON.stringify(expected) && tiles.length > 0;
+          const expected = publishedOrder.filter(id => tiles.includes(id));
+          return JSON.stringify(tiles) === JSON.stringify(expected) && tiles.length > 0;
         }, { timeout: 30_000, intervals: [1000, 2000, 3000] })
         .toBe(true);
       expect(publicHtml).toContain('data-sb-grid');
@@ -413,9 +417,9 @@ test('org site editor: canvas → drag → autosave → undo → reload; phone n
       await expect
         .poll(async () => {
           const html = await (await anon.request.get(`/org/${subdomain}`)).text();
-          const tiles = [...html.matchAll(/data-widget="([a-z]+)"/g)].map(m => m[1]).filter(k => !CONTENT_KEYS.includes(k));
-          const expected = publishedOrder.filter(k => tiles.includes(k));
-          return html.includes(`After publish ${stamp}`) && JSON.stringify(tiles.filter(k => expected.includes(k))) === JSON.stringify(expected);
+          const tiles = tileIds(html);
+          const expected = publishedOrder.filter(id => tiles.includes(id));
+          return html.includes(`After publish ${stamp}`) && JSON.stringify(tiles) === JSON.stringify(expected);
         }, { timeout: 30_000, intervals: [1000, 2000, 3000] })
         .toBe(true);
       // The policy that lets that frame load — on whichever CSP header the build sends.

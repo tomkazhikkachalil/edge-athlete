@@ -203,8 +203,11 @@ export async function resolveHomeData(readers: SiteReaders, site: PublicSite, la
 }
 
 /** The data-affecting part of a widget's config, as a cache-key fragment.
- *  Empty today (no widget has data-affecting config yet); a per-instance
- *  cached read MUST include it in its keyParts. */
+ *  Still '' in phase 9: an instance's query (`config.query`) is applied
+ *  RENDER-SIDE on the org-wide read (site-builder/select.ts), so no read
+ *  varies per instance. The day a query needs data the org-wide read lacks
+ *  (a schedule for one team), this serialises `config.query` and the
+ *  per-instance cached read MUST include it in its keyParts. */
 export function dataKey(key: WidgetKey, config: unknown): string {
   void key;
   void config;

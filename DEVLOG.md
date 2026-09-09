@@ -1,5 +1,62 @@
 # Development Log
 
+## September 9, 2026 — Site Builder phase 9 (P9-A): widgets bound to a query — the model, the selector, the renderer (zero DDL)
+
+"A widget holds a QUERY, never data." The first phase of the next program
+(plan: `~/.claude/plans/edge-athlete-site-builder-zesty-pnueli.md`, phases
+9–11): one module key may now appear N times on a layout, each instance
+narrowed by its own query.
+
+- **The query lives on the instance, under ONE nested key** (`config.query
+  = { competitionId?, venueId?, limit? }`, `QuerySchema` in `schemas.ts`,
+  `InstanceOptionsSchema.query`; `instanceQuery(w)` in `config.ts`). Nested
+  on purpose: `effectiveConfig` lets the org object win at the TOP level and
+  no org object writes a key named `query`, so content can never shadow a
+  query and no carve-out is needed. Loose, so a future key (teamId) round-
+  trips through `PUT draft` today.
+- **One selector for the renderer and the empty rule** (`select.ts`
+  `selectForInstance(w, data)`): a render-side PICK on the org-wide bag the
+  home already resolves — every module read is org-wide and id-bearing
+  (competitions carry ids, events their venue, boards and golf rounds their
+  competition) — so N tables still cost ONE read and the cache is untouched
+  (`dataKey` stays `''`, comment updated). Standings: bound to a competition
+  → that one (gone → nothing); automatic → the first with results (the rule
+  StandingsPreview had). Schedule: a venue narrows EVENTS (rounds carry a
+  course, not a venue), a competition narrows the golf rounds, `limit`
+  1..25 (the events read never holds more). Leaders: by competition. News /
+  teams / members: `limit`. `WidgetBody` and `isWidgetEmpty` both call it
+  first — a second table bound to a competition with no rows disappears
+  publicly like any empty widget; the checklist's "filled" follows.
+  Identity pin: a layout without queries selects exactly what the page
+  showed before.
+- **Repeatable keys**: `multiple: true` on standings, schedule, leaders
+  (`QUERY_WIDGET_KEYS`). Not news / teams / members — a second tile with a
+  different limit shows the same items; nothing to filter on yet.
+- **Tiles carry their instance id publicly** (`GridRenderer`
+  `data-widget-id`), so a page with two standings is addressable; the
+  editor spec's public-order polls now compare ids (the module-keys-only
+  workaround goes).
+- One visible tightening: a leaders board with no rows (or an unsupported
+  sport's) now counts as EMPTY — "empty never renders" applied to the rows,
+  not the list — so a public page no longer shows a board that says only
+  "No stats recorded yet".
+- Tests: `select.test.ts` (the per-key table, defaults, a vanished id,
+  venue vs rounds, limit clamps, the identity pin, emptiness honouring the
+  query), `config-fields.test.ts` (QuerySchema accept/reject, `query` on
+  every instance schema, `instanceQuery` defensive), `content-widgets.test`
+  (`multiple` ≡ content ∪ query keys), `checklist.test` (a tile bound to an
+  empty competition is not filled and is the first empty live tile). e2e:
+  new `org-site-query-widgets.spec.ts` (API half) — two competitions, two
+  standings tiles bound to each, a schedule bound to one venue with one
+  row; bad queries refused (400); after publish the public page carries the
+  Div 1 table with a team, exactly ONE standings tile, no Div 2, Arena A's
+  night and not Arena B's.
+
+Not in this PR (P9-B): the panel's entity pickers (competition / venue /
+how many) fed by option lists on the canvas response, and the picker's
+"Add another".
+
+
 ## September 9, 2026 — Site Builder rollout: the editor flag ON in production, prod probe green
 
 - **The flag was not there.** After "flag on and rebuilt", the probe SKIPPED

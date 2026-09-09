@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import { CONTENT_WIDGET_KEYS, SITE_WIDGET_KEYS } from '../catalog';
-import { contentConfigFor, effectiveConfig, instanceTitle } from '../config';
+import { contentConfigFor, effectiveConfig, instanceQuery, instanceTitle } from '../config';
 import { CONTACT_FIELDS, HERO_FIELDS, contentActionFor, fieldsFor } from '../fields';
 import { ContactConfigSchema, HeroConfigSchema, InstanceOptionsSchema, instanceSchemaFor } from '../schemas';
 import type { WidgetInstance } from '../layout';
@@ -53,6 +53,20 @@ describe('field descriptors are pinned to the schemas', () => {
     }
     expect(InstanceOptionsSchema.safeParse({ title: 'x'.repeat(61) }).success).toBe(false);
     expect(InstanceOptionsSchema.safeParse({ title: 'Squads', legacyKey: 1 }).success).toBe(true);
+  });
+  it('phase 9: the query rides the instance options — uuids, a bounded limit, loose for future keys', () => {
+    const uuid = '0f1e2d3c-4b5a-4978-8f6e-5d4c3b2a1908';
+    expect(InstanceOptionsSchema.safeParse({ query: { competitionId: uuid, limit: 5 } }).success).toBe(true);
+    expect(InstanceOptionsSchema.safeParse({ query: { venueId: uuid } }).success).toBe(true);
+    expect(InstanceOptionsSchema.safeParse({ query: { limit: 0 } }).success).toBe(false);
+    expect(InstanceOptionsSchema.safeParse({ query: { limit: 51 } }).success).toBe(false);
+    expect(InstanceOptionsSchema.safeParse({ query: { competitionId: 'nope' } }).success).toBe(false);
+    expect(InstanceOptionsSchema.safeParse({ query: { teamId: uuid } }).success).toBe(true);
+    for (const key of ['standings', 'schedule', 'leaders', 'text'] as const) {
+      expect(Object.keys((instanceSchemaFor(key) as z.ZodObject).shape)).toContain('query');
+    }
+    expect(instanceQuery({ id: 'a', key: 'standings', x: 0, y: 0, w: 6, h: 4, cv: 1, config: { query: { competitionId: uuid, limit: 3, venueId: '' } }, visibility: 'public' })).toEqual({ competitionId: uuid, limit: 3 });
+    expect(instanceQuery({ id: 'a', key: 'standings', x: 0, y: 0, w: 6, h: 4, cv: 1, config: { query: 'junk' }, visibility: 'public' })).toEqual({});
   });
   it('hero has content fields only; every other widget has the title and visibility options', () => {
     expect(fieldsFor('hero').every(f => f.scope === 'content')).toBe(true);
