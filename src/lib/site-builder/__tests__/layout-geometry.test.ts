@@ -78,3 +78,40 @@ describe('LayoutSchema', () => {
     expect(parseStoredLayout({ version: 1, cols: 12, widgets: [] })).toEqual({ version: 1, cols: 12, widgets: [] });
   });
 });
+
+describe('adding and removing widgets (P3-D)', () => {
+  const site = {
+    modules: [
+      { module_key: 'hero', enabled: true, sort_order: 0, config: {} },
+      { module_key: 'sponsors', enabled: false, sort_order: 7, config: { sponsors: [{ name: 'Acme' }] } },
+    ],
+    hero_config: { headline: 'Hi' },
+    contact_config: { email: 'x@y.z' },
+    visibility: 'private' as const,
+  };
+  it('newInstanceFor sources config and visibility like the legacy projection', async () => {
+    const { newInstanceFor } = await import('../layout');
+    expect(newInstanceFor(site, 'sponsors', 'w_1')).toMatchObject({ id: 'w_1', key: 'sponsors', w: 6, config: { sponsors: [{ name: 'Acme' }] }, visibility: 'public' });
+    expect(newInstanceFor(site, 'hero', 'w_2')).toMatchObject({ w: 12, config: { headline: 'Hi' } });
+    expect(newInstanceFor(site, 'contact', 'w_3').config).toEqual({ email: 'x@y.z' });
+    expect(newInstanceFor(site, 'standings', 'w_4')).toMatchObject({ visibility: 'members', config: {} });
+  });
+  it('appendWidget places the newcomer at the bottom, a half slides up beside a half; removeWidget compacts', async () => {
+    const { appendWidget, removeWidget, layoutBottom, newInstanceFor } = await import('../layout');
+    const base = layout([w('a', 'hero', 0, 0, 12, 3), w('b', 'standings', 0, 3, 6, 4)]);
+    expect(layoutBottom(base.widgets)).toBe(7);
+    const withTeams = appendWidget(base, newInstanceFor(site, 'teams', 'w_t')); // full width → below b
+    const teams = withTeams.widgets.find(i => i.id === 'w_t')!;
+    expect(teams.y).toBe(7);
+    expect(validateLayout(withTeams)).toEqual([]);
+    const withStaff = appendWidget(base, newInstanceFor(site, 'staff', 'w_s')); // half → could sit beside b
+    const staff = withStaff.widgets.find(i => i.id === 'w_s')!;
+    // Appended at x=0 below b; compaction keeps it under b (same column), never overlapping.
+    expect(staff.x).toBe(0);
+    expect(staff.y).toBe(7);
+    expect(validateLayout(withStaff)).toEqual([]);
+    const without = removeWidget(withTeams, 'b');
+    expect(without.widgets.map(i => i.id)).toEqual(['a', 'w_t']);
+    expect(without.widgets.find(i => i.id === 'w_t')!.y).toBe(3); // compacted up
+  });
+});

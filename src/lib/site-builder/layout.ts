@@ -223,3 +223,44 @@ export function layoutFromModules(site: LegacySiteShape & { template_id: string 
   });
   return { ...linear, widgets: compactLayout(widgets) };
 }
+
+// ── Adding a widget (P3-D) ──────────────────────────────────────────────────
+
+/** A fresh instance of a web widget for THIS site: default size, config
+ *  sourced the way deriveLegacyLayout sources it (hero → hero_config,
+ *  contact → contact_config, else the module row's config), visibility from
+ *  the org's members-only policy. `id` is minted by the caller
+ *  (newInstanceId) so tests can pass a fixed one. */
+export function newInstanceFor(site: LegacySiteShape, key: WidgetKey, id: string): WidgetInstance {
+  const row = site.modules.find(m => m.module_key === key);
+  const config = key === 'hero' ? site.hero_config : key === 'contact' ? site.contact_config : row?.config;
+  const c = WIDGETS[key].constraints;
+  return {
+    id,
+    key,
+    x: 0,
+    y: 0,
+    w: c.defaultSize.w,
+    h: c.defaultSize.h,
+    cv: 1,
+    config: config ?? {},
+    visibility: isMembersOnly(site, key) ? 'members' : 'public',
+  };
+}
+
+/** The layout's bottom edge — the row a new widget starts on. */
+export function layoutBottom(widgets: readonly WidgetInstance[]): number {
+  return widgets.reduce((max, w) => Math.max(max, w.y + w.h), 0);
+}
+
+/** Append a widget below everything else (left-aligned), then compact so
+ *  a half-width newcomer slides up beside a half-width row end. */
+export function appendWidget(layout: SiteLayout, instance: WidgetInstance): SiteLayout {
+  const placed = { ...instance, x: 0, y: layoutBottom(layout.widgets) };
+  return { ...layout, widgets: compactLayout([...layout.widgets, placed]) };
+}
+
+/** The layout without one instance, compacted. */
+export function removeWidget(layout: SiteLayout, id: string): SiteLayout {
+  return { ...layout, widgets: compactLayout(layout.widgets.filter(w => w.id !== id)) };
+}

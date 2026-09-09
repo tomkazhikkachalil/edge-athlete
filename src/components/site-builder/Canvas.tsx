@@ -33,6 +33,8 @@ export interface CanvasProps {
   selectedId: string | null;
   onSelect: (id: string | null) => void;
   onCommit: (next: SiteLayout) => void;
+  /** P3-D: remove a tile (the hero is never removable). */
+  onRemove: (id: string) => void;
 }
 
 function toRgl(layout: SiteLayout): RglLayout {
@@ -51,7 +53,7 @@ function fromRgl(layout: SiteLayout, items: RglLayout): SiteLayout {
   return { ...layout, widgets: compactLayout(widgets) };
 }
 
-export default function Canvas({ site, layout, data, selectedId, onSelect, onCommit }: CanvasProps) {
+export default function Canvas({ site, layout, data, selectedId, onSelect, onCommit, onRemove }: CanvasProps) {
   const { width, containerRef } = useContainerWidth({ initialWidth: 1024 });
   const spec = templateSpec(site.template_id);
   const rgl = useMemo(() => toRgl(layout), [layout]);
@@ -89,8 +91,25 @@ export default function Canvas({ site, layout, data, selectedId, onSelect, onCom
             >
               <div className="sb-frame-controls flex items-center justify-between gap-2 border-b border-border px-3 py-1.5 text-xs text-secondary cursor-grab">
                 <span className="truncate font-medium text-primary">{title}</span>
-                <span className="tabular-nums text-muted">
-                  {w.w}×{w.h}
+                <span className="flex items-center gap-2">
+                  <span className="tabular-nums text-muted">
+                    {w.w}×{w.h}
+                  </span>
+                  {w.key !== 'hero' && (
+                    <button
+                      type="button"
+                      onClick={e => {
+                        e.stopPropagation();
+                        onRemove(w.id);
+                      }}
+                      onMouseDown={e => e.stopPropagation()}
+                      aria-label={`Remove ${title}`}
+                      title="Remove (Undo from the toast)"
+                      className="sb-no-drag ea-icon-btn inline-flex h-7 w-7 items-center justify-center rounded-md text-muted hover:text-primary hover:bg-surface-sunken"
+                    >
+                      ×
+                    </button>
+                  )}
                 </span>
               </div>
               <div className="sb-widget-body min-h-0 flex-1 overflow-hidden p-3">

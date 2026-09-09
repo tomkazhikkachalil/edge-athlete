@@ -1,5 +1,45 @@
 # Development Log
 
+## September 9, 2026 — Site Builder P3-D: the picker — add and remove sections, tiles that preview the club's own data (zero DDL; behind the flag)
+
+"Now it is a builder." The doc's picker rule — every option previews with
+the club's own data, not a generic thumbnail — and its removal rule — a toast
+with Undo, never a confirm dialog.
+
+- **`GET …/site/widget-data?keys=a,b,c`** (twins, `manage_site`, the
+  `org-site` bucket, 404 when the flag is off): the home data for widgets
+  NOT yet on the layout, resolved with the raw reader set against a
+  synthetic layout of fresh default instances of exactly those keys (P3-A's
+  resolver, fourth caller; one call for every missing key), plus each key's
+  emptiness (`isWidgetEmpty`) so the picker can say what fills it.
+- **`Picker.tsx`**: a `LargerWindow` (the bubble language's own sheet;
+  `windowKey="sb-picker"`) listing the web widgets not on the page (one
+  instance per key for now; the hero is never offered — the site's
+  identity, never removed, never doubled). Each tile renders the SAME
+  props-only `WidgetBody` the canvas and the public page use, with the
+  manager's real data, plus "Empty for now — {the catalog's staff line}.
+  Visitors won't see it until it has content." An empty widget can still be
+  added; the public page hides it until it fills.
+- **Add**: `newInstanceFor(site, key, newInstanceId())` (default size, the
+  site's config for config-bearing widgets, visibility from the members-only
+  policy) → `appendWidget` (at the bottom, then compaction lets a half slide
+  up beside a half) → one undo step → autosave. The editor's data bag grows
+  with what the picker resolved (`setData(merge)`).
+- **Remove**: a × in the tile's title bar (`.sb-no-drag` so it never starts
+  a drag; not on the hero) → `removeWidget` (compacted) → **`showUndo`**: an
+  info toast with one action, "Undo", that calls `history.undo` — the
+  `ToastMessage` gains an optional `action` (additive; pressing it dismisses
+  the toast). No confirm dialog for a reversible act.
+- Pure helpers (tested): `newInstanceFor`, `layoutBottom`, `appendWidget`,
+  `removeWidget`. e2e: the editor spec removes a tile, undoes from the toast,
+  removes again, re-adds it from the picker (the tile's Add enables once its
+  preview resolved), checks the stored layout carries ONE instance with a
+  fresh opaque id, then publishes and checks the public order.
+
+Deliberately not yet: multiple instances of one key (the schema allows it;
+the picker offers each key once), the properties panel (phase 5), inline
+heading edits.
+
 ## September 9, 2026 — Site Builder P3-C: the public grid renderer — the composition ships (zero DDL; not flagged)
 
 The flip. The public home and the draft preview now render the grid the

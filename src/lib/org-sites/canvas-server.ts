@@ -2,7 +2,9 @@ import { NextResponse } from 'next/server';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { OrgSide } from '@/lib/orgs/authz';
 import { FEATURE_FLAGS } from '@/lib/features';
-import { deriveLegacyLayout, validateLayout, type SiteLayout } from '@/lib/site-builder/layout';
+import { deriveLegacyLayout, newInstanceFor, validateLayout, type SiteLayout } from '@/lib/site-builder/layout';
+import { isWebWidgetKey, type WebWidgetKey } from '@/lib/site-builder/catalog';
+import { isWidgetEmpty } from '@/lib/site-builder/emptiness';
 import { LayoutSchema, parseStoredLayout } from '@/lib/site-builder/layout-schema';
 import { overlaySnapshot } from '@/lib/site-builder/snapshot';
 import { getSiteBySlugAnyStatus, type PublicSite } from './server';
@@ -104,4 +106,28 @@ export async function draftLayoutPUT(
     default:
       return NextResponse.json({ error: 'Failed to save the layout' }, { status: 500 });
   }
+}
+
+/** P3-D — the picker's live tiles: the home data for widgets NOT yet on the
+ *  layout, resolved with the raw reader set against a synthetic layout of
+ *  fresh instances (default size, this site's config), plus each key's
+ *  emptiness so the picker can say "Start a season to fill this". One call
+ *  for every missing key: `?keys=a,b,c`. */
+export async function widgetDataGET(admin: Admin, side: OrgSide, orgId: string, keysParam: string | null): Promise<NextResponse> {
+  if (!FEATURE_FLAGS.FEATURE_SITE_BUILDER) return NOT_AVAILABLE();
+  const keys = (keysParam ?? '')
+    .split(',')
+    .map(k => k.trim())
+    .filter((k): k is WebWidgetKey => isWebWidgetKey(k));
+  if (keys.length === 0 || keys.length > 20) return NextResponse.json({ error: 'keys: 1–20 web widget keys' }, { status: 400 });
+  const view = await loadDraftSiteView(admin, side, orgId);
+  if (!view) return NextResponse.json({ error: 'Site not found' }, { status: 404 });
+  const synthetic: SiteLayout = {
+    version: 1,
+    cols: 12,
+    widgets: keys.map(key => newInstanceFor(view.site, key, `probe:${key}`)),
+  };
+  const data = await resolveHomeData(rawSiteReaders(admin, view.site), view.site, synthetic);
+  const empty = Object.fromEntries(synthetic.widgets.map(w => [w.key, isWidgetEmpty(w, data)]));
+  return NextResponse.json({ data, empty, resolvedAt: new Date().toISOString() }, { headers: { 'Cache-Control': 'private, no-store' } });
 }
