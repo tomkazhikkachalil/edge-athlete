@@ -1,5 +1,58 @@
 # Development Log
 
+## September 9, 2026 — Site Builder phase 8 (P8-A): template seeds, publish metrics, and two draft-fidelity fixes (zero DDL)
+
+- **Seeds** (`src/lib/site-builder/seeds.ts`): the layout a site has before
+  anyone arranges it. The plan's four seed files (club-golf, league-golf,
+  club-team, league-team) collapse into what already exists: ORDER is the
+  side × sport's (`defaultModuleOrder`, carried by the module rows),
+  PAIRING is the template's (classic stacks, bold pairs halves and lets the
+  full-width modules span). `seedLayout(site)` replaces `layoutFromModules`
+  (moved, not changed — the P3-C flip stays a visual no-op and no published
+  page changes); `place(key, x, y, size?, opts?)` is the author's primitive
+  for the richer seeds to come; `applySeed(layout, seed)` re-lays an
+  EXISTING layout with a seed — the first instance of each key the seed
+  knows takes the seed's cell and size and keeps its id, options and
+  visibility; everything else (content tiles, a second table) follows below
+  in reading order; `isSeedLayout` answers the checklist's "arranged yet?".
+- **`set_template` applies the seed to a stored layout** (`snapshot.ts`):
+  switching Classic ↔ Bold on an arranged site re-lays it instead of leaving
+  the placement as it was (or, worse, losing a tile). A site with no stored
+  layout still renders the seed at read time, so nothing is written for it.
+- **Publish metrics without a vendor** (`metrics.ts` → `revisions.stats`,
+  the jsonb migration 180 already carries): `widgetCount`, `widgetsTouched`
+  (instances whose cell or size changed since the previous published
+  layout), `added` / `removed` keys, `firstPublish`, `secondsSinceDraft`
+  (draft opened → published) and `secondsSinceSiteCreated` — the doc's
+  "under an hour" question, answered per site on its first publish.
+  Written on both publish paths (the materialised first revision and a
+  promoted draft); `GET …/site/revisions` returns each revision's `stats`
+  (defensively parsed, null before phase 8).
+- **Two P3 gaps fixed, found while wiring the seed as the fallback**:
+  (1) after a publish there is no draft, and the CANVAS fell back to the
+  linear projection instead of the published arrangement — the next drag
+  saved a layout that had lost it; the canvas now reads the draft's layout,
+  else the PUBLISHED one, else the seed. (2) `getOrCreateDraft` materialised
+  a fresh draft from the rows, which carry no grid layout — a hero edit from
+  the console after a publish, then Publish, silently dropped the
+  arrangement back to the projection; a fresh draft now inherits the
+  published layout. The editor spec proves both: after publish the canvas
+  order equals the published order with no draft; a `set_hero` then a
+  publish keeps the public order.
+- Tests: `seeds.test.ts` (the projection pins moved over, plus `place`,
+  `applySeed` keeping ids/options/visibility and appending extras,
+  `isSeedLayout`), `metrics.test.ts` (first publish, first grid publish,
+  a diff by instance id, defensive parse), `snapshot.test.ts` (`set_template`
+  re-lays a stored layout; writes nothing without one). e2e: the editor spec
+  reads the published revision's stats (count, touched, the added content
+  keys, both durations), the no-draft canvas order, the inherited draft and
+  the preserved order after the follow-up publish.
+
+Not in this PR (P8-B): the site checklist in the editor
+(`buildSiteChecklistSteps` in the `ChecklistStep` shape — colours, a photo,
+a welcome, arranged, filled, published — each step selecting the tile or
+panel that completes it) and the History line showing what a publish changed.
+
 ## September 9, 2026 — Site Builder phase 7 (P7-B): the theme panel — the brand in one pane, previewed live, saved through the console's own actions (zero DDL; behind the flag)
 
 - **`ThemePanel.tsx`**, opened from the editor's top bar ("Theme"; one

@@ -11,7 +11,7 @@ import WidgetBody, { widgetHeading, widgetTitle } from './WidgetBody';
 // ── The public grid renderer — Site Builder P3-C (Sep 9 2026) ────────────────
 // The composition on the 12-column grid, from the layout the site carries
 // (its published revision's, else the template-aware projection of its
-// module rows — layoutFromModules — so a site nobody has edited looks as it
+// module rows — seedLayout — so a site nobody has edited looks as it
 // did). Rules, each structural:
 //   • Empty widgets never render publicly (isWidgetEmpty); the grid re-
 //     compacts around the holes they leave (compactLayout), so a visitor

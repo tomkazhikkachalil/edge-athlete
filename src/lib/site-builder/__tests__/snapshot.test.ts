@@ -15,6 +15,8 @@ import {
   type SnapshotModuleRow,
   type SnapshotSiteRow,
 } from '../snapshot';
+import { seedLayout } from '../seeds';
+import { parseStoredLayout } from '../layout-schema';
 
 const SITE_ID = '11111111-1111-4111-8111-111111111111';
 const COURSE = '22222222-2222-4222-8222-222222222222';
@@ -129,6 +131,22 @@ describe('applySiteAction', () => {
     const golf = applySiteAction(base(), { action: 'reset_order' }, { side: 'club', sportKey: 'golf' });
     expect(golf.modules.standings.sortOrder).toBe(1); // golf club: hero, standings, leaders, …
     expect(golf.modules.news.sortOrder).toBe(5);
+  });
+
+  it('phase 8: set_template re-lays a STORED layout with the template’s seed (tiles keep ids, options, visibility)', () => {
+    let s = base();
+    const stack = seedLayout({ template_id: 'classic', hero_config: {}, contact_config: {}, visibility: 'public', modules: Object.entries(s.modules).map(([module_key, m]) => ({ module_key, enabled: m.enabled, sort_order: m.sortOrder, config: m.config })) });
+    const mine = { ...stack, widgets: [...stack.widgets.map(w => (w.key === 'standings' ? { ...w, config: { title: 'Table' } } : w)), { id: 'w_t1', key: 'text' as const, x: 0, y: 99, w: 6, h: 3, cv: 1, config: { blocks: [] }, visibility: 'public' as const }] };
+    s = { ...s, layout: mine };
+    s = applySiteAction(s, patch({ action: 'set_template', templateId: 'bold' }), ctx);
+    const out = parseStoredLayout(s.layout)!;
+    expect(out).not.toBeNull();
+    expect(out.widgets.find(w => w.id === 'legacy:standings')).toMatchObject({ w: 6, config: { title: 'Table' } });
+    expect(out.widgets.find(w => w.id === 'w_t1')).toBeDefined();
+    expect(out.widgets).toHaveLength(mine.widgets.length);
+    // Without a stored layout nothing is written (the renderer seeds anyway).
+    const bare = applySiteAction(base(), patch({ action: 'set_template', templateId: 'bold' }), ctx);
+    expect(bare.layout).toBeUndefined();
   });
 
   it('phase 7: set_theme carries the design overrides the console never sends; null clears; set_template resets them', () => {

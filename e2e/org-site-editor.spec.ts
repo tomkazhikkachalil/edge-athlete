@@ -302,13 +302,20 @@ test('org site editor: canvas → drag → autosave → undo → reload; phone n
       // in reading order (the DOM order of the tiles follows the coordinates).
       res = await ownerApi.post(`/api/leagues/${leagueId}/site/revisions`, { data: { action: 'publish', label: 'Arranged' } });
       expect(res.status(), await readErrorBody(res)).toBe(200);
-      const finalLayout = (await (await ownerApi.get(`/api/leagues/${leagueId}/site/canvas`)).json()) as { layout: { widgets: { key: string; y: number; x: number }[] } };
-      const publishedOrder = [...finalLayout.layout.widgets].sort((a, b) => a.y - b.y || a.x - b.x).map(w => w.key);
+      const finalLayout = (await (await ownerApi.get(`/api/leagues/${leagueId}/site/canvas`)).json()) as { layout: { widgets: { id: string; key: string; y: number; x: number }[] } };
+      // Module keys only: content tiles repeat a key (two text sections) and an
+      // empty one (the photo-less image) never renders, so their order is not
+      // comparable by key — the module sections are.
+      const CONTENT_KEYS = ['text', 'image', 'embed'];
+      const publishedOrder = [...finalLayout.layout.widgets]
+        .sort((a, b) => a.y - b.y || a.x - b.x)
+        .map(w => w.key)
+        .filter(k => !CONTENT_KEYS.includes(k));
       let publicHtml = '';
       await expect
         .poll(async () => {
           publicHtml = await (await anon.request.get(`/org/${subdomain}`)).text();
-          const tiles = [...publicHtml.matchAll(/data-widget="([a-z]+)"/g)].map(m => m[1]);
+          const tiles = [...publicHtml.matchAll(/data-widget="([a-z]+)"/g)].map(m => m[1]).filter(k => !CONTENT_KEYS.includes(k));
           // Empty widgets never render publicly — compare the order of the ones that do.
           const expected = publishedOrder.filter(k => tiles.includes(k));
           return JSON.stringify(tiles.filter(k => expected.includes(k))) === JSON.stringify(expected) && tiles.length > 0;
@@ -349,6 +356,46 @@ test('org site editor: canvas → drag → autosave → undo → reload; phone n
       expect(publicHtml).toContain(`Our staff again ${stamp}`);
       const fontRes = await anon.request.get('/fonts/lora-700.woff2');
       expect(fontRes.status()).toBe(200);
+
+      // Phase 8: (a) the publish recorded its metrics on the revision;
+      // (b) with no draft left, the editor's canvas shows the PUBLISHED
+      // arrangement (not the projection); (c) a console content edit after
+      // the publish materialises a draft that INHERITS the published layout,
+      // so publishing it keeps the arrangement.
+      const list = (await (await ownerApi.get(`/api/leagues/${leagueId}/site/revisions`)).json()) as {
+        draft: unknown;
+        revisions: { isPublished: boolean; stats: { widgetCount: number | null; widgetsTouched: number; added: string[]; firstPublish: boolean; secondsSinceDraft: number | null; secondsSinceSiteCreated: number | null } | null }[];
+      };
+      expect(list.draft).toBeNull();
+      const published = list.revisions.find(r => r.isPublished)!;
+      expect(published.stats).not.toBeNull();
+      expect(published.stats!.widgetCount).toBe(finalLayout.layout.widgets.length);
+      expect(published.stats!.widgetsTouched).toBeGreaterThan(0);
+      expect(published.stats!.added).toEqual(expect.arrayContaining(['text', 'embed', 'image']));
+      expect(published.stats!.secondsSinceDraft).toBeGreaterThanOrEqual(0);
+      expect(published.stats!.secondsSinceSiteCreated).toBeGreaterThanOrEqual(0);
+      const noDraftCanvas = (await (await ownerApi.get(`/api/leagues/${leagueId}/site/canvas`)).json()) as { draft: unknown; layout: { widgets: { id: string; x: number; y: number }[] } };
+      expect(noDraftCanvas.draft).toBeNull();
+      expect([...noDraftCanvas.layout.widgets].sort((a, b) => a.y - b.y || a.x - b.x).map(w => w.id)).toEqual(
+        [...finalLayout.layout.widgets].sort((a, b) => a.y - b.y || a.x - b.x).map(w => w.id)
+      );
+      res = await ownerApi.patch(`/api/leagues/${leagueId}/site`, { data: { action: 'set_hero', headline: `After publish ${stamp}` } });
+      expect(res.status(), await readErrorBody(res)).toBe(200);
+      const inherited = (await (await ownerApi.get(`/api/leagues/${leagueId}/site/canvas`)).json()) as { draft: unknown; layout: { widgets: { id: string; x: number; y: number }[] } };
+      expect(inherited.draft).not.toBeNull();
+      expect([...inherited.layout.widgets].sort((a, b) => a.y - b.y || a.x - b.x).map(w => w.id)).toEqual(
+        [...noDraftCanvas.layout.widgets].sort((a, b) => a.y - b.y || a.x - b.x).map(w => w.id)
+      );
+      res = await ownerApi.post(`/api/leagues/${leagueId}/site/revisions`, { data: { action: 'publish' } });
+      expect(res.status(), await readErrorBody(res)).toBe(200);
+      await expect
+        .poll(async () => {
+          const html = await (await anon.request.get(`/org/${subdomain}`)).text();
+          const tiles = [...html.matchAll(/data-widget="([a-z]+)"/g)].map(m => m[1]).filter(k => !CONTENT_KEYS.includes(k));
+          const expected = publishedOrder.filter(k => tiles.includes(k));
+          return html.includes(`After publish ${stamp}`) && JSON.stringify(tiles.filter(k => expected.includes(k))) === JSON.stringify(expected);
+        }, { timeout: 30_000, intervals: [1000, 2000, 3000] })
+        .toBe(true);
       // The policy that lets that frame load — on whichever CSP header the build sends.
       const publicRes = await anon.request.get(`/org/${subdomain}`);
       const csp = publicRes.headers()['content-security-policy'] ?? publicRes.headers()['content-security-policy-report-only'] ?? '';

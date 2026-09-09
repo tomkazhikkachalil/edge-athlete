@@ -4,7 +4,7 @@ import { getSupabaseAdmin } from '@/lib/auth-server';
 import { fetchPublicPages } from '@/lib/org-sites/public-data';
 import { getDraftSiteBySlug } from '@/lib/org-sites/server';
 import { verifyPreviewToken } from '@/lib/org-sites/preview-token';
-import { layoutFromModules } from '@/lib/site-builder/layout';
+import { seedLayout } from '@/lib/site-builder/seeds';
 import { rawSiteReaders, resolveHomeData } from '@/lib/org-sites/widget-data';
 import GridRenderer from '@/app/(public)/org/[slug]/_components/GridRenderer';
 import SiteShell from '@/app/(public)/org/[slug]/_components/SiteShell';
@@ -46,7 +46,7 @@ export default async function OrgSitePreview({
   // preview now carries everything the home does (members table, the
   // leaders' golf fallback), which it had drifted from.
   // P3-C: the DRAFT's stored grid (getDraftSiteBySlug), else the projection.
-  const layout = site.layout ?? layoutFromModules(site);
+  const layout = site.layout ?? seedLayout(site);
   const [data, pages] = await Promise.all([
     resolveHomeData(rawSiteReaders(admin, site), site, layout),
     fetchPublicPages(admin, site.id),
