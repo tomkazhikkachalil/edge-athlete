@@ -4,7 +4,8 @@ import { useMemo } from 'react';
 import { GridLayout, useContainerWidth, type EventCallback, type Layout as RglLayout, type LayoutItem as RglItem } from 'react-grid-layout';
 import type { PublicSite } from '@/lib/org-sites/server';
 import type { SiteHomeData } from '@/lib/org-sites/home-data';
-import { templateSpec } from '@/lib/org-sites/templates';
+import { effectiveSpec, fontFaceCss, themeAttrs } from '@/lib/org-sites/theme';
+import { parseThemeTokens } from '@/lib/org-sites/validate';
 import { WIDGETS } from '@/lib/site-builder/catalog';
 import { GRID, compactLayout, type SiteLayout, type WidgetInstance } from '@/lib/site-builder/layout';
 import HeroSection from '@/app/(public)/org/[slug]/_components/HeroSection';
@@ -55,7 +56,12 @@ function fromRgl(layout: SiteLayout, items: RglLayout): SiteLayout {
 
 export default function Canvas({ site, layout, data, selectedId, onSelect, onCommit, onRemove }: CanvasProps) {
   const { width, containerRef } = useContainerWidth({ initialWidth: 1024 });
-  const spec = templateSpec(site.template_id);
+  // Phase 7: the canvas wears the site's theme (accent, surface, heading
+  // face) exactly as the public shell does — before this it showed the
+  // violet defaults for every site.
+  const spec = effectiveSpec(site);
+  const attrs = themeAttrs(site);
+  const fontCss = fontFaceCss(parseThemeTokens(site.theme_token_set).typeface);
   const rgl = useMemo(() => toRgl(layout), [layout]);
 
   const commit: EventCallback = next => {
@@ -64,7 +70,8 @@ export default function Canvas({ site, layout, data, selectedId, onSelect, onCom
   };
 
   return (
-    <div ref={containerRef} className="sb-canvas org-scope rounded-xl border border-border bg-canvas p-4" data-sb-canvas="">
+    <div ref={containerRef} className="sb-canvas org-scope rounded-xl border border-border bg-canvas p-4" data-sb-canvas="" {...attrs}>
+      {fontCss && <style dangerouslySetInnerHTML={{ __html: fontCss }} />}
       <GridLayout
         width={width}
         layout={rgl}

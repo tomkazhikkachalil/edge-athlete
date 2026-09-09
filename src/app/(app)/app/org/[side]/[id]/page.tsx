@@ -22,9 +22,12 @@ import {
   WORDMARK_MAX,
   parseNavConfig,
   parseThemeTokens,
+  THEME_TYPEFACES,
+  type ThemeTypeface,
 } from '@/lib/org-sites/validate';
 import { orgSitePath } from '@/lib/org-sites/urls';
 import { TEMPLATE_IDS, templateSpec } from '@/lib/org-sites/templates';
+import { TYPEFACE_LABEL } from '@/lib/org-sites/theme';
 import { SPORT_REGISTRY } from '@/lib/sports/SportRegistry';
 import OrgLogoUploader from '@/components/org/OrgLogoUploader';
 import PlacePicker, { type PlaceValue } from '@/components/PlacePicker';
@@ -297,7 +300,7 @@ export default function OrgConsolePage() {
   // B1: brand tokens beyond the accent, and the per-section labels.
   const [themeStrong, setThemeStrong] = useState('');
   const [themeSurface, setThemeSurface] = useState<'plain' | 'tinted'>('plain');
-  const [themeTypeface, setThemeTypeface] = useState<'sans' | 'serif'>('sans');
+  const [themeTypeface, setThemeTypeface] = useState<ThemeTypeface>('sans');
   const [themeWordmark, setThemeWordmark] = useState('');
   const [navLabels, setNavLabels] = useState<Record<string, string>>({});
   // Site Builder P2-C: the draft line and the history from the revisions API
@@ -4114,12 +4117,17 @@ export default function OrgConsolePage() {
                     <span className="block text-xs font-medium text-secondary mb-1">Typeface</span>
                     <select
                       value={themeTypeface}
-                      onChange={e => setThemeTypeface(e.target.value as 'sans' | 'serif')}
+                      onChange={e => setThemeTypeface(e.target.value as ThemeTypeface)}
                       aria-label="Typeface"
                       className="w-full px-3 py-2 border border-border-strong rounded-md outline-none text-sm bg-surface"
                     >
-                      <option value="sans">Sans (default)</option>
-                      <option value="serif">Serif headings</option>
+                      {/* Phase 7: the heading faces too — a site that picked one in
+                          the editor must not lose it to a console save. */}
+                      {THEME_TYPEFACES.map(t => (
+                        <option key={t} value={t}>
+                          {t === 'sans' ? 'Sans (default)' : t === 'serif' ? 'Serif headings' : `${TYPEFACE_LABEL[t]} headings`}
+                        </option>
+                      ))}
                     </select>
                   </label>
                   <fieldset className="text-sm text-secondary sm:col-span-2">

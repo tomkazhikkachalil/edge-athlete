@@ -8,11 +8,10 @@ import {
   parseHeroConfig,
   parseNavConfig,
   parseThemeTokens,
-  resolveAccentPair,
 } from '@/lib/org-sites/validate';
 import { utcToday } from '@/lib/competitions/golf-weeks';
 import { siteBasePath } from '@/lib/org-sites/urls';
-import { templateSpec } from '@/lib/org-sites/templates';
+import { effectiveSpec, fontFaceCss, fontHref, themeAttrs } from '@/lib/org-sites/theme';
 import type { PublicSite } from '@/lib/org-sites/server';
 import type { PublicPageLink } from '@/lib/org-sites/public-data';
 
@@ -41,32 +40,34 @@ export default function SiteShell({
     .filter(m => m.enabled && (MODULE_SUBPAGE_KEYS as readonly string[]).includes(m.module_key))
     .map(m => m.module_key);
 
-  // Strict per-key re-validation at render (parseThemeTokens) is the
-  // inline-style injection defense — never interpolate the raw jsonb.
+  // Strict per-key re-validation at render (parseThemeTokens, inside
+  // themeAttrs) is the inline-style injection defense — never interpolate
+  // the raw jsonb. Phase 7: the accent vars, the heading-font property and
+  // the data attributes all come from one helper the editor canvas shares.
   const tokens = parseThemeTokens(site.theme_token_set);
-  const { accent, strong } = resolveAccentPair(tokens);
   const hero = parseHeroConfig(site.hero_config);
-  const accentStyle =
-    tokens.accent || tokens.accentStrong
-      ? ({ '--org-accent': accent, '--org-accent-strong': strong } as React.CSSProperties)
-      : undefined;
   const brandName = tokens.wordmark ?? site.orgName;
-  // B2: the template decides the header shape — 'bar' is the R1 markup,
-  // 'band' is one strong-accent band with the nav inside it.
-  const spec = templateSpec(site.template_id);
+  const attrs = themeAttrs(site);
+  // A chosen heading face: its @font-face + preload, only on this site.
+  const fontCss = fontFaceCss(tokens.typeface);
+  const fontUrl = fontHref(tokens.typeface);
+  // B2 → phase 7: the template decides the header shape until a theme
+  // token overrides it — 'bar' is the R1 markup, 'band' is one strong-
+  // accent band with the nav inside it.
+  const spec = effectiveSpec(site);
   const band = spec.header === 'band';
   const navLinkClass = band
     ? 'text-sm font-medium text-white/90'
     : 'text-sm font-medium text-secondary';
 
   return (
-    <div
-      className="org-scope min-h-screen flex flex-col bg-canvas"
-      style={accentStyle}
-      data-typeface={tokens.typeface}
-      data-surface={tokens.surface}
-      data-template={spec.id}
-    >
+    <div className="org-scope min-h-screen flex flex-col bg-canvas" {...attrs}>
+      {fontCss && fontUrl && (
+        <>
+          <link rel="preload" href={fontUrl} as="font" type="font/woff2" crossOrigin="anonymous" />
+          <style dangerouslySetInnerHTML={{ __html: fontCss }} />
+        </>
+      )}
       {/* R5 a11y: keyboard users skip the header/nav straight to content.
           sr-only until focused (the global :focus-visible ring shows it). */}
       <a

@@ -153,11 +153,21 @@ export function parseThemeAccent(themeTokenSet: unknown): string | null {
 // `secondary` are deliberately absent — a user-set text colour on white
 // is a contrast liability, and the primaries collapse into the accents.
 
-export const THEME_TYPEFACES = ['sans', 'serif'] as const;
+/** 'sans' | 'serif' are CSS stacks (zero payload); the rest are self-hosted
+ *  OFL heading faces a site loads only when it picks one (Site Builder
+ *  phase 7 — `src/lib/org-sites/theme.ts` owns the files and the CSS). */
+export const THEME_TYPEFACES = ['sans', 'serif', 'oswald', 'lora', 'playfair', 'nunito', 'space'] as const;
 export type ThemeTypeface = (typeof THEME_TYPEFACES)[number];
 export const THEME_SURFACES = ['plain', 'tinted'] as const;
 export type ThemeSurface = (typeof THEME_SURFACES)[number];
 export const WORDMARK_MAX = 40;
+/** Phase 7 — the template's render decisions, now tokens too. Absent = the
+ *  template's (effectiveSpec); a token overrides it. */
+export const THEME_HEADERS = ['bar', 'band'] as const;
+export const THEME_HEROES = ['card', 'bleed'] as const;
+export const THEME_DENSITIES = ['comfortable', 'compact'] as const;
+export const THEME_TEAMS = ['chips', 'tiles'] as const;
+export const THEME_DESIGN_KEYS = ['header', 'hero', 'density', 'teams'] as const;
 
 export interface ThemeTokens {
   accent: string | null;
@@ -167,6 +177,11 @@ export interface ThemeTokens {
   typeface: ThemeTypeface;
   /** Replaces the org name in the header + hero h1 only (never <title>). */
   wordmark: string | null;
+  /** Phase 7 design overrides — null = the template decides. */
+  header: (typeof THEME_HEADERS)[number] | null;
+  hero: (typeof THEME_HEROES)[number] | null;
+  density: (typeof THEME_DENSITIES)[number] | null;
+  teams: (typeof THEME_TEAMS)[number] | null;
 }
 
 /** Defensive render-side parse of the whole token set — every key is
@@ -183,16 +198,18 @@ export function parseThemeTokens(themeTokenSet: unknown): ThemeTokens {
     typeof raw.wordmark === 'string' && raw.wordmark.trim()
       ? raw.wordmark.trim().slice(0, WORDMARK_MAX)
       : null;
+  const pick = <T extends string>(list: readonly T[], v: unknown): T | null =>
+    typeof v === 'string' && (list as readonly string[]).includes(v) ? (v as T) : null;
   return {
     accent: hex(raw.accent),
     accentStrong: hex(raw.accentStrong),
-    surface: (THEME_SURFACES as readonly string[]).includes(raw.surface as string)
-      ? (raw.surface as ThemeSurface)
-      : 'plain',
-    typeface: (THEME_TYPEFACES as readonly string[]).includes(raw.typeface as string)
-      ? (raw.typeface as ThemeTypeface)
-      : 'sans',
+    surface: pick(THEME_SURFACES, raw.surface) ?? 'plain',
+    typeface: pick(THEME_TYPEFACES, raw.typeface) ?? 'sans',
     wordmark,
+    header: pick(THEME_HEADERS, raw.header),
+    hero: pick(THEME_HEROES, raw.hero),
+    density: pick(THEME_DENSITIES, raw.density),
+    teams: pick(THEME_TEAMS, raw.teams),
   };
 }
 
@@ -664,6 +681,12 @@ export const SitePatchSchema = z.union([
     surface: z.enum(THEME_SURFACES).optional(),
     typeface: z.enum(THEME_TYPEFACES).optional(),
     wordmark: optionalTrimmed(WORDMARK_MAX),
+    // Phase 7 design overrides: absent = keep what the draft holds (the
+    // console never sends them); null = clear (back to the template's).
+    header: z.enum(THEME_HEADERS).nullable().optional(),
+    hero: z.enum(THEME_HEROES).nullable().optional(),
+    density: z.enum(THEME_DENSITIES).nullable().optional(),
+    teams: z.enum(THEME_TEAMS).nullable().optional(),
   }),
   z.object({
     action: z.literal('set_template'),

@@ -1,7 +1,7 @@
 import type { CSSProperties } from 'react';
 import type { PublicSite } from '@/lib/org-sites/server';
 import type { SiteHomeData } from '@/lib/org-sites/home-data';
-import { templateSpec } from '@/lib/org-sites/templates';
+import { effectiveSpec } from '@/lib/org-sites/theme';
 import { WIDGETS } from '@/lib/site-builder/catalog';
 import { compactLayout, deriveMobileOrder, type SiteLayout } from '@/lib/site-builder/layout';
 import { isWidgetEmpty } from '@/lib/site-builder/emptiness';
@@ -31,7 +31,7 @@ import WidgetBody, { widgetHeading, widgetTitle } from './WidgetBody';
 const HERO_KEY = 'hero';
 
 export default function GridRenderer({ site, layout, data }: { site: PublicSite; layout: SiteLayout; data: SiteHomeData }) {
-  const spec = templateSpec(site.template_id);
+  const spec = effectiveSpec(site);
   const compact = spec.density === 'compact';
   const sectionClass = `bg-surface rounded-lg shadow-sm border border-border ${compact ? 'p-3 sm:p-4' : 'p-4 sm:p-6'}`;
   const headingClass = compact ? 'text-sm font-semibold uppercase tracking-wide text-secondary' : 'text-lg font-semibold text-primary';

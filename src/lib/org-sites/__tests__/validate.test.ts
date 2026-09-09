@@ -441,6 +441,10 @@ describe('parseThemeTokens', () => {
       surface: 'plain',
       typeface: 'sans',
       wordmark: null,
+      header: null,
+      hero: null,
+      density: null,
+      teams: null,
     });
     expect(parseThemeTokens('garbage')).toMatchObject({ accent: null, typeface: 'sans' });
     const parsed = parseThemeTokens({
@@ -456,7 +460,26 @@ describe('parseThemeTokens', () => {
       surface: 'tinted',
       typeface: 'sans',
       wordmark: 'Kanata Golf',
+      header: null,
+      hero: null,
+      density: null,
+      teams: null,
     });
+  });
+
+  it('phase 7: heading faces and the design overrides parse per key, junk falls to null', () => {
+    expect(parseThemeTokens({ typeface: 'oswald', header: 'band', hero: 'bleed', density: 'compact', teams: 'tiles' })).toMatchObject({
+      typeface: 'oswald',
+      header: 'band',
+      hero: 'bleed',
+      density: 'compact',
+      teams: 'tiles',
+    });
+    expect(parseThemeTokens({ typeface: 'papyrus', header: 'sticky', hero: 42, density: null })).toMatchObject({ typeface: 'sans', header: null, hero: null, density: null });
+    // set_theme accepts the new keys, a null to clear, and refuses unknown values.
+    expect(SitePatchSchema.safeParse({ action: 'set_theme', accent: null, typeface: 'lora', header: 'band', hero: null }).success).toBe(true);
+    expect(SitePatchSchema.safeParse({ action: 'set_theme', accent: null, header: 'sticky' }).success).toBe(false);
+    expect(SitePatchSchema.safeParse({ action: 'set_theme', accent: null, typeface: 'papyrus' }).success).toBe(false);
   });
 
   it('caps the wordmark and resolves the accent pair', () => {

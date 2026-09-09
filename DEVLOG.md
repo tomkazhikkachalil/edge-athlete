@@ -1,5 +1,60 @@
 # Development Log
 
+## September 9, 2026 — Site Builder phase 7 (P7-A): the template's decisions become theme tokens; self-hosted heading faces; the canvas wears the brand (zero DDL)
+
+Phase 7 opens under the theme: "chrome is fixed; content, order, size and
+BRAND vary." The brand now has more to vary, and the editor finally shows it.
+
+- **Templates survive as seed + fallback** (`src/lib/org-sites/theme.ts`
+  `effectiveSpec(site)`): the four render decisions a template id carried
+  — header bar|band, hero card|bleed, density, teams chips|tiles — are now
+  ALSO theme tokens (`ThemeTokens.header/hero/density/teams`, null = the
+  template decides; `THEME_DESIGN_KEYS`). Every renderer that called
+  `templateSpec(site.template_id)` (the shell, the public grid, the canvas,
+  the picker) calls `effectiveSpec` instead, so a token overrides one axis
+  and the template still fills the rest. `sections` stays the template's:
+  the layout owns it (`layoutFromModules`). No DDL — the tokens ride
+  `theme_token_set`, under the publish gate like everything else.
+- **`set_theme` merges the design keys** (`snapshot.ts`): the console's
+  whole-object save never names header/hero/density/teams, so they CARRY
+  OVER unless the input does — a value sets, `null` clears. `set_template`
+  is "apply the seed": it deletes the design overrides (colours, typeface
+  and wordmark stay) so the chosen template shows through. Both pinned in
+  `snapshot.test.ts`.
+- **Heading faces** (`HEADING_FONTS`): five curated OFL faces as latin-
+  subset woff2 under `/public/fonts` (Oswald "Sporty", Lora "Editorial",
+  Playfair Display "Classic", Nunito "Friendly", Space Grotesk "Modern";
+  12–24 KB each, `public/fonts/README.md` carries the licence note and the
+  table). `THEME_TYPEFACES` widens from sans|serif to the seven; a site
+  loads exactly ONE face, and only when it picks one — `SiteShell` emits
+  its `@font-face` + a `<link rel=preload>`; the stylesheet keys
+  `.org-scope[data-heading-font] h1,h2,h3` off `--org-heading-font`. Not
+  `next/font` (which would preload every face on every page). Family names
+  are ours ('EA Oswald' …) so a device font can never stand in.
+  `theme.test.ts` asserts every face's file exists.
+- **One dresser for every themed root** (`themeAttrs(site)`): the accent
+  vars (only when the site sets an accent), the heading-font property, and
+  the data attributes — from the re-validated token set or a closed map,
+  never raw jsonb. `SiteShell` uses it; so does the **editor canvas**,
+  which until now showed the violet defaults for every site — a branded
+  club dragged tiles on a page that was not its own.
+- Tests: `theme.test.ts` (fallback + override per axis, faces ↔ files ↔
+  `THEME_TYPEFACES`, css/href per face, `themeAttrs` cases incl. junk),
+  `validate.test.ts` (the new keys parse per key; `set_theme` accepts the
+  enums + null, refuses unknown values), `snapshot.test.ts` (merge + reset).
+  e2e (editor spec): `set_theme` with accent + oswald + band + bleed +
+  compact → the console GET holds them and the template stays classic →
+  the editor reloads wearing the theme (`--org-accent` on the canvas,
+  `data-typeface="oswald"`, the hero tile uppercase from the bleed token) →
+  after publish the public shell carries the accent, the band header under
+  `data-template="classic"`, the face's @font-face + preload, the bleed
+  hero, and `/fonts/oswald-600.woff2` serves 200.
+
+Not in this PR (P7-B): the editor's theme panel — accent with a live
+contrast readout, strong accent, surface, heading face shown IN its face,
+header / hero / density / teams, wordmark, and "start from" a template —
+saving through `set_theme` / `set_template` and re-dressing the canvas.
+
 ## September 9, 2026 — Site Builder phase 6 (P6-B): the picker offers your own content; the panel writes it — blocks, a photo, a pasted link (zero DDL; behind the flag)
 
 P6-A gave the layout three content widgets; this makes them reachable

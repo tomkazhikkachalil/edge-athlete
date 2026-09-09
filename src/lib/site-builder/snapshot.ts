@@ -19,6 +19,7 @@ import {
   defaultModuleOrder,
   parseNavConfig,
   type SitePatchInput,
+  THEME_DESIGN_KEYS,
 } from '@/lib/org-sites/validate';
 import { GALLERY_PICKS_MAX, readGalleryPicks, type GalleryPick } from '@/lib/org-sites/member-photo-gate';
 
@@ -211,10 +212,19 @@ export function applySiteAction(s: SiteSnapshot, input: SnapshotAction, ctx: App
           ...(input.notice && input.noticeUntil ? { noticeUntil: input.noticeUntil } : {}),
         },
       };
-    case 'set_theme':
+    case 'set_theme': {
+      // Phase 7: the design overrides (header / hero / density / teams) are
+      // the editor's. The console's whole-object save never names them, so
+      // they CARRY OVER unless the input does — a value sets, null clears.
+      const design: Record<string, unknown> = {};
+      for (const k of THEME_DESIGN_KEYS) {
+        const v = k in input ? input[k] : s.theme[k];
+        if (typeof v === 'string') design[k] = v;
+      }
       return {
         ...s,
         theme: {
+          ...design,
           ...(input.accent ? { accent: input.accent.toLowerCase() } : {}),
           ...(input.accentStrong ? { accentStrong: input.accentStrong.toLowerCase() } : {}),
           ...(input.surface && input.surface !== 'plain' ? { surface: input.surface } : {}),
@@ -222,6 +232,7 @@ export function applySiteAction(s: SiteSnapshot, input: SnapshotAction, ctx: App
           ...(input.wordmark ? { wordmark: input.wordmark } : {}),
         },
       };
+    }
     case 'set_contact':
       return {
         ...s,
@@ -237,8 +248,13 @@ export function applySiteAction(s: SiteSnapshot, input: SnapshotAction, ctx: App
             : {}),
         },
       };
-    case 'set_template':
-      return { ...s, templateId: input.templateId };
+    case 'set_template': {
+      // "Apply the seed": the template's decisions show through again, so
+      // its design overrides go (colours, typeface and wordmark stay).
+      const theme = { ...s.theme };
+      for (const k of THEME_DESIGN_KEYS) delete theme[k];
+      return { ...s, templateId: input.templateId, theme };
+    }
     case 'reset_order': {
       // Back to the side's recommended order; nav order cleared, LABELS kept.
       const order = defaultModuleOrder(ctx.side, ctx.sportKey);

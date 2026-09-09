@@ -234,6 +234,23 @@ test('org site editor: canvas → drag → autosave → undo → reload; phone n
       });
       expect(res.status(), await readErrorBody(res)).toBe(200);
 
+      // Phase 7 (P7-A): design tokens over the template + a heading face. Set
+      // through the console's own action (the theme panel arrives in P7-B);
+      // the editor canvas wears the theme on the next load.
+      res = await ownerApi.patch(`/api/leagues/${leagueId}/site`, {
+        data: { action: 'set_theme', accent: '#1d4ed8', accentStrong: null, surface: 'plain', typeface: 'oswald', header: 'band', hero: 'bleed', density: 'compact' },
+      });
+      expect(res.status(), await readErrorBody(res)).toBe(200);
+      const themed = (await (await ownerApi.get(`/api/leagues/${leagueId}/site`)).json()) as { site: { theme_token_set: Record<string, unknown>; template_id: string } };
+      expect(themed.site.theme_token_set).toMatchObject({ accent: '#1d4ed8', typeface: 'oswald', header: 'band', hero: 'bleed', density: 'compact' });
+      expect(themed.site.template_id).toBe('classic');
+      await page.reload();
+      await expect(canvasEl).toBeVisible({ timeout: 30_000 });
+      await expect(page.locator('[data-sb-canvas][data-typeface="oswald"][data-heading-font]')).toBeVisible();
+      expect(await canvasEl.evaluate(el => getComputedStyle(el).getPropertyValue('--org-accent').trim())).toBe('#1d4ed8');
+      // The hero tile took the bleed variant from the token, not the template.
+      await expect(page.locator('[data-sb-widget="hero"] h1')).toHaveClass(/uppercase/);
+
       // The phone: the notice with working doors, no overflow.
       await page.setViewportSize({ width: 375, height: 812 });
       await expect(page.getByRole('heading', { name: 'The editor needs a bigger screen' })).toBeVisible();
@@ -283,6 +300,20 @@ test('org site editor: canvas → drag → autosave → undo → reload; phone n
       expect(publicHtml).toContain(`Photo alt ${stamp}`);
       expect(publicHtml).toContain(`Photo caption ${stamp}`);
       expect(publicHtml.match(/data-widget="image"/g)?.length ?? 0).toBe(1);
+      // Phase 7: the theme reached the public shell — accent vars, the band
+      // header (from the TOKEN; the template is still classic), the heading
+      // face loaded only here (its @font-face + preload), the bleed hero.
+      expect(publicHtml).toContain('--org-accent:#1d4ed8');
+      expect(publicHtml).toContain('data-template="classic"');
+      expect(publicHtml).toContain('background-color:var(--org-accent-strong)');
+      expect(publicHtml).toContain('data-typeface="oswald"');
+      expect(publicHtml).toContain('data-heading-font');
+      expect(publicHtml).toContain("font-family:'EA Oswald'");
+      expect(publicHtml).toContain('/fonts/oswald-600.woff2');
+      expect(publicHtml).toMatch(/<link[^>]*rel="preload"[^>]*\/fonts\/oswald-600\.woff2/);
+      expect(publicHtml).toContain('sm:py-20');
+      const fontRes = await anon.request.get('/fonts/oswald-600.woff2');
+      expect(fontRes.status()).toBe(200);
       // The policy that lets that frame load — on whichever CSP header the build sends.
       const publicRes = await anon.request.get(`/org/${subdomain}`);
       const csp = publicRes.headers()['content-security-policy'] ?? publicRes.headers()['content-security-policy-report-only'] ?? '';
