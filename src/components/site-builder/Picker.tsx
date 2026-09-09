@@ -5,7 +5,7 @@ import LargerWindow from '@/components/bubbles/LargerWindow';
 import type { PublicSite } from '@/lib/org-sites/server';
 import type { SiteHomeData } from '@/lib/org-sites/home-data';
 import { moduleLabel, parseNavConfig } from '@/lib/org-sites/validate';
-import { templateSpec } from '@/lib/org-sites/templates';
+import { effectiveSpec } from '@/lib/org-sites/theme';
 import { CONTENT_WIDGET_KEYS, WEB_WIDGET_KEYS, WIDGETS, type ContentWidgetKey, type SiteWidgetKey } from '@/lib/site-builder/catalog';
 import { newInstanceFor, type SiteLayout } from '@/lib/site-builder/layout';
 import WidgetBody from '@/app/(public)/org/[slug]/_components/WidgetBody';
@@ -70,7 +70,7 @@ export default function Picker({ site, layout, plural, orgId, onAdd, onClose }: 
   }, [plural, orgId, keysParam]);
 
   const nav = parseNavConfig(site.nav_config);
-  const spec = templateSpec(site.template_id);
+  const spec = effectiveSpec(site);
 
   return (
     <LargerWindow title="Add a section" windowKey="sb-picker" onClose={onClose}>

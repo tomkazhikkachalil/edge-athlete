@@ -748,6 +748,15 @@ body {
 .org-scope[data-surface='tinted'] {
   --color-canvas: color-mix(in srgb, var(--org-accent) 4%, white);
 }
+/* Site Builder phase 7 — a chosen heading face: a self-hosted OFL woff2 the
+ * site loads only when it picks one (SiteShell emits its @font-face and a
+ * preload; theme.ts owns the map). The property and the attribute both
+ * come from the re-validated token set. */
+.org-scope[data-heading-font] h1,
+.org-scope[data-heading-font] h2,
+.org-scope[data-heading-font] h3 {
+  font-family: var(--org-heading-font);
+}
 
 /* Site Builder P3-C — the public grid. Mobile-first: two columns in READING
  * order (the DOM order GridRenderer emits), full or half spans from the

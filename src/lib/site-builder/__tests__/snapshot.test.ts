@@ -131,6 +131,22 @@ describe('applySiteAction', () => {
     expect(golf.modules.news.sortOrder).toBe(5);
   });
 
+  it('phase 7: set_theme carries the design overrides the console never sends; null clears; set_template resets them', () => {
+    let s = base();
+    s = applySiteAction(s, patch({ action: 'set_theme', accent: '#0f766e', typeface: 'oswald', header: 'band', density: 'compact' }), ctx);
+    expect(s.theme).toEqual({ accent: '#0f766e', typeface: 'oswald', header: 'band', density: 'compact' });
+    // The console's whole-object save (no design keys) keeps them.
+    s = applySiteAction(s, patch({ action: 'set_theme', accent: '#0f766e', surface: 'tinted', typeface: 'oswald', wordmark: 'W' }), ctx);
+    expect(s.theme).toEqual({ accent: '#0f766e', surface: 'tinted', typeface: 'oswald', wordmark: 'W', header: 'band', density: 'compact' });
+    // null clears one; a value replaces one.
+    s = applySiteAction(s, patch({ action: 'set_theme', accent: '#0f766e', header: null, hero: 'bleed' }), ctx);
+    expect(s.theme).toEqual({ accent: '#0f766e', density: 'compact', hero: 'bleed' });
+    // Choosing a template lets its decisions show through: overrides go, colours stay.
+    s = applySiteAction(s, patch({ action: 'set_template', templateId: 'bold' }), ctx);
+    expect(s.templateId).toBe('bold');
+    expect(s.theme).toEqual({ accent: '#0f766e' });
+  });
+
   it('set_hero / set_theme / set_contact replace whole objects with the same drop rules', () => {
     let s = applySiteAction(
       base(),
