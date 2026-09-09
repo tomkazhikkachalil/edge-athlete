@@ -13,6 +13,7 @@ import { isContentWidgetKey, type SiteWidgetKey } from '@/lib/site-builder/catal
 import Canvas from './Canvas';
 import Picker from './Picker';
 import PropertiesPanel from './PropertiesPanel';
+import ThemePanel, { themeDraftFrom, type ThemeDraft } from './ThemePanel';
 import type { WidgetInstance } from '@/lib/site-builder/layout';
 import { useDraft } from './useDraft';
 import { useHistory } from './useHistory';
@@ -162,6 +163,10 @@ function Editor({
   // panel saves content — re-read the canvas without touching the layout
   // history (the layout is the manager's; the content is the org's).
   const [site, setSite] = useState<PublicSite>(canvas.site);
+  // P7-B: the theme panel edits a DRAFT of the tokens; the canvas wears the
+  // draft while the panel is open (live preview), the server on Save.
+  const [themeDraft, setThemeDraft] = useState<ThemeDraft | null>(null);
+  const canvasSite: PublicSite = themeDraft ? { ...site, template_id: themeDraft.templateId, theme_token_set: themeDraft.tokens } : site;
   // `coalesce`: consecutive edits to the same field fold into ONE undo step
   // (typing a paragraph is one step, not one per keystroke).
   const changeInstance = (next: WidgetInstance, coalesce?: string) => {
@@ -326,7 +331,7 @@ function Editor({
               ← Console
             </Link>
             <span className="text-sm font-semibold text-primary truncate">{site.orgName} · Site editor</span>
-            <span className={`text-xs ${chip.cls}`} data-sb-status={draft.status} data-sb-dirty={draft.dirty ? '1' : '0'}>
+            <span className={`text-xs ${chip.cls}`} data-sb-status={draft.status} data-sb-dirty={draft.dirty ? '1' : '0'} data-sb-theme-preview={themeDraft ? '1' : '0'}>
               {chip.text}
             </span>
           </div>
@@ -345,6 +350,17 @@ function Editor({
             <button type="button" onClick={() => setPickerOpen(true)} className={PILL}>
               Add section
             </button>
+            <button
+              type="button"
+              onClick={() => {
+                setSelectedId(null);
+                setThemeDraft(d => (d ? null : themeDraftFrom(site)));
+              }}
+              aria-pressed={themeDraft !== null}
+              className={PILL}
+            >
+              Theme
+            </button>
             <button type="button" onClick={() => void preview()} className={PILL}>
               Preview
             </button>
@@ -361,16 +377,35 @@ function Editor({
             <div className="flex items-start gap-4">
               <div className="min-w-0 flex-1">
                 <Canvas
-                  site={site}
+                  site={canvasSite}
                   layout={history.present}
                   data={data}
                   selectedId={selectedId}
-                  onSelect={setSelectedId}
+                  onSelect={id => {
+                    setSelectedId(id);
+                    if (id) setThemeDraft(null);
+                  }}
                   onCommit={history.commit}
                   onRemove={removeOne}
                 />
               </div>
-              {selected && (
+              {themeDraft && (
+                <ThemePanel
+                  site={site}
+                  draft={themeDraft}
+                  onChange={setThemeDraft}
+                  onSaved={async () => {
+                    await refreshSite();
+                    setThemeDraft(null);
+                  }}
+                  onClose={() => setThemeDraft(null)}
+                  plural={plural}
+                  orgId={orgId}
+                  showError={showError}
+                  showSuccess={showSuccess}
+                />
+              )}
+              {!themeDraft && selected && (
                 <PropertiesPanel
                   key={selected.id}
                   site={site}

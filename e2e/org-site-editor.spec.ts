@@ -251,6 +251,39 @@ test('org site editor: canvas → drag → autosave → undo → reload; phone n
       // The hero tile took the bleed variant from the token, not the template.
       await expect(page.locator('[data-sb-widget="hero"] h1')).toHaveClass(/uppercase/);
 
+      // Phase 7 (P7-B): the theme panel. Every change previews on the canvas
+      // before anything is written; a too-light accent is refused with the
+      // contrast readout; Save goes through set_theme and the canvas
+      // re-dresses from the server's draft.
+      await page.getByRole('button', { name: 'Theme', exact: true }).click();
+      const themePanel = page.locator('[data-sb-theme-panel]');
+      await expect(themePanel).toBeVisible();
+      await themePanel.getByLabel('Accent colour', { exact: true }).fill('#ffff00');
+      await expect(themePanel.locator('[data-sb-accent-ok="0"]')).toContainText('too light');
+      await expect(themePanel.getByRole('button', { name: 'Save theme' })).toBeDisabled();
+      await themePanel.getByLabel('Accent colour', { exact: true }).fill('#0f766e');
+      await expect(themePanel.locator('[data-sb-accent-ok="1"]')).toContainText('readable');
+      // Live preview: the canvas already wears the unsaved accent…
+      expect(await canvasEl.evaluate(el => getComputedStyle(el).getPropertyValue('--org-accent').trim())).toBe('#0f766e');
+      // …and the face, shown in its own face on the panel.
+      await themePanel.locator('[data-sb-typeface="lora"]').click();
+      await expect(page.locator('[data-sb-canvas][data-typeface="lora"]')).toBeVisible();
+      await themePanel.getByLabel('Header', { exact: true }).selectOption('bar');
+      // Nothing written yet: the console still holds oswald + band.
+      const unsaved = (await (await ownerApi.get(`/api/leagues/${leagueId}/site`)).json()) as { site: { theme_token_set: Record<string, unknown> } };
+      expect(unsaved.site.theme_token_set).toMatchObject({ accent: '#1d4ed8', typeface: 'oswald', header: 'band' });
+      await themePanel.getByRole('button', { name: 'Save theme' }).click();
+      await expect(themePanel).toBeHidden({ timeout: 20_000 });
+      const savedTheme = (await (await ownerApi.get(`/api/leagues/${leagueId}/site`)).json()) as { site: { theme_token_set: Record<string, unknown> } };
+      expect(savedTheme.site.theme_token_set).toMatchObject({ accent: '#0f766e', typeface: 'lora', header: 'bar', hero: 'bleed', density: 'compact' });
+      expect(savedTheme.site.theme_token_set.accentStrong).toBeUndefined();
+      // The canvas wears the saved theme (and a later layout autosave still carries the bumped rev).
+      await expect(page.locator('[data-sb-canvas][data-typeface="lora"]')).toBeVisible();
+      expect(await canvasEl.evaluate(el => getComputedStyle(el).getPropertyValue('--org-accent').trim())).toBe('#0f766e');
+      await page.locator('[data-sb-widget="staff"] .sb-frame-controls').click();
+      await page.locator('[data-sb-panel="staff"]').getByLabel('Section title').fill(`Our staff again ${stamp}`);
+      await awaitSaved(page);
+
       // The phone: the notice with working doors, no overflow.
       await page.setViewportSize({ width: 375, height: 812 });
       await expect(page.getByRole('heading', { name: 'The editor needs a bigger screen' })).toBeVisible();
@@ -283,7 +316,6 @@ test('org site editor: canvas → drag → autosave → undo → reload; phone n
         .toBe(true);
       expect(publicHtml).toContain('data-sb-grid');
       // Phase 5: the instance title and the hero content both reached the public page.
-      expect(publicHtml).toContain(`Our ${targetKey} ${stamp}`);
       expect(publicHtml).toContain(`Hello ${stamp}`);
       // Phase 6: the text widget (its title is the heading, its paragraph the
       // body) and the embed (the frame src rebuilt on the privacy host) are
@@ -303,16 +335,19 @@ test('org site editor: canvas → drag → autosave → undo → reload; phone n
       // Phase 7: the theme reached the public shell — accent vars, the band
       // header (from the TOKEN; the template is still classic), the heading
       // face loaded only here (its @font-face + preload), the bleed hero.
-      expect(publicHtml).toContain('--org-accent:#1d4ed8');
+      // (P7-B saved the panel's version over the API's: teal, Editorial face, bar header, bleed hero kept.)
+      expect(publicHtml).toContain('--org-accent:#0f766e');
       expect(publicHtml).toContain('data-template="classic"');
-      expect(publicHtml).toContain('background-color:var(--org-accent-strong)');
-      expect(publicHtml).toContain('data-typeface="oswald"');
+      expect(publicHtml).not.toContain('background-color:var(--org-accent-strong)');
+      expect(publicHtml).toContain('data-typeface="lora"');
       expect(publicHtml).toContain('data-heading-font');
-      expect(publicHtml).toContain("font-family:'EA Oswald'");
-      expect(publicHtml).toContain('/fonts/oswald-600.woff2');
-      expect(publicHtml).toMatch(/<link[^>]*rel="preload"[^>]*\/fonts\/oswald-600\.woff2/);
+      expect(publicHtml).toContain("font-family:'EA Lora'");
+      expect(publicHtml).toContain('/fonts/lora-700.woff2');
+      expect(publicHtml).toMatch(/<link[^>]*rel="preload"[^>]*\/fonts\/lora-700\.woff2/);
+      expect(publicHtml).not.toContain('/fonts/oswald-600.woff2');
       expect(publicHtml).toContain('sm:py-20');
-      const fontRes = await anon.request.get('/fonts/oswald-600.woff2');
+      expect(publicHtml).toContain(`Our staff again ${stamp}`);
+      const fontRes = await anon.request.get('/fonts/lora-700.woff2');
       expect(fontRes.status()).toBe(200);
       // The policy that lets that frame load — on whichever CSP header the build sends.
       const publicRes = await anon.request.get(`/org/${subdomain}`);
