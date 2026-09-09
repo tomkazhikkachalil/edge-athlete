@@ -1,5 +1,53 @@
 # Development Log
 
+## September 9, 2026 — Site Builder P1-A: the org hero's staff row collapses behind one "Manage" control (zero DDL)
+
+Tom opened the **Site Builder program** today with a design doc that
+supersedes masterplan §6: a dashboard editor whose panels are public —
+widgets from a closed catalog bound to live queries, on a constrained
+12-column grid, one composition rendering the web site AND the in-app org
+page, draft → publish → revisions before anyone drags anything on a live
+site. The approved plan (architecture, phases 1–2 executable, 3–8 outlined)
+lives with the session; the program's phases are: 1 widget registry, 2
+draft/publish/revisions (mig 180), 3 grid (react-grid-layout, the one
+approved dependency), 4 picker, 5 schema-generated properties, 6 content
+widgets → org objects, 7 theme editor, 8 templates + checklist.
+
+The doc's chrome rule — *in the app, owner and manager controls live
+behind a single Manage entry point rather than being scattered across the
+header* — is independent of the registry, so it went first:
+
+- **`OrgManageMenu.tsx`** (new, `src/components/orgs/page/`): the
+  PostOwnerMenu idiom — a body-portaled, `position: fixed` panel placed by
+  the pure `placeMenu` (the hero root is `overflow-hidden`, so an in-tree
+  dropdown clips at the card's edge), repositioned on scroll / resize /
+  visualViewport by straight style writes (nothing for
+  `set-state-in-effect`), dismissed by `usePopoverDismiss` over BOTH refs
+  plus Escape (topmost layer only); focus returns to the trigger when it
+  was inside the menu. Rows are plain buttons and links — no `role="menu"`
+  (the AppHeader precedent), which is also why `getByRole('button' |
+  'link')` reads identically in the popover and in the sheet.
+- **`OrgHero.tsx`**: the pill row + link row become one `items` list
+  (Edit {org} · Share join link · Public site → when published · Manage
+  {org} → · Staff & hierarchy → for owners — strings unchanged). From `sm`
+  up: join control + a `Manage` pill opening the popover; below `sm`: join
+  control + the same `Manage` pill opening the bubble language's own sheet
+  (`LargerWindow windowKey="hero-actions"`, now titled "Manage"). The
+  "More actions" icon button is gone. A visitor with a published site keeps
+  an inline "Public site →" link — their only door.
+- **e2e**: `openManageMenu(page)` in `e2e/helpers/org-page.ts` opens the
+  control and returns whichever surface appeared (`[data-org-manage-menu]`
+  or the sheet) so a spec scopes the same way at every width; `exact: true`
+  because an open Members window carries "Make manager".
+  `org-app-brand.spec.ts` (owner desktop: doors only inside the menu,
+  Escape closes; visitor: no Manage; @mobile: the sheet) and
+  `org-venues.spec.ts` (owner's Public site → and Manage club → inside the
+  menu) were the only two specs naming those labels. Both green against the
+  local production build in desktop, mobile and webkit-mobile.
+
+Visible change, by design: managers see one `Manage` pill where five
+controls sat; the 375px hero loses its icon button for a labelled pill.
+
 ## September 9, 2026 — Maintenance sweep, end of session (docs only)
 
 Tom asked for the full checklist after the Org Pages Program closed:

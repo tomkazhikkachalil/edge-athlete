@@ -1,12 +1,13 @@
 'use client';
 
-import { useState, type ReactNode } from 'react';
+import { useState } from 'react';
 import Link from 'next/link';
-import { MapPin, MoreHorizontal, Trophy, Users } from 'lucide-react';
+import { MapPin, Trophy, Users } from 'lucide-react';
 import LargerWindow from '@/components/bubbles/LargerWindow';
 import { useIsDesktop } from '@/hooks/useIsDesktop';
 import { orgSitePath } from '@/lib/org-sites/urls';
 import type { OrgBrand } from '@/lib/org-sites/brand-types';
+import OrgManageMenu, { type ManageItem } from './OrgManageMenu';
 import { SIDE_COPY } from './side-copy';
 import type { OrgInfo, OrgSide } from './types';
 
@@ -19,12 +20,16 @@ import type { OrgInfo, OrgSide } from './types';
 // when a site sets no accent). The logo tile overlaps the band like a
 // profile avatar; the name, chips and description keep their strings.
 //
-// Actions: from sm: up a wrapping pill row + a line of links (the same five
-// controls the twins stacked on the right); below sm the join control
-// stays and the rest move behind one "More actions" button that opens a
-// LargerWindow — the bubble language's own sheet, not a second pattern.
-// Different trees per width, so useIsDesktop (the chat-dock precedent)
-// rather than duplicating the controls with CSS hiding.
+// Actions (Site Builder P1-A, Sep 9 2026): the join control stays in the
+// open, and every staff door — Edit, Share join link, Public site →,
+// Manage →, Staff & hierarchy → — lives behind ONE "Manage" control: a
+// portaled popover from sm: up (OrgManageMenu) and the bubble language's
+// own sheet (LargerWindow) below sm, with identical rows either way. The
+// doc's rule: owner and manager controls collapse on the page an athlete
+// sees; the row of doors belongs in the console. A visitor with a published
+// site keeps an inline "Public site →" link — their only door. Different
+// trees per width, so useIsDesktop (the chat-dock precedent) rather than
+// duplicating the controls with CSS hiding.
 
 interface OrgHeroProps {
   side: OrgSide;
@@ -113,36 +118,27 @@ export default function OrgHero({
     )
   ) : null;
 
-  // The secondary controls, rendered as pills on a wide screen and as rows
-  // in the phone sheet — same accessible names either way.
-  const secondary: Array<{ key: string; node: (rowClass: string) => ReactNode }> = [];
+  // The staff rows behind "Manage" — the same accessible names in the
+  // popover and in the phone sheet. Strings unchanged from the pill/link
+  // rows they replace (e2e contracts).
+  const items: ManageItem[] = [];
   if (canManage) {
-    secondary.push({
-      key: 'edit',
-      node: cls => (
-        <button type="button" onClick={onEdit} className={cls}>
-          Edit {copy.noun}
-        </button>
-      ),
-    });
-    secondary.push({
-      key: 'share',
-      node: cls => (
-        <button type="button" onClick={onShareJoinLink} className={cls}>
-          Share join link
-        </button>
-      ),
-    });
+    items.push({ key: 'edit', kind: 'button', label: `Edit ${copy.noun}`, onClick: onEdit });
+    items.push({ key: 'share', kind: 'button', label: 'Share join link', onClick: onShareJoinLink });
+    // Phase 6b A1: the two doors this page lacked — the org's public site
+    // (published only) and its console.
+    if (publishedSubdomain) items.push({ key: 'site', kind: 'link', href: orgSitePath(publishedSubdomain), label: 'Public site →' });
+    items.push({ key: 'manage', kind: 'link', href: `/app/org/${side}/${org.id}`, label: `Manage ${copy.noun} →` });
+    // Org staff program (178): owners' door to who-runs-what + invites.
+    if (isOwner) items.push({ key: 'staff', kind: 'link', href: `/app/org/${side}/${org.id}#hierarchy`, label: <>Staff &amp; hierarchy →</> });
   }
-  const links: Array<{ key: string; href: string; label: ReactNode }> = [];
-  {/* Phase 6b A1: the two doors this page lacked — the org's public site
-      (published only) and its console. */}
-  if (publishedSubdomain) links.push({ key: 'site', href: orgSitePath(publishedSubdomain), label: 'Public site →' });
-  if (canManage) links.push({ key: 'manage', href: `/app/org/${side}/${org.id}`, label: `Manage ${copy.noun} →` });
-  {/* Org staff program (178): owners' door to who-runs-what + invites. */}
-  if (isOwner) links.push({ key: 'staff', href: `/app/org/${side}/${org.id}#hierarchy`, label: <>Staff &amp; hierarchy →</> });
-
-  const hasMore = secondary.length > 0 || links.length > 0;
+  // A visitor's one door: the published site, inline.
+  const publicSiteLink =
+    !canManage && publishedSubdomain ? (
+      <Link href={orgSitePath(publishedSubdomain)} className={`${linkClass} inline-flex min-h-[40px] items-center`}>
+        Public site →
+      </Link>
+    ) : null;
 
   return (
     <div className="ea-bubble ea-pop-in overflow-hidden" data-org-hero={heroImage ? 'photo' : 'band'}>
@@ -215,60 +211,59 @@ export default function OrgHero({
           </div>
 
           {wide ? (
-            <div className="flex flex-col items-start sm:items-end gap-2 shrink-0">
-              <div className="flex flex-wrap items-center justify-end gap-2">
-                {joinControl}
-                {secondary.map(s => (
-                  <span key={s.key} className="contents">{s.node(PILL)}</span>
-                ))}
-              </div>
-              {links.length > 0 && (
-                <div className="flex flex-wrap items-center justify-end gap-x-4 gap-y-1">
-                  {links.map(l => (
-                    <Link key={l.key} href={l.href} className={linkClass}>
-                      {l.label}
-                    </Link>
-                  ))}
-                </div>
-              )}
+            <div className="flex flex-wrap items-center justify-end gap-2 shrink-0">
+              {joinControl}
+              {items.length > 0 && <OrgManageMenu items={items} triggerClassName={PILL} />}
+              {publicSiteLink}
             </div>
           ) : (
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               {joinControl}
-              {hasMore && (
+              {items.length > 0 && (
                 <button
                   type="button"
                   onClick={() => setMoreOpen(true)}
-                  aria-label="More actions"
                   aria-haspopup="dialog"
-                  className="ea-icon-btn inline-flex items-center justify-center text-secondary"
+                  aria-expanded={moreOpen}
+                  className={PILL}
+                  data-org-manage-trigger=""
                 >
-                  <MoreHorizontal className="w-5 h-5" aria-hidden="true" />
+                  Manage
                 </button>
               )}
+              {publicSiteLink}
             </div>
           )}
         </div>
       </div>
 
       {moreOpen && (
-        <LargerWindow title="More" windowKey="hero-actions" onClose={() => setMoreOpen(false)}>
+        <LargerWindow title="Manage" windowKey="hero-actions" onClose={() => setMoreOpen(false)}>
           <div className="flex flex-col gap-2">
-            {secondary.map(s => (
-              <span key={s.key} className="contents" onClick={() => setMoreOpen(false)}>
-                {s.node(`${PILL} w-full text-left min-h-[44px]`)}
-              </span>
-            ))}
-            {links.map(l => (
-              <Link
-                key={l.key}
-                href={l.href}
-                onClick={() => setMoreOpen(false)}
-                className={`${linkClass} flex min-h-[44px] items-center px-1`}
-              >
-                {l.label}
-              </Link>
-            ))}
+            {items.map(item =>
+              item.kind === 'button' ? (
+                <button
+                  key={item.key}
+                  type="button"
+                  onClick={() => {
+                    setMoreOpen(false);
+                    item.onClick();
+                  }}
+                  className={`${PILL} w-full text-left min-h-[44px]`}
+                >
+                  {item.label}
+                </button>
+              ) : (
+                <Link
+                  key={item.key}
+                  href={item.href}
+                  onClick={() => setMoreOpen(false)}
+                  className={`${linkClass} flex min-h-[44px] items-center px-1`}
+                >
+                  {item.label}
+                </Link>
+              )
+            )}
           </div>
         </LargerWindow>
       )}
