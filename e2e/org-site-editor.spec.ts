@@ -407,6 +407,15 @@ test('org site editor: canvas → drag → autosave → undo → reload; phone n
       );
       res = await ownerApi.patch(`/api/leagues/${leagueId}/site`, { data: { action: 'set_hero', headline: `After publish ${stamp}` } });
       expect(res.status(), await readErrorBody(res)).toBe(200);
+      // Phase 10: title the standings instance — the in-app bubble and its window take the name.
+      const forTitle = (await (await ownerApi.get(`/api/leagues/${leagueId}/site/canvas`)).json()) as { layout: { widgets: { key: string; config: Record<string, unknown> }[] }; draft: { rev: number } | null };
+      res = await ownerApi.put(`/api/leagues/${leagueId}/site/draft`, {
+        data: {
+          layout: { ...forTitle.layout, widgets: forTitle.layout.widgets.map(w => (w.key === 'standings' ? { ...w, config: { ...w.config, title: `Table ${stamp}` } } : w)) },
+          ...(forTitle.draft ? { baseRev: forTitle.draft.rev } : {}),
+        },
+      });
+      expect(res.status(), await readErrorBody(res)).toBe(200);
       const inherited = (await (await ownerApi.get(`/api/leagues/${leagueId}/site/canvas`)).json()) as { draft: unknown; layout: { widgets: { id: string; x: number; y: number }[] } };
       expect(inherited.draft).not.toBeNull();
       expect([...inherited.layout.widgets].sort((a, b) => a.y - b.y || a.x - b.x).map(w => w.id)).toEqual(
@@ -426,6 +435,30 @@ test('org site editor: canvas → drag → autosave → undo → reload; phone n
       const publicRes = await anon.request.get(`/org/${subdomain}`);
       const csp = publicRes.headers()['content-security-policy'] ?? publicRes.headers()['content-security-policy-report-only'] ?? '';
       expect(csp).toContain('frame-src https://www.youtube-nocookie.com https://player.vimeo.com https://www.openstreetmap.org');
+
+      // Phase 10: one composition, two surfaces — the in-app league page follows
+      // the layout's reading order (module bubbles, via the bubble aliases) and
+      // the instance title names the bubble and its window. At 1280 and 375.
+      // The module keys with an APP surface, by their bubble key (the catalog's
+      // aliases); web-only widgets (hero, staff, courses, contact…) have no bubble.
+      const APP_BUBBLE: Record<string, string> = { members: 'members', standings: 'standings', schedule: 'events', news: 'news', venues: 'courses', gallery: 'photos', affiliations: 'affiliations' };
+      const finalCanvas = (await (await ownerApi.get(`/api/leagues/${leagueId}/site/canvas`)).json()) as { layout: { widgets: { key: string; x: number; y: number }[] } };
+      const layoutBubbles = [...finalCanvas.layout.widgets]
+        .sort((a, b) => a.y - b.y || a.x - b.x)
+        .map(w => APP_BUBBLE[w.key])
+        .filter((k): k is string => !!k);
+      for (const width of [1280, 375]) {
+        await page.setViewportSize({ width, height: 900 });
+        await page.goto(`/league/${leagueId}`);
+        const grid = page.locator('[data-org-glance]');
+        await expect(grid).toBeVisible({ timeout: 30_000 });
+        await expect(grid.locator('[data-org-bubble="standings"]')).toContainText(`Table ${stamp}`);
+        const domBubbles = await grid.locator('[data-org-bubble]').evaluateAll(els => els.map(e => e.getAttribute('data-org-bubble') ?? ''));
+        const expectedOrder = layoutBubbles.filter(k => domBubbles.includes(k));
+        expect(domBubbles.filter(k => expectedOrder.includes(k))).toEqual(expectedOrder);
+      }
+      // (The window's title is the same label — LargerWindow reads it — and a
+      // zero-count face does not open, so the bubble text above is the check.)
 
       // The console door.
       await page.setViewportSize({ width: 1280, height: 900 });

@@ -85,6 +85,12 @@ describe('site-builder catalog', () => {
     }
   });
 
+  it('phase 10: pinned app surfaces are exactly members and gallery (the roster window; Photos regardless of the toggle)', () => {
+    const pinned = WIDGET_KEYS.filter(k => WIDGETS[k].surfaces.app?.pinned);
+    expect([...pinned].sort()).toEqual(['gallery', 'members']);
+    for (const key of pinned) expect(WIDGETS[key].surfaces.app, key).toBeDefined();
+  });
+
   it('empty states hide publicly and name a staff line', () => {
     for (const key of WIDGET_KEYS) {
       const e = WIDGETS[key].emptyState;
