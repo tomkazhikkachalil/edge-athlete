@@ -1,5 +1,18 @@
 # Development Log
 
+## September 8, 2026 — Post header: the name, not the name and the @handle (#604)
+
+Tom: *"on the feed, it shows the name at the top of the post, but also, it
+shows the @ unique name as well. I think just the given name is fine and
+we can remove the @ when it shows on the posts."* The card header
+(`PostCard`) now prints the display name alone; the `@handle` span beside
+it — with its `min-[400px]` hide rule and the truncation floors written for
+the pair — is gone, and so is the matching `@handle` under the author name
+in `QuotedPostEmbed` (a repost's quoted card is on a post too). The name
+still links to the profile, so nothing is lost but the restatement. The
+handle keeps every other surface: profile headers, Explore, mention
+suggestions, comment-reply prefill. Zero DDL.
+
 ## September 8, 2026 — Feed sidebar calendar: Month first (#603)
 
 Tom: *"the calendar option. I want the Month to show up first so it's the
