@@ -285,6 +285,7 @@ export default function OrgPage({ side }: { side: OrgSide }) {
           canManage={canManage}
           isOwner={isOwner}
           composition={data.composition ?? null}
+          siteId={brand?.siteId ?? null}
           standingsScope={data.visibility === 'private' && viewerRole ? 'mine' : 'public'}
           members={members}
           memberCount={memberCount}

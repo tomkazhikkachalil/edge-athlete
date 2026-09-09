@@ -1,5 +1,42 @@
 # Development Log
 
+## September 9, 2026 — Site Builder phase 10 (P10-B): content tiles in-app — text, image and embed render on the org page where the manager placed them (zero DDL)
+
+- **Both surfaces** (`catalog.ts`): text / image / embed gain an app
+  surface with `bubbleKey: null` (`AppSurface.bubbleKey` is now nullable —
+  null = a TILE, no window, identity = the instance id). The registry walk
+  SKIPS content keys, so `deriveAppLayout()` with no composition is still
+  the recorded Sep 9 order (pinned) and `APP_WINDOW_KEYS` still the ten
+  windows; a tile exists only as an instance of a composition, slotted
+  where the layout put it (it inherits the anchor of the module section it
+  follows).
+- **Resolved on the server** (`app-composition.ts resolveTile`): a text
+  tile's blocks through the strict `parsePageBody`; an image through
+  `orgMediaUrl` (which re-asserts THIS site's prefix — a foreign path reads
+  as empty) with alt, caption, an https-only link and the measured size; an
+  embed through `parseEmbed → embedSrc` (a stored URL is never a frame).
+  An EMPTY tile is dropped for everyone but managers, who keep it as a
+  door: the catalog's staff line linking to the editor. The client never
+  sees raw config (guardrail 4c holds).
+- **`OrgContentTile.tsx`**: titled → the house bubble card, static
+  (`data-org-tile={instanceId}`, `data-org-tile-kind`); untitled → a bare
+  `.ea-bubble` (the public frame's `headingOptional` rule, in-app);
+  bodies = `PageBlocks` at h3 / a figure / the 16:9 lazy iframe (the CSP
+  `frame-src` of phase 6 already covers the app). `OrgGlanceGrid` gains a
+  `tile` slot kind and a `siteId` prop from the brand.
+- Tests: `content-widgets.test.ts` (both surfaces, null bubble key, no
+  window), `registry.test.ts` (a null bubble key is the content widgets'
+  alone), `app-composition.test.ts` (`resolveTile` per kind incl. the
+  foreign path and the http link; the composition's tiles per viewer; a
+  tile in the interleave; the registry never lists tiles). e2e (editor
+  spec, in-app at 1280 and 375): the typed story and the API's welcome
+  paragraph, both embeds on their provider hosts, the uploaded photo, no
+  horizontal overflow.
+
+Not in this PR: P10-C — the editor as the Website section's door (hero
+photo + contact address parity, the console collapse, the flag's
+retirement).
+
 ## September 9, 2026 — Site Builder phase 10 (P10-A): the composition reaches the app — order, titles, visibility (zero DDL; zero visual change without a layout)
 
 "One composition renders two surfaces." Until now the in-app league/club

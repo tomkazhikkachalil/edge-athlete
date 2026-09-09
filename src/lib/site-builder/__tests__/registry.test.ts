@@ -82,6 +82,8 @@ describe('site-builder catalog', () => {
       expect(s.default.length, key).toBeGreaterThan(0);
       if (s.default.includes('app')) expect(s.app, `${key} says app but has no app surface`).toBeDefined();
       if (s.app) expect(s.default, `${key} has an app surface but is not flagged app`).toContain('app');
+      // Phase 10: a null bubble key (a tile, not a bubble) is the content widgets' alone.
+      if (s.app) expect(s.app.bubbleKey === null, `${key} bubbleKey`).toBe((CONTENT_WIDGET_KEYS as readonly string[]).includes(key));
     }
   });
 

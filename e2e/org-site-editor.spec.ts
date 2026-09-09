@@ -456,6 +456,17 @@ test('org site editor: canvas → drag → autosave → undo → reload; phone n
         const domBubbles = await grid.locator('[data-org-bubble]').evaluateAll(els => els.map(e => e.getAttribute('data-org-bubble') ?? ''));
         const expectedOrder = layoutBubbles.filter(k => domBubbles.includes(k));
         expect(domBubbles.filter(k => expectedOrder.includes(k))).toEqual(expectedOrder);
+        // P10-B: the content tiles render in-app where the manager placed them —
+        // the typed story and the API's welcome paragraph, the two embeds on their
+        // provider hosts, the uploaded photo; no horizontal overflow.
+        await expect(grid.locator('[data-org-tile-kind="text"]').filter({ hasText: `Typed paragraph ${stamp}` })).toBeVisible();
+        await expect(grid.locator('[data-org-tile-kind="text"]').filter({ hasText: `Welcome paragraph ${stamp}` })).toBeVisible();
+        const frameSrcs = await grid.locator('[data-org-tile-kind="embed"] iframe').evaluateAll(els => els.map(e => e.getAttribute('src') ?? ''));
+        expect(frameSrcs.some(u => u.startsWith('https://player.vimeo.com/video/76979871'))).toBe(true);
+        expect(frameSrcs.some(u => u.startsWith('https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ'))).toBe(true);
+        await expect(grid.locator('[data-org-tile-kind="image"] img').first()).toBeVisible();
+        const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+        expect(overflow).toBeLessThanOrEqual(1);
       }
       // (The window's title is the same label — LargerWindow reads it — and a
       // zero-count face does not open, so the bubble text above is the check.)

@@ -94,7 +94,7 @@ export async function GET(
     // Phase 10: the brand row + the site's stored layout (published, or the
     // draft's while offline) — the composition the in-app page follows.
     const siteRow = await readSiteBrandRow(supabase, 'league', id, { layout: true });
-    const composition = buildAppComposition(siteRow?.layout ?? null, { isMember: !!viewerRole || (!!viewerId && viewerId === league.owner_profile_id), canManage });
+    const composition = buildAppComposition(siteRow?.layout ?? null, siteRow?.id ?? '', { isMember: !!viewerRole || (!!viewerId && viewerId === league.owner_profile_id), canManage });
     return NextResponse.json({
       league,
       // R1: the listing state (pending = a listing request is in the queue).

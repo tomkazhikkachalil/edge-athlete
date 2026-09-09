@@ -46,7 +46,8 @@ export interface AppComposition {
 
 export interface AppSlot {
   key: WidgetKey;
-  bubbleKey: AppBubbleKey;
+  /** null = a content TILE (no window; identity = instanceId). */
+  bubbleKey: AppBubbleKey | null;
   span: BubbleSpan;
   priority: number;
   ownsWindow: boolean;
@@ -63,7 +64,9 @@ function registrySlots(): AppSlot[] {
   const slots: AppSlot[] = [];
   for (const key of WIDGET_KEYS) {
     const app = WIDGETS[key].surfaces.app;
-    if (!app) continue;
+    // Content tiles exist only as INSTANCES of a composition — never in the
+    // registry order (the recorded Sep 9 glance order stays exact).
+    if (!app || isContentWidgetKey(key)) continue;
     slots.push({ key, bubbleKey: app.bubbleKey, span: app.size, priority: app.priority, ownsWindow: app.ownsWindow === true, instanceId: null, title: null });
   }
   return slots.sort((a, b) => a.priority - b.priority);
@@ -162,7 +165,7 @@ export function deriveAppLayout(composition?: AppComposition | null): AppSlot[] 
  *  window. Registry-derived: window identity is per bubble key. */
 export type OrgWindowKey = Exclude<AppBubbleKey, 'posts'>;
 export const APP_WINDOW_KEYS: readonly OrgWindowKey[] = deriveAppLayout()
-  .filter(s => !s.ownsWindow)
+  .filter(s => !s.ownsWindow && s.bubbleKey !== null)
   .map(s => s.bubbleKey as OrgWindowKey);
 
 export function isOrgWindowKey(value: unknown): value is OrgWindowKey {
