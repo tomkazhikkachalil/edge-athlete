@@ -8,6 +8,9 @@ export interface ToastMessage {
   title: string;
   message?: string;
   duration?: number;
+  /** One action inside the toast (Site Builder P3-D: "Undo" after a
+   *  remove). Pressing it dismisses the toast. */
+  action?: { label: string; onClick: () => void };
 }
 
 interface ToastProps {
@@ -90,6 +93,18 @@ function Toast({ toast, onDismiss }: ToastProps) {
               <p className="mt-1 text-sm text-tertiary">
                 {toast.message}
               </p>
+            )}
+            {toast.action && (
+              <button
+                type="button"
+                onClick={() => {
+                  toast.action?.onClick();
+                  handleDismiss();
+                }}
+                className="mt-2 min-h-[36px] rounded-md border border-border-strong px-3 text-sm font-medium text-primary hover:bg-surface-sunken transition-colors"
+              >
+                {toast.action.label}
+              </button>
             )}
           </div>
           <button
@@ -189,6 +204,12 @@ export function useToast() {
     addGlobalToast({ type: 'warning', title, message });
   }, []);
 
+  /** An info toast with one action — the "removed, Undo" pattern (never a
+   *  confirm dialog for a reversible act). Stays a little longer. */
+  const showUndo = useCallback((title: string, onUndo: () => void, message?: string) => {
+    addGlobalToast({ type: 'info', title, message, duration: 8000, action: { label: 'Undo', onClick: onUndo } });
+  }, []);
+
   return {
     toasts,
     dismissToast,
@@ -196,6 +217,7 @@ export function useToast() {
     showError,
     showInfo,
     showWarning,
+    showUndo,
   };
 }
 

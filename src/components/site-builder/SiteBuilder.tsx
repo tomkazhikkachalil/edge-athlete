@@ -8,8 +8,10 @@ import { useAuth } from '@/lib/auth';
 import { useToast } from '@/components/Toast';
 import type { PublicSite } from '@/lib/org-sites/server';
 import type { SiteHomeData } from '@/lib/org-sites/home-data';
-import type { SiteLayout } from '@/lib/site-builder/layout';
+import { appendWidget, newInstanceFor, newInstanceId, removeWidget, type SiteLayout } from '@/lib/site-builder/layout';
+import type { WebWidgetKey } from '@/lib/site-builder/catalog';
 import Canvas from './Canvas';
+import Picker from './Picker';
 import { useDraft } from './useDraft';
 import { useHistory } from './useHistory';
 
@@ -46,7 +48,7 @@ export default function SiteBuilder() {
   const consoleHref = `/app/org/${side}/${orgId}`;
 
   const { user, initialAuthCheckComplete } = useAuth();
-  const { showSuccess, showError } = useToast();
+  const { showSuccess, showError, showUndo } = useToast();
   const [state, setState] = useState<'loading' | 'ready' | 'forbidden' | 'unavailable' | 'error'>('loading');
   const [canvas, setCanvas] = useState<CanvasBody | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
@@ -123,6 +125,7 @@ export default function SiteBuilder() {
       onReload={() => setReloadKey(k => k + 1)}
       showSuccess={showSuccess}
       showError={showError}
+      showUndo={showUndo}
     />
   ) : null;
 }
@@ -135,6 +138,7 @@ function Editor({
   onReload,
   showSuccess,
   showError,
+  showUndo,
 }: {
   canvas: CanvasBody;
   plural: string;
@@ -143,10 +147,28 @@ function Editor({
   onReload: () => void;
   showSuccess: (title: string, message?: string) => void;
   showError: (title: string, message?: string) => void;
+  showUndo: (title: string, onUndo: () => void, message?: string) => void;
 }) {
   const history = useHistory<SiteLayout>(canvas.layout);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  // P3-D: the canvas data grows as widgets are added (the picker resolved
+  // them); a removed widget's data stays — harmless, and Undo needs it.
+  const [data, setData] = useState<SiteHomeData>(canvas.data);
+  const [pickerOpen, setPickerOpen] = useState(false);
+
+  const addWidget = (key: WebWidgetKey, resolved: SiteHomeData) => {
+    setData(prev => ({ ...prev, ...resolved }));
+    history.commit(appendWidget(history.present, newInstanceFor(canvas.site, key, newInstanceId())));
+    setPickerOpen(false);
+  };
+  const removeOne = (id: string) => {
+    const gone = history.present.widgets.find(w => w.id === id);
+    if (!gone) return;
+    history.commit(removeWidget(history.present, id));
+    setSelectedId(null);
+    showUndo('Section removed', history.undo, 'Nothing changes on your site until you publish.');
+  };
 
   const save = useCallback(
     async (layout: SiteLayout, baseRev: number | null) => {
@@ -291,6 +313,9 @@ function Editor({
             <button type="button" onClick={history.redo} disabled={!history.canRedo} className={PILL} aria-label="Redo" title="Redo (⇧⌘Z)">
               Redo
             </button>
+            <button type="button" onClick={() => setPickerOpen(true)} className={PILL}>
+              Add section
+            </button>
             <button type="button" onClick={() => void preview()} className={PILL}>
               Preview
             </button>
@@ -307,14 +332,18 @@ function Editor({
             <Canvas
               site={canvas.site}
               layout={history.present}
-              data={canvas.data}
+              data={data}
               selectedId={selectedId}
               onSelect={setSelectedId}
               onCommit={history.commit}
+              onRemove={removeOne}
             />
           </div>
         </main>
       </div>
+      {pickerOpen && (
+        <Picker site={canvas.site} layout={history.present} plural={plural} orgId={orgId} onAdd={addWidget} onClose={() => setPickerOpen(false)} />
+      )}
     </div>
   );
 }

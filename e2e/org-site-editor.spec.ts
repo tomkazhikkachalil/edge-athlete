@@ -108,6 +108,36 @@ test('org site editor: canvas → drag → autosave → undo → reload; phone n
       const reloaded = (await (await ownerApi.get(`/api/leagues/${leagueId}/site/canvas`)).json()) as { layout: { widgets: { id: string; y: number }[] } };
       expect([...reloaded.layout.widgets].sort((a, b) => a.y - b.y).map(w => w.id)).toEqual(orderAfter);
 
+      // P3-D: remove a tile → an Undo toast (no confirm dialog) → Undo restores it.
+      const before = await page.locator('[data-sb-instance]').count();
+      const removable = page.locator('[data-sb-widget]:not([data-sb-widget="hero"])').first();
+      const removedKey = await removable.getAttribute('data-sb-widget');
+      await removable.getByRole('button', { name: /^Remove / }).click();
+      await expect(page.locator('[data-sb-instance]')).toHaveCount(before - 1);
+      const toast = page.getByRole('alert').filter({ hasText: 'Section removed' });
+      await expect(toast).toBeVisible();
+      await toast.getByRole('button', { name: 'Undo' }).click();
+      await expect(page.locator('[data-sb-instance]')).toHaveCount(before);
+      await expect(page.locator(`[data-sb-widget="${removedKey}"]`)).toBeVisible();
+      // Remove again (for real), then add it back from the picker — tiles preview the club's data.
+      await page.locator(`[data-sb-widget="${removedKey}"]`).getByRole('button', { name: /^Remove / }).click();
+      await expect(page.locator('[data-sb-instance]')).toHaveCount(before - 1);
+      await awaitSaved(page);
+      await page.getByRole('button', { name: 'Add section' }).click();
+      const picker = page.locator('[data-larger-window="sb-picker"]');
+      await expect(picker).toBeVisible();
+      const tile = picker.locator(`[data-sb-picker-tile="${removedKey}"]`);
+      await expect(tile).toBeVisible({ timeout: 20_000 });
+      await expect(tile.getByRole('button', { name: 'Add' })).toBeEnabled({ timeout: 20_000 });
+      await tile.getByRole('button', { name: 'Add' }).click();
+      await expect(picker).toBeHidden();
+      await expect(page.locator('[data-sb-instance]')).toHaveCount(before);
+      await expect(page.locator(`[data-sb-widget="${removedKey}"]`)).toBeVisible();
+      await awaitSaved(page);
+      const readded = (await (await ownerApi.get(`/api/leagues/${leagueId}/site/canvas`)).json()) as { layout: { widgets: { key: string; id: string }[] } };
+      expect(readded.layout.widgets.filter(w => w.key === removedKey)).toHaveLength(1);
+      expect(readded.layout.widgets.find(w => w.key === removedKey)!.id).toMatch(/^w_[0-9a-f]{16}$/);
+
       // The phone: the notice with working doors, no overflow.
       await page.setViewportSize({ width: 375, height: 812 });
       await expect(page.getByRole('heading', { name: 'The editor needs a bigger screen' })).toBeVisible();
@@ -126,7 +156,8 @@ test('org site editor: canvas → drag → autosave → undo → reload; phone n
       // in reading order (the DOM order of the tiles follows the coordinates).
       res = await ownerApi.post(`/api/leagues/${leagueId}/site/revisions`, { data: { action: 'publish', label: 'Arranged' } });
       expect(res.status(), await readErrorBody(res)).toBe(200);
-      const publishedOrder = orderAfter.map(id => id.replace(/^legacy:/, ''));
+      const finalLayout = (await (await ownerApi.get(`/api/leagues/${leagueId}/site/canvas`)).json()) as { layout: { widgets: { key: string; y: number; x: number }[] } };
+      const publishedOrder = [...finalLayout.layout.widgets].sort((a, b) => a.y - b.y || a.x - b.x).map(w => w.key);
       let publicHtml = '';
       await expect
         .poll(async () => {
