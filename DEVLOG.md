@@ -1,5 +1,53 @@
 # Development Log
 
+## September 8, 2026 — Org Pages Program R1: the league and club pages fold into one OrgPage (#607)
+
+Tom opened the **Org Pages Program**: *"take the principles from how we
+polished up the Vitals section and apply them to the league and club pages …
+there isn't enough media integration … it all has to be connected back to
+the styling of the app and carry/share the same information."* Exploration
+found the two in-app pages (`(app)/league/[id]`, `(app)/club/[id]`) were
+983- and 982-line twins, ~92% byte-identical modulo the side word, with a
+single column of ~11 stacked cards, not one house interaction class, and
+ZERO org media (the one thumbnail, in `OrgRecentActivity`, is broken since
+the bucket flip — raw `media_url`, never `toProxyUrl`). Every asset already
+exists and is managed in the console. Tom's calls: fold first, then a new
+in-app dialect + media hero, then a glance grid with "larger window"
+overlays, then the media (hero/logo, a Photos bubble with a lightbox, news
+covers + course photos, a members' posts grid). Plan and decisions live in
+the session memory; this entry is R1.
+
+**R1 = the Vitals round's first move — extract before styling, with ZERO
+visual change.** `src/components/orgs/page/` now holds `OrgPage` (the twins'
+JSX verbatim, parametrised by `side`), `useOrgPage` (the payload fetch keyed
+on `[side, orgId, reloadKey]` with the cancelled guard, plus every mutation
+and confirm state — feature-local, not `src/hooks`), `OrgMembersList` (a pure
+move of the Members block; every button label is an e2e contract), `types`
+(`LeagueInfo`/`ClubInfo`/`OrgInfo`, `MemberRow`, `OrgPageResponse` with the
+org under its side's key) and `side-copy` (a literal per-side table). The two
+route files are twelve lines each and re-export their `*Info` type; the edit
+modals import from `types` directly. The only per-side logic is literal
+`side` checks: the league↔league chain section, the sport chip (a club has
+no `sport_key` — mig 117 — and shows the chip only when derived sports
+exist), the club's legacy `location` fallback (place line only; the GeoNames
+attribution keys off the place-derived string on both sides, as before),
+the not-found glyph and which edit modal opens. One catch the fold
+preserved rather than fixed: BOTH twins say "…rounds in <name> leagues" /
+"in club leagues" — the word is literally "leagues" on the club page too,
+so those strings stay literal (copy changes ride R2).
+
+**Proof, not promise:** a session-scoped probe seeded a league and a club
+(owner A, member B) and captured the content column's `innerHTML` for
+visitor / member / owner at 1280 and 390 — twelve snapshots — against
+production (main) and against the branch build; after normalising uuids and
+stamps, all twelve are byte-identical. The probe's own trap: the e2e global
+setup mints FRESH QA users on every run, so seed and capture must happen in
+one invocation. The org-page spec set (join, managers, owners, roster,
+public items, announcements, photo opt-in, events, activity, venues,
+affiliations, golf weeks, leaderboard, standings, private gates) ran
+against the branch build. The console (4633 lines), the `/standings` twins
+and the directories are untouched by design. Zero DDL.
+
 ## September 8, 2026 — Chat dock: minimized pills, newest at the left edge (#606)
 
 Tom: *"when I minimize the chats, it re-orders themselves if there are
