@@ -155,7 +155,8 @@ test('two pages: side default orders, side labels, reset, and the club golf teas
       // never would (G1's omission rule rides fetchPublicStandings).
       expect(clubHtml).toMatch(/Edge (Alpha|Bravo|A\.|B\.)/);
       // Order on the page: Courses section before Standings (the reset).
-      expect(clubHtml.indexOf('aria-label="Courses"')).toBeLessThan(clubHtml.indexOf('aria-label="Tables"'));
+      // P3-C: empty sections never render publicly — the order lives in the nav strip.
+      expect(clubHtml.indexOf('>Courses<')).toBeLessThan(clubHtml.indexOf('>Tables<'));
 
       // League page: "Clubs", standings first, no teaser.
       const leagueHtml = await settleBody(anonCtx.request, leaguePath, 'aria-label="Clubs"');

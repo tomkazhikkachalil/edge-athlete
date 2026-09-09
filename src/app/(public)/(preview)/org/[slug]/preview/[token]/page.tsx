@@ -4,9 +4,9 @@ import { getSupabaseAdmin } from '@/lib/auth-server';
 import { fetchPublicPages } from '@/lib/org-sites/public-data';
 import { getDraftSiteBySlug } from '@/lib/org-sites/server';
 import { verifyPreviewToken } from '@/lib/org-sites/preview-token';
-import { deriveLegacyLayout } from '@/lib/site-builder/layout';
+import { layoutFromModules } from '@/lib/site-builder/layout';
 import { rawSiteReaders, resolveHomeData } from '@/lib/org-sites/widget-data';
-import SiteHomeBody from '@/app/(public)/org/[slug]/_components/SiteHomeBody';
+import GridRenderer from '@/app/(public)/org/[slug]/_components/GridRenderer';
 import SiteShell from '@/app/(public)/org/[slug]/_components/SiteShell';
 
 // ── /org/[slug]/preview/[token] — the draft preview ─────────────────────────
@@ -45,7 +45,8 @@ export default async function OrgSitePreview({
   // same resolver too, with the RAW reader set (every hit re-reads) — so the
   // preview now carries everything the home does (members table, the
   // leaders' golf fallback), which it had drifted from.
-  const layout = deriveLegacyLayout(site);
+  // P3-C: the DRAFT's stored grid (getDraftSiteBySlug), else the projection.
+  const layout = site.layout ?? layoutFromModules(site);
   const [data, pages] = await Promise.all([
     resolveHomeData(rawSiteReaders(admin, site), site, layout),
     fetchPublicPages(admin, site.id),
@@ -59,7 +60,7 @@ export default async function OrgSitePreview({
           to go live.
         </p>
       </div>
-      <SiteHomeBody site={site} layout={layout} data={data} />
+      <GridRenderer site={site} layout={layout} data={data} />
     </SiteShell>
   );
 }

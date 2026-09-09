@@ -10,7 +10,7 @@ function site(side: 'league' | 'club', keys: string[], visibility: 'public' | 'p
     subdomain: 'qa', template_id: 'classic', theme_token_set: {}, nav_config: [], logo_path: null,
     hero_config: {}, contact_config: {}, published_at: 'TS',
     orgName: 'QA', side, orgId: 'org', orgCity: null, orgRegion: null, orgCountry: null, orgSportKey: null,
-    sportKey: null, visibility, listed: true, orgDescription: null,
+    sportKey: null, visibility, listed: true, orgDescription: null, layout: null,
     modules: keys.map((k, i) => ({ module_key: k, enabled: true, sort_order: i, config: {} })),
   };
 }

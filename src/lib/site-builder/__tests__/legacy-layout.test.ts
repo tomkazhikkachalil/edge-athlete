@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { MEMBERS_ONLY_MODULE_KEYS } from '@/lib/org-sites/private';
 import { effectiveAudience } from '../audience';
 import { WIDGETS } from '../catalog';
-import { GRID, LEGACY_ID_PREFIX, deriveLegacyLayout, hasWidget, needsData, normalizeLayout, widget, type LegacySiteShape } from '../layout';
+import { GRID, LEGACY_ID_PREFIX, deriveLegacyLayout, hasWidget, needsData, normalizeLayout, validateLayout, widget, type LegacySiteShape } from '../layout';
 
 const row = (module_key: string, sort_order: number, enabled = true, config: unknown = {}) => ({
   module_key,
@@ -20,17 +20,20 @@ const publicSite = (modules: LegacySiteShape['modules'], extra: Partial<LegacySi
 });
 
 describe('deriveLegacyLayout', () => {
-  it('orders enabled modules by sort_order, full width, y = index, h = the widget default', () => {
+  it('orders enabled modules by sort_order, full width, stacked by height (no overlaps), h = the widget default', () => {
     const layout = deriveLegacyLayout(
       publicSite([row('news', 3), row('hero', 1), row('standings', 2), row('teams', 4, false)])
     );
     expect(layout.version).toBe(1);
     expect(layout.cols).toBe(GRID.cols);
     expect(layout.widgets.map(w => w.key)).toEqual(['hero', 'standings', 'news']);
-    layout.widgets.forEach((w, i) => {
+    expect(validateLayout(layout)).toEqual([]);
+    let expectedY = 0;
+    layout.widgets.forEach(w => {
       expect(w.x).toBe(0);
       expect(w.w).toBe(12);
-      expect(w.y).toBe(i);
+      expect(w.y).toBe(expectedY);
+      expectedY += w.h;
       expect(w.h).toBe(WIDGETS[w.key].constraints.defaultSize.h);
       expect(w.cv).toBe(1);
       expect(w.id).toBe(`${LEGACY_ID_PREFIX}${w.key}`);

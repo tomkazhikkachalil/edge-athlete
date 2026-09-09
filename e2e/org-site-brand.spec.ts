@@ -105,7 +105,8 @@ test('org site brand: tokens → document attrs + wordmark; favicon.svg; nav lab
       // Labels on nav + section headings; order = schedule before standings.
       expect(html).toContain('>Games<');
       expect(html).toContain('>Tables<');
-      expect(html.indexOf('aria-label="Games"')).toBeLessThan(html.indexOf('aria-label="Tables"'));
+      // P3-C: empty sections never render publicly — the order lives in the nav strip.
+      expect(html.indexOf('>Games<')).toBeLessThan(html.indexOf('>Tables<'));
       // The generated favicon is advertised (no logo uploaded) and serves.
       expect(html).toContain(`${sitePath}/favicon.svg`);
       const icon = await anonCtx.request.get(`${sitePath}/favicon.svg`);

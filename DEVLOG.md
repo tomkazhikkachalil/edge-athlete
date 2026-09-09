@@ -1,5 +1,64 @@
 # Development Log
 
+## September 9, 2026 — Site Builder P3-C: the public grid renderer — the composition ships (zero DDL; not flagged)
+
+The flip. The public home and the draft preview now render the grid the
+editor edits: the site's published revision carries the layout, and a site
+nobody has arranged renders the template-aware projection of its module
+rows, so it looks as it did. This is deliberately NOT behind the flag: the
+renderer always draws the layout it is given; the flag gates only the door
+to changing it.
+
+- **`PublicSite.layout`**: the revision's stored grid — the PUBLISHED
+  revision's for public reads (one more read in `getSiteBySlugInternal`, the
+  pointer riding `SITE_FIELDS_180` with its 42703 step-down; pre-180 or
+  never published through a revision → null), the DRAFT's for the draft view
+  (`getDraftSiteBySlug` → the preview and the canvas). Both pages render
+  `site.layout ?? layoutFromModules(site)`.
+- **`layoutFromModules`** (pure, tested): the template-aware projection —
+  `classic` stacks every section full width; `bold` (the two-column section
+  grid at ≥ sm) pairs half-width sections left/right and lets the full-width
+  modules (teams, news, gallery, courses, leaders) span both, a full-width
+  widget starting a new row — the same placement CSS auto-flow gave, now as
+  coordinates. `deriveLegacyLayout` stacks by CUMULATIVE HEIGHT now (it
+  stacked at `y = index` with multi-row defaults, which as a grid overlapped
+  — the editor's first save of an untouched layout was refused by
+  `validateLayout`; the flagged run caught it).
+- **`isWidgetEmpty`** (`src/lib/site-builder/emptiness.ts`, pure): the
+  doc's "empty widgets never render publicly", per widget from the resolved
+  data + config — a members-only tile on a private club is never empty (the
+  panel is the content); the hero and the gallery teaser never are. Staff
+  still see the quiet empty lines INSIDE the editor canvas, where they are
+  affordances.
+- **`_components/GridRenderer.tsx`** replaces `SiteHomeBody` (deleted): the
+  public audience only, empty tiles dropped, `compactLayout` closes the
+  ranks, DOM = reading order (`deriveMobileOrder`), placement through
+  `--sb-c/r/w/h` custom properties; the section card, heading and
+  `aria-label` per tile as before; the sr-only h1 without a hero. CSS in
+  `globals.css` under `.org-scope`: mobile-first two columns (full/half spans
+  from the catalog), ≥ 48rem the 12-column grid with `grid-auto-rows:
+  minmax(2.5rem, auto)` — `h` is a MINIMUM, tall content grows its rows.
+  Row and gap agree with the editor (`GRID` = 40px rows, 24px gaps — the
+  gap moved from 16 to 24 to keep today's section rhythm).
+- **P3-B follow-ups found by the flagged run**: the canvas dragged by its
+  title bar but had that bar as the drag *cancel* selector — now the
+  *handle* (`dragConfig.handle: '.sb-frame-controls'`, `.sb-no-drag` for
+  future frame buttons); the editor spec waits for a full autosave cycle
+  (dirty → saved) rather than a "saved" chip the previous cycle left behind.
+- Tests: `projection.test.ts` (classic stack valid + compaction no-op; bold
+  pairs/spans/new rows; reading order; emptiness per widget and flips),
+  `legacy-layout.test.ts` (cumulative stacking, valid).
+- **Six specs re-anchored to the new contracts** (the flagged run found
+  them): where a spec asserted ORDER on the `aria-label` of sections that
+  are empty in its fixture (brand, golf-order, two-pages), it reads the
+  order off the nav strip now (enabled subpage modules in sort_order —
+  `navTexts()`); `template` asserts the bold grid through `data-sb-grid` +
+  half tiles (`--sb-w:6`) instead of `sm:grid-cols-2`; `org-site` asserts
+  the empty sponsors/contact tiles are ABSENT instead of saying so quietly;
+  `register` treats a closed registration as an empty tile that leaves the
+  page (and comes back when a window opens). The editor spec now also
+  publishes and asserts the public tiles follow the arranged order.
+
 ## September 9, 2026 — Site Builder P3-B: the grid editor scaffold — react-grid-layout, the canvas, the draft layout, behind FEATURE_SITE_BUILDER (zero DDL)
 
 The editor exists. Behind the flag, a manager opens

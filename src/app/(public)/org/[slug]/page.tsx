@@ -2,9 +2,9 @@ import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { getCachedSite } from '@/lib/org-sites/cached';
 import { buildOrgJsonLd, safeJsonLd } from '@/lib/org-sites/jsonld';
-import { deriveLegacyLayout } from '@/lib/site-builder/layout';
+import { layoutFromModules } from '@/lib/site-builder/layout';
 import { cachedSiteReaders, resolveHomeData } from '@/lib/org-sites/widget-data';
-import SiteHomeBody from './_components/SiteHomeBody';
+import GridRenderer from './_components/GridRenderer';
 import { siteAbsoluteUrl } from '@/lib/org-sites/urls';
 
 // ── The site home (phase 3 R2; body shared with the draft preview) ─────────
@@ -62,7 +62,9 @@ export default async function OrgSiteHome({ params }: PageParams) {
   const site = await getCachedSite(slug);
   if (!site) notFound();
 
-  const layout = deriveLegacyLayout(site);
+  // P3-C: the published revision's grid, else the template-aware projection
+  // of the module rows (a site nobody has arranged looks as it did).
+  const layout = site.layout ?? layoutFromModules(site);
   const data = await resolveHomeData(cachedSiteReaders(slug, site), site, layout);
 
   return (
@@ -73,7 +75,7 @@ export default async function OrgSiteHome({ params }: PageParams) {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: safeJsonLd(buildOrgJsonLd(site)) }}
       />
-      <SiteHomeBody site={site} layout={layout} data={data} />
+      <GridRenderer site={site} layout={layout} data={data} />
     </>
   );
 }

@@ -452,8 +452,9 @@ test('org site modules: live data on home + subpages; masked roster; team 404s',
       expect(home).toContain(`QA Arena ${stamp}`); // venues
       expect(home).toContain('Rink 1'); // facility
       expect(home).toContain(`QA Affiliated Club ${stamp}`); // affiliations
-      expect(home).toContain('No sponsors yet.'); // empty modules say so quietly
-      expect(home).toContain('No contact details yet.');
+      // P3-C: empty widgets never render publicly (the grid closes ranks).
+      expect(home).not.toContain('aria-label="Sponsors"');
+      expect(home).not.toContain('aria-label="Contact"');
       expect(home).toContain('Full standings →');
       expect(home).toContain('Full schedule →');
 

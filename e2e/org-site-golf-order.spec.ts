@@ -16,6 +16,13 @@ async function readErrorBody(res: { text: () => Promise<string> }): Promise<stri
   return (await res.text()).slice(0, 300);
 }
 
+/** P3-C: empty sections never render publicly, so ORDER is asserted on the
+ *  nav strip (enabled subpage modules in sort_order), not on section labels. */
+function navTexts(html: string): string[] {
+  const nav = html.match(/<nav aria-label="Site navigation"[\s\S]*?<\/nav>/)?.[0] ?? '';
+  return [...nav.matchAll(/<a[^>]*>([\s\S]*?)<\/a>/g)].map(m => m[1].replace(/<[^>]+>/g, '').trim());
+}
+
 test('golf club site: golf order + tagline at creation → reset_order restores → public headings speak golf; classic club unchanged; 375px', async ({
   page,
   request,
@@ -97,9 +104,10 @@ test('golf club site: golf order + tagline at creation → reset_order restores 
         { timeout: 30_000, intervals: [1000, 2000, 3000] }
       )
       .toBe(200);
-    const h2s = [...html.matchAll(/<h2[^>]*>([\s\S]*?)<\/h2>/g)].map(m => m[1].replace(/<[^>]+>/g, '').trim());
-    expect(h2s[0], 'the first section after the hero').toBe('Season standings');
-    expect(h2s.slice(0, 3)).toEqual(['Season standings', 'Leaders', 'Rounds &amp; events']);
+    // P3-C: empty sections never render publicly, so the golf ORDER is read
+    // off the nav strip (enabled subpage modules in sort_order), after Home.
+    const links = navTexts(html);
+    expect(links.slice(1, 4), 'the golf order in the nav').toEqual(['Season standings', 'Leaders', 'Rounds &amp; events']);
     expect(html).toContain(GOLF_TAGLINE.replace(/'/g, '&#x27;'));
     const leaders = await request.get(`/org/${slug}/leaders`);
     expect(leaders.status()).toBe(200);
@@ -108,7 +116,8 @@ test('golf club site: golf order + tagline at creation → reset_order restores 
     // 375px: the golf home has no horizontal overflow.
     await page.setViewportSize({ width: 375, height: 812 });
     await page.goto(`/org/${slug}`);
-    await expect(page.getByRole('heading', { level: 2, name: 'Season standings' })).toBeVisible({ timeout: 20_000 });
+    // P3-C: an empty standings section never renders publicly — the nav link is the landmark.
+    await expect(page.getByRole('link', { name: 'Season standings' })).toBeVisible({ timeout: 20_000 });
     const scrollWidth = await page.evaluate(() => document.documentElement.scrollWidth);
     expect(scrollWidth, 'no horizontal overflow at 375px').toBeLessThanOrEqual(375);
 
