@@ -1,5 +1,41 @@
 # Development Log
 
+## September 9, 2026 — Site Builder P2-C: the console's draft line, Publish changes, History with Restore, live/offline wording (zero DDL; hidden pre-180)
+
+The Website section learns the gate (P2-B). Zero server change.
+
+- **Address block**: the toggle reads **"Take site live" / "Take site
+  offline"** and the status word is `live` / `offline — take it live when
+  you're ready` — two acts, two words: the site's existence (`manage_org`)
+  vs "Publish changes" (the draft's promotion, `manage_site`). **Preview
+  draft** is always available now (the P2-B preview renders the draft in its
+  own shell, live site or not).
+- **The draft line** (`data-site-draft-state="dirty|clean"`, only when the
+  GET says `revisions.supported`): dirty = "Draft has unpublished changes" +
+  an optional "Label this version" input + **Publish changes** + **Discard
+  draft** (ConfirmModal: "Your unpublished changes are thrown away. The live
+  site is not affected."); clean = "Everything is published."
+- **History** (`<details>`): every revision — label or "Untitled" (click to
+  rename inline; Enter/blur saves, Escape cancels), when, by whom (the
+  revisions GET's creator name), `Published` / `Draft` pills, **Restore** on
+  every non-draft row (ConfirmModal: "Your draft is replaced with this
+  version. Nothing goes live until you publish."). All four acts ride
+  `revisionAct` → `POST …/site/revisions` through `act()`, which refreshes —
+  the site view, the draft line and the history re-read together.
+- Sections copy: "Changes save to your draft; publish to make them live."
+- "Dirty" is server-side (`draft.hasUnpublishedChanges`); no `useDirtyClose`
+  here — nothing local is lost, every save already landed in the draft.
+- Specs: `org-site.spec.ts` (the console strings: the offline status, "Take
+  site live", the `live` word) and `club-pending-build.spec.ts` ("Take site
+  live" enabled at 375). `contest-media.spec.ts`'s "Unpublish" is a
+  competition's, untouched.
+- P2-B record: the `org-site*` sweep against the P2-B build (pre-180 — the
+  legacy path, the new shell, the preview route group): 25 passed, 1
+  flag-gated skip.
+
+Owed after Tom runs 180: the 375px pass of the draft block and History
+(hidden pre-180), which P2-D's `org-site-revisions.spec.ts` carries.
+
 ## September 9, 2026 — Site Builder P2-B: the publish gate — edits go to the draft, the preview renders the draft in its own shell, the spec sweep (zero DDL; inert pre-180)
 
 The gate itself. With 180 run, a site's content edits land in the DRAFT and
