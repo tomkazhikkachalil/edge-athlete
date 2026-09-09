@@ -48,3 +48,20 @@ export async function closeWindow(page: Page): Promise<void> {
   await page.keyboard.press('Escape');
   await expect(page.locator('[data-larger-window]')).toHaveCount(0);
 }
+
+/**
+ * Site Builder P1-A (Sep 9 2026): the hero's staff doors (Edit, Share join
+ * link, Public site →, Manage →, Staff & hierarchy →) live behind ONE
+ * "Manage" control — a portaled popover from sm: up, the `hero-actions`
+ * sheet below. Open it and return whichever surface appeared, so a spec
+ * scopes its assertions the same way at every width. `exact: true` because
+ * an open Members window carries a "Make manager" button.
+ */
+export async function openManageMenu(page: Page): Promise<Locator> {
+  const trigger = page.getByRole('button', { name: 'Manage', exact: true });
+  await expect(trigger).toBeVisible({ timeout: 20_000 });
+  await trigger.click();
+  const surface = page.locator('[data-org-manage-menu], [data-larger-window="hero-actions"]');
+  await expect(surface).toBeVisible({ timeout: 15_000 });
+  return surface;
+}

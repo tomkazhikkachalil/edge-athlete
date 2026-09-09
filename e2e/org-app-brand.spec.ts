@@ -2,6 +2,7 @@ import { test, expect, type APIRequestContext, type Page } from '@playwright/tes
 import fs from 'node:fs';
 import path from 'node:path';
 import { adminClient, apiAs, loadQaUser, readErrorBody, resetRateBucket } from './helpers/qa-user';
+import { openManageMenu } from './helpers/org-page';
 
 // Org Pages R2: the in-app club/league page carries the org's brand — logo,
 // hero photo, accent — from the org GET's `brand`, for EVERYONE, published
@@ -115,10 +116,17 @@ test('org page brand: a draft site\'s logo, hero photo and accent render in-app;
     // Owner (the default storage state) at desktop width.
     const hero = await expectBrand(page, seeded.clubId, stamp);
     await expect(page.locator('[data-site-draft]')).toBeVisible();
-    // Draft: no "Public site" door; the manager doors sit in the link row.
+    // Draft: no "Public site" door; the manager doors live behind Manage
+    // (P1-A) — nothing in the open, everything in the popover.
     await expect(page.getByRole('link', { name: 'Public site →' })).toHaveCount(0);
-    await expect(page.getByRole('link', { name: 'Manage club →' })).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Edit club' })).toBeVisible();
+    await expect(page.getByRole('link', { name: 'Manage club →' })).toHaveCount(0);
+    const menu = await openManageMenu(page);
+    await expect(menu.getByRole('link', { name: 'Manage club →' })).toBeVisible();
+    await expect(menu.getByRole('button', { name: 'Edit club' })).toBeVisible();
+    await expect(menu.getByRole('button', { name: 'Share join link' })).toBeVisible();
+    await expect(menu.getByRole('link', { name: 'Public site →' })).toHaveCount(0);
+    await page.keyboard.press('Escape');
+    await expect(menu).toBeHidden();
     await dumpHero(page, hero, 'owner');
 
     // A visitor sees the same brand and no draft pill.
@@ -127,7 +135,7 @@ test('org page brand: a draft site\'s logo, hero photo and accent render in-app;
       const anonPage = await anon.newPage();
       const anonHero = await expectBrand(anonPage, seeded.clubId, stamp);
       await expect(anonPage.locator('[data-site-draft]')).toHaveCount(0);
-      await expect(anonPage.getByRole('button', { name: 'More actions' })).toHaveCount(0);
+      await expect(anonPage.getByRole('button', { name: 'Manage', exact: true })).toHaveCount(0);
       await dumpHero(anonPage, anonHero, 'visitor');
     } finally {
       await anon.close();
@@ -138,7 +146,7 @@ test('org page brand: a draft site\'s logo, hero photo and accent render in-app;
   }
 });
 
-test('@mobile org page brand at phone width: the secondary actions live behind More actions', async ({ page }) => {
+test('@mobile org page brand at phone width: the staff actions live behind Manage', async ({ page }) => {
   test.setTimeout(120_000);
   const stamp = Date.now();
   const ownerApi = await apiAs('state.json');
@@ -146,13 +154,13 @@ test('@mobile org page brand at phone width: the secondary actions live behind M
   try {
     const hero = await expectBrand(page, seeded.clubId, stamp);
     await expect(page.locator('[data-site-draft]')).toBeVisible();
-    // Below sm the link row is gone; the sheet carries the same controls.
+    // Below sm nothing sits in the open; the sheet carries the same rows.
     await expect(page.getByRole('link', { name: 'Manage club →' })).toHaveCount(0);
-    const more = page.getByRole('button', { name: 'More actions' });
+    const more = page.getByRole('button', { name: 'Manage', exact: true });
     await expect(more).toBeVisible();
     await dumpHero(page, hero, 'owner');
     const box = await more.boundingBox();
-    expect(box!.width).toBeGreaterThanOrEqual(40);
+    expect(box!.height).toBeGreaterThanOrEqual(40);
     await more.click();
     const sheet = page.locator('[data-larger-window="hero-actions"]');
     await expect(sheet).toBeVisible();

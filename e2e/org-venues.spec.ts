@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { adminClient, apiAs, loadQaUser, readErrorBody, resetRateBucket } from './helpers/qa-user';
-import { openWindow } from './helpers/org-page';
+import { openManageMenu, openWindow } from './helpers/org-page';
 
 // The golf club page, part 1 (phase 6b A1): org managers own their venues
 // and recognize a catalog golf course on one — the venues.golf_club_id /
@@ -137,11 +137,15 @@ test('org venues: member 403 → owner create → link course → org page shows
     try {
       const page = await ownerCtx.newPage();
       await page.goto(`/club/${clubId}`);
-      await expect(page.getByRole('link', { name: 'Public site →' })).toBeVisible({ timeout: 20_000 });
-      await expect(page.getByRole('link', { name: 'Manage club →' })).toHaveAttribute(
+      // P1-A: an owner's doors live behind Manage (a visitor keeps the
+      // inline "Public site →" link — see org-app-brand).
+      const menu = await openManageMenu(page);
+      await expect(menu.getByRole('link', { name: 'Public site →' })).toBeVisible({ timeout: 20_000 });
+      await expect(menu.getByRole('link', { name: 'Manage club →' })).toHaveAttribute(
         'href',
         `/app/org/club/${clubId}`
       );
+      await page.keyboard.press('Escape');
 
       // Console: the Venues & courses section lists the linked course and
       // stays usable at 375px.
