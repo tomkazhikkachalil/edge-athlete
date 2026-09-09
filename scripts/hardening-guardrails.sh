@@ -62,9 +62,12 @@ fi
 # 4. The (public) segment is anonymous, CDN-cached, and light-only — client
 #    components, request-header APIs, and the Font Awesome sheet are all
 #    architecture regressions there (phase 3; see HARDENING.md B4).
-hits=$(scan "'use client'|from 'next/headers'|@fortawesome" 'src/app/(public)/**/*.ts' 'src/app/(public)/**/*.tsx')
+#    Site Builder (Sep 2026): the widget catalog (src/lib/site-builder) and
+#    the shared widget components (src/components/site-widgets) are imported
+#    INTO the (public) tree, so they live under the same rule.
+hits=$(scan "'use client'|from 'next/headers'|@fortawesome" 'src/app/(public)/**/*.ts' 'src/app/(public)/**/*.tsx' 'src/lib/site-builder/**/*.ts' 'src/components/site-widgets/**/*.ts' 'src/components/site-widgets/**/*.tsx')
 if [ -n "$hits" ]; then
-  bad "'use client'/next-headers/Font Awesome inside src/app/(public)/ (the segment must stay server-only + light):"
+  bad "'use client'/next-headers/Font Awesome inside src/app/(public)/, src/lib/site-builder/ or src/components/site-widgets/ (server-only + light):"
   echo "$hits" | sed 's/^/      /'
 else
   ok "(public) segment stays server-only, header-free, FA-free"

@@ -1,5 +1,64 @@
 # Development Log
 
+## September 9, 2026 — Site Builder P1-B: the widget registry (pure, node-tested, no consumers yet; zero DDL)
+
+Phase 1 of the Site Builder program (see the P1-A entry for the program):
+the closed widget catalog the composition model rests on. Nothing renders
+differently — this PR has no consumers; P1-C (the public home) and P1-D
+(the in-app glance grid) start reading it next.
+
+- **`src/lib/site-builder/catalog.ts`** — ZERO imports, because the in-app
+  org page (a client chunk) will read it: `WEB_WIDGET_KEYS` is a literal
+  copy of validate.ts `MODULE_KEYS` (importing validate.ts would drag 971
+  lines + zod into `/club/[id]`), pinned equal by test. Plus the four
+  app-only keys (week, announcements, activity, posts). Each `WidgetDef`
+  carries family (live | content | structural), `moduleKey` (the ROUTE a
+  widget belongs to — subpage, nav, members-only policy; null for app-only
+  widgets), constraints (`minW/maxW/minH/maxH/defaultSize/mobileSpan`;
+  `defaultSize.w = 12` exactly for the bold template's `FULL_WIDTH_MODULES`,
+  pinned), `surfaces` (default web/app + the app slot: priority, span,
+  bubbleKey, ownsWindow), `subpage` (≡ `MODULE_SUBPAGE_KEYS`, pinned), the
+  home-data fields it consumes, and the staff empty-state line.
+- **One key space with DOM aliases.** The glance grid's bubble keys are an
+  e2e contract, so `schedule → events`, `venues → courses`, `gallery →
+  photos`. Tom's call: the in-app "Courses / Venues" bubble IS the `venues`
+  widget (it reads `/venues` and hosts OrgVenues); the web `courses` widget
+  (the golf catalog's course pages) stays web-only.
+- **`layout.ts`** — `WidgetInstance { id, key, x, y, w, h, cv, config,
+  visibility }`, `SiteLayout`, `GRID = { cols 12, rowPx 40, gapPx 16 }`,
+  and `deriveLegacyLayout(site)`: today's module rows + `hero_config` +
+  `contact_config` → a linear full-width layout (stable sort on
+  `sort_order`, enabled only, `id = legacy:<key>`, `visibility` from
+  `isMembersOnly`). Invariants fixed now because they are expensive later:
+  ids are OPAQUE (two standings tables must be legal JSON); `h` is a
+  MINIMUM height; `cv` + `normalizeLayout()` reserve per-widget config
+  migrations. `needsData(layout, field)` is what the home will gate its
+  readers on. One deliberate divergence from the pre-registry renderer: an
+  unknown module key renders nothing instead of a "Coming soon." section
+  titled with the raw key — unreachable today (the DB CHECK mirrors
+  MODULE_KEYS), recorded here.
+- **`audience.ts`** — `effectiveAudience(site, instance)`: the ONE merge of
+  an instance's `visibility` with the private-club members-only policy.
+- **`app-layout.ts`** — `deriveAppLayout()` from the registry (not a stored
+  composition: an org without a site row still has an in-app page, and
+  Photos shows regardless of the gallery toggle); the recorded priorities
+  reproduce the Sep 9 glance push order EXACTLY — pinned as an 11-slot
+  array. `APP_WINDOW_KEYS` ≡ the e2e helper's ten window keys.
+- **`schemas.ts`** (server/console only — imports zod + validate.ts) —
+  the STORED config shape per widget (hero, sponsors, documents, contact,
+  gallery picks, course photos), loose objects so unknown keys survive, and
+  `parseWidgetConfig` (garbage → `{}`). The plan had these extracted from
+  `SitePatchSchema`; they are written against the render parsers instead
+  and pinned to round-trip their output — additive, `SitePatchSchema`
+  untouched.
+- **Guardrail §4 widened** to `src/lib/site-builder/**` and the future
+  `src/components/site-widgets/**` (they will be imported into the (public)
+  tree). **Floor rule added**: `crypto.randomUUID` is Safari 15.4+ and was
+  not in the denylist; instance ids will use `getRandomValues`.
+- Tests: 4 files / 29 tests (registry pins, the recorded app order, legacy
+  derivation incl. ties/unknown keys/private-club visibility, schemas).
+
+
 ## September 9, 2026 — Site Builder P1-A: the org hero's staff row collapses behind one "Manage" control (zero DDL)
 
 Tom opened the **Site Builder program** today with a design doc that
