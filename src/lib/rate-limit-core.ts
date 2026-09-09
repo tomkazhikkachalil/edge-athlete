@@ -38,6 +38,10 @@ export const RATE_LIMITS = {
   // keystroke plus browse-on-focus, and 30 was hit in normal composing
   // (Tom, Aug 23). Still throttles enumeration to a crawl.
   'course-search': { max: 120, windowSeconds: 60, keyBy: 'ip' },
+  // Site Builder phase 2: publish / discard / restore / label on a site's
+  // draft — a manager's deliberate acts, separate from the `org-site`
+  // content bucket the draft edits already spend.
+  'org-site-revisions': { max: 60, windowSeconds: 3600, keyBy: 'user' },
   // ⌘K + Explore search — anonymous-reachable fan-out over profiles, posts,
   // clubs and courses (search_all, migration 112). Same budget and rationale
   // as course-search: a typing user fires one debounced request per

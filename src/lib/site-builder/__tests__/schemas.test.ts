@@ -67,9 +67,12 @@ describe('widget config schemas (stored shapes)', () => {
   it('gallery picks and course photos', () => {
     expect(GalleryConfigSchema.safeParse({ picks: [{ mediaId: MEDIA, postId: MEDIA, profileId: MEDIA, addedAt: '2026-09-09T00:00:00Z' }], other: true }).success).toBe(true);
     expect(GalleryConfigSchema.safeParse({ picks: [{ mediaId: 'not-a-uuid' }] }).success).toBe(false);
-    expect(CoursesConfigSchema.safeParse({ [COURSE]: { path: IMG, alt: 'The 9th', holes: { 9: { path: IMG } } } }).success).toBe(true);
-    expect(CoursesConfigSchema.safeParse({ [COURSE]: { holes: { 19: { path: IMG } } } }).success).toBe(false);
-    expect(CoursesConfigSchema.safeParse({ 'not-a-course': {} }).success).toBe(false);
+    // As set_course_photo stores it: `{ photos: { [courseId]: … } }`.
+    expect(CoursesConfigSchema.safeParse({ photos: { [COURSE]: { path: IMG, alt: 'The 9th', holes: { 9: { path: IMG } } } } }).success).toBe(true);
+    expect(CoursesConfigSchema.safeParse({ photos: {} }).success).toBe(true);
+    expect(CoursesConfigSchema.safeParse({}).success).toBe(true);
+    expect(CoursesConfigSchema.safeParse({ photos: { [COURSE]: { holes: { 19: { path: IMG } } } } }).success).toBe(false);
+    expect(CoursesConfigSchema.safeParse({ photos: { 'not-a-course': {} } }).success).toBe(false);
   });
 
   it('widgetConfigSchema / parseWidgetConfig: typed keys use their schema, the rest accept any object, garbage becomes {}', () => {

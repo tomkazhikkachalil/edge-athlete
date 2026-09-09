@@ -747,6 +747,24 @@ export const SitePatchSchema = z.union([
 ]);
 export type SitePatchInput = z.infer<typeof SitePatchSchema>;
 
+// ── Revisions (Site Builder phase 2, mig 180) ───────────────────────────────
+// POST /site/revisions is one action union like SitePatchSchema: publish the
+// draft (optional label), discard it, restore an older revision INTO the
+// draft, or (re)label a revision. Labels are ≤60 (the DB CHECK).
+export const REVISION_LABEL_MAX = 60;
+
+export const RevisionActionSchema = z.union([
+  z.object({ action: z.literal('publish'), label: optionalTrimmed(REVISION_LABEL_MAX) }),
+  z.object({ action: z.literal('discard') }),
+  z.object({ action: z.literal('restore'), revisionId: z.uuid() }),
+  z.object({
+    action: z.literal('label'),
+    revisionId: z.uuid(),
+    label: z.string().trim().min(1).max(REVISION_LABEL_MAX).nullable(),
+  }),
+]);
+export type RevisionActionInput = z.infer<typeof RevisionActionSchema>;
+
 /** Public section titles, shared by the site home, the layout nav, and
  *  the module subpages (hero deliberately absent — it has no heading). */
 export const MODULE_TITLES: Record<string, string> = {

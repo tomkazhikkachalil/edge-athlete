@@ -1,5 +1,79 @@
 # Development Log
 
+## September 9, 2026 — Site Builder P2-A: org_site_revisions — the schema, the snapshot library and the revisions API (migration 180; mergeable pre-180)
+
+Phase 2 opens: draft → publish → revisions must exist before anyone drags
+anything on a live site. This round lays the schema and the pure library
+and exposes the revisions API; it changes NO behaviour on a live site — the
+console's PATCH still writes live (P2-B moves it to the draft), and until
+Tom runs the SQL every new surface degrades: the console GET answers
+`revisions: { supported: false }`, the revisions POST a friendly 409.
+
+- **Migration 180** `org_site_revisions` (id, site_id → org_sites CASCADE,
+  `snapshot jsonb`, `rev` — the draft's optimistic-concurrency counter —
+  label ≤60, created_by, created_at, updated_at, `published_at` NULL = the
+  draft, plus `published_by` and `stats jsonb` so phase 8's publish metrics
+  need no further DDL); two pointers on `org_sites`: `draft_revision_id`,
+  `published_revision_id` (ON DELETE SET NULL — deleting a revision can
+  never take a site with it). Posture A like 155 (RLS on, zero policies,
+  REVOKEd). No SQL backfill: the app snapshots a site's rows lazily on the
+  first edit. Check grid at the end.
+- **The one shape decision**: a revision is ONE `snapshot` jsonb = the
+  legacy columns verbatim (`templateId, theme, hero, nav, contact,
+  modules{key → {enabled, sortOrder, config}}`) plus phase 1's `layout`
+  slot. Nothing queries inside a revision; restore is a copy; brand is under
+  the gate (Tom) so it must be inside. **Mirror-on-publish**: publishing
+  writes the snapshot back into `org_sites` + `org_site_modules`, which stay
+  THE PUBLISHED PROJECTION — the six readers that hit the rows directly
+  (the gallery gate, course photos, the in-app brand, member-photos, the
+  venues API, the sitemap's `updated_at`) keep working unchanged, and a
+  drafted gallery pick never streams until published. Logo stays live
+  (`logo-server.ts` deletes the previous object on replace).
+- **`src/lib/site-builder/snapshot.ts`** (pure, node-tested):
+  `snapshotFromRows` / `rowsFromSnapshot` (byte-faithful), `canonicalJson` +
+  `snapshotsEqual` (jsonb drops key order), `diffModuleRows` (publish writes
+  only what changed, per-row, never an upsert), `parseSnapshot` (defensive),
+  `overlaySnapshot`, `selectRevisionsToPrune` (newest 50 published + every
+  labelled, backstop 200, + protected), and **`applySiteAction`** — every
+  `sitePATCH` content branch ported 1:1 (set_module self-heal at
+  `MODULE_KEYS.indexOf`, set_nav `i+1` mirror with unlisted keeping theirs,
+  reset_order sport-aware keeping labels, the hero/theme/contact drop rules,
+  sponsors/documents replace, the N6 course-photo merge, gallery picks
+  pre-evaluated + deduped + capped at 80). The draft path and the pre-180
+  live path will both call it, so they can never disagree.
+- **`src/lib/org-sites/revisions-server.ts`**: `loadSitePointers` (42703 /
+  PGRST204 / 42P01 / PGRST205 → `pre180`), `getOrCreateDraft` (insert, then
+  claim the pointer `WHERE draft_revision_id IS NULL` — zero rows means a
+  concurrent request won: delete ours, use theirs), `writeDraft` (`WHERE rev
+  = $seen`), `applyDraftAction` (draft when supported, today's live write
+  when not — one code path; P2-B wires sitePATCH to it), `publishDraft`
+  (rows ← snapshot → stamp → pointer flip guarded by `WHERE
+  draft_revision_id = $draft` → prune → `revalidateTag`; no draft + no
+  published revision materialises history point #1 from the rows),
+  `discardDraft`, `restoreRevision` (into the draft, never live),
+  `labelRevision`, `revisionsGET` (summaries with creator names by the
+  staff.ts recipe) and `revisionsPOST`.
+- **API** `GET|POST /api/{clubs|leagues}/[id]/site/revisions` (byte-mirrored
+  twins, `requireAuth` in each): POST is one action union
+  (`RevisionActionSchema`: publish {label?} · discard · restore {revisionId}
+  · label {revisionId, label|null}); all `manage_site` — the Website
+  section's staff already write live content today (Tom); taking the site
+  live/offline stays `manage_org` on the site route. New bucket
+  `org-site-revisions` 60/h per user.
+- **`siteGET`** reads the two pointers with one more 42703 step-down and
+  answers `draft: { id, rev, updatedAt, hasUnpublishedChanges } | null`,
+  `publishedRevisionId` and `revisions: { supported }`; `site` / `modules`
+  stay the rows until P2-B routes edits to the draft.
+- **Correction to P1-B**: `CoursesConfigSchema` modelled the course-photo
+  map at the top level; `set_course_photo` stores it under `photos`. Fixed
+  before any consumer existed, test updated.
+- Tests: `snapshot.test.ts` (round-trip, canonical equality, parse,
+  diff, overlay, every action, immutability, retention),
+  `revision-schema.test.ts`; 7 files / 63 tests across site-builder,
+  rate-limit and route-authz.
+
+Next: Tom runs 180 (check grid true×6), then P2-B — the gate.
+
 ## September 9, 2026 — Site Builder P1-D: the in-app glance grid reads the widget registry (zero visual change; zero DDL)
 
 Phase 1 closes: the second surface reads the registry. The org page's
