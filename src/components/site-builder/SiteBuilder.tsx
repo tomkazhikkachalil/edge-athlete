@@ -12,6 +12,8 @@ import { appendWidget, newInstanceFor, newInstanceId, removeWidget, type SiteLay
 import type { WebWidgetKey } from '@/lib/site-builder/catalog';
 import Canvas from './Canvas';
 import Picker from './Picker';
+import PropertiesPanel from './PropertiesPanel';
+import type { WidgetInstance } from '@/lib/site-builder/layout';
 import { useDraft } from './useDraft';
 import { useHistory } from './useHistory';
 
@@ -156,10 +158,29 @@ function Editor({
   // them); a removed widget's data stays — harmless, and Undo needs it.
   const [data, setData] = useState<SiteHomeData>(canvas.data);
   const [pickerOpen, setPickerOpen] = useState(false);
+  // Phase 5: the site view (content) can change under the editor when the
+  // panel saves content — re-read the canvas without touching the layout
+  // history (the layout is the manager's; the content is the org's).
+  const [site, setSite] = useState<PublicSite>(canvas.site);
+  const refreshSite = async () => {
+    try {
+      const res = await fetch(`/api/${plural}/${orgId}/site/canvas`);
+      if (!res.ok) return;
+      const body = (await res.json()) as CanvasBody;
+      setSite(body.site);
+      setData(prev => ({ ...prev, ...body.data }));
+    } catch {
+      /* the panel's toast already said what happened */
+    }
+  };
+  const changeInstance = (next: WidgetInstance) => {
+    history.commit({ ...history.present, widgets: history.present.widgets.map(w => (w.id === next.id ? next : w)) });
+  };
+  const selected = selectedId ? history.present.widgets.find(w => w.id === selectedId) ?? null : null;
 
   const addWidget = (key: WebWidgetKey, resolved: SiteHomeData) => {
     setData(prev => ({ ...prev, ...resolved }));
-    history.commit(appendWidget(history.present, newInstanceFor(canvas.site, key, newInstanceId())));
+    history.commit(appendWidget(history.present, newInstanceFor(site, key, newInstanceId())));
     setPickerOpen(false);
   };
   const removeOne = (id: string) => {
@@ -296,7 +317,7 @@ function Editor({
             <Link href={consoleHref} className="text-sm text-brand-fg hover:text-brand-fg-strong font-medium shrink-0">
               ← Console
             </Link>
-            <span className="text-sm font-semibold text-primary truncate">{canvas.site.orgName} · Site editor</span>
+            <span className="text-sm font-semibold text-primary truncate">{site.orgName} · Site editor</span>
             <span className={`text-xs ${chip.cls}`} data-sb-status={draft.status} data-sb-dirty={draft.dirty ? '1' : '0'}>
               {chip.text}
             </span>
@@ -329,20 +350,38 @@ function Editor({
             <p className="mb-3 text-xs text-tertiary">
               Drag a section to move it; drag its corner to resize. Every section refuses sizes that would look bad. Nothing goes live until you publish.
             </p>
-            <Canvas
-              site={canvas.site}
-              layout={history.present}
-              data={data}
-              selectedId={selectedId}
-              onSelect={setSelectedId}
-              onCommit={history.commit}
-              onRemove={removeOne}
-            />
+            <div className="flex items-start gap-4">
+              <div className="min-w-0 flex-1">
+                <Canvas
+                  site={site}
+                  layout={history.present}
+                  data={data}
+                  selectedId={selectedId}
+                  onSelect={setSelectedId}
+                  onCommit={history.commit}
+                  onRemove={removeOne}
+                />
+              </div>
+              {selected && (
+                <PropertiesPanel
+                  key={selected.id}
+                  site={site}
+                  layout={history.present}
+                  widget={selected}
+                  plural={plural}
+                  orgId={orgId}
+                  onInstanceChange={changeInstance}
+                  onContentSaved={refreshSite}
+                  showError={showError}
+                  showSuccess={showSuccess}
+                />
+              )}
+            </div>
           </div>
         </main>
       </div>
       {pickerOpen && (
-        <Picker site={canvas.site} layout={history.present} plural={plural} orgId={orgId} onAdd={addWidget} onClose={() => setPickerOpen(false)} />
+        <Picker site={site} layout={history.present} plural={plural} orgId={orgId} onAdd={addWidget} onClose={() => setPickerOpen(false)} />
       )}
     </div>
   );

@@ -58,8 +58,7 @@ export interface LegacySiteShape {
 export const LEGACY_ID_PREFIX = 'legacy:';
 
 /** Today's rows → a linear layout: enabled modules in sort_order, each a
- *  full-width row stacked by height, hero and contact reading the site
- *  columns their console forms write to. A key the catalog does not know renders nothing (the one
+ *  full-width row stacked by height. A key the catalog does not know renders nothing (the one
  *  deliberate divergence from the pre-registry renderer, which titled a
  *  section with the raw key — unreachable on the current build because the
  *  DB CHECK mirrors MODULE_KEYS). */
@@ -77,7 +76,6 @@ export function deriveLegacyLayout(site: LegacySiteShape): SiteLayout {
   let nextY = 0;
   const widgets: WidgetInstance[] = ordered.map(m => {
     const key = m.module_key as WidgetKey;
-    const config = key === 'hero' ? site.hero_config : key === 'contact' ? site.contact_config : m.config;
     const h = WIDGETS[key].constraints.defaultSize.h;
     const y = nextY;
     nextY += h;
@@ -89,7 +87,10 @@ export function deriveLegacyLayout(site: LegacySiteShape): SiteLayout {
       w: GRID.cols,
       h,
       cv: 1,
-      config: config ?? {},
+      // Phase 5: an instance holds its OPTIONS only; content (hero_config,
+      // contact_config, the module rows) is read at render through
+      // effectiveConfig so a stored layout can never shadow the org object.
+      config: {},
       visibility: isMembersOnly(site, key) ? 'members' : 'public',
     };
   });
@@ -226,14 +227,11 @@ export function layoutFromModules(site: LegacySiteShape & { template_id: string 
 
 // ── Adding a widget (P3-D) ──────────────────────────────────────────────────
 
-/** A fresh instance of a web widget for THIS site: default size, config
- *  sourced the way deriveLegacyLayout sources it (hero → hero_config,
- *  contact → contact_config, else the module row's config), visibility from
- *  the org's members-only policy. `id` is minted by the caller
+/** A fresh instance of a web widget for THIS site: default size, no
+ *  options yet (content is read from the org objects at render), visibility
+ *  from the org's members-only policy. `id` is minted by the caller
  *  (newInstanceId) so tests can pass a fixed one. */
 export function newInstanceFor(site: LegacySiteShape, key: WidgetKey, id: string): WidgetInstance {
-  const row = site.modules.find(m => m.module_key === key);
-  const config = key === 'hero' ? site.hero_config : key === 'contact' ? site.contact_config : row?.config;
   const c = WIDGETS[key].constraints;
   return {
     id,
@@ -243,7 +241,7 @@ export function newInstanceFor(site: LegacySiteShape, key: WidgetKey, id: string
     w: c.defaultSize.w,
     h: c.defaultSize.h,
     cv: 1,
-    config: config ?? {},
+    config: {},
     visibility: isMembersOnly(site, key) ? 'members' : 'public',
   };
 }

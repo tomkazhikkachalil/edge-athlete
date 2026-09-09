@@ -1,13 +1,12 @@
 import type { CSSProperties } from 'react';
 import type { PublicSite } from '@/lib/org-sites/server';
 import type { SiteHomeData } from '@/lib/org-sites/home-data';
-import { moduleLabel, parseNavConfig } from '@/lib/org-sites/validate';
 import { templateSpec } from '@/lib/org-sites/templates';
 import { WIDGETS } from '@/lib/site-builder/catalog';
 import { compactLayout, deriveMobileOrder, type SiteLayout } from '@/lib/site-builder/layout';
 import { isWidgetEmpty } from '@/lib/site-builder/emptiness';
 import HeroSection from './HeroSection';
-import WidgetBody from './WidgetBody';
+import WidgetBody, { widgetTitle } from './WidgetBody';
 
 // ── The public grid renderer — Site Builder P3-C (Sep 9 2026) ────────────────
 // The composition on the 12-column grid, from the layout the site carries
@@ -32,14 +31,13 @@ import WidgetBody from './WidgetBody';
 const HERO_KEY = 'hero';
 
 export default function GridRenderer({ site, layout, data }: { site: PublicSite; layout: SiteLayout; data: SiteHomeData }) {
-  const nav = parseNavConfig(site.nav_config);
   const spec = templateSpec(site.template_id);
   const compact = spec.density === 'compact';
   const sectionClass = `bg-surface rounded-lg shadow-sm border border-border ${compact ? 'p-3 sm:p-4' : 'p-4 sm:p-6'}`;
   const headingClass = compact ? 'text-sm font-semibold uppercase tracking-wide text-secondary' : 'text-lg font-semibold text-primary';
 
   // Public audience only; empty tiles drop; the grid closes ranks.
-  const visible = compactLayout(layout.widgets.filter(w => w.visibility !== 'staff' && !isWidgetEmpty(w, data)));
+  const visible = compactLayout(layout.widgets.filter(w => w.visibility !== 'staff' && !isWidgetEmpty(w, data, site)));
   const ordered = deriveMobileOrder(visible);
   const hero = ordered.find(w => w.key === HERO_KEY);
 
@@ -59,7 +57,7 @@ export default function GridRenderer({ site, layout, data }: { site: PublicSite;
               </div>
             );
           }
-          const title = moduleLabel(w.key, nav, site.side, site.sportKey);
+          const title = widgetTitle(site, w);
           return (
             <section key={w.id} aria-label={title} className={`sb-w${half} ${sectionClass}`} style={style} data-widget={w.key}>
               <h2 className={headingClass}>{title}</h2>

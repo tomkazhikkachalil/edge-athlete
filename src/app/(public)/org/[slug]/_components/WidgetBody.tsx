@@ -5,6 +5,7 @@ import type { WebWidgetKey } from '@/lib/site-builder/catalog';
 import type { WidgetInstance } from '@/lib/site-builder/layout';
 import { moduleLabel, parseContact, parseDocuments, parseNavConfig, parseSponsors, parseThemeTokens } from '@/lib/org-sites/validate';
 import type { TemplateSpec } from '@/lib/org-sites/templates';
+import { effectiveConfig, instanceTitle } from '@/lib/site-builder/config';
 import { siteBasePath } from '@/lib/org-sites/urls';
 import PublicStandingsTable from '@/components/standings/PublicStandingsTable';
 import AffiliationsList from './AffiliationsList';
@@ -39,13 +40,15 @@ export interface WidgetBodyProps {
   spec: TemplateSpec;
 }
 
-/** The section title for a widget — the nav label override, else the
- *  sport/side-aware module title. */
-export function widgetTitle(site: PublicSite, key: string): string {
-  return moduleLabel(key, parseNavConfig(site.nav_config), site.side, site.sportKey);
+/** The section title for a widget — the INSTANCE's title (phase 5), else
+ *  the nav label override, else the sport/side-aware module title. */
+export function widgetTitle(site: PublicSite, w: WidgetInstance): string {
+  return instanceTitle(w) ?? moduleLabel(w.key, parseNavConfig(site.nav_config), site.side, site.sportKey);
 }
 
 export default function WidgetBody({ site, w, data, spec }: WidgetBodyProps) {
+  // Phase 5: content from the org objects over the instance's options.
+  const config = effectiveConfig(site, w);
   const { standings, events, teams, staff, venues, affiliations, openWindows, courses, divisions, leaders } = data;
   const clubGolfBoards = data.clubGolfBoards ?? [];
   const brandName = parseThemeTokens(site.theme_token_set).wordmark ?? site.orgName;
@@ -100,7 +103,7 @@ export default function WidgetBody({ site, w, data, spec }: WidgetBodyProps) {
         empty('No affiliations yet.')
       );
     case 'sponsors': {
-      const sponsors = parseSponsors(w.config);
+      const sponsors = parseSponsors(config);
       return sponsors.length > 0 ? (
         <SponsorsList sponsors={sponsors} siteId={site.id} />
       ) : (
@@ -168,7 +171,7 @@ export default function WidgetBody({ site, w, data, spec }: WidgetBodyProps) {
         empty('No members yet.')
       );
     case 'documents': {
-      const documents = parseDocuments(w.config);
+      const documents = parseDocuments(config);
       return documents.length > 0 ? (
         <DocumentsList
           documents={documents}
@@ -207,7 +210,7 @@ export default function WidgetBody({ site, w, data, spec }: WidgetBodyProps) {
         </Link>
       );
     case 'contact': {
-      const contact = parseContact(w.config);
+      const contact = parseContact(config);
       return Object.keys(contact).length > 0 ? (
         <ContactCard contact={contact} />
       ) : (

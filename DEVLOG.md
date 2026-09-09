@@ -1,5 +1,61 @@
 # Development Log
 
+## September 9, 2026 — Site Builder phase 5 (P5-A): the properties panel — generated from field descriptors; content stays on the org objects (zero DDL; behind the flag)
+
+Widgets become configurable, and the program's oldest invariant gets its
+enforcement: **nothing authored on the website lives only on the website.**
+
+- **Two kinds of config, two owners** (`src/lib/site-builder/config.ts`).
+  CONTENT stays on the org objects the console already writes — the hero on
+  `hero_config`, the contact card on `contact_config`, sponsors / documents /
+  gallery picks / course photos on their module rows (mirrored on publish).
+  INSTANCE OPTIONS live on the layout instance — how THIS tile presents
+  itself: its title override today (`InstanceOptionsSchema`, title ≤ 60),
+  variants and limits later. `effectiveConfig(site, w)` merges them with
+  content winning, so a stored layout can never carry a stale copy that
+  shadows fresh content. `deriveLegacyLayout` and `newInstanceFor` stop
+  copying content onto instances (`config: {}`); HeroSection, WidgetBody,
+  `isWidgetEmpty` and the picker all read through `effectiveConfig`;
+  `widgetTitle(site, w)` honours the instance title first.
+- **Field descriptors** (`fields.ts`, client-safe, no zod): an explicit
+  `FieldSpec[]` per widget with `scope: 'instance' | 'content'`, PINNED to
+  the zod schemas by test (every content field names a key of its widget's
+  schema; instance fields fit the options schema) — the plan's choice over
+  zod introspection. Hero: headline, tagline, button label + link, notice +
+  until (content → `set_hero`). Contact: email, phone, website, hours,
+  directions (content → `set_contact`). Every other widget: title + who
+  sees it (instance).
+- **`PropertiesPanel.tsx`**: the right pane for the selected tile, rendered
+  from its descriptors — never hand-built per widget. Instance fields
+  commit to the layout (one undo step each, autosaved; the tile's heading
+  updates as you type). Content fields edit the org object through the
+  console's own PATCH action (whole-object replace seeded from the saved
+  content — image, alt, address lines and socials the panel does not show
+  ride along untouched), then the canvas re-reads the site (`refreshSite`:
+  the site view + data, never the layout history). One write, two
+  surfaces: the Website section and the editor cannot disagree.
+- **Server**: `PUT …/site/draft` validates each instance's options with
+  `InstanceOptionsSchema` (loose — a legacy copy survives, harmless under
+  `effectiveConfig`).
+- Tests: `config-fields.test.ts` (content over instance, stale copies lose,
+  title trimming/capping, the descriptor↔schema pin, hero content-only,
+  everyone else title + visibility); the legacy/projection/geometry tests
+  updated to "instances hold options only"; 212 site-builder + org-sites
+  tests green. e2e: the editor spec sets a section title from the panel
+  (heading updates, autosaved), saves a hero headline through the panel
+  (the canvas re-reads it; the console GET sees the same draft), publishes,
+  and finds both on the public page. Two traps the run surfaced: a tile's
+  `onMouseDown` never fires on the drag handle (react-grid-layout owns that
+  pointer), so selection now rides `onDragStart` / `onResizeStart` plus a
+  plain `onClick` on the frame; and the spec must retitle a tile that is
+  never EMPTY (the staff tile — the owner is on it), because "empty never
+  renders" drops a fresh league's standings tile, title and all.
+
+Not yet: list content (sponsors, documents) and media (gallery picks,
+course photos) in the panel — phase 6, when content widgets get their own
+org objects; entity pickers (competition / season) — with the first widget
+that has data-affecting config.
+
 ## September 9, 2026 — Site Builder P3-D: the picker — add and remove sections, tiles that preview the club's own data (zero DDL; behind the flag)
 
 "Now it is a builder." The doc's picker rule — every option previews with

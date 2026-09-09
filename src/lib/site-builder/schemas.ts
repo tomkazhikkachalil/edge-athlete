@@ -153,6 +153,16 @@ export const CoursesConfigSchema = z
   })
   .loose();
 
+/** Phase 5 — the INSTANCE's own options (never content): the title
+ *  override today; variants and limits later. Loose: content keys a legacy
+ *  layout copied onto an instance survive (effectiveConfig lets the org
+ *  object win over them at render). */
+export const InstanceOptionsSchema = z
+  .object({
+    title: z.string().trim().max(60).optional(),
+  })
+  .loose();
+
 /** Widgets with a typed config. Every other widget's config is `{}`. */
 export const WIDGET_CONFIG_SCHEMAS: Partial<Record<WidgetKey, z.ZodType>> = {
   hero: HeroConfigSchema,

@@ -6,6 +6,7 @@ import { deriveLegacyLayout, newInstanceFor, validateLayout, type SiteLayout } f
 import { isWebWidgetKey, type WebWidgetKey } from '@/lib/site-builder/catalog';
 import { isWidgetEmpty } from '@/lib/site-builder/emptiness';
 import { LayoutSchema, parseStoredLayout } from '@/lib/site-builder/layout-schema';
+import { InstanceOptionsSchema } from '@/lib/site-builder/schemas';
 import { overlaySnapshot } from '@/lib/site-builder/snapshot';
 import { getSiteBySlugAnyStatus, type PublicSite } from './server';
 import { loadDraftSnapshot, loadSitePointers, writeDraftLayout } from './revisions-server';
@@ -91,6 +92,11 @@ export async function draftLayoutPUT(
   }
   const layout = parsed.data as SiteLayout;
   const issues = validateLayout(layout);
+  // Phase 5: each instance's OPTIONS (title ≤ 60 …) — content never rides here.
+  for (const w of layout.widgets) {
+    const opts = InstanceOptionsSchema.safeParse(w.config);
+    if (!opts.success) issues.push({ id: w.id, message: `${w.key}: ${opts.error.issues[0]?.message ?? 'invalid options'}` });
+  }
   if (issues.length > 0) return NextResponse.json({ error: 'Invalid layout', issues }, { status: 400 });
   const baseRev = typeof envelope.baseRev === 'number' && Number.isInteger(envelope.baseRev) ? envelope.baseRev : undefined;
   const result = await writeDraftLayout(admin, side, orgId, userId, layout, baseRev);
@@ -128,6 +134,6 @@ export async function widgetDataGET(admin: Admin, side: OrgSide, orgId: string, 
     widgets: keys.map(key => newInstanceFor(view.site, key, `probe:${key}`)),
   };
   const data = await resolveHomeData(rawSiteReaders(admin, view.site), view.site, synthetic);
-  const empty = Object.fromEntries(synthetic.widgets.map(w => [w.key, isWidgetEmpty(w, data)]));
+  const empty = Object.fromEntries(synthetic.widgets.map(w => [w.key, isWidgetEmpty(w, data, view.site)]));
   return NextResponse.json({ data, empty, resolvedAt: new Date().toISOString() }, { headers: { 'Cache-Control': 'private, no-store' } });
 }

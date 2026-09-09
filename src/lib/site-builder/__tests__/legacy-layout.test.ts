@@ -50,19 +50,14 @@ describe('deriveLegacyLayout', () => {
     expect(layout.widgets.map(w => w.key)).toEqual(['hero']);
   });
 
-  it('sources hero and contact config from the site columns, everything else from the row', () => {
+  it('instances carry options only — content stays on the org objects (phase 5)', () => {
     const sponsors = { sponsors: [{ name: 'Acme' }] };
     const layout = deriveLegacyLayout(
       publicSite([row('hero', 1, true, { stale: true }), row('contact', 2, true, { stale: true }), row('sponsors', 3, true, sponsors)])
     );
-    expect(widget(layout, 'hero')?.config).toEqual({ headline: 'Welcome' });
-    expect(widget(layout, 'contact')?.config).toEqual({ email: 'club@example.com' });
-    expect(widget(layout, 'sponsors')?.config).toBe(sponsors);
-  });
-
-  it('a null row config becomes {}', () => {
-    const layout = deriveLegacyLayout(publicSite([row('teams', 1, true, null)]));
-    expect(widget(layout, 'teams')?.config).toEqual({});
+    expect(widget(layout, 'hero')?.config).toEqual({});
+    expect(widget(layout, 'contact')?.config).toEqual({});
+    expect(widget(layout, 'sponsors')?.config).toEqual({});
   });
 
   it('a private club marks the members-only modules; a public one marks nothing', () => {

@@ -46,6 +46,7 @@ describe('layoutFromModules', () => {
 });
 
 describe('isWidgetEmpty', () => {
+  const noContent = { hero_config: {}, contact_config: {}, modules: [] as { module_key: string; config: unknown }[] };
   const w = (key: WidgetInstance['key'], config: unknown = {}, visibility: WidgetInstance['visibility'] = 'public'): WidgetInstance => ({
     id: key, key, x: 0, y: 0, w: 12, h: 2, cv: 1, config, visibility,
   });
@@ -55,21 +56,21 @@ describe('isWidgetEmpty', () => {
   };
   it('every data widget is empty on empty data; hero and gallery never are; members-only tiles never are', () => {
     for (const key of ['standings', 'schedule', 'teams', 'staff', 'venues', 'affiliations', 'sponsors', 'documents', 'contact', 'register', 'courses', 'divisions', 'leaders', 'news', 'members'] as const) {
-      expect(isWidgetEmpty(w(key), empty), key).toBe(true);
+      expect(isWidgetEmpty(w(key), empty, noContent), key).toBe(true);
     }
-    expect(isWidgetEmpty(w('hero'), empty)).toBe(false);
-    expect(isWidgetEmpty(w('gallery'), empty)).toBe(false);
-    expect(isWidgetEmpty(w('standings', {}, 'members'), empty)).toBe(false);
+    expect(isWidgetEmpty(w('hero'), empty, noContent)).toBe(false);
+    expect(isWidgetEmpty(w('gallery'), empty, noContent)).toBe(false);
+    expect(isWidgetEmpty(w('standings', {}, 'members'), empty, noContent)).toBe(false);
   });
   it('content flips a widget non-empty', () => {
-    expect(isWidgetEmpty(w('teams'), { ...empty, teams: ['T'] as never })).toBe(false);
-    expect(isWidgetEmpty(w('schedule'), { ...empty, golfRounds: ['R'] as never })).toBe(false);
-    expect(isWidgetEmpty(w('courses'), { ...empty, courseStrip: { roundsPosted: 2 } as never })).toBe(false);
-    expect(isWidgetEmpty(w('courses'), { ...empty, clubGolfBoards: ['B'] as never })).toBe(false);
-    expect(isWidgetEmpty(w('sponsors', { sponsors: [{ name: 'Acme' }] }), empty)).toBe(false);
-    expect(isWidgetEmpty(w('contact', { email: 'x@example.com' }), empty)).toBe(false);
-    expect(isWidgetEmpty(w('members'), { ...empty, memberStats: { members: [] } as never })).toBe(false);
-    expect(isWidgetEmpty(w('standings'), { ...empty, standings: { competitions: [{ rows: [], golf: null }] } as never })).toBe(true);
-    expect(isWidgetEmpty(w('standings'), { ...empty, standings: { competitions: [{ rows: [1], golf: null }] } as never })).toBe(false);
+    expect(isWidgetEmpty(w('teams'), { ...empty, teams: ['T'] as never }, noContent)).toBe(false);
+    expect(isWidgetEmpty(w('schedule'), { ...empty, golfRounds: ['R'] as never }, noContent)).toBe(false);
+    expect(isWidgetEmpty(w('courses'), { ...empty, courseStrip: { roundsPosted: 2 } as never }, noContent)).toBe(false);
+    expect(isWidgetEmpty(w('courses'), { ...empty, clubGolfBoards: ['B'] as never }, noContent)).toBe(false);
+    expect(isWidgetEmpty(w('sponsors', { sponsors: [{ name: 'Acme' }] }), empty, noContent)).toBe(false);
+    expect(isWidgetEmpty(w('contact', { email: 'x@example.com' }), empty, noContent)).toBe(false);
+    expect(isWidgetEmpty(w('members'), { ...empty, memberStats: { members: [] } as never }, noContent)).toBe(false);
+    expect(isWidgetEmpty(w('standings'), { ...empty, standings: { competitions: [{ rows: [], golf: null }] } as never }, noContent)).toBe(true);
+    expect(isWidgetEmpty(w('standings'), { ...empty, standings: { competitions: [{ rows: [1], golf: null }] } as never }, noContent)).toBe(false);
   });
 });
