@@ -11,6 +11,12 @@ import { publishSite, revisionsSupported } from './helpers/org-site';
 //
 // P9-A drives the DRAFT API; P9-B adds the panel's pickers and drives them.
 
+/** One autosave cycle (the editor spec's helper). */
+async function awaitSaved(page: import('@playwright/test').Page) {
+  await expect(page.locator('[data-sb-dirty="1"]')).toBeVisible({ timeout: 10_000 });
+  await expect(page.locator('[data-sb-dirty="0"][data-sb-status="saved"]')).toBeVisible({ timeout: 15_000 });
+}
+
 test('org site: two standings bound to two competitions, a schedule bound to one venue — the query narrows what renders', async ({ browser }) => {
   test.setTimeout(240_000);
   const owner = loadQaUser('user-b.json');
@@ -117,6 +123,56 @@ test('org site: two standings bound to two competitions, a schedule bound to one
       expect(html).toContain(`At Arena A ${stamp}`);
       expect(html).toContain(`Arena A night ${stamp}`);
       expect(html).not.toContain(`Arena B night ${stamp}`);
+
+      // P9-B — the panel binds it. The picker offers a present query widget
+      // again ("Add another"); the new tile opens its panel at once; the
+      // Competition picker lists the org's competitions; the schedule's Venue
+      // picker + How many rebind the existing tile.
+      const ownerCtx = await browser.newContext({ storageState: 'e2e/.auth/state-b.json', viewport: { width: 1280, height: 900 } });
+      try {
+        const page = await ownerCtx.newPage();
+        await page.goto(`/app/org/league/${leagueId}/site/edit`);
+        await expect(page.locator('[data-sb-canvas]')).toBeVisible({ timeout: 30_000 });
+        const before = await page.locator('[data-sb-instance]').count();
+        await page.getByRole('button', { name: 'Add section' }).click();
+        const tile = page.locator('[data-sb-picker-tile="standings"]');
+        await expect(tile.getByRole('button', { name: 'Add another' })).toBeEnabled({ timeout: 20_000 });
+        await tile.getByRole('button', { name: 'Add another' }).click();
+        await expect(page.locator('[data-sb-instance]')).toHaveCount(before + 1);
+        const panel = page.locator('[data-sb-panel="standings"]');
+        await expect(panel).toBeVisible();
+        const competition = panel.getByLabel('Competition', { exact: true });
+        await expect(competition.locator('option')).toHaveCount(3); // Automatic + the two competitions
+        await competition.selectOption(div1!.id);
+        await panel.getByLabel('Section title').fill(`Div 1 again ${stamp}`);
+        await awaitSaved(page);
+        // The schedule: rebind to Arena B, one row.
+        await page.locator('[data-sb-widget="schedule"] .sb-frame-controls').click();
+        const schedulePanel = page.locator('[data-sb-panel="schedule"]');
+        await expect(schedulePanel).toBeVisible();
+        await schedulePanel.getByLabel('Venue', { exact: true }).selectOption(arenaB!.id);
+        await schedulePanel.getByLabel('How many', { exact: true }).fill('1');
+        await awaitSaved(page);
+        const bound = (await (await ownerApi.get(`/api/leagues/${leagueId}/site/canvas`)).json()) as {
+          layout: { widgets: { key: string; config: { title?: string; query?: { competitionId?: string; venueId?: string; limit?: number } } }[] };
+        };
+        expect(bound.layout.widgets.filter(w => w.key === 'standings')).toHaveLength(3);
+        expect(bound.layout.widgets.find(w => w.config.title === `Div 1 again ${stamp}`)?.config.query).toEqual({ competitionId: div1!.id });
+        expect(bound.layout.widgets.find(w => w.key === 'schedule')?.config.query).toEqual({ venueId: arenaB!.id, limit: 1 });
+      } finally {
+        await ownerCtx.close();
+      }
+      await publishSite(ownerApi, 'league', leagueId);
+      await expect
+        .poll(async () => {
+          html = await (await anon.request.get(`/org/${subdomain}`)).text();
+          return html.includes(`Div 1 again ${stamp}`) && html.includes(`Arena B night ${stamp}`);
+        }, { timeout: 30_000, intervals: [1000, 2000, 3000] })
+        .toBe(true);
+      // Two Div 1 tables (the second bound through the panel), still no Div 2; Arena B's night, not Arena A's.
+      expect(html.match(/data-widget="standings"/g)?.length ?? 0).toBe(2);
+      expect(html).not.toContain(`Div 2 ${stamp}`);
+      expect(html).not.toContain(`Arena A night ${stamp}`);
     } finally {
       await anon.close();
     }

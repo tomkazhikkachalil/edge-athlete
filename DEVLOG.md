@@ -1,5 +1,37 @@
 # Development Log
 
+## September 9, 2026 — Site Builder phase 9 (P9-B): the panel binds it — entity pickers, options on the canvas, "Add another" (zero DDL)
+
+- **Two descriptor kinds, a third scope** (`fields.ts`): `select` (a
+  competition or a venue, from a named `source`, with the empty choice
+  labelled — "Automatic — the first with results", "All venues", "All
+  competitions") and `number` (how many rows, bounded by `QUERY_LIMITS`
+  from `select.ts`, one source for the selector and the form); `scope:
+  'query'` sends the value to `config.query[name]`. Standings → competition;
+  schedule → venue + competition (a golf league's rounds) + how many;
+  leaders → competition; news / teams / members → how many. Pinned to
+  `QuerySchema` by `config-fields.test.ts`.
+- **Option lists ride the canvas response** (`query-options.ts
+  fetchCanvasOptions` → `CanvasResponse.options`): the org's competitions
+  (with season label and status) MIRRORING the filters of the public
+  standings read — the panel never offers what the public page cannot show
+  — and its venues. Editor-only, resolved in parallel with the data, never
+  throws.
+- **The panel** (`PropertiesPanel.tsx`): a "What it shows" fieldset with a
+  `<select>` per picker (a stored id the list no longer offers stays
+  selected and says "No longer public" rather than silently rebinding the
+  tile) and a bounded number input; `patchQuery` keeps ONE nested key and
+  drops it when empty.
+- **The picker** (`Picker.tsx`): a query widget already on the page is
+  listed again with "Add another" (its preview from the canvas's own data —
+  the fetch stays for absent keys only); adding a repeat opens its panel at
+  once, as a content tile does — it needs binding.
+- e2e (`org-site-query-widgets.spec.ts`, UI half): Add section → standings
+  "Add another" → the new tile's panel opens → the Competition picker lists
+  the two competitions → bind to Div 1, title it → autosaved; the schedule
+  tile rebound to Arena B with one row → the canvas GET holds both queries
+  → publish → two Div 1 tables, no Div 2, Arena B's night and not Arena A's.
+
 ## September 9, 2026 — Site Builder phase 9 (P9-A): widgets bound to a query — the model, the selector, the renderer (zero DDL)
 
 "A widget holds a QUERY, never data." The first phase of the next program
