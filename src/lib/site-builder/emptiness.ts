@@ -3,6 +3,7 @@ import { parseContact, parseDocuments, parsePageBody, parseSponsors } from '@/li
 import type { WidgetInstance } from './layout';
 import { effectiveConfig, type ContentSource } from './config';
 import { parseEmbed } from './embeds';
+import { selectForInstance } from './select';
 
 /**
  * "Empty widgets never render publicly" — Site Builder P3-C (Sep 9 2026).
@@ -18,8 +19,11 @@ import { parseEmbed } from './embeds';
  * members-only tile on a private club is NOT empty: its panel is the
  * content. The hero and the gallery teaser are never empty.
  */
-export function isWidgetEmpty(w: WidgetInstance, data: SiteHomeData, site: ContentSource): boolean {
+export function isWidgetEmpty(w: WidgetInstance, raw: SiteHomeData, site: ContentSource): boolean {
   if (w.visibility === 'members') return false;
+  // Phase 9: the instance's query narrows the bag first — a table bound to
+  // a competition with no rows is empty even when another competition has.
+  const data = selectForInstance(w, raw);
   const config = effectiveConfig(site, w);
   switch (w.key) {
     case 'hero':
@@ -54,7 +58,9 @@ export function isWidgetEmpty(w: WidgetInstance, data: SiteHomeData, site: Conte
     case 'divisions':
       return data.divisions.length === 0;
     case 'leaders':
-      return data.leaders.length === 0;
+      // Phase 9: a board with nothing on it (or an unsupported sport) is
+      // empty too — "empty never renders" applied to the rows, not the list.
+      return data.leaders.every(b => b.unsupported || b.stats.every(s => s.rows.length === 0));
     case 'news':
       return (data.news ?? []).length === 0;
     case 'members':

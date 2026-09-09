@@ -156,13 +156,29 @@ export const CoursesConfigSchema = z
   })
   .loose();
 
+/** Phase 9 — an instance's QUERY: which competition / venue this tile shows
+ *  and how many rows. Applied render-side on the org-wide reads
+ *  (select.ts). ONE nested key on purpose: content (the org objects) wins
+ *  over instance options at the top level of effectiveConfig, and no org
+ *  object writes a key named `query`. Loose: a future key (teamId) round-
+ *  trips through PUT draft. */
+export const QUERY_LIMIT_MAX = 50;
+export const QuerySchema = z
+  .object({
+    competitionId: z.uuid().optional(),
+    venueId: z.uuid().optional(),
+    limit: z.number().int().min(1).max(QUERY_LIMIT_MAX).optional(),
+  })
+  .loose();
+
 /** Phase 5 — the INSTANCE's own options (never content): the title
- *  override today; variants and limits later. Loose: content keys a legacy
- *  layout copied onto an instance survive (effectiveConfig lets the org
- *  object win over them at render). */
+ *  override; phase 9: the query. Loose: content keys a legacy layout copied
+ *  onto an instance survive (effectiveConfig lets the org object win over
+ *  them at render). */
 export const InstanceOptionsSchema = z
   .object({
     title: z.string().trim().max(60).optional(),
+    query: QuerySchema.optional(),
   })
   .loose();
 

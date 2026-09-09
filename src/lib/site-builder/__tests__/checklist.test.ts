@@ -69,6 +69,19 @@ describe('siteChecklistInput', () => {
     expect(siteChecklistInput(s, emptyText, EMPTY, false).hasWelcome).toBe(false);
   });
 
+  it('phase 9: a live tile bound to an EMPTY competition is not filled, and is the first empty live tile', () => {
+    const s = site();
+    const layout = seedLayout(s);
+    const standings = { competitions: [{ id: 'a', rows: [{}], golf: null }, { id: 'b', rows: [], golf: null }] } as never;
+    const bound: SiteLayout = { ...layout, widgets: layout.widgets.map(w => (w.key === 'standings' ? { ...w, config: { query: { competitionId: 'b' } } } : w)) };
+    const input = siteChecklistInput(s, bound, { ...EMPTY, standings }, false);
+    expect(input.filled).toBe(false);
+    expect(input.firstEmptyLiveId).toBe('legacy:standings');
+    // Bound to the competition WITH rows: filled.
+    const boundA: SiteLayout = { ...layout, widgets: layout.widgets.map(w => (w.key === 'standings' ? { ...w, config: { query: { competitionId: 'a' } } } : w)) };
+    expect(siteChecklistInput(s, boundA, { ...EMPTY, standings }, false).filled).toBe(true);
+  });
+
   it('no hero on the layout: the hero steps carry no href; nothing empty: no fill href', () => {
     const s = site();
     const layout: SiteLayout = { version: 1, cols: 12, widgets: [place('staff', 0, 0)] };

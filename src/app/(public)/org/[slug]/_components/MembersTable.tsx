@@ -16,12 +16,15 @@ export default function MembersTable({
   stats,
   basePath,
   detailed,
+  limit = 8,
 }: {
   stats: MemberStats;
   basePath: string;
   detailed: boolean;
+  /** Phase 9: how many rows the compact table shows (the instance's query). */
+  limit?: number;
 }) {
-  const rows = detailed ? stats.members : stats.members.slice(0, 8);
+  const rows = detailed ? stats.members : stats.members.slice(0, limit);
   if (rows.length === 0) return <p className="mt-1 text-sm text-tertiary">No members yet.</p>;
   return (
     <div>

@@ -78,6 +78,11 @@ export type ContentWidgetKey = (typeof CONTENT_WIDGET_KEYS)[number];
 export const SITE_WIDGET_KEYS = [...WEB_WIDGET_KEYS, ...CONTENT_WIDGET_KEYS] as const;
 export type SiteWidgetKey = (typeof SITE_WIDGET_KEYS)[number];
 
+/** Phase 9 — module widgets that may repeat, each instance bound to its own
+ *  query (a competition, a venue): standings, schedule, leaders. */
+export const QUERY_WIDGET_KEYS = ['standings', 'schedule', 'leaders'] as const;
+export type QueryWidgetKey = (typeof QUERY_WIDGET_KEYS)[number];
+
 export const WIDGET_KEYS = [...WEB_WIDGET_KEYS, ...CONTENT_WIDGET_KEYS, ...APP_ONLY_WIDGET_KEYS] as const;
 export type WidgetKey = (typeof WIDGET_KEYS)[number];
 
@@ -173,7 +178,8 @@ export interface WidgetDef {
   data: readonly SiteHomeDataKey[];
   emptyState?: WidgetEmptyState;
   /** Phase 6 — may appear any number of times on one layout (content
-   *  widgets); module widgets are one per key. */
+   *  widgets; phase 9: the query widgets too — each instance bound to its
+   *  own competition / venue); every other module widget is one per key. */
   multiple?: true;
   /** Phase 6 — the widget's name in the picker and the panel when no
    *  module label applies (content widgets). */
@@ -228,6 +234,7 @@ export const WIDGETS: Readonly<Record<WidgetKey, WidgetDef>> = {
     constraints: TABLE,
     surfaces: { default: BOTH, app: { priority: 30, size: 'md', bubbleKey: 'standings' } },
     subpage: true,
+    multiple: true,
     data: ['standings'],
     emptyState: { staff: { label: 'Set up a competition →', consoleHash: '#competitions' }, public: 'hide' },
   },
@@ -238,6 +245,7 @@ export const WIDGETS: Readonly<Record<WidgetKey, WidgetDef>> = {
     constraints: HALF,
     surfaces: { default: BOTH, app: { priority: 40, size: 'sm', bubbleKey: 'events' } },
     subpage: true,
+    multiple: true,
     data: ['events', 'golfRounds'],
     emptyState: { staff: { label: 'Add an event →', consoleHash: '#competitions' }, public: 'hide' },
   },
@@ -378,6 +386,7 @@ export const WIDGETS: Readonly<Record<WidgetKey, WidgetDef>> = {
     surfaces: { default: WEB },
     subpage: true,
     data: ['leaders'],
+    multiple: true,
   },
   documents: {
     key: 'documents',

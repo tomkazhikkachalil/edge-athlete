@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { MODULE_KEYS } from '@/lib/org-sites/validate';
-import { CONTENT_WIDGET_KEYS, SITE_WIDGET_KEYS, WEB_WIDGET_KEYS, WIDGETS, isContentWidgetKey, isSiteWidgetKey, isWebWidgetKey } from '../catalog';
+import { CONTENT_WIDGET_KEYS, QUERY_WIDGET_KEYS, SITE_WIDGET_KEYS, WEB_WIDGET_KEYS, WIDGETS, isContentWidgetKey, isSiteWidgetKey, isWebWidgetKey } from '../catalog';
 import { isWidgetEmpty } from '../emptiness';
 import { LayoutSchema, parseStoredLayout } from '../layout-schema';
 import { appendWidget, newInstanceFor, validateLayout, type SiteLayout, type WidgetInstance } from '../layout';
@@ -38,11 +38,13 @@ describe('content widgets — the catalog', () => {
       expect(def.defaultTitle, key).toBeTruthy();
       expect(def.emptyState?.public, key).toBe('hide');
     }
-    // Module widgets are one per key and always head themselves.
+    // Module widgets always head themselves; only the QUERY widgets (phase 9)
+    // may repeat — each instance bound to its own competition / venue.
     for (const key of WEB_WIDGET_KEYS) {
-      expect(WIDGETS[key].multiple, key).toBeUndefined();
+      expect(WIDGETS[key].multiple, key).toBe((QUERY_WIDGET_KEYS as readonly string[]).includes(key) ? true : undefined);
       expect(WIDGETS[key].headingOptional, key).toBeUndefined();
     }
+    expect([...QUERY_WIDGET_KEYS]).toEqual(['standings', 'schedule', 'leaders']);
   });
 
   it('type guards tell the three sets apart', () => {

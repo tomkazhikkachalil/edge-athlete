@@ -48,3 +48,22 @@ export function instanceTitle(w: WidgetInstance): string | null {
   const t = asRecord(w.config).title;
   return typeof t === 'string' && t.trim() ? t.trim().slice(0, INSTANCE_TITLE_MAX) : null;
 }
+
+/** Phase 9 — the instance's query (which competition / venue, how many).
+ *  Read from the INSTANCE only, never through effectiveConfig: a query is
+ *  an option, and content must not be able to shadow it. Defensive: a
+ *  stored config from any build yields only well-formed keys. */
+export interface WidgetQuery {
+  competitionId?: string;
+  venueId?: string;
+  limit?: number;
+}
+
+export function instanceQuery(w: WidgetInstance): WidgetQuery {
+  const q = asRecord(asRecord(w.config).query);
+  const out: WidgetQuery = {};
+  if (typeof q.competitionId === 'string' && q.competitionId) out.competitionId = q.competitionId;
+  if (typeof q.venueId === 'string' && q.venueId) out.venueId = q.venueId;
+  if (typeof q.limit === 'number' && Number.isInteger(q.limit) && q.limit >= 1) out.limit = q.limit;
+  return out;
+}
