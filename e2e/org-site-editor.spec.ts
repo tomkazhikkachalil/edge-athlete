@@ -163,6 +163,36 @@ test('org site editor: canvas → drag → autosave → undo → reload; phone n
       const draftView = (await (await ownerApi.get(`/api/leagues/${leagueId}/site`)).json()) as { site: { hero_config: { headline?: string } } };
       expect(draftView.site.hero_config.headline).toBe(`Hello ${stamp}`);
 
+      // Phase 6: content widgets (text, image, embed) ride the layout INSTANCE,
+      // under the publish gate — appended here through the draft API (P6-B
+      // adds them to the picker and the panel). A cross-site image path is
+      // refused; an embed is a STRUCTURE, never a URL.
+      const before6 = (await (await ownerApi.get(`/api/leagues/${leagueId}/site/canvas`)).json()) as {
+        layout: { version: 1; cols: 12; widgets: { id: string; key: string; x: number; y: number; w: number; h: number; cv: number; config: unknown; visibility: string }[] };
+        draft: { rev: number };
+      };
+      const bottom = Math.max(...before6.layout.widgets.map(w => w.y + w.h));
+      const contentTiles = [
+        { id: 'w_00000000000006a1', key: 'text', x: 0, y: bottom, w: 6, h: 3, cv: 1, visibility: 'public', config: { title: `Notes ${stamp}`, blocks: [{ type: 'paragraph', text: `Welcome paragraph ${stamp}` }] } },
+        { id: 'w_00000000000006a2', key: 'embed', x: 6, y: bottom, w: 6, h: 3, cv: 1, visibility: 'public', config: { embed: { provider: 'youtube', id: 'dQw4w9WgXcQ' } } },
+        // An image with no photo yet: staff see the tile, visitors never do.
+        { id: 'w_00000000000006a3', key: 'image', x: 0, y: bottom + 3, w: 6, h: 4, cv: 1, visibility: 'public', config: {} },
+      ];
+      const foreign = { ...contentTiles[2], config: { path: 'org-media/00000000-0000-4000-8000-000000000000/x.jpg', alt: 'x' } };
+      res = await ownerApi.put(`/api/leagues/${leagueId}/site/draft`, {
+        data: { layout: { ...before6.layout, widgets: [...before6.layout.widgets, contentTiles[0], contentTiles[1], foreign] }, baseRev: before6.draft.rev },
+      });
+      expect(res.status(), await readErrorBody(res)).toBe(400);
+      const urlEmbed = { ...contentTiles[1], config: { embed: 'https://youtu.be/dQw4w9WgXcQ' } };
+      res = await ownerApi.put(`/api/leagues/${leagueId}/site/draft`, {
+        data: { layout: { ...before6.layout, widgets: [...before6.layout.widgets, contentTiles[0], urlEmbed] }, baseRev: before6.draft.rev },
+      });
+      expect(res.status(), await readErrorBody(res)).toBe(400);
+      res = await ownerApi.put(`/api/leagues/${leagueId}/site/draft`, {
+        data: { layout: { ...before6.layout, widgets: [...before6.layout.widgets, ...contentTiles] }, baseRev: before6.draft.rev },
+      });
+      expect(res.status(), await readErrorBody(res)).toBe(200);
+
       // The phone: the notice with working doors, no overflow.
       await page.setViewportSize({ width: 375, height: 812 });
       await expect(page.getByRole('heading', { name: 'The editor needs a bigger screen' })).toBeVisible();
@@ -197,6 +227,17 @@ test('org site editor: canvas → drag → autosave → undo → reload; phone n
       // Phase 5: the instance title and the hero content both reached the public page.
       expect(publicHtml).toContain(`Our ${targetKey} ${stamp}`);
       expect(publicHtml).toContain(`Hello ${stamp}`);
+      // Phase 6: the text widget (its title is the heading, its paragraph the
+      // body) and the embed (the frame src rebuilt on the privacy host) are
+      // live; the photo-less image tile is not there at all.
+      expect(publicHtml).toContain(`Notes ${stamp}`);
+      expect(publicHtml).toContain(`Welcome paragraph ${stamp}`);
+      expect(publicHtml).toContain('https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ');
+      expect(publicHtml).not.toContain('data-widget="image"');
+      // The policy that lets that frame load — on whichever CSP header the build sends.
+      const publicRes = await anon.request.get(`/org/${subdomain}`);
+      const csp = publicRes.headers()['content-security-policy'] ?? publicRes.headers()['content-security-policy-report-only'] ?? '';
+      expect(csp).toContain('frame-src https://www.youtube-nocookie.com https://player.vimeo.com https://www.openstreetmap.org');
 
       // The console door.
       await page.setViewportSize({ width: 1280, height: 900 });

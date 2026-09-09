@@ -4,7 +4,7 @@ import { useState } from 'react';
 import type { PublicSite } from '@/lib/org-sites/server';
 import { fieldsFor, contentActionFor, type FieldSpec } from '@/lib/site-builder/fields';
 import { contentConfigFor, INSTANCE_TITLE_MAX } from '@/lib/site-builder/config';
-import type { WebWidgetKey } from '@/lib/site-builder/catalog';
+import type { SiteWidgetKey } from '@/lib/site-builder/catalog';
 import type { SiteLayout, WidgetInstance, WidgetVisibility } from '@/lib/site-builder/layout';
 import { widgetTitle } from '@/app/(public)/org/[slug]/_components/WidgetBody';
 
@@ -35,7 +35,7 @@ const INPUT = 'w-full rounded-md border border-border-strong bg-surface px-3 py-
 const LABEL = 'block text-xs font-medium text-secondary mb-1';
 
 export default function PropertiesPanel({ site, widget, plural, orgId, onInstanceChange, onContentSaved, showError, showSuccess }: PropertiesPanelProps) {
-  const key = widget.key as WebWidgetKey;
+  const key = widget.key as SiteWidgetKey;
   const fields = fieldsFor(key);
   const instanceFields = fields.filter(f => f.scope === 'instance');
   const contentFields = fields.filter((f): f is Exclude<FieldSpec, { kind: 'visibility' }> => f.scope === 'content');

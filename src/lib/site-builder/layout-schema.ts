@@ -9,7 +9,7 @@
  */
 
 import { z } from 'zod';
-import { WEB_WIDGET_KEYS, isWebWidgetKey } from './catalog';
+import { SITE_WIDGET_KEYS, isSiteWidgetKey } from './catalog';
 import { GRID, type SiteLayout } from './layout';
 
 export const INSTANCE_ID_MAX = 64;
@@ -17,7 +17,8 @@ export const LAYOUT_WIDGETS_MAX = 60;
 
 export const WidgetInstanceSchema = z.object({
   id: z.string().trim().min(1).max(INSTANCE_ID_MAX),
-  key: z.enum(WEB_WIDGET_KEYS),
+  // Module-backed web widgets plus the content widgets (phase 6).
+  key: z.enum(SITE_WIDGET_KEYS),
   x: z.number().int().min(0).max(GRID.cols - 1),
   y: z.number().int().min(0).max(10_000),
   w: z.number().int().min(1).max(GRID.cols),
@@ -41,7 +42,7 @@ export const LayoutSchema = z
 export function parseStoredLayout(raw: unknown): SiteLayout | null {
   const result = LayoutSchema.safeParse(raw);
   if (!result.success) return null;
-  // The enum already guarantees web keys; the guard keeps the type honest.
-  if (!result.data.widgets.every(w => isWebWidgetKey(w.key))) return null;
+  // The enum already guarantees site keys; the guard keeps the type honest.
+  if (!result.data.widgets.every(w => isSiteWidgetKey(w.key))) return null;
   return result.data as SiteLayout;
 }

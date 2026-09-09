@@ -3,6 +3,7 @@ import { MODULE_KEYS, MODULE_SUBPAGE_KEYS, TOGGLEABLE_MODULE_KEYS } from '@/lib/
 import { FULL_WIDTH_MODULES } from '@/lib/org-sites/templates';
 import {
   APP_ONLY_WIDGET_KEYS,
+  CONTENT_WIDGET_KEYS,
   WEB_WIDGET_KEYS,
   WIDGETS,
   WIDGET_KEYS,
@@ -57,6 +58,12 @@ describe('site-builder catalog', () => {
     // The hero is the site's identity: always the full width.
     expect(WIDGETS.hero.constraints.minW).toBe(12);
     expect(WIDGETS.hero.constraints.maxW).toBe(12);
+  });
+
+  it('the keys are three disjoint sets: module-backed web, content (phase 6), app-only', () => {
+    expect([...WIDGET_KEYS]).toEqual([...WEB_WIDGET_KEYS, ...CONTENT_WIDGET_KEYS, ...APP_ONLY_WIDGET_KEYS]);
+    const all = [...WEB_WIDGET_KEYS, ...CONTENT_WIDGET_KEYS, ...APP_ONLY_WIDGET_KEYS];
+    expect(new Set(all).size).toBe(all.length);
   });
 
   it('surfaces: web widgets render on the web, app-only widgets only in the app, and moduleKey links the module', () => {

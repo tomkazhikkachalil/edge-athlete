@@ -30,6 +30,7 @@ import {
   ORG_DOCUMENT_PATH_RE,
   ORG_IMAGE_PATH_RE,
   ORG_MEDIA_PATH_RE,
+  PageBlockSchema,
   httpsUrl,
 } from '@/lib/org-sites/validate';
 import type { WidgetKey } from './catalog';
@@ -162,6 +163,81 @@ export const InstanceOptionsSchema = z
     title: z.string().trim().max(60).optional(),
   })
   .loose();
+
+// ── Content widgets (phase 6) — the INSTANCE carries the content ────────────
+// Text, image and embed have no module row and no org object of their own:
+// what they show rides the layout instance, under the publish gate with the
+// placement (a draft paragraph never goes live before Publish; Restore
+// brings the words back). Each schema is the options schema PLUS the
+// widget's content; `instanceSchemaFor` is what `PUT draft` validates with.
+
+export const TEXT_WIDGET_BLOCKS_MAX = 12;
+export const IMAGE_CAPTION_MAX = 200;
+
+/** The text widget's body: the page block vocabulary (heading, paragraph,
+ *  image, link-list — `parsePageBody` renders it), capped shorter than a
+ *  page so a layout stays a few KB. */
+export const TextWidgetSchema = InstanceOptionsSchema.extend({
+  blocks: z.array(PageBlockSchema).max(TEXT_WIDGET_BLOCKS_MAX).optional(),
+});
+
+/** One photo from the site's own assets (the server re-asserts the site
+ *  prefix — the schema cannot know the site id), with alt, caption, link
+ *  and the intrinsic size measured at upload. */
+export const ImageWidgetSchema = InstanceOptionsSchema.extend({
+  path: z.string().regex(ORG_IMAGE_PATH_RE, 'Not a site image').optional(),
+  alt: z.string().trim().max(HERO_IMAGE_ALT_MAX).optional(),
+  caption: z.string().trim().max(IMAGE_CAPTION_MAX).optional(),
+  href: httpsUrl.optional(),
+  width: z.number().int().positive().max(10000).optional(),
+  height: z.number().int().positive().max(10000).optional(),
+});
+
+const coord = z.number().finite();
+/** The structured embed (embeds.ts parses a pasted link into this; the
+ *  renderer rebuilds the frame src from it — never from a stored URL). */
+export const EmbedSchema = z.discriminatedUnion('provider', [
+  z.object({ provider: z.literal('youtube'), id: z.string().regex(/^[A-Za-z0-9_-]{11}$/) }),
+  z.object({ provider: z.literal('vimeo'), id: z.string().regex(/^[0-9]{6,12}$/) }),
+  z.object({
+    provider: z.literal('osm'),
+    bbox: z.tuple([coord.min(-180).max(180), coord.min(-90).max(90), coord.min(-180).max(180), coord.min(-90).max(90)]),
+    marker: z.tuple([coord.min(-90).max(90), coord.min(-180).max(180)]).optional(),
+  }),
+]);
+
+export const EmbedWidgetSchema = InstanceOptionsSchema.extend({
+  embed: EmbedSchema.optional(),
+});
+
+/** What a layout INSTANCE's config may hold, per widget: options only for
+ *  module widgets (their content lives on the org objects); options plus
+ *  content for the content widgets. */
+export function instanceSchemaFor(key: WidgetKey): z.ZodType {
+  switch (key) {
+    case 'text':
+      return TextWidgetSchema;
+    case 'image':
+      return ImageWidgetSchema;
+    case 'embed':
+      return EmbedWidgetSchema;
+    default:
+      return InstanceOptionsSchema;
+  }
+}
+
+/** The site-asset image paths an instance's (already-parsed) config refers
+ *  to — the server checks each against THIS site's org-media prefix. */
+export function instanceImagePaths(key: WidgetKey, config: unknown): string[] {
+  const c = config && typeof config === 'object' ? (config as Record<string, unknown>) : {};
+  if (key === 'image') return typeof c.path === 'string' ? [c.path] : [];
+  if (key === 'text' && Array.isArray(c.blocks)) {
+    return c.blocks
+      .filter((b): b is { type: 'image'; path: string } => !!b && typeof b === 'object' && (b as { type?: unknown }).type === 'image' && typeof (b as { path?: unknown }).path === 'string')
+      .map(b => b.path);
+  }
+  return [];
+}
 
 /** Widgets with a typed config. Every other widget's config is `{}`. */
 export const WIDGET_CONFIG_SCHEMAS: Partial<Record<WidgetKey, z.ZodType>> = {

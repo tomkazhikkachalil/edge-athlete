@@ -6,7 +6,7 @@ import { WIDGETS } from '@/lib/site-builder/catalog';
 import { compactLayout, deriveMobileOrder, type SiteLayout } from '@/lib/site-builder/layout';
 import { isWidgetEmpty } from '@/lib/site-builder/emptiness';
 import HeroSection from './HeroSection';
-import WidgetBody, { widgetTitle } from './WidgetBody';
+import WidgetBody, { widgetHeading, widgetTitle } from './WidgetBody';
 
 // ── The public grid renderer — Site Builder P3-C (Sep 9 2026) ────────────────
 // The composition on the 12-column grid, from the layout the site carries
@@ -58,9 +58,12 @@ export default function GridRenderer({ site, layout, data }: { site: PublicSite;
             );
           }
           const title = widgetTitle(site, w);
+          // Phase 6: a content widget heads itself only when its instance
+          // sets a title; the aria-label always names the section.
+          const heading = widgetHeading(site, w);
           return (
             <section key={w.id} aria-label={title} className={`sb-w${half} ${sectionClass}`} style={style} data-widget={w.key}>
-              <h2 className={headingClass}>{title}</h2>
+              {heading && <h2 className={headingClass}>{heading}</h2>}
               <WidgetBody site={site} w={w} data={data} spec={spec} />
             </section>
           );
