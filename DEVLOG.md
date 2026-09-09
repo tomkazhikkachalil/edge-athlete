@@ -1,5 +1,62 @@
 # Development Log
 
+## September 8, 2026 — Org Pages Program R2: the in-app org dialect and the media hero (#608)
+
+The second round of the program Tom opened this evening ("take the
+principles from how we polished up the Vitals section and apply them to
+the league and club pages … not enough media integration"). R1 folded the
+twins; R2 gives the shared page its dialect and its first media.
+
+**The dialect.** `.org-app-scope` in `globals.css` — the in-app league/club
+pages speak the same bubble accent as Vitals: the two shadow levels
+re-pointed (never a third), one spring, 24px bubbles. Deliberately NOT
+`.org-scope`, which already exists for the PUBLIC site (light-only, and it
+re-points the whole `--brand` family); the app scope never touches
+`--brand`, so the focus ring, CTA and links stay house violet and
+dark-aware. Both scopes carry `--org-accent` / `--org-accent-strong` with
+one meaning and never nest. The generic half of the `vt-` dialect lifted
+to house names — `.ea-bubble`, `ea-pop-in`, `--ea-spring` — with `.vt-card`
+/ `.vt-pop-in` kept as selector-list aliases for one round (Vitals is
+byte-identical; R3 retires the aliases). `StatBubbleCard` and
+`VitalsOverlay` moved to `src/components/bubbles/` as `BubbleCard` and
+`LargerWindow` (which gains `hostsOwnHeading` for hosted sections that
+render their own `<h2>`, and a `data-larger-window` hook); one-line
+re-export shims keep the vitals imports for this round.
+
+**The brand read.** The org GET gains `brand: OrgBrand | null` — no new
+route. `readSiteBrandRow` (beside `findPublishedSite`, one slightly wider
+select that also feeds the unchanged published-only `site` field) →
+`buildOrgBrand` (pure, tested): logo and hero URLs through the same
+prefix-re-asserting helpers the public site uses, every hex through
+`parseThemeTokens` (the inline-style injection defense), `accent` null when
+the site sets no tokens so a default-themed org keeps the app palette. A
+DRAFT site's brand renders for everyone — Tom's call: the org is live by
+link from creation, and the logo/hero bytes were already anonymous through
+the tokenless streamers, so a list-level hide would have protected
+nothing; managers see a "Site draft" pill instead. The new
+`accent-contrast.ts` derives a readable TEXT tint per theme with no new
+column: a site's accent is validated at write as a fill under white text,
+which says nothing about it as text on the app's surfaces (violet-600 on
+the dark surface is ~2.9:1), so the fill stays the manager's colour and
+the tint mixes toward white on the dark surface (black on the light one)
+in 5% steps until it clears 4.5:1. Node-tested across a matrix of accents
+on both surfaces.
+
+**The hero.** `OrgHero`: the band is the hero photo under an accent scrim,
+else the accent gradient (byte-identical to the old violet strip when no
+accent is set); the logo tile overlaps the band like a profile avatar
+(white on purpose — site logos are designed for the light site); the
+tagline sits under the name; every chip and description string is
+unchanged. Actions: from `sm:` a wrapping pill row + a line of links (the
+same five controls); below `sm` the join control stays and the rest move
+behind one "More actions" button that opens a `LargerWindow` — the bubble
+language's own sheet, not a second pattern (`useIsDesktop`, the chat-dock
+precedent, because the trees differ). Links take `--org-accent-fg` only
+when a site sets an accent. `e2e/org-app-brand.spec.ts` (@mobile) seeds a
+DRAFT club site with a logo, a hero photo and an accent, and asserts the
+streamer URLs, the draft pill, the More sheet at 390 and no overflow, then
+the same page as a visitor (photo shown, no pill). Zero DDL.
+
 ## September 8, 2026 — Org Pages Program R1: the league and club pages fold into one OrgPage (#607)
 
 Tom opened the **Org Pages Program**: *"take the principles from how we

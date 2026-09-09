@@ -610,8 +610,10 @@ body {
   /* Re-pointed, not added: still exactly two elevation levels. */
   --ea-shadow-rest: 0 2px 8px rgb(0 0 0 / 0.05), 0 6px 20px rgb(0 0 0 / 0.05);
   --ea-shadow-raised: 0 4px 12px rgb(0 0 0 / 0.07), 0 12px 32px rgb(0 0 0 / 0.08);
-  /* Gentle overshoot for entrances; presses keep the house scale(0.97). */
-  --vt-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  /* Gentle overshoot for entrances; presses keep the house scale(0.97).
+   * --ea-spring since the Org Pages Program (Sep 8 2026) lifted the generic
+   * half of this dialect to neutral names; .org-app-scope declares the same. */
+  --ea-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 [data-theme="dark"] .vt-scope {
   /* Dark elevation still rides the surface ramp; shadows deepen, stay soft. */
@@ -619,10 +621,43 @@ body {
   --ea-shadow-raised: 0 4px 12px rgb(0 0 0 / 0.45), 0 12px 32px rgb(0 0 0 / 0.5);
 }
 
-/* The bubble card. Background + border are part of the contract (the
- * .ea-surface precedent); 24px is the one in-scale bubble radius — never
- * rounded-3xl, which is unoverridden and silently ALSO 24px. */
-.vt-card {
+/* ── ORG APP DIALECT (".org-app-scope") — Org Pages Program R2 ──────────────
+ * The IN-APP league/club pages speak the same bubble accent as Vitals: the
+ * two shadow levels re-pointed (never a third), one spring, 24px bubbles.
+ * NOT .org-scope (below): that is the PUBLIC site's light-only accent and
+ * re-points the --brand family; this scope never touches --brand — the
+ * app's focus ring, CTA and links stay house violet and dark-aware. Both
+ * scopes carry --org-accent / --org-accent-strong with one meaning (the
+ * org's accent pair, stamped inline from the validated brand payload); the
+ * trees never nest, so there is no precedence question. Shared-class
+ * contract holds: no display/width here. */
+.org-app-scope {
+  --ea-shadow-rest: 0 2px 8px rgb(0 0 0 / 0.05), 0 6px 20px rgb(0 0 0 / 0.05);
+  --ea-shadow-raised: 0 4px 12px rgb(0 0 0 / 0.07), 0 12px 32px rgb(0 0 0 / 0.08);
+  --ea-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --org-accent: #8b5cf6;        /* violet-500 — the pre-R2 hero strip start */
+  --org-accent-strong: #7c3aed; /* violet-600 — its end */
+}
+[data-theme="dark"] .org-app-scope {
+  --ea-shadow-rest: 0 2px 8px rgb(0 0 0 / 0.4), 0 6px 20px rgb(0 0 0 / 0.3);
+  --ea-shadow-raised: 0 4px 12px rgb(0 0 0 / 0.45), 0 12px 32px rgb(0 0 0 / 0.5);
+}
+/* The hero band: the accent pair as a gradient (byte-identical to the old
+ * from-violet-500 to-violet-600 strip when no site accent is set), and the
+ * scrim that keeps white text legible over a hero photo. */
+.org-app-band {
+  background-image: linear-gradient(to right, var(--org-accent), var(--org-accent-strong));
+}
+.org-app-band-scrim {
+  background-image: linear-gradient(to top, rgb(0 0 0 / 0.55) 0%, rgb(0 0 0 / 0.2) 60%, rgb(0 0 0 / 0.05) 100%);
+}
+
+/* The bubble card — .ea-bubble is the house name (Org Pages R2); .vt-card
+ * stays as an alias until R3 retires it. Background + border are part of the
+ * contract (the .ea-surface precedent); 24px is the one in-scale bubble
+ * radius — never rounded-3xl, which is unoverridden and silently ALSO 24px. */
+.vt-card,
+.ea-bubble {
   background-color: var(--color-surface);
   border: 1px solid var(--color-border-subtle);
   border-radius: 1.5rem;
@@ -630,20 +665,24 @@ body {
 }
 
 /* The global :focus-visible ring hardcodes a 4px radius, which reads squared
- * on round shapes. This corrects the ring's shape on vitals pills/cards; it
+ * on round shapes. This corrects the ring's shape on bubble pills/cards; it
  * does NOT restyle the ring (that stays global). */
 .vt-scope .vt-pill:focus-visible { border-radius: 9999px; }
-.vt-scope .vt-card:focus-visible { border-radius: 1.5rem; }
+.vt-scope .vt-card:focus-visible,
+.vt-scope .ea-bubble:focus-visible,
+.org-app-scope .ea-bubble:focus-visible { border-radius: 1.5rem; }
 
 /* Card entrance: rise + settle with a small overshoot. Ends at transform:
  * none and fills backwards only, so no stacking context outlives the entry
  * (the Tailwind v4 transform trap) — chart tooltips and modal backdrops
- * above these cards are unaffected once the animation finishes. */
-@keyframes vt-pop-in {
+ * above these cards are unaffected once the animation finishes. ea-pop-in
+ * is the house name; vt-pop-in stays as an alias until R3. */
+@keyframes ea-pop-in {
   0%   { opacity: 0; transform: translateY(8px) scale(0.96); }
   100% { opacity: 1; transform: none; }
 }
-.vt-pop-in { animation: vt-pop-in 350ms var(--vt-spring, ease-out) backwards; }
+.vt-pop-in,
+.ea-pop-in { animation: ea-pop-in 350ms var(--ea-spring, ease-out) backwards; }
 
 /* House pop, reusable on vitals badges/chips that appear after load. */
 .vt-pop { animation: ea-reaction-pop 180ms ease-out; }

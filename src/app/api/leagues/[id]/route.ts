@@ -12,7 +12,8 @@ import { FEATURE_FLAGS } from '@/lib/features';
 import { deriveOrgSports } from '@/lib/orgs/sports';
 import type { OrgRole } from '@/lib/orgs/authz';
 import { UUID_RE } from '@/lib/golf/course-catalog';
-import { findPublishedSite, revalidateOrgSiteForOrg } from '@/lib/org-sites/revalidate';
+import { readSiteBrandRow, revalidateOrgSiteForOrg } from '@/lib/org-sites/revalidate';
+import { buildOrgBrand } from '@/lib/org-sites/brand';
 import { readOrgAccess } from '@/lib/orgs/access';
 import { viewerJoinRequest } from '@/lib/orgs/join-requests-server';
 
@@ -89,6 +90,7 @@ export async function GET(
     // Program 11: a private league's member list is for members.
     const privateOutsider = access.visibility === 'private' && !viewerRole && viewerId !== league.owner_profile_id;
 
+    const siteRow = await readSiteBrandRow(supabase, 'league', id);
     return NextResponse.json({
       league,
       // R1: the listing state (pending = a listing request is in the queue).
@@ -102,7 +104,10 @@ export async function GET(
       viewerRequestPending: !!(await viewerJoinRequest(supabase, 'league', id, viewerId)),
       // Phase 6b A1: the league page's "Public site" link — published only;
       // pre-155 or draft reads null (link hidden), never an error.
-      site: await findPublishedSite(supabase, 'league', id),
+      site: siteRow?.published_at ? { subdomain: siteRow.subdomain } : null,
+      // Org Pages R2: the in-app brand (logo, hero, accent) — draft or
+      // published, for every viewer (the bytes are already anonymous).
+      brand: buildOrgBrand(siteRow),
       memberCount: count,
       members: privateOutsider ? [] : members,
       viewerRole,

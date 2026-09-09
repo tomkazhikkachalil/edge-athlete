@@ -15,7 +15,8 @@ import { FEATURE_FLAGS } from '@/lib/features';
 import { deriveOrgSports } from '@/lib/orgs/sports';
 import type { OrgRole } from '@/lib/orgs/authz';
 import { UUID_RE } from '@/lib/golf/course-catalog';
-import { findPublishedSite } from '@/lib/org-sites/revalidate';
+import { readSiteBrandRow } from '@/lib/org-sites/revalidate';
+import { buildOrgBrand } from '@/lib/org-sites/brand';
 
 // ── /api/clubs/[id] — the public club read + owner/manager edit ─────────────
 // Mirror of /api/leagues/[id], minus the sport COLUMN (117 decision:
@@ -84,6 +85,7 @@ export async function GET(
     // Phase 9 V4: a private club's member list is for members.
     const privateOutsider = access.visibility === 'private' && !viewerRole && viewerId !== club.owner_profile_id;
 
+    const siteRow = await readSiteBrandRow(supabase, 'club', id);
     return NextResponse.json({
       club,
       // R1: the listing state (pending = a listing request is in the queue).
@@ -99,7 +101,10 @@ export async function GET(
       sports,
       // Phase 6b A1: the club page's "Public site" link — published only;
       // pre-155 or draft reads null (link hidden), never an error.
-      site: await findPublishedSite(supabase, 'club', id),
+      site: siteRow?.published_at ? { subdomain: siteRow.subdomain } : null,
+      // Org Pages R2: the in-app brand (logo, hero, accent) — draft or
+      // published, for every viewer (the bytes are already anonymous).
+      brand: buildOrgBrand(siteRow),
       memberCount: count,
       members: privateOutsider ? [] : members,
       viewerRole,

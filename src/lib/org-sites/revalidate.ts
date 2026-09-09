@@ -12,6 +12,7 @@
 
 import { revalidateTag } from 'next/cache';
 import type { SupabaseClient } from '@supabase/supabase-js';
+import type { SiteBrandRow } from './brand';
 import type { OrgSide } from '@/lib/orgs/authz';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- matches the authz.ts Admin alias; schema-agnostic helper
@@ -37,6 +38,36 @@ export async function findPublishedSite(
     return site?.subdomain ? { subdomain: site.subdomain as string } : null;
   } catch (error) {
     console.warn(`${TAG} org lookup failed:`, error);
+    return null;
+  }
+}
+
+/** The org's site row for the in-app brand (Org Pages R2) — draft OR
+ *  published, the six columns buildOrgBrand needs. Never throws; pre-155
+ *  or no row reads null. One read serves both `site` (published-only, the
+ *  "Public site" link) and `brand` on the org GET. */
+export async function readSiteBrandRow(
+  admin: Admin,
+  side: OrgSide,
+  orgId: string
+): Promise<SiteBrandRow | null> {
+  try {
+    const { data } = await admin
+      .from('org_sites')
+      .select('id, subdomain, logo_path, hero_config, theme_token_set, published_at')
+      .eq(side === 'league' ? 'league_id' : 'club_id', orgId)
+      .maybeSingle();
+    if (!data?.id || !data.subdomain) return null;
+    return {
+      id: data.id as string,
+      subdomain: data.subdomain as string,
+      logo_path: (data.logo_path as string | null) ?? null,
+      hero_config: data.hero_config,
+      theme_token_set: data.theme_token_set,
+      published_at: (data.published_at as string | null) ?? null,
+    };
+  } catch (error) {
+    console.warn(`${TAG} site brand lookup failed:`, error);
     return null;
   }
 }
