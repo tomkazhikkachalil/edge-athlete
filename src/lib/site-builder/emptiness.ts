@@ -1,7 +1,8 @@
 import type { SiteHomeData } from '@/lib/org-sites/home-data';
-import { parseContact, parseDocuments, parseSponsors } from '@/lib/org-sites/validate';
+import { parseContact, parseDocuments, parsePageBody, parseSponsors } from '@/lib/org-sites/validate';
 import type { WidgetInstance } from './layout';
 import { effectiveConfig, type ContentSource } from './config';
+import { parseEmbed } from './embeds';
 
 /**
  * "Empty widgets never render publicly" — Site Builder P3-C (Sep 9 2026).
@@ -58,6 +59,13 @@ export function isWidgetEmpty(w: WidgetInstance, data: SiteHomeData, site: Conte
       return (data.news ?? []).length === 0;
     case 'members':
       return !data.memberStats;
+    // Phase 6 — content widgets: empty until authored (the instance IS the content).
+    case 'text':
+      return parsePageBody(config.blocks).length === 0;
+    case 'image':
+      return typeof config.path !== 'string' || config.path.length === 0;
+    case 'embed':
+      return parseEmbed(config.embed) === null;
     default:
       return false;
   }

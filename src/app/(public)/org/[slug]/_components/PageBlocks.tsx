@@ -10,22 +10,28 @@ import type { PageBlock } from '@/lib/org-sites/validate';
 // images carry client-measured intrinsic dimensions when available
 // (correct aspect reserved before load); 1200×675 is the legacy-block
 // fallback and h-auto w-full still governs the layout width.
+// `headingLevel`: a page's blocks head at h2; inside a home-page section
+// (the text widget, phase 6) the section's own heading is the h2, so the
+// blocks' headings step down to h3.
 export default function PageBlocks({
   blocks,
   siteId,
+  headingLevel = 'h2',
 }: {
   blocks: PageBlock[];
   siteId: string;
+  headingLevel?: 'h2' | 'h3';
 }) {
+  const Heading = headingLevel;
   return (
     <div className="space-y-4">
       {blocks.map((block, i) => {
         switch (block.type) {
           case 'heading':
             return (
-              <h2 key={i} className="text-lg font-semibold text-primary pt-2">
+              <Heading key={i} className={`${headingLevel === 'h3' ? 'text-base' : 'text-lg'} font-semibold text-primary pt-2`}>
                 {block.text}
-              </h2>
+              </Heading>
             );
           case 'paragraph':
             return (

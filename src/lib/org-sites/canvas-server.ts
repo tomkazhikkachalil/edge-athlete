@@ -3,12 +3,13 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import type { OrgSide } from '@/lib/orgs/authz';
 import { FEATURE_FLAGS } from '@/lib/features';
 import { deriveLegacyLayout, newInstanceFor, validateLayout, type SiteLayout } from '@/lib/site-builder/layout';
-import { isWebWidgetKey, type WebWidgetKey } from '@/lib/site-builder/catalog';
+import { isSiteWidgetKey, type SiteWidgetKey } from '@/lib/site-builder/catalog';
 import { isWidgetEmpty } from '@/lib/site-builder/emptiness';
 import { LayoutSchema, parseStoredLayout } from '@/lib/site-builder/layout-schema';
-import { InstanceOptionsSchema } from '@/lib/site-builder/schemas';
+import { instanceImagePaths, instanceSchemaFor } from '@/lib/site-builder/schemas';
 import { overlaySnapshot } from '@/lib/site-builder/snapshot';
 import { getSiteBySlugAnyStatus, type PublicSite } from './server';
+import { ORG_MEDIA_PREFIX } from './pages-server';
 import { loadDraftSnapshot, loadSitePointers, writeDraftLayout } from './revisions-server';
 import { rawSiteReaders, resolveHomeData } from './widget-data';
 import type { SiteHomeData } from './home-data';
@@ -92,10 +93,25 @@ export async function draftLayoutPUT(
   }
   const layout = parsed.data as SiteLayout;
   const issues = validateLayout(layout);
-  // Phase 5: each instance's OPTIONS (title ≤ 60 …) — content never rides here.
+  // Phase 5: each instance's OPTIONS (title ≤ 60 …); phase 6: a content
+  // widget's content too (text blocks, the image, the embed structure).
+  const imagePaths: { id: string; key: string; path: string }[] = [];
   for (const w of layout.widgets) {
-    const opts = InstanceOptionsSchema.safeParse(w.config);
-    if (!opts.success) issues.push({ id: w.id, message: `${w.key}: ${opts.error.issues[0]?.message ?? 'invalid options'}` });
+    const opts = instanceSchemaFor(w.key).safeParse(w.config);
+    if (!opts.success) {
+      issues.push({ id: w.id, message: `${w.key}: ${opts.error.issues[0]?.message ?? 'invalid options'}` });
+      continue;
+    }
+    for (const path of instanceImagePaths(w.key, opts.data)) imagePaths.push({ id: w.id, key: w.key, path });
+  }
+  if (imagePaths.length > 0) {
+    // The cross-site guard (the pages-server precedent): every image an
+    // instance refers to must live under THIS site's asset prefix.
+    const { site } = await loadSitePointers(admin, side, orgId);
+    if (!site) return NextResponse.json({ error: 'Site not found' }, { status: 404 });
+    for (const p of imagePaths) {
+      if (!p.path.startsWith(`${ORG_MEDIA_PREFIX}${site.id}/`)) issues.push({ id: p.id, message: `${p.key}: image is not one of this site’s assets` });
+    }
   }
   if (issues.length > 0) return NextResponse.json({ error: 'Invalid layout', issues }, { status: 400 });
   const baseRev = typeof envelope.baseRev === 'number' && Number.isInteger(envelope.baseRev) ? envelope.baseRev : undefined;
@@ -124,8 +140,8 @@ export async function widgetDataGET(admin: Admin, side: OrgSide, orgId: string, 
   const keys = (keysParam ?? '')
     .split(',')
     .map(k => k.trim())
-    .filter((k): k is WebWidgetKey => isWebWidgetKey(k));
-  if (keys.length === 0 || keys.length > 20) return NextResponse.json({ error: 'keys: 1–20 web widget keys' }, { status: 400 });
+    .filter((k): k is SiteWidgetKey => isSiteWidgetKey(k));
+  if (keys.length === 0 || keys.length > 20) return NextResponse.json({ error: 'keys: 1–20 site widget keys' }, { status: 400 });
   const view = await loadDraftSiteView(admin, side, orgId);
   if (!view) return NextResponse.json({ error: 'Site not found' }, { status: 404 });
   const synthetic: SiteLayout = {

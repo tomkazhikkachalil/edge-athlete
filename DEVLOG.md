@@ -1,5 +1,72 @@
 # Development Log
 
+## September 9, 2026 — Site Builder phase 6 (P6-A): content widgets — text, image, embed on the layout, under the publish gate (zero DDL; behind the flag)
+
+The first tiles with nothing behind them but the manager: a paragraph, a
+photo, a video or a map. Three keys, one rule, and a deliberate deviation
+from the plan.
+
+- **A third key set** (`catalog.ts`): `CONTENT_WIDGET_KEYS = text | image |
+  embed` beside the module-backed web keys (still ≡ `MODULE_KEYS`, pinned)
+  and the app-only keys; `SITE_WIDGET_KEYS` (web + content) is what a layout
+  may hold and what the wire schema's enum accepts. Content widgets have no
+  module (`moduleKey: null` — no route, no nav entry, no module row), are
+  web-only, may appear any number of times (`multiple`), carry a name
+  (`defaultTitle`) and head themselves only when the instance sets a title
+  (`headingOptional` — a paragraph or a photo needs no "Text" above it; the
+  section's aria-label still names it).
+- **The deviation: content rides the INSTANCE, not a new table.** The plan
+  had rich text in a new `org_site_blocks` (mig 181) referenced by id. A
+  block row would have had its own live state: type a paragraph, publish,
+  edit the paragraph — and the edit is live at once while the panel promises
+  "nothing goes live until you publish"; Restore would bring back the
+  placement without the words. The layout already IS an org object (the
+  revision row), rides the draft, publishes, restores and is a few KB. So a
+  text widget's blocks (`PageBlockSchema`, ≤ 12), an image's path/alt/
+  caption/link/size and an embed's structure live on `config`, and phase 6
+  is zero DDL. `effectiveConfig` still lets a module's org object win over
+  its instance — content widgets have no org object, so the instance stands.
+- **Embeds are a structure, never a URL** (`embeds.ts`, pure, client-safe):
+  `parseEmbedUrl` turns a pasted YouTube / Vimeo / OpenStreetMap link into
+  `{ provider, id }` (a map: bbox + marker; share links become a box around
+  the pin), `embedSrc` REBUILDS the frame src on the privacy host
+  (`youtube-nocookie.com`, `player.vimeo.com`, `openstreetmap.org`), and
+  `parseEmbed` makes a stored config from any build render nothing rather
+  than something else. `EMBED_FRAME_HOSTS` is the one list; **`frame-src`
+  in BOTH `buildCsp` and `buildStaticCsp`** reads it (pinned equal by test —
+  before this there was no frame-src and an iframe fell to `default-src
+  'self'`). OpenStreetMap over Google Maps: no key, no consent banner.
+- **Server** (`draftLayoutPUT`): `instanceSchemaFor(key)` validates each
+  instance — options only for module widgets, options + content for content
+  widgets — and every image path an instance refers to (the image widget's
+  photo, a text block's image) is re-asserted against THIS site's
+  `org-media/{siteId}/` prefix (the pages-server precedent; a cross-site
+  reference is a 400). `widget-data?keys=` accepts site keys.
+- **Renderer** (`WidgetBody`): text → `PageBlocks` with its headings stepped
+  to h3 under the section's h2; image → `<figure>` through `orgMediaUrl`
+  with alt, optional caption and https link; embed → a 16:9 lazy iframe
+  with an accessible title. `widgetHeading(site, w)` (null for a content
+  widget without an instance title) drives the public frame; `widgetTitle`
+  falls back to the catalog name for content keys. `isWidgetEmpty`: text
+  until a block parses, image until it has a path, embed until the
+  structure parses — so a half-authored tile never shows publicly.
+- Tests: `embeds.test.ts` (every YouTube link shape, Vimeo, OSM embed +
+  share links, refusals incl. look-alike hosts, src rebuild on the allowed
+  hosts only, defensive parse, CSP frame-src ≡ the host list in both
+  builders), `content-widgets.test.ts` (the third key set's pins, the wire
+  schema accepting content keys twice + constraints, per-instance schemas,
+  `instanceImagePaths`, emptiness). e2e (editor spec, flagged build): a
+  cross-site image path and a URL-shaped embed are refused (400); text +
+  embed + photo-less image appended through the draft API; after publish
+  the public page carries the text's title and paragraph and the
+  `youtube-nocookie.com/embed/…` frame, no image tile, and the CSP header
+  carries the frame-src.
+
+Not in this PR (P6-B): the picker offering Text / Image / Embed (always,
+any number), and the panel's editors — a compact blocks editor, the photo
+upload through `…/site/assets` with client-measured size, the paste-a-link
+embed field — with history coalescing so typing is one undo step.
+
 ## September 9, 2026 — Site Builder phase 5 (P5-A): the properties panel — generated from field descriptors; content stays on the org objects (zero DDL; behind the flag)
 
 Widgets become configurable, and the program's oldest invariant gets its

@@ -13,7 +13,7 @@
  *    action (set_hero, set_contact) — the same write the Website section
  *    makes, so the two surfaces can never disagree.
  */
-import type { WebWidgetKey } from './catalog';
+import type { SiteWidgetKey } from './catalog';
 
 export type FieldSpec =
   | { kind: 'text' | 'textarea' | 'url' | 'email' | 'date'; name: string; label: string; help?: string; max?: number; scope: 'instance' | 'content' }
@@ -44,13 +44,13 @@ export const CONTACT_FIELDS: FieldSpec[] = [
 /** Every non-hero widget gets the instance options; content fields where
  *  the org object has a simple form. Lists (sponsors, documents) and media
  *  (gallery picks, course photos) stay in the console for now (phase 6). */
-export function fieldsFor(key: WebWidgetKey): FieldSpec[] {
+export function fieldsFor(key: SiteWidgetKey): FieldSpec[] {
   if (key === 'hero') return HERO_FIELDS;
   if (key === 'contact') return [TITLE, VISIBILITY, ...CONTACT_FIELDS];
   return [TITLE, VISIBILITY];
 }
 
 /** The content fields' PATCH action, per widget. */
-export function contentActionFor(key: WebWidgetKey): 'set_hero' | 'set_contact' | null {
+export function contentActionFor(key: SiteWidgetKey): 'set_hero' | 'set_contact' | null {
   return key === 'hero' ? 'set_hero' : key === 'contact' ? 'set_contact' : null;
 }

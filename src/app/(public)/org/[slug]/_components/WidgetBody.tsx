@@ -1,11 +1,14 @@
+import Image from 'next/image';
 import Link from 'next/link';
 import type { PublicSite } from '@/lib/org-sites/server';
 import type { SiteHomeData } from '@/lib/org-sites/home-data';
-import type { WebWidgetKey } from '@/lib/site-builder/catalog';
+import { WIDGETS, isWebWidgetKey, type SiteWidgetKey } from '@/lib/site-builder/catalog';
 import type { WidgetInstance } from '@/lib/site-builder/layout';
-import { moduleLabel, parseContact, parseDocuments, parseNavConfig, parseSponsors, parseThemeTokens } from '@/lib/org-sites/validate';
+import { moduleLabel, parseContact, parseDocuments, parseNavConfig, parsePageBody, parseSponsors, parseThemeTokens } from '@/lib/org-sites/validate';
 import type { TemplateSpec } from '@/lib/org-sites/templates';
 import { effectiveConfig, instanceTitle } from '@/lib/site-builder/config';
+import { embedSrc, embedTitle, parseEmbed } from '@/lib/site-builder/embeds';
+import { orgMediaUrl } from '@/lib/media/org-site-media';
 import { siteBasePath } from '@/lib/org-sites/urls';
 import PublicStandingsTable from '@/components/standings/PublicStandingsTable';
 import AffiliationsList from './AffiliationsList';
@@ -18,6 +21,7 @@ import LeadersTable from './LeadersTable';
 import MembersOnlyPanel from './MembersOnlyPanel';
 import MembersTable from './MembersTable';
 import NewsItems from './NewsItems';
+import PageBlocks from './PageBlocks';
 import RegisterCard from './RegisterCard';
 import ScheduleList from './ScheduleList';
 import SponsorsList from './SponsorsList';
@@ -41,9 +45,21 @@ export interface WidgetBodyProps {
 }
 
 /** The section title for a widget — the INSTANCE's title (phase 5), else
- *  the nav label override, else the sport/side-aware module title. */
+ *  the nav label override, else the sport/side-aware module title; a
+ *  content widget (phase 6) has no module, so its catalog name. */
 export function widgetTitle(site: PublicSite, w: WidgetInstance): string {
-  return instanceTitle(w) ?? moduleLabel(w.key, parseNavConfig(site.nav_config), site.side, site.sportKey);
+  const own = instanceTitle(w);
+  if (own) return own;
+  if (isWebWidgetKey(w.key)) return moduleLabel(w.key, parseNavConfig(site.nav_config), site.side, site.sportKey);
+  return WIDGETS[w.key].defaultTitle ?? w.key;
+}
+
+/** The heading the public frame renders — null for a content widget whose
+ *  instance set no title (a paragraph or a photo needs none; the
+ *  aria-label still carries `widgetTitle`). */
+export function widgetHeading(site: PublicSite, w: WidgetInstance): string | null {
+  if (WIDGETS[w.key].headingOptional) return instanceTitle(w);
+  return widgetTitle(site, w);
 }
 
 export default function WidgetBody({ site, w, data, spec }: WidgetBodyProps) {
@@ -53,7 +69,7 @@ export default function WidgetBody({ site, w, data, spec }: WidgetBodyProps) {
   const clubGolfBoards = data.clubGolfBoards ?? [];
   const brandName = parseThemeTokens(site.theme_token_set).wordmark ?? site.orgName;
   const empty = (text: string) => <p className="mt-1 text-sm text-tertiary">{text}</p>;
-  const key = w.key as Exclude<WebWidgetKey, 'hero'>;
+  const key = w.key as Exclude<SiteWidgetKey, 'hero'>;
   // Phase 9 V4: a private club's members-only modules become the panel
   // (the instance's visibility carries isMembersOnly — deriveLegacyLayout).
   if (w.visibility === 'members') return <MembersOnlyPanel site={site} />;
@@ -217,8 +233,63 @@ export default function WidgetBody({ site, w, data, spec }: WidgetBodyProps) {
         empty('No contact details yet.')
       );
     }
+    // ── Content widgets (phase 6): the instance IS the content ──────────────
+    case 'text': {
+      const blocks = parsePageBody(config.blocks);
+      return blocks.length > 0 ? <PageBlocks blocks={blocks} siteId={site.id} headingLevel="h3" /> : empty('Nothing written yet.');
+    }
+    case 'image': {
+      const path = typeof config.path === 'string' ? config.path : '';
+      const src = path ? orgMediaUrl(site.id, path) : null;
+      if (!src) return empty('No photo yet.');
+      const alt = typeof config.alt === 'string' ? config.alt : '';
+      const caption = typeof config.caption === 'string' && config.caption.trim() ? config.caption.trim() : null;
+      const href = typeof config.href === 'string' && /^https:\/\//.test(config.href) ? config.href : null;
+      const img = (
+        <Image
+          src={src}
+          alt={alt}
+          width={typeof config.width === 'number' ? config.width : 1200}
+          height={typeof config.height === 'number' ? config.height : 675}
+          unoptimized
+          className="h-auto w-full rounded-lg"
+        />
+      );
+      return (
+        <figure>
+          {href ? (
+            <a href={href} target="_blank" rel="noopener nofollow">
+              {img}
+              <span className="sr-only"> (opens in a new tab)</span>
+            </a>
+          ) : (
+            img
+          )}
+          {caption && <figcaption className="mt-2 text-xs text-tertiary">{caption}</figcaption>}
+        </figure>
+      );
+    }
+    case 'embed': {
+      // Never a stored URL: the frame src is rebuilt from the parsed
+      // structure against the three providers the CSP frame-src allows.
+      const e = parseEmbed(config.embed);
+      if (!e) return empty('No video or map yet.');
+      return (
+        <div className="aspect-video w-full overflow-hidden rounded-lg bg-surface-sunken" data-embed={e.provider}>
+          <iframe
+            src={embedSrc(e)}
+            title={embedTitle(e)}
+            loading="lazy"
+            allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture; fullscreen"
+            allowFullScreen
+            referrerPolicy="strict-origin-when-cross-origin"
+            className="h-full w-full border-0"
+          />
+        </div>
+      );
+    }
     default:
-      // Every web widget key is handled above; an unknown module key never
+      // Every site widget key is handled above; an unknown module key never
       // reaches here (deriveLegacyLayout drops it).
       return ((k: never) => k)(key);
   }

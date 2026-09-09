@@ -26,9 +26,17 @@
 //   localhost/ws for HMR.
 // * worker-src: no `new Worker` in the codebase (grep-verified Aug 2026) —
 //   deliberately omitted; default-src 'self' governs if one appears.
+// * frame-src (Site Builder phase 6): the embed widget's three providers,
+//   from the one list the renderer builds frame URLs against
+//   (EMBED_FRAME_HOSTS — pinned equal by test). Before it there was no
+//   frame-src and an iframe fell to default-src 'self'.
 // Pure and env-free (dev passed in) so it unit-tests in the node runner.
 
+import { EMBED_FRAME_HOSTS } from '@/lib/site-builder/embeds';
+
 export const CSP_REPORT_PATH = '/api/csp-report';
+
+const FRAME_SRC = `frame-src ${EMBED_FRAME_HOSTS.join(' ')}`;
 
 export function buildCsp(nonce: string, opts?: { dev?: boolean }): string {
   const dev = opts?.dev === true;
@@ -39,6 +47,7 @@ export function buildCsp(nonce: string, opts?: { dev?: boolean }): string {
     `img-src 'self' data: blob: https:`,
     `media-src 'self' blob: https:`,
     `font-src 'self' data:`,
+    FRAME_SRC,
     `connect-src 'self' blob: https://*.supabase.co wss://*.supabase.co https://api.giphy.com https://*.ingest.sentry.io https://*.ingest.us.sentry.io${dev ? ' ws://localhost:* http://localhost:*' : ''}`,
     `frame-ancestors 'none'`,
     `base-uri 'self'`,
@@ -66,6 +75,7 @@ export function buildStaticCsp(opts?: { dev?: boolean }): string {
     `img-src 'self' data: blob: https:`,
     `media-src 'self' blob: https:`,
     `font-src 'self' data:`,
+    FRAME_SRC,
     `connect-src 'self' blob: https://*.supabase.co wss://*.supabase.co https://api.giphy.com https://*.ingest.sentry.io https://*.ingest.us.sentry.io${dev ? ' ws://localhost:* http://localhost:*' : ''}`,
     `frame-ancestors 'none'`,
     `base-uri 'self'`,

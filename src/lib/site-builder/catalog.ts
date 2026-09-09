@@ -29,6 +29,14 @@
  * subpage, a nav entry, the members-only policy on a private club); a
  * WIDGET is a tile on the home composition. `moduleKey` links a widget to
  * the module it belongs to; app-only widgets have none.
+ *
+ * CONTENT WIDGETS (phase 6): text, image, embed — tiles with no module
+ * behind them (no route, no nav entry, no module row): what they show is
+ * authored in the editor and rides the layout INSTANCE, under the publish
+ * gate with everything else (a draft paragraph never goes live before
+ * Publish; Restore brings the words back with the placement). They may
+ * appear any number of times (`multiple`), render no fixed heading unless
+ * the instance sets a title (`headingOptional`), and are web-only.
  */
 
 export type Surface = 'web' | 'app';
@@ -61,7 +69,16 @@ export type WebWidgetKey = (typeof WEB_WIDGET_KEYS)[number];
 export const APP_ONLY_WIDGET_KEYS = ['week', 'announcements', 'activity', 'posts'] as const;
 export type AppOnlyWidgetKey = (typeof APP_ONLY_WIDGET_KEYS)[number];
 
-export const WIDGET_KEYS = [...WEB_WIDGET_KEYS, ...APP_ONLY_WIDGET_KEYS] as const;
+/** Phase 6 — content widgets: authored tiles with no module behind them. */
+export const CONTENT_WIDGET_KEYS = ['text', 'image', 'embed'] as const;
+export type ContentWidgetKey = (typeof CONTENT_WIDGET_KEYS)[number];
+
+/** Every key a SITE layout may hold (the wire schema's enum): the module-
+ *  backed web widgets plus the content widgets. */
+export const SITE_WIDGET_KEYS = [...WEB_WIDGET_KEYS, ...CONTENT_WIDGET_KEYS] as const;
+export type SiteWidgetKey = (typeof SITE_WIDGET_KEYS)[number];
+
+export const WIDGET_KEYS = [...WEB_WIDGET_KEYS, ...CONTENT_WIDGET_KEYS, ...APP_ONLY_WIDGET_KEYS] as const;
 export type WidgetKey = (typeof WIDGET_KEYS)[number];
 
 export function isWidgetKey(value: unknown): value is WidgetKey {
@@ -69,6 +86,12 @@ export function isWidgetKey(value: unknown): value is WidgetKey {
 }
 export function isWebWidgetKey(value: unknown): value is WebWidgetKey {
   return typeof value === 'string' && (WEB_WIDGET_KEYS as readonly string[]).includes(value);
+}
+export function isContentWidgetKey(value: unknown): value is ContentWidgetKey {
+  return typeof value === 'string' && (CONTENT_WIDGET_KEYS as readonly string[]).includes(value);
+}
+export function isSiteWidgetKey(value: unknown): value is SiteWidgetKey {
+  return typeof value === 'string' && (SITE_WIDGET_KEYS as readonly string[]).includes(value);
 }
 
 /** The in-app bubble keys — the DOM / e2e identity of an app slot. */
@@ -149,6 +172,15 @@ export interface WidgetDef {
   subpage: boolean;
   data: readonly SiteHomeDataKey[];
   emptyState?: WidgetEmptyState;
+  /** Phase 6 — may appear any number of times on one layout (content
+   *  widgets); module widgets are one per key. */
+  multiple?: true;
+  /** Phase 6 — the widget's name in the picker and the panel when no
+   *  module label applies (content widgets). */
+  defaultTitle?: string;
+  /** Phase 6 — the public frame renders a heading only when the INSTANCE
+   *  sets a title (a paragraph or a photo needs none). */
+  headingOptional?: true;
 }
 
 const FULL: WidgetConstraints = { minW: 6, maxW: 12, minH: 2, maxH: 12, defaultSize: { w: 12, h: 4 }, mobileSpan: 2 };
@@ -355,6 +387,46 @@ export const WIDGETS: Readonly<Record<WidgetKey, WidgetDef>> = {
     surfaces: { default: WEB },
     subpage: true,
     data: [],
+  },
+  // ── Content widgets (phase 6) — authored on the instance, under the gate ──
+  text: {
+    key: 'text',
+    family: 'content',
+    moduleKey: null,
+    constraints: { minW: 4, maxW: 12, minH: 1, maxH: 20, defaultSize: { w: 6, h: 3 }, mobileSpan: 2 },
+    surfaces: { default: WEB },
+    subpage: false,
+    data: [],
+    multiple: true,
+    defaultTitle: 'Text',
+    headingOptional: true,
+    emptyState: { staff: { label: 'Write something →' }, public: 'hide' },
+  },
+  image: {
+    key: 'image',
+    family: 'content',
+    moduleKey: null,
+    constraints: { minW: 3, maxW: 12, minH: 2, maxH: 20, defaultSize: { w: 6, h: 4 }, mobileSpan: 2 },
+    surfaces: { default: WEB },
+    subpage: false,
+    data: [],
+    multiple: true,
+    defaultTitle: 'Image',
+    headingOptional: true,
+    emptyState: { staff: { label: 'Add a photo →' }, public: 'hide' },
+  },
+  embed: {
+    key: 'embed',
+    family: 'content',
+    moduleKey: null,
+    constraints: { minW: 6, maxW: 12, minH: 3, maxH: 20, defaultSize: { w: 12, h: 6 }, mobileSpan: 2 },
+    surfaces: { default: WEB },
+    subpage: false,
+    data: [],
+    multiple: true,
+    defaultTitle: 'Embed',
+    headingOptional: true,
+    emptyState: { staff: { label: 'Paste a YouTube, Vimeo or OpenStreetMap link →' }, public: 'hide' },
   },
 };
 
