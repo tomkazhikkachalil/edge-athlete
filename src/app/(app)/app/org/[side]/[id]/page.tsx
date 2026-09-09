@@ -308,7 +308,17 @@ export default function OrgConsolePage() {
   const [siteDraft, setSiteDraft] = useState<{ id: string; rev: number; updatedAt: string; hasUnpublishedChanges: boolean } | null>(null);
   const [revisionsSupported, setRevisionsSupported] = useState(false);
   const [revisions, setRevisions] = useState<
-    { id: string; label: string | null; createdAt: string; publishedAt: string | null; createdBy: { id: string; name: string } | null; isPublished: boolean; isDraft: boolean }[]
+    {
+      id: string;
+      label: string | null;
+      createdAt: string;
+      publishedAt: string | null;
+      createdBy: { id: string; name: string } | null;
+      isPublished: boolean;
+      isDraft: boolean;
+      /** Site Builder phase 8: what the publish changed (null before phase 8 / for the draft). */
+      stats?: { widgetsTouched: number; added: string[]; removed: string[] } | null;
+    }[]
   >([]);
   const [revisionLabel, setRevisionLabel] = useState('');
   const [renamingRevision, setRenamingRevision] = useState<{ id: string; value: string } | null>(null);
@@ -3428,6 +3438,10 @@ export default function OrgConsolePage() {
                             <span className="text-xs text-tertiary">
                               {new Date(r.createdAt).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })}
                               {r.createdBy ? ` · ${r.createdBy.name}` : ''}
+                              {/* Phase 8: what this publish changed on the page. */}
+                              {r.stats && (r.stats.widgetsTouched > 0 || r.stats.added.length > 0 || r.stats.removed.length > 0)
+                                ? ` · ${r.stats.widgetsTouched} section${r.stats.widgetsTouched === 1 ? '' : 's'} changed${r.stats.added.length ? `, ${r.stats.added.length} added` : ''}${r.stats.removed.length ? `, ${r.stats.removed.length} removed` : ''}`
+                                : ''}
                             </span>
                             {r.isPublished && (
                               <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700">Published</span>

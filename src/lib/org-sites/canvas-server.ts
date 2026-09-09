@@ -41,8 +41,10 @@ type Admin = SupabaseClient<any, 'public', any>;
 export interface CanvasResponse {
   site: PublicSite;
   layout: SiteLayout;
-  /** null = no draft yet (the layout is the linear projection); the first PUT creates it. */
+  /** null = no draft yet (the layout is the published one, else the seed); the first PUT creates it. */
   draft: { id: string; rev: number; hasUnpublishedChanges: boolean } | null;
+  /** Phase 8: is the site live (org_sites.published_at)? The checklist's last step. */
+  published: boolean;
   data: SiteHomeData;
   resolvedAt: string;
 }
@@ -55,7 +57,7 @@ async function loadDraftSiteView(
   admin: Admin,
   side: OrgSide,
   orgId: string
-): Promise<{ site: PublicSite; layout: SiteLayout; draft: CanvasResponse['draft'] } | null> {
+): Promise<{ site: PublicSite; layout: SiteLayout; draft: CanvasResponse['draft']; published: boolean } | null> {
   const { site: pointers } = await loadSitePointers(admin, side, orgId);
   if (!pointers) return null;
   const base = await getSiteBySlugAnyStatus(admin, pointers.subdomain);
@@ -70,6 +72,7 @@ async function loadDraftSiteView(
     // next drag saved a layout that had lost the arrangement); else the seed.
     layout: stored ?? base.layout ?? seedLayout(view),
     draft: state ? { id: state.summary.id, rev: state.summary.rev, hasUnpublishedChanges: state.summary.hasUnpublishedChanges } : null,
+    published: !!pointers.published_at,
   };
 }
 
@@ -78,7 +81,7 @@ export async function canvasGET(admin: Admin, side: OrgSide, orgId: string): Pro
   const view = await loadDraftSiteView(admin, side, orgId);
   if (!view) return NextResponse.json({ error: 'Site not found' }, { status: 404 });
   const data = await resolveHomeData(rawSiteReaders(admin, view.site), view.site, view.layout);
-  const body: CanvasResponse = { site: view.site, layout: view.layout, draft: view.draft, data, resolvedAt: new Date().toISOString() };
+  const body: CanvasResponse = { site: view.site, layout: view.layout, draft: view.draft, published: view.published, data, resolvedAt: new Date().toISOString() };
   return NextResponse.json(body, { headers: { 'Cache-Control': 'private, no-store' } });
 }
 

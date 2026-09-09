@@ -14,6 +14,9 @@ import Canvas from './Canvas';
 import Picker from './Picker';
 import PropertiesPanel from './PropertiesPanel';
 import ThemePanel, { themeDraftFrom, type ThemeDraft } from './ThemePanel';
+import ChecklistRail from './ChecklistRail';
+import { buildSiteChecklistSteps, siteChecklistInput } from '@/lib/site-builder/checklist';
+import type { ChecklistStep } from '@/lib/orgs/checklist';
 import type { WidgetInstance } from '@/lib/site-builder/layout';
 import { useDraft } from './useDraft';
 import { useHistory } from './useHistory';
@@ -36,6 +39,8 @@ interface CanvasBody {
   site: PublicSite;
   layout: SiteLayout;
   draft: { id: string; rev: number; hasUnpublishedChanges: boolean } | null;
+  /** Phase 8: is the site live? */
+  published?: boolean;
   data: SiteHomeData;
 }
 
@@ -252,6 +257,25 @@ function Editor({
     }
   };
 
+  // P8-B: the checklist, derived from what the editor holds — no fetch of
+  // its own; a step's href names what completes it.
+  const [published, setPublished] = useState<boolean>(canvas.published === true);
+  const steps = buildSiteChecklistSteps(siteChecklistInput(site, history.present, data, published));
+  const onStep = (step: ChecklistStep) => {
+    const href = step.href ?? '';
+    if (href === '#theme') {
+      setSelectedId(null);
+      setThemeDraft(themeDraftFrom(site));
+    } else if (href === '#picker') {
+      setPickerOpen(true);
+    } else if (href === '#publish') {
+      void publish();
+    } else if (href.startsWith('#w=')) {
+      setThemeDraft(null);
+      setSelectedId(href.slice(3));
+    }
+  };
+
   const publish = async () => {
     if (draft.dirty || draft.status === 'saving') {
       showError('Website', 'Wait for the draft to finish saving, then publish.');
@@ -270,6 +294,7 @@ function Editor({
         return;
       }
       showSuccess('Website', 'Changes published');
+      setPublished(true);
       onReload();
     } catch {
       showError('Website', 'Could not publish the changes');
@@ -371,6 +396,7 @@ function Editor({
         </header>
         <main className="flex-1 px-4 py-6">
           <div className="mx-auto max-w-5xl">
+            <ChecklistRail steps={steps} onStep={onStep} />
             <p className="mb-3 text-xs text-tertiary">
               Drag a section to move it; drag its corner to resize. Every section refuses sizes that would look bad. Nothing goes live until you publish.
             </p>
