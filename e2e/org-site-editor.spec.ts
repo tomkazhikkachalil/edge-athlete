@@ -70,6 +70,23 @@ test('org site editor: canvas → drag → autosave → undo → reload; phone n
       await expect(page.locator('[data-sb-widget="hero"]')).toContainText(`QA Editor League ${stamp}`);
       await expect(page.getByRole('button', { name: 'Undo' })).toBeDisabled();
 
+      // Phase 8 (P8-B): the checklist rail — derived: this site is already live
+      // (published above) and its staff tile has the owner, so publish + fill
+      // are done and the other four are not; a step opens what completes it
+      // (the colours step → the theme panel).
+      const rail = page.locator('[data-sb-checklist]');
+      await expect(rail).toBeVisible();
+      await expect(rail).toHaveAttribute('data-sb-checklist-done', '2');
+      await expect(rail.locator('[data-sb-checklist-step="publish"]')).toHaveAttribute('data-done', '1');
+      await expect(rail.locator('[data-sb-checklist-step="fill"]')).toHaveAttribute('data-done', '1');
+      for (const key of ['colours', 'photo', 'welcome', 'arrange']) {
+        await expect(rail.locator(`[data-sb-checklist-step="${key}"]`)).toHaveAttribute('data-done', '0');
+      }
+      await rail.locator('[data-sb-checklist-step="colours"]').click();
+      await expect(page.locator('[data-sb-theme-panel]')).toBeVisible();
+      await page.getByRole('button', { name: 'Close theme panel' }).click();
+      await expect(page.locator('[data-sb-theme-panel]')).toBeHidden();
+
       // Drag the second tile down by two rows: one gesture, one undo step, one autosave.
       const second = tiles.nth(1);
       const handle = second.locator('.sb-frame-controls');
@@ -81,6 +98,8 @@ test('org site editor: canvas → drag → autosave → undo → reload; phone n
       await page.mouse.up();
       await expect(page.getByRole('button', { name: 'Undo' })).toBeEnabled({ timeout: 10_000 });
       await awaitSaved(page);
+      // The drag arranged the page: that step is done.
+      await expect(rail.locator('[data-sb-checklist-step="arrange"]')).toHaveAttribute('data-done', '1');
 
       // The draft stores the layout (rev bumped, layout present) — and the
       // draft is dirty against the published rows.
@@ -277,6 +296,9 @@ test('org site editor: canvas → drag → autosave → undo → reload; phone n
       const savedTheme = (await (await ownerApi.get(`/api/leagues/${leagueId}/site`)).json()) as { site: { theme_token_set: Record<string, unknown> } };
       expect(savedTheme.site.theme_token_set).toMatchObject({ accent: '#0f766e', typeface: 'lora', header: 'bar', hero: 'bleed', density: 'compact' });
       expect(savedTheme.site.theme_token_set.accentStrong).toBeUndefined();
+      // The colours step is done once the theme is saved; the welcome step was done by the hero headline.
+      await expect(rail.locator('[data-sb-checklist-step="colours"]')).toHaveAttribute('data-done', '1');
+      await expect(rail.locator('[data-sb-checklist-step="welcome"]')).toHaveAttribute('data-done', '1');
       // The canvas wears the saved theme (and a later layout autosave still carries the bumped rev).
       await expect(page.locator('[data-sb-canvas][data-typeface="lora"]')).toBeVisible();
       expect(await canvasEl.evaluate(el => getComputedStyle(el).getPropertyValue('--org-accent').trim())).toBe('#0f766e');

@@ -1,5 +1,41 @@
 # Development Log
 
+## September 9, 2026 — Site Builder phase 8 (P8-B): the site checklist in the editor; History says what a publish changed (zero DDL; behind the flag)
+
+- **Six derived steps** (`src/lib/site-builder/checklist.ts`, the console's
+  `ChecklistStep` shape): pick your colours (an accent token), add a
+  welcome photo (the hero image), write a welcome (a headline, or a Text
+  section with words in it), arrange your sections (the layout differs
+  from its seed, or holds a content tile), fill a live section (optional —
+  the console's work; any live widget non-empty), publish. Every input is
+  computed from what the editor already holds — the site, the layout, the
+  resolved data, and a `published` flag the canvas response now carries —
+  no table, no fetch. Each step's `href` names what completes it: `#theme`
+  opens the theme panel, `#picker` the add-section picker, `#publish`
+  publishes, `#w=<id>` selects the tile (the hero for photo/welcome, the
+  first empty live tile for fill).
+- **`ChecklistRail.tsx`**: one strip above the canvas, "Get your site
+  ready · n/6", steps as chips — done ones ticked, open ones buttons.
+  Derived, so nothing to dismiss and nothing stored: it is gone once every
+  required step is done and back the moment one is undone.
+- **History says what changed**: the console's version list appends "· 3
+  sections changed, 1 added" from the revision's `stats` (P8-A); a
+  revision without stats (pre-phase-8, the draft) says nothing extra.
+- Tests: `checklist.test.ts` (a fresh site names the hero and the first
+  empty live tile; each step flips on its own evidence; a moved tile or a
+  content tile counts as arranged, a non-empty text tile as a welcome; no
+  hero / nothing empty → no href; the optional step never gates "all
+  done"). e2e (editor spec): the rail shows 0/6 on a fresh site, the
+  colours step opens the theme panel, the drag ticks "arrange", the theme
+  save ticks "colours" and the hero headline ticked "welcome".
+
+**Site Builder phases 1–8 are now built** (phase 4 was folded into 3 and 5
+as the program went). What remains from the plan is the P3 leftover
+(several instances of a module widget — the wire format already allows it)
+and the rollout: the flag on in prod, a real branded club through the
+editor on a device, and the doc's one-hour measurement read from
+`revisions.stats`.
+
 ## September 9, 2026 — Site Builder phase 8 (P8-A): template seeds, publish metrics, and two draft-fidelity fixes (zero DDL)
 
 - **Seeds** (`src/lib/site-builder/seeds.ts`): the layout a site has before
