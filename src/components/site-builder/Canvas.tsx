@@ -73,12 +73,16 @@ export default function Canvas({ site, layout, data, selectedId, onSelect, onCom
         // marked .sb-no-drag inside a tile (future frame buttons) never starts one.
         dragConfig={{ enabled: true, bounded: true, handle: '.sb-frame-controls', cancel: '.sb-no-drag' }}
         resizeConfig={{ enabled: true, handles: ['se'] }}
+        // Selection rides the grid's own drag-start (the drag library owns
+        // mousedown on the handle) and a plain click anywhere on the tile.
+        onDragStart={(_layout, item) => onSelect(item?.i ?? null)}
         onDragStop={commit}
+        onResizeStart={(_layout, item) => onSelect(item?.i ?? null)}
         onResizeStop={commit}
       >
         {layout.widgets.map(w => {
           const selected = selectedId === w.id;
-          const title = w.key === 'hero' ? 'Hero' : widgetTitle(site, w.key);
+          const title = w.key === 'hero' ? 'Hero' : widgetTitle(site, w);
           return (
             <div
               key={w.id}
@@ -87,7 +91,7 @@ export default function Canvas({ site, layout, data, selectedId, onSelect, onCom
               }`}
               data-sb-widget={w.key}
               data-sb-instance={w.id}
-              onMouseDown={() => onSelect(w.id)}
+              onClick={() => onSelect(w.id)}
             >
               <div className="sb-frame-controls flex items-center justify-between gap-2 border-b border-border px-3 py-1.5 text-xs text-secondary cursor-grab">
                 <span className="truncate font-medium text-primary">{title}</span>

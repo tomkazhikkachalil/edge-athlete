@@ -138,6 +138,31 @@ test('org site editor: canvas → drag → autosave → undo → reload; phone n
       expect(readded.layout.widgets.filter(w => w.key === removedKey)).toHaveLength(1);
       expect(readded.layout.widgets.find(w => w.key === removedKey)!.id).toMatch(/^w_[0-9a-f]{16}$/);
 
+      // Phase 5: the properties panel. Select a tile → its title is an INSTANCE
+      // option (one undo step, autosaved, the heading updates live). The
+      // STAFF tile: the league's owner is on it, so it is never empty and the
+      // renamed heading reaches the public page ("empty never renders" drops
+      // e.g. a fresh league's standings tile, title and all).
+      const targetKey = 'staff';
+      const target = page.locator(`[data-sb-widget="${targetKey}"]`);
+      await expect(target).toBeVisible();
+      await target.locator('.sb-frame-controls').click();
+      const panel = page.locator(`[data-sb-panel="${targetKey}"]`);
+      await expect(panel).toBeVisible();
+      await panel.getByLabel('Section title').fill(`Our ${targetKey} ${stamp}`);
+      await expect(target.locator('.sb-frame-controls')).toContainText(`Our ${targetKey} ${stamp}`);
+      await awaitSaved(page);
+      // The hero's CONTENT goes through set_hero (the console's own write) and the canvas re-reads it.
+      await page.locator('[data-sb-widget="hero"] .sb-frame-controls').click();
+      const heroPanel = page.locator('[data-sb-panel="hero"]');
+      await expect(heroPanel).toBeVisible();
+      await heroPanel.getByLabel('Headline').fill(`Hello ${stamp}`);
+      await heroPanel.getByRole('button', { name: 'Save content' }).click();
+      await expect(page.locator('[data-sb-widget="hero"]')).toContainText(`Hello ${stamp}`, { timeout: 20_000 });
+      // The console's GET sees the same draft content (one write, two surfaces).
+      const draftView = (await (await ownerApi.get(`/api/leagues/${leagueId}/site`)).json()) as { site: { hero_config: { headline?: string } } };
+      expect(draftView.site.hero_config.headline).toBe(`Hello ${stamp}`);
+
       // The phone: the notice with working doors, no overflow.
       await page.setViewportSize({ width: 375, height: 812 });
       await expect(page.getByRole('heading', { name: 'The editor needs a bigger screen' })).toBeVisible();
@@ -169,6 +194,9 @@ test('org site editor: canvas → drag → autosave → undo → reload; phone n
         }, { timeout: 30_000, intervals: [1000, 2000, 3000] })
         .toBe(true);
       expect(publicHtml).toContain('data-sb-grid');
+      // Phase 5: the instance title and the hero content both reached the public page.
+      expect(publicHtml).toContain(`Our ${targetKey} ${stamp}`);
+      expect(publicHtml).toContain(`Hello ${stamp}`);
 
       // The console door.
       await page.setViewportSize({ width: 1280, height: 900 });

@@ -89,11 +89,10 @@ describe('adding and removing widgets (P3-D)', () => {
     contact_config: { email: 'x@y.z' },
     visibility: 'private' as const,
   };
-  it('newInstanceFor sources config and visibility like the legacy projection', async () => {
+  it('newInstanceFor: default size, no options, visibility from the members-only policy', async () => {
     const { newInstanceFor } = await import('../layout');
-    expect(newInstanceFor(site, 'sponsors', 'w_1')).toMatchObject({ id: 'w_1', key: 'sponsors', w: 6, config: { sponsors: [{ name: 'Acme' }] }, visibility: 'public' });
-    expect(newInstanceFor(site, 'hero', 'w_2')).toMatchObject({ w: 12, config: { headline: 'Hi' } });
-    expect(newInstanceFor(site, 'contact', 'w_3').config).toEqual({ email: 'x@y.z' });
+    expect(newInstanceFor(site, 'sponsors', 'w_1')).toMatchObject({ id: 'w_1', key: 'sponsors', w: 6, config: {}, visibility: 'public' });
+    expect(newInstanceFor(site, 'hero', 'w_2')).toMatchObject({ w: 12, config: {} });
     expect(newInstanceFor(site, 'standings', 'w_4')).toMatchObject({ visibility: 'members', config: {} });
   });
   it('appendWidget places the newcomer at the bottom, a half slides up beside a half; removeWidget compacts', async () => {

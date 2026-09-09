@@ -1,6 +1,7 @@
 import type { SiteHomeData } from '@/lib/org-sites/home-data';
 import { parseContact, parseDocuments, parseSponsors } from '@/lib/org-sites/validate';
 import type { WidgetInstance } from './layout';
+import { effectiveConfig, type ContentSource } from './config';
 
 /**
  * "Empty widgets never render publicly" — Site Builder P3-C (Sep 9 2026).
@@ -11,12 +12,14 @@ import type { WidgetInstance } from './layout';
  * state INSIDE the editor canvas (WidgetBody's quiet lines + the console
  * links), where it is an affordance rather than a hole.
  *
- * Pure, per widget, from the resolved data + the instance's config. A
+ * Pure, per widget, from the resolved data + the EFFECTIVE config (content
+ * from the org objects over the instance's options). A
  * members-only tile on a private club is NOT empty: its panel is the
  * content. The hero and the gallery teaser are never empty.
  */
-export function isWidgetEmpty(w: WidgetInstance, data: SiteHomeData): boolean {
+export function isWidgetEmpty(w: WidgetInstance, data: SiteHomeData, site: ContentSource): boolean {
   if (w.visibility === 'members') return false;
+  const config = effectiveConfig(site, w);
   switch (w.key) {
     case 'hero':
     case 'gallery':
@@ -34,11 +37,11 @@ export function isWidgetEmpty(w: WidgetInstance, data: SiteHomeData): boolean {
     case 'affiliations':
       return data.affiliations.length === 0;
     case 'sponsors':
-      return parseSponsors(w.config).length === 0;
+      return parseSponsors(config).length === 0;
     case 'documents':
-      return parseDocuments(w.config).length === 0;
+      return parseDocuments(config).length === 0;
     case 'contact':
-      return Object.keys(parseContact(w.config)).length === 0;
+      return Object.keys(parseContact(config)).length === 0;
     case 'register':
       return data.openWindows.length === 0;
     case 'courses':

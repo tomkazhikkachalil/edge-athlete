@@ -5,13 +5,15 @@ import type { PublicSite } from '@/lib/org-sites/server';
 import type { TemplateSpec } from '@/lib/org-sites/templates';
 import type { WidgetInstance } from '@/lib/site-builder/layout';
 import { appBaseUrl } from '@/lib/org-sites/urls';
+import { effectiveConfig } from '@/lib/site-builder/config';
 
 // The hero widget — Site Builder P3-B (Sep 9 2026). Extracted verbatim from
 // SiteHomeBody so the published home, the preview and the editor canvas
 // render it from one component. Props-only, server-safe (guardrail §4b).
 
 export default function HeroSection({ site, w, spec }: { site: PublicSite; w: WidgetInstance; spec: TemplateSpec }) {
-  const hero = parseHeroConfig(w.config);
+  // Phase 5: content from the org object (hero_config) over the instance.
+  const hero = parseHeroConfig(effectiveConfig(site, w));
   const heroImage = orgMediaUrl(site.id, hero.imagePath);
   const brandName = parseThemeTokens(site.theme_token_set).wordmark ?? site.orgName;
   return (
