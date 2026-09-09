@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { adminClient, apiAs, loadQaUser } from './helpers/qa-user';
+import { openWindow } from './helpers/org-page';
 
 // Roster offers (0.3): B (owner) invites member A from the member list; A
 // sees the org-page banner + the metadata-tagged league_update notification,
@@ -38,6 +39,7 @@ test('roster: invite → banner → accept → remove; decline via API; 375px re
     try {
       const pageB = await ctxB.newPage();
       await pageB.goto(`/league/${leagueId}`);
+      await openWindow(pageB, 'members');
       await pageB.getByRole('button', { name: 'Invite to roster' }).first().click();
       await expect(pageB.getByText('Roster invited')).toBeVisible({ timeout: 15_000 });
       await expect(pageB.getByRole('button', { name: 'Cancel invite' })).toBeVisible();
@@ -62,6 +64,8 @@ test('roster: invite → banner → accept → remove; decline via API; 375px re
       await expect(page.getByText(`You've been invited to the ${name} roster`)).toHaveCount(0, {
         timeout: 15_000,
       });
+      // R3: the chip lives in the Members window.
+      await openWindow(page, 'members');
       await expect(page.getByText('Roster', { exact: true })).toBeVisible();
 
       // Server truth: the roster row is active; owner got the accept notice.
@@ -83,6 +87,7 @@ test('roster: invite → banner → accept → remove; decline via API; 375px re
 
       // B removes A from the roster through the confirm.
       await pageB.reload();
+      await openWindow(pageB, 'members');
       await pageB.getByRole('button', { name: 'Remove from roster' }).click();
       await pageB.getByRole('button', { name: 'Remove', exact: true }).click();
       await expect(pageB.getByRole('button', { name: 'Invite to roster' }).first()).toBeVisible({
@@ -157,6 +162,7 @@ test('roster: invite → banner → accept → remove; decline via API; 375px re
       await expect(pageMA.getByRole('button', { name: 'Accept' })).toBeVisible();
       const pageMB = await mobileB.newPage();
       await pageMB.goto(`/league/${leagueId}`);
+      await openWindow(pageMB, 'members');
       const cancelBtn = pageMB.getByRole('button', { name: 'Cancel invite' });
       await cancelBtn.scrollIntoViewIfNeeded();
       await expect(cancelBtn).toBeVisible({ timeout: 15_000 });

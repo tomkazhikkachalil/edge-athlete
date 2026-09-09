@@ -17,6 +17,8 @@ interface OrgMembersListProps {
   viewerId: string | undefined;
   actions: OrgPageController['actions'];
   dialogs: OrgPageController['dialogs'];
+  /** Org Pages R3: hosted in a LargerWindow — no card chrome of its own. */
+  bare?: boolean;
 }
 
 export default function OrgMembersList({
@@ -27,12 +29,13 @@ export default function OrgMembersList({
   viewerId,
   actions,
   dialogs,
+  bare = false,
 }: OrgMembersListProps) {
   const { changeRole, inviteToRoster, cancelRosterInvite, remintClaimLink } = actions;
   const { claimLinks, setConfirmStepDown, setPromoteTarget, setRosterRemoveTarget, setRemoveTarget } = dialogs;
 
   return (
-    <div className="mt-6 bg-surface rounded-xl shadow-sm border border-border p-4 sm:p-6">
+    <div className={bare ? '' : 'mt-6 bg-surface rounded-xl shadow-sm border border-border p-4 sm:p-6'}>
       <h2 id="members" className="text-lg font-semibold text-primary mb-4">Members</h2>
       {members.length === 0 ? (
         <p className="text-tertiary text-sm">No members yet.</p>

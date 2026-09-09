@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { adminClient, loadQaUser } from './helpers/qa-user';
+import { openWindow } from './helpers/org-page';
 
 // Club manager appointment — mirror of league-managers.spec.ts; also
 // asserts the long-dormant 'club_update' type's first real send.
@@ -29,12 +30,16 @@ test('club managers: owner promotes and demotes; non-owners see no controls', as
   try {
     await page.goto(`/club/${clubId}`);
     await expect(page.getByRole('heading', { name })).toBeVisible({ timeout: 15_000 });
+    // R3: the roster lives behind the Members bubble — open it so the
+    // count-0 assertion is not vacuous.
+    await openWindow(page, 'members');
     await expect(page.getByRole('button', { name: 'Make manager' })).toHaveCount(0);
 
     const ctxB = await browser.newContext({ storageState: 'e2e/.auth/state-b.json' });
     try {
       const pageB = await ctxB.newPage();
       await pageB.goto(`/club/${clubId}`);
+      await openWindow(pageB, 'members');
       await pageB.getByRole('button', { name: 'Make manager' }).click();
       await expect(pageB.getByText('manager', { exact: true })).toBeVisible({ timeout: 15_000 });
 

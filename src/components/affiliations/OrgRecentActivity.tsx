@@ -26,9 +26,11 @@ interface ActivityRow {
 interface OrgRecentActivityProps {
   side: 'league' | 'club';
   orgId: string;
+  /** Org Pages R3: hosted in a LargerWindow — no card chrome of its own. */
+  bare?: boolean;
 }
 
-export default function OrgRecentActivity({ side, orgId }: OrgRecentActivityProps) {
+export default function OrgRecentActivity({ side, orgId, bare = false }: OrgRecentActivityProps) {
   const [activity, setActivity] = useState<ActivityRow[] | null>(null);
 
   useEffect(() => {
@@ -50,7 +52,7 @@ export default function OrgRecentActivity({ side, orgId }: OrgRecentActivityProp
   if (!activity || activity.length === 0) return null;
 
   return (
-    <div className="mt-6 bg-surface rounded-xl shadow-sm border border-border p-4 sm:p-6">
+    <div className={bare ? '' : 'mt-6 bg-surface rounded-xl shadow-sm border border-border p-4 sm:p-6'}>
       <h2 className="text-lg font-semibold text-primary mb-4">Recent activity</h2>
       <ul className="space-y-2">
         {activity.map(row => {

@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { adminClient, apiAs, loadQaUser, readErrorBody, resetRateBucket } from './helpers/qa-user';
+import { openWindow } from './helpers/org-page';
 
 // The golf club page, part 1 (phase 6b A1): org managers own their venues
 // and recognize a catalog golf course on one — the venues.golf_club_id /
@@ -105,6 +106,8 @@ test('org venues: member 403 → owner create → link course → org page shows
       // link yet (no published site).
       const page = await anonCtx.newPage();
       await page.goto(`/club/${clubId}`);
+      // R3: the courses live behind the Courses bubble.
+      await openWindow(page, 'courses');
       const section = page.getByRole('region', { name: 'Courses' });
       await expect(section).toBeVisible({ timeout: 20_000 });
       await expect(section.getByText(`QA Links ${stamp}`)).toBeVisible();

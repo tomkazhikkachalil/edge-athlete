@@ -27,7 +27,7 @@ interface MemberPost {
   blocks: NewsBlock[];
 }
 
-export default function OrgNewsCard({ side, orgId, isMember }: { side: 'league' | 'club'; orgId: string; isMember: boolean }) {
+export default function OrgNewsCard({ side, orgId, isMember, bare = false }: { side: 'league' | 'club'; orgId: string; isMember: boolean; /** Org Pages R3: hosted in a LargerWindow — no card chrome. */ bare?: boolean }) {
   const plural = side === 'league' ? 'leagues' : 'clubs';
   const label = side === 'league' ? 'League news' : 'Club news';
   const [posts, setPosts] = useState<MemberPost[] | null>(null);
@@ -58,7 +58,7 @@ export default function OrgNewsCard({ side, orgId, isMember }: { side: 'league' 
   if (!isMember || !posts || posts.length === 0) return null;
 
   return (
-    <section aria-label={label} className="bg-surface rounded-lg shadow-sm border border-border p-4 sm:p-6" data-org-news={posts.length}>
+    <section aria-label={label} className={bare ? '' : 'bg-surface rounded-lg shadow-sm border border-border p-4 sm:p-6'} data-org-news={posts.length}>
       <h2 className="text-lg font-semibold text-primary">{label}</h2>
       <ul className="mt-2 divide-y divide-border-subtle">
         {posts.map(p => (

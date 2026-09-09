@@ -44,9 +44,11 @@ interface OrgStandingsProps {
   orgId: string;
   /** Phase 9 V4 (leagues in program 11 L2): a private org's members read the session-gated path. */
   scope?: 'public' | 'mine';
+  /** Org Pages R3: hosted in a LargerWindow — no card chrome of its own. */
+  bare?: boolean;
 }
 
-export default function OrgStandings({ side, orgId, scope = 'public' }: OrgStandingsProps) {
+export default function OrgStandings({ side, orgId, scope = 'public', bare = false }: OrgStandingsProps) {
   const [competitions, setCompetitions] = useState<CompetitionStandings[] | null>(null);
 
   useEffect(() => {
@@ -75,7 +77,7 @@ export default function OrgStandings({ side, orgId, scope = 'public' }: OrgStand
   if (!competitions || competitions.length === 0) return null;
 
   return (
-    <div className="mt-6 bg-surface rounded-xl shadow-sm border border-border p-4 sm:p-6">
+    <div className={bare ? '' : 'mt-6 bg-surface rounded-xl shadow-sm border border-border p-4 sm:p-6'}>
       <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
         <h2 className="text-lg font-semibold text-primary">Standings</h2>
         {side === 'league' && (

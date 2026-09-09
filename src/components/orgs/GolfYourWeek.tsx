@@ -18,6 +18,8 @@ import type { MyGolfEntry } from '@/lib/competitions/golf-league-mine';
 interface GolfYourWeekProps {
   side: 'league' | 'club';
   orgId: string;
+  /** Org Pages R3: hosted in a LargerWindow — no card chrome of its own. */
+  bare?: boolean;
 }
 
 function ordinal(n: number): string {
@@ -26,7 +28,7 @@ function ordinal(n: number): string {
   return `${n}${s[(v - 20) % 10] ?? s[v] ?? s[0]}`;
 }
 
-export default function GolfYourWeek({ side, orgId }: GolfYourWeekProps) {
+export default function GolfYourWeek({ side, orgId, bare = false }: GolfYourWeekProps) {
   const { user, initialAuthCheckComplete } = useAuth();
   const [entries, setEntries] = useState<MyGolfEntry[] | null>(null);
 
@@ -52,7 +54,7 @@ export default function GolfYourWeek({ side, orgId }: GolfYourWeekProps) {
   if (!entries || entries.length === 0) return null;
 
   return (
-    <div className="mt-6 bg-surface rounded-xl shadow-sm border border-border p-4 sm:p-6" aria-label="Your week">
+    <div className={bare ? '' : 'mt-6 bg-surface rounded-xl shadow-sm border border-border p-4 sm:p-6'} aria-label="Your week">
       <h2 className="text-lg font-semibold text-primary mb-3">Your week</h2>
       <ul className="space-y-3">
         {entries.map(entry => {

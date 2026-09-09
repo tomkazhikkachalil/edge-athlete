@@ -50,7 +50,7 @@ const DOWN_LABEL: Record<AffType, string> = {
   sanctioned_by: 'Sanctions',
 };
 
-export default function ParentLeaguesSection({ leagueId }: { leagueId: string }) {
+export default function ParentLeaguesSection({ leagueId, bare = false }: { leagueId: string; /** Org Pages R3: hosted in a LargerWindow — no card chrome. */ bare?: boolean }) {
   const { showSuccess, showError } = useToast();
   const base = `/api/leagues/${leagueId}/parents`;
 
@@ -146,7 +146,7 @@ export default function ParentLeaguesSection({ leagueId }: { leagueId: string })
   return (
     <section
       aria-label="League chain"
-      className="bg-surface rounded-lg shadow-sm border border-border p-4 sm:p-6"
+      className={bare ? '' : 'bg-surface rounded-lg shadow-sm border border-border p-4 sm:p-6'}
     >
       <h2 className="text-lg font-semibold text-primary mb-1">League chain</h2>
       <p className="text-xs text-muted mb-3">

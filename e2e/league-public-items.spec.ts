@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { adminClient, apiAs, loadQaUser, resetRateBucket } from './helpers/qa-user';
+import { openWindow } from './helpers/org-page';
 
 // Program 11 L2 — public items on a private LEAGUE site (the twin of
 // club-public-items). A news post carries an audience (176): a PRIVATE
@@ -85,6 +86,9 @@ test('league news audience: private site lists public posts only, members read b
     try {
       const mp = await memberCtx.newPage();
       await mp.goto(`/league/${leagueId}`);
+      // R3: the news list lives behind the League news bubble; the card
+      // (with its data-org-news count) renders inside the window.
+      await openWindow(mp, 'news');
       const card = mp.locator('[data-org-news]');
       await expect(card).toBeVisible({ timeout: 20_000 });
       await expect(card.getByRole('heading', { name: 'League news' })).toBeVisible();

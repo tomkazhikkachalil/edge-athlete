@@ -1,5 +1,68 @@
 # Development Log
 
+## September 8, 2026 — Org Pages Program R3: the glance grid and the larger windows (#609)
+
+The round the program was for. R1 folded the twins, R2 gave the page its
+dialect and hero; R3 applies the Vitals principle to the page's body: every
+dense section now lives behind a tappable bubble that shows ONE big number
+and a sub-line, and the bubble's "larger window" hosts the section.
+
+**The simplification over the plan.** The plan split each section into a
+pure Body + a self-fetching Wrapper so face and window read one object. In
+practice `AffiliationSection` and `ParentLeaguesSection` own mutations,
+typeahead search and confirms (700 lines between them), and splitting them
+was the round's whole risk. So each section instead gains one `bare` prop
+that drops its card chrome, and `OrgGlanceGrid` hosts the EXISTING
+component unchanged inside `LargerWindow` (`hostsOwnHeading`, since the
+sections render their own `<h2>` — the e2e contracts). The faces read the
+SAME endpoints the sections read (`useOrgRead`, the sections' own
+swallow-on-failure), so the load-time request count is what it was: a
+section now fetches only when its window opens, and the faces refetch when
+a window closes (a window's mutations change the faces — the
+refetch-on-success discipline, one level up). Members needs no read at all
+(the page payload). Deep link `?window=<key>` opens a window on load — read
+from `window.location` once after mount, not `useSearchParams`, which
+would force a Suspense boundary on the route.
+
+**The grid.** `grid-cols-2 lg:grid-cols-4`, `BubbleCard` faces (`ea-bubble
+ea-pop-in ea-interactive`, staggered), literal spans: Members (count +
+avatar stack) · Your week (`md`, the posted gross else the season place,
+"This week · Season: 2nd of 12" — the `data-standing` sentence the console
+race spec pins) · Standings (`md`, the leader's name, competition · season)
+· Events (next event's day + month, its title, N upcoming) · News / Announ-
+cements (members; counts + the newest title) · Courses or Venues (count,
+first name) · Recent activity (count, latest author) · Affiliations (count,
+first partner; the league chain rides the same window). Zeros render
+honestly for managers with the console as the add-affordance; a
+non-manager's zero bubble is omitted, as the sections rendered null. The
+faces carry `data-org-bubble=<key>`, and `-count` twins of the sections'
+`data-org-news` / `data-announcements` so nothing duplicates while a window
+is open. Above the grid, in order and now `ea-bubble` (with
+`.ea-bubble-accent` for the emphasised ones — a class, because a layered
+`border-brand` utility LOSES to the unlayered `.ea-bubble` border
+shorthand): the listing banner, the registration banner, the self-roster
+offer, the roster invitation. Below it the round-photo switch, a control
+not a list. GeoNames last.
+
+**e2e.** `e2e/helpers/org-page.ts` (`openWindow(page, key)` → the window
+locator; `closeWindow`). Thirteen specs gained one line each — "tap the
+bubble first" — where they used to scroll to a section: managers ×2,
+owners, roster offer/import, standings, events, activity, venues,
+affiliation, public items ×2, announce archive. The count-0 assertions
+open the window too, so they are not vacuous. Unchanged: join, join
+approval, photo opt-in, golf weeks (`This week` / `Week 2` are on the
+face), console race (`data-standing`), private gates, signup door, and
+the leaderboard spec (it asserts on the competition console, not this
+page). New `e2e/org-page-glance.spec.ts` (@mobile): faces carry numbers,
+the Members face hit-tests to itself after the entrance settles, no
+dense list until a tap, the sheet hosts the section's `<h2>` and rows, X
+and Escape close, the deep link opens on load, no overflow at 390.
+
+Not done, deliberately: the all-day event date on the Events face keeps
+the sections' `new Date(starts_at)` formatting — the storage semantics of
+all-day org events were not verified this round, so the face and the list
+agree rather than the face fixing what the list still shows. Zero DDL.
+
 ## September 8, 2026 — Org Pages Program R2: the in-app org dialect and the media hero (#608)
 
 The second round of the program Tom opened this evening ("take the

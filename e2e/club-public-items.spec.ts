@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { adminClient, apiAs, loadQaUser, resetRateBucket } from './helpers/qa-user';
+import { openWindow } from './helpers/org-page';
 
 // Phase 9 V5 — public items on a private site. A news post carries an
 // audience (176): a PRIVATE club's site lists public posts only and its
@@ -84,6 +85,8 @@ test('news audience: private site lists public posts only, members read both in 
     try {
       const mp = await memberCtx.newPage();
       await mp.goto(`/club/${clubId}`);
+      // R3: the news list lives behind the Club news bubble.
+      await openWindow(mp, 'news');
       const card = mp.locator('[data-org-news]');
       await expect(card).toBeVisible({ timeout: 20_000 });
       await expect(card.getByText(`Members meeting ${stamp}`)).toBeVisible();

@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { adminClient, apiAs, loadQaUser, readErrorBody } from './helpers/qa-user';
+import { openWindow } from './helpers/org-page';
 
 // Org events (connections PR C, migration 119): the league owner schedules
 // an event attached to their league via the API; the league page's public
@@ -69,8 +70,11 @@ test('org events: owner schedules, org page lists, non-manager 403', async ({ pa
 
     // The league page's public schedule lists it (anonymous-equivalent read).
     await page.goto(`/league/${leagueId}`);
-    await expect(page.getByRole('heading', { name: 'Upcoming events' })).toBeVisible({ timeout: 15_000 });
-    await expect(page.getByText(eventTitle)).toBeVisible();
+    // R3: the list lives behind the Events bubble.
+    const win = await openWindow(page, 'events');
+    await expect(win.getByRole('heading', { name: 'Upcoming events' })).toBeVisible({ timeout: 15_000 });
+    // Scoped to the window: the Events face also carries the next title.
+    await expect(win.getByText(eventTitle)).toBeVisible();
   } finally {
     if (eventId) {
       await admin.from('event_guests').delete().eq('event_id', eventId);

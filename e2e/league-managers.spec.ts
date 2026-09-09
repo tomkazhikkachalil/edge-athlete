@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { adminClient, loadQaUser } from './helpers/qa-user';
+import { openWindow } from './helpers/org-page';
 
 // Manager appointment (owner-only): A is a plain member and must see no role
 // controls; B (the owner) promotes A — Manager badge appears from server
@@ -33,6 +34,9 @@ test('league managers: owner promotes and demotes; non-owners see no controls', 
     // A (member, not owner) sees the league but no role controls.
     await page.goto(`/league/${leagueId}`);
     await expect(page.getByRole('heading', { name })).toBeVisible({ timeout: 15_000 });
+    // R3: the roster lives behind the Members bubble — open it so the
+    // count-0 assertions are not vacuous.
+    await openWindow(page, 'members');
     await expect(page.getByRole('button', { name: 'Make manager' })).toHaveCount(0);
     await expect(page.getByRole('button', { name: 'Remove manager' })).toHaveCount(0);
 
@@ -41,6 +45,7 @@ test('league managers: owner promotes and demotes; non-owners see no controls', 
     try {
       const pageB = await ctxB.newPage();
       await pageB.goto(`/league/${leagueId}`);
+      await openWindow(pageB, 'members');
       await pageB.getByRole('button', { name: 'Make manager' }).click();
       // Server-truth re-render: the role badge (DOM text is the raw role;
       // CSS capitalizes it) and the demote button both appear.
