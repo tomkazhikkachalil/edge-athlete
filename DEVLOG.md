@@ -1,5 +1,28 @@
 # Development Log
 
+## September 9, 2026 — maintenance sweep, Site Builder close: gate green on `main`, guardrails green, prod floor gate over the deployed chunks, branches pruned
+
+Run on `main` at the #634 merge (32d86de5), the state production serves.
+
+- **Gate** (`npm run verify`): typecheck clean, lint at zero warnings,
+  281 test files / 2,931 tests green, production build clean, the browser-
+  floor gate over 166 built client chunks (iOS 15 / Safari 15).
+- **Guardrails** (`scripts/hardening-guardrails.sh`): green; `npm audit`
+  (high+) clean.
+- **Deployed**: the prod release meta reads 32d86de5 — the webhook fired
+  for #634. The post-merge floor gate re-ran against 26 chunks downloaded
+  from the live deployment (`node scripts/check-browser-syntax.mjs <dir>`):
+  clean. Note for the next sweep: the deployed chunk path is now
+  `/_next/static/immutable/chunks/…` — a discovery regex anchored on
+  `/_next/static/chunks/` finds nothing (and reports "0 chunks parse",
+  which is a vacuous pass, not a green one).
+- **Housekeeping**: the nine local branches of the program's merged PRs
+  (#616, #618–#624, #626) deleted after GitHub confirmed each merged;
+  session memory index under its size cap; scratch build servers stopped.
+- Nothing in flight but this PR (#635, docs + this entry). Migration head
+  180. The editor flag stays OFF in production until Tom sets
+  `NEXT_PUBLIC_FEATURE_SITE_BUILDER=1` in Vercel and rebuilds.
+
 ## September 9, 2026 — Site Builder close: docs aligned (CLAUDE.md convention 12, masterplan §6, the session doc)
 
 The program is built (#616–#634) and deployed (the prod release meta reads
