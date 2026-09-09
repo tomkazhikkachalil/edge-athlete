@@ -1,5 +1,39 @@
 # Development Log
 
+## September 9, 2026 — Site Builder rollout: the editor flag ON in production, prod probe green
+
+- **The flag was not there.** After "flag on and rebuilt", the probe SKIPPED
+  at `FEATURE_SITE_BUILDER is off for this build` (the canvas route answered
+  "Not available"); `vercel env ls` showed every other flag but no
+  `NEXT_PUBLIC_FEATURE_SITE_BUILDER` on the project, so the rebuild had
+  nothing to inline. Added it for Production from the CLI (`vercel env add
+  … production`, value `1`) and rebuilt with `vercel redeploy <prod url>`
+  (a real build of the same commit, 2e1b0bc7 — the #635 merge — Ready in
+  3m, aliased to edge-athlete.vercel.app). Lesson for the runbook: a
+  `NEXT_PUBLIC_*` flag needs BOTH the variable on the Production target
+  AND a build after it; read the skip reason (`--reporter=json`, the
+  `annotations`) — the list reporter prints only "1 skipped", which looks
+  like a pass.
+- **Prod probe: the whole editor spec against production, passed first
+  attempt (91s)** with a disposable league torn down in the spec's own
+  teardown: the console door → the editor at 1280 → the canvas with the
+  club's real data → drag / autosave / undo / redo / reload → remove + the
+  Undo toast → the picker with live tiles → the properties panel (a title,
+  the hero headline through `set_hero`) → Text / Embed / Image through the
+  panel (upload to `…/site/assets` included) → the API's content tiles
+  (cross-site image and URL-shaped embed refused) → theme via the API,
+  then the theme panel (too-light accent refused, live preview, Save) → the
+  checklist rail → the phone notice at 375 → publish → the public page
+  carries the layout, the content, the theme, the Lora face's @font-face +
+  preload, and the CSP `frame-src` → publish metrics on the revision → the
+  no-draft canvas shows the published arrangement → a console edit inherits
+  it and a second publish keeps the order. One 1×1 PNG the spec uploaded
+  stays under `org-media/<siteId>/` in storage (the site row is gone with
+  the league); the storage sweep's 48h orphan pass collects it.
+- Left for Tom: a real branded club through the editor on his laptop, its
+  public page and the phone notice on his phone; the one-hour metric from
+  `revisions.stats` once real publishes exist.
+
 ## September 9, 2026 — maintenance sweep, Site Builder close: gate green on `main`, guardrails green, prod floor gate over the deployed chunks, branches pruned
 
 Run on `main` at the #634 merge (32d86de5), the state production serves.
