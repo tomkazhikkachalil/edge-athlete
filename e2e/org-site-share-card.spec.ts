@@ -2,6 +2,7 @@ import { test, expect } from '@playwright/test';
 import fs from 'fs';
 import path from 'path';
 import { adminClient, apiAs, loadQaUser, resetRateBucket } from './helpers/qa-user';
+import { publishSite } from './helpers/org-site';
 
 // N2 (program 10) — the share card draws the hero photo. A site with a
 // hero image (S1 set_hero imagePath, a site asset) renders card.png
@@ -65,6 +66,8 @@ test('share card: hero photo drawn when set; plain gradient otherwise; both PNG 
       data: { action: 'set_hero', headline: `Play here ${stamp}`, imagePath: assetPath, imageAlt: 'The first tee' },
     });
     expect(res.status(), await readErrorBody(res)).toBe(200);
+    // P2-B: edits land in the draft — publish before reading the public projection.
+    await publishSite(ownerApi, 'club', heroClub);
 
     const card = async (subdomain: string) => {
       const r = await anon.request.get(`/org/${subdomain}/card.png`);

@@ -10,6 +10,7 @@ import { UUID_RE } from '@/lib/golf/course-catalog';
 // ── /api/clubs/[id]/site — the console's site CRUD (phase 3 R1) ──────────
 // manage_org gates site editing (the Site Editor role is deferred).
 // POST mints the subdomain from the org name; PATCH publishes/unpublishes.
+// Site Builder P2-B: content PATCHes go to the DRAFT (userId = created_by).
 
 export async function GET(
   request: NextRequest,
@@ -82,7 +83,7 @@ export async function PATCH(
       intent: identityAct ? 'manage_org' : 'manage_site',
     });
     if (!gate.ok) return gate.response;
-    return await sitePATCH(admin, 'club', id, parsed.data);
+    return await sitePATCH(admin, 'club', id, parsed.data, user.id);
   } catch (error) {
     if (error instanceof Response) return error;
     console.error('[ORG SITES] club PATCH error:', error);

@@ -2,6 +2,7 @@ import path from 'path';
 import { test, expect } from '@playwright/test';
 import { TOGGLEABLE_MODULE_KEYS } from '../src/lib/org-sites/validate';
 import { adminClient, apiAs, loadQaUser, readErrorBody, resetRateBucket } from './helpers/qa-user';
+import { publishSite } from './helpers/org-site';
 
 // The public org site shell (phase 3, round 1): create → publish → the
 // anonymous /org/{slug} document renders from the (public) segment;
@@ -514,6 +515,8 @@ test('org site modules: live data on home + subpages; masked roster; team 404s',
           data: { action: 'set_module', moduleKey: 'standings', enabled: false },
         });
         expect(off.status(), await readErrorBody(off)).toBe(200);
+        // P2-B: edits land in the draft — publish before reading the public projection.
+        await publishSite(toggleApi, 'league', leagueId);
         expect(await settle(page.request, `${base}/standings`, 404)).toBe(404);
         // Content settle: SWR may serve the stale home document once.
         let homeAfter = '';
@@ -529,6 +532,8 @@ test('org site modules: live data on home + subpages; masked roster; team 404s',
           data: { action: 'set_module', moduleKey: 'standings', enabled: true },
         });
         expect(on.status(), await readErrorBody(on)).toBe(200);
+        // P2-B: edits land in the draft — publish before reading the public projection.
+        await publishSite(toggleApi, 'league', leagueId);
         expect(await settle(page.request, `${base}/standings`, 200)).toBe(200);
 
         const hero = await toggleApi.patch(`/api/leagues/${leagueId}/site`, {
@@ -682,6 +687,8 @@ test('org site branding: hero, theme accent, sponsors', async ({ browser }) => {
         },
       });
       expect(contact.status(), await readErrorBody(contact)).toBe(200);
+      // P2-B: edits land in the draft — publish before reading the public projection.
+      await publishSite(ownerApi, 'league', leagueId);
       void siteForAssets;
     } finally {
       await ownerApi.dispose();
@@ -721,6 +728,8 @@ test('org site branding: hero, theme accent, sponsors', async ({ browser }) => {
           data: { action: 'set_theme', accent: null },
         });
         expect(reset.status(), await readErrorBody(reset)).toBe(200);
+        // P2-B: edits land in the draft — publish before reading the public projection.
+        await publishSite(ownerApi2, 'league', leagueId);
       } finally {
         await ownerApi2.dispose();
       }

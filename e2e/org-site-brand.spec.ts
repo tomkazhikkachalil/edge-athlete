@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { adminClient, apiAs, loadQaUser, readErrorBody, resetRateBucket } from './helpers/qa-user';
+import { publishSite } from './helpers/org-site';
 
 // Builder depth, part 1 (phase 6b B1): the brand token set beyond the
 // accent (strong accent, surface tint, typeface stack, wordmark), the
@@ -73,6 +74,8 @@ test('org site brand: tokens → document attrs + wordmark; favicon.svg; nav lab
       },
     });
     expect(res.status(), await readErrorBody(res)).toBe(200);
+    // P2-B: edits land in the draft — publish before reading the public projection.
+    await publishSite(ownerApi, 'league', leagueId);
     const { data: rows } = await admin
       .from('org_site_modules')
       .select('module_key, sort_order')
@@ -117,6 +120,8 @@ test('org site brand: tokens → document attrs + wordmark; favicon.svg; nav lab
         data: { action: 'set_theme', accent: null },
       });
       expect(res.status(), await readErrorBody(res)).toBe(200);
+      // P2-B: edits land in the draft — publish before reading the public projection.
+      await publishSite(ownerApi, 'league', leagueId);
       const plain = await settleBody(anonCtx.request, sitePath, 'data-typeface="sans"', true, 12);
       expect(plain).toContain('data-surface="plain"');
       expect(plain).not.toContain(`Brand ${stamp}`);

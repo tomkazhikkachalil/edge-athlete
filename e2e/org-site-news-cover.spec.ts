@@ -2,6 +2,7 @@ import { test, expect } from '@playwright/test';
 import fs from 'fs';
 import path from 'path';
 import { adminClient, apiAs, loadQaUser, resetRateBucket } from './helpers/qa-user';
+import { publishSite } from './helpers/org-site';
 import { openWindow } from './helpers/org-page';
 
 // N1 (program 10) — news covers. A post's cover is DERIVED from its first
@@ -50,6 +51,8 @@ test('news covers: list thumbnail + home teaser + og:image from the first image 
     if (!mod?.enabled) {
       res = await ownerApi.patch(`/api/clubs/${clubId}/site`, { data: { action: 'set_module', moduleKey: 'news', enabled: true } });
       expect(res.status(), await readErrorBody(res)).toBe(200);
+      // P2-B: edits land in the draft — publish before reading the public projection.
+      await publishSite(ownerApi, 'club', clubId);
     }
 
     // A site asset (the page-image upload) becomes the first block.

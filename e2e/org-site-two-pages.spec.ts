@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { adminClient, apiAs, loadQaUser, readErrorBody, resetRateBucket } from './helpers/qa-user';
+import { publishSite } from './helpers/org-site';
 
 // Two pages (phase 6c G3 — Tom's principle 1): a CLUB site and a LEAGUE
 // site answer different questions, so their default section order
@@ -120,10 +121,14 @@ test('two pages: side default orders, side labels, reset, and the club golf teas
       data: { action: 'set_nav', items: [{ key: 'standings', label: 'Tables' }, { key: 'courses' }] },
     });
     expect(res.status(), await readErrorBody(res)).toBe(200);
+    // P2-B: edits land in the draft — publish before reading the public projection.
+    await publishSite(ownerApi, 'club', clubId);
     const scrambled = await orderOf(sites.club!.id);
     expect(scrambled.indexOf('standings')).toBeLessThan(scrambled.indexOf('courses'));
     res = await ownerApi.patch(`/api/clubs/${clubId}/site`, { data: { action: 'reset_order' } });
     expect(res.status(), await readErrorBody(res)).toBe(200);
+    // P2-B: edits land in the draft — publish before reading the public projection.
+    await publishSite(ownerApi, 'club', clubId);
     expect((await orderOf(sites.club!.id)).slice(0, 3)).toEqual(['hero', 'courses', 'affiliations']);
     const { data: siteRow } = await admin.from('org_sites').select('nav_config').eq('id', sites.club!.id).single();
     // Labels survive a reset; the order does not.

@@ -1,5 +1,59 @@
 # Development Log
 
+## September 9, 2026 — Site Builder P2-B: the publish gate — edits go to the draft, the preview renders the draft in its own shell, the spec sweep (zero DDL; inert pre-180)
+
+The gate itself. With 180 run, a site's content edits land in the DRAFT and
+the public page changes only on Publish; before 180 every path below is
+inert (today's live writes through the same code), so this PR merges either
+side of the SQL.
+
+- **`sitePATCH`** collapses onto `applyDraftAction`: the guards the schema
+  cannot apply stay first (every stored asset path under THIS site's
+  prefix; the member-photo gate before a gallery pick), then one call
+  applies the action to the draft (or, pre-180, to the rows + revalidate —
+  one code path, `applySiteAction` either way). Response shapes are the
+  pre-P2-B ones plus `draft: { id, rev, updatedAt, hasUnpublishedChanges }`;
+  a lost race answers 409 "The draft changed while you were editing —
+  reload and try again". Draft writes revalidate NOTHING public — the CDN
+  never sees a half-edited site. `reset_order` is the one action that reads
+  the org's sport (its recommended order is sport-shaped).
+- **Going live promotes a dirty draft.** The site-level `publish`
+  (`manage_org`) is idempotent on `published_at` (keeps an existing stamp)
+  and, when a draft exists, promotes it in the same request — preview-then-
+  publish is the moment a first-time manager means "this is what I saw".
+  `unpublish` leaves the draft alone. This also keeps the ten specs whose
+  edits precede the site-level publish green untouched.
+- **`siteGET` returns the DRAFT view**: `site` / `modules` are the rows
+  overlaid with the draft snapshot when one exists, so every console form
+  seeds from what the manager is editing; row-only fields (`published_at`,
+  `logo_path`, the domain columns) stay the row's; the pointer columns never
+  leave the server. (P2-A shipped the `draft` line; the overlay is P2-B.)
+- **The preview renders the draft in its own shell.** `layout.tsx` was
+  published-only (`getCachedSite` → `notFound()`) and wrapped the preview, so
+  a draft body rendered under the PUBLISHED header/theme/nav/notice, and an
+  offline site's preview 404'd at the layout. The shell markup moves to
+  `_components/SiteShell.tsx` (props-only: `site`, `pages`, `children`);
+  `layout.tsx` is the cached reads + `<SiteShell>`; the preview page moves to
+  the route group `src/app/(public)/(preview)/org/[slug]/preview/[token]/`
+  — outside the published layout — and renders `<SiteShell>` around the
+  banner + `SiteHomeBody` from `getDraftSiteBySlug` (any status, draft
+  overlaid, rows pre-180) with raw readers. The vanity tree has no preview
+  twin (unchanged). Verified: the sibling route group builds beside
+  `org/[slug]/**`.
+- **In-app brand**: `readSiteBrandRow` reads the rows (= published) while
+  the site is live — a member never sees a different hero in-app than on
+  the site — and overlays the draft's hero/theme while it is OFFLINE (the
+  draft is the only content there is; "a draft site's brand renders for
+  everyone" stays true).
+- **Spec sweep**: `e2e/helpers/org-site.ts` `publishSite(api, side, id)`
+  (tolerates the pre-180 409 — nothing to publish, the live write already
+  landed); inserted after the last edit in the 12 specs that edit AFTER the
+  site-level publish and then read the public page or the module rows
+  (brand, course-page, courses, hole-photos, identity, news-cover, players,
+  share-card, template, two-pages, golf-order, org-site). Ten specs
+  untouched.
+- Logo stays live (`logo-server.ts` untouched). Zero DDL.
+
 ## September 9, 2026 — Site Builder P2-A: org_site_revisions — the schema, the snapshot library and the revisions API (migration 180; mergeable pre-180)
 
 Phase 2 opens: draft → publish → revisions must exist before anyone drags

@@ -2,6 +2,7 @@ import { test, expect } from '@playwright/test';
 import path from 'node:path';
 import fs from 'node:fs';
 import { adminClient, apiAs, loadQaUser, readErrorBody, resetRateBucket } from './helpers/qa-user';
+import { publishSite } from './helpers/org-site';
 
 // Golf sites, part 2 (phase 6e S2): a page per course. The org-gated
 // course page draws each hole from the cached OSM tee→green line (an
@@ -179,6 +180,8 @@ test('course page: hole SVGs from OSM geometry, section label, phone, directions
       data: { action: 'set_course_photo', courseId, path: imagePath, alt: 'The first tee' },
     });
     expect(res.status(), await readErrorBody(res)).toBe(200);
+    // P2-B: edits land in the draft — publish before reading the public projection.
+    await publishSite(ownerApi, 'club', clubId);
     const withPhoto = await settleBody(anonCtx.request, pageUrl, `/api/media/org-media/${site.id}/`, true, 12);
     expect(withPhoto).toContain(`/api/media/org-media/${site.id}/`);
     expect(withPhoto).toContain('alt="The first tee"');
@@ -207,6 +210,8 @@ test('course page: hole SVGs from OSM geometry, section label, phone, directions
       data: { action: 'set_module', moduleKey: 'courses', enabled: false },
     });
     expect(res.status()).toBe(200);
+    // P2-B: edits land in the draft — publish before reading the public projection.
+    await publishSite(ownerApi, 'club', clubId);
     expect(await settle(anonCtx.request, pageUrl, 404, 12)).toBe(404);
   } finally {
     await ownerApi.dispose();

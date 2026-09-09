@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { adminClient, apiAs, loadQaUser, resetRateBucket } from './helpers/qa-user';
+import { publishSite } from './helpers/org-site';
 import { DEFAULT_MODULE_ORDER, GOLF_MODULE_ORDER, GOLF_TAGLINE } from '../src/lib/org-sites/validate';
 
 // Phase 7 C3 — the PGA shape. A GOLF club's site (clubs.primary_sport,
@@ -77,6 +78,8 @@ test('golf club site: golf order + tagline at creation → reset_order restores 
     expect(scrambled.status(), await readErrorBody(scrambled)).toBe(200);
     const reset = await ownerApi.patch(`/api/clubs/${golfId}/site`, { data: { action: 'reset_order' } });
     expect(reset.status(), await readErrorBody(reset)).toBe(200);
+    // P2-B: edits land in the draft — publish before reading the public projection.
+    await publishSite(ownerApi, 'club', golfId);
     expect((await moduleOrder(golfId)).keys).toEqual([...GOLF_MODULE_ORDER.club]);
 
     // Publish → the public page speaks golf.
