@@ -45,6 +45,14 @@ export const FEATURE_FLAGS = {
    */
   FEATURE_ORG_REGISTRATION: process.env.NEXT_PUBLIC_FEATURE_ORG_REGISTRATION === '1',
 
+  /**
+   * Site Builder phase 3 (Sep 2026): the grid EDITOR. A pure SURFACE switch:
+   * off hides "Open the editor" in the console, 404s the editor route and
+   * its draft/canvas/widget-data routes. The public renderer is NEVER
+   * flagged — it always renders the layout it is given. BUILD-INJECTED.
+   */
+  FEATURE_SITE_BUILDER: process.env.NEXT_PUBLIC_FEATURE_SITE_BUILDER === '1',
+
   // Future feature flags can be added here
   // FEATURE_PUBLIC_PROFILES: false,
   // FEATURE_MESSAGING: false,
