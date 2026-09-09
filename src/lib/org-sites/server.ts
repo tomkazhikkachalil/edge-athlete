@@ -548,7 +548,7 @@ export interface PublicSite extends SiteRow {
   /** Site Builder P3-C: the revision's stored grid layout — the PUBLISHED
    *  revision's for public reads, the DRAFT's for the draft view (the
    *  preview, the canvas). Null = no stored layout yet: the renderer draws
-   *  `layoutFromModules(site)`, the template-aware projection of the rows. */
+   *  `seedLayout(site)`, the template's seed of the module rows. */
   layout: SiteLayout | null;
 }
 

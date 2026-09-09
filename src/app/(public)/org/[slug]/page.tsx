@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { getCachedSite } from '@/lib/org-sites/cached';
 import { buildOrgJsonLd, safeJsonLd } from '@/lib/org-sites/jsonld';
-import { layoutFromModules } from '@/lib/site-builder/layout';
+import { seedLayout } from '@/lib/site-builder/seeds';
 import { cachedSiteReaders, resolveHomeData } from '@/lib/org-sites/widget-data';
 import GridRenderer from './_components/GridRenderer';
 import { siteAbsoluteUrl } from '@/lib/org-sites/urls';
@@ -64,7 +64,7 @@ export default async function OrgSiteHome({ params }: PageParams) {
 
   // P3-C: the published revision's grid, else the template-aware projection
   // of the module rows (a site nobody has arranged looks as it did).
-  const layout = site.layout ?? layoutFromModules(site);
+  const layout = site.layout ?? seedLayout(site);
   const data = await resolveHomeData(cachedSiteReaders(slug, site), site, layout);
 
   return (

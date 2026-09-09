@@ -19,7 +19,6 @@
  */
 
 import { isMembersOnly } from '@/lib/org-sites/private';
-import { FULL_WIDTH_MODULES, templateSpec } from '@/lib/org-sites/templates';
 import { WIDGETS, isWebWidgetKey, type SiteHomeDataKey, type WidgetKey } from './catalog';
 
 export const GRID = { cols: 12, rowPx: 40, gapPx: 24 } as const;
@@ -190,39 +189,13 @@ function defaultRandom(bytes: Uint8Array): Uint8Array {
   return bytes;
 }
 
-// ── The projection of the module rows onto the grid (P3-C) ──────────────────
+// ── Reading order (P3-C) ──────────────────────────────────────────────────
 
 /** Reading order for the phone: top to bottom, then left to right. The DOM
  *  order of the public grid — so tab order and screen readers agree with
  *  what the phone shows. */
 export function deriveMobileOrder(widgets: readonly WidgetInstance[]): WidgetInstance[] {
   return sortByPosition(widgets);
-}
-
-/** A site with no stored layout renders the projection of its module rows
- *  onto the grid, TEMPLATE-AWARE so the flip from the linear frame to the
- *  grid is a visual no-op: `classic` stacks every section full width;
- *  `bold` (a two-column section grid at ≥ sm) pairs half-width sections
- *  and lets the full-width modules (teams, news, gallery, courses, leaders)
- *  span both — the same placement CSS auto-flow gave. `h` stays each
- *  widget's default (a MINIMUM height). */
-export function layoutFromModules(site: LegacySiteShape & { template_id: string }): SiteLayout {
-  const linear = deriveLegacyLayout(site);
-  if (templateSpec(site.template_id).sections !== 'grid') return linear;
-  // Halves alternate left/right; a full-width widget starts a new row. The
-  // linear y (cumulative heights) keeps everything non-overlapping; the
-  // compaction then lifts each right-hand half up beside its left partner.
-  let col = 0;
-  const widgets = linear.widgets.map(w => {
-    if (w.key === 'hero' || FULL_WIDTH_MODULES.has(w.key)) {
-      col = 0;
-      return { ...w, x: 0, w: GRID.cols };
-    }
-    const placed = { ...w, x: col * 6, w: 6 };
-    col = col === 0 ? 1 : 0;
-    return placed;
-  });
-  return { ...linear, widgets: compactLayout(widgets) };
 }
 
 // ── Adding a widget (P3-D) ──────────────────────────────────────────────────

@@ -21,6 +21,8 @@ import {
   type SitePatchInput,
   THEME_DESIGN_KEYS,
 } from '@/lib/org-sites/validate';
+import { parseStoredLayout } from './layout-schema';
+import { applySeed, seedLayout } from './seeds';
 import { GALLERY_PICKS_MAX, readGalleryPicks, type GalleryPick } from '@/lib/org-sites/member-photo-gate';
 
 export const SNAPSHOT_VERSION = 1 as const;
@@ -250,10 +252,22 @@ export function applySiteAction(s: SiteSnapshot, input: SnapshotAction, ctx: App
       };
     case 'set_template': {
       // "Apply the seed": the template's decisions show through again, so
-      // its design overrides go (colours, typeface and wordmark stay).
+      // its design overrides go (colours, typeface and wordmark stay) —
+      // and, phase 8, a STORED layout is re-laid with the template's seed
+      // (every tile keeps its id, options and visibility; content tiles
+      // follow below). A site without a stored layout renders the seed anyway.
       const theme = { ...s.theme };
       for (const k of THEME_DESIGN_KEYS) delete theme[k];
-      return { ...s, templateId: input.templateId, theme };
+      const stored = parseStoredLayout(s.layout);
+      if (!stored) return { ...s, templateId: input.templateId, theme };
+      const shape = {
+        template_id: input.templateId,
+        hero_config: s.hero,
+        contact_config: s.contact,
+        visibility: 'public' as const,
+        modules: Object.entries(s.modules).map(([module_key, m]) => ({ module_key, enabled: m.enabled, sort_order: m.sortOrder, config: m.config })),
+      };
+      return { ...s, templateId: input.templateId, theme, layout: applySeed(stored, seedLayout(shape)) };
     }
     case 'reset_order': {
       // Back to the side's recommended order; nav order cleared, LABELS kept.

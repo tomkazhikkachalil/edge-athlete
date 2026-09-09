@@ -2,7 +2,8 @@ import { NextResponse } from 'next/server';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { OrgSide } from '@/lib/orgs/authz';
 import { FEATURE_FLAGS } from '@/lib/features';
-import { deriveLegacyLayout, newInstanceFor, validateLayout, type SiteLayout } from '@/lib/site-builder/layout';
+import { newInstanceFor, validateLayout, type SiteLayout } from '@/lib/site-builder/layout';
+import { seedLayout } from '@/lib/site-builder/seeds';
 import { isSiteWidgetKey, type SiteWidgetKey } from '@/lib/site-builder/catalog';
 import { isWidgetEmpty } from '@/lib/site-builder/emptiness';
 import { LayoutSchema, parseStoredLayout } from '@/lib/site-builder/layout-schema';
@@ -64,7 +65,10 @@ async function loadDraftSiteView(
   const stored = state ? parseStoredLayout(state.snapshot.layout) : null;
   return {
     site: view,
-    layout: stored ?? deriveLegacyLayout(view),
+    // The draft's layout; else the PUBLISHED one (phase 8 — a P3 gap: after a
+    // publish there is no draft, and the canvas showed the projection, so the
+    // next drag saved a layout that had lost the arrangement); else the seed.
+    layout: stored ?? base.layout ?? seedLayout(view),
     draft: state ? { id: state.summary.id, rev: state.summary.rev, hasUnpublishedChanges: state.summary.hasUnpublishedChanges } : null,
   };
 }

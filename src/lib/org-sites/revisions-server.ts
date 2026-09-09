@@ -17,6 +17,8 @@ import {
   type SnapshotSiteRow,
 } from '@/lib/site-builder/snapshot';
 import type { RevisionActionInput } from './validate';
+import { parseStoredLayout } from '@/lib/site-builder/layout-schema';
+import { parsePublishStats, publishStats, type PublishStats } from '@/lib/site-builder/metrics';
 
 /**
  * Draft / publish / revisions — Site Builder phase 2 (Sep 9 2026, mig 180).
@@ -66,6 +68,8 @@ export interface SitePointers {
   published_at: string | null;
   draft_revision_id: string | null;
   published_revision_id: string | null;
+  /** Phase 8 metrics: site created → first publish. Optional — older callers' fixtures. */
+  created_at?: string | null;
 }
 
 export interface RevisionSummary {
@@ -76,6 +80,8 @@ export interface RevisionSummary {
   createdBy: { id: string; name: string } | null;
   isPublished: boolean;
   isDraft: boolean;
+  /** Phase 8: what the publish changed and how long it took (null before phase 8 / for the draft). */
+  stats: PublishStats | null;
 }
 
 export interface DraftSummary {
@@ -102,17 +108,17 @@ export async function loadSitePointers(
 ): Promise<{ site: SitePointers | null; support: RevisionSupport }> {
   const { data, error } = await admin
     .from('org_sites')
-    .select('id, subdomain, published_at, draft_revision_id, published_revision_id')
+    .select('id, subdomain, published_at, created_at, draft_revision_id, published_revision_id')
     .eq(orgColumn(side), orgId)
     .maybeSingle();
   if (!error) return { site: (data as SitePointers | null) ?? null, support: 'supported' };
   if (isPre180(error)) {
     const { data: base } = await admin
       .from('org_sites')
-      .select('id, subdomain, published_at')
+      .select('id, subdomain, published_at, created_at')
       .eq(orgColumn(side), orgId)
       .maybeSingle();
-    const row = base as { id: string; subdomain: string; published_at: string | null } | null;
+    const row = base as { id: string; subdomain: string; published_at: string | null; created_at: string | null } | null;
     return {
       site: row ? { ...row, draft_revision_id: null, published_revision_id: null } : null,
       support: 'pre180',
@@ -204,6 +210,15 @@ export async function getOrCreateDraft(
   const rows = await loadRows(admin, site.id);
   if (!rows) return null;
   const snapshot = snapshotFromRows(rows.site, rows.modules);
+  // Phase 8 (a P3 gap): the rows carry no grid layout — a fresh draft
+  // materialised after a publish must inherit the PUBLISHED layout, or the
+  // next publish (say, a hero edit from the console) would silently drop
+  // the arrangement back to the projection.
+  if (site.published_revision_id) {
+    const published = await loadRevision(admin, site.published_revision_id);
+    const layout = published ? parseSnapshot(published.snapshot)?.layout : undefined;
+    if (layout !== undefined) snapshot.layout = layout;
+  }
   const { data: inserted, error } = await admin
     .from('org_site_revisions')
     .insert({ site_id: site.id, snapshot, rev: 1, created_by: userId })
@@ -401,9 +416,10 @@ export async function publishDraft(
   if (!site.draft_revision_id) {
     if (site.published_revision_id) return { status: 'noop', revisionId: site.published_revision_id };
     // History point #1: the rows as they stand become the first published revision.
+    const stats = publishStats({ prev: null, next: null, firstPublish: true, draftCreatedAt: null, siteCreatedAt: site.created_at ?? null, now });
     const { data, error } = await admin
       .from('org_site_revisions')
-      .insert({ site_id: site.id, snapshot: snapshotFromRows(rows.site, rows.modules), rev: 1, created_by: userId, published_at: now, published_by: userId, label: label ?? null })
+      .insert({ site_id: site.id, snapshot: snapshotFromRows(rows.site, rows.modules), rev: 1, created_by: userId, published_at: now, published_by: userId, label: label ?? null, stats })
       .select('id')
       .single();
     if (error || !data) {
@@ -422,9 +438,20 @@ export async function publishDraft(
   const written = await writeSnapshotToRows(admin, site.id, prev, snapshot);
   if (!written.ok) return { status: written.code === '23514' ? 'template_check' : 'error' };
 
+  // Phase 8 metrics: what this publish changed against the previous one,
+  // and how long it took (draft opened → published; site created → published).
+  const previous = site.published_revision_id ? await loadRevision(admin, site.published_revision_id) : null;
+  const stats = publishStats({
+    prev: previous ? parseStoredLayout(parseSnapshot(previous.snapshot)?.layout) : null,
+    next: parseStoredLayout(snapshot.layout),
+    firstPublish: !site.published_revision_id,
+    draftCreatedAt: draft.created_at,
+    siteCreatedAt: site.created_at ?? null,
+    now,
+  });
   const { error: stampError } = await admin
     .from('org_site_revisions')
-    .update({ published_at: now, published_by: userId, ...(label ? { label } : {}) })
+    .update({ published_at: now, published_by: userId, stats, ...(label ? { label } : {}) })
     .eq('id', draft.id);
   if (stampError) {
     console.error(`${TAG} stamp error:`, stampError);
@@ -501,7 +528,7 @@ export async function revisionsGET(admin: Admin, side: OrgSide, orgId: string): 
   }
   const { data, error } = await admin
     .from('org_site_revisions')
-    .select('id, label, created_at, created_by, published_at')
+    .select('id, label, created_at, created_by, published_at, stats')
     .eq('site_id', site.id)
     .order('created_at', { ascending: false })
     .limit(REVISION_LIST_MAX + 1);
@@ -510,7 +537,7 @@ export async function revisionsGET(admin: Admin, side: OrgSide, orgId: string): 
     console.error(`${TAG} list error:`, error);
     return NextResponse.json({ error: 'Failed to load revisions' }, { status: 500 });
   }
-  const rows = (data ?? []) as { id: string; label: string | null; created_at: string; created_by: string | null; published_at: string | null }[];
+  const rows = (data ?? []) as { id: string; label: string | null; created_at: string; created_by: string | null; published_at: string | null; stats?: unknown }[];
   const ids = [...new Set(rows.map(r => r.created_by).filter((v): v is string => !!v))];
   const { data: profiles } = ids.length
     ? await admin.from('profiles').select('id, first_name, last_name, full_name, display_name').in('id', ids)
@@ -535,6 +562,7 @@ export async function revisionsGET(admin: Admin, side: OrgSide, orgId: string): 
     createdBy: name(r.created_by),
     isPublished: r.id === site.published_revision_id,
     isDraft: r.id === site.draft_revision_id,
+    stats: parsePublishStats(r.stats),
   }));
   const draft = await draftSummary(admin, site);
   return NextResponse.json({ supported: true, draft, publishedRevisionId: site.published_revision_id, revisions });
