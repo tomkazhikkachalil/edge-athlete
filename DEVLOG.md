@@ -1,5 +1,28 @@
 # Development Log
 
+## September 9, 2026 — Site Builder close: docs aligned (CLAUDE.md convention 12, masterplan §6, the session doc)
+
+The program is built (#616–#634) and deployed (the prod release meta reads
+the #634 merge, 32d86de5). Docs-only:
+
+- **CLAUDE.md convention 12** rewritten from its phase-1/2 text to name
+  every invariant phases 3–8 added: the three disjoint key sets, `h` as a
+  minimum, empty-never-renders, seeds as the fallback, the two config
+  owners, content-on-the-instance, embeds as a structure + `frame-src`,
+  the published projection, the canvas's draft → published → seed read, a
+  content save bumping the draft rev, theme tokens over the template, one
+  heading face per site, the build-injected editor flag, and the three e2e
+  traps of the day.
+- **Masterplan** status line (CLAUDE.md docs index) and the §6 supersession
+  note now say "built" and list the phases; the editor's flag state is
+  spelled out.
+- **Session doc**: header re-aligned (migration head 180, `main` at
+  32d86de5), a Site Builder paragraph in the "where the project is"
+  narrative, the closing state (renderer live, editor flagged off in prod,
+  the three open items), migration count 179 → 180.
+
+Not a code change; the gate is unaffected.
+
 ## September 9, 2026 — Site Builder phase 8 (P8-B): the site checklist in the editor; History says what a publish changed (zero DDL; behind the flag)
 
 - **Six derived steps** (`src/lib/site-builder/checklist.ts`, the console's

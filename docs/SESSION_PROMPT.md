@@ -2,8 +2,9 @@
 
 > Tom's session-start prompt. Paste this (or point Claude at it) when opening a
 > development session. Last aligned with project state: **September 9, 2026
-> (after the end-of-session maintenance sweep #614)** — migration head 179;
-> `main` at the #614 merge (0f442fc7), deployed and Ready. If the "Where the project actually is" section drifts stale, ask
+> (after the Site Builder program, #616–#634)** — migration head 180;
+> `main` at the #634 merge (32d86de5), deployed (the prod release meta reads
+> 32d86de5). If the "Where the project actually is" section drifts stale, ask
 > Claude to re-align it against DEVLOG.md and session memory.
 
 ## Context & Vision
@@ -233,15 +234,47 @@ The end-of-session sweep (#614, DEVLOG only) closed the day: gate green on
 163 chunks — guardrails green, `npm audit` 0 at every level; the webhook
 fired; the floor gate was re-run on 34 downloaded deployed chunks.
 
-`main` is at the #614 merge (0f442fc7), deployed and Ready, with nothing in
-flight; every branch of the night is deleted. The next program is Tom's
-call; candidates in session memory (the parked Club Model spec items —
-competition formats, brackets, ad hoc teams, external entries, hole-level
-contest media — and the name-helper consolidation). Tom still owes ops:
-Search Console, custom-domain env, device passes — the capture-fix pass
-(three portrait photos un-edited, one edited photo + a video, a live-round
-hole photo), a first real staff invite on his own league, and a pass over
-a real branded club's in-app page on his phone.
+**Sep 9 — the Site Builder program (#616–#634), BUILT.** Tom's design doc
+("Edge Athlete Site Builder": a dashboard editor whose panels are public —
+a closed widget catalog bound to live queries, a constrained 12-column grid
+with per-widget constraints and vertical compaction, one composition
+rendering web + in-app with mobile derived, chrome fixed, draft → publish →
+revisions, templates and a checklist) superseded masterplan §6. Nineteen
+PRs, one per step, each merged by Tom before the next opened; ONE migration
+(180, `org_site_revisions`); phases 6–8 zero DDL. **Phase 1** (#616–#620):
+the Manage menu, the widget registry (zero imports; `WEB_WIDGET_KEYS` ≡
+`MODULE_KEYS` pinned), the public home and the glance grid rendering ONLY
+from a layout — both byte-identical proofs. **Phase 2** (#621–#623): drafts,
+publish, history, restore; the rows of `org_sites` / `org_site_modules` are
+the PUBLISHED PROJECTION, mirrored on publish; the preview in its own route
+group. **Phase 3** (#624–#627): one data resolver with three callers, the
+grid editor on react-grid-layout (undo, autosave, conflict chip, a phone
+notice with working doors), the public grid renderer ("empty widgets never
+render publicly"), the picker whose tiles preview the club's own data.
+**Phase 5** (#628): the properties panel generated from field descriptors —
+content stays on the org objects and wins over the instance. **Phase 6**
+(#629–#630): text / image / embed widgets riding the layout INSTANCE under
+the gate (a deviation from the plan's `org_site_blocks` table, recorded:
+a block row would go live before Publish); embeds are a structure, never a
+URL; `frame-src` in both CSP builders; a compact block editor, photo upload,
+paste-a-link. **Phase 7** (#631–#632): the template's decisions became theme
+tokens with the template as fallback; five self-hosted OFL heading faces, one
+loaded per site only when chosen; the canvas finally wears the brand; the
+theme panel with live preview and a contrast readout. **Phase 8**
+(#633–#634): template seeds (order = side × sport, pairing = template),
+publish metrics into `revisions.stats`, two draft-fidelity fixes (the canvas
+after a publish; a fresh draft inheriting the published layout), the
+checklist rail. CLAUDE.md convention 12 names every invariant.
+
+`main` is at the #634 merge (32d86de5), deployed; the public renderer
+(grid, seeds, theme tokens, heading faces) is live for every site. The
+EDITOR is behind `NEXT_PUBLIC_FEATURE_SITE_BUILDER`, which is NOT on in
+production and is build-injected — turning it on needs a rebuild. Open:
+(a) the rollout — flag on, a prod probe with a disposable org, a real
+branded club through the editor on Tom's phone and laptop, the one-hour
+metric read from `revisions.stats`; (b) the phase-3 leftover — several
+instances of one module widget; (c) older ops Tom owes: Search Console,
+custom-domain env, the capture-fix device pass, a first real staff invite.
 
 ## Production standard (the baseline, already in force)
 
@@ -255,7 +288,7 @@ a real branded club's in-app page on his phone.
   covers layout, not memory: media work is verified with phone-SIZED inputs
   (`e2e/fixtures/rotated6-12mp.jpg`), not thumbnails.
 - Schema changes are numbered migrations in database/migrations/ (currently
-  at 179), the source of truth for the schema.
+  at 180), the source of truth for the schema.
 - Secrets live in environment variables (Vercel-managed); guardian/minor data
   follows the standing safety lines (no DM transcripts, never auto-publish a
   minor's post, append-only consent/audit).
