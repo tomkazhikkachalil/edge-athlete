@@ -155,6 +155,13 @@ async function loadRevision(admin: Admin, id: string): Promise<RevisionRow | nul
   return (data as RevisionRow | null) ?? null;
 }
 
+/** One revision's parsed snapshot by id (phase 10: the org GET reads the
+ *  published — or, offline, the draft — layout for the in-app page). */
+export async function loadSnapshotByRevisionId(admin: Admin, id: string): Promise<SiteSnapshot | null> {
+  const row = await loadRevision(admin, id);
+  return row ? parseSnapshot(row.snapshot) : null;
+}
+
 /** The draft's snapshot + its console line (does it differ from the rows,
  *  the published projection?). Null when there is no usable draft. */
 export async function loadDraftSnapshot(

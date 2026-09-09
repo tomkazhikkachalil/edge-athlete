@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { adminClient, apiAs, loadQaUser, readErrorBody, resetRateBucket } from './helpers/qa-user';
+import { publishSite } from './helpers/org-site';
 import { cleanRoundPost, seedRoundPost } from './helpers/member-photos';
 import path from 'node:path';
 import { openWindow } from './helpers/org-page';
@@ -54,6 +55,9 @@ test('org gallery: picked member photo → face, window, lightbox; revoke → go
     pub = await seedRoundPost(admin, alpha.id, { stamp, visibility: 'public' });
     res = await ownerApi.patch(`/api/clubs/${clubId}/site`, { data: { action: 'set_gallery_pick', mediaId: pub.mediaId } });
     expect(res.status(), await readErrorBody(res)).toBe(200);
+    // Site Builder P2-B: the pick lands in the DRAFT; the in-app gallery reads
+    // the published projection (the module rows) — promote before reading.
+    await publishSite(ownerApi, 'club', clubId);
 
     // The read: anonymous (public org) sees the item, as a member item.
     res = await anon.request.get(`/api/clubs/${clubId}/gallery`);

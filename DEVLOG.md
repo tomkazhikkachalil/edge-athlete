@@ -1,5 +1,70 @@
 # Development Log
 
+## September 9, 2026 — Site Builder phase 10 (P10-A): the composition reaches the app — order, titles, visibility (zero DDL; zero visual change without a layout)
+
+"One composition renders two surfaces." Until now the in-app league/club
+page derived its bubble order from the REGISTRY alone; the site's arranged
+layout never reached it.
+
+- **The org GET carries the composition** (`readSiteBrandRow(…, { layout:
+  true })` in `revalidate.ts` selects the two pointer columns — pre-180
+  falls back to the six — and loads ONE snapshot by primary key: the
+  PUBLISHED revision's layout while the site is live, the DRAFT's while it
+  is offline (the same rule the brand follows; offline sites now read one
+  revision instead of a pointer re-select + a revision);
+  `buildAppComposition` (`site-builder/app-composition.ts`, server-only)
+  projects it — `projectLayoutForApp`: the app-capable instances in READING
+  ORDER (the phone's order) with their titles — and prunes it to the
+  VIEWER (`isVisibleTo`: public → all, members → members and managers,
+  staff → managers; a PINNED widget ignores the instance's visibility, so a
+  private club's Members count shows to outsiders exactly as before).
+  `OrgPageResponse.composition: AppComposition | null`; null = no site / no
+  stored layout.
+- **`deriveAppLayout(composition?)`** (`app-layout.ts`): no composition →
+  the recorded Sep 9 glance order, byte-identical (pinned for `undefined`
+  AND `null`); with one → the composition's order, then the app-only
+  widgets (week, announcements, activity, posts) and the PINNED ones
+  (`AppSurface.pinned`: members, gallery — Org Pages R4's "Photos shows
+  regardless") interleaved at their registry priority against an
+  `anchor(i)` (a module slot's priority; a content tile will inherit the
+  nearest preceding module's, so it sticks to the section it follows). A
+  module the layout omits is dropped; posts (110) is always last. Spans:
+  module bubbles keep the registry's (their faces are designed for it);
+  content tiles span by width, never `sm`.
+- **The glance grid** (`OrgGlanceGrid.tsx`): one line changes —
+  `deriveAppLayout(composition)` — plus `label: s.title ?? face.label`, so an
+  instance title names the bubble AND its window (LargerWindow reads the
+  label). Faces, gates, windows, grid classes untouched. Guardrail 4c: the
+  in-app page's components must never import the zod-backed site-builder
+  modules (the composition is resolved on the server).
+- Zero visual change for every org without a stored layout: the null path
+  is the unchanged registry walk, pinned by test; the 19 `openWindow` specs
+  and `org-page-glance` (@mobile) run on such orgs.
+- Tests: `app-composition.test.ts` (null → null; reading order; the viewer
+  matrix incl. pinned; `spanFor`; the interleave — `[standings, members]` →
+  `[week, standings, members, …]`, `[members, standings]` → `[members, week,
+  standings, …]`, posts last, dropped vs pinned, ids and titles carried);
+  `app-layout.test.ts` fallback pin for null/undefined; `registry.test.ts`
+  pinned ≡ {members, gallery}. e2e (editor spec): after publish, the in-app
+  league page at 1280 and 375 lists its module bubbles in the layout's
+  reading order (through the bubble aliases) and the titled standings
+  instance names its bubble and the window it opens.
+
+- Found by widening the regression set to the in-app specs:
+  `org-app-gallery.spec.ts` had been RED since the phase-2 publish gate —
+  a gallery pick lands in the DRAFT and the in-app gallery reads the
+  published projection, but the spec never promoted the draft (it was not
+  in the P2-B twelve-spec sweep and not in any later regression run). It
+  now calls `publishSite` after the pick. Also a run trap: a local
+  production server left up across many spec runs eventually hangs
+  requests (a 15-minute stall, then a draft save stuck on "Saving…");
+  restart it from the existing build before believing a red run.
+
+Not in this PR: content tiles in-app (P10-B) and the editor as the
+Website section's door — parity, the console collapse, the flag's
+retirement (P10-C).
+
+
 ## September 9, 2026 — Site Builder phase 9 (P9-B): the panel binds it — entity pickers, options on the canvas, "Add another" (zero DDL)
 
 - **Two descriptor kinds, a third scope** (`fields.ts`): `select` (a

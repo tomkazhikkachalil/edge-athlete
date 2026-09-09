@@ -156,6 +156,11 @@ export interface AppSurface {
   bubbleKey: AppBubbleKey;
   /** The widget renders its own bubble AND window (the members' posts wall). */
   ownsWindow?: true;
+  /** Phase 10 — renders in-app even when the site's composition omits it
+   *  (placed at its registry priority like an app-only widget), and ignores
+   *  the instance's visibility: the roster window lives on `members`, and
+   *  Photos shows regardless of the gallery toggle (Org Pages R4). */
+  pinned?: true;
 }
 
 export interface WidgetEmptyState {
@@ -214,7 +219,7 @@ export const WIDGETS: Readonly<Record<WidgetKey, WidgetDef>> = {
     family: 'live',
     moduleKey: 'members',
     constraints: TABLE,
-    surfaces: { default: BOTH, app: { priority: 10, size: 'sm', bubbleKey: 'members' } },
+    surfaces: { default: BOTH, app: { priority: 10, size: 'sm', bubbleKey: 'members', pinned: true } },
     subpage: true,
     data: ['memberStats'],
   },
@@ -293,7 +298,7 @@ export const WIDGETS: Readonly<Record<WidgetKey, WidgetDef>> = {
     family: 'content',
     moduleKey: 'gallery',
     constraints: FULL,
-    surfaces: { default: BOTH, app: { priority: 90, size: 'md', bubbleKey: 'photos' } },
+    surfaces: { default: BOTH, app: { priority: 90, size: 'md', bubbleKey: 'photos', pinned: true } },
     subpage: true,
     data: [],
   },

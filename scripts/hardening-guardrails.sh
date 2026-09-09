@@ -85,6 +85,18 @@ else
   ok "site presentational components stay props-only"
 fi
 
+# 4c. Site Builder phase 10 (Sep 2026): the in-app org page reads the site's
+#     composition RESOLVED by the server (app-composition.ts). Its client
+#     components must never import the zod-backed parsers, or the org-page
+#     chunk grows by validate.ts + zod (the catalog's founding rule).
+hits=$(scan "@/lib/org-sites/validate|@/lib/site-builder/schemas|@/lib/site-builder/emptiness|@/lib/site-builder/app-composition" 'src/components/orgs/page/**/*.ts' 'src/components/orgs/page/**/*.tsx')
+if [ -n "$hits" ]; then
+  bad "an in-app org page component imports a zod-backed site-builder module (resolve on the server instead):"
+  echo "$hits" | sed 's/^/      /'
+else
+  ok "in-app org page components stay zod-free"
+fi
+
 # 5. next/og carries a multi-MB wasm payload — it stays isolated to the
 #    share-card route bundles, never imported elsewhere.
 hits=$(scan "from 'next/og'" 'src/**/*.ts' 'src/**/*.tsx' | grep -v 'card\.png/route\.ts')

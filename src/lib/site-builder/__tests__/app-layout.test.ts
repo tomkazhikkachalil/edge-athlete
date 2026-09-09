@@ -24,9 +24,12 @@ const HELPER_WINDOW_KEYS = [
 ];
 
 describe('deriveAppLayout', () => {
-  it('reproduces the recorded glance order exactly', () => {
-    const slots = deriveAppLayout().map(s => ({ key: s.key, bubbleKey: s.bubbleKey, span: s.span }));
-    expect(slots).toEqual(RECORDED.map(r => ({ ...r })));
+  it('reproduces the recorded glance order exactly — with no composition, null or undefined (phase 10 fallback)', () => {
+    for (const arg of [undefined, null]) {
+      const slots = deriveAppLayout(arg).map(s => ({ key: s.key, bubbleKey: s.bubbleKey, span: s.span }));
+      expect(slots).toEqual(RECORDED.map(r => ({ ...r })));
+      for (const s of deriveAppLayout(arg)) expect([s.instanceId, s.title]).toEqual([null, null]);
+    }
   });
 
   it('priorities are unique and strictly ascending; bubble keys unique', () => {

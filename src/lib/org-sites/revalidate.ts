@@ -13,8 +13,10 @@
 import { revalidateTag } from 'next/cache';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { SiteBrandRow } from './brand';
-import { loadDraftSnapshotBySiteId } from './revisions-server';
+import { loadDraftSnapshotBySiteId, loadSnapshotByRevisionId } from './revisions-server';
 import type { OrgSide } from '@/lib/orgs/authz';
+import { parseStoredLayout } from '@/lib/site-builder/layout-schema';
+import type { SiteLayout } from '@/lib/site-builder/layout';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- matches the authz.ts Admin alias; schema-agnostic helper
 type Admin = SupabaseClient<any, 'public', any>;
@@ -43,38 +45,63 @@ export async function findPublishedSite(
   }
 }
 
+/** Phase 10: the brand row plus the site's stored grid layout — the
+ *  PUBLISHED revision's while the site is live, the DRAFT's while it is
+ *  offline (the same rule the brand follows). Null = no stored layout. */
+export interface SiteBrandRowWithLayout extends SiteBrandRow {
+  layout: SiteLayout | null;
+}
+
+const BRAND_COLUMNS = 'id, subdomain, logo_path, hero_config, theme_token_set, published_at';
+const BRAND_COLUMNS_180 = `${BRAND_COLUMNS}, draft_revision_id, published_revision_id`;
+
 /** The org's site row for the in-app brand (Org Pages R2) — draft OR
  *  published, the six columns buildOrgBrand needs. Never throws; pre-155
  *  or no row reads null. One read serves both `site` (published-only, the
- *  "Public site" link) and `brand` on the org GET. */
+ *  "Public site" link) and `brand` on the org GET — and, with
+ *  `{ layout: true }` (phase 10), the composition the in-app page follows. */
 export async function readSiteBrandRow(
   admin: Admin,
   side: OrgSide,
-  orgId: string
-): Promise<SiteBrandRow | null> {
+  orgId: string,
+  opts?: { layout?: boolean }
+): Promise<SiteBrandRowWithLayout | null> {
   try {
-    const { data } = await admin
-      .from('org_sites')
-      .select('id, subdomain, logo_path, hero_config, theme_token_set, published_at')
-      .eq(side === 'league' ? 'league_id' : 'club_id', orgId)
-      .maybeSingle();
-    if (!data?.id || !data.subdomain) return null;
-    const row: SiteBrandRow = {
+    const orgColumn = side === 'league' ? 'league_id' : 'club_id';
+    let { data, error } = await admin.from('org_sites').select(BRAND_COLUMNS_180).eq(orgColumn, orgId).maybeSingle();
+    if (error?.code === '42703' || error?.code === 'PGRST204') {
+      // Pre-180: no pointer columns — the six, no layout.
+      ({ data, error } = await admin.from('org_sites').select(BRAND_COLUMNS).eq(orgColumn, orgId).maybeSingle());
+    }
+    if (error || !data?.id || !data.subdomain) return null;
+    const row: SiteBrandRowWithLayout = {
       id: data.id as string,
       subdomain: data.subdomain as string,
       logo_path: (data.logo_path as string | null) ?? null,
       hero_config: data.hero_config,
       theme_token_set: data.theme_token_set,
       published_at: (data.published_at as string | null) ?? null,
+      layout: null,
     };
+    const pointers = data as { draft_revision_id?: string | null; published_revision_id?: string | null };
     // Site Builder P2-B: the rows are the PUBLISHED projection. While the
     // site is live, in-app = live (a member never sees a different hero
     // in-app than on the site). While it is OFFLINE the draft is the only
     // content there is, so its hero/theme show ("a draft site's brand
     // renders for everyone" — Tom). Pre-180 or no draft → the rows.
     if (!row.published_at) {
-      const draft = await loadDraftSnapshotBySiteId(admin, row.id);
-      if (draft) return { ...row, hero_config: draft.hero, theme_token_set: draft.theme };
+      const draft = pointers.draft_revision_id
+        ? await loadSnapshotByRevisionId(admin, pointers.draft_revision_id)
+        : await loadDraftSnapshotBySiteId(admin, row.id);
+      if (draft) {
+        return { ...row, hero_config: draft.hero, theme_token_set: draft.theme, layout: opts?.layout ? parseStoredLayout(draft.layout) : null };
+      }
+      return row;
+    }
+    // Phase 10: the published composition, one read by primary key.
+    if (opts?.layout && pointers.published_revision_id) {
+      const published = await loadSnapshotByRevisionId(admin, pointers.published_revision_id);
+      return { ...row, layout: published ? parseStoredLayout(published.layout) : null };
     }
     return row;
   } catch (error) {

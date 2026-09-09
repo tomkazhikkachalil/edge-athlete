@@ -30,7 +30,7 @@ import OrgVenues from '@/components/orgs/OrgVenues';
 import { formatDisplayName, getInitials } from '@/lib/formatters';
 import { useAuth } from '@/lib/auth';
 import { WIDGETS } from '@/lib/site-builder/catalog';
-import { deriveAppLayout, isOrgWindowKey, type OrgWindowKey } from '@/lib/site-builder/app-layout';
+import { deriveAppLayout, isOrgWindowKey, type AppComposition, type OrgWindowKey } from '@/lib/site-builder/app-layout';
 import OrgMembersList from './OrgMembersList';
 import { pickPhotos, PhotosEmptyFace, PhotosFace, PhotosWindow } from './OrgPhotos';
 import OrgMemberPostsGrid from './OrgMemberPostsGrid';
@@ -177,6 +177,8 @@ interface OrgGlanceGridProps {
   isMember: boolean;
   canManage: boolean;
   isOwner: boolean;
+  /** Phase 10: the site's composition (order + titles); null = registry order. */
+  composition: AppComposition | null;
   standingsScope: 'public' | 'mine';
   members: MemberRow[];
   memberCount: number;
@@ -191,6 +193,7 @@ export default function OrgGlanceGrid({
   isMember,
   canManage,
   isOwner,
+  composition,
   standingsScope,
   members,
   memberCount,
@@ -410,14 +413,17 @@ export default function OrgGlanceGrid({
     },
   };
 
-  // Registry order → the slots: a bubble (when its face shows) or the
-  // posts wall, which renders its own bubble and window.
+  // The site's composition (phase 10: the layout's reading order, the
+  // instance titles) — or the registry order when there is none — → the
+  // slots: a bubble (when its face shows) or the posts wall, which renders
+  // its own bubble and window. An instance title names the bubble AND its
+  // window (LargerWindow reads the label).
   type Slot = { kind: 'bubble'; bubble: Bubble } | { kind: 'posts' };
-  const slots: Slot[] = deriveAppLayout().flatMap((s): Slot[] => {
+  const slots: Slot[] = deriveAppLayout(composition).flatMap((s): Slot[] => {
     if (s.ownsWindow) return [{ kind: 'posts' }];
     if (!isOrgWindowKey(s.bubbleKey)) return [];
     const face = faceFor[s.bubbleKey]();
-    return face ? [{ kind: 'bubble', bubble: { ...face, span: s.span } }] : [];
+    return face ? [{ kind: 'bubble', bubble: { ...face, label: s.title ?? face.label, span: s.span } }] : [];
   });
   const bubbles: Bubble[] = slots.flatMap(s => (s.kind === 'bubble' ? [s.bubble] : []));
 

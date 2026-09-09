@@ -6,6 +6,7 @@
 // `location` fallback (club, 001).
 
 import type { OrgBrand } from '@/lib/org-sites/brand-types';
+import type { AppComposition } from '@/lib/site-builder/app-layout';
 
 export type OrgSide = 'league' | 'club';
 
@@ -91,6 +92,10 @@ export interface OrgPageResponse {
   site?: { subdomain: string } | null;
   /** Org Pages R2: the site's brand (draft or published), or null. */
   brand?: OrgBrand | null;
+  /** Site Builder phase 10: the site's composition for the app — the
+   *  app-capable instances in reading order, pruned to the viewer; null =
+   *  no site / no stored layout (the glance grid keeps the registry order). */
+  composition?: AppComposition | null;
   memberCount: number;
   members: MemberRow[];
   viewerRole: string | null;
