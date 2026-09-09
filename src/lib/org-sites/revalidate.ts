@@ -13,6 +13,7 @@
 import { revalidateTag } from 'next/cache';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { SiteBrandRow } from './brand';
+import { loadDraftSnapshotBySiteId } from './revisions-server';
 import type { OrgSide } from '@/lib/orgs/authz';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- matches the authz.ts Admin alias; schema-agnostic helper
@@ -58,7 +59,7 @@ export async function readSiteBrandRow(
       .eq(side === 'league' ? 'league_id' : 'club_id', orgId)
       .maybeSingle();
     if (!data?.id || !data.subdomain) return null;
-    return {
+    const row: SiteBrandRow = {
       id: data.id as string,
       subdomain: data.subdomain as string,
       logo_path: (data.logo_path as string | null) ?? null,
@@ -66,6 +67,16 @@ export async function readSiteBrandRow(
       theme_token_set: data.theme_token_set,
       published_at: (data.published_at as string | null) ?? null,
     };
+    // Site Builder P2-B: the rows are the PUBLISHED projection. While the
+    // site is live, in-app = live (a member never sees a different hero
+    // in-app than on the site). While it is OFFLINE the draft is the only
+    // content there is, so its hero/theme show ("a draft site's brand
+    // renders for everyone" — Tom). Pre-180 or no draft → the rows.
+    if (!row.published_at) {
+      const draft = await loadDraftSnapshotBySiteId(admin, row.id);
+      if (draft) return { ...row, hero_config: draft.hero, theme_token_set: draft.theme };
+    }
+    return row;
   } catch (error) {
     console.warn(`${TAG} site brand lookup failed:`, error);
     return null;

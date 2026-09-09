@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { adminClient, apiAs, loadQaUser, readErrorBody, resetRateBucket } from './helpers/qa-user';
+import { publishSite } from './helpers/org-site';
 
 // Builder depth, part 2 (phase 6b B2): the second template. 'bold' = a
 // strong-accent band header with the nav inside, a full-bleed hero, a
@@ -96,6 +97,8 @@ test('org site template: bold → band header + grid + tiles; classic restores; 
         data: { action: 'set_template', templateId: 'classic' },
       });
       expect(res.status(), await readErrorBody(res)).toBe(200);
+      // P2-B: edits land in the draft — publish before reading the public projection.
+      await publishSite(ownerApi, 'league', leagueId);
       const classic = await settleBody(anonCtx.request, sitePath, 'data-template="classic"', true, 12);
       expect(classic).not.toContain('sm:grid-cols-2');
       expect(classic).toContain('rounded-xl px-6 py-10 text-white');

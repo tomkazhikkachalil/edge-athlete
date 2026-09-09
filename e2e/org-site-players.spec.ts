@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { adminClient, apiAs, createQaChild, deleteQaUser, guardianFlagOn, loadQaUser, resetRateBucket } from './helpers/qa-user';
+import { publishSite as publishSiteDraft } from './helpers/org-site';
 import { cleanRoundPost, seedRoundPost } from './helpers/member-photos';
 
 // M2 (program 10): the player page also carries the member's round photos
@@ -231,6 +232,8 @@ test('player pages: public member linked + paged; private member unlinked + 404;
       photoSeed = await seedRoundPost(admin, owner.id, { stamp: String(stamp), visibility: 'public', course: `QA Photo Links ${stamp}` });
       r = await ownerApi.patch(`/api/clubs/${clubId}/site`, { data: { action: 'set_gallery_pick', mediaId: photoSeed.mediaId } });
       expect(r.status(), await r.text()).toBe(200);
+      // P2-B: edits land in the draft — publish before reading the public projection.
+      await publishSiteDraft(ownerApi, 'club', clubId);
       const { data: siteRow } = await admin.from('org_sites').select('id').eq('club_id', clubId).single();
       const streamer = `/api/media/org-gallery/${siteRow!.id as string}/${photoSeed.mediaId}`;
       await expect

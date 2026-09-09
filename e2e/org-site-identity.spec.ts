@@ -2,6 +2,7 @@ import { test, expect } from '@playwright/test';
 import path from 'node:path';
 import fs from 'node:fs';
 import { adminClient, apiAs, loadQaUser, readErrorBody, resetRateBucket } from './helpers/qa-user';
+import { publishSite } from './helpers/org-site';
 
 // Golf sites, part 1 (phase 6e S1): a golf club's front door. The hero
 // takes a photo (a site image asset — never a pdf, never another site's
@@ -140,6 +141,8 @@ test('club identity: hero photo + CTA + notice, contact card, JSON-LD; cross-sit
       data: { action: 'set_module', moduleKey: 'schedule', enabled: true },
     });
     expect(res.status()).toBe(200);
+    // P2-B: edits land in the draft — publish before reading the public projection.
+    await publishSite(ownerApi, 'club', clubId);
     const sub = await settleBody(anonCtx.request, `${home}/schedule`, `Cart path only ${stamp}`);
     expect(sub).toContain(`Cart path only ${stamp}`);
 
@@ -156,6 +159,8 @@ test('club identity: hero photo + CTA + notice, contact card, JSON-LD; cross-sit
       },
     });
     expect(res.status(), await readErrorBody(res)).toBe(200);
+    // P2-B: edits land in the draft — publish before reading the public projection.
+    await publishSite(ownerApi, 'club', clubId);
     const after = await settleBody(anonCtx.request, home, `Cart path only ${stamp}`, false);
     expect(after).not.toContain(`Cart path only ${stamp}`);
     expect(after).toContain('Book a tee time'); // the rest of the hero survives the re-save

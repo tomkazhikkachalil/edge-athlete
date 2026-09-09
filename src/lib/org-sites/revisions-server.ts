@@ -149,20 +149,41 @@ async function loadRevision(admin: Admin, id: string): Promise<RevisionRow | nul
   return (data as RevisionRow | null) ?? null;
 }
 
-/** The console's draft line: is there a draft, and does it differ from
- *  the rows (the published projection)? Null when there is no draft. */
-export async function draftSummary(admin: Admin, site: SitePointers): Promise<DraftSummary | null> {
+/** The draft's snapshot + its console line (does it differ from the rows,
+ *  the published projection?). Null when there is no usable draft. */
+export async function loadDraftSnapshot(
+  admin: Admin,
+  site: SitePointers
+): Promise<{ summary: DraftSummary; snapshot: SiteSnapshot } | null> {
   if (!site.draft_revision_id) return null;
   const [draft, rows] = await Promise.all([loadRevision(admin, site.draft_revision_id), loadRows(admin, site.id)]);
   if (!draft || !rows) return null;
   const snapshot = parseSnapshot(draft.snapshot);
   if (!snapshot) return null;
   return {
-    id: draft.id,
-    rev: draft.rev,
-    updatedAt: draft.updated_at,
-    hasUnpublishedChanges: !snapshotsEqual(snapshot, snapshotFromRows(rows.site, rows.modules)),
+    snapshot,
+    summary: {
+      id: draft.id,
+      rev: draft.rev,
+      updatedAt: draft.updated_at,
+      hasUnpublishedChanges: !snapshotsEqual(snapshot, snapshotFromRows(rows.site, rows.modules)),
+    },
   };
+}
+
+/** The console's draft line alone. */
+export async function draftSummary(admin: Admin, site: SitePointers): Promise<DraftSummary | null> {
+  return (await loadDraftSnapshot(admin, site))?.summary ?? null;
+}
+
+/** The draft snapshot of a site by id — for readers that hold only the
+ *  site id (the in-app brand of an OFFLINE site, the preview). Tolerates a
+ *  pre-180 database (no pointer column → null). */
+export async function loadDraftSnapshotBySiteId(admin: Admin, siteId: string): Promise<SiteSnapshot | null> {
+  const { data, error } = await admin.from('org_sites').select('draft_revision_id').eq('id', siteId).maybeSingle();
+  if (error || !data?.draft_revision_id) return null;
+  const draft = await loadRevision(admin, data.draft_revision_id as string);
+  return draft ? parseSnapshot(draft.snapshot) : null;
 }
 
 // ── The draft ───────────────────────────────────────────────────────────────
@@ -273,6 +294,8 @@ export interface ApplyDraftResult {
   /** The site's slug (for the legacy path's revalidation). */
   subdomain?: string;
   draft?: DraftSummary;
+  /** The snapshot after the action (response shapes read counts off it). */
+  snapshot?: SiteSnapshot;
 }
 
 /** Apply a content action to the site: to its DRAFT when 180 has run, to
@@ -291,10 +314,11 @@ export async function applyDraftAction(
     const rows = await loadRows(admin, site.id);
     if (!rows) return { status: 'not_found' };
     const prev = snapshotFromRows(rows.site, rows.modules);
-    const written = await writeSnapshotToRows(admin, site.id, prev, applySiteAction(prev, action, ctx));
+    const next = applySiteAction(prev, action, ctx);
+    const written = await writeSnapshotToRows(admin, site.id, prev, next);
     if (!written.ok) return { status: 'error' };
     revalidateTag(`org-site:${site.subdomain}`, { expire: 0 });
-    return { status: 'live', subdomain: site.subdomain };
+    return { status: 'live', subdomain: site.subdomain, snapshot: next };
   }
   for (let attempt = 0; attempt < 2; attempt++) {
     const draft = await getOrCreateDraft(admin, site, userId);
@@ -304,17 +328,19 @@ export async function applyDraftAction(
       const rows = await loadRows(admin, site.id);
       if (!rows) return { status: 'not_found' };
       const prev = snapshotFromRows(rows.site, rows.modules);
-      const written = await writeSnapshotToRows(admin, site.id, prev, applySiteAction(prev, action, ctx));
+      const next = applySiteAction(prev, action, ctx);
+      const written = await writeSnapshotToRows(admin, site.id, prev, next);
       if (!written.ok) return { status: 'error' };
       revalidateTag(`org-site:${site.subdomain}`, { expire: 0 });
-      return { status: 'live', subdomain: site.subdomain };
+      return { status: 'live', subdomain: site.subdomain, snapshot: next };
     }
     const current = parseSnapshot(draft.snapshot);
     if (!current) return { status: 'error' };
-    const result = await writeDraft(admin, draft, applySiteAction(current, action, ctx));
+    const next = applySiteAction(current, action, ctx);
+    const result = await writeDraft(admin, draft, next);
     if (result === 'ok') {
       const summary = await draftSummary(admin, { ...site, draft_revision_id: draft.id });
-      return { status: 'draft', subdomain: site.subdomain, ...(summary ? { draft: summary } : {}) };
+      return { status: 'draft', subdomain: site.subdomain, snapshot: next, ...(summary ? { draft: summary } : {}) };
     }
     if (result === 'error') return { status: 'error' };
     site.draft_revision_id = draft.id; // reload the draft and re-apply once

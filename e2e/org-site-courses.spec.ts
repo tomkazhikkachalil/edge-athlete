@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { adminClient, apiAs, loadQaUser, readErrorBody, resetRateBucket } from './helpers/qa-user';
+import { publishSite } from './helpers/org-site';
 
 // The golf club page, part 2 (phase 6b A2): the public site's `courses`
 // module. A venue linked to a catalog course (169) → enabling the module
@@ -161,6 +162,8 @@ test('org site courses: link → enable → home + /courses + JSON-LD → Home o
         data: { action: 'set_module', moduleKey: 'courses', enabled: false },
       });
       expect(res.status(), await readErrorBody(res)).toBe(200);
+      // P2-B: edits land in the draft — publish before reading the public projection.
+      await publishSite(ownerApi, 'club', clubId);
       expect(await settle(anonCtx.request, `${sitePath}/courses`, 404, 12)).toBe(404);
     } finally {
       await anonCtx.close();

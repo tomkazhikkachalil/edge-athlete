@@ -11,25 +11,30 @@ import {
   fetchPublicDivisions,
   fetchPublicGolfRounds,
   fetchPublicNewsList,
+  fetchPublicPages,
   fetchPublicStaff,
   fetchPublicStatLeaders,
   fetchPublicTeams,
   fetchPublicVenues,
 } from '@/lib/org-sites/public-data';
 import { fetchPublicCourseStats } from '@/lib/org-sites/course-stats';
-import { getSiteBySlugAnyStatus } from '@/lib/org-sites/server';
+import { getDraftSiteBySlug } from '@/lib/org-sites/server';
 import { verifyPreviewToken } from '@/lib/org-sites/preview-token';
 import { deriveLegacyLayout, needsData } from '@/lib/site-builder/layout';
-import SiteHomeBody from '../../_components/SiteHomeBody';
+import SiteHomeBody from '@/app/(public)/org/[slug]/_components/SiteHomeBody';
+import SiteShell from '@/app/(public)/org/[slug]/_components/SiteShell';
 
-// ── /org/[slug]/preview/[token] — the draft preview (cleanup round) ────────
-// The one deliberately UNCACHED page in the segment: no
-// generateStaticParams, force-dynamic, noindex — every hit re-renders
-// from RAW readers so a manager sees draft edits instantly. The signed
+// ── /org/[slug]/preview/[token] — the draft preview ─────────────────────────
+// Site Builder P2-B: the preview lives in its OWN route group so it escapes
+// the published-only layout — a manager previews the DRAFT (theme, template,
+// nav, notice, body) of a site that may not be live at all, inside the same
+// SiteShell the published pages use. The one deliberately UNCACHED page in
+// the segment: no generateStaticParams, force-dynamic, noindex — every hit
+// re-renders from RAW readers so draft edits show instantly. The signed
 // short-lived token IS the authorization (minted by the manager-gated
 // console API); no session branching happens here, so the segment's
-// viewer-independence contract holds. A bad, expired, or cross-site
-// token is indistinguishable from a missing page.
+// viewer-independence contract holds. A bad, expired, or cross-site token
+// is indistinguishable from a missing page.
 
 export const dynamic = 'force-dynamic';
 
@@ -44,7 +49,9 @@ export default async function OrgSitePreview({
 }) {
   const { slug, token } = await params;
   const admin = getSupabaseAdmin();
-  const site = await getSiteBySlugAnyStatus(admin, slug);
+  // The draft overlaid on the site row (falls back to the rows pre-180 or
+  // without a draft); any status — publish is not the gate here, the token is.
+  const site = await getDraftSiteBySlug(admin, slug);
   if (!site) notFound();
   const tokenSiteId = verifyPreviewToken(token);
   if (!tokenSiteId || tokenSiteId !== site.id) notFound();
@@ -54,7 +61,7 @@ export default async function OrgSitePreview({
   const layout = deriveLegacyLayout(site);
   const need = (field: Parameters<typeof needsData>[1]) => needsData(layout, field);
   const { side, orgId } = site;
-  const [standings, events, teams, staff, venues, affiliations, openWindows, courses, divisions, leaders, clubGolfBoards, golfRounds, news] =
+  const [standings, events, teams, staff, venues, affiliations, openWindows, courses, divisions, leaders, clubGolfBoards, golfRounds, news, pages] =
     await Promise.all([
     need('standings') ? fetchPublicStandings(admin, side, orgId) : Promise.resolve(null),
     need('events') ? fetchOrgEvents(admin, side, orgId, { limit: 25 }) : Promise.resolve(null),
@@ -69,6 +76,7 @@ export default async function OrgSitePreview({
     need('clubGolfBoards') && side === 'club' ? fetchPublicClubGolfBoards(admin, orgId) : Promise.resolve([]),
     need('golfRounds') ? fetchPublicGolfRounds(admin, side, orgId) : Promise.resolve([]),
     need('news') ? fetchPublicNewsList(admin, site.id, { publicOnly: site.visibility === 'private' }) : Promise.resolve([]),
+    fetchPublicPages(admin, site.id),
   ]);
   // S3: the club strip (needs the course ids from the read above).
   const courseStrip =
@@ -77,7 +85,7 @@ export default async function OrgSitePreview({
       : null;
 
   return (
-    <>
+    <SiteShell site={site} pages={pages}>
       <div className="bg-amber-100 border-b border-amber-300">
         <p className="max-w-4xl mx-auto px-4 py-2 text-sm font-medium text-amber-900">
           Draft preview — not public. This link expires; publish from the console
@@ -89,6 +97,6 @@ export default async function OrgSitePreview({
         layout={layout}
         data={{ standings, events, teams, staff, venues, affiliations, openWindows, courses, divisions, leaders, clubGolfBoards, courseStrip, golfRounds, news }}
       />
-    </>
+    </SiteShell>
   );
 }

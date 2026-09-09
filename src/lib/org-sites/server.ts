@@ -23,14 +23,15 @@ import {
   isMissingTableError,
   isValidSubdomain,
   MODULE_KEYS,
-  parseNavConfig,
   POST_155_MODULE_KEYS,
   slugifyOrgName,
   type SitePatchInput,
 } from './validate';
 import { RESERVED_ROOT_SLUGS } from './reserved';
 import { judgeSlug, suggestSlugs, type OrgIdentity } from './slug-policy';
-import { draftSummary } from './revisions-server';
+import { applyDraftAction, loadDraftSnapshot, loadSitePointers, publishDraft } from './revisions-server';
+import { readGalleryPicks } from './member-photo-gate';
+import { overlaySnapshot, type SnapshotAction } from '@/lib/site-builder/snapshot';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- matches the authz.ts Admin alias; schema-agnostic helper
 type Admin = SupabaseClient<any, 'public', any>;
@@ -133,13 +134,15 @@ export async function siteGET(
     .eq('site_id', data.id)
     .order('sort_order', { ascending: true })
     .limit(20);
-  // The draft line (P2-A): whether a draft exists and differs from the rows.
-  // The rows stay the response's `site`/`modules` until P2-B routes edits
-  // to the draft; the pointer columns never leave the server.
+  // P2-B: the console reads the DRAFT view — `site`/`modules` overlaid with
+  // the draft snapshot when one exists (so every form seeds from what the
+  // manager is editing), plus the draft line; row-only fields (published_at,
+  // logo_path, the domain columns) always come from the row. The pointer
+  // columns never leave the server.
   const row = data as unknown as SiteRow & { draft_revision_id?: string | null; published_revision_id?: string | null };
   const { draft_revision_id, published_revision_id, ...site } = row;
-  const draft = revisionsSupported
-    ? await draftSummary(admin, {
+  const draftState = revisionsSupported
+    ? await loadDraftSnapshot(admin, {
         id: site.id,
         subdomain: site.subdomain,
         published_at: site.published_at,
@@ -147,10 +150,14 @@ export async function siteGET(
         published_revision_id: published_revision_id ?? null,
       })
     : null;
+  const view = draftState
+    ? overlaySnapshot({ ...site, modules: (modules ?? []) as { module_key: string; enabled: boolean; sort_order: number; config: unknown }[] }, draftState.snapshot)
+    : { ...site, modules: modules ?? [] };
+  const { modules: viewModules, ...viewSite } = view;
   return NextResponse.json({
-    site,
-    modules: modules ?? [],
-    draft,
+    site: viewSite,
+    modules: viewModules,
+    draft: draftState?.summary ?? null,
     publishedRevisionId: published_revision_id ?? null,
     revisions: { supported: revisionsSupported },
   });
@@ -370,374 +377,96 @@ export async function sitePATCH(
   admin: Admin,
   side: OrgSide,
   orgId: string,
-  input: SitePatchInput
+  input: SitePatchInput,
+  userId: string | null = null
 ): Promise<NextResponse> {
-  if (input.action === 'set_hero') {
-    // S1: the hero photo is a site IMAGE asset — the set_sponsors recipe:
-    // load the site first so the stored path can be re-asserted against
-    // THIS site's prefix (the cross-site guard the schema can't apply).
-    const { data: site } = await admin
+  // ── Site live / offline (the org's identity act, manage_org) ─────────────
+  if (input.action === 'publish' || input.action === 'unpublish') {
+    const { data: current } = await admin
       .from('org_sites')
-      .select('id, subdomain')
+      .select('id, subdomain, published_at')
       .eq(orgColumn(side), orgId)
       .maybeSingle();
-    if (!site) return NextResponse.json({ error: 'Site not found' }, { status: 404 });
-    if (input.imagePath && !input.imagePath.startsWith(`org-media/${site.id}/`)) {
-      return NextResponse.json({ error: 'Photo is not one of this site’s assets' }, { status: 400 });
-    }
-    // Whole-object replace — the console always sends every field,
-    // seeded from GET (a partial save would otherwise clear the rest).
-    const hero_config = {
-      ...(input.headline ? { headline: input.headline } : {}),
-      ...(input.tagline ? { tagline: input.tagline } : {}),
-      ...(input.imagePath ? { imagePath: input.imagePath } : {}),
-      ...(input.imagePath && input.imageAlt ? { imageAlt: input.imageAlt } : {}),
-      ...(input.ctaLabel && input.ctaUrl ? { ctaLabel: input.ctaLabel, ctaUrl: input.ctaUrl } : {}),
-      ...(input.notice ? { notice: input.notice } : {}),
-      ...(input.notice && input.noticeUntil ? { noticeUntil: input.noticeUntil } : {}),
-    };
-    const { error } = await admin.from('org_sites').update({ hero_config }).eq('id', site.id);
-    if (error) {
-      console.error(`${TAG} hero patch error:`, error);
-      return NextResponse.json({ error: 'Failed to update the site' }, { status: 500 });
-    }
-    revalidateTag(`org-site:${site.subdomain}`, { expire: 0 });
-    return NextResponse.json({ ok: true });
-  }
-
-  if (input.action === 'set_theme' || input.action === 'set_contact') {
-    const patch =
-      input.action === 'set_contact'
-          ? {
-              // Deliberately public, manager-entered org contact info.
-              contact_config: {
-                ...(input.email ? { email: input.email } : {}),
-                ...(input.phone ? { phone: input.phone } : {}),
-                ...(input.website ? { website: input.website } : {}),
-                // S1: the golf club's contact card.
-                ...(input.address && input.address.length ? { address: input.address } : {}),
-                ...(input.hours ? { hours: input.hours } : {}),
-                ...(input.directionsUrl ? { directionsUrl: input.directionsUrl } : {}),
-                ...(input.social && Object.values(input.social).some(Boolean)
-                  ? {
-                      social: Object.fromEntries(
-                        Object.entries(input.social).filter(([, v]) => typeof v === 'string' && v)
-                      ),
-                    }
-                  : {}),
-              },
-            }
-          : // null clears back to the violet defaults. Whole-object replace on
-            // every branch — the console always sends every field, seeded
-            // from GET (a partial save would otherwise clear the rest).
-            // Phase 6b B1: the full token set rides the same replace.
-            {
-              theme_token_set: {
-                ...(input.accent ? { accent: input.accent.toLowerCase() } : {}),
-                ...(input.accentStrong ? { accentStrong: input.accentStrong.toLowerCase() } : {}),
-                ...(input.surface && input.surface !== 'plain' ? { surface: input.surface } : {}),
-                ...(input.typeface && input.typeface !== 'sans' ? { typeface: input.typeface } : {}),
-                ...(input.wordmark ? { wordmark: input.wordmark } : {}),
-              },
-            };
+    if (!current) return NextResponse.json({ error: 'Site not found' }, { status: 404 });
+    // Onboarding v2 R1 (179): publishing no longer waits for approval — an
+    // org is live by link; an unlisted/pending site serves noindex and stays
+    // out of the directory, the sitemap and search until it is LISTED.
+    // P2-B: idempotent on the stamp — going live keeps an existing one.
     const { data: updated, error } = await admin
       .from('org_sites')
-      .update(patch)
-      .eq(orgColumn(side), orgId)
-      .select('id, subdomain');
+      .update({ published_at: input.action === 'publish' ? (current.published_at ?? new Date().toISOString()) : null })
+      .eq('id', current.id)
+      .select('id, subdomain, published_at');
     if (error) {
-      console.error(`${TAG} branding patch error:`, error);
+      console.error(`${TAG} site patch error:`, error);
       return NextResponse.json({ error: 'Failed to update the site' }, { status: 500 });
     }
     if (!updated || updated.length === 0) {
       return NextResponse.json({ error: 'Site not found' }, { status: 404 });
     }
+    // P2-B: going live PROMOTES a dirty draft — preview-then-publish is the
+    // moment a first-time manager means "this is what I saw". Offline leaves
+    // the draft alone. Pre-180 there is no draft to promote.
+    if (input.action === 'publish') {
+      const { site: pointers, support } = await loadSitePointers(admin, side, orgId);
+      if (support === 'supported' && pointers?.draft_revision_id) {
+        const promoted = await publishDraft(admin, pointers, userId);
+        if (promoted.status === 'error') {
+          return NextResponse.json({ error: 'Failed to publish the draft' }, { status: 500 });
+        }
+        if (promoted.status === 'template_check') {
+          return NextResponse.json({ error: 'This template needs a database migration first (170)' }, { status: 409 });
+        }
+      }
+    }
+    // The ISR documents re-render on the next hit (publish must be
+    // immediate, not 300s-stale — the preview-then-publish flow). The
+    // sitemap enumerator purges too (R4): a published site must enter
+    // /sitemap.xml immediately, an unpublished one must leave it.
     revalidateTag(`org-site:${updated[0].subdomain}`, { expire: 0 });
-    return NextResponse.json({ ok: true });
+    revalidateTag('org-sitemap', { expire: 0 });
+    return NextResponse.json({ site: updated[0] });
   }
 
-  if (input.action === 'set_documents') {
-    // Phase 6b B3 — the set_sponsors recipe: cross-site guard on stored
-    // PDFs, UPDATE-then-insert on the module row (never upsert).
-    const { data: site } = await admin
-      .from('org_sites')
-      .select('id, subdomain')
-      .eq(orgColumn(side), orgId)
-      .maybeSingle();
-    if (!site) {
-      return NextResponse.json({ error: 'Site not found' }, { status: 404 });
-    }
-    for (const doc of input.documents) {
-      if (doc.path && !doc.path.startsWith(`org-media/${site.id}/`)) {
-        return NextResponse.json(
-          { error: 'Document is not one of this site’s files' },
-          { status: 400 }
-        );
-      }
-    }
-    const { data: updated, error } = await admin
-      .from('org_site_modules')
-      .update({ config: { documents: input.documents } })
-      .eq('site_id', site.id)
-      .eq('module_key', 'documents')
-      .select('module_key');
-    if (error) {
-      console.error(`${TAG} documents patch error:`, error);
-      return NextResponse.json({ error: 'Failed to update documents' }, { status: 500 });
-    }
-    if (!updated || updated.length === 0) {
-      const { error: insertError } = await admin.from('org_site_modules').insert({
-        site_id: site.id,
-        module_key: 'documents',
-        enabled: true,
-        sort_order: MODULE_KEYS.indexOf('documents'),
-        config: { documents: input.documents },
-      });
-      if (insertError) {
-        console.error(`${TAG} documents insert error:`, insertError);
-        return NextResponse.json({ error: 'Failed to update documents' }, { status: 500 });
-      }
-    }
-    revalidateTag(`org-site:${site.subdomain}`, { expire: 0 });
-    return NextResponse.json({ ok: true });
-  }
+  // ── Content actions → the DRAFT (P2-B), or today's live write pre-180 ────
+  // The guards the schema cannot apply stay here, BEFORE the write: every
+  // stored asset path must live under THIS site's prefix (the cross-site
+  // guard), and a gallery pick must pass the member-photo gate.
+  const { data: site } = await admin
+    .from('org_sites')
+    .select('id, subdomain')
+    .eq(orgColumn(side), orgId)
+    .maybeSingle();
+  if (!site) return NextResponse.json({ error: 'Site not found' }, { status: 404 });
+  const ownPrefix = `org-media/${site.id}/`;
+  const foreign = (message: string) => NextResponse.json({ error: message }, { status: 400 });
 
-  if (input.action === 'set_template') {
-    // Phase 6b B2: the id is a render decision; the CHECK (170) admits it.
-    // Pre-170 the old CHECK rejects 'bold' with 23514 → a friendly 409.
-    const { data: updated, error } = await admin
-      .from('org_sites')
-      .update({ template_id: input.templateId })
-      .eq(orgColumn(side), orgId)
-      .select('id, subdomain');
-    if (error) {
-      if (error.code === '23514') {
-        return NextResponse.json(
-          { error: 'This template needs a database migration first (170)' },
-          { status: 409 }
-        );
+  let action: SnapshotAction;
+  switch (input.action) {
+    case 'set_hero':
+      if (input.imagePath && !input.imagePath.startsWith(ownPrefix)) return foreign('Photo is not one of this site’s assets');
+      action = input;
+      break;
+    case 'set_sponsors':
+      for (const sponsor of input.sponsors) {
+        if (sponsor.logoPath && !sponsor.logoPath.startsWith(ownPrefix)) return foreign('Logo is not one of this site’s assets');
       }
-      console.error(`${TAG} template patch error:`, error);
-      return NextResponse.json({ error: 'Failed to update the template' }, { status: 500 });
-    }
-    if (!updated || updated.length === 0) {
-      return NextResponse.json({ error: 'Site not found' }, { status: 404 });
-    }
-    revalidateTag(`org-site:${updated[0].subdomain}`, { expire: 0 });
-    return NextResponse.json({ ok: true });
-  }
-
-  if (input.action === 'reset_order') {
-    // G3: back to the side's recommended order — per-row UPDATE (never
-    // upsert), nav order cleared, nav LABELS kept.
-    const { data: site } = await admin
-      .from('org_sites')
-      .select('id, subdomain, nav_config')
-      .eq(orgColumn(side), orgId)
-      .maybeSingle();
-    if (!site) {
-      return NextResponse.json({ error: 'Site not found' }, { status: 404 });
-    }
-    const order = defaultModuleOrder(side, await loadOrgSport(admin, side, orgId));
-    for (let i = 0; i < order.length; i++) {
-      const { error: orderError } = await admin
-        .from('org_site_modules')
-        .update({ sort_order: i })
-        .eq('site_id', site.id)
-        .eq('module_key', order[i]);
-      if (orderError) console.error(`${TAG} reset_order patch error:`, orderError);
-    }
-    const labels = parseNavConfig(site.nav_config).labels;
-    const navConfig = order
-      .filter(key => labels[key])
-      .map(key => ({ key, label: labels[key] }));
-    const { error } = await admin.from('org_sites').update({ nav_config: navConfig }).eq('id', site.id);
-    if (error) {
-      console.error(`${TAG} reset_order nav error:`, error);
-      return NextResponse.json({ error: 'Failed to reset the layout' }, { status: 500 });
-    }
-    revalidateTag(`org-site:${site.subdomain}`, { expire: 0 });
-    return NextResponse.json({ ok: true });
-  }
-
-  if (input.action === 'set_nav') {
-    // Phase 6b B1: nav_config (labels + display order) AND the module
-    // rows' sort_order follow the same list — per-row UPDATE, never
-    // upsert (an upsert would clobber enabled/config). Unlisted modules
-    // keep their sort_order; hero stays first at MODULE_KEYS index 0.
-    const { data: site } = await admin
-      .from('org_sites')
-      .select('id, subdomain')
-      .eq(orgColumn(side), orgId)
-      .maybeSingle();
-    if (!site) {
-      return NextResponse.json({ error: 'Site not found' }, { status: 404 });
-    }
-    const seen = new Set<string>();
-    const items = input.items.filter(i => (seen.has(i.key) ? false : (seen.add(i.key), true)));
-    const navConfig = items.map(i => ({ key: i.key, ...(i.label ? { label: i.label } : {}) }));
-    const { error } = await admin
-      .from('org_sites')
-      .update({ nav_config: navConfig })
-      .eq('id', site.id);
-    if (error) {
-      console.error(`${TAG} nav patch error:`, error);
-      return NextResponse.json({ error: 'Failed to update the navigation' }, { status: 500 });
-    }
-    for (let i = 0; i < items.length; i++) {
-      const { error: orderError } = await admin
-        .from('org_site_modules')
-        .update({ sort_order: i + 1 })
-        .eq('site_id', site.id)
-        .eq('module_key', items[i].key);
-      if (orderError) console.error(`${TAG} sort_order patch error:`, orderError);
-    }
-    revalidateTag(`org-site:${site.subdomain}`, { expire: 0 });
-    return NextResponse.json({ ok: true });
-  }
-
-  if (input.action === 'set_sponsors') {
-    const { data: site } = await admin
-      .from('org_sites')
-      .select('id, subdomain')
-      .eq(orgColumn(side), orgId)
-      .maybeSingle();
-    if (!site) {
-      return NextResponse.json({ error: 'Site not found' }, { status: 404 });
-    }
-    // Cross-site guard (the pagePATCH recipe): every logo must live under
-    // THIS site's asset prefix — the schema can't know the site id.
-    for (const sponsor of input.sponsors) {
-      if (sponsor.logoPath && !sponsor.logoPath.startsWith(`org-media/${site.id}/`)) {
-        return NextResponse.json(
-          { error: 'Logo is not one of this site’s assets' },
-          { status: 400 }
-        );
+      action = input;
+      break;
+    case 'set_documents':
+      for (const doc of input.documents) {
+        if (doc.path && !doc.path.startsWith(ownPrefix)) return foreign('Document is not one of this site’s files');
       }
-    }
-    // UPDATE, never upsert — an upsert would clobber sort_order/enabled.
-    const { data: updated, error } = await admin
-      .from('org_site_modules')
-      .update({ config: { sponsors: input.sponsors } })
-      .eq('site_id', site.id)
-      .eq('module_key', 'sponsors')
-      .select('module_key');
-    if (error) {
-      console.error(`${TAG} sponsors patch error:`, error);
-      return NextResponse.json({ error: 'Failed to update sponsors' }, { status: 500 });
-    }
-    if (!updated || updated.length === 0) {
-      const { error: insertError } = await admin.from('org_site_modules').insert({
-        site_id: site.id,
-        module_key: 'sponsors',
-        enabled: true,
-        sort_order: MODULE_KEYS.indexOf('sponsors'),
-        config: { sponsors: input.sponsors },
-      });
-      if (insertError) {
-        console.error(`${TAG} sponsors insert error:`, insertError);
-        return NextResponse.json({ error: 'Failed to update sponsors' }, { status: 500 });
-      }
-    }
-    revalidateTag(`org-site:${site.subdomain}`, { expire: 0 });
-    return NextResponse.json({ ok: true });
-  }
-
-  if (input.action === 'set_course_photo') {
-    // S2 — the set_sponsors recipe on the `courses` module row: cross-site
-    // guard on the stored image, merge ONE course's photo into the
-    // config's `photos` map, UPDATE-then-insert (never upsert).
-    const { data: site } = await admin
-      .from('org_sites')
-      .select('id, subdomain')
-      .eq(orgColumn(side), orgId)
-      .maybeSingle();
-    if (!site) return NextResponse.json({ error: 'Site not found' }, { status: 404 });
-    if (input.path && !input.path.startsWith(`org-media/${site.id}/`)) {
-      return NextResponse.json({ error: 'Photo is not one of this site’s assets' }, { status: 400 });
-    }
-    const { data: row } = await admin
-      .from('org_site_modules')
-      .select('config')
-      .eq('site_id', site.id)
-      .eq('module_key', 'courses')
-      .maybeSingle();
-    const existing = ((row?.config as { photos?: Record<string, unknown> } | null)?.photos ?? {}) as Record<
-      string,
-      unknown
-    >;
-    const photos: Record<string, unknown> = { ...existing };
-    // N6: a course entry = { path?, alt?, holes? } — set/clear ONE slot,
-    // keep the rest; an entry with nothing left disappears.
-    const prior = existing[input.courseId];
-    const entry: Record<string, unknown> = prior && typeof prior === 'object' ? { ...(prior as Record<string, unknown>) } : {};
-    if (input.hole) {
-      const holes: Record<string, unknown> =
-        entry.holes && typeof entry.holes === 'object' ? { ...(entry.holes as Record<string, unknown>) } : {};
-      if (input.path) holes[String(input.hole)] = { path: input.path, ...(input.alt ? { alt: input.alt } : {}) };
-      else delete holes[String(input.hole)];
-      if (Object.keys(holes).length > 0) entry.holes = holes;
-      else delete entry.holes;
-    } else if (input.path) {
-      entry.path = input.path;
-      if (input.alt) entry.alt = input.alt;
-      else delete entry.alt;
-    } else {
-      delete entry.path;
-      delete entry.alt;
-    }
-    const hasHoles = !!entry.holes && Object.keys(entry.holes as Record<string, unknown>).length > 0;
-    if (entry.path || hasHoles) photos[input.courseId] = entry;
-    else delete photos[input.courseId];
-    const config = { ...((row?.config as Record<string, unknown> | null) ?? {}), photos };
-    if (row) {
-      const { error } = await admin
-        .from('org_site_modules')
-        .update({ config })
-        .eq('site_id', site.id)
-        .eq('module_key', 'courses');
-      if (error) {
-        console.error(`${TAG} course photo patch error:`, error);
-        return NextResponse.json({ error: 'Failed to update the course photo' }, { status: 500 });
-      }
-    } else {
-      const { error } = await admin.from('org_site_modules').insert({
-        site_id: site.id,
-        module_key: 'courses',
-        enabled: false,
-        sort_order: MODULE_KEYS.indexOf('courses'),
-        config,
-      });
-      if (error) {
-        console.error(`${TAG} course photo insert error:`, error);
-        return NextResponse.json({ error: 'Failed to update the course photo' }, { status: 500 });
-      }
-    }
-    revalidateTag(`org-site:${site.subdomain}`, { expire: 0 });
-    return NextResponse.json({ ok: true });
-  }
-
-  if (input.action === 'set_gallery_pick' || input.action === 'remove_gallery_pick') {
-    // M2: the picks live in the gallery module's config — the
-    // set_course_photo recipe (UPDATE-then-insert, never upsert), with the
-    // member-photo gate re-run BEFORE a pick is stored (the site need not
-    // be live yet; nothing streams until it is, and public).
-    const { data: site } = await admin
-      .from('org_sites')
-      .select('id, subdomain')
-      .eq(orgColumn(side), orgId)
-      .maybeSingle();
-    if (!site) return NextResponse.json({ error: 'Site not found' }, { status: 404 });
-    const { data: row } = await admin
-      .from('org_site_modules')
-      .select('config')
-      .eq('site_id', site.id)
-      .eq('module_key', 'gallery')
-      .maybeSingle();
-    const { readGalleryPicks, evaluateMemberPhotos, GALLERY_PICKS_MAX } = await import('./member-photo-gate');
-    const current = readGalleryPicks(row?.config).filter(p => p.mediaId !== input.mediaId);
-    let picks = current;
-    if (input.action === 'set_gallery_pick') {
+      action = input;
+      break;
+    case 'set_course_photo':
+      if (input.path && !input.path.startsWith(ownPrefix)) return foreign('Photo is not one of this site’s assets');
+      action = input;
+      break;
+    case 'set_gallery_pick': {
+      // M2: the member-photo gate re-runs BEFORE a pick is stored (the site
+      // need not be live yet; nothing streams until it is, and public).
+      const { evaluateMemberPhotos } = await import('./member-photo-gate');
       const [eligible] = await evaluateMemberPhotos(admin, site.id, [input.mediaId], { requirePick: false, requireLive: false });
       if (!eligible) {
         return NextResponse.json(
@@ -745,100 +474,47 @@ export async function sitePATCH(
           { status: 400 }
         );
       }
-      picks = [
-        { mediaId: eligible.mediaId, postId: eligible.postId, profileId: eligible.profileId, addedAt: new Date().toISOString() },
-        ...current,
-      ].slice(0, GALLERY_PICKS_MAX);
+      action = {
+        action: 'set_gallery_pick',
+        pick: { mediaId: eligible.mediaId, postId: eligible.postId, profileId: eligible.profileId, addedAt: new Date().toISOString() },
+      };
+      break;
     }
-    const config = { ...((row?.config as Record<string, unknown> | null) ?? {}), picks };
-    if (row) {
-      const { error } = await admin
-        .from('org_site_modules')
-        .update({ config })
-        .eq('site_id', site.id)
-        .eq('module_key', 'gallery');
-      if (error) {
-        console.error(`${TAG} gallery pick patch error:`, error);
-        return NextResponse.json({ error: 'Failed to update the gallery' }, { status: 500 });
-      }
-    } else {
-      const { error } = await admin.from('org_site_modules').insert({
-        site_id: site.id,
-        module_key: 'gallery',
-        enabled: false,
-        sort_order: MODULE_KEYS.indexOf('gallery'),
-        config,
-      });
-      if (error) {
-        console.error(`${TAG} gallery pick insert error:`, error);
-        return NextResponse.json({ error: 'Failed to update the gallery' }, { status: 500 });
-      }
-    }
-    revalidateTag(`org-site:${site.subdomain}`, { expire: 0 });
-    return NextResponse.json({ ok: true, picks: picks.length });
+    case 'remove_gallery_pick':
+      action = { action: 'remove_gallery_pick', mediaId: input.mediaId };
+      break;
+    default:
+      // publish/unpublish returned above; the remaining members are content actions.
+      action = input as SnapshotAction;
   }
 
-  if (input.action === 'set_module') {
-    const { data: site } = await admin
-      .from('org_sites')
-      .select('id, subdomain')
-      .eq(orgColumn(side), orgId)
-      .maybeSingle();
-    if (!site) {
+  const ctx = {
+    side,
+    // reset_order is the one action that needs the org's sport (the
+    // recommended order is sport-shaped); the read is skipped otherwise.
+    sportKey: input.action === 'reset_order' ? await loadOrgSport(admin, side, orgId) : null,
+  };
+  const result = await applyDraftAction(admin, side, orgId, userId, action, ctx);
+  switch (result.status) {
+    case 'not_found':
       return NextResponse.json({ error: 'Site not found' }, { status: 404 });
-    }
-    // UPDATE, never upsert — an upsert would clobber sort_order/config.
-    const { data: updated, error } = await admin
-      .from('org_site_modules')
-      .update({ enabled: input.enabled })
-      .eq('site_id', site.id)
-      .eq('module_key', input.moduleKey)
-      .select('module_key');
-    if (error) {
-      console.error(`${TAG} module toggle error:`, error);
-      return NextResponse.json({ error: 'Failed to update the section' }, { status: 500 });
-    }
-    if (!updated || updated.length === 0) {
-      // Self-heal a missing row (pre-R1 sites shouldn't exist, but a
-      // deleted row must not brick the toggle) at its default position.
-      const { error: insertError } = await admin.from('org_site_modules').insert({
-        site_id: site.id,
-        module_key: input.moduleKey,
-        enabled: input.enabled,
-        sort_order: MODULE_KEYS.indexOf(input.moduleKey),
-        config: {},
-      });
-      if (insertError) {
-        console.error(`${TAG} module insert error:`, insertError);
-        return NextResponse.json({ error: 'Failed to update the section' }, { status: 500 });
-      }
-    }
-    revalidateTag(`org-site:${site.subdomain}`, { expire: 0 });
-    return NextResponse.json({ module: { module_key: input.moduleKey, enabled: input.enabled } });
+    case 'conflict':
+      return NextResponse.json({ error: 'The draft changed while you were editing — reload and try again' }, { status: 409 });
+    case 'error':
+      return NextResponse.json({ error: 'Failed to update the site' }, { status: 500 });
+    default:
+      break;
   }
-
-  // Onboarding v2 R1 (179): publishing no longer waits for approval — an
-  // org is live by link; an unlisted/pending site serves noindex and stays
-  // out of the directory, the sitemap and search until it is LISTED.
-  const { data: updated, error } = await admin
-    .from('org_sites')
-    .update({ published_at: input.action === 'publish' ? new Date().toISOString() : null })
-    .eq(orgColumn(side), orgId)
-    .select('id, subdomain, published_at');
-  if (error) {
-    console.error(`${TAG} site patch error:`, error);
-    return NextResponse.json({ error: 'Failed to update the site' }, { status: 500 });
+  const draft = result.draft ?? null;
+  // Response shapes are the pre-P2-B ones plus `draft` (the console's line).
+  if (input.action === 'set_module') {
+    return NextResponse.json({ module: { module_key: input.moduleKey, enabled: input.enabled }, draft });
   }
-  if (!updated || updated.length === 0) {
-    return NextResponse.json({ error: 'Site not found' }, { status: 404 });
+  if (input.action === 'set_gallery_pick' || input.action === 'remove_gallery_pick') {
+    const picks = result.snapshot ? readGalleryPicks(result.snapshot.modules.gallery?.config).length : 0;
+    return NextResponse.json({ ok: true, picks, draft });
   }
-  // The ISR documents re-render on the next hit (publish must be
-  // immediate, not 300s-stale — the preview-then-publish flow). The
-  // sitemap enumerator purges too (R4): a published site must enter
-  // /sitemap.xml immediately, an unpublished one must leave it.
-  revalidateTag(`org-site:${updated[0].subdomain}`, { expire: 0 });
-  revalidateTag('org-sitemap', { expire: 0 });
-  return NextResponse.json({ site: updated[0] });
+  return NextResponse.json({ ok: true, draft });
 }
 
 export interface PublicSite extends SiteRow {
@@ -887,6 +563,24 @@ export async function getSiteBySlugAnyStatus(
   slug: string
 ): Promise<PublicSite | null> {
   return getSiteBySlugInternal(admin, slug, true);
+}
+
+/** P2-B — the DRAFT view for the token-gated preview: the any-status site
+ *  with its draft snapshot overlaid (falls back to the rows without a draft
+ *  or pre-180). Row-only fields stay the row's. */
+export async function getDraftSiteBySlug(admin: Admin, slug: string): Promise<PublicSite | null> {
+  const site = await getSiteBySlugInternal(admin, slug, true);
+  if (!site) return null;
+  const { data, error } = await admin.from('org_sites').select('draft_revision_id').eq('id', site.id).maybeSingle();
+  if (error || !data?.draft_revision_id) return site;
+  const state = await loadDraftSnapshot(admin, {
+    id: site.id,
+    subdomain: site.subdomain,
+    published_at: site.published_at,
+    draft_revision_id: data.draft_revision_id as string,
+    published_revision_id: null,
+  });
+  return state ? overlaySnapshot(site, state.snapshot) : site;
 }
 
 async function getSiteBySlugInternal(

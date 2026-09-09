@@ -2,6 +2,7 @@ import { test, expect } from '@playwright/test';
 import fs from 'fs';
 import path from 'path';
 import { adminClient, apiAs, loadQaUser, readErrorBody, resetRateBucket } from './helpers/qa-user';
+import { publishSite } from './helpers/org-site';
 import { openWindow } from './helpers/org-page';
 
 // N6 (program 10) — per-hole photos. The courses module's config entry
@@ -81,6 +82,8 @@ test('hole photos: set hole 3 → drawn at hole 3 only; remove → gone; the cou
     // Out of range and a foreign path are refused.
     res = await ownerApi.patch(`/api/clubs/${clubId}/site`, { data: { action: 'set_course_photo', courseId, hole: 19, path: holePath } });
     expect(res.status()).toBe(400);
+    // P2-B: edits land in the draft — publish before reading the public projection.
+    await publishSite(ownerApi, 'club', clubId);
     res = await ownerApi.patch(`/api/clubs/${clubId}/site`, {
       data: { action: 'set_course_photo', courseId, hole: 4, path: holePath.replace(site.id, '00000000-0000-4000-8000-000000000001') },
     });
@@ -118,6 +121,8 @@ test('hole photos: set hole 3 → drawn at hole 3 only; remove → gone; the cou
     // Remove hole 3 → gone; the course photo survives.
     res = await ownerApi.patch(`/api/clubs/${clubId}/site`, { data: { action: 'set_course_photo', courseId, hole: 3 } });
     expect(res.status(), await readErrorBody(res)).toBe(200);
+    // P2-B: edits land in the draft — publish before reading the public projection.
+    await publishSite(ownerApi, 'club', clubId);
     await expect
       .poll(async () => { const r = await anon.request.get(pageUrl); html = r.ok() ? await r.text() : ''; return !html.includes('data-hole-photo='); }, { timeout: 30_000, intervals: [1000, 2000, 3000] })
       .toBe(true);
