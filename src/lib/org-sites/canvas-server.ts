@@ -13,6 +13,7 @@ import { getSiteBySlugAnyStatus, type PublicSite } from './server';
 import { ORG_MEDIA_PREFIX } from './pages-server';
 import { loadDraftSnapshot, loadSitePointers, writeDraftLayout } from './revisions-server';
 import { rawSiteReaders, resolveHomeData } from './widget-data';
+import { fetchCanvasOptions, type CanvasOptions } from './query-options';
 import type { SiteHomeData } from './home-data';
 
 /**
@@ -46,6 +47,8 @@ export interface CanvasResponse {
   /** Phase 8: is the site live (org_sites.published_at)? The checklist's last step. */
   published: boolean;
   data: SiteHomeData;
+  /** Phase 9: what a query widget can bind to (competitions, venues). */
+  options: CanvasOptions;
   resolvedAt: string;
 }
 
@@ -80,8 +83,11 @@ export async function canvasGET(admin: Admin, side: OrgSide, orgId: string): Pro
   if (!FEATURE_FLAGS.FEATURE_SITE_BUILDER) return NOT_AVAILABLE();
   const view = await loadDraftSiteView(admin, side, orgId);
   if (!view) return NextResponse.json({ error: 'Site not found' }, { status: 404 });
-  const data = await resolveHomeData(rawSiteReaders(admin, view.site), view.site, view.layout);
-  const body: CanvasResponse = { site: view.site, layout: view.layout, draft: view.draft, published: view.published, data, resolvedAt: new Date().toISOString() };
+  const [data, options] = await Promise.all([
+    resolveHomeData(rawSiteReaders(admin, view.site), view.site, view.layout),
+    fetchCanvasOptions(admin, side, orgId),
+  ]);
+  const body: CanvasResponse = { site: view.site, layout: view.layout, draft: view.draft, published: view.published, data, options, resolvedAt: new Date().toISOString() };
   return NextResponse.json(body, { headers: { 'Cache-Control': 'private, no-store' } });
 }
 

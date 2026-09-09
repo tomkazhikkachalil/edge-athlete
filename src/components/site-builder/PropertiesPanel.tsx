@@ -8,6 +8,8 @@ import { validateFiles } from '@/lib/media/validation';
 import { fieldsFor, contentActionFor, type FieldSpec } from '@/lib/site-builder/fields';
 import { contentConfigFor, INSTANCE_TITLE_MAX } from '@/lib/site-builder/config';
 import type { SiteWidgetKey } from '@/lib/site-builder/catalog';
+import type { CanvasOptions } from '@/lib/org-sites/query-options';
+import { instanceQuery } from '@/lib/site-builder/config';
 import { EMBED_PROVIDER_LABEL, embedSrc, parseEmbed, parseEmbedUrl } from '@/lib/site-builder/embeds';
 import type { SiteLayout, WidgetInstance, WidgetVisibility } from '@/lib/site-builder/layout';
 import { widgetTitle } from '@/app/(public)/org/[slug]/_components/WidgetBody';
@@ -31,6 +33,8 @@ export interface PropertiesPanelProps {
   widget: WidgetInstance;
   plural: string;
   orgId: string;
+  /** Phase 9: what a query widget can bind to (from the canvas response). */
+  options?: CanvasOptions;
   onInstanceChange: (next: WidgetInstance, coalesce?: string) => void;
   onContentSaved: () => Promise<void>;
   showError: (title: string, message?: string) => void;
@@ -45,11 +49,12 @@ type Config = Record<string, unknown>;
 const asConfig = (c: unknown): Config => (c && typeof c === 'object' ? (c as Config) : {});
 const str = (c: Config, k: string): string => (typeof c[k] === 'string' ? (c[k] as string) : '');
 
-export default function PropertiesPanel({ site, widget, plural, orgId, onInstanceChange, onContentSaved, showError, showSuccess }: PropertiesPanelProps) {
+export default function PropertiesPanel({ site, widget, plural, orgId, options, onInstanceChange, onContentSaved, showError, showSuccess }: PropertiesPanelProps) {
   const key = widget.key as SiteWidgetKey;
   const fields = fieldsFor(key);
   const instanceFields = fields.filter(f => f.scope === 'instance');
-  const contentFields = fields.filter((f): f is Exclude<FieldSpec, { kind: 'visibility' | 'blocks' | 'image' | 'embed' }> => f.scope === 'content');
+  const queryFields = fields.filter((f): f is Extract<FieldSpec, { scope: 'query' }> => f.scope === 'query');
+  const contentFields = fields.filter((f): f is Exclude<FieldSpec, { kind: 'visibility' | 'blocks' | 'image' | 'embed' | 'select' | 'number' }> => f.scope === 'content');
   const action = contentActionFor(key);
   const config = asConfig(widget.config);
 
@@ -61,6 +66,16 @@ export default function PropertiesPanel({ site, widget, plural, orgId, onInstanc
       else next[k] = v;
     }
     onInstanceChange({ ...widget, config: next }, coalesce);
+  };
+  /** Phase 9: patch the instance's QUERY (one nested key; dropped when empty). */
+  const query = instanceQuery(widget);
+  const patchQuery = (patch: Record<string, string | number | undefined>, coalesce?: string) => {
+    const q: Record<string, string | number> = { ...(asConfig(config.query) as Record<string, string | number>) };
+    for (const [k, v] of Object.entries(patch)) {
+      if (v === undefined || v === '') delete q[k];
+      else q[k] = v;
+    }
+    patchConfig({ query: Object.keys(q).length > 0 ? q : undefined }, coalesce);
   };
 
   // Content draft: seeded from the org object; saved as a whole object.
@@ -153,6 +168,9 @@ export default function PropertiesPanel({ site, widget, plural, orgId, onInstanc
         return <ImageField key={f.name} id={id} label={f.label} siteId={site.id} plural={plural} orgId={orgId} config={config} onPatch={patchConfig} showError={showError} />;
       case 'embed':
         return <EmbedField key={f.name} id={id} spec={f} config={config} onPatch={patchConfig} />;
+      case 'select':
+      case 'number':
+        return null; // query kinds render in their own fieldset (renderQueryField)
       default: {
         const value = str(config, f.name);
         return (
@@ -180,6 +198,64 @@ export default function PropertiesPanel({ site, widget, plural, orgId, onInstanc
     }
   };
 
+  // Phase 9: the query fields — a select over the canvas's option lists, or a
+  // bounded number. A stored id the list no longer offers stays selectable
+  // (and says so) rather than silently changing the tile.
+  const renderQueryField = (f: Extract<FieldSpec, { scope: 'query' }>) => {
+    const id = `sb-${widget.id}-${f.name}`;
+    if (f.kind === 'number') {
+      return (
+        <div key={f.name}>
+          <label className={LABEL} htmlFor={id}>
+            {f.label}
+          </label>
+          <input
+            id={id}
+            type="number"
+            min={f.min}
+            max={f.max}
+            placeholder={String(f.placeholder)}
+            value={query.limit ?? ''}
+            onChange={e => {
+              const n = parseInt(e.target.value, 10);
+              patchQuery({ limit: Number.isFinite(n) ? Math.min(f.max, Math.max(f.min, n)) : undefined }, id);
+            }}
+            className={INPUT}
+          />
+          {f.help && <p className="mt-1 text-xs text-tertiary">{f.help}</p>}
+        </div>
+      );
+    }
+    const list =
+      f.source === 'competitions'
+        ? (options?.competitions ?? []).map(c => ({ id: c.id, label: `${c.name}${c.seasonLabel ? ` · ${c.seasonLabel}` : ''}${c.status === 'completed' ? ' (completed)' : ''}` }))
+        : (options?.venues ?? []).map(v => ({ id: v.id, label: v.name }));
+    const current = query[f.name] ?? '';
+    if (list.length === 0 && !current) return null;
+    const missing = current !== '' && !list.some(o => o.id === current);
+    return (
+      <div key={f.name}>
+        <label className={LABEL} htmlFor={id}>
+          {f.label}
+        </label>
+        <select id={id} value={current} onChange={e => patchQuery({ [f.name]: e.target.value || undefined })} className={INPUT} data-sb-query={f.name}>
+          <option value="">{f.noneLabel}</option>
+          {missing && (
+            <option value={current} disabled>
+              No longer public
+            </option>
+          )}
+          {list.map(o => (
+            <option key={o.id} value={o.id}>
+              {o.label}
+            </option>
+          ))}
+        </select>
+        {f.help && <p className="mt-1 text-xs text-tertiary">{f.help}</p>}
+      </div>
+    );
+  };
+
   return (
     <aside className="w-80 shrink-0 rounded-xl border border-border bg-surface p-4 space-y-4" aria-label="Section properties" data-sb-panel={key}>
       <div>
@@ -191,6 +267,13 @@ export default function PropertiesPanel({ site, widget, plural, orgId, onInstanc
         <fieldset className="space-y-3">
           <legend className="text-xs font-medium text-secondary">This section</legend>
           {instanceFields.map(renderInstanceField)}
+        </fieldset>
+      )}
+
+      {queryFields.length > 0 && (
+        <fieldset className="space-y-3 border-t border-border pt-4" data-sb-query-fields="">
+          <legend className="text-xs font-medium text-secondary">What it shows</legend>
+          {queryFields.map(renderQueryField)}
         </fieldset>
       )}
 

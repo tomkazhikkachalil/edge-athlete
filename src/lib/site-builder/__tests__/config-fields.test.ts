@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { CONTENT_WIDGET_KEYS, SITE_WIDGET_KEYS } from '../catalog';
 import { contentConfigFor, effectiveConfig, instanceQuery, instanceTitle } from '../config';
 import { CONTACT_FIELDS, HERO_FIELDS, contentActionFor, fieldsFor } from '../fields';
-import { ContactConfigSchema, HeroConfigSchema, InstanceOptionsSchema, instanceSchemaFor } from '../schemas';
+import { ContactConfigSchema, HeroConfigSchema, InstanceOptionsSchema, QuerySchema, instanceSchemaFor } from '../schemas';
 import type { WidgetInstance } from '../layout';
 
 const w = (key: WidgetInstance['key'], config: unknown = {}): WidgetInstance => ({ id: key, key, x: 0, y: 0, w: 12, h: 2, cv: 1, config, visibility: 'public' });
@@ -45,6 +45,25 @@ describe('field descriptors are pinned to the schemas', () => {
         if (f.scope === 'content') expect(contentActionFor(key), `${key}.${f.name} needs a content action`).not.toBeNull();
       }
     }
+    // Phase 9: query fields name keys of QuerySchema and only the query widgets
+    // get pickers; every list has a source and every number sane bounds.
+    for (const key of SITE_WIDGET_KEYS) {
+      for (const f of fieldsFor(key)) {
+        if (f.scope !== 'query') continue;
+        expect(Object.keys(QuerySchema.shape), `${key}.${f.name}`).toContain(f.name);
+        if (f.kind === 'select') expect(['competitions', 'venues']).toContain(f.source);
+        if (f.kind === 'number') {
+          expect(f.min).toBeLessThan(f.max);
+          expect(f.placeholder).toBeGreaterThanOrEqual(f.min);
+          expect(f.placeholder).toBeLessThanOrEqual(f.max);
+        }
+      }
+    }
+    expect(fieldsFor('standings').filter(f => f.scope === 'query').map(f => f.name)).toEqual(['competitionId']);
+    expect(fieldsFor('schedule').filter(f => f.scope === 'query').map(f => f.name)).toEqual(['venueId', 'competitionId', 'limit']);
+    expect(fieldsFor('leaders').filter(f => f.scope === 'query').map(f => f.name)).toEqual(['competitionId']);
+    for (const key of ['news', 'teams', 'members'] as const) expect(fieldsFor(key).filter(f => f.scope === 'query').map(f => f.name)).toEqual(['limit']);
+    for (const key of ['staff', 'venues', 'contact', 'text'] as const) expect(fieldsFor(key).some(f => f.scope === 'query')).toBe(false);
     for (const key of CONTENT_WIDGET_KEYS) {
       const kinds = fieldsFor(key).map(f => f.kind);
       expect(kinds, key).toContain(key === 'text' ? 'blocks' : key);

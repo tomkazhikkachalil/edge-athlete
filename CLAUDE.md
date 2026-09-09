@@ -434,7 +434,13 @@ const { canView } = await response.json();
      CSP builders reads `EMBED_FRAME_HOSTS`). The panel is generated from
      `fields.ts` descriptors, pinned to the zod schemas (`schemas.ts`,
      `instanceSchemaFor`); the server re-asserts every image path against
-     THIS site's `org-media/{siteId}/` prefix.
+     THIS site's `org-media/{siteId}/` prefix. **A widget holds a QUERY,
+     never data** (phase 9): `config.query` (ONE nested key — content can
+     never shadow it) narrows the org-wide read at render (`select.ts
+     selectForInstance`, called FIRST by the renderer AND `isWidgetEmpty`);
+     standings / schedule / leaders may repeat ("Add another"); pickers
+     list what the canvas response's `options` offers; public tiles carry
+     `data-widget-id`.
    - **Draft → publish → revisions** (`org_site_revisions`, one `snapshot`
      jsonb; `applySiteAction` in `snapshot.ts` is the one reducer; `rev`
      optimistic concurrency): **the content columns of `org_sites` and all
@@ -459,10 +465,11 @@ const { canView } = await response.json();
      checklist rail (`checklist.ts`, derived, `ChecklistStep` shape), undo
      with coalescing (`useHistory`), autosave (`useDraft`). Below `lg` the
      same route shows a notice with working Preview / Publish / Back.
-   - e2e: a spec that edits and then reads the public page calls
-     `e2e/helpers/org-site.ts publishSite()` first; public-order polls
-     compare MODULE keys only; `getByLabel` needs `exact: true` beside sibling
-     aria-labels. Plan: `~/.claude/plans/edge-athlete-site-builder-zesty-pnueli.md`;
+   - e2e: a spec that reads the PUBLIC page must first take the site LIVE
+     (`PATCH {action:'publish'}`) and, after edits, promote the draft with
+     `e2e/helpers/org-site.ts publishSite()`; public-order polls compare
+     MODULE instance ids (`data-widget-id`); `getByLabel` needs `exact: true`
+     beside sibling aria-labels. Plan: `~/.claude/plans/edge-athlete-site-builder-zesty-pnueli.md`;
      read DEVLOG Sep 9 2026 P1-A…P8-B before touching any of it.
 ---
 

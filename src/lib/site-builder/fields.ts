@@ -21,13 +21,18 @@
  * pasted link, parsed into a structure).
  */
 import type { SiteWidgetKey } from './catalog';
+import { QUERY_LIMITS } from './select';
 
+/** Phase 9 — a third scope, 'query': the value goes to `config.query[name]`
+ *  (which competition / venue this tile shows, how many rows). */
 export type FieldSpec =
   | { kind: 'text' | 'textarea' | 'url' | 'email' | 'date'; name: string; label: string; help?: string; max?: number; scope: 'instance' | 'content' }
   | { kind: 'visibility'; name: 'visibility'; label: string; scope: 'instance' }
   | { kind: 'blocks'; name: 'blocks'; label: string; help?: string; scope: 'instance' }
   | { kind: 'image'; name: 'path'; label: string; help?: string; scope: 'instance' }
-  | { kind: 'embed'; name: 'embed'; label: string; help?: string; scope: 'instance' };
+  | { kind: 'embed'; name: 'embed'; label: string; help?: string; scope: 'instance' }
+  | { kind: 'select'; name: 'competitionId' | 'venueId'; label: string; help?: string; source: 'competitions' | 'venues'; noneLabel: string; scope: 'query' }
+  | { kind: 'number'; name: 'limit'; label: string; help?: string; min: number; max: number; placeholder: number; scope: 'query' };
 
 /** Content-widget caps (schemas.ts enforces them; the editors show them). */
 export const TEXT_WIDGET_BLOCKS_MAX = 12;
@@ -74,10 +79,25 @@ export const EMBED_FIELDS: FieldSpec[] = [
   { kind: 'embed', name: 'embed', label: 'Video or map link', help: 'Paste a YouTube, Vimeo or OpenStreetMap link.', scope: 'instance' },
 ];
 
+/** Phase 9 — the query fields, per widget. Option lists come from the
+ *  canvas response (`options`); the panel names the empty choice. */
+const COMPETITION = (noneLabel: string, help?: string): FieldSpec => ({ kind: 'select', name: 'competitionId', label: 'Competition', help, source: 'competitions', noneLabel, scope: 'query' });
+const VENUE: FieldSpec = { kind: 'select', name: 'venueId', label: 'Venue', help: 'Only events at this venue.', source: 'venues', noneLabel: 'All venues', scope: 'query' };
+const LIMIT = (key: keyof typeof QUERY_LIMITS, help?: string): FieldSpec => ({
+  kind: 'number',
+  name: 'limit',
+  label: 'How many',
+  help,
+  min: QUERY_LIMITS[key].min,
+  max: QUERY_LIMITS[key].max,
+  placeholder: QUERY_LIMITS[key].default,
+  scope: 'query',
+});
+
 /** Every non-hero widget gets the instance options; content fields where
- *  the org object has a simple form; the content widgets' editors. Lists
- *  (sponsors, documents) and media picks (gallery, course photos) stay in
- *  the console. */
+ *  the org object has a simple form; the content widgets' editors; the
+ *  query widgets' pickers. Lists (sponsors, documents) and media picks
+ *  (gallery, course photos) stay in the console. */
 export function fieldsFor(key: SiteWidgetKey): FieldSpec[] {
   switch (key) {
     case 'hero':
@@ -90,6 +110,18 @@ export function fieldsFor(key: SiteWidgetKey): FieldSpec[] {
       return [TITLE, VISIBILITY, ...IMAGE_FIELDS];
     case 'embed':
       return [TITLE, VISIBILITY, ...EMBED_FIELDS];
+    case 'standings':
+      return [TITLE, VISIBILITY, COMPETITION('Automatic — the first with results')];
+    case 'schedule':
+      return [TITLE, VISIBILITY, VENUE, COMPETITION('All leagues', 'Filters a golf league’s rounds.'), LIMIT('schedule', 'Upcoming events shown.')];
+    case 'leaders':
+      return [TITLE, VISIBILITY, COMPETITION('All competitions')];
+    case 'news':
+      return [TITLE, VISIBILITY, LIMIT('news', 'Latest posts shown.')];
+    case 'teams':
+      return [TITLE, VISIBILITY, LIMIT('teams')];
+    case 'members':
+      return [TITLE, VISIBILITY, LIMIT('members', 'Rows in the table.')];
     default:
       return [TITLE, VISIBILITY];
   }

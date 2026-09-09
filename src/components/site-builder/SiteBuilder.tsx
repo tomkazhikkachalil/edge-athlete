@@ -9,7 +9,8 @@ import { useToast } from '@/components/Toast';
 import type { PublicSite } from '@/lib/org-sites/server';
 import type { SiteHomeData } from '@/lib/org-sites/home-data';
 import { appendWidget, newInstanceFor, newInstanceId, removeWidget, type SiteLayout } from '@/lib/site-builder/layout';
-import { isContentWidgetKey, type SiteWidgetKey } from '@/lib/site-builder/catalog';
+import { WIDGETS, isContentWidgetKey, type SiteWidgetKey } from '@/lib/site-builder/catalog';
+import type { CanvasOptions } from '@/lib/org-sites/query-options';
 import Canvas from './Canvas';
 import Picker from './Picker';
 import PropertiesPanel from './PropertiesPanel';
@@ -42,6 +43,8 @@ interface CanvasBody {
   /** Phase 8: is the site live? */
   published?: boolean;
   data: SiteHomeData;
+  /** Phase 9: what a query widget can bind to. */
+  options?: CanvasOptions;
 }
 
 const PILL = 'px-3 py-1.5 text-sm min-h-[36px] rounded-md border border-border-strong text-secondary hover:bg-surface-sunken transition-colors disabled:opacity-50 disabled:cursor-not-allowed';
@@ -168,6 +171,7 @@ function Editor({
   // panel saves content — re-read the canvas without touching the layout
   // history (the layout is the manager's; the content is the org's).
   const [site, setSite] = useState<PublicSite>(canvas.site);
+  const [options, setOptions] = useState<CanvasOptions | undefined>(canvas.options);
   // P7-B: the theme panel edits a DRAFT of the tokens; the canvas wears the
   // draft while the panel is open (live preview), the server on Save.
   const [themeDraft, setThemeDraft] = useState<ThemeDraft | null>(null);
@@ -184,8 +188,9 @@ function Editor({
     const id = newInstanceId();
     history.commit(appendWidget(history.present, newInstanceFor(site, key, id)));
     setPickerOpen(false);
-    // Phase 6: a content tile is empty until authored — open its panel at once.
-    if (isContentWidgetKey(key)) setSelectedId(id);
+    // Phase 6: a content tile is empty until authored — open its panel at once;
+    // phase 9: so is a repeat of a query widget (it needs binding).
+    if (isContentWidgetKey(key) || WIDGETS[key].multiple) setSelectedId(id);
   };
   const removeOne = (id: string) => {
     const gone = history.present.widgets.find(w => w.id === id);
@@ -221,6 +226,7 @@ function Editor({
       const body = (await res.json()) as CanvasBody;
       setSite(body.site);
       setData(prev => ({ ...prev, ...body.data }));
+      if (body.options) setOptions(body.options);
       // The content save wrote the draft and bumped its rev (P6-B found the
       // gap: without this the next layout autosave answered 409).
       draft.adoptRev(body.draft?.rev ?? null);
@@ -439,6 +445,7 @@ function Editor({
                   widget={selected}
                   plural={plural}
                   orgId={orgId}
+                  options={options}
                   onInstanceChange={changeInstance}
                   onContentSaved={refreshSite}
                   showError={showError}
@@ -450,7 +457,7 @@ function Editor({
         </main>
       </div>
       {pickerOpen && (
-        <Picker site={site} layout={history.present} plural={plural} orgId={orgId} onAdd={addWidget} onClose={() => setPickerOpen(false)} />
+        <Picker site={site} layout={history.present} plural={plural} orgId={orgId} data={data} onAdd={addWidget} onClose={() => setPickerOpen(false)} />
       )}
     </div>
   );
