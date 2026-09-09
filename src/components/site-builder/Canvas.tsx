@@ -67,7 +67,9 @@ export default function Canvas({ site, layout, data, selectedId, onSelect, onCom
         width={width}
         layout={rgl}
         gridConfig={{ cols: GRID.cols, rowHeight: GRID.rowPx, margin: [GRID.gapPx, GRID.gapPx], containerPadding: [0, 0] }}
-        dragConfig={{ enabled: true, bounded: true, cancel: '.sb-frame-controls' }}
+        // Drag by the tile's title bar (its grab cursor says so); anything
+        // marked .sb-no-drag inside a tile (future frame buttons) never starts one.
+        dragConfig={{ enabled: true, bounded: true, handle: '.sb-frame-controls', cancel: '.sb-no-drag' }}
         resizeConfig={{ enabled: true, handles: ['se'] }}
         onDragStop={commit}
         onResizeStop={commit}

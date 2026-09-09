@@ -9,6 +9,13 @@ import { revisionsSupported } from './helpers/org-site';
 // bumps), undo restores, the layout survives a reload, the phone shows the
 // notice with working doors, and the public page is untouched.
 
+/** One autosave cycle: the header goes dirty (the edit), then clean + saved
+ *  (the PUT landed). Waiting on "saved" alone races the previous cycle. */
+async function awaitSaved(page: import('@playwright/test').Page) {
+  await expect(page.locator('[data-sb-dirty="1"]')).toBeVisible({ timeout: 10_000 });
+  await expect(page.locator('[data-sb-dirty="0"][data-sb-status="saved"]')).toBeVisible({ timeout: 15_000 });
+}
+
 test('org site editor: canvas → drag → autosave → undo → reload; phone notice; public untouched', async ({ browser }) => {
   test.setTimeout(240_000);
   const owner = loadQaUser('user-b.json');
@@ -73,7 +80,7 @@ test('org site editor: canvas → drag → autosave → undo → reload; phone n
       await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2 + 200, { steps: 12 });
       await page.mouse.up();
       await expect(page.getByRole('button', { name: 'Undo' })).toBeEnabled({ timeout: 10_000 });
-      await expect(page.locator('[data-sb-status="saved"]')).toBeVisible({ timeout: 15_000 });
+      await awaitSaved(page);
 
       // The draft stores the layout (rev bumped, layout present) — and the
       // draft is dirty against the published rows.
@@ -89,13 +96,13 @@ test('org site editor: canvas → drag → autosave → undo → reload; phone n
 
       // Undo → the original order comes back and saves again.
       await page.getByRole('button', { name: 'Undo' }).click();
-      await expect(page.locator('[data-sb-status="saved"]')).toBeVisible({ timeout: 15_000 });
+      await awaitSaved(page);
       const undone = (await (await ownerApi.get(`/api/leagues/${leagueId}/site/canvas`)).json()) as { layout: { widgets: { id: string; y: number }[] } };
       expect([...undone.layout.widgets].sort((a, b) => a.y - b.y).map(w => w.id)).toEqual(orderBefore);
 
       // Redo, then reload: the moved layout survives.
       await page.getByRole('button', { name: 'Redo' }).click();
-      await expect(page.locator('[data-sb-status="saved"]')).toBeVisible({ timeout: 15_000 });
+      await awaitSaved(page);
       await page.reload();
       await expect(page.locator('[data-sb-canvas]')).toBeVisible({ timeout: 30_000 });
       const reloaded = (await (await ownerApi.get(`/api/leagues/${leagueId}/site/canvas`)).json()) as { layout: { widgets: { id: string; y: number }[] } };
@@ -114,6 +121,23 @@ test('org site editor: canvas → drag → autosave → undo → reload; phone n
       const publicAfter = await (await anon.request.get(`/org/${subdomain}`)).text();
       const strip = (h: string) => h.replace(/<script[\s\S]*?<\/script>/g, '').replace(/<meta name="(sentry-trace|baggage)"[^>]*>/g, '');
       expect(strip(publicAfter)).toBe(strip(publicBefore));
+
+      // P3-C closes the loop: publish → the public grid renders the moved layout
+      // in reading order (the DOM order of the tiles follows the coordinates).
+      res = await ownerApi.post(`/api/leagues/${leagueId}/site/revisions`, { data: { action: 'publish', label: 'Arranged' } });
+      expect(res.status(), await readErrorBody(res)).toBe(200);
+      const publishedOrder = orderAfter.map(id => id.replace(/^legacy:/, ''));
+      let publicHtml = '';
+      await expect
+        .poll(async () => {
+          publicHtml = await (await anon.request.get(`/org/${subdomain}`)).text();
+          const tiles = [...publicHtml.matchAll(/data-widget="([a-z]+)"/g)].map(m => m[1]);
+          // Empty widgets never render publicly — compare the order of the ones that do.
+          const expected = publishedOrder.filter(k => tiles.includes(k));
+          return JSON.stringify(tiles.filter(k => expected.includes(k))) === JSON.stringify(expected) && tiles.length > 0;
+        }, { timeout: 30_000, intervals: [1000, 2000, 3000] })
+        .toBe(true);
+      expect(publicHtml).toContain('data-sb-grid');
 
       // The console door.
       await page.setViewportSize({ width: 1280, height: 900 });

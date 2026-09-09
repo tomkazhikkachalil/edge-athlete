@@ -31,7 +31,9 @@ import { RESERVED_ROOT_SLUGS } from './reserved';
 import { judgeSlug, suggestSlugs, type OrgIdentity } from './slug-policy';
 import { applyDraftAction, loadDraftSnapshot, loadSitePointers, publishDraft } from './revisions-server';
 import { readGalleryPicks } from './member-photo-gate';
-import { overlaySnapshot, type SnapshotAction } from '@/lib/site-builder/snapshot';
+import { overlaySnapshot, parseSnapshot, type SnapshotAction } from '@/lib/site-builder/snapshot';
+import { parseStoredLayout } from '@/lib/site-builder/layout-schema';
+import type { SiteLayout } from '@/lib/site-builder/layout';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- matches the authz.ts Admin alias; schema-agnostic helper
 type Admin = SupabaseClient<any, 'public', any>;
@@ -543,6 +545,11 @@ export interface PublicSite extends SiteRow {
   /** The org record's description (R5 renders it under the hero). */
   orgDescription: string | null;
   modules: { module_key: string; enabled: boolean; sort_order: number; config: unknown }[];
+  /** Site Builder P3-C: the revision's stored grid layout — the PUBLISHED
+   *  revision's for public reads, the DRAFT's for the draft view (the
+   *  preview, the canvas). Null = no stored layout yet: the renderer draws
+   *  `layoutFromModules(site)`, the template-aware projection of the rows. */
+  layout: SiteLayout | null;
 }
 
 /** The (public) segment's read: a PUBLISHED site by slug, with its org
@@ -580,7 +587,8 @@ export async function getDraftSiteBySlug(admin: Admin, slug: string): Promise<Pu
     draft_revision_id: data.draft_revision_id as string,
     published_revision_id: null,
   });
-  return state ? overlaySnapshot(site, state.snapshot) : site;
+  if (!state) return site;
+  return { ...overlaySnapshot(site, state.snapshot), layout: parseStoredLayout(state.snapshot.layout) };
 }
 
 async function getSiteBySlugInternal(
@@ -594,10 +602,11 @@ async function getSiteBySlugInternal(
     if (!includeDrafts) query = query.not('published_at', 'is', null);
     return query.maybeSingle();
   };
-  let { data: siteData, error } = await read(SITE_FIELDS);
+  let { data: siteData, error } = await read(SITE_FIELDS_180);
+  if (error?.code === '42703') ({ data: siteData, error } = await read(SITE_FIELDS));
   if (error?.code === '42703') ({ data: siteData, error } = await read(SITE_FIELDS_BASE));
   // The dynamic select string defeats supabase-js's type parser; cast once.
-  const site = siteData as unknown as SiteRow | null;
+  const site = siteData as unknown as (SiteRow & { published_revision_id?: string | null; draft_revision_id?: string | null }) | null;
   if (error || !site) {
     if (error && !isMissingTableError(error.code)) {
       console.error(`${TAG} public site read error:`, error);
@@ -639,6 +648,19 @@ async function getSiteBySlugInternal(
   }
   if (!org) return null;
 
+  // P3-C: the PUBLISHED revision's stored layout (the draft view swaps in
+  // the draft's — getDraftSiteBySlug). Pre-180 or never published through
+  // a revision → null → the projection.
+  let layout: SiteLayout | null = null;
+  if (site.published_revision_id) {
+    const { data: rev } = await admin.from('org_site_revisions').select('snapshot').eq('id', site.published_revision_id).maybeSingle();
+    const snap = rev ? parseSnapshot((rev as { snapshot: unknown }).snapshot) : null;
+    layout = snap ? parseStoredLayout(snap.layout) : null;
+  }
+  const { published_revision_id: _published, draft_revision_id: _draft, ...siteFields } = site;
+  void _published;
+  void _draft;
+
   // The dynamic select string defeats supabase-js's type parser; cast once.
   const orgRow = org as unknown as {
     name: string;
@@ -653,7 +675,7 @@ async function getSiteBySlugInternal(
     approved_at?: string | null;
   };
   return {
-    ...site,
+    ...siteFields,
     orgName: orgRow.name,
     side,
     orgId,
@@ -668,5 +690,6 @@ async function getSiteBySlugInternal(
     listed: isListed(listingFromRow(orgRow as unknown as Record<string, unknown>)),
     orgDescription: orgRow.description ?? null,
     modules: modules ?? [],
+    layout,
   };
 }

@@ -19,9 +19,10 @@
  */
 
 import { isMembersOnly } from '@/lib/org-sites/private';
+import { FULL_WIDTH_MODULES, templateSpec } from '@/lib/org-sites/templates';
 import { WIDGETS, isWebWidgetKey, type SiteHomeDataKey, type WidgetKey } from './catalog';
 
-export const GRID = { cols: 12, rowPx: 40, gapPx: 16 } as const;
+export const GRID = { cols: 12, rowPx: 40, gapPx: 24 } as const;
 
 export type WidgetVisibility = 'public' | 'members' | 'staff';
 
@@ -57,8 +58,8 @@ export interface LegacySiteShape {
 export const LEGACY_ID_PREFIX = 'legacy:';
 
 /** Today's rows → a linear layout: enabled modules in sort_order, each a
- *  full-width row, hero and contact reading the site columns their console
- *  forms write to. A key the catalog does not know renders nothing (the one
+ *  full-width row stacked by height, hero and contact reading the site
+ *  columns their console forms write to. A key the catalog does not know renders nothing (the one
  *  deliberate divergence from the pre-registry renderer, which titled a
  *  section with the raw key — unreachable on the current build because the
  *  DB CHECK mirrors MODULE_KEYS). */
@@ -70,16 +71,23 @@ export function deriveLegacyLayout(site: LegacySiteShape): SiteLayout {
     .map(({ m }) => m)
     .filter(m => m.enabled && isWebWidgetKey(m.module_key));
 
-  const widgets: WidgetInstance[] = ordered.map((m, index) => {
+  // Stacked by cumulative height (each widget starts where the previous
+  // ends) so the projection is a VALID grid — tiles never overlap — and
+  // compaction is a no-op on it. Order is what matters; the rows follow.
+  let nextY = 0;
+  const widgets: WidgetInstance[] = ordered.map(m => {
     const key = m.module_key as WidgetKey;
     const config = key === 'hero' ? site.hero_config : key === 'contact' ? site.contact_config : m.config;
+    const h = WIDGETS[key].constraints.defaultSize.h;
+    const y = nextY;
+    nextY += h;
     return {
       id: `${LEGACY_ID_PREFIX}${key}`,
       key,
       x: 0,
-      y: index,
+      y,
       w: GRID.cols,
-      h: WIDGETS[key].constraints.defaultSize.h,
+      h,
       cv: 1,
       config: config ?? {},
       visibility: isMembersOnly(site, key) ? 'members' : 'public',
@@ -179,4 +187,39 @@ function defaultRandom(bytes: Uint8Array): Uint8Array {
   if (c && typeof c.getRandomValues === 'function') return c.getRandomValues(bytes);
   for (let i = 0; i < bytes.length; i++) bytes[i] = Math.floor(Math.random() * 256);
   return bytes;
+}
+
+// ── The projection of the module rows onto the grid (P3-C) ──────────────────
+
+/** Reading order for the phone: top to bottom, then left to right. The DOM
+ *  order of the public grid — so tab order and screen readers agree with
+ *  what the phone shows. */
+export function deriveMobileOrder(widgets: readonly WidgetInstance[]): WidgetInstance[] {
+  return sortByPosition(widgets);
+}
+
+/** A site with no stored layout renders the projection of its module rows
+ *  onto the grid, TEMPLATE-AWARE so the flip from the linear frame to the
+ *  grid is a visual no-op: `classic` stacks every section full width;
+ *  `bold` (a two-column section grid at ≥ sm) pairs half-width sections
+ *  and lets the full-width modules (teams, news, gallery, courses, leaders)
+ *  span both — the same placement CSS auto-flow gave. `h` stays each
+ *  widget's default (a MINIMUM height). */
+export function layoutFromModules(site: LegacySiteShape & { template_id: string }): SiteLayout {
+  const linear = deriveLegacyLayout(site);
+  if (templateSpec(site.template_id).sections !== 'grid') return linear;
+  // Halves alternate left/right; a full-width widget starts a new row. The
+  // linear y (cumulative heights) keeps everything non-overlapping; the
+  // compaction then lifts each right-hand half up beside its left partner.
+  let col = 0;
+  const widgets = linear.widgets.map(w => {
+    if (w.key === 'hero' || FULL_WIDTH_MODULES.has(w.key)) {
+      col = 0;
+      return { ...w, x: 0, w: GRID.cols };
+    }
+    const placed = { ...w, x: col * 6, w: 6 };
+    col = col === 0 ? 1 : 0;
+    return placed;
+  });
+  return { ...linear, widgets: compactLayout(widgets) };
 }

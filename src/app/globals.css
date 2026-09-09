@@ -749,6 +749,40 @@ body {
   --color-canvas: color-mix(in srgb, var(--org-accent) 4%, white);
 }
 
+/* Site Builder P3-C — the public grid. Mobile-first: two columns in READING
+ * order (the DOM order GridRenderer emits), full or half spans from the
+ * catalog; from 48rem the explicit placement takes over through the custom
+ * properties the renderer stamps (1-based ints — no calc() in grid lines).
+ * `--sb-h` is a MINIMUM: tracks are minmax(row, auto), so tall content grows
+ * its rows rather than clipping. Row and gap agree with the editor's GRID
+ * (2.5rem rows, 1.5rem gaps) so what a manager arranges is what ships.
+ * Shared-class contract: no display/width on the tiles' own components. */
+.org-scope .sb-grid {
+  display: grid;
+  gap: 1.5rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-auto-flow: row dense;
+}
+.org-scope .sb-w {
+  grid-column: span 2;
+  min-width: 0;
+}
+.org-scope .sb-w.sb-half {
+  grid-column: span 1;
+}
+@media (min-width: 48rem) {
+  .org-scope .sb-grid {
+    grid-template-columns: repeat(12, minmax(0, 1fr));
+    grid-auto-rows: minmax(2.5rem, auto);
+    grid-auto-flow: row;
+  }
+  .org-scope .sb-w,
+  .org-scope .sb-w.sb-half {
+    grid-column: var(--sb-c) / span var(--sb-w);
+    grid-row: var(--sb-r) / span var(--sb-h);
+  }
+}
+
 /* Long-press targets: a 400ms press must open OUR surface, not the OS text
  * selection (iOS loupe/callout) — the two fight, and selection wins ugly.
  * Coarse-scoped so desktop mouse selection (and copy) is untouched; on

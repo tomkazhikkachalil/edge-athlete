@@ -74,8 +74,9 @@ test('org site template: bold → band header + grid + tiles; classic restores; 
       expect(bold).toContain('background-color:var(--org-accent-strong)');
       expect(bold).toContain('text-white/90');
       // Grid sections + full-bleed hero + tile teams.
-      expect(bold).toContain('sm:grid-cols-2');
-      expect(bold).toContain('sm:col-span-2');
+      // P3-C: the two-column section grid is coordinates now — half tiles (6 of 12) on the public grid.
+      expect(bold).toContain('data-sb-grid');
+      expect(bold).toContain('--sb-w:6');
       expect(bold).toContain('sm:text-5xl');
       expect(bold).toContain(`QA Tigers ${stamp}`);
       expect(bold).toContain('grid-cols-2 sm:grid-cols-3');
@@ -100,7 +101,7 @@ test('org site template: bold → band header + grid + tiles; classic restores; 
       // P2-B: edits land in the draft — publish before reading the public projection.
       await publishSite(ownerApi, 'league', leagueId);
       const classic = await settleBody(anonCtx.request, sitePath, 'data-template="classic"', true, 12);
-      expect(classic).not.toContain('sm:grid-cols-2');
+      expect(classic).not.toContain('--sb-w:6');
       expect(classic).toContain('rounded-xl px-6 py-10 text-white');
       await page.goto(sitePath);
       await expect(page.getByRole('heading', { name, level: 1 })).toBeVisible({ timeout: 15_000 });

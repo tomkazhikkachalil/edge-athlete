@@ -86,12 +86,12 @@ test('org-site register card: open window renders the CTA; closed hides it', asy
       const anonCtx = await browser.newContext({ storageState: { cookies: [], origins: [] } });
       try {
         const page = await anonCtx.newPage();
-        expect(
-          await settlePage(page, `/org/${subdomain}`, 'Registration is currently closed.'),
-          'closed-by-default copy never settled'
-        ).toBe(true);
+        // P3-C: a closed registration is an EMPTY widget — it never renders
+        // publicly (the grid closes ranks); opening a window makes it appear.
+        await page.goto(`/org/${subdomain}`);
+        await expect(page.getByRole('heading', { level: 1 })).toBeVisible({ timeout: 20_000 });
         const section = page.getByRole('region', { name: 'Register' });
-        await expect(section.getByText('Registration is currently closed.')).toBeVisible();
+        await expect(section).toHaveCount(0);
 
         // Open a window → the purge lands → the CTA renders.
         const win = await ownerApi.post(`/api/leagues/${leagueId}/registration-windows`, {
@@ -120,11 +120,12 @@ test('org-site register card: open window renders the CTA; closed hides it', asy
           `/api/leagues/${leagueId}/registration-windows?windowId=${windowId}`
         );
         expect(closed.status(), await readErrorBody(closed)).toBe(200);
+        // P3-C: closed = empty = the Register tile leaves the page again.
         expect(
-          await settlePage(page, `/org/${subdomain}`, 'Registration is currently closed.'),
-          'closed copy never settled after the window delete'
+          await settlePage(page, `/org/${subdomain}`, 'aria-label="Register"', false),
+          'the Register tile never left after the window delete'
         ).toBe(true);
-        await expect(section.getByText('Registration is currently closed.')).toBeVisible();
+        await expect(section).toHaveCount(0);
       } finally {
         await anonCtx.close();
       }
