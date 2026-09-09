@@ -53,3 +53,13 @@ export async function getOrgPeerIds(admin: Admin, profileId: string): Promise<st
   ]);
   return unionPeerIds([leaguePeers, clubPeers]);
 }
+
+/** Org Pages R5: the posts route's `?org=<side>:<uuid>` parameter — ONE
+ *  org's members' public posts (the grid on the org page). Pure; malformed
+ *  → null (the route answers 400). */
+export function parseOrgParam(value: string | null | undefined): { side: 'league' | 'club'; orgId: string } | null {
+  if (!value) return null;
+  const m = /^(league|club):([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i.exec(value.trim());
+  if (!m) return null;
+  return { side: m[1].toLowerCase() as 'league' | 'club', orgId: m[2].toLowerCase() };
+}

@@ -102,7 +102,10 @@ test('org gallery: picked member photo → face, window, lightbox; revoke → go
     res = await anon.request.get(`/api/clubs/${clubId}/gallery`);
     body = (await res.json()) as GalleryBody;
     expect(body.items.some(i => i.id === pub!.mediaId)).toBe(false);
-    expect((await anon.request.get(item!.url)).status()).toBe(404);
+    // A FRESH URL: on prod the streamer's earlier 200 sits in the CDN under
+    // the bare URL (the member-photos spec's recipe) — the gate is re-run
+    // per uncached request.
+    expect((await anon.request.get(`${item!.url}?t=${Date.now()}`)).status()).toBe(404);
 
     // A private org: anonymous 403, member 200.
     await admin.from('clubs').update({ visibility: 'private' }).eq('id', clubId);

@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { unionPeerIds, isOrgLensVisible, ORG_PEER_CAP } from '../org-peers';
+import { parseOrgParam } from '../org-peers';
 
 describe('unionPeerIds', () => {
   it('unions across groups preserving first-seen order', () => {
@@ -34,5 +35,18 @@ describe('isOrgLensVisible', () => {
   it('treats missing visibility as not visible', () => {
     expect(isOrgLensVisible(null, 'public')).toBe(false);
     expect(isOrgLensVisible('public', undefined)).toBe(false);
+  });
+});
+
+describe('parseOrgParam (Org Pages R5)', () => {
+  const uuid = '11111111-1111-4111-8111-111111111111';
+  it('accepts league:<uuid> and club:<uuid>, lower-casing both parts', () => {
+    expect(parseOrgParam(`league:${uuid}`)).toEqual({ side: 'league', orgId: uuid });
+    expect(parseOrgParam(`CLUB:${uuid.toUpperCase()}`)).toEqual({ side: 'club', orgId: uuid });
+  });
+  it('rejects anything else', () => {
+    for (const bad of [null, undefined, '', 'league', `team:${uuid}`, `league:${uuid}x`, 'league:not-a-uuid', `league:${uuid}:extra`]) {
+      expect(parseOrgParam(bad)).toBeNull();
+    }
   });
 });
