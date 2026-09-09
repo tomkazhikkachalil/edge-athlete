@@ -5,6 +5,8 @@ import type { OrgEvent } from '@/lib/calendar/org-events-server';
 import type { PublicStandingsPayload } from '@/lib/competitions/public-standings';
 import type { PublicSite } from '@/lib/org-sites/server';
 import type { PublicNewsItem, PublicOpenWindow } from '@/lib/org-sites/public-data';
+import type { WebWidgetKey } from '@/lib/site-builder/catalog';
+import { widget, type SiteLayout, type WidgetInstance } from '@/lib/site-builder/layout';
 import NewsItems from './NewsItems';
 import type {
   PublicAffiliation,
@@ -41,7 +43,6 @@ import StandingsPreview from './StandingsPreview';
 import TeamsList from './TeamsList';
 import VenuesList from './VenuesList';
 import { appBaseUrl, siteBasePath } from '@/lib/org-sites/urls';
-import { isMembersOnly } from '@/lib/org-sites/private';
 import MembersOnlyPanel from './MembersOnlyPanel';
 import { FULL_WIDTH_MODULES, templateSpec } from '@/lib/org-sites/templates';
 import type { CourseStats } from '@/lib/golf/course-stats';
@@ -84,16 +85,20 @@ export interface SiteHomeData {
 
 export default function SiteHomeBody({
   site,
+  layout,
   data,
 }: {
   site: PublicSite;
+  /** P1-C: the composition this page renders — today derived from the
+   *  module rows (deriveLegacyLayout), later a stored revision. `site`
+   *  remains for chrome-level values (name, template, theme, urls, id). */
+  layout: SiteLayout;
   data: SiteHomeData;
 }) {
   const { standings, events, teams, staff, venues, affiliations, openWindows, courses, divisions, leaders } = data;
   const clubGolfBoards = data.clubGolfBoards ?? [];
-  const enabled = site.modules.filter(m => m.enabled);
-  const has = (key: string) => enabled.some(m => m.module_key === key);
-  const hero = parseHeroConfig(site.hero_config);
+  const heroWidget = widget(layout, 'hero');
+  const hero = parseHeroConfig(heroWidget?.config);
   const heroImage = orgMediaUrl(site.id, hero.imagePath);
   // B1: label overrides + wordmark (the header/hero name, never <title>).
   const nav = parseNavConfig(site.nav_config);
@@ -110,9 +115,11 @@ export default function SiteHomeBody({
 
   const empty = (text: string) => <p className="mt-1 text-sm text-tertiary">{text}</p>;
 
-  const moduleBody = (key: string) => {
-    // Phase 9 V4: a private club's members-only modules become the panel.
-    if (isMembersOnly(site, key)) return <MembersOnlyPanel site={site} />;
+  const moduleBody = (w: WidgetInstance) => {
+    const key = w.key as Exclude<WebWidgetKey, 'hero'>;
+    // Phase 9 V4: a private club's members-only modules become the panel
+    // (the instance's visibility carries isMembersOnly — deriveLegacyLayout).
+    if (w.visibility === 'members') return <MembersOnlyPanel site={site} />;
     switch (key) {
       case 'standings':
         return <StandingsPreview standings={standings} basePath={siteBasePath(site)} />;
@@ -159,9 +166,7 @@ export default function SiteHomeBody({
           empty('No affiliations yet.')
         );
       case 'sponsors': {
-        const sponsors = parseSponsors(
-          site.modules.find(m => m.module_key === 'sponsors')?.config
-        );
+        const sponsors = parseSponsors(w.config);
         return sponsors.length > 0 ? (
           <SponsorsList sponsors={sponsors} siteId={site.id} />
         ) : (
@@ -229,9 +234,7 @@ export default function SiteHomeBody({
           empty('No members yet.')
         );
       case 'documents': {
-        const documents = parseDocuments(
-          site.modules.find(m => m.module_key === 'documents')?.config
-        );
+        const documents = parseDocuments(w.config);
         return documents.length > 0 ? (
           <DocumentsList
             documents={documents}
@@ -270,7 +273,7 @@ export default function SiteHomeBody({
           </Link>
         );
       case 'contact': {
-        const contact = parseContact(site.contact_config);
+        const contact = parseContact(w.config);
         return Object.keys(contact).length > 0 ? (
           <ContactCard contact={contact} />
         ) : (
@@ -278,7 +281,9 @@ export default function SiteHomeBody({
         );
       }
       default:
-        return empty('Coming soon.');
+        // Every web widget key is handled above; an unknown module key never
+        // reaches here (deriveLegacyLayout drops it).
+        return ((k: never) => k)(key);
     }
   };
 
@@ -287,8 +292,8 @@ export default function SiteHomeBody({
       {/* R5 a11y: the visible h1 lives in the hero — a hero-disabled site
           (DB-level state; the console can't toggle hero) must still open
           its outline at level 1. */}
-      {!has('hero') && <h1 className="sr-only">{site.orgName}</h1>}
-      {has('hero') && (
+      {!heroWidget && <h1 className="sr-only">{site.orgName}</h1>}
+      {heroWidget && (
         // The gradient rides the .org-scope accent vars (violet defaults; a
         // site's theme_token_set overrides via the layout's inline style).
         <section
@@ -374,18 +379,20 @@ export default function SiteHomeBody({
         </section>
       )}
       <div className={spec.sections === 'grid' ? 'grid gap-6 sm:grid-cols-2' : 'space-y-6'}>
-        {enabled
-          .filter(m => m.module_key !== 'hero')
-          .map(m => (
+        {/* P1-C: the layout's widgets in order (a linear projection today;
+            FULL_WIDTH_MODULES stays the span source until phase 3 reads w.w). */}
+        {layout.widgets
+          .filter(w => w.key !== 'hero')
+          .map(w => (
             <section
-              key={m.module_key}
-              aria-label={moduleLabel(m.module_key, nav, site.side, site.sportKey)}
+              key={w.key}
+              aria-label={moduleLabel(w.key, nav, site.side, site.sportKey)}
               className={`${sectionClass} ${
-                spec.sections === 'grid' && FULL_WIDTH_MODULES.has(m.module_key) ? 'sm:col-span-2' : ''
+                spec.sections === 'grid' && FULL_WIDTH_MODULES.has(w.key) ? 'sm:col-span-2' : ''
               }`}
             >
-              <h2 className={headingClass}>{moduleLabel(m.module_key, nav, site.side, site.sportKey)}</h2>
-              {moduleBody(m.module_key)}
+              <h2 className={headingClass}>{moduleLabel(w.key, nav, site.side, site.sportKey)}</h2>
+              {moduleBody(w)}
             </section>
           ))}
       </div>

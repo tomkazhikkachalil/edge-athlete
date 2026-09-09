@@ -19,6 +19,7 @@ import {
   getCachedNewsList,
 } from '@/lib/org-sites/cached';
 import { buildOrgJsonLd, safeJsonLd } from '@/lib/org-sites/jsonld';
+import { deriveLegacyLayout, needsData } from '@/lib/site-builder/layout';
 import SiteHomeBody from './_components/SiteHomeBody';
 import { siteAbsoluteUrl } from '@/lib/org-sites/urls';
 
@@ -28,6 +29,12 @@ import { siteAbsoluteUrl } from '@/lib/org-sites/urls';
 // arrives through the per-module cached readers — one Promise.all, no
 // per-component fetching. The markup lives in SiteHomeBody so the
 // token-gated preview renders the exact same page from raw reads.
+//
+// Site Builder P1-C (Sep 9 2026): the page renders from a LAYOUT — today
+// derived from the module rows by deriveLegacyLayout (a linear, full-width
+// projection, byte-identical output), later stored per revision. Readers
+// are gated on what the layout's widgets consume (needsData), never on a
+// module key directly.
 
 export const revalidate = 300;
 
@@ -71,27 +78,28 @@ export default async function OrgSiteHome({ params }: PageParams) {
   const site = await getCachedSite(slug);
   if (!site) notFound();
 
-  const has = (key: string) => site.modules.some(m => m.module_key === key && m.enabled);
+  const layout = deriveLegacyLayout(site);
+  const need = (field: Parameters<typeof needsData>[1]) => needsData(layout, field);
   const { side, orgId } = site;
 
   const [standings, events, teams, staff, venues, affiliations, openWindows, courses, divisions, leaders, clubGolfBoards, courseStrip, golfRounds, news, memberStats] =
     await Promise.all([
-    has('standings') ? getCachedStandings(slug, side, orgId) : Promise.resolve(null),
-    has('schedule') ? getCachedSchedule(slug, side, orgId) : Promise.resolve(null),
-    has('teams') ? getCachedTeams(slug, side, orgId) : Promise.resolve([]),
-    has('staff') ? getCachedStaff(slug, side, orgId) : Promise.resolve([]),
-    has('venues') ? getCachedVenues(slug, side, orgId) : Promise.resolve([]),
-    has('affiliations') ? getCachedAffiliations(slug, side, orgId) : Promise.resolve([]),
-    has('register') ? getCachedOpenWindows(slug, side, orgId) : Promise.resolve([]),
-    has('courses') ? getCachedCourses(slug, side, orgId) : Promise.resolve([]),
-    has('divisions') ? getCachedDivisions(slug, side, orgId) : Promise.resolve([]),
-    has('leaders') ? getCachedLeaders(slug, side, orgId, site.sportKey) : Promise.resolve([]),
-    has('courses') && side === 'club' ? getCachedClubGolfBoards(slug, orgId) : Promise.resolve([]),
-    has('courses') && side === 'club' ? getCachedClubCourseStrip(slug, side, orgId) : Promise.resolve(null),
-    has('schedule') ? getCachedGolfRounds(slug, side, orgId) : Promise.resolve([]),
-    has('news') ? getCachedNewsList(slug, site.id, site.visibility === 'private') : Promise.resolve([]),
+    need('standings') ? getCachedStandings(slug, side, orgId) : Promise.resolve(null),
+    need('events') ? getCachedSchedule(slug, side, orgId) : Promise.resolve(null),
+    need('teams') ? getCachedTeams(slug, side, orgId) : Promise.resolve([]),
+    need('staff') ? getCachedStaff(slug, side, orgId) : Promise.resolve([]),
+    need('venues') ? getCachedVenues(slug, side, orgId) : Promise.resolve([]),
+    need('affiliations') ? getCachedAffiliations(slug, side, orgId) : Promise.resolve([]),
+    need('openWindows') ? getCachedOpenWindows(slug, side, orgId) : Promise.resolve([]),
+    need('courses') ? getCachedCourses(slug, side, orgId) : Promise.resolve([]),
+    need('divisions') ? getCachedDivisions(slug, side, orgId) : Promise.resolve([]),
+    need('leaders') ? getCachedLeaders(slug, side, orgId, site.sportKey) : Promise.resolve([]),
+    need('clubGolfBoards') && side === 'club' ? getCachedClubGolfBoards(slug, orgId) : Promise.resolve([]),
+    need('courseStrip') && side === 'club' ? getCachedClubCourseStrip(slug, side, orgId) : Promise.resolve(null),
+    need('golfRounds') ? getCachedGolfRounds(slug, side, orgId) : Promise.resolve([]),
+    need('news') ? getCachedNewsList(slug, site.id, site.visibility === 'private') : Promise.resolve([]),
     // R5: the zero-admin members table (rounds members posted anyway).
-    has('members') ? getCachedMemberStats(slug, side, orgId) : Promise.resolve(null),
+    need('memberStats') ? getCachedMemberStats(slug, side, orgId) : Promise.resolve(null),
   ]);
 
   return (
@@ -104,6 +112,7 @@ export default async function OrgSiteHome({ params }: PageParams) {
       />
       <SiteHomeBody
         site={site}
+        layout={layout}
         data={{ standings, events, teams, staff, venues, affiliations, openWindows, courses, divisions, leaders, clubGolfBoards, courseStrip, golfRounds, news, memberStats }}
       />
     </>

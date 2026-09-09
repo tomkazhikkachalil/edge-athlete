@@ -1,5 +1,53 @@
 # Development Log
 
+## September 9, 2026 — Site Builder P1-C: the site home renders from the derived widget layout (byte-identical; zero DDL)
+
+The public home's first consumer of the registry (P1-B). The page and the
+draft preview now render from a LAYOUT — `deriveLegacyLayout(site)`, the
+linear full-width projection of today's module rows — and never from the
+module list directly. No manager sees anything different; the point is
+that from here the renderer has one input, and phase 2 can snapshot it and
+phase 3 can place it on a grid without touching the page again.
+
+- **`(public)/org/[slug]/page.tsx` + `preview/[token]/page.tsx`**: the
+  `has(moduleKey)` reader gates become `needsData(layout, field)` — a
+  reader runs when a widget on the layout consumes its field (the catalog's
+  `data` lists are exactly what each section case reads). Both pass
+  `layout` to the body. The preview never fetched `memberStats`; that
+  pre-existing gap is left as is and noted.
+- **`SiteHomeBody.tsx`**: props `{ site, layout, data }`; the hero comes
+  from `widget(layout, 'hero')`; `moduleBody(w: WidgetInstance)` keys on the
+  typed widget key with an exhaustiveness check in place of the old
+  `default: 'Coming soon.'` (an unknown module key is dropped by
+  `deriveLegacyLayout` before it gets here — the one deliberate divergence,
+  unreachable on the current build); the members-only panel keys on
+  `w.visibility === 'members'` (derived from the same `isMembersOnly`);
+  sponsors / documents / contact read `w.config`; the sections map over
+  `layout.widgets`. `FULL_WIDTH_MODULES` stays the span source until phase 3
+  reads `w.w`. `site` remains for chrome-level values only.
+- **Guardrail §4b (new)**: the site's presentational components
+  (`_components/**`, and the future `src/components/site-widgets/**`) must
+  not import `next/cache`, the cached readers, the admin client or
+  `next/headers` — props-only, because phase 3's client-side editor canvas
+  renders the same components against draft data.
+
+**Proof, not promise.** Two production builds against ONE local database:
+`main` (31f13992) in a git worktree on :3001, this branch on :3002. A
+session-scoped Playwright probe (never committed) seeded four orgs through
+the branch's console API — a classic league, a `bold` club with a scrambled
+`set_nav` and label overrides, a PRIVATE club (members-only panels), and an
+unpublished league — each with all 16 toggleable modules on, hero (headline,
+tagline, CTA, notice), theme (accent, strong, tinted, serif, wordmark),
+sponsors, documents, contact, plus a signed preview token; then fetched the
+anonymous HTML of `/org/{slug}` and the preview URL from both ports (fresh
+slugs — ISR cold on both). After stripping per-request noise (Sentry
+`sentry-trace`/`baggage` metas, the build-hashed font class, `/_next/static`
+paths, inline scripts, uuids, timestamps) all eight documents — 17 sections
+each on the published six; identical 404s for the draft's home and its
+preview — were byte-identical. Every org was deleted in the same run. Then the full
+`org-site*` e2e set (23 specs) against the branch build: 25 passed, 1
+flag-gated skip.
+
 ## September 9, 2026 — Site Builder P1-B: the widget registry (pure, node-tested, no consumers yet; zero DDL)
 
 Phase 1 of the Site Builder program (see the P1-A entry for the program):

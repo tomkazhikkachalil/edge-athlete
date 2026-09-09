@@ -73,6 +73,18 @@ else
   ok "(public) segment stays server-only, header-free, FA-free"
 fi
 
+# 4b. Site Builder P1-C (Sep 2026): the site's presentational components are
+#     PROPS-ONLY — no cache reads, no admin client, no session. A future
+#     client-side editor canvas renders the same components against draft
+#     data, which only works while they fetch nothing themselves.
+hits=$(scan "from 'next/cache'|@/lib/org-sites/cached|@/lib/auth-server|from 'next/headers'" 'src/app/(public)/org/[slug]/_components/**/*.ts' 'src/app/(public)/org/[slug]/_components/**/*.tsx' 'src/components/site-widgets/**/*.ts' 'src/components/site-widgets/**/*.tsx')
+if [ -n "$hits" ]; then
+  bad "a site presentational component reads data itself (must stay props-only for the editor canvas):"
+  echo "$hits" | sed 's/^/      /'
+else
+  ok "site presentational components stay props-only"
+fi
+
 # 5. next/og carries a multi-MB wasm payload — it stays isolated to the
 #    share-card route bundles, never imported elsewhere.
 hits=$(scan "from 'next/og'" 'src/**/*.ts' 'src/**/*.tsx' | grep -v 'card\.png/route\.ts')
