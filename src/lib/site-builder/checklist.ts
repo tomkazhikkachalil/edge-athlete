@@ -4,8 +4,9 @@
  * derives from what it already holds (the site, the layout, the resolved
  * data) — no table, no fetch of its own — in the console's `ChecklistStep`
  * shape (`src/lib/orgs/checklist.ts`). Each step's `href` names what
- * completes it: `#theme` opens the theme panel, `#picker` the add-section
- * picker, `#publish` publishes, `#w=<id>` selects a tile. Pure, node-tested.
+ * completes it: `#theme` opens the theme panel, `#gallery` the design gallery
+ * (phase 11), `#picker` the add-section picker, `#publish` publishes,
+ * `#w=<id>` selects a tile. Pure, node-tested.
  */
 
 import type { ChecklistStep } from '@/lib/orgs/checklist';
@@ -86,8 +87,8 @@ export function buildSiteChecklistSteps(input: SiteChecklistInput): ChecklistSte
       key: 'arrange',
       done: input.arranged,
       label: 'Arrange your sections',
-      hint: 'Drag a section, resize it, or add one — the starting layout is only a start.',
-      href: '#picker',
+      hint: 'Start from a design, or drag a section, resize it, add one — the starting layout is only a start.',
+      href: '#gallery',
     },
     {
       key: 'fill',

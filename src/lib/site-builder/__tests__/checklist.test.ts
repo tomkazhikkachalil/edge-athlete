@@ -40,6 +40,8 @@ describe('siteChecklistInput', () => {
     expect(steps.map(st => st.key)).toEqual(['colours', 'photo', 'welcome', 'arrange', 'fill', 'publish']);
     expect(steps.every(st => !st.done)).toBe(true);
     expect(steps.find(st => st.key === 'photo')!.href).toBe('#w=legacy:hero');
+    // Phase 11: arranging starts at the design gallery.
+    expect(steps.find(st => st.key === 'arrange')!.href).toBe('#gallery');
     expect(steps.find(st => st.key === 'fill')!.href).toBe('#w=legacy:standings');
     expect(steps.find(st => st.key === 'fill')!.optional).toBe(true);
     // The optional step never gates "all done".

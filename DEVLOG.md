@@ -1,5 +1,63 @@
 # Development Log
 
+## September 9, 2026 — Site Builder phase 11 (P11-B): the design gallery in the editor, the first-open offer, and the builder's numbers on the admin dashboard (zero DDL)
+
+- **The gallery window** (`Gallery.tsx`, new; `LargerWindow` "Start from a
+  design", `windowKey sb-gallery`): the entries for this org's side × sport,
+  each drawn as a 12-column BLOCK DIAGRAM of the seed it would apply —
+  computed in the client with the same `gallerySeed` the server runs, over
+  the org facts the canvas GET carries (P11-A's `gallery`), so the picture
+  never lies: the hero is the accent gradient with the wordmark, the header
+  strip takes the entry's band/bar, the welcome tile shows the REAL
+  generated heading, the map names the real venue, a module the org has not
+  enabled is simply absent. No iframes, no data fetches, no scaled widgets.
+  "Keep my sections" (default) / "Start clean" radios with the one-line
+  consequence; "Use this" → `PATCH apply_gallery` → a toast → the editor
+  RELOADS from the server (the design lands as a fresh rev; there is no
+  undo entry for it — the console's Discard draft is the way back).
+- **The first-open offer** (`SiteBuilder.tsx`): the gallery opens ITSELF on
+  the first visit to a site nobody has arranged or published — `draft ===
+  null`, not live, and the layout still the seed (`isSeedLayout`) — with
+  "Skip — keep the starting layout" (writes nothing). A ref outside the
+  remounted Editor makes it once per page load: applying a design or
+  publishing reloads the editor without re-offering. Every existing editor
+  spec takes its site live before opening the editor, so none sees it. The
+  header gains a "Start from" pill; the theme panel's family fieldset
+  (retitled "Template") links to the gallery; the checklist's arrange step
+  now opens the gallery (`#gallery`) — a design counts as arranging.
+- **The numbers** (`metrics-rollup.ts`, new, pure; `GET /api/admin/site-
+  metrics`, new, `requireAdmin`): the sites and their published revisions'
+  `stats` (mig 180, written by every publish since P8-A) folded into sites
+  (total / live / with a draft / created 7d and 30d / by template),
+  publishes (7d / 30d / sites publishing in 30d / ever), the FIRST-publish
+  question (how many within an hour of the site's creation, median and p75
+  time — nearest-rank, no interpolation — and the median widgets touched),
+  and editor adoption (sites whose LATEST published revision carries a
+  stored layout, the median widget count, the most-added section keys).
+  Both reads are capped (2000 sites, 5000 revisions) and `truncated` says
+  when the numbers are a floor; pre-180 answers `{supported: false}`; junk
+  stats are skipped for the measures but still count as publishes. Nothing
+  stored, nothing vendored.
+- **The dashboard panel** ("Site builder", between the flagged slugs and the
+  custom domains): eight stat tiles (two per row on a phone, four from sm),
+  the most-added chips, and **Storage sweep (dry run)** — the first UI
+  caller of `POST /api/admin/storage-sweep`, dry-run only ("Nothing was
+  deleted" in the summary line; deleting stays a console action).
+- Tests: `metrics-rollup.test.ts` (percentiles odd/even/single/empty; the
+  3600-second boundary inclusive; latest-per-site adoption; junk skipped;
+  windows; bad dates never count). e2e: `org-site-start.spec.ts` gains the
+  UI half — a fresh site's first visit opens the gallery (≥3 cards, the
+  scoreboard card carrying the org's real welcome heading and "Map ·"),
+  Skip leaves no draft, the pill reopens it, Use this (clean) → the canvas
+  wears `data-template="bold"` with the welcome tile and nothing unsaved,
+  the arrange step done, a reload does not re-offer, Publish changes →
+  take live → the public welcome; the metrics route answers 403 to a league
+  owner. Dashboard verified by construction at 375 (no admin QA session).
+
+Phase 11 complete: six starting points a manager can see before choosing,
+offered when it matters most, and the one-hour question answered from the
+data the builder already records.
+
 ## September 9, 2026 — Site Builder phase 11 (P11-A): the template gallery's model and `apply_gallery` — six starting points, generated from the org's own facts (zero DDL)
 
 - **A gallery entry is family + tokens + a plan** (`gallery.ts`, new,

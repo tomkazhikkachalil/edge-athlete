@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import AppHeader from '@/components/AppHeader';
@@ -16,6 +16,9 @@ import Picker from './Picker';
 import PropertiesPanel from './PropertiesPanel';
 import ThemePanel, { themeDraftFrom, type ThemeDraft } from './ThemePanel';
 import ChecklistRail from './ChecklistRail';
+import Gallery from './Gallery';
+import type { GalleryOrg } from '@/lib/site-builder/gallery';
+import { isSeedLayout, seedLayout } from '@/lib/site-builder/seeds';
 import { buildSiteChecklistSteps, siteChecklistInput } from '@/lib/site-builder/checklist';
 import type { ChecklistStep } from '@/lib/orgs/checklist';
 import type { WidgetInstance } from '@/lib/site-builder/layout';
@@ -45,6 +48,8 @@ interface CanvasBody {
   data: SiteHomeData;
   /** Phase 9: what a query widget can bind to. */
   options?: CanvasOptions;
+  /** Phase 11: the org facts the gallery draws its thumbnails from. */
+  gallery?: GalleryOrg;
 }
 
 const PILL = 'px-3 py-1.5 text-sm min-h-[36px] rounded-md border border-border-strong text-secondary hover:bg-surface-sunken transition-colors disabled:opacity-50 disabled:cursor-not-allowed';
@@ -63,6 +68,11 @@ export default function SiteBuilder() {
   const [state, setState] = useState<'loading' | 'ready' | 'forbidden' | 'unavailable' | 'error'>('loading');
   const [canvas, setCanvas] = useState<CanvasBody | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
+  // Phase 11: the gallery opens ITSELF once, on the first visit to a site
+  // nobody has arranged or published — a ref outside the remounted Editor,
+  // so a reload (an applied design, a publish) never re-offers it.
+  const galleryOffered = useRef(false);
+  const [autoGallery, setAutoGallery] = useState(false);
 
   useEffect(() => {
     if (!validSide || !user?.id) return;
@@ -83,6 +93,9 @@ export default function SiteBuilder() {
         const body = (await res.json()) as CanvasBody;
         if (cancelled) return;
         setCanvas(body);
+        const fresh = !galleryOffered.current && body.draft === null && body.published !== true && isSeedLayout(body.layout, seedLayout(body.site));
+        if (fresh) galleryOffered.current = true;
+        setAutoGallery(fresh);
         setState('ready');
       } catch {
         if (!cancelled) setState('error');
@@ -133,7 +146,16 @@ export default function SiteBuilder() {
       plural={plural}
       orgId={orgId}
       consoleHref={consoleHref}
-      onReload={() => setReloadKey(k => k + 1)}
+      onReload={() => {
+        // A real reload: back to the spinner until the fresh canvas lands,
+        // so the Editor mounts on the SERVER's layout (an applied design, a
+        // publish) — never on the stale one with a new key. The gallery's
+        // offer is off for the rest of this page load.
+        setAutoGallery(false);
+        setState('loading');
+        setReloadKey(k => k + 1);
+      }}
+      autoGallery={autoGallery}
       showSuccess={showSuccess}
       showError={showError}
       showUndo={showUndo}
@@ -147,6 +169,7 @@ function Editor({
   orgId,
   consoleHref,
   onReload,
+  autoGallery,
   showSuccess,
   showError,
   showUndo,
@@ -156,6 +179,8 @@ function Editor({
   orgId: string;
   consoleHref: string;
   onReload: () => void;
+  /** Phase 11: open the gallery at mount (a fresh site's first visit). */
+  autoGallery: boolean;
   showSuccess: (title: string, message?: string) => void;
   showError: (title: string, message?: string) => void;
   showUndo: (title: string, onUndo: () => void, message?: string) => void;
@@ -167,6 +192,8 @@ function Editor({
   // them); a removed widget's data stays — harmless, and Undo needs it.
   const [data, setData] = useState<SiteHomeData>(canvas.data);
   const [pickerOpen, setPickerOpen] = useState(false);
+  // Phase 11: the design gallery — 'auto' on a fresh site (shows Skip).
+  const [gallery, setGallery] = useState<'auto' | 'manual' | null>(autoGallery ? 'auto' : null);
   // Phase 5: the site view (content) can change under the editor when the
   // panel saves content — re-read the canvas without touching the layout
   // history (the layout is the manager's; the content is the org's).
@@ -272,6 +299,8 @@ function Editor({
     if (href === '#theme') {
       setSelectedId(null);
       setThemeDraft(themeDraftFrom(site));
+    } else if (href === '#gallery') {
+      setGallery('manual');
     } else if (href === '#picker') {
       setPickerOpen(true);
     } else if (href === '#publish') {
@@ -381,6 +410,9 @@ function Editor({
             <button type="button" onClick={() => setPickerOpen(true)} className={PILL}>
               Add section
             </button>
+            <button type="button" onClick={() => setGallery('manual')} className={PILL} data-sb-open-gallery="">
+              Start from
+            </button>
             <button
               type="button"
               onClick={() => {
@@ -431,6 +463,7 @@ function Editor({
                     setThemeDraft(null);
                   }}
                   onClose={() => setThemeDraft(null)}
+                  onOpenGallery={() => setGallery('manual')}
                   plural={plural}
                   orgId={orgId}
                   showError={showError}
@@ -458,6 +491,24 @@ function Editor({
       </div>
       {pickerOpen && (
         <Picker site={site} layout={history.present} plural={plural} orgId={orgId} data={data} onAdd={addWidget} onClose={() => setPickerOpen(false)} />
+      )}
+      {gallery && canvas.gallery && (
+        <Gallery
+          site={site}
+          org={canvas.gallery}
+          plural={plural}
+          orgId={orgId}
+          auto={gallery === 'auto'}
+          onApplied={() => {
+            // The server re-laid the draft: reload the whole editor from it
+            // (a fresh rev; no undo entry — the console's Discard draft is the way back).
+            setGallery(null);
+            onReload();
+          }}
+          onClose={() => setGallery(null)}
+          showError={showError}
+          showSuccess={showSuccess}
+        />
       )}
     </div>
   );

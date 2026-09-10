@@ -7,6 +7,8 @@ import AppHeader from '@/components/AppHeader';
 import { useToast } from '@/components/Toast';
 import { formatDisplayName } from '@/lib/formatters';
 import { SUGGEST_DEBOUNCE_MS } from '@/lib/search/typeahead';
+import type { SiteMetrics } from '@/lib/site-builder/metrics-rollup';
+import type { SweepSummary } from '@/lib/storage-sweep-server';
 
 // Admin console (replaces the orphaned legacy dashboard page — its buttons
 // had no onClick handlers). Access = ADMIN_EMAILS allowlist, enforced
@@ -66,6 +68,10 @@ export default function AdminDashboardPage() {
   >([]);
   const [domainsPlatformConfigured, setDomainsPlatformConfigured] = useState(true);
   const [domainsReload, setDomainsReload] = useState(0);
+  // Site Builder phase 11: the builder's numbers (computed by the route) and
+  // the storage sweep's dry run — the sweep endpoint's first UI caller.
+  const [siteMetrics, setSiteMetrics] = useState<{ supported: boolean; metrics?: SiteMetrics } | null>(null);
+  const [sweep, setSweep] = useState<{ status: 'idle' | 'running' | 'done' | 'error'; summary?: SweepSummary }>({ status: 'idle' });
 
   useEffect(() => {
     if (!authLoading && !user) router.push('/');
@@ -112,6 +118,11 @@ export default function AdminDashboardPage() {
         if (response.ok) {
           const body = await response.json();
           if (!cancelled) setFlaggedSlugs(body.flagged ?? []);
+        }
+        const metricsRes = await fetch('/api/admin/site-metrics');
+        if (metricsRes.ok) {
+          const metricsBody = await metricsRes.json();
+          if (!cancelled) setSiteMetrics(metricsBody);
         }
         const domainsRes = await fetch('/api/admin/org-domains');
         if (domainsRes.ok) {
@@ -403,6 +414,58 @@ export default function AdminDashboardPage() {
           </section>
         )}
 
+        {/* Site Builder phase 11: the builder's numbers + the storage sweep's dry run. */}
+        <section aria-label="Site builder" className="bg-surface rounded-lg shadow-sm border border-border p-4 sm:p-6" data-admin-site-metrics="">
+          <h2 className="text-lg font-semibold text-primary mb-1">Site builder</h2>
+          <p className="text-xs text-muted mb-3">
+            Sites, publishes and the one-hour question — computed from each publish’s recorded stats, nothing stored.
+            {siteMetrics?.metrics?.truncated && <span className="text-amber-700 dark:text-amber-300"> Row limit hit — these numbers are a floor.</span>}
+          </p>
+          {siteMetrics === null ? (
+            <p className="text-sm text-muted">Loading…</p>
+          ) : !siteMetrics.supported || !siteMetrics.metrics ? (
+            <p className="text-sm text-muted">Drafts and revisions need a database migration first (180).</p>
+          ) : (
+            <SiteMetricsTiles m={siteMetrics.metrics} />
+          )}
+          <div className="mt-4 flex flex-wrap items-center gap-3 border-t border-border-subtle pt-3">
+            <button
+              type="button"
+              disabled={sweep.status === 'running'}
+              onClick={async () => {
+                setSweep({ status: 'running' });
+                try {
+                  const res = await fetch('/api/admin/storage-sweep', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ dryRun: true }),
+                  });
+                  if (!res.ok) throw new Error('sweep');
+                  setSweep({ status: 'done', summary: (await res.json()) as SweepSummary });
+                } catch {
+                  setSweep({ status: 'error' });
+                  showError('Storage sweep', 'The dry run failed');
+                }
+              }}
+              className="px-3 py-1.5 text-sm min-h-[36px] rounded-md border border-border-strong text-secondary hover:bg-surface-sunken transition-colors disabled:opacity-50"
+            >
+              {sweep.status === 'running' ? 'Sweeping…' : 'Storage sweep (dry run)'}
+            </button>
+            <p className="text-xs text-muted min-w-0">
+              {sweep.status === 'done' && sweep.summary ? (
+                <>
+                  <span className="font-medium text-primary">{sweep.summary.orphans}</span> orphan file{sweep.summary.orphans === 1 ? '' : 's'} of {sweep.summary.scannedFiles} scanned ·{' '}
+                  {sweep.summary.referencedPaths} referenced · {sweep.summary.unreferencedInGrace} inside the {sweep.summary.graceHours}h grace. Nothing was deleted.
+                </>
+              ) : sweep.status === 'error' ? (
+                'The dry run failed — see the server log.'
+              ) : (
+                'Finds uploads no row references any more. Dry run only — deleting is a console action.'
+              )}
+            </p>
+          </div>
+        </section>
+
         {/* Phase 6b C1: custom domains — the lifecycle list + retry actions. */}
         {orgDomains.length > 0 && (
           <section
@@ -537,6 +600,52 @@ export default function AdminDashboardPage() {
           )}
         </section>
       </div>
+    </div>
+  );
+}
+
+// ── Site Builder phase 11: the metrics tiles ────────────────────────────────
+const duration = (seconds: number | null): string => {
+  if (seconds === null) return '—';
+  if (seconds < 90) return `${seconds}s`;
+  if (seconds < 5400) return `${Math.round(seconds / 60)} min`;
+  if (seconds < 172_800) return `${(seconds / 3600).toFixed(1)} h`;
+  return `${Math.round(seconds / 86_400)} d`;
+};
+const pct = (rate: number | null): string => (rate === null ? '—' : `${Math.round(rate * 100)}%`);
+
+function SiteMetricsTiles({ m }: { m: SiteMetrics }) {
+  const tiles: { label: string; value: string; sub?: string }[] = [
+    { label: 'Sites', value: String(m.sites.total), sub: `${m.sites.live} live · ${m.sites.withDraft} with a draft` },
+    { label: 'New sites', value: String(m.sites.createdLast30), sub: `${m.sites.createdLast7} in 7 days · ${m.sites.createdLast30} in 30` },
+    { label: 'Publishes', value: String(m.publishes.last30), sub: `${m.publishes.last7} in 7 days · ${m.publishes.sitesPublishedLast30} sites in 30 · ${m.publishes.total} ever` },
+    { label: 'First publish ≤ 1 h', value: m.firstPublish.count ? `${m.firstPublish.withinHour} of ${m.firstPublish.count}` : '—', sub: 'the doc’s one-hour question' },
+    { label: 'Time to first publish', value: duration(m.firstPublish.medianSeconds), sub: `median · p75 ${duration(m.firstPublish.p75Seconds)}` },
+    { label: 'Layout adoption', value: pct(m.editor.adoptionRate), sub: `${m.editor.sitesWithLayout} of ${m.sites.withPublishedRevision} published sites arranged` },
+    { label: 'Widgets per site', value: m.editor.medianWidgetCount === null ? '—' : String(m.editor.medianWidgetCount), sub: `median · ${m.firstPublish.medianWidgetsTouched ?? '—'} touched before the first publish` },
+    { label: 'Templates', value: Object.entries(m.sites.byTemplate).map(([k, v]) => `${k} ${v}`).join(' · ') || '—' },
+  ];
+  return (
+    <div className="space-y-3">
+      <dl className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        {tiles.map(t => (
+          <div key={t.label} className="rounded-lg border border-border px-3 py-2 min-w-0">
+            <dt className="text-[11px] uppercase tracking-wide text-muted truncate">{t.label}</dt>
+            <dd className="text-lg font-semibold text-primary truncate">{t.value}</dd>
+            {t.sub && <dd className="text-xs text-muted">{t.sub}</dd>}
+          </div>
+        ))}
+      </dl>
+      {m.editor.topAdded.length > 0 && (
+        <p className="text-xs text-muted">
+          Most added sections:{' '}
+          {m.editor.topAdded.map(t => (
+            <span key={t.key} className="mr-1 inline-block rounded-full border border-border px-2 py-0.5 text-primary">
+              {t.key} · {t.count}
+            </span>
+          ))}
+        </p>
+      )}
     </div>
   );
 }

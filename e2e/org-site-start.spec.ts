@@ -8,7 +8,8 @@ import { publishSite, revisionsSupported } from './helpers/org-site';
 // coordinates. 'keep' leaves the manager's tiles alone; 'clean' clears them.
 // Skips (green) pre-180 — the layout has nowhere to live without revisions.
 //
-// P11-A drives the API; P11-B adds the gallery window and drives it.
+// P11-A drives the API; P11-B drives the gallery window on a FRESH site
+// (never arranged, never published — the editor opens it by itself).
 
 type CanvasWidget = { id: string; key: string; x: number; y: number; w: number; h: number; cv: number; config: Record<string, unknown>; visibility: string };
 type Canvas = {
@@ -125,6 +126,104 @@ test('org site: a gallery entry re-lays the draft — family, tokens, a welcome 
       expect(html).toContain('data-widget-id="seed:map"');
       expect(html).toContain('openstreetmap.org/export/embed.html');
       expect(html).toContain('data-template="bold"');
+    } finally {
+      await anon.close();
+    }
+  } finally {
+    await ownerApi.dispose();
+    await admin.from('leagues').delete().eq('id', leagueId);
+  }
+});
+
+test('org site: a fresh site’s first editor visit opens the gallery — skip keeps the seed; Start from → Use this re-lays the draft; publish; admin metrics are admin-only', async ({ browser }) => {
+  test.setTimeout(180_000);
+  const owner = loadQaUser('user-b.json');
+  const admin = adminClient();
+  await resetRateBucket(admin, 'org-site', owner.id);
+  const ownerApi = await apiAs('state-b.json');
+  const stamp = Date.now();
+  const { data: league, error } = await admin
+    .from('leagues')
+    .insert({ name: `QA Fresh League ${stamp}`, sport_key: 'ice_hockey', owner_profile_id: owner.id, city: 'Kanata', region: 'ON' })
+    .select('id')
+    .single();
+  expect(error, error?.message).toBeNull();
+  const leagueId = league!.id as string;
+  await admin.from('memberships').insert([{ league_id: leagueId, profile_id: owner.id, role: 'owner' }]);
+
+  try {
+    await admin.from('venues').insert({ league_id: leagueId, name: `QA Fresh Rink ${stamp}`, city: 'Kanata', region: 'ON', lat: 45.3, lng: -75.9 });
+    let res = await ownerApi.post(`/api/leagues/${leagueId}/site`);
+    expect(res.status(), await readErrorBody(res)).toBe(200);
+    const subdomain = (await res.json()).site.subdomain as string;
+    test.skip(!(await revisionsSupported(ownerApi, 'league', leagueId)), 'org_site_revisions missing — run migration 180');
+    // The metrics route is admin-only: a league owner is refused.
+    res = await ownerApi.get('/api/admin/site-metrics');
+    expect(res.status()).toBe(403);
+
+    const ownerCtx = await browser.newContext({ storageState: 'e2e/.auth/state-b.json', viewport: { width: 1280, height: 900 } });
+    try {
+      const page = await ownerCtx.newPage();
+      await page.goto(`/app/org/league/${leagueId}/site/edit`);
+      await expect(page.locator('[data-sb-canvas]')).toBeVisible({ timeout: 30_000 });
+      // Fresh site (no draft, not live, the seed layout): the gallery opens itself, with Skip.
+      const gallery = page.locator('[data-larger-window="sb-gallery"]');
+      await expect(gallery).toBeVisible({ timeout: 15_000 });
+      const cards = gallery.locator('[data-sb-gallery-card]');
+      expect(await cards.count()).toBeGreaterThanOrEqual(3);
+      // A thumbnail shows the org's REAL words (the generated welcome heading).
+      await expect(gallery.locator('[data-sb-gallery-card="team-scoreboard"]')).toContainText(`Welcome to QA Fresh League ${stamp}`);
+      await expect(gallery.locator('[data-sb-gallery-card="team-scoreboard"]')).toContainText(`Map · QA Fresh Rink ${stamp}`);
+      await gallery.locator('[data-sb-gallery-skip]').click();
+      await expect(gallery).toBeHidden();
+      // Skip wrote nothing: still no draft.
+      let canvas = (await (await ownerApi.get(`/api/leagues/${leagueId}/site/canvas`)).json()) as Canvas;
+      expect(canvas.draft).toBeNull();
+
+      // The pill reopens it (no Skip now — Close); Use this on the scoreboard.
+      await page.getByRole('button', { name: 'Start from', exact: true }).click();
+      await expect(gallery).toBeVisible();
+      await expect(gallery.locator('[data-sb-gallery-skip]')).toHaveText('Close');
+      await gallery.locator('[data-sb-gallery-mode="clean"]').check();
+      await gallery.locator('[data-sb-gallery-card="team-scoreboard"] [data-sb-gallery-use]').click();
+      await expect(gallery).toBeHidden({ timeout: 15_000 });
+      // The editor reloaded from the server: bold family on the canvas, the welcome tile present, nothing unsaved.
+      await expect(page.locator('[data-sb-canvas][data-template="bold"]')).toBeVisible({ timeout: 30_000 });
+      await expect(page.locator('[data-sb-instance="seed:welcome"]')).toBeVisible();
+      await expect(page.locator('[data-sb-instance="seed:welcome"]')).toContainText(`Welcome to QA Fresh League ${stamp}`);
+      await expect(page.locator('[data-sb-dirty="0"]')).toBeVisible();
+      canvas = (await (await ownerApi.get(`/api/leagues/${leagueId}/site/canvas`)).json()) as Canvas;
+      expect(canvas.draft).not.toBeNull();
+      expect(canvas.site.template_id).toBe('bold');
+      // The arrange step is done (the checklist counts a design as arranging); the gallery is not re-offered on reload.
+      await expect(page.locator('[data-sb-checklist-step="arrange"]')).toHaveAttribute('data-done', '1');
+      await page.reload();
+      await expect(page.locator('[data-sb-canvas]')).toBeVisible({ timeout: 30_000 });
+      await expect(gallery).toHaveCount(0);
+      // Publish from the editor (promotes the draft), then take the site live.
+      await page.getByRole('button', { name: 'Publish changes' }).click();
+      await expect
+        .poll(async () => {
+          const c = (await (await ownerApi.get(`/api/leagues/${leagueId}/site/canvas`)).json()) as { draft: { hasUnpublishedChanges: boolean } | null; published?: boolean };
+          return c.draft === null || c.draft.hasUnpublishedChanges === false;
+        }, { timeout: 20_000 })
+        .toBe(true);
+    } finally {
+      await ownerCtx.close();
+    }
+    res = await ownerApi.patch(`/api/leagues/${leagueId}/site`, { data: { action: 'publish' } });
+    expect(res.status(), await readErrorBody(res)).toBe(200);
+    const anon = await browser.newContext({ storageState: { cookies: [], origins: [] } });
+    try {
+      let html = '';
+      await expect
+        .poll(async () => {
+          html = await (await anon.request.get(`/org/${subdomain}`)).text();
+          return html.includes(`Welcome to QA Fresh League ${stamp}`);
+        }, { timeout: 30_000, intervals: [1000, 2000, 3000] })
+        .toBe(true);
+      expect(html).toContain('data-template="bold"');
+      expect(html).toContain('data-widget-id="seed:welcome"');
     } finally {
       await anon.close();
     }
