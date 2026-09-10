@@ -35,6 +35,8 @@ test('scout signup: the actor branch mints a scout, lands on /app/scout; athlete
   const password = `Qa!${Math.random().toString(36).slice(2, 12)}9`;
   let scoutId: string | null = null;
   try {
+    // The signup bucket is per IP (5/h): three projects × three specs would trip it — reset first.
+    await resetRateBucket(admin, 'signup', '');
     const res = await request.post('/api/signup', {
       data: {
         email,
@@ -44,11 +46,10 @@ test('scout signup: the actor branch mints a scout, lands on /app/scout; athlete
         profileData: { first_name: 'Sam', last_name: 'Scout', user_type: 'league', scout_affiliation: 'QA Ravens' },
       },
     });
-    expect(res.status(), await readErrorBody(res)).toBe(200);
+    expect(res.status(), await readErrorBody(res)).toBe(201);
     const { data: row } = await admin.from('profiles').select('id, user_type, handle, scout_affiliation, display_name').eq('email', email).single();
     expect(row).toMatchObject({ user_type: 'scout', handle: null, scout_affiliation: 'QA Ravens' });
     scoutId = row!.id as string;
-    await resetRateBucket(admin, 'signup', '');
 
     // The scout's home; the athlete's not-for-you screen.
     const scoutCtx = await browser.newContext({ storageState: await mintStorageState({ id: scoutId, email, password }) });
