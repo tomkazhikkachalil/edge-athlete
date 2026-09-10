@@ -1,5 +1,57 @@
 # Development Log
 
+## September 9, 2026 — Site Builder hardening H8: docs close for the round, and the written backlog
+
+- **The round, in one place.** Three independent reviews of the finished
+  program (editor client; server + libraries; renderers + e2e coverage)
+  found real defects; Tom scoped the fix to the privacy/data-loss items and
+  the editor bugs a user would hit, and decided the editor takes a
+  not-yet-live site live and that the module toggle governs the tile. H1
+  the one public-render rule (privacy), H2 the draft-write fence + rate
+  bucket, H3 the in-app composition from the published layout + one bubble
+  per key, H4 reducer integrity + the toggle, H5 the autosave core, H6 the
+  editor's go-live publish + the removal toast, H7 the gallery flush and
+  phone gating, the popup-safe preview, the error state, the dirty guards.
+  CLAUDE.md convention 12 gains the round's invariants; `docs/HARDENING.md`
+  B4.3 is scoped to dynamic segments and states the sweepable rule ("every
+  `(public)` page exports `revalidate` OR `dynamic`"); the session doc and
+  the masterplan note carry the round.
+- **Backlog (written, not built).** *Editor polish:* sticky panels +
+  `scrollIntoView` on add; ⌘Z ignored inside dialogs and `<select>`;
+  `BlocksField` stable block ids; the keydown effect's deps; a version label
+  on the editor's publish; adopt the rev from a content PATCH's response
+  without a full canvas re-read. *A11y:* keyboard-selectable tiles
+  (`.sb-frame-controls` as the button), focus management on panel
+  open/close, `inert` on `.sb-widget-body` (links inside tiles are
+  tab-reachable and navigate away), radio semantics for the template and
+  typeface groups, named picker "Add" buttons, a "Members only on your
+  site" badge in the canvas instead of the panel, `role="dialog"` on
+  `ConfirmModal`. *Server polish:* `diffModuleRows` disables keys absent
+  from `next`; `set_template` keeps content tiles' y-rank; restore of a
+  pre-grid snapshot vs the published-layout fallback; `adoptionRate`
+  clamped and null when truncated; stale route headers; duplicated
+  constants (`INSTANCE_TITLE_MAX` literals, the two `SCHEDULE_LIMIT_MAX`,
+  the gallery MEMBERS_ONLY mirror → import `private.ts`); dead code
+  (`normalizeLayout`, `hasWidget`, `widget`, `parseWidgetConfig`, the
+  `dataKey` stub, `useHistory.replace`); `SitePatchSchema` as a
+  discriminated union; the canvas GET's ~10 round-trips (pass the org row
+  into `loadGalleryOrg`); a rate limit on the canvas GET; the preview page
+  verifying its token BEFORE reading the site; an assets DELETE so a
+  discarded upload is reclaimed at once rather than by the sweep. *Render
+  polish:* an unknown widget key drops the instance, not the layout;
+  `--org-accent-fg` via `readableOn` for link text on white (3.0:1 today
+  at the luminance cap); `mobileSpan`/`.sb-half` are dead (delete, or set
+  `mobileSpan: 1` on the HALF widgets — a visible phone change); the bleed
+  hero above 928px; guardrail 4c's glob adds `src/lib/site-builder/
+  {app-layout,config,catalog,layout}.ts`; a guardrail for "revalidate OR
+  dynamic". *e2e:* the remaining uncovered flows (panel visibility control;
+  theme density/teams/surface from the panel; gallery keep-mode UI;
+  checklist photo/welcome/fill clicks; preview token 404s; take-offline
+  click; in-app pruning + empty-tile door; admin-positive metrics behind an
+  `E2E_ADMIN_EMAIL`-gated helper); the nine remaining `settleBody` copies
+  (golf/announce/courses specs) onto `helpers/isr.ts`; the ISR byte-compare
+  in the editor spec; the shared QA user vs `workers > 1`.
+
 ## September 9, 2026 — Site Builder hardening H7: the gallery saves first and stays off the phone, a popup-safe preview, an honest error state, and dirty guards for the panels (zero DDL)
 
 - **Gallery** (`Gallery.tsx`, `SiteBuilder.tsx`): "Use this" applied the

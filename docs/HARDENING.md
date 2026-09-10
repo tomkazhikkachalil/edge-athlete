@@ -96,9 +96,13 @@ are different in kind from the app's and each one is load-bearing:
    a session; one cached render serves everyone (the standings contract).
 2. **Never-throw readers** — a throw inside `unstable_cache` 500s the page;
    every reader degrades to empty (`isMissingTableError` + `'42703'`).
-3. **The ISR contract** — every page under `(public)` exports
-   `revalidate` AND `generateStaticParams` (empty ok); a missing export is
-   silent permanent-MISS SSR (measured). Probe: the x-vercel-cache ladder.
+3. **The ISR contract** — every DYNAMIC page under `(public)` exports
+   `revalidate` AND `generateStaticParams` (empty ok); a static page
+   (`/clubs`, `/leagues`) exports `revalidate`; the one deliberately
+   uncached page (the draft preview) exports `dynamic = 'force-dynamic'`
+   instead — so the rule a sweep checks is "every `(public)` page exports
+   `revalidate` OR `dynamic`". A missing export is silent permanent-MISS
+   SSR (measured). Probe: the x-vercel-cache ladder.
 4. **Name masking** — `publicDisplayName` (full name only for claimed public
    profiles, else "First L.") at EVERY person-rendering call site; email is
    selected only to feed it and never leaves a return type.

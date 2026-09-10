@@ -2,8 +2,8 @@
 
 > Tom's session-start prompt. Paste this (or point Claude at it) when opening a
 > development session. Last aligned with project state: **September 9, 2026
-> (after the Site Builder program, phases 1–11, #616–#643)** — migration head
-> 180; `main` at the #643 merge (7cf3f801), deployed and prod-probed. If the
+> (after the Site Builder program, phases 1–11, #616–#644, and its hardening
+> round H1–H8)** — migration head 180. If the
 > "Where the project actually is" section drifts stale, ask
 > Claude to re-align it against DEVLOG.md and session memory.
 
@@ -283,9 +283,26 @@ fresh site's first visit; the builder's numbers (the one-hour question) on
 the admin dashboard from the revisions' stats, plus the storage sweep's
 dry-run button. CLAUDE.md convention 12 names every invariant.
 
-`main` is at the #643 merge (7cf3f801), deployed and prod-probed (the
-editor, query and gallery specs against production). The program is
-complete. Open: Tom's device pass of a real branded club through the editor
+**Sep 9 evening — the hardening round (H1–H8).** Before planning the next
+program Tom asked for a full test-and-review pass; three independent code
+reviews found real defects and the round fixed them, one PR each: H1 one
+public-render rule (a stored layout froze `visibility` — a club that went
+private after arranging leaked standings and staff names on its home; the
+members widget's empty object), H2 the draft-write fence (an autosave could
+overwrite a just-published snapshot) + the autosave's own rate bucket, H3
+the in-app composition from the published layout only (a draft paragraph
+rendered in-app before Publish) + one bubble per key, H4 reducer integrity
+(the gallery could push a layout past the cap and silently reset the page;
+the module toggle now governs the tile), H5 the autosave rebuilt around a
+pure core (one save in flight, typed failures, honest publish messages),
+H6 the editor takes a not-yet-live site live + the removal toast undoes the
+removal, H7 the gallery flushes first and stays off the phone, a popup-safe
+preview, an error state with retry, dirty guards for the panels, H8 this
+docs close. The written backlog (editor polish, the a11y pass, server and
+render polish, the remaining e2e flows and flake helpers) lives in the plan
+file and DEVLOG's H8 entry.
+
+`main` carries the program and the round. Open: Tom's device pass of a real branded club through the editor
 (laptop) and its public + in-app pages (phone); the admin dashboard's "Site
 builder" panel with his admin login (no admin QA session exists); the
 one-hour number once real publishes exist; older ops Tom owes: Search
