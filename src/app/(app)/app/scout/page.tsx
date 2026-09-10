@@ -62,6 +62,11 @@ export default function ScoutHomePage() {
           {profile?.first_name ? `${profile.first_name}'s scouting` : 'Your scouting'}
         </h1>
         {profile?.scout_affiliation && <p className="mt-1 text-sm text-secondary">{profile.scout_affiliation}</p>}
+        <p className="mt-3">
+          <Link href="/app/scout/search" className="inline-flex items-center min-h-[44px] px-4 rounded-lg bg-brand text-white font-semibold hover:bg-brand-hover" data-scout-find="">
+            Find athletes →
+          </Link>
+        </p>
       </header>
       <section aria-label="Shortlist" className="bg-surface rounded-lg border border-border p-4 sm:p-6">
         <h2 className="text-lg font-semibold text-primary mb-3">Shortlist</h2>

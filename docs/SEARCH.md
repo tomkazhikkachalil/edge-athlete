@@ -149,3 +149,15 @@ pass-through must never apply to an always-public type.
 4. Writers normalize through `regions.ts`; the UI uses the shared place
    picker and `formatPlace`.
 5. Attribution: GeoNames line wherever place-derived fields render.
+
+## Scout search (Recruiting skeleton R4, Sep 2026) — NOT the index
+
+`GET /api/scout/search` (scout accounts only, `requireScout`) is a bounded
+`profiles` query, not a `search_documents` read: recruiting status open or
+committed, public, claimed (`isRecruitable` re-applied in code), narrowed by
+a name needle (`ilike`, escaped — `containsPattern`), a sport (the registry
+key or its display label, since `profiles.sport` is a label) and a grad-year
+window on `class_year`. It leans on migration 182's partial index on open
+profiles. Widening `search_all` for three parameters would mean re-stating
+its body and the overload trap (PGRST203); revisit — rank, facets, the index
+— when the recruitable population outgrows a bounded query.
