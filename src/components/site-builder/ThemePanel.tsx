@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import type { PublicSite } from '@/lib/org-sites/server';
 import { contrastRatio } from '@/lib/org-sites/accent-contrast';
 import { TEMPLATE_IDS, templateSpec, type TemplateId } from '@/lib/org-sites/templates';
@@ -100,6 +100,10 @@ export default function ThemePanel({ site, draft, onChange, onSaved, onClose, on
   const accent = accentVerdict(accentHex);
   const strong = accentVerdict(strongHex);
   const valid = accent.ok && strong.ok;
+  const asideRef = useRef<HTMLElement>(null);
+  useEffect(() => {
+    asideRef.current?.focus({ preventScroll: true });
+  }, []);
   const changed = JSON.stringify(themeDraftFrom(site)) !== JSON.stringify(draft);
   useEffect(() => {
     onDirtyChange?.(changed);
@@ -155,7 +159,7 @@ export default function ThemePanel({ site, draft, onChange, onSaved, onClose, on
   };
 
   return (
-    <aside className={`w-80 shrink-0 rounded-xl border border-border bg-surface p-4 space-y-4 ${className ?? ''}`} aria-label="Theme" data-sb-theme-panel="">
+    <aside ref={asideRef} tabIndex={-1} className={`w-80 shrink-0 rounded-xl border border-border bg-surface p-4 space-y-4 outline-none ${className ?? ''}`} aria-label="Theme" data-sb-theme-panel="">
       {/* Every heading face, so each name can show in its own face — the
           editor only; the public site loads one face at most. */}
       <style dangerouslySetInnerHTML={{ __html: allFontFaceCss() }} />
@@ -171,7 +175,7 @@ export default function ThemePanel({ site, draft, onChange, onSaved, onClose, on
 
       <fieldset className="space-y-2">
         <legend className={LABEL}>Template</legend>
-        <div className="grid grid-cols-2 gap-2">
+        <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-label="Template">
           {TEMPLATE_IDS.map(id => {
             const t = templateSpec(id);
             const current = draft.templateId === id;
@@ -180,7 +184,8 @@ export default function ThemePanel({ site, draft, onChange, onSaved, onClose, on
                 key={id}
                 type="button"
                 onClick={() => chooseTemplate(id)}
-                aria-pressed={current}
+                role="radio"
+                aria-checked={current}
                 data-sb-template={id}
                 className={`rounded-md border px-3 py-2 text-left text-sm transition-colors ${current ? 'border-brand bg-brand-soft text-primary' : 'border-border-strong text-secondary hover:bg-surface-sunken'}`}
               >
@@ -251,16 +256,17 @@ export default function ThemePanel({ site, draft, onChange, onSaved, onClose, on
 
       <fieldset>
         <legend className={LABEL}>Headings</legend>
-        <ul className="grid grid-cols-2 gap-2" aria-label="Heading typeface">
+        <ul className="grid grid-cols-2 gap-2" aria-label="Heading typeface" role="radiogroup">
           {THEME_TYPEFACES.map(t => {
             const f = headingFont(t);
             const current = tokens.typeface === t;
             return (
-              <li key={t}>
+              <li key={t} role="presentation">
                 <button
                   type="button"
                   onClick={() => set({ typeface: t === 'sans' ? null : t })}
-                  aria-pressed={current}
+                  role="radio"
+                  aria-checked={current}
                   data-sb-typeface={t}
                   className={`w-full rounded-md border px-3 py-2 text-left transition-colors ${current ? 'border-brand bg-brand-soft' : 'border-border-strong hover:bg-surface-sunken'}`}
                   style={f ? { fontFamily: `'${f.family}', ${f.fallback}` } : t === 'serif' ? { fontFamily: "Georgia, 'Times New Roman', serif" } : undefined}

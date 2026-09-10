@@ -91,6 +91,7 @@ export default function Canvas({ site, layout, data, selectedId, onSelect, onCom
         {layout.widgets.map(w => {
           const selected = selectedId === w.id;
           const title = w.key === 'hero' ? 'Hero' : widgetTitle(site, w);
+          const membersOnly = effectiveAudience(site, w) === 'members';
           return (
             <div
               key={w.id}
@@ -101,9 +102,27 @@ export default function Canvas({ site, layout, data, selectedId, onSelect, onCom
               data-sb-instance={w.id}
               onClick={() => onSelect(w.id)}
             >
-              <div className="sb-frame-controls flex items-center justify-between gap-2 border-b border-border px-3 py-1.5 text-xs text-secondary cursor-grab">
+              {/* B4: the frame header is the keyboard target too — Enter/Space selects (the body below is inert). */}
+              <div
+                className="sb-frame-controls flex items-center justify-between gap-2 border-b border-border px-3 py-1.5 text-xs text-secondary cursor-grab"
+                role="button"
+                tabIndex={0}
+                aria-pressed={selected}
+                aria-label={`Select ${title}`}
+                onKeyDown={e => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    onSelect(w.id);
+                  }
+                }}
+              >
                 <span className="truncate font-medium text-primary">{title}</span>
                 <span className="flex items-center gap-2">
+                  {membersOnly && (
+                    <span className="rounded-full border border-amber-300 bg-amber-50 px-1.5 py-0.5 text-[10px] font-medium text-amber-800" data-sb-members-only="">
+                      Members only on your site
+                    </span>
+                  )}
                   <span className="tabular-nums text-muted">
                     {w.w}×{w.h}
                   </span>
@@ -124,11 +143,13 @@ export default function Canvas({ site, layout, data, selectedId, onSelect, onCom
                   )}
                 </span>
               </div>
-              <div className="sb-widget-body min-h-0 flex-1 overflow-hidden p-3">
+              {/* B4: inert — the body's links were tab-reachable and navigated the editor away; the manager sees
+                  the REAL widget (a private club's members-only module carries the badge above, not the panel). */}
+              <div className="sb-widget-body min-h-0 flex-1 overflow-hidden p-3" inert>
                 {w.key === 'hero' ? (
                   <HeroSection site={site} w={w} spec={spec} />
                 ) : (
-                  <WidgetBody site={site} w={w} data={data} spec={spec} membersOnly={effectiveAudience(site, w) === 'members'} />
+                  <WidgetBody site={site} w={w} data={data} spec={spec} membersOnly={false} />
                 )}
               </div>
             </div>

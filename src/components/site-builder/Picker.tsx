@@ -94,7 +94,7 @@ export default function Picker({ site, layout, plural, orgId, data: canvasData, 
                 <p className="text-sm font-medium text-primary">{WIDGETS[key].defaultTitle}</p>
                 <p className="mt-1 text-xs text-tertiary">{CONTENT_BLURB[key]}</p>
               </div>
-              <button type="button" onClick={() => onAdd(key, null)} className={ADD}>
+              <button type="button" onClick={() => onAdd(key, null)} className={ADD} aria-label={`Add ${WIDGETS[key].defaultTitle ?? key}`}>
                 Add
               </button>
             </li>
@@ -125,11 +125,11 @@ export default function Picker({ site, layout, plural, orgId, data: canvasData, 
                 <li key={key} className="flex flex-col rounded-lg border border-border bg-surface overflow-hidden" data-sb-picker-tile={key}>
                   <div className="flex items-center justify-between gap-2 border-b border-border px-3 py-2">
                     <span className="text-sm font-medium text-primary">{title}</span>
-                    <button type="button" onClick={() => onAdd(key, previewData)} disabled={!ready} className={ADD}>
+                    <button type="button" onClick={() => onAdd(key, previewData)} disabled={!ready} className={ADD} aria-label={`${again ? 'Add another' : 'Add'} ${title}`}>
                       {again ? 'Add another' : 'Add'}
                     </button>
                   </div>
-                  <div className="sb-widget-body max-h-48 overflow-hidden p-3 text-sm" aria-hidden="true">
+                  <div className="sb-widget-body max-h-48 overflow-hidden p-3 text-sm" inert>
                     {!preview || !previewData ? (
                       <div className="h-16 animate-pulse rounded bg-surface-sunken" />
                     ) : (

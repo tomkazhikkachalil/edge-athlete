@@ -42,6 +42,7 @@ export default function ChecklistRail({ steps, onStep }: { steps: ChecklistStep[
         >
           <span aria-hidden="true">{step.done ? '✓' : '○'}</span>
           {step.label}
+          <span className="sr-only">{step.done ? ' — done' : `. ${step.hint}`}</span>
           {step.optional && !step.done && <span className="text-tertiary">(optional)</span>}
         </button>
       ))}
