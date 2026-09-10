@@ -1,5 +1,39 @@
 # Development Log
 
+## September 9, 2026 — Site Builder hardening H5: the autosave rebuilt around a pure core — one save in flight, typed failures, honest publish messages (zero DDL)
+
+- **What was wrong** (`useDraft.ts`): nothing guarded a save in flight, so
+  an edit 1.5 s after a slow PUT fired a second PUT carrying the same rev
+  and 409'd against itself ("Changed elsewhere — reload", for a single
+  user, whose Reload then threw the edit away); a stale response could
+  overwrite a newer rev adopted from a content save; a 400 (an invalid
+  instance) and the pre-180 409 were flattened into a generic
+  error/conflict that wedged the editor with no reason shown; and Publish
+  refused with "wait for the draft to finish saving" on statuses that never
+  finish by themselves.
+- **The core** (`src/lib/site-builder/draft-state.ts`, new, pure, node-
+  tested): `shouldSave` (never while one is in flight; the settle re-arms),
+  `beginSave` / `settleSave` with a sequence number (a response for a save
+  no longer in flight is ignored; `saved` is the layout that was SENT, so an
+  edit made mid-save stays dirty), a typed `SaveOutcome` — ok / invalid
+  (with the server's issues) / conflict / unsupported (pre-180) /
+  ratelimited (one automatic retry after 4 s) / network (offline vs error
+  by connectivity) — `adoptRev` that only advances, `publishBlocker` (one
+  actionable sentence per status) and `chipFor`. `useDraft` is a thin shell
+  around it and exports `flush()` (H7 uses it before applying a design).
+- **The editor** (`SiteBuilder.tsx`): `save()` maps the wire — a 400's
+  first issue is toasted ("Could not save: hero: …"), a 409 whose message
+  names migration 180 is `unsupported`, a 429 is `ratelimited`; `publish()`
+  asks `publishBlocker` and says why; the chip reads the same core.
+- Tests: `draft-state.test.ts` (overlap waits then re-arms; stale seq
+  ignored; sent layout is what is saved; each failure status; the 429 retry
+  budget; adoptRev monotonic; every blocking message actionable and none of
+  them the old wording). e2e (`org-site-editor`): a corner-handle resize
+  saves; Publish while dirty toasts "Saving — one moment, then publish.";
+  the conflict path — another session's PUT, our next drag answers 409, the
+  chip reads conflict, Publish names the reload, Reload restores a clean
+  editor.
+
 ## September 9, 2026 — Site Builder hardening H4: the reducer never writes a layout the page would refuse; the module toggle governs the tile (zero DDL)
 
 - **Silent resets.** `apply_gallery` wrote `applyGallerySeed`'s output into

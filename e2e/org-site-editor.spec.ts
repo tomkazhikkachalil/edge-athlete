@@ -122,6 +122,59 @@ test('org site editor: canvas → drag → autosave → undo → reload; phone n
       const reloaded = (await (await ownerApi.get(`/api/leagues/${leagueId}/site/canvas`)).json()) as { layout: { widgets: { id: string; y: number }[] } };
       expect([...reloaded.layout.widgets].sort((a, b) => a.y - b.y).map(w => w.id)).toEqual(orderAfter);
 
+      // H5: resize — drag the second tile's corner handle down two rows; it saves.
+      const resizable = page.locator('[data-sb-widget]:not([data-sb-widget="hero"])').first();
+      await resizable.hover();
+      const grip = resizable.locator('.react-resizable-handle-se');
+      const gripBox = (await grip.boundingBox())!;
+      const hBefore = (await (await ownerApi.get(`/api/leagues/${leagueId}/site/canvas`)).json()) as { layout: { widgets: { id: string; h: number }[] } };
+      const resizedId = await resizable.getAttribute('data-sb-instance');
+      await page.mouse.move(gripBox.x + gripBox.width / 2, gripBox.y + gripBox.height / 2);
+      await page.mouse.down();
+      await page.mouse.move(gripBox.x + gripBox.width / 2 + 3, gripBox.y + gripBox.height / 2 + 3);
+      await page.mouse.move(gripBox.x + gripBox.width / 2, gripBox.y + gripBox.height / 2 + 160, { steps: 10 });
+      await page.mouse.up();
+      await awaitDraftSaved(page);
+      const hAfter = (await (await ownerApi.get(`/api/leagues/${leagueId}/site/canvas`)).json()) as { layout: { widgets: { id: string; h: number }[] } };
+      expect(hAfter.layout.widgets.find(w => w.id === resizedId)!.h).toBeGreaterThan(hBefore.layout.widgets.find(w => w.id === resizedId)!.h);
+
+      // H5: publish while dirty says WHY — and the chip's status is honest.
+      // Drag once more, click Publish inside the debounce.
+      const tileForDirty = page.locator('[data-sb-widget]:not([data-sb-widget="hero"])').first();
+      const dirtyHandle = tileForDirty.locator('.sb-frame-controls');
+      const dBox = (await dirtyHandle.boundingBox())!;
+      await page.mouse.move(dBox.x + dBox.width / 2, dBox.y + dBox.height / 2);
+      await page.mouse.down();
+      await page.mouse.move(dBox.x + dBox.width / 2 + 5, dBox.y + dBox.height / 2 + 5);
+      await page.mouse.move(dBox.x + dBox.width / 2, dBox.y + dBox.height / 2 + 260, { steps: 12 });
+      await page.mouse.up();
+      await expect(page.locator('[data-sb-dirty="1"]')).toBeVisible({ timeout: 5_000 });
+      await page.getByRole('button', { name: 'Publish changes' }).click();
+      await expect(page.getByRole('alert').filter({ hasText: 'Saving — one moment, then publish.' })).toBeVisible({ timeout: 5_000 });
+      await awaitDraftSaved(page);
+
+      // H5: the conflict path — another session saves the draft; our next
+      // edit carries a stale rev → 409 → the chip says so and Reload restores.
+      const elsewhere = (await (await ownerApi.get(`/api/leagues/${leagueId}/site/canvas`)).json()) as { layout: unknown };
+      res = await ownerApi.put(`/api/leagues/${leagueId}/site/draft`, { data: { layout: elsewhere.layout } });
+      expect(res.status(), await readErrorBody(res)).toBe(200);
+      // A deterministic edit: rename a section through its panel (a drag can
+      // be a no-op after compaction; a toast can sit over a tile's grip).
+      await expect(page.getByRole('alert').filter({ hasText: 'Saving — one moment' })).toHaveCount(0, { timeout: 15_000 });
+      const conflictTile = page.locator('[data-sb-widget]:not([data-sb-widget="hero"])').first();
+      const conflictKey = await conflictTile.getAttribute('data-sb-widget');
+      await conflictTile.locator('.sb-frame-controls').click();
+      const conflictPanel = page.locator(`[data-sb-panel="${conflictKey}"]`);
+      await expect(conflictPanel).toBeVisible();
+      await conflictPanel.getByLabel('Section title').fill(`Conflict ${stamp}`);
+      await expect(page.locator('[data-sb-dirty="1"]'), 'the edit changed the layout').toBeVisible({ timeout: 5_000 });
+      await expect(page.locator('[data-sb-status="conflict"]')).toBeVisible({ timeout: 20_000 });
+      await page.getByRole('button', { name: 'Publish changes' }).click();
+      await expect(page.getByRole('alert').filter({ hasText: 'changed elsewhere' })).toBeVisible({ timeout: 5_000 });
+      await page.getByRole('button', { name: 'Reload', exact: true }).click();
+      await expect(page.locator('[data-sb-canvas]')).toBeVisible({ timeout: 30_000 });
+      await expect(page.locator('[data-sb-status="idle"][data-sb-dirty="0"]')).toBeVisible();
+
       // P3-D: remove a tile → an Undo toast (no confirm dialog) → Undo restores it.
       const before = await page.locator('[data-sb-instance]').count();
       const removable = page.locator('[data-sb-widget]:not([data-sb-widget="hero"])').first();
