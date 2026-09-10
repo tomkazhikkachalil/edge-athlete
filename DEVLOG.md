@@ -47,6 +47,11 @@ no recruiting email). R1 is the athlete side.
   editing themselves; the guardian console's athlete page gains a
   Recruiting section (RadioCards → the same PATCH). Contact is the
   profile's existing message affordance — no email, on purpose.
+- **E4's spec, corrected (same PR).** `org-site-contest.spec.ts` asserted the
+  per-site `/org/{slug}/sitemap.xml`, which on the apex in production is the
+  custom-domain route and answers 404 (the P2 probe's finding, Sep 2); it
+  asserts the MAIN `/sitemap.xml` now, like every sibling. E4 is prod-proven
+  on that basis (twin, 404s, sitemap entry, in-app link — 2/2 on prod).
 - **Migration 184 (same PR).** 182's `recruiting_status NOT NULL DEFAULT
   'closed'` broke `create_managed_profile` (053) the moment it ran: that RPC
   inserts a WHOLE profile row through `jsonb_populate_record`, so every

@@ -52,8 +52,11 @@ test('org site contest page: public twin renders + 404s + sitemap + in-app link 
     expect((await anon.request.get(`${sitePath}/schedule/00000000-0000-4000-8000-000000000000`)).status()).toBe(404);
     expect((await anon.request.get(`${sitePath}/schedule/not-a-uuid`)).status()).toBe(404);
 
-    // The per-site sitemap lists the contest (org-sitemap purged by the publish; hourly otherwise).
-    const sitemap = await settleBody(anon.request, `/org/${subdomain}/sitemap.xml`, `/schedule/${publicContest}`, true, 12);
+    // The MAIN sitemap lists the contest (org-sitemap purged by the publish;
+    // hourly otherwise). Not the per-site twin: on the apex in production it
+    // is the custom-domain route and answers 404 (the P2 probe's finding —
+    // DEVLOG Sep 2 2026); every emitter reads the same entry.
+    const sitemap = await settleBody(anon.request, '/sitemap.xml', `/schedule/${publicContest}`, true, 12);
     expect(sitemap).toContain(`/schedule/${publicContest}</loc>`);
     expect(sitemap).not.toContain(privateContest);
 
