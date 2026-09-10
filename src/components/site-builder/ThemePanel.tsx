@@ -44,6 +44,8 @@ export interface ThemePanelProps {
   draft: ThemeDraft;
   onChange: (next: ThemeDraft) => void;
   onSaved: () => Promise<void>;
+  /** Phase 11: the gallery — more starting points than the two families. */
+  onOpenGallery?: () => void;
   onClose: () => void;
   plural: string;
   orgId: string;
@@ -86,7 +88,7 @@ const DESIGN: { key: DesignKey; label: string; options: readonly string[]; names
   { key: 'teams', label: 'Teams', options: THEME_TEAMS, names: { chips: 'Name chips', tiles: 'Tiles' } },
 ];
 
-export default function ThemePanel({ site, draft, onChange, onSaved, onClose, plural, orgId, showError, showSuccess }: ThemePanelProps) {
+export default function ThemePanel({ site, draft, onChange, onSaved, onClose, onOpenGallery, plural, orgId, showError, showSuccess }: ThemePanelProps) {
   const [saving, setSaving] = useState(false);
   const tokens = parseThemeTokens(draft.tokens);
   const seed = templateSpec(draft.templateId);
@@ -161,7 +163,7 @@ export default function ThemePanel({ site, draft, onChange, onSaved, onClose, pl
       </div>
 
       <fieldset className="space-y-2">
-        <legend className={LABEL}>Start from</legend>
+        <legend className={LABEL}>Template</legend>
         <div className="grid grid-cols-2 gap-2">
           {TEMPLATE_IDS.map(id => {
             const t = templateSpec(id);
@@ -181,6 +183,11 @@ export default function ThemePanel({ site, draft, onChange, onSaved, onClose, pl
             );
           })}
         </div>
+        {onOpenGallery && (
+          <button type="button" onClick={onOpenGallery} className="text-xs font-medium text-brand-fg hover:text-brand-fg-strong" data-sb-open-gallery="">
+            More starting points — the design gallery →
+          </button>
+        )}
       </fieldset>
 
       <div>
