@@ -1,5 +1,41 @@
 # Development Log
 
+## September 9, 2026 — Site Builder hardening H7: the gallery saves first and stays off the phone, a popup-safe preview, an honest error state, and dirty guards for the panels (zero DDL)
+
+- **Gallery** (`Gallery.tsx`, `SiteBuilder.tsx`): "Use this" applied the
+  design over the SERVER's draft — a drag still inside the autosave debounce
+  was lost without a word. The gallery now takes `dirty` + `onFlush` (the
+  H5 `flush()`): a pending edit is saved first and a save that cannot land
+  refuses with a reason. The gallery also rendered outside the `lg` branch,
+  so a manager opening the editor link on a phone got the "Start from a
+  design" sheet over the "needs a bigger screen" notice; it lives inside
+  the ≥lg branch now.
+- **Preview** (`openPreview.ts`, new; the editor and the console's copy):
+  `window.open` after an `await` is outside the user-gesture stack and
+  Safari/Firefox block it silently — the button looked dead. The tab opens
+  ON the click and is pointed at the minted URL (closed, with a toast, when
+  the mint fails).
+- **Error state**: a failed canvas read (a network blip, a failed reload
+  after publish) rendered "Managers only". It has its own copy and a "Try
+  again" that re-reads.
+- **Dirty guards**: a stray tile click discarded an unsaved theme draft
+  (the accent the manager had just previewed live); switching tiles
+  discarded typed panel content and orphaned an already-uploaded hero
+  photo. The panels report their dirtiness (`onDirtyChange`); a tile
+  select, the Theme button and the checklist's `#theme` / `#w=` steps go
+  through one guard that asks first with the house `ConfirmModal` +
+  `COPY.FORMS.DISCARD_*`. The panels' own Discard/Close buttons are
+  unchanged (they are labelled). An orphaned upload after an explicit
+  discard is the storage sweep's job — the assets route has no DELETE.
+- e2e: `org-site-editor` — a typed headline + tile switch → "Discard
+  changes?" → Cancel keeps the words; a changed accent + tile click → the
+  confirm → Cancel keeps the panel and the value. `org-site-start` — a
+  renamed section still inside the debounce, then Use this → the title
+  survives the design (the flush landed first); new `@mobile` test: the
+  phone notice, no gallery sheet, Preview opens a tab pointed at the
+  preview (WebKit included), Publish site takes it live, no horizontal
+  overflow at 390.
+
 ## September 9, 2026 — Site Builder hardening H6: the editor takes a site live; the removal toast undoes the removal (zero DDL)
 
 - **A step that could never complete.** The editor's Publish only promoted

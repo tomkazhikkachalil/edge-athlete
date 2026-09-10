@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Image from 'next/image';
 import type { PublicSite } from '@/lib/org-sites/server';
 import { orgMediaUrl } from '@/lib/media/org-site-media';
@@ -37,6 +37,8 @@ export interface PropertiesPanelProps {
   options?: CanvasOptions;
   onInstanceChange: (next: WidgetInstance, coalesce?: string) => void;
   onContentSaved: () => Promise<void>;
+  /** H7: the editor guards a tile switch while content is typed and unsaved. */
+  onDirtyChange?: (dirty: boolean) => void;
   showError: (title: string, message?: string) => void;
   showSuccess: (title: string, message?: string) => void;
 }
@@ -49,7 +51,7 @@ type Config = Record<string, unknown>;
 const asConfig = (c: unknown): Config => (c && typeof c === 'object' ? (c as Config) : {});
 const str = (c: Config, k: string): string => (typeof c[k] === 'string' ? (c[k] as string) : '');
 
-export default function PropertiesPanel({ site, widget, plural, orgId, options, onInstanceChange, onContentSaved, showError, showSuccess }: PropertiesPanelProps) {
+export default function PropertiesPanel({ site, widget, plural, orgId, options, onInstanceChange, onContentSaved, showError, showSuccess, onDirtyChange }: PropertiesPanelProps) {
   const key = widget.key as SiteWidgetKey;
   const fields = fieldsFor(key);
   const instanceFields = fields.filter(f => f.scope === 'instance');
@@ -99,6 +101,10 @@ export default function PropertiesPanel({ site, widget, plural, orgId, options, 
   const [saving, setSaving] = useState(false);
 
   const dirty = contentFields.some(f => (content[f.name] ?? '') !== readContent(contentConfigFor(site, key), f.name));
+  useEffect(() => {
+    onDirtyChange?.(dirty);
+    return () => onDirtyChange?.(false);
+  }, [dirty, onDirtyChange]);
 
   const saveContent = async () => {
     if (!action) return;

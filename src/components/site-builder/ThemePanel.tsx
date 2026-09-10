@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import type { PublicSite } from '@/lib/org-sites/server';
 import { contrastRatio } from '@/lib/org-sites/accent-contrast';
 import { TEMPLATE_IDS, templateSpec, type TemplateId } from '@/lib/org-sites/templates';
@@ -46,6 +46,8 @@ export interface ThemePanelProps {
   onSaved: () => Promise<void>;
   /** Phase 11: the gallery — more starting points than the two families. */
   onOpenGallery?: () => void;
+  /** H7: the editor guards stray clicks while the draft differs from the saved theme. */
+  onDirtyChange?: (dirty: boolean) => void;
   onClose: () => void;
   plural: string;
   orgId: string;
@@ -88,7 +90,7 @@ const DESIGN: { key: DesignKey; label: string; options: readonly string[]; names
   { key: 'teams', label: 'Teams', options: THEME_TEAMS, names: { chips: 'Name chips', tiles: 'Tiles' } },
 ];
 
-export default function ThemePanel({ site, draft, onChange, onSaved, onClose, onOpenGallery, plural, orgId, showError, showSuccess }: ThemePanelProps) {
+export default function ThemePanel({ site, draft, onChange, onSaved, onClose, onOpenGallery, onDirtyChange, plural, orgId, showError, showSuccess }: ThemePanelProps) {
   const [saving, setSaving] = useState(false);
   const tokens = parseThemeTokens(draft.tokens);
   const seed = templateSpec(draft.templateId);
@@ -98,6 +100,10 @@ export default function ThemePanel({ site, draft, onChange, onSaved, onClose, on
   const strong = accentVerdict(strongHex);
   const valid = accent.ok && strong.ok;
   const changed = JSON.stringify(themeDraftFrom(site)) !== JSON.stringify(draft);
+  useEffect(() => {
+    onDirtyChange?.(changed);
+    return () => onDirtyChange?.(false);
+  }, [changed, onDirtyChange]);
 
   const set = (patch: Record<string, unknown>) => {
     const next = { ...draft.tokens };

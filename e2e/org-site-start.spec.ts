@@ -184,6 +184,16 @@ test('org site: a fresh site’s first editor visit opens the gallery — skip k
       await page.getByRole('button', { name: 'Start from', exact: true }).click();
       await expect(gallery).toBeVisible();
       await expect(gallery.locator('[data-sb-gallery-skip]')).toHaveText('Close');
+      await gallery.locator('[data-sb-gallery-skip]').click();
+      // H7: an edit still inside the autosave debounce is SAVED before the
+      // design applies — rename a section, open the gallery at once, Use this.
+      const kept = page.locator('[data-sb-widget]:not([data-sb-widget="hero"])').first();
+      const keptKey = await kept.getAttribute('data-sb-widget');
+      await kept.locator('.sb-frame-controls').click();
+      await page.locator(`[data-sb-panel="${keptKey}"]`).getByLabel('Section title').fill(`Kept ${stamp}`);
+      await expect(page.locator('[data-sb-dirty="1"]')).toBeVisible({ timeout: 5_000 });
+      await page.getByRole('button', { name: 'Start from', exact: true }).click();
+      await expect(gallery).toBeVisible();
       await gallery.locator('[data-sb-gallery-mode="clean"]').check();
       await gallery.locator('[data-sb-gallery-card="team-scoreboard"] [data-sb-gallery-use]').click();
       await expect(gallery).toBeHidden({ timeout: 15_000 });
@@ -195,6 +205,8 @@ test('org site: a fresh site’s first editor visit opens the gallery — skip k
       canvas = (await (await ownerApi.get(`/api/leagues/${leagueId}/site/canvas`)).json()) as Canvas;
       expect(canvas.draft).not.toBeNull();
       expect(canvas.site.template_id).toBe('bold');
+      // The renamed section kept its title through the design (the flush landed first; keep/clean both keep module titles).
+      expect(canvas.layout.widgets.some(w => w.config.title === `Kept ${stamp}`)).toBe(true);
       // The arrange step is done (the checklist counts a design as arranging); the gallery is not re-offered on reload.
       await expect(page.locator('[data-sb-checklist-step="arrange"]')).toHaveAttribute('data-done', '1');
       await page.reload();
@@ -234,6 +246,54 @@ test('org site: a fresh site’s first editor visit opens the gallery — skip k
     } finally {
       await anon.close();
     }
+  } finally {
+    await ownerApi.dispose();
+    await admin.from('leagues').delete().eq('id', leagueId);
+  }
+});
+
+test('@mobile org site editor on a phone: the notice, no gallery sheet, Preview opens a tab, Publish site takes it live', async ({ browser }) => {
+  test.setTimeout(120_000);
+  const owner = loadQaUser('user-b.json');
+  const admin = adminClient();
+  await resetRateBucket(admin, 'org-site', owner.id);
+  const ownerApi = await apiAs('state-b.json');
+  const stamp = Date.now();
+  const { data: league, error } = await admin
+    .from('leagues')
+    .insert({ name: `QA Phone League ${stamp}`, sport_key: 'ice_hockey', owner_profile_id: owner.id })
+    .select('id')
+    .single();
+  expect(error, error?.message).toBeNull();
+  const leagueId = league!.id as string;
+  await admin.from('memberships').insert([{ league_id: leagueId, profile_id: owner.id, role: 'owner' }]);
+  try {
+    const res = await ownerApi.post(`/api/leagues/${leagueId}/site`);
+    expect(res.status(), await readErrorBody(res)).toBe(200);
+    const subdomain = (await res.json()).site.subdomain as string;
+    test.skip(!(await revisionsSupported(ownerApi, 'league', leagueId)), 'org_site_revisions missing — run migration 180');
+    const ctx = await browser.newContext({ storageState: 'e2e/.auth/state-b.json', viewport: { width: 390, height: 844 } });
+    try {
+      const page = await ctx.newPage();
+      await page.goto(`/app/org/league/${leagueId}/site/edit`);
+      await expect(page.getByRole('heading', { name: 'The editor needs a bigger screen' })).toBeVisible({ timeout: 30_000 });
+      // H7: a fresh site's gallery offer never shows over the phone notice
+      // (it lives in the ≥lg branch — mounted, but display:none'd with it).
+      await page.waitForTimeout(1500);
+      await expect(page.locator('[data-larger-window="sb-gallery"]')).toBeHidden();
+      await expect(page.getByRole('button', { name: 'Skip — keep the starting layout' })).toBeHidden();
+      // H7: Preview opens a tab ON the click (popup-safe), pointed at the preview.
+      const [popup] = await Promise.all([ctx.waitForEvent('page'), page.getByRole('button', { name: 'Preview draft' }).click()]);
+      await popup.waitForURL(/\/preview\//, { timeout: 30_000 });
+      await popup.close();
+      // H6/H7: the phone notice's Publish takes the site live.
+      await page.getByRole('button', { name: 'Publish site', exact: true }).click();
+      await expect(page.getByRole('alert').filter({ hasText: 'Your site is live' })).toBeVisible({ timeout: 15_000 });
+      expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
+    } finally {
+      await ctx.close();
+    }
+    await expect.poll(async () => (await ownerApi.get(`/org/${subdomain}`)).status(), { timeout: 30_000, intervals: [1000, 2000, 3000] }).toBe(200);
   } finally {
     await ownerApi.dispose();
     await admin.from('leagues').delete().eq('id', leagueId);

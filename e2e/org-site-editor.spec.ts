@@ -231,6 +231,13 @@ test('org site editor: canvas → drag → autosave → undo → reload; phone n
       const heroPanel = page.locator('[data-sb-panel="hero"]');
       await expect(heroPanel).toBeVisible();
       await heroPanel.getByLabel('Headline').fill(`Hello ${stamp}`);
+      // H7: a tile switch while content is typed and unsaved asks first; Cancel keeps the panel and the words.
+      await page.locator('[data-sb-widget="staff"] .sb-frame-controls').click();
+      const discard = page.getByText('Discard changes?', { exact: true }).locator('..').locator('..');
+      await expect(discard).toBeVisible();
+      await discard.getByRole('button', { name: 'Cancel' }).click();
+      await expect(discard).toBeHidden();
+      await expect(heroPanel.getByLabel('Headline')).toHaveValue(`Hello ${stamp}`);
       await heroPanel.getByRole('button', { name: 'Save content' }).click();
       await expect(page.locator('[data-sb-widget="hero"]')).toContainText(`Hello ${stamp}`, { timeout: 20_000 });
       // The console's GET sees the same draft content (one write, two surfaces).
@@ -359,6 +366,13 @@ test('org site editor: canvas → drag → autosave → undo → reload; phone n
       await expect(themePanel.locator('[data-sb-accent-ok="0"]')).toContainText('too light');
       await expect(themePanel.getByRole('button', { name: 'Save theme' })).toBeDisabled();
       await themePanel.getByLabel('Accent colour', { exact: true }).fill('#0f766e');
+      // H7: a stray tile click while the theme draft differs asks first; Cancel keeps the panel and the accent.
+      await page.locator('[data-sb-widget="staff"] .sb-frame-controls').click();
+      const discardTheme = page.getByText('Discard changes?', { exact: true }).locator('..').locator('..');
+      await expect(discardTheme).toBeVisible();
+      await discardTheme.getByRole('button', { name: 'Cancel' }).click();
+      await expect(themePanel).toBeVisible();
+      await expect(themePanel.getByLabel('Accent colour', { exact: true })).toHaveValue('#0f766e');
       await expect(themePanel.locator('[data-sb-accent-ok="1"]')).toContainText('readable');
       // Live preview: the canvas already wears the unsaved accent…
       expect(await canvasEl.evaluate(el => getComputedStyle(el).getPropertyValue('--org-accent').trim())).toBe('#0f766e');

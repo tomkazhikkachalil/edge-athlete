@@ -30,6 +30,7 @@ import type { GolfCourse } from '@/types/golf';
 import AnnouncementHistory from '@/components/orgs/AnnouncementHistory';
 import MemberPhotoPicker from '@/components/orgs/MemberPhotoPicker';
 import HierarchySection from '@/components/orgs/console/HierarchySection';
+import { openPreview } from '@/components/site-builder/openPreview';
 
 // ── The org-manager console (phase 1, round 1) ──────────────────────────────
 // The guardian-console shape (AppHeader — a recurring signed-in
@@ -806,19 +807,8 @@ export default function OrgConsolePage() {
     if (label === (revisions.find(r => r.id === id)?.label ?? '')) return;
     await revisionAct({ action: 'label', revisionId: id, label: label || null }, 'Version renamed', 'Could not rename the version');
   };
-  const previewDraft = async () => {
-    try {
-      const res = await fetch(`/api/${plural}/${orgId}/site/preview`, { method: 'POST' });
-      const body = await res.json();
-      if (!res.ok) {
-        showError('Website', body.error || 'Failed to create a preview link');
-        return;
-      }
-      window.open(body.url, '_blank', 'noopener');
-    } catch {
-      showError('Website', 'Failed to create a preview link');
-    }
-  };
+  // H7: one popup-safe helper shared with the editor (the tab opens on the click).
+  const previewDraft = () => openPreview(plural, orgId, showError);
 
   const base = `/api/${plural}/${orgId}/structure`;
 
