@@ -22,7 +22,8 @@ import { isSeedLayout, seedLayout } from '@/lib/site-builder/seeds';
 import { buildSiteChecklistSteps, siteChecklistInput } from '@/lib/site-builder/checklist';
 import type { ChecklistStep } from '@/lib/orgs/checklist';
 import type { WidgetInstance } from '@/lib/site-builder/layout';
-import { useDraft } from './useDraft';
+import { useDraft, type SaveOutcome } from './useDraft';
+import { chipFor, publishBlocker } from '@/lib/site-builder/draft-state';
 import { useHistory } from './useHistory';
 
 /**
@@ -227,25 +228,37 @@ function Editor({
     showUndo('Section removed', history.undo, 'Nothing changes on your site until you publish.');
   };
 
+  // H5: the wire mapped to what the editor can act on — a 400 says WHICH
+  // section is wrong (and the toast repeats it), the pre-180 409 is not a
+  // conflict, a 429 retries itself; only a real network failure is 'network'.
   const save = useCallback(
-    async (layout: SiteLayout, baseRev: number | null) => {
+    async (layout: SiteLayout, baseRev: number | null): Promise<SaveOutcome> => {
       try {
         const res = await fetch(`/api/${plural}/${orgId}/site/draft`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ layout, ...(baseRev !== null ? { baseRev } : {}) }),
         });
-        if (res.status === 409) return 'conflict' as const;
-        if (!res.ok) return 'error' as const;
-        const body = (await res.json()) as { rev: number };
-        return { rev: body.rev };
+        if (res.ok) {
+          const body = (await res.json()) as { rev: number };
+          return { kind: 'ok', rev: body.rev };
+        }
+        const body = (await res.json().catch(() => ({}))) as { error?: string; issues?: { id?: string; path?: string; message: string }[] };
+        if (res.status === 400) {
+          const issues = body.issues && body.issues.length > 0 ? body.issues : [{ message: body.error ?? 'a section is invalid' }];
+          showError('Website', `Could not save: ${issues[0].message}`);
+          return { kind: 'invalid', issues };
+        }
+        if (res.status === 409) return body.error?.includes('180') ? { kind: 'unsupported' } : { kind: 'conflict' };
+        if (res.status === 429) return { kind: 'ratelimited' };
+        return { kind: 'network' };
       } catch {
-        return 'error' as const;
+        return { kind: 'network' };
       }
     },
-    [plural, orgId]
+    [plural, orgId, showError]
   );
-  const draft = useDraft(history.present, save, canvas.draft?.rev ?? null, true);
+  const draft = useDraft(history.present, save, canvas.draft?.rev ?? null);
   const refreshSite = async () => {
     try {
       const res = await fetch(`/api/${plural}/${orgId}/site/canvas`);
@@ -312,8 +325,11 @@ function Editor({
   };
 
   const publish = async () => {
-    if (draft.dirty || draft.status === 'saving') {
-      showError('Website', 'Wait for the draft to finish saving, then publish.');
+    // H5: an honest reason, per status — never "wait for saving" on a
+    // status that never finishes by itself.
+    const blocker = publishBlocker(draft.state, draft.dirty);
+    if (blocker) {
+      showError('Website', blocker);
       return;
     }
     setBusy(true);
@@ -338,20 +354,7 @@ function Editor({
     }
   };
 
-  const chip =
-    draft.status === 'saving'
-      ? { text: 'Saving…', cls: 'text-tertiary' }
-      : draft.status === 'conflict'
-        ? { text: 'Changed elsewhere — reload', cls: 'text-amber-700' }
-        : draft.status === 'offline'
-          ? { text: 'Offline — changes are kept here', cls: 'text-amber-700' }
-          : draft.status === 'error'
-            ? { text: 'Could not save', cls: 'text-red-600' }
-            : draft.dirty
-              ? { text: 'Unsaved', cls: 'text-tertiary' }
-              : draft.status === 'saved'
-                ? { text: 'Saved to draft', cls: 'text-emerald-700' }
-                : { text: 'Draft', cls: 'text-tertiary' };
+  const chip = chipFor(draft.state, draft.dirty);
 
   return (
     <div className="min-h-screen bg-canvas" data-site-builder="">
