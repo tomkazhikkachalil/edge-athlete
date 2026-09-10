@@ -1,5 +1,40 @@
 # Development Log
 
+## September 10, 2026 — Site Builder residue: the last three H8 items, and the next programs opened (zero DDL)
+
+The quiet round Tom asked for before the next foundation work. A diff of
+the H8 backlog against the six backlog PRs (#653–#658) found 30 of 33 items
+built; this PR is the residue, plus the bookkeeping that opens the next two
+programs.
+
+- **Admin-positive metrics spec.** `e2e/admin-site-metrics.spec.ts` reads
+  `GET /api/admin/site-metrics` as an admin and asserts the dashboard's "Site
+  builder" panel renders the tiles. The allowlist is a server env
+  (`ADMIN_EMAILS`) no random QA address can join, so the spec creates a
+  disposable user with EXACTLY the address in `E2E_ADMIN_EMAIL`
+  (`adminEmailForE2E()` in `e2e/helpers/qa-user.ts`; `createQaUser` gains an
+  `email` override), mints its session, and deletes it in its own `finally`
+  (reclaiming a leftover from a crashed run first). Unset → the spec skips
+  with the reason. `.env.example` documents the pairing (`ADMIN_EMAILS` +
+  `E2E_ADMIN_EMAIL`, an `edgeqa-` address so the stale sweep covers it too).
+  The negative half (an org owner gets 403) stays in `org-site-start.spec.ts`.
+- **Bleed hero overhang (B2 residue).** `HeroSection.tsx` used `-mx-4 lg:mx-0`
+  but the SiteShell column is `max-w-4xl + px-4` = 928px; between 928px and
+  Tailwind's `lg` (1024px) the hero rendered a 16px overhang past the column.
+  Now `min-[928px]:mx-0`, matched to the container.
+- **`workers: 1` stays.** The specs share one QA user and feed-post asserts
+  read that user's own content; a per-worker user factory is its own
+  program if the suite's wall-clock ever matters. Recorded as an accepted
+  constraint, not a fix.
+- **Next programs, planned and approved (Tom, Sep 10):** the contest as a
+  first-class place (`/event/[contestId]` in-app, `/schedule/[contestId]` on
+  the org site, one reader, migration 181 for `posts`/`group_posts`
+  `contest_id`), then the recruiting / scouting / verification skeleton
+  (recruiting opt-in + profile, `user_type 'scout'`, shortlists, grad-year +
+  recruiting search facets, dispute visibility; migrations 182–184). Plan:
+  `~/.claude/plans/let-s-do-2-4-nested-brook.md`; the session doc's open list
+  carries the state.
+
 ## September 10, 2026 — Maintenance sweep, end of the Site Builder work
 
 - Gate green on `main` at the #658 merge (4e111c34): typecheck, lint at

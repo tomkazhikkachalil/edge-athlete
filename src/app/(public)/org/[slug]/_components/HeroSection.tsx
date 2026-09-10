@@ -17,13 +17,16 @@ export default function HeroSection({ site, w, spec }: { site: PublicSite; w: Wi
   const heroImage = orgMediaUrl(site.id, hero.imagePath);
   const brandName = parseThemeTokens(site.theme_token_set).wordmark ?? site.orgName;
   return (
-// The gradient rides the .org-scope accent vars (violet defaults; a
+  // The bleed's overhang ends at 928px — the SiteShell column's max-w-4xl
+  // + px-4 — not at Tailwind's lg (1024px); between the two the -mx-4 used
+  // to draw a 16px overhang past the column (Site Builder residue, Sep 10).
+  // The gradient rides the .org-scope accent vars (violet defaults; a
   // site's theme_token_set overrides via the layout's inline style).
   <section
     aria-label="Welcome"
     className={`relative overflow-hidden ${
       spec.hero === 'bleed'
-        ? '-mx-4 lg:mx-0 px-6 py-14 sm:py-20 text-white'
+        ? '-mx-4 min-[928px]:mx-0 px-6 py-14 sm:py-20 text-white'
         : 'rounded-xl px-6 py-10 text-white'
     }${heroImage ? ' min-h-[240px] sm:min-h-[320px] flex flex-col justify-end' : ''}`}
     style={{

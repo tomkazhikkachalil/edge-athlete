@@ -3,9 +3,10 @@
 > Tom's session-start prompt. Paste this (or point Claude at it) when opening a
 > development session. Last aligned with project state: **September 10, 2026
 > (after the Site Builder program, phases 1–11, #616–#644, its hardening
-> round H1–H8, #645–#652, and its backlog round B1–B6, #653–#658)** —
-> migration head 180; `main` at the #658 merge (4e111c34), deployed and
-> prod-probed. If the
+> round H1–H8, #645–#652, its backlog round B1–B6, #653–#658, and the
+> residue PR)** — migration head 180; the **Contest Place program** (events
+> as first-class places, migration 181) is the open program, with the
+> **Recruiting skeleton** (migrations 182–184) queued behind it. If the
 > "Where the project actually is" section drifts stale, ask
 > Claude to re-align it against DEVLOG.md and session memory.
 
@@ -320,17 +321,32 @@ union, a metered cheaper canvas read, the preview token first, an assets
 DELETE the editor uses to reclaim unsaved uploads), B6 e2e hardening (every
 `settleBody` copy onto `helpers/isr.ts`, the ISR byte-compare gone, seven
 more flows, the identity spec re-anchored — it had been red since P10-C).
-Final prod probe 6/6 against the #658 deploy. Still owed by Tom: the admin
-dashboard's "Site builder" panel with his login (no QA user can sit on the
-admin allowlist), the device pass, deleting the Vercel flag variable.
+Final prod probe 6/6 against the #658 deploy. **Sep 10, the residue PR**
+closed the H8 leftovers: the admin-positive metrics spec
+(`e2e/admin-site-metrics.spec.ts`, gated on `E2E_ADMIN_EMAIL` — an address
+the build lists in `ADMIN_EMAILS` that no real account owns), the bleed
+hero's 928–1023px overhang, and `workers: 1` recorded as accepted.
 
-`main` carries the program and both rounds. Open: Tom's device pass of a real branded club through the editor
-(laptop) and its public + in-app pages (phone); the admin dashboard's "Site
-builder" panel with his admin login (no admin QA session exists); the
-one-hour number once real publishes exist; older ops Tom owes: Search
-Console, custom-domain env, the capture-fix device pass, a first real staff
-invite. The Vercel variable `NEXT_PUBLIC_FEATURE_SITE_BUILDER` is dead
-weight and can be deleted.
+**Open programs (planned + approved Sep 10; plan file
+`~/.claude/plans/let-s-do-2-4-nested-brook.md`):**
+1. **Contest Place** (4 PRs, migration 181): `/event/[contestId]` in-app +
+   `/schedule/[contestId]` on the org site, one reader `fetchContestView`,
+   `resolveContestAccess` the only gate, `posts`/`group_posts.contest_id`
+   stamped by the golf sync, backlinks from the calendar modal, console,
+   standings, week hub, stat log and bells.
+2. **Recruiting skeleton** (5 PRs, migrations 182–184): `recruiting_status`
+   gate + `recruiting_profile` (school, grad year = `class_year`, GPA),
+   `user_type 'scout'` with the organizer signup shape, `scout_shortlists`
+   (counts only to athletes), grad-year + recruiting facets in `search_all`
+   (scout-only filters), dispute state visible on the Official log + a
+   verified-stats explainer. Tom's calls: guardians may open recruiting for
+   supervised athletes; contact only through the existing message flow.
+
+Older ops Tom owes: the device pass of a real branded club through the
+editor (laptop) and its pages (phone); the one-hour number once real
+publishes exist; Search Console, custom-domain env, the capture-fix device
+pass, a first real staff invite; deleting the dead Vercel variable
+`NEXT_PUBLIC_FEATURE_SITE_BUILDER`.
 
 ## Production standard (the baseline, already in force)
 
