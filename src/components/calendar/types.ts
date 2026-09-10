@@ -80,6 +80,9 @@ export interface EventGuest {
 }
 
 export interface EventDetail extends Omit<EventListItem, 'my_status' | 'is_organizer'> {
+  /** Contest Place E3: the contest a mirror event was minted from; null for
+   *  a hand-made event. Read-time reverse lookup, never a column. */
+  contest_id?: string | null;
   guests: EventGuest[];
   series: SeriesRule | null;
   /** Resolved routine view (live version, snapshot fallback) — never the raw snapshot. */

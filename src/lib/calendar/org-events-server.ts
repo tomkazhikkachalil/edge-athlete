@@ -38,6 +38,9 @@ export interface OrgEvent {
   category: string | null;
   venue_id: string | null;
   facility_id: string | null;
+  /** Contest Place E3: the contest a mirror event was minted from (read-time
+   *  reverse lookup on contests.event_id); absent/null for hand-made events. */
+  contest_id?: string | null;
 }
 
 /** Upcoming events for an org, viewer-independent (nothing here may branch
@@ -96,11 +99,24 @@ export async function fetchOrgEvents(
     }
   }
   const seen = new Set<string>();
-  return results
+  const events = results
     .flatMap(r => (r.data ?? []) as unknown as OrgEvent[])
     .filter(e => (seen.has(e.id) ? false : (seen.add(e.id), true)))
     .sort((a, b) => a.starts_at.localeCompare(b.starts_at))
     .slice(0, limit);
+  // E3: which of these are mirror events — ONE batched reverse lookup on
+  // contests.event_id (indexed). Pre-152 or any error: no links, no harm.
+  if (events.length > 0) {
+    const { data: contestRows, error } = await admin
+      .from('contests')
+      .select('id, event_id')
+      .in('event_id', events.map(e => e.id));
+    if (!error) {
+      const byEvent = new Map((contestRows ?? []).map(c => [c.event_id as string, c.id as string]));
+      for (const e of events) e.contest_id = byEvent.get(e.id) ?? null;
+    }
+  }
+  return events;
 }
 
 export async function orgEventsGET(

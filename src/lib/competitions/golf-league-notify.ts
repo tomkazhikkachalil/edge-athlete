@@ -122,7 +122,10 @@ export function planWindowReminders(input: {
 
 // ── I/O ─────────────────────────────────────────────────────────────────────
 
-const actionUrl = (ctx: GolfLeagueBellContext) => `/${ctx.side}/${ctx.orgId}`;
+/** E3: every golf-league bell is about ONE round, so it lands on the
+ *  round's page (the org page before it). Pure; pinned by test. */
+export const golfRoundActionUrl = (ctx: Pick<GolfLeagueBellContext, 'contestId'>) => `/event/${ctx.contestId}`;
+const actionUrl = golfRoundActionUrl;
 
 /** P5: the manager's nudge to members with no round on file for the week. */
 export async function notifyGolfWindowNudge(

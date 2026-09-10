@@ -152,6 +152,8 @@ test('week hub: open window, posted count + points, on-course count (live entran
     expect(html).toContain(`QA Week Course ${stamp}`);
     expect(html).toContain('data-on-course="1"');
     expect(html).toContain('1 member on the course now');
+    // E3: the round links to its contest page (absolute — the site may be on a custom domain).
+    expect(html).toContain(`/event/${contestId}`);
     expect(html).toContain('See who');
     expect(html).toContain('>79<');
     expect(html).toContain('>100<'); // the week's points so far

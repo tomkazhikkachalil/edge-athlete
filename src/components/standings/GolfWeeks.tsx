@@ -1,5 +1,5 @@
 import { formatDateRange, formatIsoDate, type PublicGolfBlock, type PublicGolfWeek } from '@/lib/competitions/golf-weeks';
-import { playerHref } from '@/lib/org-sites/player-links';
+import { contestHref, playerHref } from '@/lib/org-sites/player-links';
 
 // A golf leaderboard's week-to-week view (phase 6d W1): the round the
 // page leads with (open → "This week"; next to open → "Next round"; the
@@ -120,7 +120,9 @@ export default function GolfWeeks({
         <section aria-label={leadLabel(current)}>
           <p className="text-xs font-medium uppercase tracking-wide text-muted">{leadLabel(current)}</p>
           <p className="mt-0.5 text-sm font-medium text-primary">
-            {current.round ?? 'Round'}
+            <a href={contestHref(current.id, basePath)} className="hover:underline" data-contest-link={current.id}>
+              {current.round ?? 'Round'}
+            </a>
             <span className="font-normal text-muted"> · {meta(current)}</span>
           </p>
           <p className="mt-0.5 text-xs text-secondary">
@@ -135,7 +137,9 @@ export default function GolfWeeks({
           {[...closed].reverse().map(week => (
             <details key={week.id} className="rounded-lg border border-border-subtle px-3 py-2">
               <summary className="cursor-pointer text-sm text-primary">
-                <span className="font-medium">{week.round ?? 'Round'}</span>
+                <a href={contestHref(week.id, basePath)} className="font-medium hover:underline" data-contest-link={week.id}>
+                  {week.round ?? 'Round'}
+                </a>
                 <span className="text-muted"> · {meta(week)}</span>
                 <span className="ml-2 text-xs text-secondary">{week.posted} posted</span>
               </summary>
@@ -148,7 +152,9 @@ export default function GolfWeeks({
         <ul className="mt-3 space-y-0.5 text-sm text-secondary">
           {upcoming.map(week => (
             <li key={week.id}>
-              <span className="font-medium text-primary">{week.round ?? 'Round'}</span>
+              <a href={contestHref(week.id, basePath)} className="font-medium text-primary hover:underline" data-contest-link={week.id}>
+                {week.round ?? 'Round'}
+              </a>
               <span className="text-muted"> · opens {formatIsoDate(week.playFrom)} · {meta(week)}</span>
             </li>
           ))}

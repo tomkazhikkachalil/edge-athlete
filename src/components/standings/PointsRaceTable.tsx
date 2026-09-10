@@ -1,5 +1,5 @@
 import type { PointsRace } from '@/lib/competitions/golf-race';
-import { playerHref } from '@/lib/org-sites/player-links';
+import { contestHref, playerHref } from '@/lib/org-sites/player-links';
 
 // The points race (phase 8 P1) — one league's season, week by week: each
 // round's points, the running total and the movement into the latest
@@ -50,7 +50,9 @@ export default function PointsRaceTable({
               <th scope="col" className="py-1.5 pr-3 font-medium">Player</th>
               {race.weeks.map((w, i) => (
                 <th key={w.contestId} scope="col" className="py-1.5 px-2 font-medium text-right" title={w.round ?? undefined}>
-                  {weekLabel(w.round, i)}
+                  <a href={contestHref(w.contestId, basePath)} className="hover:underline" data-contest-link={w.contestId}>
+                    {weekLabel(w.round, i)}
+                  </a>
                 </th>
               ))}
               <th scope="col" className="py-1.5 px-2 font-medium text-right">Total</th>

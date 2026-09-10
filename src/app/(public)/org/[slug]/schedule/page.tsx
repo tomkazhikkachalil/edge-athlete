@@ -5,7 +5,7 @@ import ScheduleList from '../_components/ScheduleList';
 import GolfRoundsSchedule from '../_components/GolfRoundsSchedule';
 import { requireSiteModule } from '../_components/require-module';
 import { moduleLabel, parseNavConfig } from '@/lib/org-sites/validate';
-import { siteAbsoluteUrl } from '@/lib/org-sites/urls';
+import { siteAbsoluteUrl, siteBasePath } from '@/lib/org-sites/urls';
 
 // ── /org/[slug]/schedule — the full schedule subpage (phase 3 R2) ──────────
 // The one canonical cached schedule entry (25 upcoming events across the
@@ -89,7 +89,7 @@ export default async function OrgSiteSchedulePage({ params }: PageParams) {
       >
         {rounds.length > 0 && <h2 className="text-lg font-semibold text-primary">Events</h2>}
         {events && events.length > 0 ? (
-          <ScheduleList events={events} />
+          <ScheduleList events={events} basePath={siteBasePath(site)} />
         ) : (
           <p className="text-sm text-tertiary">No upcoming events.</p>
         )}

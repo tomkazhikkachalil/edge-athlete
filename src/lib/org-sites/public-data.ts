@@ -1983,6 +1983,8 @@ export interface PublicWeekHubLeague {
   name: string;
   seasonLabel: string | null;
   week: {
+    /** Contest Place E3: the round's contest — the week hub's way to its page. */
+    contestId: string;
     round: string | null;
     playFrom: string;
     playTo: string;
@@ -2111,6 +2113,7 @@ export async function fetchPublicWeekHub(admin: Admin, side: OrgSide, orgId: str
         seasonLabel: c.season_label,
         week: current
           ? {
+              contestId: current.id,
               round: current.round,
               playFrom: current.playFrom,
               playTo: current.playTo,

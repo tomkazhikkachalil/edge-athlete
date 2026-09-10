@@ -220,7 +220,7 @@ test('contest stat lines: roster gate, provenance stamps, participant path; 375p
       expect(profileBody.official[0]).toMatchObject({
         competitionName: `House League ${stamp}`,
         provenance: 'league_verified',
-        href: `/league/${leagueId}/standings`,
+        href: `/event/${contestId}`,
       });
 
       // The skill card carries the official tiles (verified beats tracked).
