@@ -358,9 +358,14 @@ team and a coach on another.
 > phase 6 (text / image / embed widgets riding the layout instance under the
 > gate; CSP frame-src), phase 7 (theme tokens over the template, self-hosted
 > heading faces, the theme panel), phase 8 (seeds, publish metrics, the
-> checklist). Phase 4 folded into 3 and 5. Phases 9–10 (Sep 9): widgets
-> bound to a query; the in-app page follows the composition; the editor is
-> the Website section's door (the flag retired). The plan of record is
+> checklist). Phase 4 folded into 3 and 5. **Phases 9–11 (Sep 9, #637–#643,
+> zero DDL):** widgets bound to a query (`config.query`; standings / schedule /
+> leaders may repeat); the in-app page follows the composition (order,
+> titles, content tiles) and the editor is the Website section's door (the
+> flag retired, the duplicated console forms collapsed); a design gallery of
+> six entries (family + tokens + seed plan, generated from the org's facts,
+> offered on a fresh site's first visit) and the builder's numbers on the
+> admin dashboard. Phases 1–11 complete and prod-probed. The plan of record is
 > `~/.claude/plans/edge-athlete-site-builder-zesty-pnueli.md`; DEVLOG Sep 9
 > 2026 is the round-by-round record. The text below is kept as the history of
 > the module model the widgets grew out of.
