@@ -6,6 +6,18 @@ import { useToast } from './Toast';
 import LazyImage from './LazyImage';
 import AvatarUploader from './AvatarUploader';
 import type { Profile } from '@/lib/supabase';
+import {
+  ACADEMIC_NOTES_MAX,
+  RECRUITING_STATUSES,
+  RECRUITING_STATUS_LABEL,
+  SCHOOL_MAX,
+  TARGET_LEVELS,
+  TARGET_LEVEL_LABEL,
+  isTargetLevel,
+  parseRecruitingStatus,
+  type RecruitingStatus,
+  type TargetLevel,
+} from '@/lib/recruiting/profile';
 import { getSportDefinition, getAllSports, type SportKey } from '@/lib/sports';
 import { resolveSportKey } from '@/lib/sports/resolve-sport-key';
 import {
@@ -54,7 +66,7 @@ interface EditProfileTabsProps {
  * fine and rendered a blank tab. Widening the type is what makes the
  * fallthrough visible to TypeScript instead of silent.
  */
-type TabId = 'basic' | 'vitals' | 'socials' | SportKey;
+type TabId = 'basic' | 'vitals' | 'socials' | 'recruiting' | SportKey;
 
 interface TabConfig {
   id: TabId;
@@ -70,6 +82,9 @@ const generateTabs = (): TabConfig[] => {
     { id: 'basic', label: 'Basic', icon: 'fas fa-user', enabled: true },
     { id: 'vitals', label: 'Vitals', icon: 'fas fa-chart-line', enabled: true },
     { id: 'socials', label: 'Socials', icon: 'fas fa-share-alt', enabled: true },
+    // Recruiting skeleton R1: the one gate + school / GPA / notes. Hidden for
+    // a supervised athlete editing themselves (a guardian decides).
+    { id: 'recruiting', label: 'Recruiting', icon: 'fas fa-graduation-cap', enabled: true },
   ];
 
   // Add sport-specific tabs
@@ -119,7 +134,10 @@ export default function EditProfileTabs({
   // server strips it for supervised profiles (child AND guardian — safety
   // posture lives on the guardian console's Safety card).
   const hideVisibility = actingAs || profile?.supervision_state === 'supervised';
-  const visibleTabs = actingAs ? TABS.filter(t => !isSportTab(t.id)) : TABS;
+  // Recruiting is a guardian decision for a supervised athlete: the tab is
+  // theirs (acting-as) and the owner's, never the supervised profile's own.
+  const supervisedSelf = !actingAs && profile?.supervision_state === 'supervised';
+  const visibleTabs = TABS.filter(t => (actingAs ? !isSportTab(t.id) : true) && !(supervisedSelf && t.id === 'recruiting'));
   const [activeTab, setActiveTab] = useState<TabId>('basic');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -171,6 +189,15 @@ export default function EditProfileTabs({
     social_tiktok: '',
   });
 
+  // Recruiting (R1): saved through its own gated route, never the profile PUT.
+  const [recruitingForm, setRecruitingForm] = useState({
+    status: 'closed' as RecruitingStatus,
+    school: '',
+    gpa: '',
+    academic_notes: '',
+    target_level: '' as '' | TargetLevel,
+  });
+
   // One entry per sport that has a settings schema, keyed by sport key.
   // Replaces the old hand-written `golfForm`/`equipmentForm` pair — every
   // sport's tab now reads and writes through this single map.
@@ -199,6 +226,7 @@ export default function EditProfileTabs({
     sports: () => JSON.stringify(selectedSports),
     vitals: () => JSON.stringify(vitalsForm),
     socials: () => JSON.stringify(socialsForm),
+    recruiting: () => JSON.stringify(recruitingForm),
   } as const;
 
   // Sport settings are snapshotted PER SPORT, not as one blob: saving golf
@@ -337,6 +365,15 @@ export default function EditProfileTabs({
     };
     setSocialsForm(loadedSocials);
 
+    const rp = profile?.recruiting_profile ?? null;
+    setRecruitingForm({
+      status: parseRecruitingStatus(profile?.recruiting_status),
+      school: profile?.school ?? '',
+      gpa: typeof rp?.gpa === 'number' ? String(rp.gpa) : '',
+      academic_notes: rp?.academic_notes ?? '',
+      target_level: isTargetLevel(rp?.target_level) ? rp.target_level : '',
+    });
+
     // Golf and equipment settings are now loaded from sport_settings API
     // (see useEffect above that fetches from /api/sport-settings)
   }
@@ -348,6 +385,7 @@ export default function EditProfileTabs({
     snapRef.current.basic = JSON.stringify({ ...basicForm, avatar_file: null });
     snapRef.current.vitals = JSON.stringify(vitalsForm);
     snapRef.current.socials = JSON.stringify(socialsForm);
+    snapRef.current.recruiting = JSON.stringify(recruitingForm);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [profile]);
 
@@ -505,6 +543,38 @@ export default function EditProfileTabs({
           };
           hasChanges = true;
           break;
+
+        case 'recruiting': {
+          // Its own gated route (manage_settings): the status, the school and
+          // the academics — never the batched profile PUT.
+          const gpaRaw = recruitingForm.gpa.trim();
+          const gpa = gpaRaw === '' ? null : Number(gpaRaw);
+          if (gpa !== null && (!Number.isFinite(gpa) || gpa < 0 || gpa > 5)) {
+            throw new Error('GPA must be between 0 and 5');
+          }
+          const res = await fetch(`/api/profile/${targetProfileId ?? user.id}/recruiting`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              status: recruitingForm.status,
+              school: recruitingForm.school.trim(),
+              profile: {
+                gpa,
+                academic_notes: recruitingForm.academic_notes.trim() || null,
+                target_level: recruitingForm.target_level || null,
+              },
+            }),
+          });
+          if (!res.ok) {
+            const err = await res.json().catch(() => ({}));
+            throw new Error(err.error || 'Failed to save recruiting details');
+          }
+          snapRef.current.recruiting = JSON.stringify(recruitingForm);
+          showSuccess('Recruiting saved', 'Your recruiting details are up to date.');
+          onSave();
+          setIsSubmitting(false);
+          return;
+        }
 
         default:
           // Every remaining tab is a sport tab. Saving is driven entirely by
@@ -1095,6 +1165,95 @@ export default function EditProfileTabs({
     </div>
   );
 
+  const renderRecruitingTab = () => (
+    <div className="space-y-6">
+      <fieldset>
+        <legend className="block text-sm font-medium text-secondary mb-2">Recruiting status</legend>
+        <div className="space-y-2" role="radiogroup" aria-label="Recruiting status">
+          {RECRUITING_STATUSES.map(value => (
+            <label key={value} className={`flex items-start gap-3 rounded-lg border p-3 cursor-pointer ${recruitingForm.status === value ? 'border-brand bg-brand-soft' : 'border-border hover:border-border-strong'}`}>
+              <input
+                type="radio"
+                name="recruiting_status"
+                value={value}
+                checked={recruitingForm.status === value}
+                onChange={() => setRecruitingForm(prev => ({ ...prev, status: value }))}
+                className="mt-1"
+              />
+              <span>
+                <span className="block text-sm font-medium text-primary">{RECRUITING_STATUS_LABEL[value]}</span>
+                <span className="block text-xs text-tertiary">
+                  {value === 'closed'
+                    ? 'Nothing recruiting-related shows on your profile.'
+                    : value === 'open'
+                      ? 'Your school, grad year and academics show; coaches and scouts can find you.'
+                      : 'Shows where you landed; scouts still see your card.'}
+                </span>
+              </span>
+            </label>
+          ))}
+        </div>
+      </fieldset>
+      <div>
+        <label htmlFor="recruiting_school" className="block text-sm font-medium text-secondary mb-1">School</label>
+        <input
+          id="recruiting_school"
+          type="text"
+          maxLength={SCHOOL_MAX}
+          value={recruitingForm.school}
+          onChange={e => setRecruitingForm(prev => ({ ...prev, school: e.target.value }))}
+          className="w-full px-3 py-2 border border-border-strong rounded-md focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
+          placeholder="Your school"
+        />
+        <p className="mt-1 text-xs text-muted">Grad year is your class year on the Vitals tab.</p>
+      </div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div>
+          <label htmlFor="recruiting_gpa" className="block text-sm font-medium text-secondary mb-1">GPA (self-reported)</label>
+          <input
+            id="recruiting_gpa"
+            type="number"
+            inputMode="decimal"
+            min="0"
+            max="5"
+            step="0.01"
+            value={recruitingForm.gpa}
+            onChange={e => setRecruitingForm(prev => ({ ...prev, gpa: e.target.value }))}
+            className="w-full px-3 py-2 border border-border-strong rounded-md focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
+            placeholder="3.80"
+          />
+        </div>
+        <div>
+          <label htmlFor="recruiting_level" className="block text-sm font-medium text-secondary mb-1">Looking at</label>
+          <select
+            id="recruiting_level"
+            value={recruitingForm.target_level}
+            onChange={e => setRecruitingForm(prev => ({ ...prev, target_level: (e.target.value || '') as '' | TargetLevel }))}
+            className="w-full px-3 py-2 border border-border-strong rounded-md bg-surface focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
+          >
+            <option value="">Not set</option>
+            {TARGET_LEVELS.map(l => (
+              <option key={l} value={l}>{TARGET_LEVEL_LABEL[l]}</option>
+            ))}
+          </select>
+        </div>
+      </div>
+      <div>
+        <label htmlFor="recruiting_notes" className="block text-sm font-medium text-secondary mb-1">Academic notes</label>
+        <textarea
+          id="recruiting_notes"
+          rows={3}
+          maxLength={ACADEMIC_NOTES_MAX}
+          value={recruitingForm.academic_notes}
+          onChange={e => setRecruitingForm(prev => ({ ...prev, academic_notes: e.target.value }))}
+          className="w-full px-3 py-2 border border-border-strong rounded-md focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
+          placeholder="Honours, intended major, test scores you want to share…"
+        />
+        <p className="mt-1 text-xs text-muted">{recruitingForm.academic_notes.length}/{ACADEMIC_NOTES_MAX}. Contact stays through messages — no email is shown.</p>
+      </div>
+    </div>
+  );
+
   const renderTabContent = () => {
     switch (activeTab) {
       case 'basic':
@@ -1103,6 +1262,8 @@ export default function EditProfileTabs({
         return renderVitalsTab();
       case 'socials':
         return renderSocialsTab();
+      case 'recruiting':
+        return renderRecruitingTab();
       default:
         // Every remaining tab is a sport tab, rendered from its schema.
         // This used to be `return null`, which is exactly why basketball,

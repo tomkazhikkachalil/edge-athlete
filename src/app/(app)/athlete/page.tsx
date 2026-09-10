@@ -14,6 +14,7 @@ import FeaturedPosts from '@/components/FeaturedPosts';
 import StatementsRail from '@/components/StatementsRail';
 import SportQuickLinks from '@/components/SportQuickLinks';
 import SportSkillStrip from '@/components/SportSkillStrip';
+import RecruitingCard from '@/components/recruiting/RecruitingCard';
 import type { SportSkillCard } from '@/lib/sports/server/types';
 import AvatarUploader from '@/components/AvatarUploader';
 import CoverPhotoUploader from '@/components/CoverPhotoUploader';
@@ -897,6 +898,17 @@ export default function AthleteProfilePage() {
                         }}
                         onAddDetails={() => setIsEditModalOpen(true)}
                       />
+                      {/* Recruiting (R1): the owner's card — reads its own gated endpoint. */}
+                      <div className="mt-4">
+                        <RecruitingCard
+                          profileId={profile.id}
+                          refreshKey={isEditModalOpen ? 0 : 1}
+                          onEdit={() => {
+                            setEditInitialTab('recruiting');
+                            setIsEditModalOpen(true);
+                          }}
+                        />
+                      </div>
                     </div>
                   )}
 

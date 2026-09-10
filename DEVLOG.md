@@ -1,5 +1,73 @@
 # Development Log
 
+## September 10, 2026 — Recruiting skeleton R1: the opt-in and the recruiting profile (migration 182)
+
+The Recruiting skeleton opens (plan: `~/.claude/plans/let-s-do-2-4-nested-brook.md`;
+Tom's calls Sep 10: scouts are a new account type; a guardian may open
+recruiting for a supervised athlete; academics = school + grad year + GPA;
+no recruiting email). R1 is the athlete side.
+
+- **Migration 182.** `profiles.recruiting_status` (`closed | open |
+  committed`, default closed) — THE one gate; `profiles.recruiting_profile`
+  jsonb (`{ gpa, academic_notes, target_level }`, parsed by
+  `src/lib/recruiting/schema.ts`, unknown keys dropped); `scout_affiliation`
+  (≤120, R2 writes it); `user_type` CHECK + `'scout'` (the code branch is
+  R2); a partial index on open profiles for R4's search. `school` — a column
+  no editor ever wrote — becomes editable; `class_year` IS the grad year,
+  nothing renamed.
+- **The predicate.** `src/lib/recruiting/profile.ts` (zero heavy imports —
+  the edit modal reads it): `isRecruitable` = claimed (not a stub) AND
+  public AND status ≠ closed. Supervision is deliberately NOT a term (Tom's
+  call): the only way a supervised profile's status changes is a guardian
+  through `manage_settings`, so an opened supervised athlete is recruitable.
+  R3's shortlist POST and R4's index both call it.
+- **The route.** `GET /api/profile/[id]/recruiting` is optional-auth: the
+  owner and their guardians read everything (`canEdit`); anyone else reads
+  the card only when the status is open/committed AND `canViewProfile`
+  admits them; a closed profile answers `{ status: 'closed' }` and nothing
+  else, so the academics never leave the server for a closed profile.
+  `PATCH` is `requireProfileRole(…, 'manage_settings')` — owner + guardian,
+  never the supervised profile itself — writes only the keys sent
+  (`recruitingPatchToUpdate`), and bells the OTHER guardians of a
+  supervised athlete (`profile_change`, actor excluded). Pre-182 the GET
+  answers `supported: false` and the PATCH a 409 naming the migration. The
+  profile PUT strips `recruiting_status` / `recruiting_profile` /
+  `scout_affiliation` (their own gated writer) and `recruiting_profile`
+  joins `OWNER_ONLY_FIELDS` so the batched GET never ships academics.
+  `recruiting_status` is NOT in `IDENTITY_FIELDS` on purpose: the PUT's
+  pre-update read selects that list, and a pre-182 database must never make
+  it fail (it gates the supervised strip); `school` joins it.
+- **The surfaces.** `RecruitingCard` (`src/components/recruiting/`) on all
+  three profile routes beside the sport strip — it reads its OWN endpoint,
+  never the CDN-cached public payload, renders nothing for a closed profile
+  a viewer sees, and an honest "Not recruiting — open it" line for the
+  owner/guardian. GPA always renders as "3.86 · self-reported". The edit
+  modal gains a Recruiting tab (status radios, school, GPA, looking-at,
+  notes) that saves through the PATCH — hidden for a supervised athlete
+  editing themselves; the guardian console's athlete page gains a
+  Recruiting section (RadioCards → the same PATCH). Contact is the
+  profile's existing message affordance — no email, on purpose.
+- **E4's spec, corrected (same PR).** `org-site-contest.spec.ts` asserted the
+  per-site `/org/{slug}/sitemap.xml`, which on the apex in production is the
+  custom-domain route and answers 404 (the P2 probe's finding, Sep 2); it
+  asserts the MAIN `/sitemap.xml` now, like every sibling. E4 is prod-proven
+  on that basis (twin, 404s, sitemap entry, in-app link — 2/2 on prod).
+- **Migration 184 (same PR).** 182's `recruiting_status NOT NULL DEFAULT
+  'closed'` broke `create_managed_profile` (053) the moment it ran: that RPC
+  inserts a WHOLE profile row through `jsonb_populate_record`, so every
+  column the JSON does not name arrives as an explicit NULL and the NOT NULL
+  fired — adding a supervised athlete failed (the e2e child seed found it).
+  The 175/179 class, again. 184 drops the NOT NULL (the DEFAULT stays;
+  NULL reads as closed everywhere; the partial index and the scout search
+  already exclude it). Run it right after 182.
+- Tests: `recruiting/__tests__/profile.test.ts` (the predicate matrix incl.
+  supervised-open → true; tolerant parse; the strict PATCH contract).
+  e2e `recruiting-optin.spec.ts` (@mobile): closed hides, the owner opens,
+  the PUT cannot touch the gate, a private profile still hides from a
+  stranger, a public one shows the card on `/athlete/[id]` at phone width
+  with no overflow, closing hides it again; a guardian opens a supervised
+  child's, the child's stranger cannot. Self-skips pre-182.
+
 ## September 10, 2026 — Contest Place E4: the contest's org-site twin and the sitemap (zero DDL)
 
 The fourth and last Contest Place PR. The in-app place (E1) is auth-aware

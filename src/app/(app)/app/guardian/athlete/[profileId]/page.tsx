@@ -13,6 +13,7 @@ import AppHeader from '@/components/AppHeader';
 import ConfirmModal from '@/components/ConfirmModal';
 import { FEATURE_FLAGS } from '@/lib/features';
 import RadioCard from '@/components/guardian/RadioCard';
+import { RECRUITING_STATUSES, RECRUITING_STATUS_LABEL, parseRecruitingStatus, type RecruitingStatus } from '@/lib/recruiting/profile';
 import { deviationFields, parseHouseholdPolicy, type HouseholdPolicy } from '@/lib/household-policy';
 import { formatDisplayName, getInitials, formatAge } from '@/lib/formatters';
 import { transferStateChip } from '@/lib/transfer-ui';
@@ -191,6 +192,9 @@ export default function GuardianAthletePage() {
   const [editOpen, setEditOpen] = useState(false);
   const [editLoading, setEditLoading] = useState(false);
   const [childProfile, setChildProfile] = useState<Profile | null>(null);
+  // Recruiting (R1): a guardian decision for a supervised athlete — the
+  // same gated PATCH the edit modal uses; the console only flips the gate.
+  const [recruitingBusy, setRecruitingBusy] = useState(false);
 
   const refreshChildProfile = useCallback(async () => {
     try {
@@ -1036,6 +1040,56 @@ export default function GuardianAthletePage() {
                   subjectName={athlete.first_name || 'this athlete'}
                   highlightId={highlightContactId}
                 />
+
+                {/* Recruiting (R1): the gate is the guardian's call; the details
+                    (school, GPA, notes) live in Edit profile, acting as. */}
+                <section className="bg-surface border border-border rounded-lg p-5 mb-4" data-guardian-recruiting={parseRecruitingStatus(childProfile?.recruiting_status)}>
+                  <h2 className="text-base font-bold text-primary mb-1">Recruiting</h2>
+                  <p className="text-xs text-tertiary mb-4">
+                    Whether coaches and scouts can see {athlete.first_name || 'this athlete'}&apos;s recruiting card
+                    (school, grad year, academics). Only you can change this; the details are edited in their profile.
+                  </p>
+                  <div className="space-y-2" role="radiogroup" aria-label="Recruiting status">
+                    {RECRUITING_STATUSES.map(value => (
+                      <RadioCard<RecruitingStatus>
+                        key={value}
+                        option={{
+                          value,
+                          label: RECRUITING_STATUS_LABEL[value],
+                          description:
+                            value === 'closed'
+                              ? 'Nothing recruiting-related shows anywhere.'
+                              : value === 'open'
+                                ? 'The card shows on their profile and scouts can find them.'
+                                : 'Shows where they landed; scouts still see the card.',
+                        }}
+                        selected={parseRecruitingStatus(childProfile?.recruiting_status) === value}
+                        disabled={recruitingBusy}
+                        onSelect={async next => {
+                          if (parseRecruitingStatus(childProfile?.recruiting_status) === next) return;
+                          setRecruitingBusy(true);
+                          try {
+                            const res = await fetch(`/api/profile/${profileId}/recruiting`, {
+                              method: 'PATCH',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({ status: next }),
+                            });
+                            if (!res.ok) {
+                              const err = await res.json().catch(() => ({}));
+                              throw new Error(err.error || 'Could not update recruiting');
+                            }
+                            await refreshChildProfile();
+                            showSuccess('Recruiting updated', `Now "${RECRUITING_STATUS_LABEL[next]}".`);
+                          } catch (err) {
+                            showError('Recruiting', err instanceof Error ? err.message : 'Could not update recruiting');
+                          } finally {
+                            setRecruitingBusy(false);
+                          }
+                        }}
+                      />
+                    ))}
+                  </div>
+                </section>
 
                 {/* Blocked users (Round I): per-contact protection */}
                 <section className="bg-surface border border-border rounded-lg p-5 mb-4">

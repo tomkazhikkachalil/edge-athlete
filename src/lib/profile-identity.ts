@@ -7,7 +7,11 @@
 // on the guardian PATCH route with safety_settings_audit rows), and NOT
 // audited into safety_settings_audit: 095's field CHECK admits only the three
 // safety fields, so the changed-field list rides the notification metadata
-// instead. `school` is absent on purpose — no editor writes it anywhere.
+// instead. `school` joined in the Recruiting skeleton (R1, Sep 2026): the
+// recruiting tab writes it through PUT, so a guardian hears about it too.
+// recruiting_status is NOT here — its own route bells the guardians, and a
+// pre-182 database must never make the pre-update read fail (that read
+// gates the supervised strip).
 
 export const IDENTITY_FIELDS = [
   'first_name',
@@ -17,6 +21,7 @@ export const IDENTITY_FIELDS = [
   'bio',
   'location',
   'class_year',
+  'school',
   'social_twitter',
   'social_instagram',
   'social_facebook',
@@ -58,6 +63,7 @@ export function describeIdentityFields(fields: IdentityField[]): string {
     ['bio', 'bio'],
     ['location', 'location'],
     ['class_year', 'class year'],
+    ['school', 'school'],
     ['social_twitter', 'social links'],
     ['social_instagram', 'social links'],
     ['social_facebook', 'social links'],

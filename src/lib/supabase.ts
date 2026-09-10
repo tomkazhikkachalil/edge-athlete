@@ -85,7 +85,7 @@ export interface Profile {
   lat?: number | null;
   lng?: number | null;
   location_source?: string | null;
-  user_type: 'athlete' | 'club' | 'league' | 'fan' | 'parent' | 'organizer';
+  user_type: 'athlete' | 'club' | 'league' | 'fan' | 'parent' | 'organizer' | 'scout';
   onboarded_at?: string | null; // null = first-run onboarding not yet completed
   created_at: string;
   updated_at: string;
@@ -119,6 +119,10 @@ export interface Profile {
   // Guardian-profiles: 'supervised' while a guardian manages the account,
   // 'self' after the transfer of control completes.
   supervision_state?: 'self' | 'supervised' | string;
+  /** Recruiting skeleton (182): the one recruiting gate + the self-declared academics. */
+  recruiting_status?: 'closed' | 'open' | 'committed' | string;
+  recruiting_profile?: { gpa?: number | null; academic_notes?: string | null; target_level?: string | null } | null;
+  scout_affiliation?: string | null;
   dob_locked?: boolean;
   // Soft-delete park stamp (migration 128): non-null = scheduled for hard
   // deletion 30 days later; the root-layout banner offers restore.

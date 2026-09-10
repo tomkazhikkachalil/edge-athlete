@@ -12,7 +12,9 @@ import { notifyGuardians } from '@/lib/guardian-notify';
 // Fields stripped for any viewer who is NOT the profile owner: contact
 // details plus PII the UI never shows to other users (signup birthday,
 // gender, postal code, nickname) — no reason to ship them to the browser.
-const OWNER_ONLY_FIELDS = ['email', 'phone', 'birthday', 'gender', 'postal_code', 'nickname'] as const;
+// recruiting_profile (182) is read through /api/profile/[id]/recruiting,
+// where the recruiting gate lives — it never ships from here to a viewer.
+const OWNER_ONLY_FIELDS = ['email', 'phone', 'birthday', 'gender', 'postal_code', 'nickname', 'recruiting_profile'] as const;
 
 // Minimal subset for blocked viewers — exactly what PrivateProfileView needs.
 const MINIMAL_FIELDS = [
@@ -162,6 +164,11 @@ export async function PUT(request: NextRequest) {
     delete profileData.handle_change_count;
     // Avatar changes go through /api/upload/avatar
     delete profileData.avatar_url;
+    // Recruiting (182): the status, the academics and a scout's affiliation
+    // have their own gated writers — never the batched profile PUT.
+    delete profileData.recruiting_status;
+    delete profileData.recruiting_profile;
+    delete profileData.scout_affiliation;
 
     // user_type: self-service values only (org types provisioned separately)
     if (profileData.user_type !== undefined &&

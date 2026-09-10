@@ -7,6 +7,7 @@ import { useAuth } from '@/lib/auth';
 import AppHeader from '@/components/AppHeader';
 import LazyImage from '@/components/LazyImage';
 import SportSkillStrip from '@/components/SportSkillStrip';
+import RecruitingCard from '@/components/recruiting/RecruitingCard';
 import StatsHub from '@/components/stats/StatsHub';
 import type { SportSkillCard } from '@/lib/sports/server/types';
 import AchievementPills from '@/components/achievements/AchievementPills';
@@ -557,6 +558,11 @@ export default function PublicProfilePage() {
             />
           </div>
         )}
+
+        {/* Recruiting (R1): its own gated endpoint — never the CDN payload. */}
+        <div className="mt-4">
+          <RecruitingCard profileId={profileData.profile.id} />
+        </div>
 
 
         {/* Statements — text-only posts, split out of Recent Posts (074).
