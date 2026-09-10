@@ -152,18 +152,32 @@ export function computeFixtureStandings(
     return x < y ? -1 : x > y ? 1 : 0;
   });
 
-  const rows: StandingRow[] = [];
-  let lastKey: string | null = null;
-  let lastRank = 0;
-  sorted.forEach((id, i) => {
-    const keyStr = JSON.stringify(sortKey(id));
-    const rank = keyStr === lastKey ? lastRank : i + 1;
-    lastKey = keyStr;
-    lastRank = rank;
+  const ranks = assignSharedRanks(sorted.length, i => JSON.stringify(sortKey(sorted[i])));
+  return sorted.map((id, i) => {
     const row = table.get(id)!;
-    rows.push({ entry_id: id, rank, points: row.points, played: row.played, stats: row.stats });
+    return { entry_id: id, rank: ranks[i], points: row.points, played: row.played, stats: row.stats };
   });
-  return rows;
+}
+
+/**
+ * Shared ranks over an ALREADY-SORTED list (1, 2, 2, 4): equal keys share
+ * the earlier position's rank. `keyAt(i)` must be the value position i was
+ * sorted by. THE one ranking rule — fixture standings, leaderboard
+ * standings and a single contest's leaderboard (contest-outcome.ts) all
+ * call it, so a rank on a contest page can never disagree with the table.
+ */
+export function assignSharedRanks(count: number, keyAt: (i: number) => string | number): number[] {
+  const ranks: number[] = [];
+  let lastKey: string | number | null = null;
+  let lastRank = 0;
+  for (let i = 0; i < count; i++) {
+    const key = keyAt(i);
+    const rank = key === lastKey ? lastRank : i + 1;
+    lastKey = key;
+    lastRank = rank;
+    ranks.push(rank);
+  }
+  return ranks;
 }
 
 // ── Leaderboard rules (R5) — individual entrants, summed totals ─────────────
@@ -303,22 +317,15 @@ export function computeLeaderboardStandings(
     return x < y ? -1 : x > y ? 1 : 0;
   });
 
-  const rows: StandingRow[] = [];
-  let lastKey: number | null = null;
-  let lastRank = 0;
-  sorted.forEach((id, i) => {
-    const key = sortKey(id);
-    const rank = key === lastKey ? lastRank : i + 1;
-    lastKey = key;
-    lastRank = rank;
+  const ranks = assignSharedRanks(sorted.length, i => sortKey(sorted[i]));
+  return sorted.map((id, i) => {
     const row = table.get(id)!;
-    rows.push({
+    return {
       entry_id: id,
-      rank,
+      rank: ranks[i],
       points: row.played === 0 ? null : row.total,
       played: row.played,
       stats: row.stats,
-    });
+    };
   });
-  return rows;
 }

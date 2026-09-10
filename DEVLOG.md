@@ -1,5 +1,85 @@
 # Development Log
 
+## September 10, 2026 — Contest Place E1: a contest gets a URL — one reader, one outcome rule, `/event/[contestId]` (zero DDL)
+
+The first of the four Contest Place PRs (plan: `~/.claude/plans/let-s-do-2-4-nested-brook.md`).
+The competition model has been complete in the database since phase 2
+(competitions → contests → participants → results → stat lines → media,
+migs 151–158), but no URL named ONE contest: the console listed rows, the
+standings twins keyed columns by contest id, the calendar carried a mirror
+event, the week hub showed the current window — and every surface re-derived
+"who won" for itself. This PR gives the contest a place.
+
+- **One reader.** `src/lib/competitions/contest-view.ts` `fetchContestView(admin,
+  id, { viewerId })` assembles contest + competition + org + venue/course +
+  entrants (with entry names) + results + the derived outcome + stat lines
+  (with the sport's field vocabulary) + published, consent-gated media
+  (`evaluatePublicContestMedia` — the gallery gate, so a private
+  competition's media stays in the console) + the live round (from the golf
+  sync's `payload.roundRef` until E2's column). Never throws; pre-152 or any
+  read error reads as "no such contest". `resolveContestAccess` is THE gate:
+  a public competition of a public org answers everyone (`'public'`); else
+  the viewer needs an org role, any staff capability, an athlete entry or a
+  team-scope roster row on an entered team (`'member'`); else null — and
+  null is the same 404 as not-found, so the route never confirms a private
+  contest exists. `projectContestView` is the PURE projection the reader
+  ends with: names through `publicDisplayName`/`publicHandle` in BOTH access
+  modes (the standings twins' rule — a supervised or unclaimed entrant reads
+  "First L." and never links), the 'sanctioned' tier derived per result and
+  per line (`deriveDisplayTier` over `readSanctionedPairs`, lifted into
+  `src/lib/orgs/sanction-reads.ts` from official-stats' inline block), and
+  no email, supervision state, profile id or club id in the output — a test
+  serialises the view and asserts each of those is absent.
+- **One outcome rule.** `contest-outcome.ts` `deriveContestOutcome` turns the
+  per-participant rows into a renderable result: a fixture is two sides, a
+  winner/tie and a "3–2" scoreline (home first; complete only when both
+  scored AND the row is completed); a leaderboard is ranked rows in the
+  rule's direction, unscored last, with the rule's stat columns that some
+  row actually carries (gross beside net). Ranks come from
+  `assignSharedRanks` in `scoring.ts` — extracted from the two standings
+  computations so a rank on a contest page can never disagree with the
+  table (a test pins the agreement). Bracket/meet stay `unscored` (parked).
+- **The page.** `src/app/(app)/event/[contestId]/page.tsx` has two entry
+  points and one body. A PUBLIC competition's contest is rendered on the
+  server, viewer-independent (the `/league/[id]/standings` shape: the
+  scoreline is in the HTML, `generateMetadata` titles it "Blazers vs Comets
+  — House League", the link works signed-out). Everything else hands off to
+  `ContestGate`, a client island that fetches `GET /api/contests/[id]` WITH
+  the session and renders the same body for a member — or a real
+  not-available screen with Sign in / Explore / Back to feed, never a
+  redirect into nowhere. `ContestPage` is props-only and server-safe (no
+  hooks, no `next/headers`, no Font Awesome, no `'use client'`) so E4's
+  org-site twin renders it under `(public)` unchanged; every host-dependent
+  link comes through a `links` prop. Sections stack at every width; tables
+  scroll in their own container; the section nav is plain anchors, so
+  `#stats` is a deep link with zero JavaScript (no `?tab=` — nothing here
+  is a tab). `contest-format.ts` (pure, client-safe) owns the title, the
+  "when" line (a play window → "Play any day Sep 15 – 21 · 9 holes"; a
+  scheduled time in the mirror event's timezone; honest "Time to be
+  announced" otherwise) and the status vocabulary.
+- **The route.** `GET /api/contests/[contestId]`: optional auth
+  (`getServerAuth` — the authz test's gate), a new `contest-view` IP bucket
+  (120/min, the anonymous-read budget), `private, no-store` for a member's
+  answer, identical 404 bodies for missing and refused.
+- Tests: `contest-outcome.test.ts` (win/tie/incomplete/side fallback; asc
+  shared ranks with unscored last; desc; present-only columns; the
+  standings agreement; unknown format), `contest-view-public.test.ts`
+  (sanctioned derivation, club owner never sanctions, the masking matrix,
+  the no-leak serialisation). e2e `contest-page.spec.ts` (@mobile): a
+  stranger reads the public contest (API 200 + scoreline in the HTML
+  source), gets 404s for the private one and a bad id, and sees the
+  not-available screen with Sign in; a member reads the private one; the
+  standings link fits the viewport at 390px.
+- **A new root segment.** `/event` joins `RESERVED_ROOT_SLUGS`
+  (`src/lib/org-sites/reserved.ts`) — the gate's test caught it: the vanity
+  tree makes every unreserved root path an org-site candidate and the
+  middleware would have given `/event/…` the no-auth fast path. The
+  defense-in-depth `reserved_handles` seed rides migration 181 (E2) so this
+  PR stays zero-DDL; the code-side list is the enforced guard.
+- Deferred to E2–E4 by plan: `posts`/`group_posts.contest_id` (mig 181) and
+  "Posts from this event"; the backlinks (calendar modal, console rows,
+  standings headers, week hub, stat log, bells); the org-site twin + sitemap.
+
 ## September 10, 2026 — Site Builder residue: the last three H8 items, and the next programs opened (zero DDL)
 
 The quiet round Tom asked for before the next foundation work. A diff of
