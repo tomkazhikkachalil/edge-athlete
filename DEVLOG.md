@@ -47,6 +47,14 @@ no recruiting email). R1 is the athlete side.
   editing themselves; the guardian console's athlete page gains a
   Recruiting section (RadioCards → the same PATCH). Contact is the
   profile's existing message affordance — no email, on purpose.
+- **Migration 184 (same PR).** 182's `recruiting_status NOT NULL DEFAULT
+  'closed'` broke `create_managed_profile` (053) the moment it ran: that RPC
+  inserts a WHOLE profile row through `jsonb_populate_record`, so every
+  column the JSON does not name arrives as an explicit NULL and the NOT NULL
+  fired — adding a supervised athlete failed (the e2e child seed found it).
+  The 175/179 class, again. 184 drops the NOT NULL (the DEFAULT stays;
+  NULL reads as closed everywhere; the partial index and the scout search
+  already exclude it). Run it right after 182.
 - Tests: `recruiting/__tests__/profile.test.ts` (the predicate matrix incl.
   supervised-open → true; tolerant parse; the strict PATCH contract).
   e2e `recruiting-optin.spec.ts` (@mobile): closed hides, the owner opens,
