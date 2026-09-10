@@ -4,9 +4,10 @@
 > development session. Last aligned with project state: **September 10, 2026
 > (after the Site Builder program, phases 1–11, #616–#644, its hardening
 > round H1–H8, #645–#652, its backlog round B1–B6, #653–#658, and the
-> residue PR)** — migration head 180; the **Contest Place program** (events
-> as first-class places, migration 181) is the open program, with the
-> **Recruiting skeleton** (migrations 182–184) queued behind it. If the
+> residue PR, the Contest Place program E1–E4, #661–#664, and the
+> Recruiting skeleton R1–R5, #665–#669)** — migration head 184; `main` at
+> the #669 merge (03f683d4), deployed and prod-probed step by step; **no
+> program is open**. If the
 > "Where the project actually is" section drifts stale, ask
 > Claude to re-align it against DEVLOG.md and session memory.
 
@@ -343,11 +344,16 @@ hero's 928–1023px overhang, and `workers: 1` recorded as accepted.
    `docs/RECRUITING.md`. **Tom runs 182 before R1 merges and 183 before R3
    merges**; the scout specs self-skip until then and are the prod probes.
 
-Older ops Tom owes: the device pass of a real branded club through the
-editor (laptop) and its pages (phone); the one-hour number once real
+**Both programs are COMPLETE and prod-proven (Sep 10).** Open: Tom's device
+pass of a contest page (`/event/[id]`, the org-site twin) and the scouting
+area (`/app/scout`, `/app/scout/search`) on his phone; the device pass of a
+real branded club through the editor; the one-hour number once real
 publishes exist; Search Console, custom-domain env, the capture-fix device
 pass, a first real staff invite; deleting the dead Vercel variable
-`NEXT_PUBLIC_FEATURE_SITE_BUILDER`.
+`NEXT_PUBLIC_FEATURE_SITE_BUILDER`. Parked code (no owner): bracket / meet
+formats and ad-hoc teams, adapter competition hooks, a composer
+attach-to-event picker (DEVLOG E4); the recruiting growth paths in
+`docs/RECRUITING.md`. The next program is Tom's call.
 
 ## Production standard (the baseline, already in force)
 

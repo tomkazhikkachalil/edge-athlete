@@ -1,5 +1,30 @@
 # Development Log
 
+## September 10, 2026 — Maintenance sweep, end of the Contest Place and Recruiting programs
+
+- Gate green on `main` at the #669 merge (03f683d4): typecheck, lint at
+  zero warnings, 3,036 node tests, production build, the browser-floor gate
+  over 175 client chunks; `scripts/hardening-guardrails.sh` green.
+- The day in one place: the Site Builder residue (#660), the Contest Place
+  program E1–E4 (#661–#664, migration 181) and the Recruiting skeleton
+  R1–R5 (#665–#669, migrations 182–184), one PR each, each rebased onto the
+  merged parent with the patch pinned identical, and each probed on
+  production after its deploy: the contest page, the golf sync's
+  attachment path, the calendar / week-hub / stat-log backlinks, the
+  org-site twin with the main sitemap, the recruiting opt-in (guardian half
+  included, after 184), the scout signup, the shortlist, the scout search,
+  the explainer and the dispute flow.
+- Two findings worth their own line: migration 182's NOT NULL broke
+  `create_managed_profile` (whole-row insert via `jsonb_populate_record`) and
+  184 fixed it the same afternoon — never add a NOT NULL column to
+  `profiles`; and the per-site `sitemap.xml` on the apex is the
+  custom-domain route (404 by design, known since Sep 2) — specs assert the
+  main sitemap.
+- Session doc re-aligned: header at the #669 merge, migration head 184, no
+  program open; the open list is Tom's device pass of `/event/[id]` and the
+  scouting area on his phone, the dead Vercel flag variable, and the older
+  ops items. No code changes.
+
 ## September 10, 2026 — Recruiting skeleton R5: verification visible to the viewer (zero DDL)
 
 The last skeleton PR. The provenance ladder had shipped end to end except
