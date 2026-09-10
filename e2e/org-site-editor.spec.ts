@@ -179,6 +179,36 @@ test('org site editor: canvas → drag → autosave → undo → reload; phone n
       await expect(page.locator('[data-sb-canvas]')).toBeVisible({ timeout: 30_000 });
       await expect(page.locator('[data-sb-status="idle"][data-sb-dirty="0"]')).toBeVisible();
 
+      // B4: the keyboard path — a tile's header is a focusable button (Enter
+      // selects and focus moves into the panel); Tab never lands inside a
+      // tile's body (inert); Escape cancels the discard confirm.
+      const kbTile = page.locator('[data-sb-widget="staff"]');
+      await kbTile.locator('.sb-frame-controls').focus();
+      await page.keyboard.press('Enter');
+      const kbPanel = page.locator('[data-sb-panel="staff"]');
+      await expect(kbPanel).toBeVisible();
+      expect(await page.evaluate(() => !!document.activeElement?.closest('[data-sb-panel]'))).toBe(true);
+      for (let i = 0; i < 40; i++) {
+        await page.keyboard.press('Tab');
+        const inBody = await page.evaluate(() => !!document.activeElement?.closest('.sb-widget-body'));
+        expect(inBody, `Tab #${i + 1} must not land inside a tile body`).toBe(false);
+      }
+      // Escape cancels the discard confirm (a CONTENT field is what the guard watches).
+      await page.locator('[data-sb-widget="hero"] .sb-frame-controls').click();
+      const kbHero = page.locator('[data-sb-panel="hero"]');
+      await kbHero.getByLabel('Headline').fill(`Kb ${stamp}`);
+      await page.locator('[data-sb-widget="news"] .sb-frame-controls').click();
+      const kbDiscard = page.getByRole('dialog', { name: 'Discard changes?' });
+      await expect(kbDiscard).toBeVisible();
+      await page.keyboard.press('Escape');
+      await expect(kbDiscard).toBeHidden();
+      await expect(kbHero).toBeVisible();
+      // Leave the hero panel: Discard in the confirm (the typed headline is not saved) → the news panel opens.
+      await page.locator('[data-sb-widget="news"] .sb-frame-controls').click();
+      await expect(kbDiscard).toBeVisible();
+      await kbDiscard.getByRole('button', { name: 'Discard', exact: true }).click();
+      await expect(page.locator('[data-sb-panel="news"]')).toBeVisible();
+
       // P3-D: remove a tile → an Undo toast (no confirm dialog) → Undo restores it.
       const before = await page.locator('[data-sb-instance]').count();
       const removable = page.locator('[data-sb-widget]:not([data-sb-widget="hero"])').first();

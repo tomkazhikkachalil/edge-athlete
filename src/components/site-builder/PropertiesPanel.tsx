@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import Image from 'next/image';
 import type { PublicSite } from '@/lib/org-sites/server';
 import { orgMediaUrl } from '@/lib/media/org-site-media';
@@ -102,6 +102,12 @@ export default function PropertiesPanel({ site, widget, plural, orgId, options, 
   const [content, setContent] = useState<Record<string, string>>(seed);
   const [saving, setSaving] = useState(false);
 
+  // B4: focus moves INTO the panel when it opens (a tile selected by keyboard
+  // used to leave focus on the tile with the panel unreachable by Tab order).
+  const asideRef = useRef<HTMLElement>(null);
+  useEffect(() => {
+    asideRef.current?.focus({ preventScroll: true });
+  }, []);
   const dirty = contentFields.some(f => (content[f.name] ?? '') !== readContent(contentConfigFor(site, key), f.name));
   useEffect(() => {
     onDirtyChange?.(dirty);
@@ -267,7 +273,7 @@ export default function PropertiesPanel({ site, widget, plural, orgId, options, 
   };
 
   return (
-    <aside className={`w-80 shrink-0 rounded-xl border border-border bg-surface p-4 space-y-4 ${className ?? ''}`} aria-label="Section properties" data-sb-panel={key}>
+    <aside ref={asideRef} tabIndex={-1} className={`w-80 shrink-0 rounded-xl border border-border bg-surface p-4 space-y-4 outline-none ${className ?? ''}`} aria-label="Section properties" data-sb-panel={key}>
       <div>
         <p className="text-xs uppercase tracking-wide text-muted">Section</p>
         <h2 className="text-base font-semibold text-primary truncate">{title}</h2>
@@ -415,9 +421,10 @@ function ImageField({
 
   return (
     <div>
-      <label className={LABEL} htmlFor={id}>
+      {/* B4: one label per control — the pill below IS the file input's label. */}
+      <p className={LABEL} id={`${id}-heading`}>
         {label}
-      </label>
+      </p>
       {src ? (
         <Image
           src={src}
@@ -432,9 +439,9 @@ function ImageField({
         <p className="mb-2 text-xs text-tertiary">No photo yet — visitors won’t see this section until it has one.</p>
       )}
       <div className="flex flex-wrap items-center gap-2">
-        <label className={`${PILL} inline-flex cursor-pointer items-center`}>
+        <label className={`${PILL} inline-flex cursor-pointer items-center`} htmlFor={id}>
           {uploading ? 'Uploading…' : src ? 'Replace photo' : 'Choose a photo'}
-          <input id={id} type="file" accept="image/*" className="sr-only" disabled={uploading} onChange={e => void upload(e.target.files?.[0])} />
+          <input id={id} type="file" accept="image/*" className="sr-only" disabled={uploading} aria-describedby={`${id}-heading`} onChange={e => void upload(e.target.files?.[0])} />
         </label>
         {src && (
           <button type="button" className={PILL} onClick={() => onPatch({ path: undefined, width: undefined, height: undefined })}>

@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect, useRef } from 'react';
 import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
 
 interface ConfirmModalProps {
@@ -29,6 +30,18 @@ export default function ConfirmModal({
 }: ConfirmModalProps) {
   // Lock background scroll while open (iOS scroll-chaining behind overlays)
   useBodyScrollLock(isOpen);
+  // B4: a real dialog — Escape cancels (the topmost-dialog rule: LargerWindow
+  // defers to a later [role="dialog"]), focus lands on Cancel when it opens.
+  const cancelRef = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    if (!isOpen) return;
+    cancelRef.current?.focus({ preventScroll: true });
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onCancel();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [isOpen, onCancel]);
 
   if (!isOpen) return null;
 
@@ -36,10 +49,10 @@ export default function ConfirmModal({
   // SharedRoundFullCard) — same layer would rely on DOM order alone.
   return (
     <div className={`fixed inset-0 bg-black/50 ${overlayZClass} flex items-center justify-center p-4`}>
-      <div className="bg-surface-raised rounded-lg shadow-xl max-w-md w-full max-h-modal overflow-y-auto">
+      <div className="bg-surface-raised rounded-lg shadow-xl max-w-md w-full max-h-modal overflow-y-auto" role="dialog" aria-modal="true" aria-labelledby="confirm-modal-title">
         {/* Header */}
         <div className="p-4 sm:p-6 border-b border-border">
-          <h2 className="text-xl font-bold text-primary">{title}</h2>
+          <h2 id="confirm-modal-title" className="text-xl font-bold text-primary">{title}</h2>
         </div>
 
         {/* Body */}
@@ -51,7 +64,7 @@ export default function ConfirmModal({
             ("Discard changes" / "Keep editing") overflowed a 320px row. The
             confirm action stays first in the stack (col-reverse). */}
         <div className="p-4 sm:p-6 border-t border-border flex flex-col-reverse sm:flex-row sm:justify-end gap-3">
-          <button
+          <button ref={cancelRef}
             onClick={onCancel}
             className="px-4 py-2 border border-border-strong rounded-lg text-secondary hover:bg-surface-muted transition-colors font-medium"
           >

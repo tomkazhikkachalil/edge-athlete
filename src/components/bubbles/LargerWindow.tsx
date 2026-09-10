@@ -39,6 +39,36 @@ export default function LargerWindow({
   useBodyScrollLock(true);
   const dialogRef = useRef<HTMLDivElement>(null);
 
+  // B4: focus moves into the window on open and back to the opener on close;
+  // Tab cycles inside it (the page behind is reachable to a mouse only via
+  // the backdrop, and should be to a keyboard too).
+  useEffect(() => {
+    const opener = document.activeElement as HTMLElement | null;
+    dialogRef.current?.focus({ preventScroll: true });
+    return () => {
+      if (opener && document.contains(opener)) opener.focus({ preventScroll: true });
+    };
+  }, []);
+  useEffect(() => {
+    const onTab = (e: KeyboardEvent) => {
+      if (e.key !== 'Tab' || !dialogRef.current) return;
+      const focusables = Array.from(dialogRef.current.querySelectorAll<HTMLElement>('a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])')).filter(el => !el.closest('[inert]'));
+      if (focusables.length === 0) return;
+      const first = focusables[0];
+      const last = focusables[focusables.length - 1];
+      const active = document.activeElement;
+      if (e.shiftKey && (active === first || active === dialogRef.current)) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && active === last) {
+        e.preventDefault();
+        first.focus();
+      }
+    };
+    window.addEventListener('keydown', onTab);
+    return () => window.removeEventListener('keydown', onTab);
+  }, []);
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== 'Escape') return;
@@ -66,6 +96,7 @@ export default function LargerWindow({
         role="dialog"
         aria-modal="true"
         aria-label={title}
+        tabIndex={-1}
         data-larger-window={windowKey}
         className="ea-sheet-pop bg-surface-raised rounded-t-2xl sm:rounded-2xl shadow-xl w-full sm:max-w-2xl max-h-modal overflow-hidden flex flex-col modal-sheet-bottom"
       >

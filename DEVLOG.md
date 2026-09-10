@@ -1,5 +1,36 @@
 # Development Log
 
+## September 10, 2026 — Site Builder backlog B4: the editor's a11y pass (zero DDL)
+
+- **Tiles are keyboard-selectable** (`Canvas`): the frame header — already
+  the drag handle — is a focusable button (Enter/Space selects,
+  `aria-pressed` says which); before, a tile could only be selected with
+  a mouse.
+- **Tile bodies are inert** (`Canvas`, `Picker`): the widgets inside a tile
+  render real links, and `pointer-events: none` only stopped the mouse — Tab
+  reached them and Enter navigated the editor away, dropping the pending
+  edit. React 19's `inert` takes them out of the tab order and the
+  accessibility tree; the picker's previews drop their `aria-hidden` for the
+  same attribute (focusable content inside `aria-hidden` is an axe
+  violation).
+- **The manager sees the real widget**: a private club's members-only
+  module rendered the public "Members only" panel in the canvas too, so its
+  manager could never see their own standings tile. The canvas renders the
+  widget and puts a "Members only on your site" badge on the frame.
+- **Focus follows the work**: the properties and theme panels take focus
+  when they open; `LargerWindow` (picker, gallery, the in-app windows)
+  focuses itself on open, returns focus to its opener on close, and cycles
+  Tab inside; `ConfirmModal` is a real dialog (`role`, `aria-modal`,
+  `aria-labelledby`), Escape cancels it, focus lands on Cancel.
+- **Names and semantics**: the picker's ten identical "Add" buttons are
+  "Add Staff", "Add another Standings"…; the template and typeface groups
+  are radio groups (`role="radiogroup"` / `role="radio"` + `aria-checked`)
+  instead of pressed buttons; the checklist chips carry their hint as text
+  for a screen reader (a `title` on a disabled button is never announced).
+- e2e (`org-site-editor`): focus a tile header, Enter → the panel opens and
+  holds focus; forty Tabs never land inside a tile body; Escape cancels the
+  discard confirm.
+
 ## September 10, 2026 — Site Builder backlog B3: editor polish (zero DDL)
 
 - **Panels stay in view** (`SiteBuilder`, both asides): the properties and
