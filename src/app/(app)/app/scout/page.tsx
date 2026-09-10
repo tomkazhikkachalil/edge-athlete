@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useAuth } from '@/lib/auth';
 import AppHeader from '@/components/AppHeader';
 import { isScoutAccount } from '@/lib/recruiting/scout-access';
+import ScoutShortlist from '@/components/recruiting/ScoutShortlist';
 
 // ── /app/scout — the scout's home (Recruiting skeleton R2) ────────────────
 // The shell: R3 fills it with the shortlist, R4 with "Find athletes". Only
@@ -63,12 +64,8 @@ export default function ScoutHomePage() {
         {profile?.scout_affiliation && <p className="mt-1 text-sm text-secondary">{profile.scout_affiliation}</p>}
       </header>
       <section aria-label="Shortlist" className="bg-surface rounded-lg border border-border p-4 sm:p-6">
-        <h2 className="text-lg font-semibold text-primary mb-1">Shortlist</h2>
-        <p className="text-sm text-tertiary">
-          Athletes you shortlist from their profiles will collect here. Find recruitable athletes on{' '}
-          <Link href="/explore" className="text-brand-fg hover:text-brand-fg-strong font-medium">Explore</Link>
-          {' '}— open profiles show a Recruiting card.
-        </p>
+        <h2 className="text-lg font-semibold text-primary mb-3">Shortlist</h2>
+        <ScoutShortlist />
       </section>
     </div>
   );

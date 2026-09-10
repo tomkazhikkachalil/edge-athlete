@@ -47,6 +47,9 @@ export const RATE_LIMITS = {
   // results, stat lines, media). Same budget as the other anonymous reads:
   // a person clicking around never nears 120/min; enumeration crawls.
   'contest-view': { max: 120, windowSeconds: 60, keyBy: 'ip' },
+  // Recruiting skeleton R3: a scout's shortlist writes (add / note / remove)
+  // — deliberate acts by a signed-in scout; generous, per account.
+  'scout-shortlist': { max: 120, windowSeconds: 3600, keyBy: 'user' },
   // ⌘K + Explore search — anonymous-reachable fan-out over profiles, posts,
   // clubs and courses (search_all, migration 112). Same budget and rationale
   // as course-search: a typing user fires one debounced request per
