@@ -38,7 +38,9 @@ export async function POST(request: NextRequest) {
     // Org staff program (mig 178): the organizer actor — same shape as the
     // guardian branch (no handle, no DOB gate), user_type 'organizer'.
     const isOrganizer = body.actorRole === 'organizer';
-    const noHandle = isGuardian || isOrganizer;
+    // Recruiting skeleton (mig 182): the scout actor — the organizer's shape.
+    const isScout = body.actorRole === 'scout';
+    const noHandle = isGuardian || isOrganizer || isScout;
 
     // display_name has a not-empty check constraint — require a first name.
     if (!first_name) {
@@ -202,7 +204,7 @@ export async function POST(request: NextRequest) {
       first_name,
       last_name: last_name || null,
       // Parents and organizers: no handle (the /api/signup branches' exact shape).
-      user_type: isGuardian ? 'parent' : isOrganizer ? 'organizer' : 'athlete',
+      user_type: isGuardian ? 'parent' : isOrganizer ? 'organizer' : isScout ? 'scout' : 'athlete',
       full_name: fullName || null,
       handle: noHandle ? null : handle,
       display_name: fullName || (noHandle ? first_name : handle) || 'Athlete',

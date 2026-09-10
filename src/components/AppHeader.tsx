@@ -571,6 +571,20 @@ export default function AppHeader({ onCreatePost, onEditProfile }: AppHeaderProp
                               <span>Family console</span>
                             </button>
                           )}
+                          {/* Recruiting skeleton (mig 182): the scout's door. */}
+                          {profile?.user_type === 'scout' && (
+                            <button
+                              onClick={() => {
+                                router.push('/app/scout');
+                                setIsProfileDropdownOpen(false);
+                              }}
+                              className="w-full text-left px-4 py-2 text-sm text-brand-fg-strong hover:bg-brand-soft flex items-center gap-3"
+                              data-scout-menu=""
+                            >
+                              <i className="fas fa-binoculars w-4"></i>
+                              <span>Scouting</span>
+                            </button>
+                          )}
                           {/* Org staff program (mig 178): organizers' door to their orgs card. */}
                           {profile?.user_type === 'organizer' && (
                             <button
@@ -834,6 +848,19 @@ export default function AppHeader({ onCreatePost, onEditProfile }: AppHeaderProp
                   >
                     <i className="fas fa-people-roof w-5 text-center"></i>
                     <span className="font-medium">Family console</span>
+                  </button>
+                )}
+                {profile?.user_type === 'scout' && (
+                  <button
+                    onClick={() => {
+                      router.push('/app/scout');
+                      setIsMobileMenuOpen(false);
+                    }}
+                    className="flex items-center gap-3 w-full px-4 py-3 text-left text-brand-fg-strong hover:bg-brand-soft rounded-lg transition-colors"
+                    data-scout-menu=""
+                  >
+                    <i className="fas fa-binoculars w-5 text-center"></i>
+                    <span className="font-medium">Scouting</span>
                   </button>
                 )}
                 {profile?.user_type === 'organizer' && (
