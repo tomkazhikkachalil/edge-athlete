@@ -102,6 +102,26 @@ export interface QaUserOptions {
   displayName?: string;
   firstName?: string;
   lastName?: string;
+  /** Exact address instead of the random edgeqa-* one. Only for
+   *  adminEmailForE2E(): the admin routes gate on ADMIN_EMAILS, which no
+   *  random address can join. Addresses outside edgeqa-* are NOT swept —
+   *  the spec that creates one deletes it in its own finally. */
+  email?: string;
+}
+
+/**
+ * The address a spec may create to sit on the target build's ADMIN_EMAILS —
+ * `E2E_ADMIN_EMAIL`, unset by default. The admin-positive specs skip without
+ * it (the allowlist is a server env; the QA users can never join it). Set it
+ * to an address that (a) the target build lists in ADMIN_EMAILS and (b) no
+ * real account owns — `edgeqa-admin@example.com` keeps it inside the sweep's
+ * prefix. Never a real person's address: the spec creates AND deletes the
+ * user.
+ */
+export function adminEmailForE2E(): string | null {
+  loadEnv();
+  const raw = process.env.E2E_ADMIN_EMAIL?.trim().toLowerCase();
+  return raw && raw.includes('@') ? raw : null;
 }
 
 /**
@@ -189,7 +209,7 @@ export async function createQaUser(opts: QaUserOptions = {}): Promise<QaUser> {
   const lastName = opts.lastName ?? 'QA';
   const admin = adminClient();
   const rand = Math.random().toString(36).slice(2, 10);
-  const email = `edgeqa-${rand}@example.com`;
+  const email = opts.email ?? `edgeqa-${rand}@example.com`;
   const password = `Qa!${Math.random().toString(36).slice(2, 12)}9`;
 
   const { data, error } = await admin.auth.admin.createUser({
