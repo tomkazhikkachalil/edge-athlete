@@ -31,8 +31,9 @@ import { RESERVED_ROOT_SLUGS } from './reserved';
 import { judgeSlug, suggestSlugs, type OrgIdentity } from './slug-policy';
 import { applyDraftAction, loadDraftSnapshot, loadSitePointers, publishDraft } from './revisions-server';
 import { readGalleryPicks } from './member-photo-gate';
-import { overlaySnapshot, parseSnapshot, type SnapshotAction } from '@/lib/site-builder/snapshot';
+import { overlaySnapshot, parseSnapshot, type SnapshotAction, type ApplyContext } from '@/lib/site-builder/snapshot';
 import { parseStoredLayout } from '@/lib/site-builder/layout-schema';
+import { NEUTRAL_ORG, type GalleryOrg } from '@/lib/site-builder/gallery';
 import type { SiteLayout } from '@/lib/site-builder/layout';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- matches the authz.ts Admin alias; schema-agnostic helper
@@ -198,6 +199,36 @@ async function loadOrgIdentity(
     sportKey: (data.sport_key as string | null) ?? null,
     city: (data.city as string | null) ?? null,
     region: (data.region as string | null) ?? null,
+  };
+}
+
+/** Phase 11: the org facts the gallery writes its content from — the
+ *  identity row plus the venues with coordinates (mig 141 lat/lng).
+ *  Tolerant: an unreadable list is an empty list; never throws. */
+export async function loadGalleryOrg(admin: Admin, side: OrgSide, orgId: string): Promise<GalleryOrg> {
+  const identity = await loadOrgIdentity(admin, side, orgId);
+  let venues: GalleryOrg['venues'] = [];
+  try {
+    const { data } = await admin
+      .from('venues')
+      .select('id, name, lat, lng')
+      .eq(orgColumn(side), orgId)
+      .order('name', { ascending: true })
+      .limit(50);
+    venues = (data ?? []).map(v => ({
+      id: v.id as string,
+      name: v.name as string,
+      lat: typeof v.lat === 'number' ? v.lat : null,
+      lng: typeof v.lng === 'number' ? v.lng : null,
+    }));
+  } catch {
+    venues = [];
+  }
+  return {
+    orgName: identity?.name ?? NEUTRAL_ORG(side).orgName,
+    city: identity?.city ?? null,
+    region: identity?.region ?? null,
+    venues,
   };
 }
 
@@ -490,11 +521,21 @@ export async function sitePATCH(
       action = input as SnapshotAction;
   }
 
-  const ctx = {
+  // Phase 11: a gallery entry re-lays the DRAFT layout — pre-180 the layout
+  // has nowhere to live, so the action answers the revisions' 409 rather than
+  // writing a template and theme live without it.
+  if (input.action === 'apply_gallery') {
+    const { support } = await loadSitePointers(admin, side, orgId);
+    if (support === 'pre180') {
+      return NextResponse.json({ error: 'Drafts and revisions need a database migration first (180)' }, { status: 409 });
+    }
+  }
+  const ctx: ApplyContext = {
     side,
-    // reset_order is the one action that needs the org's sport (the
-    // recommended order is sport-shaped); the read is skipped otherwise.
-    sportKey: input.action === 'reset_order' ? await loadOrgSport(admin, side, orgId) : null,
+    // reset_order and apply_gallery need the org's sport (the recommended
+    // order and the gallery's copy are sport-shaped); the read is skipped otherwise.
+    sportKey: input.action === 'reset_order' || input.action === 'apply_gallery' ? await loadOrgSport(admin, side, orgId) : null,
+    ...(input.action === 'apply_gallery' ? { gallery: await loadGalleryOrg(admin, side, orgId) } : {}),
   };
   const result = await applyDraftAction(admin, side, orgId, userId, action, ctx);
   switch (result.status) {
@@ -515,6 +556,9 @@ export async function sitePATCH(
   if (input.action === 'set_gallery_pick' || input.action === 'remove_gallery_pick') {
     const picks = result.snapshot ? readGalleryPicks(result.snapshot.modules.gallery?.config).length : 0;
     return NextResponse.json({ ok: true, picks, draft });
+  }
+  if (input.action === 'apply_gallery') {
+    return NextResponse.json({ ok: true, entryId: input.entryId, templateId: result.snapshot?.templateId ?? null, draft });
   }
   return NextResponse.json({ ok: true, draft });
 }

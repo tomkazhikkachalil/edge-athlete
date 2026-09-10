@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { EMBED_FRAME_HOSTS, embedSrc, embedTitle, parseEmbed, parseEmbedUrl } from '../embeds';
+import { EMBED_FRAME_HOSTS, embedSrc, embedTitle, osmEmbedAround, parseEmbed, parseEmbedUrl } from '../embeds';
 import { buildCsp, buildStaticCsp } from '@/lib/csp';
 
 // Phase 6: a pasted link becomes a STRUCTURE; the frame src is rebuilt from
@@ -86,6 +86,19 @@ describe('embeds', () => {
     expect(parseEmbed({ provider: 'gmaps', src: 'https://maps.google.com' })).toBeNull();
     expect(parseEmbed(null)).toBeNull();
     expect(parseEmbed('https://youtu.be/dQw4w9WgXcQ')).toBeNull();
+  });
+
+  it('osmEmbedAround (phase 11): a box around a point at a zoom, the point as marker; round-trips the parser and matches the share link', () => {
+    const e = osmEmbedAround(43.65, -79.38, 15);
+    expect(e.provider).toBe('osm');
+    expect(e.marker).toEqual([43.65, -79.38]);
+    expect(e.bbox[0]).toBeLessThan(-79.38);
+    expect(e.bbox[2]).toBeGreaterThan(-79.38);
+    expect(parseEmbed(e)).toEqual(e);
+    expect(parseEmbedUrl('https://www.openstreetmap.org/?mlat=43.65&mlon=-79.38#map=15/43.65/-79.38')).toEqual(e);
+    // Clamped at the edges; the zoom clamped 1..19.
+    expect(osmEmbedAround(89.99, 179.99, 1).bbox[3]).toBe(90);
+    expect(osmEmbedAround(0, 0, 99).bbox[2]).toBeGreaterThan(0);
   });
 
   it('the CSP frame-src in BOTH builders is exactly the provider list', () => {

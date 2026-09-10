@@ -8,7 +8,8 @@ import { isWidgetEmpty } from '@/lib/site-builder/emptiness';
 import { LayoutSchema, parseStoredLayout } from '@/lib/site-builder/layout-schema';
 import { instanceImagePaths, instanceSchemaFor } from '@/lib/site-builder/schemas';
 import { overlaySnapshot } from '@/lib/site-builder/snapshot';
-import { getSiteBySlugAnyStatus, type PublicSite } from './server';
+import { getSiteBySlugAnyStatus, loadGalleryOrg, type PublicSite } from './server';
+import type { GalleryOrg } from '@/lib/site-builder/gallery';
 import { ORG_MEDIA_PREFIX } from './pages-server';
 import { loadDraftSnapshot, loadSitePointers, writeDraftLayout } from './revisions-server';
 import { rawSiteReaders, resolveHomeData } from './widget-data';
@@ -48,6 +49,9 @@ export interface CanvasResponse {
   data: SiteHomeData;
   /** Phase 9: what a query widget can bind to (competitions, venues). */
   options: CanvasOptions;
+  /** Phase 11: the org facts the gallery writes its previews from — the
+   *  same the server applies, so a thumbnail never lies. */
+  gallery: GalleryOrg;
   resolvedAt: string;
 }
 
@@ -80,11 +84,12 @@ async function loadDraftSiteView(
 export async function canvasGET(admin: Admin, side: OrgSide, orgId: string): Promise<NextResponse> {
   const view = await loadDraftSiteView(admin, side, orgId);
   if (!view) return NextResponse.json({ error: 'Site not found' }, { status: 404 });
-  const [data, options] = await Promise.all([
+  const [data, options, gallery] = await Promise.all([
     resolveHomeData(rawSiteReaders(admin, view.site), view.site, view.layout),
     fetchCanvasOptions(admin, side, orgId),
+    loadGalleryOrg(admin, side, orgId),
   ]);
-  const body: CanvasResponse = { site: view.site, layout: view.layout, draft: view.draft, published: view.published, data, options, resolvedAt: new Date().toISOString() };
+  const body: CanvasResponse = { site: view.site, layout: view.layout, draft: view.draft, published: view.published, data, options, gallery, resolvedAt: new Date().toISOString() };
   return NextResponse.json(body, { headers: { 'Cache-Control': 'private, no-store' } });
 }
 

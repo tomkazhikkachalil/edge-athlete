@@ -10,6 +10,7 @@
 
 import { z } from 'zod';
 import { TEMPLATE_IDS } from './templates';
+import { GALLERY_ENTRY_IDS, GALLERY_MODES } from '@/lib/site-builder/gallery-ids';
 
 export { isMissingTableError } from '@/lib/leagues/validate';
 
@@ -691,6 +692,14 @@ export const SitePatchSchema = z.union([
   z.object({
     action: z.literal('set_template'),
     templateId: z.enum(TEMPLATE_IDS),
+  }),
+  // Site Builder phase 11: a gallery entry — family + design tokens + a seed
+  // plan laid over the draft layout ('keep' = the manager's tiles survive,
+  // 'clean' = their content tiles and repeats go first).
+  z.object({
+    action: z.literal('apply_gallery'),
+    entryId: z.enum(GALLERY_ENTRY_IDS),
+    mode: z.enum(GALLERY_MODES).optional(),
   }),
   z.object({ action: z.literal('reset_order') }),
   z.object({
