@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { adminClient, apiAs, loadQaUser, readErrorBody, resetRateBucket } from './helpers/qa-user';
+import { settleBody, settleStatus } from './helpers/isr';
 import { publishSite } from './helpers/org-site';
 
 // The golf club page, part 2 (phase 6b A2): the public site's `courses`
@@ -8,38 +9,7 @@ import { publishSite } from './helpers/org-site';
 // JSON-LD), the catalog answers "Home of" for that course, disabling the
 // module 404s the subpage, and the sitemap carries the subpage URL.
 
-/** Body-content settle (ISR + SWR + multi-POP): poll until the body
- *  contains (or no longer contains) the needle. */
-async function settleBody(
-  request: { get: (u: string) => Promise<{ text: () => Promise<string> }> },
-  url: string,
-  needle: string,
-  shouldContain = true,
-  attempts = 8
-): Promise<string> {
-  let body = '';
-  for (let i = 0; i < attempts; i++) {
-    body = await (await request.get(url)).text();
-    if (body.includes(needle) === shouldContain) return body;
-    await new Promise(r => setTimeout(r, 2500));
-  }
-  return body;
-}
 
-async function settle(
-  request: { get: (u: string) => Promise<{ status: () => number }> },
-  url: string,
-  expected: number,
-  attempts = 8
-): Promise<number> {
-  let last = 0;
-  for (let i = 0; i < attempts; i++) {
-    last = (await request.get(url)).status();
-    if (last === expected) return last;
-    await new Promise(r => setTimeout(r, 2500));
-  }
-  return last;
-}
 
 test('org site courses: link → enable → home + /courses + JSON-LD → Home of → disable 404 → sitemap; 375px', async ({
   browser,
@@ -164,7 +134,7 @@ test('org site courses: link → enable → home + /courses + JSON-LD → Home o
       expect(res.status(), await readErrorBody(res)).toBe(200);
       // P2-B: edits land in the draft — publish before reading the public projection.
       await publishSite(ownerApi, 'club', clubId);
-      expect(await settle(anonCtx.request, `${sitePath}/courses`, 404, 12)).toBe(404);
+      expect(await settleStatus(anonCtx.request, `${sitePath}/courses`, 404, 12)).toBe(404);
     } finally {
       await anonCtx.close();
     }

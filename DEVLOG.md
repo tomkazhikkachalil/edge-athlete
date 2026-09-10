@@ -1,5 +1,38 @@
 # Development Log
 
+## September 10, 2026 — Site Builder backlog B6: e2e hardening — the last flake copies gone, honest assertions, seven more flows covered
+
+- **One polling helper**: the nine remaining `settleBody` copies (golf
+  weeks / season calendar, announce, courses / course page / course stats,
+  identity, golf leaders, two pages) and the two `settle` status copies now
+  import `helpers/isr.ts` — the versions that THROW on exhaustion. Every
+  private copy returned the last body regardless, so a page that never
+  turned over left its spec green with nothing asserted.
+- **The ISR byte-compare is gone**: the editor spec compared two whole
+  public documents (scripts stripped) to prove a draft edit changed nothing
+  live — any relative date or background revalidation between the two
+  fetches failed it. It now asserts what the page must NOT carry yet (the
+  draft's title, headline and paragraph) and what it must (the org name).
+- **Seven flows that had no spec**: the panel's "Who sees it" control writes
+  the instance's audience (`members`, then back); the theme panel's three
+  design selects (Spacing / Teams / Background) save to the tokens; the
+  checklist's photo, welcome and fill chips select the right tile; the
+  console's "Take site offline" click 404s the public home and "Take site
+  live" brings it back; a bad preview token is a 404 before any read; the
+  gallery's KEEP mode from the UI keeps a manager's own paragraph through a
+  second design; an EMPTY content tile reaches the in-app composition for
+  the manager only (the door) and never for a visitor.
+- **A spec red since P10-C**: `org-site-identity` still read the console's
+  hero and contact form fields, which the console collapse moved into the
+  editor — it never appeared in a site-builder regression set, so nobody
+  saw it fail. Re-anchored: the values through the console's site GET, the
+  console page at 375 showing the editor door with no overflow.
+- **Owed, not built**: an admin-positive test of the dashboard's metrics
+  panel — `createQaUser` cannot mint a user on the server's `ADMIN_EMAILS`
+  allowlist, so the panel stays Tom's login to check. The shared QA user vs
+  `workers > 1` stays a documented constraint (`playwright.config.ts`
+  `workers: 1`).
+
 ## September 10, 2026 — Site Builder backlog B5: server cleanup — headers, constants, dead code, one discriminated union, cheaper reads, the token first, an assets DELETE (zero DDL)
 
 - **Headers that lied**: the assets, preview and site routes said

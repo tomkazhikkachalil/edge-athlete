@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { adminClient, apiAs, loadQaUser, readErrorBody, resetRateBucket } from './helpers/qa-user';
+import { settleBody } from './helpers/isr';
 
 // Golf sites, part 4 (phase 6e S4): the season on the schedule and the
 // calendar. The season generator publishes each play window as an
@@ -10,21 +11,6 @@ import { adminClient, apiAs, loadQaUser, readErrorBody, resetRateBucket } from '
 // events; a window move re-derives the event's bounds; "Publish season"
 // is idempotent. Self-skips pre-172.
 
-async function settleBody(
-  request: { get: (u: string) => Promise<{ text: () => Promise<string> }> },
-  url: string,
-  needle: string,
-  shouldContain = true,
-  attempts = 8
-): Promise<string> {
-  let body = '';
-  for (let i = 0; i < attempts; i++) {
-    body = await (await request.get(url)).text();
-    if (body.includes(needle) === shouldContain) return body;
-    await new Promise(r => setTimeout(r, 2500));
-  }
-  return body;
-}
 
 const utcToday = () => new Date().toISOString().slice(0, 10);
 const addDays = (iso: string, days: number) => {

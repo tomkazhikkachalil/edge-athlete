@@ -108,6 +108,24 @@ test('org site: a gallery entry re-lays the draft — family, tokens, a welcome 
     // simple + clean = hero, welcome, schedule, contact — the rest omitted.
     expect(canvas.layout.widgets.map(w => w.key).sort()).toEqual(['contact', 'hero', 'schedule', 'text']);
 
+    // B6: an EMPTY content tile reaches the in-app composition for managers only (the door), never for a visitor.
+    canvas = (await (await ownerApi.get(`/api/leagues/${leagueId}/site/canvas`)).json()) as Canvas;
+    const emptyTile: CanvasWidget = { id: 'w_000000000000b6e1', key: 'text', x: 0, y: Math.max(...canvas.layout.widgets.map(w => w.y + w.h)), w: 12, h: 3, cv: 1, visibility: 'public', config: { blocks: [] } };
+    res = await ownerApi.put(`/api/leagues/${leagueId}/site/draft`, { data: { layout: { ...canvas.layout, widgets: [...canvas.layout.widgets, emptyTile] } } });
+    expect(res.status(), await readErrorBody(res)).toBe(200);
+    await publishSite(ownerApi, 'league', leagueId);
+    const ownerOrg = (await (await ownerApi.get(`/api/leagues/${leagueId}`)).json()) as { composition: { widgets: { id: string; tile?: unknown }[] } | null };
+    const door = ownerOrg.composition?.widgets.find(w => w.id === emptyTile.id);
+    expect(door, 'managers get the empty tile as a door').toBeDefined();
+    expect(door!.tile).toBeUndefined();
+    const anonApi = await browser.newContext({ storageState: { cookies: [], origins: [] } });
+    try {
+      const anonOrg = (await (await anonApi.request.get(`/api/leagues/${leagueId}`)).json()) as { composition: { widgets: { id: string }[] } | null };
+      expect(anonOrg.composition?.widgets.some(w => w.id === emptyTile.id) ?? false).toBe(false);
+    } finally {
+      await anonApi.close();
+    }
+
     // Back to the scoreboard, published: the public page carries the welcome and the OSM frame.
     res = await ownerApi.patch(`/api/leagues/${leagueId}/site`, { data: { action: 'apply_gallery', entryId: 'team-scoreboard', mode: 'clean' } });
     expect(res.status(), await readErrorBody(res)).toBe(200);
@@ -207,6 +225,27 @@ test('org site: a fresh site’s first editor visit opens the gallery — skip k
       expect(canvas.site.template_id).toBe('bold');
       // The renamed section kept its title through the design (the flush landed first; keep/clean both keep module titles).
       expect(canvas.layout.widgets.some(w => w.config.title === `Kept ${stamp}`)).toBe(true);
+      // B6: KEEP mode from the UI — a manager's own paragraph survives a second design.
+      const mineTile: CanvasWidget = { id: 'w_000000000000b6a1', key: 'text', x: 0, y: Math.max(...canvas.layout.widgets.map(w => w.y + w.h)), w: 12, h: 3, cv: 1, visibility: 'public', config: { blocks: [{ type: 'paragraph', text: `Mine ${stamp}` }] } };
+      res = await ownerApi.put(`/api/leagues/${leagueId}/site/draft`, { data: { layout: { ...canvas.layout, widgets: [...canvas.layout.widgets, mineTile] } } });
+      expect(res.status(), await readErrorBody(res)).toBe(200);
+      await page.reload();
+      await expect(page.locator('[data-sb-canvas]')).toBeVisible({ timeout: 30_000 });
+      await page.getByRole('button', { name: 'Start from', exact: true }).click();
+      await expect(gallery).toBeVisible();
+      await gallery.locator('[data-sb-gallery-mode="keep"]').check();
+      await gallery.locator('[data-sb-gallery-card="simple"] [data-sb-gallery-use]').click();
+      await expect(gallery).toBeHidden({ timeout: 15_000 });
+      await expect(page.locator('[data-sb-canvas][data-template="classic"]')).toBeVisible({ timeout: 30_000 });
+      await expect(page.locator(`[data-sb-instance="${mineTile.id}"]`)).toBeVisible();
+      canvas = (await (await ownerApi.get(`/api/leagues/${leagueId}/site/canvas`)).json()) as Canvas;
+      expect(canvas.layout.widgets.some(w => w.id === mineTile.id)).toBe(true);
+      // Back to the scoreboard for the rest of the flow.
+      await page.getByRole('button', { name: 'Start from', exact: true }).click();
+      await gallery.locator('[data-sb-gallery-mode="clean"]').check();
+      await gallery.locator('[data-sb-gallery-card="team-scoreboard"] [data-sb-gallery-use]').click();
+      await expect(gallery).toBeHidden({ timeout: 15_000 });
+      await expect(page.locator('[data-sb-canvas][data-template="bold"]')).toBeVisible({ timeout: 30_000 });
       // The arrange step is done (the checklist counts a design as arranging); the gallery is not re-offered on reload.
       await expect(page.locator('[data-sb-checklist-step="arrange"]')).toHaveAttribute('data-done', '1');
       await page.reload();

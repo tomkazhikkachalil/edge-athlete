@@ -97,6 +97,17 @@ test('org site editor: canvas → drag → autosave → undo → reload; phone n
       await expect(page.locator('[data-sb-theme-panel]')).toBeVisible();
       await page.getByRole('button', { name: 'Close theme panel' }).click();
       await expect(page.locator('[data-sb-theme-panel]')).toBeHidden();
+      // B6: the photo and welcome steps select the hero; the fill step selects the first empty live tile.
+      await rail.locator('[data-sb-checklist-step="photo"]').click();
+      await expect(page.locator('[data-sb-panel="hero"]')).toBeVisible();
+      await rail.locator('[data-sb-checklist-step="welcome"]').click();
+      await expect(page.locator('[data-sb-panel="hero"]')).toBeVisible();
+      if ((await rail.locator('[data-sb-checklist-step="fill"][data-done="0"]').count()) > 0) {
+        await rail.locator('[data-sb-checklist-step="fill"]').click();
+        await expect(page.locator('[data-sb-panel]:not([data-sb-panel="hero"])')).toBeVisible();
+      }
+      await page.locator('[data-sb-widget="hero"] .sb-frame-controls').click();
+      await expect(page.locator('[data-sb-panel="hero"]')).toBeVisible();
 
       // Drag the second tile down by two rows: one gesture, one undo step, one autosave.
       const second = tiles.nth(1);
@@ -270,6 +281,12 @@ test('org site editor: canvas → drag → autosave → undo → reload; phone n
       const panel = page.locator(`[data-sb-panel="${targetKey}"]`);
       await expect(panel).toBeVisible();
       await panel.getByLabel('Section title').fill(`Our ${targetKey} ${stamp}`);
+      // B6: the visibility control writes the instance's audience (members → public again below).
+      await panel.getByLabel('Who sees it').selectOption('members');
+      await awaitDraftSaved(page);
+      const vis = (await (await ownerApi.get(`/api/leagues/${leagueId}/site/canvas`)).json()) as { layout: { widgets: { key: string; visibility: string }[] } };
+      expect(vis.layout.widgets.find(w => w.key === targetKey)?.visibility).toBe('members');
+      await panel.getByLabel('Who sees it').selectOption('public');
       await expect(target.locator('.sb-frame-controls')).toContainText(`Our ${targetKey} ${stamp}`);
       await awaitDraftSaved(page);
       // The hero's CONTENT goes through set_hero (the console's own write) and the canvas re-reads it.
@@ -429,7 +446,17 @@ test('org site editor: canvas → drag → autosave → undo → reload; phone n
       // Nothing written yet: the console still holds oswald + band.
       const unsaved = (await (await ownerApi.get(`/api/leagues/${leagueId}/site`)).json()) as { site: { theme_token_set: Record<string, unknown> } };
       expect(unsaved.site.theme_token_set).toMatchObject({ accent: '#1d4ed8', typeface: 'oswald', header: 'band' });
+      // B6: the three design selects the panel offers (density / teams / surface).
+      await themePanel.getByLabel('Spacing', { exact: true }).selectOption('compact');
+      await themePanel.getByLabel('Teams', { exact: true }).selectOption('tiles');
+      await themePanel.getByLabel('Background', { exact: true }).selectOption('tinted');
       await themePanel.getByRole('button', { name: 'Save theme' }).click();
+      await expect
+        .poll(async () => {
+          const c = (await (await ownerApi.get(`/api/leagues/${leagueId}/site/canvas`)).json()) as { site: { theme_token_set: Record<string, unknown> } };
+          return [c.site.theme_token_set.density, c.site.theme_token_set.teams, c.site.theme_token_set.surface].join(',');
+        }, { timeout: 15_000 })
+        .toBe('compact,tiles,tinted');
       await expect(themePanel).toBeHidden({ timeout: 20_000 });
       const savedTheme = (await (await ownerApi.get(`/api/leagues/${leagueId}/site`)).json()) as { site: { theme_token_set: Record<string, unknown> } };
       expect(savedTheme.site.theme_token_set).toMatchObject({ accent: '#0f766e', typeface: 'lora', header: 'bar', hero: 'bleed', density: 'compact' });
@@ -454,10 +481,15 @@ test('org site editor: canvas → drag → autosave → undo → reload; phone n
       const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
       expect(overflow).toBeLessThanOrEqual(1);
 
-      // The public page is untouched by draft layout edits.
+      // The public page is untouched by draft edits — asserted by what it must
+      // NOT carry yet (B6: a byte-compare of two ISR documents failed on any
+      // relative date or background revalidation between the fetches).
       const publicAfter = await (await anon.request.get(`/org/${subdomain}`)).text();
-      const strip = (h: string) => h.replace(/<script[\s\S]*?<\/script>/g, '').replace(/<meta name="(sentry-trace|baggage)"[^>]*>/g, '');
-      expect(strip(publicAfter)).toBe(strip(publicBefore));
+      expect(publicAfter).toContain(`QA Editor League ${stamp}`);
+      expect(publicAfter).not.toContain(`Our staff ${stamp}`);
+      expect(publicAfter).not.toContain(`Hello ${stamp}`);
+      expect(publicAfter).not.toContain(`Story ${stamp}`);
+      expect(publicBefore).toContain(`QA Editor League ${stamp}`);
 
       // P3-C closes the loop: publish → the public grid renders the moved layout
       // in reading order (the DOM order of the tiles follows the coordinates).

@@ -2,6 +2,7 @@ import { test, expect } from '@playwright/test';
 import path from 'node:path';
 import fs from 'node:fs';
 import { adminClient, apiAs, loadQaUser, readErrorBody, resetRateBucket } from './helpers/qa-user';
+import { settleBody, settleStatus } from './helpers/isr';
 import { publishSite } from './helpers/org-site';
 
 // Golf sites, part 2 (phase 6e S2): a page per course. The org-gated
@@ -12,36 +13,7 @@ import { publishSite } from './helpers/org-site';
 // re-asserted), and the sitemap carries the page. A course the org's
 // venues don't link 404s indistinguishably; module off → 404.
 
-async function settleBody(
-  request: { get: (u: string) => Promise<{ text: () => Promise<string> }> },
-  url: string,
-  needle: string,
-  shouldContain = true,
-  attempts = 8
-): Promise<string> {
-  let body = '';
-  for (let i = 0; i < attempts; i++) {
-    body = await (await request.get(url)).text();
-    if (body.includes(needle) === shouldContain) return body;
-    await new Promise(r => setTimeout(r, 2500));
-  }
-  return body;
-}
 
-async function settle(
-  request: { get: (u: string) => Promise<{ status: () => number }> },
-  url: string,
-  expected: number,
-  attempts = 8
-): Promise<number> {
-  let last = 0;
-  for (let i = 0; i < attempts; i++) {
-    last = (await request.get(url)).status();
-    if (last === expected) return last;
-    await new Promise(r => setTimeout(r, 2500));
-  }
-  return last;
-}
 
 test('course page: hole SVGs from OSM geometry, section label, phone, directions, JSON-LD, photo, sitemap; foreign/unknown 404; 375px', async ({
   browser,
@@ -212,7 +184,7 @@ test('course page: hole SVGs from OSM geometry, section label, phone, directions
     expect(res.status()).toBe(200);
     // P2-B: edits land in the draft — publish before reading the public projection.
     await publishSite(ownerApi, 'club', clubId);
-    expect(await settle(anonCtx.request, pageUrl, 404, 12)).toBe(404);
+    expect(await settleStatus(anonCtx.request, pageUrl, 404, 12)).toBe(404);
   } finally {
     await ownerApi.dispose();
     await anonCtx.close();
