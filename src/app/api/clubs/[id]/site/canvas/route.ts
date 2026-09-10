@@ -6,8 +6,8 @@ import { UUID_RE } from '@/lib/golf/course-catalog';
 
 // ── /api/clubs/[id]/site/canvas — the editor's one read (Site Builder P3-B):
 // the DRAFT view of the site, the layout it edits, the draft's rev, and the
-// home data resolved against that layout. manage_site; 404 when
-// FEATURE_SITE_BUILDER is off (a SURFACE switch).
+// home data resolved against that layout. manage_site (the surface flag
+// that once 404'd this route retired in P10-C).
 
 export async function GET(
   request: NextRequest,

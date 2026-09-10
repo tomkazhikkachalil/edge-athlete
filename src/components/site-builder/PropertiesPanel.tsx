@@ -54,7 +54,7 @@ export default function PropertiesPanel({ site, widget, plural, orgId, options, 
   const fields = fieldsFor(key);
   const instanceFields = fields.filter(f => f.scope === 'instance');
   const queryFields = fields.filter((f): f is Extract<FieldSpec, { scope: 'query' }> => f.scope === 'query');
-  const contentFields = fields.filter((f): f is Exclude<FieldSpec, { kind: 'visibility' | 'blocks' | 'image' | 'embed' | 'select' | 'number' }> => f.scope === 'content');
+  const contentFields = fields.filter((f): f is Exclude<FieldSpec, { kind: 'visibility' | 'blocks' | 'embed' | 'select' | 'number' }> => f.scope === 'content');
   const action = contentActionFor(key);
   const config = asConfig(widget.config);
 
@@ -79,13 +79,18 @@ export default function PropertiesPanel({ site, widget, plural, orgId, options, 
   };
 
   // Content draft: seeded from the org object; saved as a whole object.
+  // Nested names ('social.instagram') read one level down; 'address' (an
+  // array of lines) reads as one line per row.
+  const readContent = (content: Record<string, unknown>, name: string): string => {
+    if (name === 'address') return Array.isArray(content.address) ? content.address.filter((l): l is string => typeof l === 'string').join('\n') : '';
+    const [head, tail] = name.split('.');
+    const v = tail ? asConfig(content[head])[tail] : content[name];
+    return typeof v === 'string' ? v : '';
+  };
   const seed = () => {
     const content = contentConfigFor(site, key);
     const out: Record<string, string> = {};
-    for (const f of contentFields) {
-      const v = content[f.name];
-      out[f.name] = typeof v === 'string' ? v : '';
-    }
+    for (const f of contentFields) out[f.name] = readContent(content, f.name);
     return out;
   };
   // Seeded once per mount — the editor mounts this panel with key={instance
@@ -93,28 +98,25 @@ export default function PropertiesPanel({ site, widget, plural, orgId, options, 
   const [content, setContent] = useState<Record<string, string>>(seed);
   const [saving, setSaving] = useState(false);
 
-  const dirty = contentFields.some(f => (content[f.name] ?? '') !== ((contentConfigFor(site, key)[f.name] as string | undefined) ?? ''));
+  const dirty = contentFields.some(f => (content[f.name] ?? '') !== readContent(contentConfigFor(site, key), f.name));
 
   const saveContent = async () => {
     if (!action) return;
     setSaving(true);
     try {
-      const existing = contentConfigFor(site, key);
       const payload: Record<string, unknown> = { action };
-      // Whole-object replace: every field the console sends, seeded from the
-      // saved content for the ones this panel does not show (image, alt, socials…).
-      if (action === 'set_hero') {
-        payload.imagePath = existing.imagePath;
-        payload.imageAlt = existing.imageAlt;
-      }
-      if (action === 'set_contact') {
-        payload.address = existing.address;
-        payload.social = existing.social;
-      }
+      // Whole-object replace: every field the console's form used to send is
+      // on this panel now (P10-C parity), so nothing is carried over blind.
+      // 'address' → its non-empty lines (≤ 3); 'social.x' → nested.
+      const social: Record<string, string> = {};
       for (const f of contentFields) {
         const v = content[f.name]?.trim();
-        if (v) payload[f.name] = v;
+        if (!v) continue;
+        if (f.name === 'address') payload.address = v.split('\n').map(l => l.trim()).filter(Boolean).slice(0, 3);
+        else if (f.name.startsWith('social.')) social[f.name.slice(7)] = v;
+        else payload[f.name] = v;
       }
+      if (Object.keys(social).length > 0) payload.social = social;
       const res = await fetch(`/api/${plural}/${orgId}/site`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
@@ -280,7 +282,22 @@ export default function PropertiesPanel({ site, widget, plural, orgId, options, 
       {contentFields.length > 0 && (
         <fieldset className="space-y-3 border-t border-border pt-4">
           <legend className="text-xs font-medium text-secondary">Content</legend>
-          {contentFields.map(f => (
+          {contentFields.map(f =>
+            f.kind === 'image' ? (
+              // P10-C parity: the hero photo — the same uploader, writing the
+              // content draft (saved with the headline by "Save content").
+              <ImageField
+                key={f.name}
+                id={`sb-${widget.id}-${f.name}`}
+                label={f.label}
+                siteId={site.id}
+                plural={plural}
+                orgId={orgId}
+                config={{ path: content[f.name] ?? '', alt: content.imageAlt ?? '' }}
+                onPatch={patch => setContent(c => ({ ...c, [f.name]: typeof patch.path === 'string' ? patch.path : '' }))}
+                showError={showError}
+              />
+            ) : (
             <div key={f.name}>
               <label className={LABEL} htmlFor={`sb-${widget.id}-${f.name}`}>
                 {f.label}
@@ -306,7 +323,8 @@ export default function PropertiesPanel({ site, widget, plural, orgId, options, 
               )}
               {f.help && <p className="mt-1 text-xs text-tertiary">{f.help}</p>}
             </div>
-          ))}
+            )
+          )}
           <button
             type="button"
             onClick={() => void saveContent()}

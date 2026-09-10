@@ -2,9 +2,8 @@ import { test, expect } from '@playwright/test';
 import { adminClient, apiAs, loadQaUser, readErrorBody, resetRateBucket } from './helpers/qa-user';
 import { revisionsSupported } from './helpers/org-site';
 
-// Site Builder P3-B: the grid editor behind FEATURE_SITE_BUILDER. Skips
-// (green) when the target build has the flag off (the canvas route answers
-// 404 "Not available") or lacks migration 180. With both: the canvas loads
+// Site Builder P3-B: the grid editor (the Website section's door since
+// P10-C). Skips (green) when the target database lacks migration 180. With both: the canvas loads
 // the real page as tiles, a drag commits a layout the draft stores (rev
 // bumps), undo restores, the layout survives a reload, the phone shows the
 // notice with working doors, and the public page is untouched.
@@ -40,7 +39,6 @@ test('org site editor: canvas → drag → autosave → undo → reload; phone n
     expect(res.status(), await readErrorBody(res)).toBe(200);
     test.skip(!(await revisionsSupported(ownerApi, 'league', leagueId)), 'org_site_revisions missing — run migration 180');
     const canvasRes = await ownerApi.get(`/api/leagues/${leagueId}/site/canvas`);
-    test.skip(canvasRes.status() === 404, 'FEATURE_SITE_BUILDER is off for this build');
     expect(canvasRes.status(), await readErrorBody(canvasRes)).toBe(200);
     const canvas = (await canvasRes.json()) as { layout: { widgets: { id: string; key: string; x: number; y: number; w: number }[] }; draft: unknown };
     // No draft yet: the layout is the linear projection (full-width rows).
@@ -181,6 +179,29 @@ test('org site editor: canvas → drag → autosave → undo → reload; phone n
       // The console's GET sees the same draft content (one write, two surfaces).
       const draftView = (await (await ownerApi.get(`/api/leagues/${leagueId}/site`)).json()) as { site: { hero_config: { headline?: string } } };
       expect(draftView.site.hero_config.headline).toBe(`Hello ${stamp}`);
+      // P10-C parity: the welcome photo and the contact address / socials are
+      // on the panel now (the console forms are gone) — saved through the same actions.
+      await heroPanel.locator('input[type="file"]').setInputFiles('e2e/fixtures/photo.png');
+      await expect(heroPanel.locator('[data-sb-image-preview]')).toBeVisible({ timeout: 20_000 });
+      await heroPanel.getByLabel('Describe the photo', { exact: true }).fill(`Clubhouse ${stamp}`);
+      await heroPanel.getByRole('button', { name: 'Save content' }).click();
+      await expect(page.locator('[data-sb-widget="hero"] img')).toBeVisible({ timeout: 20_000 });
+      const heroSaved = (await (await ownerApi.get(`/api/leagues/${leagueId}/site`)).json()) as { site: { hero_config: { headline?: string; imagePath?: string; imageAlt?: string } } };
+      expect(heroSaved.site.hero_config.headline).toBe(`Hello ${stamp}`);
+      expect(heroSaved.site.hero_config.imagePath).toMatch(/^org-media\/[0-9a-f-]{36}\/[a-z0-9-]+\.png$/);
+      expect(heroSaved.site.hero_config.imageAlt).toBe(`Clubhouse ${stamp}`);
+      await page.locator('[data-sb-widget="contact"] .sb-frame-controls').click();
+      const contactPanel = page.locator('[data-sb-panel="contact"]');
+      await expect(contactPanel).toBeVisible();
+      await contactPanel.getByLabel('Email', { exact: true }).fill(`hello-${stamp}@example.com`);
+      await contactPanel.getByLabel('Address', { exact: true }).fill(`1 Rink Road\nToronto ON`);
+      await contactPanel.getByLabel('Instagram', { exact: true }).fill('https://instagram.com/qa-league');
+      await contactPanel.getByRole('button', { name: 'Save content' }).click();
+      await expect(page.locator('[data-sb-widget="contact"]')).toContainText('1 Rink Road', { timeout: 20_000 });
+      const contactSaved = (await (await ownerApi.get(`/api/leagues/${leagueId}/site`)).json()) as { site: { contact_config: { email?: string; address?: string[]; social?: { instagram?: string } } } };
+      expect(contactSaved.site.contact_config.email).toBe(`hello-${stamp}@example.com`);
+      expect(contactSaved.site.contact_config.address).toEqual(['1 Rink Road', 'Toronto ON']);
+      expect(contactSaved.site.contact_config.social?.instagram).toBe('https://instagram.com/qa-league');
 
       // Phase 6 (P6-B): the picker's "Your own content" — add a Text section,
       // its panel opens at once (a content tile is empty until written); type
@@ -296,9 +317,10 @@ test('org site editor: canvas → drag → autosave → undo → reload; phone n
       const savedTheme = (await (await ownerApi.get(`/api/leagues/${leagueId}/site`)).json()) as { site: { theme_token_set: Record<string, unknown> } };
       expect(savedTheme.site.theme_token_set).toMatchObject({ accent: '#0f766e', typeface: 'lora', header: 'bar', hero: 'bleed', density: 'compact' });
       expect(savedTheme.site.theme_token_set.accentStrong).toBeUndefined();
-      // The colours step is done once the theme is saved; the welcome step was done by the hero headline.
-      await expect(rail.locator('[data-sb-checklist-step="colours"]')).toHaveAttribute('data-done', '1');
-      await expect(rail.locator('[data-sb-checklist-step="welcome"]')).toHaveAttribute('data-done', '1');
+      // Every required step is done now (colours by this save; the photo and the
+      // welcome by the hero panel; arrange by the drag; publish above) — the rail
+      // is derived, so it is simply gone.
+      await expect(rail).toHaveCount(0);
       // The canvas wears the saved theme (and a later layout autosave still carries the bumped rev).
       await expect(page.locator('[data-sb-canvas][data-typeface="lora"]')).toBeVisible();
       expect(await canvasEl.evaluate(el => getComputedStyle(el).getPropertyValue('--org-accent').trim())).toBe('#0f766e');

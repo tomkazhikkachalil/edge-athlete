@@ -267,9 +267,8 @@ after a publish; a fresh draft inheriting the published layout), the
 checklist rail. CLAUDE.md convention 12 names every invariant.
 
 `main` is at the #634 merge (32d86de5), deployed; the public renderer
-(grid, seeds, theme tokens, heading faces) is live for every site. The
-EDITOR is behind `NEXT_PUBLIC_FEATURE_SITE_BUILDER`, which is NOT on in
-production and is build-injected — turning it on needs a rebuild. Open:
+(grid, seeds, theme tokens, heading faces) is live for every site. The editor went live behind a flag on Sep 9 (Vercel env + rebuild) and
+became the Website section's door in phase 10 (P10-C, the flag retired). Open:
 (a) the rollout — flag on, a prod probe with a disposable org, a real
 branded club through the editor on Tom's phone and laptop, the one-hour
 metric read from `revisions.stats`; (b) the phase-3 leftover — several

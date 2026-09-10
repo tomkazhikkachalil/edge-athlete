@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { OrgSide } from '@/lib/orgs/authz';
-import { FEATURE_FLAGS } from '@/lib/features';
 import { newInstanceFor, validateLayout, type SiteLayout } from '@/lib/site-builder/layout';
 import { seedLayout } from '@/lib/site-builder/seeds';
 import { isSiteWidgetKey, type SiteWidgetKey } from '@/lib/site-builder/catalog';
@@ -31,9 +30,9 @@ import type { SiteHomeData } from './home-data';
  * and writes it into the draft snapshot's `layout` slot, rev-guarded. Nothing
  * public is revalidated — the layout goes live with the draft, on publish.
  *
- * Both are SURFACE-gated by FEATURE_SITE_BUILDER (404 when off) and manager-
- * gated (`manage_site`) in their routes. The public renderer never reads the
- * flag: it renders whatever layout it is given.
+ * Manager-gated (`manage_site`) in their routes. The surface flag that once
+ * 404'd these routes retired in P10-C: the editor is the Website section's
+ * door. The public renderer never read it.
  */
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- matches the authz.ts Admin alias; schema-agnostic helper
@@ -52,7 +51,6 @@ export interface CanvasResponse {
   resolvedAt: string;
 }
 
-const NOT_AVAILABLE = () => NextResponse.json({ error: 'Not available' }, { status: 404 });
 
 /** The draft view of an org's site by org id — the console side of
  *  getDraftSiteBySlug (the preview's read). */
@@ -80,7 +78,6 @@ async function loadDraftSiteView(
 }
 
 export async function canvasGET(admin: Admin, side: OrgSide, orgId: string): Promise<NextResponse> {
-  if (!FEATURE_FLAGS.FEATURE_SITE_BUILDER) return NOT_AVAILABLE();
   const view = await loadDraftSiteView(admin, side, orgId);
   if (!view) return NextResponse.json({ error: 'Site not found' }, { status: 404 });
   const [data, options] = await Promise.all([
@@ -98,7 +95,6 @@ export async function draftLayoutPUT(
   userId: string,
   body: unknown
 ): Promise<NextResponse> {
-  if (!FEATURE_FLAGS.FEATURE_SITE_BUILDER) return NOT_AVAILABLE();
   const envelope = body && typeof body === 'object' ? (body as { layout?: unknown; baseRev?: unknown }) : {};
   const parsed = LayoutSchema.safeParse(envelope.layout);
   if (!parsed.success) {
@@ -149,7 +145,6 @@ export async function draftLayoutPUT(
  *  emptiness so the picker can say "Start a season to fill this". One call
  *  for every missing key: `?keys=a,b,c`. */
 export async function widgetDataGET(admin: Admin, side: OrgSide, orgId: string, keysParam: string | null): Promise<NextResponse> {
-  if (!FEATURE_FLAGS.FEATURE_SITE_BUILDER) return NOT_AVAILABLE();
   const keys = (keysParam ?? '')
     .split(',')
     .map(k => k.trim())

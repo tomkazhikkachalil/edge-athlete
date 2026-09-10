@@ -136,10 +136,12 @@ test('org site brand: tokens → document attrs + wordmark; favicon.svg; nav lab
       const page = await ownerCtx.newPage();
       await page.setViewportSize({ width: 375, height: 812 });
       await page.goto(`/app/org/league/${leagueId}`);
-      await expect(page.getByRole('button', { name: 'Save brand' })).toBeVisible({ timeout: 20_000 });
-      await expect(page.getByLabel('Wordmark')).toBeVisible();
+      // P10-C: the brand form moved to the editor — the door is here — and the
+      // Subpages & navigation list still carries the label.
+      await expect(page.getByRole('link', { name: 'Open the editor →' })).toBeVisible({ timeout: 20_000 });
+      await expect(page.getByRole('button', { name: 'Save brand' })).toHaveCount(0);
       await expect(page.getByLabel('Standings section label')).toHaveValue('Tables');
-      await expect(page.getByRole('button', { name: 'Save layout' })).toBeVisible();
+      await expect(page.getByRole('button', { name: 'Save navigation' })).toBeVisible();
       const scrollWidth = await page.evaluate(() => document.documentElement.scrollWidth);
       expect(scrollWidth, 'no horizontal overflow at 375px').toBeLessThanOrEqual(375);
     } finally {

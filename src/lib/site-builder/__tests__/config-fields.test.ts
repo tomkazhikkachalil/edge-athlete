@@ -34,8 +34,11 @@ describe('field descriptors are pinned to the schemas', () => {
   it('every content field names a key of its widget’s zod schema; instance fields fit the options schema', () => {
     const heroKeys = Object.keys(HeroConfigSchema.shape);
     for (const f of HERO_FIELDS) expect(heroKeys, f.name).toContain(f.name);
+    // P10-C parity: a nested name ('social.instagram') names a key one level down.
     const contactKeys = Object.keys(ContactConfigSchema.shape);
-    for (const f of CONTACT_FIELDS) expect(contactKeys, f.name).toContain(f.name);
+    for (const f of CONTACT_FIELDS) expect(contactKeys, f.name).toContain(f.name.split('.')[0]);
+    expect(HERO_FIELDS.map(f => f.name)).toEqual(expect.arrayContaining(['imagePath', 'imageAlt']));
+    expect(CONTACT_FIELDS.map(f => f.name)).toEqual(expect.arrayContaining(['address', 'social.instagram', 'social.facebook', 'social.x', 'social.youtube']));
     for (const key of SITE_WIDGET_KEYS) {
       // Phase 6: a content widget's instance fields fit ITS instance schema
       // (options + content); a module widget's fit the options schema.
