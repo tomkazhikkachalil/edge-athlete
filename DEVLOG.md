@@ -1,5 +1,51 @@
 # Development Log
 
+## September 10, 2026 — Contest Place E2: posts and live rounds attach to their contest (migration 181)
+
+The second Contest Place PR. E1 gave a contest a URL; the things people
+made AT it — the posted round, the shared live round — were still only
+reachable through the golf sync's `payload.roundRef` inside
+`contest_results`: un-indexed, un-FK'd, invisible to the feed.
+
+- **Migration 181** — `posts.contest_id` and `group_posts.contest_id`
+  (`REFERENCES contests ON DELETE SET NULL`, partial indexes), a backfill
+  in the same file from every existing result's `roundRef` (idempotent;
+  only well-formed uuids cast), and the `reserved_handles` seed for the
+  `event` root segment E1 reserved code-side. ORDER-STRICT after 180; app
+  code merged ahead degrades (every read is 42703-tolerant).
+- **One writer.** `stampContestAttachments` (`contest-attachments-server.ts`)
+  runs after the golf sync's results upsert and keeps ONE invariant: the
+  posts and live rounds attached to a contest are exactly the ones its
+  CURRENT results reference — it re-reads the results, detaches what they
+  no longer name (a member's replaced round), attaches what they do (a
+  kept, verified member's round stays). Pre-181 it warns and returns; it
+  can never fail the sync. No client sets these columns (the posts POST
+  does not accept them). The pure half, `attachmentTargets` +
+  `contestChipLabel`, is zero-import so the feed card can read the label.
+- **The feed knows.** `GET /api/posts` gains `?contest=` — ONE contest's
+  attached posts under the org-lens rule (public post AND public author;
+  published only; no session needed), an empty page pre-181 rather than a
+  500 — and every list mode now carries `contest_id` + `contest {id, round,
+  competition_name}` (one batched `contests` read per page, only when a
+  post on the page is attached). `PostCard` renders a "From House League ·
+  Week 1" chip that opens `/event/[id]` — the way from the feed to the
+  contest's place.
+- **The page fills.** `fetchContestView` reads the live rounds from the
+  column (the payload as the pre-181 fallback), labelled by the creator's
+  masked name and filtered by viewability (public rounds for everyone, the
+  shared-round rule for a member); `publicPostCount` counts the attached
+  public posts. `ContestPage` gains a `postsSlot` and a "Posts from this
+  event" section (nav entry included) rendered only when the count is
+  positive; `ContestPosts` is the org page's members' grid pointed at one
+  contest (tiles → `PostDetailModal`, keyset load-more). The org-site twin
+  (E4) passes no slot.
+- Tests: `contest-attachments.test.ts` (targets de-duplicated, junk
+  ignored; the chip label). e2e: `golf-league-sync.spec.ts` seeds a post on
+  the owner's best nine and, after the sync, asserts `posts.contest_id`,
+  the `?contest=` answer with its chip label, and the contest page's Posts
+  section with one tile at 375px; the projection test's fixture carries
+  the two new view fields.
+
 ## September 10, 2026 — Contest Place E1: a contest gets a URL — one reader, one outcome rule, `/event/[contestId]` (zero DDL)
 
 The first of the four Contest Place PRs (plan: `~/.claude/plans/let-s-do-2-4-nested-brook.md`).

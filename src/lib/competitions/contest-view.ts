@@ -120,7 +120,11 @@ export interface ContestView {
   statFields: { key: string; label: string; shortLabel: string }[];
   statLines: ContestStatLine[];
   media: ContestMediaItem[];
-  liveRound: { groupPostId: string } | null;
+  /** The shared live rounds counted into this contest that THIS viewer may
+   *  open (public rounds for everyone; the shared-round rule for a member). */
+  liveRounds: { groupPostId: string; label: string }[];
+  /** Published, public posts attached to this contest (mig 181; 0 pre-181). */
+  publicPostCount: number;
 }
 
 export interface ContestViewResult {
@@ -171,7 +175,8 @@ export interface RawContestRecord {
   entrants: RawEntrant[];
   statLines: RawStatLine[];
   media: ContestMediaItem[];
-  liveRound: { groupPostId: string } | null;
+  liveRounds: { groupPostId: string; label: string }[];
+  publicPostCount: number;
 }
 
 const PROVENANCE: ResultProvenance[] = ['sanctioned', 'league_verified', 'club_recorded', 'self_reported', 'imported'];
@@ -250,7 +255,8 @@ export function projectContestView(raw: RawContestRecord): ContestView {
       provenance: tier(l.provenance, l.teamClubId),
     })),
     media: raw.media,
-    liveRound: raw.liveRound,
+    liveRounds: raw.liveRounds,
+    publicPostCount: raw.publicPostCount,
   };
 }
 
@@ -486,35 +492,22 @@ export async function fetchContestView(
       createdAt: m.createdAt,
     }));
 
-    // Live round: the golf sync's payload.roundRef (E2 moves this to the
-    // group_posts.contest_id column). Public rounds link for everyone;
-    // otherwise the shared-round rule with the viewer.
-    let liveRound: { groupPostId: string } | null = null;
-    const groupPostId = results
-      .map(r => (r.payload?.roundRef as { groupPostId?: string | null } | undefined)?.groupPostId ?? null)
-      .find((v): v is string => typeof v === 'string' && v.length > 0);
-    if (groupPostId) {
-      const { data: gp } = await admin
-        .from('group_posts')
-        .select('id, creator_id, visibility, status')
-        .eq('id', groupPostId)
-        .maybeSingle();
-      if (gp && gp.status !== 'cancelled') {
-        let canView = gp.visibility === 'public';
-        if (!canView && opts.viewerId) {
-          const { data: gpp } = await admin
-            .from('group_post_participants')
-            .select('profile_id')
-            .eq('group_post_id', groupPostId);
-          canView = canViewSharedRound({
-            viewerId: opts.viewerId,
-            creatorId: (gp.creator_id as string | null) ?? null,
-            visibility: gp.visibility as string | null,
-            participantProfileIds: ((gpp ?? []) as { profile_id: string }[]).map(p => p.profile_id),
-          });
-        }
-        if (canView) liveRound = { groupPostId };
-      }
+    // Live rounds (E2, mig 181): the group posts stamped with this contest;
+    // pre-181 (42703) the golf sync's payload.roundRef is the fallback. A
+    // public round links for everyone; otherwise the shared-round rule with
+    // the viewer. Labelled by the creator's (masked) name.
+    const liveRounds = await readLiveRounds(admin, contestId, results, opts.viewerId);
+
+    // Published, public posts attached here (E2, mig 181); pre-181 → 0.
+    let publicPostCount = 0;
+    {
+      const { count, error } = await admin
+        .from('posts')
+        .select('id', { count: 'exact', head: true })
+        .eq('contest_id', contestId)
+        .eq('visibility', 'public')
+        .eq('status', 'published');
+      if (!error && typeof count === 'number') publicPostCount = count;
     }
 
     const sportName = (SPORT_REGISTRY as Record<string, { display_name: string } | undefined>)[comp.sport_key as SportKey]?.display_name ?? comp.sport_key;
@@ -579,7 +572,8 @@ export async function fetchContestView(
         };
       }),
       media,
-      liveRound,
+      liveRounds,
+      publicPostCount,
     };
 
     return { access, view: projectContestView(raw) };
@@ -589,3 +583,79 @@ export async function fetchContestView(
   }
 }
 
+interface GroupPostRow {
+  id: string;
+  creator_id: string | null;
+  visibility: string | null;
+  status: string | null;
+}
+
+async function readLiveRounds(
+  admin: Admin,
+  contestId: string,
+  results: { payload: Record<string, unknown> | null }[],
+  viewerId: string | null
+): Promise<{ groupPostId: string; label: string }[]> {
+  const SELECT = 'id, creator_id, visibility, status';
+  let rows: GroupPostRow[] = [];
+  const { data, error } = await admin.from('group_posts').select(SELECT).eq('contest_id', contestId).limit(50);
+  if (!error) {
+    rows = (data ?? []) as GroupPostRow[];
+  } else {
+    // Pre-181 fallback: the results' roundRef.
+    const ids = [
+      ...new Set(
+        results
+          .map(r => (r.payload?.roundRef as { groupPostId?: unknown } | undefined)?.groupPostId)
+          .filter((v): v is string => typeof v === 'string' && v.length > 0)
+      ),
+    ];
+    if (ids.length) {
+      const { data: fallback } = await admin.from('group_posts').select(SELECT).in('id', ids);
+      rows = (fallback ?? []) as GroupPostRow[];
+    }
+  }
+  rows = rows.filter(r => r.status !== 'cancelled');
+  if (rows.length === 0) return [];
+
+  // Viewability: public for everyone; else the shared-round rule.
+  const needParticipants = rows.filter(r => r.visibility !== 'public');
+  const participantsByGroup = new Map<string, string[]>();
+  if (viewerId && needParticipants.length) {
+    const { data: gpp } = await admin
+      .from('group_post_participants')
+      .select('group_post_id, profile_id')
+      .in('group_post_id', needParticipants.map(r => r.id));
+    for (const p of (gpp ?? []) as { group_post_id: string; profile_id: string }[]) {
+      if (!participantsByGroup.has(p.group_post_id)) participantsByGroup.set(p.group_post_id, []);
+      participantsByGroup.get(p.group_post_id)!.push(p.profile_id);
+    }
+  }
+  const viewable = rows.filter(
+    r =>
+      r.visibility === 'public' ||
+      (viewerId !== null &&
+        canViewSharedRound({
+          viewerId,
+          creatorId: r.creator_id,
+          visibility: r.visibility,
+          participantProfileIds: participantsByGroup.get(r.id) ?? [],
+        }))
+  );
+  if (viewable.length === 0) return [];
+
+  const creatorIds = [...new Set(viewable.map(r => r.creator_id).filter((v): v is string => !!v))];
+  const { data: creators } = creatorIds.length
+    ? await admin
+        .from('profiles')
+        .select('id, first_name, last_name, full_name, visibility, email, supervision_state')
+        .in('id', creatorIds)
+    : { data: [] };
+  const nameById = new Map(
+    ((creators ?? []) as (MaskableProfile & { id: string })[]).map(c => [c.id, publicDisplayName(c)])
+  );
+  return viewable.map(r => ({
+    groupPostId: r.id,
+    label: r.creator_id && nameById.has(r.creator_id) ? `${nameById.get(r.creator_id)}'s round` : 'Shared round',
+  }));
+}

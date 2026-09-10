@@ -18,7 +18,7 @@ import type { OrgSide } from './types';
 // what the API returns is showable. 12 newest on the face; "See all"
 // opens a LargerWindow that pages by cursor.
 
-interface ApiPost {
+export interface ApiPost {
   id: string;
   caption: string | null;
   sport_key: string | null;
@@ -37,7 +37,7 @@ interface ApiPost {
 }
 
 /** The posts route's post → the profile grid's tile item. */
-function toMediaItem(p: ApiPost, viewerId: string | undefined): MediaItem {
+export function toMediaItem(p: ApiPost, viewerId: string | undefined): MediaItem {
   return {
     id: p.id,
     caption: p.caption,

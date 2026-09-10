@@ -7,6 +7,7 @@ import { contestTitle } from '@/lib/competitions/contest-format';
 import { UUID_RE } from '@/lib/uuid';
 import ContestPage from './_components/ContestPage';
 import ContestGate from './_components/ContestGate';
+import ContestPosts from './_components/ContestPosts';
 import { appContestLinks } from './_components/links';
 
 // ── /event/[contestId] — a contest as a PLACE (Contest Place E1) ─────────
@@ -48,7 +49,12 @@ export default async function ContestPlacePage({ params }: PageParams) {
     <div className="min-h-screen bg-canvas">
       <AppHeader />
       <main className="max-w-3xl mx-auto px-4 py-6">
-        <ContestPage view={result.view} access={result.access} links={appContestLinks(result.view)} />
+        <ContestPage
+          view={result.view}
+          access={result.access}
+          links={appContestLinks(result.view)}
+          postsSlot={<ContestPosts contestId={contestId} />}
+        />
       </main>
     </div>
   );

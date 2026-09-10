@@ -625,6 +625,18 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid org' }, { status: 400 });
     }
     const withMedia = searchParams.get('withMedia') === '1';
+    // Contest Place E2: ONE contest's attached posts (mig 181) — the public,
+    // published posts whose rounds were counted there. Anonymous-visible by
+    // construction (the org lens rule), so no session is needed; pre-181 the
+    // column is missing and the filter answers an empty page, not a 500.
+    const contestParam = searchParams.get('contest');
+    const contestFilter = contestParam && !userId && !pinnedOnly && !orgFilter ? contestParam : null;
+    if (contestParam && !contestFilter) {
+      return NextResponse.json({ error: 'Invalid contest' }, { status: 400 });
+    }
+    if (contestFilter && !UUID_RE.test(contestFilter)) {
+      return NextResponse.json({ error: 'Invalid contest' }, { status: 400 });
+    }
     const orgScope = (searchParams.get('scope') === 'orgs' && !userId && !pinnedOnly) || !!orgFilter;
     const followScope = searchParams.get('scope') === 'following' && !userId && !pinnedOnly;
     // Guard against NaN (e.g. ?limit=abc) which would produce an invalid
@@ -1079,6 +1091,9 @@ export async function GET(request: NextRequest) {
     if (orgScope) {
       query = query.in('profile_id', orgPeerIds).eq('visibility', 'public');
     }
+    if (contestFilter) {
+      query = query.eq('contest_id', contestFilter).eq('visibility', 'public');
+    }
 
     // Following lens: authors = follows ∪ SELF (your own posts belong in
     // your following feed). No SQL visibility restriction — the privacy
@@ -1096,7 +1111,7 @@ export async function GET(request: NextRequest) {
     // posts.status exists since migration 051.
     // The org lens takes the strict published-only arm even for the author —
     // pending posts have no place in an org schedule of public content.
-    query = currentUserId && !orgScope
+    query = currentUserId && !orgScope && !contestFilter
       ? query.or(`status.eq.published,profile_id.eq.${currentUserId}`)  // hardening-ok: session UUID
       : query.eq('status', 'published');
 
@@ -1112,6 +1127,11 @@ export async function GET(request: NextRequest) {
     const { data: posts, error } = await query;
 
     if (error) {
+      // Pre-181: the contest filter names a column that is not there yet —
+      // an empty page, not a broken contest page.
+      if (contestFilter && error.code === '42703') {
+        return NextResponse.json({ posts: [], hasMore: false, nextCursor: null });
+      }
       console.error('Posts fetch error:', error);
       return NextResponse.json({ error: 'Failed to fetch posts' }, { status: 500 });
     }
@@ -1159,7 +1179,7 @@ export async function GET(request: NextRequest) {
 
       // Org lens: strictly anonymous-visible content (the activity-server
       // rule) — no own-post or follow exceptions widen it.
-      if (orgScope) {
+      if (orgScope || contestFilter) {
         return isOrgLensVisible(post.visibility, postOwner.visibility);
       }
 
@@ -1224,8 +1244,11 @@ export async function GET(request: NextRequest) {
     const groupPostIds = [...new Set(finalVisiblePosts.map(p => p.group_post_id).filter(Boolean))];
     const tagProfileIds = [...new Set(finalVisiblePosts.flatMap(p => p.tags || []))];
     const sharedPostIds = [...new Set(finalVisiblePosts.map(p => p.shared_post_id).filter(Boolean))];
+    // E2: the contest chip's label — only when a post on the page is
+    // attached (the column rides the `*` select once 181 has run).
+    const contestIds = [...new Set(finalVisiblePosts.map(p => p.contest_id).filter(Boolean))] as string[];
 
-    const [roundsResult, groupsResult, tagProfilesResult, sharedResult] = await Promise.all([
+    const [roundsResult, groupsResult, tagProfilesResult, sharedResult, contestsResult] = await Promise.all([
       fetchGolfRoundsByIds(supabase, roundIds as string[]),
       groupPostIds.length > 0
         ? supabase.from('group_posts').select(GROUP_SCORECARD_SELECT).in('id', groupPostIds)
@@ -1239,7 +1262,16 @@ export async function GET(request: NextRequest) {
       sharedPostIds.length > 0
         ? supabase.from('posts').select(SHARED_POST_SELECT).in('id', sharedPostIds)
         : Promise.resolve({ data: [], error: null }),
+      contestIds.length > 0
+        ? supabase.from('contests').select('id, round, competition:competition_id (name)').in('id', contestIds)
+        : Promise.resolve({ data: [], error: null }),
     ]);
+    if (contestsResult.error) console.error('[GET] Error fetching contest labels:', contestsResult.error);
+    const contestById = new Map<string, { id: string; round: string | null; competition_name: string }>();
+    for (const c of (contestsResult.data ?? []) as { id: string; round: string | null; competition: { name: string } | { name: string }[] | null }[]) {
+      const comp = Array.isArray(c.competition) ? c.competition[0] : c.competition;
+      contestById.set(c.id, { id: c.id, round: c.round, competition_name: comp?.name ?? 'Competition' });
+    }
 
     if (roundsResult.error) console.error('[GET] Error fetching golf rounds:', roundsResult.error);
     if (groupsResult.error) console.error('[GET] Error fetching group scorecards:', groupsResult.error);
@@ -1313,6 +1345,9 @@ export async function GET(request: NextRequest) {
           post_category: post.post_category ?? null,
           event_id: post.event_id ?? null,
           event: post.event ?? null,
+          // E2: the counted contest (mig 181) + its chip label.
+          contest_id: post.contest_id ?? null,
+          contest: post.contest_id ? (contestById.get(post.contest_id) ?? null) : null,
           stats_data: post.stats_data,
           visibility: post.visibility,
           status: post.status ?? 'published',
