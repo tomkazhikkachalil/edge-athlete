@@ -20,6 +20,11 @@
   `profiles`; and the per-site `sitemap.xml` on the apex is the
   custom-domain route (404 by design, known since Sep 2) — specs assert the
   main sitemap.
+- **Re-run at the #670 merge (ca5ceb01), on Tom's checklist:** typecheck, lint
+  0, 3,036 tests, build, floor gate 175 chunks, guardrails green — and one
+  new advisory, `js-yaml` (transitive, dev-only; the guardrails' production
+  audit was already clean), fixed by `npm audit fix` within its range
+  (4.3.1 → 4.3.2, a three-line lockfile change); `npm audit` reads 0.
 - Session doc re-aligned: header at the #669 merge, migration head 184, no
   program open; the open list is Tom's device pass of `/event/[id]` and the
   scouting area on his phone, the dead Vercel flag variable, and the older
