@@ -1,5 +1,36 @@
 # Development Log
 
+## September 10, 2026 — Recruiting skeleton R2: the scout account (zero DDL)
+
+Tom's call: a scout is an ACCOUNT TYPE, not a capability flag — self-service
+adults like organizers, growing later into school orgs with scouts as staff.
+Migration 182 (R1) already admits `'scout'` to the `user_type` CHECK; this
+PR is the branch.
+
+- **The actor seam.** `signup-user-type.ts` gains the `scout` actor: the
+  organizer's exact shape — no handle, no date of birth (adult assumed),
+  `user_type` decided by the branch and never by the client's requested
+  value (the closed hole stays closed; the test pins `athlete` + requested
+  `'scout'` → athlete). `/api/signup` carries `scout_affiliation` on the
+  insert; `/api/auth/complete-profile` (the OAuth twin) mints the same
+  profile from the `ea-signup-role=scout` cookie `OAuthButtons` writes.
+- **The door.** The registration role chooser gains "I'm a coach or
+  scout" → a scout step (name, school/program, email, password, OAuth),
+  which signs in, stamps onboarding and lands on `/app/scout`. `/` routes
+  a scout there by `user_type`, never the athlete wizard; the header's
+  profile menu and the phone drawer carry "Scouting".
+- **The shell.** `/app/scout` — the scout's home, gated by `isScoutAccount`
+  (`src/lib/recruiting/scout-access.ts`: a claimed, unsupervised
+  `'scout'` profile; `requireScout` is the route gate R3 uses). Anyone
+  else gets a real screen with a way back. R3 fills it with the shortlist,
+  R4 with "Find athletes" — today it says so honestly, no fake widgets.
+- Tests: `scout-access.test.ts`, `signup-user-type.test.ts` (+scout). e2e
+  `scout-signup.spec.ts` (@mobile): the actor branch mints a scout with no
+  handle and the affiliation, ignoring the client's `user_type`; the
+  scout's home renders at phone width; `/` routes the scout there; an
+  athlete meets the not-for-you screen and has no Scouting menu.
+  Self-skips pre-182.
+
 ## September 10, 2026 — Recruiting skeleton R1: the opt-in and the recruiting profile (migration 182)
 
 The Recruiting skeleton opens (plan: `~/.claude/plans/let-s-do-2-4-nested-brook.md`;

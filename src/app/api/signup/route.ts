@@ -306,9 +306,14 @@ export async function POST(request: NextRequest) {
         full_name: fullName || null,
         // Organizers have no handle (the parent precedent) — /u/ never
         // renders them; the org site is their public face.
-        handle: actorRole !== 'organizer' && profileData.handle ? profileData.handle.toLowerCase().trim() : null,
+        handle: actorRole !== 'organizer' && actorRole !== 'scout' && profileData.handle ? profileData.handle.toLowerCase().trim() : null,
         display_name: profileData.nickname || fullName || profileData.handle
-          || (actorRole === 'organizer' ? 'Organizer' : 'Athlete'),
+          || (actorRole === 'organizer' ? 'Organizer' : actorRole === 'scout' ? 'Scout' : 'Athlete'),
+        // Recruiting skeleton (mig 182): a scout's school / program rides the
+        // insert (the column exists wherever 'scout' passes the CHECK).
+        ...(actorRole === 'scout' && typeof profileData.scout_affiliation === 'string' && profileData.scout_affiliation.trim()
+          ? { scout_affiliation: profileData.scout_affiliation.trim().slice(0, 120) }
+          : {}),
       };
 
 

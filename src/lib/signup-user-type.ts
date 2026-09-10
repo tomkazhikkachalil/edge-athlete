@@ -12,24 +12,32 @@
 // actor gets 'parent': decided by the actor branch, never by the requested
 // value. Organizers have no date of birth (adult assumed — Tom's decision)
 // and never enter the athlete onboarding.
+//
+// Recruiting skeleton (Sep 10 2026, mig 182): the SCOUT actor — a coach or
+// scout — is the third privileged branch, the organizer's exact shape (no
+// handle, no DOB, adult assumed), user_type 'scout'.
 
 const SELF_SERVICE_SIGNUP_TYPES = ['athlete', 'fan'] as const;
+
+/** The actors that carry no handle and no date of birth. */
+export const NO_HANDLE_ACTORS: ReadonlySet<string> = new Set(['guardian', 'organizer', 'scout']);
 type SelfServiceType = (typeof SELF_SERVICE_SIGNUP_TYPES)[number];
 
-export type SignupActorRole = 'athlete' | 'guardian' | 'organizer';
+export type SignupActorRole = 'athlete' | 'guardian' | 'organizer' | 'scout';
 
 /** The actorRole contract shared by /api/signup and /api/auth/complete-
  *  profile: anything but the two privileged actors is an athlete. */
 export function resolveSignupActorRole(raw: unknown): SignupActorRole {
-  return raw === 'guardian' || raw === 'organizer' ? raw : 'athlete';
+  return raw === 'guardian' || raw === 'organizer' || raw === 'scout' ? raw : 'athlete';
 }
 
 export function resolveSignupUserType(
   actorRole: string,
   requested: unknown
-): 'parent' | 'organizer' | SelfServiceType {
+): 'parent' | 'organizer' | 'scout' | SelfServiceType {
   if (actorRole === 'guardian') return 'parent';
   if (actorRole === 'organizer') return 'organizer';
+  if (actorRole === 'scout') return 'scout';
   return (SELF_SERVICE_SIGNUP_TYPES as readonly string[]).includes(requested as string)
     ? (requested as SelfServiceType)
     : 'athlete';

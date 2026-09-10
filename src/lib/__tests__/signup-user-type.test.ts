@@ -26,9 +26,16 @@ describe('resolveSignupUserType', () => {
     expect(resolveSignupUserType('organizer', undefined)).toBe('organizer');
   });
 
-  it('actorRole resolves to exactly three values; garbage is an athlete', () => {
+  it('scout actor is a scout, whatever the client requested (mig 182)', () => {
+    expect(resolveSignupUserType('scout', 'athlete')).toBe('scout');
+    expect(resolveSignupUserType('scout', undefined)).toBe('scout');
+    expect(resolveSignupUserType('athlete', 'scout')).toBe('athlete');
+  });
+
+  it('actorRole resolves to exactly four values; garbage is an athlete', () => {
     expect(resolveSignupActorRole('guardian')).toBe('guardian');
     expect(resolveSignupActorRole('organizer')).toBe('organizer');
+    expect(resolveSignupActorRole('scout')).toBe('scout');
     expect(resolveSignupActorRole('athlete')).toBe('athlete');
     expect(resolveSignupActorRole('admin')).toBe('athlete');
     expect(resolveSignupActorRole(undefined)).toBe('athlete');

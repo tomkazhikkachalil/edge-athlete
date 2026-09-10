@@ -31,13 +31,13 @@ export default function CompleteProfilePage() {
   // Round J: which signup branch launched OAuth (OAuthButtons writes the
   // short-lived cookie before the redirect). Parents get a parent profile —
   // no handle, no DOB — instead of being silently minted as athletes.
-  const [signupRole] = useState<'parent' | 'athlete' | 'organizer'>(() => {
+  const [signupRole] = useState<'parent' | 'athlete' | 'organizer' | 'scout'>(() => {
     try {
       if (typeof document !== 'undefined') {
         // Org staff program (mig 178): the org door's OAuth twin creates an
         // ORGANIZER profile (no handle, no DOB) and lands in the wizard; the
         // club/league kind rides the parked `ea:invite-return` intent.
-        for (const role of ['parent', 'organizer'] as const) {
+        for (const role of ['parent', 'organizer', 'scout'] as const) {
           if (document.cookie.includes(`ea-signup-role=${role}`)) return role;
         }
       }
@@ -46,8 +46,9 @@ export default function CompleteProfilePage() {
   });
   const isParent = signupRole === 'parent';
   const isOrganizer = signupRole === 'organizer';
-  // No handle, no DOB for either privileged branch.
-  const noHandle = isParent || isOrganizer;
+  const isScout = signupRole === 'scout';
+  // No handle, no DOB for any privileged branch.
+  const noHandle = isParent || isOrganizer || isScout;
   const errorRef = useRef<HTMLDivElement>(null);
 
   // Route guards: unauthenticated → login; already has a profile → onward.
@@ -131,6 +132,8 @@ export default function CompleteProfilePage() {
             ? { actorRole: 'guardian' }
             : isOrganizer
             ? { actorRole: 'organizer' }
+            : isScout
+            ? { actorRole: 'scout' }
             : {
                 handle,
                 ...(FEATURE_FLAGS.FEATURE_GUARDIAN_PROFILES ? { dob } : {}),
@@ -163,6 +166,19 @@ export default function CompleteProfilePage() {
         // add-athlete screen must boot with the fresh parent profile.
         // eslint-disable-next-line @next/next/no-location-assign-relative-destination -- profile was just created server-side; the auth provider must boot fresh (house pattern)
         window.location.href = '/app/guardian/add-athlete';
+        return;
+      }
+      if (isScout) {
+        // Recruiting skeleton (mig 182): scouts land in the scouting area.
+        try {
+          await fetch('/api/profile', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ profileData: { onboarded_at: new Date().toISOString() } }),
+          });
+        } catch { /* the scouting page works either way */ }
+        // eslint-disable-next-line @next/next/no-location-assign-relative-destination -- profile was just created server-side; the auth provider must boot fresh (house pattern)
+        window.location.href = '/app/scout';
         return;
       }
       if (isOrganizer) {
@@ -243,6 +259,8 @@ export default function CompleteProfilePage() {
               ? "You're almost in — confirm your name and you'll add your athlete next."
               : isOrganizer
                 ? "You're almost in — confirm your name and you'll set up your organization next."
+                : isScout
+                  ? "You're almost in — confirm your name and you'll land in your scouting area."
                 : "You're almost in — confirm your name and pick a handle."}
           </p>
 

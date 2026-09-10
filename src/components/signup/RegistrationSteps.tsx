@@ -32,7 +32,7 @@ import { isValidDateString, isNotFutureDate } from '@/lib/date-validation';
 // with NO date of birth (an adult is assumed, Tom's decision) that mints a
 // user_type 'organizer' profile and lands in the wizard. The athlete/parent
 // role cards are never shown on the org path.
-type Step = 'entry' | 'organizer' | 'role' | 'dob' | 'details' | 'parent' | 'parent-done' | 'guardian' | 'parked';
+type Step = 'entry' | 'organizer' | 'scout' | 'role' | 'dob' | 'details' | 'parent' | 'parent-done' | 'guardian' | 'parked';
 type Role = 'athlete' | 'parent';
 type OrgKind = 'club' | 'league';
 /** Phase 7 C1: the org door lands in the wizard with golf preselected. */
@@ -66,6 +66,8 @@ export default function RegistrationSteps({
     try { window.sessionStorage.setItem('ea:invite-return', `/${kind}/start?sport=${ORG_DEFAULT_SPORT}`); } catch { /* ignore */ }
   };
   const [dob, setDob] = useState('');
+  // Recruiting skeleton (mig 182): the scout's school / program.
+  const [scoutAffiliation, setScoutAffiliation] = useState('');
   const [guardianEmail, setGuardianEmail] = useState('');
   const [parkedMessage, setParkedMessage] = useState('');
   const [parkedInviteUrl, setParkedInviteUrl] = useState<string | null>(null);
@@ -185,6 +187,66 @@ export default function RegistrationSteps({
       setStep('parent-done');
     } catch (err) {
       console.error('Parent registration error:', err);
+      Sentry.captureException(err);
+      setError('An unexpected error occurred. Please try again.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  // Recruiting skeleton (mig 182): a coach or scout — the organizer branch's
+  // exact shape (name, email, password; no DOB, no handle), user_type
+  // decided server-side by actorRole, landing in the scouting area.
+  const submitScoutAccount = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    if (form.password !== form.confirmPassword) {
+      setError('Passwords do not match');
+      return;
+    }
+    if (!form.email || !form.password || !form.firstName || !form.lastName) {
+      setError('Please fill in all required fields');
+      return;
+    }
+    setSubmitting(true);
+    try {
+      const response = await fetch('/api/signup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: form.email,
+          password: form.password,
+          actorRole: 'scout',
+          profileData: { first_name: form.firstName, last_name: form.lastName, scout_affiliation: scoutAffiliation.trim() },
+        }),
+      });
+      const result = await response.json();
+      if (!response.ok) {
+        setError(result.error || 'An error occurred during registration');
+        return;
+      }
+      try {
+        const { supabase } = await import('@/lib/supabase');
+        const { error: signInError } = await supabase.auth.signInWithPassword({
+          email: form.email,
+          password: form.password,
+        });
+        if (!signInError) {
+          try {
+            await fetch('/api/profile', {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ profileData: { onboarded_at: new Date().toISOString() } }),
+            });
+          } catch { /* the scouting page works either way; `/` routes scouts by user_type */ }
+          // eslint-disable-next-line @next/next/no-location-assign-relative-destination -- a session was just created; the auth provider must boot fresh (house pattern)
+          window.location.href = '/app/scout';
+          return;
+        }
+      } catch { /* fall through to the manual sign-in screen */ }
+      setSuccess('Account created. Please sign in.');
+      setStep('role');
+    } catch (err) {
       Sentry.captureException(err);
       setError('An unexpected error occurred. Please try again.');
     } finally {
@@ -403,6 +465,63 @@ export default function RegistrationSteps({
             </>
           )}
 
+          {step === 'scout' && (
+            <>
+              <h2 className="text-xl sm:text-2xl font-bold text-violet-800 dark:text-violet-200 mb-1">Create your scout account</h2>
+              <p className="text-sm text-tertiary mb-4">
+                For coaches and scouts. No date of birth or athlete details needed; athletes decide whether they are recruiting.
+              </p>
+              <OAuthButtons onError={setError} divider="below" signupRole="scout" />
+              {errorBox}
+              <form onSubmit={submitScoutAccount} className="flex flex-col gap-4 max-w-md" data-scout-form="">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label htmlFor="sc-first" className={labelClass}>First Name</label>
+                    <input type="text" id="sc-first" value={form.firstName} onChange={set('firstName')} className={inputClass} required />
+                  </div>
+                  <div>
+                    <label htmlFor="sc-last" className={labelClass}>Last Name</label>
+                    <input type="text" id="sc-last" value={form.lastName} onChange={set('lastName')} className={inputClass} required />
+                  </div>
+                </div>
+                <div>
+                  <label htmlFor="sc-affiliation" className={labelClass}>School or program <span className="text-muted font-normal">(optional)</span></label>
+                  <input type="text" id="sc-affiliation" value={scoutAffiliation} onChange={e => setScoutAffiliation(e.target.value)} className={inputClass} maxLength={120} placeholder="e.g. Carleton Ravens" />
+                </div>
+                <div>
+                  <label htmlFor="sc-email" className={labelClass}>Email</label>
+                  <input type="email" id="sc-email" value={form.email} onChange={set('email')} className={inputClass} required />
+                </div>
+                <div>
+                  <label htmlFor="sc-password" className={labelClass}>Password</label>
+                  <input type="password" id="sc-password" value={form.password} onChange={set('password')} className={inputClass} required minLength={6} />
+                </div>
+                <div>
+                  <label htmlFor="sc-confirm" className={labelClass}>Confirm Password</label>
+                  <input type="password" id="sc-confirm" value={form.confirmPassword} onChange={set('confirmPassword')} className={inputClass} required minLength={6} />
+                </div>
+                <button type="submit" disabled={submitting} className={primaryBtn}>
+                  {submitting ? (
+                    <><i className="fas fa-spinner fa-spin mr-2"></i> Creating Account...</>
+                  ) : (
+                    'Create Account'
+                  )}
+                </button>
+                <div className="flex items-center justify-between">
+                  <button type="button" onClick={() => setStep('role')} className="inline-flex min-h-[44px] items-center text-xs text-brand-fg hover:underline active:underline">
+                    Back
+                  </button>
+                  <p className="text-xs text-tertiary">
+                    Already have an account?
+                    <span className="text-brand-fg hover:underline cursor-pointer ml-1" onClick={onBackToLogin}>
+                      Log in
+                    </span>
+                  </p>
+                </div>
+              </form>
+            </>
+          )}
+
           {step === 'organizer' && (
             <>
               <h2 className="text-xl sm:text-2xl font-bold text-violet-800 dark:text-violet-200 mb-1">Create your organizer account</h2>
@@ -497,6 +616,16 @@ export default function RegistrationSteps({
                   <i className="fas fa-user-shield text-brand-fg text-2xl mb-2"></i>
                   <p className="font-bold text-primary">I&apos;m a parent or guardian</p>
                   <p className="text-sm text-tertiary mt-1">I&apos;m setting this up for my athlete.</p>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setStep('scout')}
+                  className="border-2 border-violet-200 dark:border-violet-800 hover:border-brand rounded-lg p-6 text-left transition sm:col-span-2"
+                  data-scout-door=""
+                >
+                  <i className="fas fa-binoculars text-brand-fg text-2xl mb-2"></i>
+                  <p className="font-bold text-primary">I&apos;m a coach or scout</p>
+                  <p className="text-sm text-tertiary mt-1">A scout account: find and shortlist recruitable athletes. Just your name, email and a password.</p>
                 </button>
               </div>
               <button type="button" onClick={onBackToLogin} className="inline-flex min-h-[44px] items-center mt-4 text-xs text-brand-fg hover:underline active:underline">
