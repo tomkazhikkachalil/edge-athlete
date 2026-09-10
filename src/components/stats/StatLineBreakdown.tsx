@@ -9,6 +9,8 @@
  * `years` list.
  */
 
+import Link from 'next/link';
+import { UNCONFIRMED_LABEL, UNCONFIRMED_TITLE } from '@/lib/sports/provenance-copy';
 import { useEffect, useRef, useState } from 'react';
 import { getStatSchema } from '@/lib/sports/stat-schemas';
 import type { SportKey } from '@/lib/sports/SportRegistry';
@@ -36,6 +38,8 @@ interface StatLinesResponse {
     keyStat: string | null;
     provenance: string;
     href: string;
+    /** R5: under an open dispute — shown as Unconfirmed. */
+    disputed?: boolean;
   }>;
 }
 
@@ -165,7 +169,12 @@ export default function StatLineBreakdown({
           <table className="w-full text-sm">
             <thead>
               <tr className="text-left text-xs uppercase tracking-wide text-muted border-b border-border-subtle">
-                <th className="py-2 pr-4 font-semibold">Official</th>
+                <th className="py-2 pr-4 font-semibold">
+                  Official{' '}
+                  <Link href="/help/verified-stats" className="ml-1 font-normal normal-case tracking-normal text-brand-fg hover:text-brand-fg-strong" data-verified-help="">
+                    How verification works →
+                  </Link>
+                </th>
                 <th className="py-2 pr-4 font-semibold">Competition</th>
                 <th className="py-2 pr-4 font-semibold">{schema.opponentLabel}</th>
                 <th className="py-2 text-right font-semibold">Key stat</th>
@@ -180,6 +189,15 @@ export default function StatLineBreakdown({
                       <i className="fas fa-shield-halved mr-1" aria-hidden="true"></i>
                       {OFFICIAL_PROVENANCE_LABELS[row.provenance] ?? row.provenance}
                     </span>
+                    {row.disputed && (
+                      <span
+                        className="mt-0.5 inline-block rounded-md border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-[11px] font-medium text-amber-800 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200"
+                        title={UNCONFIRMED_TITLE}
+                        data-stat-unconfirmed=""
+                      >
+                        {UNCONFIRMED_LABEL}
+                      </span>
+                    )}
                   </td>
                   <td className="py-2 pr-4 text-secondary">
                     <a href={row.href} className="hover:text-brand-fg">

@@ -1,5 +1,38 @@
 # Development Log
 
+## September 10, 2026 — Recruiting skeleton R5: verification visible to the viewer (zero DDL)
+
+The last skeleton PR. The provenance ladder had shipped end to end except
+for two viewer-facing gaps the masterplan (§7) asked for: the dispute
+state was invisible outside the org console, and nothing explained the
+chips to the scout who will interrogate them.
+
+- **Unconfirmed.** `fetchOfficialStatLines` reads, in one batched query,
+  which of the athlete's contests carry an open dispute (168) and marks the
+  line `disputed`; the Official log shows an amber "Unconfirmed" marker
+  beside the rung. `mergeOfficialContribution` leaves disputed lines OUT
+  of the headline numbers (the conservative-minimum principle — a total is
+  only as strong as its weakest source, and a disputed one has no strength
+  yet); resolving the dispute puts them back. Nothing touches the stored
+  provenance (dispute state stays orthogonal, the phase-6 call).
+- **The explainer.** `/help/verified-stats` — a public page (the
+  privacy/terms shape, BrandBar carries the way back) listing the six rungs
+  strongest first with the athlete-readable reason for each, and the
+  Unconfirmed marker. The Official log's header links "How verification
+  works →". The ladder's words move to `src/lib/sports/provenance-copy.ts`
+  (pure, zero imports) so the chips, the log and the page say exactly the
+  same thing. `/help` joins `RESERVED_ROOT_SLUGS` (the `reserved_handles`
+  seed rides the next migration).
+- Deferred by plan: the as-of-date sanctioning read of `sanction_grants`
+  (low skeleton value; it would move tiers retroactively on a revoked
+  grant) and a `LargerWindow` variant of the explainer (a link to a real
+  page is the simpler, shareable thing).
+- Tests: `official-stats.test.ts` (disputed lines leave the numbers;
+  confirmed ones still count). e2e `verified-stats-explainer.spec.ts`
+  (@mobile: the page for a stranger); `contest-stat-lines.spec.ts` raises a
+  dispute → `disputed: true` on the log and no league-verified tile on the
+  card → resolves → back.
+
 ## September 10, 2026 — Recruiting skeleton R4: "Find athletes" (zero DDL)
 
 The plan pencilled a migration 184 that widened `search_all` with three

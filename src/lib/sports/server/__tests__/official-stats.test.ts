@@ -16,6 +16,7 @@ const line = (
   competitionId: 'comp1',
   competitionName: 'House League',
   sportKey: 'ice_hockey',
+  disputed: false,
   date: '2026-09-01T00:00:00Z',
   teamName: 'Blazers',
   opponentName: 'Comets',
@@ -41,6 +42,16 @@ describe('provenanceRank — the display ladder', () => {
 });
 
 describe('mergeOfficialContribution', () => {
+  it('leaves disputed lines out of the headline numbers (R5)', () => {
+    const contribution = { tiles: [{ label: 'Goals', value: '3', provenance: 'tracked' as const }] };
+    const disputed = { ...line({ goals: 9 }), disputed: true };
+    // Every line disputed → the contribution is untouched.
+    expect(mergeOfficialContribution(contribution, [disputed], hockey)).toBe(contribution);
+    // A confirmed line beside a disputed one: only the confirmed one counts.
+    const merged = mergeOfficialContribution(null, [disputed, line({ goals: 2 })], hockey);
+    expect(new Map(merged!.tiles!.map(t => [t.label, t.value])).get('Goals')).toBe('2');
+  });
+
   it('passes the contribution through untouched with no official lines', () => {
     const contribution = { tiles: [{ label: 'Goals', value: '3', provenance: 'tracked' as const }] };
     expect(mergeOfficialContribution(contribution, [], hockey)).toBe(contribution);

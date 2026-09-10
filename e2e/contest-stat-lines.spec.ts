@@ -223,6 +223,32 @@ test('contest stat lines: roster gate, provenance stamps, participant path; 375p
         href: `/event/${contestId}`,
       });
 
+      // R5: an open dispute marks the line UNCONFIRMED on the log and pulls it
+      // out of the headline numbers; resolving it puts it back. A dispute
+      // needs a result on the contest — score it first (the owner's path).
+      const { data: parts } = await admin.from('contest_participants').select('id').eq('contest_id', contestId);
+      const scoreRes = await ownerApi.post(`/api/leagues/${leagueId}/competitions/${compId}/results`, {
+        data: { contestId, results: parts!.map((p, i) => ({ participantId: p.id as string, score: 3 - i })) },
+      });
+      expect(scoreRes.status(), await readErrorBody(scoreRes)).toBe(200);
+      let disputeRes = await ownerApi.patch(`/api/leagues/${leagueId}/competitions/${compId}/results/dispute`, {
+        data: { contestId, action: 'raise', note: 'QA: score under review' },
+      });
+      expect(disputeRes.status(), await readErrorBody(disputeRes)).toBe(200);
+      profileRes = await ownerApi.get(statLinesUrl);
+      expect((await profileRes.json()).official[0].disputed).toBe(true);
+      const disputedCards = (await (await ownerApi.get(`/api/profile/${owner.id}/skill-cards`)).json()).skillCards as {
+        sportKey: string;
+        tiles: { label: string; provenance: string }[];
+      }[];
+      expect(disputedCards.find(c => c.sportKey === 'ice_hockey')?.tiles.some(t => t.provenance === 'league_verified') ?? false).toBe(false);
+      disputeRes = await ownerApi.patch(`/api/leagues/${leagueId}/competitions/${compId}/results/dispute`, {
+        data: { contestId, action: 'resolve' },
+      });
+      expect(disputeRes.status(), await readErrorBody(disputeRes)).toBe(200);
+      profileRes = await ownerApi.get(statLinesUrl);
+      expect((await profileRes.json()).official[0].disputed).toBe(false);
+
       // The skill card carries the official tiles (verified beats tracked).
       const cardsRes = await ownerApi.get(`/api/profile/${owner.id}/skill-cards`);
       expect(cardsRes.status(), await readErrorBody(cardsRes)).toBe(200);

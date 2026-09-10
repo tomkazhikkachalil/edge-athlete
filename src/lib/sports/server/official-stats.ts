@@ -35,6 +35,9 @@ export interface OfficialStatLine {
   /** The provenance backlink — the contest's own page (E3; the standings
    *  page before it). */
   href: string;
+  /** R5: an open dispute on the contest — the line stays on the log as
+   *  UNCONFIRMED and leaves the headline numbers until resolved. */
+  disputed: boolean;
 }
 
 const LINE_LIMIT = 200;
@@ -77,10 +80,13 @@ export async function fetchOfficialStatLines(
     if (error || !lineRows || lineRows.length === 0) return [];
 
     const contestIds = [...new Set(lineRows.map(l => l.contest_id as string))];
-    const { data: contests } = await admin
-      .from('contests')
-      .select('id, scheduled_at, competition_id')
-      .in('id', contestIds);
+    const [{ data: contests }, { data: disputeRows }] = await Promise.all([
+      admin.from('contests').select('id, scheduled_at, competition_id').in('id', contestIds),
+      // R5: which of these contests are under an open dispute (168). A
+      // pre-168 database has no column → no disputes.
+      admin.from('contest_results').select('contest_id').in('contest_id', contestIds).eq('dispute_status', 'disputed'),
+    ]);
+    const disputedContests = new Set(((disputeRows ?? []) as { contest_id: string }[]).map(r => r.contest_id));
     const contestById = new Map(
       (contests ?? []).map(c => [
         c.id as string,
@@ -230,6 +236,7 @@ export async function fetchOfficialStatLines(
         stats: (line.stats as Record<string, number>) ?? {},
         provenance: asSkillProvenance(tier),
         href: `/event/${line.contest_id as string}`,
+        disputed: disputedContests.has(line.contest_id as string),
       });
     }
     return out;
@@ -250,14 +257,18 @@ export function mergeOfficialContribution(
   officialLines: OfficialStatLine[],
   schema: SportStatSchema | null
 ): SkillCardContribution | null {
-  if (officialLines.length === 0 || !schema) return contribution;
+  // R5: a disputed line is unconfirmed — it never feeds the headline numbers
+  // (the conservative-minimum principle: a total is only as strong as its
+  // weakest source, and a disputed one has no strength yet).
+  const confirmed = officialLines.filter(l => !l.disputed);
+  if (confirmed.length === 0 || !schema) return contribution;
 
   let tier: SkillProvenance = 'sanctioned';
-  for (const line of officialLines) {
+  for (const line of confirmed) {
     if (provenanceRank(line.provenance) < provenanceRank(tier)) tier = line.provenance;
   }
 
-  const asData: StatLineData[] = officialLines.map(l => ({
+  const asData: StatLineData[] = confirmed.map(l => ({
     type: 'stat_line',
     sport_key: schema.sport_key,
     stats: l.stats,
