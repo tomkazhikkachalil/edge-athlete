@@ -1,5 +1,36 @@
 # Development Log
 
+## September 10, 2026 — Recruiting skeleton R4: "Find athletes" (zero DDL)
+
+The plan pencilled a migration 184 that widened `search_all` with three
+recruiting parameters. Building it meant re-stating the RPC's hundred-line
+body for three filters and walking the overload trap (PGRST203, memory:
+RPCs are REVOKEd/GRANTed by exact signature). For a skeleton that is the
+wrong trade, so R4 is zero DDL: a scout-only, bounded `profiles` query
+that leans on 182's partial index on open profiles.
+
+- **The route.** `GET /api/scout/search?q=&sport=&gradFrom=&gradTo=` —
+  `requireScout` (fail-closed by construction: there is no anonymous or
+  athlete-facing version of this read), the anonymous `search` budget per
+  account. `searchRecruitableAthletes` reads open/committed + public
+  profiles, narrowed by a name needle (`ilike`, wildcards and separators
+  escaped — never interpolated raw), a sport (the registry key OR its
+  display label, since `profiles.sport` is a label), and a grad-year
+  window on `class_year`; `isRecruitable` is re-applied in code, so an
+  unclaimed stub never appears. `parseRecruitingSearchParams` is tolerant
+  (junk = no filter; a reversed window swaps). Supervised athletes whose
+  guardian opened recruiting appear (Tom's call).
+- **The page.** `/app/scout/search` — "Find athletes": a name box, the
+  Explore chip scroller over the enabled sports, a grad-year window, and a
+  result row per athlete (profile link, sport · school · grad year ·
+  place, status) carrying the Shortlist toggle. The scout home links to it.
+- `docs/SEARCH.md` records why this is not the index and when to revisit.
+- Tests: `search.test.ts` (params, the pattern escape). e2e
+  `scout-search.spec.ts` (@mobile): an athlete's session is refused by the
+  route and the page on any database; post-182 a scout finds an open
+  athlete by name + grad year, never a closed one, and the row carries the
+  toggle; no overflow at phone width.
+
 ## September 10, 2026 — Recruiting skeleton R3: the shortlist (migration 183)
 
 - **Migration 183.** `scout_shortlists` — one implicit list per scout
