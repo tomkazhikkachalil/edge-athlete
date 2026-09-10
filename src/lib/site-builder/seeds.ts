@@ -31,7 +31,6 @@ import {
   GRID,
   compactLayout,
   deriveLegacyLayout,
-  layoutBottom,
   sortByPosition,
   type LegacySiteShape,
   type SiteLayout,
@@ -92,27 +91,43 @@ export function seedLayout(site: LegacySiteShape & { template_id: string }): Sit
 export function applySeed(layout: SiteLayout, seed: SiteLayout): SiteLayout {
   const seedByKey = new Map<string, WidgetInstance>();
   for (const s of seed.widgets) if (!seedByKey.has(s.key)) seedByKey.set(s.key, s);
-  const placed: WidgetInstance[] = [];
-  const rest: WidgetInstance[] = [];
+  // The bottom of each seed ROW (a 6-wide pair shares one), so a tile that
+  // followed a module keeps following that module's whole row.
+  const rowBottom = new Map<number, number>();
+  for (const s of seed.widgets) rowBottom.set(s.y, Math.max(rowBottom.get(s.y) ?? 0, s.y + s.h));
+  const out: WidgetInstance[] = [];
   const taken = new Set<string>();
+  // Backlog B1: the REST (content tiles, a second table) keeps its RANK —
+  // it is inserted after the seed row of the module it followed in reading
+  // order, and every later seed row shifts down by what was inserted.
+  // Before, the rest was appended below everything: a welcome paragraph
+  // placed second landed at the page bottom on a template switch.
+  let shift = 0;
+  let anchorRow: number | null = null;
+  let insertedAfterAnchor = 0;
   for (const w of sortByPosition(layout.widgets)) {
     const s = seedByKey.get(w.key);
     if (s && !taken.has(w.key)) {
       taken.add(w.key);
-      placed.push({ ...w, x: s.x, y: s.y, w: s.w, h: Math.max(s.h, WIDGETS[w.key].constraints.minH) });
+      if (anchorRow === null || s.y !== anchorRow) {
+        // A new seed row begins: everything inserted after the previous row
+        // pushes this one (and all below) down.
+        if (anchorRow !== null && s.y > anchorRow) {
+          shift += insertedAfterAnchor;
+          insertedAfterAnchor = 0;
+        }
+        anchorRow = s.y;
+      }
+      out.push({ ...w, x: s.x, y: s.y + shift, w: s.w, h: Math.max(s.h, WIDGETS[w.key].constraints.minH) });
     } else {
-      rest.push(w);
+      const c = WIDGETS[w.key].constraints;
+      const width = Math.min(GRID.cols, Math.max(c.minW, w.w));
+      const base = anchorRow === null ? 0 : (rowBottom.get(anchorRow) ?? anchorRow) + shift;
+      out.push({ ...w, x: 0, y: base + insertedAfterAnchor, w: width });
+      insertedAfterAnchor += w.h;
     }
   }
-  let y = layoutBottom(placed);
-  const appended = rest.map(w => {
-    const c = WIDGETS[w.key].constraints;
-    const width = Math.min(GRID.cols, Math.max(c.minW, w.w));
-    const out = { ...w, x: 0, y, w: width };
-    y += w.h;
-    return out;
-  });
-  return { ...layout, widgets: compactLayout([...placed, ...appended]) };
+  return { ...layout, widgets: compactLayout(out) };
 }
 
 /** Has the manager arranged anything, or is this still the seed? Compares

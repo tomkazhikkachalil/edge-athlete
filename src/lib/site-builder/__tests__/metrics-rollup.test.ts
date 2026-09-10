@@ -71,7 +71,7 @@ describe('rollupSiteMetrics', () => {
     expect(m.firstPublish).toEqual({ count: 3, withinHour: 2, medianSeconds: ONE_HOUR_SECONDS, p75Seconds: ONE_HOUR_SECONDS + 1, medianWidgetsTouched: 4 });
     // Adoption = LATEST published revision per site with a stored layout: a (10 — the later one, not 9), c (7); b's latest is null.
     expect(m.editor.sitesWithLayout).toBe(2);
-    expect(m.editor.adoptionRate).toBe(1); // 2 / withPublishedRevision (2) — c has no pointer but a published row; rate is capped by construction at the rows
+    expect(m.editor.adoptionRate).toBeNull(); // truncated → null (B1)
     expect(m.editor.medianWidgetCount).toBe(7);
     expect(m.editor.topAdded).toEqual([
       { key: 'text', count: 2 },
@@ -79,6 +79,15 @@ describe('rollupSiteMetrics', () => {
       { key: 'leaders', count: 1 },
     ]);
     expect(m.truncated).toBe(true);
+  });
+
+  it('B1: adoption counts only READ sites, is clamped at 1, and is null while a read is truncated', () => {
+    const sites = [site('a', { published_revision_id: 'p1' })];
+    const revisions = [rev('p1', 'a', daysAgo(1), stats({ widgetCount: 5 })), rev('px', 'unread-site', daysAgo(1), stats({ widgetCount: 7 }))];
+    const m = rollupSiteMetrics(sites, revisions, NOW, false);
+    expect(m.editor.sitesWithLayout).toBe(1);
+    expect(m.editor.adoptionRate).toBe(1);
+    expect(rollupSiteMetrics(sites, revisions, NOW, true).editor.adoptionRate).toBeNull();
   });
 
   it('a bad `now` falls back to the clock; unparsable dates never count in a window', () => {

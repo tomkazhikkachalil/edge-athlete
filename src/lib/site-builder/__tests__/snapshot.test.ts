@@ -81,6 +81,16 @@ describe('snapshot ⇄ rows', () => {
     expect(loose!.modules.hero).toEqual({ enabled: true, sortOrder: 0, config: {} });
   });
 
+  it('B1: diffModuleRows turns OFF a key the next snapshot lacks (a restore from before the module existed)', () => {
+    const a = base();
+    const withoutStandings = { ...a, modules: Object.fromEntries(Object.entries(a.modules).filter(([k]) => k !== 'standings')) };
+    const rows = diffModuleRows(a, withoutStandings);
+    expect(rows.find(r => r.module_key === 'standings')).toMatchObject({ enabled: false, sort_order: a.modules.standings.sortOrder });
+    // A key that was already off and is absent adds nothing.
+    const offBefore = { ...a, modules: { ...a.modules, standings: { ...a.modules.standings, enabled: false } } };
+    expect(diffModuleRows(offBefore, withoutStandings).some(r => r.module_key === 'standings')).toBe(false);
+  });
+
   it('diffModuleRows returns only changed rows, or every row when prev is null', () => {
     const a = base();
     expect(diffModuleRows(null, a)).toHaveLength(4);
@@ -230,6 +240,15 @@ describe('applySiteAction', () => {
     expect(out.widgets.find(w => w.id === 'legacy:standings')).toMatchObject({ w: 6, config: { title: 'Table' } });
     expect(out.widgets.find(w => w.id === 'w_t1')).toBeDefined();
     expect(out.widgets).toHaveLength(mine.widgets.length);
+    // B1: a content tile placed SECOND (right after the hero) stays second — not at the bottom.
+    const heroH = stack.widgets.find(w => w.key === 'hero')!.h;
+    const early = { ...stack, widgets: [{ id: 'w_welcome', key: 'text' as const, x: 0, y: heroH, w: 12, h: 3, cv: 1, config: { blocks: [{ type: 'paragraph', text: 'Hi' }] }, visibility: 'public' as const }, ...stack.widgets.map(w => (w.key === 'hero' ? w : { ...w, y: w.y + 3 }))] };
+    const early2 = applySiteAction({ ...base(), layout: early }, patch({ action: 'set_template', templateId: 'bold' }), ctx);
+    const outEarly = parseStoredLayout(early2.layout)!;
+    const order = [...outEarly.widgets].sort((a, b) => a.y - b.y || a.x - b.x).map(w => w.id);
+    expect(order[0]).toBe('legacy:hero');
+    expect(order[1]).toBe('w_welcome');
+    expect(validateLayout(outEarly)).toEqual([]);
     // Without a stored layout nothing is written (the renderer seeds anyway).
     const bare = applySiteAction(base(), patch({ action: 'set_template', templateId: 'bold' }), ctx);
     expect(bare.layout).toBeUndefined();
