@@ -41,6 +41,8 @@ import { canViewSharedRound } from '@/lib/golf/round-access';
 import { getStatSchema } from '@/lib/sports/stat-schemas';
 import { SPORT_REGISTRY, type SportKey } from '@/lib/sports/SportRegistry';
 import { deriveContestOutcome, type ContestOutcome } from './contest-outcome';
+import { findPublishedSite } from '@/lib/org-sites/revalidate';
+import { orgSitePath } from '@/lib/org-sites/urls';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- the authz.ts Admin alias; schema-agnostic
 type Admin = SupabaseClient<any, 'public', any>;
@@ -258,6 +260,19 @@ export function projectContestView(raw: RawContestRecord): ContestView {
     liveRounds: raw.liveRounds,
     publicPostCount: raw.publicPostCount,
   };
+}
+
+/** E4: the contest's org-site twin, when the org has a PUBLISHED site and
+ *  the contest answers publicly — the in-app page's "Public page →". Null
+ *  otherwise; never throws. */
+export async function publicContestPath(admin: Admin, result: ContestViewResult): Promise<string | null> {
+  if (result.access !== 'public') return null;
+  try {
+    const site = await findPublishedSite(admin, result.view.org.side, result.view.org.id);
+    return site ? `${orgSitePath(site.subdomain)}/schedule/${result.view.contest.id}` : null;
+  } catch {
+    return null;
+  }
 }
 
 // ── Access ─────────────────────────────────────────────────────────────────

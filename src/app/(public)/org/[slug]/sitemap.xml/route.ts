@@ -25,6 +25,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ slu
     ...(entry?.courseIds ?? []).map(id => `${base}/courses/${id}`),
     ...(entry?.playerHandles ?? []).map(h => `${base}/players/${encodeURIComponent(h)}`),
     ...(entry?.newsSlugs ?? []).map(ns => `${base}/news/${ns}`),
+    ...(entry?.contestIds ?? []).map(id => `${base}/schedule/${id}`),
   ];
   const body =
     `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n` +

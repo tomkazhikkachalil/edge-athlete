@@ -12,7 +12,8 @@ import {
 // Props-only and server-safe: no hooks, no next/headers, no Font Awesome,
 // no 'use client' — the in-app page renders it on the server for a public
 // competition, the client gate island renders it after its fetch for a
-// private one, and the org-site twin (E4) will render it under (public).
+// private one, and the org-site twin (E4) renders it under (public). It
+// lives under src/components (not the (app) tree) for exactly that reason.
 // Every hostname-dependent link comes through `links`, so the same body
 // serves the app and a custom domain. Sections stack at every width;
 // tables scroll inside their own overflow container (the PointsRaceTable
@@ -27,6 +28,9 @@ export interface ContestLinks {
   player: (handle: string) => string | null;
   /** The live round; null hides the section. */
   live: (groupPostId: string) => string | null;
+  /** E4: the contest's org-site twin, when the org has a published site
+   *  (in-app only; the twin itself passes nothing). */
+  publicSite?: string | null;
 }
 
 interface Props {
@@ -108,6 +112,13 @@ export default function ContestPage({ view, access, links, postsSlot }: Props) {
         </div>
         <p className="mt-3 text-sm text-secondary">{contestWhen(view)}</p>
         {where && <p className="text-sm text-tertiary">{where}</p>}
+        {links.publicSite && (
+          <p className="mt-2 text-sm">
+            <Link href={links.publicSite} className="text-brand-fg hover:text-brand-fg-strong font-medium inline-flex items-center min-h-[36px]" data-contest-public-site="">
+              Public page →
+            </Link>
+          </p>
+        )}
         {sections.length > 1 && (
           <nav aria-label="Sections" className="mt-4 -mx-1 overflow-x-auto">
             <ul className="flex gap-1 px-1">
