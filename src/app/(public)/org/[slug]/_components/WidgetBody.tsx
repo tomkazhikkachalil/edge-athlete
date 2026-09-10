@@ -92,7 +92,7 @@ export default function WidgetBody({ site, w, data: raw, spec, membersOnly = fal
         <>
           {/* S4: a golf league's season leads — the rounds, then the events. */}
           {golfRounds.length > 0 && <GolfRoundsSchedule rounds={golfRounds} compact />}
-          {hasEvents && <ScheduleList events={events!} />}
+          {hasEvents && <ScheduleList events={events!} basePath={siteBasePath(site)} />}
           <Link
             href={`${siteBasePath(site)}/schedule`}
             className="mt-3 inline-block text-sm text-brand-fg font-medium"

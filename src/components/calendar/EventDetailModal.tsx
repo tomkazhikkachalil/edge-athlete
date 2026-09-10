@@ -397,6 +397,18 @@ export default function EventDetailModal({
                     )}
                   </p>
                 )}
+              {/* Contest Place E3: a mirror event's way back to its contest. */}
+              {event.contest_id && (
+                <p className="text-sm">
+                  <a
+                    href={`/event/${event.contest_id}`}
+                    className="text-brand-fg hover:underline font-medium inline-flex items-center min-h-[36px]"
+                    data-event-contest-link={event.contest_id}
+                  >
+                    View event →
+                  </a>
+                </p>
+              )}
               {!cancelled && (
                 <p className="text-xs pt-0.5">
                   <a

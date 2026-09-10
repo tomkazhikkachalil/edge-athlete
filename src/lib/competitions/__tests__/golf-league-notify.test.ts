@@ -4,11 +4,18 @@ import {
   closingTitle,
   confirmedTitle,
   countedTitle,
+  golfRoundActionUrl,
   ordinal,
   planWindowReminders,
 } from '../golf-league-notify';
 
 const ctx = { roundLabel: 'Week 2', competitionName: 'Thursday Nine' };
+
+describe('golfRoundActionUrl', () => {
+  it('lands every round bell on the round', () => {
+    expect(golfRoundActionUrl({ contestId: 'c-1' })).toBe('/event/c-1');
+  });
+});
 
 describe('golf league bell copy — self-contained titles (they are the digest)', () => {
   it('counted: holes, gross, net when present', () => {

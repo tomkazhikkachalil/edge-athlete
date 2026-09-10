@@ -138,6 +138,11 @@ test('competition console: schedule → publish → score; mirror syncs; member 
     // One-way mirror: canceling the contest cancels its event.
     const ownerApi = await apiAs('state-b.json');
     try {
+      // E3: the calendar detail points back at the contest (a read-time
+      // reverse lookup — the events table gains no column).
+      const detail = await ownerApi.get(`/api/calendar/events/${contest!.event_id}`);
+      expect(detail.status(), await readErrorBody(detail)).toBe(200);
+      expect((await detail.json()).event.contest_id).toBe(contest!.id);
       const cancelRes = await ownerApi.patch(
         `/api/leagues/${leagueId}/competitions/${competitionId}/contests`,
         { data: { id: contest!.id, status: 'canceled' } }

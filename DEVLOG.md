@@ -1,5 +1,42 @@
 # Development Log
 
+## September 10, 2026 — Contest Place E3: every surface that knew a contest now links to it (zero DDL)
+
+The third Contest Place PR: the backlinks. Before E1 nothing could link to a
+contest; after it, everything that already carried a contest id — most of
+them did — needed only an href. One rule for the href: `contestHref(id,
+basePath?)` beside `playerHref` in `src/lib/org-sites/player-links.ts` —
+relative in the app, the app's ABSOLUTE URL on an org site (which may be
+served from a custom domain; the org-site twin arrives in E4).
+
+- **Calendar.** The detail route's `fullDetail()` adds `contest_id` by a
+  read-time reverse lookup on `contests.event_id` (`idx_contests_event`,
+  mig 152) — the events table gains no column, the mirror's "ZERO events
+  columns" charter holds. `EventDetailModal` shows "View event →" for a
+  mirror event. `org-contests.spec` asserts the detail carries the id.
+- **Console.** Both contest lists on the competition page (the manager's
+  games list and the participant's aggregate) gain "Open →".
+- **Standings.** `PointsRaceTable` week headers, `GolfWeeks` (the current
+  round, each closed round's summary, each upcoming round) and the member's
+  `GolfYourWeek` round label link to the round. The public standings pages
+  pass `basePath` already, so the site links are absolute by construction.
+- **Week hub.** The hub's `week` carries `contestId`; the round title on
+  `/org/[slug]/week` (and the vanity twin, a re-export) links. The spec
+  asserts the href is in the HTML.
+- **Public schedule.** `fetchOrgEvents` marks mirror events with
+  `contest_id` in ONE batched reverse lookup (`.in('event_id', …)` over the
+  page's ≤25 rows, indexed) and `ScheduleList` links their titles; the three
+  callers (schedule page, team page, the site widget) pass the base path.
+  Pre-152 or any error: no links, no harm.
+- **The Official log.** `fetchOfficialStatLines` `href` is the contest's
+  page (`/event/[id]`) instead of the org's standings — the provenance
+  backlink the masterplan asked for now lands on the record itself.
+  `contest-stat-lines.spec` pins it.
+- **Bells.** Every golf-league bell is about one round, so
+  `golfRoundActionUrl` (exported, pinned by test) lands it on the round's
+  page instead of the org page.
+- Zero DDL; no new reads on the hot paths beyond the two batched lookups.
+
 ## September 10, 2026 — Contest Place E2: posts and live rounds attach to their contest (migration 181)
 
 The second Contest Place PR. E1 gave a contest a URL; the things people

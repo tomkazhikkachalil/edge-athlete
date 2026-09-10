@@ -66,7 +66,11 @@ export default function GolfYourWeek({ side, orgId, bare = false }: GolfYourWeek
                 {entry.competitionName}
                 {week ? (
                   <span className="font-normal text-muted">
-                    {' '}· {week.round ?? 'Round'} · {formatDateRange(week.playFrom, week.playTo)}
+                    {' '}·{' '}
+                    <Link href={`/event/${week.contestId}`} className="hover:underline" data-contest-link={week.contestId}>
+                      {week.round ?? 'Round'}
+                    </Link>{' '}
+                    · {formatDateRange(week.playFrom, week.playTo)}
                     {week.courseName ? ` · ${week.courseName}` : ''} · {week.holes} holes
                   </span>
                 ) : null}

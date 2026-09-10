@@ -686,6 +686,9 @@ export default function CompetitionDetailPage() {
                       <div className="min-w-0">
                         <p className="font-medium text-primary">
                           {contest.sides.map(s => s.teamName ?? '—').join(' vs ') || 'Game'}
+                          <Link href={`/event/${contest.id}`} className="ml-2 text-xs font-normal text-brand-fg hover:text-brand-fg-strong" data-contest-open={contest.id}>
+                            Open →
+                          </Link>
                         </p>
                         <p className="text-xs text-muted">
                           {[
@@ -1324,6 +1327,11 @@ export default function CompetitionDetailPage() {
                                 .join(' · ')}
                             </span>
                           )}
+                        </p>
+                        <p className="text-xs">
+                          <Link href={`/event/${contest.id}`} className="text-brand-fg hover:text-brand-fg-strong font-medium" data-contest-open={contest.id}>
+                            Open →
+                          </Link>
                         </p>
                         <p className="text-xs text-muted">
                           {[

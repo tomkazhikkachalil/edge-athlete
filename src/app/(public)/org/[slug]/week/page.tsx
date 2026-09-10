@@ -3,7 +3,7 @@ import { isMembersOnly } from '@/lib/org-sites/private';
 import MembersOnlyPage from '../_components/MembersOnlyPage';
 import { getCachedSite, getCachedWeekHub } from '@/lib/org-sites/cached';
 import { formatDateRange } from '@/lib/competitions/golf-weeks';
-import { playerHref } from '@/lib/org-sites/player-links';
+import { contestHref, playerHref } from '@/lib/org-sites/player-links';
 import { appBaseUrl, siteAbsoluteUrl, siteBasePath } from '@/lib/org-sites/urls';
 import { requireSiteModule } from '../_components/require-module';
 
@@ -91,7 +91,9 @@ export default async function OrgSiteWeekPage({ params }: PageParams) {
               (week => (
               <>
                 <p className="mt-1 text-sm text-secondary">
-                  <span className="font-medium text-primary">{week.round ?? 'Round'}</span>
+                  <a href={contestHref(week.contestId, base)} className="font-medium text-primary hover:underline" data-contest-link={week.contestId}>
+                    {week.round ?? 'Round'}
+                  </a>
                   {` · ${formatDateRange(week.playFrom, week.playTo)} · ${week.holes} holes`}
                   {week.courseName ? ` · ${week.courseName}` : ''}
                 </p>

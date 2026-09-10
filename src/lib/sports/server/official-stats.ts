@@ -32,7 +32,8 @@ export interface OfficialStatLine {
   opponentName: string | null;
   stats: Record<string, number>;
   provenance: SkillProvenance;
-  /** The provenance backlink — the owner's public standings page. */
+  /** The provenance backlink — the contest's own page (E3; the standings
+   *  page before it). */
   href: string;
 }
 
@@ -228,9 +229,7 @@ export async function fetchOfficialStatLines(
         opponentName: opponentId ? (teamById.get(opponentId)?.name ?? null) : null,
         stats: (line.stats as Record<string, number>) ?? {},
         provenance: asSkillProvenance(tier),
-        href: comp.leagueId
-          ? `/league/${comp.leagueId}/standings`
-          : `/club/${comp.clubId}/standings`,
+        href: `/event/${line.contest_id as string}`,
       });
     }
     return out;

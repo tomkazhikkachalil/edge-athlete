@@ -7,7 +7,7 @@ import { buildTeamJsonLd, safeJsonLd } from '@/lib/org-sites/jsonld';
 import { UUID_RE } from '@/lib/golf/course-catalog';
 import ScheduleList from '../../_components/ScheduleList';
 import { requireSiteModule } from '../../_components/require-module';
-import { siteAbsoluteUrl } from '@/lib/org-sites/urls';
+import { siteAbsoluteUrl, siteBasePath } from '@/lib/org-sites/urls';
 
 // ── /org/[slug]/teams/[teamId] — the FULL team page (phase 3 R2) ───────────
 // Tom's decision 3: record row, upcoming schedule, and a MASKED roster
@@ -122,7 +122,7 @@ export default async function OrgSiteTeamPage({ params }: PageParams) {
         {events.length === 0 ? (
           <p className="mt-1 text-sm text-tertiary">No upcoming events.</p>
         ) : (
-          <ScheduleList events={events} />
+          <ScheduleList events={events} basePath={siteBasePath(site)} />
         )}
       </section>
 

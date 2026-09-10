@@ -92,9 +92,22 @@ async function fullDetail(
       .maybeSingle();
     orgName = (org?.name as string | undefined) ?? null;
   }
+  // Contest Place E3: a mirror event points BACK at its contest — a
+  // read-time reverse lookup on contests.event_id (idx_contests_event), so
+  // the calendar side never gains a column. Pre-152 or any error → null.
+  let contestId: string | null = null;
+  {
+    const { data: contestRow, error } = await admin
+      .from('contests')
+      .select('id')
+      .eq('event_id', event.id as string)
+      .limit(1)
+      .maybeSingle();
+    if (!error && contestRow) contestId = contestRow.id as string;
+  }
   const { routine_snapshot: _snapshot, ...rest } = event as Record<string, unknown>;
   void _snapshot;
-  return { ...rest, org_name: orgName, guests: guests ?? [], series, routine };
+  return { ...rest, org_name: orgName, contest_id: contestId, guests: guests ?? [], series, routine };
 }
 
 /** Occurrence rows of a series at/after an anchor (or all of them). */
