@@ -25,6 +25,9 @@ import type { WidgetInstance } from '@/lib/site-builder/layout';
 import { useDraft, type SaveOutcome } from './useDraft';
 import { chipFor, publishBlocker } from '@/lib/site-builder/draft-state';
 import { publishPlan } from '@/lib/site-builder/publish-target';
+import { openPreview } from './openPreview';
+import ConfirmModal from '@/components/ConfirmModal';
+import { COPY } from '@/lib/copy';
 import { useHistory } from './useHistory';
 
 /**
@@ -121,18 +124,34 @@ export default function SiteBuilder() {
 
   if (!user || !validSide || state === 'forbidden' || state === 'unavailable' || state === 'error') {
     const unavailable = state === 'unavailable';
+    // H7: a failed read is not "Managers only" — say so, and offer a retry.
+    const failed = state === 'error';
     return (
       <div className="min-h-screen bg-canvas">
         <AppHeader showSearch={false} />
         <div className="flex items-center justify-center py-20">
-          <div className="text-center max-w-md mx-auto px-4">
-            <h1 className="text-2xl font-bold text-primary mb-2">{unavailable ? 'The editor isn’t enabled yet' : 'Managers only'}</h1>
+          <div className="text-center max-w-md mx-auto px-4" data-sb-state={state}>
+            <h1 className="text-2xl font-bold text-primary mb-2">{failed ? 'The editor couldn’t load' : unavailable ? 'The editor isn’t enabled yet' : 'Managers only'}</h1>
             <p className="text-sm text-tertiary mb-4">
-              {unavailable
-                ? 'The site editor is being rolled out. Your site keeps working from the console meanwhile.'
-                : 'The site editor is for the organization’s owner, managers and website staff.'}
+              {failed
+                ? 'Something interrupted the read — your draft is untouched. Try again in a moment.'
+                : unavailable
+                  ? 'The site editor is being rolled out. Your site keeps working from the console meanwhile.'
+                  : 'The site editor is for the organization’s owner, managers and website staff.'}
             </p>
-            <Link href={consoleHref} className="text-sm text-brand-fg hover:text-brand-fg-strong font-medium">
+            {failed && (
+              <button
+                type="button"
+                onClick={() => {
+                  setState('loading');
+                  setReloadKey(k => k + 1);
+                }}
+                className="mb-3 px-3 py-1.5 text-sm min-h-[36px] rounded-md bg-brand text-white font-medium hover:bg-brand-hover transition-colors"
+              >
+                Try again
+              </button>
+            )}
+            <Link href={consoleHref} className="block text-sm text-brand-fg hover:text-brand-fg-strong font-medium">
               Back to the console →
             </Link>
           </div>
@@ -196,6 +215,16 @@ function Editor({
   const [pickerOpen, setPickerOpen] = useState(false);
   // Phase 11: the design gallery — 'auto' on a fresh site (shows Skip).
   const [gallery, setGallery] = useState<'auto' | 'manual' | null>(autoGallery ? 'auto' : null);
+  // H7: unsaved panel work (a typed headline, a previewed accent) used to
+  // vanish on a stray tile click. The panels report their dirtiness; a
+  // navigation that would drop it asks first (the house ConfirmModal).
+  const [panelDirty, setPanelDirty] = useState(false);
+  const [themeDirty, setThemeDirty] = useState(false);
+  const [pending, setPending] = useState<(() => void) | null>(null);
+  const guarded = (action: () => void) => {
+    if (panelDirty || themeDirty) setPending(() => action);
+    else action();
+  };
   // Phase 5: the site view (content) can change under the editor when the
   // panel saves content — re-read the canvas without touching the layout
   // history (the layout is the manager's; the content is the org's).
@@ -294,19 +323,8 @@ function Editor({
     return () => window.removeEventListener('keydown', onKey);
   }, [history]);
 
-  const preview = async () => {
-    try {
-      const res = await fetch(`/api/${plural}/${orgId}/site/preview`, { method: 'POST' });
-      const body = await res.json();
-      if (!res.ok) {
-        showError('Website', body.error || 'Failed to create a preview link');
-        return;
-      }
-      window.open(body.url, '_blank', 'noopener');
-    } catch {
-      showError('Website', 'Failed to create a preview link');
-    }
-  };
+  // H7: the tab opens ON the click (popup blockers refuse one opened after an await).
+  const preview = () => openPreview(plural, orgId, showError);
 
   // P8-B: the checklist, derived from what the editor holds — no fetch of
   // its own; a step's href names what completes it.
@@ -315,8 +333,10 @@ function Editor({
   const onStep = (step: ChecklistStep) => {
     const href = step.href ?? '';
     if (href === '#theme') {
-      setSelectedId(null);
-      setThemeDraft(themeDraftFrom(site));
+      guarded(() => {
+        setSelectedId(null);
+        setThemeDraft(themeDraftFrom(site));
+      });
     } else if (href === '#gallery') {
       setGallery('manual');
     } else if (href === '#picker') {
@@ -324,8 +344,12 @@ function Editor({
     } else if (href === '#publish') {
       void publish();
     } else if (href.startsWith('#w=')) {
-      setThemeDraft(null);
-      setSelectedId(href.slice(3));
+      const id = href.slice(3);
+      if (id === selectedId && !themeDraft) return;
+      guarded(() => {
+        setThemeDraft(null);
+        setSelectedId(id);
+      });
     }
   };
 
@@ -448,10 +472,12 @@ function Editor({
             </button>
             <button
               type="button"
-              onClick={() => {
-                setSelectedId(null);
-                setThemeDraft(d => (d ? null : themeDraftFrom(site)));
-              }}
+              onClick={() =>
+                guarded(() => {
+                  setSelectedId(null);
+                  setThemeDraft(d => (d ? null : themeDraftFrom(site)));
+                })
+              }
               aria-pressed={themeDraft !== null}
               className={PILL}
             >
@@ -479,8 +505,11 @@ function Editor({
                   data={data}
                   selectedId={selectedId}
                   onSelect={id => {
-                    setSelectedId(id);
-                    if (id) setThemeDraft(null);
+                    if (id === selectedId && !themeDraft) return;
+                    guarded(() => {
+                      setSelectedId(id);
+                      if (id) setThemeDraft(null);
+                    });
                   }}
                   onCommit={history.commit}
                   onRemove={removeOne}
@@ -496,6 +525,7 @@ function Editor({
                     setThemeDraft(null);
                   }}
                   onClose={() => setThemeDraft(null)}
+                  onDirtyChange={setThemeDirty}
                   onOpenGallery={() => setGallery('manual')}
                   plural={plural}
                   orgId={orgId}
@@ -514,6 +544,7 @@ function Editor({
                   options={options}
                   onInstanceChange={changeInstance}
                   onContentSaved={refreshSite}
+                  onDirtyChange={setPanelDirty}
                   showError={showError}
                   showSuccess={showSuccess}
                 />
@@ -521,17 +552,19 @@ function Editor({
             </div>
           </div>
         </main>
-      </div>
-      {pickerOpen && (
-        <Picker site={site} layout={history.present} plural={plural} orgId={orgId} data={data} onAdd={addWidget} onClose={() => setPickerOpen(false)} />
-      )}
-      {gallery && canvas.gallery && (
-        <Gallery
+        {/* H7: the gallery lives in the ≥lg branch only — never over the phone notice. */}
+        {gallery && canvas.gallery && (
+          <Gallery
           site={site}
           org={canvas.gallery}
           plural={plural}
           orgId={orgId}
           auto={gallery === 'auto'}
+          dirty={draft.dirty}
+          onFlush={async () => {
+            const settled = await draft.flush();
+            return settled.status === 'saved' || settled.status === 'idle';
+          }}
           onApplied={() => {
             // The server re-laid the draft: reload the whole editor from it
             // (a fresh rev; no undo entry — the console's Discard draft is the way back).
@@ -542,6 +575,24 @@ function Editor({
           showError={showError}
           showSuccess={showSuccess}
         />
+        )}
+      </div>
+      <ConfirmModal
+        isOpen={pending !== null}
+        title={COPY.FORMS.DISCARD_TITLE}
+        message={COPY.FORMS.DISCARD_CONFIRM}
+        confirmText={COPY.FORMS.DISCARD_ACTION}
+        onConfirm={() => {
+          const run = pending;
+          setPending(null);
+          setPanelDirty(false);
+          setThemeDirty(false);
+          run?.();
+        }}
+        onCancel={() => setPending(null)}
+      />
+      {pickerOpen && (
+        <Picker site={site} layout={history.present} plural={plural} orgId={orgId} data={data} onAdd={addWidget} onClose={() => setPickerOpen(false)} />
       )}
     </div>
   );

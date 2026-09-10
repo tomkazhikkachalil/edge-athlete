@@ -33,6 +33,10 @@ export interface GalleryProps {
   orgId: string;
   /** Opened by the editor itself on a fresh site (shows Skip). */
   auto: boolean;
+  /** H7: the layout the manager sees is not yet the draft's. */
+  dirty: boolean;
+  /** Save the pending edit now; resolves to whether the draft is clean. */
+  onFlush: () => Promise<boolean>;
   onApplied: () => void;
   onClose: () => void;
   showError: (title: string, message?: string) => void;
@@ -47,7 +51,7 @@ const MODE_COPY: Record<GalleryMode, { label: string; hint: string }> = {
 const USE = 'min-h-[36px] rounded-md bg-brand px-3 text-sm font-medium text-white hover:bg-brand-hover transition-colors disabled:opacity-50 disabled:cursor-not-allowed';
 const PILL = 'min-h-[36px] rounded-md border border-border-strong px-3 text-sm text-secondary hover:bg-surface-sunken transition-colors';
 
-export default function Gallery({ site, org, plural, orgId, auto, onApplied, onClose, showError, showSuccess }: GalleryProps) {
+export default function Gallery({ site, org, plural, orgId, auto, dirty, onFlush, onApplied, onClose, showError, showSuccess }: GalleryProps) {
   const [mode, setMode] = useState<GalleryMode>('keep');
   const [busyId, setBusyId] = useState<string | null>(null);
   const entries = galleryEntriesFor(site.side, site.sportKey);
@@ -61,6 +65,12 @@ export default function Gallery({ site, org, plural, orgId, auto, onApplied, onC
   const use = async (entry: GalleryEntry) => {
     setBusyId(entry.id);
     try {
+      // H7: the server re-lays ITS copy of the draft — a drag still inside the
+      // autosave debounce would be lost. Save it first; refuse when it cannot be.
+      if (dirty && !(await onFlush())) {
+        showError('Website', 'Your last change hasn’t saved yet — try again in a moment.');
+        return;
+      }
       const res = await fetch(`/api/${plural}/${orgId}/site`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
@@ -109,7 +119,7 @@ export default function Gallery({ site, org, plural, orgId, auto, onApplied, onC
                     </p>
                     <p className="text-xs text-tertiary">{entry.blurb}</p>
                   </div>
-                  <button type="button" onClick={() => void use(entry)} disabled={busyId !== null} className={USE} data-sb-gallery-use="">
+                  <button type="button" onClick={() => void use(entry)} disabled={busyId !== null} className={USE} data-sb-gallery-use="" title={dirty ? 'Your pending change is saved first' : undefined}>
                     {busyId === entry.id ? 'Applying…' : 'Use this'}
                   </button>
                 </div>
