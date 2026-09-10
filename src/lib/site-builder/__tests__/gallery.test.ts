@@ -20,7 +20,7 @@ import {
 import { isWidgetEmpty } from '../emptiness';
 import { isContentWidgetKey } from '../catalog';
 import { compactLayout, validateLayout, type SiteLayout, type WidgetInstance } from '../layout';
-import { LAYOUT_WIDGETS_MAX } from '../layout-schema';
+import { LAYOUT_WIDGETS_MAX, parseStoredLayout } from '../layout-schema';
 import { instanceSchemaFor } from '../schemas';
 import { parseEmbed } from '../embeds';
 import { seedLayout } from '../seeds';
@@ -236,6 +236,36 @@ describe('applyGallerySeed — keep and clean', () => {
     const keepOmit = applyGallerySeed(stored(), gallerySeed(galleryEntry('simple')!, shape(ALL), org, 'league', 'golf'), 'keep', true);
     expect(keepOmit.widgets.some(w => w.key === 'news')).toBe(true);
     expect(keepOmit.widgets.some(w => w.id === 'mine')).toBe(true);
+  });
+
+  it('H4: the cap — a 60-widget layout plus the seed’s generated map trims the rest tail to `max`, still parses, still valid', () => {
+    const l = stored();
+    // The stored layout already carries the welcome; the seed adds the map → 61 uncapped.
+    const filler: WidgetInstance[] = Array.from({ length: 60 - l.widgets.length }, (_, i) => ({ id: `f${i}`, key: 'text' as const, x: 0, y: 100 + i * 2, w: 12, h: 2, cv: 1, config: { blocks: [{ type: 'paragraph', text: `f${i}` }] }, visibility: 'public' as const }));
+    const big: SiteLayout = { ...l, widgets: compactLayout([...l.widgets, ...filler]) };
+    expect(big.widgets).toHaveLength(60);
+    const out = applyGallerySeed(big, seedFor(ALL), 'keep', false, 60);
+    expect(out.widgets.length).toBeLessThanOrEqual(60);
+    expect(validateLayout(out)).toEqual([]);
+    expect(parseStoredLayout(out)).not.toBeNull();
+    // The plan's cells and the generated tiles always survive; the tail of the rest is what goes.
+    expect(out.widgets.some(w => w.id === 'std_1')).toBe(true);
+    expect(out.widgets.some(w => w.id === MAP_ID)).toBe(true);
+    // Without a cap the same input exceeds the schema.
+    expect(applyGallerySeed(big, seedFor(ALL), 'keep').widgets.length).toBeGreaterThan(60);
+  });
+
+  it('H4: a plan or a stored width outside the constraints is clamped, never written as-is', () => {
+    const l = stored();
+    // A seed cell too wide/narrow for its key: hero at 6 (minW 12) and a 14-wide contact.
+    const seed = seedFor(ALL);
+    const bad: SiteLayout = { ...seed, widgets: seed.widgets.map(w => (w.key === 'hero' ? { ...w, w: 6 } : w.key === 'contact' ? { ...w, w: 14 } : w)) };
+    const out = applyGallerySeed(l, bad, 'keep');
+    expect(validateLayout(out)).toEqual([]);
+    expect(out.widgets.find(w => w.key === 'hero')!.w).toBe(12);
+    // A stored instance too TALL for its key falls to the rest clamped.
+    const tall: SiteLayout = { ...l, widgets: l.widgets.map(w => (w.key === 'news' ? { ...w, h: 99 } : w)) };
+    expect(validateLayout(applyGallerySeed(tall, gallerySeed(galleryEntry('simple')!, shape(ALL), org, 'league', 'golf'), 'keep'))).toEqual([]);
   });
 
   it('a module instance too narrow for its constraints is widened when it falls to the rest', () => {

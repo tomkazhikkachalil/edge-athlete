@@ -21,7 +21,8 @@ import {
   type SitePatchInput,
   THEME_DESIGN_KEYS,
 } from '@/lib/org-sites/validate';
-import { parseStoredLayout } from './layout-schema';
+import { LAYOUT_WIDGETS_MAX, parseStoredLayout } from './layout-schema';
+import { LEGACY_ID_PREFIX, appendWidget, compactLayout, newInstanceFor, validateLayout, type LegacySiteShape, type WidgetInstance } from './layout';
 import { applySeed, seedLayout } from './seeds';
 import { NEUTRAL_ORG, applyGallerySeed, galleryEntry, gallerySeed, type GalleryOrg } from './gallery';
 import { GALLERY_PICKS_MAX, readGalleryPicks, type GalleryPick } from '@/lib/org-sites/member-photo-gate';
@@ -202,7 +203,25 @@ export function applySiteAction(s: SiteSnapshot, input: SnapshotAction, ctx: App
       // never brick on a deleted row).
       const m = moduleOr(s, input.moduleKey, input.enabled);
       modules[input.moduleKey] = { ...m, enabled: input.enabled };
-      return { ...s, modules };
+      // H4 (Tom: "the toggle governs the tile"): a STORED layout follows the
+      // switch — off removes every instance of the module, on appends one
+      // (the legacy id, so an untouched page still matches its seed) when
+      // none is there. No stored layout → the seed already reads the rows.
+      const stored = parseStoredLayout(s.layout);
+      if (!stored) return { ...s, modules };
+      const key = input.moduleKey as WidgetInstance['key'];
+      if (!input.enabled) {
+        const kept = stored.widgets.filter(w => w.key !== key);
+        return { ...s, modules, layout: kept.length === stored.widgets.length ? stored : { ...stored, widgets: compactLayout(kept) } };
+      }
+      if (stored.widgets.some(w => w.key === key)) return { ...s, modules, layout: stored };
+      const shape: LegacySiteShape = {
+        hero_config: s.hero,
+        contact_config: s.contact,
+        visibility: 'public',
+        modules: Object.entries(modules).map(([module_key, mod]) => ({ module_key, enabled: mod.enabled, sort_order: mod.sortOrder, config: mod.config })),
+      };
+      return { ...s, modules, layout: appendWidget(stored, newInstanceFor(shape, key, `${LEGACY_ID_PREFIX}${key}`)) };
     }
     case 'set_hero':
       return {
@@ -274,7 +293,11 @@ export function applySiteAction(s: SiteSnapshot, input: SnapshotAction, ctx: App
       });
       const current = parseStoredLayout(s.layout) ?? seedLayout(shape(s.templateId));
       const seed = gallerySeed(entry, shape(entry.family), ctx.gallery ?? NEUTRAL_ORG(ctx.side), ctx.side, ctx.sportKey);
-      const layout = applyGallerySeed(current, seed, input.mode ?? 'keep', entry.rest === 'omit');
+      const layout = applyGallerySeed(current, seed, input.mode ?? 'keep', entry.rest === 'omit', LAYOUT_WIDGETS_MAX);
+      // H4: never write a layout the readers would refuse — a refused
+      // layout parses as null and the page silently reverts to its seed.
+      const parsed = parseStoredLayout(layout);
+      if (!parsed || validateLayout(parsed).length > 0) return s;
       return { ...s, templateId: entry.family, theme, layout };
     }
     case 'set_template': {

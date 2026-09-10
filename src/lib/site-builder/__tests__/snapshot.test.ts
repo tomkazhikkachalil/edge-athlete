@@ -134,6 +134,52 @@ describe('applySiteAction', () => {
     expect(golf.modules.news.sortOrder).toBe(5);
   });
 
+  it('H4: set_module governs the TILE on a stored layout — off removes every instance (compacted), on appends one legacy-id instance once; no stored layout → rows only', () => {
+    const noLayout = applySiteAction(base(), patch({ action: 'set_module', moduleKey: 'standings', enabled: false }), ctx);
+    expect(noLayout.modules.standings.enabled).toBe(false);
+    expect(noLayout.layout).toBeUndefined();
+
+    let s = base();
+    const stack = seedLayout({ template_id: 'classic', hero_config: {}, contact_config: {}, visibility: 'public', modules: Object.entries(s.modules).map(([module_key, m]) => ({ module_key, enabled: m.enabled, sort_order: m.sortOrder, config: m.config })) });
+    const second = { id: 'std_2', key: 'standings' as const, x: 0, y: 90, w: 12, h: 4, cv: 1, config: { title: 'Div 2' }, visibility: 'public' as const };
+    s = { ...s, layout: { ...stack, widgets: [...stack.widgets, second] } };
+    expect(parseStoredLayout(s.layout)!.widgets.filter(w => w.key === 'standings')).toHaveLength(2);
+
+    const off = applySiteAction(s, patch({ action: 'set_module', moduleKey: 'standings', enabled: false }), ctx);
+    const offLayout = parseStoredLayout(off.layout)!;
+    expect(off.modules.standings.enabled).toBe(false);
+    expect(offLayout.widgets.some(w => w.key === 'standings')).toBe(false);
+    expect(validateLayout(offLayout)).toEqual([]);
+    // Compacted: news moved up into standings' rows.
+    expect(offLayout.widgets.find(w => w.key === 'news')!.y).toBeLessThan(parseStoredLayout(s.layout)!.widgets.find(w => w.key === 'news')!.y);
+
+    const on = applySiteAction(off, patch({ action: 'set_module', moduleKey: 'standings', enabled: true }), ctx);
+    const onLayout = parseStoredLayout(on.layout)!;
+    expect(onLayout.widgets.filter(w => w.key === 'standings').map(w => w.id)).toEqual(['legacy:standings']);
+    expect(validateLayout(onLayout)).toEqual([]);
+    // Already present → the layout is untouched (no second instance).
+    const again = applySiteAction(on, patch({ action: 'set_module', moduleKey: 'standings', enabled: true }), ctx);
+    expect(parseStoredLayout(again.layout)!.widgets.filter(w => w.key === 'standings')).toHaveLength(1);
+    // A module with no instance and no row yet: enabling appends one (self-healed row + tile).
+    const teams = applySiteAction(on, patch({ action: 'set_module', moduleKey: 'teams', enabled: true }), ctx);
+    expect(parseStoredLayout(teams.layout)!.widgets.filter(w => w.key === 'teams').map(w => w.id)).toEqual(['legacy:teams']);
+  });
+
+  it('H4: apply_gallery never writes a layout the readers refuse — past the cap the tail is trimmed; an unfixable result leaves the snapshot unchanged', () => {
+    let s = base();
+    const stack = seedLayout({ template_id: 'classic', hero_config: {}, contact_config: {}, visibility: 'public', modules: Object.entries(s.modules).map(([module_key, m]) => ({ module_key, enabled: m.enabled, sort_order: m.sortOrder, config: m.config })) });
+    const filler = Array.from({ length: 60 - stack.widgets.length }, (_, i) => ({ id: `f${i}`, key: 'text' as const, x: 0, y: 100 + i * 2, w: 12, h: 2, cv: 1, config: { blocks: [{ type: 'paragraph', text: `f${i}` }] }, visibility: 'public' as const }));
+    s = { ...s, layout: { ...stack, widgets: [...stack.widgets, ...filler] } };
+    expect(parseStoredLayout(s.layout)!.widgets).toHaveLength(60);
+    const org = { orgName: 'Kanata Golf', city: 'Kanata', region: 'ON', venues: [{ id: 'v', name: 'Loch March', lat: 45.3, lng: -75.9 }] };
+    const out = applySiteAction(s, patch({ action: 'apply_gallery', entryId: 'golf-tour' }), { ...ctx, sportKey: 'golf', gallery: org });
+    const layout = parseStoredLayout(out.layout);
+    expect(layout).not.toBeNull();
+    expect(layout!.widgets.length).toBeLessThanOrEqual(60);
+    expect(layout!.widgets.some(w => w.id === 'seed:welcome')).toBe(true);
+    expect(out.templateId).toBe('bold');
+  });
+
   it('phase 11: apply_gallery — family + tokens over a stripped design set; the layout re-laid; content generated; nothing destroyed in keep mode', () => {
     let s = base();
     s = applySiteAction(s, patch({ action: 'set_theme', accent: '#0f766e', typeface: 'lora', header: 'band', wordmark: 'W' }), ctx);

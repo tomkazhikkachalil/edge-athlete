@@ -1,6 +1,7 @@
 import { test, expect } from '@playwright/test';
 import { adminClient, apiAs, loadQaUser, readErrorBody, resetRateBucket } from './helpers/qa-user';
 import { settleBody } from './helpers/isr';
+import { revisionsSupported } from './helpers/org-site';
 
 // Builder depth, part 3 (phase 6b B3): the three masterplan modules that
 // were still unbuilt — divisions (teams grouped by division for the
@@ -129,6 +130,23 @@ test('org site modules: divisions, stat leaders (masked; golf degrades), documen
         data: { action: 'set_module', moduleKey: key, enabled: true },
       });
       expect(res.status(), await readErrorBody(res)).toBe(200);
+    }
+
+    // H4: on a STORED layout the toggle governs the tile — off removes it,
+    // on appends one (the legacy id) exactly once.
+    if (await revisionsSupported(ownerApi, 'league', leagueId)) {
+      const canvas = (await (await ownerApi.get(`/api/leagues/${leagueId}/site/canvas`)).json()) as { layout: { widgets: { id: string; key: string }[] } };
+      expect(canvas.layout.widgets.some(w => w.key === 'documents')).toBe(true);
+      res = await ownerApi.put(`/api/leagues/${leagueId}/site/draft`, { data: { layout: canvas.layout } });
+      expect(res.status(), await readErrorBody(res)).toBe(200);
+      res = await ownerApi.patch(`/api/leagues/${leagueId}/site`, { data: { action: 'set_module', moduleKey: 'documents', enabled: false } });
+      expect(res.status(), await readErrorBody(res)).toBe(200);
+      let stored = (await (await ownerApi.get(`/api/leagues/${leagueId}/site/canvas`)).json()) as { layout: { widgets: { id: string; key: string }[] } };
+      expect(stored.layout.widgets.some(w => w.key === 'documents')).toBe(false);
+      res = await ownerApi.patch(`/api/leagues/${leagueId}/site`, { data: { action: 'set_module', moduleKey: 'documents', enabled: true } });
+      expect(res.status(), await readErrorBody(res)).toBe(200);
+      stored = (await (await ownerApi.get(`/api/leagues/${leagueId}/site/canvas`)).json()) as { layout: { widgets: { id: string; key: string }[] } };
+      expect(stored.layout.widgets.filter(w => w.key === 'documents').map(w => w.id)).toEqual(['legacy:documents']);
     }
 
     // Documents: a stored PDF + a link; a foreign path is refused.

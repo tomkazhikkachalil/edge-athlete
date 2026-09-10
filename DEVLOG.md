@@ -1,5 +1,39 @@
 # Development Log
 
+## September 9, 2026 — Site Builder hardening H4: the reducer never writes a layout the page would refuse; the module toggle governs the tile (zero DDL)
+
+- **Silent resets.** `apply_gallery` wrote `applyGallerySeed`'s output into
+  the snapshot with no validation. Past `LAYOUT_WIDGETS_MAX` (60) the
+  stored layout parses as null and the canvas — and the public page — fall
+  back to the SEED: the whole arrangement gone, no error anywhere. The
+  engine clamped a placed module's height but not its width, so a plan
+  cell outside a key's constraints would produce the same null.
+- **The fix** (`layout.ts clampToConstraints`, new; `gallery.ts`,
+  `snapshot.ts`): every placed or appended instance is clamped to its
+  catalog constraints and the grid; `applyGallerySeed` takes a `max` and
+  trims the rest tail to fit (the plan's cells and the generated content
+  always survive); the reducer runs the result through `parseStoredLayout`
+  + `validateLayout` and leaves the snapshot UNCHANGED when anything is
+  still wrong.
+- **The toggle governs the tile** (Tom, Sep 9). `set_module` only flipped
+  the module row: on a stored layout a disabled module's tile kept
+  rendering (H1's renderer filter now hides it) and enabling added none.
+  The reducer reconciles the stored layout: off removes every instance of
+  the key and compacts; on appends one instance with the legacy id when
+  none is there (an untouched page still matches its seed); a layout that
+  already has one is untouched; no stored layout → the seed reads the rows
+  as before. H1's filter stays as the safety net for layouts written before
+  this.
+- Tests: `gallery.test.ts` (a 59-widget layout + two generated tiles trims
+  to ≤ 60, parses, validates, keeps the plan's cells and the map; a hero
+  planned at 6 wide and a 14-wide contact are clamped; a 99-tall stored
+  instance falls to the rest clamped), `snapshot.test.ts` (off removes and
+  compacts, on appends once with the legacy id, twice is idempotent, a
+  never-seen module gets row + tile; a 60-widget snapshot through
+  `apply_gallery` stays ≤ 60 with the welcome present). e2e
+  (`org-site-modules`): store the layout → documents off → the canvas lacks
+  the tile → on → exactly one `legacy:documents`.
+
 ## September 9, 2026 — Site Builder hardening H3: the in-app composition comes from the PUBLISHED layout only; one bubble per key (zero DDL)
 
 - **The leak.** `readSiteBrandRow` follows Tom's brand rule — while a site
