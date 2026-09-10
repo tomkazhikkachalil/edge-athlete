@@ -3,8 +3,9 @@ import type { PublicSite } from '@/lib/org-sites/server';
 import type { SiteHomeData } from '@/lib/org-sites/home-data';
 import { effectiveSpec } from '@/lib/org-sites/theme';
 import { WIDGETS } from '@/lib/site-builder/catalog';
-import { compactLayout, deriveMobileOrder, type SiteLayout } from '@/lib/site-builder/layout';
-import { isWidgetEmpty } from '@/lib/site-builder/emptiness';
+import { deriveMobileOrder, type SiteLayout } from '@/lib/site-builder/layout';
+import { effectiveAudience } from '@/lib/site-builder/audience';
+import { publicWidgets } from '@/lib/site-builder/public-view';
 import HeroSection from './HeroSection';
 import WidgetBody, { widgetHeading, widgetTitle } from './WidgetBody';
 
@@ -36,8 +37,10 @@ export default function GridRenderer({ site, layout, data }: { site: PublicSite;
   const sectionClass = `bg-surface rounded-lg shadow-sm border border-border ${compact ? 'p-3 sm:p-4' : 'p-4 sm:p-6'}`;
   const headingClass = compact ? 'text-sm font-semibold uppercase tracking-wide text-secondary' : 'text-lg font-semibold text-primary';
 
-  // Public audience only; empty tiles drop; the grid closes ranks.
-  const visible = compactLayout(layout.widgets.filter(w => w.visibility !== 'staff' && !isWidgetEmpty(w, data, site)));
+  // H1: ONE rule decides what renders — enabled modules, the effective
+  // audience (the org's privacy re-asked at render, never the stored
+  // value), empties dropped; the grid closes ranks.
+  const visible = publicWidgets(site, layout, data);
   const ordered = deriveMobileOrder(visible);
   const hero = ordered.find(w => w.key === HERO_KEY);
 
@@ -64,7 +67,7 @@ export default function GridRenderer({ site, layout, data }: { site: PublicSite;
           return (
             <section key={w.id} aria-label={title} className={`sb-w${half} ${sectionClass}`} style={style} data-widget={w.key} data-widget-id={w.id}>
               {heading && <h2 className={headingClass}>{heading}</h2>}
-              <WidgetBody site={site} w={w} data={data} spec={spec} />
+              <WidgetBody site={site} w={w} data={data} spec={spec} membersOnly={effectiveAudience(site, w) === 'members'} />
             </section>
           );
         })}

@@ -9,6 +9,7 @@ import { effectiveSpec } from '@/lib/org-sites/theme';
 import { CONTENT_WIDGET_KEYS, WEB_WIDGET_KEYS, WIDGETS, type ContentWidgetKey, type SiteWidgetKey } from '@/lib/site-builder/catalog';
 import { newInstanceFor, type SiteLayout } from '@/lib/site-builder/layout';
 import WidgetBody from '@/app/(public)/org/[slug]/_components/WidgetBody';
+import { effectiveAudience } from '@/lib/site-builder/audience';
 
 /**
  * The add-widget picker — Site Builder P3-D (Sep 9 2026). Every option
@@ -132,7 +133,7 @@ export default function Picker({ site, layout, plural, orgId, data: canvasData, 
                     {!preview || !previewData ? (
                       <div className="h-16 animate-pulse rounded bg-surface-sunken" />
                     ) : (
-                      <WidgetBody site={site} w={preview} data={previewData} spec={spec} />
+                      <WidgetBody site={site} w={preview} data={previewData} spec={spec} membersOnly={effectiveAudience(site, preview) === 'members'} />
                     )}
                   </div>
                   {again && (

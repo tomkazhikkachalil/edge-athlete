@@ -1,6 +1,7 @@
 import type { SiteHomeData } from '@/lib/org-sites/home-data';
 import { parseContact, parseDocuments, parsePageBody, parseSponsors } from '@/lib/org-sites/validate';
 import type { WidgetInstance } from './layout';
+import { effectiveAudience, type AudienceSite } from './audience';
 import { effectiveConfig, type ContentSource } from './config';
 import { parseEmbed } from './embeds';
 import { selectForInstance } from './select';
@@ -17,10 +18,12 @@ import { selectForInstance } from './select';
  * Pure, per widget, from the resolved data + the EFFECTIVE config (content
  * from the org objects over the instance's options). A
  * members-only tile on a private club is NOT empty: its panel is the
- * content. The hero and the gallery teaser are never empty.
+ * content — decided by `effectiveAudience` at render time (H1), never by
+ * the stored visibility alone. The hero and the gallery teaser are never
+ * empty.
  */
-export function isWidgetEmpty(w: WidgetInstance, raw: SiteHomeData, site: ContentSource): boolean {
-  if (w.visibility === 'members') return false;
+export function isWidgetEmpty(w: WidgetInstance, raw: SiteHomeData, site: ContentSource & AudienceSite): boolean {
+  if (effectiveAudience(site, w) === 'members') return false;
   // Phase 9: the instance's query narrows the bag first — a table bound to
   // a competition with no rows is empty even when another competition has.
   const data = selectForInstance(w, raw);
@@ -64,7 +67,9 @@ export function isWidgetEmpty(w: WidgetInstance, raw: SiteHomeData, site: Conten
     case 'news':
       return (data.news ?? []).length === 0;
     case 'members':
-      return !data.memberStats;
+      // H1: the stats reader answers an EMPTY object for an org with no
+      // members — "No members yet." must never render publicly.
+      return !data.memberStats || data.memberStats.members.length === 0;
     // Phase 6 — content widgets: empty until authored (the instance IS the content).
     case 'text':
       return parsePageBody(config.blocks).length === 0;

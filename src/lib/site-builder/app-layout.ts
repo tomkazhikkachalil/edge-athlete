@@ -18,6 +18,7 @@
  */
 
 import { WIDGETS, WIDGET_KEYS, isContentWidgetKey, type AppBubbleKey, type BubbleSpan, type WidgetKey } from './catalog';
+import { effectiveAudience, type AudienceSite } from './audience';
 import { instanceTitle } from './config';
 import { deriveMobileOrder, type SiteLayout, type WidgetVisibility } from './layout';
 import type { PageBlock } from '@/lib/org-sites/validate';
@@ -74,11 +75,14 @@ function registrySlots(): AppSlot[] {
 
 /** The layout's app-capable instances in reading order (the phone's order —
  *  deriveMobileOrder), with their titles. Content tiles pass through; the
- *  server resolves what they show. */
-export function projectLayoutForApp(layout: SiteLayout): AppInstance[] {
+ *  server resolves what they show. The visibility carried is the EFFECTIVE
+ *  audience (H1): the org's current privacy over the stored value, so a
+ *  club that went private after arranging never shows its members-only
+ *  sections to an outsider in-app either. */
+export function projectLayoutForApp(layout: SiteLayout, site: AudienceSite): AppInstance[] {
   return deriveMobileOrder(layout.widgets)
     .filter(w => !!WIDGETS[w.key].surfaces.app)
-    .map(w => ({ id: w.id, key: w.key, w: w.w, title: instanceTitle(w), visibility: w.visibility }));
+    .map(w => ({ id: w.id, key: w.key, w: w.w, title: instanceTitle(w), visibility: effectiveAudience(site, w) }));
 }
 
 export interface AppViewer {

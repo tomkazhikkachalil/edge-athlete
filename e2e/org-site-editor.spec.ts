@@ -1,6 +1,7 @@
 import { test, expect } from '@playwright/test';
 import { adminClient, apiAs, loadQaUser, readErrorBody, resetRateBucket } from './helpers/qa-user';
 import { revisionsSupported } from './helpers/org-site';
+import { awaitDraftSaved } from './helpers/isr';
 
 // Site Builder P3-B: the grid editor (the Website section's door since
 // P10-C). Skips (green) when the target database lacks migration 180. With both: the canvas loads
@@ -10,10 +11,6 @@ import { revisionsSupported } from './helpers/org-site';
 
 /** One autosave cycle: the header goes dirty (the edit), then clean + saved
  *  (the PUT landed). Waiting on "saved" alone races the previous cycle. */
-async function awaitSaved(page: import('@playwright/test').Page) {
-  await expect(page.locator('[data-sb-dirty="1"]')).toBeVisible({ timeout: 10_000 });
-  await expect(page.locator('[data-sb-dirty="0"][data-sb-status="saved"]')).toBeVisible({ timeout: 15_000 });
-}
 
 test('org site editor: canvas → drag → autosave → undo → reload; phone notice; public untouched', async ({ browser }) => {
   test.setTimeout(240_000);
@@ -95,7 +92,7 @@ test('org site editor: canvas → drag → autosave → undo → reload; phone n
       await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2 + 200, { steps: 12 });
       await page.mouse.up();
       await expect(page.getByRole('button', { name: 'Undo' })).toBeEnabled({ timeout: 10_000 });
-      await awaitSaved(page);
+      await awaitDraftSaved(page);
       // The drag arranged the page: that step is done.
       await expect(rail.locator('[data-sb-checklist-step="arrange"]')).toHaveAttribute('data-done', '1');
 
@@ -113,13 +110,13 @@ test('org site editor: canvas → drag → autosave → undo → reload; phone n
 
       // Undo → the original order comes back and saves again.
       await page.getByRole('button', { name: 'Undo' }).click();
-      await awaitSaved(page);
+      await awaitDraftSaved(page);
       const undone = (await (await ownerApi.get(`/api/leagues/${leagueId}/site/canvas`)).json()) as { layout: { widgets: { id: string; y: number }[] } };
       expect([...undone.layout.widgets].sort((a, b) => a.y - b.y).map(w => w.id)).toEqual(orderBefore);
 
       // Redo, then reload: the moved layout survives.
       await page.getByRole('button', { name: 'Redo' }).click();
-      await awaitSaved(page);
+      await awaitDraftSaved(page);
       await page.reload();
       await expect(page.locator('[data-sb-canvas]')).toBeVisible({ timeout: 30_000 });
       const reloaded = (await (await ownerApi.get(`/api/leagues/${leagueId}/site/canvas`)).json()) as { layout: { widgets: { id: string; y: number }[] } };
@@ -139,7 +136,7 @@ test('org site editor: canvas → drag → autosave → undo → reload; phone n
       // Remove again (for real), then add it back from the picker — tiles preview the club's data.
       await page.locator(`[data-sb-widget="${removedKey}"]`).getByRole('button', { name: /^Remove / }).click();
       await expect(page.locator('[data-sb-instance]')).toHaveCount(before - 1);
-      await awaitSaved(page);
+      await awaitDraftSaved(page);
       await page.getByRole('button', { name: 'Add section' }).click();
       const picker = page.locator('[data-larger-window="sb-picker"]');
       await expect(picker).toBeVisible();
@@ -150,7 +147,7 @@ test('org site editor: canvas → drag → autosave → undo → reload; phone n
       await expect(picker).toBeHidden();
       await expect(page.locator('[data-sb-instance]')).toHaveCount(before);
       await expect(page.locator(`[data-sb-widget="${removedKey}"]`)).toBeVisible();
-      await awaitSaved(page);
+      await awaitDraftSaved(page);
       const readded = (await (await ownerApi.get(`/api/leagues/${leagueId}/site/canvas`)).json()) as { layout: { widgets: { key: string; id: string }[] } };
       expect(readded.layout.widgets.filter(w => w.key === removedKey)).toHaveLength(1);
       expect(readded.layout.widgets.find(w => w.key === removedKey)!.id).toMatch(/^w_[0-9a-f]{16}$/);
@@ -168,7 +165,7 @@ test('org site editor: canvas → drag → autosave → undo → reload; phone n
       await expect(panel).toBeVisible();
       await panel.getByLabel('Section title').fill(`Our ${targetKey} ${stamp}`);
       await expect(target.locator('.sb-frame-controls')).toContainText(`Our ${targetKey} ${stamp}`);
-      await awaitSaved(page);
+      await awaitDraftSaved(page);
       // The hero's CONTENT goes through set_hero (the console's own write) and the canvas re-reads it.
       await page.locator('[data-sb-widget="hero"] .sb-frame-controls').click();
       const heroPanel = page.locator('[data-sb-panel="hero"]');
@@ -215,7 +212,7 @@ test('org site editor: canvas → drag → autosave → undo → reload; phone n
       await textPanel.getByRole('button', { name: '+ Paragraph' }).click();
       await textPanel.getByLabel('Paragraph 1', { exact: true }).fill(`Typed paragraph ${stamp}`);
       await expect(page.locator('[data-sb-widget="text"]').first()).toContainText(`Typed paragraph ${stamp}`);
-      await awaitSaved(page);
+      await awaitDraftSaved(page);
       // One undo step for the whole paragraph: Undo clears the text, Redo brings it back.
       await page.getByRole('button', { name: 'Undo', exact: true }).click();
       await expect(textPanel.getByLabel('Paragraph 1', { exact: true })).toHaveValue('');
@@ -231,7 +228,7 @@ test('org site editor: canvas → drag → autosave → undo → reload; phone n
       await embedPanel.getByLabel('Video or map link').fill('https://vimeo.com/76979871');
       await expect(embedPanel.locator('[data-sb-embed="vimeo"]')).toContainText('Vimeo video');
       await expect(page.locator('[data-sb-widget="embed"] iframe').first()).toHaveAttribute('src', 'https://player.vimeo.com/video/76979871');
-      await awaitSaved(page);
+      await awaitDraftSaved(page);
       await embedPanel.getByLabel('Video or map link').fill('https://example.com/not-a-video');
       await expect(embedPanel.getByText('Not a link we can show')).toBeVisible();
 
@@ -244,7 +241,7 @@ test('org site editor: canvas → drag → autosave → undo → reload; phone n
       await imagePanel.getByLabel('Describe the photo').fill(`Photo alt ${stamp}`);
       await imagePanel.getByLabel('Caption').fill(`Photo caption ${stamp}`);
       await expect(page.locator('[data-sb-widget="image"] img').first()).toBeVisible();
-      await awaitSaved(page);
+      await awaitDraftSaved(page);
 
       // Phase 6 (P6-A): the same tiles through the draft API — a cross-site
       // image path is refused; an embed is a STRUCTURE, never a URL.
@@ -326,7 +323,7 @@ test('org site editor: canvas → drag → autosave → undo → reload; phone n
       expect(await canvasEl.evaluate(el => getComputedStyle(el).getPropertyValue('--org-accent').trim())).toBe('#0f766e');
       await page.locator('[data-sb-widget="staff"] .sb-frame-controls').click();
       await page.locator('[data-sb-panel="staff"]').getByLabel('Section title').fill(`Our staff again ${stamp}`);
-      await awaitSaved(page);
+      await awaitDraftSaved(page);
 
       // The phone: the notice with working doors, no overflow.
       await page.setViewportSize({ width: 375, height: 812 });

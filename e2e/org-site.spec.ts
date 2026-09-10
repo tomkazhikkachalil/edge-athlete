@@ -2,50 +2,15 @@ import path from 'path';
 import { test, expect } from '@playwright/test';
 import { TOGGLEABLE_MODULE_KEYS } from '../src/lib/org-sites/validate';
 import { adminClient, apiAs, loadQaUser, readErrorBody, resetRateBucket } from './helpers/qa-user';
-import { publishSite } from './helpers/org-site';
+import { settleBody, settleStatus } from './helpers/isr';
 
 // The public org site shell (phase 3, round 1): create → publish → the
 // anonymous /org/{slug} document renders from the (public) segment;
 // unpublish → 404 again. The subdomain is minted from the org name
 // against the shared reserved denylist; drafts are invisible; a member
 // without manage_org gets 403 from the site API.
-/** ISR + SWR settle: after revalidateTag the FIRST hit may serve the
- *  stale copy (and ?_cb= never busts a document cache — ISR pages key by
- *  PATHNAME). Poll briefly until the expected status lands. */
-async function settle(
-  request: { get: (u: string) => Promise<{ status: () => number }> },
-  url: string,
-  expected: number,
-  attempts = 6
-): Promise<number> {
-  let last = 0;
-  for (let i = 0; i < attempts; i++) {
-    const res = await request.get(url);
-    last = res.status();
-    if (last === expected) return last;
-    await new Promise(r => setTimeout(r, 2500));
-  }
-  return last;
-}
+import { publishSite } from './helpers/org-site';
 
-/** Body-content settle: poll until the response body contains (or, with
- *  shouldContain=false, no longer contains) the needle — for caches that
- *  change content without changing status (the sitemap, a toggled home). */
-async function settleBody(
-  request: { get: (u: string) => Promise<{ text: () => Promise<string> }> },
-  url: string,
-  needle: string,
-  shouldContain = true,
-  attempts = 6
-): Promise<string> {
-  let body = '';
-  for (let i = 0; i < attempts; i++) {
-    body = await (await request.get(url)).text();
-    if (body.includes(needle) === shouldContain) return body;
-    await new Promise(r => setTimeout(r, 2500));
-  }
-  return body;
-}
 
 test('org site: create → publish → anon shell; unpublish → 404; member 403; 375px', async ({
   browser,
@@ -159,7 +124,7 @@ test('org site: create → publish → anon shell; unpublish → 404; member 403
       const page = await ctxAnon.newPage();
       // The draft probe cached a 404 for this slug; publish revalidated
       // the tag, and SWR may serve the stale 404 once — settle to 200.
-      expect(await settle(page.request, sitePath, 200, 12)).toBe(200);
+      expect(await settleStatus(page.request, sitePath, 200, 12)).toBe(200);
       // Multi-POP convergence (measured on prod): one edge's 200 doesn't
       // guarantee the next request's POP has revalidated — settle on
       // CONTENT before asserting on the body.
@@ -239,7 +204,7 @@ test('org site: create → publish → anon shell; unpublish → 404; member 403
     try {
       const page2 = await ctxAnon2.newPage();
       // SWR serves the stale document once post-revalidateTag; settle.
-      expect(await settle(page2.request, `/org/${subdomain}`, 404, 12)).toBe(404);
+      expect(await settleStatus(page2.request, `/org/${subdomain}`, 404, 12)).toBe(404);
       // R4 PR-3: unpublish purged the org-sitemap tag too — the site
       // settles OUT of /sitemap.xml.
       // Canonical-aware: the sitemap advertised sitePath (R2), so settle
@@ -442,7 +407,7 @@ test('org site modules: live data on home + subpages; masked roster; team 404s',
     try {
       const page = await ctxAnon.newPage();
       const base = `/org/${subdomain}`;
-      expect(await settle(page.request, base, 200)).toBe(200);
+      expect(await settleStatus(page.request, base, 200)).toBe(200);
 
       // HOME: every module carries live data in the raw HTML.
       const home = await (await page.request.get(base)).text();
@@ -459,24 +424,24 @@ test('org site modules: live data on home + subpages; masked roster; team 404s',
       expect(home).toContain('Full schedule →');
 
       // SUBPAGES: settle each path (the pre-publish 404 caches per path).
-      expect(await settle(page.request, `${base}/standings`, 200)).toBe(200);
+      expect(await settleStatus(page.request, `${base}/standings`, 200)).toBe(200);
       const standings = await (await page.request.get(`${base}/standings`)).text();
       expect(standings).toContain('House League');
       expect(standings).toContain(`Blazers ${stamp}`);
       expect(standings).toContain(`${name} Standings`); // metadata title
 
-      expect(await settle(page.request, `${base}/schedule`, 200)).toBe(200);
+      expect(await settleStatus(page.request, `${base}/schedule`, 200)).toBe(200);
       const schedule = await (await page.request.get(`${base}/schedule`)).text();
       expect(schedule).toContain(`QA Org Night ${stamp}`);
       expect(schedule).toContain(`QA Team Skate ${stamp}`); // team event unions in
 
-      expect(await settle(page.request, `${base}/teams`, 200)).toBe(200);
+      expect(await settleStatus(page.request, `${base}/teams`, 200)).toBe(200);
       const teams = await (await page.request.get(`${base}/teams`)).text();
       expect(teams).toContain(`Blazers ${stamp}`);
       expect(teams).toContain('U13 A'); // division label
 
       // TEAM PAGE: record + schedule + MASKED roster.
-      expect(await settle(page.request, `${base}/teams/${teamId}`, 200)).toBe(200);
+      expect(await settleStatus(page.request, `${base}/teams/${teamId}`, 200)).toBe(200);
       const teamHtml = await (await page.request.get(`${base}/teams/${teamId}`)).text();
       expect(teamHtml).toContain(`Blazers ${stamp}`);
       expect(teamHtml).toContain('House League'); // record row
@@ -518,7 +483,7 @@ test('org site modules: live data on home + subpages; masked roster; team 404s',
         expect(off.status(), await readErrorBody(off)).toBe(200);
         // P2-B: edits land in the draft — publish before reading the public projection.
         await publishSite(toggleApi, 'league', leagueId);
-        expect(await settle(page.request, `${base}/standings`, 404)).toBe(404);
+        expect(await settleStatus(page.request, `${base}/standings`, 404)).toBe(404);
         // Content settle: SWR may serve the stale home document once.
         let homeAfter = '';
         for (let i = 0; i < 6; i++) {
@@ -535,7 +500,7 @@ test('org site modules: live data on home + subpages; masked roster; team 404s',
         expect(on.status(), await readErrorBody(on)).toBe(200);
         // P2-B: edits land in the draft — publish before reading the public projection.
         await publishSite(toggleApi, 'league', leagueId);
-        expect(await settle(page.request, `${base}/standings`, 200)).toBe(200);
+        expect(await settleStatus(page.request, `${base}/standings`, 200)).toBe(200);
 
         const hero = await toggleApi.patch(`/api/leagues/${leagueId}/site`, {
           data: { action: 'set_module', moduleKey: 'hero', enabled: false },
@@ -705,7 +670,7 @@ test('org site branding: hero, theme accent, sponsors', async ({ browser }) => {
     const ctxAnon = await browser.newContext();
     try {
       const page = await ctxAnon.newPage();
-      expect(await settle(page.request, base, 200)).toBe(200);
+      expect(await settleStatus(page.request, base, 200)).toBe(200);
       // Content settle: SWR may serve the pre-branding document once.
       let html = '';
       for (let i = 0; i < 6; i++) {
@@ -951,7 +916,7 @@ test('org site pages: create, blocks, publish; reserved 400; draft 404', async (
     try {
       const page = await ctxAnon.newPage();
       const base = `/org/${subdomain}`;
-      expect(await settle(page.request, `${base}/about-us`, 200)).toBe(200);
+      expect(await settleStatus(page.request, `${base}/about-us`, 200)).toBe(200);
       const html = await (await page.request.get(`${base}/about-us`)).text();
       expect(html).toContain(`Our story ${stamp}`);
       expect(html).toContain('Founded on a frozen pond.');
@@ -973,7 +938,7 @@ test('org site pages: create, blocks, publish; reserved 400; draft 404', async (
       ).toBeGreaterThanOrEqual(400);
 
       // Nav on home gains the page; the draft page never surfaces.
-      expect(await settle(page.request, base, 200)).toBe(200);
+      expect(await settleStatus(page.request, base, 200)).toBe(200);
       let homeHtml = '';
       for (let i = 0; i < 6; i++) {
         homeHtml = await (await page.request.get(base)).text();
@@ -1101,13 +1066,13 @@ test('org site news: create, publish, feed + post; draft 404', async ({ browser 
     try {
       const page = await ctxAnon.newPage();
       const base = `/org/${subdomain}`;
-      expect(await settle(page.request, `${base}/news`, 200)).toBe(200);
+      expect(await settleStatus(page.request, `${base}/news`, 200)).toBe(200);
       const feed = await (await page.request.get(`${base}/news`)).text();
       expect(feed).toContain(`Season Opener ${stamp}`);
       expect(feed).toContain(`Puck drops Saturday ${stamp}.`); // the excerpt
       expect(feed).not.toContain('Quiet Draft');
 
-      expect(await settle(page.request, `${base}/news/season-opener-${stamp}`, 200)).toBe(200);
+      expect(await settleStatus(page.request, `${base}/news/season-opener-${stamp}`, 200)).toBe(200);
       const postHtml = await (
         await page.request.get(`${base}/news/season-opener-${stamp}`)
       ).text();

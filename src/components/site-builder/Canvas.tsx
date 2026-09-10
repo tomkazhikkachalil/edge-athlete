@@ -10,6 +10,7 @@ import { WIDGETS } from '@/lib/site-builder/catalog';
 import { GRID, compactLayout, type SiteLayout, type WidgetInstance } from '@/lib/site-builder/layout';
 import HeroSection from '@/app/(public)/org/[slug]/_components/HeroSection';
 import WidgetBody, { widgetTitle } from '@/app/(public)/org/[slug]/_components/WidgetBody';
+import { effectiveAudience } from '@/lib/site-builder/audience';
 import './grid.css';
 
 /**
@@ -127,7 +128,7 @@ export default function Canvas({ site, layout, data, selectedId, onSelect, onCom
                 {w.key === 'hero' ? (
                   <HeroSection site={site} w={w} spec={spec} />
                 ) : (
-                  <WidgetBody site={site} w={w} data={data} spec={spec} />
+                  <WidgetBody site={site} w={w} data={data} spec={spec} membersOnly={effectiveAudience(site, w) === 'members'} />
                 )}
               </div>
             </div>

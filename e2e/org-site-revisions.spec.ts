@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { adminClient, apiAs, loadQaUser, readErrorBody, resetRateBucket } from './helpers/qa-user';
+import { settleBody } from './helpers/isr';
 import { publishSite, revisionsSupported } from './helpers/org-site';
 
 // Site Builder phase 2 (P2-A…P2-C, mig 180): edits go to the DRAFT, the
@@ -8,23 +9,6 @@ import { publishSite, revisionsSupported } from './helpers/org-site';
 // the draft; discard drops the draft. Skips (green) on a pre-180 database —
 // the revisions GET says so (the 171 precedent).
 
-/** Body-content settle: poll until the response body contains (or no longer
- *  contains) the needle — ISR/CDN may serve the previous document once. */
-async function settleBody(
-  request: { get: (u: string) => Promise<{ text: () => Promise<string> }> },
-  url: string,
-  needle: string,
-  shouldContain = true,
-  attempts = 8
-): Promise<string> {
-  let body = '';
-  for (let i = 0; i < attempts; i++) {
-    body = await (await request.get(url)).text();
-    if (body.includes(needle) === shouldContain) return body;
-    await new Promise(r => setTimeout(r, 2500));
-  }
-  return body;
-}
 
 test('org site revisions: draft → preview → publish → history → restore → discard; console at 375', async ({ browser }) => {
   test.setTimeout(300_000);

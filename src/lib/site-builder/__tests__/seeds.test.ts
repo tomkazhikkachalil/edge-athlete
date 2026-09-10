@@ -87,7 +87,7 @@ describe('place / applySeed / isSeedLayout (phase 8)', () => {
 });
 
 describe('isWidgetEmpty', () => {
-  const noContent = { hero_config: {}, contact_config: {}, modules: [] as { module_key: string; config: unknown }[] };
+  const noContent = { hero_config: {}, contact_config: {}, modules: [] as { module_key: string; config: unknown }[], visibility: 'public' as const };
   const w = (key: WidgetInstance['key'], config: unknown = {}, visibility: WidgetInstance['visibility'] = 'public'): WidgetInstance => ({
     id: key, key, x: 0, y: 0, w: 12, h: 2, cv: 1, config, visibility,
   });
@@ -110,7 +110,7 @@ describe('isWidgetEmpty', () => {
     expect(isWidgetEmpty(w('courses'), { ...empty, clubGolfBoards: ['B'] as never }, noContent)).toBe(false);
     expect(isWidgetEmpty(w('sponsors', { sponsors: [{ name: 'Acme' }] }), empty, noContent)).toBe(false);
     expect(isWidgetEmpty(w('contact', { email: 'x@example.com' }), empty, noContent)).toBe(false);
-    expect(isWidgetEmpty(w('members'), { ...empty, memberStats: { members: [] } as never }, noContent)).toBe(false);
+    expect(isWidgetEmpty(w('members'), { ...empty, memberStats: { members: [{ profileId: 'p' }] } as never }, noContent)).toBe(false);
     expect(isWidgetEmpty(w('standings'), { ...empty, standings: { competitions: [{ rows: [], golf: null }] } as never }, noContent)).toBe(true);
     expect(isWidgetEmpty(w('standings'), { ...empty, standings: { competitions: [{ rows: [1], golf: null }] } as never }, noContent)).toBe(false);
   });
