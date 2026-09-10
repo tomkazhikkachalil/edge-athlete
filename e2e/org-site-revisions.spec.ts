@@ -79,6 +79,16 @@ test('org site revisions: draft → preview → publish → history → restore 
     expect(publicA).toContain('data-template="bold"');
     view = await siteGet();
     expect(view.draft).toBeNull();
+    // H2: a draft write after a publish opens a NEW draft — materialised at
+    // rev 1, this write makes it rev 2 (the published row, at rev 4+, is
+    // fenced); the public page stays Version A.
+    const canvasA = (await (await ownerApi.get(`/api/leagues/${leagueId}/site/canvas`)).json()) as { layout: unknown };
+    res = await ownerApi.put(`/api/leagues/${leagueId}/site/draft`, { data: { layout: canvasA.layout } });
+    expect(res.status(), await readErrorBody(res)).toBe(200);
+    expect(((await res.json()) as { rev: number }).rev).toBe(2);
+    view = await siteGet();
+    expect(view.draft).not.toBeNull();
+    expect((await (await anon.request.get(home)).text())).toContain(`Welcome A ${stamp}`);
 
     // 4. A second version.
     res = await hero(`Welcome B ${stamp}`);

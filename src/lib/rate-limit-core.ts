@@ -112,6 +112,11 @@ export const RATE_LIMITS = {
   'org-competitions': { max: 120, windowSeconds: 3600, keyBy: 'user' },
   // Site create/publish (phase 3) — rare, deliberate actions.
   'org-site': { max: 30, windowSeconds: 3600, keyBy: 'user' },
+  // The site editor's autosave (Site Builder hardening H2): one PUT 1.5 s
+  // after every drag, resize or option change — an ordinary session made
+  // ~30 of them and exhausted the org-site hour, after which every save
+  // silently 429'd. Its own bucket; the 300/h still caps a runaway client.
+  'org-site-draft': { max: 300, windowSeconds: 3600, keyBy: 'user' },
   // Phase 6e S6: announce to members — a megaphone, a few a day.
   'org-announce': { max: 5, windowSeconds: 86400, keyBy: 'user' },
   // Page CRUD (phase 3 R3) — its own bucket: a save-happy block-editor

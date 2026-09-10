@@ -8,7 +8,8 @@ import { UUID_RE } from '@/lib/golf/course-catalog';
 // ── /api/leagues/[id]/site/draft — the editor's save (Site Builder P3-B):
 // PUT { layout, baseRev? } validates the envelope + geometry and writes the
 // layout into the draft snapshot, rev-guarded (409 on a stale baseRev).
-// manage_site; the `org-site` content bucket; 404 when the flag is off.
+// manage_site; its own `org-site-draft` bucket (H2 — autosave must never
+// spend the 30/h org-site budget); 409 pre-180.
 
 export async function PUT(
   request: NextRequest,
@@ -16,7 +17,7 @@ export async function PUT(
 ) {
   try {
     const user = await requireAuth(request);
-    const limited = await enforceRateLimit(request, 'org-site', { userId: user.id });
+    const limited = await enforceRateLimit(request, 'org-site-draft', { userId: user.id });
     if (limited) return limited;
     const { id } = await params;
     if (!UUID_RE.test(id)) {
