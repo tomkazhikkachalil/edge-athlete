@@ -19,15 +19,9 @@ import {
   MODULE_TITLES,
   NAV_LABEL_MAX,
   TOGGLEABLE_MODULE_KEYS,
-  WORDMARK_MAX,
   parseNavConfig,
-  parseThemeTokens,
-  THEME_TYPEFACES,
-  type ThemeTypeface,
 } from '@/lib/org-sites/validate';
 import { orgSitePath } from '@/lib/org-sites/urls';
-import { TEMPLATE_IDS, templateSpec } from '@/lib/org-sites/templates';
-import { TYPEFACE_LABEL } from '@/lib/org-sites/theme';
 import { SPORT_REGISTRY } from '@/lib/sports/SportRegistry';
 import OrgLogoUploader from '@/components/org/OrgLogoUploader';
 import PlacePicker, { type PlaceValue } from '@/components/PlacePicker';
@@ -298,10 +292,6 @@ export default function OrgConsolePage() {
     { title: string; path: string; url: string }[]
   >([]);
   // B1: brand tokens beyond the accent, and the per-section labels.
-  const [themeStrong, setThemeStrong] = useState('');
-  const [themeSurface, setThemeSurface] = useState<'plain' | 'tinted'>('plain');
-  const [themeTypeface, setThemeTypeface] = useState<ThemeTypeface>('sans');
-  const [themeWordmark, setThemeWordmark] = useState('');
   const [navLabels, setNavLabels] = useState<Record<string, string>>({});
   // Site Builder P2-C: the draft line and the history from the revisions API
   // (180). `revisionsSupported` false = a pre-180 database — the block hides.
@@ -326,23 +316,14 @@ export default function OrgConsolePage() {
   // ▲/▼ reorder here, Save layout mirrors it into sort_order).
   const [navOrder, setNavOrder] = useState<string[] | null>(null);
   // R3 branding editors — seeded from the site GET on every refresh.
-  const [heroHeadline, setHeroHeadline] = useState('');
-  const [heroTagline, setHeroTagline] = useState('');
-  const [themeAccent, setThemeAccent] = useState(''); // '' = default violet
   const [sponsorDrafts, setSponsorDrafts] = useState<
     { name: string; url: string; logoPath: string }[]
   >([]);
-  const [contactEmail, setContactEmail] = useState('');
-  const [contactPhone, setContactPhone] = useState('');
-  const [contactWebsite, setContactWebsite] = useState('');
   // Phase 6e S1: the golf club's front door + contact card. Every field
   // rides the whole-object save (replace semantics), seeded from GET.
   const [heroImagePath, setHeroImagePath] = useState('');
-  const [heroImageAlt, setHeroImageAlt] = useState('');
-  const [heroCtaLabel, setHeroCtaLabel] = useState('');
   const [heroCtaUrl, setHeroCtaUrl] = useState('');
   const [heroNotice, setHeroNotice] = useState('');
-  const [heroNoticeUntil, setHeroNoticeUntil] = useState('');
   // Phase 6e S2: per-course photos (the `courses` module config).
   const [coursePhotos, setCoursePhotos] = useState<Record<string, string>>({});
   /** N6: courseId → hole number → photo path (the same config entry). */
@@ -357,15 +338,6 @@ export default function OrgConsolePage() {
   const [announceBusy, setAnnounceBusy] = useState(false);
   /** N3: bumps after a send so the history below the form re-reads. */
   const [announceSentAt, setAnnounceSentAt] = useState(0);
-  const [contactAddress, setContactAddress] = useState<string[]>(['', '', '']);
-  const [contactHours, setContactHours] = useState('');
-  const [contactDirections, setContactDirections] = useState('');
-  const [contactSocial, setContactSocial] = useState<Record<'instagram' | 'facebook' | 'x' | 'youtube', string>>({
-    instagram: '',
-    facebook: '',
-    x: '',
-    youtube: '',
-  });
   // Phase 6 R1 — the slug picker (create flow): identity-composed
   // suggestions + a custom candidate with live availability/policy check.
   const [slugPickerOpen, setSlugPickerOpen] = useState(false);
@@ -567,40 +539,10 @@ export default function OrgConsolePage() {
               noticeUntil?: string;
             };
             const str = (v: unknown) => (typeof v === 'string' ? v : '');
-            setHeroHeadline(str(heroConfig.headline));
-            setHeroTagline(str(heroConfig.tagline));
             setHeroImagePath(str(heroConfig.imagePath));
-            setHeroImageAlt(str(heroConfig.imageAlt));
-            setHeroCtaLabel(str(heroConfig.ctaLabel));
             setHeroCtaUrl(str(heroConfig.ctaUrl));
             setHeroNotice(str(heroConfig.notice));
-            setHeroNoticeUntil(str(heroConfig.noticeUntil));
-            const contactExtra = (siteBody.site?.contact_config ?? {}) as {
-              address?: unknown;
-              hours?: unknown;
-              directionsUrl?: unknown;
-              social?: Record<string, unknown>;
-            };
-            const addr = Array.isArray(contactExtra.address)
-              ? contactExtra.address.filter((l): l is string => typeof l === 'string')
-              : [];
-            setContactAddress([addr[0] ?? '', addr[1] ?? '', addr[2] ?? '']);
-            setContactHours(str(contactExtra.hours));
-            setContactDirections(str(contactExtra.directionsUrl));
-            setContactSocial({
-              instagram: str(contactExtra.social?.instagram),
-              facebook: str(contactExtra.social?.facebook),
-              x: str(contactExtra.social?.x),
-              youtube: str(contactExtra.social?.youtube),
-            });
-            const themeSet = (siteBody.site?.theme_token_set ?? {}) as { accent?: string };
-            setThemeAccent(typeof themeSet.accent === 'string' ? themeSet.accent : '');
-            // B1: the rest of the token set + nav labels, seeded the same way.
-            const tokens = parseThemeTokens(siteBody.site?.theme_token_set);
-            setThemeStrong(tokens.accentStrong ?? '');
-            setThemeSurface(tokens.surface);
-            setThemeTypeface(tokens.typeface);
-            setThemeWordmark(tokens.wordmark ?? '');
+            // B1: the nav labels (the theme tokens moved to the editor in P10-C).
             setNavLabels(parseNavConfig(siteBody.site?.nav_config).labels);
             // C1: the domain status rides its own GET (best-effort; a
             // pre-171 database answers migrationPending).
@@ -671,16 +613,6 @@ export default function OrgConsolePage() {
                 url: s.url ?? '',
                 logoPath: s.logoPath ?? '',
               }))
-            );
-            const contactConfig = (siteBody.site?.contact_config ?? {}) as {
-              email?: string;
-              phone?: string;
-              website?: string;
-            };
-            setContactEmail(typeof contactConfig.email === 'string' ? contactConfig.email : '');
-            setContactPhone(typeof contactConfig.phone === 'string' ? contactConfig.phone : '');
-            setContactWebsite(
-              typeof contactConfig.website === 'string' ? contactConfig.website : ''
             );
           }
         }
@@ -3298,6 +3230,9 @@ export default function OrgConsolePage() {
             </>
           ) : (
             <div className="space-y-2">
+              <p className="text-xs text-tertiary">
+                Arrange the page, write the welcome, pick colours and a template, fill the contact card — in the editor. Subpages, the address, the domain and what goes live stay here.
+              </p>
               <p className="text-sm text-secondary min-w-0 break-all">
                 Address: <span className="font-medium text-primary">{orgSitePath(site.subdomain)}</span>
                 {' · '}
@@ -3327,15 +3262,15 @@ export default function OrgConsolePage() {
                     View site
                   </a>
                 )}
-                {/* Site Builder P3-B: the editor's door (a SURFACE flag). */}
-                {FEATURE_FLAGS.FEATURE_SITE_BUILDER && (
-                  <Link
-                    href={`/app/org/${side}/${orgId}/site/edit`}
-                    className="px-3 py-1.5 text-sm rounded-md border border-border-strong text-secondary hover:bg-surface-sunken transition-colors"
-                  >
-                    Open the editor →
-                  </Link>
-                )}
+                {/* Site Builder P10-C: the editor is the Website section's door
+                    (the flag retired) — sections, hero, colours, template and
+                    the contact card are edited there. */}
+                <Link
+                  href={`/app/org/${side}/${orgId}/site/edit`}
+                  className="px-3 py-1.5 text-sm rounded-md border border-brand text-brand-fg font-medium hover:bg-brand-soft transition-colors"
+                >
+                  Open the editor →
+                </Link>
                 {/* "Take site live / offline" — the site's existence (manage_org);
                     "Publish changes" below is the draft's promotion. Two words
                     for two acts (going live also promotes a dirty draft). */}
@@ -3625,9 +3560,9 @@ export default function OrgConsolePage() {
                   the server; revalidateTag flips the public pages. */}
               {siteModules.length > 0 && (
                 <div className="pt-2">
-                  <p className="text-sm font-medium text-primary">Sections</p>
+                  <p className="text-sm font-medium text-primary">Subpages &amp; navigation</p>
                   <p className="text-xs text-tertiary mb-2">
-                    Toggle, rename and reorder. Changes save to your draft; publish to make them live.
+                    Which pages your site has and how the header lists them. The home page’s arrangement lives in the editor. Changes save to your draft; publish to make them live.
                   </p>
                   {(() => {
                     // B1: the rows arrive in sort_order; the local order (▲/▼)
@@ -3733,7 +3668,7 @@ export default function OrgConsolePage() {
                           }}
                           className="mt-2 px-3 py-1.5 text-sm rounded-md border border-border-strong text-secondary hover:bg-surface-sunken transition-colors"
                         >
-                          Save layout
+                          Save navigation
                         </button>
                         <button
                           type="button"
@@ -3894,316 +3829,6 @@ export default function OrgConsolePage() {
               {site && (
                 <MemberPhotoPicker side={side as 'league' | 'club'} orgId={orgId} onError={message => showError('Website', message)} />
               )}
-              {/* R3 branding editors — flat inline forms (house pattern,
-                  never a modal). Saves send the COMPLETE object (replace
-                  semantics), seeded from the GET above. */}
-              <div className="pt-2 space-y-1.5">
-                <p className="text-sm font-medium text-primary">Hero</p>
-                <div className="flex flex-wrap gap-2">
-                  <input
-                    type="text"
-                    value={heroHeadline}
-                    onChange={e => setHeroHeadline(e.target.value)}
-                    maxLength={80}
-                    placeholder={orgName ?? 'Headline'}
-                    aria-label="Hero headline"
-                    className="px-3 py-2 border border-border-strong rounded-md outline-none text-sm min-w-0 flex-1"
-                  />
-                  <input
-                    type="text"
-                    value={heroTagline}
-                    onChange={e => setHeroTagline(e.target.value)}
-                    maxLength={140}
-                    placeholder="Schedules, standings, and teams — live."
-                    aria-label="Hero tagline"
-                    className="px-3 py-2 border border-border-strong rounded-md outline-none text-sm min-w-0 flex-1"
-                  />
-                </div>
-                {/* S1: photo (a site image asset), the one button, the notice. */}
-                <div className="flex flex-wrap items-center gap-2">
-                  {heroImagePath && (
-                    <Image
-                      src={orgMediaUrl(site.id, heroImagePath) ?? ''}
-                      alt=""
-                      width={96}
-                      height={54}
-                      unoptimized
-                      className="h-14 w-24 rounded object-cover border border-border"
-                    />
-                  )}
-                  <label className="text-xs text-secondary">
-                    {heroImagePath ? 'Replace photo' : 'Hero photo'}
-                    <input
-                      type="file"
-                      accept="image/*"
-                      aria-label="Hero photo"
-                      className="block w-48 text-xs"
-                      onChange={async e => {
-                        const file = e.target.files?.[0];
-                        e.target.value = '';
-                        if (!file) return;
-                        const formData = new FormData();
-                        formData.append('image', file);
-                        try {
-                          const res = await fetch(`/api/${plural}/${orgId}/site/assets`, {
-                            method: 'POST',
-                            body: formData,
-                          });
-                          const body = await res.json();
-                          if (!res.ok) {
-                            showError('Website', body.error || 'Failed to upload the photo');
-                            return;
-                          }
-                          setHeroImagePath(body.path);
-                        } catch {
-                          showError('Website', 'Upload failed — please try again');
-                        }
-                      }}
-                    />
-                  </label>
-                  {heroImagePath && (
-                    <button
-                      type="button"
-                      onClick={() => setHeroImagePath('')}
-                      className="px-2 py-1 text-xs rounded-md text-tertiary hover:bg-surface-sunken transition-colors"
-                    >
-                      Remove photo
-                    </button>
-                  )}
-                  <input
-                    type="text"
-                    value={heroImageAlt}
-                    onChange={e => setHeroImageAlt(e.target.value)}
-                    maxLength={200}
-                    placeholder="Photo description (for screen readers)"
-                    aria-label="Hero photo description"
-                    className="px-3 py-2 border border-border-strong rounded-md outline-none text-sm min-w-0 flex-1"
-                  />
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  <input
-                    type="text"
-                    value={heroCtaLabel}
-                    onChange={e => setHeroCtaLabel(e.target.value)}
-                    maxLength={24}
-                    placeholder="Button label (e.g. Book a tee time)"
-                    aria-label="Hero button label"
-                    className="px-3 py-2 border border-border-strong rounded-md outline-none text-sm min-w-0 flex-1"
-                  />
-                  <input
-                    type="url"
-                    value={heroCtaUrl}
-                    onChange={e => setHeroCtaUrl(e.target.value)}
-                    maxLength={200}
-                    placeholder="https:// (where the button goes)"
-                    aria-label="Hero button link"
-                    className="px-3 py-2 border border-border-strong rounded-md outline-none text-sm min-w-0 flex-1"
-                  />
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  <input
-                    type="text"
-                    value={heroNotice}
-                    onChange={e => setHeroNotice(e.target.value)}
-                    maxLength={200}
-                    placeholder="Notice on every page (e.g. Cart path only this week)"
-                    aria-label="Site notice"
-                    className="px-3 py-2 border border-border-strong rounded-md outline-none text-sm min-w-0 flex-1"
-                  />
-                  <input
-                    type="date"
-                    value={heroNoticeUntil}
-                    onChange={e => setHeroNoticeUntil(e.target.value)}
-                    aria-label="Notice shown until"
-                    title="Shown through this day"
-                    className="px-3 py-2 border border-border-strong rounded-md outline-none text-sm"
-                  />
-                  <button
-                    type="button"
-                    onClick={() =>
-                      void siteAct(
-                        {
-                          action: 'set_hero',
-                          ...(heroHeadline.trim() ? { headline: heroHeadline.trim() } : {}),
-                          ...(heroTagline.trim() ? { tagline: heroTagline.trim() } : {}),
-                          ...(heroImagePath ? { imagePath: heroImagePath } : {}),
-                          ...(heroImagePath && heroImageAlt.trim() ? { imageAlt: heroImageAlt.trim() } : {}),
-                          ...(heroCtaLabel.trim() ? { ctaLabel: heroCtaLabel.trim() } : {}),
-                          ...(heroCtaUrl.trim() ? { ctaUrl: heroCtaUrl.trim() } : {}),
-                          ...(heroNotice.trim() ? { notice: heroNotice.trim() } : {}),
-                          ...(heroNotice.trim() && heroNoticeUntil ? { noticeUntil: heroNoticeUntil } : {}),
-                        },
-                        'Hero updated',
-                        'Failed to update the hero'
-                      )
-                    }
-                    className="px-3 py-1.5 text-sm rounded-md border border-border-strong text-secondary hover:bg-surface-sunken transition-colors"
-                  >
-                    Save hero
-                  </button>
-                </div>
-              </div>
-              <div className="pt-2 space-y-1.5">
-                <p className="text-sm font-medium text-primary">Template</p>
-                <div className="grid gap-2 sm:grid-cols-2">
-                  {TEMPLATE_IDS.map(id => {
-                    const t = templateSpec(id);
-                    const current = templateSpec(site.template_id).id === id;
-                    return (
-                      <label
-                        key={id}
-                        className={`flex items-start gap-2 rounded-lg border p-3 text-sm cursor-pointer ${
-                          current ? 'border-brand bg-brand-soft' : 'border-border hover:bg-surface-sunken'
-                        }`}
-                      >
-                        <input
-                          type="radio"
-                          name="site-template"
-                          checked={current}
-                          aria-label={`${t.name} template`}
-                          onChange={() =>
-                            void siteAct(
-                              { action: 'set_template', templateId: id },
-                              `${t.name} template applied`,
-                              'Failed to change the template'
-                            )
-                          }
-                          className="mt-0.5"
-                        />
-                        <span>
-                          <span className="block font-medium text-primary">{t.name}</span>
-                          <span className="block text-xs text-tertiary">{t.description}</span>
-                        </span>
-                      </label>
-                    );
-                  })}
-                </div>
-              </div>
-              <div className="pt-2 space-y-1.5">
-                <p className="text-sm font-medium text-primary">Brand</p>
-                <p className="text-xs text-tertiary">
-                  Colors, a wordmark and a typeface. Very light colors are rejected — the
-                  hero text is white.
-                </p>
-                <div className="grid gap-2 sm:grid-cols-2">
-                  <label className="flex items-center gap-2 text-sm text-secondary">
-                    <input
-                      type="color"
-                      value={themeAccent || '#7c3aed'}
-                      onChange={e => setThemeAccent(e.target.value)}
-                      aria-label="Accent color"
-                      className="h-9 w-12 rounded-md border border-border-strong bg-surface p-0.5"
-                    />
-                    Accent
-                  </label>
-                  <label className="flex items-center gap-2 text-sm text-secondary">
-                    <input
-                      type="color"
-                      value={themeStrong || '#5b21b6'}
-                      onChange={e => setThemeStrong(e.target.value)}
-                      aria-label="Strong accent color"
-                      className="h-9 w-12 rounded-md border border-border-strong bg-surface p-0.5"
-                    />
-                    Strong accent (gradient end, links)
-                    {themeStrong && (
-                      <button
-                        type="button"
-                        onClick={() => setThemeStrong('')}
-                        className="text-xs text-tertiary hover:text-primary"
-                      >
-                        auto
-                      </button>
-                    )}
-                  </label>
-                  <label className="text-sm text-secondary">
-                    <span className="block text-xs font-medium text-secondary mb-1">Wordmark</span>
-                    <input
-                      type="text"
-                      value={themeWordmark}
-                      onChange={e => setThemeWordmark(e.target.value)}
-                      maxLength={WORDMARK_MAX}
-                      placeholder={orgName ?? 'Your name, as branded'}
-                      aria-label="Wordmark"
-                      className="w-full px-3 py-2 border border-border-strong rounded-md outline-none text-sm"
-                    />
-                  </label>
-                  <label className="text-sm text-secondary">
-                    <span className="block text-xs font-medium text-secondary mb-1">Typeface</span>
-                    <select
-                      value={themeTypeface}
-                      onChange={e => setThemeTypeface(e.target.value as ThemeTypeface)}
-                      aria-label="Typeface"
-                      className="w-full px-3 py-2 border border-border-strong rounded-md outline-none text-sm bg-surface"
-                    >
-                      {/* Phase 7: the heading faces too — a site that picked one in
-                          the editor must not lose it to a console save. */}
-                      {THEME_TYPEFACES.map(t => (
-                        <option key={t} value={t}>
-                          {t === 'sans' ? 'Sans (default)' : t === 'serif' ? 'Serif headings' : `${TYPEFACE_LABEL[t]} headings`}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <fieldset className="text-sm text-secondary sm:col-span-2">
-                    <legend className="text-xs font-medium text-secondary mb-1">Background</legend>
-                    <div className="flex flex-wrap gap-4">
-                      <label className="flex items-center gap-2">
-                        <input
-                          type="radio"
-                          name="theme-surface"
-                          checked={themeSurface === 'plain'}
-                          onChange={() => setThemeSurface('plain')}
-                        />
-                        Plain
-                      </label>
-                      <label className="flex items-center gap-2">
-                        <input
-                          type="radio"
-                          name="theme-surface"
-                          checked={themeSurface === 'tinted'}
-                          onChange={() => setThemeSurface('tinted')}
-                        />
-                        Tinted with the accent
-                      </label>
-                    </div>
-                  </fieldset>
-                </div>
-                <div className="flex flex-wrap items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() =>
-                      void siteAct(
-                        {
-                          action: 'set_theme',
-                          accent: themeAccent || '#7c3aed',
-                          accentStrong: themeStrong || null,
-                          surface: themeSurface,
-                          typeface: themeTypeface,
-                          ...(themeWordmark.trim() ? { wordmark: themeWordmark.trim() } : {}),
-                        },
-                        'Brand updated',
-                        'Failed to update the brand'
-                      )
-                    }
-                    className="px-3 py-1.5 text-sm rounded-md border border-border-strong text-secondary hover:bg-surface-sunken transition-colors"
-                  >
-                    Save brand
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      void siteAct(
-                        { action: 'set_theme', accent: null },
-                        'Brand reset',
-                        'Failed to reset the brand'
-                      )
-                    }
-                    className="px-3 py-1.5 text-sm rounded-md text-tertiary hover:bg-surface-sunken transition-colors"
-                  >
-                    Reset
-                  </button>
-                </div>
-              </div>
               <div className="pt-2 space-y-1.5">
                 <p className="text-sm font-medium text-primary">Documents &amp; policies</p>
                 <p className="text-xs text-tertiary">
@@ -4456,123 +4081,6 @@ export default function OrgConsolePage() {
                     Save sponsors
                   </button>
                 </div>
-              </div>
-              {/* Cleanup round: contact — the three DELIBERATELY public
-                  fields (manager-entered org contact info); Save sends the
-                  complete object (replace semantics). */}
-              <div className="pt-2 space-y-1.5">
-                <p className="text-sm font-medium text-primary">Contact</p>
-                <div className="flex flex-wrap gap-2">
-                  <input
-                    type="email"
-                    value={contactEmail}
-                    onChange={e => setContactEmail(e.target.value)}
-                    maxLength={200}
-                    placeholder="contact@your-org.example"
-                    aria-label="Contact email"
-                    className="px-3 py-2 border border-border-strong rounded-md outline-none text-sm min-w-0 flex-1"
-                  />
-                  <input
-                    type="tel"
-                    value={contactPhone}
-                    onChange={e => setContactPhone(e.target.value)}
-                    maxLength={40}
-                    placeholder="Phone (optional)"
-                    aria-label="Contact phone"
-                    className="px-3 py-2 border border-border-strong rounded-md outline-none text-sm min-w-0 flex-1"
-                  />
-                  <input
-                    type="url"
-                    value={contactWebsite}
-                    onChange={e => setContactWebsite(e.target.value)}
-                    maxLength={200}
-                    placeholder="https:// (optional)"
-                    aria-label="Contact website"
-                    className="px-3 py-2 border border-border-strong rounded-md outline-none text-sm min-w-0 flex-1"
-                  />
-                </div>
-                {/* S1: address, hours, directions, socials — the golf club's card. */}
-                <div className="flex flex-wrap gap-2">
-                  {contactAddress.map((line, i) => (
-                    <input
-                      key={i}
-                      type="text"
-                      value={line}
-                      onChange={e =>
-                        setContactAddress(a => a.map((v, j) => (j === i ? e.target.value : v)))
-                      }
-                      maxLength={80}
-                      placeholder={i === 0 ? 'Street address' : i === 1 ? 'City, region' : 'Postal code, country'}
-                      aria-label={`Address line ${i + 1}`}
-                      className="px-3 py-2 border border-border-strong rounded-md outline-none text-sm min-w-0 flex-1"
-                    />
-                  ))}
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  <textarea
-                    value={contactHours}
-                    onChange={e => setContactHours(e.target.value)}
-                    maxLength={200}
-                    rows={2}
-                    placeholder={'Hours (e.g. Pro shop 7am–8pm daily\nRange closes at dusk)'}
-                    aria-label="Hours"
-                    className="px-3 py-2 border border-border-strong rounded-md outline-none text-sm min-w-0 flex-1"
-                  />
-                  <input
-                    type="url"
-                    value={contactDirections}
-                    onChange={e => setContactDirections(e.target.value)}
-                    maxLength={200}
-                    placeholder="Directions link (optional — the address makes one)"
-                    aria-label="Directions link"
-                    className="px-3 py-2 border border-border-strong rounded-md outline-none text-sm min-w-0 flex-1"
-                  />
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  {(['instagram', 'facebook', 'x', 'youtube'] as const).map(n => (
-                    <input
-                      key={n}
-                      type="url"
-                      value={contactSocial[n]}
-                      onChange={e => setContactSocial(s => ({ ...s, [n]: e.target.value }))}
-                      maxLength={200}
-                      placeholder={`${n === 'x' ? 'X' : n[0].toUpperCase() + n.slice(1)} URL`}
-                      aria-label={`${n === 'x' ? 'X' : n[0].toUpperCase() + n.slice(1)} link`}
-                      className="px-3 py-2 border border-border-strong rounded-md outline-none text-sm min-w-0 flex-1"
-                    />
-                  ))}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const address = contactAddress.map(l => l.trim()).filter(Boolean);
-                      const social = Object.fromEntries(
-                        Object.entries(contactSocial)
-                          .map(([k, v]) => [k, v.trim()])
-                          .filter(([, v]) => v)
-                      );
-                      void siteAct(
-                        {
-                          action: 'set_contact',
-                          ...(contactEmail.trim() ? { email: contactEmail.trim() } : {}),
-                          ...(contactPhone.trim() ? { phone: contactPhone.trim() } : {}),
-                          ...(contactWebsite.trim() ? { website: contactWebsite.trim() } : {}),
-                          ...(address.length ? { address } : {}),
-                          ...(contactHours.trim() ? { hours: contactHours.trim() } : {}),
-                          ...(contactDirections.trim() ? { directionsUrl: contactDirections.trim() } : {}),
-                          ...(Object.keys(social).length ? { social } : {}),
-                        },
-                        'Contact updated',
-                        'Failed to update contact'
-                      );
-                    }}
-                    className="px-3 py-1.5 text-sm rounded-md border border-border-strong text-secondary hover:bg-surface-sunken transition-colors"
-                  >
-                    Save contact
-                  </button>
-                </div>
-                <p className="text-xs text-tertiary">
-                  These details are published on your public site.
-                </p>
               </div>
               {/* R3: custom pages — list + create here; the block editor is
                   a subpage (the competitions-detail precedent). */}

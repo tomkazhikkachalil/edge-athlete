@@ -113,13 +113,20 @@ test('org site template: bold → band header + grid + tiles; classic restores; 
       await anonCtx.close();
     }
 
-    // Console: the picker shows both templates, classic selected.
-    const ownerCtx = await browser.newContext({ storageState: 'e2e/.auth/state-b.json' });
+    // P10-C: the template picker moved to the editor's theme panel; the
+    // console GET still says which template is chosen.
+    const chosen = (await (await ownerApi.get(`/api/leagues/${leagueId}/site`)).json()) as { site: { template_id: string } };
+    expect(chosen.site.template_id).toBe('classic');
+    const ownerCtx = await browser.newContext({ storageState: 'e2e/.auth/state-b.json', viewport: { width: 1280, height: 900 } });
     try {
       const page = await ownerCtx.newPage();
-      await page.goto(`/app/org/league/${leagueId}`);
-      await expect(page.getByLabel('Bold template')).toBeVisible({ timeout: 20_000 });
-      await expect(page.getByLabel('Classic template')).toBeChecked();
+      await page.goto(`/app/org/league/${leagueId}/site/edit`);
+      await expect(page.locator('[data-sb-canvas]')).toBeVisible({ timeout: 30_000 });
+      await page.getByRole('button', { name: 'Theme', exact: true }).click();
+      const panel = page.locator('[data-sb-theme-panel]');
+      await expect(panel).toBeVisible();
+      await expect(panel.locator('[data-sb-template="classic"]')).toHaveAttribute('aria-pressed', 'true');
+      await expect(panel.locator('[data-sb-template="bold"]')).toBeVisible();
     } finally {
       await ownerCtx.close();
     }

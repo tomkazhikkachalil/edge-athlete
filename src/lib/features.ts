@@ -34,7 +34,9 @@ export const FEATURE_FLAGS = {
   // RETIRED (consolidation round, Sep 2026) — behavior now unconditional:
   // FEATURE_CALENDAR, FEATURE_CHAT_DOCK (launched surfaces),
   // FEATURE_ROSTER_GUARDIAN_GATE (either-approves is permanent),
-  // FEATURE_CALENDAR_ROSTER_ONLY (roster-only placement is permanent).
+  // FEATURE_CALENDAR_ROSTER_ONLY (roster-only placement is permanent),
+  // FEATURE_SITE_BUILDER (Site Builder P10-C, Sep 2026 — the editor is the
+  // Website section's door; the public renderer never read it).
   // Never reintroduce a flag on a retired safety behavior.
 
   /**
@@ -44,14 +46,6 @@ export const FEATURE_FLAGS = {
    * window open-ness, collision rules) runs unconditionally when on.
    */
   FEATURE_ORG_REGISTRATION: process.env.NEXT_PUBLIC_FEATURE_ORG_REGISTRATION === '1',
-
-  /**
-   * Site Builder phase 3 (Sep 2026): the grid EDITOR. A pure SURFACE switch:
-   * off hides "Open the editor" in the console, 404s the editor route and
-   * its draft/canvas/widget-data routes. The public renderer is NEVER
-   * flagged — it always renders the layout it is given. BUILD-INJECTED.
-   */
-  FEATURE_SITE_BUILDER: process.env.NEXT_PUBLIC_FEATURE_SITE_BUILDER === '1',
 
   // Future feature flags can be added here
   // FEATURE_PUBLIC_PROFILES: false,

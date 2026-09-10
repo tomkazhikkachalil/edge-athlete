@@ -458,9 +458,11 @@ const { canView } = await response.json();
      `public/fonts` — a site loads ONE, only when it picks it (`SiteShell`
      emits its @font-face + preload; never `next/font`). `themeAttrs` dresses
      every themed root (the shell AND the canvas).
-   - **Editor** (`src/components/site-builder/`, behind
-     `NEXT_PUBLIC_FEATURE_SITE_BUILDER` — build-injected, a SURFACE switch;
-     the renderer is never flagged): canvas, picker, properties panel, theme
+   - **Editor** (`src/components/site-builder/`): the Website section's
+     DOOR since P10-C (the surface flag retired; the console keeps only what
+     the editor does not do — subpages & navigation, slug, domain,
+     live/offline, History, logo, announce, gallery picks, documents,
+     sponsors, pages, news, course photos): canvas, picker, properties panel, theme
      panel (live preview, saved through the console's own actions), the
      checklist rail (`checklist.ts`, derived, `ChecklistStep` shape), undo
      with coalescing (`useHistory`), autosave (`useDraft`). Below `lg` the

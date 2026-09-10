@@ -32,8 +32,8 @@ import { useHistory } from './useHistory';
  * shows a notice with WORKING buttons — Preview, Publish changes, Back —
  * so a phone never hits a dead end (CSS-only branch, no matchMedia state).
  *
- * Flag-gated (FEATURE_SITE_BUILDER): the canvas route answers 404 when off,
- * and this screen says so. Manager-gated by the routes (`manage_site`).
+ * Manager-gated by the routes (`manage_site`); since P10-C the Website
+ * section's door (the surface flag retired).
  */
 
 interface CanvasBody {

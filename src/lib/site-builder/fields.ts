@@ -29,7 +29,7 @@ export type FieldSpec =
   | { kind: 'text' | 'textarea' | 'url' | 'email' | 'date'; name: string; label: string; help?: string; max?: number; scope: 'instance' | 'content' }
   | { kind: 'visibility'; name: 'visibility'; label: string; scope: 'instance' }
   | { kind: 'blocks'; name: 'blocks'; label: string; help?: string; scope: 'instance' }
-  | { kind: 'image'; name: 'path'; label: string; help?: string; scope: 'instance' }
+  | { kind: 'image'; name: 'path' | 'imagePath'; label: string; help?: string; scope: 'instance' | 'content' }
   | { kind: 'embed'; name: 'embed'; label: string; help?: string; scope: 'instance' }
   | { kind: 'select'; name: 'competitionId' | 'venueId'; label: string; help?: string; source: 'competitions' | 'venues'; noneLabel: string; scope: 'query' }
   | { kind: 'number'; name: 'limit'; label: string; help?: string; min: number; max: number; placeholder: number; scope: 'query' };
@@ -50,6 +50,9 @@ export const HERO_FIELDS: FieldSpec[] = [
   { kind: 'url', name: 'ctaUrl', label: 'Button link', max: 200, scope: 'content' },
   { kind: 'text', name: 'notice', label: 'Notice', help: 'A banner every page carries until the date below.', max: 200, scope: 'content' },
   { kind: 'date', name: 'noticeUntil', label: 'Notice until', scope: 'content' },
+  // P10-C parity: the hero photo moved here from the console form.
+  { kind: 'image', name: 'imagePath', label: 'Welcome photo', help: 'Shown under the headline, behind a colour wash.', scope: 'content' },
+  { kind: 'text', name: 'imageAlt', label: 'Describe the photo', max: 200, scope: 'content' },
 ];
 
 /** The contact card's CONTENT fields — set_contact's payload. */
@@ -59,6 +62,12 @@ export const CONTACT_FIELDS: FieldSpec[] = [
   { kind: 'url', name: 'website', label: 'Website', max: 200, scope: 'content' },
   { kind: 'textarea', name: 'hours', label: 'Hours', max: 200, scope: 'content' },
   { kind: 'url', name: 'directionsUrl', label: 'Directions link', max: 200, scope: 'content' },
+  // P10-C parity: the address and the socials moved here from the console form.
+  { kind: 'textarea', name: 'address', label: 'Address', help: 'One line per row, up to three.', max: 360, scope: 'content' },
+  { kind: 'url', name: 'social.instagram', label: 'Instagram', max: 200, scope: 'content' },
+  { kind: 'url', name: 'social.facebook', label: 'Facebook', max: 200, scope: 'content' },
+  { kind: 'url', name: 'social.x', label: 'X', max: 200, scope: 'content' },
+  { kind: 'url', name: 'social.youtube', label: 'YouTube', max: 200, scope: 'content' },
 ];
 
 /** Phase 6 — the text widget: its blocks ARE the instance. */

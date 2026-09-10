@@ -172,6 +172,7 @@ export default function ThemePanel({ site, draft, onChange, onSaved, onClose, pl
                 type="button"
                 onClick={() => chooseTemplate(id)}
                 aria-pressed={current}
+                data-sb-template={id}
                 className={`rounded-md border px-3 py-2 text-left text-sm transition-colors ${current ? 'border-brand bg-brand-soft text-primary' : 'border-border-strong text-secondary hover:bg-surface-sunken'}`}
               >
                 <span className="block font-medium">{t.name}</span>

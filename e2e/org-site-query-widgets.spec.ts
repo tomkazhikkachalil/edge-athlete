@@ -6,8 +6,7 @@ import { publishSite, revisionsSupported } from './helpers/org-site';
 // appear N times on a layout, each instance narrowed by its own query: two
 // standings tables bound to two competitions (one with rows, one empty), a
 // schedule limited to one venue. The empty-widget rule honours the query,
-// so the empty table never renders publicly. Skips (green) pre-180 or when
-// the editor is off for the build (the canvas route answers 404).
+// so the empty table never renders publicly. Skips (green) pre-180.
 //
 // P9-A drives the DRAFT API; P9-B adds the panel's pickers and drives them.
 
@@ -73,7 +72,6 @@ test('org site: two standings bound to two competitions, a schedule bound to one
     expect(res.status(), await readErrorBody(res)).toBe(200);
     test.skip(!(await revisionsSupported(ownerApi, 'league', leagueId)), 'org_site_revisions missing — run migration 180');
     const canvasRes = await ownerApi.get(`/api/leagues/${leagueId}/site/canvas`);
-    test.skip(canvasRes.status() === 404, 'the site editor is off for this build');
     expect(canvasRes.status(), await readErrorBody(canvasRes)).toBe(200);
     const canvas = (await canvasRes.json()) as {
       layout: { version: 1; cols: 12; widgets: { id: string; key: string; x: number; y: number; w: number; h: number; cv: number; config: unknown; visibility: string }[] };

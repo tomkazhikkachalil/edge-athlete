@@ -1,5 +1,46 @@
 # Development Log
 
+## September 9, 2026 — Site Builder phase 10 (P10-C): the editor is the door — parity, the console collapse, the flag retired (zero DDL)
+
+- **Parity first** (`fields.ts`, `PropertiesPanel.tsx`): the hero panel
+  gains the welcome PHOTO (the same uploader as the image widget, writing
+  the content draft that "Save content" sends with the headline) and its
+  description; the contact panel gains the address (one line per row, up
+  to three) and the four social links (nested names, `social.instagram`).
+  The panel used to carry those fields over blind from the saved object;
+  now every field the console's form sent is on the panel, so nothing is
+  carried over.
+- **The console collapses** (`page.tsx`, the Website section): the Hero
+  form, the Template picker, the Brand form and the Contact form are gone
+  (the editor does all four, and better — live preview, contrast readout,
+  undo). In their place one line under the address ("Arrange the page,
+  write the welcome, pick colours and a template, fill the contact card —
+  in the editor. Subpages, the address, the domain and what goes live stay
+  here.") and **Open the editor →** as the primary door, unconditional.
+  **Sections stays**, retitled **Subpages & navigation** ("Save layout" →
+  "Save navigation"): its toggles decide which subpages exist and its
+  order and labels feed the public nav — things the editor does not do
+  (the plan's refinement of "collapse them"). Kept as well: slug creation,
+  live/offline + preview, the draft line / Publish changes / Discard /
+  History, the custom domain, the logo, announce, the gallery picks,
+  documents, sponsors, pages, news, course photos. Net −430 lines in the
+  console; the hero image / CTA / notice state stays for the checklist.
+- **The flag retires** (`features.ts`): `FEATURE_SITE_BUILDER` deleted and
+  listed under RETIRED; the console door is unconditional; the canvas /
+  draft / widget-data routes drop their 404 guard; the editor and query
+  specs drop their "off for this build" skips. The Vercel variable is dead
+  weight now and can be removed.
+- Specs re-anchored: `org-site-brand` (the door + "Save navigation" instead
+  of the brand form at 375), `org-site-template` (the chosen template via
+  the console GET + the editor's theme panel instead of the console
+  radios). Tests: the descriptor pin accepts nested names and asserts the
+  parity fields. Docs: CLAUDE.md convention 12's Editor bullet, the
+  session doc, the masterplan §6 note.
+
+Phase 10 complete: one composition, two surfaces — the in-app page follows
+the layout (P10-A), shows its content tiles (P10-B), and the editor is the
+one place the page is designed (P10-C).
+
 ## September 9, 2026 — Site Builder phase 10 (P10-B): content tiles in-app — text, image and embed render on the org page where the manager placed them (zero DDL)
 
 - **Both surfaces** (`catalog.ts`): text / image / embed gain an app
