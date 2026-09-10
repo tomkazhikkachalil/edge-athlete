@@ -47,7 +47,7 @@ describe('history reducer', () => {
     expect(s.future).toEqual([]);
   });
 
-  it('a coalesced commit still clears the redo branch; replace touches nothing else', () => {
+  it('a coalesced commit still clears the redo branch', () => {
     let s = commit(start, 'b', 'k');
     s = historyReducer(s, { type: 'undo' });
     expect(s.future).toEqual(['b']);
@@ -55,9 +55,6 @@ describe('history reducer', () => {
     s = commit(s, 'c', 'k');
     expect(s.past).toEqual(['a']);
     expect(s.future).toEqual([]);
-    const r = historyReducer(s, { type: 'replace', next: 'server' });
-    expect(r.present).toBe('server');
-    expect(r.past).toEqual(['a']);
   });
 
   it('an identical present is a no-op', () => {

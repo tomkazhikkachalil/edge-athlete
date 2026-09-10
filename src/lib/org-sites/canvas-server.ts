@@ -88,7 +88,7 @@ export async function canvasGET(admin: Admin, side: OrgSide, orgId: string): Pro
   const [data, options, gallery] = await Promise.all([
     resolveHomeData(rawSiteReaders(admin, view.site), view.site, view.layout),
     fetchCanvasOptions(admin, side, orgId),
-    loadGalleryOrg(admin, side, orgId),
+    loadGalleryOrg(admin, side, orgId, { name: view.site.orgName, city: view.site.orgCity, region: view.site.orgRegion }),
   ]);
   const body: CanvasResponse = { site: view.site, layout: view.layout, draft: view.draft, published: view.published, data, options, gallery, resolvedAt: new Date().toISOString() };
   return NextResponse.json(body, { headers: { 'Cache-Control': 'private, no-store' } });

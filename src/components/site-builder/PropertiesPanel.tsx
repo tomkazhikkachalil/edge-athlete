@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import Image from 'next/image';
 import type { PublicSite } from '@/lib/org-sites/server';
 import { orgMediaUrl } from '@/lib/media/org-site-media';
@@ -108,6 +108,27 @@ export default function PropertiesPanel({ site, widget, plural, orgId, options, 
   useEffect(() => {
     asideRef.current?.focus({ preventScroll: true });
   }, []);
+  // B5: assets uploaded from this panel and not yet saved are RECLAIMED when
+  // the photo is removed or the panel is discarded (H7 left them to the
+  // storage sweep). A save empties the list — the content references them.
+  const unsavedUploads = useRef<Set<string>>(new Set());
+  const reclaim = useCallback(
+    (path: string) => {
+      if (!unsavedUploads.current.delete(path)) return;
+      void fetch(`/api/${plural}/${orgId}/site/assets`, { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ path }) }).catch(() => {});
+    },
+    [plural, orgId]
+  );
+  useEffect(() => {
+    const pending = unsavedUploads.current;
+    return () => {
+      for (const path of pending) reclaim(path);
+      pending.clear();
+    };
+  }, [reclaim]);
+  const trackUpload = (path: string) => {
+    unsavedUploads.current.add(path);
+  };
   const dirty = contentFields.some(f => (content[f.name] ?? '') !== readContent(contentConfigFor(site, key), f.name));
   useEffect(() => {
     onDirtyChange?.(dirty);
@@ -141,6 +162,7 @@ export default function PropertiesPanel({ site, widget, plural, orgId, options, 
         showError('Website', body.error || 'Could not save');
         return;
       }
+      unsavedUploads.current.clear();
       await onContentSaved(typeof body.draft?.rev === 'number' ? body.draft.rev : null);
       showSuccess('Website', 'Saved to your draft');
     } catch {
@@ -181,7 +203,7 @@ export default function PropertiesPanel({ site, widget, plural, orgId, options, 
           </div>
         );
       case 'image':
-        return <ImageField key={f.name} id={id} label={f.label} siteId={site.id} plural={plural} orgId={orgId} config={config} onPatch={patchConfig} showError={showError} />;
+        return <ImageField key={f.name} id={id} label={f.label} siteId={site.id} plural={plural} orgId={orgId} config={config} onPatch={patchConfig} showError={showError} onRemoved={path => void fetch(`/api/${plural}/${orgId}/site/assets`, { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ path }) }).catch(() => {})} />;
       case 'embed':
         return <EmbedField key={f.name} id={id} spec={f} config={config} onPatch={patchConfig} />;
       case 'select':
@@ -310,6 +332,8 @@ export default function PropertiesPanel({ site, widget, plural, orgId, options, 
                 config={{ path: content[f.name] ?? '', alt: content.imageAlt ?? '' }}
                 onPatch={patch => setContent(c => ({ ...c, [f.name]: typeof patch.path === 'string' ? patch.path : '' }))}
                 showError={showError}
+                onUploaded={trackUpload}
+                onRemoved={reclaim}
               />
             ) : (
             <div key={f.name}>
@@ -367,6 +391,8 @@ function ImageField({
   config,
   onPatch,
   showError,
+  onUploaded,
+  onRemoved,
 }: {
   id: string;
   label: string;
@@ -376,6 +402,9 @@ function ImageField({
   config: Config;
   onPatch: (patch: Config, coalesce?: string) => void;
   showError: (title: string, message?: string) => void;
+  /** B5: a fresh upload (not yet saved) — the panel reclaims it on remove or discard. */
+  onUploaded?: (path: string) => void;
+  onRemoved?: (path: string) => void;
 }) {
   const [uploading, setUploading] = useState(false);
   const path = str(config, 'path');
@@ -411,6 +440,7 @@ function ImageField({
         showError('Website', body.error || 'Failed to upload the photo');
         return;
       }
+      onUploaded?.(body.path);
       onPatch({ path: body.path, width: dims.width, height: dims.height });
     } catch {
       showError('Website', 'Upload failed — please try again');
@@ -444,7 +474,14 @@ function ImageField({
           <input id={id} type="file" accept="image/*" className="sr-only" disabled={uploading} aria-describedby={`${id}-heading`} onChange={e => void upload(e.target.files?.[0])} />
         </label>
         {src && (
-          <button type="button" className={PILL} onClick={() => onPatch({ path: undefined, width: undefined, height: undefined })}>
+          <button
+            type="button"
+            className={PILL}
+            onClick={() => {
+              onRemoved?.(str(config, 'path'));
+              onPatch({ path: undefined, width: undefined, height: undefined });
+            }}
+          >
             Remove photo
           </button>
         )}

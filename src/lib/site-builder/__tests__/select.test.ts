@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { SiteHomeData } from '@/lib/org-sites/home-data';
 import { isWidgetEmpty } from '../emptiness';
 import type { WidgetInstance } from '../layout';
-import { QUERY_LIMITS, SCHEDULE_LIMIT_MAX, memberLimit, selectForInstance } from '../select';
+import { QUERY_LIMITS, SCHEDULE_QUERY_LIMIT_MAX, memberLimit, selectForInstance } from '../select';
 
 // Phase 9: an instance's query is a render-side PICK on the org-wide bag —
 // the same pick for the renderer and the empty rule. A layout without
@@ -57,7 +57,7 @@ describe('selectForInstance', () => {
     expect(byComp.events!.length).toBe(5);
     expect(selectForInstance(w('schedule', { query: { limit: 1 } }), data).events!.length).toBe(1);
     expect(selectForInstance(w('schedule', { query: { limit: 999 } }), data).events!.length).toBe(7); // clamped to the max, which the bag never exceeds
-    expect(QUERY_LIMITS.schedule.max).toBe(SCHEDULE_LIMIT_MAX);
+    expect(QUERY_LIMITS.schedule.max).toBe(SCHEDULE_QUERY_LIMIT_MAX);
     // Null events stay null (the reader's "no schedule" answer).
     expect(selectForInstance(w('schedule'), { ...data, events: null, golfRounds: undefined }).events).toBeNull();
   });

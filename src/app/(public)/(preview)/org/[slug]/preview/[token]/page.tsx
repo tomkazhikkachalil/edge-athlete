@@ -33,13 +33,15 @@ export default async function OrgSitePreview({
   params: Promise<{ slug: string; token: string }>;
 }) {
   const { slug, token } = await params;
+  // B5: the token FIRST — this is an unauthenticated, force-dynamic page; a
+  // bad token must cost nothing (before, several reads ran ahead of it).
+  const tokenSiteId = verifyPreviewToken(token);
+  if (!tokenSiteId) notFound();
   const admin = getSupabaseAdmin();
   // The draft overlaid on the site row (falls back to the rows pre-180 or
   // without a draft); any status — publish is not the gate here, the token is.
   const site = await getDraftSiteBySlug(admin, slug);
-  if (!site) notFound();
-  const tokenSiteId = verifyPreviewToken(token);
-  if (!tokenSiteId || tokenSiteId !== site.id) notFound();
+  if (!site || tokenSiteId !== site.id) notFound();
 
   // P1-C: the same derived layout the live home renders from; P3-A: the
   // same resolver too, with the RAW reader set (every hit re-reads) — so the

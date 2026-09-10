@@ -8,7 +8,7 @@ import { requireOrgManager } from '@/lib/orgs/structure-server';
 import { UUID_RE } from '@/lib/golf/course-catalog';
 
 // ── /api/leagues/[id]/site — the console's site CRUD (phase 3 R1) ──────────
-// manage_org gates site editing (the Site Editor role is deferred).
+// manage_site gates site editing; publish/unpublish (the site's existence) stay manage_org.
 // POST mints the subdomain from the org name; PATCH publishes/unpublishes.
 // Site Builder P2-B: content PATCHes go to the DRAFT (userId = created_by).
 

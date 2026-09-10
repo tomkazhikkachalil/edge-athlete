@@ -280,3 +280,22 @@ export async function siteAssetPOST(
   }
   return NextResponse.json({ path: filePath });
 }
+
+/** B5: reclaim ONE asset this site uploaded and never saved (the editor's
+ *  "Remove photo" on a fresh upload, or a discarded panel). The path must
+ *  live under THIS site's prefix; a path some content still references is
+ *  the caller's problem to know (the editor only deletes what it uploaded
+ *  in the same unsaved session). Anything else is the storage sweep's. */
+export async function siteAssetDELETE(admin: Admin, side: OrgSide, orgId: string, path: unknown): Promise<NextResponse> {
+  const site = await getSiteForOrg(admin, side, orgId);
+  if (!site) return NextResponse.json({ error: 'Site not found' }, { status: 404 });
+  if (typeof path !== 'string' || !path.startsWith(`${ORG_MEDIA_PREFIX}${site.id}/`) || path.includes('..')) {
+    return NextResponse.json({ error: 'Not one of this site’s assets' }, { status: 400 });
+  }
+  const { error } = await admin.storage.from('uploads').remove([path]);
+  if (error) {
+    console.error('[ORG SITE PAGES] asset delete error:', error);
+    return NextResponse.json({ error: 'Failed to delete the asset' }, { status: 500 });
+  }
+  return NextResponse.json({ ok: true });
+}

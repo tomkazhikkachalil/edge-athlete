@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { PublicSite } from '../server';
-import { dataKey, neededFields, resolveHomeData, type SiteReaders } from '../widget-data';
+import { neededFields, resolveHomeData, type SiteReaders } from '../widget-data';
 import { deriveLegacyLayout } from '@/lib/site-builder/layout';
 import { WEB_WIDGET_KEYS, WIDGETS } from '@/lib/site-builder/catalog';
 
@@ -109,8 +109,3 @@ describe('resolveHomeData', () => {
   });
 });
 
-describe('dataKey', () => {
-  it('is empty for every widget today (no data-affecting config yet)', () => {
-    for (const key of WEB_WIDGET_KEYS) expect(dataKey(key, { anything: 1 })).toBe('');
-  });
-});

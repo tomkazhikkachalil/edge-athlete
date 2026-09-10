@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { MEMBERS_ONLY_MODULE_KEYS } from '@/lib/org-sites/private';
 import { effectiveAudience } from '../audience';
 import { WIDGETS } from '../catalog';
-import { GRID, LEGACY_ID_PREFIX, deriveLegacyLayout, hasWidget, needsData, normalizeLayout, validateLayout, widget, type LegacySiteShape } from '../layout';
+import { GRID, LEGACY_ID_PREFIX, deriveLegacyLayout, needsData, validateLayout, widget, type LegacySiteShape } from '../layout';
 
 const row = (module_key: string, sort_order: number, enabled = true, config: unknown = {}) => ({
   module_key,
@@ -83,10 +83,8 @@ describe('deriveLegacyLayout', () => {
     expect(effectiveAudience({ visibility: 'private' }, { ...standings, visibility: 'staff' })).toBe('staff');
   });
 
-  it('hasWidget / needsData gate the readers a layout needs', () => {
+  it('needsData gates the readers a layout needs', () => {
     const layout = deriveLegacyLayout(publicSite([row('hero', 1), row('courses', 2), row('contact', 3)]));
-    expect(hasWidget(layout, 'courses')).toBe(true);
-    expect(hasWidget(layout, 'schedule')).toBe(false);
     expect(needsData(layout, 'courses')).toBe(true);
     expect(needsData(layout, 'clubGolfBoards')).toBe(true);
     expect(needsData(layout, 'courseStrip')).toBe(true);
@@ -95,10 +93,6 @@ describe('deriveLegacyLayout', () => {
     expect(needsData(layout, 'memberStats')).toBe(false);
   });
 
-  it('normalizeLayout is the identity in phase 1', () => {
-    const layout = deriveLegacyLayout(publicSite([row('hero', 1)]));
-    expect(normalizeLayout(layout)).toBe(layout);
-  });
 
   it('an empty module list yields an empty layout', () => {
     const layout = deriveLegacyLayout(publicSite([]));

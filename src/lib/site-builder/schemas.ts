@@ -18,6 +18,7 @@
  */
 
 import { z } from 'zod';
+import { INSTANCE_TITLE_MAX } from './config';
 import {
   CONTACT_ADDRESS_LINES,
   CONTACT_ADDRESS_LINE_MAX,
@@ -177,7 +178,7 @@ export const QuerySchema = z
  *  them at render). */
 export const InstanceOptionsSchema = z
   .object({
-    title: z.string().trim().max(60).optional(),
+    title: z.string().trim().max(INSTANCE_TITLE_MAX).optional(),
     query: QuerySchema.optional(),
   })
   .loose();
@@ -278,25 +279,6 @@ export function instanceImagePaths(key: WidgetKey, config: unknown): string[] {
   return [];
 }
 
-/** Widgets with a typed config. Every other widget's config is `{}`. */
-export const WIDGET_CONFIG_SCHEMAS: Partial<Record<WidgetKey, z.ZodType>> = {
-  hero: HeroConfigSchema,
-  sponsors: SponsorsConfigSchema,
-  documents: DocumentsConfigSchema,
-  contact: ContactConfigSchema,
-  gallery: GalleryConfigSchema,
-  courses: CoursesConfigSchema,
-};
 
-const EmptyConfigSchema = z.record(z.string(), z.unknown());
 
-export function widgetConfigSchema(key: WidgetKey): z.ZodType {
-  return WIDGET_CONFIG_SCHEMAS[key] ?? EmptyConfigSchema;
-}
 
-/** Defensive: an unusable stored config becomes `{}` rather than a throw
- *  (the readers-never-throw rule of the (public) segment). */
-export function parseWidgetConfig(key: WidgetKey, raw: unknown): Record<string, unknown> {
-  const result = widgetConfigSchema(key).safeParse(raw ?? {});
-  return result.success ? (result.data as Record<string, unknown>) : {};
-}

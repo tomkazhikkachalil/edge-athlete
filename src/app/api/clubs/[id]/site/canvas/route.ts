@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth, getSupabaseAdmin } from '@/lib/auth-server';
+import { enforceRateLimit } from '@/lib/rate-limit';
 import { canvasGET } from '@/lib/org-sites/canvas-server';
 import { requireOrgManager } from '@/lib/orgs/structure-server';
 import { UUID_RE } from '@/lib/golf/course-catalog';
@@ -15,6 +16,9 @@ export async function GET(
 ) {
   try {
     const user = await requireAuth(request);
+    // B5: the editor's read shares the autosave's bucket (a reload per publish, a re-read per content save).
+    const limited = await enforceRateLimit(request, 'org-site-draft', { userId: user.id });
+    if (limited) return limited;
     const { id } = await params;
     if (!UUID_RE.test(id)) {
       return NextResponse.json({ error: 'Club not found' }, { status: 404 });

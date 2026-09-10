@@ -7,9 +7,6 @@ import {
   GalleryConfigSchema,
   HeroConfigSchema,
   SponsorsConfigSchema,
-  WIDGET_CONFIG_SCHEMAS,
-  parseWidgetConfig,
-  widgetConfigSchema,
 } from '../schemas';
 
 const SITE = '11111111-1111-4111-8111-111111111111';
@@ -75,12 +72,4 @@ describe('widget config schemas (stored shapes)', () => {
     expect(CoursesConfigSchema.safeParse({ photos: { 'not-a-course': {} } }).success).toBe(false);
   });
 
-  it('widgetConfigSchema / parseWidgetConfig: typed keys use their schema, the rest accept any object, garbage becomes {}', () => {
-    expect(Object.keys(WIDGET_CONFIG_SCHEMAS).sort()).toEqual(['contact', 'courses', 'documents', 'gallery', 'hero', 'sponsors']);
-    expect(widgetConfigSchema('teams').safeParse({ anything: 1 }).success).toBe(true);
-    expect(parseWidgetConfig('sponsors', { sponsors: [{ name: 'Acme' }] })).toEqual({ sponsors: [{ name: 'Acme' }] });
-    expect(parseWidgetConfig('sponsors', { sponsors: 'nope' })).toEqual({});
-    expect(parseWidgetConfig('hero', null)).toEqual({});
-    expect(parseWidgetConfig('standings', undefined)).toEqual({});
-  });
 });

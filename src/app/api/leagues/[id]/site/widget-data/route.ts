@@ -8,7 +8,7 @@ import { UUID_RE } from '@/lib/golf/course-catalog';
 // ── /api/leagues/[id]/site/widget-data?keys=a,b — the picker's live tiles
 // (Site Builder P3-D): the home data for widgets not yet on the layout,
 // resolved against fresh default instances, plus each key's emptiness.
-// manage_site; the `org-site` bucket; 404 when the flag is off.
+// manage_site; the `org-site` bucket (the surface flag that once 404'd this route retired in P10-C).
 
 export async function GET(
   request: NextRequest,

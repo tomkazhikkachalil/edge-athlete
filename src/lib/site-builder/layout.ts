@@ -13,7 +13,7 @@
  *    must be legal JSON later. Legacy ids are deterministic (`legacy:<key>`).
  *  - `h` is a MINIMUM height (the renderer lets content grow a widget).
  *  - `cv` is the instance's config version, reserved for per-widget
- *    migrations; `normalizeLayout` is the single entry every reader calls.
+ *    migrations (none yet — `parseStoredLayout` is the one entry every reader calls).
  *  - `GRID` is the one source of the column count and the row/gap pixels
  *    the editor and the public CSS will both read.
  */
@@ -33,7 +33,7 @@ export interface WidgetInstance {
   w: number;
   /** Minimum height in grid rows. */
   h: number;
-  /** Config version (per-widget migrations run in normalizeLayout). */
+  /** Config version (for per-widget migrations; none exist yet). */
   cv: number;
   config: unknown;
   visibility: WidgetVisibility;
@@ -96,20 +96,8 @@ export function deriveLegacyLayout(site: LegacySiteShape): SiteLayout {
   return { version: 1, cols: GRID.cols, widgets };
 }
 
-/** The single entry every reader calls: envelope + per-widget config
- *  migrations. Identity in phase 1 (nothing has a second version yet). */
-export function normalizeLayout(layout: SiteLayout): SiteLayout {
-  return layout;
-}
 
-export function hasWidget(layout: SiteLayout, key: WidgetKey): boolean {
-  return layout.widgets.some(w => w.key === key);
-}
 
-/** The FIRST instance of a key (phase 1 layouts hold at most one). */
-export function widget(layout: SiteLayout, key: WidgetKey): WidgetInstance | undefined {
-  return layout.widgets.find(w => w.key === key);
-}
 
 /** Does any widget on this layout consume the given home-data field? The
  *  public home gates each reader on this so an absent widget costs no query. */
@@ -220,6 +208,11 @@ export function newInstanceFor(site: LegacySiteShape, key: WidgetKey, id: string
 }
 
 /** The layout's bottom edge — the row a new widget starts on. */
+/** The first instance of a key (test-facing convenience). */
+export function widget(layout: SiteLayout, key: WidgetKey): WidgetInstance | undefined {
+  return layout.widgets.find(w => w.key === key);
+}
+
 export function layoutBottom(widgets: readonly WidgetInstance[]): number {
   return widgets.reduce((max, w) => Math.max(max, w.y + w.h), 0);
 }
