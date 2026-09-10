@@ -39,9 +39,10 @@ test('scout search: athletes are refused; a scout finds open athletes by name an
   const scoutPassword = `Qa!${Math.random().toString(36).slice(2, 12)}9`;
   let scoutId: string | null = null;
   try {
-    let res = await request.post('/api/signup', { data: { email: scoutEmail, password: scoutPassword, actorRole: 'scout', profileData: { first_name: 'Sam', last_name: 'Scout' } } });
-    expect(res.status(), await readErrorBody(res)).toBe(200);
+    // The signup bucket is per IP (5/h): three projects × three specs would trip it — reset first.
     await resetRateBucket(admin, 'signup', '');
+    let res = await request.post('/api/signup', { data: { email: scoutEmail, password: scoutPassword, actorRole: 'scout', profileData: { first_name: 'Sam', last_name: 'Scout' } } });
+    expect(res.status(), await readErrorBody(res)).toBe(201);
     scoutId = ((await admin.from('profiles').select('id').eq('email', scoutEmail).single()).data!.id as string);
     const scoutState = await mintStorageState({ id: scoutId, email: scoutEmail, password: scoutPassword });
     const scoutCtx = await browser.newContext({ storageState: scoutState });
