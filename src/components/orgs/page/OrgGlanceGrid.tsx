@@ -275,7 +275,7 @@ export default function OrgGlanceGrid({
     return e ? emptyLink(e.label, e.consoleHash) : null;
   };
 
-  type Bubble = { key: OrgWindowKey; icon: LucideIcon; label: string; span: 'sm' | 'md' | 'lg'; face: ReactNode; open: boolean };
+  type Bubble = { key: OrgWindowKey; icon: LucideIcon; label: string; span: 'sm' | 'md' | 'lg'; face: ReactNode; open: boolean; instanceId?: string | null };
   type FaceSpec = Omit<Bubble, 'span'>;
 
   // Every face, keyed by its bubble — the gates, the labels and the JSX are
@@ -429,7 +429,7 @@ export default function OrgGlanceGrid({
     if (s.bubbleKey === null) return s.instanceId ? [{ kind: 'tile', slot: s }] : [];
     if (!isOrgWindowKey(s.bubbleKey)) return [];
     const face = faceFor[s.bubbleKey]();
-    return face ? [{ kind: 'bubble', bubble: { ...face, label: s.title ?? face.label, span: s.span } }] : [];
+    return face ? [{ kind: 'bubble', bubble: { ...face, label: s.title ?? face.label, span: s.span, instanceId: s.instanceId } }] : [];
   });
   const bubbles: Bubble[] = slots.flatMap(s => (s.kind === 'bubble' ? [s.bubble] : []));
 
@@ -490,7 +490,7 @@ export default function OrgGlanceGrid({
           ) : s.kind === 'tile' ? (
             <OrgContentTile key={s.slot.instanceId ?? `tile-${i}`} slot={s.slot} siteId={siteId} side={side} orgId={orgId} canManage={canManage} staggerIndex={i} />
           ) : (
-            <div key={s.bubble.key} className={`contents`} data-org-bubble-wrap={s.bubble.key}>
+            <div key={s.bubble.instanceId ?? s.bubble.key} className={`contents`} data-org-bubble-wrap={s.bubble.key}>
               <BubbleCardWithHook
                 bubble={s.bubble}
                 staggerIndex={i}

@@ -130,9 +130,18 @@ export function deriveAppLayout(composition?: AppComposition | null): AppSlot[] 
   if (!composition) return registry;
 
   const slots: AppSlot[] = [];
+  // H3: one BUBBLE per bubble key — a second standings instance (phase 9's
+  // "Add another", bound to its own competition) has no per-instance read
+  // in-app, so it would be the same card twice with the same DOM identity.
+  // The first in reading order wins; content tiles (no bubble) all render.
+  const seen = new Set<AppBubbleKey>();
   for (const inst of composition.widgets) {
     const app = WIDGETS[inst.key].surfaces.app;
     if (!app) continue;
+    if (app.bubbleKey !== null) {
+      if (seen.has(app.bubbleKey)) continue;
+      seen.add(app.bubbleKey);
+    }
     slots.push({
       key: inst.key,
       bubbleKey: app.bubbleKey,

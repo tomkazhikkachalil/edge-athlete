@@ -2,6 +2,7 @@ import { test, expect, type APIRequestContext, type Page } from '@playwright/tes
 import fs from 'node:fs';
 import path from 'node:path';
 import { adminClient, apiAs, loadQaUser, readErrorBody, resetRateBucket } from './helpers/qa-user';
+import { revisionsSupported } from './helpers/org-site';
 import { openManageMenu } from './helpers/org-page';
 
 // Org Pages R2: the in-app club/league page carries the org's brand — logo,
@@ -112,6 +113,19 @@ test('org page brand: a draft site\'s logo, hero photo and accent render in-app;
   const stamp = Date.now();
   const ownerApi = await apiAs('state.json');
   const seeded = await seedBrandedClub(ownerApi, stamp);
+
+  // H3: a DRAFT site's stored draft layout (a paragraph typed in the editor)
+  // must never reach the in-app composition — the layout comes from the
+  // published revision only, and this site has none.
+  if (await revisionsSupported(ownerApi, 'club', seeded.clubId)) {
+    const canvas = (await (await ownerApi.get(`/api/clubs/${seeded.clubId}/site/canvas`)).json()) as { layout: { widgets: { y: number; h: number }[] } };
+    const bottom = Math.max(...canvas.layout.widgets.map(w => w.y + w.h));
+    const draftLayout = { ...canvas.layout, widgets: [...canvas.layout.widgets, { id: 'w_000000000000d3a1', key: 'text', x: 0, y: bottom, w: 12, h: 3, cv: 1, visibility: 'public', config: { blocks: [{ type: 'paragraph', text: `Draft only ${stamp}` }] } }] };
+    const put = await ownerApi.put(`/api/clubs/${seeded.clubId}/site/draft`, { data: { layout: draftLayout } });
+    expect(put.status(), await readErrorBody(put)).toBe(200);
+    const org = (await (await ownerApi.get(`/api/clubs/${seeded.clubId}`)).json()) as { composition: unknown; brand: { headline?: string | null } | null };
+    expect(org.composition, 'no published revision → no composition, draft or not').toBeNull();
+  }
   try {
     // Owner (the default storage state) at desktop width.
     const hero = await expectBrand(page, seeded.clubId, stamp);
