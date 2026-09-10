@@ -58,6 +58,9 @@ interface CanvasBody {
 }
 
 const PILL = 'px-3 py-1.5 text-sm min-h-[36px] rounded-md border border-border-strong text-secondary hover:bg-surface-sunken transition-colors disabled:opacity-50 disabled:cursor-not-allowed';
+// B3: a panel stays in view beside a long canvas (it used to sit at the top
+// of the row, off-screen when the selected tile was near the bottom).
+const STICKY_ASIDE = 'sticky top-16 self-start max-h-[calc(100vh-5rem)] overflow-y-auto';
 const CTA = 'px-3 py-1.5 text-sm min-h-[36px] rounded-md bg-brand text-white font-medium hover:bg-brand-hover transition-colors disabled:opacity-50 disabled:cursor-not-allowed';
 
 export default function SiteBuilder() {
@@ -241,11 +244,17 @@ function Editor({
   };
   const selected = selectedId ? history.present.widgets.find(w => w.id === selectedId) ?? null : null;
 
+  // B3: a new tile lands at the bottom of the page — scroll it into view once
+  // it has rendered, or adding e.g. "Staff" from the picker visibly did nothing.
+  const scrollToInstance = (id: string) => {
+    window.setTimeout(() => document.querySelector(`[data-sb-instance="${id}"]`)?.scrollIntoView({ block: 'center', behavior: 'smooth' }), 0);
+  };
   const addWidget = (key: SiteWidgetKey, resolved: SiteHomeData | null) => {
     if (resolved) setData(prev => ({ ...prev, ...resolved }));
     const id = newInstanceId();
     history.commit(appendWidget(history.present, newInstanceFor(site, key, id)));
     setPickerOpen(false);
+    scrollToInstance(id);
     // Phase 6: a content tile is empty until authored — open its panel at once;
     // phase 9: so is a repeat of a query widget (it needs binding).
     if (isContentWidgetKey(key) || WIDGETS[key].multiple) setSelectedId(id);
@@ -293,35 +302,41 @@ function Editor({
     [plural, orgId, showError]
   );
   const draft = useDraft(history.present, save, canvas.draft?.rev ?? null);
-  const refreshSite = async () => {
+  const refreshSite = async (savedRev?: number | null) => {
+    // B3: adopt the rev the content PATCH answered with BEFORE the re-read —
+    // the window in which an autosave carried a stale rev is gone, and a
+    // failed re-read no longer leaves the rev behind.
+    if (savedRev !== undefined) draft.adoptRev(savedRev);
     try {
       const res = await fetch(`/api/${plural}/${orgId}/site/canvas`);
-      if (!res.ok) return;
+      if (!res.ok) throw new Error(String(res.status));
       const body = (await res.json()) as CanvasBody;
       setSite(body.site);
       setData(prev => ({ ...prev, ...body.data }));
       if (body.options) setOptions(body.options);
-      // The content save wrote the draft and bumped its rev (P6-B found the
-      // gap: without this the next layout autosave answered 409).
       draft.adoptRev(body.draft?.rev ?? null);
     } catch {
-      /* the panel's toast already said what happened */
+      showError('Website', 'Saved — but the editor could not refresh. Reload to see the change.');
     }
   };
 
   // ⌘Z / ⇧⌘Z (Ctrl on Windows) — always available, alongside the buttons.
+  const { undo, redo, canUndo, canRedo } = history;
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (!(e.metaKey || e.ctrlKey) || e.key.toLowerCase() !== 'z') return;
+      // B3: never undo the layout behind an open dialog (picker, gallery,
+      // confirm) or from inside a <select>.
+      if (document.querySelector('[role="dialog"]')) return;
       const target = e.target as HTMLElement | null;
-      if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) return;
+      if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT' || target.isContentEditable)) return;
       e.preventDefault();
-      if (e.shiftKey) history.redo();
-      else history.undo();
+      if (e.shiftKey) redo();
+      else undo();
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [history]);
+  }, [undo, redo, canUndo, canRedo]);
 
   // H7: the tab opens ON the click (popup blockers refuse one opened after an await).
   const preview = () => openPreview(plural, orgId, showError);
@@ -388,10 +403,11 @@ function Editor({
         showError('Website', plan.forbidden ?? 'Could not publish the site');
         // fall through: promote the draft so the work is at least published for when an owner flips it.
       }
+      const label = versionLabel.trim();
       const res = await fetch(`/api/${plural}/${orgId}/site/revisions`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'publish' }),
+        body: JSON.stringify({ action: 'publish', ...(label ? { label } : {}) }),
       });
       const body = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -399,6 +415,7 @@ function Editor({
         return;
       }
       if (plan.target === 'revisions') showSuccess('Website', plan.success);
+      setVersionLabel('');
       onReload();
     } catch {
       showError('Website', 'Could not publish the changes');
@@ -407,6 +424,9 @@ function Editor({
     }
   };
   const publishCta = publishPlan(published).cta;
+  // B3: the console's publish takes a version label; the editor's did not,
+  // so everything published from the editor landed in History unlabelled.
+  const [versionLabel, setVersionLabel] = useState('');
 
   const chip = chipFor(draft.state, draft.dirty);
 
@@ -486,6 +506,17 @@ function Editor({
             <button type="button" onClick={() => void preview()} className={PILL}>
               Preview
             </button>
+            {published && (
+              <input
+                type="text"
+                aria-label="Version label"
+                value={versionLabel}
+                onChange={e => setVersionLabel(e.target.value)}
+                placeholder="Label this version (optional)"
+                maxLength={60}
+                className="w-48 rounded-md border border-border-strong bg-surface px-3 py-1.5 text-sm text-primary min-h-[36px]"
+              />
+            )}
             <button type="button" onClick={() => void publish()} disabled={busy} className={CTA}>
               {publishCta}
             </button>
@@ -517,6 +548,7 @@ function Editor({
               </div>
               {themeDraft && (
                 <ThemePanel
+                  className={STICKY_ASIDE}
                   site={site}
                   draft={themeDraft}
                   onChange={setThemeDraft}
@@ -536,6 +568,7 @@ function Editor({
               {!themeDraft && selected && (
                 <PropertiesPanel
                   key={selected.id}
+                  className={STICKY_ASIDE}
                   site={site}
                   layout={history.present}
                   widget={selected}

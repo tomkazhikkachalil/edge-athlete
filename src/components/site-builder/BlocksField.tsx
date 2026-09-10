@@ -1,5 +1,7 @@
 'use client';
 
+import { useState } from 'react';
+
 import { TEXT_WIDGET_BLOCKS_MAX } from '@/lib/site-builder/fields';
 
 /**
@@ -53,18 +55,39 @@ export interface BlocksFieldProps {
   onChange: (blocks: TextBlock[], coalesce?: string) => void;
 }
 
+let blockSeq = 0;
+const mintBlockId = () => `b${++blockSeq}`;
+
 export default function BlocksField({ idBase, blocks, onChange }: BlocksFieldProps) {
   const full = blocks.length >= TEXT_WIDGET_BLOCKS_MAX;
-  const add = (b: TextBlock) => onChange([...blocks, b]);
+  // B3: a STABLE key per block, kept alongside the blocks (they carry no id
+  // of their own). Keyed by index, moving or removing a block while a field
+  // had focus left the caret on the index and swapped the text under it.
+  // The handlers move ids with the blocks; an outside change of length
+  // (undo) re-mints.
+  const [ids, setIds] = useState<string[]>(() => blocks.map(mintBlockId));
+  // An outside change of length (undo) falls back to index keys until the
+  // next structural edit re-syncs them — undo is not typing.
+  const keys = ids.length === blocks.length ? ids : blocks.map((_, i) => `i${i}`);
+  const add = (b: TextBlock) => {
+    setIds([...keys, mintBlockId()]);
+    onChange([...blocks, b]);
+  };
   const patch = (i: number, next: TextBlock, coalesce?: string) => onChange(blocks.map((b, j) => (j === i ? next : b)), coalesce);
   const move = (i: number, dir: -1 | 1) => {
     const j = i + dir;
     if (j < 0 || j >= blocks.length) return;
     const copy = [...blocks];
     [copy[i], copy[j]] = [copy[j], copy[i]];
+    const k = [...keys];
+    [k[i], k[j]] = [k[j], k[i]];
+    setIds(k);
     onChange(copy);
   };
-  const remove = (i: number) => onChange(blocks.filter((_, j) => j !== i));
+  const remove = (i: number) => {
+    setIds(keys.filter((_, j) => j !== i));
+    onChange(blocks.filter((_, j) => j !== i));
+  };
 
   return (
     <div className="space-y-3" data-sb-blocks={blocks.length}>
@@ -73,7 +96,7 @@ export default function BlocksField({ idBase, blocks, onChange }: BlocksFieldPro
         const id = `${idBase}-block-${i}`;
         const n = i + 1;
         return (
-          <div key={i} className="rounded-md border border-border p-2 space-y-2" data-sb-block={b.type}>
+          <div key={keys[i]} className="rounded-md border border-border p-2 space-y-2" data-sb-block={b.type}>
             <div className="flex items-center justify-between gap-2">
               <span className="text-xs font-medium text-secondary">{`${LABEL[b.type]} ${n}`}</span>
               <span className="flex items-center gap-1">
