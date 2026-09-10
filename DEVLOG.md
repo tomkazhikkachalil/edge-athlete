@@ -1,5 +1,37 @@
 # Development Log
 
+## September 9, 2026 — Site Builder hardening H6: the editor takes a site live; the removal toast undoes the removal (zero DDL)
+
+- **A step that could never complete.** The editor's Publish only promoted
+  the draft (`revisions POST publish`, `manage_site`); taking a site LIVE is
+  the site-level action (`PATCH {action:'publish'}`, `manage_org`), which
+  lived in the console alone. `published` on the canvas is `published_at`,
+  so on a never-published site the checklist's "Publish your site" stayed
+  open however often Publish was clicked, and the button's optimistic
+  `setPublished(true)` was reverted by the reload that followed. Since
+  P10-C the editor is the Website section's door, so a first-time manager
+  never got a live site from it (the start spec admitted it by taking the
+  site live through the API afterwards).
+- **The fix** (`publish-target.ts publishPlan`, new, pure; `SiteBuilder`):
+  not live → the CTA reads **Publish site** and calls the site-level
+  publish, which takes it live AND promotes a dirty draft; success toasts
+  "Your site is live — link-only until the listing is approved" and
+  `published` flips only on a 200. A `manage_site` staffer is refused that
+  (403): the toast says who can flip the switch and the draft still
+  promotes, so the work is published for when an owner does. Live → the CTA
+  reads **Publish changes** and promotes as before. The checklist hint names
+  the button.
+- **The removal toast** undid "whatever happened last": `history.undo` on a
+  toast that lives 8 s. Remove a section, drag another, click Undo → the
+  drag reverted and the section stayed gone. It now commits the layout as
+  it was before the removal (documented trade-off: an edit made during the
+  toast is reverted too — the toast is about the removal).
+- Tests: `publish-target.test.ts`. e2e: `org-site-start` — a fresh site's
+  editor shows "Publish site", one click takes it live (the public page
+  answers), the button becomes "Publish changes" and the publish step is
+  done; `org-site-editor` — remove, rename another section, toast Undo →
+  the removed section is back.
+
 ## September 9, 2026 — Site Builder hardening H5: the autosave rebuilt around a pure core — one save in flight, typed failures, honest publish messages (zero DDL)
 
 - **What was wrong** (`useDraft.ts`): nothing guarded a save in flight, so

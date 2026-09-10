@@ -183,6 +183,13 @@ test('org site editor: canvas → drag → autosave → undo → reload; phone n
       await expect(page.locator('[data-sb-instance]')).toHaveCount(before - 1);
       const toast = page.getByRole('alert').filter({ hasText: 'Section removed' });
       await expect(toast).toBeVisible();
+      // H6: an edit made while the toast is up (rename another section), THEN
+      // the toast's Undo — the REMOVED section comes back (the toast undoes
+      // the removal, not "whatever happened last").
+      const other = page.locator('[data-sb-widget]:not([data-sb-widget="hero"])').first();
+      const otherKey = await other.getAttribute('data-sb-widget');
+      await other.locator('.sb-frame-controls').click();
+      await page.locator(`[data-sb-panel="${otherKey}"]`).getByLabel('Section title').fill(`Meanwhile ${stamp}`);
       await toast.getByRole('button', { name: 'Undo' }).click();
       await expect(page.locator('[data-sb-instance]')).toHaveCount(before);
       await expect(page.locator(`[data-sb-widget="${removedKey}"]`)).toBeVisible();
