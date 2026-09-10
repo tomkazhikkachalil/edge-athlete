@@ -27,7 +27,8 @@ const base = (over: Partial<RawContestRecord> = {}): RawContestRecord => ({
   entrants: [],
   statLines: [],
   media: [],
-  liveRound: null,
+  liveRounds: [],
+  publicPostCount: 0,
   ...over,
 });
 

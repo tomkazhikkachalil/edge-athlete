@@ -33,6 +33,9 @@ interface Props {
   view: ContestView;
   access: ContestAccess;
   links: ContestLinks;
+  /** The "Posts from this event" body (a client island in the app; omitted
+   *  where there is none). Rendered only when the view counts posts. */
+  postsSlot?: React.ReactNode;
 }
 
 const STATUS_TONE: Record<string, string> = {
@@ -66,16 +69,20 @@ function TierChip({ provenance, disputed }: { provenance: string; disputed?: boo
   );
 }
 
-export default function ContestPage({ view, access, links }: Props) {
+export default function ContestPage({ view, access, links, postsSlot }: Props) {
   const { contest, competition, org, outcome } = view;
   const where = contestWhere(view);
-  const liveHref = view.liveRound ? links.live(view.liveRound.groupPostId) : null;
+  const liveRounds = view.liveRounds
+    .map(r => ({ ...r, href: links.live(r.groupPostId) }))
+    .filter((r): r is { groupPostId: string; label: string; href: string } => !!r.href);
+  const showPosts = !!postsSlot && view.publicPostCount > 0;
   const presentStatKeys = view.statFields.filter(f => view.statLines.some(l => typeof l.stats[f.key] === 'number'));
   const sections = [
     { id: 'result', label: outcome.kind === 'leaderboard' ? 'Leaderboard' : 'Result', show: true },
     { id: 'stats', label: 'Stats', show: view.statLines.length > 0 },
     { id: 'media', label: 'Media', show: view.media.length > 0 },
-    { id: 'live', label: 'Live', show: !!liveHref },
+    { id: 'live', label: 'Live', show: liveRounds.length > 0 },
+    { id: 'posts', label: 'Posts', show: showPosts },
   ].filter(s => s.show);
 
   return (
@@ -260,13 +267,27 @@ export default function ContestPage({ view, access, links }: Props) {
         </section>
       )}
 
-      {liveHref && (
-        <section id="live" aria-label="Live round" className="bg-surface rounded-lg border border-border p-4 sm:p-6 scroll-mt-4">
-          <h2 className="text-lg font-semibold text-primary mb-1">Live round</h2>
-          <p className="text-sm text-tertiary mb-3">The scorecard this result was counted from.</p>
-          <Link href={liveHref} className="inline-flex items-center min-h-[44px] px-4 rounded-lg bg-brand text-white font-semibold hover:bg-brand-hover">
-            Open the round →
-          </Link>
+      {liveRounds.length > 0 && (
+        <section id="live" aria-label="Live rounds" className="bg-surface rounded-lg border border-border p-4 sm:p-6 scroll-mt-4">
+          <h2 className="text-lg font-semibold text-primary mb-1">{liveRounds.length === 1 ? 'Live round' : 'Live rounds'}</h2>
+          <p className="text-sm text-tertiary mb-3">The scorecards these results were counted from.</p>
+          <ul className="flex flex-wrap gap-2">
+            {liveRounds.map(r => (
+              <li key={r.groupPostId}>
+                <Link href={r.href} className="inline-flex items-center min-h-[44px] px-4 rounded-lg bg-brand text-white font-semibold hover:bg-brand-hover" data-contest-live={r.groupPostId}>
+                  {r.label} →
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
+      {showPosts && (
+        <section id="posts" aria-label="Posts from this event" className="bg-surface rounded-lg border border-border p-4 sm:p-6 scroll-mt-4" data-contest-posts={view.publicPostCount}>
+          <h2 className="text-lg font-semibold text-primary mb-1">Posts from this event</h2>
+          <p className="text-sm text-tertiary mb-3">Public posts whose rounds were counted here.</p>
+          {postsSlot}
         </section>
       )}
 

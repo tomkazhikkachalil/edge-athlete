@@ -3,6 +3,8 @@
 import { useState, useRef, memo, createElement } from 'react';
 import { format, formatDistanceToNow } from 'date-fns';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
+import { contestChipLabel } from '@/lib/competitions/contest-attachments';
 import { useSharedRound } from '@/hooks/useSharedRound';
 import LazyImage from './LazyImage';
 import MediaTile from './media/MediaTile';
@@ -103,6 +105,10 @@ interface Post {
    *  upload. Null/absent for the overwhelming majority of posts. */
   event_id?: string | null;
   event?: { id: string; title: string; starts_at: string } | null;
+  /** Contest link (181): the contest this post's round was counted into —
+   *  written by the golf sync only. The chip opens /event/[id]. */
+  contest_id?: string | null;
+  contest?: { id: string; round: string | null; competition_name: string } | null;
 }
 
 // Module scope, so the component identity is stable across renders.
@@ -740,6 +746,22 @@ function PostCard({
               {' · '}
               {format(new Date(post.event.starts_at), 'MMM d')}
             </span>
+          </p>
+        )}
+
+        {/* Contest link (181) — the round was counted into a league round;
+            the chip is the way from the feed to the contest's place. */}
+        {post.contest && (
+          <p className="flex items-center gap-1.5 text-sm text-gray-500 mb-3 min-w-0">
+            <i className="fas fa-trophy text-xs" aria-hidden="true"></i>
+            <Link
+              href={`/event/${post.contest.id}`}
+              className="truncate hover:text-brand-fg"
+              data-post-contest-chip={post.contest.id}
+              onClick={e => e.stopPropagation()}
+            >
+              From {contestChipLabel(post.contest)}
+            </Link>
           </p>
         )}
 

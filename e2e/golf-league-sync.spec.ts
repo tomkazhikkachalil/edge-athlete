@@ -161,6 +161,20 @@ test('golf league sync: card-counted 9s qualify, 18s and out-of-window rounds do
   // Alpha: a 9 on the UNRATED gold tee, no rating pair → gross-only.
   roundIds.push(await insertRound(alpha.id, { tee: 'gold', course_rating: null, slope_rating: null }, [5, 5, 5, 5, 5, 5, 5, 5, 5]));
 
+  // E2 (mig 181): a post on the owner's best nine (roundIds[2]) — the sync
+  // must attach it to the contest, and the feed/contest page must show it.
+  // The ?contest= filter applies the org-lens rule (public post AND public
+  // author), so the owner is public for the spec's duration.
+  const { data: ownerProfile } = await admin.from('profiles').select('visibility').eq('id', owner.id).single();
+  const ownerPriorVisibility = ownerProfile!.visibility as string;
+  await admin.from('profiles').update({ visibility: 'public' }).eq('id', owner.id);
+  const { data: roundPost } = await admin
+    .from('posts')
+    .insert({ profile_id: owner.id, caption: `Best nine ${stamp}`, visibility: 'public', status: 'published', sport_key: 'golf', round_id: roundIds[2] })
+    .select('id')
+    .single();
+  const roundPostId = roundPost!.id as string;
+
   const ownerApi = await apiAs('state-b.json');
   try {
     const base = `/api/clubs/${clubId}/competitions/${competitionId}`;
@@ -169,6 +183,29 @@ test('golf league sync: card-counted 9s qualify, 18s and out-of-window rounds do
     const report = (await res.json()).reports[0] as { synced: number; kept: number; skipped: unknown[]; blocked?: string };
     expect(report.blocked).toBeUndefined();
     expect(report.synced).toBe(2);
+
+    // E2: the counted round's post is attached (mig 181); the feed answers
+    // ?contest= with the chip label; a bad contest param is a 400.
+    // Pre-181 the column is missing: the attachment assertions are skipped
+    // INSIDE the test (a warning, not a whole-spec skip — the sync, confirm,
+    // idempotence and 375px coverage below must keep running).
+    const { data: attached, error: attachedErr } = await admin.from('posts').select('contest_id').eq('id', roundPostId).single();
+    const attachmentsAvailable = !(attachedErr && attachedErr.code === '42703');
+    if (!attachmentsAvailable) {
+      console.warn('[e2e] posts.contest_id missing — run migration 181; attachment assertions skipped');
+      // The pre-181 contract: the filter answers an empty page, never a 500.
+      const pre = await ownerApi.get(`/api/posts?contest=${contestId}&limit=12&cursor=`);
+      expect(pre.status(), await readErrorBody(pre)).toBe(200);
+      expect((await pre.json()).posts).toEqual([]);
+    } else {
+      expect(attached!.contest_id).toBe(contestId);
+      const feed = await ownerApi.get(`/api/posts?contest=${contestId}&limit=12&cursor=`);
+      expect(feed.status(), await readErrorBody(feed)).toBe(200);
+      const feedBody = (await feed.json()) as { posts: { id: string; contest_id: string | null; contest: { id: string; round: string | null; competition_name: string } | null }[] };
+      expect(feedBody.posts.map(p => p.id)).toEqual([roundPostId]);
+      expect(feedBody.posts[0].contest).toEqual({ id: contestId, round: 'Week 1', competition_name: `Sync League ${stamp}` });
+    }
+    expect((await ownerApi.get('/api/posts?contest=nope')).status()).toBe(400);
 
     const { data: results } = await admin
       .from('contest_results')
@@ -208,6 +245,20 @@ test('golf league sync: card-counted 9s qualify, 18s and out-of-window rounds do
       await page.getByRole('button', { name: 'Confirm rounds' }).click();
       await expect(page.getByText('Round confirmed')).toBeVisible({ timeout: 15_000 });
       await expect(page.getByText('verified').first()).toBeVisible({ timeout: 15_000 });
+
+      // E2: the contest's place shows the leaderboard and the attached post (375px).
+      await page.goto(`/event/${contestId}#posts`);
+      await expect(page.locator('[data-contest-access]')).toBeVisible({ timeout: 20_000 });
+      await expect(page.locator('[data-contest-row]').first()).toBeVisible();
+      if (attachmentsAvailable) {
+        await expect(page.locator('[data-contest-posts="1"]')).toBeVisible();
+        await expect(page.locator('[data-contest-post-tiles="1"]')).toBeVisible({ timeout: 15_000 });
+        await expect(page.getByRole('link', { name: 'Posts' })).toBeVisible();
+      } else {
+        await expect(page.locator('[data-contest-posts]')).toHaveCount(0);
+      }
+      const eventScrollWidth = await page.evaluate(() => document.documentElement.scrollWidth);
+      expect(eventScrollWidth, 'no horizontal overflow on the contest page at 375px').toBeLessThanOrEqual(375);
     } finally {
       await ctx.close();
     }
@@ -251,6 +302,8 @@ test('golf league sync: card-counted 9s qualify, 18s and out-of-window rounds do
     expect(still!.every(r => r.provenance === 'league_verified')).toBe(true);
   } finally {
     await ownerApi.dispose();
+    await admin.from('posts').delete().eq('id', roundPostId);
+    await admin.from('profiles').update({ visibility: ownerPriorVisibility }).eq('id', owner.id);
     await admin.from('golf_holes').delete().in('round_id', roundIds);
     await admin.from('golf_rounds').delete().in('id', roundIds);
     await admin.from('venues').delete().eq('club_id', clubId);

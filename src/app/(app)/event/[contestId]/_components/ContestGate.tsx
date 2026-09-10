@@ -6,6 +6,7 @@ import { useAuth } from '@/lib/auth';
 import AppHeader from '@/components/AppHeader';
 import type { ContestViewResult } from '@/lib/competitions/contest-view';
 import ContestPage from './ContestPage';
+import ContestPosts from './ContestPosts';
 import { appContestLinks } from './links';
 
 // ── The gated branch of /event/[contestId] (Contest Place E1) ────────────
@@ -95,5 +96,12 @@ export default function ContestGate({ contestId }: Props) {
     );
   }
 
-  return shell(<ContestPage view={result.view} access={result.access} links={appContestLinks(result.view)} />);
+  return shell(
+    <ContestPage
+      view={result.view}
+      access={result.access}
+      links={appContestLinks(result.view)}
+      postsSlot={<ContestPosts contestId={contestId} viewerId={user?.id} />}
+    />
+  );
 }

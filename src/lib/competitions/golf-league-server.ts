@@ -23,6 +23,7 @@ import { CATALOG_ROW_COLUMNS, type CatalogRow } from '@/lib/golf/course-catalog'
 import { fetchHandicapComputation } from '@/lib/golf/handicap-server';
 import { canOverwriteProvenance, type ResultProvenance } from '@/lib/orgs/provenance';
 import { revalidateOrgSiteForCompetition } from '@/lib/org-sites/revalidate';
+import { stampContestAttachments } from './contest-attachments-server';
 import { recomputeStandingsBestEffort } from './standings';
 import { addDaysIso, utcToday } from './golf-weeks';
 import {
@@ -374,6 +375,9 @@ export async function syncGolfContest(admin: Admin, contestId: string): Promise<
     }
     await recomputeStandingsBestEffort(admin, competition.id);
     await revalidateOrgSiteForCompetition(admin, competition.id);
+    // E2 (mig 181): the counted rounds' posts and live rounds attach to
+    // this contest — the one writer of contest_id; pre-181 warns and skips.
+    await stampContestAttachments(admin, contest.id);
     // W2: tell the members whose result is new or changed (never the kept,
     // never an unchanged re-sync). Best-effort; a pre-173 CHECK drops it.
     if (counted.length > 0) {
