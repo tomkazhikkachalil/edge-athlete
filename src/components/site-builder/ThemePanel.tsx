@@ -48,6 +48,7 @@ export interface ThemePanelProps {
   onOpenGallery?: () => void;
   /** H7: the editor guards stray clicks while the draft differs from the saved theme. */
   onDirtyChange?: (dirty: boolean) => void;
+  className?: string;
   onClose: () => void;
   plural: string;
   orgId: string;
@@ -90,7 +91,7 @@ const DESIGN: { key: DesignKey; label: string; options: readonly string[]; names
   { key: 'teams', label: 'Teams', options: THEME_TEAMS, names: { chips: 'Name chips', tiles: 'Tiles' } },
 ];
 
-export default function ThemePanel({ site, draft, onChange, onSaved, onClose, onOpenGallery, onDirtyChange, plural, orgId, showError, showSuccess }: ThemePanelProps) {
+export default function ThemePanel({ site, draft, onChange, onSaved, onClose, onOpenGallery, onDirtyChange, className, plural, orgId, showError, showSuccess }: ThemePanelProps) {
   const [saving, setSaving] = useState(false);
   const tokens = parseThemeTokens(draft.tokens);
   const seed = templateSpec(draft.templateId);
@@ -154,7 +155,7 @@ export default function ThemePanel({ site, draft, onChange, onSaved, onClose, on
   };
 
   return (
-    <aside className="w-80 shrink-0 rounded-xl border border-border bg-surface p-4 space-y-4" aria-label="Theme" data-sb-theme-panel="">
+    <aside className={`w-80 shrink-0 rounded-xl border border-border bg-surface p-4 space-y-4 ${className ?? ''}`} aria-label="Theme" data-sb-theme-panel="">
       {/* Every heading face, so each name can show in its own face — the
           editor only; the public site loads one face at most. */}
       <style dangerouslySetInnerHTML={{ __html: allFontFaceCss() }} />

@@ -1,5 +1,33 @@
 # Development Log
 
+## September 10, 2026 — Site Builder backlog B3: editor polish (zero DDL)
+
+- **Panels stay in view** (`SiteBuilder`, both asides): the properties and
+  theme panels sat at the top of the canvas row, off-screen when the
+  selected tile was near the bottom of a long page. Sticky under the
+  header, scrolling inside themselves.
+- **A new tile scrolls into view**: adding a section appends it at the
+  bottom; for a module tile (no panel opens) the picker closed and nothing
+  visibly happened. The new instance is scrolled to the centre.
+- **⌘Z stays out of dialogs and selects**: the shortcut mutated the layout
+  behind an open picker, gallery or confirm, and from inside the visibility
+  `<select>`. It now bails when a `[role="dialog"]` is open or the target is
+  a select; the effect depends on the two handlers, not the history object
+  (which was a fresh object every render).
+- **Stable block keys** (`BlocksField`): blocks carry no id, and keying by
+  index meant moving or removing a block while a field had focus left the
+  caret on the index with the text swapped under it. Ids are kept alongside
+  the blocks and move with them; an outside change of length (undo)
+  re-mints.
+- **A version label from the editor**: the console's publish took a label,
+  the editor's did not, so everything published from the editor landed in
+  History unlabelled. A live site's header carries the same optional input.
+- **The rev is adopted before the re-read**: a content save's PATCH answers
+  with the draft's new rev; the editor now adopts it at once and THEN
+  re-reads the canvas for the content view, so the autosave can no longer
+  carry a stale rev in the window between them — and a failed re-read
+  toasts instead of silently leaving the rev behind.
+
 ## September 10, 2026 — Site Builder backlog B2: render resilience and contrast, dead phone-span code, two guardrails (zero DDL)
 
 - **An unknown widget key no longer drops the layout** (`layout-schema.ts`):

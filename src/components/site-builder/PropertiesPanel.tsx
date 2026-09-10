@@ -36,7 +36,9 @@ export interface PropertiesPanelProps {
   /** Phase 9: what a query widget can bind to (from the canvas response). */
   options?: CanvasOptions;
   onInstanceChange: (next: WidgetInstance, coalesce?: string) => void;
-  onContentSaved: () => Promise<void>;
+  /** After a content save — with the draft rev the PATCH answered (B3). */
+  onContentSaved: (rev: number | null) => Promise<void>;
+  className?: string;
   /** H7: the editor guards a tile switch while content is typed and unsaved. */
   onDirtyChange?: (dirty: boolean) => void;
   showError: (title: string, message?: string) => void;
@@ -51,7 +53,7 @@ type Config = Record<string, unknown>;
 const asConfig = (c: unknown): Config => (c && typeof c === 'object' ? (c as Config) : {});
 const str = (c: Config, k: string): string => (typeof c[k] === 'string' ? (c[k] as string) : '');
 
-export default function PropertiesPanel({ site, widget, plural, orgId, options, onInstanceChange, onContentSaved, showError, showSuccess, onDirtyChange }: PropertiesPanelProps) {
+export default function PropertiesPanel({ site, widget, plural, orgId, options, onInstanceChange, onContentSaved, showError, showSuccess, onDirtyChange, className }: PropertiesPanelProps) {
   const key = widget.key as SiteWidgetKey;
   const fields = fieldsFor(key);
   const instanceFields = fields.filter(f => f.scope === 'instance');
@@ -128,12 +130,12 @@ export default function PropertiesPanel({ site, widget, plural, orgId, options, 
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       });
-      const body = (await res.json().catch(() => ({}))) as { error?: string };
+      const body = (await res.json().catch(() => ({}))) as { error?: string; draft?: { rev?: number } | null };
       if (!res.ok) {
         showError('Website', body.error || 'Could not save');
         return;
       }
-      await onContentSaved();
+      await onContentSaved(typeof body.draft?.rev === 'number' ? body.draft.rev : null);
       showSuccess('Website', 'Saved to your draft');
     } catch {
       showError('Website', 'Could not save');
@@ -265,7 +267,7 @@ export default function PropertiesPanel({ site, widget, plural, orgId, options, 
   };
 
   return (
-    <aside className="w-80 shrink-0 rounded-xl border border-border bg-surface p-4 space-y-4" aria-label="Section properties" data-sb-panel={key}>
+    <aside className={`w-80 shrink-0 rounded-xl border border-border bg-surface p-4 space-y-4 ${className ?? ''}`} aria-label="Section properties" data-sb-panel={key}>
       <div>
         <p className="text-xs uppercase tracking-wide text-muted">Section</p>
         <h2 className="text-base font-semibold text-primary truncate">{title}</h2>
