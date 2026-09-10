@@ -18,6 +18,7 @@ import type { Profile } from '@/lib/supabase';
 import AchievementPills from '@/components/achievements/AchievementPills';
 import OrgMembershipsStrip from '@/components/affiliations/OrgMembershipsStrip';
 import SportSkillStrip from '@/components/SportSkillStrip';
+import RecruitingCard from '@/components/recruiting/RecruitingCard';
 import type { SportSkillCard } from '@/lib/sports/server/types';
 import { topPills } from '@/lib/achievements/display';
 import type { Achievement } from '@/lib/achievements';
@@ -408,6 +409,11 @@ export default function AthleteProfilePage() {
                 }}
               />
             </div>
+            {/* Recruiting (R1): a viewer's card — its own gated endpoint decides. */}
+            <div className="mb-4">
+              <RecruitingCard profileId={athleteId} />
+            </div>
+
 
             {profile.bio && (
               <p className="text-black dark:text-primary font-semibold text-lg mb-6">
