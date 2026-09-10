@@ -1,9 +1,11 @@
 # Start Session — Edge Athlete Development
 
 > Tom's session-start prompt. Paste this (or point Claude at it) when opening a
-> development session. Last aligned with project state: **September 9, 2026
-> (after the Site Builder program, phases 1–11, #616–#644, and its hardening
-> round H1–H8)** — migration head 180. If the
+> development session. Last aligned with project state: **September 10, 2026
+> (after the Site Builder program, phases 1–11, #616–#644, its hardening
+> round H1–H8, #645–#652, and its backlog round B1–B6, #653–#658)** —
+> migration head 180; `main` at the #658 merge (4e111c34), deployed and
+> prod-probed. If the
 > "Where the project actually is" section drifts stale, ask
 > Claude to re-align it against DEVLOG.md and session memory.
 
@@ -302,7 +304,27 @@ docs close. The written backlog (editor polish, the a11y pass, server and
 render polish, the remaining e2e flows and flake helpers) lives in the plan
 file and DEVLOG's H8 entry.
 
-`main` carries the program and the round. Open: Tom's device pass of a real branded club through the editor
+**Sep 10 — the backlog round (B1–B6, #653–#658).** The hardening round's
+written backlog, built and merged: B1 four server behaviours (a restore
+disables an absent module; a template switch keeps content tiles' rank; a
+pre-grid restore shows its own seed; adoption clamped and honest), B2 render
+resilience and contrast (an unknown widget key drops the instance, not the
+layout; `--org-accent-fg` for link text on white; the dead phone-span code
+gone; two guardrails — 4c's glob, 4d "revalidate OR dynamic"), B3 editor
+polish (sticky panels, scroll to a new tile, ⌘Z scoped, stable block keys, a
+version label, the rev adopted before the re-read), B4 the a11y pass
+(keyboard-selectable tiles, inert bodies, focus that follows the work,
+`ConfirmModal` a real dialog, named controls, radio groups), B5 server
+cleanup (honest headers, one constant each, dead code out, a discriminated
+union, a metered cheaper canvas read, the preview token first, an assets
+DELETE the editor uses to reclaim unsaved uploads), B6 e2e hardening (every
+`settleBody` copy onto `helpers/isr.ts`, the ISR byte-compare gone, seven
+more flows, the identity spec re-anchored — it had been red since P10-C).
+Final prod probe 6/6 against the #658 deploy. Still owed by Tom: the admin
+dashboard's "Site builder" panel with his login (no QA user can sit on the
+admin allowlist), the device pass, deleting the Vercel flag variable.
+
+`main` carries the program and both rounds. Open: Tom's device pass of a real branded club through the editor
 (laptop) and its public + in-app pages (phone); the admin dashboard's "Site
 builder" panel with his admin login (no admin QA session exists); the
 one-hour number once real publishes exist; older ops Tom owes: Search
