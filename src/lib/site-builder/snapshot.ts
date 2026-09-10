@@ -23,6 +23,7 @@ import {
 } from '@/lib/org-sites/validate';
 import { parseStoredLayout } from './layout-schema';
 import { applySeed, seedLayout } from './seeds';
+import { NEUTRAL_ORG, applyGallerySeed, galleryEntry, gallerySeed, type GalleryOrg } from './gallery';
 import { GALLERY_PICKS_MAX, readGalleryPicks, type GalleryPick } from '@/lib/org-sites/member-photo-gate';
 
 export const SNAPSHOT_VERSION = 1 as const;
@@ -183,6 +184,9 @@ export type SnapshotAction =
 export interface ApplyContext {
   side: 'league' | 'club';
   sportKey: string | null;
+  /** Phase 11, `apply_gallery` only — the org facts the generated content is
+   *  written from, loaded once by the server; the reducer stays pure. */
+  gallery?: GalleryOrg;
 }
 
 const moduleOr = (s: SiteSnapshot, key: string, enabledIfNew: boolean): SnapshotModule =>
@@ -250,6 +254,29 @@ export function applySiteAction(s: SiteSnapshot, input: SnapshotAction, ctx: App
             : {}),
         },
       };
+    case 'apply_gallery': {
+      // Phase 11: a starting point for the whole page. Family → templateId
+      // (inside the mig-170 CHECK); the design overrides go, then the
+      // entry's tokens land (typeface only when named; colours, wordmark and
+      // surface untouched); the layout is re-laid with the entry's seed —
+      // over what the site renders today when nothing is stored yet.
+      const entry = galleryEntry(input.entryId);
+      if (!entry) return s;
+      const theme = { ...s.theme };
+      for (const k of THEME_DESIGN_KEYS) delete theme[k];
+      for (const [k, v] of Object.entries(entry.tokens)) if (v) theme[k] = v;
+      const shape = (template_id: string) => ({
+        template_id,
+        hero_config: s.hero,
+        contact_config: s.contact,
+        visibility: 'public' as const,
+        modules: Object.entries(s.modules).map(([module_key, m]) => ({ module_key, enabled: m.enabled, sort_order: m.sortOrder, config: m.config })),
+      });
+      const current = parseStoredLayout(s.layout) ?? seedLayout(shape(s.templateId));
+      const seed = gallerySeed(entry, shape(entry.family), ctx.gallery ?? NEUTRAL_ORG(ctx.side), ctx.side, ctx.sportKey);
+      const layout = applyGallerySeed(current, seed, input.mode ?? 'keep', entry.rest === 'omit');
+      return { ...s, templateId: entry.family, theme, layout };
+    }
     case 'set_template': {
       // "Apply the seed": the template's decisions show through again, so
       // its design overrides go (colours, typeface and wordmark stay) —

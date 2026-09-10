@@ -1,5 +1,71 @@
 # Development Log
 
+## September 9, 2026 — Site Builder phase 11 (P11-A): the template gallery's model and `apply_gallery` — six starting points, generated from the org's own facts (zero DDL)
+
+- **A gallery entry is family + tokens + a plan** (`gallery.ts`, new,
+  client-safe; `gallery-ids.ts` holds the id list with ZERO imports so the
+  action schema and the entries never cycle). `template_id ∈ classic|bold`
+  stays the DB "family" (mig 170's CHECK — a new template ID would be DDL);
+  an entry names a family, the phase-7 design tokens (typeface / header /
+  hero / density / teams) and a seed PLAN of slots — `{module, w: 6|12,
+  h?}` or `{content: 'welcome'|'map', w, h?}`. Six entries: `golf-
+  clubhouse` (classic, club × golf, playfair), `golf-tour` (bold, golf,
+  oswald + band + bleed + compact), `team-clubhouse` (classic, club × team,
+  nunito), `team-scoreboard` (bold, team, oswald + compact + tiles),
+  `community` (bold, both, nunito + bar + card), `simple` (classic, both,
+  `rest: 'omit'`) — at least three per side × sport, pinned. `members` (a
+  roster count) never seeds on a team org.
+- **Generated content, real words** (`galleryWelcome`, `galleryMap`): the
+  welcome is a text tile `seed:welcome` — "Welcome to {name}" + one
+  paragraph by side × sport with the city/region when known, every string
+  clipped to the schema caps (a 300-character org name still fits); the
+  map is an embed tile `seed:map` ("Where we play") ONLY when a venue has
+  finite in-range lat/lng (mig 141), through the new `embeds.ts
+  osmEmbedAround(lat, lng, zoom)` — factored out of the share-link branch
+  so the parser and the generator agree and `parseEmbed` round-trips.
+  Without coordinates there is no map; nothing is invented.
+- **The engine** (`gallerySeed`, `applyGallerySeed`): the seed places the
+  org's ENABLED modules as the plan says (hero always first; 12s on their
+  own row, 6s in pairs; a disabled module or empty content is skipped; the
+  rest appended full width unless the entry omits it) and compacts. The
+  application NEVER creates a module instance the layout lacks (a private
+  club's members-only visibility must not leak — the mirror of
+  `MEMBERS_ONLY_MODULE_KEYS` is pinned against private.ts): content tiles
+  match by seed id (a re-apply keeps an edited welcome's words), modules by
+  the FIRST instance per key (id, title, query and visibility kept);
+  everything else — a second standings, the manager's own paragraph —
+  follows below in reading order. `mode: 'clean'` first strips the
+  manager's content tiles and repeats, and with `rest: 'omit'` the modules
+  the plan does not name. `keep` is the default; the plan's call.
+- **The action** (`validate.ts`, `snapshot.ts`, `server.ts`): `PATCH
+  {action: 'apply_gallery', entryId, mode?}` on the site (gate
+  `manage_site`) → the reducer sets `templateId = family`, strips
+  `THEME_DESIGN_KEYS` then lands the entry's tokens (typeface only when
+  named — `simple` keeps yours; accent, strong, wordmark and surface are
+  never touched), and re-lays `parseStoredLayout(draft) ??
+  seedLayout(current shape)`. The reducer stays pure: the server loads the
+  org facts once (`loadGalleryOrg` — identity + up to 50 venues with
+  coordinates, tolerant) into `ApplyContext.gallery`, the sport for the
+  copy, and answers **409** pre-180 (the layout has nowhere to live; a
+  template + theme written live without it would be half an application).
+  Response `{ok, entryId, templateId, draft}`. The canvas GET carries
+  `gallery: GalleryOrg` so P11-B's thumbnails compute the SAME seed the
+  server applies — a preview never lies.
+- Tests: `gallery.test.ts` (every entry × side × sport × org variant ×
+  module set: valid + compact, hero first, unique ids, under the cap,
+  content passes `instanceSchemaFor` and is non-empty at render, no map
+  without coordinates, the members mirror, the enums; keep / clean / omit
+  semantics; idempotence), `snapshot.test.ts` (family, strip + tokens,
+  colours kept, typeface only when named, no stored layout → created,
+  neutral copy, schema refusals), `embeds.test.ts` (`osmEmbedAround`
+  round-trip + the share-link equality). e2e: new `org-site-start.spec.ts`
+  (API half — the canvas facts, 400s, scoreboard → bold/oswald/compact +
+  the welcome in the org's words + the marker at the rink, keep vs clean,
+  the public welcome + OSM frame).
+
+P11-B next: the gallery window with block-diagram thumbnails, the first-open
+auto-gallery, the metrics roll-up and the dashboard panel.
+
 ## September 9, 2026 — Site Builder phase 10 (P10-C): the editor is the door — parity, the console collapse, the flag retired (zero DDL)
 
 - **Parity first** (`fields.ts`, `PropertiesPanel.tsx`): the hero panel

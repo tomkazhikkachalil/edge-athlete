@@ -97,20 +97,14 @@ export function parseEmbedUrl(input: string): Embed | null {
     }
     const map = url.hash.match(/map=(\d{1,2})\/(-?\d+(?:\.\d+)?)\/(-?\d+(?:\.\d+)?)/);
     if (map) {
-      const zoom = Math.min(19, Math.max(1, Number(map[1])));
       const lat = Number(map[2]);
       const lon = Number(map[3]);
       if (!inLat(lat) || !inLon(lon)) return null;
-      // Half-spans that read like the share view at that zoom (a 16:9 frame).
-      const dLat = 90 / 2 ** zoom;
-      const dLon = 180 / 2 ** zoom;
       const mlat = num(url.searchParams.get('mlat'));
       const mlon = num(url.searchParams.get('mlon'));
-      const out: Embed = {
-        provider: 'osm',
-        bbox: [round(Math.max(-180, lon - dLon)), round(Math.max(-90, lat - dLat)), round(Math.min(180, lon + dLon)), round(Math.min(90, lat + dLat))],
-      };
+      const out = osmEmbedAround(lat, lon, Number(map[1]));
       if (mlat !== null && mlon !== null && inLat(mlat) && inLon(mlon)) out.marker = [round(mlat), round(mlon)];
+      else delete out.marker;
       return out;
     }
     return null;
@@ -120,6 +114,25 @@ export function parseEmbedUrl(input: string): Embed | null {
 
 function round(n: number): number {
   return Math.round(n * 1e5) / 1e5;
+}
+
+/** A map centred on a point — the box the share view shows at that zoom
+ *  (a 16:9 frame), the point as the marker. The gallery (phase 11) builds
+ *  a venue's map from its coordinates with this; the share-link parser
+ *  above uses the same box so the two agree. */
+export type OsmEmbed = Extract<Embed, { provider: 'osm' }>;
+
+export function osmEmbedAround(lat: number, lon: number, zoom: number): OsmEmbed {
+  const z = Math.min(19, Math.max(1, Math.round(zoom)));
+  const dLat = 90 / 2 ** z;
+  const dLon = 180 / 2 ** z;
+  const clampLat = (n: number) => Math.min(90, Math.max(-90, n));
+  const clampLon = (n: number) => Math.min(180, Math.max(-180, n));
+  return {
+    provider: 'osm',
+    bbox: [round(clampLon(lon - dLon)), round(clampLat(lat - dLat)), round(clampLon(lon + dLon)), round(clampLat(lat + dLat))],
+    marker: [round(clampLat(lat)), round(clampLon(lon))],
+  };
 }
 
 /** Defensive: a stored config's `embed` → a structured embed, or null.

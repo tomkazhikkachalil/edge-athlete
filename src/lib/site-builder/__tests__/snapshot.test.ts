@@ -16,6 +16,7 @@ import {
   type SnapshotSiteRow,
 } from '../snapshot';
 import { seedLayout } from '../seeds';
+import { validateLayout } from '../layout';
 import { parseStoredLayout } from '../layout-schema';
 
 const SITE_ID = '11111111-1111-4111-8111-111111111111';
@@ -131,6 +132,45 @@ describe('applySiteAction', () => {
     const golf = applySiteAction(base(), { action: 'reset_order' }, { side: 'club', sportKey: 'golf' });
     expect(golf.modules.standings.sortOrder).toBe(1); // golf club: hero, standings, leaders, …
     expect(golf.modules.news.sortOrder).toBe(5);
+  });
+
+  it('phase 11: apply_gallery — family + tokens over a stripped design set; the layout re-laid; content generated; nothing destroyed in keep mode', () => {
+    let s = base();
+    s = applySiteAction(s, patch({ action: 'set_theme', accent: '#0f766e', typeface: 'lora', header: 'band', wordmark: 'W' }), ctx);
+    // A manager's own text tile on a stored layout.
+    const stack = seedLayout({ template_id: 'classic', hero_config: {}, contact_config: {}, visibility: 'public', modules: Object.entries(s.modules).map(([module_key, m]) => ({ module_key, enabled: m.enabled, sort_order: m.sortOrder, config: m.config })) });
+    s = { ...s, layout: { ...stack, widgets: [...stack.widgets.map(w => (w.key === 'standings' ? { ...w, config: { title: 'Table' } } : w)), { id: 'w_mine', key: 'text' as const, x: 0, y: 99, w: 6, h: 3, cv: 1, config: { blocks: [{ type: 'paragraph', text: 'Mine' }] }, visibility: 'public' as const }] } };
+    const org = { orgName: 'Kanata Golf', city: 'Kanata', region: 'ON', venues: [{ id: 'v', name: 'Loch March', lat: 45.3, lng: -75.9 }] };
+    s = applySiteAction(s, patch({ action: 'apply_gallery', entryId: 'golf-tour' }), { ...ctx, sportKey: 'golf', gallery: org });
+    expect(s.templateId).toBe('bold');
+    // Design keys stripped then the entry's landed; colours + wordmark kept; typeface replaced (the entry names one).
+    expect(s.theme).toEqual({ accent: '#0f766e', wordmark: 'W', typeface: 'oswald', header: 'band', hero: 'bleed', density: 'compact' });
+    const out = parseStoredLayout(s.layout)!;
+    const byId = (id: string) => out.widgets.find(w => w.id === id);
+    expect(byId('legacy:standings')).toMatchObject({ w: 12, config: { title: 'Table' } });
+    expect(byId('w_mine')).toBeDefined();
+    const welcome = byId('seed:welcome')!;
+    expect(JSON.stringify(welcome.config)).toContain('Welcome to Kanata Golf');
+    expect(JSON.stringify(welcome.config)).toContain('golf league in Kanata, ON');
+    expect(byId('seed:map')).toMatchObject({ key: 'embed', config: { title: 'Where we play', embed: { provider: 'osm', marker: [45.3, -75.9] } } });
+    expect(validateLayout(out)).toEqual([]);
+    // 'simple' does not name a typeface → the current one stays; clean mode drops the manager's tile and
+    // (rest: 'omit') the modules the entry does not name. The fixture enables only hero/standings/news —
+    // schedule and contact are NOT created (the seed never adds an instance the org lacks).
+    const simple = applySiteAction(s, patch({ action: 'apply_gallery', entryId: 'simple', mode: 'clean' }), { ...ctx, sportKey: 'golf', gallery: org });
+    expect(simple.theme.typeface).toBe('oswald');
+    const so = parseStoredLayout(simple.layout)!;
+    expect(so.widgets.find(w => w.id === 'w_mine')).toBeUndefined();
+    expect(so.widgets.map(w => w.key).sort()).toEqual(['hero', 'text']);
+    expect(so.widgets.find(w => w.id === 'seed:welcome')).toBeDefined();
+    // No stored layout → one is created; no gallery facts → neutral copy.
+    const fresh = applySiteAction(base(), patch({ action: 'apply_gallery', entryId: 'team-scoreboard' }), ctx);
+    expect(parseStoredLayout(fresh.layout)).not.toBeNull();
+    expect(JSON.stringify(parseStoredLayout(fresh.layout))).toContain('Welcome to our league');
+    expect(fresh.templateId).toBe('bold');
+    // The schema refuses an unknown entry or mode.
+    expect(SitePatchSchema.safeParse({ action: 'apply_gallery', entryId: 'nope' }).success).toBe(false);
+    expect(SitePatchSchema.safeParse({ action: 'apply_gallery', entryId: 'simple', mode: 'wipe' }).success).toBe(false);
   });
 
   it('phase 8: set_template re-lays a STORED layout with the template’s seed (tiles keep ids, options, visibility)', () => {
