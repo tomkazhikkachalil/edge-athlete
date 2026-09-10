@@ -21,7 +21,8 @@ const API_ROOT = join(process.cwd(), 'src/app/api');
 
 /** Every way a route legitimately authenticates or authorizes today. */
 const GATE_RE =
-  /\b(requireAuth|getServerAuth|requireAdmin|requireProfileRole|requireGuardianAccount|resolveActingProfile|getProfileRole|mayManagePostMedia|CRON_SECRET|auth\.getUser)\b/;
+  // requireScout (Recruiting skeleton R3) wraps requireAuth + the scout-account decider.
+  /\b(requireAuth|getServerAuth|requireAdmin|requireProfileRole|requireGuardianAccount|resolveActingProfile|getProfileRole|mayManagePostMedia|requireScout|CRON_SECRET|auth\.getUser)\b/;
 
 /** Gates that scope access to a PROFILE (not just "some session exists").
  *  requireAdmin qualifies: admin surfaces act cross-profile by design. */

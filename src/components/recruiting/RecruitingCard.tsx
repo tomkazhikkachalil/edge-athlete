@@ -1,7 +1,11 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useAuth } from '@/lib/auth';
 import { RECRUITING_STATUS_LABEL, TARGET_LEVEL_LABEL, formatGpa, type RecruitingProfile, type RecruitingStatus } from '@/lib/recruiting/profile';
+import { isScoutAccount } from '@/lib/recruiting/scout-access';
+import { shortlistedByLabel } from '@/lib/recruiting/shortlist';
+import ShortlistButton from './ShortlistButton';
 
 // ── The recruiting card (Recruiting skeleton R1) ──────────────────────────
 // One card, three profile routes (/u/[username], /athlete/[id], /athlete —
@@ -22,6 +26,8 @@ interface Read {
   gradYearLabel?: string | null;
   profile?: RecruitingProfile;
   supervised?: boolean;
+  recruitable?: boolean;
+  shortlistedBy?: number;
 }
 
 interface Props {
@@ -33,7 +39,10 @@ interface Props {
 }
 
 export default function RecruitingCard({ profileId, onEdit, refreshKey = 0 }: Props) {
+  const { profile: viewer } = useAuth();
   const [read, setRead] = useState<Read | null>(null);
+  // R3: a scout viewing someone else's open card gets the Shortlist toggle.
+  const viewerIsScout = isScoutAccount(viewer) && viewer?.id !== profileId;
 
   useEffect(() => {
     let cancelled = false;
@@ -96,7 +105,11 @@ export default function RecruitingCard({ profileId, onEdit, refreshKey = 0 }: Pr
             Edit
           </button>
         )}
+        {viewerIsScout && read.recruitable && <ShortlistButton athleteId={profileId} />}
       </div>
+      {read.canEdit && shortlistedByLabel(read.shortlistedBy ?? 0) && (
+        <p className="mt-1 text-xs text-secondary" data-shortlisted-by={read.shortlistedBy}>{shortlistedByLabel(read.shortlistedBy ?? 0)}</p>
+      )}
       {facts.length > 0 && (
         <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2 sm:grid-cols-4">
           {facts.map(f => (

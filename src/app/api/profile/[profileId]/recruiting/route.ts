@@ -13,6 +13,7 @@ import {
   type RecruitingStatus,
 } from '@/lib/recruiting/profile';
 import { RecruitingPatchSchema, parseRecruitingProfile, recruitingPatchToUpdate } from '@/lib/recruiting/schema';
+import { shortlistedByCount } from '@/lib/recruiting/shortlist-server';
 
 // ── /api/profile/[profileId]/recruiting (Recruiting skeleton R1) ─────────
 // THE recruiting read + write. GET is optional-auth: the owner and their
@@ -53,6 +54,8 @@ export interface RecruitingRead {
   profile?: RecruitingProfile;
   recruitable?: boolean;
   supervised?: boolean;
+  /** Owner/guardian only (R3): how many scouts shortlisted this athlete — never who. */
+  shortlistedBy?: number;
 }
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ profileId: string }> }) {
@@ -99,6 +102,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       profile: status === 'closed' && !canEdit ? undefined : parseRecruitingProfile(row.recruiting_profile),
       recruitable: isRecruitable({ email: row.email, visibility: row.visibility, recruiting_status: status }),
       supervised: row.supervision_state === 'supervised',
+      ...(canEdit ? { shortlistedBy: await shortlistedByCount(admin, profileId) } : {}),
     };
     return NextResponse.json(body, { headers: NO_STORE });
   } catch (error) {

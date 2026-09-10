@@ -1,5 +1,40 @@
 # Development Log
 
+## September 10, 2026 — Recruiting skeleton R3: the shortlist (migration 183)
+
+- **Migration 183.** `scout_shortlists` — one implicit list per scout
+  account, one row per athlete, a private note (≤500), PK (scout,
+  athlete), both FKs CASCADE, an athlete-side index for the count. Posture
+  A (RLS on, zero policies, REVOKEd): every read and write is service-role
+  behind `requireScout`. Code ahead degrades: the GET answers
+  `supported: false`, the writes 409 naming the migration, the button
+  renders nothing.
+- **The routes.** `GET/POST /api/scout/shortlist` and `GET/PATCH/DELETE
+  /api/scout/shortlist/[athleteId]`, all `requireScout` (registered in the
+  route-authz test's gate list — it wraps `requireAuth` + the scout-account
+  decider), writes under a per-account `scout-shortlist` bucket. The POST
+  re-checks the athlete with `isRecruitable` — THE predicate — so a closed,
+  private or unclaimed profile answers 403 "not open to recruiting"; a
+  scout cannot shortlist themselves (a CHECK and the server agree).
+- **The athlete side sees a count, never names** (Tom's v1 call):
+  `shortlistedBy` rides the recruiting GET for the owner/guardian only and
+  the card prints "Shortlisted by 3 scouts".
+- **The scout side.** `ShortlistButton` lives INSIDE the Recruiting card —
+  it renders only for a scout viewing someone else's open card, reads its
+  own state and toggles through the routes (a 403 reads as the server's
+  message, never a silent no-op). `/app/scout` hosts `ScoutShortlist`:
+  cards below `sm`, a table from `sm` up; the note opens
+  `ShortlistNoteModal` (a `LargerWindow`, bottom sheet on phones) under the
+  house dirty-close rule (`useDirtyClose` + `ConfirmModal`; a successful
+  save closes directly); removal confirms.
+- Tests: `shortlist.test.ts` (note normalisation, the count label). e2e
+  `scout-shortlist.spec.ts` (@mobile): a scout adds an open athlete, notes,
+  lists; the athlete's count is 1 and the scout's id never leaves the
+  server; a non-scout is 403, a closed athlete is 403, junk is 400; the
+  card's button toggles; `/app/scout` lists the row at phone width; the
+  athlete's own card shows the count and no button; removal drops the
+  count. Self-skips pre-183.
+
 ## September 10, 2026 — Recruiting skeleton R2: the scout account (zero DDL)
 
 Tom's call: a scout is an ACCOUNT TYPE, not a capability flag — self-service
