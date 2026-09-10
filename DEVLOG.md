@@ -1,5 +1,20 @@
 # Development Log
 
+## September 10, 2026 — Maintenance sweep, end of the Site Builder work
+
+- Gate green on `main` at the #658 merge (4e111c34): typecheck, lint at
+  zero warnings, 3,003 node tests, production build, the browser-floor gate
+  over 166 client chunks; `scripts/hardening-guardrails.sh` green (audit 0
+  high/critical; 4d reports every `(public)` page declares `revalidate` or
+  `dynamic`).
+- Session doc re-aligned: header at the #658 merge; the Sep 10 paragraph
+  carries the backlog round (B1–B6, #653–#658) and the final production probe
+  (6/6 against the #658 deploy); the open list is Tom's admin-panel look, the
+  device pass and the Vercel flag variable.
+- No code changes. The Site Builder work — phases 1–11 (#616–#644), the
+  hardening round (#645–#652) and the backlog round (#653–#658) — is complete
+  and prod-proven; migration 180 was the only DDL across all of it.
+
 ## September 10, 2026 — Site Builder backlog B6: e2e hardening — the last flake copies gone, honest assertions, seven more flows covered
 
 - **One polling helper**: the nine remaining `settleBody` copies (golf
