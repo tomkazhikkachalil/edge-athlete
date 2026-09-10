@@ -211,7 +211,10 @@ export async function getOrCreateDraft(
 ): Promise<RevisionRow | null> {
   if (site.draft_revision_id) {
     const existing = await loadRevision(admin, site.draft_revision_id);
-    if (existing && parseSnapshot(existing.snapshot)) return existing;
+    // H2: a row that has been PUBLISHED is never a draft again, whatever
+    // the pointer says (a publish that lost the pointer race, a stale
+    // caller) — writing into it would change the live revision.
+    if (existing && existing.published_at === null && parseSnapshot(existing.snapshot)) return existing;
     // The pointer dangled — fall through and materialise a fresh draft.
   }
   const rows = await loadRows(admin, site.id);
@@ -260,11 +263,16 @@ export async function writeDraft(
   draft: RevisionRow,
   next: SiteSnapshot
 ): Promise<'ok' | 'conflict' | 'error'> {
+  // H2: the fence — a draft write lands only on an UNPUBLISHED row. Before
+  // it, an autosave in flight while the same row was being published
+  // matched id + rev and overwrote the just-published snapshot, which the
+  // public page then served. Published = conflict; the client reloads.
   const { data, error } = await admin
     .from('org_site_revisions')
     .update({ snapshot: next, rev: draft.rev + 1 })
     .eq('id', draft.id)
     .eq('rev', draft.rev)
+    .is('published_at', null)
     .select('id');
   if (error) {
     console.error(`${TAG} draft write error:`, error);
@@ -281,6 +289,15 @@ export async function writeSnapshotToRows(
   prev: SiteSnapshot | null,
   next: SiteSnapshot
 ): Promise<{ ok: true } | { ok: false; code?: string }> {
+  // H2: the site row FIRST — its template CHECK (mig 170) is the one write
+  // that can be refused, and refusing it before any module row moves keeps
+  // a failed publish from leaving half a mirror behind.
+  const { site } = rowsFromSnapshot(next);
+  const { error: siteError } = await admin.from('org_sites').update(site).eq('id', siteId);
+  if (siteError) {
+    console.error(`${TAG} site mirror error:`, siteError);
+    return { ok: false, code: siteError.code };
+  }
   for (const row of diffModuleRows(prev, next)) {
     const { data: updated, error } = await admin
       .from('org_site_modules')
@@ -301,12 +318,6 @@ export async function writeSnapshotToRows(
         return { ok: false, code: insertError.code };
       }
     }
-  }
-  const { site } = rowsFromSnapshot(next);
-  const { error } = await admin.from('org_sites').update(site).eq('id', siteId);
-  if (error) {
-    console.error(`${TAG} site mirror error:`, error);
-    return { ok: false, code: error.code };
   }
   return { ok: true };
 }
@@ -409,7 +420,7 @@ export interface PublishResult {
   revisionId?: string;
 }
 
-/** Promote the draft: rows ← snapshot, stamp, pointer flip, prune, purge. */
+/** Promote the draft: stamp (fenced), rows ← snapshot, pointer flip, prune, purge. */
 export async function publishDraft(
   admin: Admin,
   site: SitePointers,
@@ -439,11 +450,7 @@ export async function publishDraft(
 
   const draft = await loadRevision(admin, site.draft_revision_id);
   const snapshot = draft ? parseSnapshot(draft.snapshot) : null;
-  if (!draft || !snapshot) return { status: 'not_found' };
-
-  const prev = snapshotFromRows(rows.site, rows.modules);
-  const written = await writeSnapshotToRows(admin, site.id, prev, snapshot);
-  if (!written.ok) return { status: written.code === '23514' ? 'template_check' : 'error' };
+  if (!draft || !snapshot || draft.published_at !== null) return { status: 'not_found' };
 
   // Phase 8 metrics: what this publish changed against the previous one,
   // and how long it took (draft opened → published; site created → published).
@@ -456,21 +463,52 @@ export async function publishDraft(
     siteCreatedAt: site.created_at ?? null,
     now,
   });
-  const { error: stampError } = await admin
+
+  // H2: STAMP FIRST, fenced on the rev we read and on "still a draft". From
+  // this write on, the row is published: an autosave that loaded the draft a
+  // moment earlier meets writeDraft's fence and answers conflict instead of
+  // overwriting what is about to be live. Zero rows = someone else moved the
+  // draft (a concurrent save or publish) → raced, nothing changed.
+  const { data: stamped, error: stampError } = await admin
     .from('org_site_revisions')
     .update({ published_at: now, published_by: userId, stats, ...(label ? { label } : {}) })
-    .eq('id', draft.id);
+    .eq('id', draft.id)
+    .eq('rev', draft.rev)
+    .is('published_at', null)
+    .select('id');
   if (stampError) {
     console.error(`${TAG} stamp error:`, stampError);
     return { status: 'error' };
   }
+  if (!stamped || stamped.length === 0) return { status: 'raced' };
+
+  // Mirror the snapshot into the rows (site row first — the template CHECK).
+  const prev = snapshotFromRows(rows.site, rows.modules);
+  const written = await writeSnapshotToRows(admin, site.id, prev, snapshot);
+  if (!written.ok) {
+    // Un-stamp (best effort) so the row is a draft again; the rows may be
+    // half-mirrored past the site row — purge so the page shows them as
+    // they are rather than a stale copy.
+    await admin.from('org_site_revisions').update({ published_at: null, published_by: null, stats: {} }).eq('id', draft.id);
+    revalidateTag(`org-site:${site.subdomain}`, { expire: 0 });
+    return { status: written.code === '23514' ? 'template_check' : 'error' };
+  }
+
   const { data: flipped } = await admin
     .from('org_sites')
     .update({ published_revision_id: draft.id, draft_revision_id: null })
     .eq('id', site.id)
     .eq('draft_revision_id', draft.id)
     .select('id');
-  if (!flipped || flipped.length === 0) return { status: 'raced' };
+  if (!flipped || flipped.length === 0) {
+    // The pointer moved under us (a discard mid-publish). The rows ARE the
+    // snapshot now and the revision is stamped — record it as published so
+    // history stays honest, and purge.
+    await admin.from('org_sites').update({ published_revision_id: draft.id }).eq('id', site.id);
+    revalidateTag(`org-site:${site.subdomain}`, { expire: 0 });
+    revalidateTag('org-sitemap', { expire: 0 });
+    return { status: 'raced', revisionId: draft.id };
+  }
 
   // Retention: newest 50 published + labelled + the one just published.
   const { data: history } = await admin
@@ -481,7 +519,9 @@ export async function publishDraft(
   const prune = selectRevisionsToPrune((history ?? []) as { id: string; label: string | null; published_at: string | null; created_at: string }[], [draft.id]);
   if (prune.length > 0) await admin.from('org_site_revisions').delete().in('id', prune);
 
+  // The page AND the sitemap: a publish can change which subpages exist.
   revalidateTag(`org-site:${site.subdomain}`, { expire: 0 });
+  revalidateTag('org-sitemap', { expire: 0 });
   return { status: 'published', revisionId: draft.id };
 }
 

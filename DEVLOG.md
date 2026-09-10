@@ -1,5 +1,44 @@
 # Development Log
 
+## September 9, 2026 — Site Builder hardening H2: the draft-write fence, publish in the right order, and the autosave's own rate bucket (zero DDL)
+
+- **The race.** `writeDraft` matched the revision row by `id + rev` only, and
+  `publishDraft` stamped THAT row `published_at`. An autosave that had loaded
+  the draft a moment before the publish still matched, so it overwrote the
+  just-published snapshot — which `published_revision_id` then served as
+  the live page. Worse, the mirror into the rows happened BEFORE the stamp,
+  so a save landing between the two went live unmirrored. `getOrCreateDraft`
+  had the same hole: it reused whatever row the pointer named, published or
+  not.
+- **The fence** (`revisions-server.ts`): `writeDraft` adds `published_at IS
+  NULL` — a published row answers conflict and the editor reloads (H5
+  teaches the client the message). `getOrCreateDraft` reuses the pointed row
+  only while it is unpublished; otherwise it materialises a fresh draft and
+  the claim replaces the stale pointer. `publishDraft` now STAMPS FIRST,
+  fenced on the rev it read and on "still a draft" (zero rows → `raced`,
+  nothing changed), then mirrors, then flips the pointer, then prunes.
+  `writeSnapshotToRows` writes the SITE ROW FIRST — its template CHECK is
+  the one write that can be refused, and refusing it before any module row
+  moves keeps a failed publish from leaving half a mirror; a refusal
+  un-stamps the revision (best effort) and purges. The publish also purges
+  `org-sitemap` (a publish can change which subpages exist) and purges on
+  every exit that changed rows, including the pointer race.
+- **The bucket** (`rate-limit-core.ts`): the editor's autosave PUT shared
+  `org-site` (30/h — "rare, deliberate actions") with every content PATCH,
+  the picker's widget-data read and the preview mint. About thirty drags
+  exhausted the hour; `useDraft` mapped the 429 to error/offline with no
+  retry and the manager's arrangement never reached the draft. The draft PUT
+  now spends `org-site-draft` (300/h); the two route headers stop mentioning
+  the retired flag and say which gate applies.
+- Tests: new `revisions-server.test.ts` over a scripted fake admin that
+  records every chained call — the fence clauses on `writeDraft`; a
+  published pointed row is never reused; the publish order stamp → site row
+  → module rows → flip, with both tags purged; a zero-row stamp is `raced`
+  with nothing written and nothing purged; a template-CHECK refusal touches
+  no module row, un-stamps, purges. `rate-limit.test.ts` pins the bucket.
+  e2e (`org-site-revisions`): a draft PUT after a publish opens a NEW draft
+  at rev 1 and the public page stays the published version.
+
 ## September 9, 2026 — Site Builder hardening H1: one public-render rule — the org's privacy re-asked at render, disabled tiles off the page, the members widget's empty object (zero DDL)
 
 A review of the finished program (three independent passes over the editor,
