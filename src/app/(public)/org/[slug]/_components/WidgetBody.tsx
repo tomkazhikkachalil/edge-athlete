@@ -43,6 +43,10 @@ export interface WidgetBodyProps {
   w: WidgetInstance;
   data: SiteHomeData;
   spec: TemplateSpec;
+  /** H1: the caller decides (`effectiveAudience`) — a private club's
+   *  members-only module renders the panel; the body never reads the
+   *  instance's stored visibility itself. */
+  membersOnly?: boolean;
 }
 
 /** The section title for a widget — the INSTANCE's title (phase 5), else
@@ -63,7 +67,7 @@ export function widgetHeading(site: PublicSite, w: WidgetInstance): string | nul
   return widgetTitle(site, w);
 }
 
-export default function WidgetBody({ site, w, data: raw, spec }: WidgetBodyProps) {
+export default function WidgetBody({ site, w, data: raw, spec, membersOnly = false }: WidgetBodyProps) {
   // Phase 9: the instance's QUERY narrows the bag first (which competition,
   // which venue, how many) — the same pick the empty rule makes.
   const data = selectForInstance(w, raw);
@@ -74,9 +78,9 @@ export default function WidgetBody({ site, w, data: raw, spec }: WidgetBodyProps
   const brandName = parseThemeTokens(site.theme_token_set).wordmark ?? site.orgName;
   const empty = (text: string) => <p className="mt-1 text-sm text-tertiary">{text}</p>;
   const key = w.key as Exclude<SiteWidgetKey, 'hero'>;
-  // Phase 9 V4: a private club's members-only modules become the panel
-  // (the instance's visibility carries isMembersOnly — deriveLegacyLayout).
-  if (w.visibility === 'members') return <MembersOnlyPanel site={site} />;
+  // Phase 9 V4: a private club's members-only modules become the panel —
+  // decided by the caller from the org's CURRENT privacy (H1).
+  if (membersOnly) return <MembersOnlyPanel site={site} />;
   switch (key) {
     case 'standings':
       return <StandingsPreview standings={standings} basePath={siteBasePath(site)} />;

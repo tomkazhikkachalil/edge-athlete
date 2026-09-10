@@ -1,5 +1,57 @@
 # Development Log
 
+## September 9, 2026 — Site Builder hardening H1: one public-render rule — the org's privacy re-asked at render, disabled tiles off the page, the members widget's empty object (zero DDL)
+
+A review of the finished program (three independent passes over the editor,
+the server and the renderers) found real defects; this opens the hardening
+round (plan: H1–H8). H1 is the privacy one.
+
+- **The leak.** A stored layout carries the `visibility` each instance had
+  when it was derived (`deriveLegacyLayout` / `newInstanceFor` apply
+  `isMembersOnly` ONCE). The public home, the emptiness rule and the in-app
+  projection read that frozen value. A club that arranged its page while
+  public and later flipped private kept serving standings, teams, divisions,
+  leaders and STAFF NAMES on the home page to anonymous visitors — every
+  subpage re-checks per request; only the home did not. The function written
+  to prevent exactly this, `audience.ts effectiveAudience()`, had zero
+  callers.
+- **The rule** (`public-view.ts publicWidgets`, new, server-only): the ONE
+  reader of a layout for the public page — module enabled (`moduleEnabled`,
+  new: a disabled module's tile is off the page until H4 reconciles the
+  layout), effective audience not staff, not empty, compacted.
+  `GridRenderer` calls it and nothing else; `WidgetBody` takes a
+  `membersOnly` prop from its caller (the grid, the canvas, the picker — all
+  through `effectiveAudience`) and no longer reads `w.visibility`.
+  `isWidgetEmpty` asks `effectiveAudience` for the members-only exception
+  and its site type widened to carry `visibility`. In-app:
+  `projectLayoutForApp(layout, site)` stores the EFFECTIVE audience on each
+  instance, `buildAppComposition(…, site)` takes the org's current privacy
+  (both org GETs already held `access.visibility` two lines above). The
+  stored value is a floor (an instance narrower than the policy stays
+  narrower), never a ceiling. The layout JSON, the seed and the reducer are
+  untouched.
+- **Members widget.** `fetchPublicMemberStats` answers an EMPTY OBJECT for an
+  org with no members, so `!data.memberStats` was never true and "No members
+  yet." rendered publicly — the exact string the rule exists to hide. Now
+  empty when the list is empty.
+- **e2e honesty** (`e2e/helpers/isr.ts`, new): `pollUntil` THROWS with the
+  last value on exhaustion; `settleBody` built on it replaces the five
+  per-spec copies in the site-builder specs (they slept and returned the
+  last body regardless — a page that never turned over left the spec green
+  with nothing asserted); `awaitDraftSaved` anchors on the draft PUT's
+  response instead of racing the transient dirty flag. The nine other
+  `settleBody` copies (golf/announce/courses specs) are backlog.
+- Tests: new `audience.test.ts` (every members-only key narrows on a private
+  club; the floor rule; `moduleEnabled`), new `emptiness.test.ts` (per key;
+  the empty stats object; a private club's public-stored standings is NOT
+  empty; content ignores module rows; `publicWidgets` drops empties, staff
+  and disabled, keeps the private panel, compacts),
+  `app-composition.test.ts` (a public-stored standings on a private club:
+  outsiders lose it, members keep it). e2e: `club-private-gates` gains the
+  scenario — arrange + publish while public → flip private → the home shows
+  the panel and no name; the outsider's in-app composition lacks standings,
+  the member's keeps it.
+
 ## September 9, 2026 — Site Builder docs close (phases 9–11) + maintenance sweep
 
 - Docs aligned to the finished program: CLAUDE.md convention 12 (#616–#643;

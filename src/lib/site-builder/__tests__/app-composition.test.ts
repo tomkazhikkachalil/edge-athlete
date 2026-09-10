@@ -13,13 +13,15 @@ const SITE = '0f1e2d3c-4b5a-4978-8f6e-5d4c3b2a1908';
 const ANON = { isMember: false, canManage: false };
 const MEMBER = { isMember: true, canManage: false };
 const MANAGER = { isMember: true, canManage: true };
+const PUBLIC = { visibility: 'public' as const };
+const PRIVATE = { visibility: 'private' as const };
 
 describe('projectLayoutForApp / buildAppComposition', () => {
   it('null layout → null; the layout’s app-capable instances in reading order with their titles; web-only widgets dropped', () => {
-    expect(buildAppComposition(null, SITE, ANON)).toBeNull();
+    expect(buildAppComposition(null, SITE, ANON, PUBLIC)).toBeNull();
     const layout = seedLayout(site(['hero', 'staff', 'standings', 'schedule', 'contact', 'news']));
     const titled: SiteLayout = { ...layout, widgets: layout.widgets.map(w => (w.key === 'standings' ? { ...w, config: { title: 'Table' } } : w)) };
-    const comp = buildAppComposition(titled, SITE, ANON)!;
+    const comp = buildAppComposition(titled, SITE, ANON, PUBLIC)!;
     // hero, staff, contact have no app surface.
     expect(comp.widgets.map(w => w.key)).toEqual(['standings', 'schedule', 'news']);
     expect(comp.widgets[0]).toMatchObject({ id: 'legacy:standings', title: 'Table', visibility: 'public' });
@@ -32,7 +34,7 @@ describe('projectLayoutForApp / buildAppComposition', () => {
       cols: 12,
       widgets: [place('hero', 0, 0), place('news', 6, 3, { w: 6 }, { id: 'n' }), place('standings', 0, 3, { w: 6 }, { id: 's' }), place('schedule', 0, 7, { w: 12 }, { id: 'e' })],
     };
-    expect(projectLayoutForApp(layout).map(w => w.id)).toEqual(['s', 'n', 'e']);
+    expect(projectLayoutForApp(layout, PUBLIC).map(w => w.id)).toEqual(['s', 'n', 'e']);
   });
 
   it('prunes by the viewer: members-only for members and managers, staff for managers; pinned ignores visibility', () => {
@@ -46,13 +48,30 @@ describe('projectLayoutForApp / buildAppComposition', () => {
         place('members', 0, 8, undefined, { id: 'pinned', visibility: 'members' }),
       ],
     };
-    expect(buildAppComposition(layout, SITE, ANON)!.widgets.map(w => w.id)).toEqual(['pub', 'pinned']);
-    expect(buildAppComposition(layout, SITE, MEMBER)!.widgets.map(w => w.id)).toEqual(['pub', 'mem', 'pinned']);
-    expect(buildAppComposition(layout, SITE, MANAGER)!.widgets.map(w => w.id)).toEqual(['pub', 'mem', 'staff', 'pinned']);
+    expect(buildAppComposition(layout, SITE, ANON, PUBLIC)!.widgets.map(w => w.id)).toEqual(['pub', 'pinned']);
+    expect(buildAppComposition(layout, SITE, MEMBER, PUBLIC)!.widgets.map(w => w.id)).toEqual(['pub', 'mem', 'pinned']);
+    expect(buildAppComposition(layout, SITE, MANAGER, PUBLIC)!.widgets.map(w => w.id)).toEqual(['pub', 'mem', 'staff', 'pinned']);
     expect(isVisibleTo({ key: 'standings', visibility: 'staff' }, MEMBER)).toBe(false);
     expect(isVisibleTo({ key: 'gallery', visibility: 'staff' }, ANON)).toBe(true);
   });
 
+
+  it('H1: a PRIVATE club decides at render — a stored public standings instance is members-only in-app (arranged while public, flipped later)', () => {
+    const layout: SiteLayout = {
+      version: 1,
+      cols: 12,
+      widgets: [place('standings', 0, 0, undefined, { id: 'std' }), place('schedule', 0, 4, undefined, { id: 'sch' }), place('news', 0, 8, undefined, { id: 'news' })],
+    };
+    // Public club: everything public.
+    expect(buildAppComposition(layout, SITE, ANON, PUBLIC)!.widgets.map(w => w.id)).toEqual(['std', 'sch', 'news']);
+    // Private club: standings is in MEMBERS_ONLY_MODULE_KEYS → outsiders lose it, members keep it; schedule/news stay public.
+    expect(buildAppComposition(layout, SITE, ANON, PRIVATE)!.widgets.map(w => w.id)).toEqual(['sch', 'news']);
+    expect(buildAppComposition(layout, SITE, MEMBER, PRIVATE)!.widgets.map(w => w.id)).toEqual(['std', 'sch', 'news']);
+    expect(projectLayoutForApp(layout, PRIVATE).find(w => w.id === 'std')!.visibility).toBe('members');
+    // The stored value is a floor: an instance already narrower stays narrower on a public club.
+    const staffOnly: SiteLayout = { ...layout, widgets: [place('news', 0, 0, undefined, { id: 'n', visibility: 'staff' })] };
+    expect(projectLayoutForApp(staffOnly, PUBLIC)[0].visibility).toBe('staff');
+  });
   it('spanFor: module bubbles keep the registry span; a content tile spans by width, never sm', () => {
     expect(spanFor({ key: 'standings', w: 12 })).toBe('md');
     expect(spanFor({ key: 'schedule', w: 12 })).toBe('sm');
@@ -87,9 +106,9 @@ describe('content tiles (P10-B): resolved on the server, empty ones dropped for 
         place('embed', 0, 8, undefined, { id: 'mem', visibility: 'members', config: { embed: { provider: 'vimeo', id: '123456789' } } }),
       ],
     };
-    expect(buildAppComposition(layout, SITE, ANON)!.widgets.map(w => w.id)).toEqual(['seed:standings', 'full']);
-    expect(buildAppComposition(layout, SITE, MEMBER)!.widgets.map(w => w.id)).toEqual(['seed:standings', 'full', 'mem']);
-    const manager = buildAppComposition(layout, SITE, MANAGER)!.widgets;
+    expect(buildAppComposition(layout, SITE, ANON, PUBLIC)!.widgets.map(w => w.id)).toEqual(['seed:standings', 'full']);
+    expect(buildAppComposition(layout, SITE, MEMBER, PUBLIC)!.widgets.map(w => w.id)).toEqual(['seed:standings', 'full', 'mem']);
+    const manager = buildAppComposition(layout, SITE, MANAGER, PUBLIC)!.widgets;
     expect(manager.map(w => w.id)).toEqual(['seed:standings', 'full', 'blank', 'mem']);
     expect(manager.find(w => w.id === 'full')!.tile).toEqual({ kind: 'text', blocks: [{ type: 'paragraph', text: 'Hello' }] });
     expect(manager.find(w => w.id === 'blank')!.tile).toBeUndefined();

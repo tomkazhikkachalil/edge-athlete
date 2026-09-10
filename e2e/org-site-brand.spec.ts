@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { adminClient, apiAs, loadQaUser, readErrorBody, resetRateBucket } from './helpers/qa-user';
+import { settleBody } from './helpers/isr';
 import { publishSite } from './helpers/org-site';
 
 // Builder depth, part 1 (phase 6b B1): the brand token set beyond the
@@ -8,21 +9,6 @@ import { publishSite } from './helpers/org-site';
 // display order mirrored into sort_order). All zero-DDL; everything is
 // asserted on the raw ISR document.
 
-async function settleBody(
-  request: { get: (u: string) => Promise<{ text: () => Promise<string> }> },
-  url: string,
-  needle: string,
-  shouldContain = true,
-  attempts = 8
-): Promise<string> {
-  let body = '';
-  for (let i = 0; i < attempts; i++) {
-    body = await (await request.get(url)).text();
-    if (body.includes(needle) === shouldContain) return body;
-    await new Promise(r => setTimeout(r, 2500));
-  }
-  return body;
-}
 
 test('org site brand: tokens → document attrs + wordmark; favicon.svg; nav labels + order; reset; 375px console', async ({
   browser,

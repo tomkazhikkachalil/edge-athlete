@@ -1,5 +1,7 @@
 import { test, expect, request } from '@playwright/test';
 import { E2E_BASE_URL, adminClient, apiAs, createQaUser, deleteQaUser, loadQaUser, mintStorageState, resetRateBucket } from './helpers/qa-user';
+import { publishSite, revisionsSupported } from './helpers/org-site';
+import { settleBody } from './helpers/isr';
 
 // Phase 9 V4 — a PRIVATE club on the public site. Identity and the join
 // door stay; standings, the week, players, leaders, teams, divisions and
@@ -183,6 +185,30 @@ test('private club: panels on the site, empty public standings, members read /mi
       .toBe(false);
     const openStandings = await (await anon.request.get(`/org/${subdomain}/standings`)).text();
     expect(openStandings).toContain('Edge B.');
+
+    // Hardening H1: a STORED layout must not freeze the gate. Arrange the
+    // page while PUBLIC (store the seed as the draft, publish it), flip back
+    // to PRIVATE — the home must gate the members-only sections from the
+    // org's CURRENT privacy, not from the visibility stored with the tile.
+    if (await revisionsSupported(ownerApi, 'club', clubId)) {
+      const canvas = (await (await ownerApi.get(`/api/clubs/${clubId}/site/canvas`)).json()) as { layout: { widgets: { key: string; visibility: string }[] } };
+      expect(canvas.layout.widgets.find(w => w.key === 'standings')?.visibility).toBe('public');
+      res = await ownerApi.put(`/api/clubs/${clubId}/site/draft`, { data: { layout: canvas.layout } });
+      expect(res.status(), await readErrorBody(res)).toBe(200);
+      await publishSite(ownerApi, 'club', clubId);
+      const publicHome = await settleBody(anon.request, `/org/${subdomain}`, 'Edge B.');
+      expect(publicHome).not.toContain('data-members-only');
+      res = await ownerApi.patch(`/api/clubs/${clubId}`, { data: { visibility: 'private' } });
+      expect(res.status(), await readErrorBody(res)).toBe(200);
+      const gatedHome = await settleBody(anon.request, `/org/${subdomain}`, 'data-members-only="1"');
+      noNames(gatedHome, 'home after the flip (stored layout)');
+      // In-app: the outsider's composition loses standings (members-only on a private club) although the tile is stored 'public'.
+      const outsiderOrg = (await (await strangerApi.get(`/api/clubs/${clubId}`)).json()) as { composition: { widgets: { key: string }[] } | null };
+      expect(outsiderOrg.composition, 'a stored layout yields a composition').not.toBeNull();
+      expect(outsiderOrg.composition!.widgets.some(w => w.key === 'standings')).toBe(false);
+      const memberOrg = (await (await alphaApi.get(`/api/clubs/${clubId}`)).json()) as { composition: { widgets: { key: string }[] } | null };
+      expect(memberOrg.composition!.widgets.some(w => w.key === 'standings')).toBe(true);
+    }
   } finally {
     await anon.close();
     await ownerApi.dispose();

@@ -24,7 +24,7 @@ const data: SiteHomeData = {
   news: Array.from({ length: 5 }, (_, i) => ({ slug: `n${i}`, title: `N${i}` })) as never,
   memberStats: null,
 };
-const site = { hero_config: {}, contact_config: {}, modules: [] as { module_key: string; config: unknown }[] };
+const site = { hero_config: {}, contact_config: {}, modules: [] as { module_key: string; config: unknown }[], visibility: 'public' as const };
 
 describe('selectForInstance', () => {
   it('no query: exactly today’s slices (the identity pin)', () => {

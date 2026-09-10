@@ -17,6 +17,7 @@
 import { parsePageBody } from '@/lib/org-sites/validate';
 import { orgMediaUrl } from '@/lib/media/org-site-media';
 import { isVisibleTo, projectLayoutForApp, type AppComposition, type AppInstance, type AppTile, type AppViewer } from './app-layout';
+import type { AudienceSite } from './audience';
 import { isContentWidgetKey } from './catalog';
 import { embedSrc, embedTitle, parseEmbed } from './embeds';
 import type { SiteLayout, WidgetInstance } from './layout';
@@ -56,12 +57,14 @@ export function resolveTile(w: WidgetInstance, siteId: string): AppTile | null {
   }
 }
 
-/** null layout → null composition (the in-app page keeps the registry order). */
-export function buildAppComposition(layout: SiteLayout | null, siteId: string, viewer: AppViewer): AppComposition | null {
+/** null layout → null composition (the in-app page keeps the registry order).
+ *  `site` is the org's CURRENT privacy (H1) — the effective audience is
+ *  decided here, never read off the stored instance. */
+export function buildAppComposition(layout: SiteLayout | null, siteId: string, viewer: AppViewer, site: AudienceSite): AppComposition | null {
   if (!layout) return null;
   const byId = new Map(layout.widgets.map(w => [w.id, w]));
   const widgets: AppInstance[] = [];
-  for (const inst of projectLayoutForApp(layout)) {
+  for (const inst of projectLayoutForApp(layout, site)) {
     if (!isVisibleTo(inst, viewer)) continue;
     if (!isContentWidgetKey(inst.key)) {
       widgets.push(inst);

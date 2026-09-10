@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { adminClient, apiAs, loadQaUser, readErrorBody, resetRateBucket } from './helpers/qa-user';
+import { settleBody } from './helpers/isr';
 
 // Builder depth, part 3 (phase 6b B3): the three masterplan modules that
 // were still unbuilt — divisions (teams grouped by division for the
@@ -7,21 +8,6 @@ import { adminClient, apiAs, loadQaUser, readErrorBody, resetRateBucket } from '
 // supervised omitted, golf says "not available"), and documents (stored
 // PDFs + https links). Zero DDL: 169 already admitted the keys.
 
-async function settleBody(
-  request: { get: (u: string) => Promise<{ text: () => Promise<string> }> },
-  url: string,
-  needle: string,
-  shouldContain = true,
-  attempts = 8
-): Promise<string> {
-  let body = '';
-  for (let i = 0; i < attempts; i++) {
-    body = await (await request.get(url)).text();
-    if (body.includes(needle) === shouldContain) return body;
-    await new Promise(r => setTimeout(r, 2500));
-  }
-  return body;
-}
 
 /** The smallest valid single-page PDF (enough for a content-type probe). */
 const TINY_PDF = Buffer.from(

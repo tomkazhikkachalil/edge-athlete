@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { adminClient, apiAs, loadQaUser, readErrorBody, resetRateBucket } from './helpers/qa-user';
+import { settleBody } from './helpers/isr';
 import { publishSite } from './helpers/org-site';
 
 // Builder depth, part 2 (phase 6b B2): the second template. 'bold' = a
@@ -7,21 +8,6 @@ import { publishSite } from './helpers/org-site';
 // two-column section grid, tile teams. The DB only admits the id (170);
 // pre-170 the switch answers a friendly 409 and this spec self-skips.
 
-async function settleBody(
-  request: { get: (u: string) => Promise<{ text: () => Promise<string> }> },
-  url: string,
-  needle: string,
-  shouldContain = true,
-  attempts = 8
-): Promise<string> {
-  let body = '';
-  for (let i = 0; i < attempts; i++) {
-    body = await (await request.get(url)).text();
-    if (body.includes(needle) === shouldContain) return body;
-    await new Promise(r => setTimeout(r, 2500));
-  }
-  return body;
-}
 
 test('org site template: bold → band header + grid + tiles; classic restores; both at 375px; console picker', async ({
   browser,

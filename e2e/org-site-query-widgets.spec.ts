@@ -1,6 +1,7 @@
 import { test, expect } from '@playwright/test';
 import { adminClient, apiAs, loadQaUser, readErrorBody, resetRateBucket } from './helpers/qa-user';
 import { publishSite, revisionsSupported } from './helpers/org-site';
+import { awaitDraftSaved } from './helpers/isr';
 
 // Site Builder phase 9 — widgets bound to a query. One module key may
 // appear N times on a layout, each instance narrowed by its own query: two
@@ -10,11 +11,6 @@ import { publishSite, revisionsSupported } from './helpers/org-site';
 //
 // P9-A drives the DRAFT API; P9-B adds the panel's pickers and drives them.
 
-/** One autosave cycle (the editor spec's helper). */
-async function awaitSaved(page: import('@playwright/test').Page) {
-  await expect(page.locator('[data-sb-dirty="1"]')).toBeVisible({ timeout: 10_000 });
-  await expect(page.locator('[data-sb-dirty="0"][data-sb-status="saved"]')).toBeVisible({ timeout: 15_000 });
-}
 
 test('org site: two standings bound to two competitions, a schedule bound to one venue — the query narrows what renders', async ({ browser }) => {
   test.setTimeout(240_000);
@@ -143,14 +139,14 @@ test('org site: two standings bound to two competitions, a schedule bound to one
         await expect(competition.locator('option')).toHaveCount(3); // Automatic + the two competitions
         await competition.selectOption(div1!.id);
         await panel.getByLabel('Section title').fill(`Div 1 again ${stamp}`);
-        await awaitSaved(page);
+        await awaitDraftSaved(page);
         // The schedule: rebind to Arena B, one row.
         await page.locator('[data-sb-widget="schedule"] .sb-frame-controls').click();
         const schedulePanel = page.locator('[data-sb-panel="schedule"]');
         await expect(schedulePanel).toBeVisible();
         await schedulePanel.getByLabel('Venue', { exact: true }).selectOption(arenaB!.id);
         await schedulePanel.getByLabel('How many', { exact: true }).fill('1');
-        await awaitSaved(page);
+        await awaitDraftSaved(page);
         const bound = (await (await ownerApi.get(`/api/leagues/${leagueId}/site/canvas`)).json()) as {
           layout: { widgets: { key: string; config: { title?: string; query?: { competitionId?: string; venueId?: string; limit?: number } } }[] };
         };
