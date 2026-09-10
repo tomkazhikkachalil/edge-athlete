@@ -494,14 +494,35 @@ const { canView } = await response.json();
      (nearest-rank percentiles; `truncated` flags capped reads); the
      dashboard "Site builder" panel shows it and hosts the storage sweep's
      dry run.
+   - **Hardening round (Sep 9 2026, H1–H8)** — the review's invariants:
+     the public page has ONE reader of a layout, `public-view.ts
+     publicWidgets` (module enabled → `effectiveAudience` → not empty →
+     compacted) and `effectiveAudience` is the ONLY place a renderer, the
+     emptiness rule or the in-app projection learns an instance's audience —
+     the stored `visibility` is a floor, never a ceiling (a club that goes
+     private after arranging is gated at render). Draft writes are FENCED on
+     `published_at IS NULL`; publish stamps first, mirrors the site row
+     before the module rows, then flips; the autosave has its own bucket
+     (`org-site-draft`). The in-app composition comes from the PUBLISHED
+     layout only (the brand may come from the draft while offline). The
+     reducer never writes a layout the readers refuse (`apply_gallery` is
+     validated and clamped) and `set_module` governs the tile on a stored
+     layout. The autosave is `draft-state.ts` (one save in flight, typed
+     outcomes, `publishBlocker`); a not-yet-live site publishes THE SITE
+     from the editor (`publishPlan`); the removal toast undoes the removal;
+     the gallery flushes first and lives in the ≥lg branch; `openPreview`
+     opens the tab on the click; dirty panels are guarded by the house
+     `ConfirmModal`.
    - e2e: a spec that reads the PUBLIC page must first take the site LIVE
      (`PATCH {action:'publish'}`) and, after edits, promote the draft with
      `e2e/helpers/org-site.ts publishSite()`; public-order polls compare
      MODULE instance ids (`data-widget-id`); `getByLabel` needs `exact: true`
      beside sibling aria-labels; a spec that opens the editor on a site it
-     has NOT taken live meets the gallery's first-open offer. Plan:
+     has NOT taken live meets the gallery's first-open offer; `e2e/helpers/
+     isr.ts` (`settleBody`, `settleStatus`, `awaitDraftSaved`) THROWS on
+     exhaustion — never a private copy that returns the last body. Plan:
      `~/.claude/plans/edge-athlete-site-builder-zesty-pnueli.md`; read DEVLOG
-     Sep 9 2026 P1-A…P11-B before touching any of it.
+     Sep 9 2026 P1-A…P11-B and the hardening round H1–H8 before touching any of it.
 ---
 
 ## 🔧 Common Tasks

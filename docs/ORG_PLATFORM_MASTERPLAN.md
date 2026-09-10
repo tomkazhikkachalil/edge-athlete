@@ -365,7 +365,9 @@ team and a coach on another.
 > flag retired, the duplicated console forms collapsed); a design gallery of
 > six entries (family + tokens + seed plan, generated from the org's facts,
 > offered on a fresh site's first visit) and the builder's numbers on the
-> admin dashboard. Phases 1–11 complete and prod-probed. The plan of record is
+> admin dashboard. Phases 1–11 complete and prod-probed; a review-driven
+> hardening round (H1–H8, Sep 9) closed the privacy and data-integrity defects
+> it found. The plan of record is
 > `~/.claude/plans/edge-athlete-site-builder-zesty-pnueli.md`; DEVLOG Sep 9
 > 2026 is the round-by-round record. The text below is kept as the history of
 > the module model the widgets grew out of.
