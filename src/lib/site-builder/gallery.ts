@@ -27,7 +27,7 @@ import { type TemplateId } from '@/lib/org-sites/templates';
 import { WIDGETS, isContentWidgetKey, type WebWidgetKey } from './catalog';
 import { osmEmbedAround, type Embed } from './embeds';
 import { GALLERY_ENTRY_IDS, type GalleryEntryId, type GalleryMode } from './gallery-ids';
-import { GRID, compactLayout, layoutBottom, sortByPosition, type LegacySiteShape, type SiteLayout, type WidgetInstance } from './layout';
+import { GRID, clampToConstraints, compactLayout, layoutBottom, sortByPosition, type LegacySiteShape, type SiteLayout, type WidgetInstance } from './layout';
 import { place, seedLayout } from './seeds';
 
 export { GALLERY_ENTRY_IDS, type GalleryEntryId, type GalleryMode };
@@ -347,7 +347,7 @@ const MEMBERS_ONLY = new Set(['standings', 'teams', 'divisions', 'leaders', 'gal
 const isMembersOnlyKey = (key: string) => MEMBERS_ONLY.has(key);
 
 /** Re-lay an existing layout with an entry's seed — see the header. */
-export function applyGallerySeed(layout: SiteLayout, seed: SiteLayout, mode: GalleryMode, omitRest = false): SiteLayout {
+export function applyGallerySeed(layout: SiteLayout, seed: SiteLayout, mode: GalleryMode, omitRest = false, max = Number.POSITIVE_INFINITY): SiteLayout {
   let current = sortByPosition(layout.widgets);
   if (mode === 'clean') {
     const seen = new Set<string>();
@@ -376,7 +376,7 @@ export function applyGallerySeed(layout: SiteLayout, seed: SiteLayout, mode: Gal
     const existing = current.find(w => w.key === s.key && !used.has(w.id));
     if (!existing) continue;
     used.add(existing.id);
-    placed.push({ ...existing, x: s.x, y: s.y, w: s.w, h: Math.max(s.h, WIDGETS[existing.key].constraints.minH) });
+    placed.push(clampToConstraints({ ...existing, x: s.x, y: s.y, w: s.w, h: Math.max(s.h, WIDGETS[existing.key].constraints.minH) }));
   }
   const seedKeys = new Set(seed.widgets.map(w => w.key));
   let y = layoutBottom(placed);
@@ -384,11 +384,13 @@ export function applyGallerySeed(layout: SiteLayout, seed: SiteLayout, mode: Gal
     .filter(w => !used.has(w.id))
     .filter(w => !(mode === 'clean' && omitRest && !isContentWidgetKey(w.key) && !seedKeys.has(w.key)))
     .map(w => {
-      const c = WIDGETS[w.key].constraints;
-      const width = Math.min(GRID.cols, Math.max(c.minW, w.w));
-      const out = { ...w, x: 0, y, w: width };
-      y += w.h;
+      const out = clampToConstraints({ ...w, x: 0, y });
+      y += out.h;
       return out;
-    });
+    })
+    // H4: the cap — the rest tail beyond `max` is dropped (the plan's
+    // placed cells and the generated content always fit; a layout past the
+    // schema's cap would parse as null and revert the page to its seed).
+    .slice(0, Math.max(0, max - placed.length));
   return { ...layout, widgets: compactLayout([...placed, ...rest]) };
 }

@@ -224,6 +224,18 @@ export function layoutBottom(widgets: readonly WidgetInstance[]): number {
   return widgets.reduce((max, w) => Math.max(max, w.y + w.h), 0);
 }
 
+/** An instance's size forced inside its catalog constraints and the grid
+ *  (H4): a seed plan or a stored width from another build can name a size
+ *  the schema accepts but `validateLayout` refuses — and a refused layout
+ *  silently reverts a whole page to its seed. */
+export function clampToConstraints<T extends WidgetInstance>(w: T): T {
+  const c = WIDGETS[w.key].constraints;
+  const width = Math.min(GRID.cols, Math.min(c.maxW, Math.max(c.minW, w.w)));
+  const h = Math.min(c.maxH, Math.max(c.minH, w.h));
+  const x = Math.min(Math.max(0, w.x), GRID.cols - width);
+  return width === w.w && h === w.h && x === w.x ? w : { ...w, x, w: width, h };
+}
+
 /** Append a widget below everything else (left-aligned), then compact so
  *  a half-width newcomer slides up beside a half-width row end. */
 export function appendWidget(layout: SiteLayout, instance: WidgetInstance): SiteLayout {
