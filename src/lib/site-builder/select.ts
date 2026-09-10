@@ -28,7 +28,8 @@ import type { WidgetInstance } from './layout';
 
 /** Mirrors SCHEDULE_CACHE_LIMIT (cached.ts) — the most events the org-wide
  *  read ever holds, so a larger limit could never show more. */
-export const SCHEDULE_LIMIT_MAX = 25;
+/** B5: renamed from SCHEDULE_LIMIT_MAX — validate.ts owns a different constant of that name (the API's schedule page size, 50). */
+export const SCHEDULE_QUERY_LIMIT_MAX = 25;
 
 export const QUERY_DEFAULTS = {
   scheduleLimit: 5,
@@ -38,7 +39,7 @@ export const QUERY_DEFAULTS = {
 } as const;
 
 export const QUERY_LIMITS: Record<'schedule' | 'news' | 'teams' | 'members', { min: number; max: number; default: number }> = {
-  schedule: { min: 1, max: SCHEDULE_LIMIT_MAX, default: QUERY_DEFAULTS.scheduleLimit },
+  schedule: { min: 1, max: SCHEDULE_QUERY_LIMIT_MAX, default: QUERY_DEFAULTS.scheduleLimit },
   news: { min: 1, max: 12, default: QUERY_DEFAULTS.newsLimit },
   teams: { min: 1, max: 50, default: QUERY_DEFAULTS.teamsLimit },
   members: { min: 1, max: 50, default: QUERY_DEFAULTS.membersLimit },

@@ -6,7 +6,7 @@ import { requireOrgManager } from '@/lib/orgs/structure-server';
 import { UUID_RE } from '@/lib/golf/course-catalog';
 
 // ── /api/clubs/[id]/site/preview — mint a draft-preview link ─────────────
-// manage_org gates the mint; the signed short-lived token then carries
+// manage_site gates the mint (B5: the header said manage_org); the signed short-lived token then carries
 // the authorization into the session-free public segment.
 
 export async function POST(

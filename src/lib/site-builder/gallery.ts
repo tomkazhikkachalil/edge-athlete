@@ -23,7 +23,9 @@
  * seed the server applies): no zod, no validate.ts.
  */
 
+import { MEMBERS_ONLY_MODULE_KEYS } from '@/lib/org-sites/private';
 import { type TemplateId } from '@/lib/org-sites/templates';
+import { INSTANCE_TITLE_MAX } from './config';
 import { WIDGETS, isContentWidgetKey, type WebWidgetKey } from './catalog';
 import { osmEmbedAround, type Embed } from './embeds';
 import { GALLERY_ENTRY_IDS, type GalleryEntryId, type GalleryMode } from './gallery-ids';
@@ -210,7 +212,6 @@ export function galleryEntriesFor(side: 'league' | 'club', sportKey: string | nu
 
 const HEADING_MAX = 120;
 const PARAGRAPH_MAX = 2000;
-const TITLE_MAX = 60;
 
 /** Clip to a schema cap, never mid-word when it can be helped. */
 export function clip(text: string, max: number): string {
@@ -254,7 +255,7 @@ const finite = (n: number | null): n is number => typeof n === 'number' && Numbe
 export function galleryMap(org: GalleryOrg): { title: string; venueName: string; embed: Embed } | null {
   const venue = org.venues.find(v => finite(v.lat) && finite(v.lng) && Math.abs(v.lat as number) <= 90 && Math.abs(v.lng as number) <= 180);
   if (!venue) return null;
-  return { title: clip('Where we play', TITLE_MAX), venueName: venue.name, embed: osmEmbedAround(venue.lat as number, venue.lng as number, 15) };
+  return { title: clip('Where we play', INSTANCE_TITLE_MAX), venueName: venue.name, embed: osmEmbedAround(venue.lat as number, venue.lng as number, 15) };
 }
 
 // ── The engine ──────────────────────────────────────────────────────────────
@@ -340,10 +341,8 @@ export function gallerySeed(
   return { version: 1, cols: GRID.cols, widgets: compactLayout(widgets) };
 }
 
-/** Mirrors org-sites/private.ts MEMBERS_ONLY_MODULE_KEYS without importing
- *  it (seeds.ts's deriveLegacyLayout applies the real rule; this keeps a
- *  brand-new instance honest when a plan places one on a private club). */
-const MEMBERS_ONLY = new Set(['standings', 'teams', 'divisions', 'leaders', 'gallery', 'staff', 'members']);
+// B5: the one list — private.ts has zero imports and is already in this graph.
+const MEMBERS_ONLY = new Set<string>(MEMBERS_ONLY_MODULE_KEYS);
 const isMembersOnlyKey = (key: string) => MEMBERS_ONLY.has(key);
 
 /** Re-lay an existing layout with an entry's seed — see the header. */

@@ -205,8 +205,9 @@ async function loadOrgIdentity(
 /** Phase 11: the org facts the gallery writes its content from — the
  *  identity row plus the venues with coordinates (mig 141 lat/lng).
  *  Tolerant: an unreadable list is an empty list; never throws. */
-export async function loadGalleryOrg(admin: Admin, side: OrgSide, orgId: string): Promise<GalleryOrg> {
-  const identity = await loadOrgIdentity(admin, side, orgId);
+export async function loadGalleryOrg(admin: Admin, side: OrgSide, orgId: string, known?: { name: string; city: string | null; region: string | null }): Promise<GalleryOrg> {
+  // B5: the canvas already holds the org row — no second identity read.
+  const identity = known ?? (await loadOrgIdentity(admin, side, orgId));
   let venues: GalleryOrg['venues'] = [];
   try {
     const { data } = await admin

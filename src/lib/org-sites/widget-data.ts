@@ -37,7 +37,7 @@ import {
 } from '@/lib/org-sites/cached';
 import type { PublicSite } from '@/lib/org-sites/server';
 import type { SiteHomeData } from '@/lib/org-sites/home-data';
-import type { SiteHomeDataKey, WidgetKey } from '@/lib/site-builder/catalog';
+import type { SiteHomeDataKey } from '@/lib/site-builder/catalog';
 import { needsData, type SiteLayout } from '@/lib/site-builder/layout';
 
 /**
@@ -54,12 +54,6 @@ import { needsData, type SiteLayout } from '@/lib/site-builder/layout';
  * and had drifted (the preview never fetched memberStats and lacked the
  * cached leaders' golf fallback). Phase 3's editor canvas is the third
  * caller: `GET …/site/canvas` resolves the DRAFT layout with the raw set.
- *
- * `dataKey(key, config)` names the part of a widget's config that changes
- * its DATA (a competition id, a limit) — the cache key of a per-instance
- * read. No widget has such config yet, so it is '' for every key; the
- * per-instance readers arrive with the grid (phase 3) and must put it in
- * their `unstable_cache` keyParts (the cached.ts closure trap).
  */
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- matches the authz.ts Admin alias; schema-agnostic helper
@@ -202,14 +196,3 @@ export async function resolveHomeData(readers: SiteReaders, site: PublicSite, la
   return { standings, events, teams, staff, venues, affiliations, openWindows, courses, divisions, leaders, clubGolfBoards, courseStrip, golfRounds, news, memberStats };
 }
 
-/** The data-affecting part of a widget's config, as a cache-key fragment.
- *  Still '' in phase 9: an instance's query (`config.query`) is applied
- *  RENDER-SIDE on the org-wide read (site-builder/select.ts), so no read
- *  varies per instance. The day a query needs data the org-wide read lacks
- *  (a schedule for one team), this serialises `config.query` and the
- *  per-instance cached read MUST include it in its keyParts. */
-export function dataKey(key: WidgetKey, config: unknown): string {
-  void key;
-  void config;
-  return '';
-}

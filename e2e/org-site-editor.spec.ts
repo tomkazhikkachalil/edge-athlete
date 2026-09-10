@@ -1,3 +1,4 @@
+import fs from 'fs';
 import { test, expect } from '@playwright/test';
 import { adminClient, apiAs, loadQaUser, readErrorBody, resetRateBucket } from './helpers/qa-user';
 import { revisionsSupported } from './helpers/org-site';
@@ -47,6 +48,17 @@ test('org site editor: canvas → drag → autosave → undo → reload; phone n
     const bad = canvas.layout.widgets.map(w => (w.key === 'hero' ? { ...w, w: 6 } : w));
     res = await ownerApi.put(`/api/leagues/${leagueId}/site/draft`, { data: { layout: { ...canvas.layout, widgets: bad } } });
     expect(res.status()).toBe(400);
+    // B5: an uploaded asset can be reclaimed (DELETE, prefix-asserted); a foreign path is refused.
+    const reclaimable = await ownerApi.post(`/api/leagues/${leagueId}/site/assets`, {
+      multipart: { image: { name: 'reclaim.png', mimeType: 'image/png', buffer: fs.readFileSync('e2e/fixtures/photo.png') } },
+    });
+    expect(reclaimable.status(), await readErrorBody(reclaimable)).toBe(200);
+    const reclaimPath = (await reclaimable.json()).path as string;
+    res = await ownerApi.delete(`/api/leagues/${leagueId}/site/assets`, { data: { path: 'org-media/00000000-0000-4000-8000-000000000000/x.png' } });
+    expect(res.status()).toBe(400);
+    res = await ownerApi.delete(`/api/leagues/${leagueId}/site/assets`, { data: { path: reclaimPath } });
+    expect(res.status(), await readErrorBody(res)).toBe(200);
+
     // B2: an app-only key is refused at the write with the instance named (the schema is lenient for reads).
     res = await ownerApi.put(`/api/leagues/${leagueId}/site/draft`, { data: { layout: { ...canvas.layout, widgets: [...canvas.layout.widgets, { id: 'w_000000000000b2a1', key: 'week', x: 0, y: 99, w: 6, h: 2, cv: 1, config: {}, visibility: 'public' }] } } });
     expect(res.status()).toBe(400);

@@ -21,6 +21,7 @@
  * pasted link, parsed into a structure).
  */
 import type { SiteWidgetKey } from './catalog';
+import { INSTANCE_TITLE_MAX } from './config';
 import { QUERY_LIMITS } from './select';
 
 /** Phase 9 — a third scope, 'query': the value goes to `config.query[name]`
@@ -39,7 +40,7 @@ export const TEXT_WIDGET_BLOCKS_MAX = 12;
 export const IMAGE_ALT_MAX = 200;
 export const IMAGE_CAPTION_MAX = 200;
 
-const TITLE: FieldSpec = { kind: 'text', name: 'title', label: 'Section title', help: 'Shown as this section’s heading on the page.', max: 60, scope: 'instance' };
+const TITLE: FieldSpec = { kind: 'text', name: 'title', label: 'Section title', help: 'Shown as this section’s heading on the page.', max: INSTANCE_TITLE_MAX, scope: 'instance' };
 const VISIBILITY: FieldSpec = { kind: 'visibility', name: 'visibility', label: 'Who sees it', scope: 'instance' };
 
 /** The hero's CONTENT fields — set_hero's payload (whole-object replace). */

@@ -1,5 +1,41 @@
 # Development Log
 
+## September 10, 2026 — Site Builder backlog B5: server cleanup — headers, constants, dead code, one discriminated union, cheaper reads, the token first, an assets DELETE (zero DDL)
+
+- **Headers that lied**: the assets, preview and site routes said
+  `manage_org` gated them; every one gates on `manage_site` (publish and
+  unpublish alone stay `manage_org`). The widget-data and canvas headers
+  still mentioned the flag retired in P10-C.
+- **One constant each**: the instance title cap was typed as `60` in the
+  zod schema, the field descriptor and the gallery — all read
+  `INSTANCE_TITLE_MAX` now; the gallery's members-only mirror imports
+  `MEMBERS_ONLY_MODULE_KEYS` (its excuse for a copy — an import cycle —
+  was never real: `private.ts` has zero imports and was already in the
+  graph through `layout.ts`); `select.ts SCHEDULE_LIMIT_MAX` (the query's
+  25) is `SCHEDULE_QUERY_LIMIT_MAX`, no longer a namesake of
+  `validate.ts SCHEDULE_LIMIT_MAX` (the API's 50).
+- **Dead code gone**: `normalizeLayout` ("the single entry every reader
+  calls" — zero callers), `hasWidget`, `widget`, `parseWidgetConfig` and its
+  schema map, the `dataKey` stub (`void key; void config; return ''`) and
+  its pin, `useHistory.replace`.
+- **`SitePatchSchema` is a discriminated union** on `action`: a typo'd field
+  reports against one branch instead of every branch's errors.
+- **Cheaper, metered canvas read**: the canvas GET carried no rate limit
+  while its sibling did — it shares the autosave bucket; `loadGalleryOrg`
+  takes the org identity the canvas already holds instead of re-reading the
+  league/club row.
+- **The preview verifies its token FIRST**: an unauthenticated,
+  force-dynamic page ran several reads before checking the token; a bad
+  token now costs nothing.
+- **Assets DELETE** (`siteAssetDELETE`; `DELETE /api/*/site/assets {path}`,
+  `manage_site`, prefix-asserted): the editor reclaims a photo it uploaded
+  and never saved — "Remove photo" on a fresh upload, or a panel discarded
+  with one pending — instead of leaving it to the storage sweep. A save
+  empties the list (the content references them); an image WIDGET's upload
+  is referenced by the layout at once, so only its explicit remove deletes.
+- Tests adjusted for the removals (`legacy-layout`, `schemas`, `widget-data`,
+  `select`).
+
 ## September 10, 2026 — Site Builder backlog B4: the editor's a11y pass (zero DDL)
 
 - **Tiles are keyboard-selectable** (`Canvas`): the frame header — already

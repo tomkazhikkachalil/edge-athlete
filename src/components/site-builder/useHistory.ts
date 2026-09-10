@@ -7,7 +7,6 @@ import { useCallback, useReducer } from 'react';
  * dozen small objects, so snapshots are trivially correct and trivially
  * testable; inverse commands are not worth their bugs here. One gesture =
  * one commit (the canvas commits on drag/resize STOP, never per frame).
- * `replace` swaps the present without touching history — a server reload
  * after a conflict, or a size correction that is not the user's act.
  *
  * Phase 6 — COALESCING: a commit may carry a key; when it matches the key
@@ -25,8 +24,8 @@ export interface History<T> {
 export type HistoryAction<T> =
   | { type: 'commit'; next: T; coalesce?: string }
   | { type: 'undo' }
-  | { type: 'redo' }
-  | { type: 'replace'; next: T };
+  | { type: 'redo' };
+
 
 const CAP = 100;
 
@@ -53,8 +52,6 @@ export function historyReducer<T>(state: History<T>, action: HistoryAction<T>): 
       if (next === undefined) return state;
       return { past: [...state.past, state.present], present: next, future: rest, lastKey: null };
     }
-    case 'replace':
-      return { ...state, present: action.next };
     default:
       return state;
   }
@@ -65,6 +62,5 @@ export function useHistory<T>(initial: T) {
   const commit = useCallback((next: T, coalesce?: string) => dispatch({ type: 'commit', next, coalesce }), []);
   const undo = useCallback(() => dispatch({ type: 'undo' }), []);
   const redo = useCallback(() => dispatch({ type: 'redo' }), []);
-  const replace = useCallback((next: T) => dispatch({ type: 'replace', next }), []);
-  return { present: state.present, canUndo: state.past.length > 0, canRedo: state.future.length > 0, commit, undo, redo, replace };
+  return { present: state.present, canUndo: state.past.length > 0, canRedo: state.future.length > 0, commit, undo, redo };
 }

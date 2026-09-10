@@ -637,7 +637,8 @@ const optionalTrimmed = (max: number) =>
     .optional()
     .transform(v => (v ? v : undefined));
 
-export const SitePatchSchema = z.union([
+// B5: discriminated on `action` — a typo'd field reports against ONE branch, not a wall of every branch's errors.
+export const SitePatchSchema = z.discriminatedUnion('action', [
   z.object({ action: z.enum(['publish', 'unpublish']) }),
   z.object({
     action: z.literal('set_module'),
