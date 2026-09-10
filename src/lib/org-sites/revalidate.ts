@@ -15,6 +15,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import type { SiteBrandRow } from './brand';
 import { loadDraftSnapshotBySiteId, loadSnapshotByRevisionId } from './revisions-server';
 import type { OrgSide } from '@/lib/orgs/authz';
+import type { SiteSnapshot } from '@/lib/site-builder/snapshot';
 import { parseStoredLayout } from '@/lib/site-builder/layout-schema';
 import type { SiteLayout } from '@/lib/site-builder/layout';
 
@@ -46,10 +47,28 @@ export async function findPublishedSite(
 }
 
 /** Phase 10: the brand row plus the site's stored grid layout — the
- *  PUBLISHED revision's while the site is live, the DRAFT's while it is
- *  offline (the same rule the brand follows). Null = no stored layout. */
+ *  PUBLISHED revision's, always (H3). Null = no published layout. */
 export interface SiteBrandRowWithLayout extends SiteBrandRow {
   layout: SiteLayout | null;
+}
+
+/** Which snapshot feeds what — Site Builder hardening H3 (Sep 9 2026).
+ *  Pure, so the rule is testable without a database:
+ *  - BRAND (hero, theme): the published rows while the site is live; while
+ *    it is OFFLINE the draft is the only brand there is, so the draft's
+ *    ("a draft site's brand renders for everyone" — Tom); no draft → rows.
+ *  - LAYOUT (the in-app composition): the PUBLISHED revision's, or null.
+ *    Never the draft's — a paragraph typed in the editor must not render on
+ *    the in-app page for every member before Publish (the content widgets'
+ *    promise: "under the publish gate with everything else"). */
+export function composeBrandSources(input: {
+  published_at: string | null;
+  draft: SiteSnapshot | null;
+  published: SiteSnapshot | null;
+}): { hero: unknown | undefined; theme: unknown | undefined; layout: SiteLayout | null } {
+  const layout = input.published ? parseStoredLayout(input.published.layout) : null;
+  if (!input.published_at && input.draft) return { hero: input.draft.hero, theme: input.draft.theme, layout };
+  return { hero: undefined, theme: undefined, layout };
 }
 
 const BRAND_COLUMNS = 'id, subdomain, logo_path, hero_config, theme_token_set, published_at';
@@ -86,24 +105,22 @@ export async function readSiteBrandRow(
     const pointers = data as { draft_revision_id?: string | null; published_revision_id?: string | null };
     // Site Builder P2-B: the rows are the PUBLISHED projection. While the
     // site is live, in-app = live (a member never sees a different hero
-    // in-app than on the site). While it is OFFLINE the draft is the only
-    // content there is, so its hero/theme show ("a draft site's brand
-    // renders for everyone" — Tom). Pre-180 or no draft → the rows.
-    if (!row.published_at) {
-      const draft = pointers.draft_revision_id
+    // in-app than on the site). While it is OFFLINE the draft's hero/theme
+    // show. The LAYOUT (phase 10) comes from the published revision ONLY —
+    // composeBrandSources is the rule; H3 closed the draft-layout leak.
+    const draft = !row.published_at
+      ? pointers.draft_revision_id
         ? await loadSnapshotByRevisionId(admin, pointers.draft_revision_id)
-        : await loadDraftSnapshotBySiteId(admin, row.id);
-      if (draft) {
-        return { ...row, hero_config: draft.hero, theme_token_set: draft.theme, layout: opts?.layout ? parseStoredLayout(draft.layout) : null };
-      }
-      return row;
-    }
-    // Phase 10: the published composition, one read by primary key.
-    if (opts?.layout && pointers.published_revision_id) {
-      const published = await loadSnapshotByRevisionId(admin, pointers.published_revision_id);
-      return { ...row, layout: published ? parseStoredLayout(published.layout) : null };
-    }
-    return row;
+        : await loadDraftSnapshotBySiteId(admin, row.id)
+      : null;
+    const published = opts?.layout && pointers.published_revision_id ? await loadSnapshotByRevisionId(admin, pointers.published_revision_id) : null;
+    const sources = composeBrandSources({ published_at: row.published_at, draft, published });
+    return {
+      ...row,
+      ...(sources.hero !== undefined ? { hero_config: sources.hero } : {}),
+      ...(sources.theme !== undefined ? { theme_token_set: sources.theme } : {}),
+      layout: opts?.layout ? sources.layout : null,
+    };
   } catch (error) {
     console.warn(`${TAG} site brand lookup failed:`, error);
     return null;

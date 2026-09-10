@@ -1,5 +1,38 @@
 # Development Log
 
+## September 9, 2026 — Site Builder hardening H3: the in-app composition comes from the PUBLISHED layout only; one bubble per key (zero DDL)
+
+- **The leak.** `readSiteBrandRow` follows Tom's brand rule — while a site
+  is OFFLINE the draft's hero and theme show in-app, because the draft is
+  the only brand there is. Phase 10 extended the same branch to the LAYOUT,
+  so an offline site's in-app composition was built from the DRAFT: a
+  paragraph typed in the editor rendered on `/league/[id]` for every member
+  and visitor before Publish — against the content widgets' promise ("under
+  the publish gate with everything else"). When the draft had been
+  discarded the branch returned no layout at all, ignoring the published
+  revision the rows still projected.
+- **The rule** (`revalidate.ts composeBrandSources`, new, pure): brand from
+  the draft while offline (unchanged), the LAYOUT from the published
+  revision only — or null — whatever the site's state; no draft → fall
+  through to the published snapshot. `readSiteBrandRow` reads both
+  snapshots it needs and applies the rule; nothing about the hero or theme
+  changed for anyone.
+- **One bubble per key** (`app-layout.ts deriveAppLayout`): two instances of
+  a `multiple` module (phase 9's "Add another" — a second standings bound
+  to its own competition) produced two identical in-app cards with the same
+  `data-org-bubble` and a duplicate React key (`OrgGlanceGrid` keyed by
+  bubble key). In-app there is no per-instance read, so the first instance
+  in reading order is the bubble (its title names it); content tiles, which
+  have no bubble, all render. The grid keys by instance id.
+- Tests: new `revalidate.test.ts` (offline + draft → draft brand, published
+  layout or null; draft discarded → rows' brand, published layout; live →
+  published; pre-grid published → null, never the draft's);
+  `app-layout.test.ts` (two standings + two schedules → one bubble each,
+  the first wins, tiles untouched, window keys unchanged). e2e:
+  `org-app-brand` (a draft-only site with a stored draft paragraph → the
+  org GET's composition is null), `org-site-query-widgets` (three standings
+  tables → one in-app standings bubble named "Div 1").
+
 ## September 9, 2026 — Site Builder hardening H2: the draft-write fence, publish in the right order, and the autosave's own rate bucket (zero DDL)
 
 - **The race.** `writeDraft` matched the revision row by `id + rev` only, and

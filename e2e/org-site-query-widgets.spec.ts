@@ -167,6 +167,19 @@ test('org site: two standings bound to two competitions, a schedule bound to one
       expect(html.match(/data-widget="standings"/g)?.length ?? 0).toBe(2);
       expect(html).not.toContain(`Div 2 ${stamp}`);
       expect(html).not.toContain(`Arena A night ${stamp}`);
+
+      // H3: in-app, three standings instances are ONE standings bubble (the
+      // first in reading order names it) — never duplicate cards / keys.
+      const appCtx = await browser.newContext({ storageState: 'e2e/.auth/state-b.json', viewport: { width: 1280, height: 900 } });
+      try {
+        const appPage = await appCtx.newPage();
+        await appPage.goto(`/league/${leagueId}`);
+        await expect(appPage.locator('[data-org-glance]')).toBeVisible({ timeout: 30_000 });
+        await expect(appPage.locator('[data-org-bubble="standings"]')).toHaveCount(1);
+        await expect(appPage.locator('[data-org-bubble="standings"]')).toContainText(`Div 1 ${stamp}`);
+      } finally {
+        await appCtx.close();
+      }
     } finally {
       await anon.close();
     }

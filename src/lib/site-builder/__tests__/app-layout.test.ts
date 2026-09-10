@@ -32,6 +32,28 @@ describe('deriveAppLayout', () => {
     }
   });
 
+  it('H3: a composition with two instances of one bubble key yields ONE bubble (the first in reading order); content tiles all render', () => {
+    const comp = {
+      widgets: [
+        { id: 's1', key: 'standings' as const, w: 6, title: 'Div 1', visibility: 'public' as const },
+        { id: 't1', key: 'text' as const, w: 12, title: null, visibility: 'public' as const },
+        { id: 's2', key: 'standings' as const, w: 6, title: 'Div 2', visibility: 'public' as const },
+        { id: 't2', key: 'text' as const, w: 12, title: null, visibility: 'public' as const },
+        { id: 'e1', key: 'schedule' as const, w: 12, title: null, visibility: 'public' as const },
+        { id: 'e2', key: 'schedule' as const, w: 12, title: null, visibility: 'public' as const },
+      ],
+    };
+    const slots = deriveAppLayout(comp);
+    const standings = slots.filter(s => s.bubbleKey === 'standings');
+    expect(standings).toHaveLength(1);
+    expect(standings[0]).toMatchObject({ instanceId: 's1', title: 'Div 1' });
+    expect(slots.filter(s => s.bubbleKey === 'events')).toHaveLength(1);
+    expect(slots.filter(s => s.key === 'text').map(s => s.instanceId)).toEqual(['t1', 't2']);
+    const bubbleKeys = slots.filter(s => s.bubbleKey !== null).map(s => s.bubbleKey);
+    expect(new Set(bubbleKeys).size).toBe(bubbleKeys.length);
+    expect(APP_WINDOW_KEYS).toHaveLength(HELPER_WINDOW_KEYS.length);
+  });
+
   it('priorities are unique and strictly ascending; bubble keys unique', () => {
     const slots = deriveAppLayout();
     for (let i = 1; i < slots.length; i++) expect(slots[i].priority).toBeGreaterThan(slots[i - 1].priority);
