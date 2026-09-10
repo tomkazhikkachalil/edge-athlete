@@ -118,7 +118,11 @@ export function rollupSiteMetrics(sites: readonly MetricsSiteRow[], revisions: r
     const prev = latestBySite.get(r.site_id);
     if (!prev || at > prev.at) latestBySite.set(r.site_id, { at, widgetCount: stats.widgetCount });
   }
-  const latestCounts = [...latestBySite.values()].map(v => v.widgetCount).filter((n): n is number => n !== null);
+  // B1: adoption is measured over the sites actually READ (a truncated sites
+  // read must not let revisions of unread sites inflate the numerator) and
+  // is null while either read is truncated — a rate over a floor is not a rate.
+  const siteIds = new Set(sites.map(s => s.id));
+  const latestCounts = [...latestBySite.entries()].filter(([siteId]) => siteIds.has(siteId)).map(([, v]) => v.widgetCount).filter((n): n is number => n !== null);
   const withPublishedRevision = sites.filter(s => !!s.published_revision_id).length;
   const topAdded = [...addedCounts.entries()]
     .map(([key, count]) => ({ key, count }))
@@ -150,7 +154,7 @@ export function rollupSiteMetrics(sites: readonly MetricsSiteRow[], revisions: r
     },
     editor: {
       sitesWithLayout: latestCounts.length,
-      adoptionRate: withPublishedRevision > 0 ? Math.round((latestCounts.length / withPublishedRevision) * 1000) / 1000 : null,
+      adoptionRate: !truncated && withPublishedRevision > 0 ? Math.min(1, Math.round((latestCounts.length / withPublishedRevision) * 1000) / 1000) : null,
       medianWidgetCount: percentile(latestCounts, 0.5),
       topAdded,
     },

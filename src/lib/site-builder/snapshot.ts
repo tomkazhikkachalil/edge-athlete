@@ -134,7 +134,7 @@ export function snapshotsEqual(a: SiteSnapshot, b: SiteSnapshot): boolean {
 export function diffModuleRows(prev: SiteSnapshot | null, next: SiteSnapshot): SnapshotModuleRow[] {
   const all = rowsFromSnapshot(next).modules;
   if (!prev) return all;
-  return all.filter(row => {
+  const changed = all.filter(row => {
     const before = prev.modules[row.module_key];
     if (!before) return true;
     return (
@@ -143,6 +143,14 @@ export function diffModuleRows(prev: SiteSnapshot | null, next: SiteSnapshot): S
       canonicalJson(before.config) !== canonicalJson(row.config)
     );
   });
+  // Backlog B1: a key the NEXT snapshot lacks (a restore of a revision taken
+  // before that module existed) must turn its live row OFF — before, an
+  // absent key was simply not written and the module stayed enabled forever.
+  const nextKeys = new Set(all.map(r => r.module_key));
+  for (const [module_key, before] of Object.entries(prev.modules)) {
+    if (!nextKeys.has(module_key) && before.enabled) changed.push({ module_key, enabled: false, sort_order: before.sortOrder, config: before.config });
+  }
+  return changed;
 }
 
 /** Defensive: a stored snapshot from any build, or null when unusable

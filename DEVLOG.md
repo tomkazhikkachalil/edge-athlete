@@ -1,5 +1,38 @@
 # Development Log
 
+## September 10, 2026 — Site Builder backlog B1: four server behaviours the review found (zero DDL)
+
+The hardening round's written backlog, first PR — the behaviour items on
+the server side; the cleanup items are B5.
+
+- **A restore could not turn a module off** (`snapshot.ts diffModuleRows`):
+  the diff walked the NEXT snapshot's keys, so a key absent from it (a
+  revision taken before that module existed) was simply not written and
+  the live row stayed enabled forever. An absent, previously-enabled key
+  now emits a disable row.
+- **A template switch dumped content tiles at the bottom** (`seeds.ts
+  applySeed`): the seed knows module keys only, so text / image / embed
+  tiles fell into "the rest" and were appended below everything — a
+  welcome paragraph placed second landed last. The rest now keeps its RANK:
+  inserted after the seed row of the module it followed in reading order,
+  with every later row shifted down by what was inserted (6-wide pairs
+  stay together).
+- **A pre-grid restore showed the wrong canvas** (`canvas-layout.ts`, new,
+  pure; `canvas-server.ts`): a draft whose snapshot has no stored layout (a
+  restore of a revision from before the grid) fell back to the PUBLISHED
+  layout — the arrangement the manager had just restored away from, which
+  the next autosave wrote back. A draft without a layout now shows its own
+  seed; "no draft" still shows the published layout.
+- **Adoption over a floor** (`metrics-rollup.ts`): the numerator came from
+  the revisions read (5 000 rows) and the denominator from the sites read
+  (2 000), so past 2 000 sites the rate could exceed 1. It is measured over
+  the sites actually read, clamped at 1, and null while either read is
+  truncated.
+- Tests: `snapshot.test.ts` (an absent key disables; an already-off key adds
+  nothing; a second-placed text tile stays second through `set_template`),
+  new `canvas-layout.test.ts`, `metrics-rollup.test.ts` (unread sites
+  ignored, clamp, null when truncated).
+
 ## September 9, 2026 — Site Builder hardening H8: docs close for the round, and the written backlog
 
 - **The round, in one place.** Three independent reviews of the finished
