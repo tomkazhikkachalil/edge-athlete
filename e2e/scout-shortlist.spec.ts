@@ -26,9 +26,10 @@ test('scout shortlist: add an open athlete, note, count on the athlete side, gat
   let scoutId: string | null = null;
   try {
     // A scout account (the R2 branch) and an open, public athlete (alpha).
-    let res = await request.post('/api/signup', { data: { email: scoutEmail, password: scoutPassword, actorRole: 'scout', profileData: { first_name: 'Sam', last_name: 'Scout' } } });
-    expect(res.status(), await readErrorBody(res)).toBe(200);
+    // The signup bucket is per IP (5/h): three projects × three specs would trip it — reset first.
     await resetRateBucket(admin, 'signup', '');
+    let res = await request.post('/api/signup', { data: { email: scoutEmail, password: scoutPassword, actorRole: 'scout', profileData: { first_name: 'Sam', last_name: 'Scout' } } });
+    expect(res.status(), await readErrorBody(res)).toBe(201);
     scoutId = ((await admin.from('profiles').select('id').eq('email', scoutEmail).single()).data!.id as string);
     const scoutApi = await (await browser.newContext({ storageState: await mintStorageState({ id: scoutId, email: scoutEmail, password: scoutPassword }) })).request;
     await admin.from('profiles').update({ visibility: 'public' }).eq('id', alpha.id);
