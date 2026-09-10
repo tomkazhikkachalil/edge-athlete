@@ -523,6 +523,36 @@ const { canView } = await response.json();
      exhaustion — never a private copy that returns the last body. Plan:
      `~/.claude/plans/edge-athlete-site-builder-zesty-pnueli.md`; read DEVLOG
      Sep 9 2026 P1-A…P11-B and the hardening round H1–H8 before touching any of it.
+
+13. **A contest is a PLACE (Contest Place program, Sep 10 2026, E1–E4,
+   mig 181 the only DDL)** — `/event/[contestId]` in the app (a PUBLIC
+   competition's contest is server-rendered, viewer-independent, titled;
+   everything else hands off to the `ContestGate` client island, which
+   fetches `GET /api/contests/[id]` with the session and renders the same
+   props-only body for a member or a real not-available screen) and
+   `/org/[slug]/schedule/[contestId]` (+ the vanity twin) on the org site
+   (ISR, the schedule module's detail). ONE reader,
+   `src/lib/competitions/contest-view.ts fetchContestView`;
+   `resolveContestAccess` is the ONLY gate (public competition of a public
+   org → everyone; else org role / staff capability / athlete entry / team
+   roster; a refusal is the same 404 as not-found); `projectContestView`
+   is the pure projection — names through `publicDisplayName`/`publicHandle`
+   in BOTH modes, the sanctioned tier derived (`orgs/sanction-reads.ts`),
+   never an email / supervision state / profile id / club id in the output
+   (a test serialises the view). `deriveContestOutcome` + `assignSharedRanks`
+   (`scoring.ts`) are the one ranking rule shared with the standings.
+   `ContestPage` (`src/components/contests/`) is server-safe on purpose —
+   no hooks, no `next/headers`, no FA — with every host-dependent href
+   through its `links` prop (`contestHref(id, basePath?)` beside
+   `playerHref`: relative in the app, absolute on a site). `posts` /
+   `group_posts.contest_id` (181) have ONE writer, the golf sync's
+   `stampContestAttachments` (attached ≡ the current results' rounds); no
+   client sets them. The calendar's backlink is a read-time reverse lookup
+   on `contests.event_id` — the events table gains no column. New root
+   segments join `RESERVED_ROOT_SLUGS` (`reserved.test.ts` enforces) and
+   the `reserved_handles` seed in the next migration. Parked (masterplan
+   §3.3 gaps): bracket / meet formats, ad-hoc teams, adapter competition
+   hooks, a composer attach-to-event picker. Read DEVLOG Sep 10 2026 E1–E4.
 ---
 
 ## 🔧 Common Tasks

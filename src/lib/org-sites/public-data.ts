@@ -446,6 +446,7 @@ export interface SitemapSiteEntry {
   newsSlugs: string[]; // published posts, only when the news module is enabled
   courseIds: string[]; // S2: linked catalog courses, only when the courses module is enabled
   playerHandles: string[]; // P2: public players, only when the standings module is enabled
+  contestIds: string[]; // E4: contests of PUBLIC competitions (newest first, ≤200), only when the schedule module is enabled
 }
 
 /** Every published site with its crawlable sub-URLs — the repo's first
@@ -636,6 +637,19 @@ export async function fetchPublishedSitesForSitemap(
       )
   );
 
+  // E4: contest pages per org — public competitions' contests, newest
+  // first, capped per org (the schedule module gates, like team pages).
+  const contestsByOrg = await fetchContestIdsForOrgs(
+    admin,
+    siteRows
+      .filter(r => (modulesBySite.get(r.id) ?? []).includes('schedule') && visibilityOf(r) === 'public')
+      .map(r =>
+        r.league_id
+          ? { key: `league:${r.league_id}`, side: 'league' as const, orgId: r.league_id }
+          : { key: `club:${r.club_id}`, side: 'club' as const, orgId: r.club_id as string }
+      )
+  );
+
   return siteRows.map(s => {
     const visibility = visibilityOf(s);
     const moduleKeys = publicSubpageKeys(visibility, modulesBySite.get(s.id) ?? []);
@@ -652,8 +666,57 @@ export async function fetchPublishedSitesForSitemap(
       newsSlugs: moduleKeys.includes('news') ? (newsBySite.get(s.id) ?? []) : [],
       courseIds: moduleKeys.includes('courses') ? (coursesByOrg.get(orgKey) ?? []) : [],
       playerHandles: moduleKeys.includes('standings') ? (playersByOrg.get(orgKey) ?? []) : [],
+      contestIds: moduleKeys.includes('schedule') ? (contestsByOrg.get(orgKey) ?? []) : [],
     };
   });
+}
+
+const SITEMAP_CONTESTS_PER_ORG = 200;
+
+/** E4: `${side}:${orgId}` → contest ids of the org's PUBLIC competitions,
+ *  newest first, capped. Two bounded batches; degrades to nothing. */
+async function fetchContestIdsForOrgs(
+  admin: Admin,
+  orgs: { key: string; side: 'league' | 'club'; orgId: string }[]
+): Promise<Map<string, string[]>> {
+  const out = new Map<string, string[]>();
+  if (orgs.length === 0) return out;
+  try {
+    const leagueIds = orgs.filter(o => o.side === 'league').map(o => o.orgId);
+    const clubIds = orgs.filter(o => o.side === 'club').map(o => o.orgId);
+    const [lc, cc] = await Promise.all([
+      leagueIds.length
+        ? admin.from('competitions').select('id, league_id').in('league_id', leagueIds).eq('visibility', 'public').limit(2000)
+        : Promise.resolve({ data: [] as { id: string; league_id: string }[] }),
+      clubIds.length
+        ? admin.from('competitions').select('id, club_id').in('club_id', clubIds).eq('visibility', 'public').limit(2000)
+        : Promise.resolve({ data: [] as { id: string; club_id: string }[] }),
+    ]);
+    const orgByComp = new Map<string, string>();
+    for (const c of lc.data ?? []) orgByComp.set(c.id as string, `league:${c.league_id as string}`);
+    for (const c of cc.data ?? []) orgByComp.set(c.id as string, `club:${(c as { club_id: string }).club_id}`);
+    const compIds = [...orgByComp.keys()];
+    if (compIds.length === 0) return out;
+    const { data: contests } = await admin
+      .from('contests')
+      .select('id, competition_id, scheduled_at, created_at')
+      .in('competition_id', compIds)
+      .in('status', ['scheduled', 'in_progress', 'completed'])
+      .order('scheduled_at', { ascending: false, nullsFirst: false })
+      .order('created_at', { ascending: false })
+      .limit(5000);
+    for (const c of contests ?? []) {
+      const key = orgByComp.get(c.competition_id as string);
+      if (!key) continue;
+      const bucket = out.get(key) ?? [];
+      if (bucket.length >= SITEMAP_CONTESTS_PER_ORG) continue;
+      bucket.push(c.id as string);
+      out.set(key, bucket);
+    }
+  } catch {
+    /* pre-152 — no contest pages in the sitemap */
+  }
+  return out;
 }
 
 // ── News (phase 3.5) ────────────────────────────────────────────────────────

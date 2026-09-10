@@ -30,6 +30,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       ...site.courseIds.map(id => ({ url: `${base}${orgSitePath(site.subdomain)}/courses/${id}` })),
       ...site.playerHandles.map(h => ({ url: `${base}${orgSitePath(site.subdomain)}/players/${encodeURIComponent(h)}` })),
       ...site.newsSlugs.map(ns => ({ url: `${base}${orgSitePath(site.subdomain)}/news/${ns}` })),
+      ...site.contestIds.map(id => ({ url: `${base}${orgSitePath(site.subdomain)}/schedule/${id}` })),
     ])];
   } catch {
     return [];

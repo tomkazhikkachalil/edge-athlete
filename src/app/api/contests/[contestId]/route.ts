@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { UUID_RE } from '@/lib/uuid';
 import { getServerAuth, getSupabaseAdmin } from '@/lib/auth-server';
 import { enforceRateLimit } from '@/lib/rate-limit';
-import { fetchContestView } from '@/lib/competitions/contest-view';
+import { fetchContestView, publicContestPath } from '@/lib/competitions/contest-view';
 
 /**
  * GET /api/contests/[contestId] — the contest view for the in-app place
@@ -28,7 +28,8 @@ export async function GET(
     if (!result) {
       return NextResponse.json({ error: 'Contest not found' }, { status: 404, headers: { 'Cache-Control': 'no-store' } });
     }
-    return NextResponse.json(result, {
+    const publicSitePath = await publicContestPath(getSupabaseAdmin(), result);
+    return NextResponse.json({ ...result, publicSitePath }, {
       headers: { 'Cache-Control': result.access === 'member' ? 'private, no-store' : 'no-store' },
     });
   } catch (error) {

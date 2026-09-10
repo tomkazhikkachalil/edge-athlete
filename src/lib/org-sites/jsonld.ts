@@ -5,6 +5,8 @@
 // entirely this phase. Pure and node-testable.
 
 import { orgLogoUrl } from '@/lib/media/org-site-media';
+import type { ContestView } from '@/lib/competitions/contest-view';
+import { contestTitle } from '@/lib/competitions/contest-format';
 import type { OrgEvent } from '@/lib/calendar/org-events-server';
 import type { PublicCourse } from './public-data';
 import type { PublicSite } from './server';
@@ -74,6 +76,33 @@ export function buildTeamJsonLd(
       name: site.orgName,
       url: orgUrl,
     },
+  };
+}
+
+/** Contest Place E4: the contest page's structured data — a SportsEvent
+ *  with the org, the place and the time only. NEVER a Person (B4 rule 6):
+ *  entrants, scores and stat lines stay out of the graph. Null when the
+ *  contest has no date at all, so the page emits no script. */
+export function buildContestJsonLd(site: PublicSite, view: ContestView): Record<string, unknown> | null {
+  const c = view.contest;
+  const start = c.scheduledAt ?? c.playFrom;
+  if (!start) return null;
+  const orgUrl = siteAbsoluteUrl(site);
+  const status: Record<string, string> = {
+    canceled: 'https://schema.org/EventCancelled',
+    postponed: 'https://schema.org/EventPostponed',
+  };
+  return {
+    '@context': 'https://schema.org',
+    '@type': 'SportsEvent',
+    name: contestTitle(view),
+    url: `${orgUrl}/schedule/${c.id}`,
+    startDate: start,
+    ...(c.playTo ? { endDate: c.playTo } : {}),
+    eventStatus: status[c.status] ?? 'https://schema.org/EventScheduled',
+    ...(view.competition.sportKey ? { sport: view.competition.sportKey } : {}),
+    location: { '@type': 'Place', name: c.courseName ?? c.venueName ?? site.orgName },
+    organizer: { '@type': 'SportsOrganization', name: site.orgName, url: orgUrl },
   };
 }
 

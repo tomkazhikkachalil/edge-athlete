@@ -329,11 +329,12 @@ hero's 928–1023px overhang, and `workers: 1` recorded as accepted.
 
 **Open programs (planned + approved Sep 10; plan file
 `~/.claude/plans/let-s-do-2-4-nested-brook.md`):**
-1. **Contest Place** (4 PRs, migration 181): `/event/[contestId]` in-app +
-   `/schedule/[contestId]` on the org site, one reader `fetchContestView`,
-   `resolveContestAccess` the only gate, `posts`/`group_posts.contest_id`
-   stamped by the golf sync, backlinks from the calendar modal, console,
-   standings, week hub, stat log and bells.
+1. **Contest Place** (E1–E4, migration 181) — BUILT Sep 10, one PR each
+   chained behind the residue PR: `/event/[contestId]` in-app +
+   `/schedule/[contestId]` on the org site (CLAUDE.md convention 13).
+   **Tom runs 181 before E2 merges**; the post-181 path of
+   `golf-league-sync.spec.ts` is the prod probe. Parked: bracket/meet,
+   ad-hoc teams, adapter hooks, a composer attach-to-event picker.
 2. **Recruiting skeleton** (5 PRs, migrations 182–184): `recruiting_status`
    gate + `recruiting_profile` (school, grad year = `class_year`, GPA),
    `user_type 'scout'` with the organizer signup shape, `scout_shortlists`

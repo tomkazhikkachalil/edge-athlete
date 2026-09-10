@@ -1,5 +1,47 @@
 # Development Log
 
+## September 10, 2026 — Contest Place E4: the contest's org-site twin and the sitemap (zero DDL)
+
+The fourth and last Contest Place PR. The in-app place (E1) is auth-aware
+and dynamic; an org SITE needs the same contest as an ISR page under its
+own chrome, canonical and structured data — shareable from a club's own
+address, indexable when the org is listed.
+
+- **One body, two homes.** `ContestPage` moves from the `(app)` tree to
+  `src/components/contests/` — it was written props-only and server-safe
+  for exactly this (no hooks, no `next/headers`, no Font Awesome, no
+  `'use client'`), and the `(public)` iron rules forbid reaching into the
+  app tree. Every host-dependent link comes through its `links` prop, so
+  the twin passes the site's base path (`playerHref` for players, the
+  app's absolute `/live/…` for the scorer, which needs a session) and no
+  posts slot.
+- **The twin.** `/org/[slug]/schedule/[contestId]` (+ the vanity
+  `/[slug]/schedule/[contestId]`, the 8-line re-export): `revalidate`
+  + empty `generateStaticParams`, `requireSiteModule(slug, 'schedule')`
+  (the contest is the schedule's detail, not a new module key), the
+  members-only panel for a private org, a UUID guard, `notFound()` on
+  null. `getCachedContest` (`cached.ts`) calls the E1 reader with NO
+  viewer — so only a public competition of THIS org ever answers, and a
+  foreign id under the slug 404s indistinguishably — under the
+  `org-site:{slug}` tag, which every result / dispute / publish write
+  already purges. `generateMetadata` titles it "Blazers vs Comets — House
+  League — KMHA" with a canonical and the site's card. JSON-LD is a
+  `SportsEvent` with the org, the place and the time only — never a
+  Person (`buildContestJsonLd`, B4 rule 6); no date → no script.
+- **The sitemap.** `SitemapSiteEntry.contestIds`: contests of the org's
+  PUBLIC competitions (scheduled / in progress / completed), newest
+  first, ≤200 per org, only when the schedule module is on and the org is
+  public — two bounded batches inside the existing enumerator, so the
+  `org-sitemap` tag and the hourly revalidate cover it. Both emitters (the
+  main `/sitemap.xml`, the per-site `sitemap.xml`) list `/schedule/{id}`.
+- **In-app → site.** When the org has a published site and the contest is
+  public, the in-app page and the API carry `publicSitePath`, and the
+  header shows "Public page →".
+- e2e `org-site-contest.spec.ts`: a league with a live site and a public
+  fixture contest — the twin renders the scoreline (settled through ISR),
+  the private competition's contest and a foreign id 404, the per-site
+  sitemap lists the URL, the in-app page links to the public one; @mobile.
+
 ## September 10, 2026 — Contest Place E3: every surface that knew a contest now links to it (zero DDL)
 
 The third Contest Place PR: the backlinks. Before E1 nothing could link to a

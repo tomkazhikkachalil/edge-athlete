@@ -138,6 +138,19 @@ supplies entrant type, contest format, result scoring, and the team-score
 derivation rule. Team scores are always derived from participant results,
 never authored separately.
 
+**Contest as a place (Sep 10 2026, Contest Place E1–E4, mig 181).** A
+contest has a URL: `/event/[contestId]` in the app and
+`/org/[slug]/schedule/[contestId]` on the site, one reader
+(`fetchContestView`), one derived outcome (`deriveContestOutcome`), posts
+and live rounds attached through `contest_id` (written by the golf sync
+only), and every surface that knew a contest id — calendar, console,
+standings, week hub, schedule, the Official log, bells — links to it.
+Still open from this model: `bracket` / `meet` and `ad_hoc_team` (accepted
+by the CHECKs, rejected by `validate.ts`), the adapter-supplied format /
+scoring hooks (the knowledge sits in `scoring.ts`), a team-score
+derivation for meets, and a `rounds`/stages structure (`contests.round` is
+free text).
+
 ### 3.4 People and roles
 
 ```

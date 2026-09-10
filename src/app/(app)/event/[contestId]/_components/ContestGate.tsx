@@ -5,7 +5,9 @@ import Link from 'next/link';
 import { useAuth } from '@/lib/auth';
 import AppHeader from '@/components/AppHeader';
 import type { ContestViewResult } from '@/lib/competitions/contest-view';
-import ContestPage from './ContestPage';
+
+type ContestApiResponse = ContestViewResult & { publicSitePath?: string | null };
+import ContestPage from '@/components/contests/ContestPage';
 import ContestPosts from './ContestPosts';
 import { appContestLinks } from './links';
 
@@ -24,7 +26,7 @@ interface Props {
 
 export default function ContestGate({ contestId }: Props) {
   const { user, loading: authLoading, initialAuthCheckComplete } = useAuth();
-  const [result, setResult] = useState<ContestViewResult | null>(null);
+  const [result, setResult] = useState<ContestApiResponse | null>(null);
   const [state, setState] = useState<'loading' | 'ready' | 'unavailable'>('loading');
 
   useEffect(() => {
@@ -41,7 +43,7 @@ export default function ContestGate({ contestId }: Props) {
           setState('unavailable');
           return;
         }
-        const data = (await res.json()) as ContestViewResult;
+        const data = (await res.json()) as ContestApiResponse;
         if (cancelled) return;
         setResult(data);
         setState('ready');
@@ -100,7 +102,7 @@ export default function ContestGate({ contestId }: Props) {
     <ContestPage
       view={result.view}
       access={result.access}
-      links={appContestLinks(result.view)}
+      links={appContestLinks(result.view, result.publicSitePath ?? null)}
       postsSlot={<ContestPosts contestId={contestId} viewerId={user?.id} />}
     />
   );

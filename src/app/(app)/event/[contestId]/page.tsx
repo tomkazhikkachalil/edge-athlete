@@ -2,10 +2,10 @@ import { cache } from 'react';
 import type { Metadata } from 'next';
 import AppHeader from '@/components/AppHeader';
 import { getSupabaseAdmin } from '@/lib/auth-server';
-import { fetchContestView } from '@/lib/competitions/contest-view';
+import { fetchContestView, publicContestPath } from '@/lib/competitions/contest-view';
 import { contestTitle } from '@/lib/competitions/contest-format';
 import { UUID_RE } from '@/lib/uuid';
-import ContestPage from './_components/ContestPage';
+import ContestPage from '@/components/contests/ContestPage';
 import ContestGate from './_components/ContestGate';
 import ContestPosts from './_components/ContestPosts';
 import { appContestLinks } from './_components/links';
@@ -44,6 +44,7 @@ export default async function ContestPlacePage({ params }: PageParams) {
   const { contestId } = await params;
   const result = UUID_RE.test(contestId) ? await getPublicView(contestId) : null;
   if (!result) return <ContestGate contestId={contestId} />;
+  const publicSite = await publicContestPath(getSupabaseAdmin(), result);
 
   return (
     <div className="min-h-screen bg-canvas">
@@ -52,7 +53,7 @@ export default async function ContestPlacePage({ params }: PageParams) {
         <ContestPage
           view={result.view}
           access={result.access}
-          links={appContestLinks(result.view)}
+          links={appContestLinks(result.view, publicSite)}
           postsSlot={<ContestPosts contestId={contestId} />}
         />
       </main>

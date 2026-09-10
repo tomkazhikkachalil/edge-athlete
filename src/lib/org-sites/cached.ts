@@ -3,6 +3,7 @@ import { getSupabaseAdmin } from '@/lib/auth-server';
 import type { OrgSide } from '@/lib/orgs/authz';
 import { fetchPublicStandings, type PublicStandingsPayload } from '@/lib/competitions/public-standings';
 import { fetchOrgEvents, type OrgEvent } from '@/lib/calendar/org-events-server';
+import { fetchContestView, type ContestView } from '@/lib/competitions/contest-view';
 import { getPublicSiteBySlug, type PublicSite } from './server';
 import { fetchPublicCourseStats } from './course-stats';
 import { buildSiteFeed } from './schedule-feed';
@@ -93,6 +94,25 @@ export const getCachedSchedule = (
   perSlug(['org-site-schedule', slug], slug, () =>
     fetchOrgEvents(getSupabaseAdmin(), side, orgId, { limit: SCHEDULE_CACHE_LIMIT })
   );
+
+/** Contest Place E4: ONE contest's public view for the org-site twin —
+ *  the E1 reader with no viewer (viewer-independent by construction), only
+ *  when it answers 'public', and only when the contest belongs to THIS
+ *  site's org (a foreign id under this slug 404s indistinguishably, the
+ *  team-page rule). Tagged org-site:{slug}, so every result / dispute /
+ *  publish write already purges it (revalidateOrgSiteForCompetition). */
+export const getCachedContest = (
+  slug: string,
+  side: OrgSide,
+  orgId: string,
+  contestId: string
+): Promise<ContestView | null> =>
+  perSlug(['org-site-contest', slug, contestId], slug, async () => {
+    const result = await fetchContestView(getSupabaseAdmin(), contestId, { viewerId: null });
+    if (!result || result.access !== 'public') return null;
+    if (result.view.org.side !== side || result.view.org.id !== orgId) return null;
+    return result.view;
+  });
 
 export const getCachedTeams = (
   slug: string,
