@@ -53,7 +53,6 @@ describe('site-builder catalog', () => {
       expect(c.minH, key).toBeGreaterThanOrEqual(1);
       expect(c.minH, key).toBeLessThanOrEqual(c.defaultSize.h);
       expect(c.defaultSize.h, key).toBeLessThanOrEqual(c.maxH);
-      expect([1, 2]).toContain(c.mobileSpan);
     }
     // The hero is the site's identity: always the full width.
     expect(WIDGETS.hero.constraints.minW).toBe(12);

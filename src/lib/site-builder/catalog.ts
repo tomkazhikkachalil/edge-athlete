@@ -144,7 +144,6 @@ export interface WidgetConstraints {
   defaultSize: { w: number; h: number };
   /** Columns on the 2-column phone grid; mobile order derives from desktop
    *  reading order, never authored separately. */
-  mobileSpan: 1 | 2;
 }
 
 export interface AppSurface {
@@ -196,11 +195,11 @@ export interface WidgetDef {
   headingOptional?: true;
 }
 
-const FULL: WidgetConstraints = { minW: 6, maxW: 12, minH: 2, maxH: 12, defaultSize: { w: 12, h: 4 }, mobileSpan: 2 };
-const HALF: WidgetConstraints = { minW: 4, maxW: 12, minH: 1, maxH: 12, defaultSize: { w: 6, h: 3 }, mobileSpan: 2 };
-const TABLE: WidgetConstraints = { minW: 6, maxW: 12, minH: 2, maxH: 12, defaultSize: { w: 6, h: 4 }, mobileSpan: 2 };
+const FULL: WidgetConstraints = { minW: 6, maxW: 12, minH: 2, maxH: 12, defaultSize: { w: 12, h: 4 } };
+const HALF: WidgetConstraints = { minW: 4, maxW: 12, minH: 1, maxH: 12, defaultSize: { w: 6, h: 3 } };
+const TABLE: WidgetConstraints = { minW: 6, maxW: 12, minH: 2, maxH: 12, defaultSize: { w: 6, h: 4 } };
 /** App-only widgets have no web placement yet; they still carry sane bounds. */
-const APP: WidgetConstraints = { minW: 4, maxW: 12, minH: 1, maxH: 12, defaultSize: { w: 6, h: 3 }, mobileSpan: 2 };
+const APP: WidgetConstraints = { minW: 4, maxW: 12, minH: 1, maxH: 12, defaultSize: { w: 6, h: 3 } };
 
 const BOTH: readonly Surface[] = ['web', 'app'];
 const WEB: readonly Surface[] = ['web'];
@@ -211,7 +210,7 @@ export const WIDGETS: Readonly<Record<WidgetKey, WidgetDef>> = {
     key: 'hero',
     family: 'structural',
     moduleKey: 'hero',
-    constraints: { minW: 12, maxW: 12, minH: 2, maxH: 6, defaultSize: { w: 12, h: 3 }, mobileSpan: 2 },
+    constraints: { minW: 12, maxW: 12, minH: 2, maxH: 6, defaultSize: { w: 12, h: 3 } },
     surfaces: { default: WEB },
     subpage: false,
     data: [],
@@ -409,7 +408,7 @@ export const WIDGETS: Readonly<Record<WidgetKey, WidgetDef>> = {
     key: 'text',
     family: 'content',
     moduleKey: null,
-    constraints: { minW: 4, maxW: 12, minH: 1, maxH: 20, defaultSize: { w: 6, h: 3 }, mobileSpan: 2 },
+    constraints: { minW: 4, maxW: 12, minH: 1, maxH: 20, defaultSize: { w: 6, h: 3 } },
     // Phase 10: in-app too — a TILE where the manager placed it (no window;
     // priority unused: position comes from the layout).
     surfaces: { default: BOTH, app: { priority: 0, size: 'md', bubbleKey: null } },
@@ -424,7 +423,7 @@ export const WIDGETS: Readonly<Record<WidgetKey, WidgetDef>> = {
     key: 'image',
     family: 'content',
     moduleKey: null,
-    constraints: { minW: 3, maxW: 12, minH: 2, maxH: 20, defaultSize: { w: 6, h: 4 }, mobileSpan: 2 },
+    constraints: { minW: 3, maxW: 12, minH: 2, maxH: 20, defaultSize: { w: 6, h: 4 } },
     // Phase 10: in-app too — a TILE where the manager placed it (no window;
     // priority unused: position comes from the layout).
     surfaces: { default: BOTH, app: { priority: 0, size: 'md', bubbleKey: null } },
@@ -439,7 +438,7 @@ export const WIDGETS: Readonly<Record<WidgetKey, WidgetDef>> = {
     key: 'embed',
     family: 'content',
     moduleKey: null,
-    constraints: { minW: 6, maxW: 12, minH: 3, maxH: 20, defaultSize: { w: 12, h: 6 }, mobileSpan: 2 },
+    constraints: { minW: 6, maxW: 12, minH: 3, maxH: 20, defaultSize: { w: 12, h: 6 } },
     // Phase 10: in-app too — a TILE where the manager placed it (no window;
     // priority unused: position comes from the layout).
     surfaces: { default: BOTH, app: { priority: 0, size: 'md', bubbleKey: null } },

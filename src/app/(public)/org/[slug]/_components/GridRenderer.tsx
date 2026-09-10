@@ -2,7 +2,6 @@ import type { CSSProperties } from 'react';
 import type { PublicSite } from '@/lib/org-sites/server';
 import type { SiteHomeData } from '@/lib/org-sites/home-data';
 import { effectiveSpec } from '@/lib/org-sites/theme';
-import { WIDGETS } from '@/lib/site-builder/catalog';
 import { deriveMobileOrder, type SiteLayout } from '@/lib/site-builder/layout';
 import { effectiveAudience } from '@/lib/site-builder/audience';
 import { publicWidgets } from '@/lib/site-builder/public-view';
@@ -20,8 +19,8 @@ import WidgetBody, { widgetHeading, widgetTitle } from './WidgetBody';
 //   • `h` is a MINIMUM height: tracks are `minmax(row, auto)`, so a tall
 //     table grows its rows rather than clipping.
 //   • Mobile is DERIVED: the DOM is reading order (top to bottom, then left
-//     to right — deriveMobileOrder), the phone is two columns with full/half
-//     spans from the catalog, and ≥ 48rem the explicit placement takes over
+//     to right — deriveMobileOrder), the phone is ONE column, and ≥ 48rem
+//     the explicit placement takes over
 //     through custom properties (`--sb-c/r/w/h`, 1-based ints). Tab order
 //     and screen readers agree with the phone.
 //   • Chrome is fixed: every tile keeps the section card, the heading and
@@ -52,10 +51,9 @@ export default function GridRenderer({ site, layout, data }: { site: PublicSite;
       <div className="sb-grid" data-sb-grid="">
         {ordered.map(w => {
           const style = { '--sb-c': w.x + 1, '--sb-r': w.y + 1, '--sb-w': w.w, '--sb-h': w.h } as CSSProperties;
-          const half = WIDGETS[w.key].constraints.mobileSpan === 1 ? ' sb-half' : '';
           if (w.key === HERO_KEY) {
             return (
-              <div key={w.id} className={`sb-w${half}`} style={style} data-widget={w.key} data-widget-id={w.id}>
+              <div key={w.id} className="sb-w" style={style} data-widget={w.key} data-widget-id={w.id}>
                 <HeroSection site={site} w={w} spec={spec} />
               </div>
             );
@@ -65,7 +63,7 @@ export default function GridRenderer({ site, layout, data }: { site: PublicSite;
           // sets a title; the aria-label always names the section.
           const heading = widgetHeading(site, w);
           return (
-            <section key={w.id} aria-label={title} className={`sb-w${half} ${sectionClass}`} style={style} data-widget={w.key} data-widget-id={w.id}>
+            <section key={w.id} aria-label={title} className={`sb-w ${sectionClass}`} style={style} data-widget={w.key} data-widget-id={w.id}>
               {heading && <h2 className={headingClass}>{heading}</h2>}
               <WidgetBody site={site} w={w} data={data} spec={spec} membersOnly={effectiveAudience(site, w) === 'members'} />
             </section>

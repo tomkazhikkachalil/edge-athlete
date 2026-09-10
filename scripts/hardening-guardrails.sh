@@ -89,12 +89,29 @@ fi
 #     composition RESOLVED by the server (app-composition.ts). Its client
 #     components must never import the zod-backed parsers, or the org-page
 #     chunk grows by validate.ts + zod (the catalog's founding rule).
-hits=$(scan "@/lib/org-sites/validate|@/lib/site-builder/schemas|@/lib/site-builder/emptiness|@/lib/site-builder/app-composition" 'src/components/orgs/page/**/*.ts' 'src/components/orgs/page/**/*.tsx')
+#     B2: the org-page chunk also pulls these four client-safe site-builder
+#     modules — a value import of validate.ts inside one of them would drag
+#     zod in with a green 4c, so they are in the glob.
+hits=$(scan "from '@/lib/org-sites/validate'|@/lib/site-builder/schemas|@/lib/site-builder/emptiness|@/lib/site-builder/app-composition" 'src/components/orgs/page/**/*.ts' 'src/components/orgs/page/**/*.tsx' 'src/lib/site-builder/app-layout.ts' 'src/lib/site-builder/config.ts' 'src/lib/site-builder/catalog.ts' 'src/lib/site-builder/layout.ts' | grep -vE ':[0-9]+:import type ' || true)
 if [ -n "$hits" ]; then
   bad "an in-app org page component imports a zod-backed site-builder module (resolve on the server instead):"
   echo "$hits" | sed 's/^/      /'
 else
   ok "in-app org page components stay zod-free"
+fi
+
+# 4d. HARDENING.md B4.3 (B2): every (public) page exports `revalidate` OR
+#     `dynamic` — a page with neither is silent permanent-MISS SSR.
+missing=""
+while IFS= read -r f; do
+  if ! grep -qE "export const (revalidate|dynamic)\b" "$f"; then missing="$missing
+$f"; fi
+done < <(git ls-files 'src/app/(public)/**/page.tsx')
+if [ -n "$missing" ]; then
+  bad "a (public) page exports neither revalidate nor dynamic (permanent-MISS SSR):"
+  echo "$missing" | sed '/^$/d; s/^/      /'
+else
+  ok "every (public) page declares revalidate or dynamic"
 fi
 
 # 5. next/og carries a multi-MB wasm payload — it stays isolated to the

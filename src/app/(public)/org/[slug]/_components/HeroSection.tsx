@@ -23,7 +23,7 @@ export default function HeroSection({ site, w, spec }: { site: PublicSite; w: Wi
     aria-label="Welcome"
     className={`relative overflow-hidden ${
       spec.hero === 'bleed'
-        ? '-mx-4 px-6 py-14 sm:py-20 text-white'
+        ? '-mx-4 lg:mx-0 px-6 py-14 sm:py-20 text-white'
         : 'rounded-xl px-6 py-10 text-white'
     }${heroImage ? ' min-h-[240px] sm:min-h-[320px] flex flex-col justify-end' : ''}`}
     style={{

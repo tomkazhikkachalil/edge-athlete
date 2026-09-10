@@ -72,8 +72,10 @@ describe('content widgets — the wire schema', () => {
     expect(validateLayout(narrow).map(i => i.message)).toEqual(['embed must be 6–12 columns wide']);
   });
 
-  it('still refuses app-only keys', () => {
-    expect(LayoutSchema.safeParse({ ...base, widgets: [{ ...inst('text', {}), key: 'week' }] }).success).toBe(false);
+  it('still keeps app-only keys off a layout: the schema takes the string (B2 — an unknown key must not null a stored layout), parseStoredLayout drops the instance, the draft PUT refuses it', () => {
+    const raw = { ...base, widgets: [{ ...inst('text', {}), key: 'week' }] };
+    expect(LayoutSchema.safeParse(raw).success).toBe(true);
+    expect(parseStoredLayout(raw)?.widgets).toEqual([]);
   });
 });
 

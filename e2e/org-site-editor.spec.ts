@@ -47,6 +47,10 @@ test('org site editor: canvas → drag → autosave → undo → reload; phone n
     const bad = canvas.layout.widgets.map(w => (w.key === 'hero' ? { ...w, w: 6 } : w));
     res = await ownerApi.put(`/api/leagues/${leagueId}/site/draft`, { data: { layout: { ...canvas.layout, widgets: bad } } });
     expect(res.status()).toBe(400);
+    // B2: an app-only key is refused at the write with the instance named (the schema is lenient for reads).
+    res = await ownerApi.put(`/api/leagues/${leagueId}/site/draft`, { data: { layout: { ...canvas.layout, widgets: [...canvas.layout.widgets, { id: 'w_000000000000b2a1', key: 'week', x: 0, y: 99, w: 6, h: 2, cv: 1, config: {}, visibility: 'public' }] } } });
+    expect(res.status()).toBe(400);
+    expect(JSON.stringify(await res.json())).toContain('week: not a site widget');
 
     const anon = await browser.newContext({ storageState: { cookies: [], origins: [] } });
     const publicBefore = await (await anon.request.get(`/org/${subdomain}`)).text();
