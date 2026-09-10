@@ -2,6 +2,7 @@ import { test, expect } from '@playwright/test';
 import path from 'node:path';
 import fs from 'node:fs';
 import { adminClient, apiAs, loadQaUser, readErrorBody, resetRateBucket } from './helpers/qa-user';
+import { settleBody } from './helpers/isr';
 import { publishSite } from './helpers/org-site';
 
 // Golf sites, part 1 (phase 6e S1): a golf club's front door. The hero
@@ -11,21 +12,6 @@ import { publishSite } from './helpers/org-site';
 // Directions), hours and social links; the org's structured data gains
 // telephone / streetAddress / sameAs. Zero DDL — all jsonb.
 
-async function settleBody(
-  request: { get: (u: string) => Promise<{ text: () => Promise<string> }> },
-  url: string,
-  needle: string,
-  shouldContain = true,
-  attempts = 8
-): Promise<string> {
-  let body = '';
-  for (let i = 0; i < attempts; i++) {
-    body = await (await request.get(url)).text();
-    if (body.includes(needle) === shouldContain) return body;
-    await new Promise(r => setTimeout(r, 2500));
-  }
-  return body;
-}
 
 test('club identity: hero photo + CTA + notice, contact card, JSON-LD; cross-site photo refused; expired notice hidden; 375px', async ({
   browser,
@@ -173,14 +159,18 @@ test('club identity: hero photo + CTA + notice, contact card, JSON-LD; cross-sit
     let scrollWidth = await page.evaluate(() => document.documentElement.scrollWidth);
     expect(scrollWidth, 'no horizontal overflow at 375px (site)').toBeLessThanOrEqual(375);
     await page.close();
+    // B6: since P10-C the hero and contact forms live in the editor — the
+    // console GET carries the values; the console page at 375 shows the door.
+    const saved = (await (await ownerApi.get(`/api/clubs/${clubId}/site`)).json()) as { site: { hero_config: { ctaLabel?: string }; contact_config: { address?: string[]; social?: { instagram?: string } } } };
+    expect(saved.site.hero_config.ctaLabel).toBe('Book a tee time');
+    expect(saved.site.contact_config.address?.[0]).toBe('1 Fairway Drive');
+    expect(saved.site.contact_config.social?.instagram).toBe('https://instagram.com/qalinks');
     const ctx = await browser.newContext({ storageState: 'e2e/.auth/state-b.json' });
     try {
       const console_ = await ctx.newPage();
       await console_.setViewportSize({ width: 375, height: 812 });
       await console_.goto(`/app/org/club/${clubId}`);
-      await expect(console_.getByLabel('Hero button label')).toHaveValue('Book a tee time', { timeout: 20_000 });
-      await expect(console_.getByLabel('Address line 1')).toHaveValue('1 Fairway Drive');
-      await expect(console_.getByLabel('Instagram link')).toHaveValue('https://instagram.com/qalinks');
+      await expect(console_.getByRole('link', { name: /Open the editor/ })).toBeVisible({ timeout: 20_000 });
       scrollWidth = await console_.evaluate(() => document.documentElement.scrollWidth);
       expect(scrollWidth, 'no horizontal overflow at 375px (console)').toBeLessThanOrEqual(375);
     } finally {

@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { adminClient, apiAs, loadQaUser, readErrorBody, resetRateBucket } from './helpers/qa-user';
-import { settleBody } from './helpers/isr';
+import { settleBody, settleStatus } from './helpers/isr';
 import { publishSite, revisionsSupported } from './helpers/org-site';
 
 // Site Builder phase 2 (P2-A…P2-C, mig 180): edits go to the DRAFT, the
@@ -67,6 +67,8 @@ test('org site revisions: draft → preview → publish → history → restore 
     res = await ownerApi.post(`/api/leagues/${leagueId}/site/preview`);
     expect(res.status(), await readErrorBody(res)).toBe(200);
     const previewUrl = (await res.json()).url as string;
+    // B6: a bad or foreign token is a 404 — checked before any read.
+    expect((await anon.request.get(previewUrl.replace(/[^/]+$/, 'not-a-real-token'))).status()).toBe(404);
     const preview = await (await anon.request.get(previewUrl)).text();
     expect(preview).toContain('Draft preview — not public');
     expect(preview).toContain(`Welcome A ${stamp}`);
@@ -152,6 +154,13 @@ test('org site revisions: draft → preview → publish → history → restore 
       await expect(state).toHaveAttribute('data-site-draft-state', 'clean');
       await expect(page.getByText('Everything is published.')).toBeVisible();
       await expect(page.getByRole('button', { name: 'Take site offline', exact: true })).toBeVisible();
+      // B6: the click itself — offline → the public home 404s; live again → 200.
+      await page.getByRole('button', { name: 'Take site offline', exact: true }).click();
+      await expect(page.getByRole('button', { name: 'Take site live', exact: true })).toBeVisible({ timeout: 15_000 });
+      expect(await settleStatus(anon.request, home, 404)).toBe(404);
+      await page.getByRole('button', { name: 'Take site live', exact: true }).click();
+      await expect(page.getByRole('button', { name: 'Take site offline', exact: true })).toBeVisible({ timeout: 15_000 });
+      expect(await settleStatus(anon.request, home, 200)).toBe(200);
       res = await hero(`Welcome D ${stamp}`);
       expect(res.status(), await readErrorBody(res)).toBe(200);
       await page.reload();

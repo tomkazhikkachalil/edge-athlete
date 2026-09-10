@@ -9,6 +9,7 @@ import {
   readErrorBody,
   resetRateBucket,
 } from './helpers/qa-user';
+import { settleBody } from './helpers/isr';
 
 // Golf sites, part 5 (phase 6e S5): golf leaders. The leaders module has
 // no stat lines for golf; a golf LEADERBOARD's boards come from its
@@ -16,21 +17,6 @@ import {
 // league, most rounds, best week — completed rounds only, names masked,
 // supervised athletes omitted. A golf FIXTURE still degrades honestly.
 
-async function settleBody(
-  request: { get: (u: string) => Promise<{ text: () => Promise<string> }> },
-  url: string,
-  needle: string,
-  shouldContain = true,
-  attempts = 8
-): Promise<string> {
-  let body = '';
-  for (let i = 0; i < attempts; i++) {
-    body = await (await request.get(url)).text();
-    if (body.includes(needle) === shouldContain) return body;
-    await new Promise(r => setTimeout(r, 2500));
-  }
-  return body;
-}
 
 test('golf leaders: low gross 9/18, low net, most rounds, best week from results; child omitted; home teaser; 375px', async ({
   browser,

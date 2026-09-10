@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { adminClient, apiAs, loadQaUser, readErrorBody, resetRateBucket } from './helpers/qa-user';
+import { settleBody } from './helpers/isr';
 import { publishSite } from './helpers/org-site';
 
 // Two pages (phase 6c G3 — Tom's principle 1): a CLUB site and a LEAGUE
@@ -10,21 +11,6 @@ import { publishSite } from './helpers/org-site';
 // page shows "this week at the club" — the golf boards of the leagues
 // affiliated with it — masked like every public board. Zero DDL.
 
-async function settleBody(
-  request: { get: (u: string) => Promise<{ text: () => Promise<string> }> },
-  url: string,
-  needle: string,
-  shouldContain = true,
-  attempts = 10
-): Promise<string> {
-  let body = '';
-  for (let i = 0; i < attempts; i++) {
-    body = await (await request.get(url)).text();
-    if (body.includes(needle) === shouldContain) return body;
-    await new Promise(r => setTimeout(r, 2500));
-  }
-  return body;
-}
 
 test('two pages: side default orders, side labels, reset, and the club golf teaser; 375px both', async ({
   browser,

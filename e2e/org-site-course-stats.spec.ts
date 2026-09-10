@@ -10,6 +10,7 @@ import {
   readErrorBody,
   resetRateBucket,
 } from './helpers/qa-user';
+import { settleBody } from './helpers/isr';
 
 // Golf sites, part 3 (phase 6e S3): the course fills itself. A club's
 // course page shows the course record, scoring average by tee, hardest
@@ -19,21 +20,6 @@ import {
 // club home carries a one-line strip. Rounds are seeded straight into
 // golf_rounds/golf_holes/posts (the frozen composer is never driven).
 
-async function settleBody(
-  request: { get: (u: string) => Promise<{ text: () => Promise<string> }> },
-  url: string,
-  needle: string,
-  shouldContain = true,
-  attempts = 8
-): Promise<string> {
-  let body = '';
-  for (let i = 0; i < attempts; i++) {
-    body = await (await request.get(url)).text();
-    if (body.includes(needle) === shouldContain) return body;
-    await new Promise(r => setTimeout(r, 2500));
-  }
-  return body;
-}
 
 test('course stats: two-key rule (public post + public profile), masked record, hardest holes, recent rounds, club strip; 375px', async ({
   browser,

@@ -9,6 +9,7 @@ import {
   readErrorBody,
   resetRateBucket,
 } from './helpers/qa-user';
+import { settleBody } from './helpers/isr';
 
 // Golf sites, part 6 (phase 6e S6): announce to members. A manager's
 // notice bells every member (the org's own league_update / club_update
@@ -17,21 +18,6 @@ import {
 // sender is not self-belled, a member is refused, and the bucket caps
 // it at a few a day. No table: the rows are the record.
 
-async function settleBody(
-  request: { get: (u: string) => Promise<{ text: () => Promise<string> }> },
-  url: string,
-  needle: string,
-  shouldContain = true,
-  attempts = 8
-): Promise<string> {
-  let body = '';
-  for (let i = 0; i < attempts; i++) {
-    body = await (await request.get(url)).text();
-    if (body.includes(needle) === shouldContain) return body;
-    await new Promise(r => setTimeout(r, 2500));
-  }
-  return body;
-}
 
 test('announce: members belled (not the sender), guardian copy, site notice, member 403, daily cap; console at 375px', async ({
   browser,

@@ -9,6 +9,7 @@ import {
   readErrorBody,
   resetRateBucket,
 } from './helpers/qa-user';
+import { settleBody } from './helpers/isr';
 
 // Golf league depth, part 1 (phase 6d W1): the week is VISIBLE. The
 // public standings payload carries a `golf` block for windowed rounds —
@@ -27,20 +28,6 @@ const addDays = (iso: string, days: number) => {
 };
 const UUID_TEXT = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/;
 
-async function settleBody(
-  request: { get: (u: string) => Promise<{ text: () => Promise<string> }> },
-  url: string,
-  needle: string,
-  attempts = 8
-): Promise<string> {
-  let body = '';
-  for (let i = 0; i < attempts; i++) {
-    body = await (await request.get(url)).text();
-    if (body.includes(needle)) return body;
-    await new Promise(r => setTimeout(r, 2500));
-  }
-  return body;
-}
 
 test('golf league weeks: the open window, who posted, per-round results on every route; supervised omitted; 375px', async ({
   browser,
