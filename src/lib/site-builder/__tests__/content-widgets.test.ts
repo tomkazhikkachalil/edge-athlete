@@ -22,15 +22,17 @@ const EMPTY_DATA: SiteHomeData = {
 const inst = (key: WidgetInstance['key'], config: unknown, id = `w_${key}`): WidgetInstance => ({ ...newInstanceFor(site, key, id), config });
 
 describe('content widgets — the catalog', () => {
-  it('are a third key set: not modules, web-only, multiple, heading-optional, with a name', () => {
+  it('are a third key set: not modules, both surfaces (in-app as tiles), multiple, heading-optional, with a name', () => {
     expect([...SITE_WIDGET_KEYS]).toEqual([...WEB_WIDGET_KEYS, ...CONTENT_WIDGET_KEYS]);
     for (const key of CONTENT_WIDGET_KEYS) {
       expect((MODULE_KEYS as readonly string[]).includes(key), key).toBe(false);
       const def = WIDGETS[key];
       expect(def.moduleKey, key).toBeNull();
       expect(def.family, key).toBe('content');
-      expect(def.surfaces.default, key).toEqual(['web']);
-      expect(def.surfaces.app, key).toBeUndefined();
+      // Phase 10: both surfaces — in-app as a TILE (no bubble, no window).
+      expect(def.surfaces.default, key).toEqual(['web', 'app']);
+      expect(def.surfaces.app?.bubbleKey, key).toBeNull();
+      expect(def.surfaces.app?.ownsWindow, key).toBeUndefined();
       expect(def.subpage, key).toBe(false);
       expect(def.data, key).toEqual([]);
       expect(def.multiple, key).toBe(true);

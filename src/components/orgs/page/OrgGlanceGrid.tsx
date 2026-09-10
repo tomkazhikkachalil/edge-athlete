@@ -30,7 +30,8 @@ import OrgVenues from '@/components/orgs/OrgVenues';
 import { formatDisplayName, getInitials } from '@/lib/formatters';
 import { useAuth } from '@/lib/auth';
 import { WIDGETS } from '@/lib/site-builder/catalog';
-import { deriveAppLayout, isOrgWindowKey, type AppComposition, type OrgWindowKey } from '@/lib/site-builder/app-layout';
+import { deriveAppLayout, isOrgWindowKey, type AppComposition, type AppSlot, type OrgWindowKey } from '@/lib/site-builder/app-layout';
+import OrgContentTile from './OrgContentTile';
 import OrgMembersList from './OrgMembersList';
 import { pickPhotos, PhotosEmptyFace, PhotosFace, PhotosWindow } from './OrgPhotos';
 import OrgMemberPostsGrid from './OrgMemberPostsGrid';
@@ -179,6 +180,8 @@ interface OrgGlanceGridProps {
   isOwner: boolean;
   /** Phase 10: the site's composition (order + titles); null = registry order. */
   composition: AppComposition | null;
+  /** Phase 10-B: the site id the content tiles' images stream under (from the brand). */
+  siteId: string | null;
   standingsScope: 'public' | 'mine';
   members: MemberRow[];
   memberCount: number;
@@ -194,6 +197,7 @@ export default function OrgGlanceGrid({
   canManage,
   isOwner,
   composition,
+  siteId,
   standingsScope,
   members,
   memberCount,
@@ -418,9 +422,11 @@ export default function OrgGlanceGrid({
   // slots: a bubble (when its face shows) or the posts wall, which renders
   // its own bubble and window. An instance title names the bubble AND its
   // window (LargerWindow reads the label).
-  type Slot = { kind: 'bubble'; bubble: Bubble } | { kind: 'posts' };
+  type Slot = { kind: 'bubble'; bubble: Bubble } | { kind: 'posts' } | { kind: 'tile'; slot: AppSlot };
   const slots: Slot[] = deriveAppLayout(composition).flatMap((s): Slot[] => {
     if (s.ownsWindow) return [{ kind: 'posts' }];
+    // P10-B: a content tile (bubbleKey null) — rendered where the layout put it.
+    if (s.bubbleKey === null) return s.instanceId ? [{ kind: 'tile', slot: s }] : [];
     if (!isOrgWindowKey(s.bubbleKey)) return [];
     const face = faceFor[s.bubbleKey]();
     return face ? [{ kind: 'bubble', bubble: { ...face, label: s.title ?? face.label, span: s.span } }] : [];
@@ -481,6 +487,8 @@ export default function OrgGlanceGrid({
             // R5: the members' posts wall — a static lg bubble whose tiles are
             // the buttons; it owns its read, its window and its detail modal.
             <OrgMemberPostsGrid key="posts" side={side} orgId={orgId} viewerId={viewerId} canManage={canManage} staggerIndex={i} />
+          ) : s.kind === 'tile' ? (
+            <OrgContentTile key={s.slot.instanceId ?? `tile-${i}`} slot={s.slot} siteId={siteId} side={side} orgId={orgId} canManage={canManage} staggerIndex={i} />
           ) : (
             <div key={s.bubble.key} className={`contents`} data-org-bubble-wrap={s.bubble.key}>
               <BubbleCardWithHook

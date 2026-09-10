@@ -36,7 +36,8 @@
  * gate with everything else (a draft paragraph never goes live before
  * Publish; Restore brings the words back with the placement). They may
  * appear any number of times (`multiple`), render no fixed heading unless
- * the instance sets a title (`headingOptional`), and are web-only.
+ * the instance sets a title (`headingOptional`), and render on BOTH
+ * surfaces — in-app as tiles (phase 10), never as bubbles.
  */
 
 export type Surface = 'web' | 'app';
@@ -152,8 +153,9 @@ export interface AppSurface {
   /** The bubble's span token — BubbleCard maps it to literal classes. */
   size: BubbleSpan;
   /** DOM / e2e identity of the bubble (an alias when it differs from the
-   *  widget key). */
-  bubbleKey: AppBubbleKey;
+   *  widget key). null (phase 10) = a TILE, not a bubble: no window, its
+   *  identity is the instance id (content widgets). */
+  bubbleKey: AppBubbleKey | null;
   /** The widget renders its own bubble AND window (the members' posts wall). */
   ownsWindow?: true;
   /** Phase 10 — renders in-app even when the site's composition omits it
@@ -408,7 +410,9 @@ export const WIDGETS: Readonly<Record<WidgetKey, WidgetDef>> = {
     family: 'content',
     moduleKey: null,
     constraints: { minW: 4, maxW: 12, minH: 1, maxH: 20, defaultSize: { w: 6, h: 3 }, mobileSpan: 2 },
-    surfaces: { default: WEB },
+    // Phase 10: in-app too — a TILE where the manager placed it (no window;
+    // priority unused: position comes from the layout).
+    surfaces: { default: BOTH, app: { priority: 0, size: 'md', bubbleKey: null } },
     subpage: false,
     data: [],
     multiple: true,
@@ -421,7 +425,9 @@ export const WIDGETS: Readonly<Record<WidgetKey, WidgetDef>> = {
     family: 'content',
     moduleKey: null,
     constraints: { minW: 3, maxW: 12, minH: 2, maxH: 20, defaultSize: { w: 6, h: 4 }, mobileSpan: 2 },
-    surfaces: { default: WEB },
+    // Phase 10: in-app too — a TILE where the manager placed it (no window;
+    // priority unused: position comes from the layout).
+    surfaces: { default: BOTH, app: { priority: 0, size: 'md', bubbleKey: null } },
     subpage: false,
     data: [],
     multiple: true,
@@ -434,7 +440,9 @@ export const WIDGETS: Readonly<Record<WidgetKey, WidgetDef>> = {
     family: 'content',
     moduleKey: null,
     constraints: { minW: 6, maxW: 12, minH: 3, maxH: 20, defaultSize: { w: 12, h: 6 }, mobileSpan: 2 },
-    surfaces: { default: WEB },
+    // Phase 10: in-app too — a TILE where the manager placed it (no window;
+    // priority unused: position comes from the layout).
+    surfaces: { default: BOTH, app: { priority: 0, size: 'md', bubbleKey: null } },
     subpage: false,
     data: [],
     multiple: true,
