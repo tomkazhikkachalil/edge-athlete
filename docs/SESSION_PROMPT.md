@@ -335,13 +335,13 @@ hero's 928–1023px overhang, and `workers: 1` recorded as accepted.
    **Tom runs 181 before E2 merges**; the post-181 path of
    `golf-league-sync.spec.ts` is the prod probe. Parked: bracket/meet,
    ad-hoc teams, adapter hooks, a composer attach-to-event picker.
-2. **Recruiting skeleton** (5 PRs, migrations 182–184): `recruiting_status`
-   gate + `recruiting_profile` (school, grad year = `class_year`, GPA),
-   `user_type 'scout'` with the organizer signup shape, `scout_shortlists`
-   (counts only to athletes), grad-year + recruiting facets in `search_all`
-   (scout-only filters), dispute state visible on the Official log + a
-   verified-stats explainer. Tom's calls: guardians may open recruiting for
-   supervised athletes; contact only through the existing message flow.
+2. **Recruiting skeleton** (R1–R5, migrations 182–183) — BUILT Sep 10, one
+   PR each chained behind Contest Place: the opt-in + recruiting profile,
+   the scout account, the shortlist, "Find athletes" (zero DDL — a bounded
+   profiles query, not a `search_all` widening), verification visible
+   (Unconfirmed + `/help/verified-stats`). CLAUDE.md convention 14;
+   `docs/RECRUITING.md`. **Tom runs 182 before R1 merges and 183 before R3
+   merges**; the scout specs self-skip until then and are the prod probes.
 
 Older ops Tom owes: the device pass of a real branded club through the
 editor (laptop) and its pages (phone); the one-hour number once real

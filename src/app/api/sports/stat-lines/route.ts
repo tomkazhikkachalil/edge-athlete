@@ -173,6 +173,8 @@ export async function GET(request: NextRequest) {
         keyStat: schema.headline(l.stats) || '—',
         provenance: l.provenance,
         href: l.href,
+        // R5: an open dispute — the log's Unconfirmed marker.
+        disputed: l.disputed,
       }));
 
     return NextResponse.json({

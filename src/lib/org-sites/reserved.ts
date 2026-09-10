@@ -29,6 +29,7 @@ export const RESERVED_ROOT_SLUGS: ReadonlySet<string> = new Set([
   'feed',
   'forgot-password',
   'goodbye',
+  'help', // Recruiting skeleton R5: /help/verified-stats (seeded into reserved_handles by the next migration)
   'invite',
   'join', // phase 9 V3: the club join door
   'league',

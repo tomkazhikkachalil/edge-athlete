@@ -553,6 +553,24 @@ const { canView } = await response.json();
    the `reserved_handles` seed in the next migration. Parked (masterplan
    §3.3 gaps): bracket / meet formats, ad-hoc teams, adapter competition
    hooks, a composer attach-to-event picker. Read DEVLOG Sep 10 2026 E1–E4.
+
+14. **Recruiting is gated by ONE column and ONE predicate (Recruiting
+   skeleton, Sep 10 2026, R1–R5, migs 182–183)** — `profiles.recruiting_status`
+   (`closed | open | committed`) decides whether anything recruiting-facing
+   renders or is even selected; `isRecruitable` (`src/lib/recruiting/
+   profile.ts`: claimed AND public AND not closed — supervision is NOT a
+   term, Tom's call: a guardian-opened supervised athlete is recruitable)
+   is what the shortlist POST and the scout search re-apply. Writes go
+   through `PATCH /api/profile/[id]/recruiting` under `manage_settings`
+   (self or guardian, never the supervised profile); the profile PUT strips
+   the recruiting fields; the academics never ship from the batched GET.
+   Scouts are an ACCOUNT TYPE (`user_type 'scout'`, minted by the signup
+   actor branch only, the organizer's shape); `requireScout` gates
+   `/api/scout/*`. The athlete sees a shortlist COUNT, never names. No
+   recruiting email — contact is the message flow and its first-contact
+   hold. The ladder's words live in `src/lib/sports/provenance-copy.ts`;
+   a disputed line is "Unconfirmed" and leaves the headline numbers.
+   `docs/RECRUITING.md` carries the entities, gates and growth paths.
 ---
 
 ## 🔧 Common Tasks

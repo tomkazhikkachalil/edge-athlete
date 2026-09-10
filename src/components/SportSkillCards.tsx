@@ -21,6 +21,7 @@
  * `/api/profile/[id]/skill-cards` itself.
  */
 
+import { PROVENANCE_LABEL, PROVENANCE_TITLE } from '@/lib/sports/provenance-copy';
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { getSportDefinition } from '@/lib/sports/SportRegistry';
@@ -45,28 +46,8 @@ interface SportSkillCardsProps {
   sectionId?: string;
 }
 
-const PROVENANCE_TITLE: Record<SkillProvenance, string> = {
-  sanctioned: 'Recorded in a sanctioned competition — the strongest verification tier',
-  league_verified: 'Entered and verified by the competition owner',
-  club_recorded: 'Recorded by team staff — not yet league-verified',
-  tracked: 'Calculated from logged activity on Edge Athlete',
-  imported: 'Imported historical record — labeled, not verified here',
-  entered: 'Entered by the athlete — not verified',
-};
-
-// Display the ACTUAL rung, never a generic "verified" — the ladder is the
-// integrity story a scout interrogates (masterplan §7). Official rungs
-// read strong (brand + shield); tracked keeps its check; claimed stays
-// visually distinct, as always.
-const PROVENANCE_LABEL: Record<SkillProvenance, string> = {
-  sanctioned: 'Sanctioned',
-  league_verified: 'League verified',
-  club_recorded: 'Club recorded',
-  tracked: 'Tracked',
-  imported: 'Imported',
-  entered: 'Self-reported',
-};
-
+// The ladder's words live in src/lib/sports/provenance-copy.ts (pure) so the
+// Official log and /help/verified-stats say exactly the same thing.
 const OFFICIAL: Set<SkillProvenance> = new Set(['sanctioned', 'league_verified', 'club_recorded']);
 
 export function provenanceIcon(provenance: SkillProvenance): string {
