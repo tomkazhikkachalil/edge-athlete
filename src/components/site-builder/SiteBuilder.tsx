@@ -24,6 +24,7 @@ import type { ChecklistStep } from '@/lib/orgs/checklist';
 import type { WidgetInstance } from '@/lib/site-builder/layout';
 import { useDraft, type SaveOutcome } from './useDraft';
 import { chipFor, publishBlocker } from '@/lib/site-builder/draft-state';
+import { publishPlan } from '@/lib/site-builder/publish-target';
 import { useHistory } from './useHistory';
 
 /**
@@ -223,9 +224,13 @@ function Editor({
   const removeOne = (id: string) => {
     const gone = history.present.widgets.find(w => w.id === id);
     if (!gone) return;
+    // H6: the toast's Undo restores THIS removal — the layout as it was —
+    // not "whatever happened last" (history.undo would revert a drag made
+    // while the 8 s toast was still up and leave the section deleted).
+    const before = history.present;
     history.commit(removeWidget(history.present, id));
     setSelectedId(null);
-    showUndo('Section removed', history.undo, 'Nothing changes on your site until you publish.');
+    showUndo('Section removed', () => history.commit(before), 'Nothing changes on your site until you publish.');
   };
 
   // H5: the wire mapped to what the editor can act on — a 400 says WHICH
@@ -334,6 +339,31 @@ function Editor({
     }
     setBusy(true);
     try {
+      // H6: a site that is not live yet goes LIVE from here (the site-level
+      // publish, manage_org — it promotes a dirty draft too). A manage_site
+      // staffer is refused that; their draft still promotes, and the toast
+      // says who can flip the switch.
+      const plan = publishPlan(published);
+      if (plan.target === 'site') {
+        const live = await fetch(`/api/${plural}/${orgId}/site`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'publish' }),
+        });
+        if (live.ok) {
+          showSuccess('Website', plan.success);
+          setPublished(true);
+          onReload();
+          return;
+        }
+        if (live.status !== 403) {
+          const body = await live.json().catch(() => ({}));
+          showError('Website', body.error || 'Could not publish the site');
+          return;
+        }
+        showError('Website', plan.forbidden ?? 'Could not publish the site');
+        // fall through: promote the draft so the work is at least published for when an owner flips it.
+      }
       const res = await fetch(`/api/${plural}/${orgId}/site/revisions`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -344,8 +374,7 @@ function Editor({
         showError('Website', body.error || 'Could not publish the changes');
         return;
       }
-      showSuccess('Website', 'Changes published');
-      setPublished(true);
+      if (plan.target === 'revisions') showSuccess('Website', plan.success);
       onReload();
     } catch {
       showError('Website', 'Could not publish the changes');
@@ -353,6 +382,7 @@ function Editor({
       setBusy(false);
     }
   };
+  const publishCta = publishPlan(published).cta;
 
   const chip = chipFor(draft.state, draft.dirty);
 
@@ -377,7 +407,7 @@ function Editor({
                 Preview draft
               </button>
               <button type="button" onClick={() => void publish()} disabled={busy} className={CTA}>
-                Publish changes
+                {publishCta}
               </button>
               <Link href={consoleHref} className={PILL}>
                 Back to the console
@@ -431,7 +461,7 @@ function Editor({
               Preview
             </button>
             <button type="button" onClick={() => void publish()} disabled={busy} className={CTA}>
-              Publish changes
+              {publishCta}
             </button>
           </div>
         </header>

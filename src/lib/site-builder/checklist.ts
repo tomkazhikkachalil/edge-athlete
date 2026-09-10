@@ -102,7 +102,7 @@ export function buildSiteChecklistSteps(input: SiteChecklistInput): ChecklistSte
       key: 'publish',
       done: input.published,
       label: 'Publish your site',
-      hint: 'Preview, then publish — it is link-only until you are listed.',
+      hint: 'Preview, then Publish site — it goes live by link; the listing comes with approval.',
       href: '#publish',
     },
   ];

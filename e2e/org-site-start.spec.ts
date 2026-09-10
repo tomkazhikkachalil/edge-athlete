@@ -200,19 +200,26 @@ test('org site: a fresh site’s first editor visit opens the gallery — skip k
       await page.reload();
       await expect(page.locator('[data-sb-canvas]')).toBeVisible({ timeout: 30_000 });
       await expect(gallery).toHaveCount(0);
-      // Publish from the editor (promotes the draft), then take the site live.
-      await page.getByRole('button', { name: 'Publish changes' }).click();
+      // H6: a site that is not live publishes THE SITE from the editor — one
+      // button takes it live and promotes the draft; the checklist's last
+      // step completes here, with no trip to the console.
+      await expect(page.locator('[data-sb-checklist-step="publish"]')).toHaveAttribute('data-done', '0');
+      await page.getByRole('button', { name: 'Publish site', exact: true }).click();
+      await expect(page.getByRole('alert').filter({ hasText: 'Your site is live' })).toBeVisible({ timeout: 15_000 });
+      await expect(page.locator('[data-sb-canvas]')).toBeVisible({ timeout: 30_000 });
       await expect
         .poll(async () => {
           const c = (await (await ownerApi.get(`/api/leagues/${leagueId}/site/canvas`)).json()) as { draft: { hasUnpublishedChanges: boolean } | null; published?: boolean };
-          return c.draft === null || c.draft.hasUnpublishedChanges === false;
+          return c.published === true && (c.draft === null || c.draft.hasUnpublishedChanges === false);
         }, { timeout: 20_000 })
         .toBe(true);
+      // Live now: the button reads "Publish changes"; the publish step is done (or the rail is gone).
+      await expect(page.getByRole('button', { name: 'Publish changes', exact: true })).toBeVisible();
+      const publishStep = page.locator('[data-sb-checklist-step="publish"]');
+      if ((await publishStep.count()) > 0) await expect(publishStep).toHaveAttribute('data-done', '1');
     } finally {
       await ownerCtx.close();
     }
-    res = await ownerApi.patch(`/api/leagues/${leagueId}/site`, { data: { action: 'publish' } });
-    expect(res.status(), await readErrorBody(res)).toBe(200);
     const anon = await browser.newContext({ storageState: { cookies: [], origins: [] } });
     try {
       let html = '';
