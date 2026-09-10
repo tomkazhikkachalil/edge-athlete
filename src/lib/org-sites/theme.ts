@@ -1,3 +1,4 @@
+import { readableOn } from './accent-contrast';
 import type { CSSProperties } from 'react';
 import { parseThemeTokens, resolveAccentPair, type ThemeTypeface } from './validate';
 import { templateSpec, type TemplateSpec } from './templates';
@@ -118,6 +119,10 @@ export function themeAttrs(site: ThemeSource): ThemeAttrs {
   if (tokens.accent || tokens.accentStrong) {
     style['--org-accent'] = accent;
     style['--org-accent-strong'] = strong;
+    // B2: link TEXT on the white page — the luminance clamp guarantees 3:1
+    // for white on the accent (the hero), not 4.5:1 for the accent on white.
+    // `.org-scope` points --brand-fg at this; the fills keep the accent.
+    style['--org-accent-fg'] = readableOn(strong, '#ffffff') ?? strong;
   }
   if (font) style['--org-heading-font'] = `'${font.family}', ${font.fallback}`;
   return {

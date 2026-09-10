@@ -9,7 +9,7 @@
  */
 
 import { z } from 'zod';
-import { SITE_WIDGET_KEYS, isSiteWidgetKey } from './catalog';
+import { isSiteWidgetKey } from './catalog';
 import { GRID, type SiteLayout } from './layout';
 
 export const INSTANCE_ID_MAX = 64;
@@ -17,8 +17,12 @@ export const LAYOUT_WIDGETS_MAX = 60;
 
 export const WidgetInstanceSchema = z.object({
   id: z.string().trim().min(1).max(INSTANCE_ID_MAX),
-  // Module-backed web widgets plus the content widgets (phase 6).
-  key: z.enum(SITE_WIDGET_KEYS),
+  // Module-backed web widgets plus the content widgets (phase 6). A STRING
+  // here (B2): an unknown key from a newer build drops THAT instance in
+  // `parseStoredLayout`, never the whole layout (a deploy skew used to make
+  // one pod render the arranged grid and another the linear seed — and the
+  // old pod's autosave wrote the seed back).
+  key: z.string().trim().min(1).max(40),
   x: z.number().int().min(0).max(GRID.cols - 1),
   y: z.number().int().min(0).max(10_000),
   w: z.number().int().min(1).max(GRID.cols),
@@ -42,7 +46,8 @@ export const LayoutSchema = z
 export function parseStoredLayout(raw: unknown): SiteLayout | null {
   const result = LayoutSchema.safeParse(raw);
   if (!result.success) return null;
-  // The enum already guarantees site keys; the guard keeps the type honest.
-  if (!result.data.widgets.every(w => isSiteWidgetKey(w.key))) return null;
-  return result.data as SiteLayout;
+  // B2: an instance whose key this build does not know is dropped; the rest
+  // of the arrangement survives.
+  const widgets = result.data.widgets.filter(w => isSiteWidgetKey(w.key));
+  return { ...result.data, widgets } as SiteLayout;
 }

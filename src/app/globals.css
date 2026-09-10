@@ -732,8 +732,10 @@ body {
   --org-accent-strong: #7c3aed; /* violet-600 — gradient end, links */
   --brand: var(--org-accent-strong);
   --brand-hover: var(--org-accent-strong);
-  --brand-fg: var(--org-accent-strong);
-  --brand-fg-strong: var(--org-accent-strong);
+  /* B2: link text reads on white at 4.5:1 (--org-accent-fg, set with the
+   * accent by themeAttrs); the fills above keep the accent itself. */
+  --brand-fg: var(--org-accent-fg, var(--org-accent-strong));
+  --brand-fg-strong: var(--org-accent-fg, var(--org-accent-strong));
   --brand-soft: color-mix(in srgb, var(--org-accent) 10%, white);
 }
 /* Phase 6b B1 brand tokens — zero payload by design: typefaces are CSS
@@ -770,14 +772,11 @@ body {
   display: grid;
   gap: 1.5rem;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  grid-auto-flow: row dense;
 }
+/* The phone is ONE column (B2 deleted the never-used half span). */
 .org-scope .sb-w {
   grid-column: span 2;
   min-width: 0;
-}
-.org-scope .sb-w.sb-half {
-  grid-column: span 1;
 }
 @media (min-width: 48rem) {
   .org-scope .sb-grid {
@@ -785,8 +784,7 @@ body {
     grid-auto-rows: minmax(2.5rem, auto);
     grid-auto-flow: row;
   }
-  .org-scope .sb-w,
-  .org-scope .sb-w.sb-half {
+  .org-scope .sb-w {
     grid-column: var(--sb-c) / span var(--sb-w);
     grid-row: var(--sb-r) / span var(--sb-h);
   }

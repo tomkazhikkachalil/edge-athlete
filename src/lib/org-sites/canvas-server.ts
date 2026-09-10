@@ -106,6 +106,12 @@ export async function draftLayoutPUT(
   if (!parsed.success) {
     return NextResponse.json({ error: 'Invalid layout', issues: parsed.error.issues.slice(0, 10).map(i => ({ path: i.path.join('.'), message: i.message })) }, { status: 400 });
   }
+  // B2: the schema takes any key string (an unknown key from a NEWER build
+  // must not null a stored layout); a WRITE is strict — only site widgets.
+  const foreign = parsed.data.widgets.filter(w => !isSiteWidgetKey(w.key));
+  if (foreign.length > 0) {
+    return NextResponse.json({ error: 'Invalid layout', issues: foreign.map(w => ({ id: w.id, message: `${w.key}: not a site widget` })) }, { status: 400 });
+  }
   const layout = parsed.data as SiteLayout;
   const issues = validateLayout(layout);
   // Phase 5: each instance's OPTIONS (title ≤ 60 …); phase 6: a content

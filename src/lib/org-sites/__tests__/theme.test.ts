@@ -1,6 +1,7 @@
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { contrastRatio } from '../accent-contrast';
 import { THEME_TYPEFACES } from '../validate';
 import { HEADING_FONTS, TYPEFACE_LABEL, allFontFaceCss, effectiveSpec, fontFaceCss, fontHref, headingFont, themeAttrs } from '../theme';
 
@@ -48,7 +49,7 @@ describe('themeAttrs — what a themed root wears', () => {
   });
   it('an accent sets both vars; a heading face sets the property + the attribute; junk is dropped', () => {
     const a = themeAttrs({ template_id: 'bold', theme_token_set: { accent: '#0B3D91', typeface: 'lora', surface: 'tinted' } });
-    expect(a.style).toEqual({ '--org-accent': '#0b3d91', '--org-accent-strong': '#09347b', '--org-heading-font': "'EA Lora', Georgia, 'Times New Roman', serif" });
+    expect(a.style).toEqual({ '--org-accent': '#0b3d91', '--org-accent-strong': '#09347b', '--org-accent-fg': '#09347b', '--org-heading-font': "'EA Lora', Georgia, 'Times New Roman', serif" });
     expect(a['data-typeface']).toBe('lora');
     expect(a['data-surface']).toBe('tinted');
     expect(a['data-template']).toBe('bold');
@@ -57,5 +58,18 @@ describe('themeAttrs — what a themed root wears', () => {
     expect(junk.style).toBeUndefined();
     expect(junk['data-heading-font']).toBeUndefined();
     expect(junk['data-template']).toBe('classic');
+  });
+});
+
+describe('themeAttrs — link text on white (B2)', () => {
+  it('a light accent at the luminance cap gets a darker --org-accent-fg that reads at 4.5:1; a dark one keeps its own', () => {
+    const light = themeAttrs({ template_id: 'classic', theme_token_set: { accent: '#0f9d58', accentStrong: '#0f9d58' } });
+    const fg = (light.style as Record<string, string>)['--org-accent-fg'];
+    expect(fg).toBeDefined();
+    expect(contrastRatio(fg, '#ffffff')).toBeGreaterThanOrEqual(4.5);
+    expect(fg).not.toBe('#0f9d58');
+    const dark = themeAttrs({ template_id: 'classic', theme_token_set: { accent: '#0b3d91' } });
+    expect((dark.style as Record<string, string>)['--org-accent-fg']).toBe((dark.style as Record<string, string>)['--org-accent-strong']);
+    expect(themeAttrs({ template_id: 'classic', theme_token_set: {} }).style).toBeUndefined();
   });
 });

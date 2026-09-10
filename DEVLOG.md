@@ -1,5 +1,38 @@
 # Development Log
 
+## September 10, 2026 — Site Builder backlog B2: render resilience and contrast, dead phone-span code, two guardrails (zero DDL)
+
+- **An unknown widget key no longer drops the layout** (`layout-schema.ts`):
+  the instance key was a zod enum, so one key from a newer build failed the
+  whole `widgets` array and `parseStoredLayout` answered null — during a
+  deploy skew one pod rendered the arranged grid and another the linear
+  seed, and the old pod's autosave wrote the seed back. The key is a string
+  at the schema; `parseStoredLayout` drops the instances it does not know
+  and keeps the rest.
+- **Link text on white** (`theme.ts themeAttrs`, `globals.css .org-scope`):
+  the accent's luminance clamp guarantees 3:1 for WHITE on the accent (the
+  hero), not 4.5:1 for the accent on white — every "All teams →" and
+  contact link at `text-brand-fg` could sit at 3.0:1. `themeAttrs` now
+  emits `--org-accent-fg` (`readableOn(strong, white)`, the in-app brand's
+  helper) and `.org-scope` points `--brand-fg` / `--brand-fg-strong` at it,
+  falling back to the strong accent; the fills keep the accent itself.
+- **The phone is one column** — and now says so: `mobileSpan` was set to 2
+  on every catalog entry, so `.sb-half` and `grid-auto-flow: row dense`
+  never did anything while the renderer's header promised two columns. All
+  three deleted (no visible change).
+- **The bleed hero** stops at the content column from `lg` up (`-mx-4
+  lg:mx-0`): above the container's max width the 16px overhang read as a
+  glitch, not a band; at phone width it is still edge to edge.
+- **Guardrails**: 4c's glob adds the four client-safe site-builder modules
+  the org-page chunk pulls (`app-layout`, `config`, `catalog`, `layout`) so
+  a value import of validate.ts inside one cannot slip zod in with a green
+  check; new 4d sweeps every `(public)` page for `revalidate` OR `dynamic`
+  (HARDENING B4.3's rule, mechanised).
+- Tests: `layout-geometry.test.ts` (an unknown key drops the instance, the
+  rest survives), `theme.test.ts` (a light accent gets a darker
+  `--org-accent-fg` at ≥ 4.5:1; a dark one keeps its own; no accent → no
+  style), `registry.test.ts` drops the `mobileSpan` pin.
+
 ## September 10, 2026 — Site Builder backlog B1: four server behaviours the review found (zero DDL)
 
 The hardening round's written backlog, first PR — the behaviour items on

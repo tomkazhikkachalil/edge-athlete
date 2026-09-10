@@ -61,14 +61,15 @@ describe('grid geometry', () => {
 });
 
 describe('LayoutSchema', () => {
-  it('accepts a valid envelope with defaults and rejects duplicate ids, foreign keys and overruns', () => {
+  it('accepts a valid envelope with defaults and rejects duplicate ids and overruns; foreign keys are dropped at parse', () => {
     const ok = LayoutSchema.safeParse({ version: 1, cols: GRID.cols, widgets: [{ id: 'a', key: 'hero', x: 0, y: 0, w: 12, h: 3, cv: 1 }] });
     expect(ok.success).toBe(true);
     expect(ok.data!.widgets[0].visibility).toBe('public');
     expect(ok.data!.widgets[0].config).toEqual({});
     const dup = { version: 1, cols: 12, widgets: [{ id: 'a', key: 'hero', x: 0, y: 0, w: 12, h: 3, cv: 1 }, { id: 'a', key: 'teams', x: 0, y: 3, w: 12, h: 3, cv: 1 }] };
     expect(LayoutSchema.safeParse(dup).success).toBe(false);
-    expect(LayoutSchema.safeParse({ version: 1, cols: 12, widgets: [{ id: 'a', key: 'week', x: 0, y: 0, w: 6, h: 2, cv: 1 }] }).success).toBe(false);
+    // B2: a foreign key passes the SCHEMA (a newer build's key must not null the layout) and is dropped by parseStoredLayout.
+    expect(parseStoredLayout({ version: 1, cols: 12, widgets: [{ id: 'a', key: 'week', x: 0, y: 0, w: 6, h: 2, cv: 1 }] })?.widgets).toEqual([]);
     expect(LayoutSchema.safeParse({ version: 1, cols: 12, widgets: [{ id: 'a', key: 'teams', x: 8, y: 0, w: 6, h: 2, cv: 1 }] }).success).toBe(false);
     expect(LayoutSchema.safeParse({ version: 2, cols: 12, widgets: [] }).success).toBe(false);
   });
@@ -76,6 +77,12 @@ describe('LayoutSchema', () => {
     expect(parseStoredLayout(null)).toBeNull();
     expect(parseStoredLayout({ version: 1 })).toBeNull();
     expect(parseStoredLayout({ version: 1, cols: 12, widgets: [] })).toEqual({ version: 1, cols: 12, widgets: [] });
+  });
+  it('B2: an instance with a key this build does not know is DROPPED; the rest of the arrangement survives', () => {
+    const raw = { version: 1, cols: 12, widgets: [w('h', 'hero', 0, 0, 12, 3), { ...w('x', 'hero', 0, 3, 12, 3), key: 'hologram' }, w('s', 'standings', 0, 6, 6, 4)] };
+    const out = parseStoredLayout(raw);
+    expect(out?.widgets.map(x => x.id)).toEqual(['h', 's']);
+    expect(LayoutSchema.safeParse(raw).success).toBe(true);
   });
 });
 
