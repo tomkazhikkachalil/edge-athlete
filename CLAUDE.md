@@ -404,18 +404,27 @@ const { canView } = await response.json();
    2026 R1–R5 before touching any of it.
 
 12. **Sites are compositions of registered widgets; edits go to a draft
-   (Site Builder, Sep 9 2026, #616–#634, mig 180 — the ONLY migration; phases
-   6–8 were zero DDL)** — Tom's design doc supersedes masterplan §6 ("themed
-   templates, no free-form layout"). The pieces, each with its invariant:
+   (Site Builder, Sep 9 2026, #616–#643, mig 180 — the ONLY migration; phases
+   6–11 were zero DDL; phases 1–11 COMPLETE and prod-probed)** — Tom's design
+   doc supersedes masterplan §6 ("themed templates, no free-form layout").
+   The pieces, each with its invariant:
    - **Catalog** (`src/lib/site-builder/catalog.ts`, ZERO imports — the
      org-page client chunk reads it): three disjoint key sets — the module-
      backed web widgets (`WEB_WIDGET_KEYS` ≡ `MODULE_KEYS`, pinned by test),
-     the CONTENT widgets `text | image | embed` (no module, web-only, any
-     number per layout, a heading only when the instance sets a title), and
-     the app-only widgets. `SITE_WIDGET_KEYS` (web + content) is what a
-     layout may hold. One composition renders the public site AND the in-app
-     org page (`deriveAppLayout()`; bubbles alias `schedule→events`,
-     `venues→courses`, `gallery→photos`).
+     the CONTENT widgets `text | image | embed` (no module, BOTH surfaces —
+     in-app as TILES with `bubbleKey: null`, any number per layout, a
+     heading only when the instance sets a title), and the app-only
+     widgets. `SITE_WIDGET_KEYS` (web + content) is what a layout may hold.
+     **One composition renders the public site AND the in-app org page**
+     (phase 10): the org GET carries `composition` (`app-composition.ts`,
+     server-only — content tiles RESOLVED there, never raw config or zod in
+     the org-page chunk: guardrail 4c), `deriveAppLayout(composition)`
+     orders the glance grid in the layout's reading order with the app-only
+     and PINNED widgets (members, gallery — they ignore instance visibility)
+     interleaved at registry priority; no composition = the recorded
+     registry order (pinned by test). Bubbles alias `schedule→events`,
+     `venues→courses`, `gallery→photos`; instance titles name the bubble
+     and its window.
    - **Layout** (`layout.ts`, `layout-schema.ts`): instances `{id (opaque),
      key, x, y, w, h (a MINIMUM height), cv, config, visibility}` on a
      12-column grid (`GRID`); `compactLayout` / `validateLayout` are pure and
@@ -467,12 +476,32 @@ const { canView } = await response.json();
      checklist rail (`checklist.ts`, derived, `ChecklistStep` shape), undo
      with coalescing (`useHistory`), autosave (`useDraft`). Below `lg` the
      same route shows a notice with working Preview / Publish / Back.
+     `onReload` goes back through the spinner — a keyed remount alone keeps
+     the stale canvas prop.
+   - **Gallery + metrics** (phase 11, `gallery.ts` / `gallery-ids.ts`,
+     `Gallery.tsx`, `metrics-rollup.ts`): `template_id ∈ classic|bold` stays
+     the DB FAMILY (mig 170's CHECK); a gallery ENTRY is family + design
+     tokens + a seed PLAN, six of them, ≥3 per side × sport. `apply_gallery`
+     generates the welcome from the org's real facts and a map only when a
+     venue has coordinates (`osmEmbedAround`), lays the org's ENABLED
+     modules per the plan and **never creates a module instance the layout
+     lacks** (members-only visibility never leaks); `keep` (default) keeps
+     the manager's tiles, `clean` clears them first. Thumbnails are block
+     diagrams of the SAME seed the server applies (over the canvas GET's
+     `gallery` facts) — no iframes, no fetches. The gallery opens itself
+     once on a never-arranged, never-published site. `GET /api/admin/site-
+     metrics` folds the revisions' `stats` into the one-hour question
+     (nearest-rank percentiles; `truncated` flags capped reads); the
+     dashboard "Site builder" panel shows it and hosts the storage sweep's
+     dry run.
    - e2e: a spec that reads the PUBLIC page must first take the site LIVE
      (`PATCH {action:'publish'}`) and, after edits, promote the draft with
      `e2e/helpers/org-site.ts publishSite()`; public-order polls compare
      MODULE instance ids (`data-widget-id`); `getByLabel` needs `exact: true`
-     beside sibling aria-labels. Plan: `~/.claude/plans/edge-athlete-site-builder-zesty-pnueli.md`;
-     read DEVLOG Sep 9 2026 P1-A…P8-B before touching any of it.
+     beside sibling aria-labels; a spec that opens the editor on a site it
+     has NOT taken live meets the gallery's first-open offer. Plan:
+     `~/.claude/plans/edge-athlete-site-builder-zesty-pnueli.md`; read DEVLOG
+     Sep 9 2026 P1-A…P11-B before touching any of it.
 ---
 
 ## 🔧 Common Tasks
@@ -546,8 +575,8 @@ addition below as a promise to keep it true.
   disputes/import → golf club page, builder depth, custom domains; Aug 30–
   Sep 1 2026; `DEVLOG.md` is the round-by-round record). Payments skipped by
   decision. The doc remains the design reference. Its §6 is SUPERSEDED by
-  the Site Builder program (convention 12; #616–#634, Sep 9 2026 — built,
-  editor behind a build-injected flag).
+  the Site Builder program (convention 12; #616–#643, Sep 9 2026 — phases
+  1–11 complete; the editor is the console's door).
 - `docs/` — roadmaps (`docs/ROADMAP_2026-07.md`, `docs/MULTI_SPORT_ROADMAP.md`), a
   security audit, and feature write-ups. **`docs/devlog/` is the OLD devlog** (entries
   001–010, superseded by `DEVLOG.md` at the repo root) — history, not current

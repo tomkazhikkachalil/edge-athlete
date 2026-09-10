@@ -2,9 +2,9 @@
 
 > Tom's session-start prompt. Paste this (or point Claude at it) when opening a
 > development session. Last aligned with project state: **September 9, 2026
-> (after the Site Builder program, #616–#634)** — migration head 180;
-> `main` at the #634 merge (32d86de5), deployed (the prod release meta reads
-> 32d86de5). If the "Where the project actually is" section drifts stale, ask
+> (after the Site Builder program, phases 1–11, #616–#643)** — migration head
+> 180; `main` at the #643 merge (7cf3f801), deployed and prod-probed. If the
+> "Where the project actually is" section drifts stale, ask
 > Claude to re-align it against DEVLOG.md and session memory.
 
 ## Context & Vision
@@ -234,7 +234,7 @@ The end-of-session sweep (#614, DEVLOG only) closed the day: gate green on
 163 chunks — guardrails green, `npm audit` 0 at every level; the webhook
 fired; the floor gate was re-run on 34 downloaded deployed chunks.
 
-**Sep 9 — the Site Builder program (#616–#634), BUILT.** Tom's design doc
+**Sep 9 — the Site Builder program (#616–#643), COMPLETE.** Tom's design doc
 ("Edge Athlete Site Builder": a dashboard editor whose panels are public —
 a closed widget catalog bound to live queries, a constrained 12-column grid
 with per-widget constraints and vertical compaction, one composition
@@ -264,16 +264,34 @@ theme panel with live preview and a contrast readout. **Phase 8**
 (#633–#634): template seeds (order = side × sport, pairing = template),
 publish metrics into `revisions.stats`, two draft-fidelity fixes (the canvas
 after a publish; a fresh draft inheriting the published layout), the
-checklist rail. CLAUDE.md convention 12 names every invariant.
+checklist rail. **Phase 9** (#637–#638): a widget holds a QUERY, never data
+— `config.query` (competition / venue / limit) narrows the org-wide read at
+render (`selectForInstance`, called first by the renderer and the empty
+rule); standings / schedule / leaders repeat ("Add another"); the panel's
+pickers list what the canvas offers. **Phase 10** (#639–#641): one
+composition, two surfaces — the org GET carries the composition, the glance
+grid follows the layout's order with instance titles and content TILES
+(resolved on the server; guardrail 4c keeps zod out of the org-page chunk;
+pinned members/gallery ignore instance visibility); the console's hero /
+template / brand / contact forms collapsed into the editor (Sections stays
+as "Subpages & navigation"); the surface flag deleted. **Phase 11**
+(#642–#643): the design gallery — six entries (family + tokens + seed plan)
+generated from the org's own facts (a welcome in its words, a map only when
+a venue has coordinates), never creating a module instance the layout lacks,
+thumbnails computed from the same seed the server applies, offered on a
+fresh site's first visit; the builder's numbers (the one-hour question) on
+the admin dashboard from the revisions' stats, plus the storage sweep's
+dry-run button. CLAUDE.md convention 12 names every invariant.
 
-`main` is at the #634 merge (32d86de5), deployed; the public renderer
-(grid, seeds, theme tokens, heading faces) is live for every site. The editor went live behind a flag on Sep 9 (Vercel env + rebuild) and
-became the Website section's door in phase 10 (P10-C, the flag retired). Open:
-(a) the rollout — flag on, a prod probe with a disposable org, a real
-branded club through the editor on Tom's phone and laptop, the one-hour
-metric read from `revisions.stats`; (b) the phase-3 leftover — several
-instances of one module widget; (c) older ops Tom owes: Search Console,
-custom-domain env, the capture-fix device pass, a first real staff invite.
+`main` is at the #643 merge (7cf3f801), deployed and prod-probed (the
+editor, query and gallery specs against production). The program is
+complete. Open: Tom's device pass of a real branded club through the editor
+(laptop) and its public + in-app pages (phone); the admin dashboard's "Site
+builder" panel with his admin login (no admin QA session exists); the
+one-hour number once real publishes exist; older ops Tom owes: Search
+Console, custom-domain env, the capture-fix device pass, a first real staff
+invite. The Vercel variable `NEXT_PUBLIC_FEATURE_SITE_BUILDER` is dead
+weight and can be deleted.
 
 ## Production standard (the baseline, already in force)
 

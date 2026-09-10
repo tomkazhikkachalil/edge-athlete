@@ -1,5 +1,20 @@
 # Development Log
 
+## September 9, 2026 — Site Builder docs close (phases 9–11) + maintenance sweep
+
+- Docs aligned to the finished program: CLAUDE.md convention 12 (#616–#643;
+  content widgets on BOTH surfaces as tiles; the composition on the org GET
+  and `deriveAppLayout(composition)`; the new Gallery + metrics bullet; the
+  reload-through-the-spinner rule; the first-open-offer e2e trap; the
+  masterplan pointer), the masterplan §6 note (phases 9–11), the session doc
+  (header at the #643 merge; the Sep 9 paragraph carries phases 9–11; the
+  open list is Tom's device pass, the admin panel look, the one-hour number
+  and the older ops — the rollout and the "several instances" leftover are
+  done).
+- Sweep: `npm run verify` green on main (2,967 node tests; the floor gate
+  over the built client chunks), guardrails green, audit 0 high/critical.
+  No code changes.
+
 ## September 9, 2026 — Site Builder phase 11 (P11-B): the design gallery in the editor, the first-open offer, and the builder's numbers on the admin dashboard (zero DDL)
 
 - **The gallery window** (`Gallery.tsx`, new; `LargerWindow` "Start from a
