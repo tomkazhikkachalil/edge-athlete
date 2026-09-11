@@ -132,6 +132,18 @@ export function applySeed(layout: SiteLayout, seed: SiteLayout): SiteLayout {
 
 /** Has the manager arranged anything, or is this still the seed? Compares
  *  placement only (ids, options and visibility aside). */
+/** Sep 11 2026 — THE fresh-site rule, shared by the editor's first-open
+ *  gallery offer and the console's welcome design pick: no draft, not live,
+ *  and the layout is still the seed (nothing arranged). */
+export function isFreshSite(input: {
+  draft: unknown | null;
+  published: boolean | undefined;
+  layout: SiteLayout;
+  site: LegacySiteShape & { template_id: string };
+}): boolean {
+  return input.draft === null && input.published !== true && isSeedLayout(input.layout, seedLayout(input.site));
+}
+
 export function isSeedLayout(layout: SiteLayout, seed: SiteLayout): boolean {
   const cells = (l: SiteLayout) =>
     sortByPosition(l.widgets)

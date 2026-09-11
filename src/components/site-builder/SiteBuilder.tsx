@@ -18,7 +18,7 @@ import ThemePanel, { themeDraftFrom, type ThemeDraft } from './ThemePanel';
 import ChecklistRail from './ChecklistRail';
 import Gallery from './Gallery';
 import type { GalleryOrg } from '@/lib/site-builder/gallery';
-import { isSeedLayout, seedLayout } from '@/lib/site-builder/seeds';
+import { isFreshSite } from '@/lib/site-builder/seeds';
 import { buildSiteChecklistSteps, siteChecklistInput } from '@/lib/site-builder/checklist';
 import type { ChecklistStep } from '@/lib/orgs/checklist';
 import type { WidgetInstance } from '@/lib/site-builder/layout';
@@ -101,7 +101,7 @@ export default function SiteBuilder() {
         const body = (await res.json()) as CanvasBody;
         if (cancelled) return;
         setCanvas(body);
-        const fresh = !galleryOffered.current && body.draft === null && body.published !== true && isSeedLayout(body.layout, seedLayout(body.site));
+        const fresh = !galleryOffered.current && isFreshSite({ draft: body.draft, published: body.published, layout: body.layout, site: body.site });
         if (fresh) galleryOffered.current = true;
         setAutoGallery(fresh);
         setState('ready');

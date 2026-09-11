@@ -1,5 +1,57 @@
 # Development Log
 
+## September 11, 2026 — The design moment at creation: the welcome card picks a site design (zero DDL)
+
+**What.** Tom's resequencing note, step 2: "templates at the moment you pick
+the sport — a picker with live previews". The site is created inside the
+wizard (`provisionPendingOrg` → `siteCreatePOST`), and the wizard lands on the
+console's `?welcome=1`, on a phone too; until today that landing was
+template-blind — the gallery lived only inside the ≥lg editor, so a manager
+who signed up from a phone never saw a design at all. Now the welcome strip
+carries `WelcomeDesignPick` (`src/components/orgs/WelcomeDesignPick.tsx`):
+a one-up (two-up from `sm`) grid of this org's designs, each drawn by the
+SAME `GalleryThumb` the editor's gallery draws — exported from `Gallery.tsx`,
+no behaviour change — over the canvas GET's real `gallery` facts (the org's
+name, its venue for the map), so the preview is a sketch of what the server
+will actually build, honestly labelled ("A sketch of the arrangement — your
+real sections, your name, your venue"). "Use this" is the existing
+`PATCH {action:'apply_gallery', entryId, mode:'clean'}` — reducer-validated
+and clamped (H4); a fresh site has nothing to keep, so the card offers no
+mode radios. Then: **Take it live** (`PATCH {action:'publish'}`, `manage_org`;
+a 403 shows `publishPlan(false).forbidden`), **Open the editor**, **Later**.
+
+**One fresh-site rule.** The editor's first-open gallery offer and the welcome
+card must agree on "never arranged, never published", or a manager could be
+offered twice. The predicate that was inline at `SiteBuilder.tsx` is now
+`isFreshSite({draft, published, layout, site})` in `seeds.ts` (pure, tested);
+both call it. After a pick the draft exists, so the editor never re-offers;
+"Later" leaves the editor's offer as the second chance. The card tolerates a
+403/404 canvas silently — it is additive, never a gate.
+
+**The missing golf shapes, as data.** Tom's four: weekly league, club or
+society, season tour points race, casual group. Clubhouse (the society) and
+Tour (the full bleed site) existed; three more entries in `gallery.ts` +
+`gallery-ids.ts` (appended — the id list's order equals the entries', pinned):
+`golf-weekly` (classic; the round first, then the table, the leaders, who's
+playing, news, map + contact), `golf-points-race` (bold; standings 12×6 first,
+leaders, schedule + members, welcome + contact, rest omitted) and
+`golf-social` (classic, comfortable; welcome first, members + photos,
+schedule + news, map + contact — no table). Golf now has six starting points
+on both sides. The existing entry-loop tests cover them (valid + compact,
+hero first, no map without coordinates, keep/clean/omit); a new pin asserts
+the three ids on `galleryEntriesFor('club'|'league','golf')`.
+
+**e2e.** `org-site-start.spec.ts` gains a `@mobile` test that walks the wizard's
+own path: `POST /api/clubs/requests` (golf) → `?welcome=1` at 390 → ≥6 cards
+incl. the four golf ids, no overflow → Use this on Weekly league → the canvas
+GET has `draft !== null`, `seed:welcome` present, `legacy:schedule` first
+under the hero → Take it live → the public page answers 200 → a reload shows
+no card. The existing H7 phone-editor test is unchanged: the gallery sheet
+still never shows over the phone notice (PR 3 moves it to the editor root).
+
+**Not in this PR.** Drag-to-reorder and named sizes (PR 3, the Sections list);
+the editor still needs `lg`. Zero DDL; no new dependency.
+
 ## September 11, 2026 — The profile org strip: the club that vanished (zero DDL)
 
 Tom's own club was missing from his own profile. Two audits and two live

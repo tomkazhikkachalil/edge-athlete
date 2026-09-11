@@ -143,7 +143,7 @@ export default function Gallery({ site, org, plural, orgId, auto, dirty, onFlush
  *  with the wordmark, the header strip shaped by the entry's tokens, each
  *  block titled — the welcome by its REAL generated heading, the map by the
  *  venue. Heights are row-proportional; nothing renders live data. */
-function GalleryThumb({
+export function GalleryThumb({
   seed,
   entry,
   accent,

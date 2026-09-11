@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { SiteHomeData } from '@/lib/org-sites/home-data';
 import { isWidgetEmpty } from '../emptiness';
 import { compactLayout, deriveMobileOrder, validateLayout, type WidgetInstance } from '../layout';
-import { applySeed, isSeedLayout, place, seedLayout } from '../seeds';
+import { applySeed, isSeedLayout, place, seedLayout, isFreshSite } from '../seeds';
 
 const rows = (keys: string[]) => keys.map((k, i) => ({ module_key: k, enabled: true, sort_order: i, config: {} }));
 const site = (template_id: 'classic' | 'bold', keys: string[]) => ({
@@ -113,5 +113,21 @@ describe('isWidgetEmpty', () => {
     expect(isWidgetEmpty(w('members'), { ...empty, memberStats: { members: [{ profileId: 'p' }] } as never }, noContent)).toBe(false);
     expect(isWidgetEmpty(w('standings'), { ...empty, standings: { competitions: [{ rows: [], golf: null }] } as never }, noContent)).toBe(true);
     expect(isWidgetEmpty(w('standings'), { ...empty, standings: { competitions: [{ rows: [1], golf: null }] } as never }, noContent)).toBe(false);
+  });
+});
+
+// Sep 11 2026: the ONE fresh-site rule — shared by the editor's first-open
+// gallery offer and the console's welcome design pick.
+describe('isFreshSite', () => {
+  const fresh = site('classic', ['hero', 'standings', 'schedule']);
+  const seed = seedLayout(fresh);
+  it('true only when: no draft, not live, and the layout is still the seed', () => {
+    expect(isFreshSite({ draft: null, published: undefined, layout: seed, site: fresh })).toBe(true);
+    expect(isFreshSite({ draft: null, published: false, layout: seed, site: fresh })).toBe(true);
+    expect(isFreshSite({ draft: { id: 'd', rev: 1 }, published: false, layout: seed, site: fresh })).toBe(false);
+    expect(isFreshSite({ draft: null, published: true, layout: seed, site: fresh })).toBe(false);
+    expect(seed.widgets.length).toBeGreaterThan(0);
+    const arranged = { ...seed, widgets: seed.widgets.map((w, i) => (i === 0 ? { ...w, h: w.h + 1 } : w)) };
+    expect(isFreshSite({ draft: null, published: false, layout: arranged, site: fresh })).toBe(false);
   });
 });

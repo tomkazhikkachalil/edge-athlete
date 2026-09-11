@@ -197,6 +197,69 @@ export const GALLERY_ENTRIES: readonly GalleryEntry[] = [
     ],
     rest: 'omit',
   },
+  // ── Sep 11 2026: the golf shapes a manager expects at sign-up ─────────────
+  // Tom: "weekly league, club or society, season tour points race, casual
+  // group". Clubhouse is the society; Tour is the full bleed site; these three
+  // are the rhythm designs. Data only — the same modules, the same engine.
+  {
+    id: 'golf-weekly',
+    family: 'classic',
+    name: 'Weekly league',
+    blurb: 'This week’s round first, then the table, the leaders and who’s playing.',
+    forSides: BOTH_SIDES,
+    forSports: ['golf'],
+    tokens: { typeface: 'nunito', density: 'compact' },
+    slots: [
+      { module: 'hero', w: 12 },
+      { module: 'schedule', w: 6, h: 4 },
+      { module: 'standings', w: 6, h: 4 },
+      { module: 'leaders', w: 12 },
+      { module: 'members', w: 6 },
+      { content: 'welcome', w: 6, h: 3 },
+      { module: 'news', w: 12 },
+      { content: 'map', w: 6, h: 5 },
+      { module: 'contact', w: 6, h: 5 },
+    ],
+  },
+  {
+    id: 'golf-points-race',
+    family: 'bold',
+    name: 'Points race',
+    blurb: 'Tables first and lean: the order of merit, the leaders, the rounds to come.',
+    forSides: BOTH_SIDES,
+    forSports: ['golf'],
+    tokens: { typeface: 'oswald', header: 'band', hero: 'card', density: 'compact' },
+    slots: [
+      { module: 'hero', w: 12 },
+      { module: 'standings', w: 12, h: 6 },
+      { module: 'leaders', w: 12 },
+      { module: 'schedule', w: 6 },
+      { module: 'members', w: 6 },
+      { content: 'welcome', w: 6 },
+      { module: 'contact', w: 6 },
+    ],
+    rest: 'omit',
+  },
+  {
+    id: 'golf-social',
+    family: 'classic',
+    name: 'Social',
+    blurb: 'A casual group: the welcome, the people, the photos and when you play — no table.',
+    forSides: BOTH_SIDES,
+    forSports: ['golf'],
+    tokens: { typeface: 'lora', density: 'comfortable' },
+    slots: [
+      { module: 'hero', w: 12 },
+      { content: 'welcome', w: 12, h: 2 },
+      { module: 'members', w: 6 },
+      { module: 'gallery', w: 6 },
+      { module: 'schedule', w: 6 },
+      { module: 'news', w: 6 },
+      { content: 'map', w: 6, h: 5 },
+      { module: 'contact', w: 6, h: 5 },
+    ],
+    rest: 'omit',
+  },
 ];
 
 export function galleryEntry(id: string): GalleryEntry | null {
