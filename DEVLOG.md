@@ -1,5 +1,25 @@
 # Development Log
 
+## September 11, 2026 — Program 2, D2: the console inbox and the retention purge (zero DDL)
+
+**What.** The console's Website area gains **Inbox** (`SiteInboxCard`,
+`#inbox` — the bell's door): what visitors sent through the site's forms,
+in two views — Open (with a count badge for unread rows; Mark read, Archive)
+and Archived (Restore). A row shows the sender, a mailto, the phone and age
+group when given, when, the page it came from, and the message. The API is
+`GET /api/{plural}/{orgId}/site/forms?state=open|archived` and `PATCH { id,
+read?, archived? }` (archiving reads), both `manage_site` — a plain member
+gets a 403 — with the pre-187 table answering an empty, `supported: false`
+inbox rather than a 500 (the card renders nothing). **Retention**: the
+daily cron gains a phase (`runFormSubmissionPurge`) that removes archived
+rows after 365 days and unarchived after 730 (`formPurgeCutoffs`, pinned);
+`docs/HARDENING.md` gains B5 "Personal data with a shelf life" with the
+sweep line. Nothing here is ever public.
+
+**e2e.** `org-site-forms.spec.ts` gains the console step: the inbox lists
+both submissions with the unread badge at 2 → Mark read → 1 → Archive →
+one row → the Archived view → Restore; a non-manager's GET is a 403; 375px.
+
 ## September 11, 2026 — Program 2, D1 residue: the form route checks the widget before the key (zero DDL)
 
 Migration 187 ran and the forms spec stopped skipping; it passed the real

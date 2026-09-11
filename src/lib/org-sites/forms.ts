@@ -94,3 +94,24 @@ export function submissionSummary(kind: FormKind, fields: FormFields): string {
   const group = 'ageGroup' in fields ? ` (${fields.ageGroup})` : '';
   return `New interest from ${who}${group}`;
 }
+
+// ── The inbox (D2) ───────────────────────────────────────────────────────────
+
+/** A manager's inbox action: mark read, archive, or restore. */
+export const FormsPatchSchema = z.object({
+  id: z.uuid(),
+  read: z.boolean().optional(),
+  archived: z.boolean().optional(),
+});
+export type FormsPatchInput = z.infer<typeof FormsPatchSchema>;
+
+/** Retention (the daily cron): archived submissions go after 365 days,
+ *  unarchived ones after 730. Pure — the cron passes `now`. */
+export const FORM_RETENTION_DAYS = { archived: 365, open: 730 } as const;
+export function formPurgeCutoffs(now: Date): { archivedBefore: string; openBefore: string } {
+  const day = 24 * 60 * 60 * 1000;
+  return {
+    archivedBefore: new Date(now.getTime() - FORM_RETENTION_DAYS.archived * day).toISOString(),
+    openBefore: new Date(now.getTime() - FORM_RETENTION_DAYS.open * day).toISOString(),
+  };
+}

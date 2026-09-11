@@ -48,3 +48,17 @@ describe('site forms', () => {
     expect(submissionSummary('interest', { name: 'Sam', email: 'sam@example.com', ageGroup: 'U12' })).toBe('New interest from Sam (U12)');
   });
 });
+
+// ── D2: the inbox's schema and the retention cutoffs ───────────────────────
+import { FORM_RETENTION_DAYS, FormsPatchSchema, formPurgeCutoffs } from '../forms';
+
+describe('the inbox (D2)', () => {
+  it('a patch names a submission and at least means something; the cutoffs are 365 days archived, 730 open', () => {
+    expect(FormsPatchSchema.safeParse({ id: '2f1b46c8-2964-4139-9689-d1c3f736ed93', read: true }).success).toBe(true);
+    expect(FormsPatchSchema.safeParse({ id: 'nope', read: true }).success).toBe(false);
+    expect(FORM_RETENTION_DAYS).toEqual({ archived: 365, open: 730 });
+    const cut = formPurgeCutoffs(new Date('2026-09-11T12:00:00.000Z'));
+    expect(cut.archivedBefore).toBe('2025-09-11T12:00:00.000Z');
+    expect(cut.openBefore).toBe('2024-09-11T12:00:00.000Z');
+  });
+});
