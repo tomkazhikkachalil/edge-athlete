@@ -5,9 +5,9 @@
 > (after the Site Builder program, phases 1–11, #616–#644, its hardening
 > round H1–H8, #645–#652, its backlog round B1–B6, #653–#658, the Contest
 > Place program E1–E4, #661–#664, the Recruiting skeleton R1–R5, #665–#669,
-> and the Sep 11 felt-customization round #672–#674)** — migration head 184;
-> `main` at the #674 merge (ed3c1853), deployed and prod-probed step by
-> step; **no program is open**. If the
+> the Sep 11 felt-customization round #672–#676, and Site Builder program 2
+> #677–#695)** — migration head 188; `main` at the program-2 docs close,
+> deployed and prod-probed step by step; **no program is open**. If the
 > "Where the project actually is" section drifts stale, ask
 > Claude to re-align it against DEVLOG.md and session memory.
 
@@ -364,10 +364,40 @@ as a preset over `w`; pure helpers in `sections.ts`), the panel gained the
 Size field, one header for both widths, gallery + picker as bottom sheets at
 every width. Drag-to-reorder deferred (up/down first); titles / words /
 colours still need `lg`. The dead Vercel variable
-`NEXT_PUBLIC_FEATURE_SITE_BUILDER` was deleted.
+`NEXT_PUBLIC_FEATURE_SITE_BUILDER` was deleted. #675 closed the docs; #676
+walked the design pick on a laptop and fixed the confirmation scrolling off.
 
-Open: Tom's phone pass — create a golf club → the welcome card → Use this →
-the editor's list → Move / Size → Publish; his device pass of a contest page
+**Sep 11 — Site Builder program 2: the six manager gaps (#677–#695,
+migrations 185–188), COMPLETE.** With the builder's own list exhausted, an
+inventory of what a site MANAGER still could not do found six gaps; Tom
+chose one plan for all of them and decided: first-party analytics (never a
+third party), two fixed forms (no builder), and the order **A → B → C → D →
+E → F**. **A** (#677) put the properties and theme panels on a phone as
+bottom sheets (Edit on every row of the Sections list; a ref-backed dirty
+guard; the hero preview fits its tile). **B** (#678–#684, mig 185) made
+every custom page a composition: the page in the ONE revision snapshot and
+`org_site_pages` as its PUBLISHED PROJECTION, deterministic legacy
+conversion, one writer, the editor's page switcher and settings sheet, the
+public render through `GridRenderer`, the header's one list (modules in the
+rows' order, pages before the module that follows them), a page preview,
+the console's navigation list with pages and "Show in the header". **C**
+(#685–#687, mig 186) gave a site its SEO title, description and social
+image, a footer line with links and socials, a chosen icon, through one head
+builder and the editor's Settings panel. **D** (#688–#691, mig 187) added
+two fixed forms as widgets — contact and interest (an age GROUP, never a
+DOB) — native forms with no script, a 303 back to the page and a `:target`
+thank-you, a honeypot, per-IP and per-site buckets, an HMAC form key, the
+owner's notification and email, the console Inbox with retention. **E**
+(#692–#694, mig 188) added first-party analytics: a no-store pixel counting
+views and daily visitors from a daily-salted hash (no IP, UA or cookie
+stored; bots, GPC/DNT, previews count nothing), the console's Visitors
+panel, platform totals on the admin dashboard, `docs/ANALYTICS.md`. **F**
+(#695) closed the docs. Every step was prod-probed after its deploy.
+
+Open: **Tom sets `ANALYTICS_SALT` in Vercel** (until then the pixel serves
+but counts nothing); Tom's phone pass — create a golf club → the welcome
+card → Use this → the editor's list → Move / Size → a page → Settings →
+Publish; his device pass of a contest page
 (`/event/[id]`, the org-site twin) and the scouting area (`/app/scout`,
 `/app/scout/search`); the device pass of a real branded club through the
 editor; the one-hour number once real publishes exist; Search Console,
@@ -389,7 +419,7 @@ attach-to-event picker (DEVLOG E4); the recruiting growth paths in
   covers layout, not memory: media work is verified with phone-SIZED inputs
   (`e2e/fixtures/rotated6-12mp.jpg`), not thumbnails.
 - Schema changes are numbered migrations in database/migrations/ (currently
-  at 184), the source of truth for the schema.
+  at 188), the source of truth for the schema.
 - Secrets live in environment variables (Vercel-managed); guardian/minor data
   follows the standing safety lines (no DM transcripts, never auto-publish a
   minor's post, append-only consent/audit).
