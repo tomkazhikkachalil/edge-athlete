@@ -7,6 +7,7 @@ import { runReminderSweep } from '@/lib/calendar/reminders-server';
 import { runRoundSweep } from '@/lib/golf/round-sweep';
 import { runGolfLeagueSync, runGolfWindowReminders } from '@/lib/competitions/golf-league-server';
 import { runDeletionPurge } from '@/lib/account-park';
+import { runAnalyticsPrune } from '@/lib/org-sites/analytics-server';
 import { runFormSubmissionPurge } from '@/lib/org-sites/forms-server';
 import { runPendingNudge } from '@/lib/guardian-nudge';
 import { runRiskSweep } from '@/lib/risk-sweep';
@@ -115,6 +116,15 @@ export async function GET(request: NextRequest) {
   } catch (e) {
     console.error('[DAILY] deletion purge phase failed:', e);
     summary.deletionPurge = { ok: false };
+  }
+
+  // Program 2, E (Sep 11 2026): site analytics — the day's visitor marks go
+  // after 2 days (the daily row keeps the counts), daily rows after 400.
+  try {
+    summary.analytics = await runAnalyticsPrune(admin);
+  } catch (e) {
+    console.error('[DAILY] analytics prune phase failed:', e);
+    summary.analytics = { ok: false };
   }
 
   // Program 2, D2 (Sep 11 2026): org-site form submissions — archived rows

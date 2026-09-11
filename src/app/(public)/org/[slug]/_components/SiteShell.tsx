@@ -191,6 +191,11 @@ export default function SiteShell({
             Edge Athlete
           </Link>
         </div>
+        {/* Program 2, E: the first-party page-view pixel — a plain <img> on
+            purpose (never the optimizer: the route is no-store and counts
+            on every fetch; the page it sat on rides the same-origin Referer). */}
+        {/* eslint-disable-next-line @next/next/no-img-element -- a 1x1 no-store counting pixel; the optimizer would cache it */}
+        <img src={`${siteBasePath(site)}/hit.gif`} alt="" width={1} height={1} aria-hidden="true" decoding="async" className="absolute h-px w-px opacity-0" data-site-pixel="" />
       </footer>
     </div>
   );
