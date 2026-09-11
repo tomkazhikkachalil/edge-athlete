@@ -1,5 +1,41 @@
 # Development Log
 
+## September 11, 2026 — Program 2, B3: the editor edits N layouts — the page switcher, the page settings, the picker per target (zero DDL)
+
+**What.** The one editor now holds either the home layout or one page's.
+The outer `SiteBuilder` keeps the **target** (`'home' | pageId`): `?page=<id>`
+deep-links (read once in the load effect, the console's `?welcome=1`
+precedent); a switch **flushes the draft, then reloads onto the target**
+through the spinner path, so the editor mounts on the SERVER's layout and
+`rev` — the gallery precedent, and no state-in-effect. The header gains a
+`<select aria-label="Page">` (Home · each page, "(draft)" marked · New
+page…) that fits 375px, and a **Page** pill on a page target opening
+`PagePanel` (`LargerWindow`, `sb-page`, every width): title, address,
+published, shown in the header, delete (the house `ConfirmModal`) — each a
+`set_page` / `remove_page` PATCH into the draft, followed by a reload so the
+list and the address are the server's. **New page…** creates "New page"
+through `add_page`, switches to it with the settings sheet open; a new page
+is one empty full-width text section — a document from its first second, no
+hero. The autosave PUT carries `pageId` on a page. Theme, Start from, the
+checklist rail and the first-open gallery are HOME-only (a page target shows
+one line saying so); the picker takes `allowed` (`PAGE_WIDGET_KEYS` on a
+page — no hero; module widgets welcome). The phone's Sections list edits a
+page's sections exactly like the home's.
+
+**Not yet.** Preview still opens the HOME preview from a page target (the
+preview route renders the draft home; a page preview rides B4 with the
+public page render). Custom pages still render their block projection
+publicly until B4 reads `layout`.
+
+**e2e.** `org-site-editor.spec.ts` gains a second test (skips until 185 has
+run — the canvas answers `pages: null`): New page… → the blank page (one
+text section, no hero, no Theme / Start from / checklist), the picker
+without a hero tile, a paragraph autosaved into the PAGE's layout with the
+home untouched, Home and back with the words intact, settings (rename,
+address, published) → the list shows the new title, the 375px pass
+(switcher, Page pill, the sections list), Publish changes → the public page
+carries the words.
+
 ## September 11, 2026 — Program 2, B2: the draft carries the pages — the mirror on publish, the page layout write, the canvas (zero DDL)
 
 **What.** B1 gave the snapshot its `pages`; this PR makes the server speak
