@@ -15,6 +15,9 @@ import Canvas from './Canvas';
 import Picker from './Picker';
 import PropertiesPanel from './PropertiesPanel';
 import SectionsList from './SectionsList';
+import LargerWindow from '@/components/bubbles/LargerWindow';
+import { widgetTitle } from '@/app/(public)/org/[slug]/_components/WidgetBody';
+import { useIsDesktop } from '@/hooks/useIsDesktop';
 import { resizeToPreset } from '@/lib/site-builder/sections';
 import ThemePanel, { themeDraftFrom, type ThemeDraft } from './ThemePanel';
 import ChecklistRail from './ChecklistRail';
@@ -213,6 +216,9 @@ function Editor({
 }) {
   const history = useHistory<SiteLayout>(canvas.layout);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  // A1 (Sep 11 2026): below lg the panels are bottom sheets. A JS gate, not
+  // CSS: a LargerWindow locks scroll and moves focus even when display:none'd.
+  const isDesktop = useIsDesktop();
   const [busy, setBusy] = useState(false);
   // P3-D: the canvas data grows as widgets are added (the picker resolved
   // them); a removed widget's data stays — harmless, and Undo needs it.
@@ -223,11 +229,25 @@ function Editor({
   // H7: unsaved panel work (a typed headline, a previewed accent) used to
   // vanish on a stray tile click. The panels report their dirtiness; a
   // navigation that would drop it asks first (the house ConfirmModal).
-  const [panelDirty, setPanelDirty] = useState(false);
-  const [themeDirty, setThemeDirty] = useState(false);
+  const [, setPanelDirty] = useState(false);
+  const [, setThemeDirty] = useState(false);
   const [pending, setPending] = useState<(() => void) | null>(null);
+  // A1 (Sep 11 2026): the guard reads a REF, not render state. A window's
+  // Escape listener re-subscribes in a passive effect; a key pressed right
+  // after typing reached the OLD closure (dirty = false) and closed the
+  // sheet without asking. The ref is written in the report callbacks (never
+  // during render), so every listener sees the truth at the keystroke.
+  const dirtyRef = useRef({ panel: false, theme: false });
+  const reportPanelDirty = useCallback((dirty: boolean) => {
+    dirtyRef.current.panel = dirty;
+    setPanelDirty(dirty);
+  }, []);
+  const reportThemeDirty = useCallback((dirty: boolean) => {
+    dirtyRef.current.theme = dirty;
+    setThemeDirty(dirty);
+  }, []);
   const guarded = (action: () => void) => {
-    if (panelDirty || themeDirty) setPending(() => action);
+    if (dirtyRef.current.panel || dirtyRef.current.theme) setPending(() => action);
     else action();
   };
   // Phase 5: the site view (content) can change under the editor when the
@@ -478,7 +498,7 @@ function Editor({
                 })
               }
               aria-pressed={themeDraft !== null}
-              className={`${PILL} hidden lg:inline-flex`}
+              className={PILL}
             >
               Theme
             </button>
@@ -507,8 +527,62 @@ function Editor({
             <p className="mb-3 text-xs text-tertiary">
               Change a section’s size or order here; titles, words and colours need a wider screen. Nothing goes live until you publish.
             </p>
-            <SectionsList site={site} layout={history.present} onCommit={history.commit} onRemove={removeOne} />
+            <SectionsList
+              site={site}
+              layout={history.present}
+              onCommit={history.commit}
+              onRemove={removeOne}
+              onSelect={id =>
+                guarded(() => {
+                  setSelectedId(id);
+                  setThemeDraft(null);
+                })
+              }
+            />
           </div>
+          {/* The phone's panels: the SAME components as the desktop asides, hosted
+              by a bottom sheet. The dirty guard (ConfirmModal, z-[60]) sits above. */}
+          {!isDesktop && !themeDraft && selected && (
+            <LargerWindow title={selected.key === 'hero' ? 'Hero' : widgetTitle(site, selected)} hostsOwnHeading windowKey="sb-panel" onClose={() => guarded(() => setSelectedId(null))}>
+              <PropertiesPanel
+                key={selected.id}
+                variant="sheet"
+                site={site}
+                layout={history.present}
+                widget={selected}
+                plural={plural}
+                orgId={orgId}
+                options={options}
+                onInstanceChange={changeInstance}
+                onResize={p => history.commit(resizeToPreset(history.present, selected.id, p))}
+                onContentSaved={refreshSite}
+                onDirtyChange={reportPanelDirty}
+                showError={showError}
+                showSuccess={showSuccess}
+              />
+            </LargerWindow>
+          )}
+          {!isDesktop && themeDraft && (
+            <LargerWindow title="Theme" hostsOwnHeading windowKey="sb-theme" onClose={() => guarded(() => setThemeDraft(null))}>
+              <ThemePanel
+                variant="sheet"
+                site={site}
+                draft={themeDraft}
+                onChange={setThemeDraft}
+                onSaved={async () => {
+                  await refreshSite();
+                  setThemeDraft(null);
+                }}
+                onClose={() => setThemeDraft(null)}
+                onDirtyChange={reportThemeDirty}
+                onOpenGallery={() => setGallery('manual')}
+                plural={plural}
+                orgId={orgId}
+                showError={showError}
+                showSuccess={showSuccess}
+              />
+            </LargerWindow>
+          )}
           <div className="hidden lg:block mx-auto max-w-5xl">
             <ChecklistRail steps={steps} onStep={onStep} />
             <p className="mb-3 text-xs text-tertiary">
@@ -543,7 +617,7 @@ function Editor({
                     setThemeDraft(null);
                   }}
                   onClose={() => setThemeDraft(null)}
-                  onDirtyChange={setThemeDirty}
+                  onDirtyChange={reportThemeDirty}
                   onOpenGallery={() => setGallery('manual')}
                   plural={plural}
                   orgId={orgId}
@@ -564,7 +638,7 @@ function Editor({
                   onInstanceChange={changeInstance}
                   onResize={p => history.commit(resizeToPreset(history.present, selected.id, p))}
                   onContentSaved={refreshSite}
-                  onDirtyChange={setPanelDirty}
+                  onDirtyChange={reportPanelDirty}
                   showError={showError}
                   showSuccess={showSuccess}
                 />
@@ -607,8 +681,8 @@ function Editor({
         onConfirm={() => {
           const run = pending;
           setPending(null);
-          setPanelDirty(false);
-          setThemeDirty(false);
+          reportPanelDirty(false);
+          reportThemeDirty(false);
           run?.();
         }}
         onCancel={() => setPending(null)}

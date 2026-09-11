@@ -96,6 +96,42 @@ test('@mobile org site sections: the phone editor lists the draft; Move down and
       expect(await rows.evaluateAll(els => els.map(el => el.getAttribute('data-sb-section')))).toEqual(finalOrder);
       expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
 
+      // Program 2, A1 (Sep 11 2026): words and colours on a phone. Edit opens
+      // the section's properties as a bottom sheet — the SAME panel as the
+      // desktop aside. A title is an instance option: autosaved, never confirmed.
+      await target.locator('[data-sb-edit]').click();
+      const sheet = page.locator('[data-larger-window="sb-panel"]');
+      await expect(sheet).toBeVisible();
+      await expect(sheet.locator('[data-sb-panel="staff"][data-sb-panel-variant="sheet"]')).toBeVisible();
+      await sheet.getByLabel('Section title').fill(`Our crew ${stamp}`);
+      await awaitDraftSaved(page);
+      await page.keyboard.press('Escape');
+      await expect(sheet).toBeHidden();
+      await expect(target).toContainText(`Our crew ${stamp}`);
+      // The hero's words live in its panel too; an unsaved headline asks before closing.
+      await rows.first().locator('[data-sb-edit]').click();
+      await expect(sheet.locator('[data-sb-panel="hero"]')).toBeVisible();
+      await sheet.getByLabel('Headline').fill(`Hello ${stamp}`);
+      await page.keyboard.press('Escape');
+      const discard = page.getByText('Discard changes?', { exact: true }).locator('..').locator('..');
+      await expect(discard).toBeVisible();
+      await discard.getByRole('button', { name: 'Cancel' }).click();
+      await expect(sheet.locator('[data-sb-panel="hero"]')).toBeVisible();
+      await page.keyboard.press('Escape');
+      await discard.getByRole('button', { name: 'Discard', exact: true }).click();
+      await expect(sheet).toBeHidden();
+      expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
+      // Theme on a phone: the same panel as a sheet; Save writes the tokens.
+      await page.getByRole('button', { name: 'Theme', exact: true }).click();
+      const themeSheet = page.locator('[data-larger-window="sb-theme"]');
+      await expect(themeSheet).toBeVisible();
+      await expect(themeSheet.locator('[data-sb-theme-panel][data-sb-panel-variant="sheet"]')).toBeVisible();
+      await themeSheet.getByLabel('Accent colour', { exact: true }).fill('#1d4ed8');
+      await themeSheet.getByRole('button', { name: 'Save theme' }).click();
+      await expect(themeSheet).toBeHidden({ timeout: 15_000 });
+      const themed = (await (await ownerApi.get(`/api/leagues/${leagueId}/site`)).json()) as { site: { theme_token_set: { accent?: string } } };
+      expect(themed.site.theme_token_set.accent).toBe('#1d4ed8');
+
       // Publish from the phone header; the public page renders the list's
       // order (module instance ids) and the resized tile's column span.
       await page.getByRole('button', { name: 'Publish changes', exact: true }).click();
@@ -112,6 +148,7 @@ test('@mobile org site sections: the phone editor lists the draft; Move down and
       // precedes the data attributes on the tile).
       const staffTile = /<[^>]*style="[^"]*--sb-w:\s*6\b[^"]*"[^>]*data-widget-id="legacy:staff"/;
       const html = await pollUntil(async () => (await anon.request.get(`/org/${subdomain}`)).text(), body => staffTile.test(body), { attempts: 12, label: 'the public staff tile spans six columns' });
+      expect(html, 'the retitled staff heading reached the public page').toContain(`Our crew ${stamp}`);
       const publicIds = [...html.matchAll(/data-widget-id="([^"]+)"/g)].map(m => m[1]);
       // Empty widgets never render publicly: the public sequence is a subsequence of the layout's reading order.
       const kept = moduleIds.filter(id => publicIds.includes(id));

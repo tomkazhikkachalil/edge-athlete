@@ -11,7 +11,7 @@ import { effectiveConfig } from '@/lib/site-builder/config';
 // SiteHomeBody so the published home, the preview and the editor canvas
 // render it from one component. Props-only, server-safe (guardrail §4b).
 
-export default function HeroSection({ site, w, spec }: { site: PublicSite; w: WidgetInstance; spec: TemplateSpec }) {
+export default function HeroSection({ site, w, spec, compact = false }: { site: PublicSite; w: WidgetInstance; spec: TemplateSpec; compact?: boolean }) {
   // Phase 5: content from the org object (hero_config) over the instance.
   const hero = parseHeroConfig(effectiveConfig(site, w));
   const heroImage = orgMediaUrl(site.id, hero.imagePath);
@@ -25,10 +25,12 @@ export default function HeroSection({ site, w, spec }: { site: PublicSite; w: Wi
   <section
     aria-label="Welcome"
     className={`relative overflow-hidden ${
-      spec.hero === 'bleed'
-        ? '-mx-4 min-[928px]:mx-0 px-6 py-14 sm:py-20 text-white'
-        : 'rounded-xl px-6 py-10 text-white'
-    }${heroImage ? ' min-h-[240px] sm:min-h-[320px] flex flex-col justify-end' : ''}`}
+      compact
+        ? 'rounded-xl px-5 py-4 text-white'
+        : spec.hero === 'bleed'
+          ? '-mx-4 min-[928px]:mx-0 px-6 py-14 sm:py-20 text-white'
+          : 'rounded-xl px-6 py-10 text-white'
+    }${heroImage && !compact ? ' min-h-[240px] sm:min-h-[320px] flex flex-col justify-end' : ''}`}
     style={{
       backgroundImage:
         'linear-gradient(to right, var(--org-accent), var(--org-accent-strong))',
@@ -62,9 +64,13 @@ export default function HeroSection({ site, w, spec }: { site: PublicSite; w: Wi
     <div className="relative">
       <h1
         className={
-          spec.hero === 'bleed'
-            ? 'text-3xl sm:text-5xl font-extrabold uppercase tracking-tight'
-            : 'text-2xl sm:text-3xl font-bold'
+          compact
+            ? spec.hero === 'bleed'
+              ? 'text-xl font-extrabold uppercase tracking-tight'
+              : 'text-xl font-bold'
+            : spec.hero === 'bleed'
+              ? 'text-3xl sm:text-5xl font-extrabold uppercase tracking-tight'
+              : 'text-2xl sm:text-3xl font-bold'
         }
       >
         {hero.headline || brandName}

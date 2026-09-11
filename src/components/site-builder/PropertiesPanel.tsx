@@ -45,6 +45,9 @@ export interface PropertiesPanelProps {
   className?: string;
   /** H7: the editor guards a tile switch while content is typed and unsaved. */
   onDirtyChange?: (dirty: boolean) => void;
+  /** Sep 11 2026 (program 2, A1): 'aside' = the desktop column (own frame);
+   *  'sheet' = hosted by a LargerWindow below lg (full width, no frame). */
+  variant?: 'aside' | 'sheet';
   showError: (title: string, message?: string) => void;
   showSuccess: (title: string, message?: string) => void;
 }
@@ -57,7 +60,7 @@ type Config = Record<string, unknown>;
 const asConfig = (c: unknown): Config => (c && typeof c === 'object' ? (c as Config) : {});
 const str = (c: Config, k: string): string => (typeof c[k] === 'string' ? (c[k] as string) : '');
 
-export default function PropertiesPanel({ site, widget, plural, orgId, options, onInstanceChange, onResize, onContentSaved, showError, showSuccess, onDirtyChange, className }: PropertiesPanelProps) {
+export default function PropertiesPanel({ site, widget, plural, orgId, options, onInstanceChange, onResize, onContentSaved, showError, showSuccess, onDirtyChange, className, variant = 'aside' }: PropertiesPanelProps) {
   const key = widget.key as SiteWidgetKey;
   const fields = fieldsFor(key);
   const instanceFields = fields.filter(f => f.scope === 'instance');
@@ -307,7 +310,7 @@ export default function PropertiesPanel({ site, widget, plural, orgId, options, 
   };
 
   return (
-    <aside ref={asideRef} tabIndex={-1} className={`w-80 shrink-0 rounded-xl border border-border bg-surface p-4 space-y-4 outline-none ${className ?? ''}`} aria-label="Section properties" data-sb-panel={key}>
+    <aside ref={asideRef} tabIndex={-1} className={`${variant === 'sheet' ? 'w-full pb-4' : 'w-80 shrink-0 rounded-xl border border-border bg-surface p-4'} space-y-4 outline-none ${className ?? ''}`} aria-label="Section properties" data-sb-panel={key} data-sb-panel-variant={variant}>
       <div>
         <p className="text-xs uppercase tracking-wide text-muted">Section</p>
         <h2 className="text-base font-semibold text-primary truncate">{title}</h2>

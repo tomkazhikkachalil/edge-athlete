@@ -50,6 +50,8 @@ export interface ThemePanelProps {
   onDirtyChange?: (dirty: boolean) => void;
   className?: string;
   onClose: () => void;
+  /** Sep 11 2026 (program 2, A1): 'sheet' = hosted by a LargerWindow below lg. */
+  variant?: 'aside' | 'sheet';
   plural: string;
   orgId: string;
   showError: (title: string, message?: string) => void;
@@ -91,7 +93,7 @@ const DESIGN: { key: DesignKey; label: string; options: readonly string[]; names
   { key: 'teams', label: 'Teams', options: THEME_TEAMS, names: { chips: 'Name chips', tiles: 'Tiles' } },
 ];
 
-export default function ThemePanel({ site, draft, onChange, onSaved, onClose, onOpenGallery, onDirtyChange, className, plural, orgId, showError, showSuccess }: ThemePanelProps) {
+export default function ThemePanel({ site, draft, onChange, onSaved, onClose, onOpenGallery, onDirtyChange, className, plural, orgId, showError, showSuccess, variant = 'aside' }: ThemePanelProps) {
   const [saving, setSaving] = useState(false);
   const tokens = parseThemeTokens(draft.tokens);
   const seed = templateSpec(draft.templateId);
@@ -159,7 +161,7 @@ export default function ThemePanel({ site, draft, onChange, onSaved, onClose, on
   };
 
   return (
-    <aside ref={asideRef} tabIndex={-1} className={`w-80 shrink-0 rounded-xl border border-border bg-surface p-4 space-y-4 outline-none ${className ?? ''}`} aria-label="Theme" data-sb-theme-panel="">
+    <aside ref={asideRef} tabIndex={-1} className={`${variant === 'sheet' ? 'w-full pb-4' : 'w-80 shrink-0 rounded-xl border border-border bg-surface p-4'} space-y-4 outline-none ${className ?? ''}`} aria-label="Theme" data-sb-theme-panel="" data-sb-panel-variant={variant}>
       {/* Every heading face, so each name can show in its own face — the
           editor only; the public site loads one face at most. */}
       <style dangerouslySetInnerHTML={{ __html: allFontFaceCss() }} />
@@ -168,9 +170,11 @@ export default function ThemePanel({ site, draft, onChange, onSaved, onClose, on
           <p className="text-xs uppercase tracking-wide text-muted">Brand</p>
           <h2 className="text-base font-semibold text-primary">Theme</h2>
         </div>
-        <button type="button" onClick={onClose} className="ea-icon-btn inline-flex h-8 w-8 items-center justify-center rounded-md text-muted hover:text-primary hover:bg-surface-sunken" aria-label="Close theme panel">
-          ×
-        </button>
+        {variant === 'aside' && (
+          <button type="button" onClick={onClose} className="ea-icon-btn inline-flex h-8 w-8 items-center justify-center rounded-md text-muted hover:text-primary hover:bg-surface-sunken" aria-label="Close theme panel">
+            ×
+          </button>
+        )}
       </div>
 
       <fieldset className="space-y-2">
