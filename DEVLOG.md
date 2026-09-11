@@ -1,5 +1,35 @@
 # Development Log
 
+## September 11, 2026 — Program 2, E1: the page-view pixel — counts without a script, a cookie or a stored identity (zero DDL beyond 188)
+
+**What.** Every public org-site page (both route trees, the shell's
+footer) carries a 1x1 GIF, `hit.gif`, a plain `<img>` on purpose (the
+optimizer would cache it). The route is `force-dynamic` and `no-store`, so
+every page load fetches it, and the middleware matcher already skips
+`*.gif`, so it never pays the auth round trip. It counts a view — and a
+visitor once per day — for a PUBLISHED site's page, read from the
+same-origin Referer (`pathKey`: the home is "/", a subpage its first two
+segments). It counts nothing for a bot, an opted-out browser (`Sec-GPC: 1`
+or `DNT: 1`), a cross-origin or missing referer, a preview, or when
+`ANALYTICS_SALT` is not configured — and answers the same GIF in every
+case, so the pixel is never a signal to the visitor.
+
+**The mark.** `visitorHash` = sha256(HMAC(salt, day) + ip + ua) truncated
+— the same browser is one visitor for one day and an unlinkable mark the
+next; no IP, user agent or cookie is ever stored (`analytics.ts`, pure,
+tested). `recordSiteHit` makes ONE RPC (`bump_site_hit`, mig 188) with a
+1.5 s ceiling and logs a failure once — the pixel is never slow or loud; a
+missing migration counts nothing. The daily cron prunes marks older than 2
+days and daily rows older than 400 (`analyticsPruneCutoffs`, pinned).
+`.env.example` documents `ANALYTICS_SALT`; **Tom sets it in Vercel** (unset
+in production = a working pixel that counts nothing).
+
+**e2e.** `org-site-analytics.spec.ts` (skips until 188 has run): the page
+carries the pixel; two fetches with one browser on the home and one on the
+standings page → `/` views 2, visitors 1 and `/standings` views 1; an
+opted-out fetch, a bot, a foreign referer, a preview referer and no referer
+count nothing; the pixel is a no-store GIF; the mark is a hash.
+
 ## September 11, 2026 — Program 2, E0: migration 188 — first-party site analytics tables and the hit RPC
 
 **The file only.** `database/migrations/188_org_site_analytics.sql`:
