@@ -1,5 +1,26 @@
 # Development Log
 
+## September 11, 2026 — Maintenance sweep, end of Site Builder program 2
+
+- Gate green on `main` at the #695 merge (d02c1d6d): typecheck, lint at
+  zero warnings, 3,091 node tests across 307 files, production build, the
+  browser-floor gate over 179 client chunks; `scripts/hardening-guardrails.sh`
+  green (every `(public)` page declares `revalidate` or `dynamic`; audit 0
+  high/critical).
+- Final production probe against the #695 deploy: the Sections list on
+  mobile and WebKit (2/2), composed pages (1/1), SEO (2/2), forms (1/1), the
+  editor (2/2), the start flow (3/3). The analytics probe first failed on
+  production by design — `ANALYTICS_SALT` was not yet set in Vercel, so
+  `hit.gif` answered (200, `image/gif`, `no-store`) and counted nothing, the
+  supported state `docs/ANALYTICS.md` describes. Tom set the salt and
+  redeployed (dpl_2Xf1zf8q…); the probe then passed against production (1/1):
+  views and daily visitors counted, opt-out, bots, foreign and preview
+  referers count nothing.
+- Session doc re-aligned: header at the sweep; the program-2 paragraph
+  carries the final probe result. No code changes. Program 2 (#677–#695,
+  migrations 185–188) is complete and prod-proven; the four merged branches
+  are deleted locally; the next program is Tom's call.
+
 ## September 11, 2026 — Program 2, F: the docs close (zero DDL)
 
 Site Builder program 2 — the six manager gaps — is complete: **A** the panels
