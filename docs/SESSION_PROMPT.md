@@ -1,13 +1,13 @@
 # Start Session — Edge Athlete Development
 
 > Tom's session-start prompt. Paste this (or point Claude at it) when opening a
-> development session. Last aligned with project state: **September 10, 2026
+> development session. Last aligned with project state: **September 11, 2026
 > (after the Site Builder program, phases 1–11, #616–#644, its hardening
-> round H1–H8, #645–#652, its backlog round B1–B6, #653–#658, and the
-> residue PR, the Contest Place program E1–E4, #661–#664, and the
-> Recruiting skeleton R1–R5, #665–#669)** — migration head 184; `main` at
-> the #669 merge (03f683d4), deployed and prod-probed step by step; **no
-> program is open**. If the
+> round H1–H8, #645–#652, its backlog round B1–B6, #653–#658, the Contest
+> Place program E1–E4, #661–#664, the Recruiting skeleton R1–R5, #665–#669,
+> and the Sep 11 felt-customization round #672–#674)** — migration head 184;
+> `main` at the #674 merge (ed3c1853), deployed and prod-probed step by
+> step; **no program is open**. If the
 > "Where the project actually is" section drifts stale, ask
 > Claude to re-align it against DEVLOG.md and session memory.
 
@@ -344,13 +344,35 @@ hero's 928–1023px overhang, and `workers: 1` recorded as accepted.
    `docs/RECRUITING.md`. **Tom runs 182 before R1 merges and 183 before R3
    merges**; the scout specs self-skip until then and are the prod probes.
 
-**Both programs are COMPLETE and prod-proven (Sep 10).** Open: Tom's device
-pass of a contest page (`/event/[id]`, the org-site twin) and the scouting
-area (`/app/scout`, `/app/scout/search`) on his phone; the device pass of a
-real branded club through the editor; the one-hour number once real
-publishes exist; Search Console, custom-domain env, the capture-fix device
-pass, a first real staff invite; deleting the dead Vercel variable
-`NEXT_PUBLIC_FEATURE_SITE_BUILDER`. Parked code (no owner): bracket / meet
+**Both programs are COMPLETE and prod-proven (Sep 10).**
+
+**Sep 11 — the felt-customization round (#672–#674, zero DDL), COMPLETE.**
+Tom forwarded resequencing advice written against the builder's phase-1
+shape; an audit showed instances / autosave / publish / grid already built
+and three real gaps. **#672** fixed a REAL profile-strip bug (the other
+side's NULL org id in a PostgREST `in()` emptied the whole side for anyone
+in a club AND a league — Tom himself) and wrote down his rule: own
+memberships always show; a viewer sees the org's visibility (CLAUDE.md
+convention 15). **#673** put the design moment at creation: the console's
+`?welcome=1` landing carries `WelcomeDesignPick` (the gallery's own
+thumbnails over the org's real facts; Use this → `apply_gallery clean`;
+Take it live / Open the editor / Later; one shared `isFreshSite` rule) and
+three more golf designs (Weekly league, Points race, Social — golf has six).
+**#674** made the phone editor: below `lg` the editor is the Sections list
+(reading order; Move up / down; Remove; a named Size small · medium · wide
+as a preset over `w`; pure helpers in `sections.ts`), the panel gained the
+Size field, one header for both widths, gallery + picker as bottom sheets at
+every width. Drag-to-reorder deferred (up/down first); titles / words /
+colours still need `lg`. The dead Vercel variable
+`NEXT_PUBLIC_FEATURE_SITE_BUILDER` was deleted.
+
+Open: Tom's phone pass — create a golf club → the welcome card → Use this →
+the editor's list → Move / Size → Publish; his device pass of a contest page
+(`/event/[id]`, the org-site twin) and the scouting area (`/app/scout`,
+`/app/scout/search`); the device pass of a real branded club through the
+editor; the one-hour number once real publishes exist; Search Console,
+custom-domain env, the capture-fix device pass, a first real staff invite.
+Parked code (no owner): drag-to-reorder in the Sections list; bracket / meet
 formats and ad-hoc teams, adapter competition hooks, a composer
 attach-to-event picker (DEVLOG E4); the recruiting growth paths in
 `docs/RECRUITING.md`. The next program is Tom's call.
@@ -367,7 +389,7 @@ attach-to-event picker (DEVLOG E4); the recruiting growth paths in
   covers layout, not memory: media work is verified with phone-SIZED inputs
   (`e2e/fixtures/rotated6-12mp.jpg`), not thumbnails.
 - Schema changes are numbered migrations in database/migrations/ (currently
-  at 180), the source of truth for the schema.
+  at 184), the source of truth for the schema.
 - Secrets live in environment variables (Vercel-managed); guardian/minor data
   follows the standing safety lines (no DM transcripts, never auto-publish a
   minor's post, append-only consent/audit).

@@ -474,14 +474,26 @@ const { canView } = await response.json();
      sponsors, pages, news, course photos): canvas, picker, properties panel, theme
      panel (live preview, saved through the console's own actions), the
      checklist rail (`checklist.ts`, derived, `ChecklistStep` shape), undo
-     with coalescing (`useHistory`), autosave (`useDraft`). Below `lg` the
-     same route shows a notice with working Preview / Publish / Back.
-     `onReload` goes back through the spinner — a keyed remount alone keeps
-     the stale canvas prop.
+     with coalescing (`useHistory`), autosave (`useDraft`). **Below `lg`
+     the same route is the Sections list** (Sep 11 2026, #674 —
+     `SectionsList.tsx`): the SAME draft in reading order with Move up /
+     Move down, Remove (the undo toast) and a named Size per section
+     (small · medium · wide = a PRESET over `w`, `SizeControl.tsx`, also the
+     panel's `size` field) — every edit is one `history.commit`, autosaved
+     like a drag. The helpers are pure in `sections.ts` (`readingOrder`,
+     `flowLayout`, `resizeToPreset`, `moveInstance` / `canMove`; the hero
+     never moves; no change returns the same object) and every result
+     passes `validateLayout`. ONE header for both widths (the status chip
+     renders once); the gallery and the picker live at the editor ROOT
+     (`LargerWindow` is a bottom sheet on a phone). `onReload` goes back
+     through the spinner — a keyed remount alone keeps the stale canvas
+     prop.
    - **Gallery + metrics** (phase 11, `gallery.ts` / `gallery-ids.ts`,
      `Gallery.tsx`, `metrics-rollup.ts`): `template_id ∈ classic|bold` stays
      the DB FAMILY (mig 170's CHECK); a gallery ENTRY is family + design
-     tokens + a seed PLAN, six of them, ≥3 per side × sport. `apply_gallery`
+     tokens + a seed PLAN, nine of them (golf has six: Clubhouse, Tour,
+     Weekly league, Points race, Social, Simple — #673), ≥3 per side ×
+     sport. `apply_gallery`
      generates the welcome from the org's real facts and a map only when a
      venue has coordinates (`osmEmbedAround`), lays the org's ENABLED
      modules per the plan and **never creates a module instance the layout
@@ -489,7 +501,11 @@ const { canView } = await response.json();
      the manager's tiles, `clean` clears them first. Thumbnails are block
      diagrams of the SAME seed the server applies (over the canvas GET's
      `gallery` facts) — no iframes, no fetches. The gallery opens itself
-     once on a never-arranged, never-published site. `GET /api/admin/site-
+     once on a never-arranged, never-published site — and so does the
+     console's **welcome design pick** (`WelcomeDesignPick.tsx` on
+     `?welcome=1`, the creation-time design moment, #673): both read the
+     ONE fresh-site rule `seeds.ts isFreshSite`, a pick applies
+     `apply_gallery clean`, so a manager is never offered twice. `GET /api/admin/site-
      metrics` folds the revisions' `stats` into the one-hour question
      (nearest-rank percentiles; `truncated` flags capped reads); the
      dashboard "Site builder" panel shows it and hosts the storage sweep's
@@ -510,7 +526,7 @@ const { canView } = await response.json();
      layout. The autosave is `draft-state.ts` (one save in flight, typed
      outcomes, `publishBlocker`); a not-yet-live site publishes THE SITE
      from the editor (`publishPlan`); the removal toast undoes the removal;
-     the gallery flushes first and lives in the ≥lg branch; `openPreview`
+     the gallery flushes first (it lives at the editor root since #674); `openPreview`
      opens the tab on the click; dirty panels are guarded by the house
      `ConfirmModal`.
    - e2e: a spec that reads the PUBLIC page must first take the site LIVE
@@ -571,6 +587,21 @@ const { canView } = await response.json();
    hold. The ladder's words live in `src/lib/sports/provenance-copy.ts`;
    a disputed line is "Unconfirmed" and leaves the headline numbers.
    `docs/RECRUITING.md` carries the entities, gates and growth paths.
+
+15. **Your own affiliations always show; a viewer sees the org's visibility
+   (profile org strip, Sep 11 2026, #672, zero DDL)** — Tom's rule: your
+   own memberships always appear on your own profile regardless of listing
+   or visibility; LISTING governs whether strangers can discover the org;
+   VISIBILITY governs what strangers see inside it; neither governs whether
+   you see your own affiliation; on someone else's profile apply the org's
+   visibility. `getProfileOrganizations(admin, profileId, opts)` takes the
+   viewer (`SELF_VIEW` for self or guardian, `STRANGER_VIEW` for the
+   CDN-cached `/u/` payload) and filters with the pure
+   `src/lib/affiliations/org-visibility.ts filterOrgsForViewer` (a private
+   org only to its members). `profileMembershipRows` selects ONE side's org
+   column — always `.not(col, 'is', null)` before an `.in()` (a NULL in a
+   PostgREST `in()` is a 400 that emptied the whole side for anyone in a
+   club AND a league). `e2e/profile-orgs.spec.ts` is the regression.
 ---
 
 ## 🔧 Common Tasks
