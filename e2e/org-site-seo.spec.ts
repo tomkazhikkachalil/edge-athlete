@@ -72,7 +72,8 @@ test('org site seo + footer + icon: the draft writes, publish, the public head a
       };
       const base = await pathFor(subdomain);
       const html = await settleBody(anon.request, base, `Est. ${stamp}`);
-      expect(html).toContain(`<title>Seo League ${stamp}</title>`);
+      // The (public) root layout templates every title as '%s · Edge Athlete'.
+      expect(html).toContain(`<title>Seo League ${stamp} · Edge Athlete</title>`);
       expect(html).toContain(`content="Ice on the river ${stamp}"`);
       const file = assetPath.split('/').pop()!;
       expect(html).toMatch(new RegExp(`property="og:image" content="[^"]*/api/media/org-media/${siteId}/${file}"`));
@@ -83,12 +84,12 @@ test('org site seo + footer + icon: the draft writes, publish, the public head a
       expect(footer).toContain('https://instagram.com/qa-seo-league');
       expect(footer).toContain('Powered by');
       const pageHtml = await settleBody(anon.request, `${base}/about-${stamp}`, `About ${stamp} — Seo League ${stamp}`);
-      expect(pageHtml).toContain(`<title>About ${stamp} — Seo League ${stamp}</title>`);
+      expect(pageHtml).toContain(`<title>About ${stamp} — Seo League ${stamp} · Edge Athlete</title>`);
       // The other route tree answers the same head.
       const twin = base.startsWith('/org/') ? `/${subdomain}` : `/org/${subdomain}`;
       const twinRes = await anon.request.get(twin, { maxRedirects: 0 });
       expect([200, 301]).toContain(twinRes.status());
-      if (twinRes.status() === 200) expect(await twinRes.text()).toContain(`<title>Seo League ${stamp}</title>`);
+      if (twinRes.status() === 200) expect(await twinRes.text()).toContain(`<title>Seo League ${stamp} · Edge Athlete</title>`);
       // 375px: the footer inside the viewport.
       const page = await anon.newPage();
       await page.setViewportSize({ width: 375, height: 812 });
@@ -101,6 +102,86 @@ test('org site seo + footer + icon: the draft writes, publish, the public head a
   } finally {
     await ownerApi.dispose();
     if (assetPath) await admin.storage.from('uploads').remove([assetPath]).catch(() => {});
+    await admin.from('leagues').delete().eq('id', leagueId);
+  }
+});
+
+// Program 2, C2: the same settings through the editor's Settings panel — an
+// aside beside the canvas on a laptop, a sheet on a phone. Title, description,
+// a footer line and link, the socials switch, an icon upload → Save → the
+// site GET carries them; a dirty panel asks before a stray tile click.
+test('org site settings panel: SEO, footer and icon from the editor; the sheet at 390; the dirty guard', async ({ browser }) => {
+  test.setTimeout(240_000);
+  const owner = loadQaUser('user-b.json');
+  const admin = adminClient();
+  await resetRateBucket(admin, 'org-site', owner.id);
+  await resetRateBucket(admin, 'org-site-draft', owner.id);
+  const ownerApi = await apiAs('state-b.json');
+  const stamp = Date.now();
+  const { data: league, error } = await admin
+    .from('leagues')
+    .insert({ name: `QA Settings League ${stamp}`, sport_key: 'ice_hockey', owner_profile_id: owner.id })
+    .select('id')
+    .single();
+  expect(error, error?.message).toBeNull();
+  const leagueId = league!.id as string;
+  await admin.from('memberships').insert([{ league_id: leagueId, profile_id: owner.id, role: 'owner' }]);
+  let iconPath: string | null = null;
+  try {
+    let res = await ownerApi.post(`/api/leagues/${leagueId}/site`);
+    expect(res.status(), await readErrorBody(res)).toBe(200);
+    const siteId = (await res.json()).site.id as string;
+    res = await ownerApi.patch(`/api/leagues/${leagueId}/site`, { data: { action: 'publish' } });
+    expect(res.status(), await readErrorBody(res)).toBe(200);
+    test.skip(!(await revisionsSupported(ownerApi, 'league', leagueId)), 'org_site_revisions missing — run migration 180');
+    const { error: probeError } = await admin.from('org_sites').select('seo_config').eq('id', siteId).maybeSingle();
+    test.skip(probeError?.code === '42703', 'org_sites.seo_config missing — run migration 186');
+
+    const ctx = await browser.newContext({ storageState: 'e2e/.auth/state-b.json', viewport: { width: 1280, height: 900 } });
+    try {
+      const page = await ctx.newPage();
+      await page.goto(`/app/org/league/${leagueId}/site/edit`);
+      await expect(page.locator('[data-sb-canvas]')).toBeVisible({ timeout: 30_000 });
+      await page.getByRole('button', { name: 'Settings', exact: true }).click();
+      const panel = page.locator('[data-sb-settings-panel]');
+      await expect(panel).toBeVisible();
+      await panel.getByLabel('Site title').fill(`Settings League ${stamp}`);
+      await panel.getByLabel('Description').fill(`Set from the editor ${stamp}`);
+      await panel.getByLabel('Footer line').fill(`Footer ${stamp}`);
+      await panel.locator('[data-sb-footer-add-link]').click();
+      await panel.getByLabel('Link 1 label').fill(`Rules ${stamp}`);
+      await panel.getByLabel('Link 1 URL').fill('https://example.com/rules');
+      await panel.getByLabel('Show social links').check();
+      await panel.locator('#sb-site-icon').setInputFiles('e2e/fixtures/photo.png');
+      await expect(panel.locator('[data-sb-asset-preview="sb-site-icon"]')).toBeVisible({ timeout: 20_000 });
+      // A dirty panel asks before a stray tile click; Cancel keeps it.
+      await page.locator('[data-sb-widget="hero"] .sb-frame-controls').click();
+      const discard = page.getByText('Discard changes?', { exact: true }).locator('..').locator('..');
+      await expect(discard).toBeVisible();
+      await discard.getByRole('button', { name: 'Cancel' }).click();
+      await expect(panel).toBeVisible();
+      await panel.locator('[data-sb-settings-save]').click();
+      await expect(page.getByRole('alert').filter({ hasText: 'Site settings saved' })).toBeVisible({ timeout: 15_000 });
+      const saved = (await (await ownerApi.get(`/api/leagues/${leagueId}/site`)).json()) as { site: { seo_config: Record<string, unknown>; footer_config: Record<string, unknown>; theme_token_set: Record<string, unknown> } };
+      expect(saved.site.seo_config).toMatchObject({ title: `Settings League ${stamp}`, description: `Set from the editor ${stamp}` });
+      expect(saved.site.footer_config).toMatchObject({ text: `Footer ${stamp}`, links: [{ label: `Rules ${stamp}`, url: 'https://example.com/rules' }], showSocials: true });
+      iconPath = (saved.site.theme_token_set.iconPath as string | undefined) ?? null;
+      expect(iconPath).toMatch(new RegExp(`^org-media/${siteId}/`));
+      // The phone: the same panel as a sheet.
+      await page.setViewportSize({ width: 390, height: 844 });
+      await page.getByRole('button', { name: 'Settings', exact: true }).click();
+      const sheet = page.locator('[data-larger-window="sb-settings"]');
+      await expect(sheet).toBeVisible();
+      await expect(sheet.getByLabel('Site title')).toHaveValue(`Settings League ${stamp}`);
+      expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
+      await page.keyboard.press('Escape');
+      await expect(sheet).toBeHidden();
+    } finally {
+      await ctx.close();
+    }
+  } finally {
+    await ownerApi.dispose();
+    if (iconPath) await admin.storage.from('uploads').remove([iconPath]).catch(() => {});
     await admin.from('leagues').delete().eq('id', leagueId);
   }
 });
