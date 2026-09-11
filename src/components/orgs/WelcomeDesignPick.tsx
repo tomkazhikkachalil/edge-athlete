@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useToast } from '@/components/Toast';
 import type { PublicSite } from '@/lib/org-sites/server';
@@ -51,6 +51,13 @@ export default function WelcomeDesignPick({ side, orgId, plural }: Props) {
   const [applied, setApplied] = useState<GalleryEntry | null>(null);
   const [live, setLive] = useState(false);
   const [goingLive, setGoingLive] = useState(false);
+  // The card shrinks from a six-card grid to one confirmation; a pick from
+  // the lower rows (a laptop, 768px main) would leave the viewport below it,
+  // on the Website section. Bring the confirmation into view once it exists.
+  const appliedRef = useRef<HTMLElement>(null);
+  useEffect(() => {
+    if (state === 'applied') appliedRef.current?.scrollIntoView({ block: 'start' });
+  }, [state]);
 
   useEffect(() => {
     let cancelled = false;
@@ -144,7 +151,7 @@ export default function WelcomeDesignPick({ side, orgId, plural }: Props) {
 
   if (state === 'applied' && applied) {
     return (
-      <section aria-label="Your site's design" className="rounded-xl border border-border bg-surface p-4 sm:p-5" data-welcome-design="applied">
+      <section ref={appliedRef} aria-label="Your site's design" className="rounded-xl border border-border bg-surface p-4 sm:p-5" data-welcome-design="applied">
         <p className="font-medium text-primary">{`Your site is arranged — ${applied.name}.`}</p>
         <p className="mt-0.5 text-sm text-secondary">
           {live

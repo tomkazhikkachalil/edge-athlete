@@ -1,5 +1,31 @@
 # Development Log
 
+## September 11, 2026 — Desktop pass of the design pick (zero DDL)
+
+Tom asked whether the round is as good on a laptop as on a phone — most
+sites will be built on a larger screen. The desktop editor was already
+covered (`org-site-editor.spec.ts`: canvas, drag, the panel's Size control,
+publish; the two desktop tests in `org-site-start.spec.ts`), but the
+welcome design pick had only a `@mobile` test and the laptop hand-off had
+never been walked. Now it is: a new untagged desktop test in
+`org-site-start.spec.ts` (the club request → `?welcome=1` at 1280 → six
+cards two across inside the console's 768px main → Use this on Points race
+→ the confirmation is IN the viewport → Open the editor → the arranged
+canvas: hero, then standings, the welcome tile present, the chip clean, the
+gallery's first-open offer shut → Publish site → the public page answers).
+The two welcome tests share one `provisionGolfClub` helper in the spec.
+
+**The pass found one thing** (fixed): a pick from the third row of cards
+left the page scrolled below the confirmation — the six-card grid shrinks
+to one card, so the viewport landed on the Website section and the manager
+never saw "Your site is arranged" or its three doors. `WelcomeDesignPick`
+now scrolls the confirmation into view once it exists (an effect on the
+applied section's ref — a `setTimeout` after the state change fired before
+the section was there and the test's `toBeInViewport` caught it). Screenshots at 1280 of the
+card, the editor after the hand-off and the panel with Size looked right
+otherwise; the hero tile's clipped CTA at 12×3 is pre-existing (height is a
+minimum) and left alone.
+
 ## September 11, 2026 — Docs close of the felt-customization round (zero DDL)
 
 #672–#674 merged in order (a stack of merge commits — no rebases). This PR
