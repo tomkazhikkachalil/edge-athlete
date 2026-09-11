@@ -171,6 +171,8 @@ export const THEME_TEAMS = ['chips', 'tiles'] as const;
 export const THEME_DESIGN_KEYS = ['header', 'hero', 'density', 'teams'] as const;
 
 export interface ThemeTokens {
+  /** Program 2, C (Sep 11 2026): the chosen site icon — an org-media/{siteId}/ image; null = the logo, else the generated favicon. */
+  iconPath: string | null;
   accent: string | null;
   /** The gradient end / link colour; null = deriveStrongAccent(accent). */
   accentStrong: string | null;
@@ -202,6 +204,7 @@ export function parseThemeTokens(themeTokenSet: unknown): ThemeTokens {
   const pick = <T extends string>(list: readonly T[], v: unknown): T | null =>
     typeof v === 'string' && (list as readonly string[]).includes(v) ? (v as T) : null;
   return {
+    iconPath: typeof raw.iconPath === 'string' && ORG_IMAGE_PATH_RE.test(raw.iconPath) ? raw.iconPath : null,
     accent: hex(raw.accent),
     accentStrong: hex(raw.accentStrong),
     surface: pick(THEME_SURFACES, raw.surface) ?? 'plain',
@@ -231,6 +234,12 @@ export function resolveAccentPair(tokens: ThemeTokens): { accent: string; strong
 
 export const NAV_LABEL_MAX = 24;
 export const PAGE_SLUG_MAX = 80;
+// Program 2, C (Sep 11 2026): SEO + footer bounds (the parsers live at the end of the file).
+export const SEO_TITLE_MAX = 60;
+export const SEO_DESCRIPTION_MAX = 160;
+export const FOOTER_TEXT_MAX = 200;
+export const FOOTER_LINKS_MAX = 6;
+export const FOOTER_LINK_LABEL_MAX = 40;
 
 /** Program 2, B (Sep 11 2026): a custom page's place in the header rides
  *  nav_config as `{ key: 'page:<uuid>' }`. Module readers keep `order`
@@ -705,6 +714,8 @@ export const SitePatchSchema = z.discriminatedUnion('action', [
     surface: z.enum(THEME_SURFACES).optional(),
     typeface: z.enum(THEME_TYPEFACES).optional(),
     wordmark: optionalTrimmed(WORDMARK_MAX),
+    // Program 2, C: the site icon — a value sets, null clears, absent carries over.
+    iconPath: z.string().regex(ORG_IMAGE_PATH_RE, 'Not a site image').nullable().optional(),
     // Phase 7 design overrides: absent = keep what the draft holds (the
     // console never sends them); null = clear (back to the template's).
     header: z.enum(THEME_HEADERS).nullable().optional(),
@@ -755,6 +766,20 @@ export const SitePatchSchema = z.discriminatedUnion('action', [
     inNav: z.boolean().optional(),
   }),
   z.object({ action: z.literal('remove_page'), pageId: z.uuid() }),
+  // Program 2, C (Sep 11 2026): the site's SEO and footer — whole-object
+  // replaces like set_hero / set_contact (the panel sends every field).
+  z.object({
+    action: z.literal('set_seo'),
+    title: optionalTrimmed(SEO_TITLE_MAX),
+    description: optionalTrimmed(SEO_DESCRIPTION_MAX),
+    imagePath: z.string().regex(ORG_IMAGE_PATH_RE, 'Not a site image').nullable().optional(),
+  }),
+  z.object({
+    action: z.literal('set_footer'),
+    text: optionalTrimmed(FOOTER_TEXT_MAX),
+    links: z.array(z.object({ label: boundedTrimmed(FOOTER_LINK_LABEL_MAX), url: httpsUrl })).max(FOOTER_LINKS_MAX).optional(),
+    showSocials: z.boolean().optional(),
+  }),
   z.object({
     action: z.literal('set_sponsors'),
     sponsors: z
@@ -1060,3 +1085,49 @@ export const AdminDomainActionSchema = z.object({
   siteId: z.uuid(),
   action: z.enum(['retry-attach', 'probe']),
 });
+
+// ── Program 2, C (Sep 11 2026): SEO and footer configs ──────────────────────
+// org_sites.seo_config / footer_config (mig 186) — mirrored from the snapshot
+// on publish like hero_config. Parsed defensively at render; never throw.
+
+export interface SeoConfig {
+  title: string | null;
+  description: string | null;
+  /** A site image (org-media/{siteId}/…) for the social card; null = card.png. */
+  imagePath: string | null;
+}
+
+export interface FooterConfig {
+  text: string | null;
+  links: { label: string; url: string }[];
+  /** Render the contact card's social links in the footer. */
+  showSocials: boolean;
+}
+
+export function parseSeoConfig(raw: unknown): SeoConfig {
+  const r = raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : {};
+  const text = (v: unknown, max: number) => (typeof v === 'string' && v.trim() ? v.trim().slice(0, max) : null);
+  return {
+    title: text(r.title, SEO_TITLE_MAX),
+    description: text(r.description, SEO_DESCRIPTION_MAX),
+    imagePath: typeof r.imagePath === 'string' && ORG_IMAGE_PATH_RE.test(r.imagePath) ? r.imagePath : null,
+  };
+}
+
+export function parseFooterConfig(raw: unknown): FooterConfig {
+  const r = raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : {};
+  const links: { label: string; url: string }[] = [];
+  if (Array.isArray(r.links)) {
+    for (const item of r.links.slice(0, FOOTER_LINKS_MAX)) {
+      if (!item || typeof item !== 'object') continue;
+      const { label, url } = item as Record<string, unknown>;
+      if (typeof label !== 'string' || !label.trim() || typeof url !== 'string' || !httpsUrl.safeParse(url).success) continue;
+      links.push({ label: label.trim().slice(0, FOOTER_LINK_LABEL_MAX), url: url.trim() });
+    }
+  }
+  return {
+    text: typeof r.text === 'string' && r.text.trim() ? r.text.trim().slice(0, FOOTER_TEXT_MAX) : null,
+    links,
+    showSocials: r.showSocials === true,
+  };
+}

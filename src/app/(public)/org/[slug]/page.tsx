@@ -5,7 +5,7 @@ import { buildOrgJsonLd, safeJsonLd } from '@/lib/org-sites/jsonld';
 import { seedLayout } from '@/lib/site-builder/seeds';
 import { cachedSiteReaders, resolveHomeData } from '@/lib/org-sites/widget-data';
 import GridRenderer from './_components/GridRenderer';
-import { siteAbsoluteUrl } from '@/lib/org-sites/urls';
+import { siteHead } from '@/lib/org-sites/metadata';
 
 // ── The site home (phase 3 R2; body shared with the draft preview) ─────────
 // The section list itself IS the product surface: enabled modules render
@@ -40,20 +40,18 @@ export async function generateMetadata({ params }: PageParams): Promise<Metadata
   const { slug } = await params;
   const site = await getCachedSite(slug);
   if (!site) return { title: 'Not found' };
-  const title = site.orgName;
-  const description = `${site.orgName} on Edge Athlete — schedule, standings, and teams.`;
-  // Relative canonical — the (public) layout's metadataBase resolves it,
-  // so the canonical domain is an env decision, never a code one.
-  const canonical = `${siteAbsoluteUrl(site)}`;
+  // Program 2, C: the manager's SEO config with the platform defaults as
+  // fallbacks — ONE builder (metadata.ts). The card is an EXPLICIT route
+  // (/org/{slug}/card.png), not the opengraph-image convention file — the
+  // convention hash-suffixes its URL under a route group; explicit images
+  // are deterministic and probe-able. The layout's metadataBase resolves a
+  // relative image (an uploaded social image through the streamer).
+  const head = siteHead(site);
   return {
-    title,
-    description,
-    alternates: { canonical },
-    // The card is an EXPLICIT route (/org/{slug}/card.png), not the
-    // opengraph-image convention file — the convention hash-suffixes its
-    // URL under a route group; explicit images are deterministic and
-    // probe-able.
-    openGraph: { title, description, url: canonical, siteName: 'Edge Athlete', type: 'website', images: [`${siteAbsoluteUrl(site)}/card.png`] },
+    title: head.title,
+    description: head.description,
+    alternates: { canonical: head.canonical },
+    openGraph: { title: head.title, description: head.description, url: head.canonical, siteName: 'Edge Athlete', type: 'website', images: [head.image] },
   };
 }
 

@@ -56,6 +56,8 @@ export type RevisionSupport = 'supported' | 'pre180';
  *  org_site_pages. Pre-185 the page rows carry title / slug / visibility
  *  only — the mirror writes those and never names the missing columns. */
 export type PagesSupport = 'supported' | 'pre185';
+/** Program 2, C: mig 186 adds seo_config + footer_config to org_sites. */
+export type SiteExtrasSupport = 'supported' | 'pre186';
 
 export interface RevisionRow {
   id: string;
@@ -142,6 +144,20 @@ export interface LoadedRows {
   /** Program 2, B: the page rows (the published projection of `snapshot.pages`). */
   pages: SnapshotPageRow[];
   pagesSupport: PagesSupport;
+  /** Program 2, C: whether the site row carries seo_config / footer_config. */
+  siteSupport: SiteExtrasSupport;
+}
+
+const SITE_ROW_FIELDS = 'template_id, theme_token_set, nav_config, hero_config, contact_config';
+const SITE_ROW_FIELDS_186 = `${SITE_ROW_FIELDS}, seo_config, footer_config`;
+
+async function loadSiteRow(admin: Admin, siteId: string): Promise<{ site: SnapshotSiteRow; siteSupport: SiteExtrasSupport } | null> {
+  const full = await admin.from('org_sites').select(SITE_ROW_FIELDS_186).eq('id', siteId).maybeSingle();
+  if (!full.error) return full.data ? { site: full.data as SnapshotSiteRow, siteSupport: 'supported' } : null;
+  if (full.error.code !== '42703') return null;
+  const base = await admin.from('org_sites').select(SITE_ROW_FIELDS).eq('id', siteId).maybeSingle();
+  if (base.error || !base.data) return null;
+  return { site: base.data as SnapshotSiteRow, siteSupport: 'pre186' };
 }
 
 const PAGE_ROW_FIELDS = 'id, slug, title, body, visibility, created_at, layout, in_nav';
@@ -168,12 +184,8 @@ async function loadPageRows(admin: Admin, siteId: string): Promise<{ pages: Snap
 
 /** The current projection: the site's content columns + module rows + page rows. */
 export async function loadRows(admin: Admin, siteId: string): Promise<LoadedRows | null> {
-  const [{ data: site, error }, { data: modules }, pageRows] = await Promise.all([
-    admin
-      .from('org_sites')
-      .select('template_id, theme_token_set, nav_config, hero_config, contact_config')
-      .eq('id', siteId)
-      .maybeSingle(),
+  const [siteRow, { data: modules }, pageRows] = await Promise.all([
+    loadSiteRow(admin, siteId),
     admin
       .from('org_site_modules')
       .select('module_key, enabled, sort_order, config')
@@ -182,8 +194,8 @@ export async function loadRows(admin: Admin, siteId: string): Promise<LoadedRows
       .limit(40),
     loadPageRows(admin, siteId),
   ]);
-  if (error || !site || !pageRows) return null;
-  return { site: site as SnapshotSiteRow, modules: (modules ?? []) as SnapshotModuleRow[], pages: pageRows.pages, pagesSupport: pageRows.pagesSupport };
+  if (!siteRow || !pageRows) return null;
+  return { site: siteRow.site, modules: (modules ?? []) as SnapshotModuleRow[], pages: pageRows.pages, pagesSupport: pageRows.pagesSupport, siteSupport: siteRow.siteSupport };
 }
 
 /** The rows as a snapshot (pages converted where a row still speaks in blocks). */
@@ -336,12 +348,15 @@ export async function writeSnapshotToRows(
   siteId: string,
   prev: SiteSnapshot | null,
   next: SiteSnapshot,
-  pagesSupport: PagesSupport = 'supported'
+  pagesSupport: PagesSupport = 'supported',
+  siteSupport: SiteExtrasSupport = 'supported'
 ): Promise<{ ok: true } | { ok: false; code?: string }> {
   // H2: the site row FIRST — its template CHECK (mig 170) is the one write
   // that can be refused, and refusing it before any module row moves keeps
   // a failed publish from leaving half a mirror behind.
-  const { site } = rowsFromSnapshot(next);
+  const { site: fullSite } = rowsFromSnapshot(next);
+  // Program 2, C: pre-186 the two columns do not exist — never name them.
+  const site: Record<string, unknown> = siteSupport === 'supported' ? { ...fullSite } : { template_id: fullSite.template_id, theme_token_set: fullSite.theme_token_set, nav_config: fullSite.nav_config, hero_config: fullSite.hero_config, contact_config: fullSite.contact_config };
   const { error: siteError } = await admin.from('org_sites').update(site).eq('id', siteId);
   if (siteError) {
     console.error(`${TAG} site mirror error:`, siteError);
@@ -428,7 +443,7 @@ export async function applyDraftAction(
     if (!rows) return { status: 'not_found' };
     const prev = rowsSnapshot(rows);
     const next = applySiteAction(prev, action, ctx);
-    const written = await writeSnapshotToRows(admin, site.id, prev, next, rows.pagesSupport);
+    const written = await writeSnapshotToRows(admin, site.id, prev, next, rows.pagesSupport, rows.siteSupport);
     if (!written.ok) return { status: 'error' };
     revalidateTag(`org-site:${site.subdomain}`, { expire: 0 });
     return { status: 'live', subdomain: site.subdomain, snapshot: next };
@@ -442,7 +457,7 @@ export async function applyDraftAction(
       if (!rows) return { status: 'not_found' };
       const prev = rowsSnapshot(rows);
       const next = applySiteAction(prev, action, ctx);
-      const written = await writeSnapshotToRows(admin, site.id, prev, next, rows.pagesSupport);
+      const written = await writeSnapshotToRows(admin, site.id, prev, next, rows.pagesSupport, rows.siteSupport);
       if (!written.ok) return { status: 'error' };
       revalidateTag(`org-site:${site.subdomain}`, { expire: 0 });
       return { status: 'live', subdomain: site.subdomain, snapshot: next };
@@ -574,7 +589,7 @@ export async function publishDraft(
 
   // Mirror the snapshot into the rows (site row first — the template CHECK).
   const prev = rowsSnapshot(rows);
-  const written = await writeSnapshotToRows(admin, site.id, prev, snapshot, rows.pagesSupport);
+  const written = await writeSnapshotToRows(admin, site.id, prev, snapshot, rows.pagesSupport, rows.siteSupport);
   if (!written.ok) {
     // Un-stamp (best effort) so the row is a draft again; the rows may be
     // half-mirrored past the site row — purge so the page shows them as

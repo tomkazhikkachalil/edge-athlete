@@ -5,6 +5,8 @@ import {
   MODULE_SUBPAGE_KEYS,
   moduleLabel,
   noticeActive,
+  parseContact,
+  parseFooterConfig,
   parseHeroConfig,
   parseNavConfig,
   parseThemeTokens,
@@ -51,6 +53,11 @@ export default function SiteShell({
   // the data attributes all come from one helper the editor canvas shares.
   const tokens = parseThemeTokens(site.theme_token_set);
   const hero = parseHeroConfig(site.hero_config);
+  // Program 2, C: the manager's footer — a line, up to six links, the
+  // contact card's socials when asked; "Powered by Edge Athlete" stays.
+  const footer = parseFooterConfig(site.footer_config);
+  const socials = footer.showSocials ? Object.entries(parseContact(site.contact_config).social ?? {}).filter((e): e is [string, string] => typeof e[1] === 'string' && !!e[1]) : [];
+  const hasFooterContent = !!footer.text || footer.links.length > 0 || socials.length > 0;
   const brandName = tokens.wordmark ?? site.orgName;
   const attrs = themeAttrs(site);
   // A chosen heading face: its @font-face + preload, only on this site.
@@ -150,7 +157,34 @@ export default function SiteShell({
         </aside>
       )}
       <main id="main" className="flex-1">{children}</main>
-      <footer className="border-t border-border">
+      <footer className="border-t border-border" data-site-footer="">
+        {hasFooterContent && (
+          <div className="max-w-4xl mx-auto px-4 pt-6 pb-2 space-y-2 text-sm text-secondary">
+            {footer.text && <p className="text-primary">{footer.text}</p>}
+            {footer.links.length > 0 && (
+              <ul className="flex flex-wrap gap-x-5 gap-y-1" aria-label="Footer links">
+                {footer.links.map(l => (
+                  <li key={l.url}>
+                    <a href={l.url} rel="noopener nofollow" className="text-brand-fg hover:underline">
+                      {l.label}
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            )}
+            {socials.length > 0 && (
+              <ul className="flex flex-wrap gap-x-5 gap-y-1" aria-label="Social links">
+                {socials.map(([network, url]) => (
+                  <li key={network}>
+                    <a href={url} rel="noopener nofollow" className="text-brand-fg hover:underline capitalize">
+                      {network}
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        )}
         <div className="max-w-4xl mx-auto px-4 py-4 text-xs text-muted">
           Powered by{' '}
           <Link href="/" className="text-brand-fg">
