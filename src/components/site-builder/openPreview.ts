@@ -8,7 +8,7 @@
  * close it and toast when the mint fails. One helper for the editor and
  * the console.
  */
-export async function openPreview(plural: string, orgId: string, showError: (title: string, message?: string) => void): Promise<void> {
+export async function openPreview(plural: string, orgId: string, showError: (title: string, message?: string) => void, pageSlug?: string): Promise<void> {
   // No 'noopener' here: with it `window.open` returns null and there is no
   // handle to point at the URL. The opener link is cut by hand instead.
   const tab = window.open('', '_blank');
@@ -21,8 +21,10 @@ export async function openPreview(plural: string, orgId: string, showError: (tit
       showError('Website', body.error || 'Failed to create a preview link');
       return;
     }
-    if (tab) tab.location.href = body.url;
-    else window.open(body.url, '_blank', 'noopener'); // a blocker refused the blank tab too
+    // Program 2, B4: a page target previews the page.
+    const url = pageSlug ? `${body.url}/${pageSlug}` : body.url;
+    if (tab) tab.location.href = url;
+    else window.open(url, '_blank', 'noopener'); // a blocker refused the blank tab too
   } catch {
     tab?.close();
     showError('Website', 'Failed to create a preview link');

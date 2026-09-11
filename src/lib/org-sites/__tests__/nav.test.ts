@@ -22,9 +22,10 @@ describe('navEntries', () => {
       { kind: 'page', slug: 'b', title: 'B' },
     ]);
   });
-  it('a listed page takes its stored place among the modules; hidden and draft pages never show; unknown entries are ignored', () => {
+  it('a listed page goes before the next module that follows it in the stored entries; hidden and draft pages never show; unknown entries are ignored', () => {
+    // set_nav mirrored [standings, page1, teams, page3] into the rows, so the caller's module order is [standings, teams, schedule].
     const nav = parseNavConfig([{ key: 'standings' }, { key: pageNavKey(P1) }, { key: 'teams' }, { key: pageNavKey(P3) }, { key: 'nope' }]);
-    const out = navEntries(nav, modules, [
+    const out = navEntries(nav, ['standings', 'teams', 'schedule'], [
       page(P1, 'about', '2026-09-11T09:00:00Z'),
       page(P2, 'hidden', '2026-09-11T10:00:00Z', { inNav: false }),
       page(P3, 'draft', '2026-09-11T11:00:00Z', { visibility: 'draft' }),
@@ -35,6 +36,13 @@ describe('navEntries', () => {
       { kind: 'module', key: 'teams' },
       { kind: 'module', key: 'schedule' },
     ]);
+  });
+  it('the MODULE order is the caller\'s (the rows\' sort_order), never the stored entries\' — a reset_order that kept only a label does not reorder the header', () => {
+    const nav = parseNavConfig([{ key: 'standings', label: 'Tables' }]);
+    expect(navEntries(nav, ['courses', 'affiliations', 'standings'], []).map(e => (e.kind === 'module' ? e.key : e.slug))).toEqual(['courses', 'affiliations', 'standings']);
+    // A listed page with no module after it in the entries sits after the LAST module, before the unlisted pages.
+    const withTail = parseNavConfig([{ key: 'standings' }, { key: pageNavKey(P1) }]);
+    expect(navEntries(withTail, ['standings', 'teams'], [page(P1, 'about', '2026-09-11T09:00:00Z'), page(P2, 'later', '2026-09-11T10:00:00Z')]).map(e => (e.kind === 'module' ? e.key : e.slug))).toEqual(['standings', 'teams', 'about', 'later']);
   });
   it('a module the caller does not show (disabled) is skipped even when listed; duplicates collapse', () => {
     const nav = parseNavConfig([{ key: 'news' }, { key: 'standings' }, { key: 'standings' }]);
