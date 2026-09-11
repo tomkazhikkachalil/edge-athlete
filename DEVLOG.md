@@ -1,5 +1,17 @@
 # Development Log
 
+## September 11, 2026 — Program 2, C0: migration 186 — seo_config and footer_config on org_sites
+
+**The file only.** `database/migrations/186_org_site_seo_footer.sql` adds
+two jsonb content columns to `org_sites` — `seo_config` (title, description,
+social image) and `footer_config` (a footer line, links, whether the contact
+card's socials show) — each `NOT NULL DEFAULT '{}'`, mirrored from the
+revision snapshot on publish exactly like `hero_config` and
+`contact_config`. The chosen favicon needs no column (a theme token,
+`iconPath`). Re-runnable; posture A unchanged. **Tom runs it after this
+merges and before C1 merges**; C1's readers step down on 42703 until then.
+No code in this PR.
+
 ## September 11, 2026 — Program 2, B6: pages docs close, and "unpublished changes" measured against what is live (zero DDL)
 
 **Docs.** CLAUDE.md convention 12 gains the "Pages as compositions" bullet:
