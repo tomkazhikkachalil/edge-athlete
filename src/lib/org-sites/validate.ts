@@ -230,27 +230,49 @@ export function resolveAccentPair(tokens: ThemeTokens): { accent: string; strong
 // section headings. Unknown keys are dropped at render.
 
 export const NAV_LABEL_MAX = 24;
+export const PAGE_SLUG_MAX = 80;
+
+/** Program 2, B (Sep 11 2026): a custom page's place in the header rides
+ *  nav_config as `{ key: 'page:<uuid>' }`. Module readers keep `order`
+ *  (module keys only, as ever); the header reads `entries`, the FULL list. */
+export const NAV_PAGE_PREFIX = 'page:';
+const PAGE_NAV_KEY_RE = /^page:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+export function isPageNavKey(key: string): boolean {
+  return PAGE_NAV_KEY_RE.test(key);
+}
+export function pageNavKey(pageId: string): string {
+  return `${NAV_PAGE_PREFIX}${pageId}`;
+}
 
 export interface NavConfig {
   /** Module keys in display order (valid, deduped). */
   order: string[];
   labels: Record<string, string>;
+  /** Module keys AND page keys (`page:<uuid>`) in display order — the header's list. */
+  entries: string[];
 }
 
 export function parseNavConfig(navConfig: unknown): NavConfig {
   const order: string[] = [];
   const labels: Record<string, string> = {};
-  if (!Array.isArray(navConfig)) return { order, labels };
+  const entries: string[] = [];
+  if (!Array.isArray(navConfig)) return { order, labels, entries };
   for (const item of navConfig) {
     if (!item || typeof item !== 'object') continue;
     const key = (item as Record<string, unknown>).key;
-    if (typeof key !== 'string' || !(MODULE_KEYS as readonly string[]).includes(key)) continue;
+    if (typeof key !== 'string') continue;
+    if (isPageNavKey(key)) {
+      if (!entries.includes(key)) entries.push(key);
+      continue;
+    }
+    if (!(MODULE_KEYS as readonly string[]).includes(key)) continue;
     if (order.includes(key)) continue;
     order.push(key);
+    entries.push(key);
     const label = (item as Record<string, unknown>).label;
     if (typeof label === 'string' && label.trim()) labels[key] = label.trim().slice(0, NAV_LABEL_MAX);
   }
-  return { order, labels };
+  return { order, labels, entries };
 }
 
 /** Phase 6c G3 — Tom's principle 1: a CLUB page and a LEAGUE page answer
@@ -708,12 +730,31 @@ export const SitePatchSchema = z.discriminatedUnion('action', [
     items: z
       .array(
         z.object({
-          key: z.enum(TOGGLEABLE_MODULE_KEYS),
+          // Program 2, B: a page's header position rides the same list.
+          key: z.union([z.enum(TOGGLEABLE_MODULE_KEYS), z.string().regex(PAGE_NAV_KEY_RE)]),
           label: optionalTrimmed(NAV_LABEL_MAX),
         })
       )
-      .max(20),
+      .max(40),
   }),
+  // Program 2, B (Sep 11 2026): pages live in the snapshot; these are the
+  // console's and the editor's page writes. The server mints `add_page`'s id
+  // and timestamp; the reducer refuses a taken or reserved slug (no change)
+  // and a page past PAGES_PER_SITE_MAX (the server answers 4xx first).
+  z.object({
+    action: z.literal('add_page'),
+    title: boundedTrimmed(120),
+    slug: z.string().trim().toLowerCase().max(PAGE_SLUG_MAX).optional(),
+  }),
+  z.object({
+    action: z.literal('set_page'),
+    pageId: z.uuid(),
+    title: optionalTrimmed(120),
+    slug: z.string().trim().toLowerCase().max(PAGE_SLUG_MAX).optional(),
+    visibility: z.enum(['public', 'draft']).optional(),
+    inNav: z.boolean().optional(),
+  }),
+  z.object({ action: z.literal('remove_page'), pageId: z.uuid() }),
   z.object({
     action: z.literal('set_sponsors'),
     sponsors: z
@@ -867,7 +908,6 @@ export const RESERVED_PAGE_SLUGS: ReadonlySet<string> = new Set([
   'players',
   'week',
 ]);
-export const PAGE_SLUG_MAX = 80;
 export const PAGES_PER_SITE_MAX = 20;
 
 export function isValidPageSlug(slug: string): boolean {

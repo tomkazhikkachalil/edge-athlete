@@ -1,5 +1,71 @@
 # Development Log
 
+## September 11, 2026 — Program 2, B1: pages in the ONE snapshot — the pure core and migration 185 (no runtime change)
+
+**Why pages, and why like this.** Custom pages were the last part of a site
+outside the builder: console-only, four block kinds in one fixed column,
+written straight to LIVE rows with no draft, no publish, no history, and no
+say in the header. Program 2, B makes every page a composition of the same
+registered widgets as the home page, edited in the same editor, under the
+same gate. The model decision: **a page's layout lives in the ONE revision
+snapshot** (`snapshot.pages[pageId] = {id, slug, title, visibility, inNav,
+createdAt, layout}`), and **`org_site_pages` becomes its PUBLISHED
+PROJECTION** — exactly as `org_site_modules` is of `snapshot.modules`.
+History, restore, `rev` concurrency and the mirror rule extend verbatim. A
+page's `visibility` stays as the module-`enabled` analogue (rides the gate,
+never a second draft); `inNav` is the header switch (hidden pages stay
+reachable). The hero is the site's identity, so `PAGE_WIDGET_KEYS` is every
+site widget except it (pinned); module widgets ARE allowed on a page (a
+standings table on About).
+
+**This PR is the pure core, with no runtime behaviour change** — nothing
+reads or writes `snapshot.pages` yet. `src/lib/site-builder/pages.ts`:
+`pageLayoutFromBody` converts a legacy body losslessly (runs of heading /
+paragraph / link-list → `text` sections split at 12 blocks; each site image
+→ an `image` section; a document path stays a text block) with DETERMINISTIC
+ids (`legacy:page:<pageId>:<n>`) so two materialisations compare equal —
+otherwise every draft would read "dirty"; `blocksFromPageLayout` is the
+exact inverse (tested round-trip); `validatePageLayout` / `parsePageLayout`
+(the home rules + no hero + only page widgets + a 40-section cap = a legacy
+body's block cap); `mintPageSlug` (the server's -2..-20 shape, reserved slugs
+refused); `sweepModuleFromPages`. `snapshot.ts`: `pages` on the snapshot —
+ABSENT when empty (a pre-pages snapshot and a page-less one must compare
+equal); `snapshotFromRows(site, modules, pages?)` converts null-layout rows;
+`rowsFromSnapshot().pages` (the mirror's rows — `body: []`, never the
+blocks); `diffPageRows`; `parseSnapshot` CARRIES pages (a whitelist that
+dropped them would lose every page on the next restore — pinned); actions
+`add_page` (the server mints id + timestamp; a blank draft page: one empty
+text section, unlisted), `set_page` (title / slug / visibility / inNav; a
+taken or reserved slug is refused as no change — the server answers 409
+first), `remove_page` (drops its nav entry); `set_module … off` sweeps the
+module off every page; `set_nav` accepts `page:<uuid>` keys (a key the
+snapshot lacks is dropped silently — a stale console list), pages take no
+module position; `reset_order` keeps surviving page entries after the
+modules. `validate.ts`: `NAV_PAGE_PREFIX` / `isPageNavKey` / `pageNavKey`,
+`NavConfig.entries` (the FULL header list; `order` stays module-only so every
+module reader is untouched), the three page actions in `SitePatchSchema`.
+`src/lib/org-sites/nav.ts navEntries` is the header's one list: stored
+entries first, then the unlisted modules in today's order, then the unlisted
+public listed pages by creation time — an untouched site renders EXACTLY
+today's header (tested).
+
+**Migration 185** (`database/migrations/185_org_site_pages_layout.sql`,
+re-runnable, posture A unchanged): `org_site_pages.layout jsonb` (NULL = the
+body blocks are still the truth) and `in_nav boolean NOT NULL DEFAULT true`;
+no `nav_order` column (order rides `nav_config`), no SQL backfill (the 180
+rule — authored content converts in app code). **Tom runs 185 after this
+PR merges and before B2 merges**; B2's readers feature-detect the columns
+(42703 → the pre-185 path) so the code stays mergeable either way. Let B1
+roll fully before B2: an old pod's `parseSnapshot` would drop `pages` on its
+next write.
+
+**Tests.** `pages.test.ts` (lossless + deterministic conversion, the 12-split,
+a 40-block page fits, hero / app-only / cap refusals, slug minting),
+`nav.test.ts`, the snapshot suite's page block (rows ⇄ snapshot, no-pages
+equality, `parseSnapshot` carries pages, `diffPageRows`, every action, the
+sweep), `registry.test.ts` (`PAGE_WIDGET_KEYS`), `validate.test.ts` (the nav
+`entries`, the page actions, `set_nav` page keys). 3,066 tests green.
+
 ## September 11, 2026 — Program 2, A: words and colours on a phone (zero DDL)
 
 **The program.** With the builder's own list exhausted, an inventory of what
