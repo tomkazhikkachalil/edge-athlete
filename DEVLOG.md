@@ -1,5 +1,26 @@
 # Development Log
 
+## September 11, 2026 — Program 2, E2: the console's Visitors panel and the numbers behind it (zero DDL)
+
+**What.** A manager can now see how the site is doing. `GET /api/{plural}/
+{orgId}/site/stats?days=7|30|90` (`manage_site`; a plain member gets 403;
+pre-188 answers `supported: false`, never a 500) folds the site's daily rows
+into totals, a zero-filled per-day series and the top pages
+(`analytics-rollup.ts rollupStats`, pure, tested — a quiet day is a day).
+The console's Website area gains **Visitors** (`SiteVisitorsCard`,
+`#visitors`): page views and visitors for the range, a sparkline (pure SVG —
+no chart dependency), the top pages, the honest empties ("Your site is not
+live yet", "No visits in this range yet") and a line when the deployment is
+not counting (no `ANALYTICS_SALT`). The admin dashboard's Site builder panel
+gains the platform's visits for the last 30 days (`platformVisitsLast30`).
+`docs/ANALYTICS.md` says what is counted, what is not, what is stored and
+for how long; `docs/HARDENING.md` B5 gains the sweep line.
+
+**e2e.** `org-site-analytics.spec.ts` gains the E2 step: the stats API
+answers views 3 / visitors 1 with the home on top; a non-manager's GET is a
+403; the console's Visitors panel shows the two numbers and the top page,
+the range switch works, 375px does not overflow.
+
 ## September 11, 2026 — Program 2, E1: the page-view pixel — counts without a script, a cookie or a stored identity (zero DDL beyond 188)
 
 **What.** Every public org-site page (both route trees, the shell's
