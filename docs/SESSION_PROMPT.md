@@ -6,8 +6,9 @@
 > round H1–H8, #645–#652, its backlog round B1–B6, #653–#658, the Contest
 > Place program E1–E4, #661–#664, the Recruiting skeleton R1–R5, #665–#669,
 > the Sep 11 felt-customization round #672–#676, and Site Builder program 2
-> #677–#695)** — migration head 188; `main` at the program-2 docs close,
-> deployed and prod-probed step by step; **no program is open**. If the
+> #677–#695)** — migration head 188; `main` at the Sep 11 maintenance
+> sweep after the program-2 docs close, deployed and prod-probed step by
+> step; **no program is open**. If the
 > "Where the project actually is" section drifts stale, ask
 > Claude to re-align it against DEVLOG.md and session memory.
 
@@ -392,10 +393,13 @@ owner's notification and email, the console Inbox with retention. **E**
 views and daily visitors from a daily-salted hash (no IP, UA or cookie
 stored; bots, GPC/DNT, previews count nothing), the console's Visitors
 panel, platform totals on the admin dashboard, `docs/ANALYTICS.md`. **F**
-(#695) closed the docs. Every step was prod-probed after its deploy.
+(#695) closed the docs. Every step was prod-probed after its deploy, and
+the final probe set against the #695 deploy was green: the Sections list
+on mobile and WebKit, composed pages, SEO, forms, the editor and the start
+flow (11/11); the analytics probe passed once Tom set `ANALYTICS_SALT` in
+Vercel and redeployed (12/12).
 
-Open: **Tom sets `ANALYTICS_SALT` in Vercel** (until then the pixel serves
-but counts nothing); Tom's phone pass — create a golf club → the welcome
+Open: Tom's phone pass — create a golf club → the welcome
 card → Use this → the editor's list → Move / Size → a page → Settings →
 Publish; his device pass of a contest page
 (`/event/[id]`, the org-site twin) and the scouting area (`/app/scout`,
