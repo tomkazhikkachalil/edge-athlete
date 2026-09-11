@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getSupabaseAdmin, requireAuth } from '@/lib/auth-server';
+import { getProfileRole, getSupabaseAdmin, requireAuth } from '@/lib/auth-server';
 import { getProfileOrganizations } from '@/lib/affiliations/server';
 import { UUID_RE } from '@/lib/golf/course-catalog';
 
@@ -59,7 +59,11 @@ export async function GET(
       }
     }
 
-    const organizations = await getProfileOrganizations(supabase, profileId);
+    // The rule (Sep 11 2026): self and guardians see every membership; anyone
+    // else sees a private org only when they belong to it (org-visibility.ts).
+    const isSelfOrGuardian =
+      viewerId === profileId || (!!viewerId && (await getProfileRole(viewerId, profileId)) === 'guardian');
+    const organizations = await getProfileOrganizations(supabase, profileId, { viewerId, isSelfOrGuardian });
     return NextResponse.json({ organizations });
   } catch (e) {
     console.error('[organizations] error:', e);

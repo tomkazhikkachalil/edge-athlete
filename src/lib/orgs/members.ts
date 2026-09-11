@@ -481,20 +481,28 @@ export async function profileMembershipRows(
   // staff rows count at ANY scope (a division grant still opens the
   // console); expired staff rows are inert. 42703-safe: pre-178 columns
   // fall back to the ladder read.
+  // ONE side per read: memberships rows are league XOR club (140's CHECK),
+  // so without this filter every row of the OTHER side arrives with a NULL
+  // org id, and a NULL inside the caller's `.in('id', …)` is a PostgREST
+  // 400 (22P02, "null" is not a uuid) — the whole side vanished for any
+  // profile that belonged to both a club and a league (found Sep 11 2026 on
+  // Tom's own profile).
   const wide = await admin
     .from('memberships')
     .select(`${col}, role, kind, scope_type, expires_at`)
     .eq('profile_id', profileId)
+    .not(col, 'is', null)
     .in('kind', ['follow', 'roster', 'staff']);
   const { data, error } = wide.error
-    ? await admin.from('memberships').select(`${col}, role`).eq('profile_id', profileId).eq('scope_type', 'org')
+    ? await admin.from('memberships').select(`${col}, role`).eq('profile_id', profileId).not(col, 'is', null).eq('scope_type', 'org')
     : wide;
   const now = Date.now();
   // One entry per org: a dual-edge profile reduces to their max role; a
   // staff-only profile reads admin | staff.
   const byOrg = new Map<string, { ladder: string[]; admin: boolean; staff: boolean }>();
   for (const r of (data ?? []) as unknown as Array<Record<string, string | null>>) {
-    const orgId = r[col] as string;
+    const orgId = r[col];
+    if (!orgId) continue; // belt and braces beside the read's filter
     if (!byOrg.has(orgId)) byOrg.set(orgId, { ladder: [], admin: false, staff: false });
     const entry = byOrg.get(orgId)!;
     if (r.kind === 'staff') {
