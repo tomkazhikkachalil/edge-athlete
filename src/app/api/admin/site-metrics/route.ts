@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin, getSupabaseAdmin } from '@/lib/auth-server';
 import { rollupSiteMetrics, type MetricsRevisionRow, type MetricsSiteRow } from '@/lib/site-builder/metrics-rollup';
 import { isMissingTableError } from '@/lib/org-sites/validate';
+import { platformVisitsLast30 } from '@/lib/org-sites/analytics-server';
 
 // 42703 = a pointer column missing (pre-180); PGRST204 = PostgREST's schema-cache twin.
 const isMissingColumnError = (code: string | undefined) => code === '42703' || code === 'PGRST204';
@@ -42,7 +43,9 @@ export async function GET(request: NextRequest) {
     const revisions = (revisionsRes.data ?? []) as unknown as MetricsRevisionRow[];
     const truncated = sites.length >= SITES_LIMIT || revisions.length >= REVISIONS_LIMIT;
     const metrics = rollupSiteMetrics(sites, revisions, new Date().toISOString(), truncated);
-    return NextResponse.json({ supported: true, metrics }, { headers: { 'Cache-Control': 'no-store' } });
+    // Program 2, E2: the platform's visits (last 30 days, every site) — null pre-188.
+    const visits = await platformVisitsLast30(admin);
+    return NextResponse.json({ supported: true, metrics, visits }, { headers: { 'Cache-Control': 'no-store' } });
   } catch (error) {
     if (error instanceof Response) return error;
     console.error('[SITE-METRICS] error:', error);

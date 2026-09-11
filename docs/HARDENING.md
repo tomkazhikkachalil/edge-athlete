@@ -155,6 +155,11 @@ this sweep covers the rest by reading.
   (`runFormSubmissionPurge`, cutoffs pinned by test). Sweep: confirm the
   cron ran (`summary.formSubmissions` in the daily response) and that no
   row older than the cutoffs remains.
+- **Site analytics** (`org_site_stats_daily`, `org_site_hit_marks`, mig 188;
+  `docs/ANALYTICS.md`): counts only, plus a daily-salted visitor hash — no IP,
+  user agent or cookie. The daily cron prunes marks after 2 days and daily
+  rows after 400 (`runAnalyticsPrune`). Sweep: `summary.analytics` in the
+  daily response; no mark older than 2 days remains; `ANALYTICS_SALT` is set.
 
 ## Backlog (Tier 2) — scheduled, not yet done
 

@@ -32,6 +32,7 @@ import type { GolfCourse } from '@/types/golf';
 import AnnouncementHistory from '@/components/orgs/AnnouncementHistory';
 import MemberPhotoPicker from '@/components/orgs/MemberPhotoPicker';
 import SiteInboxCard from '@/components/orgs/SiteInboxCard';
+import SiteVisitorsCard from '@/components/orgs/SiteVisitorsCard';
 import HierarchySection from '@/components/orgs/console/HierarchySection';
 import { openPreview } from '@/components/site-builder/openPreview';
 import WelcomeDesignPick from '@/components/orgs/WelcomeDesignPick';
@@ -4253,6 +4254,8 @@ export default function OrgConsolePage() {
         </section>
         {/* Program 2, D2: what visitors sent through the site's forms. */}
         {site !== null && validSide && <SiteInboxCard plural={plural as 'leagues' | 'clubs'} orgId={orgId} />}
+        {/* Program 2, E2: the site's own numbers, from the first-party pixel. */}
+        {site !== null && validSide && <SiteVisitorsCard plural={plural as 'leagues' | 'clubs'} orgId={orgId} />}
       </>
     ),
   };

@@ -70,7 +70,7 @@ export default function AdminDashboardPage() {
   const [domainsReload, setDomainsReload] = useState(0);
   // Site Builder phase 11: the builder's numbers (computed by the route) and
   // the storage sweep's dry run — the sweep endpoint's first UI caller.
-  const [siteMetrics, setSiteMetrics] = useState<{ supported: boolean; metrics?: SiteMetrics } | null>(null);
+  const [siteMetrics, setSiteMetrics] = useState<{ supported: boolean; metrics?: SiteMetrics; visits?: { views: number; visitors: number; sites: number } | null } | null>(null);
   const [sweep, setSweep] = useState<{ status: 'idle' | 'running' | 'done' | 'error'; summary?: SweepSummary }>({ status: 'idle' });
 
   useEffect(() => {
@@ -427,6 +427,13 @@ export default function AdminDashboardPage() {
             <p className="text-sm text-muted">Drafts and revisions need a database migration first (180).</p>
           ) : (
             <SiteMetricsTiles m={siteMetrics.metrics} />
+          )}
+          {/* Program 2, E2: the platform's visits (first-party pixel, last 30 days). */}
+          {siteMetrics?.visits && (
+            <p className="mt-3 text-xs text-muted" data-admin-site-visits="">
+              Visits, last 30 days: <span className="font-medium text-primary">{siteMetrics.visits.views.toLocaleString()}</span> page views ·{' '}
+              <span className="font-medium text-primary">{siteMetrics.visits.visitors.toLocaleString()}</span> visitors across {siteMetrics.visits.sites} site{siteMetrics.visits.sites === 1 ? '' : 's'} — counts only, nothing personal (docs/ANALYTICS.md).
+            </p>
           )}
           <div className="mt-4 flex flex-wrap items-center gap-3 border-t border-border-subtle pt-3">
             <button

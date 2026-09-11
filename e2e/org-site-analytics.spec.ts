@@ -78,6 +78,34 @@ test('org site analytics: the pixel counts views and daily visitors, honours opt
     } finally {
       await anon.close();
     }
+    // E2: the console's Visitors panel shows the numbers; a non-manager gets 403; 375px.
+    const stats = (await (await ownerApi.get(`/api/leagues/${leagueId}/site/stats?days=7`)).json()) as { supported: boolean; stats: { totals: { views: number; visitors: number }; topPaths: { path: string }[] } };
+    expect(stats.supported).toBe(true);
+    expect(stats.stats.totals).toEqual({ views: 3, visitors: 1 });
+    expect(stats.stats.topPaths[0].path).toBe('/');
+    const memberApi = await apiAs('state.json');
+    try {
+      expect((await memberApi.get(`/api/leagues/${leagueId}/site/stats`)).status()).toBe(403);
+    } finally {
+      await memberApi.dispose();
+    }
+    const ownerCtx = await browser.newContext({ storageState: 'e2e/.auth/state-b.json', viewport: { width: 1280, height: 900 } });
+    try {
+      const page = await ownerCtx.newPage();
+      await page.goto(`/app/org/league/${leagueId}#visitors`);
+      const card = page.locator('[data-site-visitors]');
+      await expect(card).toBeVisible({ timeout: 30_000 });
+      await expect(card.locator('[data-site-visitors-views]')).toHaveText('3', { timeout: 15_000 });
+      await expect(card.locator('[data-site-visitors-visitors]')).toHaveText('1');
+      await expect(card.getByRole('list', { name: 'Top pages' })).toContainText('Home');
+      await card.locator('[data-site-visitors-range="7"]').click();
+      await expect(card.locator('[data-site-visitors-views]')).toHaveText('3');
+      await page.setViewportSize({ width: 375, height: 812 });
+      await expect(card.locator('[data-site-visitors-views]')).toBeVisible();
+      expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(375);
+    } finally {
+      await ownerCtx.close();
+    }
   } finally {
     await ownerApi.dispose();
     await admin.from('leagues').delete().eq('id', leagueId);

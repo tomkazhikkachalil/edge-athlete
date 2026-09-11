@@ -43,3 +43,42 @@ export async function runAnalyticsPrune(admin: Admin, now = new Date()): Promise
   }
   return { ok: true, marks: marks.data?.length ?? 0, daily: daily.data?.length ?? 0 };
 }
+
+// ── The console's read (E2) ─────────────────────────────────────────────────
+import { NextResponse } from 'next/server';
+import type { OrgSide } from '@/lib/orgs/authz';
+import { rollupStats, statsWindow, type DailyRow, type StatsRange } from './analytics-rollup';
+
+const ROWS_MAX = 5000;
+
+/** The site's numbers for the last N days; `supported: false` pre-188. */
+export async function statsGET(admin: Admin, side: OrgSide, orgId: string, days: StatsRange): Promise<NextResponse> {
+  const { data: site } = await admin.from('org_sites').select('id, published_at').eq(side === 'league' ? 'league_id' : 'club_id', orgId).maybeSingle();
+  const siteId = (site as { id: string } | null)?.id ?? null;
+  if (!siteId) return NextResponse.json({ supported: true, live: false, stats: rollupStats([], days, new Date()) }, { headers: { 'Cache-Control': 'private, no-store' } });
+  const { from, to } = statsWindow(days, new Date());
+  const { data, error } = await admin.from('org_site_stats_daily').select('day, path, views, visitors').eq('site_id', siteId).gte('day', from).lte('day', to).limit(ROWS_MAX);
+  if (error) {
+    if (error.code === '42P01') return NextResponse.json({ supported: false }, { headers: { 'Cache-Control': 'private, no-store' } });
+    console.error(`${TAG} stats read error:`, error);
+    return NextResponse.json({ error: 'Failed to load the numbers' }, { status: 500 });
+  }
+  const rows = ((data ?? []) as { day: string; path: string; views: number; visitors: number }[]).map<DailyRow>(r => ({ day: String(r.day).slice(0, 10), path: r.path, views: Number(r.views) || 0, visitors: Number(r.visitors) || 0 }));
+  return NextResponse.json({ supported: true, live: !!(site as { published_at: string | null }).published_at, counting: !!analyticsSecret(), stats: rollupStats(rows, days, new Date()) }, { headers: { 'Cache-Control': 'private, no-store' } });
+}
+
+/** Platform totals for the admin dashboard: the last 30 days across every site. */
+export async function platformVisitsLast30(admin: Admin): Promise<{ views: number; visitors: number; sites: number } | null> {
+  const { from, to } = statsWindow(30, new Date());
+  const { data, error } = await admin.from('org_site_stats_daily').select('site_id, views, visitors').gte('day', from).lte('day', to).limit(50000);
+  if (error || !data) return null;
+  const sites = new Set<string>();
+  let views = 0;
+  let visitors = 0;
+  for (const r of data as { site_id: string; views: number; visitors: number }[]) {
+    sites.add(r.site_id);
+    views += Number(r.views) || 0;
+    visitors += Number(r.visitors) || 0;
+  }
+  return { views, visitors, sites: sites.size };
+}
