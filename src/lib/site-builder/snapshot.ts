@@ -16,11 +16,15 @@
 
 import {
   MODULE_KEYS,
+  PAGES_PER_SITE_MAX,
   defaultModuleOrder,
+  isPageNavKey,
+  pageNavKey,
   parseNavConfig,
   type SitePatchInput,
   THEME_DESIGN_KEYS,
 } from '@/lib/org-sites/validate';
+import { blankPageLayout, mintPageSlug, orderedPages, pageLayoutFromBody, parseSnapshotPages, sweepModuleFromPages, type SnapshotPage } from './pages';
 import { LAYOUT_WIDGETS_MAX, parseStoredLayout } from './layout-schema';
 import { LEGACY_ID_PREFIX, appendWidget, compactLayout, newInstanceFor, validateLayout, type LegacySiteShape, type WidgetInstance } from './layout';
 import { applySeed, seedLayout } from './seeds';
@@ -50,6 +54,30 @@ export interface SiteSnapshot {
   modules: Record<string, SnapshotModule>;
   /** Phase 1's SiteLayout slot — absent until a grid layout is authored. */
   layout?: unknown;
+  /** Program 2, B (Sep 11 2026): the custom pages, keyed by id — ABSENT when
+   *  there are none (a snapshot from before pages and one with no pages must
+   *  compare equal, or every draft would read "dirty"). */
+  pages?: Record<string, SnapshotPage>;
+}
+
+/** An `org_site_pages` row as the snapshot reads and writes it. `layout` /
+ *  `in_nav` are undefined pre-185 (the read ladder dropped them). */
+export interface SnapshotPageRow {
+  id: string;
+  slug: string;
+  title: string;
+  body: unknown;
+  visibility: string;
+  created_at: string;
+  layout?: unknown;
+  in_nav?: boolean | null;
+}
+
+/** `pages` only when there is at least one. */
+function withPages(s: SiteSnapshot, pages: Record<string, SnapshotPage>): SiteSnapshot {
+  const rest: SiteSnapshot = { ...s };
+  delete rest.pages;
+  return Object.keys(pages).length > 0 ? { ...rest, pages } : rest;
 }
 
 export interface SnapshotSiteRow {
@@ -73,26 +101,40 @@ const asArray = (v: unknown): unknown[] => (Array.isArray(v) ? v : []);
 
 /** Today's rows → the snapshot (the lazy first-draft materialisation and
  *  the pre-180 live path both start here). */
-export function snapshotFromRows(site: SnapshotSiteRow, modules: SnapshotModuleRow[]): SiteSnapshot {
+export function snapshotFromRows(site: SnapshotSiteRow, modules: SnapshotModuleRow[], pages: SnapshotPageRow[] = []): SiteSnapshot {
   const out: Record<string, SnapshotModule> = {};
   for (const m of modules) {
     if (typeof m.module_key !== 'string') continue;
     out[m.module_key] = { enabled: !!m.enabled, sortOrder: Number(m.sort_order) || 0, config: asRecord(m.config) };
   }
-  return {
-    v: SNAPSHOT_VERSION,
-    templateId: typeof site.template_id === 'string' ? site.template_id : 'classic',
-    theme: asRecord(site.theme_token_set),
-    hero: asRecord(site.hero_config),
-    nav: asArray(site.nav_config),
-    contact: asRecord(site.contact_config),
-    modules: out,
-  };
+  const pageMap: Record<string, SnapshotPage> = {};
+  for (const p of pages) {
+    if (typeof p.id !== 'string' || typeof p.slug !== 'string' || typeof p.title !== 'string') continue;
+    // A row whose `layout` is null still speaks in blocks: convert it here
+    // (deterministically — the ids derive from the page id) so the snapshot
+    // is the truth from its first materialisation and the mirror never
+    // touches `body` again.
+    const layout = p.layout ?? pageLayoutFromBody(p.id, p.body);
+    pageMap[p.id] = { id: p.id, slug: p.slug, title: p.title, visibility: p.visibility === 'draft' ? 'draft' : 'public', inNav: p.in_nav !== false, createdAt: p.created_at, layout };
+  }
+  return withPages(
+    {
+      v: SNAPSHOT_VERSION,
+      templateId: typeof site.template_id === 'string' ? site.template_id : 'classic',
+      theme: asRecord(site.theme_token_set),
+      hero: asRecord(site.hero_config),
+      nav: asArray(site.nav_config),
+      contact: asRecord(site.contact_config),
+      modules: out,
+    },
+    pageMap
+  );
 }
 
 /** The snapshot → the rows publish writes (the published projection). */
-export function rowsFromSnapshot(s: SiteSnapshot): { site: SnapshotSiteRow; modules: SnapshotModuleRow[] } {
+export function rowsFromSnapshot(s: SiteSnapshot): { site: SnapshotSiteRow; modules: SnapshotModuleRow[]; pages: SnapshotPageRow[] } {
   return {
+    pages: orderedPages(s.pages).map(p => ({ id: p.id, slug: p.slug, title: p.title, body: [], visibility: p.visibility, created_at: p.createdAt, layout: p.layout, in_nav: p.inNav })),
     site: {
       template_id: s.templateId,
       theme_token_set: s.theme,
@@ -153,6 +195,22 @@ export function diffModuleRows(prev: SiteSnapshot | null, next: SiteSnapshot): S
   return changed;
 }
 
+/** The page rows publish writes: upserts for pages that are new or changed
+ *  (whole rows — the mirror UPDATEs by id, INSERTs the rest) and the ids the
+ *  next snapshot no longer holds. Every row when `prev` is null. */
+export function diffPageRows(prev: SiteSnapshot | null, next: SiteSnapshot): { upsert: SnapshotPageRow[]; deleteIds: string[] } {
+  const all = rowsFromSnapshot(next).pages;
+  if (!prev) return { upsert: all, deleteIds: [] };
+  const before = prev.pages ?? {};
+  const upsert = all.filter(row => {
+    const b = before[row.id];
+    return !b || canonicalJson(next.pages?.[row.id]) !== canonicalJson(b);
+  });
+  const nextIds = new Set(all.map(r => r.id));
+  const deleteIds = Object.keys(before).filter(id => !nextIds.has(id));
+  return { upsert, deleteIds };
+}
+
 /** Defensive: a stored snapshot from any build, or null when unusable
  *  (the caller then falls back to the rows). Never throws. */
 export function parseSnapshot(raw: unknown): SiteSnapshot | null {
@@ -169,16 +227,21 @@ export function parseSnapshot(raw: unknown): SiteSnapshot | null {
       config: asRecord(m.config),
     };
   }
-  return {
-    v: SNAPSHOT_VERSION,
-    templateId: r.templateId,
-    theme: asRecord(r.theme),
-    hero: asRecord(r.hero),
-    nav: asArray(r.nav),
-    contact: asRecord(r.contact),
-    modules,
-    ...(r.layout !== undefined ? { layout: r.layout } : {}),
-  };
+  // Program 2, B: `pages` MUST ride through here — a whitelist that dropped
+  // them would lose every page on the next restore or publish.
+  return withPages(
+    {
+      v: SNAPSHOT_VERSION,
+      templateId: r.templateId,
+      theme: asRecord(r.theme),
+      hero: asRecord(r.hero),
+      nav: asArray(r.nav),
+      contact: asRecord(r.contact),
+      modules,
+      ...(r.layout !== undefined ? { layout: r.layout } : {}),
+    },
+    parseSnapshotPages(r.pages)
+  );
 }
 
 // ── The content actions, ported 1:1 from sitePATCH ─────────────────────────
@@ -186,9 +249,11 @@ export function parseSnapshot(raw: unknown): SiteSnapshot | null {
 /** Every SitePatch content action. Gallery picks arrive PRE-EVALUATED: the
  *  async member-photo gate runs in the server before this pure step. */
 export type SnapshotAction =
-  | Exclude<SitePatchInput, { action: 'publish' | 'unpublish' | 'set_gallery_pick' | 'remove_gallery_pick' }>
+  | Exclude<SitePatchInput, { action: 'publish' | 'unpublish' | 'set_gallery_pick' | 'remove_gallery_pick' | 'add_page' }>
   | { action: 'set_gallery_pick'; pick: GalleryPick }
-  | { action: 'remove_gallery_pick'; mediaId: string };
+  | { action: 'remove_gallery_pick'; mediaId: string }
+  /** Program 2, B: the server mints the id and the timestamp (the reducer stays pure). */
+  | (Extract<SitePatchInput, { action: 'add_page' }> & { id: string; createdAt: string });
 
 export interface ApplyContext {
   side: 'league' | 'club';
@@ -215,12 +280,14 @@ export function applySiteAction(s: SiteSnapshot, input: SnapshotAction, ctx: App
       // switch — off removes every instance of the module, on appends one
       // (the legacy id, so an untouched page still matches its seed) when
       // none is there. No stored layout → the seed already reads the rows.
+      // Program 2, B: off sweeps the module off every PAGE layout too.
+      const swept = !input.enabled && s.pages ? withPages(s, sweepModuleFromPages(s.pages, input.moduleKey)) : s;
       const stored = parseStoredLayout(s.layout);
-      if (!stored) return { ...s, modules };
+      if (!stored) return { ...swept, modules };
       const key = input.moduleKey as WidgetInstance['key'];
       if (!input.enabled) {
         const kept = stored.widgets.filter(w => w.key !== key);
-        return { ...s, modules, layout: kept.length === stored.widgets.length ? stored : { ...stored, widgets: compactLayout(kept) } };
+        return { ...swept, modules, layout: kept.length === stored.widgets.length ? stored : { ...stored, widgets: compactLayout(kept) } };
       }
       if (stored.widgets.some(w => w.key === key)) return { ...s, modules, layout: stored };
       const shape: LegacySiteShape = {
@@ -333,20 +400,67 @@ export function applySiteAction(s: SiteSnapshot, input: SnapshotAction, ctx: App
       order.forEach((key, i) => {
         if (modules[key]) modules[key] = { ...modules[key], sortOrder: i };
       });
-      const labels = parseNavConfig(s.nav).labels;
-      const nav = order.filter(key => labels[key]).map(key => ({ key, label: labels[key] }));
+      const parsedNav = parseNavConfig(s.nav);
+      const labels = parsedNav.labels;
+      // Program 2, B: the pages keep their header places, after the modules.
+      const pageEntries = parsedNav.entries.filter(k => isPageNavKey(k) && !!s.pages?.[k.slice('page:'.length)]).map(key => ({ key }));
+      const nav = [...order.filter(key => labels[key]).map(key => ({ key, label: labels[key] })), ...pageEntries];
       return { ...s, modules, nav };
     }
     case 'set_nav': {
       // nav_config (labels + display order) AND the rows' sortOrder follow
       // one list; unlisted modules keep theirs; hero stays first at 0.
       const seen = new Set<string>();
-      const items = input.items.filter(i => (seen.has(i.key) ? false : (seen.add(i.key), true)));
-      const nav = items.map(i => ({ key: i.key, ...(i.label ? { label: i.label } : {}) }));
-      items.forEach((item, i) => {
-        if (modules[item.key]) modules[item.key] = { ...modules[item.key], sortOrder: i + 1 };
+      // Program 2, B: a page key names a page the snapshot holds, or it is
+      // dropped silently (a stale console list may name a removed page).
+      const items = input.items.filter(i => {
+        if (seen.has(i.key)) return false;
+        if (isPageNavKey(i.key) && !s.pages?.[i.key.slice('page:'.length)]) return false;
+        seen.add(i.key);
+        return true;
       });
+      const nav = items.map(i => ({ key: i.key, ...(i.label && !isPageNavKey(i.key) ? { label: i.label } : {}) }));
+      let position = 0;
+      for (const item of items) {
+        if (isPageNavKey(item.key)) continue;
+        position += 1;
+        if (modules[item.key]) modules[item.key] = { ...modules[item.key], sortOrder: position };
+      }
       return { ...s, modules, nav };
+    }
+    case 'add_page': {
+      // Program 2, B: a new page — the blank layout, unlisted in the header
+      // (navEntries places it after the listed ones by creation time).
+      const pages = { ...(s.pages ?? {}) };
+      if (Object.keys(pages).length >= PAGES_PER_SITE_MAX || pages[input.id]) return s;
+      const taken = new Set(Object.values(pages).map(p => p.slug));
+      const slug = mintPageSlug(input.title, taken, input.slug);
+      if (!slug) return s;
+      pages[input.id] = { id: input.id, slug, title: input.title, visibility: 'draft', inNav: true, createdAt: input.createdAt, layout: blankPageLayout(input.id) };
+      return withPages(s, pages);
+    }
+    case 'set_page': {
+      const current = s.pages?.[input.pageId];
+      if (!current) return s;
+      let next: SnapshotPage = current;
+      if (input.title) next = { ...next, title: input.title };
+      if (input.slug !== undefined && input.slug !== current.slug) {
+        const taken = new Set(Object.values(s.pages ?? {}).filter(p => p.id !== current.id).map(p => p.slug));
+        const slug = mintPageSlug(current.title, taken, input.slug);
+        if (!slug) return s;
+        next = { ...next, slug };
+      }
+      if (input.visibility) next = { ...next, visibility: input.visibility };
+      if (typeof input.inNav === 'boolean') next = { ...next, inNav: input.inNav };
+      return withPages(s, { ...(s.pages ?? {}), [input.pageId]: next });
+    }
+    case 'remove_page': {
+      if (!s.pages?.[input.pageId]) return s;
+      const pages = { ...s.pages };
+      delete pages[input.pageId];
+      const key = pageNavKey(input.pageId);
+      const nav = s.nav.filter(item => !(item && typeof item === 'object' && (item as Record<string, unknown>).key === key));
+      return withPages({ ...s, nav }, pages);
     }
     case 'set_sponsors': {
       const m = moduleOr(s, 'sponsors', true);

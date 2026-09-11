@@ -356,3 +356,82 @@ describe('selectRevisionsToPrune', () => {
     expect(selectRevisionsToPrune(rows, [], 50, 200)).toHaveLength(10);
   });
 });
+
+// ── Program 2, B (Sep 11 2026): pages in the ONE snapshot ─────────────────
+import { blankPageLayout, pageLayoutFromBody } from '../pages';
+import { diffPageRows, type SnapshotPageRow } from '../snapshot';
+import { pageNavKey } from '@/lib/org-sites/validate';
+
+describe('pages in the snapshot (program 2, B)', () => {
+  const P1 = '2f1b46c8-2964-4139-9689-d1c3f736ed93';
+  const P2 = '3a2c57d9-3a75-4240-a79a-e2d4a847fea4';
+  const pageRows: SnapshotPageRow[] = [
+    { id: P1, slug: 'about', title: 'About', body: [{ type: 'paragraph', text: 'Hello' }], visibility: 'public', created_at: '2026-09-11T09:00:00Z' },
+    { id: P2, slug: 'rules', title: 'Rules', body: [], visibility: 'draft', created_at: '2026-09-11T10:00:00Z', layout: blankPageLayout(P2), in_nav: false },
+  ];
+  const withPages = () => snapshotFromRows(siteRow, rows, pageRows);
+
+  it('rows → snapshot → rows: a null-layout row converts (deterministically), a layout row rides verbatim, and the mirror never writes body', () => {
+    const s = withPages();
+    expect(Object.keys(s.pages ?? {}).sort()).toEqual([P1, P2].sort());
+    expect(s.pages![P1]).toMatchObject({ slug: 'about', visibility: 'public', inNav: true, layout: pageLayoutFromBody(P1, pageRows[0].body) });
+    expect(s.pages![P2]).toMatchObject({ visibility: 'draft', inNav: false, layout: blankPageLayout(P2) });
+    expect(snapshotsEqual(s, withPages())).toBe(true);
+    const out = rowsFromSnapshot(s).pages;
+    expect(out.map(r => r.id)).toEqual([P1, P2]);
+    expect(out[0]).toMatchObject({ slug: 'about', body: [], visibility: 'public', in_nav: true, created_at: '2026-09-11T09:00:00Z' });
+    expect(out[0].layout).toEqual(pageLayoutFromBody(P1, pageRows[0].body));
+  });
+  it('no pages ⇒ no `pages` key: a pre-pages snapshot and a page-less one are equal; parseSnapshot carries pages through', () => {
+    expect(snapshotFromRows(siteRow, rows)).not.toHaveProperty('pages');
+    expect(snapshotsEqual(snapshotFromRows(siteRow, rows), snapshotFromRows(siteRow, rows, []))).toBe(true);
+    const s = withPages();
+    const round = parseSnapshot(JSON.parse(JSON.stringify(s)));
+    expect(round).not.toBeNull();
+    expect(snapshotsEqual(round!, s)).toBe(true);
+    expect(parseSnapshot({ ...s, pages: 'junk' })).not.toHaveProperty('pages');
+  });
+  it('diffPageRows: every row when prev is null; only changed rows; ids the next snapshot lacks are deletes', () => {
+    const s = withPages();
+    expect(diffPageRows(null, s).upsert.map(r => r.id)).toEqual([P1, P2]);
+    expect(diffPageRows(s, s)).toEqual({ upsert: [], deleteIds: [] });
+    const renamed = applySiteAction(s, patch({ action: 'set_page', pageId: P1, title: 'About us' }), ctx);
+    expect(diffPageRows(s, renamed).upsert.map(r => r.id)).toEqual([P1]);
+    const removed = applySiteAction(s, patch({ action: 'remove_page', pageId: P2 }), ctx);
+    expect(diffPageRows(s, removed)).toEqual({ upsert: [], deleteIds: [P2] });
+  });
+  it('add_page mints a slug (collision → -2, reserved refused), starts as a blank draft, respects the cap; set_page renames/reslugs/toggles; remove_page drops the page and its nav entry', () => {
+    const s = withPages();
+    const added = applySiteAction(s, { ...(patch({ action: 'add_page', title: 'About' }) as { action: 'add_page'; title: string }), id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', createdAt: '2026-09-11T11:00:00Z' }, ctx);
+    expect(added.pages!['aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa']).toMatchObject({ slug: 'about-2', title: 'About', visibility: 'draft', inNav: true, layout: blankPageLayout('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa') });
+    const reserved = applySiteAction(s, { action: 'add_page', title: 'X', slug: 'api', id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', createdAt: '2026-09-11T11:00:00Z' }, ctx);
+    expect(reserved).toBe(s);
+    const full = { ...s, pages: Object.fromEntries(Array.from({ length: 20 }, (_, i) => [`p${i}`, { ...s.pages![P1], id: `p${i}`, slug: `p${i}` }])) };
+    expect(applySiteAction(full, { action: 'add_page', title: 'One more', id: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc', createdAt: '2026-09-11T11:00:00Z' }, ctx)).toBe(full);
+    const set = applySiteAction(s, patch({ action: 'set_page', pageId: P1, title: 'About us', slug: 'about-us', visibility: 'draft', inNav: false }), ctx);
+    expect(set.pages![P1]).toMatchObject({ title: 'About us', slug: 'about-us', visibility: 'draft', inNav: false });
+    expect(applySiteAction(s, patch({ action: 'set_page', pageId: P1, slug: 'rules' }), ctx)).toBe(s); // taken
+    expect(applySiteAction(s, patch({ action: 'set_page', pageId: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd', title: 'x' }), ctx)).toBe(s); // unknown
+    const listed = applySiteAction(s, patch({ action: 'set_nav', items: [{ key: pageNavKey(P1) }, { key: 'standings', label: 'Table' }] }), ctx);
+    expect(listed.nav).toEqual([{ key: pageNavKey(P1) }, { key: 'standings', label: 'Table' }]);
+    expect(listed.modules.standings.sortOrder).toBe(1); // pages take no module position
+    const gone = applySiteAction(listed, patch({ action: 'remove_page', pageId: P1 }), ctx);
+    expect(gone.pages).not.toHaveProperty(P1);
+    expect(gone.nav).toEqual([{ key: 'standings', label: 'Table' }]);
+    const empty = applySiteAction(gone, patch({ action: 'remove_page', pageId: P2 }), ctx);
+    expect(empty).not.toHaveProperty('pages');
+  });
+  it('set_nav drops a page key the snapshot lacks; reset_order keeps surviving page entries after the modules; set_module off sweeps pages', () => {
+    const s = withPages();
+    const stale = applySiteAction(s, patch({ action: 'set_nav', items: [{ key: 'page:dddddddd-dddd-4ddd-8ddd-dddddddddddd' }, { key: 'news' }] }), ctx);
+    expect(stale.nav).toEqual([{ key: 'news' }]);
+    const listed = applySiteAction(s, patch({ action: 'set_nav', items: [{ key: pageNavKey(P1) }, { key: 'standings', label: 'Table' }] }), ctx);
+    const reset = applySiteAction(listed, patch({ action: 'reset_order' }), ctx);
+    expect(reset.nav).toEqual([{ key: 'standings', label: 'Table' }, { key: pageNavKey(P1) }]);
+    const base = blankPageLayout(P1);
+    const withStandings = { ...s, pages: { ...s.pages!, [P1]: { ...s.pages![P1], layout: { ...base, widgets: [...base.widgets, { id: 'st', key: 'standings', x: 0, y: 10, w: 12, h: 4, cv: 1, config: {}, visibility: 'public' as const }] } } } };
+    const off = applySiteAction(withStandings, patch({ action: 'set_module', moduleKey: 'standings', enabled: false }), ctx);
+    expect((off.pages![P1].layout as { widgets: { key: string }[] }).widgets.map(w => w.key)).toEqual(['text']);
+    expect(validateLayout(parseStoredLayout(off.pages![P1].layout)!)).toEqual([]);
+  });
+});

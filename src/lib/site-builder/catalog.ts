@@ -79,6 +79,12 @@ export type ContentWidgetKey = (typeof CONTENT_WIDGET_KEYS)[number];
 export const SITE_WIDGET_KEYS = [...WEB_WIDGET_KEYS, ...CONTENT_WIDGET_KEYS] as const;
 export type SiteWidgetKey = (typeof SITE_WIDGET_KEYS)[number];
 
+/** Program 2, B (Sep 11 2026): what a custom PAGE may hold — every site
+ *  widget except the hero, which is the site's identity (it reads
+ *  `hero_config`; seeds and `set_module` assume exactly one, on the home). */
+export const PAGE_WIDGET_KEYS = SITE_WIDGET_KEYS.filter((k): k is Exclude<SiteWidgetKey, 'hero'> => k !== 'hero');
+export type PageWidgetKey = (typeof PAGE_WIDGET_KEYS)[number];
+
 /** Phase 9 — module widgets that may repeat, each instance bound to its own
  *  query (a competition, a venue): standings, schedule, leaders. */
 export const QUERY_WIDGET_KEYS = ['standings', 'schedule', 'leaders'] as const;

@@ -4,6 +4,8 @@ import { FULL_WIDTH_MODULES } from '@/lib/org-sites/templates';
 import {
   APP_ONLY_WIDGET_KEYS,
   CONTENT_WIDGET_KEYS,
+  PAGE_WIDGET_KEYS,
+  SITE_WIDGET_KEYS,
   WEB_WIDGET_KEYS,
   WIDGETS,
   WIDGET_KEYS,
@@ -16,6 +18,11 @@ import {
 // chunk never imports validate.ts + zod). These pins are what make the copy
 // safe: any drift between the two lists fails here, not in production.
 describe('site-builder catalog', () => {
+  it('program 2, B: PAGE_WIDGET_KEYS is every site widget except the hero, in order', () => {
+    expect(PAGE_WIDGET_KEYS).toEqual(SITE_WIDGET_KEYS.filter(k => k !== 'hero'));
+    expect(PAGE_WIDGET_KEYS).not.toContain('hero');
+    expect(PAGE_WIDGET_KEYS).toEqual(expect.arrayContaining(['text', 'image', 'embed', 'standings']));
+  });
   it('WEB_WIDGET_KEYS is exactly MODULE_KEYS, in order', () => {
     expect([...WEB_WIDGET_KEYS]).toEqual([...MODULE_KEYS]);
   });

@@ -547,7 +547,31 @@ describe('parseNavConfig / moduleLabel', () => {
     expect(nav.labels.teams).toHaveLength(24);
     expect(moduleLabel('schedule', nav)).toBe('Games');
     expect(moduleLabel('standings', nav)).toBe('Standings');
-    expect(parseNavConfig(null)).toEqual({ order: [], labels: {} });
+    expect(parseNavConfig(null)).toEqual({ order: [], labels: {}, entries: [] });
+    // Program 2, B: page keys ride `entries` only — `order` stays module-only for every module reader.
+    const withPage = parseNavConfig([{ key: 'page:2f1b46c8-2964-4139-9689-d1c3f736ed93' }, { key: 'standings' }, { key: 'page:not-a-uuid' }, { key: 'page:2f1b46c8-2964-4139-9689-d1c3f736ed93' }]);
+    expect(withPage.order).toEqual(['standings']);
+    expect(withPage.entries).toEqual(['page:2f1b46c8-2964-4139-9689-d1c3f736ed93', 'standings']);
+  });
+});
+
+// ── Program 2, B (Sep 11 2026): the page actions ────────────────────────────
+describe('page actions (program 2, B)', () => {
+  const PAGE = '2f1b46c8-2964-4139-9689-d1c3f736ed93';
+  it('add_page needs a title; slug is optional and lower-cased; set_page needs a uuid; remove_page too', () => {
+    expect(SitePatchSchema.safeParse({ action: 'add_page', title: 'About us' }).success).toBe(true);
+    expect(SitePatchSchema.safeParse({ action: 'add_page', title: '' }).success).toBe(false);
+    const withSlug = SitePatchSchema.parse({ action: 'add_page', title: 'About', slug: ' About-Us ' });
+    expect(withSlug).toMatchObject({ slug: 'about-us' });
+    expect(SitePatchSchema.safeParse({ action: 'set_page', pageId: PAGE, inNav: false }).success).toBe(true);
+    expect(SitePatchSchema.safeParse({ action: 'set_page', pageId: 'nope', inNav: false }).success).toBe(false);
+    expect(SitePatchSchema.safeParse({ action: 'set_page', pageId: PAGE, visibility: 'hidden' }).success).toBe(false);
+    expect(SitePatchSchema.safeParse({ action: 'remove_page', pageId: PAGE }).success).toBe(true);
+  });
+  it('set_nav accepts page keys beside module keys and refuses junk keys', () => {
+    expect(SitePatchSchema.safeParse({ action: 'set_nav', items: [{ key: 'standings' }, { key: `page:${PAGE}` }] }).success).toBe(true);
+    expect(SitePatchSchema.safeParse({ action: 'set_nav', items: [{ key: 'page:nope' }] }).success).toBe(false);
+    expect(SitePatchSchema.safeParse({ action: 'set_nav', items: [{ key: 'hero' }] }).success).toBe(false);
   });
 });
 
