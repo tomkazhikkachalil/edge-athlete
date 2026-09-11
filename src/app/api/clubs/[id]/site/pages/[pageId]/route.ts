@@ -48,7 +48,7 @@ export async function PATCH(
 
     const parsed = await parseBody(request, PagePatchSchema);
     if (!parsed.success) return parsed.response;
-    return await pagePATCH(admin, 'club', id, pageId, parsed.data);
+    return await pagePATCH(admin, 'club', id, pageId, parsed.data, user.id);
   } catch (error) {
     if (error instanceof Response) return error;
     console.error('[ORG SITE PAGES] club page PATCH error:', error);
@@ -71,7 +71,7 @@ export async function DELETE(
     const admin = getSupabaseAdmin();
     const gate = await requireOrgManager(admin, user, 'club', id, { intent: 'manage_site' });
     if (!gate.ok) return gate.response;
-    return await pageDELETE(admin, 'club', id, pageId);
+    return await pageDELETE(admin, 'club', id, pageId, user.id);
   } catch (error) {
     if (error instanceof Response) return error;
     console.error('[ORG SITE PAGES] club page DELETE error:', error);

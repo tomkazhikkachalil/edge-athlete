@@ -50,7 +50,7 @@ export async function POST(
 
     const parsed = await parseBody(request, PageCreateSchema);
     if (!parsed.success) return parsed.response;
-    return await pageCreatePOST(admin, 'club', id, parsed.data);
+    return await pageCreatePOST(admin, 'club', id, parsed.data, user.id);
   } catch (error) {
     if (error instanceof Response) return error;
     console.error('[ORG SITE PAGES] club POST error:', error);

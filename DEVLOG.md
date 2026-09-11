@@ -1,5 +1,61 @@
 # Development Log
 
+## September 11, 2026 — Program 2, B2: the draft carries the pages — the mirror on publish, the page layout write, the canvas (zero DDL)
+
+**What.** B1 gave the snapshot its `pages`; this PR makes the server speak
+it. `revisions-server.ts loadRows` now reads the page rows beside the site
+and module rows (`id, slug, title, body, visibility, created_at, layout,
+in_nav`) with the 185 step-down: a 42703 on the new columns re-reads without
+them and reports `pagesSupport: 'pre185'`; a REAL read error answers null
+(the caller aborts — an empty list would have looked like "every page
+deleted" to the mirror). `rowsSnapshot(rows)` is the one place rows become a
+snapshot, so a legacy row still speaking in blocks converts on every path
+(the first draft, the console's dirty line, publish). `writeSnapshotToRows`
+mirrors the page diff AFTER the module rows: whole rows by id (update, insert
+when missing with `body: []` and the snapshot's id and timestamp), then the
+ids the next snapshot no longer holds; `body` is written as the LEGACY
+projection of the layout (its text and image sections as blocks) so the
+block renderer and the sitemap keep reading it until every route reads
+`layout` (B4) — and pre-185 it is the only content column there is (the
+first local run of the pages spec caught a freshly created page publishing
+empty); pre-185 no `layout` / `in_nav` travels.
+`writeDraftLayout(…, pageId?)` writes ONE page's layout into the draft
+(`page_not_found` for a page the draft lacks; the home slot untouched).
+
+**The canvas and the PUT.** `GET …/site/canvas` carries `pages` (the
+draft's, else the published projection's; null pre-185 so the editor hides
+the switcher), each with its layout parsed and validated (`parsePageLayout`,
+a blank page when unusable), and resolves `data` over the UNION of the home
+and every page's widgets — one read set for every layout the editor can
+show. `PUT …/site/draft { pageId?, layout, baseRev }` targets a page when
+`pageId` is present: the page rules (no hero, page widgets only, the
+40-section cap) replace the home's, the image-prefix guard stays, an unknown
+page is a 404. `sitePATCH` gains the three page actions (`add_page` mints the
+id and the timestamp server-side; a reserved or malformed explicit slug is a
+400; a taken address or a twenty-first page is a 409 read off "nothing
+changed" on the snapshot; `set_page` answers the page row; `remove_page`
+answers `{ok, draft}`).
+
+**One writer.** `pages-server.ts` is re-implemented over `applyDraftAction`:
+create → `add_page`, title / visibility → `set_page`, delete →
+`remove_page`, and a `body` PATCH converts to the page's LAYOUT through the
+same draft slot the editor writes — so the console's block editor keeps
+working until B5 retires it, and `scripts/seed-demo-org.mjs`'s row insert
+still converts. Reads answer the draft's pages when a draft exists, else the
+projection's; the row shape the console reads is unchanged, with `body`
+DERIVED from the layout and `layout` / `in_nav` beside it. Nothing here
+touches the rows or revalidates: a page goes live with the draft, on publish
+(pre-180 the one writer's live path still mirrors and purges). Both route
+twins pass the acting user through.
+
+**Tests.** `revisions-server.test.ts`: the step-down (42703 → the six-column
+select → `pre185`; a real error → null), the mirror (update → insert with
+`body: []` → delete; after the site row; pre-185 columns), the page layout
+write (only that page's slot; `page_not_found`). e2e: `org-site.spec.ts`'s
+pages block now publishes before its public reads (page writes are draft
+writes), and `org-site-two-pages` / `org-site-revisions` stay green — a
+restore brings a removed page back with everything else.
+
 ## September 11, 2026 — Program 2, B1: pages in the ONE snapshot — the pure core and migration 185 (no runtime change)
 
 **Why pages, and why like this.** Custom pages were the last part of a site

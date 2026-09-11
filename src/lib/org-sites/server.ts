@@ -21,12 +21,14 @@ import {
   defaultModuleOrder,
   GOLF_TAGLINE,
   isMissingTableError,
+  isValidPageSlug,
   isValidSubdomain,
   MODULE_KEYS,
   POST_155_MODULE_KEYS,
   slugifyOrgName,
   type SitePatchInput,
 } from './validate';
+import { pageRowOf } from './pages-server';
 import { RESERVED_ROOT_SLUGS } from './reserved';
 import { judgeSlug, suggestSlugs, type OrgIdentity } from './slug-policy';
 import { applyDraftAction, loadDraftSnapshot, loadSitePointers, publishDraft } from './revisions-server';
@@ -517,6 +519,17 @@ export async function sitePATCH(
     case 'remove_gallery_pick':
       action = { action: 'remove_gallery_pick', mediaId: input.mediaId };
       break;
+    case 'add_page':
+      // Program 2, B: the server mints the id and the timestamp; an explicit
+      // slug that is reserved or malformed is refused here (the reducer would
+      // silently refuse it as "no change").
+      if (input.slug !== undefined && !isValidPageSlug(input.slug)) return NextResponse.json({ error: 'That address is reserved or invalid' }, { status: 400 });
+      action = { ...input, id: crypto.randomUUID(), createdAt: new Date().toISOString() };
+      break;
+    case 'set_page':
+      if (input.slug !== undefined && !isValidPageSlug(input.slug)) return NextResponse.json({ error: 'That address is reserved or invalid' }, { status: 400 });
+      action = input;
+      break;
     default:
       // publish/unpublish returned above; the remaining members are content actions.
       action = input as SnapshotAction;
@@ -550,6 +563,23 @@ export async function sitePATCH(
       break;
   }
   const draft = result.draft ?? null;
+  // Program 2, B: the page actions answer the page row shape (the console's
+  // list) — a refused add (address taken, or twenty pages already) and a
+  // refused re-slug are visible as "nothing changed" on the snapshot.
+  if (action.action === 'add_page') {
+    const page = result.snapshot?.pages?.[action.id];
+    if (!page) return NextResponse.json({ error: 'That address is already in use, or the site already has its twenty pages' }, { status: 409 });
+    return NextResponse.json({ page: pageRowOf(site.id, page), draft });
+  }
+  if (input.action === 'set_page') {
+    const page = result.snapshot?.pages?.[input.pageId];
+    if (!page) return NextResponse.json({ error: 'Page not found' }, { status: 404 });
+    if (input.slug !== undefined && page.slug !== input.slug) return NextResponse.json({ error: 'That address is already in use' }, { status: 409 });
+    return NextResponse.json({ page: pageRowOf(site.id, page), draft });
+  }
+  if (input.action === 'remove_page') {
+    return NextResponse.json({ ok: true, draft });
+  }
   // Response shapes are the pre-P2-B ones plus `draft` (the console's line).
   if (input.action === 'set_module') {
     return NextResponse.json({ module: { module_key: input.moduleKey, enabled: input.enabled }, draft });
