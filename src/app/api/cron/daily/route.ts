@@ -7,6 +7,7 @@ import { runReminderSweep } from '@/lib/calendar/reminders-server';
 import { runRoundSweep } from '@/lib/golf/round-sweep';
 import { runGolfLeagueSync, runGolfWindowReminders } from '@/lib/competitions/golf-league-server';
 import { runDeletionPurge } from '@/lib/account-park';
+import { runFormSubmissionPurge } from '@/lib/org-sites/forms-server';
 import { runPendingNudge } from '@/lib/guardian-nudge';
 import { runRiskSweep } from '@/lib/risk-sweep';
 import { FEATURE_FLAGS } from '@/lib/features';
@@ -114,6 +115,15 @@ export async function GET(request: NextRequest) {
   } catch (e) {
     console.error('[DAILY] deletion purge phase failed:', e);
     summary.deletionPurge = { ok: false };
+  }
+
+  // Program 2, D2 (Sep 11 2026): org-site form submissions — archived rows
+  // past 365 days and unarchived past 730 go (docs/HARDENING.md B4).
+  try {
+    summary.formSubmissions = await runFormSubmissionPurge(admin);
+  } catch (e) {
+    console.error('[DAILY] form submission purge phase failed:', e);
+    summary.formSubmissions = { ok: false };
   }
 
   // 6. 48h approval nudge (Wave 2, mig 129): "nudge, never auto-publish".

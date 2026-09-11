@@ -144,6 +144,18 @@ this sweep covers the rest by reading.
 
 ---
 
+### B5. Personal data with a shelf life (program 2, D — Sep 11 2026)
+
+- **Org-site form submissions** (`org_site_form_submissions`, mig 187) hold
+  a visitor's name, email, optional phone, an age GROUP (never a date of
+  birth) and a message. Service-role only (posture A); read in the console's
+  Inbox by `manage_site` managers; never on a public surface; the
+  notification carries a summary, never the message. The daily cron purges
+  archived rows after 365 days and unarchived after 730
+  (`runFormSubmissionPurge`, cutoffs pinned by test). Sweep: confirm the
+  cron ran (`summary.formSubmissions` in the daily response) and that no
+  row older than the cutoffs remains.
+
 ## Backlog (Tier 2) — scheduled, not yet done
 
 **From the Sep 2026 phase-3 R5 close (public-segment perf, accepted for now)**

@@ -119,7 +119,9 @@ test('org site forms: contact + interest widgets, the public POST, the honeypot,
     } finally {
       await anon.close();
     }
-    // In-app: the org page shows the form as a door to the site.
+    // In-app: the org page shows the form as a door to the site; the
+    // console's Inbox (D2) lists both submissions — Mark read, Archive,
+    // the archived view, Restore; nothing of it is public.
     const ownerCtx = await browser.newContext({ storageState: 'e2e/.auth/state-b.json', viewport: { width: 1280, height: 900 } });
     try {
       const page = await ownerCtx.newPage();
@@ -127,6 +129,38 @@ test('org site forms: contact + interest widgets, the public POST, the honeypot,
       const tile = page.locator(`[data-org-tile="${contactId}"]`);
       await expect(tile).toBeVisible({ timeout: 30_000 });
       await expect(tile.getByRole('link', { name: 'Contact us on the website' })).toBeVisible();
+
+      await page.goto(`/app/org/league/${leagueId}#inbox`);
+      const inbox = page.locator('[data-site-inbox]');
+      await expect(inbox).toBeVisible({ timeout: 30_000 });
+      await expect(inbox.locator('[data-site-inbox-unread]')).toHaveText('2');
+      await expect(inbox.locator('[data-site-inbox-row]')).toHaveCount(2);
+      const row = inbox.locator('[data-site-inbox-row]').filter({ hasText: `Sam ${stamp}` });
+      await expect(row).toContainText(`Hello from the form ${stamp}`);
+      await expect(row.getByRole('link', { name: 'sam@example.com' })).toHaveAttribute('href', 'mailto:sam@example.com');
+      await row.locator('[data-site-inbox-read]').click();
+      await expect(page.getByRole('alert').filter({ hasText: 'Marked as read' })).toBeVisible({ timeout: 15_000 });
+      await expect(inbox.locator('[data-site-inbox-unread]')).toHaveText('1');
+      await row.locator('[data-site-inbox-archive]').click();
+      await expect(page.getByRole('alert').filter({ hasText: 'Archived' }).first()).toBeVisible({ timeout: 15_000 });
+      await expect(inbox.locator('[data-site-inbox-row]')).toHaveCount(1);
+      await inbox.getByRole('radio', { name: 'Archived' }).click();
+      const archived = inbox.locator('[data-site-inbox-row]').filter({ hasText: `Sam ${stamp}` });
+      await expect(archived).toBeVisible();
+      await archived.locator('[data-site-inbox-restore]').click();
+      await expect(page.getByRole('alert').filter({ hasText: 'Restored to the inbox' })).toBeVisible({ timeout: 15_000 });
+      // A member who is not a manager cannot read the inbox.
+      const memberApi = await apiAs('state.json');
+      try {
+        expect((await memberApi.get(`/api/leagues/${leagueId}/site/forms`)).status()).toBe(403);
+      } finally {
+        await memberApi.dispose();
+      }
+      // 375px: the inbox inside the viewport.
+      await page.setViewportSize({ width: 375, height: 812 });
+      await inbox.getByRole('radio', { name: 'Open' }).click();
+      await expect(inbox.locator('[data-site-inbox-row]').first()).toBeVisible();
+      expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(375);
     } finally {
       await ownerCtx.close();
     }
