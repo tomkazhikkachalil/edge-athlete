@@ -208,17 +208,26 @@ export async function loadDraftSnapshot(
   site: SitePointers
 ): Promise<{ summary: DraftSummary; snapshot: SiteSnapshot } | null> {
   if (!site.draft_revision_id) return null;
-  const [draft, rows] = await Promise.all([loadRevision(admin, site.draft_revision_id), loadRows(admin, site.id)]);
+  const [draft, rows, published] = await Promise.all([
+    loadRevision(admin, site.draft_revision_id),
+    loadRows(admin, site.id),
+    site.published_revision_id ? loadRevision(admin, site.published_revision_id) : Promise.resolve(null),
+  ]);
   if (!draft || !rows) return null;
   const snapshot = parseSnapshot(draft.snapshot);
   if (!snapshot) return null;
+  // Program 2, B6: "unpublished changes" compares the draft to what is LIVE
+  // — the published revision's snapshot when there is one (it carries the
+  // grid layout the rows never held, so a fresh draft that merely inherited
+  // it no longer reads dirty), else the rows.
+  const live = (published ? parseSnapshot(published.snapshot) : null) ?? rowsSnapshot(rows);
   return {
     snapshot,
     summary: {
       id: draft.id,
       rev: draft.rev,
       updatedAt: draft.updated_at,
-      hasUnpublishedChanges: !snapshotsEqual(snapshot, rowsSnapshot(rows)),
+      hasUnpublishedChanges: !snapshotsEqual(snapshot, live),
     },
   };
 }

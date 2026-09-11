@@ -299,3 +299,53 @@ describe('pages — the 185 step-down, the mirror, the page layout write', () =>
     expect(await writeDraftLayout(unknown.admin, 'league', 'org', 'u', layout, 4, P2)).toEqual({ status: 'page_not_found' });
   });
 });
+
+// ── Program 2, B6: "unpublished changes" is measured against what is LIVE ───
+import { loadDraftSnapshot } from '../revisions-server';
+
+describe('loadDraftSnapshot — hasUnpublishedChanges compares to the published revision when there is one', () => {
+  const rowsScript = (call: Call): unknown | undefined => {
+    if (call.table === 'org_sites') return { data: { template_id: 'classic', theme_token_set: {}, nav_config: [], hero_config: {}, contact_config: {} }, error: null };
+    if (call.table === 'org_site_modules') return { data: [{ module_key: 'hero', enabled: true, sort_order: 0, config: {} }, { module_key: 'standings', enabled: true, sort_order: 1, config: {} }], error: null };
+    if (call.table === 'org_site_pages') return { data: [], error: null };
+    return undefined;
+  };
+  const withLayout = { ...snapshot, layout: { version: 1, cols: 12, widgets: [{ id: 'legacy:hero', key: 'hero', x: 0, y: 0, w: 12, h: 3, cv: 1, config: {}, visibility: 'public' }] } };
+
+  it('a fresh draft that merely inherited the published layout is CLEAN; a changed one is dirty', async () => {
+    const clean = fakeAdmin(call => {
+      const rows = rowsScript(call);
+      if (rows !== undefined) return rows;
+      const id = call.ops.find(o => o.op === 'eq')?.args[1];
+      if (id === 'd1') return { data: { ...draftRow, snapshot: withLayout }, error: null };
+      if (id === 'p0') return { data: { ...draftRow, id: 'p0', published_at: 'x', snapshot: withLayout }, error: null };
+      return { data: null, error: null };
+    });
+    expect((await loadDraftSnapshot(clean.admin, site))?.summary.hasUnpublishedChanges).toBe(false);
+
+    const dirty = fakeAdmin(call => {
+      const rows = rowsScript(call);
+      if (rows !== undefined) return rows;
+      const id = call.ops.find(o => o.op === 'eq')?.args[1];
+      if (id === 'd1') return { data: { ...draftRow, snapshot: { ...withLayout, hero: { headline: 'Changed' } } }, error: null };
+      if (id === 'p0') return { data: { ...draftRow, id: 'p0', published_at: 'x', snapshot: withLayout }, error: null };
+      return { data: null, error: null };
+    });
+    expect((await loadDraftSnapshot(dirty.admin, site))?.summary.hasUnpublishedChanges).toBe(true);
+  });
+
+  it('without a published revision the rows are the measure (a draft with a layout reads dirty against layout-less rows)', async () => {
+    const never = fakeAdmin(call => {
+      const rows = rowsScript(call);
+      if (rows !== undefined) return rows;
+      return { data: { ...draftRow, snapshot: withLayout }, error: null };
+    });
+    expect((await loadDraftSnapshot(never.admin, { ...site, published_revision_id: null }))?.summary.hasUnpublishedChanges).toBe(true);
+    const same = fakeAdmin(call => {
+      const rows = rowsScript(call);
+      if (rows !== undefined) return rows;
+      return { data: { ...draftRow, snapshot }, error: null };
+    });
+    expect((await loadDraftSnapshot(same.admin, { ...site, published_revision_id: null }))?.summary.hasUnpublishedChanges).toBe(false);
+  });
+});
