@@ -908,6 +908,8 @@ test('org site pages: create, blocks, publish; reserved 400; draft 404', async (
         data: { title: 'Secret Plans' },
       });
       expect(draftRes.status(), await readErrorBody(draftRes)).toBe(200);
+      // Program 2, B: page writes go to the DRAFT — publish before the public reads.
+      await publishSite(ownerApi, 'league', leagueId);
     } finally {
       await ownerApi.dispose();
     }

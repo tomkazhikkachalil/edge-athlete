@@ -1,32 +1,31 @@
-// ── Org site pages CRUD — the shared core (phase 3 R3) ─────────────────────
+// ── Org site pages CRUD — the shared core (phase 3 R3; program 2 B, Sep 11 2026)
 // org_site_pages is posture A (service-role only); both route twins wrap
-// these. Slugs are minted from the title against RESERVED_PAGE_SLUGS
-// (the module-key shadow rule) with -2..-20 collision suffixes — the
-// mintSubdomain shape. Every write ends in revalidateTag: the public
-// page, the nav, and the cached list all ride org-site:{subdomain}.
+// these. Since program 2 B a page lives in the ONE revision snapshot
+// (`snapshot.pages`) and the rows are its PUBLISHED PROJECTION: every write
+// here goes through `applyDraftAction` (the one writer) — create →
+// `add_page`, title / visibility → `set_page`, delete → `remove_page`, and a
+// `body` PATCH converts to the page's LAYOUT (`pageLayoutFromBody`) so the
+// console's block editor keeps working until it retires. Nothing here touches
+// the rows or revalidates: the page goes live with the draft, on publish
+// (pre-180 the one writer's live path still mirrors and purges). Reads answer
+// the draft's pages when a draft exists, else the projection's.
 //
 // Image blocks are re-asserted against THIS site's org-media/ prefix at
 // PATCH time — the schema alone can't scope a path to the site, and a
 // cross-site reference must never render.
 
-import { revalidateTag } from 'next/cache';
 import { NextResponse } from 'next/server';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { OrgSide } from '@/lib/orgs/authz';
 import { ALLOWED_IMAGE_MIME } from '@/lib/media/validation';
-import {
-  isValidPageSlug,
-  PAGES_PER_SITE_MAX,
-  slugifyPageTitle,
-  type PageCreateInput,
-  type PagePatchInput,
-} from './validate';
+import { isValidPageSlug, PAGES_PER_SITE_MAX, type PageCreateInput, type PagePatchInput } from './validate';
+import { blocksFromPageLayout, orderedPages, pageLayoutFromBody, parsePageLayout, blankPageLayout, type SnapshotPage } from '@/lib/site-builder/pages';
+import { applyDraftAction, loadDraftSnapshot, loadRows, loadSitePointers, rowsSnapshot, writeDraftLayout } from './revisions-server';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- matches the authz.ts Admin alias; schema-agnostic helper
 type Admin = SupabaseClient<any, 'public', any>;
 
 const TAG = '[ORG SITE PAGES]';
-const PAGE_FIELDS = 'id, site_id, slug, title, body, visibility, created_at, updated_at';
 const MAX_ASSET_BYTES = 10 * 1024 * 1024;
 export const ORG_MEDIA_PREFIX = 'org-media/';
 
@@ -43,178 +42,112 @@ async function getSiteForOrg(admin: Admin, side: OrgSide, orgId: string) {
   return data as { id: string; subdomain: string } | null;
 }
 
-export async function pagesGET(
-  admin: Admin,
-  side: OrgSide,
-  orgId: string
-): Promise<NextResponse> {
-  const site = await getSiteForOrg(admin, side, orgId);
-  if (!site) return NextResponse.json({ pages: [] });
-  const { data, error } = await admin
-    .from('org_site_pages')
-    .select(PAGE_FIELDS)
-    .eq('site_id', site.id)
-    .order('created_at', { ascending: true })
-    .limit(PAGES_PER_SITE_MAX + 5);
-  if (error) {
-    console.error(`${TAG} list error:`, error);
-    return NextResponse.json({ error: 'Failed to load pages' }, { status: 500 });
-  }
-  return NextResponse.json({ pages: data ?? [] });
+/** The page row shape the console and the API have always read. `body` is
+ *  DERIVED from the layout (the block editor's view of a converted or
+ *  authored page); `layout` and `in_nav` ride beside it. */
+export function pageRowOf(siteId: string, p: SnapshotPage) {
+  const layout = parsePageLayout(p.layout) ?? blankPageLayout(p.id);
+  return {
+    id: p.id,
+    site_id: siteId,
+    slug: p.slug,
+    title: p.title,
+    body: blocksFromPageLayout(layout),
+    visibility: p.visibility,
+    created_at: p.createdAt,
+    updated_at: p.createdAt,
+    in_nav: p.inNav,
+    layout,
+  };
 }
 
-export async function pageCreatePOST(
-  admin: Admin,
-  side: OrgSide,
-  orgId: string,
-  input: PageCreateInput
-): Promise<NextResponse> {
-  const site = await getSiteForOrg(admin, side, orgId);
-  if (!site) {
-    return NextResponse.json({ error: 'Site not found' }, { status: 404 });
-  }
-  const { count } = await admin
-    .from('org_site_pages')
-    .select('id', { count: 'exact', head: true })
-    .eq('site_id', site.id);
-  if ((count ?? 0) >= PAGES_PER_SITE_MAX) {
-    return NextResponse.json(
-      { error: `A site can have at most ${PAGES_PER_SITE_MAX} pages` },
-      { status: 400 }
-    );
-  }
-
-  if (input.slug !== undefined) {
-    // Explicit slug: reserved/invalid → 400; taken → 409. No retries.
-    if (!isValidPageSlug(input.slug)) {
-      return NextResponse.json(
-        { error: 'That address is reserved or invalid' },
-        { status: 400 }
-      );
-    }
-    const { data: page, error } = await admin
-      .from('org_site_pages')
-      .insert({ site_id: site.id, slug: input.slug, title: input.title })
-      .select(PAGE_FIELDS)
-      .single();
-    if (error || !page) {
-      if (error?.code === '23505') {
-        return NextResponse.json({ error: 'That address is already in use' }, { status: 409 });
-      }
-      console.error(`${TAG} create error:`, error);
-      return NextResponse.json({ error: 'Failed to create the page' }, { status: 500 });
-    }
-    revalidateTag(`org-site:${site.subdomain}`, { expire: 0 });
-    return NextResponse.json({ page });
-  }
-
-  // Minted slug: base from the title, then -2..-20 (the mintSubdomain shape).
-  const base = slugifyPageTitle(input.title) || 'page';
-  const candidates = [base, ...Array.from({ length: 19 }, (_, i) => `${base}-${i + 2}`)]
-    .map(c => c.slice(0, 80))
-    .filter(isValidPageSlug);
-  for (const candidate of candidates) {
-    const { data: page, error } = await admin
-      .from('org_site_pages')
-      .insert({ site_id: site.id, slug: candidate, title: input.title })
-      .select(PAGE_FIELDS)
-      .single();
-    if (page) {
-      revalidateTag(`org-site:${site.subdomain}`, { expire: 0 });
-      return NextResponse.json({ page });
-    }
-    if (error?.code !== '23505') {
-      console.error(`${TAG} create error:`, error);
-      return NextResponse.json({ error: 'Failed to create the page' }, { status: 500 });
-    }
-  }
-  return NextResponse.json(
-    { error: 'Could not derive a free address from that title' },
-    { status: 409 }
-  );
+/** The pages as the manager sees them: the draft's when a draft exists,
+ *  else the published projection's. Null when the site is missing. */
+async function loadPagesView(admin: Admin, side: OrgSide, orgId: string): Promise<{ siteId: string; subdomain: string; pages: SnapshotPage[] } | null> {
+  const { site: pointers, support } = await loadSitePointers(admin, side, orgId);
+  if (!pointers) return null;
+  const state = support === 'supported' && pointers.draft_revision_id ? await loadDraftSnapshot(admin, pointers) : null;
+  if (state) return { siteId: pointers.id, subdomain: pointers.subdomain, pages: orderedPages(state.snapshot.pages) };
+  const rows = await loadRows(admin, pointers.id);
+  if (!rows) return null;
+  return { siteId: pointers.id, subdomain: pointers.subdomain, pages: orderedPages(rowsSnapshot(rows).pages) };
 }
 
-export async function pageGET(
-  admin: Admin,
-  side: OrgSide,
-  orgId: string,
-  pageId: string
-): Promise<NextResponse> {
-  const site = await getSiteForOrg(admin, side, orgId);
-  if (!site) return NextResponse.json({ error: 'Not found' }, { status: 404 });
-  const { data: page } = await admin
-    .from('org_site_pages')
-    .select(PAGE_FIELDS)
-    .eq('id', pageId)
-    .eq('site_id', site.id)
-    .maybeSingle();
-  if (!page) return NextResponse.json({ error: 'Not found' }, { status: 404 });
-  return NextResponse.json({ page });
+const CTX = (side: OrgSide) => ({ side, sportKey: null });
+
+export async function pagesGET(admin: Admin, side: OrgSide, orgId: string): Promise<NextResponse> {
+  const view = await loadPagesView(admin, side, orgId);
+  if (!view) return NextResponse.json({ pages: [] });
+  return NextResponse.json({ pages: view.pages.map(p => pageRowOf(view.siteId, p)) });
 }
 
-export async function pagePATCH(
-  admin: Admin,
-  side: OrgSide,
-  orgId: string,
-  pageId: string,
-  input: PagePatchInput
-): Promise<NextResponse> {
-  const site = await getSiteForOrg(admin, side, orgId);
-  if (!site) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+export async function pageCreatePOST(admin: Admin, side: OrgSide, orgId: string, input: PageCreateInput, userId: string | null = null): Promise<NextResponse> {
+  const view = await loadPagesView(admin, side, orgId);
+  if (!view) return NextResponse.json({ error: 'Site not found' }, { status: 404 });
+  if (view.pages.length >= PAGES_PER_SITE_MAX) {
+    return NextResponse.json({ error: `A site can have at most ${PAGES_PER_SITE_MAX} pages` }, { status: 400 });
+  }
+  // Explicit slug: reserved/invalid → 400; taken → 409 (the reducer refuses it as "no change").
+  if (input.slug !== undefined && !isValidPageSlug(input.slug)) {
+    return NextResponse.json({ error: 'That address is reserved or invalid' }, { status: 400 });
+  }
+  const id = crypto.randomUUID();
+  const result = await applyDraftAction(admin, side, orgId, userId, { action: 'add_page', title: input.title, slug: input.slug, id, createdAt: new Date().toISOString() }, CTX(side));
+  if (result.status === 'not_found') return NextResponse.json({ error: 'Site not found' }, { status: 404 });
+  if (result.status === 'conflict') return NextResponse.json({ error: 'The draft changed while you were editing — reload and try again' }, { status: 409 });
+  if (result.status === 'error') return NextResponse.json({ error: 'Failed to create the page' }, { status: 500 });
+  const page = result.snapshot?.pages?.[id];
+  if (!page) {
+    return NextResponse.json({ error: input.slug !== undefined ? 'That address is already in use' : 'Could not derive a free address from that title' }, { status: 409 });
+  }
+  return NextResponse.json({ page: pageRowOf(view.siteId, page), draft: result.draft ?? null });
+}
+
+export async function pageGET(admin: Admin, side: OrgSide, orgId: string, pageId: string): Promise<NextResponse> {
+  const view = await loadPagesView(admin, side, orgId);
+  const page = view?.pages.find(p => p.id === pageId);
+  if (!view || !page) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+  return NextResponse.json({ page: pageRowOf(view.siteId, page) });
+}
+
+export async function pagePATCH(admin: Admin, side: OrgSide, orgId: string, pageId: string, input: PagePatchInput, userId: string | null = null): Promise<NextResponse> {
+  const view = await loadPagesView(admin, side, orgId);
+  if (!view) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+  if (!view.pages.some(p => p.id === pageId)) return NextResponse.json({ error: 'Not found' }, { status: 404 });
 
   if (input.body) {
     // The cross-site guard: every image path must live under THIS site's
     // asset prefix (the schema can't know the site id).
     for (const block of input.body) {
-      if (block.type === 'image' && !block.path.startsWith(`${ORG_MEDIA_PREFIX}${site.id}/`)) {
-        return NextResponse.json(
-          { error: 'Image is not one of this site’s assets' },
-          { status: 400 }
-        );
+      if (block.type === 'image' && !block.path.startsWith(`${ORG_MEDIA_PREFIX}${view.siteId}/`)) {
+        return NextResponse.json({ error: 'Image is not one of this site’s assets' }, { status: 400 });
       }
     }
+    // The blocks become the page's LAYOUT — the same draft slot the editor writes.
+    const written = await writeDraftLayout(admin, side, orgId, userId, pageLayoutFromBody(pageId, input.body), undefined, pageId);
+    if (written.status === 'page_not_found') return NextResponse.json({ error: 'Not found' }, { status: 404 });
+    if (written.status === 'pre180') return NextResponse.json({ error: 'Drafts and revisions need a database migration first (180)' }, { status: 409 });
+    if (written.status === 'conflict') return NextResponse.json({ error: 'The draft changed while you were editing — reload and try again' }, { status: 409 });
+    if (written.status !== 'ok') return NextResponse.json({ error: 'Failed to update the page' }, { status: 500 });
   }
-
-  const patch = {
-    ...(input.title !== undefined ? { title: input.title } : {}),
-    ...(input.body !== undefined ? { body: input.body } : {}),
-    ...(input.visibility !== undefined ? { visibility: input.visibility } : {}),
-  };
-  const { data: updated, error } = await admin
-    .from('org_site_pages')
-    .update(patch)
-    .eq('id', pageId)
-    .eq('site_id', site.id)
-    .select(PAGE_FIELDS);
-  if (error) {
-    console.error(`${TAG} patch error:`, error);
-    return NextResponse.json({ error: 'Failed to update the page' }, { status: 500 });
+  if (input.title !== undefined || input.visibility !== undefined) {
+    const result = await applyDraftAction(admin, side, orgId, userId, { action: 'set_page', pageId, title: input.title, visibility: input.visibility }, CTX(side));
+    if (result.status === 'conflict') return NextResponse.json({ error: 'The draft changed while you were editing — reload and try again' }, { status: 409 });
+    if (result.status !== 'draft' && result.status !== 'live') return NextResponse.json({ error: 'Failed to update the page' }, { status: 500 });
   }
-  if (!updated || updated.length === 0) {
-    return NextResponse.json({ error: 'Not found' }, { status: 404 });
-  }
-  revalidateTag(`org-site:${site.subdomain}`, { expire: 0 });
-  return NextResponse.json({ page: updated[0] });
+  const after = await loadPagesView(admin, side, orgId);
+  const page = after?.pages.find(p => p.id === pageId);
+  if (!after || !page) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+  return NextResponse.json({ page: pageRowOf(after.siteId, page) });
 }
 
-export async function pageDELETE(
-  admin: Admin,
-  side: OrgSide,
-  orgId: string,
-  pageId: string
-): Promise<NextResponse> {
-  const site = await getSiteForOrg(admin, side, orgId);
-  if (!site) return NextResponse.json({ error: 'Not found' }, { status: 404 });
-  const { error } = await admin
-    .from('org_site_pages')
-    .delete()
-    .eq('id', pageId)
-    .eq('site_id', site.id);
-  if (error) {
-    console.error(`${TAG} delete error:`, error);
-    return NextResponse.json({ error: 'Failed to delete the page' }, { status: 500 });
-  }
-  revalidateTag(`org-site:${site.subdomain}`, { expire: 0 });
+export async function pageDELETE(admin: Admin, side: OrgSide, orgId: string, pageId: string, userId: string | null = null): Promise<NextResponse> {
+  const view = await loadPagesView(admin, side, orgId);
+  if (!view) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+  if (!view.pages.some(p => p.id === pageId)) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+  const result = await applyDraftAction(admin, side, orgId, userId, { action: 'remove_page', pageId }, CTX(side));
+  if (result.status === 'conflict') return NextResponse.json({ error: 'The draft changed while you were editing — reload and try again' }, { status: 409 });
+  if (result.status !== 'draft' && result.status !== 'live') return NextResponse.json({ error: 'Failed to delete the page' }, { status: 500 });
   return NextResponse.json({ success: true });
 }
 

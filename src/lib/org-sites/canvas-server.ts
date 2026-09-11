@@ -8,11 +8,12 @@ import { isSiteWidgetKey, type SiteWidgetKey } from '@/lib/site-builder/catalog'
 import { isWidgetEmpty } from '@/lib/site-builder/emptiness';
 import { LayoutSchema, parseStoredLayout } from '@/lib/site-builder/layout-schema';
 import { instanceImagePaths, instanceSchemaFor } from '@/lib/site-builder/schemas';
-import { overlaySnapshot } from '@/lib/site-builder/snapshot';
+import { overlaySnapshot, type SiteSnapshot } from '@/lib/site-builder/snapshot';
+import { PAGE_WIDGETS_MAX, blankPageLayout, orderedPages, parsePageLayout, validatePageLayout, type SnapshotPage } from '@/lib/site-builder/pages';
 import { getSiteBySlugAnyStatus, loadGalleryOrg, type PublicSite } from './server';
 import type { GalleryOrg } from '@/lib/site-builder/gallery';
 import { ORG_MEDIA_PREFIX } from './pages-server';
-import { loadDraftSnapshot, loadSitePointers, writeDraftLayout } from './revisions-server';
+import { loadDraftSnapshot, loadRows, loadSitePointers, rowsSnapshot, writeDraftLayout } from './revisions-server';
 import { rawSiteReaders, resolveHomeData } from './widget-data';
 import { fetchCanvasOptions, type CanvasOptions } from './query-options';
 import type { SiteHomeData } from './home-data';
@@ -53,7 +54,35 @@ export interface CanvasResponse {
   /** Phase 11: the org facts the gallery writes its previews from — the
    *  same the server applies, so a thumbnail never lies. */
   gallery: GalleryOrg;
+  /** Program 2, B (Sep 11 2026): the site's custom pages with their layouts
+   *  (the draft's, else the published projection's). null = pre-185 (the
+   *  editor hides the page switcher). */
+  pages: CanvasPage[] | null;
   resolvedAt: string;
+}
+
+export interface CanvasPage {
+  id: string;
+  slug: string;
+  title: string;
+  visibility: 'public' | 'draft';
+  inNav: boolean;
+  createdAt: string;
+  layout: SiteLayout;
+}
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+
+function canvasPages(pages: Record<string, SnapshotPage> | undefined): CanvasPage[] {
+  return orderedPages(pages).map(p => ({
+    id: p.id,
+    slug: p.slug,
+    title: p.title,
+    visibility: p.visibility,
+    inNav: p.inNav,
+    createdAt: p.createdAt,
+    layout: parsePageLayout(p.layout) ?? blankPageLayout(p.id),
+  }));
 }
 
 
@@ -63,15 +92,20 @@ async function loadDraftSiteView(
   admin: Admin,
   side: OrgSide,
   orgId: string
-): Promise<{ site: PublicSite; layout: SiteLayout; draft: CanvasResponse['draft']; published: boolean } | null> {
+): Promise<{ site: PublicSite; layout: SiteLayout; draft: CanvasResponse['draft']; published: boolean; pages: CanvasPage[] | null } | null> {
   const { site: pointers } = await loadSitePointers(admin, side, orgId);
   if (!pointers) return null;
   const base = await getSiteBySlugAnyStatus(admin, pointers.subdomain);
   if (!base) return null;
-  const state = pointers.draft_revision_id ? await loadDraftSnapshot(admin, pointers) : null;
+  const [state, rows] = await Promise.all([pointers.draft_revision_id ? loadDraftSnapshot(admin, pointers) : Promise.resolve(null), loadRows(admin, pointers.id)]);
   const view = state ? overlaySnapshot(base, state.snapshot) : base;
   const stored = state ? parseStoredLayout(state.snapshot.layout) : null;
+  // Program 2, B: the pages the editor may switch to — the draft's, else the
+  // published projection's (converted where a row still speaks in blocks).
+  const pageSource: SiteSnapshot | null = state ? state.snapshot : rows ? rowsSnapshot(rows) : null;
+  const pages = rows?.pagesSupport === 'supported' && pageSource ? canvasPages(pageSource.pages) : null;
   return {
+    pages,
     site: view,
     // The draft's layout; a draft WITHOUT one (a pre-grid restore) → its seed
     // (B1); no draft → the PUBLISHED one (phase 8 — a P3 gap: after a publish
@@ -85,12 +119,15 @@ async function loadDraftSiteView(
 export async function canvasGET(admin: Admin, side: OrgSide, orgId: string): Promise<NextResponse> {
   const view = await loadDraftSiteView(admin, side, orgId);
   if (!view) return NextResponse.json({ error: 'Site not found' }, { status: 404 });
+  // The data is resolved over the UNION of the home and every page's
+  // widgets — one read set for every layout the editor can show.
+  const union: SiteLayout = { version: 1, cols: 12, widgets: [...view.layout.widgets, ...(view.pages ?? []).flatMap(p => p.layout.widgets)] };
   const [data, options, gallery] = await Promise.all([
-    resolveHomeData(rawSiteReaders(admin, view.site), view.site, view.layout),
+    resolveHomeData(rawSiteReaders(admin, view.site), view.site, union),
     fetchCanvasOptions(admin, side, orgId),
     loadGalleryOrg(admin, side, orgId, { name: view.site.orgName, city: view.site.orgCity, region: view.site.orgRegion }),
   ]);
-  const body: CanvasResponse = { site: view.site, layout: view.layout, draft: view.draft, published: view.published, data, options, gallery, resolvedAt: new Date().toISOString() };
+  const body: CanvasResponse = { site: view.site, layout: view.layout, draft: view.draft, published: view.published, data, options, gallery, pages: view.pages, resolvedAt: new Date().toISOString() };
   return NextResponse.json(body, { headers: { 'Cache-Control': 'private, no-store' } });
 }
 
@@ -101,7 +138,13 @@ export async function draftLayoutPUT(
   userId: string,
   body: unknown
 ): Promise<NextResponse> {
-  const envelope = body && typeof body === 'object' ? (body as { layout?: unknown; baseRev?: unknown }) : {};
+  const envelope = body && typeof body === 'object' ? (body as { layout?: unknown; baseRev?: unknown; pageId?: unknown }) : {};
+  // Program 2, B: `pageId` targets a page's layout (its own rules: no hero,
+  // page widgets only, the page cap); absent = the home.
+  if (envelope.pageId !== undefined && (typeof envelope.pageId !== 'string' || !UUID_RE.test(envelope.pageId))) {
+    return NextResponse.json({ error: 'Invalid page' }, { status: 400 });
+  }
+  const pageId = typeof envelope.pageId === 'string' ? envelope.pageId : undefined;
   const parsed = LayoutSchema.safeParse(envelope.layout);
   if (!parsed.success) {
     return NextResponse.json({ error: 'Invalid layout', issues: parsed.error.issues.slice(0, 10).map(i => ({ path: i.path.join('.'), message: i.message })) }, { status: 400 });
@@ -113,7 +156,8 @@ export async function draftLayoutPUT(
     return NextResponse.json({ error: 'Invalid layout', issues: foreign.map(w => ({ id: w.id, message: `${w.key}: not a site widget` })) }, { status: 400 });
   }
   const layout = parsed.data as SiteLayout;
-  const issues = validateLayout(layout);
+  const issues = pageId ? validatePageLayout(layout) : validateLayout(layout);
+  if (pageId && layout.widgets.length > PAGE_WIDGETS_MAX) issues.push({ id: '', message: `A page holds at most ${PAGE_WIDGETS_MAX} sections` });
   // Phase 5: each instance's OPTIONS (title ≤ 60 …); phase 6: a content
   // widget's content too (text blocks, the image, the embed structure).
   const imagePaths: { id: string; key: string; path: string }[] = [];
@@ -136,10 +180,12 @@ export async function draftLayoutPUT(
   }
   if (issues.length > 0) return NextResponse.json({ error: 'Invalid layout', issues }, { status: 400 });
   const baseRev = typeof envelope.baseRev === 'number' && Number.isInteger(envelope.baseRev) ? envelope.baseRev : undefined;
-  const result = await writeDraftLayout(admin, side, orgId, userId, layout, baseRev);
+  const result = await writeDraftLayout(admin, side, orgId, userId, layout, baseRev, pageId);
   switch (result.status) {
     case 'ok':
       return NextResponse.json({ ok: true, rev: result.rev });
+    case 'page_not_found':
+      return NextResponse.json({ error: 'Page not found' }, { status: 404 });
     case 'conflict':
       return NextResponse.json({ error: 'The draft changed while you were editing — reload and try again' }, { status: 409 });
     case 'pre180':

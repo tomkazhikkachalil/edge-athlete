@@ -5,6 +5,7 @@ import { isMissingTableError } from '@/lib/leagues/validate';
 import {
   applySiteAction,
   diffModuleRows,
+  diffPageRows,
   parseSnapshot,
   rowsFromSnapshot,
   selectRevisionsToPrune,
@@ -14,8 +15,11 @@ import {
   type SiteSnapshot,
   type SnapshotAction,
   type SnapshotModuleRow,
+  type SnapshotPageRow,
   type SnapshotSiteRow,
 } from '@/lib/site-builder/snapshot';
+import { PAGES_PER_SITE_MAX } from './validate';
+import { blankPageLayout, blocksFromPageLayout, parsePageLayout } from '@/lib/site-builder/pages';
 import type { RevisionActionInput } from './validate';
 import { parseStoredLayout } from '@/lib/site-builder/layout-schema';
 import { parsePublishStats, publishStats, type PublishStats } from '@/lib/site-builder/metrics';
@@ -48,6 +52,10 @@ type OrgSide = 'league' | 'club';
 const TAG = '[ORG SITE REVISIONS]';
 
 export type RevisionSupport = 'supported' | 'pre180';
+/** Program 2, B (Sep 11 2026): mig 185 adds `layout` + `in_nav` to
+ *  org_site_pages. Pre-185 the page rows carry title / slug / visibility
+ *  only — the mirror writes those and never names the missing columns. */
+export type PagesSupport = 'supported' | 'pre185';
 
 export interface RevisionRow {
   id: string;
@@ -128,12 +136,39 @@ export async function loadSitePointers(
   return { site: null, support: 'supported' };
 }
 
-/** The current projection: the site's content columns + module rows. */
-export async function loadRows(
-  admin: Admin,
-  siteId: string
-): Promise<{ site: SnapshotSiteRow; modules: SnapshotModuleRow[] } | null> {
-  const [{ data: site, error }, { data: modules }] = await Promise.all([
+export interface LoadedRows {
+  site: SnapshotSiteRow;
+  modules: SnapshotModuleRow[];
+  /** Program 2, B: the page rows (the published projection of `snapshot.pages`). */
+  pages: SnapshotPageRow[];
+  pagesSupport: PagesSupport;
+}
+
+const PAGE_ROW_FIELDS = 'id, slug, title, body, visibility, created_at, layout, in_nav';
+const PAGE_ROW_FIELDS_PRE185 = 'id, slug, title, body, visibility, created_at';
+
+/** The page rows, with the 185 step-down: a 42703 on `layout` / `in_nav`
+ *  re-reads without them. A real read error answers null (the caller
+ *  aborts — an empty list here would look like "every page deleted"). */
+async function loadPageRows(admin: Admin, siteId: string): Promise<{ pages: SnapshotPageRow[]; pagesSupport: PagesSupport } | null> {
+  const full = await admin.from('org_site_pages').select(PAGE_ROW_FIELDS).eq('site_id', siteId).order('created_at', { ascending: true }).limit(PAGES_PER_SITE_MAX + 5);
+  if (!full.error) return { pages: (full.data ?? []) as SnapshotPageRow[], pagesSupport: 'supported' };
+  if (!isPre180(full.error)) {
+    console.error(`${TAG} page rows read error:`, full.error);
+    return null;
+  }
+  const base = await admin.from('org_site_pages').select(PAGE_ROW_FIELDS_PRE185).eq('site_id', siteId).order('created_at', { ascending: true }).limit(PAGES_PER_SITE_MAX + 5);
+  if (base.error) {
+    if (isMissingTableError(base.error.code)) return { pages: [], pagesSupport: 'pre185' };
+    console.error(`${TAG} page rows read error:`, base.error);
+    return null;
+  }
+  return { pages: (base.data ?? []) as SnapshotPageRow[], pagesSupport: 'pre185' };
+}
+
+/** The current projection: the site's content columns + module rows + page rows. */
+export async function loadRows(admin: Admin, siteId: string): Promise<LoadedRows | null> {
+  const [{ data: site, error }, { data: modules }, pageRows] = await Promise.all([
     admin
       .from('org_sites')
       .select('template_id, theme_token_set, nav_config, hero_config, contact_config')
@@ -145,10 +180,14 @@ export async function loadRows(
       .eq('site_id', siteId)
       .order('sort_order', { ascending: true })
       .limit(40),
+    loadPageRows(admin, siteId),
   ]);
-  if (error || !site) return null;
-  return { site: site as SnapshotSiteRow, modules: (modules ?? []) as SnapshotModuleRow[] };
+  if (error || !site || !pageRows) return null;
+  return { site: site as SnapshotSiteRow, modules: (modules ?? []) as SnapshotModuleRow[], pages: pageRows.pages, pagesSupport: pageRows.pagesSupport };
 }
+
+/** The rows as a snapshot (pages converted where a row still speaks in blocks). */
+export const rowsSnapshot = (rows: LoadedRows): SiteSnapshot => snapshotFromRows(rows.site, rows.modules, rows.pages);
 
 async function loadRevision(admin: Admin, id: string): Promise<RevisionRow | null> {
   const { data } = await admin.from('org_site_revisions').select(REVISION_FIELDS).eq('id', id).maybeSingle();
@@ -179,7 +218,7 @@ export async function loadDraftSnapshot(
       id: draft.id,
       rev: draft.rev,
       updatedAt: draft.updated_at,
-      hasUnpublishedChanges: !snapshotsEqual(snapshot, snapshotFromRows(rows.site, rows.modules)),
+      hasUnpublishedChanges: !snapshotsEqual(snapshot, rowsSnapshot(rows)),
     },
   };
 }
@@ -219,7 +258,7 @@ export async function getOrCreateDraft(
   }
   const rows = await loadRows(admin, site.id);
   if (!rows) return null;
-  const snapshot = snapshotFromRows(rows.site, rows.modules);
+  const snapshot = rowsSnapshot(rows);
   // Phase 8 (a P3 gap): the rows carry no grid layout — a fresh draft
   // materialised after a publish must inherit the PUBLISHED layout, or the
   // next publish (say, a hero edit from the console) would silently drop
@@ -287,7 +326,8 @@ export async function writeSnapshotToRows(
   admin: Admin,
   siteId: string,
   prev: SiteSnapshot | null,
-  next: SiteSnapshot
+  next: SiteSnapshot,
+  pagesSupport: PagesSupport = 'supported'
 ): Promise<{ ok: true } | { ok: false; code?: string }> {
   // H2: the site row FIRST — its template CHECK (mig 170) is the one write
   // that can be refused, and refusing it before any module row moves keeps
@@ -319,6 +359,37 @@ export async function writeSnapshotToRows(
       }
     }
   }
+  // Program 2, B: the page rows — the published projection of
+  // `snapshot.pages`. Whole rows by id (update, insert when missing), then
+  // the ids the next snapshot no longer holds. `body` is the LEGACY
+  // projection of the layout (its text and image sections as blocks) — the
+  // block renderer and the sitemap keep reading it until every route reads
+  // `layout` (B4), and pre-185 it is the only content column there is.
+  const pages = diffPageRows(prev, next);
+  for (const row of pages.upsert) {
+    const layout = parsePageLayout(row.layout) ?? blankPageLayout(row.id);
+    const body = blocksFromPageLayout(layout);
+    const columns = pagesSupport === 'supported' ? { slug: row.slug, title: row.title, visibility: row.visibility, body, layout, in_nav: row.in_nav !== false } : { slug: row.slug, title: row.title, visibility: row.visibility, body };
+    const { data: updated, error } = await admin.from('org_site_pages').update(columns).eq('id', row.id).eq('site_id', siteId).select('id');
+    if (error) {
+      console.error(`${TAG} page mirror error:`, error);
+      return { ok: false, code: error.code };
+    }
+    if (!updated || updated.length === 0) {
+      const { error: insertError } = await admin.from('org_site_pages').insert({ id: row.id, site_id: siteId, created_at: row.created_at, ...columns });
+      if (insertError) {
+        console.error(`${TAG} page mirror insert error:`, insertError);
+        return { ok: false, code: insertError.code };
+      }
+    }
+  }
+  if (pages.deleteIds.length > 0) {
+    const { error } = await admin.from('org_site_pages').delete().eq('site_id', siteId).in('id', pages.deleteIds);
+    if (error) {
+      console.error(`${TAG} page mirror delete error:`, error);
+      return { ok: false, code: error.code };
+    }
+  }
   return { ok: true };
 }
 
@@ -346,9 +417,9 @@ export async function applyDraftAction(
   if (support === 'pre180') {
     const rows = await loadRows(admin, site.id);
     if (!rows) return { status: 'not_found' };
-    const prev = snapshotFromRows(rows.site, rows.modules);
+    const prev = rowsSnapshot(rows);
     const next = applySiteAction(prev, action, ctx);
-    const written = await writeSnapshotToRows(admin, site.id, prev, next);
+    const written = await writeSnapshotToRows(admin, site.id, prev, next, rows.pagesSupport);
     if (!written.ok) return { status: 'error' };
     revalidateTag(`org-site:${site.subdomain}`, { expire: 0 });
     return { status: 'live', subdomain: site.subdomain, snapshot: next };
@@ -360,9 +431,9 @@ export async function applyDraftAction(
       // pre-180 rather than fail the edit.
       const rows = await loadRows(admin, site.id);
       if (!rows) return { status: 'not_found' };
-      const prev = snapshotFromRows(rows.site, rows.modules);
+      const prev = rowsSnapshot(rows);
       const next = applySiteAction(prev, action, ctx);
-      const written = await writeSnapshotToRows(admin, site.id, prev, next);
+      const written = await writeSnapshotToRows(admin, site.id, prev, next, rows.pagesSupport);
       if (!written.ok) return { status: 'error' };
       revalidateTag(`org-site:${site.subdomain}`, { expire: 0 });
       return { status: 'live', subdomain: site.subdomain, snapshot: next };
@@ -385,7 +456,7 @@ export async function applyDraftAction(
 
 export type WriteLayoutResult =
   | { status: 'ok'; rev: number }
-  | { status: 'conflict' | 'not_found' | 'pre180' | 'error' };
+  | { status: 'conflict' | 'not_found' | 'page_not_found' | 'pre180' | 'error' };
 
 /** The editor's save: the grid layout into the draft snapshot's `layout`
  *  slot, rev-guarded. `baseRev` is the rev the editor last saw — a stale one
@@ -398,7 +469,9 @@ export async function writeDraftLayout(
   orgId: string,
   userId: string | null,
   layout: unknown,
-  baseRev?: number
+  baseRev?: number,
+  /** Program 2, B: a page's layout instead of the home's. */
+  pageId?: string
 ): Promise<WriteLayoutResult> {
   const { site, support } = await loadSitePointers(admin, side, orgId);
   if (!site) return { status: 'not_found' };
@@ -408,7 +481,15 @@ export async function writeDraftLayout(
   if (baseRev !== undefined && baseRev !== draft.rev) return { status: 'conflict' };
   const current = parseSnapshot(draft.snapshot);
   if (!current) return { status: 'error' };
-  const result = await writeDraft(admin, draft, { ...current, layout });
+  let next: SiteSnapshot;
+  if (pageId) {
+    const page = current.pages?.[pageId];
+    if (!page) return { status: 'page_not_found' };
+    next = { ...current, pages: { ...current.pages, [pageId]: { ...page, layout } } };
+  } else {
+    next = { ...current, layout };
+  }
+  const result = await writeDraft(admin, draft, next);
   if (result === 'ok') return { status: 'ok', rev: draft.rev + 1 };
   return { status: result === 'conflict' ? 'conflict' : 'error' };
 }
@@ -437,7 +518,7 @@ export async function publishDraft(
     const stats = publishStats({ prev: null, next: null, firstPublish: true, draftCreatedAt: null, siteCreatedAt: site.created_at ?? null, now });
     const { data, error } = await admin
       .from('org_site_revisions')
-      .insert({ site_id: site.id, snapshot: snapshotFromRows(rows.site, rows.modules), rev: 1, created_by: userId, published_at: now, published_by: userId, label: label ?? null, stats })
+      .insert({ site_id: site.id, snapshot: rowsSnapshot(rows), rev: 1, created_by: userId, published_at: now, published_by: userId, label: label ?? null, stats })
       .select('id')
       .single();
     if (error || !data) {
@@ -483,8 +564,8 @@ export async function publishDraft(
   if (!stamped || stamped.length === 0) return { status: 'raced' };
 
   // Mirror the snapshot into the rows (site row first — the template CHECK).
-  const prev = snapshotFromRows(rows.site, rows.modules);
-  const written = await writeSnapshotToRows(admin, site.id, prev, snapshot);
+  const prev = rowsSnapshot(rows);
+  const written = await writeSnapshotToRows(admin, site.id, prev, snapshot, rows.pagesSupport);
   if (!written.ok) {
     // Un-stamp (best effort) so the row is a draft again; the rows may be
     // half-mirrored past the site row — purge so the page shows them as
