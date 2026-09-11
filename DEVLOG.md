@@ -1,5 +1,24 @@
 # Development Log
 
+## September 11, 2026 — Program 2, B6: pages docs close, and "unpublished changes" measured against what is live (zero DDL)
+
+**Docs.** CLAUDE.md convention 12 gains the "Pages as compositions" bullet:
+the page in the ONE snapshot, `org_site_pages` as its published projection,
+the deterministic legacy conversion, the one writer, the editor's target,
+the header rule (modules in the rows' `sort_order`, never `nav_config`'s
+order; pages before the module that follows them), the public render and
+the page preview.
+
+**The quirk (from the B plan's B6 line).** `loadDraftSnapshot` measured
+"unpublished changes" against `snapshotFromRows`, which never held the grid
+layout — so a fresh draft that merely INHERITED the published layout read
+dirty forever, and the console's line said "Unpublished changes" for a site
+whose draft was the live page. It now compares the draft to the PUBLISHED
+revision's snapshot when there is one (the rows only when the site has never
+been published — where a draft with a layout IS a change). Pinned in
+`revisions-server.test.ts`: inherited → clean, a changed headline → dirty,
+no published revision → the rows decide.
+
 ## September 11, 2026 — Program 2, B5: the console — pages in the navigation list, the Pages card as a list, the block editor retired for pages (zero DDL)
 
 **What.** The console's "Subpages & navigation" list now interleaves the

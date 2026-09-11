@@ -529,6 +529,35 @@ const { canView } = await response.json();
      the gallery flushes first (it lives at the editor root since #674); `openPreview`
      opens the tab on the click; dirty panels are guarded by the house
      `ConfirmModal`.
+   - **Pages as compositions (program 2, B — Sep 11 2026, #678–#683, mig 185
+     the ONLY DDL)**: a custom page is a layout of the same registered widgets
+     as the home (every site widget except the hero — `PAGE_WIDGET_KEYS`;
+     module widgets welcome), living in the ONE revision snapshot
+     (`snapshot.pages[pageId] = {id, slug, title, visibility, inNav,
+     createdAt, layout}`); **`org_site_pages` is its PUBLISHED PROJECTION**
+     (the mirror writes whole rows by id after the module rows; `body` is the
+     layout's block projection for the legacy renderer and pre-185). `pages`
+     is ABSENT when empty (a pre-pages snapshot equals a page-less one);
+     `parseSnapshot` MUST carry it (pinned). Legacy bodies convert in app
+     code (`pages.ts pageLayoutFromBody`, deterministic
+     `legacy:page:<id>:<n>` ids; `blocksFromPageLayout` is the inverse) —
+     never SQL. ONE writer: `pages-server.ts` runs on `applyDraftAction`
+     (`add_page` — the server mints id + timestamp — / `set_page` /
+     `remove_page`; a body PATCH converts to the layout); the canvas carries
+     `pages` (null pre-185) and the draft PUT takes `pageId` with the page
+     rules (`validatePageLayout`: no hero, page keys, 40 sections). The
+     editor holds ONE target (`'home' | pageId`, `?page=` deep link); a
+     switch flushes then reloads through the spinner; Theme / Start from /
+     the checklist / the first-open gallery are HOME-only; `PagePanel` is the
+     page's settings. The header is `nav.ts navEntries`: the MODULES in the
+     rows' `sort_order` (never `nav_config`'s order — `reset_order` clears it
+     but keeps labels), each listed page before the module that follows it
+     in the stored `page:<id>` entries (`NavConfig.entries`; `order` stays
+     module-only), unlisted listed pages last by creation time; `inNav:
+     false` = reachable, in no header. The public page renders its `layout`
+     through `GridRenderer` (`heading` = its h1) over `publicWidgets`; a
+     block row renders `PageBlocks`; the draft preview has a page twin
+     (`/preview/[token]/[pageSlug]`). Read DEVLOG Sep 11 2026 B1–B6 first.
    - e2e: a spec that reads the PUBLIC page must first take the site LIVE
      (`PATCH {action:'publish'}`) and, after edits, promote the draft with
      `e2e/helpers/org-site.ts publishSite()`; public-order polls compare
