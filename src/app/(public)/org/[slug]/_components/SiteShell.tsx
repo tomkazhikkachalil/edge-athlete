@@ -14,6 +14,7 @@ import { siteBasePath } from '@/lib/org-sites/urls';
 import { effectiveSpec, fontFaceCss, fontHref, themeAttrs } from '@/lib/org-sites/theme';
 import type { PublicSite } from '@/lib/org-sites/server';
 import type { PublicPageLink } from '@/lib/org-sites/public-data';
+import { navEntries } from '@/lib/org-sites/nav';
 
 // ── The site shell (phase 3 R1, nav in R2; extracted in Site Builder P2-B) ──
 // The header (bar or band), the nav strip of ENABLED subpage modules + public
@@ -39,6 +40,10 @@ export default function SiteShell({
   const navKeys = site.modules
     .filter(m => m.enabled && (MODULE_SUBPAGE_KEYS as readonly string[]).includes(m.module_key))
     .map(m => m.module_key);
+  // Program 2, B4: modules and pages in ONE list — stored entries first,
+  // then the unlisted modules, then the unlisted listed pages by creation
+  // time (an untouched site renders exactly the header it always did).
+  const entries = navEntries(nav, navKeys, pages.map(p => ({ ...p, visibility: 'public' as const })));
 
   // Strict per-key re-validation at render (parseThemeTokens, inside
   // themeAttrs) is the inline-style injection defense — never interpolate
@@ -103,36 +108,31 @@ export default function SiteShell({
             </span>
           </Link>
         </div>
-        {navKeys.length + pages.length > 0 && (
+        {entries.length > 0 && (
           <nav aria-label="Site navigation" className="max-w-4xl mx-auto px-4 pb-3">
             <div className="flex flex-wrap gap-x-5 gap-y-1">
               <Link href={`${siteBasePath(site)}`} className={navLinkClass}>
                 Home
               </Link>
-              {navKeys.map(key => (
-                <Link
-                  key={key}
-                  href={`${siteBasePath(site)}/${key}`}
-                  className={navLinkClass}
-                >
-                  {moduleLabel(key, nav, site.side, site.sportKey)}
-                </Link>
-              ))}
-              {/* P4: a golf org's "This week" hub rides the standings module. */}
-              {site.sportKey === 'golf' && navKeys.includes('standings') && (
-                <Link href={`${siteBasePath(site)}/week`} className={navLinkClass}>
-                  This week
-                </Link>
+              {entries.map(entry =>
+                entry.kind === 'module' ? (
+                  <span key={`m:${entry.key}`} className="contents">
+                    <Link href={`${siteBasePath(site)}/${entry.key}`} className={navLinkClass}>
+                      {moduleLabel(entry.key, nav, site.side, site.sportKey)}
+                    </Link>
+                    {/* P4: a golf org's "This week" hub rides the standings module. */}
+                    {site.sportKey === 'golf' && entry.key === 'standings' && (
+                      <Link href={`${siteBasePath(site)}/week`} className={navLinkClass}>
+                        This week
+                      </Link>
+                    )}
+                  </span>
+                ) : (
+                  <Link key={`p:${entry.slug}`} href={`${siteBasePath(site)}/${entry.slug}`} className={navLinkClass}>
+                    {entry.title}
+                  </Link>
+                )
               )}
-              {pages.map(p => (
-                <Link
-                  key={p.slug}
-                  href={`${siteBasePath(site)}/${p.slug}`}
-                  className={navLinkClass}
-                >
-                  {p.title}
-                </Link>
-              ))}
             </div>
           </nav>
         )}

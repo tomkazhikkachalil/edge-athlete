@@ -3,7 +3,10 @@ import { notFound } from 'next/navigation';
 import { getCachedPage, getCachedSite } from '@/lib/org-sites/cached';
 import { isValidPageSlug, parsePageBody } from '@/lib/org-sites/validate';
 import PageBlocks from '../_components/PageBlocks';
+import GridRenderer from '../_components/GridRenderer';
 import { siteAbsoluteUrl } from '@/lib/org-sites/urls';
+import { parsePageLayout } from '@/lib/site-builder/pages';
+import { cachedSiteReaders, resolveHomeData } from '@/lib/org-sites/widget-data';
 
 // ── /org/[slug]/[pageSlug] — a custom site page (phase 3 R3) ───────────────
 // PUBLIC pages only (draft ⇔ missing, both notFound). The static module
@@ -50,6 +53,16 @@ export default async function OrgSitePage({ params }: PageParams) {
   if (!site) notFound();
   const page = await getCachedPage(slug, site.id, pageSlug);
   if (!page) notFound();
+
+  // Program 2, B4: a page is a composition — the same renderer, the same
+  // one public reader (publicWidgets), the same data resolver as the home,
+  // over the page's published layout. A row still speaking in blocks (a
+  // legacy page nobody re-published, or pre-185) renders them as before.
+  const layout = parsePageLayout(page.layout);
+  if (layout) {
+    const data = await resolveHomeData(cachedSiteReaders(slug, site), site, layout);
+    return <GridRenderer site={site} layout={layout} data={data} heading={page.title} />;
+  }
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-8 space-y-6">

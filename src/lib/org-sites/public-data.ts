@@ -391,12 +391,20 @@ export async function fetchPublicTeamPage(
 export interface PublicPageLink {
   slug: string;
   title: string;
+  /** Program 2, B4: the header's inputs — the page's id (its `page:<id>`
+   *  nav entry), whether it is listed, and its creation time (the unlisted
+   *  order). Pre-185 every page is listed. */
+  id: string;
+  inNav: boolean;
+  createdAt: string;
 }
 
 export interface PublicPageRow {
   slug: string;
   title: string;
   body: unknown; // parsed defensively at render (parsePageBody)
+  /** Program 2, B4: the page's published layout; null = the body blocks are the truth (or pre-185). */
+  layout: unknown;
 }
 
 /** Public pages of a site (nav + existence checks). */
@@ -404,15 +412,26 @@ export async function fetchPublicPages(
   admin: Admin,
   siteId: string
 ): Promise<PublicPageLink[]> {
-  const { data, error } = await admin
+  const full = await admin
     .from('org_site_pages')
-    .select('slug, title')
+    .select('id, slug, title, in_nav, created_at')
     .eq('site_id', siteId)
     .eq('visibility', 'public')
     .order('created_at', { ascending: true })
     .limit(20);
-  if (degraded('pages', error) || !data) return [];
-  return data.map(p => ({ slug: p.slug as string, title: p.title as string }));
+  const rows =
+    full.error?.code === '42703'
+      ? // Pre-185: no in_nav column — every public page is listed.
+        await admin.from('org_site_pages').select('id, slug, title, created_at').eq('site_id', siteId).eq('visibility', 'public').order('created_at', { ascending: true }).limit(20)
+      : full;
+  if (degraded('pages', rows.error) || !rows.data) return [];
+  return (rows.data as { id: string; slug: string; title: string; in_nav?: boolean | null; created_at: string }[]).map(p => ({
+    id: p.id,
+    slug: p.slug,
+    title: p.title,
+    inNav: p.in_nav !== false,
+    createdAt: p.created_at,
+  }));
 }
 
 /** One PUBLIC page by slug — drafts are indistinguishable from missing. */
@@ -421,15 +440,21 @@ export async function fetchPublicPage(
   siteId: string,
   pageSlug: string
 ): Promise<PublicPageRow | null> {
-  const { data, error } = await admin
+  const full = await admin
     .from('org_site_pages')
-    .select('slug, title, body')
+    .select('slug, title, body, layout')
     .eq('site_id', siteId)
     .eq('slug', pageSlug)
     .eq('visibility', 'public')
     .maybeSingle();
-  if (degraded('page', error) || !data) return null;
-  return { slug: data.slug as string, title: data.title as string, body: data.body };
+  const row =
+    full.error?.code === '42703'
+      ? // Pre-185: no layout column — the body blocks are the truth.
+        await admin.from('org_site_pages').select('slug, title, body').eq('site_id', siteId).eq('slug', pageSlug).eq('visibility', 'public').maybeSingle()
+      : full;
+  if (degraded('page', row.error) || !row.data) return null;
+  const data = row.data as { slug: string; title: string; body: unknown; layout?: unknown };
+  return { slug: data.slug, title: data.title, body: data.body, layout: data.layout ?? null };
 }
 
 // ── Sitemap enumeration (phase 3 R4) ────────────────────────────────────────

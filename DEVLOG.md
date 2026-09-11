@@ -1,5 +1,40 @@
 # Development Log
 
+## September 11, 2026 — Program 2, B4: a page renders its composition; the header honours order and hide (zero DDL)
+
+**What.** The public page (`/org/[slug]/[pageSlug]` and its vanity twin, a
+re-export) now renders the page's published `layout` through the SAME
+renderer as the home — `GridRenderer` with a new `heading` prop for the
+page's visible h1 (pages have no hero) — over the same one public reader
+(`publicWidgets`: enabled module → effective audience → not empty →
+compacted) and the same data resolver (`resolveHomeData` with the cached
+per-slug readers). A row still speaking in blocks (a legacy page nobody
+re-published, or pre-185) renders `PageBlocks` exactly as before.
+`fetchPublicPage` selects `layout` and `fetchPublicPages` selects `id, in_nav,
+created_at`, each with the 42703 step-down. `SiteShell`'s header is now
+`navEntries()`'s one list: the MODULES in the rows' `sort_order` (today's
+rule — `nav_config` mirrors it and carries the labels), each listed page
+placed before the module that follows it in the stored entries, then the
+unlisted listed pages by creation time — an untouched site renders exactly
+the header it always did (the two-pages spec caught a first cut that put
+the stored entries first, which reordered a header after `reset_order`); a page with `inNav: false` sits in no
+header and stays reachable at its address; the golf "This week" link still
+rides its standings entry. The draft preview gained a page twin:
+`/org/[slug]/preview/[token]/[pageSlug]` — the same token, shell and
+renderer over the DRAFT's pages (a draft page previews too; a page the draft
+lacks is a 404); the editor's Preview on a page target opens it.
+
+**e2e.** New `org-site-pages-composed.spec.ts`: a live site gets About
+(listed) and Hidden (unlisted) through the API; a taken address is a 409, a
+reserved one a 400; About is arranged through the draft PUT with `pageId`
+(words + a standings table) — the hero is refused with the message, an
+unknown page is a 404; `set_nav` puts About before Standings; the page
+preview carries the words before publish and 404s a missing page; after
+`publishSite` the public page renders the words as a grid tile with its
+instance id and the empty standings never renders; the home header reads
+About before Standings and never Hidden; Hidden answers 200; the other
+route tree answers; 375px does not overflow.
+
 ## September 11, 2026 — Program 2, B3 residue: the Page pill off the edge at 375px (zero DDL)
 
 Migration 185 ran and the pages editor test stopped skipping — and failed

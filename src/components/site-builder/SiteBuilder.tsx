@@ -404,7 +404,7 @@ function Editor({
   }, [undo, redo, canUndo, canRedo]);
 
   // H7: the tab opens ON the click (popup blockers refuse one opened after an await).
-  const preview = () => openPreview(plural, orgId, showError);
+  const preview = () => openPreview(plural, orgId, showError, page?.slug);
 
   // Program 2, B3: switching layouts — save what is pending, then reload
   // onto the target (the editor remounts on the server's layout and rev).

@@ -30,7 +30,7 @@ import WidgetBody, { widgetHeading, widgetTitle } from './WidgetBody';
 
 const HERO_KEY = 'hero';
 
-export default function GridRenderer({ site, layout, data }: { site: PublicSite; layout: SiteLayout; data: SiteHomeData }) {
+export default function GridRenderer({ site, layout, data, heading }: { site: PublicSite; layout: SiteLayout; data: SiteHomeData; /** Program 2, B4: a PAGE's visible h1 (pages have no hero). */ heading?: string }) {
   const spec = effectiveSpec(site);
   const compact = spec.density === 'compact';
   const sectionClass = `bg-surface rounded-lg shadow-sm border border-border ${compact ? 'p-3 sm:p-4' : 'p-4 sm:p-6'}`;
@@ -46,8 +46,8 @@ export default function GridRenderer({ site, layout, data }: { site: PublicSite;
   return (
     <div className="max-w-4xl mx-auto px-4 py-8">
       {/* R5 a11y: the visible h1 lives in the hero — without one the outline
-          must still open at level 1. */}
-      {!hero && <h1 className="sr-only">{site.orgName}</h1>}
+          must still open at level 1; a PAGE opens with its title. */}
+      {heading ? <h1 className="mb-6 text-2xl font-bold text-primary">{heading}</h1> : !hero && <h1 className="sr-only">{site.orgName}</h1>}
       <div className="sb-grid" data-sb-grid="">
         {ordered.map(w => {
           const style = { '--sb-c': w.x + 1, '--sb-r': w.y + 1, '--sb-w': w.w, '--sb-h': w.h } as CSSProperties;
