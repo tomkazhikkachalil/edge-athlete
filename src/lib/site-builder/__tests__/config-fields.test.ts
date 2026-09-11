@@ -44,7 +44,8 @@ describe('field descriptors are pinned to the schemas', () => {
       // (options + content); a module widget's fit the options schema.
       const shape = Object.keys((instanceSchemaFor(key) as z.ZodObject).shape);
       for (const f of fieldsFor(key)) {
-        if (f.scope === 'instance' && f.kind !== 'visibility') expect(shape, `${key}.${f.name}`).toContain(f.name);
+        // 'size' (Sep 11 2026) is a preset over the instance's `w`, not a config key.
+        if (f.scope === 'instance' && f.kind !== 'visibility' && f.kind !== 'size') expect(shape, `${key}.${f.name}`).toContain(f.name);
         if (f.scope === 'content') expect(contentActionFor(key), `${key}.${f.name} needs a content action`).not.toBeNull();
       }
     }
@@ -90,11 +91,12 @@ describe('field descriptors are pinned to the schemas', () => {
     expect(instanceQuery({ id: 'a', key: 'standings', x: 0, y: 0, w: 6, h: 4, cv: 1, config: { query: { competitionId: uuid, limit: 3, venueId: '' } }, visibility: 'public' })).toEqual({ competitionId: uuid, limit: 3 });
     expect(instanceQuery({ id: 'a', key: 'standings', x: 0, y: 0, w: 6, h: 4, cv: 1, config: { query: 'junk' }, visibility: 'public' })).toEqual({});
   });
-  it('hero has content fields only; every other widget has the title and visibility options', () => {
+  it('hero has content fields only; every other widget has the title, size and visibility options', () => {
     expect(fieldsFor('hero').every(f => f.scope === 'content')).toBe(true);
     for (const key of SITE_WIDGET_KEYS.filter(k => k !== 'hero')) {
       const names = fieldsFor(key).map(f => f.name);
-      expect(names.slice(0, 2)).toEqual(['title', 'visibility']);
+      // Sep 11 2026: size sits between title and visibility (a preset over `w`, never a config key).
+      expect(names.slice(0, 3)).toEqual(['title', 'size', 'visibility']);
     }
     expect(contentActionFor('contact')).toBe('set_contact');
     expect(contentActionFor('teams')).toBeNull();

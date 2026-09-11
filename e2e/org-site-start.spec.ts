@@ -291,7 +291,7 @@ test('org site: a fresh site’s first editor visit opens the gallery — skip k
   }
 });
 
-test('@mobile org site editor on a phone: the notice, no gallery sheet, Preview opens a tab, Publish site takes it live', async ({ browser }) => {
+test('@mobile org site editor on a phone: the sections list, the gallery offer (Skip), Preview opens a tab, Publish site takes it live', async ({ browser }) => {
   test.setTimeout(120_000);
   const owner = loadQaUser('user-b.json');
   const admin = adminClient();
@@ -315,14 +315,16 @@ test('@mobile org site editor on a phone: the notice, no gallery sheet, Preview 
     try {
       const page = await ctx.newPage();
       await page.goto(`/app/org/league/${leagueId}/site/edit`);
-      await expect(page.getByRole('heading', { name: 'The editor needs a bigger screen' })).toBeVisible({ timeout: 30_000 });
-      // H7: a fresh site's gallery offer never shows over the phone notice
-      // (it lives in the ≥lg branch — mounted, but display:none'd with it).
-      await page.waitForTimeout(1500);
-      await expect(page.locator('[data-larger-window="sb-gallery"]')).toBeHidden();
-      await expect(page.getByRole('button', { name: 'Skip — keep the starting layout' })).toBeHidden();
+      // Sep 11 2026: the phone editor is the Sections list, and a fresh site's
+      // gallery offer shows here too (a bottom sheet) — Skip keeps the seed.
+      const gallery = page.locator('[data-larger-window="sb-gallery"]');
+      await expect(gallery).toBeVisible({ timeout: 30_000 });
+      await gallery.locator('[data-sb-gallery-skip]').click();
+      await expect(gallery).toBeHidden();
+      await expect(page.locator('[data-sb-sections]')).toBeVisible();
+      expect(await page.locator('[data-sb-section]').count()).toBeGreaterThan(3);
       // H7: Preview opens a tab ON the click (popup-safe), pointed at the preview.
-      const [popup] = await Promise.all([ctx.waitForEvent('page'), page.getByRole('button', { name: 'Preview draft' }).click()]);
+      const [popup] = await Promise.all([ctx.waitForEvent('page'), page.getByRole('button', { name: 'Preview', exact: true }).click()]);
       await popup.waitForURL(/\/preview\//, { timeout: 30_000 });
       await popup.close();
       // H6/H7: the phone notice's Publish takes the site live.
