@@ -15,6 +15,9 @@ import Canvas from './Canvas';
 import Picker from './Picker';
 import PropertiesPanel from './PropertiesPanel';
 import SectionsList from './SectionsList';
+import PagePanel from './PagePanel';
+import type { CanvasPage } from '@/lib/org-sites/canvas-server';
+import { PAGE_WIDGET_KEYS } from '@/lib/site-builder/catalog';
 import LargerWindow from '@/components/bubbles/LargerWindow';
 import { widgetTitle } from '@/app/(public)/org/[slug]/_components/WidgetBody';
 import { useIsDesktop } from '@/hooks/useIsDesktop';
@@ -60,7 +63,12 @@ interface CanvasBody {
   options?: CanvasOptions;
   /** Phase 11: the org facts the gallery draws its thumbnails from. */
   gallery?: GalleryOrg;
+  /** Program 2, B: the custom pages with their layouts; null = pre-185 (no switcher). */
+  pages?: CanvasPage[] | null;
 }
+
+/** What the editor edits: the home layout, or one page's. */
+export type EditorTarget = 'home' | string;
 
 const PILL = 'px-3 py-1.5 text-sm min-h-[36px] rounded-md border border-border-strong text-secondary hover:bg-surface-sunken transition-colors disabled:opacity-50 disabled:cursor-not-allowed';
 // B3: a panel stays in view beside a long canvas (it used to sit at the top
@@ -86,6 +94,13 @@ export default function SiteBuilder() {
   // so a reload (an applied design, a publish) never re-offers it.
   const galleryOffered = useRef(false);
   const [autoGallery, setAutoGallery] = useState(false);
+  // Program 2, B3: which layout the editor holds — the home, or a page by
+  // id. `?page=<id>` deep-links (read once, in the load effect — the console
+  // precedent); a switch flushes the draft, then reloads onto the new target
+  // (the spinner path, so the editor mounts on the SERVER's layout and rev).
+  const [target, setTarget] = useState<EditorTarget>('home');
+  const pendingTarget = useRef<EditorTarget | null>(null);
+  const [openPageSettings, setOpenPageSettings] = useState(false);
 
   useEffect(() => {
     if (!validSide || !user?.id) return;
@@ -106,7 +121,13 @@ export default function SiteBuilder() {
         const body = (await res.json()) as CanvasBody;
         if (cancelled) return;
         setCanvas(body);
-        const fresh = !galleryOffered.current && isFreshSite({ draft: body.draft, published: body.published, layout: body.layout, site: body.site });
+        // The target: a pending switch, else the deep link on first load; a
+        // page the server no longer holds falls back to the home.
+        const wanted = pendingTarget.current ?? (reloadKey === 0 ? new URLSearchParams(window.location.search).get('page') : null) ?? 'home';
+        pendingTarget.current = null;
+        const next: EditorTarget = wanted !== 'home' && (body.pages ?? []).some(p => p.id === wanted) ? wanted : 'home';
+        setTarget(next);
+        const fresh = next === 'home' && !galleryOffered.current && isFreshSite({ draft: body.draft, published: body.published, layout: body.layout, site: body.site });
         if (fresh) galleryOffered.current = true;
         setAutoGallery(fresh);
         setState('ready');
@@ -185,6 +206,15 @@ export default function SiteBuilder() {
         setReloadKey(k => k + 1);
       }}
       autoGallery={autoGallery}
+      target={target}
+      openPageSettings={openPageSettings}
+      onSwitchTarget={(next, opts) => {
+        pendingTarget.current = next;
+        setOpenPageSettings(opts?.openSettings === true);
+        setAutoGallery(false);
+        setState('loading');
+        setReloadKey(k => k + 1);
+      }}
       showSuccess={showSuccess}
       showError={showError}
       showUndo={showUndo}
@@ -199,6 +229,9 @@ function Editor({
   consoleHref,
   onReload,
   autoGallery,
+  target,
+  openPageSettings,
+  onSwitchTarget,
   showSuccess,
   showError,
   showUndo,
@@ -210,12 +243,22 @@ function Editor({
   onReload: () => void;
   /** Phase 11: open the gallery at mount (a fresh site's first visit). */
   autoGallery: boolean;
+  /** Program 2, B3: the layout this editor holds. */
+  target: EditorTarget;
+  /** Open the page's settings sheet at mount (a page just created). */
+  openPageSettings: boolean;
+  /** Flush, then reload onto another target. */
+  onSwitchTarget: (next: EditorTarget, opts?: { openSettings?: boolean }) => void;
   showSuccess: (title: string, message?: string) => void;
   showError: (title: string, message?: string) => void;
   showUndo: (title: string, onUndo: () => void, message?: string) => void;
 }) {
-  const history = useHistory<SiteLayout>(canvas.layout);
+  // Program 2, B3: the layout under edit — the home's, or the page's.
+  const isHome = target === 'home';
+  const page = isHome ? null : (canvas.pages ?? []).find(p => p.id === target) ?? null;
+  const history = useHistory<SiteLayout>(page ? page.layout : canvas.layout);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [pagePanelOpen, setPagePanelOpen] = useState(openPageSettings && !!page);
   // A1 (Sep 11 2026): below lg the panels are bottom sheets. A JS gate, not
   // CSS: a LargerWindow locks scroll and moves focus even when display:none'd.
   const isDesktop = useIsDesktop();
@@ -302,7 +345,7 @@ function Editor({
         const res = await fetch(`/api/${plural}/${orgId}/site/draft`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ layout, ...(baseRev !== null ? { baseRev } : {}) }),
+          body: JSON.stringify({ layout, ...(baseRev !== null ? { baseRev } : {}), ...(target !== 'home' ? { pageId: target } : {}) }),
         });
         if (res.ok) {
           const body = (await res.json()) as { rev: number };
@@ -321,7 +364,7 @@ function Editor({
         return { kind: 'network' };
       }
     },
-    [plural, orgId, showError]
+    [plural, orgId, showError, target]
   );
   const draft = useDraft(history.present, save, canvas.draft?.rev ?? null);
   const refreshSite = async (savedRev?: number | null) => {
@@ -363,10 +406,52 @@ function Editor({
   // H7: the tab opens ON the click (popup blockers refuse one opened after an await).
   const preview = () => openPreview(plural, orgId, showError);
 
+  // Program 2, B3: switching layouts — save what is pending, then reload
+  // onto the target (the editor remounts on the server's layout and rev).
+  const switchTarget = (next: EditorTarget, opts?: { openSettings?: boolean; force?: boolean }) => {
+    if (next === target && !opts?.openSettings && !opts?.force) return;
+    guarded(() => {
+      void (async () => {
+        const settled = await draft.flush();
+        if (settled.status !== 'saved' && settled.status !== 'idle') {
+          showError('Website', 'Could not save this page before switching — try again in a moment.');
+          return;
+        }
+        onSwitchTarget(next, opts);
+      })();
+    });
+  };
+  const createPage = () => {
+    guarded(() => {
+      void (async () => {
+        const settled = await draft.flush();
+        if (settled.status !== 'saved' && settled.status !== 'idle') {
+          showError('Website', 'Could not save before adding a page — try again in a moment.');
+          return;
+        }
+        try {
+          const res = await fetch(`/api/${plural}/${orgId}/site`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'add_page', title: 'New page' }),
+          });
+          const body = (await res.json().catch(() => ({}))) as { error?: string; page?: { id: string } };
+          if (!res.ok || !body.page) {
+            showError('Website', body.error || 'Could not add a page');
+            return;
+          }
+          onSwitchTarget(body.page.id, { openSettings: true });
+        } catch {
+          showError('Website', 'Could not add a page');
+        }
+      })();
+    });
+  };
+
   // P8-B: the checklist, derived from what the editor holds — no fetch of
   // its own; a step's href names what completes it.
   const [published, setPublished] = useState<boolean>(canvas.published === true);
-  const steps = buildSiteChecklistSteps(siteChecklistInput(site, history.present, data, published));
+  const steps = isHome ? buildSiteChecklistSteps(siteChecklistInput(site, history.present, data, published)) : [];
   const onStep = (step: ChecklistStep) => {
     const href = step.href ?? '';
     if (href === '#theme') {
@@ -470,6 +555,33 @@ function Editor({
             <span className={`text-xs ${chip.cls}`} data-sb-status={draft.status} data-sb-dirty={draft.dirty ? '1' : '0'} data-sb-theme-preview={themeDraft ? '1' : '0'}>
               {chip.text}
             </span>
+            {canvas.pages !== null && canvas.pages !== undefined && (
+              <select
+                aria-label="Page"
+                value={target}
+                onChange={e => {
+                  const v = e.target.value;
+                  if (v === '__new') createPage();
+                  else switchTarget(v);
+                }}
+                className="min-h-[36px] max-w-[45vw] rounded-md border border-border-strong bg-surface px-2 text-sm text-primary sm:max-w-xs"
+                data-sb-page-select=""
+              >
+                <option value="home">Home</option>
+                {canvas.pages.map(p => (
+                  <option key={p.id} value={p.id}>
+                    {p.title}
+                    {p.visibility === 'draft' ? ' (draft)' : ''}
+                  </option>
+                ))}
+                <option value="__new">New page…</option>
+              </select>
+            )}
+            {page && (
+              <button type="button" onClick={() => setPagePanelOpen(true)} className={PILL} data-sb-page-settings="">
+                Page
+              </button>
+            )}
           </div>
           <div className="flex flex-wrap items-center gap-2">
             {draft.status === 'conflict' && (
@@ -486,22 +598,26 @@ function Editor({
             <button type="button" onClick={() => setPickerOpen(true)} className={PILL}>
               Add section
             </button>
-            <button type="button" onClick={() => setGallery('manual')} className={PILL} data-sb-open-gallery="">
-              Start from
-            </button>
-            <button
-              type="button"
-              onClick={() =>
-                guarded(() => {
-                  setSelectedId(null);
-                  setThemeDraft(d => (d ? null : themeDraftFrom(site)));
-                })
-              }
-              aria-pressed={themeDraft !== null}
-              className={PILL}
-            >
-              Theme
-            </button>
+            {isHome && (
+              <button type="button" onClick={() => setGallery('manual')} className={PILL} data-sb-open-gallery="">
+                Start from
+              </button>
+            )}
+            {isHome && (
+              <button
+                type="button"
+                onClick={() =>
+                  guarded(() => {
+                    setSelectedId(null);
+                    setThemeDraft(d => (d ? null : themeDraftFrom(site)));
+                  })
+                }
+                aria-pressed={themeDraft !== null}
+                className={PILL}
+              >
+                Theme
+              </button>
+            )}
             <button type="button" onClick={() => void preview()} className={PILL}>
               Preview
             </button>
@@ -525,7 +641,7 @@ function Editor({
           {/* The phone editor: the same draft as a list — size and order per section. */}
           <div className="lg:hidden mx-auto max-w-lg" data-sb-phone="">
             <p className="mb-3 text-xs text-tertiary">
-              Change a section’s size or order here; titles, words and colours need a wider screen. Nothing goes live until you publish.
+              {page ? `Editing the page “${page.title}”. ` : ''}Edit a section’s words, size or order here. Nothing goes live until you publish.
             </p>
             <SectionsList
               site={site}
@@ -584,7 +700,7 @@ function Editor({
             </LargerWindow>
           )}
           <div className="hidden lg:block mx-auto max-w-5xl">
-            <ChecklistRail steps={steps} onStep={onStep} />
+            {isHome ? <ChecklistRail steps={steps} onStep={onStep} /> : <p className="mb-3 text-sm text-secondary">Editing the page <strong>{page?.title}</strong>. Home, theme and the design gallery are on the Home page.</p>}
             <p className="mb-3 text-xs text-tertiary">
               Drag a section to move it; drag its corner to resize. Every section refuses sizes that would look bad. Nothing goes live until you publish.
             </p>
@@ -688,7 +804,27 @@ function Editor({
         onCancel={() => setPending(null)}
       />
       {pickerOpen && (
-        <Picker site={site} layout={history.present} plural={plural} orgId={orgId} data={data} onAdd={addWidget} onClose={() => setPickerOpen(false)} />
+        <Picker site={site} layout={history.present} plural={plural} orgId={orgId} data={data} onAdd={addWidget} onClose={() => setPickerOpen(false)} allowed={page ? PAGE_WIDGET_KEYS : undefined} />
+      )}
+      {page && pagePanelOpen && (
+        <PagePanel
+          page={page}
+          plural={plural}
+          orgId={orgId}
+          onClose={() => setPagePanelOpen(false)}
+          onSaved={() => {
+            // The page's title / address changed on the server: reload the
+            // same target so the header's list and the address are its.
+            setPagePanelOpen(false);
+            switchTarget(page.id, { force: true });
+          }}
+          onDeleted={() => {
+            setPagePanelOpen(false);
+            onSwitchTarget('home');
+          }}
+          showError={showError}
+          showSuccess={showSuccess}
+        />
       )}
     </div>
   );

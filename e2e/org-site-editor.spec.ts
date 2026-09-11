@@ -2,7 +2,7 @@ import fs from 'fs';
 import { test, expect } from '@playwright/test';
 import { adminClient, apiAs, loadQaUser, readErrorBody, resetRateBucket } from './helpers/qa-user';
 import { revisionsSupported } from './helpers/org-site';
-import { awaitDraftSaved } from './helpers/isr';
+import { awaitDraftSaved, settleBody } from './helpers/isr';
 
 // Site Builder P3-B: the grid editor (the Website section's door since
 // P10-C). Skips (green) when the target database lacks migration 180. With both: the canvas loads
@@ -663,6 +663,124 @@ test('org site editor: canvas → drag → autosave → undo → reload; phone n
       await expect(page.getByRole('link', { name: 'Open the editor →' })).toBeVisible({ timeout: 20_000 });
     } finally {
       await ownerCtx.close();
+      await anon.close();
+    }
+  } finally {
+    await ownerApi.dispose();
+    await admin.from('leagues').delete().eq('id', leagueId);
+  }
+});
+
+// Program 2, B3 (Sep 11 2026): the editor edits N layouts. A page is a
+// composition edited in the same editor: New page… → the blank page (one
+// text section) with its settings sheet → words typed and autosaved →
+// switch Home and back → the words persist → rename + publish the page →
+// Publish changes → the public page carries the words (the mirror's block
+// projection until B4 renders the layout). Home-only tools stay home-only.
+test('org site editor: pages — New page…, words, switch and back, settings, publish; 375px', async ({ browser }) => {
+  test.setTimeout(240_000);
+  const owner = loadQaUser('user-b.json');
+  const admin = adminClient();
+  await resetRateBucket(admin, 'org-site', owner.id);
+  await resetRateBucket(admin, 'org-site-draft', owner.id);
+  const ownerApi = await apiAs('state-b.json');
+  const stamp = Date.now();
+  const { data: league, error } = await admin
+    .from('leagues')
+    .insert({ name: `QA Pages League ${stamp}`, sport_key: 'ice_hockey', owner_profile_id: owner.id })
+    .select('id')
+    .single();
+  expect(error, error?.message).toBeNull();
+  const leagueId = league!.id as string;
+  await admin.from('memberships').insert([{ league_id: leagueId, profile_id: owner.id, role: 'owner' }]);
+  try {
+    let res = await ownerApi.post(`/api/leagues/${leagueId}/site`);
+    expect(res.status(), await readErrorBody(res)).toBe(200);
+    const subdomain = (await res.json()).site.subdomain as string;
+    res = await ownerApi.patch(`/api/leagues/${leagueId}/site`, { data: { action: 'publish' } });
+    expect(res.status(), await readErrorBody(res)).toBe(200);
+    test.skip(!(await revisionsSupported(ownerApi, 'league', leagueId)), 'org_site_revisions missing — run migration 180');
+    const probe = (await (await ownerApi.get(`/api/leagues/${leagueId}/site/canvas`)).json()) as { pages: unknown };
+    test.skip(probe.pages === null, 'org_site_pages.layout missing — run migration 185');
+
+    const ownerCtx = await browser.newContext({ storageState: 'e2e/.auth/state-b.json', viewport: { width: 1280, height: 900 } });
+    try {
+      const page = await ownerCtx.newPage();
+      await page.goto(`/app/org/league/${leagueId}/site/edit`);
+      await expect(page.locator('[data-sb-canvas]')).toBeVisible({ timeout: 30_000 });
+      const select = page.locator('[data-sb-page-select]');
+      await expect(select).toHaveValue('home');
+      // New page… → the blank page: one text section, no hero; the settings sheet opens; home tools are gone.
+      await select.selectOption('__new');
+      const settings = page.locator('[data-larger-window="sb-page"]');
+      await expect(settings).toBeVisible({ timeout: 30_000 });
+      await expect(settings.getByLabel('Page title')).toHaveValue('New page');
+      await expect(settings.getByLabel('Address')).toHaveValue('new-page');
+      await page.keyboard.press('Escape');
+      await expect(settings).toBeHidden();
+      await expect(select).not.toHaveValue('home');
+      const pageId = await select.inputValue();
+      await expect(page.locator('[data-sb-instance]')).toHaveCount(1);
+      await expect(page.locator('[data-sb-widget="text"]')).toBeVisible();
+      await expect(page.locator('[data-sb-widget="hero"]')).toHaveCount(0);
+      await expect(page.getByRole('button', { name: 'Theme', exact: true })).toHaveCount(0);
+      await expect(page.getByRole('button', { name: 'Start from', exact: true })).toHaveCount(0);
+      await expect(page.locator('[data-sb-checklist-step]')).toHaveCount(0);
+      // The picker offers no hero on a page; a module widget is welcome.
+      await page.getByRole('button', { name: 'Add section' }).click();
+      const picker = page.locator('[data-larger-window="sb-picker"]');
+      await expect(picker).toBeVisible();
+      await expect(picker.locator('[data-sb-picker-tile="hero"]')).toHaveCount(0);
+      await expect(picker.locator('[data-sb-picker-tile="standings"]')).toBeVisible();
+      await page.keyboard.press('Escape');
+      await expect(picker).toBeHidden();
+      // Words into the text section → autosaved into the PAGE's layout, not the home's.
+      await page.locator('[data-sb-widget="text"] .sb-frame-controls').click();
+      const textPanel = page.locator('[data-sb-panel="text"]');
+      await expect(textPanel).toBeVisible();
+      await textPanel.getByRole('button', { name: '+ Paragraph' }).click();
+      await textPanel.getByLabel('Paragraph 1', { exact: true }).fill(`Page words ${stamp}`);
+      await awaitDraftSaved(page);
+      let canvas = (await (await ownerApi.get(`/api/leagues/${leagueId}/site/canvas`)).json()) as { layout: { widgets: { key: string }[] }; pages: { id: string; title: string; slug: string; layout: { widgets: { key: string; config: { blocks?: { text: string }[] } }[] } }[] };
+      const stored = canvas.pages.find(p => p.id === pageId)!;
+      expect(stored.layout.widgets[0].config.blocks?.[0].text).toBe(`Page words ${stamp}`);
+      expect(canvas.layout.widgets.some(w => w.key === 'hero'), 'the home layout is untouched').toBe(true);
+      // Switch to Home and back: the words persist; Home has its hero and tools.
+      await select.selectOption('home');
+      await expect(page.locator('[data-sb-widget="hero"]')).toBeVisible({ timeout: 30_000 });
+      await expect(page.getByRole('button', { name: 'Theme', exact: true })).toBeVisible();
+      await select.selectOption(pageId);
+      await expect(page.locator('[data-sb-widget="text"]')).toContainText(`Page words ${stamp}`, { timeout: 30_000 });
+      // Settings: rename, publish the page, keep it in the header → Save → the list shows the new title.
+      await page.locator('[data-sb-page-settings]').click();
+      await expect(settings).toBeVisible();
+      await settings.getByLabel('Page title').fill(`About us ${stamp}`);
+      await settings.getByLabel('Address').fill(`about-${stamp}`);
+      await settings.getByLabel('Published').selectOption('public');
+      await settings.locator('[data-sb-page-save]').click();
+      await expect(page.locator('[data-sb-canvas]')).toBeVisible({ timeout: 30_000 });
+      await expect(select.locator(`option[value="${pageId}"]`)).toHaveText(`About us ${stamp}`);
+      canvas = (await (await ownerApi.get(`/api/leagues/${leagueId}/site/canvas`)).json()) as typeof canvas;
+      expect(canvas.pages.find(p => p.id === pageId)).toMatchObject({ title: `About us ${stamp}`, slug: `about-${stamp}` });
+      // 375px: the switcher, the Page pill and the page's sections list.
+      await page.setViewportSize({ width: 375, height: 812 });
+      await expect(select).toBeVisible();
+      await expect(page.locator('[data-sb-page-settings]')).toBeVisible();
+      await expect(page.locator('[data-sb-sections]')).toBeVisible();
+      await expect(page.locator('[data-sb-section-key="text"]')).toBeVisible();
+      expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(1);
+      await page.setViewportSize({ width: 1280, height: 900 });
+      // Publish changes → the public page renders the words.
+      await page.getByRole('button', { name: 'Publish changes', exact: true }).click();
+      await expect(page.getByRole('alert').filter({ hasText: 'Changes published' })).toBeVisible({ timeout: 15_000 });
+    } finally {
+      await ownerCtx.close();
+    }
+    const anon = await browser.newContext({ storageState: { cookies: [], origins: [] } });
+    try {
+      const html = await settleBody(anon.request, `/org/${subdomain}/about-${stamp}`, `Page words ${stamp}`);
+      expect(html).toContain(`About us ${stamp}`);
+    } finally {
       await anon.close();
     }
   } finally {

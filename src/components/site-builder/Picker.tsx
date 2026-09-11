@@ -36,6 +36,8 @@ export interface PickerProps {
   data: SiteHomeData | null;
   onAdd: (key: SiteWidgetKey, data: SiteHomeData | null) => void;
   onClose: () => void;
+  /** Program 2, B3: the keys this layout may hold (a PAGE takes no hero). Absent = every site widget. */
+  allowed?: readonly string[];
 }
 
 const CONTENT_BLURB: Record<ContentWidgetKey, string> = {
@@ -46,13 +48,14 @@ const CONTENT_BLURB: Record<ContentWidgetKey, string> = {
 
 const ADD = 'min-h-[36px] rounded-md bg-brand px-3 text-sm font-medium text-white hover:bg-brand-hover transition-colors disabled:opacity-50';
 
-export default function Picker({ site, layout, plural, orgId, data: canvasData, onAdd, onClose }: PickerProps) {
+export default function Picker({ site, layout, plural, orgId, data: canvasData, onAdd, onClose, allowed }: PickerProps) {
   const present = new Set(layout.widgets.map(w => w.key));
+  const permitted = (k: string) => !allowed || allowed.includes(k);
   // Fetch previews for the ABSENT keys only; a repeatable key already on the
   // page (phase 9: standings, schedule, leaders) previews from the canvas's
   // data and is listed with "Add another".
-  const missing = WEB_WIDGET_KEYS.filter(k => k !== 'hero' && !present.has(k));
-  const listed = WEB_WIDGET_KEYS.filter(k => k !== 'hero' && (!present.has(k) || WIDGETS[k].multiple));
+  const missing = WEB_WIDGET_KEYS.filter(k => k !== 'hero' && permitted(k) && !present.has(k));
+  const listed = WEB_WIDGET_KEYS.filter(k => k !== 'hero' && permitted(k) && (!present.has(k) || WIDGETS[k].multiple));
   const keysParam = missing.join(',');
   const [state, setState] = useState<{ status: 'loading' | 'ready' | 'error'; data: SiteHomeData | null; empty: Record<string, boolean> }>({
     status: keysParam ? 'loading' : 'ready',
