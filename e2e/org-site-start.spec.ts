@@ -346,13 +346,10 @@ test('@mobile org site editor on a phone: the sections list, the gallery offer (
 // the welcome card shows this org's designs (the SAME block-diagram thumbs the
 // editor's gallery draws, over the org's real facts), applies one to the draft
 // through `apply_gallery clean`, and takes the site live from the card.
-test('@mobile a fresh golf club: the welcome card offers the golf designs, Use this arranges the draft, Take it live publishes', async ({ browser }) => {
-  test.setTimeout(150_000);
-  const owner = loadQaUser('user-b.json');
-  const admin = adminClient();
-  const stamp = Date.now();
-  // A club request provisions the org AND its site (Onboarding v2) — the
-  // exact path the wizard takes. Sweep this owner's stale requests first.
+/** A club request provisions the org AND its site (Onboarding v2) — the
+ *  exact path the wizard takes before it lands on `?welcome=1`. Sweeps the
+ *  owner's stale requests and rate buckets first. Both welcome tests use it. */
+async function provisionGolfClub(admin: ReturnType<typeof adminClient>, owner: { id: string }, ownerApi: Awaited<ReturnType<typeof apiAs>>, name: string): Promise<{ clubId: string; subdomain: string }> {
   const { data: stale } = await admin.from('club_requests').select('created_club_id').eq('requester_profile_id', owner.id);
   const staleIds = (stale ?? []).map(r => r.created_club_id as string | null).filter((id): id is string => !!id);
   if (staleIds.length) await admin.from('clubs').delete().in('id', staleIds);
@@ -360,18 +357,28 @@ test('@mobile a fresh golf club: the welcome card offers the golf designs, Use t
   await resetRateBucket(admin, 'club-request', owner.id);
   await resetRateBucket(admin, 'org-site', owner.id);
   await resetRateBucket(admin, 'org-site-draft', owner.id);
+  const requested = await ownerApi.post('/api/clubs/requests', {
+    data: { name, capabilities: { operatesCompetitions: true, operatesTeams: false }, siteDraft: { sports: ['golf'] } },
+  });
+  expect(requested.status(), await readErrorBody(requested)).toBe(200);
+  const clubId = ((await requested.json()) as { orgId: string | null }).orgId;
+  expect(clubId, 'the club was provisioned').toBeTruthy();
+  const { data: siteRow } = await admin.from('org_sites').select('subdomain').eq('club_id', clubId!).single();
+  return { clubId: clubId!, subdomain: siteRow!.subdomain as string };
+}
+
+test('@mobile a fresh golf club: the welcome card offers the golf designs, Use this arranges the draft, Take it live publishes', async ({ browser }) => {
+  test.setTimeout(150_000);
+  const owner = loadQaUser('user-b.json');
+  const admin = adminClient();
+  const stamp = Date.now();
   const ownerApi = await apiAs('state-b.json');
   let clubId: string | null = null;
   try {
-    const requested = await ownerApi.post('/api/clubs/requests', {
-      data: { name: `QA Welcome Golf Club ${stamp}`, capabilities: { operatesCompetitions: true, operatesTeams: false }, siteDraft: { sports: ['golf'] } },
-    });
-    expect(requested.status(), await readErrorBody(requested)).toBe(200);
-    clubId = ((await requested.json()) as { orgId: string | null }).orgId;
-    expect(clubId, 'the club was provisioned').toBeTruthy();
-    test.skip(!(await revisionsSupported(ownerApi, 'club', clubId!)), 'org_site_revisions missing — run migration 180');
-    const { data: siteRow } = await admin.from('org_sites').select('subdomain').eq('club_id', clubId!).single();
-    const subdomain = siteRow!.subdomain as string;
+    const provisioned = await provisionGolfClub(admin, owner, ownerApi, `QA Welcome Golf Club ${stamp}`);
+    clubId = provisioned.clubId;
+    const subdomain = provisioned.subdomain;
+    test.skip(!(await revisionsSupported(ownerApi, 'club', clubId)), 'org_site_revisions missing — run migration 180');
 
     const ctx = await browser.newContext({ storageState: 'e2e/.auth/state-b.json', viewport: { width: 390, height: 844 } });
     try {
@@ -421,6 +428,77 @@ test('@mobile a fresh golf club: the welcome card offers the golf designs, Use t
     } finally {
       await again.close();
     }
+  } finally {
+    await ownerApi.dispose();
+    if (clubId) await admin.from('clubs').delete().eq('id', clubId);
+    await admin.from('club_requests').delete().eq('requester_profile_id', owner.id);
+  }
+});
+
+// The same moment on a laptop — where most sites get built. The card is the
+// same component inside the console's 768px main (two across); the hand-off
+// is "Open the editor": the canvas shows the applied design and the gallery's
+// first-open offer stays shut (the pick created the draft — never twice).
+test('a fresh golf club on a laptop: the welcome card two-up, Use this → Open the editor lands on the arranged canvas with no second offer, Publish site', async ({ browser }) => {
+  test.setTimeout(150_000);
+  const owner = loadQaUser('user-b.json');
+  const admin = adminClient();
+  const stamp = Date.now();
+  const ownerApi = await apiAs('state-b.json');
+  let clubId: string | null = null;
+  try {
+    const provisioned = await provisionGolfClub(admin, owner, ownerApi, `QA Laptop Golf Club ${stamp}`);
+    clubId = provisioned.clubId;
+    const subdomain = provisioned.subdomain;
+    test.skip(!(await revisionsSupported(ownerApi, 'club', clubId)), 'org_site_revisions missing — run migration 180');
+
+    const ctx = await browser.newContext({ storageState: 'e2e/.auth/state-b.json', viewport: { width: 1280, height: 900 } });
+    try {
+      const page = await ctx.newPage();
+      await page.goto(`/app/org/club/${clubId}?welcome=1`);
+      const pick = page.locator('[data-welcome-design="pick"]');
+      await expect(pick).toBeVisible({ timeout: 30_000 });
+      const cards = pick.locator('[data-welcome-design-card]');
+      expect(await cards.count()).toBeGreaterThanOrEqual(6);
+      // Two across: the first two cards share a row.
+      const [a, b] = await Promise.all([cards.nth(0).boundingBox(), cards.nth(1).boundingBox()]);
+      expect(a && b && Math.abs(a.y - b.y) < 2 && b.x > a.x, 'the cards sit two across').toBe(true);
+      expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(1280);
+
+      // Use this on Points race → the applied state, then the editor.
+      await pick.locator('[data-welcome-design-card="golf-points-race"] [data-welcome-design-use]').click();
+      await expect(page.locator('[data-welcome-design="applied"]')).toBeVisible({ timeout: 20_000 });
+      await expect(page.getByText('Your site is arranged — Points race.')).toBeVisible();
+      // A pick from the third row must not leave the viewport below the confirmation.
+      await expect(page.locator('[data-welcome-design="applied"]')).toBeInViewport({ timeout: 5_000 });
+      await page.locator('[data-welcome-design-editor]').click();
+      await expect(page).toHaveURL(new RegExp(`/app/org/club/${clubId}/site/edit`), { timeout: 30_000 });
+      await expect(page.locator('[data-sb-canvas]')).toBeVisible({ timeout: 30_000 });
+      // The arranged canvas: the welcome tile exists and the standings lead
+      // under the hero (the points-race plan); the layout is the draft's, so
+      // the chip is clean and the gallery does NOT offer itself again.
+      await expect(page.locator('[data-sb-instance="seed:welcome"]')).toBeVisible();
+      // Reading order from the tiles' positions (DOM order is the stored order).
+      const tiles = page.locator('[data-sb-instance]');
+      const ids = await tiles.evaluateAll(els =>
+        els
+          .map(el => ({ id: el.getAttribute('data-sb-instance'), r: el.getBoundingClientRect() }))
+          .sort((a, b) => a.r.top - b.r.top || a.r.left - b.r.left)
+          .map(x => x.id)
+      );
+      expect(ids[0]).toBe('legacy:hero');
+      expect(ids[1]).toBe('legacy:standings');
+      await page.waitForTimeout(1500);
+      await expect(page.locator('[data-larger-window="sb-gallery"]')).toBeHidden();
+      await expect(page.locator('[data-sb-dirty="0"]')).toBeVisible();
+      expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(1280);
+      // Publish site from the editor header.
+      await page.getByRole('button', { name: 'Publish site', exact: true }).click();
+      await expect(page.getByRole('alert').filter({ hasText: 'Your site is live' })).toBeVisible({ timeout: 15_000 });
+    } finally {
+      await ctx.close();
+    }
+    await expect.poll(async () => (await ownerApi.get(`/org/${subdomain}`)).status(), { timeout: 30_000, intervals: [1000, 2000, 3000] }).toBe(200);
   } finally {
     await ownerApi.dispose();
     if (clubId) await admin.from('clubs').delete().eq('id', clubId);
