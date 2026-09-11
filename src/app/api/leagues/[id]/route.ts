@@ -15,6 +15,7 @@ import { UUID_RE } from '@/lib/golf/course-catalog';
 import { readSiteBrandRow, revalidateOrgSiteForOrg } from '@/lib/org-sites/revalidate';
 import { buildOrgBrand } from '@/lib/org-sites/brand';
 import { buildAppComposition } from '@/lib/site-builder/app-composition';
+import { orgSitePath } from '@/lib/org-sites/urls';
 import { readOrgAccess } from '@/lib/orgs/access';
 import { viewerJoinRequest } from '@/lib/orgs/join-requests-server';
 
@@ -94,7 +95,7 @@ export async function GET(
     // Phase 10: the brand row + the site's stored layout (published, or the
     // draft's while offline) — the composition the in-app page follows.
     const siteRow = await readSiteBrandRow(supabase, 'league', id, { layout: true });
-    const composition = buildAppComposition(siteRow?.layout ?? null, siteRow?.id ?? '', { isMember: !!viewerRole || (!!viewerId && viewerId === league.owner_profile_id), canManage }, { visibility: access.visibility });
+    const composition = buildAppComposition(siteRow?.layout ?? null, siteRow?.id ?? '', { isMember: !!viewerRole || (!!viewerId && viewerId === league.owner_profile_id), canManage }, { visibility: access.visibility }, siteRow?.subdomain ? orgSitePath(siteRow.subdomain) : null);
     return NextResponse.json({
       league,
       // R1: the listing state (pending = a listing request is in the queue).

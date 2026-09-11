@@ -77,6 +77,10 @@ export function isWidgetEmpty(w: WidgetInstance, raw: SiteHomeData, site: Conten
       return typeof config.path !== 'string' || config.path.length === 0;
     case 'embed':
       return parseEmbed(config.embed) === null;
+    // Program 2, D: a form is its own content — never empty.
+    case 'contact_form':
+    case 'interest_form':
+      return false;
     default:
       return false;
   }

@@ -109,6 +109,8 @@ export const NOTIFICATION_TYPE_META = {
   org_staff_revoked: { tab: null, icon: 'fa-building' },
   // Onboarding v2 (179): an org asked to be LISTED — bells the admins (R1).
   org_listing_request: { tab: null, icon: 'fa-list-check' },
+  // Program 2, D (187): a visitor sent a form on the org's site — the owner and managers hear.
+  site_form_submission: { tab: null, icon: 'fa-envelope' },
 } as const satisfies Record<string, NotificationTypeMeta>;
 
 export type KnownNotificationType = keyof typeof NOTIFICATION_TYPE_META;

@@ -790,6 +790,25 @@ body {
   }
 }
 
+/* Program 2, D: an org-site form without JavaScript — the POST answers a 303
+ * to #sent-<id> or #error-<id>, and :target shows the matching line. The
+ * honeypot field sits off-screen (a bot fills it; a person never sees it). */
+.org-scope .sb-form-sent,
+.org-scope .sb-form-error {
+  display: none;
+}
+.org-scope .sb-form-sent:target,
+.org-scope .sb-form-error:target {
+  display: block;
+}
+.org-scope .sb-hp {
+  position: absolute;
+  left: -9999px;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+}
+
 /* Long-press targets: a 400ms press must open OUR surface, not the OS text
  * selection (iOS loupe/callout) — the two fight, and selection wins ugly.
  * Coarse-scoped so desktop mouse selection (and copy) is untouched; on

@@ -26,7 +26,7 @@ const asRecord = (v: unknown): Record<string, unknown> =>
   v && typeof v === 'object' && !Array.isArray(v) ? (v as Record<string, unknown>) : {};
 
 /** What a content instance shows, or null when it is empty. */
-export function resolveTile(w: WidgetInstance, siteId: string): AppTile | null {
+export function resolveTile(w: WidgetInstance, siteId: string, sitePath: string | null = null): AppTile | null {
   const config = asRecord(w.config);
   switch (w.key) {
     case 'text': {
@@ -52,6 +52,11 @@ export function resolveTile(w: WidgetInstance, siteId: string): AppTile | null {
       const e = parseEmbed(config.embed);
       return e ? { kind: 'embed', src: embedSrc(e), title: embedTitle(e), provider: e.provider } : null;
     }
+    case 'contact_form':
+    case 'interest_form':
+      // In-app a form is a DOOR to the public form (the app is signed-in; the
+      // form is the site's) — the href needs the site's public path.
+      return { kind: 'form', form: w.key === 'contact_form' ? 'contact' : 'interest', intro: typeof config.intro === 'string' && config.intro.trim() ? config.intro.trim() : null, href: sitePath ? `${sitePath}#form-${w.id}` : null };
     default:
       return null;
   }
@@ -60,7 +65,7 @@ export function resolveTile(w: WidgetInstance, siteId: string): AppTile | null {
 /** null layout → null composition (the in-app page keeps the registry order).
  *  `site` is the org's CURRENT privacy (H1) — the effective audience is
  *  decided here, never read off the stored instance. */
-export function buildAppComposition(layout: SiteLayout | null, siteId: string, viewer: AppViewer, site: AudienceSite): AppComposition | null {
+export function buildAppComposition(layout: SiteLayout | null, siteId: string, viewer: AppViewer, site: AudienceSite, sitePath: string | null = null): AppComposition | null {
   if (!layout) return null;
   const byId = new Map(layout.widgets.map(w => [w.id, w]));
   const widgets: AppInstance[] = [];
@@ -71,7 +76,7 @@ export function buildAppComposition(layout: SiteLayout | null, siteId: string, v
       continue;
     }
     const source = byId.get(inst.id);
-    const tile = source ? resolveTile(source, siteId) : null;
+    const tile = source ? resolveTile(source, siteId, sitePath) : null;
     // Empty content never renders publicly; managers keep the tile as a door.
     if (!tile && !viewer.canManage) continue;
     widgets.push(tile ? { ...inst, tile } : inst);

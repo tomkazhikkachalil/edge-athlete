@@ -71,7 +71,14 @@ export const APP_ONLY_WIDGET_KEYS = ['week', 'announcements', 'activity', 'posts
 export type AppOnlyWidgetKey = (typeof APP_ONLY_WIDGET_KEYS)[number];
 
 /** Phase 6 — content widgets: authored tiles with no module behind them. */
-export const CONTENT_WIDGET_KEYS = ['text', 'image', 'embed'] as const;
+// Program 2, D (Sep 11 2026): two FIXED forms — the instance holds the intro
+// and the thank-you line; a visitor's submission lands in the site's inbox.
+export const CONTENT_WIDGET_KEYS = ['text', 'image', 'embed', 'contact_form', 'interest_form'] as const;
+export const FORM_WIDGET_KEYS = ['contact_form', 'interest_form'] as const;
+export type FormWidgetKey = (typeof FORM_WIDGET_KEYS)[number];
+export function isFormWidgetKey(key: string): key is FormWidgetKey {
+  return (FORM_WIDGET_KEYS as readonly string[]).includes(key);
+}
 export type ContentWidgetKey = (typeof CONTENT_WIDGET_KEYS)[number];
 
 /** Every key a SITE layout may hold (the wire schema's enum): the module-
@@ -440,6 +447,32 @@ export const WIDGETS: Readonly<Record<WidgetKey, WidgetDef>> = {
     defaultTitle: 'Image',
     headingOptional: true,
     emptyState: { staff: { label: 'Add a photo →' }, public: 'hide' },
+  },
+  contact_form: {
+    key: 'contact_form',
+    family: 'content',
+    moduleKey: null,
+    constraints: { minW: 4, maxW: 12, minH: 3, maxH: 20, defaultSize: { w: 6, h: 6 } },
+    surfaces: { default: BOTH, app: { priority: 0, size: 'md', bubbleKey: null } },
+    subpage: false,
+    data: [],
+    multiple: true,
+    defaultTitle: 'Contact us',
+    headingOptional: true,
+    emptyState: { staff: { label: 'Write an intro →' }, public: 'hide' },
+  },
+  interest_form: {
+    key: 'interest_form',
+    family: 'content',
+    moduleKey: null,
+    constraints: { minW: 4, maxW: 12, minH: 3, maxH: 20, defaultSize: { w: 6, h: 7 } },
+    surfaces: { default: BOTH, app: { priority: 0, size: 'md', bubbleKey: null } },
+    subpage: false,
+    data: [],
+    multiple: true,
+    defaultTitle: 'Interested in joining?',
+    headingOptional: true,
+    emptyState: { staff: { label: 'Write an intro →' }, public: 'hide' },
   },
   embed: {
     key: 'embed',

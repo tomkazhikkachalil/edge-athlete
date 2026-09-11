@@ -44,6 +44,8 @@ const CONTENT_BLURB: Record<ContentWidgetKey, string> = {
   text: 'Your own words — paragraphs, headings, a list of links.',
   image: 'One photo from your site’s assets, with a caption and a link.',
   embed: 'A YouTube or Vimeo video, or an OpenStreetMap map.',
+  contact_form: 'Name, email and a message — lands in your inbox.',
+  interest_form: 'Name, email, an age group and a note from someone who wants to join.',
 };
 
 const ADD = 'min-h-[36px] rounded-md bg-brand px-3 text-sm font-medium text-white hover:bg-brand-hover transition-colors disabled:opacity-50';
