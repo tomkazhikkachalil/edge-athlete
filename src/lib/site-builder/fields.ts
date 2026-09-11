@@ -29,6 +29,8 @@ import { QUERY_LIMITS } from './select';
 export type FieldSpec =
   | { kind: 'text' | 'textarea' | 'url' | 'email' | 'date'; name: string; label: string; help?: string; max?: number; scope: 'instance' | 'content' }
   | { kind: 'visibility'; name: 'visibility'; label: string; scope: 'instance' }
+  /** Sep 11 2026: a named size (small · medium · wide) — a preset over the instance's `w`, never a config key. */
+  | { kind: 'size'; name: 'size'; label: string; scope: 'instance' }
   | { kind: 'blocks'; name: 'blocks'; label: string; help?: string; scope: 'instance' }
   | { kind: 'image'; name: 'path' | 'imagePath'; label: string; help?: string; scope: 'instance' | 'content' }
   | { kind: 'embed'; name: 'embed'; label: string; help?: string; scope: 'instance' }
@@ -42,6 +44,7 @@ export const IMAGE_CAPTION_MAX = 200;
 
 const TITLE: FieldSpec = { kind: 'text', name: 'title', label: 'Section title', help: 'Shown as this section’s heading on the page.', max: INSTANCE_TITLE_MAX, scope: 'instance' };
 const VISIBILITY: FieldSpec = { kind: 'visibility', name: 'visibility', label: 'Who sees it', scope: 'instance' };
+const SIZE: FieldSpec = { kind: 'size', name: 'size', label: 'Size', scope: 'instance' };
 
 /** The hero's CONTENT fields — set_hero's payload (whole-object replace). */
 export const HERO_FIELDS: FieldSpec[] = [
@@ -113,27 +116,27 @@ export function fieldsFor(key: SiteWidgetKey): FieldSpec[] {
     case 'hero':
       return HERO_FIELDS;
     case 'contact':
-      return [TITLE, VISIBILITY, ...CONTACT_FIELDS];
+      return [TITLE, SIZE, VISIBILITY, ...CONTACT_FIELDS];
     case 'text':
-      return [TITLE, VISIBILITY, ...TEXT_FIELDS];
+      return [TITLE, SIZE, VISIBILITY, ...TEXT_FIELDS];
     case 'image':
-      return [TITLE, VISIBILITY, ...IMAGE_FIELDS];
+      return [TITLE, SIZE, VISIBILITY, ...IMAGE_FIELDS];
     case 'embed':
-      return [TITLE, VISIBILITY, ...EMBED_FIELDS];
+      return [TITLE, SIZE, VISIBILITY, ...EMBED_FIELDS];
     case 'standings':
-      return [TITLE, VISIBILITY, COMPETITION('Automatic — the first with results')];
+      return [TITLE, SIZE, VISIBILITY, COMPETITION('Automatic — the first with results')];
     case 'schedule':
-      return [TITLE, VISIBILITY, VENUE, COMPETITION('All leagues', 'Filters a golf league’s rounds.'), LIMIT('schedule', 'Upcoming events shown.')];
+      return [TITLE, SIZE, VISIBILITY, VENUE, COMPETITION('All leagues', 'Filters a golf league’s rounds.'), LIMIT('schedule', 'Upcoming events shown.')];
     case 'leaders':
-      return [TITLE, VISIBILITY, COMPETITION('All competitions')];
+      return [TITLE, SIZE, VISIBILITY, COMPETITION('All competitions')];
     case 'news':
-      return [TITLE, VISIBILITY, LIMIT('news', 'Latest posts shown.')];
+      return [TITLE, SIZE, VISIBILITY, LIMIT('news', 'Latest posts shown.')];
     case 'teams':
-      return [TITLE, VISIBILITY, LIMIT('teams')];
+      return [TITLE, SIZE, VISIBILITY, LIMIT('teams')];
     case 'members':
-      return [TITLE, VISIBILITY, LIMIT('members', 'Rows in the table.')];
+      return [TITLE, SIZE, VISIBILITY, LIMIT('members', 'Rows in the table.')];
     default:
-      return [TITLE, VISIBILITY];
+      return [TITLE, SIZE, VISIBILITY];
   }
 }
 

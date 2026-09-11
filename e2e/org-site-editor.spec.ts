@@ -472,14 +472,29 @@ test('org site editor: canvas → drag → autosave → undo → reload; phone n
       await page.locator('[data-sb-panel="staff"]').getByLabel('Section title').fill(`Our staff again ${stamp}`);
       await awaitDraftSaved(page);
 
-      // The phone: the notice with working doors, no overflow.
+      // Sep 11 2026: the panel's Size control — a named size is a preset over
+      // `w` (one undo step, autosaved); the layout re-flows around it.
+      const sizeGroup = page.locator('[data-sb-panel="staff"]').getByRole('radiogroup', { name: /^Size of / });
+      await expect(sizeGroup).toBeVisible();
+      await sizeGroup.getByRole('radio', { name: 'Medium' }).click();
+      await awaitDraftSaved(page);
+      await expect(sizeGroup.getByRole('radio', { name: 'Medium' })).toHaveAttribute('aria-checked', 'true');
+      const sized = (await (await ownerApi.get(`/api/leagues/${leagueId}/site/canvas`)).json()) as { layout: { widgets: { key: string; w: number }[] } };
+      expect(sized.layout.widgets.find(w => w.key === 'staff')!.w).toBe(6);
+      await sizeGroup.getByRole('radio', { name: 'Wide' }).click();
+      await awaitDraftSaved(page);
+
+      // The phone: the SAME editor as a list (Sep 11 2026) — the header's doors, the sections, no overflow.
       await page.setViewportSize({ width: 375, height: 812 });
-      await expect(page.getByRole('heading', { name: 'The editor needs a bigger screen' })).toBeVisible();
-      await expect(page.getByRole('button', { name: 'Preview draft' })).toBeVisible();
+      await expect(page.locator('[data-sb-sections]')).toBeVisible();
+      await expect(page.locator('[data-sb-canvas]')).toBeHidden();
+      await expect(page.locator('[data-sb-section]')).toHaveCount(await page.locator('[data-sb-instance]').count());
+      await expect(page.getByRole('button', { name: 'Preview', exact: true })).toBeVisible();
       await expect(page.getByRole('button', { name: 'Publish changes' })).toBeVisible();
-      await expect(page.getByRole('link', { name: 'Back to the console' })).toBeVisible();
+      await expect(page.getByRole('link', { name: '← Console' })).toBeVisible();
       const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
       expect(overflow).toBeLessThanOrEqual(1);
+      await page.setViewportSize({ width: 1280, height: 900 });
 
       // The public page is untouched by draft edits — asserted by what it must
       // NOT carry yet (B6: a byte-compare of two ISR documents failed on any

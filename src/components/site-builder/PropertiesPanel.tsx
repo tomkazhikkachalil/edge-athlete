@@ -14,6 +14,8 @@ import { EMBED_PROVIDER_LABEL, embedSrc, parseEmbed, parseEmbedUrl } from '@/lib
 import type { SiteLayout, WidgetInstance, WidgetVisibility } from '@/lib/site-builder/layout';
 import { widgetTitle } from '@/app/(public)/org/[slug]/_components/WidgetBody';
 import BlocksField, { readTextBlocks, type TextBlock } from './BlocksField';
+import SizeControl from './SizeControl';
+import type { SizePreset } from '@/lib/site-builder/sections';
 
 /**
  * The properties panel — Site Builder phase 5 (Sep 9 2026). Generated from
@@ -36,6 +38,8 @@ export interface PropertiesPanelProps {
   /** Phase 9: what a query widget can bind to (from the canvas response). */
   options?: CanvasOptions;
   onInstanceChange: (next: WidgetInstance, coalesce?: string) => void;
+  /** Sep 11 2026: a named size — the editor re-flows the layout (one undo step). */
+  onResize: (preset: SizePreset) => void;
   /** After a content save — with the draft rev the PATCH answered (B3). */
   onContentSaved: (rev: number | null) => Promise<void>;
   className?: string;
@@ -53,12 +57,12 @@ type Config = Record<string, unknown>;
 const asConfig = (c: unknown): Config => (c && typeof c === 'object' ? (c as Config) : {});
 const str = (c: Config, k: string): string => (typeof c[k] === 'string' ? (c[k] as string) : '');
 
-export default function PropertiesPanel({ site, widget, plural, orgId, options, onInstanceChange, onContentSaved, showError, showSuccess, onDirtyChange, className }: PropertiesPanelProps) {
+export default function PropertiesPanel({ site, widget, plural, orgId, options, onInstanceChange, onResize, onContentSaved, showError, showSuccess, onDirtyChange, className }: PropertiesPanelProps) {
   const key = widget.key as SiteWidgetKey;
   const fields = fieldsFor(key);
   const instanceFields = fields.filter(f => f.scope === 'instance');
   const queryFields = fields.filter((f): f is Extract<FieldSpec, { scope: 'query' }> => f.scope === 'query');
-  const contentFields = fields.filter((f): f is Exclude<FieldSpec, { kind: 'visibility' | 'blocks' | 'embed' | 'select' | 'number' }> => f.scope === 'content');
+  const contentFields = fields.filter((f): f is Exclude<FieldSpec, { kind: 'visibility' | 'size' | 'blocks' | 'embed' | 'select' | 'number' }> => f.scope === 'content');
   const action = contentActionFor(key);
   const config = asConfig(widget.config);
 
@@ -177,6 +181,14 @@ export default function PropertiesPanel({ site, widget, plural, orgId, options, 
   const renderInstanceField = (f: FieldSpec) => {
     const id = `sb-${widget.id}-${f.name}`;
     switch (f.kind) {
+      case 'size': {
+        return (
+          <div key={f.name}>
+            <p className={LABEL}>{f.label}</p>
+            <SizeControl widget={widget} title={title} onResize={onResize} />
+          </div>
+        );
+      }
       case 'visibility':
         return (
           <div key={f.name}>

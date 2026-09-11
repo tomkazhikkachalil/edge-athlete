@@ -14,6 +14,8 @@ import type { CanvasOptions } from '@/lib/org-sites/query-options';
 import Canvas from './Canvas';
 import Picker from './Picker';
 import PropertiesPanel from './PropertiesPanel';
+import SectionsList from './SectionsList';
+import { resizeToPreset } from '@/lib/site-builder/sections';
 import ThemePanel, { themeDraftFrom, type ThemeDraft } from './ThemePanel';
 import ChecklistRail from './ChecklistRail';
 import Gallery from './Gallery';
@@ -432,47 +434,24 @@ function Editor({
 
   return (
     <div className="min-h-screen bg-canvas" data-site-builder="">
-      {/* Below lg: the editor needs room. A notice with WORKING doors — never a dead end. */}
-      <div className="lg:hidden min-h-screen flex flex-col">
-        <div className="flex items-center justify-between gap-2 border-b border-border bg-surface px-4 py-3">
-          <Link href={consoleHref} className="text-sm text-brand-fg hover:text-brand-fg-strong font-medium">
-            ← Console
-          </Link>
-          <span className="text-sm font-semibold text-primary">Site editor</span>
-        </div>
-        <div className="flex-1 flex items-center justify-center px-4">
-          <div className="max-w-sm text-center space-y-4">
-            <h1 className="text-xl font-bold text-primary">The editor needs a bigger screen</h1>
-            <p className="text-sm text-tertiary">
-              Arranging your site works on a screen at least 1024px wide — a laptop or a tablet held sideways. You can still preview and publish from here.
-            </p>
-            <div className="flex flex-col gap-2">
-              <button type="button" onClick={() => void preview()} className={PILL}>
-                Preview draft
-              </button>
-              <button type="button" onClick={() => void publish()} disabled={busy} className={CTA}>
-                {publishCta}
-              </button>
-              <Link href={consoleHref} className={PILL}>
-                Back to the console
-              </Link>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div className="hidden lg:flex min-h-screen flex-col">
-        <header className="sticky top-0 z-20 flex items-center justify-between gap-3 border-b border-border bg-surface/95 backdrop-blur px-4 py-2">
+      {/* Sep 11 2026: ONE header for both widths — the status chip renders once
+          (a second copy in a display:none branch would make the e2e locator a
+          strict-mode violation). Below lg the main is the Sections list; the
+          canvas, rail and panels need lg. */}
+      <div className="flex min-h-screen flex-col">
+        <header className="sticky top-0 z-20 flex flex-wrap items-center justify-between gap-x-3 gap-y-2 border-b border-border bg-surface/95 backdrop-blur px-4 py-2">
           <div className="flex items-center gap-3 min-w-0">
             <Link href={consoleHref} className="text-sm text-brand-fg hover:text-brand-fg-strong font-medium shrink-0">
               ← Console
             </Link>
-            <span className="text-sm font-semibold text-primary truncate">{site.orgName} · Site editor</span>
+            <span className="text-sm font-semibold text-primary truncate">
+              <span className="hidden sm:inline">{site.orgName} · </span>Site editor
+            </span>
             <span className={`text-xs ${chip.cls}`} data-sb-status={draft.status} data-sb-dirty={draft.dirty ? '1' : '0'} data-sb-theme-preview={themeDraft ? '1' : '0'}>
               {chip.text}
             </span>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             {draft.status === 'conflict' && (
               <button type="button" onClick={onReload} className={PILL}>
                 Reload
@@ -499,7 +478,7 @@ function Editor({
                 })
               }
               aria-pressed={themeDraft !== null}
-              className={PILL}
+              className={`${PILL} hidden lg:inline-flex`}
             >
               Theme
             </button>
@@ -514,7 +493,7 @@ function Editor({
                 onChange={e => setVersionLabel(e.target.value)}
                 placeholder="Label this version (optional)"
                 maxLength={60}
-                className="w-48 rounded-md border border-border-strong bg-surface px-3 py-1.5 text-sm text-primary min-h-[36px]"
+                className="hidden lg:block w-48 rounded-md border border-border-strong bg-surface px-3 py-1.5 text-sm text-primary min-h-[36px]"
               />
             )}
             <button type="button" onClick={() => void publish()} disabled={busy} className={CTA}>
@@ -523,7 +502,14 @@ function Editor({
           </div>
         </header>
         <main className="flex-1 px-4 py-6">
-          <div className="mx-auto max-w-5xl">
+          {/* The phone editor: the same draft as a list — size and order per section. */}
+          <div className="lg:hidden mx-auto max-w-lg" data-sb-phone="">
+            <p className="mb-3 text-xs text-tertiary">
+              Change a section’s size or order here; titles, words and colours need a wider screen. Nothing goes live until you publish.
+            </p>
+            <SectionsList site={site} layout={history.present} onCommit={history.commit} onRemove={removeOne} />
+          </div>
+          <div className="hidden lg:block mx-auto max-w-5xl">
             <ChecklistRail steps={steps} onStep={onStep} />
             <p className="mb-3 text-xs text-tertiary">
               Drag a section to move it; drag its corner to resize. Every section refuses sizes that would look bad. Nothing goes live until you publish.
@@ -576,6 +562,7 @@ function Editor({
                   orgId={orgId}
                   options={options}
                   onInstanceChange={changeInstance}
+                  onResize={p => history.commit(resizeToPreset(history.present, selected.id, p))}
                   onContentSaved={refreshSite}
                   onDirtyChange={setPanelDirty}
                   showError={showError}
@@ -585,7 +572,9 @@ function Editor({
             </div>
           </div>
         </main>
-        {/* H7: the gallery lives in the ≥lg branch only — never over the phone notice. */}
+        {/* The gallery and the picker live at the editor root: LargerWindow is a
+            bottom sheet on a phone, so both work at every width (H7 confined the
+            gallery only because the phone branch was a dead-end notice). */}
         {gallery && canvas.gallery && (
           <Gallery
           site={site}

@@ -1,5 +1,60 @@
 # Development Log
 
+## September 11, 2026 — The Sections list: named sizes and reorder, the phone editor (zero DDL)
+
+**What.** Tom's step 3: "a size control per section (small / medium / wide)
+plus reorder in a list". Until today the SE resize handle was the only size
+control, nothing reordered without a drag, and below `lg` the editor was a
+notice with three doors — a manager on a phone could preview and publish but
+never arrange. Now the editor has ONE header for both widths and, below `lg`,
+its main is the **Sections list** (`SectionsList.tsx`): the SAME draft in
+reading order, each row with its title, a Members-only badge
+(`effectiveAudience`), **Move up / Move down** (44px, disabled where a move is
+refused), **Remove** (the H6 undo toast) and a **Size** radiogroup (small ·
+medium · wide — `SizeControl.tsx`, shared with the properties panel, which
+gains a `size` field after the title). Every edit goes through
+`history.commit` — one undo step, autosaved by `useDraft` exactly like a
+drag. The gallery and the picker moved to the editor root: `LargerWindow` is
+a bottom sheet on a phone, so "Start from" and "Add section" work at every
+width (H7 confined the gallery only because the phone branch was a dead end).
+
+**The helpers are pure** (`src/lib/site-builder/sections.ts`, tested in
+`sections.test.ts`): a size is a PRESET over `w` (`SIZE_PRESETS` 4/6/12;
+`sizePresetFor` reads ≥9 wide, ≥5 medium; `sizeOptionsFor` offers only what
+the catalog's minW/maxW allow — hero → wide only, the control does not
+render; TABLE/FULL/embed → medium + wide; HALF/text/image → all three);
+`readingOrder` = `sortByPosition(compactLayout(…))`, the phone's order;
+`flowLayout` re-flows an ordered list into rows by width then compacts;
+`resizeToPreset` clamps through `clampToConstraints` and re-flows;
+`moveInstance` swaps reading-order neighbours (`canMove`: the hero never
+moves, nothing moves above it). No change returns the same object, so
+`history.commit` no-ops. The tests pin the semantics: A,B,C → C up → A,C,B; a
+half pair [A6 B6] then C12 → B up puts B left and A right, C up over the pair
+gives A,C,B and B falls; A wide → its own row, B below at x0; B small →
+[A6 B4] on one row; the ragged case ([A6 h4, B6 h1] then [C6 D6]) reads
+A,B,D,C — the list shows what the phone shows; every result passes
+`validateLayout` and `parseStoredLayout`. No new field, no DDL, no dependency.
+
+**What a list edit costs.** `flowLayout` normalises x positions at and below
+the change: a lone half tile a desktop manager right-aligned slides left. The
+SE handle stays freeform; the list is the phone's tool. Titles, words and
+colours still need a wider screen (the panels are desktop asides — said so in
+the intro line); tapping a row does nothing below `lg` in this round.
+Drag-to-reorder: up/down first — HTML5 drag is unreliable on iOS Safari and a
+pointer drag fights page scroll on a phone; publish `stats` will say whether
+it is missed.
+
+**e2e.** New `org-site-sections.spec.ts` (`@mobile`, both engines): live site
+→ the editor at 390 lists every instance in reading order (hero first, no
+controls; "up" refused under the hero; "down" refused last) → Move down →
+`awaitDraftSaved` → the canvas order matches → Size medium → `w === 6` →
+two Undos restore, two Redos replay → Publish changes from the phone header →
+the public page renders the order (module ids, as a subsequence — empties
+never render) and the resized tile's `--sb-w: 6`. `org-site-editor.spec.ts`
+gains the panel's Size half (medium → 6, wide → 12) and its phone pass now
+asserts the list; the H7 test in `org-site-start.spec.ts` now expects the
+gallery's first-open offer ON the phone and skips it.
+
 ## September 11, 2026 — The design moment at creation: the welcome card picks a site design (zero DDL)
 
 **What.** Tom's resequencing note, step 2: "templates at the moment you pick
