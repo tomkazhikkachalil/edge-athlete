@@ -965,15 +965,17 @@ test('org site pages: create, blocks, publish; reserved 400; draft 404', async (
       await ctxAnon.close();
     }
 
-    // The console editor subpage at 375px: fields visible, no h-scroll.
+    // Program 2, B5: the old console subpage sends the manager to the site
+    // editor on that page; at 375px the page's sections list, no h-scroll.
     const ctxOwner = await browser.newContext({ storageState: 'e2e/.auth/state-b.json' });
     try {
       const page = await ctxOwner.newPage();
       await page.setViewportSize({ width: 375, height: 812 });
       await page.goto(`/app/org/league/${leagueId}/site/pages/${pageId}`);
-      await expect(page.getByLabel('Page title')).toBeVisible({ timeout: 20_000 });
-      await expect(page.getByRole('button', { name: 'Save page' })).toBeVisible();
-      await expect(page.getByLabel('Heading text for block 1')).toBeVisible();
+      await expect(page).toHaveURL(new RegExp(`/site/edit\\?page=${pageId}`), { timeout: 20_000 });
+      await expect(page.locator('[data-sb-sections]')).toBeVisible({ timeout: 30_000 });
+      await expect(page.locator('[data-sb-page-select]')).toHaveValue(pageId!);
+      await expect(page.locator('[data-sb-section-key="text"]').first()).toBeVisible();
       expect(
         await page.evaluate(() => document.documentElement.scrollWidth),
         'editor: no horizontal overflow at 375px'

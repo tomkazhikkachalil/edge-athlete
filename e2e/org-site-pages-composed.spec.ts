@@ -119,6 +119,44 @@ test('org site pages composed: layout renders publicly, header order and hide, p
       const twin = base.startsWith('/org/') ? `/${subdomain}` : `/org/${subdomain}`;
       const twinRes = await anon.request.get(`${twin}/${about.slug}`, { maxRedirects: 0 });
       expect([200, 301]).toContain(twinRes.status());
+      // Program 2, B5 — the console: the navigation list holds the page row;
+      // unticking "Show in the header" writes set_page; after a publish the
+      // header drops it; ticking it back and moving it below Standings, then
+      // Save navigation → publish → the header reads Standings before About.
+      const ownerCtx = await browser.newContext({ storageState: 'e2e/.auth/state-b.json', viewport: { width: 1280, height: 900 } });
+      try {
+        const console_ = await ownerCtx.newPage();
+        await console_.goto(`/app/org/league/${leagueId}`);
+        const row = console_.locator(`[data-console-nav-page="${about.id}"]`);
+        await expect(row).toBeVisible({ timeout: 30_000 });
+        const tick = row.getByLabel(`Show About ${stamp} in the header`);
+        await expect(tick).toBeChecked();
+        await tick.click();
+        await expect(console_.getByRole('alert').filter({ hasText: 'Page hidden from the header' })).toBeVisible({ timeout: 15_000 });
+        await publishSite(ownerApi, 'league', leagueId, 'Hidden');
+        const hiddenHome = await settleBody(anon.request, base, `About ${stamp}`, false);
+        expect(hiddenHome).not.toContain(`>About ${stamp}<`);
+        await console_.reload();
+        const tick2 = console_.locator(`[data-console-nav-page="${about.id}"]`).getByLabel(`Show About ${stamp} in the header`);
+        await expect(tick2).not.toBeChecked({ timeout: 30_000 });
+        await tick2.click();
+        await expect(console_.getByRole('alert').filter({ hasText: 'Page shown in the header' })).toBeVisible({ timeout: 15_000 });
+        await console_.locator(`[data-console-nav-page="${about.id}"]`).getByRole('button', { name: `Move About ${stamp} down` }).click();
+        await console_.getByRole('button', { name: 'Save navigation' }).click();
+        await expect(console_.getByRole('alert').filter({ hasText: 'Layout saved' })).toBeVisible({ timeout: 15_000 });
+        // The Pages card: the page with its status and the editor's door.
+        const card = console_.locator(`[data-console-page="${about.id}"]`);
+        await expect(card).toContainText('published');
+        await expect(card.getByRole('link', { name: 'Edit in editor' })).toHaveAttribute('href', new RegExp(`/site/edit\\?page=${about.id}$`));
+      } finally {
+        await ownerCtx.close();
+      }
+      await publishSite(ownerApi, 'league', leagueId, 'Reordered');
+      const reordered = await settleBody(anon.request, base, `About ${stamp}`);
+      const nav2 = reordered.slice(reordered.indexOf('aria-label="Site navigation"'), reordered.indexOf('</nav>'));
+      expect(nav2.indexOf('>Standings<')).toBeGreaterThan(-1);
+      expect(nav2.indexOf('>Standings<')).toBeLessThan(nav2.indexOf(`About ${stamp}`));
+
       // 375px: the page and its header inside the viewport.
       const page = await anon.newPage();
       await page.setViewportSize({ width: 375, height: 812 });

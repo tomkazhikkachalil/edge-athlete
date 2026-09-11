@@ -20,7 +20,9 @@ import {
   NAV_LABEL_MAX,
   TOGGLEABLE_MODULE_KEYS,
   parseNavConfig,
+  isPageNavKey,
 } from '@/lib/org-sites/validate';
+import { navEntries } from '@/lib/org-sites/nav';
 import { orgSitePath } from '@/lib/org-sites/urls';
 import { SPORT_REGISTRY } from '@/lib/sports/SportRegistry';
 import OrgLogoUploader from '@/components/org/OrgLogoUploader';
@@ -317,6 +319,8 @@ export default function OrgConsolePage() {
   // Local display order for the Sections list (seeded from the rows' order;
   // ▲/▼ reorder here, Save layout mirrors it into sort_order).
   const [navOrder, setNavOrder] = useState<string[] | null>(null);
+  // Program 2, B5: the stored header entries (modules AND `page:<id>` keys) — the pages' places.
+  const [navStored, setNavStored] = useState<string[]>([]);
   // R3 branding editors — seeded from the site GET on every refresh.
   const [sponsorDrafts, setSponsorDrafts] = useState<
     { name: string; url: string; logoPath: string }[]
@@ -353,7 +357,7 @@ export default function OrgConsolePage() {
   } | null>(null);
   // R3 pages — the list in the Website card; the block editor is a subpage.
   const [sitePages, setSitePages] = useState<
-    { id: string; slug: string; title: string; visibility: 'public' | 'draft' }[]
+    { id: string; slug: string; title: string; visibility: 'public' | 'draft'; in_nav?: boolean; created_at?: string }[]
   >([]);
   const [pageTitle, setPageTitle] = useState('');
   // Phase 3.5: news posts (published_at is the state).
@@ -545,7 +549,9 @@ export default function OrgConsolePage() {
             setHeroCtaUrl(str(heroConfig.ctaUrl));
             setHeroNotice(str(heroConfig.notice));
             // B1: the nav labels (the theme tokens moved to the editor in P10-C).
-            setNavLabels(parseNavConfig(siteBody.site?.nav_config).labels);
+            const parsedNav = parseNavConfig(siteBody.site?.nav_config);
+            setNavLabels(parsedNav.labels);
+            setNavStored(parsedNav.entries);
             // C1: the domain status rides its own GET (best-effort; a
             // pre-171 database answers migrationPending).
             if (siteBody.site?.published_at) {
@@ -3562,9 +3568,13 @@ export default function OrgConsolePage() {
                       (TOGGLEABLE_MODULE_KEYS as readonly string[]).includes(m.module_key)
                     );
                     const rowKeys = toggleable.map(m => m.module_key);
+                    // Program 2, B5: the pages join the list at their stored
+                    // places (every page, listed or not — the checkbox is here).
+                    const pageByKey = new Map<string, (typeof sitePages)[number]>(sitePages.map(p => [`page:${p.id}`, p]));
+                    const spine = navEntries({ entries: navStored }, rowKeys, sitePages.map(p => ({ id: p.id, slug: p.slug, title: p.title, visibility: 'public' as const, inNav: true, createdAt: p.created_at ?? '' }))).map(e => (e.kind === 'module' ? e.key : `page:${sitePages.find(p => p.slug === e.slug)?.id ?? ''}`));
                     const order = navOrder
-                      ? [...navOrder.filter(k => rowKeys.includes(k)), ...rowKeys.filter(k => !navOrder.includes(k))]
-                      : rowKeys;
+                      ? [...navOrder.filter(k => spine.includes(k)), ...spine.filter(k => !navOrder.includes(k))]
+                      : spine;
                     const byKey = new Map(toggleable.map(m => [m.module_key, m]));
                     const move = (key: string, dir: -1 | 1) => {
                       const i = order.indexOf(key);
@@ -3578,6 +3588,34 @@ export default function OrgConsolePage() {
                       <>
                         <ul className="space-y-1.5">
                           {order.map((key, index) => {
+                            if (isPageNavKey(key)) {
+                              const p = pageByKey.get(key);
+                              if (!p) return null;
+                              const listed = p.in_nav !== false;
+                              return (
+                                <li key={key} className="flex flex-wrap items-center gap-2 min-h-[28px]" data-console-nav-page={p.id}>
+                                  <label className="flex items-center gap-2 text-sm text-secondary min-w-[9rem]">
+                                    <input
+                                      type="checkbox"
+                                      checked={listed}
+                                      aria-label={`Show ${p.title} in the header`}
+                                      onChange={() => void siteAct({ action: 'set_page', pageId: p.id, inNav: !listed }, listed ? 'Page hidden from the header' : 'Page shown in the header', 'Failed to update the page')}
+                                    />
+                                    <span className="min-w-0 truncate">{p.title}</span>
+                                  </label>
+                                  <span className="text-xs text-muted">/{p.slug}</span>
+                                  {p.visibility === 'public' ? <span className="text-xs text-emerald-600">page</span> : <span className="text-xs text-amber-600">draft page</span>}
+                                  <span className="flex gap-1">
+                                    <button type="button" onClick={() => move(key, -1)} disabled={index === 0} aria-label={`Move ${p.title} up`} className="ea-icon-btn h-8 w-8 text-tertiary disabled:opacity-40">
+                                      ▲
+                                    </button>
+                                    <button type="button" onClick={() => move(key, 1)} disabled={index === order.length - 1} aria-label={`Move ${p.title} down`} className="ea-icon-btn h-8 w-8 text-tertiary disabled:opacity-40">
+                                      ▼
+                                    </button>
+                                  </span>
+                                </li>
+                              );
+                            }
                             const m = byKey.get(key)!;
                             const label = MODULE_TITLES[key] ?? key;
                             return (
@@ -3649,7 +3687,7 @@ export default function OrgConsolePage() {
                                 action: 'set_nav',
                                 items: order.map(key => ({
                                   key,
-                                  ...(navLabels[key]?.trim() ? { label: navLabels[key].trim() } : {}),
+                                  ...(!isPageNavKey(key) && navLabels[key]?.trim() ? { label: navLabels[key].trim() } : {}),
                                 })),
                               },
                               'Layout saved',
@@ -4073,24 +4111,27 @@ export default function OrgConsolePage() {
                   </button>
                 </div>
               </div>
-              {/* R3: custom pages — list + create here; the block editor is
-                  a subpage (the competitions-detail precedent). */}
+              {/* R3 → program 2 B5: custom pages are compositions — the list
+                  and the create live here; arranging happens in the editor
+                  (`?page=`). Every write goes to the draft. */}
               <div className="pt-2 space-y-1.5">
                 <p className="text-sm font-medium text-primary">Pages</p>
+                <p className="text-xs text-tertiary">A page is arranged in the editor like the home page. New pages start as drafts; publish to make them live.</p>
                 {sitePages.map(p => (
-                  <div key={p.id} className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                  <div key={p.id} className="flex flex-wrap items-center gap-x-3 gap-y-1" data-console-page={p.id}>
                     <span className="text-sm text-primary min-w-0 truncate">{p.title}</span>
                     <span className="text-xs text-muted">/{p.slug}</span>
                     {p.visibility === 'public' ? (
-                      <span className="text-xs text-emerald-600">public</span>
+                      <span className="text-xs text-emerald-600">published</span>
                     ) : (
                       <span className="text-xs text-amber-600">draft</span>
                     )}
+                    {p.in_nav === false && <span className="text-xs text-muted">hidden from header</span>}
                     <Link
-                      href={`/app/org/${side}/${orgId}/site/pages/${p.id}`}
+                      href={`/app/org/${side}/${orgId}/site/edit?page=${p.id}`}
                       className="text-sm text-brand-fg font-medium"
                     >
-                      Edit
+                      Edit in editor
                     </Link>
                     <button
                       type="button"
@@ -4326,7 +4367,9 @@ export default function OrgConsolePage() {
             : confirmTarget?.kind === 'domain'
               ? 'Visitors on that domain will stop reaching your site. Your Edge Athlete address keeps working.'
             : confirmTarget?.kind === 'page' || confirmTarget?.kind === 'news'
-              ? `The ${confirmTarget.kind === 'page' ? 'page' : 'post'} comes off your site immediately.`
+              ? confirmTarget.kind === 'page'
+                ? 'Its sections go with it. Nothing changes on your site until you publish.'
+                : 'The post comes off your site immediately.'
               : 'Its entries are removed too. Teams persist.'
         }
         confirmText={
