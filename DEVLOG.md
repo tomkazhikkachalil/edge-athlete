@@ -1,5 +1,40 @@
 # Development Log
 
+## September 11, 2026 — Program 2, C1: SEO, footer and the site icon — the model and the public head (zero DDL beyond 186)
+
+**What.** A manager can now say how the site presents itself. `validate.ts`:
+`SeoConfig` (title ≤60, description ≤160, a social image under this site's
+asset prefix) and `FooterConfig` (a line ≤200, up to six https links, whether
+the contact card's socials show), parsed defensively (`parseSeoConfig` /
+`parseFooterConfig`); the actions `set_seo` and `set_footer` (whole-object
+replaces like `set_hero`); the theme token `iconPath` (the chosen site icon —
+`set_theme` carries it over unless named, null clears; zero DDL for the
+favicon). `snapshot.ts`: `seo` / `footer` on the snapshot — ABSENT when
+empty, so a pre-186 snapshot and an empty one compare equal; `parseSnapshot`
+carries them; the rows in and out. `revisions-server.ts`: the site row reads
+`seo_config, footer_config` with the 186 step-down (`siteSupport`) and the
+mirror NEVER names the two columns pre-186 (a publish before the migration
+would otherwise fail on 42703). `server.ts`: `SITE_FIELDS_186` tops the read
+ladder; the site PATCH re-asserts the image and icon paths against this
+site's prefix.
+
+**The head, one rule.** `src/lib/org-sites/metadata.ts siteHead(site,
+page?)` (pure, tested): the SEO title else the org name (a page heads with
+its own title over that), the SEO description else the platform line, the
+canonical, the social image (the uploaded one through the streamer — the
+layout's `metadataBase` resolves it — else `card.png`), the icon (the chosen
+token, else the uploaded logo, else the generated favicon). The home, the
+page and the layout use it; both route trees re-export. `SiteShell`'s
+footer renders the config above the platform line ("Powered by Edge
+Athlete" stays on every site).
+
+**e2e.** `org-site-seo.spec.ts` (skips until 186 has run): an uploaded
+image → foreign paths refused on both writes → `set_seo` / `set_footer` /
+`set_contact` socials / `set_theme iconPath` → a public page → publish → the
+home `<title>`, the description, `og:image` and `rel="icon"` through the
+streamer, the footer line, link and social, the page's `<title>` headed by
+the SEO title, the other route tree, 375px.
+
 ## September 11, 2026 — Program 2, C0: migration 186 — seo_config and footer_config on org_sites
 
 **The file only.** `database/migrations/186_org_site_seo_footer.sql` adds

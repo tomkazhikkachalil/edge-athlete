@@ -47,7 +47,8 @@ describe('snapshot ⇄ rows', () => {
   it('round-trips byte-faithfully (null config becomes {})', () => {
     const s = base();
     const back = rowsFromSnapshot(s);
-    expect(back.site).toEqual(siteRow);
+    // Program 2, C: the mirror always names the two 186 columns (empty when unset).
+    expect(back.site).toEqual({ ...siteRow, seo_config: {}, footer_config: {} });
     expect(back.modules).toEqual([
       { module_key: 'hero', enabled: true, sort_order: 0, config: {} },
       { module_key: 'standings', enabled: true, sort_order: 1, config: {} },
@@ -433,5 +434,39 @@ describe('pages in the snapshot (program 2, B)', () => {
     const off = applySiteAction(withStandings, patch({ action: 'set_module', moduleKey: 'standings', enabled: false }), ctx);
     expect((off.pages![P1].layout as { widgets: { key: string }[] }).widgets.map(w => w.key)).toEqual(['text']);
     expect(validateLayout(parseStoredLayout(off.pages![P1].layout)!)).toEqual([]);
+  });
+});
+
+// ── Program 2, C (Sep 11 2026): seo / footer on the snapshot; the icon token ──
+describe('seo + footer + icon (program 2, C)', () => {
+  const SITE2 = '2f1b46c8-2964-4139-9689-d1c3f736ed93';
+  it('rows ⇄ snapshot carry seo_config / footer_config; absent when empty (a pre-186 row and an empty one are equal)', () => {
+    const plain = snapshotFromRows(siteRow, rows);
+    expect(plain).not.toHaveProperty('seo');
+    expect(plain).not.toHaveProperty('footer');
+    expect(snapshotsEqual(plain, snapshotFromRows({ ...siteRow, seo_config: {}, footer_config: {} }, rows))).toBe(true);
+    const s = snapshotFromRows({ ...siteRow, seo_config: { title: 'T' }, footer_config: { text: 'F' } }, rows);
+    expect(s.seo).toEqual({ title: 'T' });
+    expect(s.footer).toEqual({ text: 'F' });
+    expect(rowsFromSnapshot(s).site).toMatchObject({ seo_config: { title: 'T' }, footer_config: { text: 'F' } });
+    expect(rowsFromSnapshot(plain).site).toMatchObject({ seo_config: {}, footer_config: {} });
+    const round = parseSnapshot(JSON.parse(JSON.stringify(s)));
+    expect(round && snapshotsEqual(round, s)).toBe(true);
+  });
+  it('set_seo / set_footer replace whole objects with the drop rules; set_theme carries the icon over, null clears it', () => {
+    const s = base();
+    const seo = applySiteAction(s, patch({ action: 'set_seo', title: 'T', description: '', imagePath: `org-media/${SITE2}/a.jpg` }), ctx);
+    expect(seo.seo).toEqual({ title: 'T', imagePath: `org-media/${SITE2}/a.jpg` });
+    expect(applySiteAction(seo, patch({ action: 'set_seo' }), ctx)).not.toHaveProperty('seo');
+    const footer = applySiteAction(seo, patch({ action: 'set_footer', text: 'Est. 1962', links: [{ label: 'Rules', url: 'https://example.com' }], showSocials: true }), ctx);
+    expect(footer.footer).toEqual({ text: 'Est. 1962', links: [{ label: 'Rules', url: 'https://example.com' }], showSocials: true });
+    expect(footer.seo).toEqual(seo.seo); // untouched
+    expect(applySiteAction(footer, patch({ action: 'set_footer', showSocials: false }), ctx)).not.toHaveProperty('footer');
+    const withIcon = applySiteAction(s, patch({ action: 'set_theme', accent: '#0f766e', iconPath: `org-media/${SITE2}/icon.png` }), ctx);
+    expect(withIcon.theme.iconPath).toBe(`org-media/${SITE2}/icon.png`);
+    const kept = applySiteAction(withIcon, patch({ action: 'set_theme', accent: '#0f766e' }), ctx);
+    expect(kept.theme.iconPath).toBe(`org-media/${SITE2}/icon.png`);
+    const cleared = applySiteAction(withIcon, patch({ action: 'set_theme', accent: '#0f766e', iconPath: null }), ctx);
+    expect(cleared.theme).not.toHaveProperty('iconPath');
   });
 });

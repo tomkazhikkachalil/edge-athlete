@@ -62,6 +62,9 @@ export interface SiteRow {
   /** Phase 6b C1 (171) — absent on a pre-171 read. */
   custom_domain?: string | null;
   domain_active_at?: string | null;
+  /** Program 2, C (186) — absent on a pre-186 read. */
+  seo_config?: Record<string, unknown>;
+  footer_config?: Record<string, unknown>;
 }
 
 const SITE_FIELDS_BASE =
@@ -72,6 +75,8 @@ const SITE_FIELDS = `${SITE_FIELDS_BASE}, custom_domain, domain_active_at`;
 // Site Builder phase 2 (180): the console read also wants the two revision
 // pointers; pre-180 databases step down to SITE_FIELDS on 42703.
 const SITE_FIELDS_180 = `${SITE_FIELDS}, draft_revision_id, published_revision_id`;
+// Program 2, C (186): the SEO + footer columns; pre-186 steps down to SITE_FIELDS_180.
+const SITE_FIELDS_186 = `${SITE_FIELDS_180}, seo_config, footer_config`;
 
 /** Mint a free subdomain from the org name: base, then base-2..base-20.
  *  Reserved (shared denylist) and taken labels are skipped. */
@@ -530,6 +535,14 @@ export async function sitePATCH(
       if (input.slug !== undefined && !isValidPageSlug(input.slug)) return NextResponse.json({ error: 'That address is reserved or invalid' }, { status: 400 });
       action = input;
       break;
+    case 'set_seo':
+      if (input.imagePath && !input.imagePath.startsWith(ownPrefix)) return foreign('Image is not one of this site’s assets');
+      action = input;
+      break;
+    case 'set_theme':
+      if (input.iconPath && !input.iconPath.startsWith(ownPrefix)) return foreign('Icon is not one of this site’s assets');
+      action = input;
+      break;
     default:
       // publish/unpublish returned above; the remaining members are content actions.
       action = input as SnapshotAction;
@@ -677,7 +690,8 @@ async function getSiteBySlugInternal(
     if (!includeDrafts) query = query.not('published_at', 'is', null);
     return query.maybeSingle();
   };
-  let { data: siteData, error } = await read(SITE_FIELDS_180);
+  let { data: siteData, error } = await read(SITE_FIELDS_186);
+  if (error?.code === '42703') ({ data: siteData, error } = await read(SITE_FIELDS_180));
   if (error?.code === '42703') ({ data: siteData, error } = await read(SITE_FIELDS));
   if (error?.code === '42703') ({ data: siteData, error } = await read(SITE_FIELDS_BASE));
   // The dynamic select string defeats supabase-js's type parser; cast once.

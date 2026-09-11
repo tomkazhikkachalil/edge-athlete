@@ -436,6 +436,7 @@ import {
 describe('parseThemeTokens', () => {
   it('re-validates every key independently and never throws', () => {
     expect(parseThemeTokens(null)).toEqual({
+      iconPath: null,
       accent: null,
       accentStrong: null,
       surface: 'plain',
@@ -455,6 +456,7 @@ describe('parseThemeTokens', () => {
       wordmark: '  Kanata Golf  ',
     });
     expect(parsed).toEqual({
+      iconPath: null,
       accent: '#0f766e',
       accentStrong: null,
       surface: 'tinted',
@@ -792,5 +794,31 @@ describe('phase 6e S2 — course photos (parseCoursePhotos)', () => {
       [courseA]: { path: `org-media/${site}/a.jpg`, holes: { 3: { path: `org-media/${site}/h3.jpg`, alt: 'The 3rd' } } },
       '22222222-2222-4222-8222-222222222222': { holes: { 1: { path: `org-media/${site}/one.png` } } },
     });
+  });
+});
+
+// ── Program 2, C (Sep 11 2026): SEO + footer ────────────────────────────────
+import { parseFooterConfig, parseSeoConfig } from '../validate';
+
+describe('SEO + footer (program 2, C)', () => {
+  const SITE = '2f1b46c8-2964-4139-9689-d1c3f736ed93';
+  it('parseSeoConfig trims, caps and refuses a non-image path; parseFooterConfig keeps https links only, six at most', () => {
+    expect(parseSeoConfig({ title: '  Hello  ', description: 'x'.repeat(200), imagePath: `org-media/${SITE}/a.jpg` })).toEqual({ title: 'Hello', description: 'x'.repeat(160), imagePath: `org-media/${SITE}/a.jpg` });
+    expect(parseSeoConfig({ imagePath: `org-media/${SITE}/rules.pdf` }).imagePath).toBeNull();
+    expect(parseSeoConfig(null)).toEqual({ title: null, description: null, imagePath: null });
+    const f = parseFooterConfig({ text: ' Est. 1962 ', links: [{ label: 'Rules', url: 'https://example.com/rules' }, { label: 'Bad', url: 'http://example.com' }, { label: '', url: 'https://example.com' }, 'junk'], showSocials: true });
+    expect(f).toEqual({ text: 'Est. 1962', links: [{ label: 'Rules', url: 'https://example.com/rules' }], showSocials: true });
+    expect(parseFooterConfig({ links: Array.from({ length: 9 }, (_, i) => ({ label: `L${i}`, url: `https://example.com/${i}` })) }).links).toHaveLength(6);
+    expect(parseFooterConfig(undefined)).toEqual({ text: null, links: [], showSocials: false });
+  });
+  it('set_seo / set_footer / set_theme iconPath pass the patch schema with their bounds', () => {
+    expect(SitePatchSchema.safeParse({ action: 'set_seo', title: 'T', description: 'D', imagePath: `org-media/${SITE}/a.jpg` }).success).toBe(true);
+    expect(SitePatchSchema.safeParse({ action: 'set_seo', title: 'x'.repeat(61) }).success).toBe(false);
+    expect(SitePatchSchema.safeParse({ action: 'set_seo', imagePath: 'nope.jpg' }).success).toBe(false);
+    expect(SitePatchSchema.safeParse({ action: 'set_footer', text: 'Est. 1962', links: [{ label: 'Rules', url: 'https://example.com' }], showSocials: true }).success).toBe(true);
+    expect(SitePatchSchema.safeParse({ action: 'set_footer', links: [{ label: 'Bad', url: 'http://example.com' }] }).success).toBe(false);
+    expect(SitePatchSchema.safeParse({ action: 'set_theme', accent: null, iconPath: `org-media/${SITE}/icon.png` }).success).toBe(true);
+    expect(SitePatchSchema.safeParse({ action: 'set_theme', accent: null, iconPath: null }).success).toBe(true);
+    expect(SitePatchSchema.safeParse({ action: 'set_theme', accent: null, iconPath: 'x.png' }).success).toBe(false);
   });
 });

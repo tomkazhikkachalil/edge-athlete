@@ -1,8 +1,7 @@
 import { notFound } from 'next/navigation';
 import { getCachedPages, getCachedSite } from '@/lib/org-sites/cached';
-import { orgLogoUrl } from '@/lib/media/org-site-media';
+import { siteHead } from '@/lib/org-sites/metadata';
 import type { Metadata } from 'next';
-import { siteBasePath } from '@/lib/org-sites/urls';
 import SiteShell from './_components/SiteShell';
 
 // ── /org/[slug] — the published site's layout (phase 3 R1, nav in R2) ───────
@@ -28,7 +27,8 @@ export async function generateMetadata({
   const { slug } = await params;
   const site = await getCachedSite(slug);
   if (!site) return {};
-  const icon = orgLogoUrl(site.id, site.logo_path) ?? `${siteBasePath(site)}/favicon.svg`;
+  // Program 2, C: the chosen icon token, else the logo, else the generated favicon (ONE rule, metadata.ts).
+  const icon = siteHead(site).icon;
   // Onboarding v2 R1 (179): an unlisted or pending site serves by link but
   // is never indexed — the layout's robots applies to every subpage.
   return { icons: { icon }, ...(site.listed ? {} : { robots: { index: false, follow: false } }) };

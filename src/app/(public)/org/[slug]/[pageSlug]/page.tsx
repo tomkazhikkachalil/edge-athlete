@@ -4,7 +4,7 @@ import { getCachedPage, getCachedSite } from '@/lib/org-sites/cached';
 import { isValidPageSlug, parsePageBody } from '@/lib/org-sites/validate';
 import PageBlocks from '../_components/PageBlocks';
 import GridRenderer from '../_components/GridRenderer';
-import { siteAbsoluteUrl } from '@/lib/org-sites/urls';
+import { siteHead } from '@/lib/org-sites/metadata';
 import { parsePageLayout } from '@/lib/site-builder/pages';
 import { cachedSiteReaders, resolveHomeData } from '@/lib/org-sites/widget-data';
 
@@ -35,14 +35,13 @@ export async function generateMetadata({ params }: PageParams): Promise<Metadata
   if (!site) return { title: 'Not found' };
   const page = await getCachedPage(slug, site.id, pageSlug);
   if (!page) return { title: 'Not found' };
-  const title = `${page.title} — ${site.orgName}`;
-  const description = `${page.title} — ${site.orgName} on Edge Athlete.`;
-  const canonical = `${siteAbsoluteUrl(site)}/${page.slug}`;
+  // Program 2, C: the site's SEO title heads the page's; the site's social image is the page's too.
+  const head = siteHead(site, { title: page.title, slug: page.slug });
   return {
-    title,
-    description,
-    alternates: { canonical },
-    openGraph: { title, description, url: canonical, siteName: 'Edge Athlete', type: 'website', images: [`${siteAbsoluteUrl(site)}/card.png`] },
+    title: head.title,
+    description: head.description,
+    alternates: { canonical: head.canonical },
+    openGraph: { title: head.title, description: head.description, url: head.canonical, siteName: 'Edge Athlete', type: 'website', images: [head.image] },
   };
 }
 

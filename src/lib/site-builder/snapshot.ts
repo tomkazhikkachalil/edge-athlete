@@ -50,6 +50,10 @@ export interface SiteSnapshot {
   nav: unknown[];
   /** org_sites.contact_config, verbatim. */
   contact: Record<string, unknown>;
+  /** Program 2, C: org_sites.seo_config / footer_config (mig 186) — ABSENT when
+   *  empty, so a pre-186 snapshot and an empty one compare equal. */
+  seo?: Record<string, unknown>;
+  footer?: Record<string, unknown>;
   /** org_site_modules, keyed by module_key. */
   modules: Record<string, SnapshotModule>;
   /** Phase 1's SiteLayout slot — absent until a grid layout is authored. */
@@ -86,6 +90,17 @@ export interface SnapshotSiteRow {
   nav_config: unknown;
   hero_config: unknown;
   contact_config: unknown;
+  /** Program 2, C (mig 186) — absent on a pre-186 read; the mirror omits them pre-186. */
+  seo_config?: unknown;
+  footer_config?: unknown;
+}
+
+/** The two C columns ride the snapshot only when non-empty. */
+function withSiteExtras(s: SiteSnapshot, seo: Record<string, unknown>, footer: Record<string, unknown>): SiteSnapshot {
+  const rest: SiteSnapshot = { ...s };
+  delete rest.seo;
+  delete rest.footer;
+  return { ...rest, ...(Object.keys(seo).length > 0 ? { seo } : {}), ...(Object.keys(footer).length > 0 ? { footer } : {}) };
 }
 
 export interface SnapshotModuleRow {
@@ -118,15 +133,19 @@ export function snapshotFromRows(site: SnapshotSiteRow, modules: SnapshotModuleR
     pageMap[p.id] = { id: p.id, slug: p.slug, title: p.title, visibility: p.visibility === 'draft' ? 'draft' : 'public', inNav: p.in_nav !== false, createdAt: p.created_at, layout };
   }
   return withPages(
-    {
-      v: SNAPSHOT_VERSION,
-      templateId: typeof site.template_id === 'string' ? site.template_id : 'classic',
-      theme: asRecord(site.theme_token_set),
-      hero: asRecord(site.hero_config),
-      nav: asArray(site.nav_config),
-      contact: asRecord(site.contact_config),
-      modules: out,
-    },
+    withSiteExtras(
+      {
+        v: SNAPSHOT_VERSION,
+        templateId: typeof site.template_id === 'string' ? site.template_id : 'classic',
+        theme: asRecord(site.theme_token_set),
+        hero: asRecord(site.hero_config),
+        nav: asArray(site.nav_config),
+        contact: asRecord(site.contact_config),
+        modules: out,
+      },
+      asRecord(site.seo_config),
+      asRecord(site.footer_config)
+    ),
     pageMap
   );
 }
@@ -141,6 +160,8 @@ export function rowsFromSnapshot(s: SiteSnapshot): { site: SnapshotSiteRow; modu
       nav_config: s.nav,
       hero_config: s.hero,
       contact_config: s.contact,
+      seo_config: s.seo ?? {},
+      footer_config: s.footer ?? {},
     },
     modules: Object.entries(s.modules)
       .map(([module_key, m]) => ({ module_key, enabled: m.enabled, sort_order: m.sortOrder, config: m.config }))
@@ -230,16 +251,20 @@ export function parseSnapshot(raw: unknown): SiteSnapshot | null {
   // Program 2, B: `pages` MUST ride through here — a whitelist that dropped
   // them would lose every page on the next restore or publish.
   return withPages(
-    {
-      v: SNAPSHOT_VERSION,
-      templateId: r.templateId,
-      theme: asRecord(r.theme),
-      hero: asRecord(r.hero),
-      nav: asArray(r.nav),
-      contact: asRecord(r.contact),
-      modules,
-      ...(r.layout !== undefined ? { layout: r.layout } : {}),
-    },
+    withSiteExtras(
+      {
+        v: SNAPSHOT_VERSION,
+        templateId: r.templateId,
+        theme: asRecord(r.theme),
+        hero: asRecord(r.hero),
+        nav: asArray(r.nav),
+        contact: asRecord(r.contact),
+        modules,
+        ...(r.layout !== undefined ? { layout: r.layout } : {}),
+      },
+      asRecord(r.seo),
+      asRecord(r.footer)
+    ),
     parseSnapshotPages(r.pages)
   );
 }
@@ -321,10 +346,13 @@ export function applySiteAction(s: SiteSnapshot, input: SnapshotAction, ctx: App
         const v = k in input ? input[k] : s.theme[k];
         if (typeof v === 'string') design[k] = v;
       }
+      // Program 2, C: the icon carries over unless the input names it (null clears).
+      const iconPath = 'iconPath' in input ? input.iconPath : s.theme.iconPath;
       return {
         ...s,
         theme: {
           ...design,
+          ...(typeof iconPath === 'string' && iconPath ? { iconPath } : {}),
           ...(input.accent ? { accent: input.accent.toLowerCase() } : {}),
           ...(input.accentStrong ? { accentStrong: input.accentStrong.toLowerCase() } : {}),
           ...(input.surface && input.surface !== 'plain' ? { surface: input.surface } : {}),
@@ -454,6 +482,22 @@ export function applySiteAction(s: SiteSnapshot, input: SnapshotAction, ctx: App
       if (typeof input.inNav === 'boolean') next = { ...next, inNav: input.inNav };
       return withPages(s, { ...(s.pages ?? {}), [input.pageId]: next });
     }
+    case 'set_seo':
+      return withSiteExtras(
+        s,
+        {
+          ...(input.title ? { title: input.title } : {}),
+          ...(input.description ? { description: input.description } : {}),
+          ...(input.imagePath ? { imagePath: input.imagePath } : {}),
+        },
+        s.footer ?? {}
+      );
+    case 'set_footer':
+      return withSiteExtras(s, s.seo ?? {}, {
+        ...(input.text ? { text: input.text } : {}),
+        ...(input.links && input.links.length ? { links: input.links } : {}),
+        ...(input.showSocials ? { showSocials: true } : {}),
+      });
     case 'remove_page': {
       if (!s.pages?.[input.pageId]) return s;
       const pages = { ...s.pages };
