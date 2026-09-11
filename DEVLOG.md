@@ -1,5 +1,22 @@
 # Development Log
 
+## September 11, 2026 — Docs close of the felt-customization round (zero DDL)
+
+#672–#674 merged in order (a stack of merge commits — no rebases). This PR
+carries only the record: CLAUDE.md convention 12 now names the Sections
+list (the phone editor, the pure `sections.ts` helpers, one header, the
+gallery and picker at the editor root), the welcome design pick and the
+nine gallery entries (golf's six); a new convention 15 writes down Tom's
+profile-strip rule (own memberships always; a viewer sees the org's
+visibility) and the `.not(col, 'is', null)`-before-`.in()` trap;
+`docs/SESSION_PROMPT.md` is re-aligned to the #674 merge. **Prod-proven**
+against the #674 deploy (ed3c1853, Ready 11:37 ET): `profile-orgs`,
+`org-site-start` (the welcome card on a phone, the gallery offer on the
+phone editor), `org-site-sections` and `org-site-editor` — 10/10 across
+desktop, mobile and webkit-mobile; Tom's own public profile payload
+(`/api/public/profile?handle=…`, a CDN MISS) carries both his league and
+his club, the exact shape that vanished before #672.
+
 ## September 11, 2026 — The Sections list: named sizes and reorder, the phone editor (zero DDL)
 
 **What.** Tom's step 3: "a size control per section (small / medium / wide)
