@@ -1,5 +1,30 @@
 # Development Log
 
+## September 11, 2026 — Program 2, B5: the console — pages in the navigation list, the Pages card as a list, the block editor retired for pages (zero DDL)
+
+**What.** The console's "Subpages & navigation" list now interleaves the
+custom pages with the modules at their stored places (`navEntries` over the
+site's `nav_config` entries, every page listed so its checkbox is here): a
+page row shows its title, its address, its status (page / draft page), a
+**Show in the header** checkbox (`set_page {inNav}`) and the same ▲ ▼ as a
+module; **Save navigation** sends the merged list (`set_nav` with
+`page:<id>` keys — pages carry no label). The **Pages** card is a list with
+status (published / draft, "hidden from header"), **Edit in editor**
+(`/site/edit?page=<id>`), the existing New page title + Add page (a draft
+write since B2) and Delete (`remove_page` through the pages API; the confirm
+now says nothing changes until publish). The old block-editor subpage
+`/site/pages/[pageId]` sends the manager to the editor on that page and
+keeps a link; `SiteBlockEditor` stays for news (its page branch is unused —
+retired from the routes, left in place for F's sweep).
+
+**e2e.** `org-site.spec.ts`'s console step now expects the redirect into the
+editor on the page at 375px (the sections list, the page selected, no
+overflow). `org-site-pages-composed.spec.ts` gains the console step: the
+page row's checkbox unticked → publish → the header drops the page; ticked
+back and moved below Standings → Save navigation → publish → the header
+reads Standings before the page; the Pages card shows "published" and the
+editor's door.
+
 ## September 11, 2026 — Program 2, B4: a page renders its composition; the header honours order and hide (zero DDL)
 
 **What.** The public page (`/org/[slug]/[pageSlug]` and its vanity twin, a
