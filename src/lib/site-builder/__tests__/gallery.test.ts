@@ -53,6 +53,13 @@ const byId = (ws: readonly WidgetInstance[]) => [...ws].sort((a, b) => a.id.loca
 const ORGS = { ORG, NO_COORDS, NO_VENUE, NEUTRAL: NEUTRAL_ORG('club') };
 
 describe('the gallery — entries', () => {
+  it('golf has its rhythm designs on both sides (Sep 11 2026)', () => {
+    for (const side of ['club', 'league'] as const) {
+      expect(galleryEntriesFor(side, 'golf').map(e => e.id)).toEqual(expect.arrayContaining(['golf-weekly', 'golf-points-race', 'golf-social']));
+    }
+    expect(galleryEntriesFor('club', 'golf').length).toBeGreaterThanOrEqual(6);
+  });
+
   it('ids match the zero-import list; every entry is inside the enums; ≥3 entries per side × sport', () => {
     expect(GALLERY_ENTRIES.map(e => e.id)).toEqual([...GALLERY_ENTRY_IDS]);
     for (const e of GALLERY_ENTRIES) {

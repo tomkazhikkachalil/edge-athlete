@@ -338,3 +338,90 @@ test('@mobile org site editor on a phone: the notice, no gallery sheet, Preview 
     await admin.from('leagues').delete().eq('id', leagueId);
   }
 });
+
+// Sep 11 2026 — the design moment at creation. The wizard lands a manager on
+// the console's `?welcome=1` right after the sport was picked, on a phone too;
+// the welcome card shows this org's designs (the SAME block-diagram thumbs the
+// editor's gallery draws, over the org's real facts), applies one to the draft
+// through `apply_gallery clean`, and takes the site live from the card.
+test('@mobile a fresh golf club: the welcome card offers the golf designs, Use this arranges the draft, Take it live publishes', async ({ browser }) => {
+  test.setTimeout(150_000);
+  const owner = loadQaUser('user-b.json');
+  const admin = adminClient();
+  const stamp = Date.now();
+  // A club request provisions the org AND its site (Onboarding v2) — the
+  // exact path the wizard takes. Sweep this owner's stale requests first.
+  const { data: stale } = await admin.from('club_requests').select('created_club_id').eq('requester_profile_id', owner.id);
+  const staleIds = (stale ?? []).map(r => r.created_club_id as string | null).filter((id): id is string => !!id);
+  if (staleIds.length) await admin.from('clubs').delete().in('id', staleIds);
+  await admin.from('club_requests').delete().eq('requester_profile_id', owner.id);
+  await resetRateBucket(admin, 'club-request', owner.id);
+  await resetRateBucket(admin, 'org-site', owner.id);
+  await resetRateBucket(admin, 'org-site-draft', owner.id);
+  const ownerApi = await apiAs('state-b.json');
+  let clubId: string | null = null;
+  try {
+    const requested = await ownerApi.post('/api/clubs/requests', {
+      data: { name: `QA Welcome Golf Club ${stamp}`, capabilities: { operatesCompetitions: true, operatesTeams: false }, siteDraft: { sports: ['golf'] } },
+    });
+    expect(requested.status(), await readErrorBody(requested)).toBe(200);
+    clubId = ((await requested.json()) as { orgId: string | null }).orgId;
+    expect(clubId, 'the club was provisioned').toBeTruthy();
+    test.skip(!(await revisionsSupported(ownerApi, 'club', clubId!)), 'org_site_revisions missing — run migration 180');
+    const { data: siteRow } = await admin.from('org_sites').select('subdomain').eq('club_id', clubId!).single();
+    const subdomain = siteRow!.subdomain as string;
+
+    const ctx = await browser.newContext({ storageState: 'e2e/.auth/state-b.json', viewport: { width: 390, height: 844 } });
+    try {
+      const page = await ctx.newPage();
+      await page.goto(`/app/org/club/${clubId}?welcome=1`);
+      const pick = page.locator('[data-welcome-design="pick"]');
+      await expect(pick).toBeVisible({ timeout: 30_000 });
+      // Golf has its six starting points, the three rhythm designs among them.
+      const cards = pick.locator('[data-welcome-design-card]');
+      expect(await cards.count()).toBeGreaterThanOrEqual(6);
+      for (const id of ['golf-weekly', 'golf-points-race', 'golf-social', 'golf-clubhouse']) {
+        await expect(pick.locator(`[data-welcome-design-card="${id}"]`)).toBeVisible();
+      }
+      expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
+
+      // Use this → the draft holds the weekly-league plan: the welcome tile
+      // exists and the schedule is the first section under the hero.
+      await pick.locator('[data-welcome-design-card="golf-weekly"] [data-welcome-design-use]').click();
+      await expect(page.locator('[data-welcome-design="applied"]')).toBeVisible({ timeout: 20_000 });
+      await expect(page.getByText('Your site is arranged — Weekly league.')).toBeVisible();
+      const canvas = await ownerApi.get(`/api/clubs/${clubId}/site/canvas`);
+      expect(canvas.status(), await readErrorBody(canvas)).toBe(200);
+      const body = (await canvas.json()) as { draft: { id: string } | null; layout: { widgets: { id: string; key: string; x: number; y: number }[] } };
+      expect(body.draft, 'a pick creates the draft — the editor never offers twice').not.toBeNull();
+      const ordered = [...body.layout.widgets].sort((a, b) => a.y - b.y || a.x - b.x);
+      expect(ordered.some(w => w.id === 'seed:welcome')).toBe(true);
+      expect(ordered[0].key).toBe('hero');
+      expect(ordered[1].id).toBe('legacy:schedule');
+
+      // Take it live: the public page answers.
+      await page.locator('[data-welcome-design-live]').click();
+      await expect(page.getByRole('alert').filter({ hasText: 'Your site is live' })).toBeVisible({ timeout: 15_000 });
+      await expect(page.getByText('It is live at your link.')).toBeVisible();
+      expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
+    } finally {
+      await ctx.close();
+    }
+    await expect.poll(async () => (await ownerApi.get(`/org/${subdomain}`)).status(), { timeout: 30_000, intervals: [1000, 2000, 3000] }).toBe(200);
+    // Reloading the console shows no offer: the site is arranged and live.
+    const again = await browser.newContext({ storageState: 'e2e/.auth/state-b.json', viewport: { width: 390, height: 844 } });
+    try {
+      const page = await again.newPage();
+      await page.goto(`/app/org/club/${clubId}?welcome=1`);
+      await expect(page.getByRole('heading', { level: 1 }).first()).toBeVisible({ timeout: 30_000 });
+      await page.waitForTimeout(2500);
+      await expect(page.locator('[data-welcome-design]')).toHaveCount(0);
+    } finally {
+      await again.close();
+    }
+  } finally {
+    await ownerApi.dispose();
+    if (clubId) await admin.from('clubs').delete().eq('id', clubId);
+    await admin.from('club_requests').delete().eq('requester_profile_id', owner.id);
+  }
+});

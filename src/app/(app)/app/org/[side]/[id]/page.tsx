@@ -31,6 +31,7 @@ import AnnouncementHistory from '@/components/orgs/AnnouncementHistory';
 import MemberPhotoPicker from '@/components/orgs/MemberPhotoPicker';
 import HierarchySection from '@/components/orgs/console/HierarchySection';
 import { openPreview } from '@/components/site-builder/openPreview';
+import WelcomeDesignPick from '@/components/orgs/WelcomeDesignPick';
 
 // ── The org-manager console (phase 1, round 1) ──────────────────────────────
 // The guardian-console shape (AppHeader — a recurring signed-in
@@ -4234,6 +4235,11 @@ export default function OrgConsolePage() {
               <i className="fas fa-times" aria-hidden="true"></i>
             </button>
           </div>
+        )}
+        {/* Sep 11 2026: the design moment — right after the sport was picked,
+            on a phone too; renders only for a fresh site. */}
+        {welcome && (side === 'league' || side === 'club') && (
+          <WelcomeDesignPick side={side} orgId={orgId} plural={plural as 'leagues' | 'clubs'} />
         )}
         <div>
           <h1 className="text-2xl sm:text-3xl font-bold text-primary">
