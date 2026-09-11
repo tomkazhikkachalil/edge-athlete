@@ -1,5 +1,17 @@
 # Development Log
 
+## September 11, 2026 — Program 2, F: the docs close (zero DDL)
+
+Site Builder program 2 — the six manager gaps — is complete: **A** the panels
+on a phone (#677), **B** pages as compositions (#678–#684, mig 185), **C**
+SEO, footer and the site icon (#685–#687, mig 186), **D** two fixed forms
+and the inbox (#688–#691, mig 187), **E** first-party analytics (#692–#694,
+mig 188). This PR carries the record: CLAUDE.md convention 12 gains the
+"Site settings, forms, analytics" bullet beside the pages bullet;
+`docs/SESSION_PROMPT.md` is re-aligned (migration head 188, the program's
+paragraph, the open list — `ANALYTICS_SALT` in Vercel, the phone pass).
+The final probe set against production is recorded in the PR.
+
 ## September 11, 2026 — Program 2, E2: the console's Visitors panel and the numbers behind it (zero DDL)
 
 **What.** A manager can now see how the site is doing. `GET /api/{plural}/

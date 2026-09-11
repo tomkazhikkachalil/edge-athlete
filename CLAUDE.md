@@ -558,6 +558,36 @@ const { canView } = await response.json();
      through `GridRenderer` (`heading` = its h1) over `publicWidgets`; a
      block row renders `PageBlocks`; the draft preview has a page twin
      (`/preview/[token]/[pageSlug]`). Read DEVLOG Sep 11 2026 B1–B6 first.
+   - **Site settings, forms, analytics (program 2, C–E — Sep 11 2026,
+     #685–#694, migs 186–188)**: `seo_config` / `footer_config` on
+     `org_sites` ride the snapshot (`seo` / `footer`, ABSENT when empty) and
+     the mirror (which never names them pre-186); the theme token `iconPath`
+     is the chosen favicon; `metadata.ts siteHead` is the ONE head rule
+     (title → org name, description, canonical, social image → `card.png`,
+     icon → logo → generated svg) for the home, the pages and the layout;
+     `SiteShell` renders the footer config above "Powered by Edge Athlete";
+     the editor's **Settings** pill hosts `SitePanel`. **Forms** are the two
+     FIXED content widgets `contact_form` / `interest_form` (an age GROUP,
+     never a DOB): `SiteFormWidget` is a native `<form>` (no script) posting
+     to `/api/public/site-forms/[siteId]/[widgetId]`, which answers a 303 back
+     to the page at `#sent-<id>` / `#error-<id>` (a `:target` rule shows the
+     line); anti-abuse WITHOUT render-time state (the page is ISR-cached): a
+     honeypot, `site-form` (ip) + `site-form-site` (per site) buckets, an HMAC
+     form key in the `MEDIA_PROXY_SECRET` family, and the widget must be on
+     the PUBLISHED layout; submissions live in `org_site_form_submissions`
+     (posture A), notify the owner + managers with a summary (never the
+     message) and email the owner; the console **Inbox** (`manage_site`)
+     reads them; the daily cron purges (365 d archived / 730 d open;
+     HARDENING B5). **Analytics** are first-party only (Tom): `hit.gif` (a
+     plain `<img>`, `no-store`, `force-dynamic`; the middleware skips
+     `*.gif`) counts a view and one visitor per day for a PUBLISHED page read
+     from the same-origin Referer; the mark is `sha256(HMAC(ANALYTICS_SALT,
+     day) + ip + ua)` — never the IP, UA or a cookie; bots, `Sec-GPC` /
+     `DNT`, previews, foreign referers and a missing salt count nothing (the
+     same GIF answers); `bump_site_hit` is service-role only; the daily cron
+     prunes marks after 2 days; the console **Visitors** panel and the admin
+     dashboard read `org_site_stats_daily`; `docs/ANALYTICS.md` is the
+     reference. Read DEVLOG Sep 11 2026 C0–E2 first.
    - e2e: a spec that reads the PUBLIC page must first take the site LIVE
      (`PATCH {action:'publish'}`) and, after edits, promote the draft with
      `e2e/helpers/org-site.ts publishSite()`; public-order polls compare
