@@ -147,7 +147,7 @@ export default function Canvas({ site, layout, data, selectedId, onSelect, onCom
                   the REAL widget (a private club's members-only module carries the badge above, not the panel). */}
               <div className="sb-widget-body min-h-0 flex-1 overflow-hidden p-3" inert>
                 {w.key === 'hero' ? (
-                  <HeroSection site={site} w={w} spec={spec} />
+                  <HeroSection site={site} w={w} spec={spec} compact />
                 ) : (
                   <WidgetBody site={site} w={w} data={data} spec={spec} membersOnly={false} />
                 )}

@@ -111,7 +111,8 @@ test('org site template: bold → band header + grid + tiles; classic restores; 
       await page.getByRole('button', { name: 'Theme', exact: true }).click();
       const panel = page.locator('[data-sb-theme-panel]');
       await expect(panel).toBeVisible();
-      await expect(panel.locator('[data-sb-template="classic"]')).toHaveAttribute('aria-pressed', 'true');
+      // B4 made the template buttons radios (aria-checked); this line still read aria-pressed — red since Sep 10, unseen.
+      await expect(panel.locator('[data-sb-template="classic"]')).toHaveAttribute('aria-checked', 'true');
       await expect(panel.locator('[data-sb-template="bold"]')).toBeVisible();
     } finally {
       await ownerCtx.close();

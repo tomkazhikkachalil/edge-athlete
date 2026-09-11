@@ -210,7 +210,8 @@ export const WIDGETS: Readonly<Record<WidgetKey, WidgetDef>> = {
     key: 'hero',
     family: 'structural',
     moduleKey: 'hero',
-    constraints: { minW: 12, maxW: 12, minH: 2, maxH: 6, defaultSize: { w: 12, h: 3 } },
+    // A1 (Sep 11 2026): default 4 rows so the canvas preview shows the CTA row; `h` stays a MINIMUM publicly.
+    constraints: { minW: 12, maxW: 12, minH: 2, maxH: 6, defaultSize: { w: 12, h: 4 } },
     surfaces: { default: WEB },
     subpage: false,
     data: [],

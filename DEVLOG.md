@@ -1,5 +1,59 @@
 # Development Log
 
+## September 11, 2026 — Program 2, A: words and colours on a phone (zero DDL)
+
+**The program.** With the builder's own list exhausted, an inventory of what
+a site manager still cannot do found six gaps; Tom chose one game plan for
+all of them (plan file `let-s-do-2-4-nested-brook.md`): **A** the panels on
+a phone → **B** pages as compositions (mig 185) → **C** SEO / footer /
+favicon (mig 186) → **D** two fixed forms (mig 187) → **E** first-party
+analytics (mig 188) → **F** docs. Decisions: analytics is first-party counts
+(a no-script pixel, a daily-salted visitor hash, nothing personal stored);
+forms are contact + interest, no builder; drag-to-reorder stays parked.
+
+**A — what.** Below `lg` the editor was the Sections list alone: the
+properties and theme panels mounted only inside the desktop branch, the
+Theme pill was desktop-only and nothing on a phone could set a title, a
+paragraph, a photo or a colour. Now every row of the list has **Edit** (the
+hero too — its headline, tagline, photo and notice live in its panel), which
+opens the SAME `PropertiesPanel` as a bottom sheet (`LargerWindow`,
+`windowKey="sb-panel"`); Theme shows at every width and below `lg` opens the
+SAME `ThemePanel` as a sheet (`sb-theme`). Both panels gained a `variant:
+'aside' | 'sheet'` prop — the sheet drops the aside's frame and its own close
+button (the window has one); nothing inside the panels changed. The width
+gate is JS (`useIsDesktop`), not CSS: a `LargerWindow` locks scroll and moves
+focus even when display:none'd. The dirty guard already works: `ConfirmModal`
+sits at z-[60] above the sheet and Escape closes the topmost dialog only, so
+an unsaved headline asks before the sheet closes. The version label on
+publish stays desktop-only (a phone publish is unlabelled).
+
+**Polish folded in.** The canvas hero tile clipped its CTA row at the default
+12×3 (a 168px tile minus the frame header, against a hero padded for the
+public page). The canvas now renders the hero `compact` (tight padding,
+smaller headline — a preview, the public render is untouched) and the hero's
+DEFAULT height is 4 rows for new seeds; `h` stays a minimum publicly, and
+stored layouts keep their 3 (the compact preview fits them).
+
+**A race the test caught.** The editor's dirty guard read `panelDirty` from
+render state inside the closure a `LargerWindow` subscribes for Escape — and
+the window re-subscribes in a passive effect, so an Escape pressed right
+after typing reached the OLD closure (dirty = false) and closed the sheet
+without asking. The guard now reads a ref written by the report callbacks
+(`reportPanelDirty` / `reportThemeDirty`), so every listener sees the truth
+at the keystroke; the desktop asides get the same fix for free.
+
+**A red spec found on the way.** `org-site-template.spec.ts` asserted
+`aria-pressed` on the theme panel's template buttons, which the B4 a11y round
+made radios (`aria-checked`) on Sep 10 — it never sat in a site-builder
+regression set, so nobody saw it fail. Re-anchored.
+
+**e2e.** `org-site-sections.spec.ts` (`@mobile`, both engines): Edit on the
+staff row → the sheet → Section title → `awaitDraftSaved` → Escape → the row
+shows the new title; Edit on the hero → an unsaved headline → Escape →
+"Discard changes?" → Cancel keeps the sheet, Discard closes it; Theme → the
+sheet → accent `#1d4ed8` → Save theme → the site GET carries it; after
+Publish the public page shows the retitled staff heading.
+
 ## September 11, 2026 — Desktop pass of the design pick (zero DDL)
 
 Tom asked whether the round is as good on a laptop as on a phone — most
