@@ -1,5 +1,18 @@
 # Development Log
 
+## September 11, 2026 — Program 2, B3 residue: the Page pill off the edge at 375px (zero DDL)
+
+Migration 185 ran and the pages editor test stopped skipping — and failed
+its last line: a horizontal overflow of 19px at 375px on a page target. The
+**Page** pill sat in the header's LEFT group (Console · chip · the page
+select), which did not wrap, so with a long page title the pill was pushed
+past the right edge. The pill now lives in the button group (which wraps)
+and the left group wraps too. Prod probes of #677–#680 on the #680 deploy:
+`org-site-sections` (mobile + webkit-mobile), `org-site` (the pages block),
+`org-site-two-pages`, `org-site-revisions`, the editor's original test —
+all green; the pages editor test is green locally on the real schema with
+this fix.
+
 ## September 11, 2026 — Program 2, B3: the editor edits N layouts — the page switcher, the page settings, the picker per target (zero DDL)
 
 **What.** The one editor now holds either the home layout or one page's.

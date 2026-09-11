@@ -545,7 +545,7 @@ function Editor({
           canvas, rail and panels need lg. */}
       <div className="flex min-h-screen flex-col">
         <header className="sticky top-0 z-20 flex flex-wrap items-center justify-between gap-x-3 gap-y-2 border-b border-border bg-surface/95 backdrop-blur px-4 py-2">
-          <div className="flex items-center gap-3 min-w-0">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-2 min-w-0">
             <Link href={consoleHref} className="text-sm text-brand-fg hover:text-brand-fg-strong font-medium shrink-0">
               ← Console
             </Link>
@@ -577,13 +577,13 @@ function Editor({
                 <option value="__new">New page…</option>
               </select>
             )}
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
             {page && (
               <button type="button" onClick={() => setPagePanelOpen(true)} className={PILL} data-sb-page-settings="">
                 Page
               </button>
             )}
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
             {draft.status === 'conflict' && (
               <button type="button" onClick={onReload} className={PILL}>
                 Reload
