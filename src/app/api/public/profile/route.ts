@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getProfileOrganizations } from '@/lib/affiliations/server';
+import { STRANGER_VIEW, getProfileOrganizations } from '@/lib/affiliations/server';
 import { buildSportSkillCards } from '@/lib/sports/server';
 import { getSupabaseAdmin } from '@/lib/auth-server';
 import { isStatementPost } from '@/lib/statements';
@@ -220,7 +220,9 @@ export async function GET(request: NextRequest) {
     // Org memberships (org connections round) — public data by the
     // membership-is-public decision; rides the aggregate so /u/ stays
     // anonymous-cheap (the strip gets initialData, no client fetch).
-    const organizations = await getProfileOrganizations(supabase, profile.id);
+    // Viewer-independent + CDN-cached: the STRANGER view (a private org never
+    // rides this payload; owners are redirected off /u/ anyway).
+    const organizations = await getProfileOrganizations(supabase, profile.id, STRANGER_VIEW);
 
     // Elective vitals privacy (migration 122): the body aspect hides
     // height/weight here exactly as it does on /api/vitals — this route used

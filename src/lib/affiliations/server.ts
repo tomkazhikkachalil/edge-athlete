@@ -27,6 +27,7 @@ import { isMissingTableError } from '@/lib/leagues/validate';
 import type { AffiliationType } from './validate';
 import { UUID_RE } from '@/lib/golf/course-catalog';
 import { listingFromRow } from '@/lib/orgs/listing';
+import { filterOrgsForViewer, orgKey } from './org-visibility';
 
 export type AffSide = 'league' | 'club';
 
@@ -455,40 +456,78 @@ export interface ProfileOrganization {
  * list member names/avatars. Used by /api/profile/[id]/organizations and
  * the /u/ public-profile aggregate.
  */
+export interface ProfileOrganizationsOptions {
+  /** The viewer's profile id; null for the anonymous / viewer-independent
+   *  reads (the CDN-cached /u/ payload). */
+  viewerId: string | null;
+  /** The viewer is the profile itself or one of its guardians — sees
+   *  everything (the caller decides; a guardian is a getProfileRole call). */
+  isSelfOrGuardian: boolean;
+}
+
+/** Everyone-sees-everything — the pre-Sep-11 behaviour, for the self reads. */
+export const SELF_VIEW: ProfileOrganizationsOptions = { viewerId: null, isSelfOrGuardian: true };
+/** The stranger's view — what a viewer-independent payload must carry. */
+export const STRANGER_VIEW: ProfileOrganizationsOptions = { viewerId: null, isSelfOrGuardian: false };
+
 export async function getProfileOrganizations(
   admin: Admin,
-  profileId: string
+  profileId: string,
+  opts: ProfileOrganizationsOptions = SELF_VIEW
 ): Promise<ProfileOrganization[]> {
-  const out: ProfileOrganization[] = [];
+  const out: Array<ProfileOrganization & { visibility?: string | null }> = [];
+  // The rule (Tom, Sep 11 2026): your own memberships ALWAYS appear on your
+  // own profile — listing governs discovery, visibility governs what
+  // strangers see inside, neither governs this strip for self/guardian. On
+  // someone else's profile the org's visibility applies: a private org shows
+  // only to a viewer who is themselves a member of it (org-visibility.ts).
+  const viewerOrgKeys = new Set<string>();
+  if (!opts.isSelfOrGuardian && opts.viewerId) {
+    for (const side of ['league', 'club'] as const) {
+      const { rows } = await profileMembershipRows(admin, side, opts.viewerId);
+      for (const r of rows) viewerOrgKeys.add(orgKey(side, r.orgId));
+    }
+  }
   for (const side of ['league', 'club'] as const) {
     const cfg = SIDES[side];
     const { rows, error } = await profileMembershipRows(admin, side, profileId);
     if (error) {
       // Pre-140 database: an empty strip, never an error.
       if (isMissingTableError(error.code)) continue;
-      console.error('[AFFILIATIONS] memberships fetch error:', error);
+      console.error(`[AFFILIATIONS] ${side} memberships fetch error:`, error);
       continue;
     }
     if (rows.length === 0) continue;
-    const orgIds = rows.map(r => r.orgId);
+    // Strings only: a stray null here is a PostgREST 400 that empties the side.
+    const orgIds = rows.map(r => r.orgId).filter((id): id is string => typeof id === 'string' && id.length > 0);
+    if (orgIds.length === 0) continue;
     const selectCols = side === 'league'
       ? 'id, name, sport_key, city, region, country'
       : 'id, name, city, region, country';
-    // R1 (179): the listing state rides along (pending → a chip); the select
-    // ladder steps down on 42703 (179 → 174 → bare).
+    // R1 (179): the listing state rides along (pending → a chip); the org's
+    // visibility (176/177) decides the stranger view; the select ladder
+    // steps down on 42703 (179+177 → 179 → 174 → bare).
     let { data: orgs, error: orgsError } = await admin
       .from(cfg.orgTable)
-      .select(`${selectCols}, listing_status, approved_at`)
+      .select(`${selectCols}, listing_status, approved_at, visibility`)
       .in('id', orgIds);
+    if (orgsError?.code === '42703') {
+      ({ data: orgs, error: orgsError } = await admin.from(cfg.orgTable).select(`${selectCols}, listing_status, approved_at`).in('id', orgIds));
+    }
     if (orgsError?.code === '42703') {
       ({ data: orgs, error: orgsError } = await admin.from(cfg.orgTable).select(`${selectCols}, approved_at`).in('id', orgIds));
     }
     if (orgsError?.code === '42703') {
       ({ data: orgs, error: orgsError } = await admin.from(cfg.orgTable).select(selectCols).in('id', orgIds));
     }
+    if (orgsError) {
+      // Never silent again: the strip used to render nothing on a 400.
+      console.error(`[AFFILIATIONS] ${side} org read error:`, orgsError);
+      continue;
+    }
     const orgRows = (orgs ?? []) as unknown as Array<{
       id: string; name: string; sport_key?: string | null; approved_at?: string | null; listing_status?: string | null;
-      city: string | null; region: string | null; country: string | null;
+      visibility?: string | null; city: string | null; region: string | null; country: string | null;
     }>;
     const byId = new Map(orgRows.map(o => [o.id, o]));
     for (const row of rows) {
@@ -502,11 +541,17 @@ export async function getProfileOrganizations(
         city: org.city,
         region: org.region,
         country: org.country,
+        visibility: org.visibility ?? null,
         ...(side === 'league' ? { sport_key: org.sport_key ?? null } : {}),
         ...(listingFromRow(org as unknown as Record<string, unknown>).status === 'pending' ? { pending: true } : {}),
       });
     }
   }
+  // The viewer rule, then the working field leaves the payload.
+  const visible = filterOrgsForViewer(out, { isSelfOrGuardian: opts.isSelfOrGuardian, viewerOrgKeys });
+  for (const o of visible) delete o.visibility;
+  out.length = 0;
+  out.push(...visible);
   // Owned/managed first, then alphabetical — the strip's display order.
   const rank: Record<string, number> = { owner: 0, manager: 1, member: 2 };
   out.sort((a, b) => (rank[a.role] ?? 9) - (rank[b.role] ?? 9) || a.name.localeCompare(b.name));

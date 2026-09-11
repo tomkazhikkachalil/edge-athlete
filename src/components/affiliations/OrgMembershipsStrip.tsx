@@ -41,7 +41,11 @@ export default function OrgMembershipsStrip({ profileId, initialData }: OrgMembe
     (async () => {
       try {
         const response = await fetch(`/api/profile/${encodeURIComponent(profileId)}/organizations`);
-        if (!response.ok || cancelled) return;
+        if (cancelled) return;
+        if (!response.ok) {
+          console.warn('[org strip] organizations read failed:', response.status);
+          return;
+        }
         const data = await response.json();
         if (!cancelled) setOrgs(data.organizations ?? []);
       } catch {

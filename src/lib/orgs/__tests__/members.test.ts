@@ -55,6 +55,11 @@ function mockAdmin(
           call.filters[col] = val;
           return chain;
         },
+        // Sep 11 2026: the one-side read excludes the other side's NULL org id.
+        not(col: string, op: string, val: unknown) {
+          call.filters[`not:${col}`] = `${op}:${String(val)}`;
+          return chain;
+        },
         limit: () => chain,
         order: () => chain,
         select: () => chain,
@@ -372,6 +377,9 @@ describe('write filters keep legacy-shaped paths off future roster rows', () => 
     });
     const { rows } = await profileMembershipRows(prof.admin, 'league', 'me');
     expect(rows).toEqual([{ orgId: 'l1', role: 'manager' }]);
+    // The read never lets the OTHER side's NULL org id in (the strip bug):
+    // `league_id IS NOT NULL` rides every one-side read.
+    expect(prof.calls[0].filters).toMatchObject({ 'not:league_id': 'is:null' });
   });
 
   it('orgMemberPreview filters kind per query and max-reduces the viewer', async () => {

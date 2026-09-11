@@ -1,5 +1,45 @@
 # Development Log
 
+## September 11, 2026 — The profile org strip: the club that vanished (zero DDL)
+
+Tom's own club was missing from his own profile. Two audits and two live
+probes settled it, and it was not the listing gate.
+
+- **The bug.** `profileMembershipRows` (`src/lib/orgs/members.ts`) reads ONE
+  side's org column but never filtered the rows of the OTHER side — and a
+  membership row is league XOR club (140's CHECK), so every other-side row
+  arrived with a NULL org id. `getProfileOrganizations` then fed that list
+  into `.in('id', …)`, PostgREST answered `400 22P02 invalid input syntax for
+  type uuid: "null"`, the error was swallowed as "no orgs", and the whole side
+  vanished — silently, since the strip renders nothing on an empty list. It
+  bites exactly the profiles that belong to both a club and a league; Tom
+  owns one of each. The spec never caught it because it seeded one club and
+  no league. Fix: `.not(col, 'is', null)` on both reads, a belt-and-braces
+  skip in the loop, a string filter before `.in`, and the org read's error is
+  LOGGED with its side.
+- **The rule, written down (Tom).** *Your own memberships always appear on
+  your own profile, regardless of listing or visibility. Listing governs
+  whether strangers can discover the org; visibility governs what strangers
+  see inside it; neither governs whether you see your own affiliation. On
+  someone else's profile, apply the org's visibility.* The path already had
+  no listing filter (own memberships always showed — when the read worked),
+  so the first half needed no code. The second half is new:
+  `getProfileOrganizations(admin, profileId, { viewerId, isSelfOrGuardian })`
+  reads the org's `visibility` in its select ladder (42703 → public) and, for
+  a viewer who is neither the profile nor a guardian, drops a PRIVATE org
+  unless the viewer belongs to it (`src/lib/affiliations/org-visibility.ts`,
+  pure, node-tested). `/api/profile/[id]/organizations` passes the session
+  (guardian via `getProfileRole`); the CDN-cached, viewer-independent
+  `/api/public/profile` passes `STRANGER_VIEW` — the right view for `/u/`,
+  the visitor surface. The header, the feed card and the own-page strip call
+  the self endpoint and are unchanged.
+- The strip logs a failed load instead of rendering nothing in silence.
+- e2e `profile-orgs.spec.ts` is now the regression: user A in a club AND a
+  league (the shape that broke), both chips on the own page and the feed
+  card; the club flipped unlisted + private still on A's own read; B sees it
+  only while a member; the `/u/` payload carries the league and never the
+  private club.
+
 ## September 10, 2026 — Maintenance sweep, end of the Contest Place and Recruiting programs
 
 - Gate green on `main` at the #669 merge (03f683d4): typecheck, lint at
