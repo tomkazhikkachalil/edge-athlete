@@ -16,6 +16,7 @@ import Picker from './Picker';
 import PropertiesPanel from './PropertiesPanel';
 import SectionsList from './SectionsList';
 import PagePanel from './PagePanel';
+import SitePanel from './SitePanel';
 import type { CanvasPage } from '@/lib/org-sites/canvas-server';
 import { PAGE_WIDGET_KEYS } from '@/lib/site-builder/catalog';
 import LargerWindow from '@/components/bubbles/LargerWindow';
@@ -280,7 +281,7 @@ function Editor({
   // after typing reached the OLD closure (dirty = false) and closed the
   // sheet without asking. The ref is written in the report callbacks (never
   // during render), so every listener sees the truth at the keystroke.
-  const dirtyRef = useRef({ panel: false, theme: false });
+  const dirtyRef = useRef({ panel: false, theme: false, settings: false });
   const reportPanelDirty = useCallback((dirty: boolean) => {
     dirtyRef.current.panel = dirty;
     setPanelDirty(dirty);
@@ -289,8 +290,13 @@ function Editor({
     dirtyRef.current.theme = dirty;
     setThemeDirty(dirty);
   }, []);
+  // Program 2, C2: the site settings panel (SEO, footer, icon).
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const reportSettingsDirty = useCallback((dirty: boolean) => {
+    dirtyRef.current.settings = dirty;
+  }, []);
   const guarded = (action: () => void) => {
-    if (dirtyRef.current.panel || dirtyRef.current.theme) setPending(() => action);
+    if (dirtyRef.current.panel || dirtyRef.current.theme || dirtyRef.current.settings) setPending(() => action);
     else action();
   };
   // Phase 5: the site view (content) can change under the editor when the
@@ -609,6 +615,7 @@ function Editor({
                 onClick={() =>
                   guarded(() => {
                     setSelectedId(null);
+                    setSettingsOpen(false);
                     setThemeDraft(d => (d ? null : themeDraftFrom(site)));
                   })
                 }
@@ -618,6 +625,21 @@ function Editor({
                 Theme
               </button>
             )}
+            <button
+              type="button"
+              onClick={() =>
+                guarded(() => {
+                  setSelectedId(null);
+                  setThemeDraft(null);
+                  setSettingsOpen(o => !o);
+                })
+              }
+              aria-pressed={settingsOpen}
+              className={PILL}
+              data-sb-open-settings=""
+            >
+              Settings
+            </button>
             <button type="button" onClick={() => void preview()} className={PILL}>
               Preview
             </button>
@@ -652,6 +674,7 @@ function Editor({
                 guarded(() => {
                   setSelectedId(id);
                   setThemeDraft(null);
+                  setSettingsOpen(false);
                 })
               }
             />
@@ -673,6 +696,24 @@ function Editor({
                 onResize={p => history.commit(resizeToPreset(history.present, selected.id, p))}
                 onContentSaved={refreshSite}
                 onDirtyChange={reportPanelDirty}
+                showError={showError}
+                showSuccess={showSuccess}
+              />
+            </LargerWindow>
+          )}
+          {!isDesktop && settingsOpen && !themeDraft && !selected && (
+            <LargerWindow title="Site settings" hostsOwnHeading windowKey="sb-settings" onClose={() => guarded(() => setSettingsOpen(false))}>
+              <SitePanel
+                variant="sheet"
+                site={site}
+                plural={plural}
+                orgId={orgId}
+                onClose={() => setSettingsOpen(false)}
+                onSaved={async () => {
+                  await refreshSite();
+                  setSettingsOpen(false);
+                }}
+                onDirtyChange={reportSettingsDirty}
                 showError={showError}
                 showSuccess={showSuccess}
               />
@@ -715,7 +756,10 @@ function Editor({
                     if (id === selectedId && !themeDraft) return;
                     guarded(() => {
                       setSelectedId(id);
-                      if (id) setThemeDraft(null);
+                      if (id) {
+                        setThemeDraft(null);
+                        setSettingsOpen(false);
+                      }
                     });
                   }}
                   onCommit={history.commit}
@@ -737,6 +781,22 @@ function Editor({
                   onOpenGallery={() => setGallery('manual')}
                   plural={plural}
                   orgId={orgId}
+                  showError={showError}
+                  showSuccess={showSuccess}
+                />
+              )}
+              {settingsOpen && !themeDraft && !selected && (
+                <SitePanel
+                  className={STICKY_ASIDE}
+                  site={site}
+                  plural={plural}
+                  orgId={orgId}
+                  onClose={() => guarded(() => setSettingsOpen(false))}
+                  onSaved={async () => {
+                    await refreshSite();
+                    setSettingsOpen(false);
+                  }}
+                  onDirtyChange={reportSettingsDirty}
                   showError={showError}
                   showSuccess={showSuccess}
                 />
@@ -799,6 +859,7 @@ function Editor({
           setPending(null);
           reportPanelDirty(false);
           reportThemeDirty(false);
+          reportSettingsDirty(false);
           run?.();
         }}
         onCancel={() => setPending(null)}

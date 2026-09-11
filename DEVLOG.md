@@ -1,5 +1,29 @@
 # Development Log
 
+## September 11, 2026 — Program 2, C2: the Settings panel — SEO, footer and the site icon from the editor (zero DDL)
+
+**What.** A **Settings** pill in the editor header (both widths, home or
+page — the settings are site-wide) opens `SitePanel`: an aside beside the
+canvas above `lg`, a `LargerWindow` sheet below (`sb-settings`, the A1
+pattern). Three groups — *Search and sharing* (site title, description, a
+sharing image), *Footer* (a line, up to six links, "Show social links";
+"Powered by Edge Athlete" stays), *Site icon* (a square image) — each an
+upload through the site's assets route where an image is involved. **Save
+settings** writes `set_seo`, `set_footer` and, when the icon changed,
+`set_theme` with the token set as it is plus the icon (the design keys carry
+over on the server, so nothing else in the theme moves), then the editor
+refreshes. The panel reports its dirtiness into the same ref-backed guard as
+the properties and theme panels, so a stray tile click asks first; opening a
+tile or the theme closes it. The checklist gets no new step (describing the
+site is optional). Also in this PR: the SEO spec's `<title>` assertions now
+include the root layout's `· Edge Athlete` template (the spec ran for real
+after 186 and caught my assumption, not the feature).
+
+**e2e.** `org-site-seo.spec.ts` gains the UI half: the panel on a laptop —
+title, description, footer line + link, socials, an icon upload → a dirty
+panel asks before a stray tile click → Save → the site GET carries the
+three configs; the sheet at 390 with the saved title, no overflow.
+
 ## September 11, 2026 — Program 2, C1: SEO, footer and the site icon — the model and the public head (zero DDL beyond 186)
 
 **What.** A manager can now say how the site presents itself. `validate.ts`:
