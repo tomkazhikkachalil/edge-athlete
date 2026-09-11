@@ -1,5 +1,16 @@
 # Development Log
 
+## September 11, 2026 — Program 2, E0: migration 188 — first-party site analytics tables and the hit RPC
+
+**The file only.** `database/migrations/188_org_site_analytics.sql`:
+`org_site_stats_daily` (site, day, path → views, visitors) and
+`org_site_hit_marks` (site, day, visitor hash — a daily-salted HMAC,
+unlinkable across days, pruned after 2 days), both posture A; the RPC
+`bump_site_hit` (SECURITY DEFINER, EXECUTE for `service_role` only — the
+RPC grants rule) does one round trip per page view: the mark (new?) and the
+daily upsert. No cookie, no IP, no user agent is ever stored. Deploy order
+is flexible — the pixel route (E1) swallows a missing function and counts
+nothing until this runs. **Tom runs it after this merges.** No code.
 ## September 11, 2026 — Program 2, D2: the console inbox and the retention purge (zero DDL)
 
 **What.** The console's Website area gains **Inbox** (`SiteInboxCard`,
