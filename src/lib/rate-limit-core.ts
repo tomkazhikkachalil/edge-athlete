@@ -22,6 +22,10 @@ const ATTEMPTS_MESSAGE = 'Too many attempts. Please wait a few minutes.';
 export const RATE_LIMITS = {
   // ── Unauthenticated (IP-keyed): no account cost to an attacker ──────────
   contact: { max: 5, windowSeconds: 600, keyBy: 'ip' },
+  // Program 2, D (Sep 11 2026): a public org-site form — per visitor, and a
+  // per-SITE day cap (keyed 'user' with the site id as the identifier).
+  'site-form': { max: 5, windowSeconds: 600, keyBy: 'ip' },
+  'site-form-site': { max: 50, windowSeconds: 86400, keyBy: 'user' },
   waitlist: { max: 5, windowSeconds: 3600, keyBy: 'ip' },
   signup: { max: 5, windowSeconds: 3600, keyBy: 'ip' },
   activate: { max: 5, windowSeconds: 900, keyBy: 'ip', message: ATTEMPTS_MESSAGE },

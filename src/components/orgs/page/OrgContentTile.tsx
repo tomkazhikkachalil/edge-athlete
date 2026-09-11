@@ -2,7 +2,7 @@
 
 import Image from 'next/image';
 import Link from 'next/link';
-import { Film, Image as ImageIcon, Type } from 'lucide-react';
+import { Film, Image as ImageIcon, Mail, Type, UserPlus } from 'lucide-react';
 import type { AppSlot } from '@/lib/site-builder/app-layout';
 import { WIDGETS } from '@/lib/site-builder/catalog';
 import BubbleCard from '@/components/bubbles/BubbleCard';
@@ -28,7 +28,7 @@ const SPAN_CLASSES: Record<'sm' | 'md' | 'lg', string> = {
   lg: 'col-span-2 lg:col-span-4',
 };
 
-const ICONS = { text: Type, image: ImageIcon, embed: Film } as const;
+const ICONS = { text: Type, image: ImageIcon, embed: Film, contact_form: Mail, interest_form: UserPlus } as const;
 
 export default function OrgContentTile({
   slot,
@@ -75,6 +75,21 @@ export default function OrgContentTile({
         )}
         {t.caption && <figcaption className="mt-2 text-xs text-tertiary">{t.caption}</figcaption>}
       </figure>
+    );
+  } else if (slot.tile.kind === 'form') {
+    // Program 2, D: in-app the form is a door to the public site's form.
+    const t = slot.tile;
+    body = (
+      <div className="space-y-2" data-org-form={t.form}>
+        {t.intro && <p className="text-sm text-secondary">{t.intro}</p>}
+        {t.href ? (
+          <a href={t.href} className="inline-flex min-h-[44px] items-center rounded-md bg-brand px-3 text-sm font-medium text-white hover:bg-brand-hover">
+            {t.form === 'contact' ? 'Contact us on the website' : 'Register interest on the website'}
+          </a>
+        ) : (
+          <p className="text-xs text-tertiary">{t.form === 'contact' ? 'Contact form on the website.' : 'Interest form on the website.'}</p>
+        )}
+      </div>
     );
   } else {
     const t = slot.tile;

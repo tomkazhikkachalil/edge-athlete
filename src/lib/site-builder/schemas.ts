@@ -34,7 +34,7 @@ import {
   httpsUrl,
 } from '@/lib/org-sites/validate';
 import type { WidgetKey } from './catalog';
-import { IMAGE_ALT_MAX, IMAGE_CAPTION_MAX, TEXT_WIDGET_BLOCKS_MAX } from './fields';
+import { FORM_INTRO_MAX, FORM_THANKS_MAX, IMAGE_ALT_MAX, IMAGE_CAPTION_MAX, TEXT_WIDGET_BLOCKS_MAX } from './fields';
 
 export { IMAGE_ALT_MAX, IMAGE_CAPTION_MAX, TEXT_WIDGET_BLOCKS_MAX };
 
@@ -253,8 +253,17 @@ export const EmbedWidgetSchema = InstanceOptionsSchema.extend({
 /** What a layout INSTANCE's config may hold, per widget: options only for
  *  module widgets (their content lives on the org objects); options plus
  *  content for the content widgets. */
+/** Program 2, D: a form widget's instance — the intro and the thank-you line. */
+export const FormWidgetSchema = InstanceOptionsSchema.extend({
+  intro: z.string().trim().max(FORM_INTRO_MAX).optional(),
+  thanks: z.string().trim().max(FORM_THANKS_MAX).optional(),
+});
+
 export function instanceSchemaFor(key: WidgetKey): z.ZodType {
   switch (key) {
+    case 'contact_form':
+    case 'interest_form':
+      return FormWidgetSchema;
     case 'text':
       return TextWidgetSchema;
     case 'image':

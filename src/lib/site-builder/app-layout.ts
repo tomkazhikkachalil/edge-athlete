@@ -27,7 +27,9 @@ import type { PageBlock } from '@/lib/org-sites/validate';
 export type AppTile =
   | { kind: 'text'; blocks: PageBlock[] }
   | { kind: 'image'; src: string; alt: string; caption: string | null; href: string | null; width: number; height: number }
-  | { kind: 'embed'; src: string; title: string; provider: string };
+  | { kind: 'embed'; src: string; title: string; provider: string }
+  /** Program 2, D: a form tile in-app is a door to the public form (no form in-app). */
+  | { kind: 'form'; form: 'contact' | 'interest'; intro: string | null; href: string | null };
 
 /** One app-capable instance of the composition, in reading order. */
 export interface AppInstance {

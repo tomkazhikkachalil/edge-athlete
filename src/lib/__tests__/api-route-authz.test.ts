@@ -41,6 +41,8 @@ const PUBLIC_ROUTES: Record<string, string> = {
   signup: 'account creation IS the anonymous entry point; DOB/guardian gates inside',
   contact: 'public contact form; persist-first, rate-limited',
   'public/profile': 'public-profile read surface; visibility-filtered in query',
+  'public/site-forms/[siteId]/[widgetId]':
+    'program 2 D (Sep 11 2026): a visitor’s org-site form POST — no session by design (the public site is anonymous); honeypot, per-IP + per-site buckets, an HMAC form key, the widget must be a form on the PUBLISHED layout; every outcome is a 303 back to the site',
   explore: 'guest browse surface; public-only queries by construction',
   places: 'geo autocomplete over public place data',
   'media/cover/[id]': 'public cover-photo redirect; object key is unguessable',

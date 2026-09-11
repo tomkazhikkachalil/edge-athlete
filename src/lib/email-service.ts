@@ -124,6 +124,39 @@ This email was sent from your website's contact form.
   }
 
   /**
+   * Program 2, D (Sep 11 2026): a visitor's org-site form, to the org's
+   * owner. The fields are escaped; the reply-to is the visitor. Best-effort.
+   */
+  async sendSiteFormEmail(data: { to: string; orgName: string; kind: 'contact' | 'interest'; fields: Record<string, unknown>; consoleUrl: string }): Promise<boolean> {
+    const { to, orgName, kind, fields, consoleUrl } = data;
+    const label = kind === 'contact' ? 'message' : 'registration of interest';
+    const rows = Object.entries(fields)
+      .filter(([, v]) => typeof v === 'string' && v)
+      .map(([k, v]) => `<p><strong>${escapeHtml(k)}:</strong> ${escapeHtml(String(v))}</p>`)
+      .join('');
+    const text = Object.entries(fields)
+      .filter(([, v]) => typeof v === 'string' && v)
+      .map(([k, v]) => `${k}: ${String(v)}`)
+      .join('\n');
+    const visitorEmail = typeof fields.email === 'string' ? fields.email : undefined;
+    return this.deliver('site-form', {
+      from: fromAddress(),
+      to,
+      subject: `${orgName}: a new ${label} from your site`,
+      text: `A visitor sent a ${label} through the ${orgName} site.\n\n${text}\n\nRead it in the console: ${APP_URL}${consoleUrl}`,
+      html: `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        ${logoHeader(APP_URL)}
+        <h2 style="color: #6d28d9;">A new ${escapeHtml(label)} from your site</h2>
+        <p style="color: #555;">Someone sent this through the ${escapeHtml(orgName)} site.</p>
+        <div style="background: #f9f9f9; padding: 20px; border-radius: 8px; margin: 20px 0;">${rows}</div>
+        <p><a href="${APP_URL}${escapeHtml(consoleUrl)}" style="color: #6d28d9;">Read it in the console</a></p>
+      </div>`,
+      ...(visitorEmail ? { replyTo: visitorEmail } : {}),
+    });
+  }
+
+  /**
    * Notify the site owner of a new waitlist signup. Best-effort — callers
    * should not fail the request if this throws.
    */

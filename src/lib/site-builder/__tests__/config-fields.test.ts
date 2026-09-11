@@ -70,7 +70,8 @@ describe('field descriptors are pinned to the schemas', () => {
     for (const key of ['staff', 'venues', 'contact', 'text'] as const) expect(fieldsFor(key).some(f => f.scope === 'query')).toBe(false);
     for (const key of CONTENT_WIDGET_KEYS) {
       const kinds = fieldsFor(key).map(f => f.kind);
-      expect(kinds, key).toContain(key === 'text' ? 'blocks' : key);
+      // Program 2, D: a form widget's own field is its intro (a textarea).
+      expect(kinds, key).toContain(key === 'text' ? 'blocks' : key === 'contact_form' || key === 'interest_form' ? 'textarea' : key);
       expect(fieldsFor(key).every(f => f.scope === 'instance'), `${key} is all instance`).toBe(true);
       expect(contentActionFor(key)).toBeNull();
     }

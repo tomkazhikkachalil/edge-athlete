@@ -22,6 +22,7 @@ import LeadersTable from './LeadersTable';
 import MembersOnlyPanel from './MembersOnlyPanel';
 import MembersTable from './MembersTable';
 import NewsItems from './NewsItems';
+import SiteFormWidget from './SiteFormWidget';
 import PageBlocks from './PageBlocks';
 import RegisterCard from './RegisterCard';
 import ScheduleList from './ScheduleList';
@@ -277,6 +278,10 @@ export default function WidgetBody({ site, w, data: raw, spec, membersOnly = fal
         </figure>
       );
     }
+    // Program 2, D: the two fixed forms — never empty, script-free.
+    case 'contact_form':
+    case 'interest_form':
+      return <SiteFormWidget site={site} w={w} />;
     case 'embed': {
       // Never a stored URL: the frame src is rebuilt from the parsed
       // structure against the three providers the CSP frame-src allows.

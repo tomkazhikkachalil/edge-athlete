@@ -39,6 +39,9 @@ export type FieldSpec =
 
 /** Content-widget caps (schemas.ts enforces them; the editors show them). */
 export const TEXT_WIDGET_BLOCKS_MAX = 12;
+/** Program 2, D: a form's intro and thank-you line. */
+export const FORM_INTRO_MAX = 300;
+export const FORM_THANKS_MAX = 200;
 export const IMAGE_ALT_MAX = 200;
 export const IMAGE_CAPTION_MAX = 200;
 
@@ -88,6 +91,11 @@ export const IMAGE_FIELDS: FieldSpec[] = [
 ];
 
 /** Phase 6 — the embed widget: a pasted link, stored as a structure. */
+export const FORM_FIELDS: FieldSpec[] = [
+  { kind: 'textarea', name: 'intro', label: 'Intro', help: 'A line above the form — who it reaches, what happens next.', max: FORM_INTRO_MAX, scope: 'instance' },
+  { kind: 'text', name: 'thanks', label: 'Thank-you line', help: 'Shown after a visitor sends the form.', max: FORM_THANKS_MAX, scope: 'instance' },
+];
+
 export const EMBED_FIELDS: FieldSpec[] = [
   { kind: 'embed', name: 'embed', label: 'Video or map link', help: 'Paste a YouTube, Vimeo or OpenStreetMap link.', scope: 'instance' },
 ];
@@ -123,6 +131,9 @@ export function fieldsFor(key: SiteWidgetKey): FieldSpec[] {
       return [TITLE, SIZE, VISIBILITY, ...IMAGE_FIELDS];
     case 'embed':
       return [TITLE, SIZE, VISIBILITY, ...EMBED_FIELDS];
+    case 'contact_form':
+    case 'interest_form':
+      return [TITLE, SIZE, VISIBILITY, ...FORM_FIELDS];
     case 'standings':
       return [TITLE, SIZE, VISIBILITY, COMPETITION('Automatic — the first with results')];
     case 'schedule':

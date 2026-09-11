@@ -1,5 +1,44 @@
 # Development Log
 
+## September 11, 2026 — Program 2, D1: two fixed forms as site widgets — contact and interest (zero DDL beyond 187)
+
+**What.** `contact_form` and `interest_form` join the content widgets
+(`CONTENT_WIDGET_KEYS` — the instance holds the intro and the thank-you
+line; both surfaces; never empty). The public page renders a NATIVE form
+(`SiteFormWidget`, server-safe, no script — the (public) contract): name,
+email, message; the interest form adds an optional phone and an age GROUP —
+never a date of birth. The POST lands on `/api/public/site-forms/[siteId]/
+[widgetId]` (no session, form-encoded) and every outcome is a **303 back to
+the page** the form sat on (the same-origin Referer under the site's path,
+else the home) at `#sent-<id>` or `#error-<id>`; a `:target` rule in
+`globals.css` shows the matching line — a thank-you without JavaScript or a
+dynamic render (an ISR page could not read a query string).
+
+**Anti-abuse without render-time state.** The page is ISR-cached, so a
+timestamped token would expire in the cache; instead: a honeypot (`website`,
+off-screen — a filled one answers "sent" and stores nothing), a per-IP
+bucket (`site-form` 5/10 min) and a per-SITE day cap (`site-form-site`
+50/day, keyed by the site id), and a **form key** — an HMAC over the site
+and widget ids in the preview token's secret family (`MEDIA_PROXY_SECRET`
+(+`_PREVIOUS`)), so a POST must come from a page we rendered for that
+widget; no secret configured → none rendered, none required (a supported,
+degraded state). The route also requires the widget to be a form on the
+PUBLISHED layout (home or a page), validates the fields, inserts the
+submission, notifies the org's owner and managers (`site_form_submission` —
+a summary naming the sender, never the message body — with a door to the
+console's inbox) and emails the owner when SMTP is configured
+(`emailService.sendSiteFormEmail`, reply-to the visitor). In-app the form is
+a DOOR: the org page's tile shows the intro and a button to the public form
+(the composition builder takes the site's public path).
+
+**e2e.** `org-site-forms.spec.ts` (skips until 187 has run): both forms on
+a live home → the public page carries the native forms, the key, the
+honeypot and no script → an anonymous POST: a real message → 303 `#sent-` +
+one row; the honeypot → "sent", nothing stored; a bad email and a missing
+age group → `#error-`; an unknown widget → 404; an interest submission with
+an age group; the owner's notifications carry the summary, never the
+message; the thank-you shows at the target at 375px; the in-app tile's door.
+
 ## September 11, 2026 — Program 2, D0: migration 187 — site form submissions and their notification type
 
 **The file only.** `database/migrations/187_org_site_forms.sql`:
