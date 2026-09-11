@@ -37,6 +37,8 @@ test('org site forms: contact + interest widgets, the public POST, the honeypot,
     const { error: probeError } = await admin.from('org_site_form_submissions').select('id').limit(1);
     test.skip(!!probeError, 'org_site_form_submissions missing — run migration 187');
     await resetRateBucket(admin, 'site-form-site', siteId);
+    // The per-IP bucket (5 / 10 min): the local server stamps the client as ::1 (or 127.0.0.1; 'unknown' without a forwarded header).
+    for (const ip of ['::1', '127.0.0.1', 'unknown']) await resetRateBucket(admin, 'site-form', ip);
 
     // The two forms on the home layout, through the draft PUT.
     const canvas = (await (await ownerApi.get(`/api/leagues/${leagueId}/site/canvas`)).json()) as { layout: { widgets: { y: number; h: number }[] } };
@@ -72,10 +74,12 @@ test('org site forms: contact + interest widgets, the public POST, the honeypot,
       expect(html).toContain(`Got it ${stamp}`);
       expect(html).toContain('name="website"'); // the honeypot
       expect(html).not.toContain('<script src="/api'); // no script of ours
-      const tokenMatch = html.match(new RegExp(`action="/api/public/site-forms/${siteId}/${contactId}"[\\s\\S]*?name="t" value="([^"]+)"`));
-      const token = tokenMatch?.[1] ?? '';
-      const post = (widgetId: string, fields: Record<string, string>) =>
-        anon.request.post(`/api/public/site-forms/${siteId}/${widgetId}`, { form: { ...(token ? { t: token } : {}), ...fields }, maxRedirects: 0, headers: { referer: `${new URL(base, 'http://x').pathname}` } });
+      // Each widget carries its OWN form key (bound to the site and widget ids).
+      const tokenFor = (widgetId: string) => html.match(new RegExp(`action="/api/public/site-forms/${siteId}/${widgetId}"[\\s\\S]*?name="t" value="([^"]+)"`))?.[1] ?? '';
+      const post = (widgetId: string, fields: Record<string, string>) => {
+        const token = tokenFor(widgetId);
+        return anon.request.post(`/api/public/site-forms/${siteId}/${widgetId}`, { form: { ...(token ? { t: token } : {}), ...fields }, maxRedirects: 0, headers: { referer: `${new URL(base, 'http://x').pathname}` } });
+      };
       // A real contact submission → 303 to #sent-, one row with the fields.
       const sent = await post(contactId, { name: `Sam ${stamp}`, email: 'sam@example.com', message: `Hello from the form ${stamp}` });
       expect(sent.status()).toBe(303);

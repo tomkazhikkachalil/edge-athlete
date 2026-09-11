@@ -13,9 +13,9 @@ import { UUID_RE } from '@/lib/golf/course-catalog';
 // ── POST /api/public/site-forms/[siteId]/[widgetId] — a visitor's form ──────
 // Program 2, D (Sep 11 2026). No session (the public site is anonymous);
 // form-encoded (a native <form>). Order: the honeypot (a bot's success —
-// nothing stored), the per-IP bucket and the per-site day cap, the form key,
-// the site (live only) and the widget (a form widget on the PUBLISHED
-// layout — home or a page), the fields, the insert, the notifications to
+// nothing stored), the per-IP bucket and the per-site day cap, the site
+// (live only) and the widget (a form widget on the PUBLISHED layout — home
+// or a page; unknown = 404), the form key, the fields, the insert, the notifications to
 // the org's owner and managers, the owner's email when SMTP is configured.
 // Every outcome is a 303 back to the page the form sat on (the same-origin
 // Referer, else the site home) at #sent-<id> or #error-<id>.
@@ -86,8 +86,6 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const limited = (await enforceRateLimit(request, 'site-form')) ?? (await enforceRateLimit(request, 'site-form-site', { userId: site.id }));
   if (limited) return to('error');
 
-  if (!verifyFormToken(site.id, widgetId, typeof raw.t === 'string' ? raw.t : null)) return to('error');
-
   // The widget must be a form on the PUBLISHED layout — home or a page.
   const snapshot = site.published_revision_id ? await loadSnapshotByRevisionId(admin, site.published_revision_id) : null;
   if (!snapshot) return bad();
@@ -95,6 +93,10 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const widget = layouts.flatMap(l => l?.widgets ?? []).find(w => w.id === widgetId);
   if (!widget || !isFormWidgetKey(widget.key)) return bad();
   const kind = formKindOf(widget.key);
+
+  // The form key AFTER the widget: an unknown widget is a plain 404 (it
+  // leaks nothing), a known one without our key is refused.
+  if (!verifyFormToken(site.id, widgetId, typeof raw.t === 'string' ? raw.t : null)) return to('error');
 
   const fields = parseFormFields(kind, raw);
   if (!fields) return to('error');

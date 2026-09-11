@@ -1,5 +1,15 @@
 # Development Log
 
+## September 11, 2026 — Program 2, D1 residue: the form route checks the widget before the key (zero DDL)
+
+Migration 187 ran and the forms spec stopped skipping; it passed the real
+submission, the honeypot, the bad email and the missing age group, and
+failed on the unknown-widget case: the route verified the form key before
+it looked the widget up, so a POST to a widget that does not exist answered
+the error redirect instead of a 404. The lookup now precedes the key (an
+unknown widget is a plain 404 and leaks nothing; a known one without our
+key is still refused). The spec is unchanged and green on the real schema.
+
 ## September 11, 2026 — Program 2, D1: two fixed forms as site widgets — contact and interest (zero DDL beyond 187)
 
 **What.** `contact_form` and `interest_form` join the content widgets
