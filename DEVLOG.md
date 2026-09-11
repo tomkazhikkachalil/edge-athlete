@@ -1,5 +1,14 @@
 # Development Log
 
+## September 11, 2026 — Program 2, D0: migration 187 — site form submissions and their notification type
+
+**The file only.** `database/migrations/187_org_site_forms.sql`:
+`org_site_form_submissions` (site, kind contact | interest, the validated
+`fields`, the page path, created / read / archived timestamps; posture A —
+RLS on, zero policies, REVOKE ALL) and the `notifications_type_check`
+re-add with `site_form_submission` (179's full list copied first). No date
+of birth is ever a field — the interest form asks an age GROUP. **Tom runs
+it after this merges and before D1 merges.** No code in this PR.
 ## September 11, 2026 — Program 2, C2: the Settings panel — SEO, footer and the site icon from the editor (zero DDL)
 
 **What.** A **Settings** pill in the editor header (both widths, home or
