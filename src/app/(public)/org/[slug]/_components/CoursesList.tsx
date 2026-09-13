@@ -53,24 +53,34 @@ export default function CoursesList({
   courses,
   detailed,
   basePath,
+  variant = 'list',
+  click = 'detail',
 }: {
   courses: PublicCourse[];
   /** Home shows a teaser list; /courses renders the full tee sheets. */
   detailed: boolean;
   basePath: string;
+  /** Program 3, D1: the home list (today) or cards; whether a course links to its page. */
+  variant?: 'list' | 'cards';
+  click?: 'detail' | 'none';
 }) {
   const groups = groupCourses(courses);
 
   if (!detailed) {
+    const cards = variant === 'cards';
     return (
       <>
-        <ul className="mt-2 divide-y divide-border-subtle">
+        <ul className={cards ? 'mt-2 grid gap-2 sm:grid-cols-2' : 'mt-2 divide-y divide-border-subtle'} data-variant={variant}>
           {groups.map(g =>
             g.items.map(({ venueName, course }) => (
-              <li key={course.id} className="py-2.5">
-                <Link href={`${basePath}/courses/${course.id}`} className="text-sm font-medium text-primary hover:text-brand-fg">
-                  {g.heading ? (course.sectionName ?? course.name) : courseDisplayName(course.clubName, course.name)}
-                </Link>
+              <li key={course.id} className={cards ? 'rounded-lg border border-border bg-canvas px-3 py-2.5' : 'py-2.5'}>
+                {click === 'detail' ? (
+                  <Link href={`${basePath}/courses/${course.id}`} className="text-sm font-medium text-primary hover:text-brand-fg">
+                    {g.heading ? (course.sectionName ?? course.name) : courseDisplayName(course.clubName, course.name)}
+                  </Link>
+                ) : (
+                  <span className="text-sm font-medium text-primary">{g.heading ? (course.sectionName ?? course.name) : courseDisplayName(course.clubName, course.name)}</span>
+                )}
                 <p className="text-xs text-tertiary">
                   {[
                     g.heading ?? venueName,

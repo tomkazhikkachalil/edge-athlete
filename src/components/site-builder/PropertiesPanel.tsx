@@ -9,7 +9,10 @@ import { fieldsFor, contentActionFor, type FieldSpec } from '@/lib/site-builder/
 import { contentConfigFor, INSTANCE_TITLE_MAX } from '@/lib/site-builder/config';
 import type { SiteWidgetKey } from '@/lib/site-builder/catalog';
 import type { CanvasOptions } from '@/lib/org-sites/query-options';
-import { instanceQuery } from '@/lib/site-builder/config';
+import { effectiveConfig, instanceQuery } from '@/lib/site-builder/config';
+import type { SiteHomeData } from '@/lib/org-sites/home-data';
+import { applyOrder, displayOrder, displayString, instanceDisplay, orderItems } from '@/lib/site-builder/display';
+import ReorderList from './ReorderList';
 import { EMBED_PROVIDER_LABEL, embedSrc, parseEmbed, parseEmbedUrl } from '@/lib/site-builder/embeds';
 import type { SiteLayout, WidgetInstance, WidgetVisibility } from '@/lib/site-builder/layout';
 import { widgetTitle } from '@/app/(public)/org/[slug]/_components/WidgetBody';
@@ -48,6 +51,9 @@ export interface PropertiesPanelProps {
   /** Sep 11 2026 (program 2, A1): 'aside' = the desktop column (own frame);
    *  'sheet' = hosted by a LargerWindow below lg (full width, no frame). */
   variant?: 'aside' | 'sheet';
+  /** Program 3, D1: the canvas's data — the reorder control lists a
+   *  section's items from it (teams, venues…); absent = nothing to order. */
+  data?: SiteHomeData | null;
   showError: (title: string, message?: string) => void;
   showSuccess: (title: string, message?: string) => void;
 }
@@ -59,13 +65,15 @@ const PILL = 'min-h-[36px] rounded-md border border-border-strong px-3 text-sm t
 type Config = Record<string, unknown>;
 const asConfig = (c: unknown): Config => (c && typeof c === 'object' ? (c as Config) : {});
 const str = (c: Config, k: string): string => (typeof c[k] === 'string' ? (c[k] as string) : '');
+const EMPTY_DATA: SiteHomeData = { standings: null, events: null, teams: [], staff: [], venues: [], affiliations: [], openWindows: [], courses: [], divisions: [], leaders: [] };
 
-export default function PropertiesPanel({ site, widget, plural, orgId, options, onInstanceChange, onResize, onContentSaved, showError, showSuccess, onDirtyChange, className, variant = 'aside' }: PropertiesPanelProps) {
+export default function PropertiesPanel({ site, widget, plural, orgId, options, data, onInstanceChange, onResize, onContentSaved, showError, showSuccess, onDirtyChange, className, variant = 'aside' }: PropertiesPanelProps) {
   const key = widget.key as SiteWidgetKey;
   const fields = fieldsFor(key);
   const instanceFields = fields.filter(f => f.scope === 'instance');
   const queryFields = fields.filter((f): f is Extract<FieldSpec, { scope: 'query' }> => f.scope === 'query');
-  const contentFields = fields.filter((f): f is Exclude<FieldSpec, { kind: 'visibility' | 'size' | 'blocks' | 'embed' | 'select' | 'number' }> => f.scope === 'content');
+  const displayFields = fields.filter((f): f is Extract<FieldSpec, { kind: 'display' }> => f.kind === 'display');
+  const contentFields = fields.filter((f): f is Exclude<FieldSpec, { kind: 'visibility' | 'size' | 'blocks' | 'embed' | 'select' | 'number' | 'display' }> => f.scope === 'content');
   const action = contentActionFor(key);
   const config = asConfig(widget.config);
 
@@ -87,6 +95,18 @@ export default function PropertiesPanel({ site, widget, plural, orgId, options, 
       else q[k] = v;
     }
     patchConfig({ query: Object.keys(q).length > 0 ? q : undefined }, coalesce);
+  };
+  // Program 3, D1: patch the instance's DISPLAY settings (one nested key
+  // beside `query`; dropped when empty). The renderers read the validated
+  // values through `instanceDisplay`; an unset key means the default.
+  const display = instanceDisplay(widget);
+  const patchDisplay = (patch: Record<string, string | number | boolean | string[] | undefined>, coalesce?: string) => {
+    const d: Record<string, unknown> = { ...asConfig(config.display) };
+    for (const [k, v] of Object.entries(patch)) {
+      if (v === undefined || v === '') delete d[k];
+      else d[k] = v;
+    }
+    patchConfig({ display: Object.keys(d).length > 0 ? d : undefined }, coalesce);
   };
 
   // Content draft: seeded from the org object; saved as a whole object.
@@ -223,7 +243,8 @@ export default function PropertiesPanel({ site, widget, plural, orgId, options, 
         return <EmbedField key={f.name} id={id} spec={f} config={config} onPatch={patchConfig} />;
       case 'select':
       case 'number':
-        return null; // query kinds render in their own fieldset (renderQueryField)
+      case 'display':
+        return null; // query and display kinds render in their own fieldsets
       default: {
         const value = str(config, f.name);
         return (
@@ -309,6 +330,75 @@ export default function PropertiesPanel({ site, widget, plural, orgId, options, 
     );
   };
 
+  // D1: the "How it looks" fields — a select per choice, a bounded number
+  // per count, a checkbox per toggle, and the reorder control while the
+  // sort is the manager's own.
+  const renderDisplayField = (f: Extract<FieldSpec, { kind: 'display' }>) => {
+    const id = `sb-${widget.id}-display-${f.name}`;
+    const spec = f.field;
+    switch (spec.kind) {
+      case 'choice':
+        return (
+          <div key={f.name}>
+            <label className={LABEL} htmlFor={id}>
+              {f.label}
+            </label>
+            <select id={id} value={displayString(display, f.name)} onChange={e => patchDisplay({ [f.name]: e.target.value })} className={INPUT} data-sb-display={f.name}>
+              {spec.options.map(o => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
+                </option>
+              ))}
+            </select>
+            {f.help && <p className="mt-1 text-xs text-tertiary">{f.help}</p>}
+          </div>
+        );
+      case 'count':
+        return (
+          <div key={f.name}>
+            <label className={LABEL} htmlFor={id}>
+              {f.label}
+            </label>
+            <input
+              id={id}
+              type="number"
+              min={spec.min}
+              max={spec.max}
+              value={typeof display[f.name] === 'number' ? (display[f.name] as number) : spec.default}
+              onChange={e => {
+                const n = parseInt(e.target.value, 10);
+                patchDisplay({ [f.name]: Number.isFinite(n) ? Math.min(spec.max, Math.max(spec.min, n)) : undefined }, id);
+              }}
+              className={INPUT}
+              data-sb-display={f.name}
+            />
+            {f.help && <p className="mt-1 text-xs text-tertiary">{f.help}</p>}
+          </div>
+        );
+      case 'toggle':
+        return (
+          <div key={f.name} className="flex items-start gap-2">
+            <input id={id} type="checkbox" checked={display[f.name] === true} onChange={e => patchDisplay({ [f.name]: e.target.checked })} className="mt-1" data-sb-display={f.name} />
+            <label htmlFor={id} className="text-sm text-primary">
+              {f.label}
+              {f.help && <span className="block text-xs text-tertiary">{f.help}</span>}
+            </label>
+          </div>
+        );
+      case 'order': {
+        if (displayString(display, 'sort') !== 'manual') return null;
+        const items = applyOrder(orderItems(key, data ?? EMPTY_DATA, effectiveConfig(site, widget)), displayOrder(display), it => it.id);
+        return (
+          <div key={f.name}>
+            <p className={LABEL}>{f.label}</p>
+            <ReorderList items={items} label={`${f.label} — ${title}`} idBase={id} onChange={ids => patchDisplay({ order: ids })} />
+            {f.help && <p className="mt-1 text-xs text-tertiary">{f.help}</p>}
+          </div>
+        );
+      }
+    }
+  };
+
   return (
     <aside ref={asideRef} tabIndex={-1} className={`${variant === 'sheet' ? 'w-full pb-4' : 'w-80 shrink-0 rounded-xl border border-border bg-surface p-4'} space-y-4 outline-none ${className ?? ''}`} aria-label="Section properties" data-sb-panel={key} data-sb-panel-variant={variant}>
       <div>
@@ -327,6 +417,13 @@ export default function PropertiesPanel({ site, widget, plural, orgId, options, 
         <fieldset className="space-y-3 border-t border-border pt-4" data-sb-query-fields="">
           <legend className="text-xs font-medium text-secondary">What it shows</legend>
           {queryFields.map(renderQueryField)}
+        </fieldset>
+      )}
+
+      {displayFields.length > 0 && (
+        <fieldset className="space-y-3 border-t border-border pt-4" data-sb-display-fields="">
+          <legend className="text-xs font-medium text-secondary">How it looks</legend>
+          {displayFields.map(renderDisplayField)}
         </fieldset>
       )}
 

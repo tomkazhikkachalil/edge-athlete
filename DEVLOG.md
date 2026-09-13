@@ -1,5 +1,66 @@
 # Development Log
 
+## September 13, 2026 — Program 3, D1: display settings inside every section — the vocabulary (zero DDL)
+
+Tom's second refinement, extended (his call) to EVERY widget: each section
+presents its items along the same four axes — `variant` (the layout),
+`sort` (+ `order`, the manager's own order), `count` (how many) and
+`click` (what a tap does) — and the panel is GENERATED, so a widget added
+later never needs a settings screen of its own.
+
+- **One declaration** — `src/lib/site-builder/display.ts` (client-safe,
+  zero zod): `DISPLAY_FIELDS[key]` per widget (choice / count / toggle /
+  order), the reader `instanceDisplay(w)` (INSTANCE only, never through
+  `effectiveConfig` — `query`'s rule; every declared key filled with a
+  validated value or its default), `applyOrder` (listed ids first, unknown
+  dropped, the rest appended — an empty order is the default order),
+  `sortAlpha`, `orderIdOf` (the ONE id rule the panel lists and the
+  renderers order by) and `orderItems`. First option = today's look, so
+  an instance with no `display` renders exactly as before (pinned on every
+  widget). A widget that already carries a query `limit` declares no
+  `count` — the limit is its count.
+- **Generated everywhere**: `schemas.ts` BUILDS `displaySchemaFor(key)` from
+  the declaration (a choice → `z.enum` of its options, a count → its
+  bounds, the order → ids) and every `instanceSchemaFor` gains
+  `display`, so the draft PUT refuses a value the panel could not offer;
+  `fields.ts` gains the `'display'` scope (`displayFieldsFor`, appended
+  after the query fields); `PropertiesPanel` renders the **"How it looks"**
+  fieldset (`data-sb-display-fields`: a `<select>` per choice, a clamped
+  number per count, a checkbox per toggle, the reorder control while the
+  sort is "My own order") through `patchDisplay` — one nested key beside
+  `query`, coalesced undo, autosaved with the layout. `ReorderList` is the
+  ONE reorder control (Move up / Move down at every width, 44px; pointer
+  drag on a desktop through native drag and drop — the parked iOS-drag
+  decision stands).
+- **The data-backed renderers**, through `WidgetBody` (sort / order /
+  count applied there, pure; variant and click as props of the props-only
+  components): standings (compact | full = every payload column, rows,
+  rank | name, a public player's handle links or not), schedule (list |
+  cards, soonest | latest, click), teams (as the theme | chips | tiles |
+  list, as entered | A–Z | by division | my order, click), staff (list |
+  grid, owners first | A–Z | my order, count), venues (list | cards, my
+  order, count, tap → directions), affiliations (list | badges), register
+  (windows + button | button only, closing | opening, count), courses
+  (list | cards, my order, click, "Show members' rounds" toggle for the
+  S3 strip and the club boards), divisions (list | grid, count — the home
+  used to hardcode eight), leaders (table | podium, stats shown, rows per
+  stat, click), members (table | cards, most rounds | lowest index | A–Z,
+  click), documents (list | grid, count — five was hardcoded, my order,
+  open | download). Sponsors, news, the gallery and the content widgets
+  get their axes in D1b / D2 / D4.
+- Tests: `display.test.ts` (the declaration's shape; the schema built from
+  it — every option accepted, a stranger refused, bounds; the panel
+  mirrors it after the query fields; the identity; the reader's fallbacks;
+  the order rule; `orderItems` ids = `orderIdOf`), `config-fields.test.ts`
+  pins the display scope to the generated schema, `content-widgets.test.ts`
+  moves from schema identity to shape (every instance schema now carries
+  `display`). e2e `org-site-display.spec.ts`: the draft PUT refuses a
+  stranger variant; teams → tiles, no links, my own order (Hawks moved up
+  until it leads in the reorder control) → the canvas tile shows it → publish →
+  the public tiles carry the order and no `<a>`; staff → grid, a count of
+  99 clamps to 20; `@mobile`: the fieldset sits in the phone sheet and a
+  standings edit lands in the draft.
+
 ## September 13, 2026 — Program 3, S2: "Show sample data" in the editor (zero DDL)
 
 Empty sections made a layout impossible to judge. The editor now shows

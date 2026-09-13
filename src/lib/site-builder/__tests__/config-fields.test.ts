@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { CONTENT_WIDGET_KEYS, SITE_WIDGET_KEYS } from '../catalog';
 import { contentConfigFor, effectiveConfig, instanceQuery, instanceTitle } from '../config';
 import { CONTACT_FIELDS, HERO_FIELDS, contentActionFor, fieldsFor } from '../fields';
-import { ContactConfigSchema, HeroConfigSchema, InstanceOptionsSchema, QuerySchema, instanceSchemaFor } from '../schemas';
+import { ContactConfigSchema, HeroConfigSchema, InstanceOptionsSchema, QuerySchema, displaySchemaFor, instanceSchemaFor } from '../schemas';
 import type { WidgetInstance } from '../layout';
 
 const w = (key: WidgetInstance['key'], config: unknown = {}): WidgetInstance => ({ id: key, key, x: 0, y: 0, w: 12, h: 2, cv: 1, config, visibility: 'public' });
@@ -47,6 +47,8 @@ describe('field descriptors are pinned to the schemas', () => {
         // 'size' (Sep 11 2026) is a preset over the instance's `w`, not a config key.
         if (f.scope === 'instance' && f.kind !== 'visibility' && f.kind !== 'size') expect(shape, `${key}.${f.name}`).toContain(f.name);
         if (f.scope === 'content') expect(contentActionFor(key), `${key}.${f.name} needs a content action`).not.toBeNull();
+        // Program 3, D1: a display field names a key of the widget's GENERATED display schema.
+        if (f.scope === 'display') expect(Object.keys(displaySchemaFor(key).shape), `${key}.display.${f.name}`).toContain(f.name);
       }
     }
     // Phase 9: query fields name keys of QuerySchema and only the query widgets

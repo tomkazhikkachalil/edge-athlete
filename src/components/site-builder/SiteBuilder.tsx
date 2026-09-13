@@ -744,6 +744,7 @@ function Editor({
                 plural={plural}
                 orgId={orgId}
                 options={options}
+                data={data}
                 onInstanceChange={changeInstance}
                 onResize={p => history.commit(resizeToPreset(history.present, selected.id, p))}
                 onContentSaved={refreshSite}
@@ -865,6 +866,7 @@ function Editor({
                   plural={plural}
                   orgId={orgId}
                   options={options}
+                  data={data}
                   onInstanceChange={changeInstance}
                   onResize={p => history.commit(resizeToPreset(history.present, selected.id, p))}
                   onContentSaved={refreshSite}
