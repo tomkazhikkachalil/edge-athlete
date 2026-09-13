@@ -1,5 +1,18 @@
 # Development Log
 
+## September 13, 2026 — Program 3, F: the docs close (zero DDL)
+
+Site Builder program 3 — Tom's three refinements, extended to every
+widget — is complete: **S** sample data in the editor (#697–#698), **D**
+display settings inside every section (#699–#703, migration 189 the only
+DDL — the news pin on the post), **H** fit, the canvas's auto-height and
+live content (#704–#706). This PR carries the record: CLAUDE.md
+convention 12 gains the "Display settings, fit and live content" bullet
+beside the sample-data one; `docs/SESSION_PROMPT.md` is re-aligned
+(migration head 189, the program's paragraph, the open list — Tom runs
+189 after #702, the phone pass — and the parked list: arrows on a fixed
+section, the canvas's cross-column push, iOS drag).
+
 ## September 13, 2026 — Program 3, H3: live content and the contact card's field order (zero DDL)
 
 The third refinement's last piece: each section renders its content live
