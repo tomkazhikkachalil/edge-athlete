@@ -13,6 +13,15 @@ import { awaitDraftSaved, settleBody } from './helpers/isr';
 /** One autosave cycle: the header goes dirty (the edit), then clean + saved
  *  (the PUT landed). Waiting on "saved" alone races the previous cycle. */
 
+/** Program 3 H3: the canvas previews content as it is typed, so a tile
+ *  showing the words no longer proves the save landed — wait for the
+ *  PATCH itself before reading the site back. */
+async function saveContent(page: import('@playwright/test').Page, panel: import('@playwright/test').Locator): Promise<void> {
+  const saved = page.waitForResponse(r => r.url().includes('/site') && !r.url().includes('/site/draft') && r.request().method() === 'PATCH', { timeout: 20_000 });
+  await panel.getByRole('button', { name: 'Save content' }).click();
+  expect((await saved).ok()).toBe(true);
+}
+
 test('org site editor: canvas → drag → autosave → undo → reload; phone notice; public untouched', async ({ browser }) => {
   test.setTimeout(240_000);
   const owner = loadQaUser('user-b.json');
@@ -109,14 +118,17 @@ test('org site editor: canvas → drag → autosave → undo → reload; phone n
       await page.locator('[data-sb-widget="hero"] .sb-frame-controls').click();
       await expect(page.locator('[data-sb-panel="hero"]')).toBeVisible();
 
-      // Drag the second tile down by two rows: one gesture, one undo step, one autosave.
+      // Drag the second tile below the third: one gesture, one undo step, one
+      // autosave. Program 3 H2 made the tiles content-sized, so the drop is
+      // aimed past the next tile's bottom rather than a fixed 200px.
       const second = tiles.nth(1);
       const handle = second.locator('.sb-frame-controls');
       const box = (await handle.boundingBox())!;
+      const third = (await tiles.nth(2).boundingBox())!;
       await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
       await page.mouse.down();
       await page.mouse.move(box.x + box.width / 2 + 5, box.y + box.height / 2 + 5);
-      await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2 + 200, { steps: 12 });
+      await page.mouse.move(box.x + box.width / 2, third.y + third.height + 40, { steps: 16 });
       await page.mouse.up();
       await expect(page.getByRole('button', { name: 'Undo' })).toBeEnabled({ timeout: 10_000 });
       await awaitDraftSaved(page);
@@ -153,6 +165,9 @@ test('org site editor: canvas → drag → autosave → undo → reload; phone n
       const resizable = page.locator('[data-sb-widget]:not([data-sb-widget="hero"])').first();
       await resizable.hover();
       const grip = resizable.locator('.react-resizable-handle-se');
+      // H2 made the tiles content-sized: the grip may sit below the fold —
+      // hover IT (which scrolls it into view), then read its box.
+      await grip.hover();
       const gripBox = (await grip.boundingBox())!;
       const hBefore = (await (await ownerApi.get(`/api/leagues/${leagueId}/site/canvas`)).json()) as { layout: { widgets: { id: string; h: number }[] } };
       const resizedId = await resizable.getAttribute('data-sb-instance');
@@ -301,7 +316,7 @@ test('org site editor: canvas → drag → autosave → undo → reload; phone n
       await discard.getByRole('button', { name: 'Cancel' }).click();
       await expect(discard).toBeHidden();
       await expect(heroPanel.getByLabel('Headline')).toHaveValue(`Hello ${stamp}`);
-      await heroPanel.getByRole('button', { name: 'Save content' }).click();
+      await saveContent(page, heroPanel);
       await expect(page.locator('[data-sb-widget="hero"]')).toContainText(`Hello ${stamp}`, { timeout: 20_000 });
       // The console's GET sees the same draft content (one write, two surfaces).
       const draftView = (await (await ownerApi.get(`/api/leagues/${leagueId}/site`)).json()) as { site: { hero_config: { headline?: string } } };
@@ -311,7 +326,7 @@ test('org site editor: canvas → drag → autosave → undo → reload; phone n
       await heroPanel.locator('input[type="file"]').setInputFiles('e2e/fixtures/photo.png');
       await expect(heroPanel.locator('[data-sb-image-preview]')).toBeVisible({ timeout: 20_000 });
       await heroPanel.getByLabel('Describe the photo', { exact: true }).fill(`Clubhouse ${stamp}`);
-      await heroPanel.getByRole('button', { name: 'Save content' }).click();
+      await saveContent(page, heroPanel);
       await expect(page.locator('[data-sb-widget="hero"] img')).toBeVisible({ timeout: 20_000 });
       const heroSaved = (await (await ownerApi.get(`/api/leagues/${leagueId}/site`)).json()) as { site: { hero_config: { headline?: string; imagePath?: string; imageAlt?: string } } };
       expect(heroSaved.site.hero_config.headline).toBe(`Hello ${stamp}`);
@@ -323,7 +338,7 @@ test('org site editor: canvas → drag → autosave → undo → reload; phone n
       await contactPanel.getByLabel('Email', { exact: true }).fill(`hello-${stamp}@example.com`);
       await contactPanel.getByLabel('Address', { exact: true }).fill(`1 Rink Road\nToronto ON`);
       await contactPanel.getByLabel('Instagram', { exact: true }).fill('https://instagram.com/qa-league');
-      await contactPanel.getByRole('button', { name: 'Save content' }).click();
+      await saveContent(page, contactPanel);
       await expect(page.locator('[data-sb-widget="contact"]')).toContainText('1 Rink Road', { timeout: 20_000 });
       const contactSaved = (await (await ownerApi.get(`/api/leagues/${leagueId}/site`)).json()) as { site: { contact_config: { email?: string; address?: string[]; social?: { instagram?: string } } } };
       expect(contactSaved.site.contact_config.email).toBe(`hello-${stamp}@example.com`);

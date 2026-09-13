@@ -1,5 +1,24 @@
 # Development Log
 
+## September 13, 2026 — Program 3 prod probe: the editor spec catches up with content-sized tiles and live content
+
+- The final production probe of program 3 (deploy of #707): sample data,
+  display, content widgets, sponsors, news, fit (both), live content,
+  start, the mobile trio (sections, sample, display on Chromium and
+  WebKit) — all green. The editor spec failed three times on ITS OWN
+  assumptions, each an intended change of this program: its drag moved a
+  tile "200px" (a fixed four rows once; tiles are content-sized now — it
+  aims past the next tile's bottom); its resize read the corner grip's box
+  before scrolling it into view (the grip sits below the fold on a tall
+  tile — it hovers the grip first, the fit spec's lesson); and "the hero
+  tile shows the headline" no longer proves a save landed, because the
+  canvas previews content as it is typed (H3) — the three "Save content"
+  clicks now wait for their PATCH (`saveContent` helper) before reading
+  the site back. No code changes.
+- Migration 189 is Tom's to run (the live database still answers 42703 on
+  `pinned_at`; the news pin refuses itself by name until then — the pin
+  half of the news probe skips, green).
+
 ## September 13, 2026 — Program 3, F: the docs close (zero DDL)
 
 Site Builder program 3 — Tom's three refinements, extended to every
