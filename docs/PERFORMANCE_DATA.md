@@ -111,14 +111,36 @@ per-event fact), and any number the sport's schema does not define.
 
 Account deletion is covered by the profile cascade.
 
-## Backfill (F5) and the first reader (F6)
+## Backfill (F5)
 
-`POST /api/admin/performance-backfill` (admin, dry-run by default, keyset
-pages, idempotent by `natural_key`) runs per source in this order:
-`golf_rounds` → `posts` → `contest_stat_lines` → `contest_results` last so
-the overlays win. The scout search gains `since`, `minProvenance` and
-`minHeadline` over this table; `HEADLINE_DIRECTION` (golf and track are
-lower-is-better) decides the order.
+`POST /api/admin/performance-backfill` projects the rows that predate the
+F4 hooks. Admin-only (`requireAdmin`, the storage sweep's shape),
+**dry-run by default** — writing needs an explicit `{ "dryRun": false }`.
+
+Body `{ source, cursor?, dryRun? }`; one source per call:
+`golf_rounds` · `posts` · `contest_stat_lines` · `contest_results`.
+Keyset-paged on `(created_at, id)` (never OFFSET), 500 rows a page, at
+most 10 pages a request; the answer is
+`{ dryRun, source, scanned, mapped, skipped: {reason: n}, upserted,
+truncated, nextCursor }` — continue with `nextCursor` while `truncated`.
+Idempotent by `natural_key`, so a re-run costs nothing. A dry run never
+touches the target table (it works pre-194); a live run pre-194 answers
+409.
+
+**Run order** (the overlays must win): `golf_rounds` → `posts` →
+`contest_stat_lines` → `contest_results` LAST. Dry each source first and
+read the `skipped` reasons (`no_gross`, `pending_approval`,
+`not_a_stat_line`, `failed_schema` — a legacy line the schema refuses is
+counted, never repaired — `no_sport`, `no_round_ref`, `round_missing`),
+then run it live. The pure half (`backfill.ts`: the opaque cursor, the
+keyset filter, the page maths) is unit-tested; `backfill-server.ts` is the
+I/O.
+
+## The first reader (F6)
+
+The scout search gains `since`, `minProvenance` and `minHeadline` over
+this table; `HEADLINE_DIRECTION` (golf and track are lower-is-better)
+decides the order.
 
 ## Files
 
@@ -126,4 +148,6 @@ lower-is-better) decides the order.
 - `src/lib/performance/types.ts` — the row shape, `naturalKey`, `HEADLINE_DIRECTION`
 - `src/lib/performance/map.ts` — the pure mappers + `groupUniformRows`
 - `src/lib/performance/write-server.ts` — the one writer
-- `src/lib/performance/__tests__/map.test.ts` — the pinned invariants
+- `src/lib/performance/backfill.ts` / `backfill-server.ts` — the backfill's pure half and its I/O
+- `src/app/api/admin/performance-backfill/route.ts` — the admin door
+- `src/lib/performance/__tests__/map.test.ts`, `backfill.test.ts` — the pinned invariants
