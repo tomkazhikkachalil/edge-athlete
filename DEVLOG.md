@@ -1,5 +1,61 @@
 # Development Log
 
+## September 13, 2026 — Program 3, S1: sample data — the pure generator (zero DDL)
+
+Site Builder program 3 (Tom's three refinements, extended to EVERY widget):
+**S** sample data in the editor, **D** display settings inside each
+section, **H** live preview, in-section reordering and automatic heights.
+This PR is S1 — the generator and its pins, no UI yet (S2 mounts it).
+
+- **`src/lib/site-builder/sample.ts`** — pure and client-safe (no zod, no
+  validate.ts, no emptiness.ts; the emptiness predicate is INJECTED, so the
+  editor passes the real `isWidgetEmpty` and the tests a stub).
+  `sampleHomeData(sportKey, side, now)` fills the whole `SiteHomeData` bag
+  for a sport family: a golf league gets the "Meadowvale Points Race" (8
+  rows on the `golf_points` columns, an OPEN week so the preview says "This
+  week", one round, a net board), a golf club its course (18 holes, par
+  72), the course strip and a member table; team sports get an 8-row
+  fixture table whose points FOLLOW the sport's rule (hockey 2-1-0, the
+  rest 3-1-0 — pinned), Saturday fixtures at "Meadowvale Arena" (rink /
+  court / diamond / field by sport), U11 / U13 divisions, Goals / Assists
+  or Points / Rebounds boards. Both: 3 staff, 2 affiliations, an open
+  registration window, 3 posts with covers. `sampleContentFor(key)` covers
+  the config-backed widgets: six sponsors with a tier each and initials
+  logos (no links), two documents, a full contact block, a hero headline
+  + tagline + photo, one paragraph, one photo. People appear in the MASKED
+  shape the public site uses ("Jamie R.") with no handle, so nothing links;
+  every organisation and sponsor is fictional (a brand denylist is a test);
+  dates are relative to `now`.
+- **The overlay, `applySample(site, data, layout, enabled, isEmpty)`** →
+  `{site, sampled, sampleData}`: never mutates (deep-frozen inputs in the
+  test); disabled, or nothing empty, hands back the SAME site reference; a
+  widget with real content is untouched (its module row stays the same
+  object). A sampled instance renders over the WHOLE sample bag through a
+  query-stripped clone (`sampleInstance`) — per instance, never a merged
+  bag, so a standings tile bound to a real competition with rows keeps the
+  real data while its empty sibling shows the sample table (a test pins
+  both). The hero is sampled only on a blank `hero_config` (a headline or a
+  photo is real content); the embed is marked but carries no content — the
+  canvas draws its own placeholder frame in S2, never a third-party iframe
+  from sample data; the gallery waits for its strip variant (D1).
+- **Sample media** are inline base64 SVG data URIs (`logoSvg`,
+  `coverSvg`). `orgMediaUrl` passes `SAMPLE_MEDIA_URI_RE` through for
+  RENDER; `parseSponsors` and `parseHeroConfig` admit it at their render
+  re-check. Why this cannot leak: every WRITE path is a zod regex on the
+  stored path (`ORG_MEDIA_PATH_RE`, `ORG_IMAGE_PATH_RE`, the page-body
+  image block, the canvas PUT's cross-site loop) — a data URI cannot enter
+  the database through any API, and the sample site clone lives only in
+  React state. The regex admits base64 SVG only (script-inert inside an
+  `<img src>`); a PNG or a utf8 SVG data URI stays null.
+- `SAMPLE_SENTINEL` ("Meadowvale") is in every family's strings — S2's e2e
+  asserts it ABSENT from the draft PUT body and the published page.
+- Tests: `__tests__/sample.test.ts` (16): every widget key on a blank
+  site is sampled except the two forms and the gallery, and the sampled
+  clone is not empty while the real instance is; the volumes; sport rules;
+  relative dates; no handles; the parsers accept every content sample; the
+  media rule (pass-through, stored regex rejects, PNG / utf8 refused); the
+  sentinel and the brand rule.
+
 ## September 11, 2026 — Maintenance sweep, end of Site Builder program 2
 
 - Gate green on `main` at the #695 merge (d02c1d6d): typecheck, lint at
