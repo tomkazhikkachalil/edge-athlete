@@ -5,6 +5,7 @@ import { effectiveSpec } from '@/lib/org-sites/theme';
 import { deriveMobileOrder, type SiteLayout } from '@/lib/site-builder/layout';
 import { effectiveAudience } from '@/lib/site-builder/audience';
 import { publicWidgets } from '@/lib/site-builder/public-view';
+import { fitOf } from '@/lib/site-builder/fit';
 import HeroSection from './HeroSection';
 import WidgetBody, { widgetHeading, widgetTitle } from './WidgetBody';
 
@@ -17,7 +18,9 @@ import WidgetBody, { widgetHeading, widgetTitle } from './WidgetBody';
 //     compacts around the holes they leave (compactLayout), so a visitor
 //     never sees "No teams yet." or a gap where it would have been.
 //   • `h` is a MINIMUM height: tracks are `minmax(row, auto)`, so a tall
-//     table grows its rows rather than clipping.
+//     table grows its rows rather than clipping — unless the manager made
+//     the section FIXED (program 3, H1: `data-sb-fit`), when it keeps its
+//     rows ≥ 48rem and scrolls inside.
 //   • Mobile is DERIVED: the DOM is reading order (top to bottom, then left
 //     to right — deriveMobileOrder), the phone is ONE column, and ≥ 48rem
 //     the explicit placement takes over
@@ -62,10 +65,15 @@ export default function GridRenderer({ site, layout, data, heading }: { site: Pu
           // Phase 6: a content widget heads itself only when its instance
           // sets a title; the aria-label always names the section.
           const heading = widgetHeading(site, w);
+          // Program 3, H1: a FIXED section keeps its rows and scrolls inside
+          // (globals.css `[data-sb-fit='fixed']`, ≥ 48rem — CSS only); an auto
+          // section is exactly the old render (the wrapper is inert).
           return (
-            <section key={w.id} aria-label={title} className={`sb-w ${sectionClass}`} style={style} data-widget={w.key} data-widget-id={w.id}>
+            <section key={w.id} aria-label={title} className={`sb-w ${sectionClass}`} style={style} data-widget={w.key} data-widget-id={w.id} data-sb-fit={fitOf(w)}>
               {heading && <h2 className={headingClass}>{heading}</h2>}
-              <WidgetBody site={site} w={w} data={data} spec={spec} membersOnly={effectiveAudience(site, w) === 'members'} />
+              <div className="sb-body">
+                <WidgetBody site={site} w={w} data={data} spec={spec} membersOnly={effectiveAudience(site, w) === 'members'} />
+              </div>
             </section>
           );
         })}

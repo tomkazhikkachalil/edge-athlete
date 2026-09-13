@@ -805,6 +805,32 @@ body {
     grid-column: var(--sb-c) / span var(--sb-w);
     grid-row: var(--sb-r) / span var(--sb-h);
   }
+  /* Program 3, H1: a FIXED section keeps exactly its rows (h × 2.5rem +
+     (h − 1) × 1.5rem — the span, so the tracks never grow for it) and its
+     body scrolls inside: a flex column, so the heading and the padding are
+     subtracted without px maths; snap on the rows, a fade at the foot as
+     the scroll hint. Desktop only — the phone is one column and ignores
+     `h`, and a nested scroll on a phone is a known annoyance. No arrows:
+     CSS-only paging would cost a history entry per click; the scrollbar
+     stays visible instead. */
+  .org-scope .sb-w[data-sb-fit='fixed'] {
+    height: calc(var(--sb-h) * 2.5rem + (var(--sb-h) - 1) * 1.5rem);
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+  }
+  .org-scope .sb-w[data-sb-fit='fixed'] > .sb-body {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scroll-snap-type: y proximity;
+    scrollbar-gutter: stable;
+    mask-image: linear-gradient(#000 calc(100% - 1.5rem), transparent);
+  }
+  .org-scope .sb-w[data-sb-fit='fixed'] > .sb-body li {
+    scroll-snap-align: start;
+  }
 }
 
 /* Program 2, D: an org-site form without JavaScript — the POST answers a 303

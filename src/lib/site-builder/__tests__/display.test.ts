@@ -39,8 +39,14 @@ describe('the declaration', () => {
       }
     }
     // A widget the vocabulary reaches in D1: the pattern, not a one-off.
-    expect(DISPLAY_FIELDS.standings.map(f => f.name)).toEqual(['variant', 'count', 'sort', 'click']);
-    expect(DISPLAY_FIELDS.teams.map(f => f.name)).toEqual(['variant', 'sort', 'order', 'click']);
+    expect(DISPLAY_FIELDS.standings.map(f => f.name)).toEqual(['variant', 'count', 'sort', 'click', 'height']);
+    expect(DISPLAY_FIELDS.teams.map(f => f.name)).toEqual(['variant', 'sort', 'order', 'click', 'height']);
+    // H1: the height axis on every widget but the hero, last.
+    for (const key of SITE_WIDGET_KEYS) {
+      const names = DISPLAY_FIELDS[key].map(f => f.name);
+      if (key === 'hero') expect(names).not.toContain('height');
+      else expect(names[names.length - 1], key).toBe('height');
+    }
     // Widgets with a query limit declare no `count` — the limit IS the count.
     for (const key of ['schedule', 'news', 'teams', 'members'] as const) expect(DISPLAY_FIELDS[key].some(f => f.name === 'count'), key).toBe(false);
   });
@@ -105,7 +111,7 @@ describe('instanceDisplay — the reader', () => {
 
   it('validates each key and falls back: an unknown choice, a clamped count, a non-boolean toggle, a malformed order; junk display; never through content', () => {
     const w = place('standings', 0, 0, undefined, { config: { display: { variant: 'sideways', count: 99, click: 'none', extra: 1 } } });
-    expect(instanceDisplay(w)).toEqual({ variant: 'compact', count: 20, sort: 'rank', click: 'none' });
+    expect(instanceDisplay(w)).toEqual({ variant: 'compact', count: 20, sort: 'rank', click: 'none', height: 'auto' });
     expect(instanceDisplay(place('standings', 0, 0, undefined, { config: { display: { count: 1 } } })).count).toBe(3);
     expect(instanceDisplay(place('standings', 0, 0, undefined, { config: { display: 'junk' } }))).toEqual(displayDefaults('standings'));
     const t = place('teams', 0, 0, undefined, { config: { display: { sort: 'manual', order: ['a', 3, '', 'b'] } } });
@@ -115,7 +121,7 @@ describe('instanceDisplay — the reader', () => {
     expect(instanceDisplay(place('courses', 0, 0, undefined, { config: { display: { showRounds: false } } })).showRounds).toBe(false);
     // D4: every site widget declares at least one axis now.
     for (const key of SITE_WIDGET_KEYS) expect(DISPLAY_FIELDS[key].length, key).toBeGreaterThan(0);
-    expect(instanceDisplay(place('news', 0, 0, undefined, { config: { display: { variant: 'x', click: 'inline' } } }))).toEqual({ variant: 'list', sort: 'newest', order: [], click: 'inline' });
+    expect(instanceDisplay(place('news', 0, 0, undefined, { config: { display: { variant: 'x', click: 'inline' } } }))).toEqual({ variant: 'list', sort: 'newest', order: [], click: 'inline', height: 'auto' });
     // A text field trims and caps; a non-string falls back to ''.
     expect(instanceDisplay(place('contact_form', 0, 0, undefined, { config: { display: { button: '  Join us  ' } } })).button).toBe('Join us');
     expect(instanceDisplay(place('contact_form', 0, 0, undefined, { config: { display: { button: 'x'.repeat(40) } } })).button).toHaveLength(24);

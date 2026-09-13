@@ -65,6 +65,14 @@ const toggle = (name: string, label: string, dflt = false, help?: string): Displ
 const ORDER: DisplayOrder = { kind: 'order', name: 'order', label: 'Your order', help: 'Drag, or use the arrows. New items join at the end.' };
 const text = (name: string, label: string, max: number, placeholder?: string, help?: string): DisplayText => ({ kind: 'text', name, label, help, max, placeholder });
 
+/** Program 3, H1 — the section's height: fits its content (today), or the
+ *  rows the manager set, scrolling inside. On every widget but the hero
+ *  (the site's identity — a fixed hero would clip its photo). */
+export const HEIGHT_FIELD: DisplayChoice = choice('height', 'Height', [
+  ['auto', 'Fits the content'],
+  ['fixed', 'Fixed — scrolls inside'],
+], 'Drag the section shorter than its content on the canvas and it turns fixed.');
+
 /** `click` — the item's existing page or link, or nothing. */
 const CLICK_DETAIL = choice('click', 'Tap on an item', [
   ['detail', 'Opens its page'],
@@ -73,7 +81,7 @@ const CLICK_DETAIL = choice('click', 'Tap on an item', [
 
 /** The declaration — first option = today's look. Every site widget
  *  declares at least one axis (program 3, D1–D4). */
-export const DISPLAY_FIELDS: Readonly<Record<SiteWidgetKey, readonly DisplayField[]>> = {
+const DECLARED: Readonly<Record<SiteWidgetKey, readonly DisplayField[]>> = {
   hero: [
     choice('variant', 'Welcome shape', [
       ['theme', 'As the theme'],
@@ -349,6 +357,11 @@ export const DISPLAY_FIELDS: Readonly<Record<SiteWidgetKey, readonly DisplayFiel
     text('button', 'Button label', 24, 'Register interest'),
   ],
 };
+
+/** The declaration with the shared height axis appended (H1) — the hero excluded. */
+export const DISPLAY_FIELDS: Readonly<Record<SiteWidgetKey, readonly DisplayField[]>> = Object.fromEntries(
+  (Object.keys(DECLARED) as SiteWidgetKey[]).map(key => [key, key === 'hero' ? DECLARED[key] : [...DECLARED[key], HEIGHT_FIELD]])
+) as Record<SiteWidgetKey, readonly DisplayField[]>;
 
 export type DisplayValue = string | number | boolean | string[];
 export type DisplayValues = Record<string, DisplayValue>;
