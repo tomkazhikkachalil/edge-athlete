@@ -7,6 +7,7 @@ import type {
   PublicClubGolfBoard,
   PublicCourse,
   PublicDivision,
+  PublicGalleryItem,
   PublicGolfRound,
   PublicLeaderBoard,
   PublicNewsItem,
@@ -48,4 +49,7 @@ export interface SiteHomeData {
   news?: PublicNewsItem[];
   /** R5: the members table — null when the module is off. */
   memberStats?: MemberStats | null;
+  /** Program 3, D1b — the picked photos for the gallery's strip / grid on
+   *  the home (the consent-gated public reader; absent = the teaser). */
+  gallery?: PublicGalleryItem[];
 }

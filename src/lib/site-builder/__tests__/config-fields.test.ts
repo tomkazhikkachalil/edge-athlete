@@ -74,7 +74,8 @@ describe('field descriptors are pinned to the schemas', () => {
       const kinds = fieldsFor(key).map(f => f.kind);
       // Program 2, D: a form widget's own field is its intro (a textarea).
       expect(kinds, key).toContain(key === 'text' ? 'blocks' : key === 'contact_form' || key === 'interest_form' ? 'textarea' : key);
-      expect(fieldsFor(key).every(f => f.scope === 'instance'), `${key} is all instance`).toBe(true);
+      // D1b: a content widget's fields are all instance-side (its options, its content, its display).
+      expect(fieldsFor(key).every(f => f.scope === 'instance' || f.scope === 'display'), `${key} is all instance`).toBe(true);
       expect(contentActionFor(key)).toBeNull();
     }
     expect(InstanceOptionsSchema.safeParse({ title: 'x'.repeat(61) }).success).toBe(false);
@@ -94,8 +95,9 @@ describe('field descriptors are pinned to the schemas', () => {
     expect(instanceQuery({ id: 'a', key: 'standings', x: 0, y: 0, w: 6, h: 4, cv: 1, config: { query: { competitionId: uuid, limit: 3, venueId: '' } }, visibility: 'public' })).toEqual({ competitionId: uuid, limit: 3 });
     expect(instanceQuery({ id: 'a', key: 'standings', x: 0, y: 0, w: 6, h: 4, cv: 1, config: { query: 'junk' }, visibility: 'public' })).toEqual({});
   });
-  it('hero has content fields only; every other widget has the title, size and visibility options', () => {
-    expect(fieldsFor('hero').every(f => f.scope === 'content')).toBe(true);
+  it('hero has content fields (plus its display fields, D1b); every other widget has the title, size and visibility options', () => {
+    expect(fieldsFor('hero').every(f => f.scope === 'content' || f.scope === 'display')).toBe(true);
+    expect(fieldsFor('hero').some(f => f.scope === 'content')).toBe(true);
     for (const key of SITE_WIDGET_KEYS.filter(k => k !== 'hero')) {
       const names = fieldsFor(key).map(f => f.name);
       // Sep 11 2026: size sits between title and visibility (a preset over `w`, never a config key).

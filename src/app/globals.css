@@ -778,6 +778,23 @@ body {
   grid-column: span 2;
   min-width: 0;
 }
+/* Program 3, D1b: a horizontal snap strip (gallery strip; later the
+   sponsors' carousel and the news grid) — CSS only, the (public) contract. */
+.org-scope .sb-strip {
+  display: flex;
+  gap: 0.75rem;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  scroll-padding-inline: 0.25rem;
+  overscroll-behavior-x: contain;
+  scrollbar-width: thin;
+  padding-bottom: 0.25rem;
+}
+.org-scope .sb-strip-item {
+  flex: 0 0 var(--sb-item, 14rem);
+  min-width: 0;
+  scroll-snap-align: start;
+}
 @media (min-width: 48rem) {
   .org-scope .sb-grid {
     grid-template-columns: repeat(12, minmax(0, 1fr));

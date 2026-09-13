@@ -10,11 +10,17 @@ import {
 // place an email address ships on the public site by design). Values
 // arrive re-validated via parseContact. Socials are TEXT links — the
 // (public) segment has no icon font.
-export default function ContactCard({ contact }: { contact: PublicContact }) {
+// Program 3, D1b: `variant` — stacked (today), one line of links
+// (`inline`: the links as a row, address and hours beneath), or two
+// columns (`split`: address + hours left, links right); `showSocials`.
+export default function ContactCard({ contact, variant = 'card', showSocials = true }: { contact: PublicContact; variant?: 'card' | 'inline' | 'split'; showSocials?: boolean }) {
   const directions = directionsHref(contact);
-  const socials = SOCIAL_NETWORKS.filter(n => contact.social?.[n]);
+  const socials = showSocials ? SOCIAL_NETWORKS.filter(n => contact.social?.[n]) : [];
+  const inline = variant === 'inline';
+  const split = variant === 'split';
   return (
-    <div className="mt-2 space-y-3">
+    <div className={`mt-2 ${split ? 'grid gap-4 sm:grid-cols-2' : inline ? 'flex flex-col-reverse gap-3' : 'space-y-3'}`} data-variant={variant}>
+      <div className={split ? 'space-y-3' : inline ? 'space-y-2 text-xs' : 'contents'}>
       {contact.address && contact.address.length > 0 && (
         <address className="not-italic text-sm text-secondary">
           {contact.address.map((line, i) => (
@@ -31,7 +37,9 @@ export default function ContactCard({ contact }: { contact: PublicContact }) {
           {contact.hours}
         </p>
       )}
-      <ul className="space-y-1.5">
+      </div>
+      <div className={split ? 'space-y-3' : 'contents'}>
+      <ul className={inline ? 'flex flex-wrap gap-x-4 gap-y-1' : 'space-y-1.5'}>
         {directions && (
           <li className="text-sm text-secondary">
             <a
@@ -92,6 +100,7 @@ export default function ContactCard({ contact }: { contact: PublicContact }) {
           ))}
         </ul>
       )}
+      </div>
     </div>
   );
 }

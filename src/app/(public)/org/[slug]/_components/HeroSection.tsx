@@ -6,16 +6,24 @@ import type { TemplateSpec } from '@/lib/org-sites/templates';
 import type { WidgetInstance } from '@/lib/site-builder/layout';
 import { appBaseUrl } from '@/lib/org-sites/urls';
 import { effectiveConfig } from '@/lib/site-builder/config';
+import { displayString, instanceDisplay } from '@/lib/site-builder/display';
 
 // The hero widget — Site Builder P3-B (Sep 9 2026). Extracted verbatim from
 // SiteHomeBody so the published home, the preview and the editor canvas
 // render it from one component. Props-only, server-safe (guardrail §4b).
+// Program 3, D1b: the instance may override the theme's welcome shape
+// (`variant` card | bleed; 'theme', the default, is exactly the old render)
+// and centre its text (`align`).
 
 export default function HeroSection({ site, w, spec, compact = false }: { site: PublicSite; w: WidgetInstance; spec: TemplateSpec; compact?: boolean }) {
   // Phase 5: content from the org object (hero_config) over the instance.
   const hero = parseHeroConfig(effectiveConfig(site, w));
   const heroImage = orgMediaUrl(site.id, hero.imagePath);
   const brandName = parseThemeTokens(site.theme_token_set).wordmark ?? site.orgName;
+  const d = instanceDisplay(w);
+  const variant = displayString(d, 'variant', 'theme');
+  const shape: 'card' | 'bleed' = variant === 'card' || variant === 'bleed' ? variant : spec.hero;
+  const centred = displayString(d, 'align', 'left') === 'center';
   return (
   // The bleed's overhang ends at 928px — the SiteShell column's max-w-4xl
   // + px-4 — not at Tailwind's lg (1024px); between the two the -mx-4 used
@@ -24,10 +32,11 @@ export default function HeroSection({ site, w, spec, compact = false }: { site: 
   // site's theme_token_set overrides via the layout's inline style).
   <section
     aria-label="Welcome"
-    className={`relative overflow-hidden ${
+    data-hero-shape={shape}
+    className={`relative overflow-hidden ${centred ? 'text-center' : ''} ${
       compact
         ? 'rounded-xl px-5 py-4 text-white'
-        : spec.hero === 'bleed'
+        : shape === 'bleed'
           ? '-mx-4 min-[928px]:mx-0 px-6 py-14 sm:py-20 text-white'
           : 'rounded-xl px-6 py-10 text-white'
     }${heroImage && !compact ? ' min-h-[240px] sm:min-h-[320px] flex flex-col justify-end' : ''}`}
@@ -65,25 +74,25 @@ export default function HeroSection({ site, w, spec, compact = false }: { site: 
       <h1
         className={
           compact
-            ? spec.hero === 'bleed'
+            ? shape === 'bleed'
               ? 'text-xl font-extrabold uppercase tracking-tight'
               : 'text-xl font-bold'
-            : spec.hero === 'bleed'
+            : shape === 'bleed'
               ? 'text-3xl sm:text-5xl font-extrabold uppercase tracking-tight'
               : 'text-2xl sm:text-3xl font-bold'
         }
       >
         {hero.headline || brandName}
       </h1>
-      <p className={spec.hero === 'bleed' ? 'mt-2 text-base opacity-90' : 'mt-1 text-sm opacity-90'}>
+      <p className={shape === 'bleed' ? 'mt-2 text-base opacity-90' : 'mt-1 text-sm opacity-90'}>
         {hero.tagline || (site.sportKey === 'golf' ? GOLF_TAGLINE : 'Schedules, standings, and teams — live.')}
       </p>
       {/* R5: the org's own description, written once at creation, finally
           reaches its public page. */}
       {site.orgDescription && (
-        <p className="mt-3 max-w-2xl text-sm opacity-90 whitespace-pre-wrap">{site.orgDescription}</p>
+        <p className={`mt-3 max-w-2xl text-sm opacity-90 whitespace-pre-wrap ${centred ? 'mx-auto' : ''}`}>{site.orgDescription}</p>
       )}
-      <div className="mt-4 flex flex-wrap gap-2">
+      <div className={`mt-4 flex flex-wrap gap-2 ${centred ? 'justify-center' : ''}`}>
         {hero.ctaLabel && hero.ctaUrl && (
           <a
             href={hero.ctaUrl}

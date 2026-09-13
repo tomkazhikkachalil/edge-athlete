@@ -36,7 +36,9 @@ export type DisplayToggle = { kind: 'toggle'; name: string; label: string; help?
 /** The manager's own order — a list of item ids, edited with the reorder
  *  control; shown only while `sort` is 'manual'. */
 export type DisplayOrder = { kind: 'order'; name: 'order'; label: string; help?: string };
-export type DisplayField = DisplayChoice | DisplayCount | DisplayToggle | DisplayOrder;
+/** A short free text a presentation needs (a form's button label). */
+export type DisplayText = { kind: 'text'; name: string; label: string; help?: string; max: number; placeholder?: string };
+export type DisplayField = DisplayChoice | DisplayCount | DisplayToggle | DisplayOrder | DisplayText;
 
 export const DISPLAY_ORDER_MAX = 60;
 export const DISPLAY_ORDER_ID_MAX = 120;
@@ -51,6 +53,7 @@ const choice = (name: string, label: string, options: readonly (readonly [string
 const count = (name: string, label: string, min: number, max: number, dflt: number, help?: string): DisplayCount => ({ kind: 'count', name, label, help, min, max, default: dflt });
 const toggle = (name: string, label: string, dflt = false, help?: string): DisplayToggle => ({ kind: 'toggle', name, label, help, default: dflt });
 const ORDER: DisplayOrder = { kind: 'order', name: 'order', label: 'Your order', help: 'Drag, or use the arrows. New items join at the end.' };
+const text = (name: string, label: string, max: number, placeholder?: string, help?: string): DisplayText => ({ kind: 'text', name, label, help, max, placeholder });
 
 /** `click` — the item's existing page or link, or nothing. */
 const CLICK_DETAIL = choice('click', 'Tap on an item', [
@@ -58,12 +61,21 @@ const CLICK_DETAIL = choice('click', 'Tap on an item', [
   ['none', 'Nothing'],
 ]);
 
-/** The declaration — first option = today's look. Keys not listed here
- *  (hero, contact, text, image, embed, the forms, sponsors, news, gallery)
- *  gain their axes in later rounds of program 3; until then they declare
- *  nothing and the panel shows no "How it looks" fieldset. */
+/** The declaration — first option = today's look. Sponsors (D2) and news
+ *  (D4) gain their axes in later rounds; until then they declare nothing
+ *  and the panel shows no "How it looks" fieldset. */
 export const DISPLAY_FIELDS: Readonly<Record<SiteWidgetKey, readonly DisplayField[]>> = {
-  hero: [],
+  hero: [
+    choice('variant', 'Welcome shape', [
+      ['theme', 'As the theme'],
+      ['card', 'Card'],
+      ['bleed', 'Full width'],
+    ]),
+    choice('align', 'Text', [
+      ['left', 'Left'],
+      ['center', 'Centred'],
+    ]),
+  ],
   standings: [
     choice('variant', 'Layout', [
       ['compact', 'Rank, name and points'],
@@ -147,9 +159,23 @@ export const DISPLAY_FIELDS: Readonly<Record<SiteWidgetKey, readonly DisplayFiel
     count('count', 'How many', 1, 20, 20),
   ],
   sponsors: [],
-  contact: [],
+  contact: [
+    choice('variant', 'Layout', [
+      ['card', 'Stacked'],
+      ['inline', 'One line of links'],
+      ['split', 'Two columns'],
+    ]),
+    toggle('showSocials', 'Show social links', true),
+  ],
   news: [],
-  gallery: [],
+  gallery: [
+    choice('variant', 'Layout', [
+      ['teaser', 'A link to the gallery'],
+      ['strip', 'A strip of photos'],
+      ['grid', 'A grid of photos'],
+    ]),
+    count('count', 'Photos shown', 3, 12, 6),
+  ],
   register: [
     choice('variant', 'Layout', [
       ['list', 'Open windows and the button'],
@@ -227,11 +253,53 @@ export const DISPLAY_FIELDS: Readonly<Record<SiteWidgetKey, readonly DisplayFiel
     ]),
     CLICK_DETAIL,
   ],
-  text: [],
-  image: [],
-  embed: [],
-  contact_form: [],
-  interest_form: [],
+  text: [
+    choice('variant', 'Layout', [
+      ['plain', 'Plain'],
+      ['card', 'On a card'],
+      ['columns', 'Two columns'],
+    ]),
+    choice('align', 'Text', [
+      ['left', 'Left'],
+      ['center', 'Centred'],
+    ]),
+  ],
+  image: [
+    choice('variant', 'Frame', [
+      ['full', 'Edge to edge'],
+      ['framed', 'Framed'],
+    ]),
+    choice('aspect', 'Shape', [
+      ['natural', 'As taken'],
+      ['wide', '16 : 9'],
+      ['square', 'Square'],
+    ]),
+    choice('click', 'Tap on the photo', [
+      ['link', 'Opens its link'],
+      ['none', 'Nothing'],
+    ]),
+  ],
+  embed: [
+    choice('aspect', 'Shape', [
+      ['wide', '16 : 9'],
+      ['classic', '4 : 3'],
+      ['square', 'Square'],
+    ]),
+  ],
+  contact_form: [
+    choice('variant', 'Layout', [
+      ['stacked', 'Stacked'],
+      ['columns', 'Two columns'],
+    ]),
+    text('button', 'Button label', 24, 'Send message'),
+  ],
+  interest_form: [
+    choice('variant', 'Layout', [
+      ['stacked', 'Stacked'],
+      ['columns', 'Two columns'],
+    ]),
+    text('button', 'Button label', 24, 'Register interest'),
+  ],
 };
 
 export type DisplayValue = string | number | boolean | string[];
@@ -251,6 +319,8 @@ export function displayDefault(f: DisplayField): DisplayValue {
       return f.default ?? false;
     case 'order':
       return [];
+    case 'text':
+      return '';
   }
 }
 
@@ -283,6 +353,9 @@ export function instanceDisplay(w: WidgetInstance): DisplayValues {
         break;
       case 'order':
         if (Array.isArray(v)) out[f.name] = v.filter((id): id is string => typeof id === 'string' && id.length > 0 && id.length <= DISPLAY_ORDER_ID_MAX).slice(0, DISPLAY_ORDER_MAX);
+        break;
+      case 'text':
+        if (typeof v === 'string') out[f.name] = v.trim().slice(0, f.max);
         break;
     }
   }

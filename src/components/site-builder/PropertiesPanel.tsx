@@ -385,6 +385,25 @@ export default function PropertiesPanel({ site, widget, plural, orgId, options, 
             </label>
           </div>
         );
+      case 'text':
+        return (
+          <div key={f.name}>
+            <label className={LABEL} htmlFor={id}>
+              {f.label}
+            </label>
+            <input
+              id={id}
+              type="text"
+              maxLength={spec.max}
+              placeholder={spec.placeholder}
+              value={displayString(display, f.name)}
+              onChange={e => patchDisplay({ [f.name]: e.target.value }, id)}
+              className={INPUT}
+              data-sb-display={f.name}
+            />
+            {f.help && <p className="mt-1 text-xs text-tertiary">{f.help}</p>}
+          </div>
+        );
       case 'order': {
         if (displayString(display, 'sort') !== 'manual') return null;
         const items = applyOrder(orderItems(key, data ?? EMPTY_DATA, effectiveConfig(site, widget)), displayOrder(display), it => it.id);

@@ -1,5 +1,6 @@
 import type { PublicSite } from '@/lib/org-sites/server';
 import type { WidgetInstance } from '@/lib/site-builder/layout';
+import { displayString, instanceDisplay } from '@/lib/site-builder/display';
 import { AGE_GROUPS, HONEYPOT_FIELD, formKindOf, signFormToken } from '@/lib/org-sites/forms';
 import type { FormWidgetKey } from '@/lib/site-builder/catalog';
 
@@ -14,6 +15,11 @@ const INPUT = 'w-full rounded-md border border-border-strong bg-surface px-3 py-
 const LABEL = 'block text-xs font-medium text-secondary mb-1';
 
 export default function SiteFormWidget({ site, w }: { site: PublicSite; w: WidgetInstance }) {
+  // Program 3, D1b: two columns on a wide screen, and the manager's own
+  // button label (the default is the form's).
+  const d = instanceDisplay(w);
+  const columns = displayString(d, 'variant', 'stacked') === 'columns';
+  const buttonLabel = displayString(d, 'button', '').trim();
   const key = w.key as FormWidgetKey;
   const kind = formKindOf(key);
   const config = (w.config ?? {}) as Record<string, unknown>;
@@ -30,7 +36,7 @@ export default function SiteFormWidget({ site, w }: { site: PublicSite; w: Widge
       <p id={`error-${w.id}`} className="sb-form-error mb-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700" role="alert">
         That didn’t go through — check the fields and try again in a moment.
       </p>
-      <form method="post" action={`/api/public/site-forms/${site.id}/${w.id}`} className="space-y-3">
+      <form method="post" action={`/api/public/site-forms/${site.id}/${w.id}`} className={columns ? 'grid gap-3 sm:grid-cols-2' : 'space-y-3'} data-variant={columns ? 'columns' : 'stacked'}>
         {token && <input type="hidden" name="t" value={token} />}
         <div className="sb-hp" aria-hidden="true">
           <label htmlFor={id(HONEYPOT_FIELD)}>Website</label>
@@ -73,14 +79,14 @@ export default function SiteFormWidget({ site, w }: { site: PublicSite; w: Widge
             </div>
           </>
         )}
-        <div>
+        <div className={columns ? 'sm:col-span-2' : ''}>
           <label className={LABEL} htmlFor={id('message')}>
             {kind === 'contact' ? 'Message' : 'Anything we should know? (optional)'}
           </label>
           <textarea id={id('message')} name="message" rows={4} required={kind === 'contact'} maxLength={2000} className={INPUT} />
         </div>
-        <button type="submit" className="min-h-[44px] rounded-md px-4 text-sm font-semibold text-white" style={{ backgroundImage: 'linear-gradient(to right, var(--org-accent), var(--org-accent-strong))' }}>
-          {kind === 'contact' ? 'Send message' : 'Register interest'}
+        <button type="submit" className={`min-h-[44px] rounded-md px-4 text-sm font-semibold text-white ${columns ? 'sm:col-span-2 justify-self-start' : ''}`} style={{ backgroundImage: 'linear-gradient(to right, var(--org-accent), var(--org-accent-strong))' }}>
+          {buttonLabel || (kind === 'contact' ? 'Send message' : 'Register interest')}
         </button>
       </form>
     </div>

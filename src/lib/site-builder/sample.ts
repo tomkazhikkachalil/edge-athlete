@@ -9,6 +9,7 @@ import type {
   PublicAffiliation,
   PublicCourse,
   PublicDivision,
+  PublicGalleryItem,
   PublicGolfRound,
   PublicLeaderBoard,
   PublicNewsItem,
@@ -21,6 +22,7 @@ import type { CourseHole, GolfCourse } from '@/types/golf';
 import { SAMPLE_MEDIA_URI_RE } from '@/lib/media/org-site-media';
 import { WIDGETS, isContentWidgetKey, type SiteWidgetKey } from './catalog';
 import type { ContentSource } from './config';
+import { displayString, instanceDisplay } from './display';
 import type { SiteLayout, WidgetInstance } from './layout';
 
 /**
@@ -465,7 +467,25 @@ export function sampleHomeData(sportKey: string | null | undefined, side: 'leagu
     golfRounds,
     news: news(family, now),
     memberStats: family === 'golf' ? memberStats(now) : null,
+    gallery: gallery(family, now),
   };
+}
+
+/** Six covers for the gallery's strip / grid (D1b). */
+function gallery(family: Family, now: Date): PublicGalleryItem[] {
+  const hues = [152, 24, 208, 330, 95, 260];
+  return hues.map((hue, i) => ({
+    id: `sample:photo-${i + 1}`,
+    url: coverSvg(hue, family),
+    mediaType: 'image' as const,
+    caption: i === 0 ? `${SAMPLE_SENTINEL} season opener` : null,
+    date: dayIso(addDays(now, -3 * (i + 1))),
+    competitionName: family === 'golf' ? `${SAMPLE_SENTINEL} Points Race` : `${SAMPLE_SENTINEL} Fall League`,
+    tagLabels: [],
+    kind: 'contest' as const,
+    width: 1200,
+    height: 675,
+  }));
 }
 
 // ── Content (config-backed widgets) ──────────────────────────────────────────
@@ -589,7 +609,13 @@ export function applySample<S extends SampleSite>(
   const contentKeys = new Set<SiteWidgetKey>();
   for (const w of layout.widgets) {
     const key = w.key as SiteWidgetKey;
-    if (key === 'contact_form' || key === 'interest_form' || key === 'gallery') continue;
+    if (key === 'contact_form' || key === 'interest_form') continue;
+    if (key === 'gallery') {
+      // D1b: the teaser needs nothing; a strip / grid with no picks samples.
+      const v = displayString(instanceDisplay(w), 'variant', 'teaser');
+      if ((v === 'strip' || v === 'grid') && (data.gallery ?? []).length === 0) sampled.add(w.id);
+      continue;
+    }
     if (key === 'hero') {
       if (heroIsBlank(site)) {
         sampled.add(w.id);
