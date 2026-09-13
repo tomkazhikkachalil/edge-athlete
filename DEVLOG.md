@@ -1,5 +1,49 @@
 # Development Log
 
+## September 13, 2026 — Program 3, H1: section height — the fit rule and the public scroll (zero DDL)
+
+Tom's third refinement opens: sections auto-size to their content, and a
+deliberately small section scrolls inside rather than clipping or forcing
+a taller card. `h` has ALWAYS been a minimum on the public page (the grid's
+`minmax(row, auto)` tracks); this PR names the rule and adds its other
+half. The canvas's measurement is H2.
+
+- **`src/lib/site-builder/fit.ts`** (pure): `ROW_STEP` (a row + its gap,
+  64px), `rowsToPx`, `rowsForContent` (ceil((content + chrome + gap) /
+  step), never below 1), `fitOf(w)` ('auto' | 'fixed' from the instance's
+  validated display), `displayH` (the canvas shows an auto tile at
+  max(h, measured), a fixed one at h), `withFit`, and `resolveResize` —
+  H2's commit rule: a gesture that kept the displayed height changed only
+  x / y / w; a new height BELOW the content's need makes the tile fixed
+  (the manager chose a small section); at or above it stores the new
+  minimum, and a fixed tile dragged up to its content goes back to auto;
+  the stored `h` is clamped to the catalog so the autosave validates.
+  The measured height is never persisted (content changes daily;
+  persisting would turn every content edit into a layout diff, an undo
+  step and an autosave, and silently raise the manager's floor).
+- **The axis**: `height` — "Fits the content" (the default, exactly the
+  old render) | "Fixed — scrolls inside" — appended to EVERY widget's
+  declaration but the hero's (a fixed hero would clip its photo), so the
+  generated panel already offers it under "How it looks".
+- **The public page**: `GridRenderer` stamps `data-sb-fit` on every
+  section and wraps the body in `.sb-body` (inert for auto);
+  `globals.css` ≥ 48rem: a fixed section's height is exactly its span
+  (`h × 2.5rem + (h − 1) × 1.5rem`, so the tracks never grow for it), a
+  flex column whose body scrolls (`overflow-y: auto`, snap on the rows, a
+  fade at the foot as the hint, `scrollbar-gutter: stable`) — CSS only,
+  the (public) contract. Desktop only: the phone is one column and
+  ignores `h`; a nested scroll on a phone is a known annoyance. No arrows
+  (CSS-only paging costs a history entry per click and cannot grey out at
+  the ends); the scrollbar stays visible.
+- Tests: `fit.test.ts` — px ↔ rows at the boundaries, `displayH` for
+  auto / fixed / unmeasured, `resolveResize`'s four branches and its
+  clamps, `withFit` round-trips and drops an empty display. e2e
+  `org-site-fit.spec.ts`: a text section with twelve paragraphs at
+  `h = 3` — auto: the published section's body is as tall as its content
+  (no clipping); fixed (through the draft PUT): the section is 168px and
+  its `.sb-body` scrolls (`scrollHeight > clientHeight`); on a phone the
+  fixed section still grows.
+
 ## September 13, 2026 — Program 3, D4: news — the pin, the axes, expands in place (mig 189 optional)
 
 The last widget without axes. Tom's decision stands: the pin lives ON THE
