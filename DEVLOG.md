@@ -1,5 +1,42 @@
 # Development Log
 
+## September 13, 2026 — Program 3, H3: live content and the contact card's field order (zero DDL)
+
+The third refinement's last piece: each section renders its content live
+as the fields are filled in, and the entered items can be reordered.
+
+- **Live content**: instance options always previewed at once (the canvas
+  renders the layout under edit); the CONTENT of the hero, the contact
+  card and the sponsors list used to reach the canvas only after "Save
+  content". The panel now emits what is typed as it is typed
+  (`onContentPreview`, from the change handlers — never an effect) and the
+  editor lays it over the site at the RENDER boundary
+  (`content-preview.ts applyContentPreview`, the same seam as the sample
+  overlay: hero → `hero_config`, contact → `contact_config`, sponsors → the
+  module row); the real site, the draft PUT and the PATCH are untouched
+  until the explicit save, and a save or a close clears the overlay. The
+  render parsers decide what shows — a half-typed email is dropped by
+  `parseContact` until it is one, which is exactly what the save would
+  store.
+- **The contact card's order** — `contact_config.order` (a subset of
+  `CONTACT_FIELD_ORDER`, today's render order: address, hours,
+  directions, email, phone, website, social) on the action, the schema,
+  the reducer and `parseContact`; `contactRenderOrder` puts the stored
+  keys first and appends the rest in today's order, so an untouched card
+  is byte-identical. `ContactCard` renders its blocks in that order
+  (`data-contact-field`), the split variant keeping the place on the left
+  and the links on the right, each in the manager's order. The panel's
+  Content fieldset gains a "Field order" reorder control (`ReorderList`)
+  saved with the card.
+- Tests: `content-preview.test.ts` (the overlay replaces only its own
+  object, keeps a module row's other keys, adds a missing row; the order
+  rule; the parser keeps a valid order). e2e `org-site-live-content.spec.ts`:
+  a typed email shows on the canvas at once while the site's contact
+  config still lacks it; Phone moved above Email reorders the card live;
+  a discard (the dirty guard) clears the preview; typed again and saved,
+  the config carries the email and the order; publish → the public card
+  renders phone before email; the action refuses a stranger key.
+
 ## September 13, 2026 — Program 3, H2: the canvas auto-sizes its tiles (zero DDL)
 
 The editor was the one place a tall body overflowed its tile. Now the

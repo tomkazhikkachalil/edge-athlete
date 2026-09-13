@@ -50,6 +50,21 @@ export const tierRank = (tier: string | undefined): number => {
   return i === -1 ? SPONSOR_TIERS.length : i;
 };
 
+/** Program 3, H3 — the contact card's fields, in today's render order; the
+ *  manager's `contact_config.order` re-orders them (H3). */
+export const CONTACT_FIELD_ORDER = ['address', 'hours', 'directions', 'email', 'phone', 'website', 'social'] as const;
+export type ContactFieldKey = (typeof CONTACT_FIELD_ORDER)[number];
+export const CONTACT_FIELD_LABELS: Record<ContactFieldKey, string> = { address: 'Address', hours: 'Hours', directions: 'Directions', email: 'Email', phone: 'Phone', website: 'Website', social: 'Social links' };
+/** The stored order filtered to known keys (unknown dropped, duplicates
+ *  once), the rest appended in today's order — an untouched card renders
+ *  exactly as before. */
+export function contactRenderOrder(order: readonly string[] | undefined): ContactFieldKey[] {
+  const out: ContactFieldKey[] = [];
+  for (const k of order ?? []) if ((CONTACT_FIELD_ORDER as readonly string[]).includes(k) && !out.includes(k as ContactFieldKey)) out.push(k as ContactFieldKey);
+  for (const k of CONTACT_FIELD_ORDER) if (!out.includes(k)) out.push(k);
+  return out;
+}
+
 export const DISPLAY_ORDER_MAX = 60;
 export const DISPLAY_ORDER_ID_MAX = 120;
 
