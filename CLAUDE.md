@@ -607,6 +607,41 @@ const { canView } = await response.json();
      toggle (`data-sb-sample`, on by default, remembered per site in
      localStorage) and the chip (`data-sb-sample-chip`) are the e2e hooks;
      a sampled embed draws `SampleFrame`, never a third-party iframe.
+   - **Display settings, fit and live content (program 3, D–H — Sep 13
+     2026, #699–#706, mig 189 the only DDL)**: every section presents its
+     items along the SAME four axes — `variant`, `sort` (+ `order`, the
+     manager's own), `count`, `click` — plus `height` (fits the content |
+     fixed, scrolls inside) — declared ONCE per widget in
+     `src/lib/site-builder/display.ts` and GENERATED everywhere:
+     `schemas.ts` builds `displaySchemaFor(key)` from it (the draft PUT
+     refuses what the panel could not offer), `fields.ts` emits the
+     `'display'` scope, the panel renders the "How it looks" fieldset, and
+     the renderers read `instanceDisplay(w)` (INSTANCE only, `query`'s
+     rule; every key filled with a validated value or its default — the
+     FIRST option is today's look, so an instance without `display`
+     renders exactly as before, pinned on every widget). `ReorderList` is
+     the one reorder control (Move up / down at every width, pointer drag
+     on a desktop). Sponsors carry a tier from the FIXED ladder
+     (`SPONSOR_TIERS`) and are edited IN THE EDITOR (`SponsorsField` →
+     `set_sponsors`; the console keeps a pointer); news carries a pin ON
+     THE POST (189 `pinned_at`; the PATCH refuses it pre-189 by name —
+     an UPDATE naming a missing column answers PGRST204, not 42703) and
+     expands in place through a native `<details>`; the gallery's strip /
+     grid read `SiteHomeData.gallery` over the server-safe `ScrollStrip`.
+     **Height**: `h` is the manager's MINIMUM; the public grid grows
+     (`minmax(row, auto)`) and a FIXED section keeps its rows ≥ 48rem and
+     scrolls inside (CSS only, `data-sb-fit`); the canvas measures every
+     tile's content (`.sb-measure`, ONE lazily-created ResizeObserver —
+     ref callbacks run before effects) and shows an auto tile at
+     `displayH`; `canvas-rgl.ts` copies x / y / w back and NEVER the
+     display height — the measured height is never persisted; dragging a
+     tile below its content flips it to fixed with the Undo toast
+     (`fit.ts resolveResize`). **Live content**: the panel emits what is
+     typed (`onContentPreview`, from the change handlers) and the editor
+     lays it over the site at the render boundary (`content-preview.ts`,
+     the sample overlay's seam) until "Save content"; the contact card's
+     fields take `contact_config.order` (`contactRenderOrder`). Read
+     DEVLOG Sep 13 2026 S1–H3 first.
    - e2e: a spec that reads the PUBLIC page must first take the site LIVE
      (`PATCH {action:'publish'}`) and, after edits, promote the draft with
      `e2e/helpers/org-site.ts publishSite()`; public-order polls compare

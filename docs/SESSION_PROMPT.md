@@ -5,10 +5,11 @@
 > (after the Site Builder program, phases 1–11, #616–#644, its hardening
 > round H1–H8, #645–#652, its backlog round B1–B6, #653–#658, the Contest
 > Place program E1–E4, #661–#664, the Recruiting skeleton R1–R5, #665–#669,
-> the Sep 11 felt-customization round #672–#676, and Site Builder program 2
-> #677–#695)** — migration head 188; `main` at the Sep 11 maintenance
-> sweep after the program-2 docs close, deployed and prod-probed step by
-> step; **no program is open**. If the
+> the Sep 11 felt-customization round #672–#676, Site Builder program 2
+> #677–#695, and Site Builder program 3 #697–#707)** — migration head 189
+> (Tom runs 189 after #702 merges, before #703); `main` at the program-3
+> docs close once the chain merges, deployed and prod-probed step by step;
+> **no program is open after program 3**. If the
 > "Where the project actually is" section drifts stale, ask
 > Claude to re-align it against DEVLOG.md and session memory.
 
@@ -399,14 +400,40 @@ on mobile and WebKit, composed pages, SEO, forms, the editor and the start
 flow (11/11); the analytics probe passed once Tom set `ANALYTICS_SALT` in
 Vercel and redeployed (12/12).
 
-Open: Tom's phone pass — create a golf club → the welcome
+**Sep 13 — Site Builder program 3: Tom's three refinements, extended to
+every widget (#697–#707, migration 189), COMPLETE.** Tom liked the builder
+and handed over a spec: sample data in the editor, display settings inside
+each section generated from the widget's schema, live preview with
+in-section reordering and automatic heights — then said sponsors and news
+were examples: every widget. His decisions: sponsor click = link or
+nothing (no detail page), the news pin lives on the post (189), a fixed
+tier ladder. **S** (#697–#698): a pure sample generator (sport-appropriate,
+masked names, fictional orgs, base64 SVG media that no write path admits,
+a sentinel) and the "Show sample data" toggle applied at the editor's
+render boundary only. **D** (#699–#703): one display declaration per
+widget → the generated zod schema, the "How it looks" fieldset, the
+reorder control, and every renderer — the data-backed widgets, the content
+widgets and the gallery strip, sponsors (tiers, edited in the editor),
+news (the pin, expands in place). **H** (#704–#706): `fit.ts` — `h` is
+the minimum, the canvas measures and auto-sizes, a fixed section scrolls
+inside publicly (CSS only), the flip below content with an Undo; live
+content laid over the canvas as it is typed; the contact card's field
+order. **F** (#707) closed the docs. Every step was probed after its
+deploy; the final probe set runs after the chain merges.
+
+Open: **Tom runs migration 189** (after #702, before #703 — the pin
+refuses itself by name until then). Tom's phone pass — create a golf club → the welcome
 card → Use this → the editor's list → Move / Size → a page → Settings →
 Publish; his device pass of a contest page
 (`/event/[id]`, the org-site twin) and the scouting area (`/app/scout`,
 `/app/scout/search`); the device pass of a real branded club through the
 editor; the one-hour number once real publishes exist; Search Console,
 custom-domain env, the capture-fix device pass, a first real staff invite.
-Parked code (no owner): drag-to-reorder in the Sections list; bracket / meet
+Parked code (no owner): drag-to-reorder in the Sections list (the panel's
+lists drag on a desktop; iOS stays on the arrows); arrows on a fixed
+section (CSS-only paging costs a history entry per click); the canvas's
+cross-column push (CSS grid tracks are global — the public page pushes at
+least as much as the canvas; a custom compactor would close it); bracket / meet
 formats and ad-hoc teams, adapter competition hooks, a composer
 attach-to-event picker (DEVLOG E4); the recruiting growth paths in
 `docs/RECRUITING.md`. The next program is Tom's call.
