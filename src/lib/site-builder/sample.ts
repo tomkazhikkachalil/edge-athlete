@@ -400,6 +400,7 @@ function news(family: Family, now: Date): PublicNewsItem[] {
       publishedAt: addDays(now, -9).toISOString(),
       excerpt: 'A local partner for the season — thank you for keeping the lights on.',
       cover: cover(2, 24),
+      pinned: true,
     },
     {
       slug: 'sample-registration-open',

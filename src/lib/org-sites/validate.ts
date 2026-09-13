@@ -1031,9 +1031,11 @@ export const NewsPatchSchema = z
     publish: z.boolean().optional(),
     // Phase 9 V5 (176): 'members' hides the post from a PRIVATE club's site.
     audience: z.enum(['public', 'members']).optional(),
+    // Program 3, D4 (189): pinned to the top of the news page and the home's pinned-first sort.
+    pinned: z.boolean().optional(),
   })
   .refine(
-    o => o.title !== undefined || o.body !== undefined || o.publish !== undefined || o.audience !== undefined,
+    o => o.title !== undefined || o.body !== undefined || o.publish !== undefined || o.audience !== undefined || o.pinned !== undefined,
     'Nothing to update'
   );
 export type NewsPatchInput = z.infer<typeof NewsPatchSchema>;

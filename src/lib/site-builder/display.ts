@@ -71,9 +71,8 @@ const CLICK_DETAIL = choice('click', 'Tap on an item', [
   ['none', 'Nothing'],
 ]);
 
-/** The declaration — first option = today's look. News (D4) gains its
- *  axes next; until then it declares nothing and the panel shows no "How
- *  it looks" fieldset. */
+/** The declaration — first option = today's look. Every site widget
+ *  declares at least one axis (program 3, D1–D4). */
 export const DISPLAY_FIELDS: Readonly<Record<SiteWidgetKey, readonly DisplayField[]>> = {
   hero: [
     choice('variant', 'Welcome shape', [
@@ -200,7 +199,23 @@ export const DISPLAY_FIELDS: Readonly<Record<SiteWidgetKey, readonly DisplayFiel
     ]),
     toggle('showSocials', 'Show social links', true),
   ],
-  news: [],
+  news: [
+    choice('variant', 'Layout', [
+      ['list', 'List'],
+      ['grid', 'Grid of cards'],
+      ['featured', 'Featured post, then a list'],
+    ]),
+    choice('sort', 'Order', [
+      ['newest', 'Newest first'],
+      ['pinned', 'Pinned first'],
+      ['manual', 'My own order'],
+    ]),
+    ORDER,
+    choice('click', 'Tap on a post', [
+      ['detail', 'Opens the post'],
+      ['inline', 'Expands in place'],
+    ]),
+  ],
   gallery: [
     choice('variant', 'Layout', [
       ['teaser', 'A link to the gallery'],
@@ -437,6 +452,7 @@ export const orderIdOf = {
   courses: (c: SiteHomeData['courses'][number]) => c.course.id,
   divisions: (d: SiteHomeData['divisions'][number]) => `${d.seasonLabel}:${d.divisionName}`,
   documents: (doc: { title: string }) => doc.title,
+  news: (post: NonNullable<SiteHomeData['news']>[number]) => post.slug,
 } as const;
 
 /** What the panel's reorder control lists for a widget: `{id, label}` per
@@ -457,6 +473,8 @@ export function orderItems(key: SiteWidgetKey, data: SiteHomeData, config: Recor
       return data.courses.map(c => ({ id: orderIdOf.courses(c), label: c.course.name }));
     case 'divisions':
       return data.divisions.map(d => ({ id: orderIdOf.divisions(d), label: d.seasonLabel ? `${d.divisionName} · ${d.seasonLabel}` : d.divisionName }));
+    case 'news':
+      return (data.news ?? []).map(n => ({ id: orderIdOf.news(n), label: n.title }));
     case 'documents': {
       const raw = config.documents;
       if (!Array.isArray(raw)) return [];

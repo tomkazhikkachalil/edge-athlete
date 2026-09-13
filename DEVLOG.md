@@ -1,5 +1,41 @@
 # Development Log
 
+## September 13, 2026 — Program 3, D4: news — the pin, the axes, expands in place (mig 189 optional)
+
+The last widget without axes. Tom's decision stands: the pin lives ON THE
+POST (189), never on a widget instance.
+
+- **The pin** (`org_site_news.pinned_at`): `NewsPatchSchema.pinned` →
+  `newsPATCH` writes a timestamp (newest pin first) or NULL; every reader
+  steps down on 42703 — `fetchPublicNewsList` (`pinned` PRESENT ONLY when
+  true), `newsListGET` / `newsGET` (`NEWS_FIELDS_189`) — and the PATCH
+  refuses `pinned` pre-189 with "Pinning needs migration 189 — run it,
+  then try again" (a 400, never a 500). The e2e found the trap: an UPDATE
+  naming a missing column answers PGRST204 (PostgREST's schema cache), not
+  42703 — the write path checks both. The console's post editor gains a
+  **Pin to top / Unpin** button beside the audience (`data-news-pin`,
+  `aria-pressed`). The public news page always leads with the pinned
+  posts (a property of the post); the home's section honours its sort.
+- **The axes**: `variant` list (today) | grid of cards (cover on top) |
+  featured (the first post large, then the list); `sort` newest (the
+  reader's) | pinned first | my own order (`display.order` of slugs — the
+  panel's reorder control lists the bag's posts through `orderIdOf.news`);
+  `click` opens the post (today) | expands in place — a native `<details>`
+  carrying the post's body (server-rendered, no script: the (public)
+  contract), the summary is the row, "Open the post →" beneath. The list
+  item now carries `body` and `pinned`; a pinned post wears a "Pinned"
+  chip. `WidgetBody` orders the WHOLE bag first (`newsLimit` exported from
+  select.ts), then slices — a pinned post beyond the slice still leads.
+  The sample bag pins its second post so "pinned first" visibly reorders.
+- Pins: every site widget now declares at least one axis
+  (`display.test.ts`). e2e `org-site-news-display.spec.ts`: two posts →
+  grid, my own order (A before B), expands in place → publish → the home
+  block is a grid in that order with a `<details>` carrying A's body; a
+  stranger sort is refused; then the pin: pre-189 the server refuses it by
+  name and the half skips (green, annotated); with 189, A pinned leads the
+  home under "pinned first" and the news page, and the editor's toggle
+  unpins.
+
 ## September 13, 2026 — Program 3, D3: migration 189 — pinned news posts (the file only)
 
 - `database/migrations/189_org_site_news_pin.sql`: `org_site_news.pinned_at

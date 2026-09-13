@@ -26,6 +26,9 @@ type Admin = SupabaseClient<any, 'public', any>;
 
 const TAG = '[ORG SITE NEWS]';
 const NEWS_FIELDS = 'id, site_id, slug, title, body, published_at, created_at, updated_at, audience';
+// Program 3, D4 (189): the pin; pre-189 databases step down to NEWS_FIELDS.
+const NEWS_FIELDS_189 = `${NEWS_FIELDS}, pinned_at`;
+const PIN_NEEDS_189 = 'Pinning needs migration 189 — run it, then try again';
 
 function orgColumn(side: OrgSide): 'league_id' | 'club_id' {
   return side === 'league' ? 'league_id' : 'club_id';
@@ -52,12 +55,10 @@ export async function newsListGET(
 ): Promise<NextResponse> {
   const site = await getSiteForOrg(admin, side, orgId);
   if (!site) return NextResponse.json({ posts: [] });
-  const { data, error } = await admin
-    .from('org_site_news')
-    .select(NEWS_FIELDS)
-    .eq('site_id', site.id)
-    .order('created_at', { ascending: false })
-    .limit(NEWS_PER_SITE_MAX + 5);
+  const list = (fields: string) =>
+    admin.from('org_site_news').select(fields).eq('site_id', site.id).order('created_at', { ascending: false }).limit(NEWS_PER_SITE_MAX + 5);
+  let { data, error } = await list(NEWS_FIELDS_189);
+  if (error?.code === '42703') ({ data, error } = await list(NEWS_FIELDS));
   if (error) {
     if (isMissingTableError(error.code)) return NextResponse.json({ posts: [] });
     console.error(`${TAG} list error:`, error);
@@ -149,12 +150,9 @@ export async function newsGET(
 ): Promise<NextResponse> {
   const site = await getSiteForOrg(admin, side, orgId);
   if (!site) return NextResponse.json({ error: 'Not found' }, { status: 404 });
-  const { data: post } = await admin
-    .from('org_site_news')
-    .select(NEWS_FIELDS)
-    .eq('id', newsId)
-    .eq('site_id', site.id)
-    .maybeSingle();
+  const one = (fields: string) => admin.from('org_site_news').select(fields).eq('id', newsId).eq('site_id', site.id).maybeSingle();
+  let { data: post, error } = await one(NEWS_FIELDS_189);
+  if (error?.code === '42703') ({ data: post, error } = await one(NEWS_FIELDS));
   if (!post) return NextResponse.json({ error: 'Not found' }, { status: 404 });
   return NextResponse.json({ post });
 }
@@ -185,6 +183,8 @@ export async function newsPATCH(
     ...(input.title !== undefined ? { title: input.title } : {}),
     ...(input.body !== undefined ? { body: input.body } : {}),
     ...(input.audience !== undefined ? { audience: input.audience } : {}),
+    // D4: the pin — a timestamp (newest pin first) or NULL.
+    ...(input.pinned !== undefined ? { pinned_at: input.pinned ? new Date().toISOString() : null } : {}),
   };
   if (input.publish !== undefined) {
     if (input.publish) {
@@ -206,12 +206,15 @@ export async function newsPATCH(
     // Re-publishing an already-published post: nothing to write.
     return newsGET(admin, side, orgId, newsId);
   }
-  const { data: updated, error } = await admin
-    .from('org_site_news')
-    .update(patch)
-    .eq('id', newsId)
-    .eq('site_id', site.id)
-    .select(NEWS_FIELDS);
+  const write = (fields: string) => admin.from('org_site_news').update(patch).eq('id', newsId).eq('site_id', site.id).select(fields);
+  let { data: updated, error } = await write(NEWS_FIELDS_189);
+  // Pre-189: an UPDATE naming the missing column answers PGRST204 (the
+  // schema cache), a SELECT of it 42703 — the pin cannot be written: say
+  // so; anything else still can, through the base field list.
+  if (error?.code === '42703' || error?.code === 'PGRST204') {
+    if ('pinned_at' in patch) return NextResponse.json({ error: PIN_NEEDS_189 }, { status: 400 });
+    ({ data: updated, error } = await write(NEWS_FIELDS));
+  }
   if (error) {
     console.error(`${TAG} patch error:`, error);
     return NextResponse.json({ error: 'Failed to update the post' }, { status: 500 });

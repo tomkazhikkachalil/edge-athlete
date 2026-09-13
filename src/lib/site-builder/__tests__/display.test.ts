@@ -113,8 +113,9 @@ describe('instanceDisplay — the reader', () => {
     const c = place('courses', 0, 0, undefined, { config: { display: { showRounds: 'no' } } });
     expect(instanceDisplay(c).showRounds).toBe(true);
     expect(instanceDisplay(place('courses', 0, 0, undefined, { config: { display: { showRounds: false } } })).showRounds).toBe(false);
-    // A widget with no declaration (news, until D4) reads as {} whatever is stored.
-    expect(instanceDisplay(place('news', 0, 0, undefined, { config: { display: { variant: 'x' } } }))).toEqual({});
+    // D4: every site widget declares at least one axis now.
+    for (const key of SITE_WIDGET_KEYS) expect(DISPLAY_FIELDS[key].length, key).toBeGreaterThan(0);
+    expect(instanceDisplay(place('news', 0, 0, undefined, { config: { display: { variant: 'x', click: 'inline' } } }))).toEqual({ variant: 'list', sort: 'newest', order: [], click: 'inline' });
     // A text field trims and caps; a non-string falls back to ''.
     expect(instanceDisplay(place('contact_form', 0, 0, undefined, { config: { display: { button: '  Join us  ' } } })).button).toBe('Join us');
     expect(instanceDisplay(place('contact_form', 0, 0, undefined, { config: { display: { button: 'x'.repeat(40) } } })).button).toHaveLength(24);

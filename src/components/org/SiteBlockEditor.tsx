@@ -87,6 +87,8 @@ export default function SiteBlockEditor({ mode }: { mode: 'page' | 'news' }) {
   const [visibility, setVisibility] = useState<'public' | 'draft'>('draft');
   // Phase 9 V5 (news only): the post's audience.
   const [audience, setAudience] = useState<'public' | 'members'>('public');
+  // Program 3, D4 (news only, 189): pinned to the top of the news page.
+  const [pinned, setPinned] = useState(false);
   const [blocks, setBlocks] = useState<PageBlock[]>([]);
   const [savedSnapshot, setSavedSnapshot] = useState('');
   const [saving, setSaving] = useState(false);
@@ -118,7 +120,10 @@ export default function SiteBlockEditor({ mode }: { mode: 'page' | 'news' }) {
             ? 'public'
             : 'draft'
         );
-        if (mode === 'news') setAudience((page as { audience?: string }).audience === 'members' ? 'members' : 'public');
+        if (mode === 'news') {
+          setAudience((page as { audience?: string }).audience === 'members' ? 'members' : 'public');
+          setPinned(Boolean((page as { pinned_at?: string | null }).pinned_at));
+        }
         const parsedBlocks = parsePageBody(page.body);
         setBlocks(parsedBlocks);
         setSavedSnapshot(JSON.stringify({ title: page.title ?? '', blocks: parsedBlocks }));
@@ -238,6 +243,23 @@ export default function SiteBlockEditor({ mode }: { mode: 'page' | 'news' }) {
       showSuccess('Website', next === 'members' ? 'Members only — hidden on a private club’s site' : 'Public — shown on the site');
     } catch {
       showError('Website', 'Failed to update the audience');
+    }
+  };
+
+  // D4: pin / unpin — the news page leads with pinned posts; the home's
+  // news section honours its "pinned first" sort. Pre-189 the server says so.
+  const setPostPinned = async (next: boolean) => {
+    try {
+      const res = await fetch(base, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ pinned: next }) });
+      const body = await res.json();
+      if (!res.ok) {
+        showError('Website', body.error || 'Failed to update the pin');
+        return;
+      }
+      setPinned(next);
+      showSuccess('Website', next ? 'Pinned to the top of your news' : 'Unpinned');
+    } catch {
+      showError('Website', 'Failed to update the pin');
     }
   };
 
@@ -525,6 +547,17 @@ export default function SiteBlockEditor({ mode }: { mode: 'page' | 'news' }) {
           >
             {visibility === 'public' ? copy.unpublishLabel : copy.publishLabel}
           </button>
+          {mode === 'news' && (
+            <button
+              type="button"
+              onClick={() => void setPostPinned(!pinned)}
+              aria-pressed={pinned}
+              className="px-3 py-1.5 text-sm rounded-md border border-border-strong text-secondary hover:bg-surface-sunken transition-colors"
+              data-news-pin=""
+            >
+              {pinned ? 'Unpin' : 'Pin to top'}
+            </button>
+          )}
           {mode === 'news' && (
             <label className="flex items-center gap-2 text-sm text-secondary">
               <span>Audience</span>

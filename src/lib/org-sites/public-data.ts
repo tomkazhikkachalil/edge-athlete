@@ -755,6 +755,11 @@ export interface PublicNewsItem {
   audience?: 'public' | 'members';
   /** N1: the post's cover — its first image block (no cover column). */
   cover: NewsCover | null;
+  /** Program 3, D4 (189): pinned to the top — PRESENT ONLY when true. */
+  pinned?: boolean;
+  /** Program 3, D4: the body, for the home's inline (`<details>`) click
+   *  action — parsed defensively at render (parsePageBody). */
+  body?: unknown;
 }
 
 export interface PublicNewsPost {
@@ -823,7 +828,9 @@ export async function fetchPublicNewsList(
       .not('published_at', 'is', null)
       .order('published_at', { ascending: false })
       .limit(50);
-  let { data, error } = await read('slug, title, body, published_at, audience');
+  // Program 3, D4 (189): the pin column steps down like the audience did.
+  let { data, error } = await read('slug, title, body, published_at, audience, pinned_at');
+  if (error?.code === '42703') ({ data, error } = await read('slug, title, body, published_at, audience'));
   if (error?.code === '42703') ({ data, error } = await read('slug, title, body, published_at'));
   if (degraded('news list', error) || !data) return [];
   return (data as unknown as Record<string, unknown>[])
@@ -834,7 +841,9 @@ export async function fetchPublicNewsList(
       publishedAt: n.published_at as string,
       excerpt: firstParagraph(n.body),
       cover: firstImage(n.body),
+      body: n.body,
       ...(n.audience === 'members' ? { audience: 'members' as const } : n.audience === 'public' ? { audience: 'public' as const } : {}),
+      ...(n.pinned_at ? { pinned: true } : {}),
     }));
 }
 
