@@ -1,5 +1,52 @@
 # Development Log
 
+## September 13, 2026 — Program 3, D1b: display settings for the content widgets and the gallery (zero DDL)
+
+The vocabulary reaches every remaining widget except sponsors (D2) and
+news (D4) — Tom's "every widget" — through the same declaration and the
+same generated panel.
+
+- **The axes**: hero (`variant` as the theme | card | full width — the
+  instance may override the theme's welcome shape, 'theme' the default and
+  exactly the old render; `align` left | centred), contact (`variant`
+  stacked | one line of links | two columns; `showSocials`), text
+  (`variant` plain | on a card | two columns; `align`), image (`variant`
+  edge to edge | framed; `aspect` as taken | 16:9 | square; `click` opens
+  its link | nothing), embed (`aspect` 16:9 | 4:3 | square), the two forms
+  (`variant` stacked | two columns; a `button` label), the gallery
+  (`variant` a link | a strip | a grid; `count` 3–12). A fifth field kind,
+  `text` (trimmed, capped — the form's button label), joins choice /
+  count / toggle / order in the declaration, the generated schema, the
+  reader and the panel.
+- **The gallery on the home** used to be a teaser link only. The strip and
+  grid variants render the PICKED photos (the consent-gated public reader,
+  names masked upstream): `SiteHomeData.gallery` (the catalog's
+  `gallery.data: ['gallery']` gates the read — a site without a gallery
+  section costs nothing), `getCachedGallery` / `fetchPublicGallery` in the
+  reader sets, `GalleryStrip` over the new server-safe `ScrollStrip`
+  (`.sb-strip`: `overflow-x: auto` + `scroll-snap-type: x mandatory`, CSS
+  only — the (public) contract; the sponsors' carousel and the news grid
+  ride it next). Every photo links to the gallery page. The sample bag
+  gains six covers; a strip / grid instance with no picks samples (the
+  teaser never does — a chip on a bare link would mislead).
+- Renderers: `HeroSection` reads its own display (`data-hero-shape`);
+  `ContactCard` gains `variant` and `showSocials`; `SiteFormWidget` a
+  two-column grid and the label; `WidgetBody` wraps the text block, crops
+  the image (`data-aspect`), drops its link on `click = none`, frames it,
+  and shapes the embed.
+- Pins: `display.test.ts` (the text kind trims and caps; a widget with no
+  declaration — sponsors, until D2 — still reads `{}`), `config-fields`
+  (the hero keeps content fields plus its display fields; a content
+  widget's fields are all instance-side, display included).
+- e2e `org-site-display-content.spec.ts`: the axes set through the draft
+  PUT (the schema refuses a stranger aspect and a 25-character label)
+  reach the canvas — a bleed, centred hero; the text on a card; a square,
+  framed, unlinked image; a two-column form saying "Say hello"; a one-line
+  contact card without its Instagram link — the panel's text field
+  retypes the label ("Ping us") onto the canvas at once and autosaves;
+  publish → the public page carries every attribute and neither the
+  image's link nor the social one.
+
 ## September 13, 2026 — Program 3, D1: display settings inside every section — the vocabulary (zero DDL)
 
 Tom's second refinement, extended (his call) to EVERY widget: each section

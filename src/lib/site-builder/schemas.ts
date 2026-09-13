@@ -202,6 +202,8 @@ function displayFieldSchema(f: DisplayField): z.ZodType {
       return z.boolean();
     case 'order':
       return z.array(z.string().min(1).max(DISPLAY_ORDER_ID_MAX)).max(DISPLAY_ORDER_MAX);
+    case 'text':
+      return z.string().trim().max(f.max);
   }
 }
 

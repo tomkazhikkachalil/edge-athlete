@@ -17,6 +17,7 @@ import AffiliationsList from './AffiliationsList';
 import ContactCard from './ContactCard';
 import CoursesList from './CoursesList';
 import DivisionsList from './DivisionsList';
+import GalleryStrip from './GalleryStrip';
 import DocumentsList from './DocumentsList';
 import GolfRoundsSchedule from './GolfRoundsSchedule';
 import LeadersTable from './LeadersTable';
@@ -307,21 +308,28 @@ export default function WidgetBody({ site, w, data: raw, spec, membersOnly = fal
         </div>
       );
     }
-    case 'gallery':
+    case 'gallery': {
       // The gallery is a subpage module — the home section is a teaser
-      // (it used to fall to the default "Coming soon.").
+      // (it used to fall to the default "Coming soon."). Program 3, D1b:
+      // a strip or a grid of the picked photos, then the link.
+      const photos = (data.gallery ?? []).slice(0, count(6));
+      const showPhotos = (variant === 'strip' || variant === 'grid') && photos.length > 0;
       return (
-        <Link
-          href={`${siteBasePath(site)}/gallery`}
-          className="mt-2 inline-block text-sm text-brand-fg font-medium"
-        >
-          View the gallery →
-        </Link>
+        <>
+          {showPhotos && <GalleryStrip items={photos} basePath={siteBasePath(site)} variant={variant === 'grid' ? 'grid' : 'strip'} />}
+          <Link
+            href={`${siteBasePath(site)}/gallery`}
+            className="mt-2 inline-block text-sm text-brand-fg font-medium"
+          >
+            View the gallery →
+          </Link>
+        </>
       );
+    }
     case 'contact': {
       const contact = parseContact(config);
       return Object.keys(contact).length > 0 ? (
-        <ContactCard contact={contact} />
+        <ContactCard contact={contact} variant={variant === 'inline' || variant === 'split' ? variant : 'card'} showSocials={displayBool(d, 'showSocials', true)} />
       ) : (
         empty('No contact details yet.')
       );
@@ -329,7 +337,17 @@ export default function WidgetBody({ site, w, data: raw, spec, membersOnly = fal
     // ── Content widgets (phase 6): the instance IS the content ──────────────
     case 'text': {
       const blocks = parsePageBody(config.blocks);
-      return blocks.length > 0 ? <PageBlocks blocks={blocks} siteId={site.id} headingLevel="h3" /> : empty('Nothing written yet.');
+      if (blocks.length === 0) return empty('Nothing written yet.');
+      // D1b: plain (today), on a card, or two columns ≥ sm; centred text.
+      const centred = displayString(d, 'align') === 'center';
+      const cls = `${variant === 'card' ? 'rounded-lg border border-border bg-canvas p-4' : ''} ${variant === 'columns' ? 'sm:columns-2 sm:gap-6' : ''} ${centred ? 'text-center' : ''}`.trim();
+      return cls ? (
+        <div className={cls} data-variant={variant}>
+          <PageBlocks blocks={blocks} siteId={site.id} headingLevel="h3" />
+        </div>
+      ) : (
+        <PageBlocks blocks={blocks} siteId={site.id} headingLevel="h3" />
+      );
     }
     case 'image': {
       const path = typeof config.path === 'string' ? config.path : '';
@@ -337,7 +355,10 @@ export default function WidgetBody({ site, w, data: raw, spec, membersOnly = fal
       if (!src) return empty('No photo yet.');
       const alt = typeof config.alt === 'string' ? config.alt : '';
       const caption = typeof config.caption === 'string' && config.caption.trim() ? config.caption.trim() : null;
-      const href = typeof config.href === 'string' && /^https:\/\//.test(config.href) ? config.href : null;
+      // D1b: `click` none drops the link; `aspect` crops to a shape; `framed` adds a mat.
+      const href = click !== 'none' && typeof config.href === 'string' && /^https:\/\//.test(config.href) ? config.href : null;
+      const aspect = displayString(d, 'aspect', 'natural');
+      const framed = variant === 'framed';
       const img = (
         <Image
           src={src}
@@ -345,11 +366,11 @@ export default function WidgetBody({ site, w, data: raw, spec, membersOnly = fal
           width={typeof config.width === 'number' ? config.width : 1200}
           height={typeof config.height === 'number' ? config.height : 675}
           unoptimized
-          className="h-auto w-full rounded-lg"
+          className={`w-full rounded-lg ${aspect === 'wide' ? 'aspect-video object-cover' : aspect === 'square' ? 'aspect-square object-cover' : 'h-auto'}`}
         />
       );
       return (
-        <figure>
+        <figure className={framed ? 'rounded-xl border border-border bg-canvas p-3' : undefined} data-variant={variant} data-aspect={aspect}>
           {href ? (
             <a href={href} target="_blank" rel="noopener nofollow">
               {img}
@@ -371,8 +392,9 @@ export default function WidgetBody({ site, w, data: raw, spec, membersOnly = fal
       // structure against the three providers the CSP frame-src allows.
       const e = parseEmbed(config.embed);
       if (!e) return empty('No video or map yet.');
+      const embedAspect = displayString(d, 'aspect', 'wide');
       return (
-        <div className="aspect-video w-full overflow-hidden rounded-lg bg-surface-sunken" data-embed={e.provider}>
+        <div className={`w-full overflow-hidden rounded-lg bg-surface-sunken ${embedAspect === 'classic' ? 'aspect-[4/3]' : embedAspect === 'square' ? 'aspect-square' : 'aspect-video'}`} data-embed={e.provider} data-aspect={embedAspect}>
           <iframe
             src={embedSrc(e)}
             title={embedTitle(e)}

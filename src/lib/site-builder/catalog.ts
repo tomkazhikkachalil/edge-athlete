@@ -145,7 +145,9 @@ export type SiteHomeDataKey =
   | 'courseStrip'
   | 'golfRounds'
   | 'news'
-  | 'memberStats';
+  | 'memberStats'
+  /** Program 3, D1b: the picked photos, for the gallery's strip / grid on the home. */
+  | 'gallery';
 
 export interface WidgetConstraints {
   minW: number;
@@ -315,7 +317,7 @@ export const WIDGETS: Readonly<Record<WidgetKey, WidgetDef>> = {
     constraints: FULL,
     surfaces: { default: BOTH, app: { priority: 90, size: 'md', bubbleKey: 'photos', pinned: true } },
     subpage: true,
-    data: [],
+    data: ['gallery'],
   },
   affiliations: {
     key: 'affiliations',

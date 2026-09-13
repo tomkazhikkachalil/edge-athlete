@@ -113,8 +113,12 @@ describe('instanceDisplay — the reader', () => {
     const c = place('courses', 0, 0, undefined, { config: { display: { showRounds: 'no' } } });
     expect(instanceDisplay(c).showRounds).toBe(true);
     expect(instanceDisplay(place('courses', 0, 0, undefined, { config: { display: { showRounds: false } } })).showRounds).toBe(false);
-    // A widget with no declaration reads as {} whatever is stored.
-    expect(instanceDisplay(place('hero', 0, 0, undefined, { config: { display: { variant: 'x' } } }))).toEqual({});
+    // A widget with no declaration (sponsors, until D2) reads as {} whatever is stored.
+    expect(instanceDisplay(place('sponsors', 0, 0, undefined, { config: { display: { variant: 'x' } } }))).toEqual({});
+    // A text field trims and caps; a non-string falls back to ''.
+    expect(instanceDisplay(place('contact_form', 0, 0, undefined, { config: { display: { button: '  Join us  ' } } })).button).toBe('Join us');
+    expect(instanceDisplay(place('contact_form', 0, 0, undefined, { config: { display: { button: 'x'.repeat(40) } } })).button).toHaveLength(24);
+    expect(instanceDisplay(place('contact_form', 0, 0, undefined, { config: { display: { button: 7 } } })).button).toBe('');
   });
 });
 

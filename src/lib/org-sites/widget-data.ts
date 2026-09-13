@@ -9,6 +9,7 @@ import {
   fetchPublicClubGolfBoards,
   fetchPublicCourses,
   fetchPublicDivisions,
+  fetchPublicGallery,
   fetchPublicGolfRounds,
   fetchPublicNewsList,
   fetchPublicOpenWindows,
@@ -24,6 +25,7 @@ import {
   getCachedClubGolfBoards,
   getCachedCourses,
   getCachedDivisions,
+  getCachedGallery,
   getCachedGolfRounds,
   getCachedLeaders,
   getCachedMemberStats,
@@ -83,6 +85,8 @@ export interface SiteReaders {
   golfRounds: () => Promise<NonNullable<SiteHomeData['golfRounds']>>;
   news: () => Promise<NonNullable<SiteHomeData['news']>>;
   memberStats: () => Promise<SiteHomeData['memberStats']>;
+  /** Program 3, D1b: the gallery's picked photos (strip / grid on the home). */
+  gallery: () => Promise<NonNullable<SiteHomeData['gallery']>>;
 }
 
 const EMPTY: SiteHomeData = {
@@ -101,6 +105,7 @@ const EMPTY: SiteHomeData = {
   golfRounds: [],
   news: [],
   memberStats: null,
+  gallery: [],
 };
 
 /** The published home's readers: the per-slug ISR cache. */
@@ -122,6 +127,7 @@ export function cachedSiteReaders(slug: string, site: PublicSite): SiteReaders {
     golfRounds: () => getCachedGolfRounds(slug, side, orgId),
     news: () => getCachedNewsList(slug, site.id, site.visibility === 'private'),
     memberStats: () => getCachedMemberStats(slug, side, orgId),
+    gallery: () => getCachedGallery(slug, side, orgId),
   };
 }
 
@@ -151,6 +157,7 @@ export function rawSiteReaders(admin: Admin, site: PublicSite): SiteReaders {
     golfRounds: () => fetchPublicGolfRounds(admin, side, orgId),
     news: () => fetchPublicNewsList(admin, site.id, { publicOnly: site.visibility === 'private' }),
     memberStats: () => fetchPublicMemberStats(admin, side, orgId),
+    gallery: () => fetchPublicGallery(admin, side, orgId),
   };
 }
 
@@ -160,7 +167,7 @@ export function rawSiteReaders(admin: Admin, site: PublicSite): SiteReaders {
 export function neededFields(layout: SiteLayout, side: Side): SiteHomeDataKey[] {
   const all: SiteHomeDataKey[] = [
     'standings', 'events', 'teams', 'staff', 'venues', 'affiliations', 'openWindows', 'courses',
-    'divisions', 'leaders', 'clubGolfBoards', 'courseStrip', 'golfRounds', 'news', 'memberStats',
+    'divisions', 'leaders', 'clubGolfBoards', 'courseStrip', 'golfRounds', 'news', 'memberStats', 'gallery',
   ];
   const clubOnly = new Set<SiteHomeDataKey>(['clubGolfBoards', 'courseStrip']);
   return all.filter(f => needsData(layout, f) && (side === 'club' || !clubOnly.has(f)));
@@ -173,7 +180,7 @@ export async function resolveHomeData(readers: SiteReaders, site: PublicSite, la
   const run = <K extends keyof SiteHomeData>(field: K & SiteHomeDataKey, read: () => Promise<SiteHomeData[K]>) =>
     need.has(field) ? read() : Promise.resolve(EMPTY[field]);
 
-  const [standings, events, teams, staff, venues, affiliations, openWindows, courses, divisions, leaders, clubGolfBoards, golfRounds, news, memberStats] =
+  const [standings, events, teams, staff, venues, affiliations, openWindows, courses, divisions, leaders, clubGolfBoards, golfRounds, news, memberStats, gallery] =
     await Promise.all([
       run('standings', readers.standings),
       run('events', readers.events),
@@ -189,10 +196,11 @@ export async function resolveHomeData(readers: SiteReaders, site: PublicSite, la
       run('golfRounds', readers.golfRounds),
       run('news', readers.news),
       run('memberStats', readers.memberStats),
+      run('gallery', readers.gallery),
     ]);
   // S3: the club strip needs the course ids from the read above.
   const courseStrip = need.has('courseStrip') ? await readers.courseStrip(courses) : EMPTY.courseStrip;
 
-  return { standings, events, teams, staff, venues, affiliations, openWindows, courses, divisions, leaders, clubGolfBoards, courseStrip, golfRounds, news, memberStats };
+  return { standings, events, teams, staff, venues, affiliations, openWindows, courses, divisions, leaders, clubGolfBoards, courseStrip, golfRounds, news, memberStats, gallery };
 }
 
