@@ -1,13 +1,14 @@
 'use client';
 
-import { useMemo } from 'react';
-import { GridLayout, useContainerWidth, type EventCallback, type Layout as RglLayout, type LayoutItem as RglItem } from 'react-grid-layout';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { GridLayout, useContainerWidth, type EventCallback, type Layout as RglLayout } from 'react-grid-layout';
 import type { PublicSite } from '@/lib/org-sites/server';
 import type { SiteHomeData } from '@/lib/org-sites/home-data';
 import { effectiveSpec, fontFaceCss, themeAttrs } from '@/lib/org-sites/theme';
 import { parseThemeTokens } from '@/lib/org-sites/validate';
-import { WIDGETS } from '@/lib/site-builder/catalog';
-import { GRID, compactLayout, type SiteLayout, type WidgetInstance } from '@/lib/site-builder/layout';
+import { GRID, type SiteLayout } from '@/lib/site-builder/layout';
+import { commitGesture, toRglItems, type MeasuredRows } from '@/lib/site-builder/canvas-rgl';
+import { fitOf, rowsForContent, type FitHeight } from '@/lib/site-builder/fit';
 import HeroSection from '@/app/(public)/org/[slug]/_components/HeroSection';
 import WidgetBody, { widgetTitle } from '@/app/(public)/org/[slug]/_components/WidgetBody';
 import { effectiveAudience } from '@/lib/site-builder/audience';
@@ -19,16 +20,29 @@ import './grid.css';
  * The canvas — Site Builder P3-B (Sep 9 2026): the REAL page with the
  * club's REAL data on react-grid-layout. Every tile is a WidgetFrame around
  * the same props-only component the public home renders (HeroSection /
- * WidgetBody), so what a manager drags is what visitors see. The body is
- * inert (`.sb-widget-body` — pointer-events none) so the tile is the drag
- * target and a link never navigates the editor away.
+ * WidgetBody), so what a manager drags is what visitors see. The body's
+ * CONTENT is inert (`.sb-measure` — pointer-events none) so the tile is
+ * the drag target and a link never navigates the editor away.
  *
  * One breakpoint on purpose: the doc derives mobile from desktop reading
  * order, so the editor never asks anyone to lay out a second width. Sizes
  * come from the catalog's constraints (min/max W/H — the grid refuses what
- * would look bad); `h` is a MINIMUM height, so a tall body may overflow its
- * tile here until the manager gives it room — the public renderer grows.
- * Commits happen on drag/resize STOP: one gesture, one undo step.
+ * would look bad). Commits happen on drag/resize STOP: one gesture, one
+ * undo step.
+ *
+ * Program 3, H2 — sections auto-size: ONE ResizeObserver measures every
+ * tile's content (`.sb-measure`, a content-sized block whose height depends
+ * on the width only — what breaks the feedback loop) and the grid shows an
+ * auto tile at `displayH` (its content, never below its stored `h`); a
+ * FIXED tile keeps `h` and scrolls inside. Measurements FREEZE during a
+ * gesture (react-grid-layout re-syncs its `layout` prop mid-resize) and
+ * flush after the commit. The measured height is never persisted:
+ * `commitGesture` copies x / y / w back and only a gesture that changed
+ * the height touches the stored `h` (the fit rule — below the content →
+ * fixed, with the Undo toast). One honest divergence, recorded here: CSS
+ * grid row tracks are global across columns, so on the public page a tall
+ * widget pushes a neighbour in ANOTHER column lower than the canvas does;
+ * the public page always pushes at least as much — nothing overlaps.
  */
 export interface CanvasProps {
   site: PublicSite;
@@ -36,7 +50,9 @@ export interface CanvasProps {
   data: SiteHomeData;
   selectedId: string | null;
   onSelect: (id: string | null) => void;
-  onCommit: (next: SiteLayout) => void;
+  /** H2: `flipped` names a fit change the gesture caused ('fixed' = the
+   *  manager dragged the tile below its content; 'auto' = back up to it). */
+  onCommit: (next: SiteLayout, flipped?: FitHeight | null) => void;
   /** P3-D: remove a tile (the hero is never removable). */
   onRemove: (id: string) => void;
   /** Program 3 S2: the instances rendering SAMPLE content (the editor's
@@ -48,24 +64,15 @@ export interface CanvasProps {
   sampleData: SiteHomeData;
 }
 
-function toRgl(layout: SiteLayout): RglLayout {
-  return layout.widgets.map<RglItem>(w => {
-    const c = WIDGETS[w.key].constraints;
-    return { i: w.id, x: w.x, y: w.y, w: w.w, h: w.h, minW: c.minW, maxW: c.maxW, minH: c.minH, maxH: c.maxH };
-  });
-}
-
-function fromRgl(layout: SiteLayout, items: RglLayout): SiteLayout {
-  const byId = new Map(items.map(i => [i.i, i]));
-  const widgets: WidgetInstance[] = layout.widgets.map(w => {
-    const i = byId.get(w.id);
-    return i ? { ...w, x: i.x, y: i.y, w: i.w, h: i.h } : w;
-  });
-  return { ...layout, widgets: compactLayout(widgets) };
+/** The chrome a tile adds around its content: the frame header, the body's
+ *  padding (p-3 = 12px × 2) and the two borders. Read from the DOM once per
+ *  observation so a theme's header height is honoured. */
+function chromePx(frame: HTMLElement): number {
+  const header = frame.querySelector<HTMLElement>('.sb-frame-controls');
+  return (header?.offsetHeight ?? 0) + 24 + 2;
 }
 
 export default function Canvas({ site, layout, data, selectedId, onSelect, onCommit, onRemove, sampled, sampleData }: CanvasProps) {
-  const sampleCtx = { orgName: site.orgName, sportKey: site.sportKey };
   const { width, containerRef } = useContainerWidth({ initialWidth: 1024 });
   // Phase 7: the canvas wears the site's theme (accent, surface, heading
   // face) exactly as the public shell does — before this it showed the
@@ -73,11 +80,82 @@ export default function Canvas({ site, layout, data, selectedId, onSelect, onCom
   const spec = effectiveSpec(site);
   const attrs = themeAttrs(site);
   const fontCss = fontFaceCss(parseThemeTokens(site.theme_token_set).typeface);
-  const rgl = useMemo(() => toRgl(layout), [layout]);
+  const sampleCtx = { orgName: site.orgName, sportKey: site.sportKey };
 
-  const commit: EventCallback = next => {
-    const changed = fromRgl(layout, next);
-    if (JSON.stringify(changed.widgets) !== JSON.stringify(layout.widgets)) onCommit(changed);
+  // ── H2: measurement ──────────────────────────────────────────────────────
+  const [measured, setMeasured] = useState<MeasuredRows>({});
+  const measuredRef = useRef<MeasuredRows>({});
+  const gestureRef = useRef<{ id: string; oldH: number } | null>(null);
+  const pendingRef = useRef<Record<string, number>>({});
+  const observerRef = useRef<ResizeObserver | null>(null);
+  const applyRows = useCallback((rows: Record<string, number>) => {
+    let changed = false;
+    const next: Record<string, number> = { ...measuredRef.current };
+    for (const [id, r] of Object.entries(rows)) {
+      if (next[id] !== r) {
+        next[id] = r;
+        changed = true;
+      }
+    }
+    if (!changed) return;
+    measuredRef.current = next;
+    setMeasured(next);
+  }, []);
+  // The observer is created LAZILY by the first tile's ref callback: ref
+  // callbacks run before effects on mount, so an observer made in an effect
+  // would miss every tile of the first render (the e2e found exactly that).
+  const observer = useCallback((): ResizeObserver | null => {
+    if (observerRef.current) return observerRef.current;
+    if (typeof ResizeObserver === 'undefined') return null;
+    observerRef.current = new ResizeObserver(entries => {
+      const rows: Record<string, number> = {};
+      for (const entry of entries) {
+        const el = entry.target as HTMLElement;
+        const id = el.dataset.sbMeasure;
+        const frame = el.closest<HTMLElement>('.sb-frame');
+        if (!id || !frame) continue;
+        // The content's own height (ceil-to-row absorbs sub-row jitter such
+        // as a page scrollbar toggling).
+        rows[id] = rowsForContent(el.offsetHeight, chromePx(frame));
+      }
+      if (gestureRef.current) Object.assign(pendingRef.current, rows);
+      else applyRows(rows);
+    });
+    return observerRef.current;
+  }, [applyRows]);
+  useEffect(
+    () => () => {
+      observerRef.current?.disconnect();
+      observerRef.current = null;
+    },
+    []
+  );
+  const observe = useCallback(
+    (el: HTMLDivElement | null) => {
+      if (el) observer()?.observe(el);
+    },
+    [observer]
+  );
+  const endGesture = () => {
+    gestureRef.current = null;
+    const pending = pendingRef.current;
+    pendingRef.current = {};
+    if (Object.keys(pending).length > 0) applyRows(pending);
+  };
+
+  const rgl = useMemo(() => toRglItems(layout, measured), [layout, measured]);
+  const displayed = useMemo(() => new Map(rgl.map(i => [i.i, i.h])), [rgl]);
+
+  const commit: EventCallback = (next: RglLayout, oldItem, newItem) => {
+    const gesture = gestureRef.current && newItem ? { id: gestureRef.current.id, oldH: gestureRef.current.oldH, newH: newItem.h } : null;
+    const result = commitGesture(layout, next, gesture, measuredRef.current);
+    endGesture();
+    if (result) onCommit(result.layout, result.flipped);
+  };
+  const begin = (id: string | undefined) => {
+    if (!id) return;
+    gestureRef.current = { id, oldH: displayed.get(id) ?? 0 };
+    onSelect(id);
   };
 
   return (
@@ -93,9 +171,9 @@ export default function Canvas({ site, layout, data, selectedId, onSelect, onCom
         resizeConfig={{ enabled: true, handles: ['se'] }}
         // Selection rides the grid's own drag-start (the drag library owns
         // mousedown on the handle) and a plain click anywhere on the tile.
-        onDragStart={(_layout, item) => onSelect(item?.i ?? null)}
+        onDragStart={(_layout, item) => begin(item?.i)}
         onDragStop={commit}
-        onResizeStart={(_layout, item) => onSelect(item?.i ?? null)}
+        onResizeStart={(_layout, item) => begin(item?.i)}
         onResizeStop={commit}
       >
         {layout.widgets.map(w => {
@@ -103,6 +181,8 @@ export default function Canvas({ site, layout, data, selectedId, onSelect, onCom
           const title = w.key === 'hero' ? 'Hero' : widgetTitle(site, w);
           const membersOnly = effectiveAudience(site, w) === 'members';
           const isSample = sampled.has(w.id);
+          const fit = fitOf(w);
+          const shownH = displayed.get(w.id) ?? w.h;
           return (
             <div
               key={w.id}
@@ -111,6 +191,7 @@ export default function Canvas({ site, layout, data, selectedId, onSelect, onCom
               }`}
               data-sb-widget={w.key}
               data-sb-instance={w.id}
+              data-sb-fit={fit}
               onClick={() => onSelect(w.id)}
             >
               {/* B4: the frame header is the keyboard target too — Enter/Space selects (the body below is inert). */}
@@ -139,8 +220,13 @@ export default function Canvas({ site, layout, data, selectedId, onSelect, onCom
                       Members only on your site
                     </span>
                   )}
-                  <span className="tabular-nums text-muted">
-                    {w.w}×{w.h}
+                  {fit === 'fixed' && (
+                    <span className="rounded-full border border-border px-1.5 py-0.5 text-[10px] font-medium text-tertiary" data-sb-fixed-chip="" title="Fixed height — visitors scroll inside this section">
+                      Fixed
+                    </span>
+                  )}
+                  <span className="tabular-nums text-muted" title={fit === 'auto' && shownH !== w.h ? `Fits its content (${shownH} rows); at least ${w.h}` : undefined}>
+                    {w.w}×{shownH}
                   </span>
                   {w.key !== 'hero' && (
                     <button
@@ -159,18 +245,23 @@ export default function Canvas({ site, layout, data, selectedId, onSelect, onCom
                   )}
                 </span>
               </div>
-              {/* B4: inert — the body's links were tab-reachable and navigated the editor away; the manager sees
-                  the REAL widget (a private club's members-only module carries the badge above, not the panel). */}
-              <div className="sb-widget-body min-h-0 flex-1 overflow-hidden p-3" inert>
-                {w.key === 'hero' ? (
-                  <HeroSection site={site} w={w} spec={spec} compact />
-                ) : isSample && w.key === 'embed' ? (
-                  <SampleFrame kind="video" />
-                ) : (
-                  // S2: a sampled tile renders the WHOLE sample bag through a
-                  // query-stripped clone; every other tile the real one.
-                  <WidgetBody site={site} w={sampleInstance(w, sampled, sampleCtx)} data={isSample ? sampleData : data} spec={spec} membersOnly={false} />
-                )}
+              {/* B4 / H2: the CONTENT is inert (`.sb-measure` — the body's links were
+                  tab-reachable and navigated the editor away); the body itself
+                  scrolls when the tile is fixed (grid.css). The manager sees the
+                  REAL widget (a private club's members-only module carries the
+                  badge above, not the panel). */}
+              <div className="sb-widget-body min-h-0 flex-1 overflow-hidden p-3" data-sb-fit={fit}>
+                <div ref={observe} className="sb-measure" data-sb-measure={w.id} inert>
+                  {w.key === 'hero' ? (
+                    <HeroSection site={site} w={w} spec={spec} compact />
+                  ) : isSample && w.key === 'embed' ? (
+                    <SampleFrame kind="video" />
+                  ) : (
+                    // S2: a sampled tile renders the WHOLE sample bag through a
+                    // query-stripped clone; every other tile the real one.
+                    <WidgetBody site={site} w={sampleInstance(w, sampled, sampleCtx)} data={isSample ? sampleData : data} spec={spec} membersOnly={false} />
+                  )}
+                </div>
               </div>
             </div>
           );

@@ -6,6 +6,7 @@ import { effectiveAudience } from '@/lib/site-builder/audience';
 import { canMove, moveInstance, readingOrder, resizeToPreset } from '@/lib/site-builder/sections';
 import { widgetTitle } from '@/app/(public)/org/[slug]/_components/WidgetBody';
 import SizeControl from './SizeControl';
+import { fitOf, withFit } from '@/lib/site-builder/fit';
 
 // ── The Sections list — the phone editor (Sep 11 2026) ───────────────────
 // Below `lg` the canvas has no room, but a manager on a phone still needs to
@@ -70,8 +71,19 @@ export default function SectionsList({ site, layout, onCommit, onRemove, onSelec
               </div>
             </div>
             {!isHero && (
-              <div className="mt-2">
+              <div className="mt-2 flex flex-wrap items-center gap-2">
                 <SizeControl widget={w} title={title} onResize={p => onCommit(resizeToPreset(layout, w.id, p))} />
+                {/* Program 3, H2: the height rule — fits its content, or fixed (scrolls inside). */}
+                <select
+                  aria-label={`Height of ${title}`}
+                  value={fitOf(w)}
+                  onChange={e => onCommit({ ...layout, widgets: layout.widgets.map(x => (x.id === w.id ? withFit(x, e.target.value === 'fixed' ? 'fixed' : 'auto') : x)) })}
+                  className="min-h-[36px] rounded-md border border-border-strong bg-surface px-2 text-xs text-secondary"
+                  data-sb-height=""
+                >
+                  <option value="auto">Fits the content</option>
+                  <option value="fixed">Fixed — scrolls inside</option>
+                </select>
               </div>
             )}
           </li>

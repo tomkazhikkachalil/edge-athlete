@@ -1,5 +1,49 @@
 # Development Log
 
+## September 13, 2026 — Program 3, H2: the canvas auto-sizes its tiles (zero DDL)
+
+The editor was the one place a tall body overflowed its tile. Now the
+canvas shows every section at its content's height, exactly as visitors
+see it, and a section dragged deliberately small becomes fixed.
+
+- **Measurement**: ONE `ResizeObserver` over every tile's `.sb-measure` —
+  a content-sized block INSIDE the body whose height depends on the width
+  only (what breaks the feedback loop) — converts px to rows with
+  `rowsForContent` (the frame header, the padding and the borders read
+  from the DOM as the chrome; ceil-to-row absorbs sub-row jitter such as a
+  page scrollbar toggling) and updates state only when a row count
+  changes. Measurements FREEZE during a gesture (react-grid-layout re-syncs
+  its `layout` prop by deep-equal, skipped during a drag but not a resize)
+  and flush after the commit. `inert` moved from the body to `.sb-measure`
+  so a FIXED tile's body can take the wheel (`grid.css`).
+- **`canvas-rgl.ts`** (pure): `toRglItems` shows an auto tile at
+  `displayH` (its content, never below its stored `h`) with `maxH` raised
+  to the need so the handle can reach the content's height, a fixed tile
+  at `h`; `applyRglPositions` copies x / y / w back and NEVER the item's h;
+  `commitGesture` applies the fit rule only when the gesture itself
+  changed the height (`oldItem.h !== newItem.h`), re-compacts under the
+  STORED heights, and answers null when nothing changed. So the measured
+  height never reaches the layout, the autosave or the undo stack.
+- **The gesture**: dragging a tile below its content flips it to fixed —
+  the "Fixed" chip in the frame header, the body scrolling in the editor
+  as it will for visitors, and the house Undo toast ("Fixed height — this
+  section scrolls inside"; Undo restores THIS layout, H6's rule); dragging
+  a fixed tile back up to its content returns it to auto with a quiet
+  success. The header's `w×h` reads the DISPLAYED height (a title says
+  "fits its content; at least h"). The phone's Sections list gains the
+  rule as a select beside Size (`data-sb-height`).
+- One honest divergence, recorded in the Canvas header: CSS grid row
+  tracks are global across columns, so on the public page a tall widget
+  pushes a neighbour in ANOTHER column lower than the canvas does; the
+  public page always pushes at least as much — nothing overlaps.
+- Tests: `canvas-rgl.test.ts` (the display height, `maxH`, a commit never
+  copies h, compaction under the stored heights, the flip below the
+  content, the minimum above it). e2e `org-site-fit.spec.ts` (second
+  test): the tile grows past three rows with nothing clipped while the
+  draft keeps `h = 3`; the resize handle dragged up 200px → fixed, the
+  chip, the toast, the body scrolls in the editor, the draft carries the
+  rule; Undo → auto at the old minimum; the phone list's select writes it.
+
 ## September 13, 2026 — Program 3, H1: section height — the fit rule and the public scroll (zero DDL)
 
 Tom's third refinement opens: sections auto-size to their content, and a
