@@ -588,6 +588,25 @@ const { canView } = await response.json();
      prunes marks after 2 days; the console **Visitors** panel and the admin
      dashboard read `org_site_stats_daily`; `docs/ANALYTICS.md` is the
      reference. Read DEVLOG Sep 11 2026 C0–E2 first.
+   - **Sample data in the editor (program 3, S — Sep 13 2026, #697–#698,
+     zero DDL)**: `src/lib/site-builder/sample.ts` is a PURE, client-safe
+     generator (no zod / validate / emptiness — the emptiness predicate is
+     injected) of realistic, sport-appropriate content in modest volume
+     (8 standings rows on the sport's real columns, 3 posts, 6 sponsors, a
+     full contact block; people in the MASKED shape with no handle; every
+     string carries `SAMPLE_SENTINEL`). `applySample` is applied at the
+     editor's RENDER boundary ONLY (`SiteBuilder` → the canvas, the phone
+     list, the picker); history, the draft PUT, every `set_*` PATCH, the
+     checklist and the publish gate keep the real site / data / layout,
+     and a sampled tile renders the WHOLE sample bag through a
+     query-stripped clone (`sampleInstance`) — never a merged bag. Sample
+     media are base64 SVG data URIs: `orgMediaUrl` passes
+     `SAMPLE_MEDIA_URI_RE` through for render and the sponsor / hero
+     parsers admit it at their re-check, while every WRITE path stays a
+     stored-path regex, so a data URI cannot enter the database. The
+     toggle (`data-sb-sample`, on by default, remembered per site in
+     localStorage) and the chip (`data-sb-sample-chip`) are the e2e hooks;
+     a sampled embed draws `SampleFrame`, never a third-party iframe.
    - e2e: a spec that reads the PUBLIC page must first take the site LIVE
      (`PATCH {action:'publish'}`) and, after edits, promote the draft with
      `e2e/helpers/org-site.ts publishSite()`; public-order polls compare

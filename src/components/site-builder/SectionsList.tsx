@@ -24,11 +24,13 @@ interface Props {
   onRemove: (id: string) => void;
   /** Open the section's properties (a sheet below lg). */
   onSelect: (id: string) => void;
+  /** Program 3 S2: the rows rendering sample content (a "Sample" chip). */
+  sampled?: ReadonlySet<string>;
 }
 
 const ICON = 'inline-flex h-11 w-11 items-center justify-center rounded-md border border-border-strong text-secondary hover:bg-surface-sunken transition-colors disabled:opacity-40 disabled:cursor-not-allowed';
 
-export default function SectionsList({ site, layout, onCommit, onRemove, onSelect }: Props) {
+export default function SectionsList({ site, layout, onCommit, onRemove, onSelect, sampled }: Props) {
   const rows = readingOrder(layout);
   return (
     <ol className="space-y-2" aria-label="Sections in page order" data-sb-sections="">
@@ -41,6 +43,9 @@ export default function SectionsList({ site, layout, onCommit, onRemove, onSelec
             <div className="flex items-start justify-between gap-2">
               <div className="min-w-0">
                 <p className="truncate text-sm font-semibold text-primary">{title}</p>
+                {sampled?.has(w.id) && (
+                  <span className="mt-0.5 mr-1 inline-block rounded-full border border-sky-300 bg-sky-50 px-1.5 py-0.5 text-[10px] font-medium text-sky-800" data-sb-sample-chip="">Sample</span>
+                )}
                 {audience !== 'public' && (
                   <span className="mt-0.5 inline-block rounded-full border border-border px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-tertiary">Members only</span>
                 )}
