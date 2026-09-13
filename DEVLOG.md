@@ -1,5 +1,32 @@
 # Development Log
 
+## September 13, 2026 — Data foundation F2: a stat line is validated server-side — a 400 names the field, nothing is clamped or stripped
+
+- **`src/lib/sports/stat-line-validate.ts`** (pure): `validateStatLine(data,
+  sportKey, today?)` has an opinion ONLY about `type: 'stat_line'` — a vitals
+  entry, a plain `{score: 42}` blob or `null` passes untouched. A stat line
+  must parse (`isStatLineData`), name the post's sport, have a schema, carry
+  a `YYYY-MM-DD` date that is not in the future (when present), a result in
+  W / L / T (when present), at least one stat, and every stat a KNOWN key
+  with a finite number inside the field's min / max. The words are the org
+  path's: `Unknown stat "x" for this sport`, `<Label> is out of range`.
+  `validateStatsAgainstSchema(stats, schema)` is that key / range loop — ONE
+  copy now; `stat-lines-server.ts` (the org console's entry) calls it
+  instead of its own.
+- **Tom's decision (Sep 13):** REJECT with a 400, never clamp (a clamped
+  value is a silently changed number), never strip (a dropped stat is a
+  silently lost one). The composer already validates, so the 400 only ever
+  meets a stale or hostile client — and the dataset never stores a number
+  the sport's schema does not define. The posts POST runs the validator
+  before `postData` for every non-golf post that carries `stats_data`.
+- Tests: six unit cases (passthrough, malformed, sport mismatch, no
+  schema, empty stats, bad / future date, result, unknown key, range);
+  `e2e/stat-line-validation.spec.ts` posts an unknown stat, a range miss, a
+  future date and a sport mismatch (400 each), then a valid line (stored
+  exactly as sent) and the plain blob tagged.spec seeds (still 200).
+- Zero DDL. Next: F3 — migration 194 `athlete_performances` and the
+  `src/lib/performance/` mappers.
+
 ## September 13, 2026 — Data foundation, F1: one provenance ladder (zero DDL)
 
 - `provenance-copy.ts` exports `PROVENANCE_RANK` (sanctioned 6 … entered

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { UUID_RE, isUuid } from '@/lib/uuid';
 import { filterBlockedBidirectional } from '@/lib/blocks';
 import { getEnabledSports } from '@/lib/sports/SportRegistry';
+import { validateStatLine } from '@/lib/sports/stat-line-validate';
 import { requireAuth, getSupabaseAdmin } from '@/lib/auth-server';
 import { GROUP_SCORECARD_SELECT, transformGroupPostToScorecard } from '@/lib/golf/scorecard-transform';
 import { isActiveParticipant, effectiveRoundStatus } from '@/lib/golf/round-status';
@@ -264,6 +265,16 @@ export async function POST(request: NextRequest) {
         );
       }
       eventId = body.eventId;
+    }
+
+    // A stat line is validated SERVER-SIDE against the sport's schema (data
+    // foundation F2, Sep 13 2026): an unknown stat, a value out of range,
+    // a non-number, a bad or future date, a sport mismatch → 400 naming the
+    // field — never clamped, never stripped. A vitals entry or any other
+    // non-stat-line payload passes untouched.
+    if (incomingStatsData && postType !== 'golf') {
+      const line = validateStatLine(incomingStatsData, postType);
+      if (!line.ok) return NextResponse.json({ error: line.error }, { status: 400 });
     }
 
     // Create the post record

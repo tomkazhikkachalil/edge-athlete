@@ -28,6 +28,7 @@
 import { NextResponse } from 'next/server';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { getStatSchema } from '@/lib/sports/stat-schemas';
+import { validateStatsAgainstSchema } from '@/lib/sports/stat-line-validate';
 import { isMissingTableError, type StatLinesUpsertInput } from '@/lib/competitions/validate';
 import { revalidateOrgSiteForCompetition } from '@/lib/org-sites/revalidate';
 import type { CompetitionScope } from './competition-server';
@@ -307,26 +308,12 @@ export async function statLinesUpsertPOST(
       { status: 400 }
     );
   }
-  const knownKeys = new Map(schema.fields.map(f => [f.key, f]));
+  // The key / range check is ONE copy since data foundation F2 (Sep 13
+  // 2026): the posts route rejects a self-entered stat line with the same
+  // words (`stat-line-validate.ts`).
   for (const line of input.lines) {
-    for (const [key, value] of Object.entries(line.stats)) {
-      const field = knownKeys.get(key);
-      if (!field) {
-        return NextResponse.json(
-          { error: `Unknown stat "${key}" for this sport` },
-          { status: 400 }
-        );
-      }
-      if (
-        (field.min !== undefined && value < field.min) ||
-        (field.max !== undefined && value > field.max)
-      ) {
-        return NextResponse.json(
-          { error: `${field.label} is out of range` },
-          { status: 400 }
-        );
-      }
-    }
+    const checked = validateStatsAgainstSchema(line.stats, schema);
+    if (!checked.ok) return NextResponse.json({ error: checked.error }, { status: 400 });
   }
 
   // Participating teams of THIS contest, narrowed by authority.
