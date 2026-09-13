@@ -1,5 +1,17 @@
 # Development Log
 
+## September 13, 2026 — Program 3, D3: migration 189 — pinned news posts (the file only)
+
+- `database/migrations/189_org_site_news_pin.sql`: `org_site_news.pinned_at
+  timestamptz` (NULL = not pinned; Tom's decision — the pin lives ON THE
+  POST, never on a widget instance) and the index `(site_id, pinned_at DESC
+  NULLS LAST, published_at DESC)` for the news page's order. Posture
+  unchanged; re-runnable; `NOTIFY pgrst`.
+- Deploy order is FLEXIBLE: D4's readers step down on 42703 (pre-189 →
+  nothing is pinned) and the PATCH refuses `pinned` with a clear message
+  until the column exists. Tom runs it after this merges and before D4
+  merges.
+
 ## September 13, 2026 — Program 3, D2: sponsors — tiers, the editor's list, the display axes (zero DDL)
 
 Tom's worked example, done in full: sponsors gain a tier from a FIXED
