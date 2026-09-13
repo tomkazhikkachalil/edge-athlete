@@ -53,7 +53,8 @@ export default async function OrgSiteNewsPage({ params }: PageParams) {
         {posts.length === 0 ? (
           <p className="text-sm text-tertiary">No news yet.</p>
         ) : (
-          <NewsItems posts={posts} siteId={site.id} basePath={siteBasePath(site)} />
+          // D4 (189): the pinned posts lead — a property of the post, so the page always honours it.
+          <NewsItems posts={[...posts].sort((x, y) => Number(!!y.pinned) - Number(!!x.pinned))} siteId={site.id} basePath={siteBasePath(site)} />
         )}
       </section>
       {/* N3: announcements the manager also put on the notice band — the

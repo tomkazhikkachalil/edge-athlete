@@ -8,7 +8,7 @@ import { moduleLabel, parseContact, parseDocuments, parseNavConfig, parsePageBod
 import type { TemplateSpec } from '@/lib/org-sites/templates';
 import { effectiveConfig, instanceTitle } from '@/lib/site-builder/config';
 import { embedSrc, embedTitle, parseEmbed } from '@/lib/site-builder/embeds';
-import { memberLimit, selectForInstance } from '@/lib/site-builder/select';
+import { memberLimit, newsLimit, selectForInstance } from '@/lib/site-builder/select';
 import { applyOrder, displayBool, displayNumber, displayOrder, displayString, instanceDisplay, orderIdOf, sortAlpha, tierRank } from '@/lib/site-builder/display';
 import { orgMediaUrl } from '@/lib/media/org-site-media';
 import { siteBasePath } from '@/lib/org-sites/urls';
@@ -310,13 +310,28 @@ export default function WidgetBody({ site, w, data: raw, spec, membersOnly = fal
     }
     case 'news': {
       // N1: the newest posts with their covers (three unless the instance
-      // asks for more — the selector already sliced).
-      const latest = data.news ?? [];
+      // asks for more). D4: the WHOLE bag is ordered first — newest (the
+      // reader's order), pinned first, or the manager's own — then sliced,
+      // so a pinned post beyond the slice still leads.
+      const all = raw.news ?? [];
+      const ordered =
+        sortKey === 'pinned'
+          ? [...all].sort((x, y) => Number(!!y.pinned) - Number(!!x.pinned))
+          : sortKey === 'manual'
+            ? applyOrder(all, order, orderIdOf.news)
+            : all;
+      const latest = ordered.slice(0, newsLimit(w));
       return latest.length === 0 ? (
         empty('No news yet.')
       ) : (
         <div data-home-news={latest.length}>
-          <NewsItems posts={latest} siteId={site.id} basePath={siteBasePath(site)} />
+          <NewsItems
+            posts={latest}
+            siteId={site.id}
+            basePath={siteBasePath(site)}
+            variant={variant === 'grid' || variant === 'featured' ? variant : 'list'}
+            click={click === 'inline' ? 'inline' : 'detail'}
+          />
           <Link href={`${siteBasePath(site)}/news`} className="mt-2 inline-block text-sm text-brand-fg font-medium">
             All news →
           </Link>

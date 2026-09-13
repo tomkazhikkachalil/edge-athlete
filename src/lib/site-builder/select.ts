@@ -88,6 +88,12 @@ export function selectForInstance(w: WidgetInstance, data: SiteHomeData): SiteHo
   }
 }
 
+/** Program 3, D4: the home's news slice — WidgetBody sorts the whole bag
+ *  first (pinned / the manager's order), then takes this many. */
+export function newsLimit(w: WidgetInstance): number {
+  return clampLimit(instanceQuery(w).limit, 'news');
+}
+
 /** The members table shows this many rows (the table slices itself so the
  *  member COUNT line stays honest). */
 export function memberLimit(w: WidgetInstance): number {
