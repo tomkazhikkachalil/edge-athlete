@@ -11,6 +11,20 @@ export const PROVENANCE_ORDER: readonly SkillProvenanceKey[] = [
   'sanctioned', 'league_verified', 'club_recorded', 'tracked', 'imported', 'entered',
 ];
 
+/** The ladder as numbers (higher = stronger), DERIVED from the order above so
+ *  the display precedence, the skill cards' tiering and the performance
+ *  dataset's "this rung and above" filters can never disagree (data
+ *  foundation, F1 — Sep 13 2026; `official-stats.ts` used to keep its own
+ *  copy). sanctioned 6 … entered 1. */
+export const PROVENANCE_RANK: Readonly<Record<SkillProvenanceKey, number>> = Object.fromEntries(
+  PROVENANCE_ORDER.map((key, i) => [key, PROVENANCE_ORDER.length - i])
+) as Record<SkillProvenanceKey, number>;
+
+/** The rungs at or above `floor`, in ladder order — the reader's "verified only" set. */
+export function provenanceAtOrAbove(floor: SkillProvenanceKey): SkillProvenanceKey[] {
+  return PROVENANCE_ORDER.filter(k => PROVENANCE_RANK[k] >= PROVENANCE_RANK[floor]);
+}
+
 export const PROVENANCE_LABEL: Record<SkillProvenanceKey, string> = {
   sanctioned: 'Sanctioned',
   league_verified: 'League verified',
