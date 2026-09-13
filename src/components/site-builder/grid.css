@@ -70,11 +70,23 @@
   right: 0;
   cursor: se-resize;
 }
-/* The widget body is inert on the canvas: the tile is the drag target and a
-   link must never navigate the editor away. */
+/* The widget CONTENT is inert on the canvas (`.sb-measure`, program 3 H2 —
+   it was the whole body before): the tile is the drag target and a link
+   must never navigate the editor away. The body of a FIXED tile scrolls
+   inside, as it will for visitors, so it takes the wheel. */
 .sb-canvas .sb-widget-body {
   pointer-events: none;
   user-select: none;
+}
+.sb-canvas .sb-measure {
+  pointer-events: none;
+  user-select: none;
+}
+.sb-canvas .sb-widget-body[data-sb-fit='fixed'] {
+  pointer-events: auto;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
 }
 @media (prefers-reduced-motion: reduce) {
   .sb-canvas .react-grid-layout,

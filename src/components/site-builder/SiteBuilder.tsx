@@ -39,6 +39,7 @@ import ConfirmModal from '@/components/ConfirmModal';
 import { COPY } from '@/lib/copy';
 import { useHistory } from './useHistory';
 import { applySample } from '@/lib/site-builder/sample';
+import type { FitHeight } from '@/lib/site-builder/fit';
 import { isWidgetEmpty } from '@/lib/site-builder/emptiness';
 
 /**
@@ -381,6 +382,16 @@ function Editor({
     history.commit(removeWidget(history.present, id));
     setSelectedId(null);
     showUndo('Section removed', () => history.commit(before), 'Nothing changes on your site until you publish.');
+  };
+
+  // Program 3, H2: a canvas gesture that dragged a tile BELOW its content
+  // made it fixed (it scrolls inside) — say so, with the Undo the removal
+  // toast has (H6: restore THIS layout, never "whatever happened last").
+  const commitFromCanvas = (next: SiteLayout, flipped?: FitHeight | null) => {
+    const before = history.present;
+    history.commit(next);
+    if (flipped === 'fixed') showUndo('Fixed height — this section scrolls inside', () => history.commit(before), 'Drag it taller than its content to let it grow again.');
+    else if (flipped === 'auto') showSuccess('Website', 'This section fits its content again');
   };
 
   // H5: the wire mapped to what the editor can act on — a 400 says WHICH
@@ -817,7 +828,7 @@ function Editor({
                       }
                     });
                   }}
-                  onCommit={history.commit}
+                  onCommit={commitFromCanvas}
                   onRemove={removeOne}
                 />
               </div>
