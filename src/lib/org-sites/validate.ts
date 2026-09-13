@@ -11,6 +11,7 @@
 import { z } from 'zod';
 import { TEMPLATE_IDS } from './templates';
 import { GALLERY_ENTRY_IDS, GALLERY_MODES } from '@/lib/site-builder/gallery-ids';
+import { SAMPLE_MEDIA_URI_RE } from '@/lib/media/org-site-media';
 
 export { isMissingTableError } from '@/lib/leagues/validate';
 
@@ -398,7 +399,7 @@ export function parseHeroConfig(config: unknown): PublicHero {
     headline: typeof record.headline === 'string' ? record.headline.slice(0, 80) : '',
     tagline: typeof record.tagline === 'string' ? record.tagline.slice(0, 140) : '',
   };
-  if (typeof record.imagePath === 'string' && ORG_IMAGE_PATH_RE.test(record.imagePath)) {
+  if (typeof record.imagePath === 'string' && (ORG_IMAGE_PATH_RE.test(record.imagePath) || SAMPLE_MEDIA_URI_RE.test(record.imagePath))) {
     out.imagePath = record.imagePath;
     if (typeof record.imageAlt === 'string' && record.imageAlt.trim()) {
       out.imageAlt = record.imageAlt.trim().slice(0, HERO_IMAGE_ALT_MAX);
@@ -451,8 +452,12 @@ export function parseSponsors(config: unknown): PublicSponsor[] {
     const safeUrl =
       typeof url === 'string' && httpsUrl.safeParse(url).success ? url : undefined;
     const logoPath = (item as Record<string, unknown>).logoPath;
+    // Program 3 S1: the editor's sample logos are inline SVG data URIs —
+    // admitted at RENDER only (the stored shape stays ORG_MEDIA_PATH_RE).
     const safeLogo =
-      typeof logoPath === 'string' && ORG_MEDIA_PATH_RE.test(logoPath) ? logoPath : undefined;
+      typeof logoPath === 'string' && (ORG_MEDIA_PATH_RE.test(logoPath) || SAMPLE_MEDIA_URI_RE.test(logoPath))
+        ? logoPath
+        : undefined;
     out.push({
       name: name.slice(0, 80),
       ...(safeUrl ? { url: safeUrl } : {}),
