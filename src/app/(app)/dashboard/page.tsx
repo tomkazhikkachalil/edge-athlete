@@ -9,6 +9,7 @@ import { formatDisplayName } from '@/lib/formatters';
 import { SUGGEST_DEBOUNCE_MS } from '@/lib/search/typeahead';
 import type { SiteMetrics } from '@/lib/site-builder/metrics-rollup';
 import type { SweepSummary } from '@/lib/storage-sweep-server';
+import PerformanceBackfillPanel from '@/components/admin/PerformanceBackfillPanel';
 
 // Admin console (replaces the orphaned legacy dashboard page — its buttons
 // had no onClick handlers). Access = ADMIN_EMAILS allowlist, enforced
@@ -472,6 +473,9 @@ export default function AdminDashboardPage() {
             </p>
           </div>
         </section>
+
+        {/* Data foundation F5b: the backfill's door — no developer console needed. */}
+        <PerformanceBackfillPanel />
 
         {/* Phase 6b C1: custom domains — the lifecycle list + retry actions. */}
         {orgDomains.length > 0 && (

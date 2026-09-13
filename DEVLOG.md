@@ -1,5 +1,22 @@
 # Development Log
 
+## September 13, 2026 — Data foundation F5b: the backfill gets a door on the admin dashboard (zero DDL)
+
+- Tom, asked to run the backfill from a browser console: "I don't
+  understand where I input this information." Right — an owner action
+  should not need DevTools. `src/components/admin/PerformanceBackfillPanel
+  .tsx` sits on `/dashboard` beside the storage sweep: the four sources
+  listed in the ORDER the doc requires (the league results last so their
+  overlays win), **Dry run all** (nothing written; the counts and the skip
+  reasons per source), then **Run for real** behind the house
+  `ConfirmModal`. A live run walks every page (`nextCursor` while
+  `truncated`) so one click finishes a source; a failed source stops the
+  run (the order matters). Each line carries `data-backfill-source` /
+  `data-backfill-status` for the probe.
+- `e2e/admin-backfill-panel.spec.ts` (needs `E2E_ADMIN_EMAIL`): the panel
+  renders for an admin, the dry run reaches all four sources with counts,
+  the live run behind the confirm writes at least the seeded stat line.
+
 ## September 13, 2026 — Data foundation F6: the scout search reads `athlete_performances` — Active since, Verified only, a headline floor (zero DDL)
 
 - `src/lib/recruiting/search.ts` (pure): the params gain `since`
