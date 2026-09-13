@@ -94,6 +94,56 @@ migration file — add a new number; use `(select auth.uid())` (not bare
 `auth.uid()`) in RLS policies for performance; SECURITY DEFINER functions set
 `search_path = ''` and fully qualify table names.
 
+## Provenance — every live table and column is named by a numbered file
+
+**The rule (data foundation, Sep 2026).** Every table and column that exists
+in the live database is defined by a numbered migration in this directory,
+or is listed in `database/provenance/allowlist.json` with the file it came
+from and the migration that will record it. `npm run check:schema` proves
+it: it pulls PostgREST's OpenAPI definitions with the service key (LOCAL
+only — never `verify`, never CI), parses this directory for what the chain
+OWNS (`scripts/schema-inventory-core.mjs`: a `CREATE TABLE` owns a table and
+its inline columns; `ALTER TABLE … ADD COLUMN` owns a column; an ALTER on a
+table the chain never created does NOT own the table; a mention in a policy
+or an index is not ownership), and exits non-zero on drift or on a stale
+allowlist entry. The allowlist only ever shrinks.
+
+**Why.** Thirteen live tables — the social core (posts, post_comments,
+post_likes, post_media, comment_likes, follows) and the athlete legacy set
+(athlete_equipment, sports, performances, season_highlights,
+athlete_badges, privacy_settings, connection_suggestions) — were created by
+archived scripts, some under `archive/failed-attempts/`; the chain has been
+ALTERing them for a year. `golf_rounds`' six condition columns (two of them
+feed the WHS handicap) live only in `database/features/golf/`; `profiles`
+was created by 001 with a subset of its columns; `post_media.width/height/
+duration` exist nowhere in the repo. A schema with no single source of
+truth is corrosive for an analysis / recruiting dataset.
+
+**The method — live truth, never the archive.** `database/provenance/
+live-dump.sql` is a READ-ONLY set of `pg_catalog` queries (columns with
+precision, constraints with names, indexes, RLS state and grants, policy
+bodies, triggers and their functions, row counts) pasted into the SQL
+editor; the grids are committed verbatim under `database/provenance/dumps/`
+and the baseline migrations (190 social core, 191 athlete legacy, 192 golf
+conditions, 193 profiles) are written FROM them: `CREATE TABLE IF NOT
+EXISTS` with the live shape, `ADD COLUMN IF NOT EXISTS` per column, guarded
+constraints and policies with their bodies verbatim, `CREATE OR REPLACE`
+trigger functions — a NO-OP on production, the source of truth in the repo
+from then on. A baseline never "improves" live behaviour; a later migration
+may.
+
+**Loose files that never reached production** (absent from the live
+schema; reference only): `features/golf/setup-shared-golf-scorecards.sql`,
+`archive/loose-legacy/add-shared-golf-rounds.sql`.
+
+**Large-table indexes.** The editor runs a file as one transaction and
+`CREATE INDEX CONCURRENTLY` cannot run inside one. A migration that adds an
+index to a table with real volume ships as TWO files: `NNN_name.sql` (the
+transactional part) and `NNN_name.indexes.sql` (each statement
+`CREATE INDEX CONCURRENTLY IF NOT EXISTS …`, pasted and run separately,
+verified by its grid). A table created empty in the same migration may
+index itself inline.
+
 ## ⚠️ Everything else is historical — do NOT run it
 
 These directories are **reference only**. Running any script in them against a

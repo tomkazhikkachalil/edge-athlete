@@ -1,5 +1,56 @@
 # Development Log
 
+## September 13, 2026 — Data foundation, P1: schema provenance — the dump and the inventory (zero DDL)
+
+The next program after the builder: Tom chose the DATA FOUNDATION — the
+schema gets one source of truth, and performances get one queryable shape
+(the future multi-sport analysis / recruiting dataset). This PR opens part
+1 with the evidence and the tool; the baselines 190–193 follow, written
+from the live truth.
+
+- **What the live database says** (PostgREST's OpenAPI definitions, service
+  role; the snapshot is committed at `database/provenance/dumps/
+  2026-09-13-openapi-tables.json`): 107 tables. Thirteen are never CREATEd
+  by the numbered chain — posts, post_comments, post_likes, post_media,
+  comment_likes, follows, athlete_equipment, sports, performances,
+  season_highlights, athlete_badges, privacy_settings,
+  connection_suggestions — all live app surface, all born in archived
+  scripts (some under `failed-attempts/`) while the chain ALTERed them for
+  a year. Two chain-owned tables carry columns nothing in the chain adds:
+  `golf_rounds`' six condition columns (only `database/features/golf/`;
+  `course_rating` and `slope_rating` feed the WHS handicap) and 23 of
+  `profiles`' columns (001 created it with a subset; the rest came from an
+  archived schema script). `shared_golf_rounds` never reached production.
+- **The inventory** — `scripts/schema-inventory-core.mjs` (pure) parses the
+  chain for what it OWNS: a `CREATE TABLE` owns the table and its inline
+  columns, `ALTER TABLE … ADD COLUMN` (multi-add, IF NOT EXISTS, inside a
+  DO block) owns a column, RENAME moves, DROP disowns, function bodies are
+  ignored — and an ALTER on a table the chain never created does NOT own
+  the table (the crude "the word appears in a file that mentions the table"
+  check passed posts, post_media and profiles' base columns; the parser
+  does not). `scripts/schema-inventory.mjs` = `npm run check:schema`
+  (local only — the service key; `--offline <file>` for a saved spec):
+  the diff against `database/provenance/allowlist.json`, exit 1 on drift
+  or a stale entry. The allowlist is seeded with the 42 exceptions (13
+  tables, 6 golf columns, 23 profile columns), each citing its source file
+  and the migration that will record it — green from day one, and each
+  later PR shrinks it.
+- **The dump** — `database/provenance/live-dump.sql`, READ ONLY, the
+  phase-0 method: eight `pg_catalog` grids over the 15 tables in scope
+  (columns with precision and defaults, constraints with names, indexes,
+  RLS + grants, policies verbatim, triggers, their functions, row counts)
+  — what OpenAPI lacks and what the baselines need. Tom pastes the grids
+  back; they are committed under `database/provenance/dumps/`.
+- `database/MIGRATIONS.md` gains "Provenance": the rule, the method, the
+  never-reached-prod files, and the two-file convention for indexes on
+  large tables (`NNN_name.indexes.sql`, `CREATE INDEX CONCURRENTLY`,
+  outside the editor's one transaction).
+- Tests: `src/lib/__tests__/schema-inventory.test.ts` — the scrubbing
+  (comments, literals, DO blocks kept, function bodies dropped), every
+  ownership rule on fixtures, the diff and the allowlist (documented,
+  stale), the OpenAPI mapping, and a smoke run over the real chain
+  (`org_site_news.pinned_at` owned; `posts` altered, never created).
+
 ## September 13, 2026 — Program 3 prod probe: the editor spec catches up with content-sized tiles and live content
 
 - The final production probe of program 3 (deploy of #707): sample data,
