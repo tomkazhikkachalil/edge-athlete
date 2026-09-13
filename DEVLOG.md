@@ -1,5 +1,34 @@
 # Development Log
 
+## September 13, 2026 — Data foundation F5: the performance backfill — admin-only, dry-run by default, keyset-paged (zero DDL)
+
+- `POST /api/admin/performance-backfill` (the storage sweep's shape:
+  `requireAdmin`, `maxDuration 60`, DRY RUN unless `{dryRun: false}`)
+  projects the origin rows that predate the F4 hooks, one SOURCE per call
+  (`golf_rounds` · `posts` · `contest_stat_lines` · `contest_results`),
+  keyset-paged on `(created_at, id)` — never OFFSET, a moving table under
+  an offset skips or repeats — 500 rows a page, 10 pages a request,
+  `nextCursor` while `truncated`; idempotent by `natural_key`. The answer
+  counts `scanned`, `mapped`, `skipped` by reason and `upserted`. A dry
+  run never touches the target table (works pre-194); a live run pre-194
+  answers 409.
+- `src/lib/performance/backfill.ts` is the pure half — the OPAQUE cursor
+  (base64url of `{t, id}`; `decodeCursor` refuses anything it did not
+  write: a foreign string, a non-uuid, a non-ISO time, an overlong value
+  → the route's 400, so nothing user-shaped reaches the `.or()` filter),
+  `keysetAfter`, `cursorAfterPage`, the summary — pinned by tests;
+  `backfill-server.ts` is the I/O: four page readers (the results reader
+  batch-reads the overlaid rounds by id) over the F3 mappers and the F3
+  writer.
+- Run order is the doc's rule: golf_rounds → posts → contest_stat_lines →
+  contest_results LAST so the league overlays win. **Tom runs each source
+  dry, reads the skip reasons, then live, and reports the counts.**
+- `e2e/performance-backfill.spec.ts` (needs `E2E_ADMIN_EMAIL`; the live
+  half skips pre-194): a non-admin is 403, a bad source and a foreign
+  cursor are 400, a dry run writes nothing and its counts add up, and a
+  stat-line post whose row was removed by hand comes back through a live
+  walk of the posts source.
+
 ## September 13, 2026 — Data foundation F4: every writer projects its fact into `athlete_performances` (zero DDL)
 
 - Each hook runs AFTER the origin write succeeded, is awaited (serverless
