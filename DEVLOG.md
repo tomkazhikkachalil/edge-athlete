@@ -1,5 +1,36 @@
 # Development Log
 
+## September 13, 2026 — Data foundation F6: the scout search reads `athlete_performances` — Active since, Verified only, a headline floor (zero DDL)
+
+- `src/lib/recruiting/search.ts` (pure): the params gain `since`
+  (a real YYYY-MM-DD), `minProvenance` (a STORED rung) and `minHeadline`
+  (finite), tolerant like the rest; `rungsAtOrAbove(floor)` maps the stored
+  ladder through `PROVENANCE_RANK` (F1) so the chips, the skill cards and
+  this filter never disagree — `imported` sits above `self_reported`;
+  `VERIFIED_FLOOR = club_recorded` (a rung an org staffed).
+- `search-server.ts`: with a sport chosen and any performance filter set,
+  ONE bounded pass over `athlete_performances` (2,000 rows newest first,
+  `dispute_status <> disputed`, the sport, `occurred_on >= since`,
+  `provenance IN rungs`, the headline by `HEADLINE_DIRECTION`) → the
+  profile ids (capped at 500); a `post`-sourced row's visibility is
+  re-derived through one bounded `posts` pass (public AND published — the
+  table stores no visibility, so a private post's numbers never make its
+  author findable; a failed read fails CLOSED); the profiles query narrows
+  with `.in('id', …)` and `isRecruitable` is re-applied as before. A
+  missing table (pre-194) → `performanceFilters: false`, the filters are
+  ignored, the search still answers. Without a sport the filters are
+  ignored (a headline means nothing across sports).
+- `ScoutSearch.tsx`: "Active since" (date) and "Verified only" (checkbox
+  = `minProvenance=club_recorded`), disabled until a sport chip is chosen
+  with the reason as a title and a hint; a 194-less target shows a note.
+  `minHeadline` stays API-only until a per-sport label exists.
+- Tests: the parse + `rungsAtOrAbove` pins; `e2e/scout-search-performance
+  .spec.ts` (skips pre-194): a hockey stat line makes the athlete findable
+  with `since` on or before its day and not after; "Verified only"
+  excludes an athlete with self-reported rows only and includes them once
+  a club-recorded row exists; the headline floor cuts both ways; the two
+  controls are disabled without a sport and enabled with one.
+
 ## September 13, 2026 — Data foundation F5: the performance backfill — admin-only, dry-run by default, keyset-paged (zero DDL)
 
 - `POST /api/admin/performance-backfill` (the storage sweep's shape:
