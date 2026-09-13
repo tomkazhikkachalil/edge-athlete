@@ -138,9 +138,18 @@ I/O.
 
 ## The first reader (F6)
 
-The scout search gains `since`, `minProvenance` and `minHeadline` over
-this table; `HEADLINE_DIRECTION` (golf and track are lower-is-better)
-decides the order.
+`GET /api/scout/search` gains `since` (YYYY-MM-DD), `minProvenance` (a
+stored rung; this rung and above on the ONE ladder — `rungsAtOrAbove`,
+where `imported` sits above `self_reported`) and `minHeadline` (the
+sport's one number at or better, by `HEADLINE_DIRECTION`). They apply only
+WITH a sport. One bounded pass over the table (2,000 rows, newest first,
+disputed rows out) yields the profile ids; a `post`-sourced row counts only
+while its post is public and published (the table stores no visibility);
+the profiles query narrows to those ids and `isRecruitable` is re-applied.
+A missing table answers `performanceFilters: false` and the filters are
+ignored. The form exposes "Active since" and "Verified only"
+(`minProvenance=club_recorded`); `minHeadline` stays API-only until a
+per-sport label exists.
 
 ## Files
 
