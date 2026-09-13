@@ -18,7 +18,7 @@
  */
 
 import { z } from 'zod';
-import { DISPLAY_FIELDS, DISPLAY_ORDER_ID_MAX, DISPLAY_ORDER_MAX, SPONSOR_TIERS, type DisplayField } from './display';
+import { CONTACT_FIELD_ORDER, DISPLAY_FIELDS, DISPLAY_ORDER_ID_MAX, DISPLAY_ORDER_MAX, SPONSOR_TIERS, type DisplayField } from './display';
 import { INSTANCE_TITLE_MAX } from './config';
 import {
   CONTACT_ADDRESS_LINES,
@@ -106,6 +106,7 @@ export const ContactConfigSchema = z
       })
       .loose()
       .optional(),
+    order: z.array(z.enum(CONTACT_FIELD_ORDER)).max(CONTACT_FIELD_ORDER.length).optional(),
   })
   .loose();
 

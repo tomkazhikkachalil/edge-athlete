@@ -40,6 +40,7 @@ import { COPY } from '@/lib/copy';
 import { useHistory } from './useHistory';
 import { applySample } from '@/lib/site-builder/sample';
 import type { FitHeight } from '@/lib/site-builder/fit';
+import { applyContentPreview, type ContentPreview } from '@/lib/site-builder/content-preview';
 import { isWidgetEmpty } from '@/lib/site-builder/emptiness';
 
 /**
@@ -331,9 +332,14 @@ function Editor({
   // P7-B: the theme panel edits a DRAFT of the tokens; the canvas wears the
   // draft while the panel is open (live preview), the server on Save.
   const [themeDraft, setThemeDraft] = useState<ThemeDraft | null>(null);
+  // Program 3, H3: what the panel's Content fieldset holds, as it is typed,
+  // laid over the site for the canvas only (the same render seam as the
+  // sample overlay) — the real site, the draft PUT and the PATCH are
+  // untouched until "Save content".
+  const [contentPreview, setContentPreview] = useState<ContentPreview | null>(null);
   const canvasSite: PublicSite = useMemo(
-    () => (themeDraft ? { ...site, template_id: themeDraft.templateId, theme_token_set: themeDraft.tokens } : site),
-    [site, themeDraft]
+    () => applyContentPreview(themeDraft ? { ...site, template_id: themeDraft.templateId, theme_token_set: themeDraft.tokens } : site, contentPreview),
+    [site, themeDraft, contentPreview]
   );
   // Program 3 S2: the sample overlay, applied at the RENDER boundary only —
   // the canvas, the phone list and the picker read `view`; the checklist,
@@ -760,6 +766,7 @@ function Editor({
                 onResize={p => history.commit(resizeToPreset(history.present, selected.id, p))}
                 onContentSaved={refreshSite}
                 onDirtyChange={reportPanelDirty}
+                onContentPreview={setContentPreview}
                 showError={showError}
                 showSuccess={showSuccess}
               />
@@ -882,6 +889,7 @@ function Editor({
                   onResize={p => history.commit(resizeToPreset(history.present, selected.id, p))}
                   onContentSaved={refreshSite}
                   onDirtyChange={reportPanelDirty}
+                  onContentPreview={setContentPreview}
                   showError={showError}
                   showSuccess={showSuccess}
                 />

@@ -14,6 +14,8 @@ import type { SiteHomeData } from '@/lib/org-sites/home-data';
 import { applyOrder, displayOrder, displayString, instanceDisplay, orderItems } from '@/lib/site-builder/display';
 import ReorderList from './ReorderList';
 import SponsorsField, { readSponsorDrafts, sponsorsPayload, type SponsorDraft } from './SponsorsField';
+import type { ContentPreview } from '@/lib/site-builder/content-preview';
+import { CONTACT_FIELD_LABELS, contactRenderOrder, type ContactFieldKey } from '@/lib/site-builder/display';
 import { EMBED_PROVIDER_LABEL, embedSrc, parseEmbed, parseEmbedUrl } from '@/lib/site-builder/embeds';
 import type { SiteLayout, WidgetInstance, WidgetVisibility } from '@/lib/site-builder/layout';
 import { widgetTitle } from '@/app/(public)/org/[slug]/_components/WidgetBody';
@@ -55,6 +57,9 @@ export interface PropertiesPanelProps {
   /** Program 3, D1: the canvas's data — the reorder control lists a
    *  section's items from it (teams, venues…); absent = nothing to order. */
   data?: SiteHomeData | null;
+  /** Program 3, H3: what is typed in the Content fieldset, as it is typed —
+   *  the editor lays it over the canvas; null clears it (a save, a close). */
+  onContentPreview?: (preview: ContentPreview | null) => void;
   showError: (title: string, message?: string) => void;
   showSuccess: (title: string, message?: string) => void;
 }
@@ -68,7 +73,7 @@ const asConfig = (c: unknown): Config => (c && typeof c === 'object' ? (c as Con
 const str = (c: Config, k: string): string => (typeof c[k] === 'string' ? (c[k] as string) : '');
 const EMPTY_DATA: SiteHomeData = { standings: null, events: null, teams: [], staff: [], venues: [], affiliations: [], openWindows: [], courses: [], divisions: [], leaders: [] };
 
-export default function PropertiesPanel({ site, widget, plural, orgId, options, data, onInstanceChange, onResize, onContentSaved, showError, showSuccess, onDirtyChange, className, variant = 'aside' }: PropertiesPanelProps) {
+export default function PropertiesPanel({ site, widget, plural, orgId, options, data, onInstanceChange, onResize, onContentSaved, showError, showSuccess, onDirtyChange, onContentPreview, className, variant = 'aside' }: PropertiesPanelProps) {
   const key = widget.key as SiteWidgetKey;
   const fields = fieldsFor(key);
   const instanceFields = fields.filter(f => f.scope === 'instance');
@@ -132,7 +137,48 @@ export default function PropertiesPanel({ site, widget, plural, orgId, options, 
   // id}, so switching tiles reseeds; a save writes exactly what is typed.
   const [content, setContent] = useState<Record<string, string>>(seed);
   const [sponsors, setSponsors] = useState<SponsorDraft[]>(() => (sponsorsField ? readSponsorDrafts(contentConfigFor(site, key)) : []));
+  // H3: the contact card's field order (the reorder control; saved with the card).
+  const storedOrder = () => {
+    const raw = contentConfigFor(site, key).order;
+    return Array.isArray(raw) ? contactRenderOrder(raw.filter((k): k is string => typeof k === 'string')) : contactRenderOrder(undefined);
+  };
+  const [contactOrder, setContactOrder] = useState<ContactFieldKey[]>(() => (key === 'contact' ? storedOrder() : []));
   const [saving, setSaving] = useState(false);
+
+  // H3: the content, as the PATCH would send it — laid over the canvas on
+  // every change (the render parsers decide what shows: a half-typed email
+  // is dropped until it is one). Emitted from the change handlers, never an
+  // effect; cleared on save and on unmount.
+  const previewOf = (next: Record<string, string>, nextSponsors: SponsorDraft[], nextOrder: ContactFieldKey[]): ContentPreview | null => {
+    if (key === 'sponsors') return { key: 'sponsors', value: { sponsors: sponsorsPayload(nextSponsors) } };
+    if (key !== 'hero' && key !== 'contact') return null;
+    const value: Record<string, unknown> = {};
+    const social: Record<string, string> = {};
+    for (const f of contentFields) {
+      const v = next[f.name]?.trim();
+      if (!v) continue;
+      if (f.name === 'address') value.address = v.split('\n').map(l => l.trim()).filter(Boolean).slice(0, 3);
+      else if (f.name.startsWith('social.')) social[f.name.slice(7)] = v;
+      else value[f.name] = v;
+    }
+    if (Object.keys(social).length > 0) value.social = social;
+    if (key === 'contact' && nextOrder.length > 0) value.order = nextOrder;
+    return { key, value };
+  };
+  const patchContent = (name: string, v: string) => {
+    const next = { ...content, [name]: v };
+    setContent(next);
+    onContentPreview?.(previewOf(next, sponsors, contactOrder));
+  };
+  const updateSponsors = (next: SponsorDraft[]) => {
+    setSponsors(next);
+    onContentPreview?.(previewOf(content, next, contactOrder));
+  };
+  const updateContactOrder = (next: ContactFieldKey[]) => {
+    setContactOrder(next);
+    onContentPreview?.(previewOf(content, sponsors, next));
+  };
+  useEffect(() => () => onContentPreview?.(null), [onContentPreview]);
 
   // B4: focus moves INTO the panel when it opens (a tile selected by keyboard
   // used to leave focus on the tile with the panel unreachable by Tab order).
@@ -162,7 +208,8 @@ export default function PropertiesPanel({ site, widget, plural, orgId, options, 
     unsavedUploads.current.add(path);
   };
   const sponsorsDirty = !!sponsorsField && JSON.stringify(sponsorsPayload(sponsors)) !== JSON.stringify(sponsorsPayload(readSponsorDrafts(contentConfigFor(site, key))));
-  const dirty = sponsorsDirty || contentFields.some(f => (content[f.name] ?? '') !== readContent(contentConfigFor(site, key), f.name));
+  const orderDirty = key === 'contact' && JSON.stringify(contactOrder) !== JSON.stringify(storedOrder());
+  const dirty = sponsorsDirty || orderDirty || contentFields.some(f => (content[f.name] ?? '') !== readContent(contentConfigFor(site, key), f.name));
   useEffect(() => {
     onDirtyChange?.(dirty);
     return () => onDirtyChange?.(false);
@@ -187,6 +234,7 @@ export default function PropertiesPanel({ site, widget, plural, orgId, options, 
         else payload[f.name] = v;
       }
       if (Object.keys(social).length > 0) payload.social = social;
+      if (key === 'contact' && orderDirty) payload.order = contactOrder;
       const res = await fetch(`/api/${plural}/${orgId}/site`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
@@ -198,6 +246,7 @@ export default function PropertiesPanel({ site, widget, plural, orgId, options, 
         return;
       }
       unsavedUploads.current.clear();
+      onContentPreview?.(null);
       await onContentSaved(typeof body.draft?.rev === 'number' ? body.draft.rev : null);
       showSuccess('Website', 'Saved to your draft');
     } catch {
@@ -461,7 +510,7 @@ export default function PropertiesPanel({ site, widget, plural, orgId, options, 
           {sponsorsField && (
             <div>
               <p className={LABEL}>{sponsorsField.label}</p>
-              <SponsorsField idBase={`sb-${widget.id}-sponsor`} siteId={site.id} plural={plural} orgId={orgId} sponsors={sponsors} onChange={setSponsors} showError={showError} onUploaded={trackUpload} onRemoved={reclaim} />
+              <SponsorsField idBase={`sb-${widget.id}-sponsor`} siteId={site.id} plural={plural} orgId={orgId} sponsors={sponsors} onChange={updateSponsors} showError={showError} onUploaded={trackUpload} onRemoved={reclaim} />
               {sponsorsField.help && <p className="mt-1 text-xs text-tertiary">{sponsorsField.help}</p>}
             </div>
           )}
@@ -477,7 +526,7 @@ export default function PropertiesPanel({ site, widget, plural, orgId, options, 
                 plural={plural}
                 orgId={orgId}
                 config={{ path: content[f.name] ?? '', alt: content.imageAlt ?? '' }}
-                onPatch={patch => setContent(c => ({ ...c, [f.name]: typeof patch.path === 'string' ? patch.path : '' }))}
+                onPatch={patch => patchContent(f.name, typeof patch.path === 'string' ? patch.path : '')}
                 showError={showError}
                 onUploaded={trackUpload}
                 onRemoved={reclaim}
@@ -493,7 +542,7 @@ export default function PropertiesPanel({ site, widget, plural, orgId, options, 
                   rows={3}
                   maxLength={f.max}
                   value={content[f.name] ?? ''}
-                  onChange={e => setContent(c => ({ ...c, [f.name]: e.target.value }))}
+                  onChange={e => patchContent(f.name, e.target.value)}
                   className={INPUT}
                 />
               ) : (
@@ -502,13 +551,25 @@ export default function PropertiesPanel({ site, widget, plural, orgId, options, 
                   type={f.kind === 'url' ? 'url' : f.kind === 'email' ? 'email' : f.kind === 'date' ? 'date' : 'text'}
                   maxLength={f.max}
                   value={content[f.name] ?? ''}
-                  onChange={e => setContent(c => ({ ...c, [f.name]: e.target.value }))}
+                  onChange={e => patchContent(f.name, e.target.value)}
                   className={INPUT}
                 />
               )}
               {f.help && <p className="mt-1 text-xs text-tertiary">{f.help}</p>}
             </div>
             )
+          )}
+          {key === 'contact' && (
+            <div>
+              <p className={LABEL}>Field order</p>
+              <ReorderList
+                items={contactOrder.map(k => ({ id: k, label: CONTACT_FIELD_LABELS[k] }))}
+                label={`Field order — ${title}`}
+                idBase={`sb-${widget.id}-contact-order`}
+                onChange={ids => updateContactOrder(contactRenderOrder(ids))}
+              />
+              <p className="mt-1 text-xs text-tertiary">Only the fields with a value show on the card, in this order.</p>
+            </div>
           )}
           <button
             type="button"

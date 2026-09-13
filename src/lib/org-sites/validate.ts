@@ -12,7 +12,7 @@ import { z } from 'zod';
 import { TEMPLATE_IDS } from './templates';
 import { GALLERY_ENTRY_IDS, GALLERY_MODES } from '@/lib/site-builder/gallery-ids';
 import { SAMPLE_MEDIA_URI_RE } from '@/lib/media/org-site-media';
-import { SPONSOR_TIERS, type SponsorTier } from '@/lib/site-builder/display';
+import { CONTACT_FIELD_ORDER, SPONSOR_TIERS, type ContactFieldKey, type SponsorTier } from '@/lib/site-builder/display';
 
 export { isMissingTableError } from '@/lib/leagues/validate';
 
@@ -516,6 +516,8 @@ export interface PublicContact {
   hours?: string;
   directionsUrl?: string;
   social?: Partial<Record<SocialNetwork, string>>;
+  /** Program 3, H3: the manager's field order (contactRenderOrder fills the rest). */
+  order?: ContactFieldKey[];
 }
 
 export const SOCIAL_NETWORKS = ['instagram', 'facebook', 'x', 'youtube'] as const;
@@ -597,6 +599,10 @@ export function parseContact(config: unknown): PublicContact {
       if (typeof url === 'string' && socialHostOk(network, url)) social[network] = url;
     }
     if (Object.keys(social).length) out.social = social;
+  }
+  if (Array.isArray(record.order)) {
+    const order = record.order.filter((k): k is ContactFieldKey => typeof k === 'string' && (CONTACT_FIELD_ORDER as readonly string[]).includes(k));
+    if (order.length) out.order = [...new Set(order)];
   }
   return out;
 }
@@ -839,6 +845,8 @@ export const SitePatchSchema = z.discriminatedUnion('action', [
   }),
   z.object({
     action: z.literal('set_contact'),
+    /** H3: the field order (a subset of CONTACT_FIELD_ORDER; the rest follow). */
+    order: z.array(z.enum(CONTACT_FIELD_ORDER)).max(CONTACT_FIELD_ORDER.length).optional(),
     email: z.string().trim().toLowerCase().max(200).pipe(z.email()).optional(),
     phone: z.string().trim().min(3).max(40).optional(),
     website: httpsUrl.optional(),

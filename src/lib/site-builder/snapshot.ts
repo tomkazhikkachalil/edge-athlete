@@ -374,6 +374,8 @@ export function applySiteAction(s: SiteSnapshot, input: SnapshotAction, ctx: App
           ...(input.social && Object.values(input.social).some(Boolean)
             ? { social: Object.fromEntries(Object.entries(input.social).filter(([, v]) => typeof v === 'string' && v)) }
             : {}),
+          // H3: the manager's field order (dropped when it is the default, i.e. empty).
+          ...(input.order && input.order.length ? { order: input.order } : {}),
         },
       };
     case 'apply_gallery': {
