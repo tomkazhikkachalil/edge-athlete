@@ -1,5 +1,43 @@
 # Development Log
 
+## September 13, 2026 — Data foundation F3: the common performance shape — migration 194 `athlete_performances`, the mappers and the one writer
+
+- **Why:** two performance shapes could not be queried together — golf's
+  deep tables (plus the league's `contest_results` overlay) and every other
+  sport's `posts.stats_data` JSONB — with no shared provenance and no natural
+  key. `athlete_performances` is ONE table, one row per EVENT per athlete;
+  `docs/PERFORMANCE_DATA.md` is the reference.
+- **Migration 194** (posture A, created EMPTY so its indexes are plain
+  `CREATE INDEX`; anything added after the backfill goes through the
+  `.indexes.sql` CONCURRENTLY rule): `natural_key` UNIQUE = the ORIGIN ROW
+  id (`post:` · `golf_round:` · `contest_stat_line:` — never (contest,
+  profile): a stub claim re-points `profile_id`); `source` post ·
+  live_round · org_entry · import (the plan's `golf_sync` dropped — no row
+  would carry it: a league round's origin stays the round, the league is
+  its OVERLAY); the 152 provenance ladder verbatim with `DEFAULT
+  'self_reported'` — load-bearing, a PostgREST upsert updates only the
+  payload's columns, so a round edit's re-upsert without the overlay keys
+  leaves an overlay untouched; NUMERIC-ONLY `metrics`; `headline` = the
+  sport's one number; no visibility snapshot. ORDER-STRICT after 152.
+- **`src/lib/performance/`**: `types.ts` (the row, `naturalKey`,
+  `HEADLINE_DIRECTION` — golf and track lower-is-better), `map.ts` (pure:
+  `fromStatLinePost` — null for pending / non-line / schema failure / no
+  finite stat, the F2 validator with the future-date rule disarmed for the
+  backfill; `fromGolfRound` — null without a positive gross, the
+  differential ONLY with rating + slope via `handicap.ts`, `live_round`
+  when mirrored from a group post, the overlay spread onto the same row
+  when given; `fromContestStatLine` — provenance verbatim, `imported` →
+  source `import`; `golfOverlayFromResult` — the round from
+  `payload.roundRef.roundId`; `groupUniformRows` — a batch is split by key
+  set so a row without the overlay keys never NULLs one), `write-server.ts`
+  (never throws; pre-194 `{skipped: 'missing_table'}` on 42P01 / PGRST205;
+  every other error a `[performance]` warn; `syncGolfRoundPerformance`
+  re-reads the round AFTER `calculate_round_stats` and deletes the key when
+  the round has no fact). Thirteen unit cases pin the mappers.
+- **Nothing writes yet** — the hooks are F4, the backfill F5, the scout
+  search F6. **Tom runs 194 after this merges** (the check grid is the
+  proof); the code degrades to `skipped` until then.
+
 ## September 13, 2026 — Data foundation F2: a stat line is validated server-side — a 400 names the field, nothing is clamped or stripped
 
 - **`src/lib/sports/stat-line-validate.ts`** (pure): `validateStatLine(data,
