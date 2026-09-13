@@ -9,7 +9,7 @@ import type { TemplateSpec } from '@/lib/org-sites/templates';
 import { effectiveConfig, instanceTitle } from '@/lib/site-builder/config';
 import { embedSrc, embedTitle, parseEmbed } from '@/lib/site-builder/embeds';
 import { memberLimit, selectForInstance } from '@/lib/site-builder/select';
-import { applyOrder, displayBool, displayNumber, displayOrder, displayString, instanceDisplay, orderIdOf, sortAlpha } from '@/lib/site-builder/display';
+import { applyOrder, displayBool, displayNumber, displayOrder, displayString, instanceDisplay, orderIdOf, sortAlpha, tierRank } from '@/lib/site-builder/display';
 import { orgMediaUrl } from '@/lib/media/org-site-media';
 import { siteBasePath } from '@/lib/org-sites/urls';
 import PublicStandingsTable from '@/components/standings/PublicStandingsTable';
@@ -176,8 +176,23 @@ export default function WidgetBody({ site, w, data: raw, spec, membersOnly = fal
       );
     case 'sponsors': {
       const sponsors = parseSponsors(config);
+      // D2: manual = the list's own order; alpha; by tier (the ladder, then name).
+      const ordered =
+        sortKey === 'alpha'
+          ? sortAlpha(sponsors, x => x.name)
+          : sortKey === 'tier'
+            ? [...sponsors].sort((x, y) => tierRank(x.tier) - tierRank(y.tier) || x.name.localeCompare(y.name, undefined, { sensitivity: 'base' }))
+            : sponsors;
       return sponsors.length > 0 ? (
-        <SponsorsList sponsors={sponsors} siteId={site.id} />
+        <SponsorsList
+          sponsors={ordered}
+          siteId={site.id}
+          variant={variant === 'grid' || variant === 'row' || variant === 'carousel' ? variant : 'list'}
+          groupByTier={displayBool(d, 'groupByTier', false)}
+          logoSize={displayString(d, 'logoSize') === 'lg' ? 'lg' : displayString(d, 'logoSize') === 'md' ? 'md' : 'sm'}
+          perRow={displayNumber(d, 'perRow', 3)}
+          click={click === 'none' ? 'none' : 'link'}
+        />
       ) : (
         empty('No sponsors yet.')
       );

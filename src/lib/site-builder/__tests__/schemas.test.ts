@@ -32,6 +32,10 @@ describe('widget config schemas (stored shapes)', () => {
     expect(parsedSponsors).toHaveLength(2);
     expect(SponsorsConfigSchema.safeParse({ sponsors: parsedSponsors }).success).toBe(true);
     expect(SponsorsConfigSchema.safeParse({ sponsors: [{ name: 'X', url: 'http://x.test' }] }).success).toBe(false);
+    // Program 3, D2: the tier ladder — one of the five, or absent; a stranger is refused.
+    expect(SponsorsConfigSchema.safeParse({ sponsors: [{ name: 'Gold Co', tier: 'gold' }] }).success).toBe(true);
+    expect(SponsorsConfigSchema.safeParse({ sponsors: [{ name: 'Odd Co', tier: 'diamond' }] }).success).toBe(false);
+    expect(parseSponsors({ sponsors: [{ name: 'Gold Co', tier: 'gold' }, { name: 'Odd Co', tier: 'diamond' }] })).toEqual([{ name: 'Gold Co', tier: 'gold' }, { name: 'Odd Co' }]);
     expect(SponsorsConfigSchema.safeParse({ sponsors: Array.from({ length: 21 }, (_, i) => ({ name: `S${i}` })) }).success).toBe(false);
     // The bare module config (no sponsors key) is a valid empty config.
     expect(SponsorsConfigSchema.safeParse({}).success).toBe(true);

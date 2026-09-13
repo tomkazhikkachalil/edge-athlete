@@ -1,5 +1,42 @@
 # Development Log
 
+## September 13, 2026 — Program 3, D2: sponsors — tiers, the editor's list, the display axes (zero DDL)
+
+Tom's worked example, done in full: sponsors gain a tier from a FIXED
+ladder (his call — Platinum / Gold / Silver / Bronze / Partner, or none),
+move into the editor beside the hero and the contact card, and present
+along the axes.
+
+- **The tier** rides the sponsor item (`{name, url?, logoPath?, tier?}`):
+  `SPONSOR_TIERS` + `tierRank` in `display.ts` (client-safe), the
+  `set_sponsors` action and `SponsorsConfigSchema` take the ladder only, and
+  `parseSponsors` keeps a ladder value and drops a stranger at render.
+  Zero DDL — the list is jsonb on the module row.
+- **The editor owns the list** (P10-C's precedent): `SponsorsField` — one
+  row per sponsor (name, link, tier, logo upload through the site's asset
+  route, remove), ordered by drag on a desktop or the arrows at every
+  width, capped at 20 — sits in the Sponsors section's Content fieldset
+  and saves WHOLE through the panel's "Save content" → `set_sponsors`
+  (`contentActionFor('sponsors')`); the canvas re-reads the site. A logo
+  uploaded then dropped before the save is reclaimed (B5). The console's
+  sponsor form is gone; its card says where the list lives now.
+- **The axes**: `variant` list (today) | grid of logos (`perRow` 2–6) |
+  one row | carousel (over `ScrollStrip`), `groupByTier` (one labelled
+  group per tier present in the ladder's order, the tierless last as
+  "Supporters"), `logoSize` small (today's 32px) | medium | large, `sort`
+  my own order (the list's) | A–Z | by tier, `click` opens its link |
+  nothing. A sponsor without a logo shows an initials tile, so a grid never
+  has holes. `SponsorsList` renders all of it props-only; `WidgetBody`
+  sorts.
+- Pins: the schema and the parser take the ladder only (`schemas.test`);
+  the "no declaration" reader test moves to news (the last widget without
+  axes, D4). e2e `org-site-sponsors-display.spec.ts`: the action refuses a
+  stranger tier; the panel adds three sponsors with tiers, moves platinum
+  to the top, saves — the canvas lists them un-chipped; grid, two per row,
+  grouped, no links → the draft carries the display, the list carries the
+  tiers and the order, eight per row is refused; publish → the public
+  block orders the groups platinum → gold → silver on a grid with no `<a>`.
+
 ## September 13, 2026 — Program 3, D1b: display settings for the content widgets and the gallery (zero DDL)
 
 The vocabulary reaches every remaining widget except sponsors (D2) and

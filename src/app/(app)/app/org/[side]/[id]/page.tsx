@@ -323,10 +323,6 @@ export default function OrgConsolePage() {
   const [navOrder, setNavOrder] = useState<string[] | null>(null);
   // Program 2, B5: the stored header entries (modules AND `page:<id>` keys) — the pages' places.
   const [navStored, setNavStored] = useState<string[]>([]);
-  // R3 branding editors — seeded from the site GET on every refresh.
-  const [sponsorDrafts, setSponsorDrafts] = useState<
-    { name: string; url: string; logoPath: string }[]
-  >([]);
   // Phase 6e S1: the golf club's front door + contact card. Every field
   // rides the whole-object save (replace semantics), seeded from GET.
   const [heroImagePath, setHeroImagePath] = useState('');
@@ -607,22 +603,6 @@ export default function OrgConsolePage() {
                   .filter(([, v]) => typeof v?.path === 'string')
                   .map(([k, v]) => [k, v.path as string])
               )
-            );
-            const sponsorsConfig = (siteBody.modules ?? []).find(
-              (m: { module_key: string }) => m.module_key === 'sponsors'
-            )?.config as { sponsors?: { name?: string; url?: string }[] } | undefined;
-            setSponsorDrafts(
-              (
-                (sponsorsConfig?.sponsors ?? []) as {
-                  name?: string;
-                  url?: string;
-                  logoPath?: string;
-                }[]
-              ).map(s => ({
-                name: s.name ?? '',
-                url: s.url ?? '',
-                logoPath: s.logoPath ?? '',
-              }))
             );
           }
         }
@@ -3992,126 +3972,12 @@ export default function OrgConsolePage() {
                   </button>
                 </div>
               </div>
+              {/* Program 3, D2: the sponsors moved into the editor (the hero's
+                  and the contact card's precedent) — names, links, tiers,
+                  logos and their order live on the Sponsors section's panel. */}
               <div className="pt-2 space-y-1.5">
                 <p className="text-sm font-medium text-primary">Sponsors</p>
-                {sponsorDrafts.map((s, index) => (
-                  <div key={index} className="flex flex-wrap gap-2">
-                    <input
-                      type="text"
-                      value={s.name}
-                      onChange={e =>
-                        setSponsorDrafts(d =>
-                          d.map((row, i) => (i === index ? { ...row, name: e.target.value } : row))
-                        )
-                      }
-                      maxLength={80}
-                      placeholder="Sponsor name"
-                      aria-label={`Sponsor ${index + 1} name`}
-                      className="px-3 py-2 border border-border-strong rounded-md outline-none text-sm min-w-0 flex-1"
-                    />
-                    <input
-                      type="url"
-                      value={s.url}
-                      onChange={e =>
-                        setSponsorDrafts(d =>
-                          d.map((row, i) => (i === index ? { ...row, url: e.target.value } : row))
-                        )
-                      }
-                      maxLength={200}
-                      placeholder="https:// (optional)"
-                      aria-label={`Sponsor ${index + 1} link`}
-                      className="px-3 py-2 border border-border-strong rounded-md outline-none text-sm min-w-0 flex-1"
-                    />
-                    <label className="flex items-center gap-1.5 text-xs text-tertiary">
-                      {s.logoPath ? (
-                        <Image
-                          src={orgMediaUrl(site.id, s.logoPath) ?? ''}
-                          alt=""
-                          width={24}
-                          height={24}
-                          unoptimized
-                          className="rounded border border-border shrink-0"
-                        />
-                      ) : (
-                        'Logo'
-                      )}
-                      <input
-                        type="file"
-                        accept="image/jpeg,image/png,image/gif,image/webp"
-                        aria-label={`Sponsor ${index + 1} logo`}
-                        className="w-32 text-xs"
-                        onChange={async e => {
-                          const file = e.target.files?.[0];
-                          e.target.value = '';
-                          if (!file) return;
-                          const formData = new FormData();
-                          formData.append('image', file);
-                          try {
-                            const res = await fetch(`/api/${plural}/${orgId}/site/assets`, {
-                              method: 'POST',
-                              body: formData,
-                            });
-                            const body = await res.json();
-                            if (!res.ok) {
-                              showError('Website', body.error || 'Failed to upload the logo');
-                              return;
-                            }
-                            setSponsorDrafts(d =>
-                              d.map((row, i) =>
-                                i === index ? { ...row, logoPath: body.path } : row
-                              )
-                            );
-                          } catch {
-                            showError('Website', 'Upload failed — please try again');
-                          }
-                        }}
-                      />
-                    </label>
-                    <button
-                      type="button"
-                      onClick={() => setSponsorDrafts(d => d.filter((_, i) => i !== index))}
-                      aria-label={`Remove sponsor ${index + 1}`}
-                      className="px-2 text-tertiary hover:text-primary"
-                    >
-                      ✕
-                    </button>
-                  </div>
-                ))}
-                <div className="flex flex-wrap gap-2">
-                  {sponsorDrafts.length < 20 && (
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setSponsorDrafts(d => [...d, { name: '', url: '', logoPath: '' }])
-                      }
-                      className="px-3 py-1.5 text-sm rounded-md text-tertiary hover:bg-surface-sunken transition-colors"
-                    >
-                      + Add sponsor
-                    </button>
-                  )}
-                  <button
-                    type="button"
-                    onClick={() =>
-                      void siteAct(
-                        {
-                          action: 'set_sponsors',
-                          sponsors: sponsorDrafts
-                            .filter(s => s.name.trim())
-                            .map(s => ({
-                              name: s.name.trim(),
-                              ...(s.url.trim() ? { url: s.url.trim() } : {}),
-                              ...(s.logoPath ? { logoPath: s.logoPath } : {}),
-                            })),
-                        },
-                        'Sponsors updated',
-                        'Failed to update sponsors'
-                      )
-                    }
-                    className="px-3 py-1.5 text-sm rounded-md border border-border-strong text-secondary hover:bg-surface-sunken transition-colors"
-                  >
-                    Save sponsors
-                  </button>
-                </div>
+                <p className="text-xs text-tertiary">Names, links, logos, tiers and their order are edited in the editor — select the Sponsors section.</p>
               </div>
               {/* R3 → program 2 B5: custom pages are compositions — the list
                   and the create live here; arranging happens in the editor

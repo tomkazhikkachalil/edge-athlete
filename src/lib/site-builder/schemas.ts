@@ -18,7 +18,7 @@
  */
 
 import { z } from 'zod';
-import { DISPLAY_FIELDS, DISPLAY_ORDER_ID_MAX, DISPLAY_ORDER_MAX, type DisplayField } from './display';
+import { DISPLAY_FIELDS, DISPLAY_ORDER_ID_MAX, DISPLAY_ORDER_MAX, SPONSOR_TIERS, type DisplayField } from './display';
 import { INSTANCE_TITLE_MAX } from './config';
 import {
   CONTACT_ADDRESS_LINES,
@@ -63,6 +63,7 @@ export const SponsorsConfigSchema = z
             name: text(80),
             url: httpsUrl.optional(),
             logoPath: z.string().regex(ORG_MEDIA_PATH_RE).optional(),
+            tier: z.enum(SPONSOR_TIERS).optional(),
           })
           .loose()
       )
