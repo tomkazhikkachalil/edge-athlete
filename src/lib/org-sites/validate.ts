@@ -12,6 +12,7 @@ import { z } from 'zod';
 import { TEMPLATE_IDS } from './templates';
 import { GALLERY_ENTRY_IDS, GALLERY_MODES } from '@/lib/site-builder/gallery-ids';
 import { SAMPLE_MEDIA_URI_RE } from '@/lib/media/org-site-media';
+import { SPONSOR_TIERS, type SponsorTier } from '@/lib/site-builder/display';
 
 export { isMissingTableError } from '@/lib/leagues/validate';
 
@@ -435,6 +436,8 @@ export interface PublicSponsor {
   name: string;
   url?: string;
   logoPath?: string;
+  /** Program 3, D2: the fixed ladder (display.ts SPONSOR_TIERS); absent = no tier. */
+  tier?: SponsorTier;
 }
 
 /** Defensive render-side parse: unknown module config → clamped sponsor
@@ -458,10 +461,13 @@ export function parseSponsors(config: unknown): PublicSponsor[] {
       typeof logoPath === 'string' && (ORG_MEDIA_PATH_RE.test(logoPath) || SAMPLE_MEDIA_URI_RE.test(logoPath))
         ? logoPath
         : undefined;
+    const tier = (item as Record<string, unknown>).tier;
+    const safeTier = typeof tier === 'string' && (SPONSOR_TIERS as readonly string[]).includes(tier) ? (tier as SponsorTier) : undefined;
     out.push({
       name: name.slice(0, 80),
       ...(safeUrl ? { url: safeUrl } : {}),
       ...(safeLogo ? { logoPath: safeLogo } : {}),
+      ...(safeTier ? { tier: safeTier } : {}),
     });
   }
   return out;
@@ -795,6 +801,7 @@ export const SitePatchSchema = z.discriminatedUnion('action', [
           // A site asset path; the server re-asserts THIS site's prefix
           // (the schema can't know the site id — the cross-site guard).
           logoPath: z.string().regex(ORG_MEDIA_PATH_RE, 'Not a site asset path').optional(),
+          tier: z.enum(SPONSOR_TIERS).optional(),
         })
       )
       .max(20),

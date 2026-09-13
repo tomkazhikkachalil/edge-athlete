@@ -37,6 +37,8 @@ export type FieldSpec =
   | { kind: 'embed'; name: 'embed'; label: string; help?: string; scope: 'instance' }
   | { kind: 'select'; name: 'competitionId' | 'venueId'; label: string; help?: string; source: 'competitions' | 'venues'; noneLabel: string; scope: 'query' }
   | { kind: 'number'; name: 'limit'; label: string; help?: string; min: number; max: number; placeholder: number; scope: 'query' }
+  /** Program 3, D2 — the sponsors list editor (name, link, tier, logo, order), saved through set_sponsors. */
+  | { kind: 'sponsors'; name: 'sponsors'; label: string; help?: string; scope: 'content' }
   /** Program 3, D1 — a fourth scope, 'display': the value goes to `config.display[name]`
    *  (how THIS tile presents its items); the field itself is the declaration in display.ts. */
   | { kind: 'display'; name: string; label: string; help?: string; scope: 'display'; field: DisplayField };
@@ -104,6 +106,10 @@ export const EMBED_FIELDS: FieldSpec[] = [
   { kind: 'embed', name: 'embed', label: 'Video or map link', help: 'Paste a YouTube, Vimeo or OpenStreetMap link.', scope: 'instance' },
 ];
 
+/** Program 3, D2 — the sponsors move into the editor like the hero and the
+ *  contact card: one list, saved whole through set_sponsors. */
+export const SPONSORS_FIELD: FieldSpec = { kind: 'sponsors', name: 'sponsors', label: 'Sponsors', help: 'Name, link, tier and logo. Drag or use the arrows to order them.', scope: 'content' };
+
 /** Phase 9 — the query fields, per widget. Option lists come from the
  *  canvas response (`options`); the panel names the empty choice. */
 const COMPETITION = (noneLabel: string, help?: string): FieldSpec => ({ kind: 'select', name: 'competitionId', label: 'Competition', help, source: 'competitions', noneLabel, scope: 'query' });
@@ -121,8 +127,8 @@ const LIMIT = (key: keyof typeof QUERY_LIMITS, help?: string): FieldSpec => ({
 
 /** Every non-hero widget gets the instance options; content fields where
  *  the org object has a simple form; the content widgets' editors; the
- *  query widgets' pickers. Lists (sponsors, documents) and media picks
- *  (gallery, course photos) stay in the console. */
+ *  query widgets' pickers. Sponsors moved here in program 3 D2; documents
+ *  and media picks (gallery, course photos) stay in the console. */
 export function fieldsFor(key: SiteWidgetKey): FieldSpec[] {
   return [...baseFieldsFor(key), ...displayFieldsFor(key)];
 }
@@ -138,6 +144,8 @@ function baseFieldsFor(key: SiteWidgetKey): FieldSpec[] {
       return HERO_FIELDS;
     case 'contact':
       return [TITLE, SIZE, VISIBILITY, ...CONTACT_FIELDS];
+    case 'sponsors':
+      return [TITLE, SIZE, VISIBILITY, SPONSORS_FIELD];
     case 'text':
       return [TITLE, SIZE, VISIBILITY, ...TEXT_FIELDS];
     case 'image':
@@ -165,6 +173,6 @@ function baseFieldsFor(key: SiteWidgetKey): FieldSpec[] {
 }
 
 /** The content fields' PATCH action, per widget. */
-export function contentActionFor(key: SiteWidgetKey): 'set_hero' | 'set_contact' | null {
-  return key === 'hero' ? 'set_hero' : key === 'contact' ? 'set_contact' : null;
+export function contentActionFor(key: SiteWidgetKey): 'set_hero' | 'set_contact' | 'set_sponsors' | null {
+  return key === 'hero' ? 'set_hero' : key === 'contact' ? 'set_contact' : key === 'sponsors' ? 'set_sponsors' : null;
 }

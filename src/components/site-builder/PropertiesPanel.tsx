@@ -13,6 +13,7 @@ import { effectiveConfig, instanceQuery } from '@/lib/site-builder/config';
 import type { SiteHomeData } from '@/lib/org-sites/home-data';
 import { applyOrder, displayOrder, displayString, instanceDisplay, orderItems } from '@/lib/site-builder/display';
 import ReorderList from './ReorderList';
+import SponsorsField, { readSponsorDrafts, sponsorsPayload, type SponsorDraft } from './SponsorsField';
 import { EMBED_PROVIDER_LABEL, embedSrc, parseEmbed, parseEmbedUrl } from '@/lib/site-builder/embeds';
 import type { SiteLayout, WidgetInstance, WidgetVisibility } from '@/lib/site-builder/layout';
 import { widgetTitle } from '@/app/(public)/org/[slug]/_components/WidgetBody';
@@ -73,7 +74,10 @@ export default function PropertiesPanel({ site, widget, plural, orgId, options, 
   const instanceFields = fields.filter(f => f.scope === 'instance');
   const queryFields = fields.filter((f): f is Extract<FieldSpec, { scope: 'query' }> => f.scope === 'query');
   const displayFields = fields.filter((f): f is Extract<FieldSpec, { kind: 'display' }> => f.kind === 'display');
-  const contentFields = fields.filter((f): f is Exclude<FieldSpec, { kind: 'visibility' | 'size' | 'blocks' | 'embed' | 'select' | 'number' | 'display' }> => f.scope === 'content');
+  const contentFields = fields.filter((f): f is Exclude<FieldSpec, { kind: 'visibility' | 'size' | 'blocks' | 'embed' | 'select' | 'number' | 'display' | 'sponsors' }> => f.scope === 'content' && f.kind !== 'sponsors');
+  // Program 3, D2: the sponsors list — a content editor of its own, saved
+  // whole through set_sponsors with the panel's "Save content".
+  const sponsorsField = fields.find((f): f is Extract<FieldSpec, { kind: 'sponsors' }> => f.kind === 'sponsors') ?? null;
   const action = contentActionFor(key);
   const config = asConfig(widget.config);
 
@@ -127,6 +131,7 @@ export default function PropertiesPanel({ site, widget, plural, orgId, options, 
   // Seeded once per mount — the editor mounts this panel with key={instance
   // id}, so switching tiles reseeds; a save writes exactly what is typed.
   const [content, setContent] = useState<Record<string, string>>(seed);
+  const [sponsors, setSponsors] = useState<SponsorDraft[]>(() => (sponsorsField ? readSponsorDrafts(contentConfigFor(site, key)) : []));
   const [saving, setSaving] = useState(false);
 
   // B4: focus moves INTO the panel when it opens (a tile selected by keyboard
@@ -156,7 +161,8 @@ export default function PropertiesPanel({ site, widget, plural, orgId, options, 
   const trackUpload = (path: string) => {
     unsavedUploads.current.add(path);
   };
-  const dirty = contentFields.some(f => (content[f.name] ?? '') !== readContent(contentConfigFor(site, key), f.name));
+  const sponsorsDirty = !!sponsorsField && JSON.stringify(sponsorsPayload(sponsors)) !== JSON.stringify(sponsorsPayload(readSponsorDrafts(contentConfigFor(site, key))));
+  const dirty = sponsorsDirty || contentFields.some(f => (content[f.name] ?? '') !== readContent(contentConfigFor(site, key), f.name));
   useEffect(() => {
     onDirtyChange?.(dirty);
     return () => onDirtyChange?.(false);
@@ -167,6 +173,8 @@ export default function PropertiesPanel({ site, widget, plural, orgId, options, 
     setSaving(true);
     try {
       const payload: Record<string, unknown> = { action };
+      // D2: the sponsors list is the whole payload.
+      if (sponsorsField) payload.sponsors = sponsorsPayload(sponsors);
       // Whole-object replace: every field the console's form used to send is
       // on this panel now (P10-C parity), so nothing is carried over blind.
       // 'address' → its non-empty lines (≤ 3); 'social.x' → nested.
@@ -244,7 +252,8 @@ export default function PropertiesPanel({ site, widget, plural, orgId, options, 
       case 'select':
       case 'number':
       case 'display':
-        return null; // query and display kinds render in their own fieldsets
+      case 'sponsors':
+        return null; // query, display and the sponsors list render in their own fieldsets
       default: {
         const value = str(config, f.name);
         return (
@@ -446,9 +455,16 @@ export default function PropertiesPanel({ site, widget, plural, orgId, options, 
         </fieldset>
       )}
 
-      {contentFields.length > 0 && (
+      {(contentFields.length > 0 || sponsorsField) && (
         <fieldset className="space-y-3 border-t border-border pt-4">
           <legend className="text-xs font-medium text-secondary">Content</legend>
+          {sponsorsField && (
+            <div>
+              <p className={LABEL}>{sponsorsField.label}</p>
+              <SponsorsField idBase={`sb-${widget.id}-sponsor`} siteId={site.id} plural={plural} orgId={orgId} sponsors={sponsors} onChange={setSponsors} showError={showError} onUploaded={trackUpload} onRemoved={reclaim} />
+              {sponsorsField.help && <p className="mt-1 text-xs text-tertiary">{sponsorsField.help}</p>}
+            </div>
+          )}
           {contentFields.map(f =>
             f.kind === 'image' ? (
               // P10-C parity: the hero photo — the same uploader, writing the

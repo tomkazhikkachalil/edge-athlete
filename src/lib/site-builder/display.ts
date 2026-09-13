@@ -40,6 +40,16 @@ export type DisplayOrder = { kind: 'order'; name: 'order'; label: string; help?:
 export type DisplayText = { kind: 'text'; name: string; label: string; help?: string; max: number; placeholder?: string };
 export type DisplayField = DisplayChoice | DisplayCount | DisplayToggle | DisplayOrder | DisplayText;
 
+/** Program 3, D2 — the sponsor tier ladder (Tom: a FIXED ladder). Grouping
+ *  and the tier sort follow this order; a sponsor without a tier comes last. */
+export const SPONSOR_TIERS = ['platinum', 'gold', 'silver', 'bronze', 'partner'] as const;
+export type SponsorTier = (typeof SPONSOR_TIERS)[number];
+export const SPONSOR_TIER_LABELS: Record<SponsorTier, string> = { platinum: 'Platinum', gold: 'Gold', silver: 'Silver', bronze: 'Bronze', partner: 'Partner' };
+export const tierRank = (tier: string | undefined): number => {
+  const i = (SPONSOR_TIERS as readonly string[]).indexOf(tier ?? '');
+  return i === -1 ? SPONSOR_TIERS.length : i;
+};
+
 export const DISPLAY_ORDER_MAX = 60;
 export const DISPLAY_ORDER_ID_MAX = 120;
 
@@ -61,9 +71,9 @@ const CLICK_DETAIL = choice('click', 'Tap on an item', [
   ['none', 'Nothing'],
 ]);
 
-/** The declaration — first option = today's look. Sponsors (D2) and news
- *  (D4) gain their axes in later rounds; until then they declare nothing
- *  and the panel shows no "How it looks" fieldset. */
+/** The declaration — first option = today's look. News (D4) gains its
+ *  axes next; until then it declares nothing and the panel shows no "How
+ *  it looks" fieldset. */
 export const DISPLAY_FIELDS: Readonly<Record<SiteWidgetKey, readonly DisplayField[]>> = {
   hero: [
     choice('variant', 'Welcome shape', [
@@ -158,7 +168,30 @@ export const DISPLAY_FIELDS: Readonly<Record<SiteWidgetKey, readonly DisplayFiel
     ORDER,
     count('count', 'How many', 1, 20, 20),
   ],
-  sponsors: [],
+  sponsors: [
+    choice('variant', 'Layout', [
+      ['list', 'List'],
+      ['grid', 'Grid of logos'],
+      ['row', 'One row'],
+      ['carousel', 'Carousel'],
+    ]),
+    toggle('groupByTier', 'Group by tier'),
+    choice('logoSize', 'Logo size', [
+      ['sm', 'Small'],
+      ['md', 'Medium'],
+      ['lg', 'Large'],
+    ]),
+    count('perRow', 'Logos per row', 2, 6, 3, 'For the grid.'),
+    choice('sort', 'Order', [
+      ['manual', 'My own order'],
+      ['alpha', 'A to Z'],
+      ['tier', 'By tier'],
+    ]),
+    choice('click', 'Tap on a sponsor', [
+      ['link', 'Opens its link'],
+      ['none', 'Nothing'],
+    ]),
+  ],
   contact: [
     choice('variant', 'Layout', [
       ['card', 'Stacked'],
