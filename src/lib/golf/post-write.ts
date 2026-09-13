@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { sanitizePenalties } from './penalties';
+import { syncGolfRoundPerformance } from '@/lib/performance/write-server';
 
 /**
  * Golf's post-creation write path — moved intact from api/posts/route.ts so
@@ -144,6 +145,11 @@ export async function createGolfRoundEntities(
       }
     }
   }
+
+  // Data foundation F4: the round's performance row — AFTER the stats RPC
+  // (gross_score exists only then). Awaited, never throws, never fails
+  // the post; a round without a score deletes its key.
+  if (roundId) await syncGolfRoundPerformance(supabase, roundId);
 
   return { ok: true, roundId };
 }

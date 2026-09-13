@@ -1,5 +1,35 @@
 # Development Log
 
+## September 13, 2026 — Data foundation F4: every writer projects its fact into `athlete_performances` (zero DDL)
+
+- Each hook runs AFTER the origin write succeeded, is awaited (serverless
+  kills fire-and-forget), never throws and never fails the user's write
+  (pre-194 the writer answers `skipped`). The sites: the posts POST (a
+  stat line → `fromStatLinePost`; a pending post is projected on the
+  guardian's APPROVE instead); `deletePostCascade` (the key dies with the
+  post — this covers the round cascade's feed post too);
+  `createGolfRoundEntities` after `calculate_round_stats`; the round PATCH
+  after its recalc and the round DELETE; `mirrorCompletedRound` per
+  participant mirror (source `live_round`); `deleteRoundCascade` selects
+  the mirror ids BEFORE deleting them and removes their rows by source;
+  the golf league sync applies the OVERLAY (contest, `self_reported`, who
+  entered it) to each counted round's row and the manager's confirm steps
+  the flipped rows up to `league_verified` (its `.select()` now carries
+  the payload); a dispute raise / withdraw / resolve re-applies the
+  overlays of the contest's results (a disputed row leaves the headline
+  reads); the org stat-line PUT selects the written rows back and projects
+  them with the org's provenance and the contest's day (`scheduled_at`
+  joins the contest select), the DELETE removes the key.
+- No stub-claim re-map: a claim keeps the profile row's id (the stub's
+  email is what changes), so nothing moves.
+- `e2e/performance-data.spec.ts` (skips pre-194): a stat-line post → a
+  row with headline 3 → deleted with the post; a solo golf round → a row
+  (`source: 'post'`, gross 90, to_par 18, no differential without a
+  rating) → the PATCH re-projects gross 72 → the DELETE removes the row.
+  The live-round mirror and the league overlay are prod-probe territory.
+- Next: F5, the admin backfill (dry-run by default) for the rows that
+  predate the hooks.
+
 ## September 13, 2026 — Data foundation F3: the common performance shape — migration 194 `athlete_performances`, the mappers and the one writer
 
 - **Why:** two performance shapes could not be queried together — golf's

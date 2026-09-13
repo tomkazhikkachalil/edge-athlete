@@ -29,6 +29,9 @@ import { NextResponse } from 'next/server';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { getStatSchema } from '@/lib/sports/stat-schemas';
 import { validateStatsAgainstSchema } from '@/lib/sports/stat-line-validate';
+import { fromContestStatLine, type ContestStatLineOrigin } from '@/lib/performance/map';
+import { naturalKey, type PerformanceRow } from '@/lib/performance/types';
+import { deletePerformancesByKeys, upsertPerformances } from '@/lib/performance/write-server';
 import { isMissingTableError, type StatLinesUpsertInput } from '@/lib/competitions/validate';
 import { revalidateOrgSiteForCompetition } from '@/lib/org-sites/revalidate';
 import type { CompetitionScope } from './competition-server';
@@ -281,7 +284,7 @@ export async function statLinesUpsertPOST(
   const { data: contestRow } = await admin
     .from('contests')
     .select(
-      'id, status, competition:competition_id (id, name, sport_key, format, status, league_id, club_id)'
+      'id, status, scheduled_at, competition:competition_id (id, name, sport_key, format, status, league_id, club_id)'
     )
     .eq('id', input.contestId)
     .maybeSingle();
@@ -375,17 +378,20 @@ export async function statLinesUpsertPOST(
     }
   }
 
-  const { error } = await admin.from('contest_stat_lines').upsert(
-    input.lines.map(line => ({
-      contest_id: input.contestId,
-      team_id: line.teamId,
-      profile_id: line.profileId,
-      stats: line.stats,
-      provenance,
-      entered_by: enteredBy,
-    })),
-    { onConflict: 'contest_id,profile_id' }
-  );
+  const { data: written, error } = await admin
+    .from('contest_stat_lines')
+    .upsert(
+      input.lines.map(line => ({
+        contest_id: input.contestId,
+        team_id: line.teamId,
+        profile_id: line.profileId,
+        stats: line.stats,
+        provenance,
+        entered_by: enteredBy,
+      })),
+      { onConflict: 'contest_id,profile_id' }
+    )
+    .select('id, contest_id, profile_id, stats, provenance, entered_by, created_at');
   if (error) {
     if (isMissingTableError(error.code)) {
       return NextResponse.json(
@@ -396,6 +402,12 @@ export async function statLinesUpsertPOST(
     console.error(`${TAG} upsert error:`, error);
     return NextResponse.json({ error: 'Failed to save player stats' }, { status: 500 });
   }
+  // Data foundation F4: each line's performance row (source org_entry /
+  // import, the org's provenance verbatim, the contest's day). Best-effort.
+  const perf = (written ?? [])
+    .map(row => fromContestStatLine(row as unknown as ContestStatLineOrigin, comp.sport_key, (contestRow.scheduled_at as string | null) ?? null))
+    .filter((r): r is PerformanceRow => r !== null);
+  if (perf.length > 0) await upsertPerformances(admin, perf);
   await revalidateOrgSiteForCompetition(admin, comp.id);
   return NextResponse.json({ ok: true, provenance });
 }
@@ -439,6 +451,8 @@ export async function statLineDELETE(
     console.error(`${TAG} delete error:`, error);
     return NextResponse.json({ error: 'Failed to delete the stat line' }, { status: 500 });
   }
+  // Data foundation F4: the line's performance row dies with it.
+  await deletePerformancesByKeys(admin, [naturalKey.contestStatLine(lineId)]);
   await revalidateOrgSiteForCompetition(admin, comp.id);
   return NextResponse.json({ success: true });
 }

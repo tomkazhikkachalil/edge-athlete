@@ -3,6 +3,8 @@ import { UUID_RE, isUuid } from '@/lib/uuid';
 import { filterBlockedBidirectional } from '@/lib/blocks';
 import { getEnabledSports } from '@/lib/sports/SportRegistry';
 import { validateStatLine } from '@/lib/sports/stat-line-validate';
+import { fromStatLinePost } from '@/lib/performance/map';
+import { upsertPerformances } from '@/lib/performance/write-server';
 import { requireAuth, getSupabaseAdmin } from '@/lib/auth-server';
 import { GROUP_SCORECARD_SELECT, transformGroupPostToScorecard } from '@/lib/golf/scorecard-transform';
 import { isActiveParticipant, effectiveRoundStatus } from '@/lib/golf/round-status';
@@ -382,6 +384,23 @@ export async function POST(request: NextRequest) {
     if (postError) {
       console.error('[POST] Post creation error:', postError);
       return NextResponse.json({ error: 'Failed to create post' }, { status: 500 });
+    }
+
+    // Data foundation F4: the performance projection of a stat line, AFTER
+    // the origin write — awaited, never throws, never fails the post (a
+    // golf post's round is projected by post-write.ts; a pending post is
+    // projected on approval).
+    if (post?.id && incomingStatsData && postType !== 'golf') {
+      const perf = fromStatLinePost({
+        id: post.id,
+        profile_id: userId,
+        sport_key: postType,
+        created_at: post.created_at ?? new Date().toISOString(),
+        status: post.status ?? null,
+        created_by_user_id: postData.created_by_user_id ?? null,
+        stats_data: incomingStatsData,
+      });
+      if (perf) await upsertPerformances(supabase, [perf]);
     }
 
     // Guardian-profiles: a supervised author's post just entered the approval
@@ -1534,6 +1553,17 @@ export async function PATCH(request: NextRequest) {
         .eq('id', postId);
       if (statusError) {
         return NextResponse.json({ error: 'Failed to update post' }, { status: 500 });
+      }
+      // Data foundation F4: an approved stat line enters the performance
+      // projection now (it was skipped while pending). Best-effort.
+      if (action === 'approve') {
+        const { data: approved } = await supabase
+          .from('posts')
+          .select('id, profile_id, sport_key, created_at, status, stats_data')
+          .eq('id', postId)
+          .maybeSingle();
+        const perf = approved ? fromStatLinePost(approved) : null;
+        if (perf) await upsertPerformances(supabase, [perf]);
       }
       // Tell the supervised author what happened (their bell — they see it on
       // their next PIN login). Best-effort.

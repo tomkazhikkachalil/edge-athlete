@@ -22,6 +22,8 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { CATALOG_ROW_COLUMNS, type CatalogRow } from '@/lib/golf/course-catalog';
 import { fetchHandicapComputation } from '@/lib/golf/handicap-server';
 import { canOverwriteProvenance, type ResultProvenance } from '@/lib/orgs/provenance';
+import { golfOverlayFromResult, type ContestResultOrigin } from '@/lib/performance/map';
+import { syncGolfRoundPerformance } from '@/lib/performance/write-server';
 import { revalidateOrgSiteForCompetition } from '@/lib/org-sites/revalidate';
 import { stampContestAttachments } from './contest-attachments-server';
 import { recomputeStandingsBestEffort } from './standings';
@@ -378,6 +380,13 @@ export async function syncGolfContest(admin: Admin, contestId: string): Promise<
     // E2 (mig 181): the counted rounds' posts and live rounds attach to
     // this contest — the one writer of contest_id; pre-181 warns and skips.
     await stampContestAttachments(admin, contest.id);
+    // Data foundation F4: the league's OVERLAY on each counted round's
+    // performance row (contest, provenance, who entered it) — one fact per
+    // event, never a second row. Best-effort, awaited.
+    for (const u of upserts) {
+      const o = golfOverlayFromResult(u as unknown as ContestResultOrigin);
+      if (o) await syncGolfRoundPerformance(admin, o.roundId, o.overlay);
+    }
     // W2: tell the members whose result is new or changed (never the kept,
     // never an unchanged re-sync). Best-effort; a pre-173 CHECK drops it.
     if (counted.length > 0) {
@@ -405,10 +414,22 @@ export async function confirmGolfContest(
     .update({ provenance: 'league_verified', confirmed_by: confirmedBy })
     .eq('contest_id', contest.id)
     .eq('provenance', 'self_reported')
-    .select('participant_id');
+    .select('participant_id, payload, entered_by, dispute_status');
   if (error) {
     console.error(`${TAG} confirm error:`, error);
     return NextResponse.json({ error: 'Failed to confirm the round' }, { status: 500 });
+  }
+  // Data foundation F4: the confirmed rows' performance overlays step up
+  // to league_verified. Best-effort, awaited.
+  for (const r of flipped ?? []) {
+    const o = golfOverlayFromResult({
+      contest_id: contest.id,
+      provenance: 'league_verified',
+      dispute_status: r.dispute_status as string | null,
+      entered_by: r.entered_by as string | null,
+      payload: r.payload,
+    });
+    if (o) await syncGolfRoundPerformance(admin, o.roundId, o.overlay);
   }
   if (contest.status !== 'completed') {
     await admin.from('contests').update({ status: 'completed' }).eq('id', contest.id);

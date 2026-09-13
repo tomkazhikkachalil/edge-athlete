@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { UUID_RE } from '@/lib/uuid';
 import { getSupabaseAdmin, requireAuth } from '@/lib/auth-server';
 import { canViewProfile } from '@/lib/privacy';
+import { naturalKey } from '@/lib/performance/types';
+import { deletePerformancesByKeys, syncGolfRoundPerformance } from '@/lib/performance/write-server';
 
 // ── GET /api/golf/rounds/[roundId] ────────────────────────────────────────────
 // Round + hole-by-hole data. Visible to the owner, or to viewers permitted to
@@ -228,6 +230,9 @@ export async function PATCH(
       console.error('PATCH /api/golf/rounds/[id] stats recalc error:', statsError);
       // Holes saved; stats stale until next recalc — report but don't fail the save
     }
+    // Data foundation F4: the edited round's performance row, from the
+    // fresh stats. Best-effort, awaited.
+    await syncGolfRoundPerformance(supabase, roundId);
 
     // Return the fresh round
     const { data: updated } = await supabase
@@ -299,6 +304,8 @@ export async function DELETE(
       console.error('DELETE /api/golf/rounds/[id] error:', deleteError);
       return NextResponse.json({ error: 'Failed to delete round' }, { status: 500 });
     }
+    // Data foundation F4: the round's performance row dies with it.
+    await deletePerformancesByKeys(supabase, [naturalKey.golfRound(roundId)]);
 
     return NextResponse.json({ success: true });
   } catch (error) {
