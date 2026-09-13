@@ -1,5 +1,51 @@
 # Development Log
 
+## September 13, 2026 — Program 3, S2: "Show sample data" in the editor (zero DDL)
+
+Empty sections made a layout impossible to judge. The editor now shows
+every empty widget as it will look once the club is active — S1's
+generator, mounted at the editor's RENDER boundary and nowhere else.
+
+- **The toggle**: a "Show sample data" pill beside Undo / Redo
+  (`data-sb-sample`, `aria-pressed`), on both widths (the header is
+  shared). On by default; the choice is remembered PER SITE in
+  `localStorage` (`sb:sample:<siteId>`, '0' = off) — an editor
+  preference, never the database; storage that throws reads as on. The
+  Editor mounts only after the canvas GET resolves, so a lazy initial
+  state reads storage with no hydration mismatch (and no
+  set-state-in-effect).
+- **The boundary**: `SiteBuilder` computes `view = applySample(canvasSite,
+  data, history.present, sampleOn, isWidgetEmpty)` once per change (a
+  memo) and hands it to the CANVAS (`site`, `sampled`, `sampleData`), the
+  phone's Sections list (`sampled`) and the picker (`sampleOn`,
+  `sampleData`). The checklist, the publish gate, the properties panel,
+  `refreshSite`, the autosave and every PATCH keep the real site, data and
+  layout. The canvas renders a sampled tile as `WidgetBody` over the WHOLE
+  sample bag through `sampleInstance` (the query-stripped clone) — the
+  grid, the drag / resize commits and every callback keep the real
+  instance, so a gesture can never push sample content into the draft.
+- **The chip**: "Sample" (`data-sb-sample-chip`) in the canvas frame
+  header beside the members-only badge, on the phone list's row, and on a
+  picker tile whose preview is empty — an absent key with nothing behind
+  it, or an "Add another" of a query widget the canvas has no rows for
+  (the e2e found that on a fresh league every module is already on the
+  page, so the picker's only tiles are the "Add another" ones). The picker's
+  `onAdd` still hands back the REAL data — `setData` never sees a sample.
+- **Embeds**: a sampled embed tile draws `SampleFrame` (a 16:9 gradient
+  with a play glyph, `data-sb-sample-frame`) — never a third-party iframe
+  from sample data. The hero renders its sample photo + tagline through
+  the site clone (`parseHeroConfig` admits the data URI at render, S1).
+- e2e `org-site-sample-data.spec.ts` (desktop + `@mobile` on Chromium and
+  WebKit): a fresh league's standings and teams tiles are chipped and
+  carry the sample; the staff tile (the owner is real) is not; the picker
+  chips an empty preview; off → "No teams yet." and the choice survives a
+  reload; real sponsors saved through `set_sponsors` show un-chipped while
+  the empty neighbours stay sampled; a title edit on a sampled tile
+  autosaves the REAL instance (every draft PUT body is recorded and lacks
+  the sentinel; the canvas GET lacks it); publish → the public page has
+  the real sponsor and neither the sentinel nor a data URI. The phone list
+  chips rows, the toggle clears them, nothing overflows 390px.
+
 ## September 13, 2026 — Program 3, S1: sample data — the pure generator (zero DDL)
 
 Site Builder program 3 (Tom's three refinements, extended to EVERY widget):

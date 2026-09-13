@@ -11,6 +11,8 @@ import { GRID, compactLayout, type SiteLayout, type WidgetInstance } from '@/lib
 import HeroSection from '@/app/(public)/org/[slug]/_components/HeroSection';
 import WidgetBody, { widgetTitle } from '@/app/(public)/org/[slug]/_components/WidgetBody';
 import { effectiveAudience } from '@/lib/site-builder/audience';
+import { sampleInstance } from '@/lib/site-builder/sample';
+import SampleFrame from './SampleFrame';
 import './grid.css';
 
 /**
@@ -37,6 +39,13 @@ export interface CanvasProps {
   onCommit: (next: SiteLayout) => void;
   /** P3-D: remove a tile (the hero is never removable). */
   onRemove: (id: string) => void;
+  /** Program 3 S2: the instances rendering SAMPLE content (the editor's
+   *  "Show sample data" mode) and the bag they render over. `site` is the
+   *  sample view's clone when any content widget is sampled. The layout,
+   *  the drag/resize commits and every callback keep the REAL instances —
+   *  the sample never leaves the render. */
+  sampled: ReadonlySet<string>;
+  sampleData: SiteHomeData;
 }
 
 function toRgl(layout: SiteLayout): RglLayout {
@@ -55,7 +64,8 @@ function fromRgl(layout: SiteLayout, items: RglLayout): SiteLayout {
   return { ...layout, widgets: compactLayout(widgets) };
 }
 
-export default function Canvas({ site, layout, data, selectedId, onSelect, onCommit, onRemove }: CanvasProps) {
+export default function Canvas({ site, layout, data, selectedId, onSelect, onCommit, onRemove, sampled, sampleData }: CanvasProps) {
+  const sampleCtx = { orgName: site.orgName, sportKey: site.sportKey };
   const { width, containerRef } = useContainerWidth({ initialWidth: 1024 });
   // Phase 7: the canvas wears the site's theme (accent, surface, heading
   // face) exactly as the public shell does — before this it showed the
@@ -92,6 +102,7 @@ export default function Canvas({ site, layout, data, selectedId, onSelect, onCom
           const selected = selectedId === w.id;
           const title = w.key === 'hero' ? 'Hero' : widgetTitle(site, w);
           const membersOnly = effectiveAudience(site, w) === 'members';
+          const isSample = sampled.has(w.id);
           return (
             <div
               key={w.id}
@@ -118,6 +129,11 @@ export default function Canvas({ site, layout, data, selectedId, onSelect, onCom
               >
                 <span className="truncate font-medium text-primary">{title}</span>
                 <span className="flex items-center gap-2">
+                  {isSample && (
+                    <span className="rounded-full border border-sky-300 bg-sky-50 px-1.5 py-0.5 text-[10px] font-medium text-sky-800" data-sb-sample-chip="" title="Sample content — shown here only, never on your site">
+                      Sample
+                    </span>
+                  )}
                   {membersOnly && (
                     <span className="rounded-full border border-amber-300 bg-amber-50 px-1.5 py-0.5 text-[10px] font-medium text-amber-800" data-sb-members-only="">
                       Members only on your site
@@ -148,8 +164,12 @@ export default function Canvas({ site, layout, data, selectedId, onSelect, onCom
               <div className="sb-widget-body min-h-0 flex-1 overflow-hidden p-3" inert>
                 {w.key === 'hero' ? (
                   <HeroSection site={site} w={w} spec={spec} compact />
+                ) : isSample && w.key === 'embed' ? (
+                  <SampleFrame kind="video" />
                 ) : (
-                  <WidgetBody site={site} w={w} data={data} spec={spec} membersOnly={false} />
+                  // S2: a sampled tile renders the WHOLE sample bag through a
+                  // query-stripped clone; every other tile the real one.
+                  <WidgetBody site={site} w={sampleInstance(w, sampled, sampleCtx)} data={isSample ? sampleData : data} spec={spec} membersOnly={false} />
                 )}
               </div>
             </div>

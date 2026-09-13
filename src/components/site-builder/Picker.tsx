@@ -10,6 +10,7 @@ import { CONTENT_WIDGET_KEYS, WEB_WIDGET_KEYS, WIDGETS, type ContentWidgetKey, t
 import { newInstanceFor, type SiteLayout } from '@/lib/site-builder/layout';
 import WidgetBody from '@/app/(public)/org/[slug]/_components/WidgetBody';
 import { effectiveAudience } from '@/lib/site-builder/audience';
+import { isWidgetEmpty } from '@/lib/site-builder/emptiness';
 
 /**
  * The add-widget picker — Site Builder P3-D (Sep 9 2026). Every option
@@ -38,6 +39,11 @@ export interface PickerProps {
   onClose: () => void;
   /** Program 2, B3: the keys this layout may hold (a PAGE takes no hero). Absent = every site widget. */
   allowed?: readonly string[];
+  /** Program 3 S2: "Show sample data" — an EMPTY preview tile renders the
+   *  sample bag (chipped) so the manager can judge the section before the
+   *  club has content. `onAdd` still hands back the REAL data. */
+  sampleOn?: boolean;
+  sampleData?: SiteHomeData;
 }
 
 const CONTENT_BLURB: Record<ContentWidgetKey, string> = {
@@ -50,7 +56,7 @@ const CONTENT_BLURB: Record<ContentWidgetKey, string> = {
 
 const ADD = 'min-h-[36px] rounded-md bg-brand px-3 text-sm font-medium text-white hover:bg-brand-hover transition-colors disabled:opacity-50';
 
-export default function Picker({ site, layout, plural, orgId, data: canvasData, onAdd, onClose, allowed }: PickerProps) {
+export default function Picker({ site, layout, plural, orgId, data: canvasData, onAdd, onClose, allowed, sampleOn = false, sampleData }: PickerProps) {
   const present = new Set(layout.widgets.map(w => w.key));
   const permitted = (k: string) => !allowed || allowed.includes(k);
   // Fetch previews for the ABSENT keys only; a repeatable key already on the
@@ -126,10 +132,22 @@ export default function Picker({ site, layout, plural, orgId, data: canvasData, 
               const staff = WIDGETS[key].emptyState?.staff;
               const preview = previewData ? newInstanceFor(site, key, `probe:${key}`) : null;
               const ready = again ? !!previewData : state.status === 'ready';
+              // S2: an EMPTY preview — an absent key with nothing behind it, or
+              // an "Add another" of a query widget the canvas has no rows for —
+              // previews the sample bag (the probe instance carries no query);
+              // the add still hands back the real data.
+              const isSample = sampleOn && !!sampleData && !!preview && !!previewData && isWidgetEmpty(preview, previewData, site);
               return (
                 <li key={key} className="flex flex-col rounded-lg border border-border bg-surface overflow-hidden" data-sb-picker-tile={key}>
                   <div className="flex items-center justify-between gap-2 border-b border-border px-3 py-2">
-                    <span className="text-sm font-medium text-primary">{title}</span>
+                    <span className="flex min-w-0 items-center gap-2">
+                      <span className="truncate text-sm font-medium text-primary">{title}</span>
+                      {isSample && (
+                        <span className="rounded-full border border-sky-300 bg-sky-50 px-1.5 py-0.5 text-[10px] font-medium text-sky-800" data-sb-sample-chip="">
+                          Sample
+                        </span>
+                      )}
+                    </span>
                     <button type="button" onClick={() => onAdd(key, previewData)} disabled={!ready} className={ADD} aria-label={`${again ? 'Add another' : 'Add'} ${title}`}>
                       {again ? 'Add another' : 'Add'}
                     </button>
@@ -138,7 +156,7 @@ export default function Picker({ site, layout, plural, orgId, data: canvasData, 
                     {!preview || !previewData ? (
                       <div className="h-16 animate-pulse rounded bg-surface-sunken" />
                     ) : (
-                      <WidgetBody site={site} w={preview} data={previewData} spec={spec} membersOnly={effectiveAudience(site, preview) === 'members'} />
+                      <WidgetBody site={site} w={preview} data={isSample ? sampleData! : previewData} spec={spec} membersOnly={effectiveAudience(site, preview) === 'members'} />
                     )}
                   </div>
                   {again && (

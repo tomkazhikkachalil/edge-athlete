@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import AppHeader from '@/components/AppHeader';
@@ -38,6 +38,8 @@ import { openPreview } from './openPreview';
 import ConfirmModal from '@/components/ConfirmModal';
 import { COPY } from '@/lib/copy';
 import { useHistory } from './useHistory';
+import { applySample } from '@/lib/site-builder/sample';
+import { isWidgetEmpty } from '@/lib/site-builder/emptiness';
 
 /**
  * The site editor — Site Builder P3-B (Sep 9 2026): one screen, one mode.
@@ -72,6 +74,27 @@ interface CanvasBody {
 export type EditorTarget = 'home' | string;
 
 const PILL = 'px-3 py-1.5 text-sm min-h-[36px] rounded-md border border-border-strong text-secondary hover:bg-surface-sunken transition-colors disabled:opacity-50 disabled:cursor-not-allowed';
+
+// Program 3 S2: "Show sample data" — a per-site EDITOR preference (never
+// the database): on by default; '0' remembers off. The Editor mounts only
+// after the canvas GET resolves (client-side), so the lazy initial state
+// may read storage without a hydration mismatch. Storage can throw
+// (private mode, blocked site data) → on.
+const samplePrefKey = (siteId: string) => `sb:sample:${siteId}`;
+function readSamplePref(siteId: string): boolean {
+  try {
+    return window.localStorage.getItem(samplePrefKey(siteId)) !== '0';
+  } catch {
+    return true;
+  }
+}
+function writeSamplePref(siteId: string, on: boolean): void {
+  try {
+    window.localStorage.setItem(samplePrefKey(siteId), on ? '1' : '0');
+  } catch {
+    // A remembered preference is a convenience, not state.
+  }
+}
 // B3: a panel stays in view beside a long canvas (it used to sit at the top
 // of the row, off-screen when the selected tile was near the bottom).
 const STICKY_ASIDE = 'sticky top-16 self-start max-h-[calc(100vh-5rem)] overflow-y-auto';
@@ -307,7 +330,25 @@ function Editor({
   // P7-B: the theme panel edits a DRAFT of the tokens; the canvas wears the
   // draft while the panel is open (live preview), the server on Save.
   const [themeDraft, setThemeDraft] = useState<ThemeDraft | null>(null);
-  const canvasSite: PublicSite = themeDraft ? { ...site, template_id: themeDraft.templateId, theme_token_set: themeDraft.tokens } : site;
+  const canvasSite: PublicSite = useMemo(
+    () => (themeDraft ? { ...site, template_id: themeDraft.templateId, theme_token_set: themeDraft.tokens } : site),
+    [site, themeDraft]
+  );
+  // Program 3 S2: the sample overlay, applied at the RENDER boundary only —
+  // the canvas, the phone list and the picker read `view`; the checklist,
+  // the publish gate, the panels, the draft PUT and every PATCH keep the
+  // real site / data / layout. The real `isWidgetEmpty` decides per
+  // instance (already in this bundle through the checklist).
+  const [sampleOn, setSampleOn] = useState<boolean>(() => readSamplePref(site.id));
+  const toggleSample = () => {
+    const next = !sampleOn;
+    writeSamplePref(site.id, next);
+    setSampleOn(next);
+  };
+  const view = useMemo(
+    () => applySample(canvasSite, data, history.present, sampleOn, (w, d, s) => isWidgetEmpty(w, d, s)),
+    [canvasSite, data, history.present, sampleOn]
+  );
   // `coalesce`: consecutive edits to the same field fold into ONE undo step
   // (typing a paragraph is one step, not one per keystroke).
   const changeInstance = (next: WidgetInstance, coalesce?: string) => {
@@ -601,6 +642,16 @@ function Editor({
             <button type="button" onClick={history.redo} disabled={!history.canRedo} className={PILL} aria-label="Redo" title="Redo (⇧⌘Z)">
               Redo
             </button>
+            <button
+              type="button"
+              onClick={toggleSample}
+              aria-pressed={sampleOn}
+              className={`${PILL} ${sampleOn ? 'bg-sky-50 border-sky-300 text-sky-900' : ''}`}
+              data-sb-sample=""
+              title="Empty sections show sample content here — never on your site"
+            >
+              Show sample data
+            </button>
             <button type="button" onClick={() => setPickerOpen(true)} className={PILL}>
               Add section
             </button>
@@ -668,6 +719,7 @@ function Editor({
             <SectionsList
               site={site}
               layout={history.present}
+              sampled={view.sampled}
               onCommit={history.commit}
               onRemove={removeOne}
               onSelect={id =>
@@ -748,9 +800,11 @@ function Editor({
             <div className="flex items-start gap-4">
               <div className="min-w-0 flex-1">
                 <Canvas
-                  site={canvasSite}
+                  site={view.site}
                   layout={history.present}
                   data={data}
+                  sampled={view.sampled}
+                  sampleData={view.sampleData}
                   selectedId={selectedId}
                   onSelect={id => {
                     if (id === selectedId && !themeDraft) return;
@@ -865,7 +919,7 @@ function Editor({
         onCancel={() => setPending(null)}
       />
       {pickerOpen && (
-        <Picker site={site} layout={history.present} plural={plural} orgId={orgId} data={data} onAdd={addWidget} onClose={() => setPickerOpen(false)} allowed={page ? PAGE_WIDGET_KEYS : undefined} />
+        <Picker site={site} layout={history.present} plural={plural} orgId={orgId} data={data} onAdd={addWidget} onClose={() => setPickerOpen(false)} allowed={page ? PAGE_WIDGET_KEYS : undefined} sampleOn={sampleOn} sampleData={view.sampleData} />
       )}
       {page && pagePanelOpen && (
         <PagePanel
