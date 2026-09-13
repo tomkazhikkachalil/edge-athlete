@@ -25,6 +25,8 @@ import type { User } from '@supabase/supabase-js';
 import type { OrgSide } from './authz';
 import { getOrgRole, isOwnerOrManager } from './authz';
 import { revalidateOrgSiteForCompetition } from '@/lib/org-sites/revalidate';
+import { golfOverlayFromResult, type ContestResultOrigin } from '@/lib/performance/map';
+import { syncGolfRoundPerformance } from '@/lib/performance/write-server';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- matches the authz.ts Admin alias
 type Admin = SupabaseClient<any, 'public', any>;
@@ -185,6 +187,21 @@ export async function disputePATCH(
     }
     console.error(`${TAG} update error:`, updateError);
     return NextResponse.json({ error: 'Failed to update the dispute' }, { status: 500 });
+  }
+
+  // Data foundation F4: the dispute state rides each golf result's
+  // performance overlay (a disputed row leaves the headline reads).
+  // Best-effort, awaited; non-golf results name no round → no-op.
+  {
+    const { data: results } = await admin
+      .from('contest_results')
+      .select('contest_id, provenance, dispute_status, entered_by, payload')
+      .eq('contest_id', input.contestId)
+      .limit(200);
+    for (const r of results ?? []) {
+      const o = golfOverlayFromResult(r as unknown as ContestResultOrigin);
+      if (o) await syncGolfRoundPerformance(admin, o.roundId, o.overlay);
+    }
   }
 
   // Bells to every org with standing minus the actor — best-effort.

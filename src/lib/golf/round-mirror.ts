@@ -12,6 +12,7 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { isActiveParticipant } from './round-status';
+import { syncGolfRoundPerformance } from '@/lib/performance/write-server';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Admin = SupabaseClient<any, 'public', any>;
@@ -277,6 +278,9 @@ export async function mirrorCompletedRound(admin: Admin, groupPostId: string): P
         // the next write
         console.error('mirrorCompletedRound: calculate_round_stats failed:', rpcError);
       }
+      // Data foundation F4: one performance row per participant's mirror
+      // (source live_round), after the RPC. Best-effort, awaited.
+      await syncGolfRoundPerformance(admin, mirrored.id);
     }
   } catch (e) {
     console.error('mirrorCompletedRound: unexpected error:', e);

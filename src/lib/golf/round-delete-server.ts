@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { deletePostCascade } from '@/lib/posts/delete-post-server';
+import { deletePerformancesBySource } from '@/lib/performance/write-server';
 
 export type RoundDeleteResult =
   | { status: 'deleted' }
@@ -39,6 +40,11 @@ export async function deleteRoundCascade(
 
   // Stat mirrors first — after the group_posts delete their FK is nulled and
   // the rows become unfindable (they would go on feeding trends/handicap).
+  // Their ids first: the performance rows (F4) are keyed by them.
+  const { data: mirrorRows } = await admin
+    .from('golf_rounds')
+    .select('id')
+    .eq('group_post_id', groupPostId);
   const { error: mirrorError } = await admin
     .from('golf_rounds')
     .delete()
@@ -47,6 +53,7 @@ export async function deleteRoundCascade(
     console.error('[ROUND-DELETE] mirror cleanup failed:', mirrorError);
     return { status: 'error', message: 'Could not remove the round from stats' };
   }
+  await deletePerformancesBySource(admin, 'golf_rounds', (mirrorRows ?? []).map(r => r.id as string));
 
   // The feed post, through the same storage-safe cascade as the post trash.
   if (round.post_id) {

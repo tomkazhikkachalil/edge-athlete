@@ -1,4 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { naturalKey } from '@/lib/performance/types';
+import { deletePerformancesByKeys } from '@/lib/performance/write-server';
 
 /**
  * The full post-deletion cascade, extracted verbatim from DELETE /api/posts
@@ -70,5 +72,7 @@ export async function deletePostCascade(
     console.error('[DELETE] Post deletion error:', deleteError);
     return { ok: false, error: 'Failed to delete post' };
   }
+  // Data foundation F4: the post's performance row dies with it.
+  await deletePerformancesByKeys(admin, [naturalKey.post(postId)]);
   return { ok: true };
 }
