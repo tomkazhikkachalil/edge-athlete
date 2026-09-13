@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { getStatSchema } from '../../stat-schemas';
+import { PROVENANCE_ORDER, PROVENANCE_RANK, provenanceAtOrAbove } from '../../provenance-copy';
 import {
   mergeOfficialContribution,
   provenanceRank,
@@ -26,6 +27,13 @@ const line = (
 });
 
 describe('provenanceRank — the display ladder', () => {
+  it('F1: is the ONE ladder — PROVENANCE_RANK derived from PROVENANCE_ORDER, and the at-or-above set follows it', () => {
+    expect(PROVENANCE_RANK).toEqual({ sanctioned: 6, league_verified: 5, club_recorded: 4, tracked: 3, imported: 2, entered: 1 });
+    for (const k of PROVENANCE_ORDER) expect(provenanceRank(k)).toBe(PROVENANCE_RANK[k]);
+    expect(provenanceAtOrAbove('club_recorded')).toEqual(['sanctioned', 'league_verified', 'club_recorded']);
+    expect(provenanceAtOrAbove('entered')).toEqual([...PROVENANCE_ORDER]);
+  });
+
   it('orders sanctioned > league_verified > club_recorded > tracked > imported > entered', () => {
     const order = [
       'sanctioned',

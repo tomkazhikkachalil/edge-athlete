@@ -5,6 +5,7 @@ import {
   type ResultProvenance,
 } from '@/lib/orgs/provenance';
 import { computeProfileTile, type SportStatSchema, type StatLineData } from '../stat-schemas';
+import { PROVENANCE_RANK } from '../provenance-copy';
 import type { SkillCardContribution, SkillProvenance, SkillTile } from './types';
 
 // ── Official (org-sourced) athlete stats — phase 4 R2 ───────────────────────
@@ -46,22 +47,11 @@ function asSkillProvenance(p: ResultProvenance): SkillProvenance {
   return p === 'self_reported' ? 'entered' : p;
 }
 
-/** Display precedence: verified beats tracked beats history beats claimed. */
+/** Display precedence: verified beats tracked beats history beats claimed —
+ *  ONE ladder, `PROVENANCE_RANK` in provenance-copy.ts (F1: this file used
+ *  to keep its own switch). */
 export function provenanceRank(p: SkillProvenance): number {
-  switch (p) {
-    case 'sanctioned':
-      return 6;
-    case 'league_verified':
-      return 5;
-    case 'club_recorded':
-      return 4;
-    case 'tracked':
-      return 3;
-    case 'imported':
-      return 2;
-    default:
-      return 1; // entered
-  }
+  return PROVENANCE_RANK[p] ?? PROVENANCE_RANK.entered;
 }
 
 /** All of one athlete's official lines from PUBLIC competitions, newest

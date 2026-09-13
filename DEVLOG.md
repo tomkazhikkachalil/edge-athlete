@@ -1,5 +1,14 @@
 # Development Log
 
+## September 13, 2026 — Data foundation, F1: one provenance ladder (zero DDL)
+
+- `provenance-copy.ts` exports `PROVENANCE_RANK` (sanctioned 6 … entered
+  1), DERIVED from `PROVENANCE_ORDER`, and `provenanceAtOrAbove(floor)` —
+  the reader's "this rung and above" set the performance dataset's filters
+  will use. `official-stats.ts provenanceRank` reads the table instead of
+  keeping its own switch (the second copy of the ladder). A test pins the
+  numbers and that both agree.
+
 ## September 13, 2026 — Data foundation, P1: schema provenance — the dump and the inventory (zero DDL)
 
 The next program after the builder: Tom chose the DATA FOUNDATION — the
