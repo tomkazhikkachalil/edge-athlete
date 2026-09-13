@@ -18,6 +18,7 @@
  */
 
 import { z } from 'zod';
+import { DISPLAY_FIELDS, DISPLAY_ORDER_ID_MAX, DISPLAY_ORDER_MAX, type DisplayField } from './display';
 import { INSTANCE_TITLE_MAX } from './config';
 import {
   CONTACT_ADDRESS_LINES,
@@ -183,6 +184,38 @@ export const InstanceOptionsSchema = z
   })
   .loose();
 
+// ── Display settings (program 3, D1) — BUILT from the declaration ───────────
+// One nested key beside `query`, shielded from content the same way. The
+// schema is generated from `display.ts` (a choice → z.enum of its options,
+// a count → its bounds, a toggle → boolean, the order → ids), so the panel,
+// the validator and the renderers can never drift. Loose, like everything
+// an instance stores: a key a future build declares round-trips today.
+function displayFieldSchema(f: DisplayField): z.ZodType {
+  switch (f.kind) {
+    case 'choice': {
+      const values = f.options.map(o => o.value);
+      return values.length > 0 ? z.enum(values as [string, ...string[]]) : z.never();
+    }
+    case 'count':
+      return z.number().int().min(f.min).max(f.max);
+    case 'toggle':
+      return z.boolean();
+    case 'order':
+      return z.array(z.string().min(1).max(DISPLAY_ORDER_ID_MAX)).max(DISPLAY_ORDER_MAX);
+  }
+}
+
+export function displaySchemaFor(key: WidgetKey): z.ZodObject {
+  const shape: Record<string, z.ZodType> = {};
+  for (const f of DISPLAY_FIELDS[key as keyof typeof DISPLAY_FIELDS] ?? []) shape[f.name] = displayFieldSchema(f).optional();
+  return z.object(shape).loose();
+}
+
+/** The options schema plus the widget's display settings. */
+function withDisplay<T extends z.ZodObject>(key: WidgetKey, base: T) {
+  return base.extend({ display: displaySchemaFor(key).optional() });
+}
+
 // ── Content widgets (phase 6) — the INSTANCE carries the content ────────────
 // Text, image and embed have no module row and no org object of their own:
 // what they show rides the layout instance, under the publish gate with the
@@ -259,19 +292,19 @@ export const FormWidgetSchema = InstanceOptionsSchema.extend({
   thanks: z.string().trim().max(FORM_THANKS_MAX).optional(),
 });
 
-export function instanceSchemaFor(key: WidgetKey): z.ZodType {
+export function instanceSchemaFor(key: WidgetKey): z.ZodObject {
   switch (key) {
     case 'contact_form':
     case 'interest_form':
-      return FormWidgetSchema;
+      return withDisplay(key, FormWidgetSchema);
     case 'text':
-      return TextWidgetSchema;
+      return withDisplay(key, TextWidgetSchema);
     case 'image':
-      return ImageWidgetSchema;
+      return withDisplay(key, ImageWidgetSchema);
     case 'embed':
-      return EmbedWidgetSchema;
+      return withDisplay(key, EmbedWidgetSchema);
     default:
-      return InstanceOptionsSchema;
+      return withDisplay(key, InstanceOptionsSchema);
   }
 }
 

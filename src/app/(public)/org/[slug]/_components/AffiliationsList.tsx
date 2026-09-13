@@ -6,8 +6,6 @@ const TYPE_LABEL: Record<string, string> = {
   sanctioned_by: 'Sanctioned',
 };
 
-// Phase 6 R3: the league chain reads directionally — "Sanctioned by" the
-// governing body above, "Sanctions" the leagues below.
 const UP_LABEL: Record<string, string> = {
   partner_of: 'Partner of',
   member_of: 'Member of',
@@ -19,18 +17,39 @@ const DOWN_LABEL: Record<string, string> = {
   sanctioned_by: 'Sanctions',
 };
 
-// Affiliations module: active affiliations only (the public branch of
-// 118), name + geography + relationship label. No cross-links v1 — the
-// public site stays self-contained.
+function relation(a: PublicAffiliation): string | null {
+  if (!a.affiliationType) return null;
+  return (a.direction === 'up' ? UP_LABEL[a.affiliationType] : a.direction === 'down' ? DOWN_LABEL[a.affiliationType] : TYPE_LABEL[a.affiliationType]) ?? null;
+}
+
+/** Program 3, D1: `variant` list (today) or badges. */
 export default function AffiliationsList({
   affiliations,
+  variant = 'list',
 }: {
   affiliations: PublicAffiliation[];
+  variant?: 'list' | 'badges';
 }) {
+  if (variant === 'badges') {
+    return (
+      <ul className="mt-2 flex flex-wrap gap-2" data-variant="badges">
+        {affiliations.map((a, i) => {
+          const rel = relation(a);
+          return (
+            <li key={`${a.name}-${i}`} className="inline-flex items-baseline gap-1.5 rounded-full border border-border bg-canvas px-3 py-1 text-sm">
+              <span className="font-medium text-primary">{a.name}</span>
+              {rel ? <span className="text-xs text-muted">{rel}</span> : null}
+            </li>
+          );
+        })}
+      </ul>
+    );
+  }
   return (
     <ul className="mt-2 divide-y divide-border-subtle">
       {affiliations.map((a, i) => {
         const place = [a.city, a.region].filter(Boolean).join(', ');
+        const rel = relation(a);
         return (
           <li
             key={`${a.name}-${i}`}
@@ -40,15 +59,7 @@ export default function AffiliationsList({
               <p className="text-sm font-medium text-primary truncate">{a.name}</p>
               {place ? <p className="text-xs text-tertiary truncate">{place}</p> : null}
             </div>
-            {a.affiliationType ? (
-              <span className="text-xs text-muted shrink-0">
-                {(a.direction === 'up'
-                  ? UP_LABEL[a.affiliationType]
-                  : a.direction === 'down'
-                    ? DOWN_LABEL[a.affiliationType]
-                    : TYPE_LABEL[a.affiliationType]) ?? null}
-              </span>
-            ) : null}
+            {rel ? <span className="text-xs text-muted shrink-0">{rel}</span> : null}
           </li>
         );
       })}

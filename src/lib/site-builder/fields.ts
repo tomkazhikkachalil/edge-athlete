@@ -22,6 +22,7 @@
  */
 import type { SiteWidgetKey } from './catalog';
 import { INSTANCE_TITLE_MAX } from './config';
+import { DISPLAY_FIELDS, type DisplayField } from './display';
 import { QUERY_LIMITS } from './select';
 
 /** Phase 9 — a third scope, 'query': the value goes to `config.query[name]`
@@ -35,7 +36,10 @@ export type FieldSpec =
   | { kind: 'image'; name: 'path' | 'imagePath'; label: string; help?: string; scope: 'instance' | 'content' }
   | { kind: 'embed'; name: 'embed'; label: string; help?: string; scope: 'instance' }
   | { kind: 'select'; name: 'competitionId' | 'venueId'; label: string; help?: string; source: 'competitions' | 'venues'; noneLabel: string; scope: 'query' }
-  | { kind: 'number'; name: 'limit'; label: string; help?: string; min: number; max: number; placeholder: number; scope: 'query' };
+  | { kind: 'number'; name: 'limit'; label: string; help?: string; min: number; max: number; placeholder: number; scope: 'query' }
+  /** Program 3, D1 — a fourth scope, 'display': the value goes to `config.display[name]`
+   *  (how THIS tile presents its items); the field itself is the declaration in display.ts. */
+  | { kind: 'display'; name: string; label: string; help?: string; scope: 'display'; field: DisplayField };
 
 /** Content-widget caps (schemas.ts enforces them; the editors show them). */
 export const TEXT_WIDGET_BLOCKS_MAX = 12;
@@ -120,6 +124,15 @@ const LIMIT = (key: keyof typeof QUERY_LIMITS, help?: string): FieldSpec => ({
  *  query widgets' pickers. Lists (sponsors, documents) and media picks
  *  (gallery, course photos) stay in the console. */
 export function fieldsFor(key: SiteWidgetKey): FieldSpec[] {
+  return [...baseFieldsFor(key), ...displayFieldsFor(key)];
+}
+
+/** D1: the display declaration as panel fields — after the query fields. */
+export function displayFieldsFor(key: SiteWidgetKey): FieldSpec[] {
+  return (DISPLAY_FIELDS[key] ?? []).map(f => ({ kind: 'display', name: f.name, label: f.label, help: f.help, scope: 'display', field: f }));
+}
+
+function baseFieldsFor(key: SiteWidgetKey): FieldSpec[] {
   switch (key) {
     case 'hero':
       return HERO_FIELDS;

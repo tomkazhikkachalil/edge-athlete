@@ -8,18 +8,24 @@ export default function DivisionsList({
   divisions,
   basePath,
   detailed,
+  variant = 'list',
+  count = 8,
 }: {
   divisions: PublicDivision[];
   basePath: string;
   /** Home lists names + counts; /divisions shows every team. */
   detailed: boolean;
+  /** Program 3, D1: the home list (today) or a grid of cards; `count` (the home used to show eight). */
+  variant?: 'list' | 'grid';
+  count?: number;
 }) {
   if (!detailed) {
+    const shown = divisions.slice(0, count);
     return (
       <>
-        <ul className="mt-2 divide-y divide-border-subtle">
-          {divisions.slice(0, 8).map(d => (
-            <li key={`${d.seasonLabel}-${d.divisionName}`} className="py-2 flex justify-between gap-3">
+        <ul className={variant === 'grid' ? 'mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3' : 'mt-2 divide-y divide-border-subtle'} data-variant={variant}>
+          {shown.map(d => (
+            <li key={`${d.seasonLabel}-${d.divisionName}`} className={variant === 'grid' ? 'rounded-lg border border-border bg-canvas px-3 py-2 flex flex-col gap-0.5' : 'py-2 flex justify-between gap-3'}>
               <span className="text-sm font-medium text-primary">
                 {d.divisionName}
                 {d.seasonLabel ? <span className="font-normal text-muted"> · {d.seasonLabel}</span> : null}

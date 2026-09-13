@@ -80,12 +80,14 @@ describe('content widgets — the wire schema', () => {
 });
 
 describe('content widgets — per-instance config schemas', () => {
-  it('instanceSchemaFor: options only for module widgets, options + content for content widgets', () => {
-    expect(instanceSchemaFor('staff')).toBe(InstanceOptionsSchema);
-    expect(instanceSchemaFor('hero')).toBe(InstanceOptionsSchema);
-    expect(instanceSchemaFor('text')).toBe(TextWidgetSchema);
-    expect(instanceSchemaFor('image')).toBe(ImageWidgetSchema);
-    expect(instanceSchemaFor('embed')).toBe(EmbedWidgetSchema);
+  it('instanceSchemaFor: options only for module widgets, options + content for content widgets (each plus the generated display key, program 3 D1)', () => {
+    const keys = (key: Parameters<typeof instanceSchemaFor>[0]) => Object.keys(instanceSchemaFor(key).shape).sort();
+    const base = (schema: { shape: object }) => [...Object.keys(schema.shape), 'display'].sort();
+    expect(keys('staff')).toEqual(base(InstanceOptionsSchema));
+    expect(keys('hero')).toEqual(base(InstanceOptionsSchema));
+    expect(keys('text')).toEqual(base(TextWidgetSchema));
+    expect(keys('image')).toEqual(base(ImageWidgetSchema));
+    expect(keys('embed')).toEqual(base(EmbedWidgetSchema));
   });
 
   it('text: the page block vocabulary (stored leniently — a block being typed may be empty), capped, title still allowed, unknown keys kept', () => {

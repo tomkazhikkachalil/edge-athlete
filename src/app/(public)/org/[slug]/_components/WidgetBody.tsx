@@ -9,6 +9,7 @@ import type { TemplateSpec } from '@/lib/org-sites/templates';
 import { effectiveConfig, instanceTitle } from '@/lib/site-builder/config';
 import { embedSrc, embedTitle, parseEmbed } from '@/lib/site-builder/embeds';
 import { memberLimit, selectForInstance } from '@/lib/site-builder/select';
+import { applyOrder, displayBool, displayNumber, displayOrder, displayString, instanceDisplay, orderIdOf, sortAlpha } from '@/lib/site-builder/display';
 import { orgMediaUrl } from '@/lib/media/org-site-media';
 import { siteBasePath } from '@/lib/org-sites/urls';
 import PublicStandingsTable from '@/components/standings/PublicStandingsTable';
@@ -74,6 +75,19 @@ export default function WidgetBody({ site, w, data: raw, spec, membersOnly = fal
   const data = selectForInstance(w, raw);
   // Phase 5: content from the org objects over the instance's options.
   const config = effectiveConfig(site, w);
+  // Program 3, D1: how THIS tile presents its items — the validated
+  // display settings with their defaults (an instance without any renders
+  // exactly as before). Sort / order / count are applied here, pure;
+  // variant and click are props of the props-only components.
+  const d = instanceDisplay(w);
+  const variant = displayString(d, 'variant');
+  const sortKey = displayString(d, 'sort');
+  const click = displayString(d, 'click');
+  const order = displayOrder(d);
+  const count = (fallback: number) => displayNumber(d, 'count', fallback);
+  /** default | alpha | manual over a list with an id and a label. */
+  const arrange = <T,>(items: T[], idOf: (t: T) => string, labelOf: (t: T) => string): T[] =>
+    sortKey === 'alpha' ? sortAlpha(items, labelOf) : sortKey === 'manual' ? applyOrder(items, order, idOf) : items;
   const { standings, events, teams, staff, venues, affiliations, openWindows, courses, divisions, leaders } = data;
   const clubGolfBoards = data.clubGolfBoards ?? [];
   const brandName = parseThemeTokens(site.theme_token_set).wordmark ?? site.orgName;
@@ -84,7 +98,16 @@ export default function WidgetBody({ site, w, data: raw, spec, membersOnly = fal
   if (membersOnly) return <MembersOnlyPanel site={site} />;
   switch (key) {
     case 'standings':
-      return <StandingsPreview standings={standings} basePath={siteBasePath(site)} />;
+      return (
+        <StandingsPreview
+          standings={standings}
+          basePath={siteBasePath(site)}
+          variant={variant === 'full' ? 'full' : 'compact'}
+          rows={count(5)}
+          sort={sortKey === 'name' ? 'name' : 'rank'}
+          click={click === 'none' ? 'none' : 'detail'}
+        />
+      );
     case 'schedule': {
       const golfRounds = data.golfRounds ?? [];
       const hasEvents = !!events && events.length > 0;
@@ -93,7 +116,14 @@ export default function WidgetBody({ site, w, data: raw, spec, membersOnly = fal
         <>
           {/* S4: a golf league's season leads — the rounds, then the events. */}
           {golfRounds.length > 0 && <GolfRoundsSchedule rounds={golfRounds} compact />}
-          {hasEvents && <ScheduleList events={events!} basePath={siteBasePath(site)} />}
+          {hasEvents && (
+            <ScheduleList
+              events={sortKey === 'latest' ? [...events!].reverse() : events!}
+              basePath={siteBasePath(site)}
+              variant={variant === 'cards' ? 'cards' : 'list'}
+              click={click === 'none' ? 'none' : 'detail'}
+            />
+          )}
           <Link
             href={`${siteBasePath(site)}/schedule`}
             className="mt-3 inline-block text-sm text-brand-fg font-medium"
@@ -103,10 +133,19 @@ export default function WidgetBody({ site, w, data: raw, spec, membersOnly = fal
         </>
       );
     }
-    case 'teams':
+    case 'teams': {
+      const arranged =
+        sortKey === 'division'
+          ? [...teams].sort((x, y) => (x.divisionLabels[0] ?? '').localeCompare(y.divisionLabels[0] ?? '') || x.name.localeCompare(y.name))
+          : arrange(teams, orderIdOf.teams, t => t.name);
       return teams.length > 0 ? (
         <>
-          <TeamsList teams={teams} basePath={siteBasePath(site)} variant={spec.teams} />
+          <TeamsList
+            teams={arranged}
+            basePath={siteBasePath(site)}
+            variant={variant === 'chips' || variant === 'tiles' || variant === 'list' ? variant : spec.teams}
+            click={click === 'none' ? 'none' : 'detail'}
+          />
           <Link
             href={`${siteBasePath(site)}/teams`}
             className="mt-3 inline-block text-sm text-brand-fg font-medium"
@@ -117,13 +156,20 @@ export default function WidgetBody({ site, w, data: raw, spec, membersOnly = fal
       ) : (
         empty('No teams yet.')
       );
-    case 'staff':
-      return staff.length > 0 ? <StaffList staff={staff} /> : empty('No staff listed yet.');
+    }
+    case 'staff': {
+      const arranged = sortKey === 'role' ? staff : arrange(staff, orderIdOf.staff, x => x.name);
+      return staff.length > 0 ? <StaffList staff={arranged.slice(0, count(20))} variant={variant === 'grid' ? 'grid' : 'list'} /> : empty('No staff listed yet.');
+    }
     case 'venues':
-      return venues.length > 0 ? <VenuesList venues={venues} /> : empty('No venues listed yet.');
+      return venues.length > 0 ? (
+        <VenuesList venues={arrange(venues, orderIdOf.venues, v => v.name).slice(0, count(20))} variant={variant === 'cards' ? 'cards' : 'list'} click={click === 'directions' ? 'directions' : 'none'} />
+      ) : (
+        empty('No venues listed yet.')
+      );
     case 'affiliations':
       return affiliations.length > 0 ? (
-        <AffiliationsList affiliations={affiliations} />
+        <AffiliationsList affiliations={arrange(affiliations, orderIdOf.affiliations, a => a.name).slice(0, count(20))} variant={variant === 'badges' ? 'badges' : 'list'} />
       ) : (
         empty('No affiliations yet.')
       );
@@ -135,23 +181,35 @@ export default function WidgetBody({ site, w, data: raw, spec, membersOnly = fal
         empty('No sponsors yet.')
       );
     }
-    case 'register':
+    case 'register': {
+      const windows = (sortKey === 'opening'
+        ? [...openWindows].sort((x, y) => y.opensAt.localeCompare(x.opensAt))
+        : [...openWindows].sort((x, y) => (x.closesAt ?? '9999').localeCompare(y.closesAt ?? '9999'))
+      ).slice(0, count(5));
       return openWindows.length > 0 ? (
-        <RegisterCard windows={openWindows} side={site.side} orgId={site.orgId} />
+        <RegisterCard windows={windows} side={site.side} orgId={site.orgId} variant={variant === 'button' ? 'button' : 'list'} />
       ) : (
         empty('Registration is currently closed.')
       );
-    case 'courses':
+    }
+    case 'courses': {
+      const showRounds = displayBool(d, 'showRounds', true);
       return (
         <>
           {courses.length > 0 ? (
-            <CoursesList courses={courses} detailed={false} basePath={siteBasePath(site)} />
+            <CoursesList
+              courses={arrange(courses, orderIdOf.courses, c => c.course.name).slice(0, count(20))}
+              detailed={false}
+              basePath={siteBasePath(site)}
+              variant={variant === 'cards' ? 'cards' : 'list'}
+              click={click === 'none' ? 'none' : 'detail'}
+            />
           ) : (
             empty('No courses listed yet.')
           )}
           {/* S3: the page fills itself — members' public rounds at the club's
               courses (record + count); the detail lives on each course page. */}
-          {data.courseStrip && data.courseStrip.roundsPosted > 0 && (
+          {showRounds && data.courseStrip && data.courseStrip.roundsPosted > 0 && (
             <p className="mt-3 text-sm text-secondary" aria-label="Rounds at the club">
               <span className="font-medium text-primary">
                 {`${data.courseStrip.roundsPosted} ${data.courseStrip.roundsPosted === 1 ? 'round' : 'rounds'} posted this year`}
@@ -162,7 +220,7 @@ export default function WidgetBody({ site, w, data: raw, spec, membersOnly = fal
             </p>
           )}
           {/* G3: "this week at the club" — the leagues playing here. */}
-          {clubGolfBoards.length > 0 && (
+          {showRounds && clubGolfBoards.length > 0 && (
             <div className="mt-5 space-y-4">
               <h3 className="text-sm font-semibold text-primary">This week at {brandName}</h3>
               {clubGolfBoards.map(b => (
@@ -177,32 +235,58 @@ export default function WidgetBody({ site, w, data: raw, spec, membersOnly = fal
           )}
         </>
       );
+    }
     case 'divisions':
       return divisions.length > 0 ? (
-        <DivisionsList divisions={divisions} basePath={siteBasePath(site)} detailed={false} />
+        <DivisionsList divisions={arrange(divisions, orderIdOf.divisions, x => x.divisionName)} basePath={siteBasePath(site)} detailed={false} variant={variant === 'grid' ? 'grid' : 'list'} count={count(8)} />
       ) : (
         empty('No divisions this season.')
       );
     case 'leaders':
       return leaders.length > 0 ? (
-        <LeadersTable boards={leaders} basePath={siteBasePath(site)} detailed={false} />
+        <LeadersTable
+          boards={leaders}
+          basePath={siteBasePath(site)}
+          detailed={false}
+          boardsShown={displayNumber(d, 'boards', 1)}
+          rows={count(10)}
+          variant={variant === 'podium' ? 'podium' : 'table'}
+          click={click === 'none' ? 'none' : 'detail'}
+        />
       ) : (
         empty("No stats recorded yet — members' posted rounds appear here.")
       );
-    case 'members':
-      return data.memberStats ? (
-        <MembersTable stats={data.memberStats} basePath={siteBasePath(site)} detailed={false} limit={memberLimit(w)} />
-      ) : (
-        empty('No members yet.')
+    case 'members': {
+      if (!data.memberStats) return empty('No members yet.');
+      const hi = (h: string | null) => (h === null ? Number.POSITIVE_INFINITY : h.startsWith('+') ? -parseFloat(h.slice(1)) : parseFloat(h));
+      const members =
+        sortKey === 'handicap'
+          ? [...data.memberStats.members].sort((x, y) => hi(x.handicap) - hi(y.handicap))
+          : sortKey === 'alpha'
+            ? sortAlpha(data.memberStats.members, m => m.name)
+            : data.memberStats.members;
+      return (
+        <MembersTable
+          stats={{ ...data.memberStats, members }}
+          basePath={siteBasePath(site)}
+          detailed={false}
+          limit={memberLimit(w)}
+          variant={variant === 'cards' ? 'cards' : 'table'}
+          click={click === 'none' ? 'none' : 'detail'}
+        />
       );
+    }
     case 'documents': {
       const documents = parseDocuments(config);
       return documents.length > 0 ? (
         <DocumentsList
-          documents={documents}
+          documents={arrange(documents, orderIdOf.documents, doc => doc.title)}
           siteId={site.id}
           basePath={siteBasePath(site)}
           detailed={false}
+          variant={variant === 'grid' ? 'grid' : 'list'}
+          count={count(5)}
+          click={click === 'download' ? 'download' : 'open'}
         />
       ) : (
         empty('No documents yet.')

@@ -17,21 +17,47 @@ export default function MembersTable({
   basePath,
   detailed,
   limit = 8,
+  variant = 'table',
+  click = 'detail',
 }: {
   stats: MemberStats;
   basePath: string;
   detailed: boolean;
   /** Phase 9: how many rows the compact table shows (the instance's query). */
   limit?: number;
+  /** Program 3, D1: the table (today) or cards; whether a public member's name links. */
+  variant?: 'table' | 'cards';
+  click?: 'detail' | 'none';
 }) {
   const rows = detailed ? stats.members : stats.members.slice(0, limit);
   if (rows.length === 0) return <p className="mt-1 text-sm text-tertiary">No members yet.</p>;
+  const name = (m: MemberStats['members'][number]) =>
+    m.handle && click === 'detail' ? (
+      <Link href={`${basePath}/players/${encodeURIComponent(m.handle)}`} className="hover:text-brand-fg">
+        {m.name}
+      </Link>
+    ) : (
+      m.name
+    );
   return (
-    <div>
+    <div data-variant={variant}>
       <p className="text-sm text-secondary mb-2">
         <span className="font-medium text-primary">{`${stats.memberCount} ${stats.memberCount === 1 ? 'member' : 'members'}`}</span>
         {stats.roundsPosted > 0 && <span className="text-muted">{` · ${stats.roundsPosted} ${stats.roundsPosted === 1 ? 'round' : 'rounds'} posted this year`}</span>}
       </p>
+      {variant === 'cards' && !detailed ? (
+        <ul className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+          {rows.map(m => (
+            <li key={m.profileId} className="rounded-lg border border-border bg-canvas px-3 py-2">
+              <p className="text-sm font-medium text-primary">{name(m)}</p>
+              <p className="text-xs text-secondary tabular-nums">
+                {m.handicap ? `HI ${m.handicap}` : 'No index'} · {m.roundsThisSeason} {m.roundsThisSeason === 1 ? 'round' : 'rounds'}
+                {m.best18 ? ` · best ${m.best18.gross}` : ''}
+              </p>
+            </li>
+          ))}
+        </ul>
+      ) : (
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
@@ -52,15 +78,7 @@ export default function MembersTable({
           <tbody>
             {rows.map(m => (
               <tr key={m.profileId} className="border-t border-border-subtle">
-                <td className="py-2 pr-3 text-primary font-medium">
-                  {m.handle ? (
-                    <Link href={`${basePath}/players/${encodeURIComponent(m.handle)}`} className="hover:text-brand-fg">
-                      {m.name}
-                    </Link>
-                  ) : (
-                    m.name
-                  )}
-                </td>
+                <td className="py-2 pr-3 text-primary font-medium">{name(m)}</td>
                 <td className="py-2 pr-3 text-right tabular-nums text-secondary">{m.handicap ?? '—'}</td>
                 <td className="py-2 pr-3 text-right tabular-nums text-secondary">{m.roundsThisSeason}</td>
                 <td className="py-2 pr-3 text-right tabular-nums text-secondary">{fmt(m.avg18)}</td>
@@ -76,6 +94,7 @@ export default function MembersTable({
           </tbody>
         </table>
       </div>
+      )}
       {!detailed && stats.members.length > rows.length && (
         <Link href={`${basePath}/members`} className="mt-2 inline-block text-sm text-brand-fg font-medium">
           {`All ${stats.memberCount} members →`}
