@@ -287,6 +287,9 @@ describe('the real chain', () => {
     expect(chain.functions.get('split_full_name()')).toMatchObject({ state: 'created', file: '193_profiles_measurables.sql', searchPath: '' });
     expect(chain.functions.get('split_full_name()')!.body).toContain('-- Only process');
     expect(chain.functions.get('notify_post_like()')).toMatchObject({ state: 'created', file: '190_baseline_social_core.sql' });
+    // 197 re-declares the drifted bodies verbatim and pins the one config-only drift.
+    expect(chain.functions.get('handle_new_user()')).toMatchObject({ state: 'created', file: '197_baseline_functions.sql', secdef: true, searchPath: '' });
+    expect(chain.functions.get('is_valid_handle(text)')).toMatchObject({ file: '006_handles_system.sql', searchPath: '' });
     // 082's loop re-pins search_path on two names.
     expect(chain.functions.get('get_tagged_posts(uuid,uuid,integer,integer)')).toMatchObject({ searchPath: 'public' });
     const dyn = chain.dynamic.map(d => `${d.file.slice(0, 3)}:${d.kind}${d.names.length ? ':' + d.names.join(',') : ''}`);

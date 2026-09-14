@@ -446,10 +446,15 @@ with `verify-19N-baseline.sql` twins; the allowlist is EMPTY and
 `check:schema` reads 108/108 live tables owned. **The backfill RAN Sep 13:
 32 golf rows** (29 live-round mirrors + 3 solo; the other sources empty).
 **190 → 193 RAN Sep 14 (Tom: "all rows OK"); `check:schema` live after
-= OK.** NEXT ROUND (Tom, Sep 14: "save those for the next round
-tomorrow"): policy provenance for `profiles` / `golf_rounds` (live names
-came from archived scripts) and function provenance (`md5(prosrc)`).
-Parked with owners: the DROP of `athlete_badges`, the two duplicate count
+= OK.** **Provenance round (Sep 15, #722–#725, migs 195–197):** 195 the
+service-role catalog RPC (RAN — "all rows OK"), the catalog parser +
+`check:schema` facets (#723), 196 the 56 unowned policies + 29 stale
+claims (#724), 197 the 13 function bodies + grants (#725) — every facet OK
+against the saved catalog, allowlist still empty. Tom runs 196 then 197
+(no-ops; every grid row OK). Parked with owners: a triggers facet (the RPC
+already returns them), grants as a gating facet, the redundant golf policy
+sets and the duplicate `mark_all_notifications_read` overload (one
+cleanup migration), the DROP of `athlete_badges`, the two duplicate count
 triggers, `minHeadline` in the scout form. Tom's phone pass of the
 builder; his device pass of a
 contest page and the scouting area; the device pass of a real branded
