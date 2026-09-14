@@ -182,6 +182,29 @@ baseline cites), `--facet tables|policies|functions`. Before 195 has run
 the RPC answers PGRST202 and the two facets are skipped with a notice.
 `verify-195-rpc.sql` re-asserts the RPC's presence and its grants.
 
+**Triggers and grants — two more catalog facets (hygiene sweep, Sep 16
+2026).** The same RPC carries every non-internal trigger and every
+function's `proacl`, so `check:schema` now also requires: every live
+TRIGGER to be named by a numbered file whose last statement for (table,
+name) is a CREATE with the same normalised tuple — timing, sorted events
+(+ `UPDATE OF` columns), level, function + arguments, WHEN (lowercased,
+`::text` casts and doubled parens stripped — 190's pg_dump spelling and
+008's hand-written one are the same trigger), constraint / deferrable —
+and every live function's EXECUTE GRANTEES to equal the set the chain
+SIMULATES: Supabase's default {PUBLIC, anon, authenticated, service_role}
+on a fresh CREATE (never on CREATE OR REPLACE over a function the chain
+already created or already GRANTed / REVOKEd — the archive-created,
+040-locked, 190-re-declared notify_* case), minus every REVOKE, plus every
+GRANT, literal or dynamic (`proname` literals, `FOREACH … IN ARRAY
+ARRAY['…']` lists, `%I()` naming the zero-arg key). The parser also reads
+the four triggers 003 / 014 create inside `EXECUTE '…'` strings. SECURITY
+DEFINER functions executable by an API role are an ADVISORY, not drift:
+RLS helpers evaluate as the invoking role and must stay executable, and
+trigger functions need no EXECUTE to fire. The first run over the Sep 14
+catalog found ONE unowned trigger (`group_posts.trigger_group_posts_updated_at`,
+from `archive/loose-legacy/add-shared-golf-rounds.sql`) and no grant drift
+— migration 198 records it.
+
 **Owned since 196 / 197 (provenance round, Sep 15 2026).** The first live
 run of the catalog facets found 56 live policies no numbered file created,
 29 policies the chain still claimed that production had lost, 5 functions

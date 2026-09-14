@@ -738,8 +738,12 @@ const { canView } = await response.json();
    roles) and every live function BODY to equal the chain's dollar-quoted
    text (`md5(prosrc)`, plus SECURITY DEFINER / `search_path`) — 196
    recorded the 56 policies the chain never named and dropped its 29 stale
-   claims, 197 re-declared 13 function bodies verbatim. Whitespace-only
-   body diffs are informational; a triggers facet is parked. **The common
+   claims, 197 re-declared 13 function bodies verbatim; the hygiene sweep
+   (Sep 16, migs 198–199) added TRIGGER and GRANT facets (a normalised
+   trigger tuple; the chain's simulated EXECUTE grantee set vs `proacl`)
+   and dropped what the baselines had recorded as redundant. Whitespace-
+   only body diffs and SECURITY DEFINER-executable-by-API-role are
+   informational. **The common
    shape**: `athlete_performances` (194, posture A) is ONE row per EVENT
    per athlete — `natural_key` = the ORIGIN ROW id (`post:` ·
    `golf_round:` · `contest_stat_line:`; never (contest, profile)), a

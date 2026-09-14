@@ -8,12 +8,14 @@
  *    column the service role can see — the anon key would miss the
  *    posture-A tables) against what the numbered chain CREATEs / ADDs
  *    (`schema-inventory-core.mjs`).
- *  • POLICIES and FUNCTIONS — `public.provenance_inventory()` (migration
+ *  • POLICIES, FUNCTIONS, TRIGGERS and GRANTS — `public.provenance_inventory()` (migration
  *    195, service-role only) against the chain's last CREATE POLICY / CREATE
  *    FUNCTION for each object: a policy must be claimed with the same cmd /
  *    roles / permissiveness; a function's live md5(prosrc) must equal the
  *    md5 of the chain's dollar-quoted body, and SECURITY DEFINER / search_path
- *    must agree (`schema-inventory-catalog.mjs`). Until 195 has run, the RPC
+ *    must agree; a trigger is compared as a normalised tuple; a function's
+ *    EXECUTE grantees must equal the set the chain simulates for it
+ *    (`schema-inventory-catalog.mjs`). Until 195 has run, the RPC
  *    answers PGRST202 and these facets are SKIPPED with a notice — never an
  *    error.
  * Both diff against database/provenance/allowlist.json (`kind` = column |
@@ -27,7 +29,7 @@
  *   npm run check:schema
  *   npm run check:schema -- --save-catalog          # also writes database/provenance/dumps/<date>-catalog.json
  *   node scripts/schema-inventory.mjs --offline openapi.json --catalog dumps/2026-09-15-catalog.json
- *   node scripts/schema-inventory.mjs --facet policies   # tables | policies | functions
+ *   node scripts/schema-inventory.mjs --facet policies   # tables | policies | functions | triggers | grants
  *   node scripts/schema-inventory.mjs --json              # the raw result
  */
 import { readFileSync, readdirSync, writeFileSync } from 'fs';
@@ -48,8 +50,8 @@ const asJson = args.includes('--json');
 const migrationsDir = flag('--migrations') ?? 'database/migrations';
 const allowlistPath = flag('--allowlist') ?? 'database/provenance/allowlist.json';
 
-if (facet && !['tables', 'policies', 'functions'].includes(String(facet))) {
-  console.error('schema-inventory: --facet takes tables | policies | functions');
+if (facet && !['tables', 'policies', 'functions', 'triggers', 'grants'].includes(String(facet))) {
+  console.error('schema-inventory: --facet takes tables | policies | functions | triggers | grants');
   process.exit(2);
 }
 
@@ -135,10 +137,10 @@ function loadAllowlist() {
 const chainFiles = loadChain();
 const allowlist = loadAllowlist();
 const columnAllow = allowlist.filter(e => !e.kind || e.kind === 'column');
-const catalogAllow = allowlist.filter(e => e.kind === 'policy' || e.kind === 'function');
+const catalogAllow = allowlist.filter(e => ['policy', 'function', 'trigger', 'grant'].includes(e.kind));
 
 const wantTables = !facet || facet === 'tables';
-const wantCatalog = !facet || facet === 'policies' || facet === 'functions';
+const wantCatalog = !facet || ['policies', 'functions', 'triggers', 'grants'].includes(String(facet));
 
 let tablesResult = null;
 let live = null;
@@ -161,12 +163,21 @@ if (wantCatalog) {
     }
     const catalogChain = parseCatalogChain(chainFiles);
     catalogResult = diffCatalog(liveFromCatalog(raw), catalogChain, catalogAllow);
-    if (facet === 'policies') {
-      catalogResult = { ...catalogResult, unownedFunctions: [], bodyDrift: [], configDrift: [], whitespaceOnly: [], chainOnlyFunctions: [] };
-      catalogResult.ok = !catalogResult.unownedPolicies.length && !catalogResult.stalePolicyClaims.length && !catalogResult.policyMismatch.length && !catalogResult.staleAllowlist.filter(e => e.kind === 'policy').length;
-    } else if (facet === 'functions') {
-      catalogResult = { ...catalogResult, unownedPolicies: [], stalePolicyClaims: [], policyMismatch: [] };
-      catalogResult.ok = !catalogResult.unownedFunctions.length && !catalogResult.bodyDrift.length && !catalogResult.configDrift.length && !catalogResult.staleAllowlist.filter(e => e.kind === 'function').length;
+    if (facet && facet !== 'tables') {
+      // One facet: blank the other classes and judge only this one's.
+      const classes = {
+        policies: ['unownedPolicies', 'stalePolicyClaims', 'policyMismatch'],
+        functions: ['unownedFunctions', 'bodyDrift', 'configDrift'],
+        triggers: ['unownedTriggers', 'staleTriggerClaims', 'triggerDrift'],
+        grants: ['grantDrift'],
+      };
+      const kindOf = { policies: 'policy', functions: 'function', triggers: 'trigger', grants: 'grant' };
+      const keep = new Set(classes[facet]);
+      const blanked = { ...catalogResult, whitespaceOnly: [], chainOnlyFunctions: [], secdefPublic: facet === 'grants' ? catalogResult.secdefPublic : [] };
+      for (const cls of Object.values(classes).flat()) if (!keep.has(cls)) blanked[cls] = [];
+      blanked.staleAllowlist = catalogResult.staleAllowlist.filter(e => e.kind === kindOf[facet]);
+      blanked.ok = [...keep].every(cls => !blanked[cls].length) && !blanked.staleAllowlist.length;
+      catalogResult = blanked;
     }
   }
 }

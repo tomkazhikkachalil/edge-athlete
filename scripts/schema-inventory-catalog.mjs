@@ -21,6 +21,20 @@
  *    difference, a SECURITY DEFINER flag or a search_path that differs is
  *    drift (Tom's call: checksum-strict).
  *
+ * TRIGGERS and GRANTS (hygiene sweep, Sep 16 2026) — every live trigger is
+ * named by a numbered file whose last statement for (table, name) is a
+ * CREATE with the same timing / events / level / function / WHEN
+ * (compared as a normalised tuple: `public.` stripped, EXECUTE PROCEDURE ≡
+ * FUNCTION, sorted event sets, casts and doubled parens stripped from
+ * WHEN); every live function's EXECUTE grantees equal the set the chain
+ * SIMULATES for it — Supabase's default {public, anon, authenticated,
+ * service_role} on a fresh CREATE (never on CREATE OR REPLACE over an
+ * existing function), minus every REVOKE, plus every GRANT, literal or
+ * dynamic (proname literals and FOREACH … IN ARRAY ARRAY['…'] lists).
+ * SECURITY DEFINER functions executable by an API role are reported as an
+ * advisory only: RLS helpers evaluate as the invoking role and MUST stay
+ * executable; trigger functions need no EXECUTE to fire.
+ *
  * The live side is `public.provenance_inventory()` (migration 195), a
  * service-role-only RPC; `scripts/schema-inventory.mjs` fetches it. This
  * module is pure — no I/O, no dependencies beyond node:crypto — and node-only
@@ -270,6 +284,93 @@ function roleList(raw) {
     .sort();
 }
 
+/** True when `body` is one balanced (...) group. */
+function oneGroup(body) {
+  if (!(body.startsWith('(') && body.endsWith(')'))) return false;
+  let depth = 0;
+  for (let i = 0; i < body.length; i++) {
+    if (body[i] === '(') depth++;
+    else if (body[i] === ')') {
+      depth--;
+      if (depth === 0 && i !== body.length - 1) return false;
+    }
+  }
+  return depth === 0;
+}
+
+const TRIGGER_RE = new RegExp(String.raw`^create\s+(constraint\s+)?trigger\s+("(?:[^"]|"")+"|[A-Za-z_][A-Za-z0-9_]*)\s+(before|after|instead\s+of)\s+([\s\S]+?)\s+on\s+(${IDENT})\s+([\s\S]*?)\bexecute\s+(?:function|procedure)\s+(${IDENT})\s*\(`, 'i');
+
+/** One CREATE [CONSTRAINT] TRIGGER (masked + raw) → its entry, or null. Used
+ *  for the chain AND for pg_get_triggerdef, so both sides parse alike. */
+export function parseTriggerStatement(masked, raw) {
+  const x = TRIGGER_RE.exec(masked);
+  if (!x) return null;
+  const events = x[4].split(/\s+or\s+/i).map(e => e.trim().toLowerCase().split(/\s+/)[0]).filter(Boolean).sort();
+  const of = /update\s+of\s+([\s\S]+)/i.exec(x[4]);
+  const updateOf = of ? of[1].split(',').map(c => ident(c.trim())).filter(Boolean).sort() : [];
+  const tail = x[6];
+  const constraint = Boolean(x[1]);
+  let when = null;
+  const wm = /\bwhen\s*\(/i.exec(masked);
+  if (wm) {
+    const span = balancedSpan(masked, wm.index + wm[0].length - 1);
+    when = raw.slice(span.start, span.end).trim();
+  }
+  const aspan = balancedSpan(masked, x[0].length - 1);
+  return {
+    table: ident(x[5]),
+    name: policyName(x[2]),
+    constraint,
+    timing: x[3].toLowerCase().replace(/\s+/g, ' '),
+    events,
+    updateOf,
+    level: /for\s+each\s+row/i.test(tail) ? 'row' : 'statement',
+    when,
+    deferrable: constraint ? /(?<!not\s)deferrable/i.test(tail) : null,
+    initially: constraint ? (/initially\s+(deferred|immediate)/i.exec(tail)?.[1] ?? 'immediate').toLowerCase() : null,
+    fn: ident(x[7]),
+    args: raw.slice(aspan.start, aspan.end).trim(),
+  };
+}
+
+/** The comparable shape of a trigger — one string, both sides. */
+export function triggerTuple(e) {
+  const norm = v => (v == null ? null : String(v).toLowerCase().replace(/::text/g, '').replace(/\s+/g, ' ').trim());
+  let when = norm(e.when);
+  if (when) {
+    let prev;
+    do {
+      prev = when;
+      when = when.replace(/\(\(([^()]*)\)\)/g, '($1)');
+    } while (when !== prev);
+    if (oneGroup(when)) when = when.slice(1, -1).trim();
+  }
+  return [
+    e.constraint ? 'constraint' : 'trigger', e.timing, e.events.join('|'), e.updateOf.join('|'), e.level,
+    e.fn, norm(e.args) ?? '', when ?? '', e.deferrable ?? '', e.initially ?? '',
+  ].join(' / ');
+}
+
+/** Supabase's default privileges: every NEW function is EXECUTE-granted to these. */
+export const DEFAULT_GRANTEES = ['public', 'anon', 'authenticated', 'service_role'];
+
+function applyGrant(set, op, roles) {
+  for (const role of roles) {
+    if (op === 'grant') set.add(role);
+    else set.delete(role);
+  }
+}
+
+/** Names listed in `FOREACH x IN ARRAY ARRAY['a', 'b'] LOOP` inside a DO body (040's revoke loop). */
+function extractForeachArray(blockRaw) {
+  const out = [];
+  if (!blockRaw) return out;
+  const re = /foreach\s+\w+\s+in\s+array\s+array\s*\[([^\]]*)\]/gi;
+  let m;
+  while ((m = re.exec(blockRaw)) !== null) for (const n of m[1].match(/'([^']+)'/g) ?? []) out.push(n.slice(1, -1));
+  return out;
+}
+
 // ── the chain ───────────────────────────────────────────────────────────────
 
 /**
@@ -285,8 +386,19 @@ export function parseCatalogChain(files) {
   const policies = new Map();
   const functions = new Map();
   const byName = new Map();
+  const triggers = new Map();
+  const grants = new Map();
   const dynamic = [];
   const foreignSchema = [];
+
+  const setTrigger = (key, entry) => {
+    triggers.delete(key);
+    triggers.set(key, entry);
+  };
+  const grantSet = key => {
+    if (!grants.has(key)) grants.set(key, new Set(DEFAULT_GRANTEES));
+    return grants.get(key);
+  };
 
   const setPolicy = (key, entry) => {
     policies.delete(key);
@@ -304,7 +416,7 @@ export function parseCatalogChain(files) {
     const lineOf = abs => f.sql.slice(0, abs).split('\n').length;
     parseRegion(f.sql, 0, null);
 
-    function parseRegion(text, base, blockRaw) {
+    function parseRegion(text, base, blockRaw, lineAt = abs => lineOf(abs)) {
       const { masked, dollars } = maskSql(text);
       for (const st of statements(text, masked)) {
         const abs = base + st.start;
@@ -312,7 +424,7 @@ export function parseCatalogChain(files) {
         const lead = pm ? pm[0].length : 0;
         const m = st.masked.slice(lead);
         const r = st.raw.slice(lead);
-        const line = lineOf(abs + lead);
+        const line = lineAt(abs + lead);
         const inStatement = d => d.start >= st.start + lead && d.start < st.end;
         let x;
 
@@ -326,6 +438,17 @@ export function parseCatalogChain(files) {
         if (/^execute\s+\$/i.test(m)) {
           const d = dollars.find(inStatement);
           if (d) parseRegion(text.slice(d.bodyStart, d.bodyEnd), base + d.bodyStart, blockRaw);
+          continue;
+        }
+        // EXECUTE '…' — ONE plain literal (003:389, 003:446, 014:176, 014:219):
+        // the mask blanks its interior, so it reads `execute '   '`. Unescape
+        // '' → ' and parse the text inside as a region of its own.
+        if (/^execute\s+'[^']*'\s*$/i.test(m)) {
+          const q1 = m.indexOf("'");
+          const q2 = m.lastIndexOf("'");
+          const lit = r.slice(q1 + 1, q2).replace(/''/g, "'");
+          const litLine = line + m.slice(0, q1).split('\n').length - 1;
+          parseRegion(lit, 0, blockRaw, off => litLine + lit.slice(0, off).split('\n').length - 1);
           continue;
         }
         // EXECUTE format(…) / EXECUTE '…' || … → a dynamic site.
@@ -342,9 +465,26 @@ export function parseCatalogChain(files) {
               else for (const n of pm2[2].match(/'([^']+)'/g) ?? []) names.push(n.slice(1, -1));
             }
           }
+          // A revoke / grant loop may list its names in a FOREACH … IN ARRAY literal (040).
+          if (kind === 'revoke' || kind === 'grant') for (const n of extractForeachArray(blockRaw)) names.push(n);
           const site = { file: f.name, line, kind, names: [...new Set(names)], snippet: r.replace(/\s+/g, ' ').slice(0, 160) };
           dynamic.push(site);
-          if (kind === 'drop function') for (const n of site.names) for (const k of keysOf(n)) if (functions.has(k)) setFunction(k, { ...functions.get(k), state: 'dropped', file: f.name, line });
+          if (kind === 'drop function') for (const n of site.names) for (const k of keysOf(n)) if (functions.has(k)) {
+            setFunction(k, { ...functions.get(k), state: 'dropped', file: f.name, line });
+            grants.delete(k);
+          }
+          if (kind === 'revoke' || kind === 'grant') {
+            const lit = r.replace(/''/g, "'");
+            const rm = /\b(from|to)\s+((?:"?[A-Za-z_]+"?)(?:\s*,\s*"?[A-Za-z_]+"?)*)\s*'/i.exec(lit);
+            const roles = rm ? roleList(rm[2]) : [];
+            // `%I()` names the zero-arg key exactly (040); `%I(%s)` means every overload the chain knows.
+            const zeroArg = /%I\s*\(\s*\)/.test(lit);
+            for (const n of site.names) {
+              const keys = keysOf(n).filter(k => functions.get(k)?.state === 'created');
+              if (!keys.length && zeroArg) keys.push(fnKey(n, []));
+              for (const k of keys) applyGrant(grantSet(k), kind, roles);
+            }
+          }
           if (kind === 'alter function') {
             const sp = /search_path\s*(?:=|to)\s*((?:''|'[^']*'|"[^"]*"|[A-Za-z_][\w$]*)(?:\s*,\s*(?:''|'[^']*'|"[^"]*"|[A-Za-z_][\w$]*))*)/i.exec(r.replace(/''/g, "'"));
             const sec = /security\s+(definer|invoker)/i.exec(r);
@@ -356,6 +496,41 @@ export function parseCatalogChain(files) {
               if (sec) patch.secdef = sec[1].toLowerCase() === 'definer';
               setFunction(k, patch);
             }
+          }
+          continue;
+        }
+
+        // CREATE [CONSTRAINT] TRIGGER name … ON table … EXECUTE FUNCTION f(args)
+        if (/^create\s+(?:constraint\s+)?trigger\b/i.test(m)) {
+          const t = parseTriggerStatement(m, r);
+          if (t) {
+            if (t.table.includes('.')) foreignSchema.push({ file: f.name, line, statement: 'create trigger', table: t.table });
+            else setTrigger(`${t.table}|${t.name}`, { ...t, state: 'created', file: f.name, line });
+          }
+          continue;
+        }
+        if ((x = new RegExp(String.raw`^drop\s+trigger\s+(?:if\s+exists\s+)?("(?:[^"]|"")+"|[A-Za-z_][A-Za-z0-9_]*)\s+on\s+(${IDENT})`, 'i').exec(m))) {
+          const name = policyName(x[1]);
+          const table = ident(x[2]);
+          if (table.includes('.')) foreignSchema.push({ file: f.name, line, statement: 'drop trigger', table });
+          else setTrigger(`${table}|${name}`, { state: 'dropped', file: f.name, line });
+          continue;
+        }
+        // GRANT | REVOKE (EXECUTE | ALL) ON FUNCTION f(args)[, …] TO | FROM roles
+        if ((x = /^(grant|revoke)\s+(?:grant\s+option\s+for\s+)?(?:execute|all(?:\s+privileges)?)\s+on\s+function\s+([\s\S]+?)\s+(?:to|from)\s+([\s\S]+?)(?:\s+(?:cascade|restrict))?\s*$/i.exec(m))) {
+          const op = x[1].toLowerCase();
+          const roles = roleList(x[3]).map(rr => rr.replace(/^group\s+/, ''));
+          const listAt = m.indexOf(x[2], 12);
+          for (const item of splitTopLevel(x[2], r.slice(listAt, listAt + x[2].length))) {
+            const im = new RegExp(String.raw`^\s*(${IDENT})\s*(?:\(([\s\S]*)\))?\s*$`).exec(item.masked);
+            if (!im) continue;
+            const name = ident(im[1]);
+            let keys;
+            if (im[2] !== undefined) {
+              const k = fnKey(name, identityTypes(item.raw.slice(item.masked.indexOf('(') + 1, item.masked.lastIndexOf(')')), im[2]));
+              keys = functions.has(k) || grants.has(k) || !keysOf(name).length ? [k] : keysOf(name);
+            } else keys = keysOf(name);
+            for (const k of keys) applyGrant(grantSet(k), op, roles);
           }
           continue;
         }
@@ -431,7 +606,14 @@ export function parseCatalogChain(files) {
           }
           const ret = /\breturns\s+(setof\s+)?(table\s*\(|[\w.\[\]]+(?:\s+(?:with(?:out)?\s+time\s+zone|precision|varying))?)/i.exec(after);
           if (ret) entry.returns = (ret[1] ? 'setof ' : '') + ret[2].replace(/\s*\($/, '').replace(/\s+/g, ' ').trim().toLowerCase();
-          setFunction(fnKey(name, types), entry);
+          const key = fnKey(name, types);
+          // A fresh CREATE is born with Supabase's default grantees; CREATE OR
+          // REPLACE over a function that exists keeps its ACL. "Exists" = the
+          // chain created it, OR an earlier GRANT / REVOKE named it (a function
+          // the archive created and a numbered file then locked — 040's loop
+          // over notify_* is the case; the baselines 190–197 OR REPLACE those).
+          if (functions.get(key)?.state !== 'created' && !grants.has(key)) grants.set(key, new Set(DEFAULT_GRANTEES));
+          setFunction(key, entry);
           continue;
         }
         if ((x = /^drop\s+function\s+(?:if\s+exists\s+)?([\s\S]+?)\s*(?:\b(?:cascade|restrict)\b\s*)?$/i.exec(m))) {
@@ -444,6 +626,7 @@ export function parseCatalogChain(files) {
             for (const k of keys) {
               const prev = functions.get(k);
               setFunction(k, { ...(prev ?? { name, types: [] }), state: 'dropped', file: f.name, line });
+              grants.delete(k);
             }
           }
           continue;
@@ -469,14 +652,15 @@ export function parseCatalogChain(files) {
       }
     }
   }
-  return { policies, functions, byName, dynamic, foreignSchema };
+  return { policies, functions, byName, triggers, grants, dynamic, foreignSchema };
 }
 
 // ── the live side ───────────────────────────────────────────────────────────
 
 /** @typedef {{ key: string, table: string, name: string, cmd: string, roles: string[], permissive: string, qual: string|null, withCheck: string|null }} LivePolicy */
-/** @typedef {{ key: string, name: string, types: string[], identityArgs: string, returns: string|null, kind: string, language: string|null, secdef: boolean, searchPath: string|null, bodyMd5: string|null, bodyMd5Norm: string|null, bodyBytes: number|null, definition: string|null, acl: unknown, owner: string|null }} LiveFunction */
-/** @typedef {{ meta: unknown, tables: Set<string>, policies: LivePolicy[], functions: LiveFunction[], triggers: unknown[] }} LiveCatalog */
+/** @typedef {{ key: string, name: string, types: string[], identityArgs: string, returns: string|null, kind: string, language: string|null, secdef: boolean, searchPath: string|null, bodyMd5: string|null, bodyMd5Norm: string|null, bodyBytes: number|null, definition: string|null, acl: unknown, owner: string|null, grantees: string[] }} LiveFunction */
+/** @typedef {{ key: string, table: string, name: string, enabled: string, definition: string, parsed: any }} LiveTrigger */
+/** @typedef {{ meta: unknown, tables: Set<string>, policies: LivePolicy[], functions: LiveFunction[], triggers: LiveTrigger[] }} LiveCatalog */
 /**
  * @typedef {Object} CatalogDiff
  * @property {Array<any>} unownedPolicies
@@ -487,6 +671,11 @@ export function parseCatalogChain(files) {
  * @property {Array<any>} whitespaceOnly
  * @property {Array<any>} configDrift
  * @property {Array<any>} chainOnlyFunctions
+ * @property {Array<any>} unownedTriggers
+ * @property {Array<any>} staleTriggerClaims
+ * @property {Array<any>} triggerDrift
+ * @property {Array<any>} grantDrift
+ * @property {Array<any>} secdefPublic
  * @property {Array<any>} documented
  * @property {Array<any>} staleAllowlist
  * @property {Array<any>} dynamic
@@ -529,9 +718,24 @@ export function liveFromCatalog(json) {
       definition: fn.definition ?? null,
       acl: fn.acl ?? null,
       owner: fn.owner ?? null,
+      // EXECUTE grantees as proacl prints them, the owner removed ('' = PUBLIC; a NULL acl = the PUBLIC default).
+      grantees: fn.acl == null
+        ? ['public']
+        : [...new Set(fn.acl.map(a => String(a).split('=')[0]).map(g => (g === '' ? 'public' : g.toLowerCase())).filter(g => g !== (fn.owner ?? 'postgres')))].sort(),
     };
   });
-  return { meta: json.meta ?? null, tables, policies, functions, triggers: json.triggers ?? [] };
+  const triggers = (json.triggers ?? []).map(t => {
+    const definition = t.definition ?? '';
+    return {
+      key: `${t.table}|${t.name}`,
+      table: t.table,
+      name: t.name,
+      enabled: t.enabled ?? 'O',
+      definition,
+      parsed: definition ? parseTriggerStatement(maskSql(definition).masked, definition) : null,
+    };
+  });
+  return { meta: json.meta ?? null, tables, policies, functions, triggers };
 }
 
 // ── the diff ────────────────────────────────────────────────────────────────
@@ -550,15 +754,19 @@ const where = e => `${e.file}:${e.line}`;
  *  @returns {CatalogDiff} */
 export function diffCatalog(live, chain, allowlist = []) {
   const allowPolicy = new Map(allowlist.filter(e => e.kind === 'policy').map(e => [`${e.table}|${e.name}`, e]));
-  const allowFn = new Map(allowlist.filter(e => e.kind === 'function').map(e => [fnKey(e.name, String(e.args ?? '').split(',').map(s => s.trim()).filter(Boolean).map(normalizeType)), e]));
+  const fnEntryKey = e => fnKey(e.name, String(e.args ?? '').split(',').map(s => s.trim()).filter(Boolean).map(normalizeType));
+  const allowFn = new Map(allowlist.filter(e => e.kind === 'function').map(e => [fnEntryKey(e), e]));
+  const allowTrigger = new Map(allowlist.filter(e => e.kind === 'trigger').map(e => [`${e.table}|${e.name}`, e]));
+  const allowGrant = new Map(allowlist.filter(e => e.kind === 'grant').map(e => [fnEntryKey(e), e]));
   const usedAllow = new Set();
   const r = /** @type {CatalogDiff} */ ({
     ok: false,
     unownedPolicies: [], stalePolicyClaims: [], policyMismatch: [],
     unownedFunctions: [], bodyDrift: [], whitespaceOnly: [], configDrift: [], chainOnlyFunctions: [],
+    unownedTriggers: [], staleTriggerClaims: [], triggerDrift: [], grantDrift: [], secdefPublic: [],
     documented: [], staleAllowlist: [],
     dynamic: chain.dynamic, foreignSchema: chain.foreignSchema,
-    counts: { livePolicies: live.policies.length, liveFunctions: live.functions.length, liveTriggers: live.triggers.length, chainPolicies: 0, chainFunctions: 0 },
+    counts: { livePolicies: live.policies.length, liveFunctions: live.functions.length, liveTriggers: live.triggers.length, chainPolicies: 0, chainFunctions: 0, chainTriggers: 0, liveGrants: 0 },
   });
   const livePolicyKeys = new Set(live.policies.map(p => p.key));
   for (const p of live.policies) {
@@ -615,6 +823,53 @@ export function diffCatalog(live, chain, allowlist = []) {
     r.counts.chainFunctions++;
     if (!liveFnKeys.has(key)) r.chainOnlyFunctions.push({ key, at: where(c) });
   }
+  // Grants: the chain's simulated grantee set vs proacl.
+  for (const fn of live.functions) {
+    const c = chain.functions.get(fn.key);
+    if (fn.secdef && fn.grantees.some(g => g === 'public' || g === 'anon' || g === 'authenticated')) r.secdefPublic.push({ key: fn.key, grantees: fn.grantees });
+    if (!c || c.state !== 'created') continue; // the function facet's business
+    const g = chain.grants.get(fn.key);
+    if (!g) continue;
+    r.counts.liveGrants++;
+    const chainSet = [...g].sort();
+    if (chainSet.join(',') === fn.grantees.join(',')) continue;
+    const allowed = allowGrant.get(fn.key);
+    if (allowed) { usedAllow.add(`grant:${fn.key}`); r.documented.push({ kind: 'grant', key: fn.key }); }
+    else r.grantDrift.push({ key: fn.key, at: where(c), chain: chainSet, live: fn.grantees });
+  }
+  // Triggers.
+  const liveTriggerKeys = new Set(live.triggers.map(t => t.key));
+  for (const t of live.triggers) {
+    const c = chain.triggers.get(t.key);
+    const allowed = allowTrigger.get(t.key);
+    const doc = () => { usedAllow.add(`trigger:${t.key}`); r.documented.push({ kind: 'trigger', key: t.key }); };
+    if (!c || c.state !== 'created') {
+      if (allowed) { doc(); continue; }
+      r.unownedTriggers.push({ table: t.table, name: t.name, why: !c ? 'no numbered file creates it' : `the chain last DROPs it (${where(c)})` });
+      continue;
+    }
+    const chainTuple = triggerTuple(c);
+    const liveTuple = t.parsed ? triggerTuple(t.parsed) : `(unparsed) ${t.definition}`;
+    if (chainTuple !== liveTuple || t.enabled !== 'O') {
+      if (allowed) doc();
+      else r.triggerDrift.push({ key: t.key, at: where(c), chain: chainTuple, live: liveTuple, enabled: t.enabled });
+    }
+  }
+  for (const [key, c] of chain.triggers) {
+    if (c.state !== 'created') continue;
+    r.counts.chainTriggers++;
+    const [table] = key.split('|');
+    if (!live.tables.has(table)) continue;
+    if (!liveTriggerKeys.has(key)) r.staleTriggerClaims.push({ table, name: key.slice(table.length + 1), at: where(c) });
+  }
+  for (const [key, e] of allowTrigger) {
+    if (!liveTriggerKeys.has(key)) r.staleAllowlist.push({ ...e, why: 'not live' });
+    else if (!usedAllow.has(`trigger:${key}`)) r.staleAllowlist.push({ ...e, why: 'owned now' });
+  }
+  for (const [key, e] of allowGrant) {
+    if (!liveFnKeys.has(key)) r.staleAllowlist.push({ ...e, why: 'not live' });
+    else if (!usedAllow.has(`grant:${key}`)) r.staleAllowlist.push({ ...e, why: 'owned now' });
+  }
   for (const [key, e] of allowPolicy) {
     if (!livePolicyKeys.has(key)) r.staleAllowlist.push({ ...e, why: 'not live' });
     else if (!usedAllow.has(key)) r.staleAllowlist.push({ ...e, why: 'owned now' });
@@ -624,14 +879,16 @@ export function diffCatalog(live, chain, allowlist = []) {
     else if (!usedAllow.has(key)) r.staleAllowlist.push({ ...e, why: 'owned now' });
   }
   r.ok = !r.unownedPolicies.length && !r.stalePolicyClaims.length && !r.policyMismatch.length
-    && !r.unownedFunctions.length && !r.bodyDrift.length && !r.configDrift.length && !r.staleAllowlist.length;
+    && !r.unownedFunctions.length && !r.bodyDrift.length && !r.configDrift.length
+    && !r.unownedTriggers.length && !r.staleTriggerClaims.length && !r.triggerDrift.length && !r.grantDrift.length
+    && !r.staleAllowlist.length;
   return r;
 }
 
 /** @param {CatalogDiff} r */
 export function formatCatalogReport(r) {
   const lines = [];
-  lines.push(`catalog-inventory: ${r.counts.livePolicies} live policies (${r.counts.chainPolicies} claimed by the chain), ${r.counts.liveFunctions} live functions (${r.counts.chainFunctions} defined by the chain), ${r.counts.liveTriggers} triggers (informational)`);
+  lines.push(`catalog-inventory: ${r.counts.livePolicies} live policies (${r.counts.chainPolicies} claimed by the chain), ${r.counts.liveFunctions} live functions (${r.counts.chainFunctions} defined by the chain; ${r.counts.liveGrants} grant sets compared), ${r.counts.liveTriggers} live triggers (${r.counts.chainTriggers} claimed by the chain)`);
   const block = (title, items, fmt) => {
     if (!items.length) return;
     // `LABEL (n) — reason:` — the core's shape.
@@ -645,13 +902,18 @@ export function formatCatalogReport(r) {
   block('UNOWNED FUNCTIONS — live, but no numbered file defines them', r.unownedFunctions, fn => `${fn.key} — ${fn.why}${fn.hint ? `; ${fn.hint}` : ''}${fn.owner && fn.owner !== 'postgres' ? `; owner ${fn.owner}` : ''}`);
   block('BODY DRIFT — the live body differs from the chain\'s last definition', r.bodyDrift, fn => `${fn.key} — chain ${fn.at} md5 ${fn.chainMd5} (${fn.chainBytes} bytes) vs live ${fn.liveMd5} (${fn.liveBytes} bytes)`);
   block('CONFIG DRIFT — SECURITY DEFINER / search_path differ', r.configDrift, fn => `${fn.key} — ${fn.diff.join('; ')} (chain ${fn.at})`);
-  block('STALE ALLOWLIST — remove these entries', r.staleAllowlist, e => `${e.kind} ${e.kind === 'policy' ? `${e.table}.${e.name}` : `${e.name}(${e.args ?? ''})`} — ${e.why}`);
+  block('UNOWNED TRIGGERS — live, but no numbered file creates them', r.unownedTriggers, t => `${t.table}.${t.name} — ${t.why}`);
+  block('STALE TRIGGER CLAIMS — the chain creates them, they are not live', r.staleTriggerClaims, t => `${t.table}.${t.name} — ${t.at}`);
+  block('TRIGGER DRIFT — the live definition differs from the chain\'s last', r.triggerDrift, t => `${t.key} — chain ${t.at}: ${t.chain}\n    live: ${t.live}${t.enabled !== 'O' ? ` (enabled=${t.enabled})` : ''}`);
+  block('GRANT DRIFT — the chain\'s simulated EXECUTE grantees differ from proacl', r.grantDrift, g => `${g.key} — chain {${g.chain.join(', ')}} vs live {${g.live.join(', ')}} (chain ${g.at})`);
+  block('STALE ALLOWLIST — remove these entries', r.staleAllowlist, e => `${e.kind} ${e.kind === 'policy' || e.kind === 'trigger' ? `${e.table}.${e.name}` : `${e.name}(${e.args ?? ''})`} — ${e.why}`);
   if (r.documented.length) lines.push(`\nDocumented exceptions (allowlist): ${r.documented.length}`);
   lines.push('\nInformational:');
   block('  whitespace-only body differences (a paste artefact, not drift)', r.whitespaceOnly, fn => `  ${fn.key} — chain ${fn.at}`);
   block('  chain-only functions (created by the chain, not live — a dynamic drop, or never run)', r.chainOnlyFunctions, fn => `  ${fn.key} — ${fn.at}`);
   block('  dynamic DDL sites (EXECUTE format / string — resolved by proname literals where present)', r.dynamic, d => `  ${d.file}:${d.line} ${d.kind}${d.names.length ? ` → ${d.names.join(', ')}` : ' (no proname literal — not resolved)'}`);
   block('  non-public schema DDL (out of scope)', r.foreignSchema, s => `  ${s.file}:${s.line} ${s.statement} on ${s.table}`);
-  lines.push(r.ok ? '\nOK — every live policy and function is owned or documented.' : '\nDRIFT — see above.');
+  block('  SECURITY DEFINER functions executable by an API role (RLS helpers MUST stay executable — they evaluate as the invoking role; trigger functions need no EXECUTE to fire; tightening is a separate decision)', r.secdefPublic, fn => `  ${fn.key} — {${fn.grantees.join(', ')}}`);
+  lines.push(r.ok ? '\nOK — every live policy, function, trigger and grant is owned or documented.' : '\nDRIFT — see above.');
   return lines.join('\n');
 }
