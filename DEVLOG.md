@@ -1,5 +1,35 @@
 # Development Log
 
+## September 15, 2026 — Provenance round, PR C: migration 196 records every live policy the chain never named (NO-OP on prod)
+
+- **The first live run of the catalog facets** (195 RAN — Tom: "all rows
+  OK"; `npm run check:schema -- --save-catalog` → `database/provenance/
+  dumps/2026-09-14-catalog.json`, 283 KB: 190 policies, 107 functions, 101
+  triggers, PG 17.4): policies — 56 live policies no numbered file creates,
+  29 policies the chain still claims that are not live, 0 disagreements on
+  cmd / roles / permissiveness; functions — 5 unowned, 8 real body drifts
+  (0 whitespace-only), 9 search_path drifts (every one `''` live vs unset in
+  the chain — an archived linter-remediation script), 0 chain-only.
+- **196 `baseline_policies`** — generated from the saved catalog through the
+  checker's own diff: the 56 live policies VERBATIM as pg_policies prints
+  them, behind the pg_policies guard (190's idiom), and the 29 stale claims
+  as `DROP POLICY IF EXISTS` (001 / 002 / 003 / 007 / 008's prose-named
+  policies — "Users can view their own profile" and kin — replaced live by
+  archived scripts under `archive/loose-legacy/` and `old-migrations/`,
+  cited per family in the header); migration 052's 12 EXECUTE-format loop
+  products (`<table>_profile_access_select` / `_guardian_write`) become
+  literal for the first time. 17 tables touched. Recorded, not fixed: three
+  golf tables carry two or three redundant permissive policy sets from
+  successive archived scripts (the header names the cleanup for a later
+  migration). Check grid: per table the live count and the recorded names
+  present, the 29 stale names absent, the public total 190; twin
+  `verify-196-baseline.sql`.
+- **Proof before it runs:** the policies facet against the saved catalog
+  with 196 in the chain reads OK; the real-chain test now pins 001's
+  profile claim as DROPPED by 196 and 052's loop products as created by it.
+- Tom runs 196 (every grid row OK before and after); the functions facet
+  stays red until 197.
+
 ## September 15, 2026 — Provenance round, PR B: check:schema reads policies and functions (zero DDL)
 
 - **The parser** (`scripts/schema-inventory-catalog.mjs`, pure): an

@@ -295,13 +295,14 @@ describe('the real chain', () => {
     expect(dyn).toContain('082:alter function:get_unread_notification_count,get_tagged_posts');
     expect(chain.foreignSchema.map(s => `${s.file.slice(0, 3)}:${s.table}`)).toEqual(['040:storage.objects', '040:storage.objects', '040:storage.objects']);
   });
-  it('reads every policy claim: 001 still claims the profile family (196 records the drop), 190 claims posts_guardian_write', () => {
+  it('reads every policy claim: 196 records the drop of 001\'s profile family and makes 052\'s loop products literal', () => {
     const created = [...chain.policies.values()].filter(p => p.state === 'created');
-    expect(created.length).toBeGreaterThan(150);
-    expect(chain.policies.get('profiles|Users can view their own profile')).toMatchObject({ state: 'created', file: '001_initial_setup.sql', cmd: 'SELECT' });
-    expect(chain.policies.get('clubs|Clubs are viewable by authenticated users')).toMatchObject({ state: 'dropped' });
+    expect(created.length).toBeGreaterThan(190);
+    expect(chain.policies.get('profiles|Users can view their own profile')).toMatchObject({ state: 'dropped', file: '196_baseline_policies.sql' });
+    expect(chain.policies.get('profiles|profiles_select_policy')).toMatchObject({ state: 'created', file: '196_baseline_policies.sql', cmd: 'SELECT' });
+    expect(chain.policies.get('clubs|Clubs are viewable by authenticated users')).toMatchObject({ state: 'dropped', file: '117_clubs_real.sql' });
     expect(chain.policies.get('posts|posts_guardian_write')).toMatchObject({ state: 'created', file: '190_baseline_social_core.sql', cmd: 'ALL' });
-    expect(chain.policies.get('golf_rounds|golf_rounds_profile_access_select')).toBeUndefined(); // 052's loop — literal only after 196
+    expect(chain.policies.get('golf_rounds|golf_rounds_profile_access_select')).toMatchObject({ state: 'created', file: '196_baseline_policies.sql', cmd: 'SELECT' });
   });
   it('a saved catalog, when one exists, parses and agrees with the verbatim 190 functions', () => {
     const dumps = join(process.cwd(), 'database', 'provenance', 'dumps');
