@@ -155,3 +155,11 @@ client.ts` is the page's fetch helper (the link token rides every call).
 Re-sequenced UI: page → wizard + Create sheet → Sports nav + `/explore`
 redirect, so no PR links to a page that is not there yet.
 
+## The wizard and the Create sheet (PR 9)
+
+`/sports/events/new` hosts `EventCreateWizard` (basics → round → format →
+review; `src/lib/sport-events/wizard.ts` holds the rules). `CourseSearchField`
+(`src/components/golf/`) is the composer's course search, extracted. The
+header's **Create** button opens `CreateSheet` (Post | Event); the drawer
+carries Create Post and Create Event.
+

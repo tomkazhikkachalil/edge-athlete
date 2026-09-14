@@ -1,5 +1,39 @@
 # Development Log
 
+## September 16, 2026 — Events program, PR 9: the creation wizard · CourseSearchField · the Create sheet (zero DDL)
+
+- **The wizard** (`src/components/sport-events/EventCreateWizard.tsx` at
+  `/sports/events/new`, signed in): basics → round → format → review, the
+  OrgStartWizard shape — one step on screen, "Step n of 4", Back, the
+  refusal in the copy the rules answer (`src/lib/sport-events/wizard.ts`,
+  pure and pinned: `validateWizardStep`, `wizardToCreateBody`,
+  `wizardCourseFrom`), Publish (open) or Save draft on the review, then
+  straight to `/events/[id]`. Basics: name, description, "Hosted for" (the
+  orgs the user manages, the header's rule), visibility and joining as
+  radio cards. Round: the date (a date-only string), the course, the tees
+  (a select from the catalog's rated tees, else free text), 18 | 9, and
+  the start for a nine. Format: gross | net (the frozen-index note), field
+  size, "I'm playing too". Cancel and the browser's leave prompt go through
+  `useDirtyClose` + `ConfirmModal` with the house discard copy; a
+  successful save leaves through the router directly. Acting-as: the
+  active profile rides as `profile_id`.
+- **`CourseSearchField`** (`src/components/golf/`) is the composer's course
+  search extracted: debounced, abortable typeahead on `/api/golf/courses`,
+  a thin row hydrated on selection, and "Use “X” as typed" (or Enter) for
+  an off-catalog course. The composer keeps its worldwide search and the
+  multi-course section chooser; the wizard needs neither.
+- **The Create sheet** (`src/components/CreateSheet.tsx`): the header's
+  gradient button is now **Create** and opens the house bottom sheet with
+  two doors — Post (today's exact composer handoff) and Event (the
+  wizard). The drawer keeps Create Post and gains Create Event (the
+  superset rule). `e2e/header-create.spec.ts` follows the new path.
+
+Phone pass: `e2e/sport-events-create.spec.ts` is `@mobile` (Chromium and
+WebKit at 390 × 844) — the refusals, the typed course, the back nine, net,
+Publish → the place at Open, and the discard prompt on Cancel. Tom's device
+pass is owed. Next: PR 10 — the Sports section (explore moved, the events
+list, leaderboards), the `/explore` redirect, the header's Sports link.
+
 ## September 16, 2026 — Events program, PR 8: the event page — /events/[id] as a PLACE (zero DDL)
 
 The first UI PR, re-sequenced ahead of the nav so that no PR ever ships a

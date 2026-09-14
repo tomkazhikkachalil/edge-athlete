@@ -9,6 +9,7 @@ import ResumeOrgClaimBanner from '@/components/orgs/ResumeOrgClaimBanner';
 import ResumeOrgInviteBanner from '@/components/orgs/ResumeOrgInviteBanner';
 import { formatDisplayName, getInitials } from '@/lib/formatters';
 import { AvatarImage } from '@/components/OptimizedImage';
+import CreateSheet from '@/components/CreateSheet';
 import NotificationBell from '@/components/NotificationBell';
 import MessagesBell from '@/components/messages/MessagesBell';
 import HeaderSearch from '@/components/HeaderSearch';
@@ -82,6 +83,8 @@ export default function AppHeader({ onCreatePost, onEditProfile }: AppHeaderProp
   const { user, initialAuthCheckComplete, profile, signOut, managedProfiles, activeProfile, setActiveProfile } = useAuth();
   const { theme, toggleNow: toggleTheme } = useTheme();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  // Events program: the header's Create button opens a two-door sheet (Post | Event).
+  const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [isProfileDropdownOpen, setIsProfileDropdownOpen] = useState(false);
   // Orgs the user manages (phase 1) — LAZY on first menu open so the
   // header adds no request to ordinary page loads. null = not yet loaded;
@@ -485,12 +488,14 @@ export default function AppHeader({ onCreatePost, onEditProfile }: AppHeaderProp
                   icon-only below sm this paints at 30px, so it needs 8px per
                   side to clear 44. */}
               <button
-                onClick={handleCreatePost}
+                onClick={() => setIsCreateOpen(true)}
                 className="ea-cta relative after:absolute after:content-[''] after:-inset-y-2 after:inset-x-0 text-white px-3 sm:px-4 py-2 rounded-lg flex shrink-0 items-center gap-2 text-sm font-medium"
-                aria-label="Create new post"
+                aria-label="Create"
+                aria-haspopup="dialog"
+                aria-expanded={isCreateOpen}
               >
                 <i className="fas fa-plus"></i>
-                <span className="hidden sm:inline">Post</span>
+                <span className="hidden sm:inline">Create</span>
               </button>
 
               {/* Desktop Profile Dropdown — `lg` to match the nav above. */}
@@ -760,6 +765,14 @@ export default function AppHeader({ onCreatePost, onEditProfile }: AppHeaderProp
         />
       )}
 
+      {isCreateOpen && (
+        <CreateSheet
+          onClose={() => setIsCreateOpen(false)}
+          onPost={() => { setIsCreateOpen(false); handleCreatePost(); }}
+          onEvent={() => { setIsCreateOpen(false); router.push('/sports/events/new'); }}
+        />
+      )}
+
       {/* Mobile Menu Drawer */}
       <div
         className={`fixed top-0 right-0 h-full w-72 max-w-[85vw] bg-surface shadow-lg z-50 transform transition-transform duration-300 ease-in-out lg:hidden safe-top safe-bottom ${
@@ -970,6 +983,17 @@ export default function AppHeader({ onCreatePost, onEditProfile }: AppHeaderProp
             >
               <i className="fas fa-plus w-5 text-center"></i>
               <span className="font-medium">Create Post</span>
+            </button>
+
+            <button
+              onClick={() => {
+                router.push('/sports/events/new');
+                setIsMobileMenuOpen(false);
+              }}
+              className="flex items-center gap-3 w-full px-4 py-3 text-left text-secondary hover:bg-brand-soft hover:text-brand-fg rounded-lg transition-colors"
+            >
+              <i className="fas fa-flag-checkered w-5 text-center"></i>
+              <span className="font-medium">Create Event</span>
             </button>
 
             <button
