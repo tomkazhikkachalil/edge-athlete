@@ -32,7 +32,7 @@
  *   node scripts/schema-inventory.mjs --facet policies   # tables | policies | functions | triggers | grants
  *   node scripts/schema-inventory.mjs --json              # the raw result
  */
-import { readFileSync, readdirSync, writeFileSync } from 'fs';
+import { existsSync, readFileSync, readdirSync, writeFileSync } from 'fs';
 import { join } from 'path';
 import { diffCatalog, formatCatalogReport, liveFromCatalog, parseCatalogChain } from './schema-inventory-catalog.mjs';
 import { diff, formatReport, liveFromOpenApi, parseChain } from './schema-inventory-core.mjs';
@@ -156,7 +156,12 @@ if (wantCatalog) {
   catalogNotice = notice;
   if (raw) {
     if (saveCatalog) {
-      const target = saveCatalog === true ? `database/provenance/dumps/${new Date().toISOString().slice(0, 10)}-catalog.json` : String(saveCatalog);
+      // The default name is today's date; a saved catalog is EVIDENCE a
+      // baseline cites, so never overwrite one — take the next free suffix.
+      let target = saveCatalog === true ? `database/provenance/dumps/${new Date().toISOString().slice(0, 10)}-catalog.json` : String(saveCatalog);
+      if (saveCatalog === true) {
+        for (let n = 2; existsSync(target); n++) target = target.replace(/(?:-\d+)?-catalog\.json$/, `-${n}-catalog.json`);
+      }
       const text = JSON.stringify(raw, null, 1) + '\n';
       writeFileSync(target, text);
       console.error(`schema-inventory: catalog saved to ${target} (${text.length} bytes; ${raw.policies?.length ?? 0} policies, ${raw.functions?.length ?? 0} functions, ${raw.triggers?.length ?? 0} triggers)`);
