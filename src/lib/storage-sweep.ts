@@ -57,7 +57,9 @@ export const URL_SOURCE_COLUMNS: readonly { table: string; columns: string[] }[]
   { table: 'profiles', columns: ['avatar_url', 'cover_url'] },
   { table: 'conversations', columns: ['avatar_url'] },
   { table: 'athlete_equipment', columns: ['image_url'] },
-  { table: 'athlete_badges', columns: ['icon_url'] },
+  // athlete_badges (icon_url) is gone: never held a row, dropped by
+  // migration 199 (Sep 2026). A scan of a missing table would 42P01 and
+  // the sweep rethrows on purpose — so the entry left BEFORE the drop.
 ];
 
 export interface StorageFile {

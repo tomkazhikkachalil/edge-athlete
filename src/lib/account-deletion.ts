@@ -132,7 +132,7 @@ export async function hardDeleteAccount(
   await admin.from('golf_rounds').delete().eq('profile_id', userId);
   await admin.from('season_highlights').delete().eq('profile_id', userId);
   await admin.from('performances').delete().eq('profile_id', userId);
-  await admin.from('athlete_badges').delete().eq('profile_id', userId);
+  // athlete_badges: dropped by migration 199 (Sep 2026) — nothing to delete.
   await admin.from('sport_settings').delete().eq('profile_id', userId);
   // Org membership rows CASCADE from profiles (140) and the club/league
   // request tables likewise. Ownership (0.8): move the primary-owner cache
