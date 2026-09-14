@@ -90,7 +90,7 @@ export default function ContestGate({ contestId }: Props) {
               Sign in
             </Link>
           )}
-          <Link href="/explore" className="px-4 py-2 border border-border-strong rounded-lg font-semibold text-secondary hover:bg-surface-muted min-h-[44px] inline-flex items-center">
+          <Link href="/sports/explore" className="px-4 py-2 border border-border-strong rounded-lg font-semibold text-secondary hover:bg-surface-muted min-h-[44px] inline-flex items-center">
             Explore
           </Link>
         </div>

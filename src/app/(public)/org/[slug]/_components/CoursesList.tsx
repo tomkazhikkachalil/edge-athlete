@@ -169,7 +169,7 @@ export default function CoursesList({
                       interactive map lives in the app, and this resolves on
                       a custom host too. */}
                   <a
-                    href={`${appBaseUrl()}/explore?course=${encodeURIComponent(course.id)}`}
+                    href={`${appBaseUrl()}/sports/explore?course=${encodeURIComponent(course.id)}`}
                     className="text-brand-fg font-medium"
                   >
                     View on map →

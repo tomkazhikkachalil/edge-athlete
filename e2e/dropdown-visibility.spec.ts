@@ -25,7 +25,7 @@ test.describe('suggestion dropdowns are visible and clickable', () => {
   test('header ⌘K search results', async ({ page }) => {
     for (const viewport of [WIDE, NARROW]) {
       await page.setViewportSize(viewport);
-      await page.goto('/explore');
+      await page.goto('/sports/explore');
       await page.locator('button:has(i.fa-search)').first().click();
 
       const input = page.locator('input[name="ea-search"]');

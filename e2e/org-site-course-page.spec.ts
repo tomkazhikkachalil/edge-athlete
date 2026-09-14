@@ -128,7 +128,7 @@ test('course page: hole SVGs from OSM geometry, section label, phone, directions
     // The list links to the page; foreign / unknown / non-uuid ids 404.
     const list = await settleBody(anonCtx.request, `${sitePath}/courses`, `/courses/${courseId}`, true, 12);
     expect(list).toContain(`${sitePath}/courses/${courseId}`);
-    expect(list).toContain(`/explore?course=${courseId}`);
+    expect(list).toContain(`/sports/explore?course=${courseId}`);
     expect((await anonCtx.request.get(`${sitePath}/courses/${unlinkedId}`)).status()).toBe(404);
     expect((await anonCtx.request.get(`${sitePath}/courses/00000000-0000-4000-8000-000000000001`)).status()).toBe(404);
     expect((await anonCtx.request.get(`${sitePath}/courses/not-a-uuid`)).status()).toBe(404);

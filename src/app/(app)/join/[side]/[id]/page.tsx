@@ -105,7 +105,7 @@ export default function JoinOrgPage() {
   const missing = (
     <div className="text-center">
       <h1 className="text-2xl font-bold text-primary mb-2">{side === 'league' ? 'League not found' : 'Club not found'}</h1>
-      <Link href="/explore" className="text-sm text-brand-fg font-medium">Explore Edge Athlete →</Link>
+      <Link href="/sports/explore" className="text-sm text-brand-fg font-medium">Explore Edge Athlete →</Link>
     </div>
   );
 

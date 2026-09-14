@@ -163,3 +163,12 @@ review; `src/lib/sport-events/wizard.ts` holds the rules). `CourseSearchField`
 header's **Create** button opens `CreateSheet` (Post | Event); the drawer
 carries Create Post and Create Event.
 
+## Navigation (PR 10)
+
+Sports replaces Explore in the header (`/sports`, fa-medal; lit for
+`/sports/*` and `/events/*`). `src/app/(app)/sports/`: `explore` (the old
+Explore, `?course=` kept), `events` (`?filter=upcoming|live|past|mine`),
+`leaderboards`, `events/new`. `SportsSubnav` switches the three places;
+`src/lib/sports-nav.ts` is the rule. `/explore` redirects, query preserved.
+The bottom tab bar is a later round.
+

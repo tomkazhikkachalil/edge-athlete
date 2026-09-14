@@ -74,7 +74,7 @@ test('explore: Near me lists the Ottawa QA athlete with a km chip', async ({ bro
   });
   const page = await ctx.newPage();
   try {
-    await page.goto('/explore');
+    await page.goto('/sports/explore');
     await page.getByRole('button', { name: 'Near me' }).first().click();
     await expect(page.getByText('Edge QA').first()).toBeVisible({ timeout: 15_000 });
     await expect(page.getByText(/Ottawa, Ontario · Canada • 0 km/).first()).toBeVisible();

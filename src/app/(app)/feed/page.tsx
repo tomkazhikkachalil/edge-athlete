@@ -661,7 +661,7 @@ export default function FeedPage() {
                   </p>
                   {noFollowing && (
                     <Link
-                      href="/explore"
+                      href="/sports/explore"
                       className="inline-block bg-surface-sunken text-secondary px-6 py-3 rounded-lg hover:bg-gray-200 dark:hover:bg-stone-800 transition-colors font-medium"
                     >
                       <i className="fas fa-binoculars mr-2"></i>
@@ -684,7 +684,7 @@ export default function FeedPage() {
                   </p>
                   {noOrgs && (
                     <Link
-                      href="/explore"
+                      href="/sports/explore"
                       className="inline-block bg-surface-sunken text-secondary px-6 py-3 rounded-lg hover:bg-gray-200 dark:hover:bg-stone-800 transition-colors font-medium"
                     >
                       <i className="fas fa-binoculars mr-2"></i>
@@ -731,7 +731,7 @@ export default function FeedPage() {
                         as the primary — now the follow half of the copy gets
                         its CTA (suggestions live below the fold on mobile). */}
                     <Link
-                      href="/explore"
+                      href="/sports/explore"
                       className="w-full sm:w-auto bg-surface-sunken text-secondary px-6 py-3 rounded-lg hover:bg-gray-200 dark:hover:bg-stone-800 transition-colors font-medium"
                     >
                       <i className="fas fa-binoculars mr-2"></i>

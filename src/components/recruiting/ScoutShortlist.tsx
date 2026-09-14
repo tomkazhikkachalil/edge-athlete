@@ -89,7 +89,7 @@ export default function ScoutShortlist() {
     return (
       <p className="text-sm text-tertiary" data-shortlist-empty="">
         Athletes you shortlist from their profiles collect here. Find recruitable athletes on{' '}
-        <Link href="/explore" className="text-brand-fg hover:text-brand-fg-strong font-medium">Explore</Link>
+        <Link href="/sports/explore" className="text-brand-fg hover:text-brand-fg-strong font-medium">Explore</Link>
         {' '}— open profiles show a Recruiting card with a Shortlist button.
       </p>
     );

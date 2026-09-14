@@ -8,7 +8,7 @@ import { apiAs } from './helpers/qa-user';
 // onboarding CTA use. This guards the handoff end-to-end from two such pages.
 // Events program: the button is now "Create" and opens the two-door sheet
 // (Post | Event); Post is the same handoff as before.
-for (const route of ['/explore', '/messages']) {
+for (const route of ['/sports/explore', '/messages']) {
   test(`header + on ${route} opens the composer via /feed?create=1`, async ({ page }) => {
     await page.goto(route);
     // Desktop viewport (1280×800): the "+ Create" button is in the header

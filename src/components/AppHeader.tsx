@@ -10,6 +10,7 @@ import ResumeOrgInviteBanner from '@/components/orgs/ResumeOrgInviteBanner';
 import { formatDisplayName, getInitials } from '@/lib/formatters';
 import { AvatarImage } from '@/components/OptimizedImage';
 import CreateSheet from '@/components/CreateSheet';
+import { isSportsPath } from '@/lib/sports-nav';
 import NotificationBell from '@/components/NotificationBell';
 import MessagesBell from '@/components/messages/MessagesBell';
 import HeaderSearch from '@/components/HeaderSearch';
@@ -173,7 +174,7 @@ export default function AppHeader({ onCreatePost, onEditProfile }: AppHeaderProp
     if (onCreatePost) {
       onCreatePost();
     } else {
-      // Pages without their own composer mount (explore, live, messages,
+      // Pages without their own composer mount (sports, live, messages,
       // calendar, settings…) hand off to the feed's ?create=1 deep link —
       // the same battle-tested path the rounds page and onboarding CTA use.
       // The old /athlete fallback silently navigated instead of composing.
@@ -190,13 +191,16 @@ export default function AppHeader({ onCreatePost, onEditProfile }: AppHeaderProp
     // A round page IS the Live section; exact-match left the tab dark while
     // you were literally watching a live round.
     if (path === '/live') return pathname === '/live' || pathname?.startsWith('/live/');
+    // The Sports section is /sports/* AND an event's own page (/events/*).
+    if (path === '/sports') return isSportsPath(pathname);
     return pathname === path;
   };
 
   // The destinations, without Live — it gets inserted at the midpoint below.
   const placeLinks: NavLink[] = [
     { path: '/feed', label: 'Feed', icon: 'fa-home' },
-    { path: '/explore', label: 'Explore', icon: 'fa-compass' },
+    // Events program: Sports replaces Explore (Explore is the section's first place).
+    { path: '/sports', label: 'Sports', icon: 'fa-medal' },
     { path: '/calendar', label: 'Calendar', icon: 'fa-calendar-alt' },
     { path: '/athlete', label: 'Profile', icon: 'fa-user' },
   ];
@@ -204,7 +208,7 @@ export default function AppHeader({ onCreatePost, onEditProfile }: AppHeaderProp
   // Live sits in the MIDDLE of the nav. Computed rather than hard-coded because
   // Calendar is flag-gated — the nav is 4 items in production and 5 with the
   // flag on, so a fixed index would centre Live in one environment and not the
-  // other. `ceil` keeps Feed and Explore together on the 4-item nav.
+  // other. `ceil` keeps Feed and Sports together on the 4-item nav.
   // Copy-then-splice, NOT `toSpliced`: that is ES2023 (Safari/iOS 16.4+), below
   // the project's iOS 15 floor and outside Next's polyfill set — it threw on
   // every render of this header on an older iPhone (Sep 3 round 6).
@@ -235,7 +239,7 @@ export default function AppHeader({ onCreatePost, onEditProfile }: AppHeaderProp
   // does the sliding, which also means the global prefers-reduced-motion rule
   // neutralises it for free.
   // Gated on user: the endpoint is authenticated, and this header also
-  // renders for signed-out visitors on public pages (/u, /explore).
+  // renders for signed-out visitors on public pages (/u, /sports/explore).
   const liveCount = useLiveNow(!!user);
   const navRef = useRef<HTMLElement | null>(null);
   const itemRefs = useRef<Array<HTMLAnchorElement | null>>([]);
