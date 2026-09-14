@@ -124,15 +124,33 @@ live-dump.sql` is ONE read-only `pg_catalog` statement whose single result
 carries eight tagged grids (columns with precision, constraints, indexes,
 RLS + grants, policy bodies, triggers and their functions, row counts) —
 one statement because the SQL editor shows only the LAST statement's
-result; pasted in, copied out as markdown, committed verbatim under
-`database/provenance/dumps/`
-and the baseline migrations (190 social core, 191 athlete legacy, 192 golf
-conditions, 193 profiles) are written FROM them: `CREATE TABLE IF NOT
-EXISTS` with the live shape, `ADD COLUMN IF NOT EXISTS` per column, guarded
-constraints and policies with their bodies verbatim, `CREATE OR REPLACE`
-trigger functions — a NO-OP on production, the source of truth in the repo
-from then on. A baseline never "improves" live behaviour; a later migration
-may.
+result; pasted in, exported (the results panel's CSV download — a 552-row
+"Copy as Markdown" paste freezes a terminal; markdown is fine for a small
+grid), committed verbatim under `database/provenance/dumps/`
+(`2026-09-14-live-dump.csv` is the one the baselines cite). The baseline
+migrations **190 social core · 191 athlete legacy · 192 golf conditions ·
+193 profile measurables** (Sep 14 2026) were written FROM it: `CREATE TABLE
+IF NOT EXISTS` with the live shape, `ADD COLUMN IF NOT EXISTS` per column
+no numbered file adds, constraints and policies behind a `pg_constraint` /
+`pg_policies` lookup with their bodies verbatim, `CREATE INDEX IF NOT
+EXISTS` by the live indexdef, `DROP TRIGGER IF EXISTS` + `CREATE TRIGGER`,
+and `CREATE OR REPLACE` ONLY for the trigger functions no numbered file
+defines (the ones a file does define stay with their owner) — a NO-OP on
+production, each ending in a SELECT-only check grid that reads the same
+before and after, with a re-runnable twin under `tests/diagnostics/
+verify-19N-baseline.sql`. The allowlist has been EMPTY since 193. A
+baseline never "improves" live behaviour; what it finds odd (two count
+triggers on post_likes / post_comments, bare `auth.uid()` in three
+equipment policies, a 'followers' visibility value, the absent
+`idx_golf_rounds_round_type`) it RECORDS in its header for a later
+migration to decide.
+
+**Not owned yet (separate passes, each with its own idiom):** the POLICIES
+of the chain-created tables `profiles` and `golf_rounds` (their live names —
+`profiles_select_policy`, `golf_rounds_select_policy` … — came from archived
+scripts that replaced 001's / 002's; 190–193 record policies only for the
+13 tables they create) and the DB-only FUNCTION bodies (`CREATE OR REPLACE`
+is not a no-op guard; that pass compares `md5(prosrc)`).
 
 **Loose files that never reached production** (absent from the live
 schema; reference only): `features/golf/setup-shared-golf-scorecards.sql`,

@@ -33,9 +33,14 @@ DB scale-readiness). That audit's findings seed the backlog below.
 ## Part B — periodic manual sweep (this runbook)
 
 ### B1. Live index state (DB scale)
-The migrations are **not** the source of truth for the hottest tables (`follows`,
-`posts`, `post_likes`, `post_comments`, `post_media` were created by archived
-scripts). Confirm index reality directly, in the Supabase SQL editor:
+Since the baselines 190/191 (Sep 14 2026) the chain records every table,
+column, constraint, index, policy and trigger of the social core (`follows`,
+`posts`, `post_likes`, `post_comments`, `post_media`, `comment_likes`) and
+the athlete legacy set — `npm run check:schema` proves table/column
+provenance (LOCAL, service key), and `database/tests/diagnostics/
+verify-190-baseline.sql` / `verify-191-baseline.sql` re-assert the recorded
+index, policy and trigger COUNTS. What the repo cannot know is index
+*usage*: confirm that directly, in the Supabase SQL editor:
 ```sql
 SELECT tablename, indexname, indexdef FROM pg_indexes
 WHERE schemaname='public'
@@ -50,7 +55,9 @@ SELECT relname, indexrelname, idx_scan, idx_tup_read
 FROM pg_stat_user_indexes WHERE schemaname='public' ORDER BY idx_scan DESC;
 ```
 Migration 123 added the hot-path indexes (`IF NOT EXISTS`, idempotent). Any NEW
-index on a now-large table must use `CREATE INDEX CONCURRENTLY` (outside a txn).
+index on a now-large table must use `CREATE INDEX CONCURRENTLY` (outside a txn)
+— as the `NNN_name.indexes.sql` twin (`database/MIGRATIONS.md`, "Large-table
+indexes"). The baselines themselves index inline: their tables hold 3–36 rows.
 
 ### B2. Query-cost review (efficiency)
 For each hot surface, count awaited DB round-trips per request and check for the

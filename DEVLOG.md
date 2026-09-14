@@ -1,5 +1,73 @@
 # Development Log
 
+## September 14, 2026 — Data foundation P2–P6: the baselines 190–193, written from the live dump (four migrations, all NO-OPS on prod)
+
+- **The dump arrived** — Tom ran the one-statement `live-dump.sql` (552
+  rows) and pasting it froze the terminal, so the results panel's CSV
+  export is the method for a grid that size: committed verbatim as
+  `database/provenance/dumps/2026-09-14-live-dump.csv`, the evidence every
+  baseline header cites. (`MIGRATIONS.md` now says "export", not "copy as
+  markdown", for anything bigger than a screen.)
+- **190 `baseline_social_core`** — follows, posts, post_media, post_likes,
+  post_comments, comment_likes: the chain's FIRST `CREATE TABLE` of each
+  (the archive created them; the chain ALTERed posts in twelve files
+  without ever owning it). The live shape verbatim: `numeric(5,2)` and
+  friends, defaults as `pg_get_expr` prints them, every constraint under
+  its live name with its `ON DELETE`, every index by `indexdef`, RLS + the
+  default grants, every policy body from `pg_policies`, every trigger, and
+  the seven trigger functions no numbered file defines (the six a file
+  does define — the notify_follow family, the search-doc sync, the count
+  functions — stay with their owner). `post_media.width / height /
+  duration` and `post_comments.likes_count` exist in the repo for the
+  first time. Guards: `pg_constraint` / `pg_policies` lookups, `IF NOT
+  EXISTS`, `DROP TRIGGER IF EXISTS` + `CREATE` (the 194 idiom); functions
+  are declared BEFORE the triggers that name them so the file replays in
+  order on an empty database too.
+- **191 `baseline_athlete_legacy`** — sports, performances,
+  season_highlights, athlete_badges, athlete_equipment, privacy_settings,
+  connection_suggestions, same method; `sync_privacy_settings` and its
+  trigger on profiles recorded with the table they write. athlete_badges
+  stays (Tom: record now, DROP later, one line).
+- **192 `golf_rounds_conditions`** — the six loose-file columns
+  (`course_rating numeric(4,1)` and `slope_rating` feed the WHS engine),
+  the `round_type` CHECK under its live auto-name, `DROP CONSTRAINT IF
+  EXISTS golf_rounds_holes_check` as the RECORD that 002's `holes IN (9,
+  18)` is gone live (flexible rounds), the column COMMENTs ported. NOT
+  created: `idx_golf_rounds_round_type` — the loose file named it, the
+  live catalog has no such index, and a baseline records rather than
+  improves. NOT repeated: the loose file's data UPDATE.
+- **193 `profiles_measurables`** — the 23 columns 001 never had (username,
+  full_name, display_name, avatar_url, visibility, bio, the measurables,
+  the academics, the socials, search_vector) with live types and defaults,
+  the three constraints, the one index and the two name-deriving triggers
+  (+ functions) that exist only for them. After it the allowlist is EMPTY.
+- **Every baseline records what it found and changes none of it** — the
+  header of each names the oddities for a later migration: two count
+  triggers on post_likes and on post_comments calling the same function
+  (idempotent recount, one redundant UPDATE per like/comment); three
+  equipment policies on a bare `auth.uid()` (not 127's initplan form);
+  `posts_visibility_check` admitting 'followers'; USING (true) SELECT on
+  the like/comment tables (gated one level up); profiles' live policy
+  NAMES coming from an archived script, not 001. Policy provenance for
+  chain-created tables and DB-only function bodies are the two passes
+  still open, each with its own idiom (MIGRATIONS.md, "Not owned yet").
+- **Proof:** `npm run check:schema` against production with the EMPTY
+  allowlist — `108 live tables, 108 owned by the chain … OK`; the
+  real-chain test now pins that posts is CREATED (181's `contest_id`
+  absorbed), `post_media.width`, `post_comments.likes_count`,
+  `golf_rounds.slope_rating` and `profiles.gpa` are owned, and that a
+  guarded `ADD CONSTRAINT` names no column (the parser used to record a
+  phantom `constraint` column — fixed, one line). Each migration ends in
+  a SELECT-only 087-style grid (columns / constraints / indexes /
+  policies / triggers / RLS per table against the dump's counts) with a
+  re-runnable twin under `tests/diagnostics/verify-19N-baseline.sql`.
+- **Tom runs** 190 → 191 → 192 → 193 in the SQL editor, in order; every
+  grid row reads OK before and after (they are no-ops). Docs: CLAUDE.md
+  convention 16, `MIGRATIONS.md` Provenance, `HARDENING.md` B1 (the
+  "migrations are not the source of truth for the hot tables" line is
+  retired), `SESSION_PROMPT.md` re-aligned (the program is complete; the
+  next one is Tom's call).
+
 ## September 13, 2026 — Data foundation P1b: the provenance dump is ONE statement (zero DDL)
 
 - Tom pasted grid 8 (the row counts) three times: the Supabase SQL editor
