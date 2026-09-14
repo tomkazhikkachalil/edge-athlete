@@ -1,5 +1,20 @@
 # Development Log
 
+## September 13, 2026 — Data foundation P1b: the provenance dump is ONE statement (zero DDL)
+
+- Tom pasted grid 8 (the row counts) three times: the Supabase SQL editor
+  shows only the LAST statement's result, so the eight-section dump never
+  displayed grids 1–7 — the method's precedent (the phase-0 guardian dump)
+  was run section by section, which the header said and nobody does.
+  `database/provenance/live-dump.sql` is now a single SELECT: eight
+  `UNION ALL` branches tagged by `grid` (columns, constraints, indexes,
+  RLS + grants, policies, triggers, trigger functions, row counts) with
+  one `(grid, table_name, item, kind, definition)` shape; newlines inside
+  a definition become " ⏎ " so every row survives a markdown paste. One
+  run, one copy ("Copy as Markdown"), one paste.
+- RULE for every future dump: one statement, one result — an owner
+  pastes what the editor shows.
+
 ## September 13, 2026 — Data foundation F5c: the admin dashboard gets a door in the account menu (zero DDL)
 
 - Tom, after the backfill: "How did I get to that admin page? where do I
