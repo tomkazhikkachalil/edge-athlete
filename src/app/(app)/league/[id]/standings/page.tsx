@@ -51,7 +51,7 @@ export default async function LeagueStandingsPage({ params }: PageParams) {
       <div className="min-h-screen bg-canvas flex items-center justify-center px-4">
         <div className="text-center">
           <h1 className="text-xl font-bold text-primary mb-2">League not found</h1>
-          <Link href="/explore" className="text-sm text-brand-fg font-medium">
+          <Link href="/sports/explore" className="text-sm text-brand-fg font-medium">
             Explore Edge Athlete →
           </Link>
         </div>

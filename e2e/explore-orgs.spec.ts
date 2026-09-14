@@ -31,7 +31,7 @@ test('explore orgs: search finds seeded league and club, rows navigate', async (
   expect(clubError, clubError?.message).toBeNull();
 
   try {
-    await page.goto('/explore');
+    await page.goto('/sports/explore');
     const section = page.getByRole('region', { name: 'Leagues & Clubs' });
     await expect(section).toBeVisible({ timeout: 15_000 });
 

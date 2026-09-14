@@ -12,7 +12,7 @@ import { test, expect } from '@playwright/test';
 test.use({ storageState: { cookies: [], origins: [] } });
 
 async function openGolf(page: import('@playwright/test').Page) {
-  await page.goto('/explore');
+  await page.goto('/sports/explore');
   await page.getByRole('tab', { name: /golf/i }).first().click();
   await expect(page.getByRole('heading', { name: 'Golf Courses' })).toBeVisible();
 }
@@ -74,7 +74,7 @@ test('explore courses: Near me sorts by distance with km chips', async ({ browse
 });
 
 test('header search: a course result deep-links into Explore with the card open', async ({ page }) => {
-  await page.goto('/explore');
+  await page.goto('/sports/explore');
   // The header's Search button opens the ⌘K dialog; the course kind rides the same box.
   await page.getByRole('button', { name: 'Search', exact: true }).click();
   const box = page.getByRole('dialog', { name: 'Search' }).getByRole('combobox').first();

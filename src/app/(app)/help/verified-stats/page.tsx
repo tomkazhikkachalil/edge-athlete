@@ -24,7 +24,7 @@ export default function VerifiedStatsHelpPage() {
         <ProvenanceExplainer />
         <p className="text-sm text-tertiary">
           Recruiting? Athletes decide whether they are open to it on their profile;{' '}
-          <Link href="/explore" className="text-brand-fg hover:text-brand-fg-strong font-medium">Explore</Link> lists public
+          <Link href="/sports/explore" className="text-brand-fg hover:text-brand-fg-strong font-medium">Explore</Link> lists public
           profiles, and scout accounts can find recruitable athletes from their scouting area.
         </p>
       </main>

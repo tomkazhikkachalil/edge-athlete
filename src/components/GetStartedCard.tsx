@@ -90,7 +90,7 @@ export default function GetStartedCard({ onLogRound }: { onLogRound: () => void 
       done: state.followingCount >= FOLLOW_TARGET,
       label: `Follow ${FOLLOW_TARGET} athletes${state.followingCount > 0 && state.followingCount < FOLLOW_TARGET ? ` (${state.followingCount}/${FOLLOW_TARGET})` : ''}`,
       hint: 'Your Following feed comes alive.',
-      action: <Link href="/explore" className={ACTION_CLASS}>Find athletes →</Link>,
+      action: <Link href="/sports/explore" className={ACTION_CLASS}>Find athletes →</Link>,
     },
     {
       key: 'competitive',

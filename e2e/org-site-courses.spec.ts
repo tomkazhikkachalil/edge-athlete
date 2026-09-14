@@ -98,7 +98,7 @@ test('org site courses: link → enable → home + /courses + JSON-LD → Home o
       expect(coursesHtml).toContain('Hole');
       expect(coursesHtml).toContain('White');
       expect(coursesHtml).toContain('35.2 / 118');
-      expect(coursesHtml).toContain(`/explore?course=${courseId}`);
+      expect(coursesHtml).toContain(`/sports/explore?course=${courseId}`);
       expect(coursesHtml).toContain('"GolfCourse"');
       expect(coursesHtml).toContain('rel="canonical"');
       expect(coursesHtml).toContain(`${sitePath}/courses"`);

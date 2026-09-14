@@ -151,7 +151,7 @@ export default async function OrgSiteCoursePage({ params }: PageParams) {
               Directions →<span className="sr-only"> (opens in a new tab)</span>
             </a>
           )}
-          <a href={`${appBaseUrl()}/explore?course=${encodeURIComponent(course.id)}`} className="text-brand-fg font-medium">
+          <a href={`${appBaseUrl()}/sports/explore?course=${encodeURIComponent(course.id)}`} className="text-brand-fg font-medium">
             View on map →
           </a>
         </p>

@@ -731,7 +731,7 @@ export default function Home() {
             </div>
             <div className="mt-6 sm:mt-8">
               <button 
-                onClick={() => router.push('/explore')}
+                onClick={() => router.push('/sports/explore')}
                 className="w-full bg-transparent border-2 border-white text-white py-3 px-4 rounded-md font-semibold hover:bg-surface hover:text-brand-fg transition duration-300 flex items-center justify-center text-sm sm:text-base"
               >
                 <i className="fas fa-binoculars mr-2"></i> Explore as Guest

@@ -27,7 +27,7 @@ export default function PublicNotFound() {
             Go home
           </Link>
           <Link
-            href="/explore"
+            href="/sports/explore"
             className="min-h-[44px] inline-flex items-center px-5 rounded-lg border border-gray-300 text-gray-700 font-medium hover:bg-gray-100 transition-colors"
           >
             Explore athletes

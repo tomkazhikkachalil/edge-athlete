@@ -1,5 +1,42 @@
 # Development Log
 
+## September 16, 2026 — Events program, PR 10: the Sports section · the /explore redirect · the header's Sports link (zero DDL)
+
+Phase-1-minimal navigation (Tom): the header and the drawer stay; Sports
+replaces Explore; the four-item bottom tab bar is its own later round.
+
+- **The section** — `src/app/(app)/sports/`: `explore` (today's Explore
+  page moved verbatim, `?course=` kept), `events` (your events by filter —
+  Upcoming · Live · Past · All mine — over `GET /api/sport-events?scope=`,
+  each card the event's place, the New event door; signed out: Log in or
+  Explore), `leaderboards` (phase 1: your live and finished events, each
+  card the event's leaderboard tab; an honest empty state), `events/new`
+  (PR 9's wizard). `/sports` → `/sports/explore`. `SportsSubnav` is the
+  section switch under the header: plain links in the calendar's
+  segmented style, full width on a phone, `aria-current` on the place
+  you are in (`src/lib/sports-nav.ts`, pure: `activeSportsSection` —
+  an event's own page counts as Events; the contest place does not).
+- **`/explore` → `/sports/explore`**, query-preserving (a server
+  redirect), so the header search's course deep links and old shares keep
+  working. Every inbound link moved with it: the login page's Explore as
+  Guest, the feed's three Find athletes, the contest gate, the standings
+  twins, the join door, the help page, the public 404, GetStartedCard,
+  the scout shortlist, the header search's course result, the org-site
+  course links (both trees), and the e2e specs that opened Explore.
+- **The header**: `/explore Explore` → `/sports Sports` (fa-medal);
+  `isActivePath('/sports')` lights for the whole section AND `/events/*`
+  (`isSportsPath`). The drawer renders from the same list, so it carries
+  Sports too (the superset rule); Live stays spliced into the middle.
+
+Phone pass: `e2e/sports-nav.spec.ts` is `@mobile` (Chromium and WebKit
+at 390 × 844): the redirect keeps its query, the subnav lights the place,
+the drawer carries Sports and Create Event, a created event shows under
+Upcoming and then Live, the leaderboards card lands on the event's
+leaderboard tab; plus the header link lighting on desktop and the
+signed-out Explore. Tom's device pass is owed. Next: PR 11 —
+notifications: the `sport_event_*` copy, the Accept / Decline action row,
+the widened action route.
+
 ## September 16, 2026 — Events program, PR 9: the creation wizard · CourseSearchField · the Create sheet (zero DDL)
 
 - **The wizard** (`src/components/sport-events/EventCreateWizard.tsx` at

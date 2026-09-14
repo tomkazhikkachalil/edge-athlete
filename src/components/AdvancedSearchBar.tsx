@@ -156,7 +156,7 @@ export default function AdvancedSearchBar() {
       router.push(user?.id === item.athlete.id ? '/athlete' : `/athlete/${item.athlete.id}`);
     } else if (item.kind === 'course') {
       // No course page yet: Explore opens the golf chip with this card expanded.
-      router.push(`/explore?course=${item.course.id}`);
+      router.push(`/sports/explore?course=${item.course.id}`);
     } else if (item.kind === 'post') {
       router.push(`/feed?post=${item.post.id}`);
     } else if (item.kind === 'league') {
