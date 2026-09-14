@@ -14,6 +14,7 @@ import type { SportEventAccess } from './access';
 import { PARTICIPANT_COLUMNS } from './access-server';
 import { snapshotAtAccept } from './handicap-server';
 import { planCapacityChange, planJoin, type JoinAction, type ParticipantSnapshot } from './join';
+import { syncRoundRoster } from './lifecycle-server';
 import { notifyDecision, notifyRequest } from './notify';
 import type { SportEventParticipantRow, SportEventRow } from './types';
 
@@ -51,7 +52,7 @@ export interface JoinRequest {
 }
 
 /** Promote the given waitlisted rows: accepted, seat, index snapshot, bell. */
-export async function promoteRows(admin: Admin, event: Pick<SportEventRow, 'id' | 'name'>, rows: SportEventParticipantRow[], ids: string[], actorProfileId: string): Promise<string[]> {
+export async function promoteRows(admin: Admin, event: Pick<SportEventRow, 'id' | 'name' | 'status'>, rows: SportEventParticipantRow[], ids: string[], actorProfileId: string): Promise<string[]> {
   const promoted: string[] = [];
   const now = new Date().toISOString();
   for (const id of ids) {
@@ -64,6 +65,7 @@ export async function promoteRows(admin: Admin, event: Pick<SportEventRow, 'id' 
     }
     promoted.push(id);
     await snapshotAtAccept(admin, row);
+    if (event.status === 'live') await syncRoundRoster(admin, event.id, row.profile_id, 'add');
     await notifyDecision({ admin, eventId: event.id, eventName: event.name, actorProfileId }, row.profile_id, 'promoted');
   }
   return promoted;
@@ -132,7 +134,13 @@ export async function applyJoin(admin: Admin, req: JoinRequest): Promise<JoinOut
     written = data as SportEventParticipantRow;
   }
 
-  if (written && plan.next.accepted) await snapshotAtAccept(admin, written);
+  if (written && plan.next.accepted) {
+    await snapshotAtAccept(admin, written);
+    if (event.status === 'live') await syncRoundRoster(admin, event.id, written.profile_id, 'add');
+  }
+  if (row && event.status === 'live' && (action === 'withdraw' || action === 'remove') && row.status === 'accepted' && row.playing) {
+    await syncRoundRoster(admin, event.id, row.profile_id, 'drop');
+  }
 
   const promoted = plan.promote.length > 0 ? await promoteRows(admin, event, rows, plan.promote, actorProfileId) : [];
 

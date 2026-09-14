@@ -83,6 +83,9 @@ export async function runRoundSweep(admin: Admin): Promise<RoundSweepResult> {
     .select('id, status, date')
     .eq('type', 'golf_round')
     .eq('status', 'pending')
+    // An event's round (203) is minted at go-live and ended by the event's
+    // own lifecycle — the abandonment rule never retires it.
+    .is('sport_event_round_id', null)
     .limit(ROUND_SWEEP_LIMIT);
 
   if (staleError) {
