@@ -1,5 +1,31 @@
 # Development Log
 
+## September 14, 2026 — Data foundation CLOSED on prod + the evening maintenance sweep (zero DDL, zero code)
+
+- **Migrations 190–193 RAN on production (Tom: "all rows OK")** — every
+  check grid read OK before and after, as a no-op baseline must;
+  `npm run check:schema` against the live project afterwards: 108 live
+  tables, 108 owned, allowlist empty. The data foundation program
+  (#709–#720, migrations 190–194) is complete and prod-proven; migration
+  head stays 194.
+- **Next round (Tom: "save those for the next round tomorrow"):** the two
+  provenance passes the baselines left open on purpose — POLICY
+  provenance for the chain-created `profiles` / `golf_rounds` (their live
+  policy names came from archived scripts, not 001 / 002) and FUNCTION
+  provenance for the DB-only bodies (`CREATE OR REPLACE` is not a guard;
+  compare `md5(prosrc)`). Both need a dump grid of their own.
+- **Maintenance sweep on main at the #720 merge:** `npm run verify`
+  green (typecheck, lint at zero warnings, 316 test files / 3176 tests,
+  build, the iOS 15 browser floor over every client chunk); hardening
+  guardrails pass (advisories unchanged: the 99 `.select` sites and the
+  one annotated `.or()`); `npm audit --omit=dev` — 0 vulnerabilities.
+  `npm outdated` lists patch-level bumps (Playwright 1.63, Sentry 10.74,
+  supabase-js 2.116, @supabase/ssr 0.12.7, the React 19.3 types) —
+  deliberately NOT taken in a "break nothing" sweep; each is its own PR
+  with the gate and a prod probe (the SSR upgrade precedent, #169).
+- `docs/SESSION_PROMPT.md` re-aligned: the baselines ran, the next round
+  is named.
+
 ## September 14, 2026 — Data foundation P2–P6: the baselines 190–193, written from the live dump (four migrations, all NO-OPS on prod)
 
 - **The dump arrived** — Tom ran the one-statement `live-dump.sql` (552
