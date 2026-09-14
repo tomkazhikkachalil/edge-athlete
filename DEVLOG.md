@@ -1,5 +1,51 @@
 # Development Log
 
+## September 15, 2026 — Provenance round, PR B: check:schema reads policies and functions (zero DDL)
+
+- **The parser** (`scripts/schema-inventory-catalog.mjs`, pure): an
+  OFFSET-PRESERVING mask — comments and the interiors of literals and
+  dollar quotes become spaces, newlines and both tags stay, so every regex
+  runs on the mask and every payload (a function body, a `search_path`
+  value, a policy's USING) is sliced from the RAW text at the same offsets.
+  That is what makes the body checksum exact: a `--` inside a body is body
+  text and part of `prosrc`, a `$$` inside a comment is nothing. It
+  recurses into `DO $$` blocks (56 guarded CREATE POLICYs live there) and
+  into `EXECUTE $tag$` strings (014 creates two trigger functions that
+  way), and records `EXECUTE format(…)` / `EXECUTE '…'` as DYNAMIC SITES
+  resolved through the enclosing block's `proname = '…'` / `proname IN
+  (…)` literals — that resolves every dynamic DROP / ALTER FUNCTION in the
+  chain (022, 024, 051, 082, 083, 084, 108, 124, 127, 131) and leaves 052's
+  array-driven policy loops honestly unresolved (`names: []`) for 196 to
+  make literal. Over the real chain: 165 policy claims (4 dropped), 101
+  function definitions (every one with a body), 33 dynamic sites, 3
+  `storage.objects` drops (040 — out of scope), the two real overloads
+  (`get_conversation_list`, `search_people`) as separate keys with the old
+  arities correctly DROPPED by the loops — in ~90 ms.
+- **The rules** (`diffCatalog`): a live policy is owned when the chain's
+  LAST statement for (table, name) is a CREATE with the same cmd / roles /
+  permissiveness; a chain claim not live is a STALE CLAIM (001's profile
+  family — an archived script replaced them); a live function is owned
+  when the chain's last definition for `name(types)` has the same
+  `md5(prosrc)` (a whitespace-only difference is informational — a paste
+  artefact, never drift, Tom's checksum-strict call with that one carve-
+  out) and the same SECURITY DEFINER / `search_path`; chain-only functions
+  are informational (a dynamic drop explains each). Allowlist entries gain a
+  `kind` (column | policy | function). Two bugs the smoke run caught before
+  the tests did: the prefix stripper ate the `DO` keyword itself (no DO
+  body was ever entered), and a statement preceded by a comment kept the
+  blanked comment as leading spaces in the mask while the trim was measured
+  on the raw text — every function after a comment was missed.
+- **The runner** POSTs `provenance_inventory` with the service key
+  (`--catalog <json>` for a saved response; `--save-catalog` writes the
+  evidence under `database/provenance/dumps/`; `--facet`), prints the
+  catalog report under today's table report, and treats PGRST202 (195 not
+  run yet) as "facets skipped" — never an error. Exit 0 only when every
+  present facet is OK. 35 tests (fixtures per rule + the real-chain smoke;
+  a saved catalog, when one exists, must agree with 190's verbatim trigger
+  functions). `verify` is untouched: the check stays LOCAL.
+- The first live run — the drift counts 196 / 197 will record — lands with
+  the saved catalog once Tom has run 195 (PR #722).
+
 ## September 14, 2026 — Data foundation CLOSED on prod + the evening maintenance sweep (zero DDL, zero code)
 
 - **Migrations 190–193 RAN on production (Tom: "all rows OK")** — every

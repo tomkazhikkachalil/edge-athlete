@@ -145,6 +145,43 @@ equipment policies, a 'followers' visibility value, the absent
 `idx_golf_rounds_round_type`) it RECORDS in its header for a later
 migration to decide.
 
+**Policies and functions — the catalog facets (provenance round, Sep 15
+2026).** PostgREST's OpenAPI cannot see RLS policies or function bodies, so
+migration **195** adds `public.provenance_inventory()` — a zero-arg,
+`STABLE`, `SECURITY INVOKER`, SERVICE-ROLE-ONLY RPC that reads `pg_catalog`
+and returns one jsonb: `rls` per public table, every public `pg_policies`
+row (roles, cmd, qual, with_check), every public non-extension function
+(identity args, returns, language, secdef, config, `md5(prosrc)`, a
+whitespace-normalised md5, `pg_get_functiondef`, acl, owner) and every
+non-internal trigger (informational). `npm run check:schema` POSTs it with
+the service key (no owner paste, ever) and `scripts/schema-inventory-
+catalog.mjs` reads the chain with an OFFSET-PRESERVING mask (comments and
+literal interiors blanked, dollar tags kept, so a function body is sliced
+from the raw text exactly as Postgres stores it — a `--` inside a body is
+body), recursing into `DO $$` blocks (the guarded CREATE POLICYs) and
+`EXECUTE $tag$` strings (014); `EXECUTE format(…)` is a DYNAMIC SITE,
+resolved through the enclosing block's `proname = '…'` literals (every
+dynamic DROP / ALTER FUNCTION in the chain) and left honestly unresolved
+for 052's array-driven policy loops. The rules: a live POLICY must be named
+by a numbered file whose LAST statement for it is a CREATE with the same
+cmd, roles and permissiveness, and every policy the chain still claims must
+exist live (a stale claim = an archived script dropped or renamed it —
+recorded by the baseline as `DROP POLICY IF EXISTS`); a live FUNCTION must
+be defined by a numbered file whose last definition (matched by name +
+normalised argument types — two real overloads exist) has the SAME BODY
+(md5 of the exact dollar-quoted text vs `md5(prosrc)`), the same SECURITY
+DEFINER flag and the same `search_path`; a body that differs only in
+whitespace is informational (a paste artefact, not drift). Policy BODIES
+are recorded verbatim by the baseline and never compared statically
+(`pg_get_expr` reformats). Extension-owned functions (`show_limit`,
+`show_trgm`, `unaccent` live in public) are excluded via `pg_depend`;
+`storage.objects` policies are out of scope (a Supabase-managed schema).
+Flags: `--catalog <json>` (a saved RPC response), `--save-catalog`
+(writes `database/provenance/dumps/<date>-catalog.json`, the evidence a
+baseline cites), `--facet tables|policies|functions`. Before 195 has run
+the RPC answers PGRST202 and the two facets are skipped with a notice.
+`verify-195-rpc.sql` re-asserts the RPC's presence and its grants.
+
 **Not owned yet (separate passes, each with its own idiom):** the POLICIES
 of the chain-created tables `profiles` and `golf_rounds` (their live names —
 `profiles_select_policy`, `golf_rounds_select_policy` … — came from archived

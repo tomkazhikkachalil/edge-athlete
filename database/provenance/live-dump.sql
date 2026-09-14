@@ -1,6 +1,13 @@
 -- ============================================================================
 -- DATA FOUNDATION, P1 — schema provenance: the live-truth dump
 -- ============================================================================
+-- SUPERSEDED for policies and functions (Sep 15 2026): migration 195's
+-- service-role-only RPC public.provenance_inventory() returns every public
+-- policy, function (with body checksums) and trigger as one jsonb, and
+-- `npm run check:schema` pulls it — grids 5 and 7 below stay as the
+-- 15-table view the baselines 190–193 were written from. Tables, columns,
+-- constraints and indexes (grids 1–4, 8) still come from this dump.
+--
 -- ONE statement, ONE result. Run the whole file in the Supabase SQL editor,
 -- then copy the result grid (the results panel's "Copy as Markdown") and
 -- paste it back to Claude. READ-ONLY — nothing here modifies anything.

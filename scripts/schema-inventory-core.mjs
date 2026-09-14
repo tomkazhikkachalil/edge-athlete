@@ -57,7 +57,7 @@ export function stripComments(sql) {
   return out;
 }
 
-function closingQuote(sql, start) {
+export function closingQuote(sql, start) {
   let i = start + 1;
   while (i < sql.length) {
     if (sql[i] === "'") {
