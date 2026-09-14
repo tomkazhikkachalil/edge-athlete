@@ -1,5 +1,67 @@
 # Development Log
 
+## September 16, 2026 — Events program, PR 3: the pure sport-events library — access, lifecycle, join, handicap, leaderboard, scoring authz, rounds (zero DDL)
+
+Seven pure modules under `src/lib/sport-events/`, each the rule half of a
+route that PR 4–7 will write; 38 node tests pin them. Nothing here touches
+I/O, the database, or a component — the `*-server.ts` halves come with the
+routes.
+
+- **`access.ts`** — `resolveSportEventAccess` is THE ONE GATE (the contest
+  rule: a refusal is the same 404 as not-found). Public → everyone, anon
+  included. Link → the token, any admitting participant row, or the host.
+  Private → any participant row that is not declined / removed (followers
+  included, Tom's call) or an organizer. The host always manages and
+  deletes; a co-organizer manages, never deletes.
+- **`lifecycle.ts`** — the transition table (draft → open | cancelled;
+  open → live | cancelled; live → completed; terminal after — live is never
+  cancelled, it is completed) and `validateTransition` with named refusals
+  (`name_required`, `round_required`, `no_players`, `round_not_minted`,
+  `cards_not_final`, `invalid_transition`); the organizer's `override`
+  completes over cards that are not final. `transitionStamp` names the
+  timestamp column each transition writes.
+- **`join.ts`** — `planJoin` for the ten actions. Seats = accepted AND
+  playing (followers and non-playing organizers never count). Accept /
+  approve on a full event → `waitlisted` with the next position; decline,
+  reject, remove, withdraw and a capacity raise promote the lowest position
+  first (`planWaitlistPromotion`). Invite is organizer-only in draft / open;
+  request only while open under `join_mode = 'request'`; an invited player
+  who requests simply accepts; a removed player cannot request back in. A
+  FOLLOWER MAY BE INVITED to play (the row flips to participant / invited —
+  the first draft refused it as "already invited"; the test caught it).
+- **`handicap.ts`** — `snapshotIndex` (the computed WHS index to one
+  decimal, or `none`), `applyOverride`, `mergeSnapshot` (a fresh recompute
+  never replaces an organizer override), `playedPar`, `courseHandicapFor`
+  (Rule 6.1a over the round's rating / slope / played par; a nine halves the
+  index; any missing input → null, never a guess).
+- **`leaderboard.ts`** — THE ONE COMPUTATION. Gross and to-par over SCORED
+  holes; `thru` = the count; net allocates per scored hole with
+  `strokesForHole` over `rankStrokeIndexes` of the played subset (a back
+  nine allocates as 1..9); `netReason` `no_index | no_rating |
+  no_stroke_index`; ranks from `assignSharedRanks`, `formatRank` prints
+  "T2"; unscored players last with rank null. `formatThru` (F | — | n) and
+  `formatToPar` (E | +3 | −2) live beside it.
+- **`scoring-authz.ts`** — `scoringRight`: in progress → self and the
+  round's creator on the session client, organizers and a same-group
+  partner on the admin client (the gate IS the authorization); submitted →
+  the owner (the write reopens), organizers, the creator — a partner no
+  longer; final → organizers only. `detectConflict` (a newer server
+  `updated_at` than the one the client saw → 409), `holeNumberInRange`
+  (a back nine is 10..18).
+- **`rounds.ts`** — `buildRoundHoleData` keeps the STROKE INDEX (the
+  shared-round writer stripped it — that is why the live board never had
+  net), numbers a back nine 10..18, picks the tee yardage case-insensitively
+  (the first draft matched exact or lower-cased keys only — caught by the
+  test), returns null on an incomplete catalog; `ratingForTee` (same
+  case-insensitive key rule, implausible numbers refused); `buildMintPlan`
+  — the host is the round's `creator`, players in (group sequence,
+  position) then roster order, a non-playing co-organizer is a round
+  `organizer`, a non-playing participant and every follower get no row.
+
+Verify green (typecheck · lint 0 · tests · build · syntax floor); guardrails
+green. Next: PR 4, the create / read / update / delete · participants ·
+follow · link-token routes over these rules.
+
 ## September 16, 2026 — Events program, PR 2: migrations 203–206 — the round / post links, the scorecard status, the bells, the reserved root
 
 - **203 `sport_event_round_links`** — `group_posts.sport_event_round_id`

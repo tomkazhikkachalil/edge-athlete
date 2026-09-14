@@ -1,0 +1,160 @@
+/**
+ * Joining a sport event — invite, request, accept, decline, approve, reject,
+ * remove, withdraw, follow, unfollow — and the capacity / waitlist rules
+ * (Events program, phase 1). Pure: `join-server.ts` reads the rows, calls
+ * `planJoin`, writes the plan, sends the bells.
+ *
+ * Rules (Tom's spec, decision 3 + section 5):
+ *   * Invite is ALWAYS available to organizers while the event is draft or
+ *     open; `join_mode = 'request'` additionally opens the request door,
+ *     while the event is open only.
+ *   * Accepting on a full event lands the player on the waitlist with a
+ *     position; any vacancy (decline, withdraw, remove, a capacity raise, an
+ *     organizer stepping out of play) promotes the lowest position first.
+ *   * Withdraw is the participant's own exit (open or live); removed is the
+ *     organizer's. Both free a seat.
+ *   * Followers never take a seat and never count.
+ *   * A late accept while live is allowed (the server adds them to the
+ *     round); a request while live is not.
+ */
+import type { SportEventJoinMode, SportEventParticipantStatus, SportEventRole, SportEventStatus } from './types';
+
+export type JoinAction = 'invite' | 'request' | 'accept' | 'decline' | 'approve' | 'reject' | 'remove' | 'withdraw' | 'follow' | 'unfollow';
+
+export interface ParticipantSnapshot {
+  id: string;
+  profileId: string;
+  role: SportEventRole;
+  status: SportEventParticipantStatus;
+  playing: boolean;
+  waitlistPosition: number | null;
+  createdAt: string;
+}
+
+export interface JoinContext {
+  event: { status: SportEventStatus; joinMode: SportEventJoinMode; capacity: number | null };
+  /** The acting viewer's role on the event ('viewer' = not a participant). */
+  actorRole: SportEventRole | 'viewer';
+  /** The row the action targets (the actor's own for request / accept / decline / withdraw / follow; the target's for organizer actions). Null when none exists. */
+  row: ParticipantSnapshot | null;
+  /** Every row of the event (for capacity + promotion). */
+  rows: ParticipantSnapshot[];
+}
+
+export type JoinPlan =
+  | { ok: true; next: Partial<Pick<ParticipantSnapshot, 'role' | 'status' | 'playing' | 'waitlistPosition'>> & { accepted?: boolean; responded?: boolean }; create: boolean; promote: string[]; delete?: boolean }
+  | { ok: false; status: 400 | 403 | 409; error: string };
+
+const MANAGES = (r: SportEventRole | 'viewer') => r === 'organizer' || r === 'co_organizer';
+
+/** Seats taken: accepted + playing (followers never count; organizers only when playing). */
+export function seatsTaken(rows: ParticipantSnapshot[]): number {
+  return rows.filter(r => r.status === 'accepted' && r.playing).length;
+}
+
+export function isFull(rows: ParticipantSnapshot[], capacity: number | null): boolean {
+  return capacity !== null && seatsTaken(rows) >= capacity;
+}
+
+export function nextWaitlistPosition(rows: ParticipantSnapshot[]): number {
+  return rows.reduce((max, r) => (r.waitlistPosition !== null && r.waitlistPosition > max ? r.waitlistPosition : max), 0) + 1;
+}
+
+/** Who gets a seat when `freeSeats` open up: lowest waitlist position first. */
+export function planWaitlistPromotion(rows: ParticipantSnapshot[], capacity: number | null, freeSeatsOverride?: number): string[] {
+  if (capacity === null) return rows.filter(r => r.status === 'waitlisted').sort(byPosition).map(r => r.id);
+  const free = freeSeatsOverride ?? Math.max(0, capacity - seatsTaken(rows));
+  if (free <= 0) return [];
+  return rows.filter(r => r.status === 'waitlisted').sort(byPosition).slice(0, free).map(r => r.id);
+}
+
+const byPosition = (a: ParticipantSnapshot, b: ParticipantSnapshot) => (a.waitlistPosition ?? Infinity) - (b.waitlistPosition ?? Infinity) || a.createdAt.localeCompare(b.createdAt);
+
+function seatOrWaitlist(ctx: JoinContext, rowsAfter: ParticipantSnapshot[]): Pick<ParticipantSnapshot, 'status' | 'waitlistPosition'> {
+  return isFull(rowsAfter, ctx.event.capacity)
+    ? { status: 'waitlisted', waitlistPosition: nextWaitlistPosition(ctx.rows) }
+    : { status: 'accepted', waitlistPosition: null };
+}
+
+export function planJoin(action: JoinAction, ctx: JoinContext): JoinPlan {
+  const { event, actorRole, row, rows } = ctx;
+  const terminal = event.status === 'completed' || event.status === 'cancelled';
+  if (terminal) return { ok: false, status: 409, error: 'This event is over.' };
+  const others = row ? rows.filter(r => r.id !== row.id) : rows;
+
+  switch (action) {
+    case 'invite': {
+      if (!MANAGES(actorRole)) return { ok: false, status: 403, error: 'Only an organizer can invite.' };
+      if (event.status === 'live') return { ok: false, status: 409, error: 'The event is live — add players from the round.' };
+      // A follower may be invited to play; a player already in any live state may not be invited twice.
+      if (row && row.role !== 'follower' && (row.status === 'accepted' || row.status === 'invited' || row.status === 'waitlisted' || row.status === 'requested')) return { ok: false, status: 409, error: 'Already invited.' };
+      return { ok: true, create: !row, next: { role: row?.role === 'follower' ? 'participant' : row?.role ?? 'participant', status: 'invited', playing: true, waitlistPosition: null }, promote: [] };
+    }
+    case 'request': {
+      if (event.status !== 'open') return { ok: false, status: 409, error: 'The event is not open for requests.' };
+      if (event.joinMode !== 'request') return { ok: false, status: 403, error: 'This event is invite-only.' };
+      if (row && (row.status === 'accepted' || row.status === 'waitlisted')) return { ok: false, status: 409, error: 'You are already in.' };
+      if (row && row.status === 'requested') return { ok: false, status: 409, error: 'Already requested.' };
+      if (row && row.status === 'invited') return planJoin('accept', ctx);
+      if (row && row.status === 'removed') return { ok: false, status: 403, error: 'You were removed from this event.' };
+      return { ok: true, create: !row, next: { role: 'participant', status: 'requested', playing: true, waitlistPosition: null, responded: true }, promote: [] };
+    }
+    case 'accept': {
+      if (!row || row.status !== 'invited') return { ok: false, status: 409, error: 'No invitation to accept.' };
+      if (event.status !== 'open' && event.status !== 'live' && event.status !== 'draft') return { ok: false, status: 409, error: 'The event is not open.' };
+      const seat = seatOrWaitlist(ctx, others);
+      return { ok: true, create: false, next: { ...seat, accepted: seat.status === 'accepted', responded: true }, promote: [] };
+    }
+    case 'approve': {
+      if (!MANAGES(actorRole)) return { ok: false, status: 403, error: 'Only an organizer can approve.' };
+      if (!row || row.status !== 'requested') return { ok: false, status: 409, error: 'No request to approve.' };
+      const seat = seatOrWaitlist(ctx, others);
+      return { ok: true, create: false, next: { ...seat, accepted: seat.status === 'accepted' }, promote: [] };
+    }
+    case 'decline': {
+      if (!row || (row.status !== 'invited' && row.status !== 'requested')) return { ok: false, status: 409, error: 'Nothing to decline.' };
+      if (row.status === 'requested') return { ok: true, create: false, next: { status: 'withdrawn', waitlistPosition: null, responded: true }, promote: [] };
+      return { ok: true, create: false, next: { status: 'declined', waitlistPosition: null, responded: true }, promote: [] };
+    }
+    case 'reject': {
+      if (!MANAGES(actorRole)) return { ok: false, status: 403, error: 'Only an organizer can decide a request.' };
+      if (!row || row.status !== 'requested') return { ok: false, status: 409, error: 'No request to decide.' };
+      return { ok: true, create: false, next: { status: 'declined', waitlistPosition: null }, promote: [] };
+    }
+    case 'remove': {
+      if (!MANAGES(actorRole)) return { ok: false, status: 403, error: 'Only an organizer can remove a player.' };
+      if (!row) return { ok: false, status: 409, error: 'Not a participant.' };
+      if (row.role === 'organizer') return { ok: false, status: 403, error: 'The organizer cannot be removed.' };
+      const freed = row.status === 'accepted' && row.playing ? 1 : 0;
+      return { ok: true, create: false, next: { status: 'removed', waitlistPosition: null }, promote: freed ? planWaitlistPromotion(others, event.capacity, freeSeats(others, event.capacity)) : [] };
+    }
+    case 'withdraw': {
+      if (!row) return { ok: false, status: 409, error: 'Not a participant.' };
+      if (row.status !== 'accepted' && row.status !== 'waitlisted' && row.status !== 'requested') return { ok: false, status: 409, error: 'Nothing to withdraw from.' };
+      if (row.role === 'organizer') return { ok: false, status: 403, error: 'The organizer cannot withdraw — cancel or transfer the event.' };
+      const freed = row.status === 'accepted' && row.playing ? 1 : 0;
+      return { ok: true, create: false, next: { status: 'withdrawn', waitlistPosition: null, responded: true }, promote: freed ? planWaitlistPromotion(others, event.capacity, freeSeats(others, event.capacity)) : [] };
+    }
+    case 'follow': {
+      if (row && (row.status === 'accepted' || row.status === 'waitlisted' || row.status === 'invited' || row.status === 'requested')) return { ok: false, status: 409, error: 'You are already part of this event.' };
+      if (row && row.role === 'follower' && row.status === 'accepted') return { ok: false, status: 409, error: 'Already following.' };
+      return { ok: true, create: !row, next: { role: 'follower', status: 'accepted', playing: false, waitlistPosition: null }, promote: [] };
+    }
+    case 'unfollow': {
+      if (!row || row.role !== 'follower') return { ok: false, status: 409, error: 'Not following.' };
+      return { ok: true, create: false, delete: true, next: {}, promote: [] };
+    }
+    default:
+      return { ok: false, status: 400, error: 'Unknown action.' };
+  }
+}
+
+/** Seats free among `rows` (the actor's own row already excluded by the caller). */
+export function freeSeats(rows: ParticipantSnapshot[], capacity: number | null): number {
+  return capacity === null ? Number.POSITIVE_INFINITY : Math.max(0, capacity - seatsTaken(rows));
+}
+
+/** A capacity raise (or an organizer stepping out of play) promotes as many as the new room allows. */
+export function planCapacityChange(rows: ParticipantSnapshot[], newCapacity: number | null): string[] {
+  return planWaitlistPromotion(rows, newCapacity);
+}
