@@ -202,23 +202,31 @@ export async function requireGuardianAccount(
  *   - case and surrounding whitespace are ignored on both sides
  *   - matching is exact per entry, never substring
  *
- * Admin = email on ADMIN_EMAILS (comma-separated, server-only). The original
+ * Admin = email on ADMIN_EMAILS (comma-separated, server-only) — OR the
+ * project owner (OWNER_EMAILS below, Tom's call Sep 13 2026: "for now, for
+ * easy testing" — his Vercel project carries no ADMIN_EMAILS). The owner
+ * is admitted whether or not the env var is set; everyone else still needs
+ * the list, and an unset list still denies everyone else. The original
  * implementation checked a `profiles.role` column that does not exist, so it
  * 403'd for everyone. An env allowlist is the right size for the MVP; a real
- * roles system can replace it later.
+ * roles system can replace both.
  */
+export const OWNER_EMAILS: readonly string[] = ['tom.kazhikkachalil@gmail.com'];
+
 export function isAdminEmail(
   email: string | null | undefined,
   allowlist: string | undefined
 ): boolean {
+  if (!email) return false;
+  const needle = email.trim().toLowerCase();
+  if (OWNER_EMAILS.includes(needle)) return true;
   const admins = (allowlist || '')
     .split(',')
     .map(e => e.trim().toLowerCase())
     .filter(Boolean);
 
   if (admins.length === 0) return false;
-  if (!email) return false;
-  return admins.includes(email.trim().toLowerCase());
+  return admins.includes(needle);
 }
 
 export async function requireAdmin(request: NextRequest) {
