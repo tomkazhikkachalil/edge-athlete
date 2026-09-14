@@ -205,6 +205,20 @@ catalog found ONE unowned trigger (`group_posts.trigger_group_posts_updated_at`,
 from `archive/loose-legacy/add-shared-golf-rounds.sql`) and no grant drift
 — migration 198 records it.
 
+**Cleaned in 199 (hygiene sweep, Sep 16 2026).** What the baselines
+recorded as redundant is gone: the archived policy sets on three golf
+tables (14 policies, every one byte-identical to or implied by the chain's
+set — except the creator branch of the participant-scores UPDATE policy,
+FOLDED into the chain-owned `golf_scores_update_policy` first, because the
+SECURITY INVOKER totals trigger needs it), the two duplicate count
+triggers, the duplicate group_posts `updated_at` trigger 198 had just
+recorded, both `mark_all_notifications_read` overloads (no caller; one
+never worked), and the `athlete_badges` table (never a row; the app
+stopped naming it in the PR before). It also REVOKEd API-role EXECUTE on
+the four SECURITY DEFINER trigger functions still carrying it — never on
+an RLS helper. Every drop's proof is in 199's header; totals after:
+107 tables · 172 policies · 105 functions · 97 triggers.
+
 **Owned since 196 / 197 (provenance round, Sep 15 2026).** The first live
 run of the catalog facets found 56 live policies no numbered file created,
 29 policies the chain still claimed that production had lost, 5 functions

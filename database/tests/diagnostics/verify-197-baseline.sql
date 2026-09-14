@@ -5,7 +5,8 @@
 -- catalog's (database/provenance/dumps/2026-09-14-catalog.json); 197 is a no-op on
 -- production, so the grid reads the same before and after. A later migration
 -- that changes one of these functions changes its md5 here on purpose.
--- Every row should read OK.
+-- Every row should read OK. (The two mark_all_notifications_read rows left
+-- with migration 199, which dropped both overloads.)
 -- ============================================================================
 
 SELECT 'calculate_round_stats(uuid): body' AS check_name, '83b88b678b299fd21f978a5caa350da0' AS expected, md5(prosrc) AS actual,
@@ -81,12 +82,12 @@ UNION ALL
 SELECT 'anon cannot execute the service-only ones', '0', count(*)::text,
        CASE WHEN count(*) = 0 THEN 'OK' ELSE 'CHECK FAILED' END
   FROM pg_proc WHERE pronamespace = 'public'::regnamespace
-   AND (proname, oidvectortypes(proargtypes)) IN (('calculate_round_stats', 'uuid'), ('check_handle_availability', 'text, uuid'), ('cleanup_old_notifications', ''), ('create_notification', 'uuid, text, uuid, text, text, text, uuid, uuid, uuid, jsonb'), ('generate_connection_suggestions', 'uuid, integer'), ('get_pending_requests_count', 'uuid'), ('handle_new_user', ''), ('mark_all_notifications_read', ''), ('mark_all_notifications_read', 'uuid'), ('search_by_handle', 'text, integer'), ('search_profiles', 'text, integer'))
+   AND (proname, oidvectortypes(proargtypes)) IN (('calculate_round_stats', 'uuid'), ('check_handle_availability', 'text, uuid'), ('cleanup_old_notifications', ''), ('create_notification', 'uuid, text, uuid, text, text, text, uuid, uuid, uuid, jsonb'), ('generate_connection_suggestions', 'uuid, integer'), ('get_pending_requests_count', 'uuid'), ('handle_new_user', ''), ('search_by_handle', 'text, integer'), ('search_profiles', 'text, integer'))
    AND has_function_privilege('anon', oid, 'EXECUTE')
 UNION ALL
 
-SELECT 'public non-extension functions', '107', count(*)::text,
-       CASE WHEN count(*) = 107 THEN 'OK' ELSE 'CHECK FAILED' END
+SELECT 'public non-extension functions', '105', count(*)::text, -- 199 dropped the mark_all_notifications_read pair (was 107)
+       CASE WHEN count(*) = 105 THEN 'OK' ELSE 'CHECK FAILED' END
   FROM pg_proc p
  WHERE p.pronamespace = 'public'::regnamespace AND p.prokind IN ('f', 'p')
    AND NOT EXISTS (SELECT 1 FROM pg_depend x WHERE x.classid = 'pg_proc'::regclass AND x.objid = p.oid AND x.deptype = 'e')

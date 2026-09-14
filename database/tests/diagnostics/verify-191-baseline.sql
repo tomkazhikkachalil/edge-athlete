@@ -10,7 +10,8 @@
 -- these tables changes a number here on purpose; anything else, paste the
 -- grid back.
 --
--- Every row should read OK.
+-- Every row should read OK. (The athlete_badges rows left with migration 199,
+-- which dropped the table; verify-199-cleanup.sql asserts it is gone.)
 -- ============================================================================
 
 SELECT 'sports: columns' AS check_name, '6' AS expected, count(*)::text AS actual,
@@ -118,42 +119,6 @@ UNION ALL
 SELECT 'season_highlights: rls', 'true', relrowsecurity::text,
        CASE WHEN relrowsecurity THEN 'OK' ELSE 'CHECK FAILED' END
   FROM pg_class WHERE oid = 'public.season_highlights'::regclass
-
-UNION ALL
-
-SELECT 'athlete_badges: columns' AS check_name, '8' AS expected, count(*)::text AS actual,
-       CASE WHEN count(*) = 8 THEN 'OK' ELSE 'CHECK FAILED' END AS status
-  FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'athlete_badges'
-
-UNION ALL
-
-SELECT 'athlete_badges: constraints', '2', count(*)::text,
-       CASE WHEN count(*) = 2 THEN 'OK' ELSE 'CHECK FAILED' END
-  FROM pg_constraint WHERE conrelid = 'public.athlete_badges'::regclass
-
-UNION ALL
-
-SELECT 'athlete_badges: indexes', '2', count(*)::text,
-       CASE WHEN count(*) = 2 THEN 'OK' ELSE 'CHECK FAILED' END
-  FROM pg_indexes WHERE schemaname = 'public' AND tablename = 'athlete_badges'
-
-UNION ALL
-
-SELECT 'athlete_badges: policies', '4', count(*)::text,
-       CASE WHEN count(*) = 4 THEN 'OK' ELSE 'CHECK FAILED' END
-  FROM pg_policies WHERE schemaname = 'public' AND tablename = 'athlete_badges'
-
-UNION ALL
-
-SELECT 'athlete_badges: triggers', '1', count(*)::text,
-       CASE WHEN count(*) = 1 THEN 'OK' ELSE 'CHECK FAILED' END
-  FROM pg_trigger WHERE tgrelid = 'public.athlete_badges'::regclass AND NOT tgisinternal
-
-UNION ALL
-
-SELECT 'athlete_badges: rls', 'true', relrowsecurity::text,
-       CASE WHEN relrowsecurity THEN 'OK' ELSE 'CHECK FAILED' END
-  FROM pg_class WHERE oid = 'public.athlete_badges'::regclass
 
 UNION ALL
 

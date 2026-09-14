@@ -454,27 +454,37 @@ describe('the real chain', () => {
   it('reads every trigger claim and simulates every grant set', () => {
     const g = (key: string) => [...(chain.grants.get(key) ?? [])].sort();
     expect(chain.triggers.get('post_likes|trigger_update_post_likes_count')).toMatchObject({ state: 'created', file: '190_baseline_social_core.sql' });
-    expect(chain.triggers.get('post_likes|update_post_likes_count_trigger')).toMatchObject({ state: 'created', file: '190_baseline_social_core.sql' });
+    expect(chain.triggers.get('post_likes|update_post_likes_count_trigger')).toMatchObject({ state: 'dropped', file: '199_cleanup.sql' }); // 190 recorded the twin, 199 dropped it
+    expect(chain.triggers.get('post_comments|update_post_comments_count_trigger')).toMatchObject({ state: 'dropped', file: '199_cleanup.sql' });
+    expect(chain.triggers.get('athlete_badges|handle_updated_at_athlete_badges')).toMatchObject({ state: 'dropped', file: '199_cleanup.sql' }); // DROP TABLE takes the triggers
     expect(chain.triggers.get('post_likes|trigger_notify_post_like')).toMatchObject({ state: 'created', file: '190_baseline_social_core.sql' });
     expect(chain.triggers.get('posts|trigger_notify_profile_tagged')).toMatchObject({ state: 'dropped', file: '025_fix_tag_notification_trigger.sql' });
     expect(chain.triggers.get('profiles|profiles_search_vector_trigger')).toMatchObject({ state: 'dropped', file: '108_profiles_clubs_places.sql' });
     expect(chain.triggers.get('profile_access|profile_access_last_guardian')).toMatchObject({ constraint: true, deferrable: true, initially: 'deferred', updateOf: ['role'] });
     expect(chain.triggers.get('posts|posts_search_doc_delete')).toMatchObject({ fn: 'search_document_delete', args: "'post'" });
-    expect(chain.triggers.get('group_posts|trigger_group_posts_updated_at')).toMatchObject({ state: 'created', file: '198_baseline_triggers.sql', fn: 'handle_updated_at' }); // the one unowned trigger, recorded
+    expect(chain.triggers.get('group_posts|trigger_group_posts_updated_at')).toMatchObject({ state: 'dropped', file: '199_cleanup.sql' }); // 198 recorded it, 199 dropped the duplicate
+    for (const k of ['handle_updated_at()', 'update_post_reposts_count()', 'consent_records_forbid_mutation()', 'notify_post_comment()']) expect(g(k), k).toEqual(['service_role']); // 199's revokes
     expect(g('notify_post_like()')).toEqual(['service_role']); // 014 create → 040's FOREACH revoke → 190 OR REPLACE keeps
     expect(g('notify_comment_like()')).toEqual(['service_role']); // existed before the chain: 040 revoked it, 190 OR REPLACEd it
     expect(g('bump_site_hit(uuid,date,text,text)')).toEqual(['service_role']);
     expect(g('decrement_post_save_count()')).toEqual(['anon', 'authenticated', 'public', 'service_role']); // 197's explicit re-grant
-    expect(g('handle_updated_at()')).toEqual(['anon', 'authenticated', 'public', 'service_role']); // never revoked
+    expect(chain.functions.get('mark_all_notifications_read()')).toMatchObject({ state: 'dropped', file: '199_cleanup.sql' });
+    expect(chain.functions.get('mark_all_notifications_read(uuid)')).toMatchObject({ state: 'dropped', file: '199_cleanup.sql' });
   });
   it('reads every policy claim: 196 records the drop of 001\'s profile family and makes 052\'s loop products literal', () => {
     const created = [...chain.policies.values()].filter(p => p.state === 'created');
-    expect(created.length).toBeGreaterThan(190);
+    expect(created.length).toBeGreaterThan(170); // 172 live after 199 (+ the two athlete_clubs claims on a table that is not live)
     expect(chain.policies.get('profiles|Users can view their own profile')).toMatchObject({ state: 'dropped', file: '196_baseline_policies.sql' });
     expect(chain.policies.get('profiles|profiles_select_policy')).toMatchObject({ state: 'created', file: '196_baseline_policies.sql', cmd: 'SELECT' });
     expect(chain.policies.get('clubs|Clubs are viewable by authenticated users')).toMatchObject({ state: 'dropped', file: '117_clubs_real.sql' });
     expect(chain.policies.get('posts|posts_guardian_write')).toMatchObject({ state: 'created', file: '190_baseline_social_core.sql', cmd: 'ALL' });
     expect(chain.policies.get('golf_rounds|golf_rounds_profile_access_select')).toMatchObject({ state: 'created', file: '196_baseline_policies.sql', cmd: 'SELECT' });
+    // 199: the fold and the drops.
+    expect(chain.policies.get('golf_participant_scores|golf_scores_update_policy')).toMatchObject({ state: 'created', file: '199_cleanup.sql', cmd: 'UPDATE' });
+    expect(chain.policies.get('golf_participant_scores|golf_scores_update_policy')!.using).toContain('creator_id');
+    expect(chain.policies.get('golf_participant_scores|participant_scores_update_policy')).toMatchObject({ state: 'dropped', file: '199_cleanup.sql' });
+    expect(chain.policies.get('golf_hole_scores|hole_scores_select_policy')!.state).toBe('created');
+    expect(chain.policies.get('athlete_badges|athlete_badges_select_policy')).toMatchObject({ state: 'dropped', file: '199_cleanup.sql' }); // DROP TABLE takes the policies
   });
   it('a saved catalog, when one exists, parses and agrees with the verbatim 190 functions', () => {
     const dumps = join(process.cwd(), 'database', 'provenance', 'dumps');
@@ -487,7 +497,10 @@ describe('the real chain', () => {
     for (const name of ['update_follows_updated_at()', 'posts_search_vector_update()', 'notify_post_like()', 'notify_comment_like()']) {
       expect(r.bodyDrift.map(f => f.key), name).not.toContain(name);
     }
-    expect(r.grantDrift).toEqual([]); // the simulated grantee sets agree with proacl for every chain-defined function
+    // The simulated grantee sets agree with proacl for every chain-defined function — except, while the
+    // saved catalog predates a REVOKE the chain has made since (199's four trigger functions), those keys.
+    const revokedBy199 = ['handle_updated_at()', 'update_post_reposts_count()', 'consent_records_forbid_mutation()', 'notify_post_comment()'];
+    expect(r.grantDrift.map(g => g.key).filter(k => !revokedBy199.includes(k))).toEqual([]);
     expect(r.triggerDrift).toEqual([]);
     expect(r.staleTriggerClaims).toEqual([]);
     expect(r.secdefPublic.map(s => s.key)).toContain('is_conversation_participant(uuid,uuid)');

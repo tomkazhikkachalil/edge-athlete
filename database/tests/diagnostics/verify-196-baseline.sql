@@ -5,7 +5,9 @@
 -- catalog's (database/provenance/dumps/2026-09-14-catalog.json); 196 is a no-op on
 -- production, so the grid reads the same before and after. A later migration
 -- that touches one of these tables changes a number here on purpose.
--- Every row should read OK.
+-- Every row should read OK. (Re-counted after migration 199: the three golf
+-- tables lost their redundant sets and athlete_badges its four; the 196
+-- 'recorded present' rows for the dropped sets are gone.)
 -- ============================================================================
 
 SELECT 'athlete_achievements: policies' AS check_name, '6' AS expected, count(*)::text AS actual,
@@ -30,8 +32,8 @@ SELECT 'athlete_vitals: recorded present', '2', count(*)::text,
    AND policyname IN ('athlete_vitals_guardian_write', 'athlete_vitals_profile_access_select')
 UNION ALL
 
-SELECT 'golf_hole_scores: policies' AS check_name, '7' AS expected, count(*)::text AS actual,
-       CASE WHEN count(*) = 7 THEN 'OK' ELSE 'CHECK FAILED' END AS status
+SELECT 'golf_hole_scores: policies' AS check_name, '4' AS expected, count(*)::text AS actual, -- 199 dropped the redundant sets (was 7)
+       CASE WHEN count(*) = 4 THEN 'OK' ELSE 'CHECK FAILED' END AS status
   FROM pg_policies WHERE schemaname = 'public' AND tablename = 'golf_hole_scores'
 UNION ALL
 
@@ -52,8 +54,8 @@ SELECT 'golf_holes: recorded present', '4', count(*)::text,
    AND policyname IN ('golf_holes_delete_policy', 'golf_holes_insert_policy', 'golf_holes_select_policy', 'golf_holes_update_policy')
 UNION ALL
 
-SELECT 'golf_participant_scores: policies' AS check_name, '8' AS expected, count(*)::text AS actual,
-       CASE WHEN count(*) = 8 THEN 'OK' ELSE 'CHECK FAILED' END AS status
+SELECT 'golf_participant_scores: policies' AS check_name, '3' AS expected, count(*)::text AS actual, -- 199 dropped the redundant sets (was 8)
+       CASE WHEN count(*) = 3 THEN 'OK' ELSE 'CHECK FAILED' END AS status
   FROM pg_policies WHERE schemaname = 'public' AND tablename = 'golf_participant_scores'
 UNION ALL
 
@@ -74,8 +76,8 @@ SELECT 'golf_rounds: recorded present', '6', count(*)::text,
    AND policyname IN ('golf_rounds_delete_policy', 'golf_rounds_guardian_write', 'golf_rounds_insert_policy', 'golf_rounds_profile_access_select', 'golf_rounds_select_policy', 'golf_rounds_update_policy')
 UNION ALL
 
-SELECT 'golf_scorecard_data: policies' AS check_name, '9' AS expected, count(*)::text AS actual,
-       CASE WHEN count(*) = 9 THEN 'OK' ELSE 'CHECK FAILED' END AS status
+SELECT 'golf_scorecard_data: policies' AS check_name, '3' AS expected, count(*)::text AS actual, -- 199 dropped the redundant sets (was 9)
+       CASE WHEN count(*) = 3 THEN 'OK' ELSE 'CHECK FAILED' END AS status
   FROM pg_policies WHERE schemaname = 'public' AND tablename = 'golf_scorecard_data'
 UNION ALL
 
@@ -201,8 +203,8 @@ SELECT 'stale claims gone', '0', count(*)::text,
    AND (tablename, policyname) IN (('profiles', 'Users can view their own profile'), ('profiles', 'Users can insert their own profile'), ('profiles', 'Users can update their own profile'), ('golf_rounds', 'Users can view their own golf rounds'), ('golf_rounds', 'Users can insert their own golf rounds'), ('golf_rounds', 'Users can update their own golf rounds'), ('golf_rounds', 'Users can delete their own golf rounds'), ('golf_holes', 'Users can view holes for their rounds'), ('golf_holes', 'Users can insert holes for their rounds'), ('golf_holes', 'Users can update holes for their rounds'), ('golf_holes', 'Users can delete holes for their rounds'), ('golf_rounds', 'Users can view golf rounds through posts'), ('golf_holes', 'Users can view holes through posts'), ('notifications', 'Users can view own notifications'), ('notifications', 'Users can update own notifications'), ('notifications', 'System can insert notifications'), ('notifications', 'Users can delete own notifications'), ('notification_preferences', 'Users can view own preferences'), ('notification_preferences', 'Users can update own preferences'), ('notification_preferences', 'Users can insert own preferences'), ('saved_posts', 'Users can view their own saved posts'), ('saved_posts', 'Users can save posts'), ('saved_posts', 'Users can unsave their own posts'), ('post_tags', 'Anyone can view active tags on public posts'), ('post_tags', 'Users can view their own tags'), ('post_tags', 'Users can create tags on their posts'), ('post_tags', 'Users can update their own tags'), ('post_tags', 'Users can delete their own tags'), ('post_tags', 'Tagged users can update their tag status'))
 UNION ALL
 
-SELECT 'public policies total', '190', count(*)::text,
-       CASE WHEN count(*) = 190 THEN 'OK' ELSE 'CHECK FAILED' END
+SELECT 'public policies total', '172', count(*)::text, -- 199: 190 − 14 golf − 4 athlete_badges
+       CASE WHEN count(*) = 172 THEN 'OK' ELSE 'CHECK FAILED' END
   FROM pg_policies WHERE schemaname = 'public'
 
 ORDER BY 1;
