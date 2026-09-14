@@ -217,7 +217,10 @@ never worked), and the `athlete_badges` table (never a row; the app
 stopped naming it in the PR before). It also REVOKEd API-role EXECUTE on
 the four SECURITY DEFINER trigger functions still carrying it — never on
 an RLS helper. Every drop's proof is in 199's header; totals after:
-107 tables · 172 policies · 105 functions · 97 triggers.
+107 tables · 172 policies · 105 functions · 97 triggers. **200** then fixed
+the bug that analysis surfaced: `hole_scores_update_policy` now carries the
+creator branch its INSERT and DELETE siblings always had (a creator
+re-submitting a player's scores hit 42501 on the upsert).
 
 **Owned since 196 / 197 (provenance round, Sep 15 2026).** The first live
 run of the catalog facets found 56 live policies no numbered file created,

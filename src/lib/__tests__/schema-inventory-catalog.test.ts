@@ -484,6 +484,9 @@ describe('the real chain', () => {
     expect(chain.policies.get('golf_participant_scores|golf_scores_update_policy')!.using).toContain('creator_id');
     expect(chain.policies.get('golf_participant_scores|participant_scores_update_policy')).toMatchObject({ state: 'dropped', file: '199_cleanup.sql' });
     expect(chain.policies.get('golf_hole_scores|hole_scores_select_policy')!.state).toBe('created');
+    // 200: the creator may UPDATE hole scores, as INSERT and DELETE always allowed.
+    expect(chain.policies.get('golf_hole_scores|hole_scores_update_policy')).toMatchObject({ state: 'created', file: '200_hole_scores_creator_update.sql', cmd: 'UPDATE' });
+    expect(chain.policies.get('golf_hole_scores|hole_scores_update_policy')!.using).toContain('creator_id');
     expect(chain.policies.get('athlete_badges|athlete_badges_select_policy')).toMatchObject({ state: 'dropped', file: '199_cleanup.sql' }); // DROP TABLE takes the policies
   });
   it('a saved catalog, when one exists, parses and agrees with the verbatim 190 functions', () => {
