@@ -1,5 +1,61 @@
 # Development Log
 
+## September 16, 2026 — Events program, PR 5: rounds · groups · the mint at Open and at go-live · the transitions (zero DDL)
+
+The Event becomes a live round. `lifecycle-server.ts applyTransition` reads
+the facts, asks PR 3's `validateTransition`, does the work, then
+compare-and-sets the status so two organizers racing cannot both win.
+
+- **open** mints the round's POST (`mint.ts announcePostRow`: the host is
+  the author, a guardian the byline, `stats_data.type =
+  'sport_event_announce'`, `posts.sport_event_round_id`; visibility
+  `public` for a public event, else `private` — `posts_visibility_check`
+  never admits the group vocabulary). ONE post per round, three states.
+- **live** mints the round (`mintRound`): the `group_posts` row (the
+  shared-round creation sequence of `api/group-posts/route.ts` on the admin
+  client — host = creator, `pending`, `participants_only` unless public,
+  `sport_event_round_id`), the participant rows in `buildMintPlan` order
+  (groups first, then the roster; a non-playing co-organizer is a round
+  `organizer`), the scorecard WITH the stroke index, then the EXISTING
+  announce post is attached (`posts.group_post_id`, `group_posts.post_id`).
+  Any failure deletes the group_post (cascades) — the abortCreation
+  semantics. Idempotent on 203's UNIQUE: a retry reuses the minted round.
+  The mint runs BEFORE the live verdict, so `round_not_minted` is a real
+  refusal. No `group_invite` bells — the event's own bells did that.
+- **completed** honours `cards_not_final` unless `override`, which
+  finalizes the cards as they stand (`finalized_by` the organizer); the
+  round's group_post is forced `completed` (guarded), mirrored
+  (`mirrorCompletedRound` + `mirrorRoundMedia`), its post re-timestamped
+  (the End Round path); rounds → completed. PR 7 adds the opt-out skip,
+  the results bell and the leaderboard route.
+- **cancelled** (draft / open only): rounds → cancelled, the announce post
+  deleted.
+- **After go-live the roster stays in step** (`syncRoundRoster`, hooked
+  into join-server): a late accept or promotion joins the minted round at
+  the end of the order; a withdraw / remove marks the round row `declined`
+  so the round machine ignores them.
+- **Routes**: `POST /transition {to, override?, today?}` (a 409 carries the
+  named `reason`); `PUT /rounds/[rid]` (draft / open — re-snapshots the
+  catalog, rewrites `starts_on`); `PUT /rounds/[rid]/groups` (the whole
+  plan replaced; `groups.ts validateGroupsPlan` — every member an accepted,
+  playing participant, nobody in two groups, refusals name the group).
+- **The deferred zero-DDL reads** (203 has run): `GROUP_SCORECARD_SELECT`
+  carries `sport_event_round_id`; the scorecard GET answers `sport_event:
+  {id, name, status, format, round, holes, starting_hole, viewer_role,
+  group: {…members}} | null` (`scorecard-context.ts`); the feed's
+  hide-until-finished is relaxed for sport-event rounds ONLY (one post,
+  three states — the feed shows them live); the shared-round writer keeps
+  the STROKE INDEX (`handicap` 1–18) in the scorecard's hole data — the one
+  reason net never worked live; the abandonment sweep skips an event's
+  round (`sport_event_round_id IS NULL`) — the event's lifecycle ends it.
+
+Verify green; 509 golf + sport-events unit tests. `e2e/sport-events-
+lifecycle.spec.ts` walks open → invite → accept → groups → live (the
+scorecard carries the context and the group) → withdraw while live →
+complete refused → override completes → delete detaches the round. Next:
+PR 6 — scoring authz for group-mates in the two score routes, the 409
+conflict, the hole range, submit / finalize.
+
 ## September 16, 2026 — Events program, PR 4: the sport-events routes — create / read / update / delete · participants · follow · link token (zero DDL)
 
 The first I/O of the program, over PR 3's pure rules. Seven route files

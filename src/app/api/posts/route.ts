@@ -1356,6 +1356,10 @@ export async function GET(request: NextRequest) {
       .filter(post => {
         if (userId || pinnedOnly) return true;
         if (!post.group_scorecard) return true;
+        // Events program (203): an event's round is ONE post through three
+        // states (announced → live → results), so hide-until-finished is
+        // relaxed for sport-event rounds only — the feed shows them live.
+        if (post.group_scorecard.group_post?.sport_event_round_id) return true;
         return effectiveRoundStatus(post.group_scorecard.group_post) === 'completed';
       });
 

@@ -21,6 +21,7 @@ export const GROUP_SCORECARD_SELECT = `
   status,
   created_at,
   post_id,
+  sport_event_round_id,
   golf_data:golf_scorecard_data (
     id,
     course_name,

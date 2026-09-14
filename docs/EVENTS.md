@@ -75,12 +75,15 @@ Pure halves (node-tested) and `*-server.ts` I/O halves, one concern each:
 | pure | server | the rule |
 |---|---|---|
 | `access.ts` | `access-server.ts` | `resolveSportEventAccess` — THE ONE GATE. Public → everyone; link → the token, an admitting participant, or the host; private → any non-declined / non-removed participant (followers included) or an organizer. `null` = 404. |
-| `lifecycle.ts` | (PR 5) | draft → open \| cancelled; open → live \| cancelled; live → completed; named refusals; the organizer override. |
+| `lifecycle.ts` | `lifecycle-server.ts` | draft → open \| cancelled; open → live \| cancelled; live → completed; named refusals; the organizer override. `applyTransition` compare-and-sets the status; open mints the POST, live mints the ROUND (`mintRound`, idempotent), completed finalizes / mirrors / re-timestamps, cancelled deletes the announce post. `syncRoundRoster` keeps a minted round's roster in step after go-live. |
 | `join.ts` | `join-server.ts` | `planJoin` for the ten actions; seats = accepted AND playing; full → waitlisted; a vacancy or a capacity raise promotes lowest position first; a follower may be invited. |
 | `handicap.ts` | `handicap-server.ts` | the frozen index at accept (`snapshotAtAccept`; an organizer override is never overwritten); the read-time course handicap. |
 | `leaderboard.ts` | (PR 7) | the one computation. |
 | `scoring-authz.ts` | (PR 6) | the via / client matrix over the card status. |
-| `rounds.ts` | `rounds-server.ts` | the round's course snapshot WITH the stroke index; `starts_on` has one writer (`writeStartsOn`); `mintRound` arrives in PR 5. |
+| `rounds.ts` | `rounds-server.ts` | the round's course snapshot WITH the stroke index; `starts_on` has one writer (`writeStartsOn`). |
+| `mint.ts` | — | the rows the mint writes (the announce post, the group_post, the scorecard, the participant rows) — pure, pinned. |
+| `groups.ts` | — | `validateGroupsPlan`: the organizer's whole plan for a round, against the roster. |
+| — | `scorecard-context.ts` | the `sport_event` block the scorecard GET carries. |
 | `validate.ts` | — | request bodies: a miss is a 400 naming the field, never a clamp. |
 | `view.ts` | `view-server.ts` | the GET projection: names through `publicDisplayName`, the link token only to organizers, `hide_from_profile` only to self / organizers, never an email or a supervision state. |
 | `notify.ts` | — | the bells (direct inserts; a supervised invitee's guardians get a copy). |
@@ -108,8 +111,16 @@ the GET is anonymous-reachable for a public or link event).
 | `PATCH /api/sport-events/[id]/participants/[pid]` | `handicap_index` canManage (null clears + recomputes); `hide_from_profile` self; `playing` self or canManage | stepping out promotes the waitlist |
 | `POST` / `DELETE /api/sport-events/[id]/follow?token=` | may view | a follower row; never a seat |
 
-Not yet: rounds PUT, groups PUT, transitions, the leaderboard, cards
-submit / finalize — PR 5–7.
+| `POST /api/sport-events/[id]/transition` `{to, override?, today?}` | canManage | open · live · completed · cancelled; a 409 carries the named `reason` |
+| `PUT /api/sport-events/[id]/rounds/[rid]` | canManage; draft / open | the round's plan; re-snapshots the catalog; rewrites `starts_on` |
+| `PUT /api/sport-events/[id]/rounds/[rid]/groups` `{groups: [{name?, tee_time?, starting_hole?, members}]}` | canManage; draft / open | the whole plan replaced |
+
+The scorecard GET (`/api/group-posts/[id]/scorecard`) answers `sport_event`
+for an event's round; the feed lists an event's round from Open (one post,
+three states); the abandonment sweep leaves an event's round alone.
+
+Not yet: the leaderboard route, cards submit / finalize, group-mate scoring
+— PR 6–7.
 
 ## Not in phase 1 (named, parked)
 

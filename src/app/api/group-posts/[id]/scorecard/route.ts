@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { readScorecardEventContext } from '@/lib/sport-events/scorecard-context';
 import { UUID_RE } from '@/lib/uuid';
 import { getServerAuth, getSupabaseAdmin } from '@/lib/auth-server';
 import { GROUP_SCORECARD_SELECT, transformGroupPostToScorecard } from '@/lib/golf/scorecard-transform';
@@ -75,7 +76,12 @@ export async function GET(
       return NextResponse.json({ error: 'Round not found' }, { status: 404 });
     }
 
-    return NextResponse.json({ scorecard });
+    // Events program (203): the event context rides the payload when the
+    // round belongs to a sport event — the live page mounts the group card
+    // and links back to the event from it.
+    const roundId = (data as { sport_event_round_id?: string | null }).sport_event_round_id ?? null;
+    const sport_event = roundId ? await readScorecardEventContext(getSupabaseAdmin(), roundId, user.id) : null;
+    return NextResponse.json({ scorecard: { ...scorecard, sport_event } });
   } catch (e) {
     console.error('Unexpected error in GET /api/group-posts/[id]/scorecard:', e);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });

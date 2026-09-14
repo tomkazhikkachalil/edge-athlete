@@ -196,7 +196,7 @@ export async function POST(request: NextRequest) {
     const sanitizedComposition = parseComposition(golf_data?.course_composition);
 
     const sanitizedHoleData = Array.isArray(golf_data?.hole_data)
-      ? (golf_data.hole_data as Array<{ hole?: unknown; par?: unknown; yardage?: unknown }>)
+      ? (golf_data.hole_data as Array<{ hole?: unknown; par?: unknown; yardage?: unknown; handicap?: unknown }>)
           .filter(h =>
             typeof h?.hole === 'number' && h.hole >= 1 && h.hole <= 18 &&
             typeof h?.par === 'number' && h.par >= 3 && h.par <= 6
@@ -205,6 +205,10 @@ export async function POST(request: NextRequest) {
             hole: h.hole as number,
             par: h.par as number,
             ...(typeof h.yardage === 'number' && h.yardage > 0 ? { yardage: h.yardage } : {}),
+            // The stroke index (Events program): kept when the catalog has
+            // it, so a live board can allocate net strokes per hole. Used to
+            // be stripped here — the one reason net never worked live.
+            ...(typeof h.handicap === 'number' && Number.isInteger(h.handicap) && h.handicap >= 1 && h.handicap <= 18 ? { handicap: h.handicap } : {}),
           }))
       : null;
 
