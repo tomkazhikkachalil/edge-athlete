@@ -1,5 +1,52 @@
 # Development Log
 
+## September 16, 2026 — Events program, PR 8: the event page — /events/[id] as a PLACE (zero DDL)
+
+The first UI PR, re-sequenced ahead of the nav so that no PR ever ships a
+link to a page that does not exist: the event page first (this), then the
+creation wizard with the Create sheet, then the Sports section with the
+/explore redirect.
+
+- **The page** (`src/app/(app)/events/[id]/page.tsx`) is the contest
+  place's shape: a PUBLIC event is server-rendered viewer-independent (a
+  title, the name in the HTML, shareable signed-out); a link, a private or
+  an unknown event hands off to `EventGate`, which fetches with the session
+  and renders the same place for a member or a real not-available screen
+  with a way back (never a redirect into nowhere). The server never reads
+  the session.
+- **The shell** (`src/components/sport-events/EventPlace.tsx`) holds the
+  view, the `?tab=` deep link (`tabs.ts`; replaceState on change — the
+  bells land on players / leaderboard), every action through one client
+  helper (`src/lib/sport-events/client.ts`, the token rides every call)
+  and ONE refetch after each. Tabs: Overview · Schedule · Players ·
+  Leaderboard (Groups and Scorecard arrive with their own PRs).
+- **The join control** (`join-state.ts joinControl`, pure, one rule for
+  the header and the players tab): Manage · Accept / Decline · Request to
+  join · Requested · You're in / Withdraw · Waitlisted #n / Leave · Follow /
+  Following · nothing when signed out. Leaving asks (ConfirmModal).
+- **Organizer controls** under the title: Publish · Go live (asks; sends
+  the organizer's local day for the round) · Complete (asks; override) ·
+  Cancel (asks). The Overview shows the share link for a link event with
+  Copy and New link.
+- **Players**: Playing / Organizing / Requests (Accept · Decline) / Invited
+  / Waitlist / Following / Not playing (organizers); per row the masked
+  name, a handle link, the index on a net event with the organizer's
+  override field, Remove, and the player's own "Show on my profile"
+  toggle. Invite = the house bottom sheet over the public athlete search
+  (`InviteWindow`) plus an @handle field for a private athlete.
+- **Leaderboard tab**: the route's rows in a table (Pos · Player · Thru ·
+  To par · Total / Net), the first column sticky in its own scroll
+  container, a Net / Gross switch on a net event, honest empty states per
+  status; refetches after every action.
+- **Formatting** (`format.ts`): date-only strings format from their parts,
+  never the local parser.
+
+Phone pass: the spec is `@mobile` (390 × 844 on Chromium AND WebKit) —
+the tab strip scrolls, every control is a 44px target, the header wraps,
+the table scrolls inside its container. Tom's device pass is owed. Next:
+PR 9 — the creation wizard + CourseSearchField + the
+Create sheet.
+
 ## September 16, 2026 — Events program, PR 7: the leaderboard route · the results opt-out · the results bell (zero DDL)
 
 - **The leaderboard route** — `GET /api/sport-events/[id]/rounds/[rid]/
