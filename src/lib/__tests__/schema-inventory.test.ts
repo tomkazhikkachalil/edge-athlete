@@ -35,6 +35,12 @@ describe('parseChain — what owns what', () => {
     const owned = parseChain([file('001.sql', "CREATE TABLE IF NOT EXISTS public.t (\n id uuid PRIMARY KEY DEFAULT gen_random_uuid(),\n \"Name\" text NOT NULL CHECK (length(\"Name\") > 0),\n created_at timestamptz DEFAULT now(),\n CONSTRAINT t_name_key UNIQUE (\"Name\"),\n PRIMARY KEY (id),\n FOREIGN KEY (id) REFERENCES p(id),\n CHECK (created_at > '2020-01-01')\n);")]);
     expect([...owned.tables.get('t')!].sort()).toEqual(['created_at', 'id', 'name']);
   });
+  it('ALTER TABLE ADD CONSTRAINT (the guarded baseline form) names no column', () => {
+    const owned = parseChain([
+      file('190.sql', "CREATE TABLE IF NOT EXISTS public.t (id uuid, status text); DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 't_status_check') THEN ALTER TABLE public.t ADD CONSTRAINT t_status_check CHECK ((status = ANY (ARRAY['a'::text, 'b'::text]))); END IF; END $$;"),
+    ]);
+    expect([...owned.tables.get('t')!].sort()).toEqual(['id', 'status']);
+  });
   it('ALTER TABLE ADD (multi, IF NOT EXISTS, in a DO block) adds columns; RENAME moves; DROP disowns', () => {
     const owned = parseChain([
       file('001.sql', 'create table t (id int);'),
@@ -104,8 +110,17 @@ describe('the real chain', () => {
     expect(owned.tables.get('org_sites')).toContain('seo_config');
     expect(owned.tables.get('contest_stat_lines')).toContain('provenance');
     expect(owned.tables.get('golf_rounds')).toContain('course_id');
-    // The pre-chain tables are ALTERed, never created — the gap this program closes.
-    expect(owned.tables.has('posts')).toBe(false);
-    expect(owned.altered.get('posts')).toContain('contest_id');
+    // The pre-chain tables: ALTERed by the chain for a year, CREATEd by the
+    // baselines 190–193 (data foundation P2–P5, Sep 14 2026) — the columns the
+    // earlier ALTERs added are absorbed, and the live-only columns are owned.
+    expect(owned.altered.has('posts')).toBe(false);
+    expect(owned.tables.get('posts')).toContain('contest_id'); // 181's ALTER, absorbed by 190
+    expect(owned.tables.get('post_media')).toContain('width'); // existed nowhere in the repo before 190
+    expect(owned.tables.get('post_comments')).toContain('likes_count');
+    expect(owned.tables.get('athlete_badges')).toContain('color_token'); // 191
+    expect(owned.tables.get('golf_rounds')).toContain('slope_rating'); // 192
+    expect(owned.tables.get('profiles')).toContain('gpa'); // 193
+    // A guarded ADD CONSTRAINT names no column.
+    for (const t of ['posts', 'profiles', 'golf_rounds', 'athlete_equipment']) expect(owned.tables.get(t)).not.toContain('constraint');
   });
 });

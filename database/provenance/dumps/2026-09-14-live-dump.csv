@@ -1,0 +1,553 @@
+grid,table_name,item,kind,definition
+1,athlete_badges,id,uuid NOT NULL,gen_random_uuid()
+1,athlete_badges,profile_id,uuid NOT NULL,
+1,athlete_badges,label,text NOT NULL,
+1,athlete_badges,icon_url,text,
+1,athlete_badges,color_token,text,'primary'::text
+1,athlete_badges,position,integer,0
+1,athlete_badges,created_at,timestamp with time zone NOT NULL,"timezone('utc'::text, now())"
+1,athlete_badges,updated_at,timestamp with time zone NOT NULL,"timezone('utc'::text, now())"
+1,athlete_equipment,id,uuid NOT NULL,uuid_generate_v4()
+1,athlete_equipment,profile_id,uuid NOT NULL,
+1,athlete_equipment,sport_key,text,
+1,athlete_equipment,category,text NOT NULL,
+1,athlete_equipment,brand,text NOT NULL,
+1,athlete_equipment,model,text NOT NULL,
+1,athlete_equipment,image_url,text,
+1,athlete_equipment,specs,jsonb,
+1,athlete_equipment,status,text,'active'::text
+1,athlete_equipment,acquired_date,date,
+1,athlete_equipment,notes,text,
+1,athlete_equipment,created_at,timestamp with time zone,now()
+1,athlete_equipment,updated_at,timestamp with time zone,now()
+1,athlete_equipment,added_at,timestamp with time zone,now()
+1,athlete_equipment,retired_at,timestamp with time zone,
+1,athlete_equipment,acquired_on,date,CURRENT_DATE
+1,athlete_equipment,retired_on,date,
+1,athlete_equipment,group_label,text,
+1,comment_likes,id,uuid NOT NULL,gen_random_uuid()
+1,comment_likes,comment_id,uuid NOT NULL,
+1,comment_likes,profile_id,uuid NOT NULL,
+1,comment_likes,created_at,timestamp with time zone NOT NULL,"timezone('utc'::text, now())"
+1,connection_suggestions,id,uuid NOT NULL,gen_random_uuid()
+1,connection_suggestions,profile_id,uuid NOT NULL,
+1,connection_suggestions,suggested_profile_id,uuid NOT NULL,
+1,connection_suggestions,score,"numeric(3,2)",0.5
+1,connection_suggestions,reason,text,
+1,connection_suggestions,dismissed,boolean,false
+1,connection_suggestions,dismissed_at,timestamp with time zone,
+1,connection_suggestions,created_at,timestamp with time zone NOT NULL,"timezone('utc'::text, now())"
+1,follows,id,uuid NOT NULL,gen_random_uuid()
+1,follows,follower_id,uuid NOT NULL,
+1,follows,following_id,uuid NOT NULL,
+1,follows,status,text,'accepted'::text
+1,follows,message,text,
+1,follows,created_at,timestamp with time zone NOT NULL,"timezone('utc'::text, now())"
+1,follows,updated_at,timestamp with time zone NOT NULL,"timezone('utc'::text, now())"
+1,golf_rounds,id,uuid NOT NULL,gen_random_uuid()
+1,golf_rounds,profile_id,uuid NOT NULL,
+1,golf_rounds,date,date NOT NULL,
+1,golf_rounds,course,text NOT NULL,
+1,golf_rounds,course_location,text,
+1,golf_rounds,tee,text,
+1,golf_rounds,holes,integer NOT NULL,18
+1,golf_rounds,par,integer,72
+1,golf_rounds,gross_score,integer,
+1,golf_rounds,fir_percentage,"numeric(5,2)",
+1,golf_rounds,gir_percentage,"numeric(5,2)",
+1,golf_rounds,total_putts,integer,
+1,golf_rounds,notes,text,
+1,golf_rounds,is_complete,boolean,false
+1,golf_rounds,created_at,timestamp with time zone NOT NULL,"timezone('utc'::text, now())"
+1,golf_rounds,updated_at,timestamp with time zone NOT NULL,"timezone('utc'::text, now())"
+1,golf_rounds,weather,text,
+1,golf_rounds,temperature,integer,
+1,golf_rounds,wind,text,
+1,golf_rounds,course_rating,"numeric(4,1)",
+1,golf_rounds,slope_rating,integer,
+1,golf_rounds,round_type,text,'outdoor'::text
+1,golf_rounds,group_post_id,uuid,
+1,golf_rounds,course_id,uuid,
+1,performances,id,uuid NOT NULL,gen_random_uuid()
+1,performances,profile_id,uuid NOT NULL,
+1,performances,date,date NOT NULL,
+1,performances,event,text NOT NULL,
+1,performances,result_place,text,
+1,performances,stat_primary,text,
+1,performances,organization,text,
+1,performances,athletic_score,numeric,
+1,performances,created_at,timestamp with time zone NOT NULL,"timezone('utc'::text, now())"
+1,performances,updated_at,timestamp with time zone NOT NULL,"timezone('utc'::text, now())"
+1,post_comments,id,uuid NOT NULL,gen_random_uuid()
+1,post_comments,post_id,uuid NOT NULL,
+1,post_comments,profile_id,uuid NOT NULL,
+1,post_comments,parent_comment_id,uuid,
+1,post_comments,content,text,
+1,post_comments,created_at,timestamp with time zone,now()
+1,post_comments,updated_at,timestamp with time zone,now()
+1,post_comments,likes_count,integer,0
+1,post_comments,gif_url,text,
+1,post_comments,is_pinned,boolean,false
+1,post_comments,mentions,uuid[] NOT NULL,'{}'::uuid[]
+1,post_comments,created_by_user_id,uuid,
+1,post_comments,status,text NOT NULL,'published'::text
+1,post_comments,review_note,text,
+1,post_comments,approval_nudged_at,timestamp with time zone,
+1,post_likes,id,uuid NOT NULL,gen_random_uuid()
+1,post_likes,post_id,uuid NOT NULL,
+1,post_likes,profile_id,uuid NOT NULL,
+1,post_likes,created_at,timestamp with time zone,now()
+1,post_media,id,uuid NOT NULL,gen_random_uuid()
+1,post_media,post_id,uuid NOT NULL,
+1,post_media,media_url,text NOT NULL,
+1,post_media,media_type,text NOT NULL,
+1,post_media,thumbnail_url,text,
+1,post_media,display_order,integer,0
+1,post_media,width,integer,
+1,post_media,height,integer,
+1,post_media,duration,integer,
+1,post_media,created_at,timestamp with time zone,now()
+1,post_media,source_url,text,
+1,post_media,edit_recipe,jsonb,
+1,posts,id,uuid NOT NULL,gen_random_uuid()
+1,posts,profile_id,uuid NOT NULL,
+1,posts,sport_key,text,
+1,posts,caption,text,
+1,posts,visibility,text,'public'::text
+1,posts,stats_data,jsonb,
+1,posts,created_at,timestamp with time zone,now()
+1,posts,updated_at,timestamp with time zone,now()
+1,posts,likes_count,integer,0
+1,posts,comments_count,integer,0
+1,posts,shares_count,integer,0
+1,posts,tags,text[],'{}'::text[]
+1,posts,hashtags,text[],'{}'::text[]
+1,posts,round_id,uuid,
+1,posts,search_vector,tsvector,
+1,posts,saves_count,integer NOT NULL,0
+1,posts,group_post_id,uuid,
+1,posts,activity_mode,text,
+1,posts,is_pinned,boolean NOT NULL,false
+1,posts,pinned_at,timestamp with time zone,
+1,posts,status,text NOT NULL,'published'::text
+1,posts,shared_post_id,uuid,
+1,posts,reposts_count,integer NOT NULL,0
+1,posts,post_category,text,
+1,posts,created_by_user_id,uuid,
+1,posts,review_note,text,
+1,posts,approval_nudged_at,timestamp with time zone,
+1,posts,event_id,uuid,
+1,posts,contest_id,uuid,
+1,privacy_settings,id,uuid NOT NULL,gen_random_uuid()
+1,privacy_settings,profile_id,uuid,
+1,privacy_settings,profile_visibility,text,'public'::text
+1,privacy_settings,media_visibility,text,'inherit'::text
+1,privacy_settings,stats_visibility,text,'inherit'::text
+1,privacy_settings,posts_visibility,text,'inherit'::text
+1,privacy_settings,activity_visibility,text,'inherit'::text
+1,privacy_settings,created_at,timestamp with time zone NOT NULL,"timezone('utc'::text, now())"
+1,privacy_settings,updated_at,timestamp with time zone NOT NULL,"timezone('utc'::text, now())"
+1,profiles,id,uuid NOT NULL,
+1,profiles,email,text NOT NULL,
+1,profiles,first_name,text,
+1,profiles,last_name,text,
+1,profiles,nickname,text,
+1,profiles,phone,text,
+1,profiles,birthday,date,
+1,profiles,gender,text,
+1,profiles,location,text,
+1,profiles,postal_code,text,
+1,profiles,user_type,text,'athlete'::text
+1,profiles,created_at,timestamp with time zone NOT NULL,"timezone('utc'::text, now())"
+1,profiles,updated_at,timestamp with time zone NOT NULL,"timezone('utc'::text, now())"
+1,profiles,username,text,
+1,profiles,full_name,text,
+1,profiles,bio,text,
+1,profiles,height_cm,integer,
+1,profiles,weight_kg,"numeric(5,2)",
+1,profiles,dob,date,
+1,profiles,class_year,integer,
+1,profiles,social_twitter,text,
+1,profiles,social_instagram,text,
+1,profiles,social_facebook,text,
+1,profiles,avatar_url,text,
+1,profiles,weight_unit,text,'lbs'::text
+1,profiles,weight_display,"numeric(5,2)",
+1,profiles,display_name,text,
+1,profiles,sport,text,
+1,profiles,school,text,
+1,profiles,coach,text,
+1,profiles,graduation_year,integer,
+1,profiles,gpa,"numeric(3,2)",
+1,profiles,sat_score,integer,
+1,profiles,act_score,integer,
+1,profiles,visibility,text,'public'::text
+1,profiles,middle_name,text,
+1,profiles,search_vector,tsvector,
+1,profiles,handle,text,
+1,profiles,handle_updated_at,timestamp with time zone,
+1,profiles,handle_change_count,integer,0
+1,profiles,messaging_permission,text NOT NULL,'everyone'::text
+1,profiles,onboarded_at,timestamp with time zone,
+1,profiles,cover_url,text,
+1,profiles,supervision_state,text NOT NULL,'self'::text
+1,profiles,jurisdiction,text,
+1,profiles,minor_threshold_age,smallint,
+1,profiles,dob_locked,boolean NOT NULL,false
+1,profiles,equipment_prefs,jsonb,
+1,profiles,social_tiktok,text,
+1,profiles,theme_prefs,jsonb,
+1,profiles,comment_moderation,text NOT NULL,'held'::text
+1,profiles,place_id,uuid,
+1,profiles,city,text,
+1,profiles,region,text,
+1,profiles,region_code,text,
+1,profiles,country,text,
+1,profiles,country_code,text,
+1,profiles,lat,double precision,
+1,profiles,lng,double precision,
+1,profiles,location_source,text,
+1,profiles,vitals_privacy,jsonb,
+1,profiles,deletion_requested_at,timestamp with time zone,
+1,profiles,household_policy,jsonb,
+1,profiles,recruiting_status,text,'closed'::text
+1,profiles,recruiting_profile,jsonb,
+1,profiles,scout_affiliation,text,
+1,season_highlights,id,uuid NOT NULL,gen_random_uuid()
+1,season_highlights,profile_id,uuid NOT NULL,
+1,season_highlights,sport_key,text NOT NULL,
+1,season_highlights,season,text NOT NULL,
+1,season_highlights,metric_a,text,
+1,season_highlights,metric_b,text,
+1,season_highlights,metric_c,text,
+1,season_highlights,rating,numeric,
+1,season_highlights,created_at,timestamp with time zone NOT NULL,"timezone('utc'::text, now())"
+1,season_highlights,updated_at,timestamp with time zone NOT NULL,"timezone('utc'::text, now())"
+1,sports,id,uuid NOT NULL,gen_random_uuid()
+1,sports,profile_id,uuid NOT NULL,
+1,sports,sport_key,text NOT NULL,
+1,sports,active,boolean,true
+1,sports,created_at,timestamp with time zone NOT NULL,"timezone('utc'::text, now())"
+1,sports,updated_at,timestamp with time zone NOT NULL,"timezone('utc'::text, now())"
+2,athlete_badges,athlete_badges_pkey,p,PRIMARY KEY (id)
+2,athlete_badges,athlete_badges_profile_id_fkey,f,FOREIGN KEY (profile_id) REFERENCES profiles(id) ON DELETE CASCADE
+2,athlete_equipment,athlete_equipment_pkey,p,PRIMARY KEY (id)
+2,athlete_equipment,athlete_equipment_profile_id_fkey,f,FOREIGN KEY (profile_id) REFERENCES profiles(id) ON DELETE CASCADE
+2,athlete_equipment,athlete_equipment_status_check,c,"CHECK ((status = ANY (ARRAY['active'::text, 'retired'::text])))"
+2,athlete_equipment,equipment_retired_after_acquired,c,CHECK (((retired_on IS NULL) OR (acquired_on IS NULL) OR (retired_on >= acquired_on)))
+2,comment_likes,comment_likes_comment_id_fkey,f,FOREIGN KEY (comment_id) REFERENCES post_comments(id) ON DELETE CASCADE
+2,comment_likes,comment_likes_comment_id_profile_id_key,u,"UNIQUE (comment_id, profile_id)"
+2,comment_likes,comment_likes_pkey,p,PRIMARY KEY (id)
+2,comment_likes,comment_likes_profile_id_fkey,f,FOREIGN KEY (profile_id) REFERENCES profiles(id) ON DELETE CASCADE
+2,connection_suggestions,connection_suggestions_pkey,p,PRIMARY KEY (id)
+2,connection_suggestions,connection_suggestions_profile_id_fkey,f,FOREIGN KEY (profile_id) REFERENCES profiles(id) ON DELETE CASCADE
+2,connection_suggestions,connection_suggestions_suggested_profile_id_fkey,f,FOREIGN KEY (suggested_profile_id) REFERENCES profiles(id) ON DELETE CASCADE
+2,connection_suggestions,unique_suggestion,u,"UNIQUE (profile_id, suggested_profile_id)"
+2,follows,follows_follower_id_fkey,f,FOREIGN KEY (follower_id) REFERENCES profiles(id) ON DELETE CASCADE
+2,follows,follows_follower_id_following_id_key,u,"UNIQUE (follower_id, following_id)"
+2,follows,follows_following_id_fkey,f,FOREIGN KEY (following_id) REFERENCES profiles(id) ON DELETE CASCADE
+2,follows,follows_pkey,p,PRIMARY KEY (id)
+2,follows,follows_status_check,c,"CHECK ((status = ANY (ARRAY['pending'::text, 'accepted'::text, 'rejected'::text])))"
+2,golf_rounds,golf_rounds_course_id_fkey,f,FOREIGN KEY (course_id) REFERENCES golf_courses(id) ON DELETE SET NULL
+2,golf_rounds,golf_rounds_fir_percentage_check,c,CHECK (((fir_percentage >= (0)::numeric) AND (fir_percentage <= (100)::numeric)))
+2,golf_rounds,golf_rounds_gir_percentage_check,c,CHECK (((gir_percentage >= (0)::numeric) AND (gir_percentage <= (100)::numeric)))
+2,golf_rounds,golf_rounds_group_post_id_fkey,f,FOREIGN KEY (group_post_id) REFERENCES group_posts(id) ON DELETE SET NULL
+2,golf_rounds,golf_rounds_pkey,p,PRIMARY KEY (id)
+2,golf_rounds,golf_rounds_profile_id_fkey,f,FOREIGN KEY (profile_id) REFERENCES profiles(id) ON DELETE CASCADE
+2,golf_rounds,golf_rounds_round_type_check,c,"CHECK ((round_type = ANY (ARRAY['outdoor'::text, 'indoor'::text])))"
+2,performances,performances_athletic_score_check,c,CHECK (((athletic_score >= (0)::numeric) AND (athletic_score <= (100)::numeric)))
+2,performances,performances_pkey,p,PRIMARY KEY (id)
+2,performances,performances_profile_id_fkey,f,FOREIGN KEY (profile_id) REFERENCES profiles(id) ON DELETE CASCADE
+2,post_comments,post_comments_created_by_user_id_fkey,f,FOREIGN KEY (created_by_user_id) REFERENCES profiles(id) ON DELETE SET NULL
+2,post_comments,post_comments_parent_comment_id_fkey,f,FOREIGN KEY (parent_comment_id) REFERENCES post_comments(id) ON DELETE CASCADE
+2,post_comments,post_comments_pkey,p,PRIMARY KEY (id)
+2,post_comments,post_comments_post_id_fkey,f,FOREIGN KEY (post_id) REFERENCES posts(id) ON DELETE CASCADE
+2,post_comments,post_comments_profile_id_fkey,f,FOREIGN KEY (profile_id) REFERENCES profiles(id) ON DELETE CASCADE
+2,post_comments,post_comments_status_check,c,"CHECK ((status = ANY (ARRAY['published'::text, 'pending_approval'::text, 'rejected'::text, 'changes_requested'::text])))"
+2,post_likes,post_likes_pkey,p,PRIMARY KEY (id)
+2,post_likes,post_likes_post_id_fkey,f,FOREIGN KEY (post_id) REFERENCES posts(id) ON DELETE CASCADE
+2,post_likes,post_likes_post_id_profile_id_key,u,"UNIQUE (post_id, profile_id)"
+2,post_likes,post_likes_profile_id_fkey,f,FOREIGN KEY (profile_id) REFERENCES profiles(id) ON DELETE CASCADE
+2,post_media,post_media_media_type_check,c,"CHECK ((media_type = ANY (ARRAY['image'::text, 'video'::text])))"
+2,post_media,post_media_pkey,p,PRIMARY KEY (id)
+2,post_media,post_media_post_id_fkey,f,FOREIGN KEY (post_id) REFERENCES posts(id) ON DELETE CASCADE
+2,posts,check_golf_sources,c,CHECK ((NOT ((round_id IS NOT NULL) AND (group_post_id IS NOT NULL))))
+2,posts,posts_contest_id_fkey,f,FOREIGN KEY (contest_id) REFERENCES contests(id) ON DELETE SET NULL
+2,posts,posts_created_by_user_id_fkey,f,FOREIGN KEY (created_by_user_id) REFERENCES profiles(id) ON DELETE SET NULL
+2,posts,posts_event_id_fkey,f,FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE SET NULL
+2,posts,posts_group_post_id_fkey,f,FOREIGN KEY (group_post_id) REFERENCES group_posts(id) ON DELETE SET NULL
+2,posts,posts_pkey,p,PRIMARY KEY (id)
+2,posts,posts_profile_id_fkey,f,FOREIGN KEY (profile_id) REFERENCES profiles(id) ON DELETE CASCADE
+2,posts,posts_round_id_fkey,f,FOREIGN KEY (round_id) REFERENCES golf_rounds(id) ON DELETE SET NULL
+2,posts,posts_shared_post_id_fkey,f,FOREIGN KEY (shared_post_id) REFERENCES posts(id) ON DELETE SET NULL
+2,posts,posts_status_check,c,"CHECK ((status = ANY (ARRAY['published'::text, 'pending_approval'::text, 'rejected'::text, 'changes_requested'::text])))"
+2,posts,posts_visibility_check,c,"CHECK ((visibility = ANY (ARRAY['public'::text, 'private'::text, 'followers'::text])))"
+2,privacy_settings,privacy_settings_activity_visibility_check,c,"CHECK ((activity_visibility = ANY (ARRAY['public'::text, 'private'::text, 'friends'::text, 'inherit'::text])))"
+2,privacy_settings,privacy_settings_media_visibility_check,c,"CHECK ((media_visibility = ANY (ARRAY['public'::text, 'private'::text, 'friends'::text, 'inherit'::text])))"
+2,privacy_settings,privacy_settings_pkey,p,PRIMARY KEY (id)
+2,privacy_settings,privacy_settings_posts_visibility_check,c,"CHECK ((posts_visibility = ANY (ARRAY['public'::text, 'private'::text, 'friends'::text, 'inherit'::text])))"
+2,privacy_settings,privacy_settings_profile_id_fkey,f,FOREIGN KEY (profile_id) REFERENCES profiles(id) ON DELETE CASCADE
+2,privacy_settings,privacy_settings_profile_id_key,u,UNIQUE (profile_id)
+2,privacy_settings,privacy_settings_profile_visibility_check,c,"CHECK ((profile_visibility = ANY (ARRAY['public'::text, 'private'::text])))"
+2,privacy_settings,privacy_settings_stats_visibility_check,c,"CHECK ((stats_visibility = ANY (ARRAY['public'::text, 'private'::text, 'friends'::text, 'inherit'::text])))"
+2,profiles,check_display_name_not_empty,c,CHECK (((display_name IS NOT NULL) AND (length(TRIM(BOTH FROM display_name)) > 0)))
+2,profiles,profiles_comment_moderation_check,c,"CHECK ((comment_moderation = ANY (ARRAY['instant'::text, 'held'::text])))"
+2,profiles,profiles_email_key,u,UNIQUE (email)
+2,profiles,profiles_gender_check,c,"CHECK ((gender = ANY (ARRAY['male'::text, 'female'::text, 'custom'::text])))"
+2,profiles,profiles_id_fkey,f,FOREIGN KEY (id) REFERENCES auth.users(id) ON DELETE CASCADE
+2,profiles,profiles_messaging_permission_check,c,"CHECK ((messaging_permission = ANY (ARRAY['everyone'::text, 'fans_only'::text, 'mutual_fans'::text, 'nobody'::text])))"
+2,profiles,profiles_pkey,p,PRIMARY KEY (id)
+2,profiles,profiles_place_id_fkey,f,FOREIGN KEY (place_id) REFERENCES places(id) ON DELETE SET NULL
+2,profiles,profiles_recruiting_status_check,c,"CHECK ((recruiting_status = ANY (ARRAY['closed'::text, 'open'::text, 'committed'::text])))"
+2,profiles,profiles_scout_affiliation_check,c,CHECK (((scout_affiliation IS NULL) OR (char_length(scout_affiliation) <= 120)))
+2,profiles,profiles_supervision_state_check,c,"CHECK ((supervision_state = ANY (ARRAY['self'::text, 'supervised'::text])))"
+2,profiles,profiles_user_type_check,c,"CHECK ((user_type = ANY (ARRAY['athlete'::text, 'club'::text, 'league'::text, 'fan'::text, 'parent'::text, 'organizer'::text, 'scout'::text])))"
+2,profiles,profiles_username_key,u,UNIQUE (username)
+2,profiles,profiles_visibility_check,c,"CHECK ((visibility = ANY (ARRAY['public'::text, 'private'::text])))"
+2,season_highlights,season_highlights_pkey,p,PRIMARY KEY (id)
+2,season_highlights,season_highlights_profile_id_fkey,f,FOREIGN KEY (profile_id) REFERENCES profiles(id) ON DELETE CASCADE
+2,season_highlights,season_highlights_profile_id_sport_key_season_key,u,"UNIQUE (profile_id, sport_key, season)"
+2,season_highlights,season_highlights_rating_check,c,CHECK (((rating >= (0)::numeric) AND (rating <= (100)::numeric)))
+2,sports,sports_pkey,p,PRIMARY KEY (id)
+2,sports,sports_profile_id_fkey,f,FOREIGN KEY (profile_id) REFERENCES profiles(id) ON DELETE CASCADE
+2,sports,sports_profile_id_sport_key_key,u,"UNIQUE (profile_id, sport_key)"
+3,athlete_badges,idx_athlete_badges_position,index,"CREATE INDEX idx_athlete_badges_position ON public.athlete_badges USING btree (profile_id, ""position"")"
+3,athlete_badges,idx_athlete_badges_profile_id,index,CREATE INDEX idx_athlete_badges_profile_id ON public.athlete_badges USING btree (profile_id)
+3,athlete_equipment,idx_equipment_category,index,CREATE INDEX idx_equipment_category ON public.athlete_equipment USING btree (category)
+3,athlete_equipment,idx_equipment_profile,index,CREATE INDEX idx_equipment_profile ON public.athlete_equipment USING btree (profile_id)
+3,athlete_equipment,idx_equipment_sport,index,CREATE INDEX idx_equipment_sport ON public.athlete_equipment USING btree (sport_key)
+3,athlete_equipment,idx_equipment_status,index,CREATE INDEX idx_equipment_status ON public.athlete_equipment USING btree (status)
+3,comment_likes,comment_likes_comment_id_profile_id_key,index,"CREATE UNIQUE INDEX comment_likes_comment_id_profile_id_key ON public.comment_likes USING btree (comment_id, profile_id)"
+3,comment_likes,idx_comment_likes_profile,index,"CREATE INDEX idx_comment_likes_profile ON public.comment_likes USING btree (profile_id, created_at DESC)"
+3,connection_suggestions,idx_connection_suggestions_dismissed,index,"CREATE INDEX idx_connection_suggestions_dismissed ON public.connection_suggestions USING btree (profile_id, dismissed) WHERE (dismissed = true)"
+3,connection_suggestions,idx_connection_suggestions_profile,index,CREATE INDEX idx_connection_suggestions_profile ON public.connection_suggestions USING btree (profile_id)
+3,connection_suggestions,idx_connection_suggestions_suggested_profile_id,index,CREATE INDEX idx_connection_suggestions_suggested_profile_id ON public.connection_suggestions USING btree (suggested_profile_id)
+3,connection_suggestions,unique_suggestion,index,"CREATE UNIQUE INDEX unique_suggestion ON public.connection_suggestions USING btree (profile_id, suggested_profile_id)"
+3,follows,follows_follower_id_following_id_key,index,"CREATE UNIQUE INDEX follows_follower_id_following_id_key ON public.follows USING btree (follower_id, following_id)"
+3,follows,idx_follows_composite,index,"CREATE INDEX idx_follows_composite ON public.follows USING btree (follower_id, following_id, status)"
+3,follows,idx_follows_follower,index,CREATE INDEX idx_follows_follower ON public.follows USING btree (follower_id)
+3,follows,idx_follows_follower_status,index,"CREATE INDEX idx_follows_follower_status ON public.follows USING btree (follower_id, status)"
+3,follows,idx_follows_following,index,CREATE INDEX idx_follows_following ON public.follows USING btree (following_id)
+3,follows,idx_follows_following_status,index,"CREATE INDEX idx_follows_following_status ON public.follows USING btree (following_id, status)"
+3,follows,idx_follows_status,index,CREATE INDEX idx_follows_status ON public.follows USING btree (status)
+3,golf_rounds,idx_golf_rounds_course_id,index,CREATE INDEX idx_golf_rounds_course_id ON public.golf_rounds USING btree (course_id)
+3,golf_rounds,idx_golf_rounds_course_prefix,index,"CREATE INDEX idx_golf_rounds_course_prefix ON public.golf_rounds USING btree (lower(course) COLLATE ""C"")"
+3,golf_rounds,idx_golf_rounds_course_trgm,index,CREATE INDEX idx_golf_rounds_course_trgm ON public.golf_rounds USING gin (lower(course) gin_trgm_ops)
+3,golf_rounds,idx_golf_rounds_date,index,CREATE INDEX idx_golf_rounds_date ON public.golf_rounds USING btree (date DESC)
+3,golf_rounds,idx_golf_rounds_group_mirror,index,"CREATE UNIQUE INDEX idx_golf_rounds_group_mirror ON public.golf_rounds USING btree (group_post_id, profile_id)"
+3,golf_rounds,idx_golf_rounds_profile_date,index,"CREATE INDEX idx_golf_rounds_profile_date ON public.golf_rounds USING btree (profile_id, date DESC)"
+3,golf_rounds,idx_golf_rounds_profile_id,index,CREATE INDEX idx_golf_rounds_profile_id ON public.golf_rounds USING btree (profile_id)
+3,performances,idx_performances_profile_id,index,CREATE INDEX idx_performances_profile_id ON public.performances USING btree (profile_id)
+3,post_comments,idx_comments_created_by,index,CREATE INDEX idx_comments_created_by ON public.post_comments USING btree (created_by_user_id) WHERE (created_by_user_id IS NOT NULL)
+3,post_comments,idx_comments_post,index,"CREATE INDEX idx_comments_post ON public.post_comments USING btree (post_id, created_at DESC)"
+3,post_comments,idx_comments_post_created,index,"CREATE INDEX idx_comments_post_created ON public.post_comments USING btree (post_id, created_at DESC)"
+3,post_comments,idx_post_comments_is_pinned,index,CREATE INDEX idx_post_comments_is_pinned ON public.post_comments USING btree (post_id) WHERE (is_pinned = true)
+3,post_comments,idx_post_comments_parent_comment_id,index,CREATE INDEX idx_post_comments_parent_comment_id ON public.post_comments USING btree (parent_comment_id)
+3,post_comments,idx_post_comments_pending_nudge,index,CREATE INDEX idx_post_comments_pending_nudge ON public.post_comments USING btree (created_at) WHERE ((status = 'pending_approval'::text) AND (approval_nudged_at IS NULL))
+3,post_comments,idx_post_comments_post_id,index,CREATE INDEX idx_post_comments_post_id ON public.post_comments USING btree (post_id)
+3,post_comments,idx_post_comments_profile_id,index,CREATE INDEX idx_post_comments_profile_id ON public.post_comments USING btree (profile_id)
+3,post_comments,idx_post_comments_status_pending,index,CREATE INDEX idx_post_comments_status_pending ON public.post_comments USING btree (profile_id) WHERE (status <> 'published'::text)
+3,post_likes,idx_post_likes_post,index,CREATE INDEX idx_post_likes_post ON public.post_likes USING btree (post_id)
+3,post_likes,idx_post_likes_post_id,index,CREATE INDEX idx_post_likes_post_id ON public.post_likes USING btree (post_id)
+3,post_likes,idx_post_likes_profile,index,"CREATE INDEX idx_post_likes_profile ON public.post_likes USING btree (profile_id, created_at DESC)"
+3,post_likes,idx_post_likes_profile_id,index,CREATE INDEX idx_post_likes_profile_id ON public.post_likes USING btree (profile_id)
+3,post_likes,post_likes_post_id_profile_id_key,index,"CREATE UNIQUE INDEX post_likes_post_id_profile_id_key ON public.post_likes USING btree (post_id, profile_id)"
+3,post_media,idx_post_media_post_display,index,"CREATE INDEX idx_post_media_post_display ON public.post_media USING btree (post_id, display_order)"
+3,post_media,idx_post_media_post_id,index,CREATE INDEX idx_post_media_post_id ON public.post_media USING btree (post_id)
+3,post_media,idx_post_media_post_order,index,"CREATE INDEX idx_post_media_post_order ON public.post_media USING btree (post_id, display_order)"
+3,posts,idx_posts_category_profile_created,index,"CREATE INDEX idx_posts_category_profile_created ON public.posts USING btree (post_category, profile_id, created_at DESC)"
+3,posts,idx_posts_contest,index,CREATE INDEX idx_posts_contest ON public.posts USING btree (contest_id) WHERE (contest_id IS NOT NULL)
+3,posts,idx_posts_created_at,index,CREATE INDEX idx_posts_created_at ON public.posts USING btree (created_at DESC)
+3,posts,idx_posts_created_at_id_desc,index,"CREATE INDEX idx_posts_created_at_id_desc ON public.posts USING btree (created_at DESC, id DESC)"
+3,posts,idx_posts_created_by,index,CREATE INDEX idx_posts_created_by ON public.posts USING btree (created_by_user_id) WHERE (created_by_user_id IS NOT NULL)
+3,posts,idx_posts_event_id,index,CREATE INDEX idx_posts_event_id ON public.posts USING btree (event_id) WHERE (event_id IS NOT NULL)
+3,posts,idx_posts_group_post_id,index,CREATE INDEX idx_posts_group_post_id ON public.posts USING btree (group_post_id)
+3,posts,idx_posts_pending_nudge,index,CREATE INDEX idx_posts_pending_nudge ON public.posts USING btree (created_at) WHERE ((status = 'pending_approval'::text) AND (approval_nudged_at IS NULL))
+3,posts,idx_posts_pinned,index,"CREATE INDEX idx_posts_pinned ON public.posts USING btree (profile_id, pinned_at DESC) WHERE (is_pinned = true)"
+3,posts,idx_posts_profile_created,index,"CREATE INDEX idx_posts_profile_created ON public.posts USING btree (profile_id, created_at DESC)"
+3,posts,idx_posts_profile_id,index,CREATE INDEX idx_posts_profile_id ON public.posts USING btree (profile_id)
+3,posts,idx_posts_profile_visibility_created,index,"CREATE INDEX idx_posts_profile_visibility_created ON public.posts USING btree (profile_id, visibility, created_at DESC)"
+3,posts,idx_posts_round_id,index,CREATE INDEX idx_posts_round_id ON public.posts USING btree (round_id)
+3,posts,idx_posts_search_vector,index,CREATE INDEX idx_posts_search_vector ON public.posts USING gin (search_vector)
+3,posts,idx_posts_shared_post_id,index,CREATE INDEX idx_posts_shared_post_id ON public.posts USING btree (shared_post_id) WHERE (shared_post_id IS NOT NULL)
+3,posts,idx_posts_stat_line_date,index,"CREATE INDEX idx_posts_stat_line_date ON public.posts USING btree (profile_id, ((stats_data ->> 'date'::text))) WHERE ((stats_data ->> 'type'::text) = 'stat_line'::text)"
+3,posts,idx_posts_stats_media,index,"CREATE INDEX idx_posts_stats_media ON public.posts USING btree (profile_id, created_at DESC) WHERE (((stats_data IS NOT NULL) AND (stats_data <> '{}'::jsonb)) OR (round_id IS NOT NULL))"
+3,posts,idx_posts_status_pending,index,CREATE INDEX idx_posts_status_pending ON public.posts USING btree (profile_id) WHERE (status <> 'published'::text)
+3,posts,idx_posts_tags_gin,index,CREATE INDEX idx_posts_tags_gin ON public.posts USING gin (tags)
+3,posts,idx_posts_visibility_created,index,"CREATE INDEX idx_posts_visibility_created ON public.posts USING btree (visibility, created_at DESC)"
+3,privacy_settings,idx_privacy_settings_profile,index,CREATE INDEX idx_privacy_settings_profile ON public.privacy_settings USING btree (profile_id)
+3,privacy_settings,privacy_settings_profile_id_key,index,CREATE UNIQUE INDEX privacy_settings_profile_id_key ON public.privacy_settings USING btree (profile_id)
+3,profiles,idx_profiles_country_region,index,"CREATE INDEX idx_profiles_country_region ON public.profiles USING btree (country_code, region_code)"
+3,profiles,idx_profiles_deletion_requested,index,CREATE INDEX idx_profiles_deletion_requested ON public.profiles USING btree (deletion_requested_at) WHERE (deletion_requested_at IS NOT NULL)
+3,profiles,idx_profiles_first_name_prefix,index,"CREATE INDEX idx_profiles_first_name_prefix ON public.profiles USING btree (lower(first_name) COLLATE ""C"")"
+3,profiles,idx_profiles_first_name_trgm,index,CREATE INDEX idx_profiles_first_name_trgm ON public.profiles USING gin (lower(first_name) gin_trgm_ops)
+3,profiles,idx_profiles_full_name_prefix,index,"CREATE INDEX idx_profiles_full_name_prefix ON public.profiles USING btree (lower(full_name) COLLATE ""C"")"
+3,profiles,idx_profiles_full_name_trgm,index,CREATE INDEX idx_profiles_full_name_trgm ON public.profiles USING gin (lower(full_name) gin_trgm_ops)
+3,profiles,idx_profiles_handle_prefix,index,"CREATE INDEX idx_profiles_handle_prefix ON public.profiles USING btree (lower(handle) COLLATE ""C"")"
+3,profiles,idx_profiles_handle_trgm,index,CREATE INDEX idx_profiles_handle_trgm ON public.profiles USING gin (lower(handle) gin_trgm_ops)
+3,profiles,idx_profiles_handle_unique_lower,index,CREATE UNIQUE INDEX idx_profiles_handle_unique_lower ON public.profiles USING btree (lower(handle))
+3,profiles,idx_profiles_last_name_prefix,index,"CREATE INDEX idx_profiles_last_name_prefix ON public.profiles USING btree (lower(last_name) COLLATE ""C"")"
+3,profiles,idx_profiles_last_name_trgm,index,CREATE INDEX idx_profiles_last_name_trgm ON public.profiles USING gin (lower(last_name) gin_trgm_ops)
+3,profiles,idx_profiles_lat,index,CREATE INDEX idx_profiles_lat ON public.profiles USING btree (lat)
+3,profiles,idx_profiles_place,index,CREATE INDEX idx_profiles_place ON public.profiles USING btree (place_id)
+3,profiles,idx_profiles_recruiting_open,index,CREATE INDEX idx_profiles_recruiting_open ON public.profiles USING btree (recruiting_status) WHERE (recruiting_status <> 'closed'::text)
+3,profiles,idx_profiles_search,index,CREATE INDEX idx_profiles_search ON public.profiles USING gin (search_vector)
+3,profiles,idx_profiles_supervised,index,CREATE INDEX idx_profiles_supervised ON public.profiles USING btree (id) WHERE (supervision_state = 'supervised'::text)
+3,profiles,idx_profiles_visibility,index,CREATE INDEX idx_profiles_visibility ON public.profiles USING btree (visibility)
+3,profiles,profiles_email_key,index,CREATE UNIQUE INDEX profiles_email_key ON public.profiles USING btree (email)
+3,profiles,profiles_username_key,index,CREATE UNIQUE INDEX profiles_username_key ON public.profiles USING btree (username)
+3,season_highlights,idx_season_highlights_season,index,"CREATE INDEX idx_season_highlights_season ON public.season_highlights USING btree (profile_id, season)"
+3,season_highlights,idx_season_highlights_sport,index,"CREATE INDEX idx_season_highlights_sport ON public.season_highlights USING btree (profile_id, sport_key)"
+3,season_highlights,season_highlights_profile_id_sport_key_season_key,index,"CREATE UNIQUE INDEX season_highlights_profile_id_sport_key_season_key ON public.season_highlights USING btree (profile_id, sport_key, season)"
+3,sports,idx_sports_active,index,"CREATE INDEX idx_sports_active ON public.sports USING btree (profile_id, active)"
+3,sports,sports_profile_id_sport_key_key,index,"CREATE UNIQUE INDEX sports_profile_id_sport_key_key ON public.sports USING btree (profile_id, sport_key)"
+4,athlete_badges,athlete_badges,rls on,"anon:DELETE, anon:INSERT, anon:REFERENCES, anon:SELECT, anon:TRIGGER, anon:TRUNCATE, anon:UPDATE, authenticated:DELETE, authenticated:INSERT, authenticated:REFERENCES, authenticated:SELECT, authenticated:TRIGGER, authenticated:TRUNCATE, authenticated:UPDATE, service_role:DELETE, service_role:INSERT, service_role:REFERENCES, service_role:SELECT, service_role:TRIGGER, service_role:TRUNCATE, service_role:UPDATE"
+4,athlete_equipment,athlete_equipment,rls on,"anon:DELETE, anon:INSERT, anon:REFERENCES, anon:SELECT, anon:TRIGGER, anon:TRUNCATE, anon:UPDATE, authenticated:DELETE, authenticated:INSERT, authenticated:REFERENCES, authenticated:SELECT, authenticated:TRIGGER, authenticated:TRUNCATE, authenticated:UPDATE, service_role:DELETE, service_role:INSERT, service_role:REFERENCES, service_role:SELECT, service_role:TRIGGER, service_role:TRUNCATE, service_role:UPDATE"
+4,comment_likes,comment_likes,rls on,"anon:DELETE, anon:INSERT, anon:REFERENCES, anon:SELECT, anon:TRIGGER, anon:TRUNCATE, anon:UPDATE, authenticated:DELETE, authenticated:INSERT, authenticated:REFERENCES, authenticated:SELECT, authenticated:TRIGGER, authenticated:TRUNCATE, authenticated:UPDATE, service_role:DELETE, service_role:INSERT, service_role:REFERENCES, service_role:SELECT, service_role:TRIGGER, service_role:TRUNCATE, service_role:UPDATE"
+4,connection_suggestions,connection_suggestions,rls on,"anon:DELETE, anon:INSERT, anon:REFERENCES, anon:SELECT, anon:TRIGGER, anon:TRUNCATE, anon:UPDATE, authenticated:DELETE, authenticated:INSERT, authenticated:REFERENCES, authenticated:SELECT, authenticated:TRIGGER, authenticated:TRUNCATE, authenticated:UPDATE, service_role:DELETE, service_role:INSERT, service_role:REFERENCES, service_role:SELECT, service_role:TRIGGER, service_role:TRUNCATE, service_role:UPDATE"
+4,follows,follows,rls on,"anon:DELETE, anon:INSERT, anon:REFERENCES, anon:SELECT, anon:TRIGGER, anon:TRUNCATE, anon:UPDATE, authenticated:DELETE, authenticated:INSERT, authenticated:REFERENCES, authenticated:SELECT, authenticated:TRIGGER, authenticated:TRUNCATE, authenticated:UPDATE, service_role:DELETE, service_role:INSERT, service_role:REFERENCES, service_role:SELECT, service_role:TRIGGER, service_role:TRUNCATE, service_role:UPDATE"
+4,golf_rounds,golf_rounds,rls on,"anon:DELETE, anon:INSERT, anon:REFERENCES, anon:SELECT, anon:TRIGGER, anon:TRUNCATE, anon:UPDATE, authenticated:DELETE, authenticated:INSERT, authenticated:REFERENCES, authenticated:SELECT, authenticated:TRIGGER, authenticated:TRUNCATE, authenticated:UPDATE, service_role:DELETE, service_role:INSERT, service_role:REFERENCES, service_role:SELECT, service_role:TRIGGER, service_role:TRUNCATE, service_role:UPDATE"
+4,performances,performances,rls on,"anon:DELETE, anon:INSERT, anon:REFERENCES, anon:SELECT, anon:TRIGGER, anon:TRUNCATE, anon:UPDATE, authenticated:DELETE, authenticated:INSERT, authenticated:REFERENCES, authenticated:SELECT, authenticated:TRIGGER, authenticated:TRUNCATE, authenticated:UPDATE, service_role:DELETE, service_role:INSERT, service_role:REFERENCES, service_role:SELECT, service_role:TRIGGER, service_role:TRUNCATE, service_role:UPDATE"
+4,post_comments,post_comments,rls on,"anon:DELETE, anon:INSERT, anon:REFERENCES, anon:SELECT, anon:TRIGGER, anon:TRUNCATE, anon:UPDATE, authenticated:DELETE, authenticated:INSERT, authenticated:REFERENCES, authenticated:SELECT, authenticated:TRIGGER, authenticated:TRUNCATE, authenticated:UPDATE, service_role:DELETE, service_role:INSERT, service_role:REFERENCES, service_role:SELECT, service_role:TRIGGER, service_role:TRUNCATE, service_role:UPDATE"
+4,post_likes,post_likes,rls on,"anon:DELETE, anon:INSERT, anon:REFERENCES, anon:SELECT, anon:TRIGGER, anon:TRUNCATE, anon:UPDATE, authenticated:DELETE, authenticated:INSERT, authenticated:REFERENCES, authenticated:SELECT, authenticated:TRIGGER, authenticated:TRUNCATE, authenticated:UPDATE, service_role:DELETE, service_role:INSERT, service_role:REFERENCES, service_role:SELECT, service_role:TRIGGER, service_role:TRUNCATE, service_role:UPDATE"
+4,post_media,post_media,rls on,"anon:DELETE, anon:INSERT, anon:REFERENCES, anon:SELECT, anon:TRIGGER, anon:TRUNCATE, anon:UPDATE, authenticated:DELETE, authenticated:INSERT, authenticated:REFERENCES, authenticated:SELECT, authenticated:TRIGGER, authenticated:TRUNCATE, authenticated:UPDATE, service_role:DELETE, service_role:INSERT, service_role:REFERENCES, service_role:SELECT, service_role:TRIGGER, service_role:TRUNCATE, service_role:UPDATE"
+4,posts,posts,rls on,"anon:DELETE, anon:INSERT, anon:REFERENCES, anon:SELECT, anon:TRIGGER, anon:TRUNCATE, anon:UPDATE, authenticated:DELETE, authenticated:INSERT, authenticated:REFERENCES, authenticated:SELECT, authenticated:TRIGGER, authenticated:TRUNCATE, authenticated:UPDATE, service_role:DELETE, service_role:INSERT, service_role:REFERENCES, service_role:SELECT, service_role:TRIGGER, service_role:TRUNCATE, service_role:UPDATE"
+4,privacy_settings,privacy_settings,rls on,"anon:DELETE, anon:INSERT, anon:REFERENCES, anon:SELECT, anon:TRIGGER, anon:TRUNCATE, anon:UPDATE, authenticated:DELETE, authenticated:INSERT, authenticated:REFERENCES, authenticated:SELECT, authenticated:TRIGGER, authenticated:TRUNCATE, authenticated:UPDATE, service_role:DELETE, service_role:INSERT, service_role:REFERENCES, service_role:SELECT, service_role:TRIGGER, service_role:TRUNCATE, service_role:UPDATE"
+4,profiles,profiles,rls on,"anon:DELETE, anon:INSERT, anon:REFERENCES, anon:SELECT, anon:TRIGGER, anon:TRUNCATE, anon:UPDATE, authenticated:DELETE, authenticated:INSERT, authenticated:REFERENCES, authenticated:SELECT, authenticated:TRIGGER, authenticated:TRUNCATE, authenticated:UPDATE, service_role:DELETE, service_role:INSERT, service_role:REFERENCES, service_role:SELECT, service_role:TRIGGER, service_role:TRUNCATE, service_role:UPDATE"
+4,season_highlights,season_highlights,rls on,"anon:DELETE, anon:INSERT, anon:REFERENCES, anon:SELECT, anon:TRIGGER, anon:TRUNCATE, anon:UPDATE, authenticated:DELETE, authenticated:INSERT, authenticated:REFERENCES, authenticated:SELECT, authenticated:TRIGGER, authenticated:TRUNCATE, authenticated:UPDATE, service_role:DELETE, service_role:INSERT, service_role:REFERENCES, service_role:SELECT, service_role:TRIGGER, service_role:TRUNCATE, service_role:UPDATE"
+4,sports,sports,rls on,"anon:DELETE, anon:INSERT, anon:REFERENCES, anon:SELECT, anon:TRIGGER, anon:TRUNCATE, anon:UPDATE, authenticated:DELETE, authenticated:INSERT, authenticated:REFERENCES, authenticated:SELECT, authenticated:TRIGGER, authenticated:TRUNCATE, authenticated:UPDATE, service_role:DELETE, service_role:INSERT, service_role:REFERENCES, service_role:SELECT, service_role:TRIGGER, service_role:TRUNCATE, service_role:UPDATE"
+5,athlete_badges,athlete_badges_delete_policy,DELETE,roles=public | USING: (profile_id = ( SELECT auth.uid() AS uid)) | WITH CHECK: -
+5,athlete_badges,athlete_badges_insert_policy,INSERT,roles=public | USING: - | WITH CHECK: (profile_id = ( SELECT auth.uid() AS uid))
+5,athlete_badges,athlete_badges_select_policy,SELECT,roles=public | USING: ((profile_id = ( SELECT auth.uid() AS uid)) OR (EXISTS ( SELECT 1 ⏎    FROM profiles ⏎   WHERE ((profiles.id = athlete_badges.profile_id) AND (profiles.visibility = 'public'::text))))) | WITH CHECK: -
+5,athlete_badges,athlete_badges_update_policy,UPDATE,roles=public | USING: (profile_id = ( SELECT auth.uid() AS uid)) | WITH CHECK: -
+5,athlete_equipment,athlete_equipment_guardian_write,ALL,"roles=public | USING: has_profile_access(profile_id, ARRAY['guardian'::text]) | WITH CHECK: has_profile_access(profile_id, ARRAY['guardian'::text])"
+5,athlete_equipment,athlete_equipment_profile_access_select,SELECT,"roles=public | USING: has_profile_access(profile_id, ARRAY['guardian'::text, 'supervised'::text, 'viewer'::text]) | WITH CHECK: -"
+5,athlete_equipment,equipment_delete_policy,DELETE,roles=public | USING: (profile_id = auth.uid()) | WITH CHECK: -
+5,athlete_equipment,equipment_insert_policy,INSERT,roles=public | USING: - | WITH CHECK: (profile_id = auth.uid())
+5,athlete_equipment,equipment_select_policy,SELECT,roles=public | USING: ((profile_id = ( SELECT auth.uid() AS uid)) OR (EXISTS ( SELECT 1 ⏎    FROM profiles p ⏎   WHERE ((p.id = athlete_equipment.profile_id) AND (p.visibility = 'public'::text))))) | WITH CHECK: -
+5,athlete_equipment,equipment_update_policy,UPDATE,roles=public | USING: (profile_id = auth.uid()) | WITH CHECK: -
+5,comment_likes,comment_likes_delete_policy,DELETE,roles=public | USING: (profile_id = ( SELECT auth.uid() AS uid)) | WITH CHECK: -
+5,comment_likes,comment_likes_insert_policy,INSERT,roles=public | USING: - | WITH CHECK: (profile_id = ( SELECT auth.uid() AS uid))
+5,comment_likes,comment_likes_select_policy,SELECT,roles=public | USING: true | WITH CHECK: -
+5,connection_suggestions,connection_suggestions_delete_policy,DELETE,roles=public | USING: (profile_id = ( SELECT auth.uid() AS uid)) | WITH CHECK: -
+5,connection_suggestions,connection_suggestions_insert_policy,INSERT,roles=public | USING: - | WITH CHECK: (profile_id = ( SELECT auth.uid() AS uid))
+5,connection_suggestions,connection_suggestions_select_policy,SELECT,roles=public | USING: (profile_id = ( SELECT auth.uid() AS uid)) | WITH CHECK: -
+5,connection_suggestions,connection_suggestions_update_policy,UPDATE,roles=public | USING: (profile_id = ( SELECT auth.uid() AS uid)) | WITH CHECK: -
+5,follows,follows_delete_policy,DELETE,roles=public | USING: (follower_id = ( SELECT auth.uid() AS uid)) | WITH CHECK: -
+5,follows,follows_insert_policy,INSERT,roles=public | USING: - | WITH CHECK: (follower_id = ( SELECT auth.uid() AS uid))
+5,follows,follows_select_policy,SELECT,roles=public | USING: ((follower_id = ( SELECT auth.uid() AS uid)) OR (following_id = ( SELECT auth.uid() AS uid))) | WITH CHECK: -
+5,follows,follows_update_policy,UPDATE,roles=public | USING: (following_id = ( SELECT auth.uid() AS uid)) | WITH CHECK: -
+5,golf_rounds,golf_rounds_delete_policy,DELETE,roles=public | USING: (profile_id = ( SELECT auth.uid() AS uid)) | WITH CHECK: -
+5,golf_rounds,golf_rounds_guardian_write,ALL,"roles=public | USING: has_profile_access(profile_id, ARRAY['guardian'::text]) | WITH CHECK: has_profile_access(profile_id, ARRAY['guardian'::text])"
+5,golf_rounds,golf_rounds_insert_policy,INSERT,roles=public | USING: - | WITH CHECK: (profile_id = ( SELECT auth.uid() AS uid))
+5,golf_rounds,golf_rounds_profile_access_select,SELECT,"roles=public | USING: has_profile_access(profile_id, ARRAY['guardian'::text, 'supervised'::text, 'viewer'::text]) | WITH CHECK: -"
+5,golf_rounds,golf_rounds_select_policy,SELECT,roles=public | USING: ((profile_id = ( SELECT auth.uid() AS uid)) OR (EXISTS ( SELECT 1 ⏎    FROM profiles ⏎   WHERE ((profiles.id = golf_rounds.profile_id) AND ((profiles.visibility = 'public'::text) OR (EXISTS ( SELECT 1 ⏎            FROM follows ⏎           WHERE ((follows.follower_id = ( SELECT auth.uid() AS uid)) AND (follows.following_id = golf_rounds.profile_id) AND (follows.status = 'accepted'::text))))))))) | WITH CHECK: -
+5,golf_rounds,golf_rounds_update_policy,UPDATE,roles=public | USING: (profile_id = ( SELECT auth.uid() AS uid)) | WITH CHECK: -
+5,performances,performances_delete_policy,DELETE,roles=public | USING: (profile_id = ( SELECT auth.uid() AS uid)) | WITH CHECK: -
+5,performances,performances_insert_policy,INSERT,roles=public | USING: - | WITH CHECK: (profile_id = ( SELECT auth.uid() AS uid))
+5,performances,performances_profile_access_select,SELECT,"roles=public | USING: has_profile_access(profile_id, ARRAY['guardian'::text, 'supervised'::text, 'viewer'::text]) | WITH CHECK: -"
+5,performances,performances_select_policy,SELECT,roles=public | USING: ((profile_id = ( SELECT auth.uid() AS uid)) OR (EXISTS ( SELECT 1 ⏎    FROM profiles ⏎   WHERE ((profiles.id = performances.profile_id) AND ((profiles.visibility = 'public'::text) OR (EXISTS ( SELECT 1 ⏎            FROM follows ⏎           WHERE ((follows.follower_id = ( SELECT auth.uid() AS uid)) AND (follows.following_id = performances.profile_id) AND (follows.status = 'accepted'::text))))))))) | WITH CHECK: -
+5,performances,performances_update_policy,UPDATE,roles=public | USING: (profile_id = ( SELECT auth.uid() AS uid)) | WITH CHECK: -
+5,post_comments,post_comments_delete_policy,DELETE,roles=public | USING: (profile_id = ( SELECT auth.uid() AS uid)) | WITH CHECK: -
+5,post_comments,post_comments_insert_policy,INSERT,roles=public | USING: - | WITH CHECK: (profile_id = ( SELECT auth.uid() AS uid))
+5,post_comments,post_comments_select_policy,SELECT,roles=public | USING: true | WITH CHECK: -
+5,post_comments,post_comments_update_policy,UPDATE,roles=public | USING: (profile_id = ( SELECT auth.uid() AS uid)) | WITH CHECK: -
+5,post_likes,post_likes_delete_policy,DELETE,roles=public | USING: (profile_id = ( SELECT auth.uid() AS uid)) | WITH CHECK: -
+5,post_likes,post_likes_insert_policy,INSERT,roles=public | USING: - | WITH CHECK: (profile_id = ( SELECT auth.uid() AS uid))
+5,post_likes,post_likes_select_policy,SELECT,roles=public | USING: true | WITH CHECK: -
+5,post_media,post_media_delete_policy,DELETE,roles=public | USING: (EXISTS ( SELECT 1 ⏎    FROM posts ⏎   WHERE ((posts.id = post_media.post_id) AND (posts.profile_id = ( SELECT auth.uid() AS uid))))) | WITH CHECK: -
+5,post_media,post_media_insert_policy,INSERT,roles=public | USING: - | WITH CHECK: (EXISTS ( SELECT 1 ⏎    FROM posts ⏎   WHERE ((posts.id = post_media.post_id) AND (posts.profile_id = ( SELECT auth.uid() AS uid)))))
+5,post_media,post_media_profile_access_select,SELECT,"roles=public | USING: (EXISTS ( SELECT 1 ⏎    FROM posts p ⏎   WHERE ((p.id = post_media.post_id) AND has_profile_access(p.profile_id, ARRAY['guardian'::text, 'supervised'::text, 'viewer'::text])))) | WITH CHECK: -"
+5,post_media,post_media_select_policy,SELECT,roles=public | USING: (EXISTS ( SELECT 1 ⏎    FROM posts ⏎   WHERE ((posts.id = post_media.post_id) AND ((posts.profile_id = ( SELECT auth.uid() AS uid)) OR (posts.visibility = 'public'::text) OR (EXISTS ( SELECT 1 ⏎            FROM follows ⏎           WHERE ((follows.follower_id = ( SELECT auth.uid() AS uid)) AND (follows.following_id = posts.profile_id) AND (follows.status = 'accepted'::text)))))))) | WITH CHECK: -
+5,post_media,post_media_update_policy,UPDATE,roles=public | USING: (EXISTS ( SELECT 1 ⏎    FROM posts ⏎   WHERE ((posts.id = post_media.post_id) AND (posts.profile_id = ( SELECT auth.uid() AS uid))))) | WITH CHECK: -
+5,posts,posts_delete_policy,DELETE,roles=public | USING: (profile_id = ( SELECT auth.uid() AS uid)) | WITH CHECK: -
+5,posts,posts_guardian_write,ALL,"roles=public | USING: has_profile_access(profile_id, ARRAY['guardian'::text]) | WITH CHECK: has_profile_access(profile_id, ARRAY['guardian'::text])"
+5,posts,posts_insert_policy,INSERT,roles=public | USING: - | WITH CHECK: (profile_id = ( SELECT auth.uid() AS uid))
+5,posts,posts_profile_access_select,SELECT,"roles=public | USING: has_profile_access(profile_id, ARRAY['guardian'::text, 'supervised'::text, 'viewer'::text]) | WITH CHECK: -"
+5,posts,posts_select_policy,SELECT,roles=public | USING: ((profile_id = ( SELECT auth.uid() AS uid)) OR ((status = 'published'::text) AND ((visibility = 'public'::text) OR (EXISTS ( SELECT 1 ⏎    FROM follows ⏎   WHERE ((follows.follower_id = ( SELECT auth.uid() AS uid)) AND (follows.following_id = posts.profile_id) AND (follows.status = 'accepted'::text))))))) | WITH CHECK: -
+5,posts,posts_update_policy,UPDATE,roles=public | USING: (profile_id = ( SELECT auth.uid() AS uid)) | WITH CHECK: -
+5,privacy_settings,privacy_settings_insert_policy,INSERT,roles=public | USING: - | WITH CHECK: (profile_id = ( SELECT auth.uid() AS uid))
+5,privacy_settings,privacy_settings_select_policy,SELECT,roles=public | USING: (profile_id = ( SELECT auth.uid() AS uid)) | WITH CHECK: -
+5,privacy_settings,privacy_settings_update_policy,UPDATE,roles=public | USING: (profile_id = ( SELECT auth.uid() AS uid)) | WITH CHECK: -
+5,profiles,profiles_profile_access_select,SELECT,"roles=public | USING: has_profile_access(id, ARRAY['guardian'::text, 'supervised'::text, 'viewer'::text]) | WITH CHECK: -"
+5,profiles,profiles_select_policy,SELECT,roles=public | USING: ((id = ( SELECT auth.uid() AS uid)) OR (visibility = 'public'::text) OR (EXISTS ( SELECT 1 ⏎    FROM follows ⏎   WHERE ((follows.follower_id = ( SELECT auth.uid() AS uid)) AND (follows.following_id = profiles.id) AND (follows.status = 'accepted'::text))))) | WITH CHECK: -
+5,profiles,profiles_update_policy,UPDATE,roles=public | USING: (id = ( SELECT auth.uid() AS uid)) | WITH CHECK: -
+5,season_highlights,season_highlights_delete_policy,DELETE,roles=public | USING: (profile_id = ( SELECT auth.uid() AS uid)) | WITH CHECK: -
+5,season_highlights,season_highlights_insert_policy,INSERT,roles=public | USING: - | WITH CHECK: (profile_id = ( SELECT auth.uid() AS uid))
+5,season_highlights,season_highlights_profile_access_select,SELECT,"roles=public | USING: has_profile_access(profile_id, ARRAY['guardian'::text, 'supervised'::text, 'viewer'::text]) | WITH CHECK: -"
+5,season_highlights,season_highlights_select_policy,SELECT,roles=public | USING: ((profile_id = ( SELECT auth.uid() AS uid)) OR (EXISTS ( SELECT 1 ⏎    FROM profiles ⏎   WHERE ((profiles.id = season_highlights.profile_id) AND ((profiles.visibility = 'public'::text) OR (EXISTS ( SELECT 1 ⏎            FROM follows ⏎           WHERE ((follows.follower_id = ( SELECT auth.uid() AS uid)) AND (follows.following_id = season_highlights.profile_id) AND (follows.status = 'accepted'::text))))))))) | WITH CHECK: -
+5,season_highlights,season_highlights_update_policy,UPDATE,roles=public | USING: (profile_id = ( SELECT auth.uid() AS uid)) | WITH CHECK: -
+5,sports,sports_insert_policy,INSERT,roles=public | USING: - | WITH CHECK: (( SELECT auth.uid() AS uid) IS NOT NULL)
+5,sports,sports_select_policy,SELECT,roles=public | USING: true | WITH CHECK: -
+6,athlete_badges,handle_updated_at_athlete_badges,enabled=O,CREATE TRIGGER handle_updated_at_athlete_badges BEFORE UPDATE ON public.athlete_badges FOR EACH ROW EXECUTE FUNCTION handle_updated_at()
+6,athlete_equipment,trigger_equipment_updated_at,enabled=O,CREATE TRIGGER trigger_equipment_updated_at BEFORE UPDATE ON public.athlete_equipment FOR EACH ROW EXECUTE FUNCTION update_equipment_updated_at()
+6,comment_likes,trigger_decrement_comment_likes_count,enabled=O,CREATE TRIGGER trigger_decrement_comment_likes_count AFTER DELETE ON public.comment_likes FOR EACH ROW EXECUTE FUNCTION decrement_comment_likes_count()
+6,comment_likes,trigger_increment_comment_likes_count,enabled=O,CREATE TRIGGER trigger_increment_comment_likes_count AFTER INSERT ON public.comment_likes FOR EACH ROW EXECUTE FUNCTION increment_comment_likes_count()
+6,comment_likes,trigger_notify_comment_like,enabled=O,CREATE TRIGGER trigger_notify_comment_like AFTER INSERT ON public.comment_likes FOR EACH ROW EXECUTE FUNCTION notify_comment_like()
+6,connection_suggestions,trigger_connection_suggestions_updated_at,enabled=O,CREATE TRIGGER trigger_connection_suggestions_updated_at BEFORE UPDATE ON public.connection_suggestions FOR EACH ROW EXECUTE FUNCTION update_connection_suggestions_updated_at()
+6,follows,set_follows_updated_at,enabled=O,CREATE TRIGGER set_follows_updated_at BEFORE UPDATE ON public.follows FOR EACH ROW EXECUTE FUNCTION update_follows_updated_at()
+6,follows,trigger_notify_follow_accepted,enabled=O,CREATE TRIGGER trigger_notify_follow_accepted AFTER UPDATE ON public.follows FOR EACH ROW EXECUTE FUNCTION notify_follow_accepted()
+6,follows,trigger_notify_follow_declined,enabled=O,CREATE TRIGGER trigger_notify_follow_declined BEFORE DELETE ON public.follows FOR EACH ROW WHEN ((old.status = 'pending'::text)) EXECUTE FUNCTION notify_follow_declined()
+6,follows,trigger_notify_follow_request,enabled=O,CREATE TRIGGER trigger_notify_follow_request AFTER INSERT ON public.follows FOR EACH ROW EXECUTE FUNCTION notify_follow_request()
+6,follows,trigger_notify_new_follower,enabled=O,CREATE TRIGGER trigger_notify_new_follower AFTER INSERT ON public.follows FOR EACH ROW WHEN ((new.status = 'accepted'::text)) EXECUTE FUNCTION notify_new_follower()
+6,performances,handle_updated_at_performances,enabled=O,CREATE TRIGGER handle_updated_at_performances BEFORE UPDATE ON public.performances FOR EACH ROW EXECUTE FUNCTION handle_updated_at()
+6,post_comments,trigger_notify_post_comment,enabled=O,CREATE TRIGGER trigger_notify_post_comment AFTER INSERT ON public.post_comments FOR EACH ROW EXECUTE FUNCTION notify_post_comment()
+6,post_comments,trigger_update_post_comments_count,enabled=O,CREATE TRIGGER trigger_update_post_comments_count AFTER INSERT OR DELETE OR UPDATE OF status ON public.post_comments FOR EACH ROW EXECUTE FUNCTION update_post_comments_count()
+6,post_comments,update_post_comments_count_trigger,enabled=O,CREATE TRIGGER update_post_comments_count_trigger AFTER INSERT OR DELETE ON public.post_comments FOR EACH ROW EXECUTE FUNCTION update_post_comments_count()
+6,post_likes,trigger_notify_post_like,enabled=O,CREATE TRIGGER trigger_notify_post_like AFTER INSERT ON public.post_likes FOR EACH ROW EXECUTE FUNCTION notify_post_like()
+6,post_likes,trigger_update_post_likes_count,enabled=O,CREATE TRIGGER trigger_update_post_likes_count AFTER INSERT OR DELETE ON public.post_likes FOR EACH ROW EXECUTE FUNCTION update_post_likes_count()
+6,post_likes,update_post_likes_count_trigger,enabled=O,CREATE TRIGGER update_post_likes_count_trigger AFTER INSERT OR DELETE ON public.post_likes FOR EACH ROW EXECUTE FUNCTION update_post_likes_count()
+6,posts,posts_search_doc,enabled=O,"CREATE TRIGGER posts_search_doc AFTER INSERT OR UPDATE OF caption, hashtags, sport_key, visibility, status ON public.posts FOR EACH ROW EXECUTE FUNCTION search_doc_sync_post()"
+6,posts,posts_search_doc_delete,enabled=O,CREATE TRIGGER posts_search_doc_delete AFTER DELETE ON public.posts FOR EACH ROW EXECUTE FUNCTION search_document_delete('post')
+6,posts,posts_search_vector_trigger,enabled=O,CREATE TRIGGER posts_search_vector_trigger BEFORE INSERT OR UPDATE ON public.posts FOR EACH ROW EXECUTE FUNCTION posts_search_vector_update()
+6,posts,trigger_update_post_reposts_count,enabled=O,CREATE TRIGGER trigger_update_post_reposts_count AFTER INSERT OR DELETE OR UPDATE OF shared_post_id ON public.posts FOR EACH ROW EXECUTE FUNCTION update_post_reposts_count()
+6,posts,update_posts_updated_at,enabled=O,CREATE TRIGGER update_posts_updated_at BEFORE UPDATE ON public.posts FOR EACH ROW EXECUTE FUNCTION update_updated_at_column()
+6,profiles,auto_split_full_name,enabled=O,CREATE TRIGGER auto_split_full_name BEFORE INSERT OR UPDATE OF full_name ON public.profiles FOR EACH ROW EXECUTE FUNCTION split_full_name()
+6,profiles,handle_updated_at_profiles,enabled=O,CREATE TRIGGER handle_updated_at_profiles BEFORE UPDATE ON public.profiles FOR EACH ROW EXECUTE FUNCTION handle_updated_at()
+6,profiles,profiles_search_doc,enabled=O,"CREATE TRIGGER profiles_search_doc AFTER INSERT OR UPDATE OF first_name, last_name, full_name, handle, location, city, region, region_code, country, country_code, place_id, lat, lng, visibility, avatar_url, search_vector ON public.profiles FOR EACH ROW EXECUTE FUNCTION search_doc_sync_athlete()"
+6,profiles,profiles_search_doc_delete,enabled=O,CREATE TRIGGER profiles_search_doc_delete AFTER DELETE ON public.profiles FOR EACH ROW EXECUTE FUNCTION search_document_delete('athlete')
+6,profiles,profiles_search_vector,enabled=O,"CREATE TRIGGER profiles_search_vector BEFORE INSERT OR UPDATE OF first_name, last_name, full_name, handle, location, city, region, region_code, country, country_code, place_id ON public.profiles FOR EACH ROW EXECUTE FUNCTION profiles_search_vector_update()"
+6,profiles,sync_profile_privacy,enabled=O,CREATE TRIGGER sync_profile_privacy AFTER INSERT OR UPDATE OF visibility ON public.profiles FOR EACH ROW EXECUTE FUNCTION sync_privacy_settings()
+6,profiles,trigger_auto_update_display_name,enabled=O,"CREATE TRIGGER trigger_auto_update_display_name BEFORE INSERT OR UPDATE OF first_name, middle_name, last_name, full_name, username ON public.profiles FOR EACH ROW EXECUTE FUNCTION auto_update_display_name()"
+6,season_highlights,handle_updated_at_season_highlights,enabled=O,CREATE TRIGGER handle_updated_at_season_highlights BEFORE UPDATE ON public.season_highlights FOR EACH ROW EXECUTE FUNCTION handle_updated_at()
+6,sports,handle_updated_at_sports,enabled=O,CREATE TRIGGER handle_updated_at_sports BEFORE UPDATE ON public.sports FOR EACH ROW EXECUTE FUNCTION handle_updated_at()
+7,(function),auto_update_display_name,function,"CREATE OR REPLACE FUNCTION public.auto_update_display_name() ⏎  RETURNS trigger ⏎  LANGUAGE plpgsql ⏎  SET search_path TO '' ⏎ AS $function$ ⏎ BEGIN ⏎   -- Auto-generate display name from first/last name if empty ⏎   IF NEW.first_name IS NOT NULL AND NEW.last_name IS NOT NULL THEN ⏎     IF NEW.full_name IS NULL OR NEW.full_name = '' THEN ⏎       NEW.full_name := NEW.first_name || ' ' || NEW.last_name; ⏎     END IF; ⏎   END IF; ⏎   RETURN NEW; ⏎ END; ⏎ $function$ ⏎ "
+7,(function),decrement_comment_likes_count,function,"CREATE OR REPLACE FUNCTION public.decrement_comment_likes_count() ⏎  RETURNS trigger ⏎  LANGUAGE plpgsql ⏎  SET search_path TO '' ⏎ AS $function$ ⏎ BEGIN ⏎   UPDATE public.post_comments ⏎   SET likes_count = GREATEST(0, likes_count - 1) ⏎   WHERE id = OLD.comment_id; ⏎   RETURN OLD; ⏎ END; ⏎ $function$ ⏎ "
+7,(function),handle_updated_at,function,"CREATE OR REPLACE FUNCTION public.handle_updated_at() ⏎  RETURNS trigger ⏎  LANGUAGE plpgsql ⏎  SET search_path TO '' ⏎ AS $function$ ⏎ BEGIN ⏎   NEW.updated_at = timezone('utc'::text, now()); ⏎   RETURN NEW; ⏎ END; ⏎ $function$ ⏎ "
+7,(function),increment_comment_likes_count,function,"CREATE OR REPLACE FUNCTION public.increment_comment_likes_count() ⏎  RETURNS trigger ⏎  LANGUAGE plpgsql ⏎  SET search_path TO '' ⏎ AS $function$ ⏎ BEGIN ⏎   UPDATE public.post_comments ⏎   SET likes_count = likes_count + 1 ⏎   WHERE id = NEW.comment_id; ⏎   RETURN NEW; ⏎ END; ⏎ $function$ ⏎ "
+7,(function),notify_comment_like,function,"CREATE OR REPLACE FUNCTION public.notify_comment_like() ⏎  RETURNS trigger ⏎  LANGUAGE plpgsql ⏎  SECURITY DEFINER ⏎  SET search_path TO '' ⏎ AS $function$ ⏎       DECLARE ⏎         v_actor_name TEXT; ⏎         v_comment_author UUID; ⏎       BEGIN ⏎         -- SCHEMA-QUALIFIED post_comments table ⏎         SELECT profile_id INTO v_comment_author FROM public.post_comments WHERE id = NEW.comment_id; ⏎         IF v_comment_author = NEW.profile_id THEN RETURN NEW; END IF; ⏎  ⏎         -- SCHEMA-QUALIFIED profiles table ⏎         SELECT COALESCE(first_name || ' ' || last_name, full_name, 'Someone') ⏎         INTO v_actor_name FROM public.profiles WHERE id = NEW.profile_id; ⏎  ⏎         -- SCHEMA-QUALIFIED function call ⏎         PERFORM public.create_notification( ⏎           p_user_id := v_comment_author, ⏎           p_type := 'like', ⏎           p_actor_id := NEW.profile_id, ⏎           p_title := v_actor_name || ' liked your comment', ⏎           p_action_url := '/feed?comment=' || NEW.comment_id, ⏎           p_comment_id := NEW.comment_id, ⏎           p_metadata := jsonb_build_object('comment_id', NEW.comment_id) ⏎         ); ⏎         RETURN NEW; ⏎       END; ⏎       $function$ ⏎ "
+7,(function),notify_follow_accepted,function,"CREATE OR REPLACE FUNCTION public.notify_follow_accepted() ⏎  RETURNS trigger ⏎  LANGUAGE plpgsql ⏎  SECURITY DEFINER ⏎  SET search_path TO '' ⏎ AS $function$ ⏎ DECLARE ⏎   v_actor_name TEXT; ⏎ BEGIN ⏎   IF OLD.status = 'pending' AND NEW.status = 'accepted' THEN ⏎     v_actor_name := public.get_actor_display_name(NEW.following_id); ⏎  ⏎     PERFORM public.create_notification( ⏎       p_user_id := NEW.follower_id, ⏎       p_type := 'follow_accepted', ⏎       p_actor_id := NEW.following_id, ⏎       p_title := v_actor_name || ' accepted your follow request', ⏎       p_action_url := '/athlete/' || NEW.following_id, ⏎       p_follow_id := NEW.id, ⏎       p_metadata := jsonb_build_object('follow_id', NEW.id) ⏎     ); ⏎   END IF; ⏎   RETURN NEW; ⏎ END; ⏎ $function$ ⏎ "
+7,(function),notify_follow_declined,function,"CREATE OR REPLACE FUNCTION public.notify_follow_declined() ⏎  RETURNS trigger ⏎  LANGUAGE plpgsql ⏎  SECURITY DEFINER ⏎  SET search_path TO '' ⏎ AS $function$ ⏎ BEGIN ⏎   -- Update the follow_request notification status when request is deleted ⏎   IF OLD.status = 'pending' THEN ⏎     UPDATE public.notifications ⏎     SET action_status = 'declined', ⏎         action_taken_at = NOW() ⏎     WHERE follow_id = OLD.id ⏎       AND type = 'follow_request'; ⏎   END IF; ⏎   RETURN OLD; ⏎ END; ⏎ $function$ ⏎ "
+7,(function),notify_follow_request,function,"CREATE OR REPLACE FUNCTION public.notify_follow_request() ⏎  RETURNS trigger ⏎  LANGUAGE plpgsql ⏎  SECURITY DEFINER ⏎  SET search_path TO '' ⏎ AS $function$ ⏎ DECLARE ⏎   v_actor_name TEXT; ⏎ BEGIN ⏎   IF NEW.status = 'pending' THEN ⏎     v_actor_name := public.get_actor_display_name(NEW.follower_id); ⏎  ⏎     PERFORM public.create_notification( ⏎       p_user_id := NEW.following_id, ⏎       p_type := 'follow_request', ⏎       p_actor_id := NEW.follower_id, ⏎       p_title := v_actor_name || ' sent you a follow request', ⏎       p_message := NEW.message, ⏎       p_action_url := '/app/followers?tab=requests', ⏎       p_follow_id := NEW.id, ⏎       p_metadata := jsonb_build_object('follow_id', NEW.id, 'action_status', 'pending') ⏎     ); ⏎   END IF; ⏎   RETURN NEW; ⏎ END; ⏎ $function$ ⏎ "
+7,(function),notify_new_follower,function,"CREATE OR REPLACE FUNCTION public.notify_new_follower() ⏎  RETURNS trigger ⏎  LANGUAGE plpgsql ⏎  SECURITY DEFINER ⏎  SET search_path TO '' ⏎ AS $function$ ⏎ DECLARE ⏎   v_actor_name TEXT; ⏎ BEGIN ⏎   IF NEW.status = 'accepted' THEN ⏎     v_actor_name := public.get_actor_display_name(NEW.follower_id); ⏎  ⏎     PERFORM public.create_notification( ⏎       p_user_id := NEW.following_id, ⏎       p_type := 'new_follower', ⏎       p_actor_id := NEW.follower_id, ⏎       p_title := v_actor_name || ' started following you', ⏎       p_action_url := '/athlete/' || NEW.follower_id, ⏎       p_follow_id := NEW.id, ⏎       p_metadata := jsonb_build_object('follow_id', NEW.id) ⏎     ); ⏎   END IF; ⏎   RETURN NEW; ⏎ END; ⏎ $function$ ⏎ "
+7,(function),notify_post_comment,function,"CREATE OR REPLACE FUNCTION public.notify_post_comment() ⏎  RETURNS trigger ⏎  LANGUAGE plpgsql ⏎  SECURITY DEFINER ⏎  SET search_path TO '' ⏎ AS $function$ ⏎ DECLARE ⏎   v_post_owner UUID; ⏎   v_actor_name TEXT; ⏎ BEGIN ⏎   -- Held/rejected comments are invisible: no notification until approval ⏎   -- (the app sends it when a guardian approves). ⏎   IF NEW.status <> 'published' THEN ⏎     RETURN NEW; ⏎   END IF; ⏎  ⏎   SELECT profile_id INTO v_post_owner FROM public.posts WHERE id = NEW.post_id; ⏎   IF v_post_owner IS NULL OR v_post_owner = NEW.profile_id THEN ⏎     RETURN NEW; ⏎   END IF; ⏎  ⏎   v_actor_name := public.get_actor_display_name(NEW.profile_id); ⏎  ⏎   PERFORM public.create_notification( ⏎     p_user_id := v_post_owner, ⏎     p_type := 'comment', ⏎     p_actor_id := NEW.profile_id, ⏎     p_title := v_actor_name || ' commented on your post', ⏎     p_action_url := '/feed', ⏎     p_post_id := NEW.post_id, ⏎     p_comment_id := NEW.id, ⏎     p_metadata := jsonb_build_object('post_id', NEW.post_id, 'comment_id', NEW.id) ⏎   ); ⏎   RETURN NEW; ⏎ END; ⏎ $function$ ⏎ "
+7,(function),notify_post_like,function,"CREATE OR REPLACE FUNCTION public.notify_post_like() ⏎  RETURNS trigger ⏎  LANGUAGE plpgsql ⏎  SECURITY DEFINER ⏎  SET search_path TO '' ⏎ AS $function$ ⏎     DECLARE ⏎       v_post_owner UUID; ⏎       v_actor_name TEXT; ⏎     BEGIN ⏎       SELECT profile_id INTO v_post_owner FROM public.posts WHERE id = NEW.post_id; ⏎       IF v_post_owner IS NULL OR v_post_owner = NEW.profile_id THEN ⏎         RETURN NEW; ⏎       END IF; ⏎  ⏎       v_actor_name := public.get_actor_display_name(NEW.profile_id); ⏎  ⏎       PERFORM public.create_notification( ⏎         p_user_id := v_post_owner, ⏎         p_type := 'like', ⏎         p_actor_id := NEW.profile_id, ⏎         p_title := v_actor_name || ' liked your post', ⏎         p_action_url := '/feed', ⏎         p_post_id := NEW.post_id, ⏎         p_metadata := jsonb_build_object('post_id', NEW.post_id) ⏎       ); ⏎       RETURN NEW; ⏎     END; ⏎     $function$ ⏎ "
+7,(function),posts_search_vector_update,function,"CREATE OR REPLACE FUNCTION public.posts_search_vector_update() ⏎  RETURNS trigger ⏎  LANGUAGE plpgsql ⏎  SET search_path TO '' ⏎ AS $function$ ⏎ BEGIN ⏎   NEW.search_vector := setweight(to_tsvector('english', COALESCE(NEW.caption, '')), 'A') || ⏎     setweight(to_tsvector('english', COALESCE(array_to_string(NEW.tags, ' '), '')), 'B') || ⏎     setweight(to_tsvector('english', COALESCE(array_to_string(NEW.hashtags, ' '), '')), 'B'); ⏎   RETURN NEW; ⏎ END; $function$ ⏎ "
+7,(function),profiles_search_vector_update,function,"CREATE OR REPLACE FUNCTION public.profiles_search_vector_update() ⏎  RETURNS trigger ⏎  LANGUAGE plpgsql ⏎  SECURITY DEFINER ⏎  SET search_path TO 'public', 'extensions' ⏎ AS $function$ ⏎ BEGIN ⏎   NEW.search_vector := ⏎     setweight(to_tsvector('simple', public.search_normalize(NEW.first_name)), 'A') || ⏎     setweight(to_tsvector('simple', public.search_normalize(NEW.last_name)),  'A') || ⏎     setweight(to_tsvector('simple', public.search_normalize(NEW.full_name)),  'A') || ⏎     setweight(to_tsvector('simple', public.search_normalize(NEW.handle)),     'B') || ⏎     setweight(to_tsvector('simple', public.search_normalize( ⏎       concat_ws(' ', NEW.city, NEW.region, NEW.region_code, NEW.country, NEW.country_code, NEW.location))), 'C') || ⏎     setweight(to_tsvector('simple', public.search_normalize(public.place_context(NEW.place_id))), 'D'); ⏎   RETURN NEW; ⏎ END; ⏎ $function$ ⏎ "
+7,(function),search_doc_sync_athlete,function,"CREATE OR REPLACE FUNCTION public.search_doc_sync_athlete() ⏎  RETURNS trigger ⏎  LANGUAGE plpgsql ⏎  SECURITY DEFINER ⏎  SET search_path TO 'public', 'extensions' ⏎ AS $function$ ⏎ DECLARE ⏎   t text := COALESCE(NULLIF(btrim(COALESCE(NEW.full_name, '')), ''), NEW.handle); ⏎ BEGIN ⏎   IF t IS NULL THEN ⏎     DELETE FROM search_documents sd WHERE sd.entity_type = 'athlete' AND sd.entity_id = NEW.id; ⏎     RETURN NULL; ⏎   END IF; ⏎   INSERT INTO search_documents (entity_type, entity_id, title, subtitle, sport_key, ⏎     owner_id, visibility, place_id, city, region, region_code, country, country_code, ⏎     lat, lng, rich, recency, search_vector) ⏎   VALUES ('athlete', NEW.id, t, NEW.handle, NULL, ⏎     NEW.id, COALESCE(NEW.visibility, 'public'), NEW.place_id, NEW.city, NEW.region, NEW.region_code, ⏎     NEW.country, NEW.country_code, NEW.lat, NEW.lng, ⏎     (NEW.handle IS NOT NULL AND NEW.avatar_url IS NOT NULL), ⏎     NEW.updated_at, COALESCE(NEW.search_vector, ''::tsvector)) ⏎   ON CONFLICT (entity_type, entity_id) DO UPDATE SET ⏎     title = EXCLUDED.title, subtitle = EXCLUDED.subtitle, sport_key = EXCLUDED.sport_key, ⏎     owner_id = EXCLUDED.owner_id, visibility = EXCLUDED.visibility, place_id = EXCLUDED.place_id, ⏎     city = EXCLUDED.city, region = EXCLUDED.region, region_code = EXCLUDED.region_code, ⏎     country = EXCLUDED.country, country_code = EXCLUDED.country_code, ⏎     lat = EXCLUDED.lat, lng = EXCLUDED.lng, rich = EXCLUDED.rich, recency = EXCLUDED.recency, ⏎     search_vector = EXCLUDED.search_vector, updated_at = timezone('utc', now()); ⏎   RETURN NULL; ⏎ END; ⏎ $function$ ⏎ "
+7,(function),search_doc_sync_post,function,"CREATE OR REPLACE FUNCTION public.search_doc_sync_post() ⏎  RETURNS trigger ⏎  LANGUAGE plpgsql ⏎  SECURITY DEFINER ⏎  SET search_path TO 'public', 'extensions' ⏎ AS $function$ ⏎ DECLARE ⏎   t text; ⏎   author text; ⏎ BEGIN ⏎   IF NEW.visibility = 'public' AND NEW.status = 'published' THEN ⏎     t := left(btrim(COALESCE(NEW.caption, '')), 140); ⏎     IF t = '' THEN ⏎       t := left(btrim(array_to_string(COALESCE(NEW.hashtags, '{}'), ' ')), 140); ⏎     END IF; ⏎     IF t = '' THEN ⏎       -- Nothing searchable: no caption, no hashtags. ⏎       DELETE FROM search_documents sd WHERE sd.entity_type = 'post' AND sd.entity_id = NEW.id; ⏎       RETURN NULL; ⏎     END IF; ⏎     SELECT p.full_name INTO author FROM profiles p WHERE p.id = NEW.profile_id; ⏎     INSERT INTO search_documents (entity_type, entity_id, title, subtitle, sport_key, ⏎       owner_id, visibility, place_id, city, region, region_code, country, country_code, ⏎       lat, lng, rich, recency, search_vector) ⏎     VALUES ('post', NEW.id, t, author, NEW.sport_key, ⏎       NEW.profile_id, 'public', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, ⏎       false, NEW.created_at, ⏎       setweight(to_tsvector('simple', public.search_normalize(NEW.caption)), 'A') || ⏎       setweight(to_tsvector('simple', public.search_normalize(array_to_string(COALESCE(NEW.hashtags, '{}'), ' '))), 'B') || ⏎       setweight(to_tsvector('simple', public.search_normalize(NEW.sport_key)), 'C')) ⏎     ON CONFLICT (entity_type, entity_id) DO UPDATE SET ⏎       title = EXCLUDED.title, subtitle = EXCLUDED.subtitle, sport_key = EXCLUDED.sport_key, ⏎       owner_id = EXCLUDED.owner_id, visibility = EXCLUDED.visibility, ⏎       rich = EXCLUDED.rich, recency = EXCLUDED.recency, ⏎       search_vector = EXCLUDED.search_vector, updated_at = timezone('utc', now()); ⏎   ELSE ⏎     DELETE FROM search_documents sd WHERE sd.entity_type = 'post' AND sd.entity_id = NEW.id; ⏎   END IF; ⏎   RETURN NULL; ⏎ END; ⏎ $function$ ⏎ "
+7,(function),search_document_delete,function,"CREATE OR REPLACE FUNCTION public.search_document_delete() ⏎  RETURNS trigger ⏎  LANGUAGE plpgsql ⏎  SECURITY DEFINER ⏎  SET search_path TO 'public', 'extensions' ⏎ AS $function$ ⏎ BEGIN ⏎   DELETE FROM search_documents sd ⏎   WHERE sd.entity_type = TG_ARGV[0] AND sd.entity_id = OLD.id; ⏎   RETURN NULL; ⏎ END; ⏎ $function$ ⏎ "
+7,(function),split_full_name,function,"CREATE OR REPLACE FUNCTION public.split_full_name() ⏎  RETURNS trigger ⏎  LANGUAGE plpgsql ⏎  SET search_path TO '' ⏎ AS $function$ ⏎ BEGIN ⏎   -- Only process if full_name changed and is not null ⏎   IF NEW.full_name IS NOT NULL AND NEW.full_name != '' THEN ⏎     -- If first_name is empty, extract it from full_name ⏎     IF NEW.first_name IS NULL OR NEW.first_name = '' THEN ⏎       NEW.first_name := SPLIT_PART(TRIM(NEW.full_name), ' ', 1); ⏎     END IF; ⏎  ⏎     -- If last_name is empty, extract it from full_name ⏎     IF NEW.last_name IS NULL OR NEW.last_name = '' THEN ⏎       -- Check if there are multiple words in full_name ⏎       IF ARRAY_LENGTH(STRING_TO_ARRAY(TRIM(NEW.full_name), ' '), 1) > 1 THEN ⏎         NEW.last_name := TRIM(SUBSTRING( ⏎           TRIM(NEW.full_name) ⏎           FROM POSITION(' ' IN TRIM(NEW.full_name)) + 1 ⏎         )); ⏎       END IF; ⏎     END IF; ⏎   END IF; ⏎  ⏎   RETURN NEW; ⏎ END; ⏎ $function$ ⏎ "
+7,(function),sync_privacy_settings,function,"CREATE OR REPLACE FUNCTION public.sync_privacy_settings() ⏎  RETURNS trigger ⏎  LANGUAGE plpgsql ⏎  SET search_path TO '' ⏎ AS $function$ ⏎ BEGIN ⏎   -- When visibility changes, update or create privacy_settings ⏎   INSERT INTO public.privacy_settings (profile_id, profile_visibility) ⏎   VALUES (NEW.id, NEW.visibility) ⏎   ON CONFLICT (profile_id) ⏎   DO UPDATE SET ⏎     profile_visibility = NEW.visibility, ⏎     updated_at = NOW(); ⏎  ⏎   RETURN NEW; ⏎ END; ⏎ $function$ ⏎ "
+7,(function),update_connection_suggestions_updated_at,function,"CREATE OR REPLACE FUNCTION public.update_connection_suggestions_updated_at() ⏎  RETURNS trigger ⏎  LANGUAGE plpgsql ⏎  SET search_path TO 'public' ⏎ AS $function$ ⏎ BEGIN ⏎   NEW.updated_at := NOW(); ⏎   RETURN NEW; ⏎ END; ⏎ $function$ ⏎ "
+7,(function),update_equipment_updated_at,function,"CREATE OR REPLACE FUNCTION public.update_equipment_updated_at() ⏎  RETURNS trigger ⏎  LANGUAGE plpgsql ⏎  SET search_path TO 'public' ⏎ AS $function$ ⏎ BEGIN ⏎   NEW.updated_at = NOW(); ⏎   RETURN NEW; ⏎ END; ⏎ $function$ ⏎ "
+7,(function),update_follows_updated_at,function,"CREATE OR REPLACE FUNCTION public.update_follows_updated_at() ⏎  RETURNS trigger ⏎  LANGUAGE plpgsql ⏎  SET search_path TO '' ⏎ AS $function$ ⏎ BEGIN ⏎   NEW.updated_at := NOW(); ⏎   RETURN NEW; ⏎ END; ⏎ $function$ ⏎ "
+7,(function),update_post_comments_count,function,"CREATE OR REPLACE FUNCTION public.update_post_comments_count() ⏎  RETURNS trigger ⏎  LANGUAGE plpgsql ⏎  SECURITY DEFINER ⏎  SET search_path TO '' ⏎ AS $function$ ⏎ DECLARE ⏎   target_post_id UUID; ⏎ BEGIN ⏎   IF TG_OP = 'DELETE' THEN ⏎     target_post_id := OLD.post_id; ⏎   ELSE ⏎     target_post_id := NEW.post_id; ⏎   END IF; ⏎  ⏎   UPDATE public.posts ⏎   SET comments_count = ( ⏎     SELECT COUNT(*) FROM public.post_comments ⏎     WHERE post_id = target_post_id AND status = 'published' ⏎   ) ⏎   WHERE id = target_post_id; ⏎  ⏎   IF TG_OP = 'DELETE' THEN ⏎     RETURN OLD; ⏎   ELSE ⏎     RETURN NEW; ⏎   END IF; ⏎ END; ⏎ $function$ ⏎ "
+7,(function),update_post_likes_count,function,"CREATE OR REPLACE FUNCTION public.update_post_likes_count() ⏎  RETURNS trigger ⏎  LANGUAGE plpgsql ⏎  SECURITY DEFINER ⏎  SET search_path TO '' ⏎ AS $function$ ⏎ DECLARE ⏎   target_post_id UUID; ⏎ BEGIN ⏎   IF TG_OP = 'DELETE' THEN ⏎     target_post_id := OLD.post_id; ⏎   ELSE ⏎     target_post_id := NEW.post_id; ⏎   END IF; ⏎  ⏎   UPDATE public.posts ⏎   SET likes_count = ( ⏎     SELECT COUNT(*) FROM public.post_likes WHERE post_id = target_post_id ⏎   ) ⏎   WHERE id = target_post_id; ⏎  ⏎   IF TG_OP = 'DELETE' THEN ⏎     RETURN OLD; ⏎   ELSE ⏎     RETURN NEW; ⏎   END IF; ⏎ END; ⏎ $function$ ⏎ "
+7,(function),update_post_reposts_count,function,"CREATE OR REPLACE FUNCTION public.update_post_reposts_count() ⏎  RETURNS trigger ⏎  LANGUAGE plpgsql ⏎  SECURITY DEFINER ⏎  SET search_path TO '' ⏎ AS $function$ ⏎ DECLARE ⏎   old_target UUID; ⏎   new_target UUID; ⏎ BEGIN ⏎   IF TG_OP = 'INSERT' THEN ⏎     new_target := NEW.shared_post_id; ⏎   ELSIF TG_OP = 'DELETE' THEN ⏎     old_target := OLD.shared_post_id; ⏎   ELSE -- UPDATE OF shared_post_id ⏎     IF OLD.shared_post_id IS DISTINCT FROM NEW.shared_post_id THEN ⏎       old_target := OLD.shared_post_id; ⏎       new_target := NEW.shared_post_id; ⏎     END IF; ⏎   END IF; ⏎  ⏎   IF old_target IS NOT NULL THEN ⏎     UPDATE public.posts ⏎     SET reposts_count = ( ⏎       SELECT COUNT(*) FROM public.posts WHERE shared_post_id = old_target ⏎     ) ⏎     WHERE id = old_target; ⏎   END IF; ⏎  ⏎   IF new_target IS NOT NULL THEN ⏎     UPDATE public.posts ⏎     SET reposts_count = ( ⏎       SELECT COUNT(*) FROM public.posts WHERE shared_post_id = new_target ⏎     ) ⏎     WHERE id = new_target; ⏎   END IF; ⏎  ⏎   IF TG_OP = 'DELETE' THEN ⏎     RETURN OLD; ⏎   ELSE ⏎     RETURN NEW; ⏎   END IF; ⏎ END; ⏎ $function$ ⏎ "
+7,(function),update_updated_at_column,function,"CREATE OR REPLACE FUNCTION public.update_updated_at_column() ⏎  RETURNS trigger ⏎  LANGUAGE plpgsql ⏎  SET search_path TO '' ⏎ AS $function$ ⏎ BEGIN ⏎   NEW.updated_at := NOW(); ⏎   RETURN NEW; ⏎ END; ⏎ $function$ ⏎ "
+8,athlete_badges,athlete_badges,rows,-1
+8,athlete_equipment,athlete_equipment,rows,3
+8,comment_likes,comment_likes,rows,8
+8,connection_suggestions,connection_suggestions,rows,-1
+8,follows,follows,rows,3
+8,golf_rounds,golf_rounds,rows,32
+8,performances,performances,rows,0
+8,post_comments,post_comments,rows,26
+8,post_likes,post_likes,rows,12
+8,post_media,post_media,rows,24
+8,posts,posts,rows,36
+8,privacy_settings,privacy_settings,rows,6
+8,profiles,profiles,rows,6
+8,season_highlights,season_highlights,rows,0
+8,sports,sports,rows,-1

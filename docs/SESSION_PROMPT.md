@@ -1,13 +1,13 @@
 # Start Session — Edge Athlete Development
 
 > Tom's session-start prompt. Paste this (or point Claude at it) when opening a
-> development session. Last aligned with project state: **September 13, 2026
+> development session. Last aligned with project state: **September 14, 2026
 > (after the Site Builder programs 1–3, #616–#707, the Contest Place and
-> Recruiting programs #661–#669, and the Data foundation program's part 2,
-> #709–#716)** — migration head 194 (RAN); `main` at the #716 merge,
-> deployed and prod-probed; **the Data foundation program is OPEN: part 1
-> (the schema baselines 190–193) waits on the provenance dump grids Tom
-> pastes back**. If the "Where the project actually is" section drifts
+> Recruiting programs #661–#669, and the Data foundation program,
+> #709–#720)** — migration head 194 (RAN); the baselines 190–193 (#720) are
+> NO-OPS Tom runs in order, each ending in a check grid; `main` deployed
+> and prod-probed; **no program in flight — the next one is Tom's call**.
+> If the "Where the project actually is" section drifts
 > stale, ask Claude to re-align it against DEVLOG.md and session memory.
 
 ## Context & Vision
@@ -418,8 +418,8 @@ content laid over the canvas as it is typed; the contact card's field
 order. **F** (#707) closed the docs. Every step was probed after its
 deploy; the final probe set runs after the chain merges.
 
-**Sep 13 — Data foundation program, part 2 COMPLETE + prod-proven
-(#709–#716, migration 194 RAN); part 1 OPEN.** Tom chose the data
+**Sep 13–14 — Data foundation program COMPLETE (#709–#720; migration 194
+RAN; baselines 190–193 written, no-ops).** Tom chose the data
 foundation over the competition formats: his vision is a multi-sport
 ANALYSIS / RECRUITING dataset. His decisions: both parts in one program; a
 post's stat payload that fails the schema is REJECTED with a 400 (never
@@ -436,13 +436,21 @@ information" — an owner action gets a UI door). **F6** (#715): the scout
 search reads the table (Active since, Verified only, a headline floor).
 `docs/PERFORMANCE_DATA.md` is the reference; CLAUDE.md convention 16.
 
-Open: **Tom pastes grids 1–7 of `database/provenance/live-dump.sql`**
-(only grid 8, the row counts, has arrived) → migrations 190 (social
-core), 191 (athlete legacy), 192 (golf conditions), 193 (profile
-measurables), each a no-op on prod, each run by Tom, each shrinking the
-allowlist to empty; then the P6 docs close. **Tom runs the backfill from
-the dashboard panel** (dry run all → run for real) and reports the four
-"written" counts. Tom's phone pass of the builder; his device pass of a
+**Part 1 CLOSED (P1b #719, P2–P6 #720):** the dump became ONE statement
+(the editor shows only the last statement's result), Tom exported the
+552-row grid as CSV (`database/provenance/dumps/2026-09-14-live-dump.csv`),
+and the baselines 190 (social core) · 191 (athlete legacy) · 192 (golf
+conditions) · 193 (profile measurables) were written from it verbatim —
+every body from the catalog, each a NO-OP on prod ending in a check grid,
+with `verify-19N-baseline.sql` twins; the allowlist is EMPTY and
+`check:schema` reads 108/108 live tables owned. **The backfill RAN Sep 13:
+32 golf rows** (29 live-round mirrors + 3 solo; the other sources empty).
+Open: Tom runs 190 → 191 → 192 → 193 in the SQL editor (every grid row
+OK). Parked with owners: policy provenance for `profiles` / `golf_rounds`
+(live names came from archived scripts), function provenance
+(`md5(prosrc)`), the DROP of `athlete_badges`, the two duplicate count
+triggers, `minHeadline` in the scout form. Tom's phone pass of the
+builder; his device pass of a
 contest page and the scouting area; the device pass of a real branded
 club through the editor; the one-hour number once real publishes exist;
 Search Console, custom-domain env, the capture-fix device pass, a first

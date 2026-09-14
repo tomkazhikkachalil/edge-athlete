@@ -716,16 +716,23 @@ const { canView } = await response.json();
    PostgREST `in()` is a 400 that emptied the whole side for anyone in a
    club AND a league). `e2e/profile-orgs.spec.ts` is the regression.
 16. **The schema has one source of truth; performances have one fact
-   table (Data foundation, Sep 13 2026, #709–#716, mig 194)** — Tom's
+   table (Data foundation, Sep 13–14 2026, #709–#720, migs 190–194)** — Tom's
    vision is a multi-sport ANALYSIS / RECRUITING dataset, so two things
    got one owner each. **Provenance**: every live table and column is
    named by a numbered migration or by an entry in
-   `database/provenance/allowlist.json` (42 entries, only ever shrinks);
+   `database/provenance/allowlist.json` (EMPTY since the baselines
+   190–193, Sep 14 2026; a new entry needs the migration that retires it);
    `npm run check:schema` (LOCAL only — the service key; never CI) reads
    PostgREST's OpenAPI as the live inventory and fails on drift or a stale
-   entry; the read-only `database/provenance/live-dump.sql` is how the
-   baselines 190–193 are written (from the pasted grids, verbatim — a
-   baseline that rewrites live behaviour is not a baseline). **The common
+   entry (108/108 live tables owned, Sep 14); the read-only ONE-statement
+   `database/provenance/live-dump.sql` is how the baselines 190 (social
+   core) · 191 (athlete legacy) · 192 (golf conditions) · 193 (profile
+   measurables) were written — from the Sep 14 CSV under
+   `database/provenance/dumps/`, every body verbatim, each a NO-OP on
+   prod with a check grid (a baseline that rewrites live behaviour is not
+   a baseline; what it found odd it RECORDS in its header for a later
+   migration). Not yet owned: policy provenance for chain-created tables
+   and DB-only function bodies (the `md5(prosrc)` pass). **The common
    shape**: `athlete_performances` (194, posture A) is ONE row per EVENT
    per athlete — `natural_key` = the ORIGIN ROW id (`post:` ·
    `golf_round:` · `contest_stat_line:`; never (contest, profile)), a

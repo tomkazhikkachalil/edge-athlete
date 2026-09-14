@@ -235,6 +235,8 @@ export function parseChain(files) {
         const cols = colsOf(t);
         for (const action of splitTopLevel(m[2])) {
           let a;
+          // `ADD CONSTRAINT …` (the guarded form the baselines use) names no column.
+          if (/^add\s+constraint\b/i.test(action)) continue;
           if ((a = new RegExp(String.raw`^add\s+(?:column\s+)?(?:if\s+not\s+exists\s+)?(${IDENT})`, 'i').exec(action))) cols.add(ident(a[1]));
           else if ((a = new RegExp(String.raw`^rename\s+(?:column\s+)?(${IDENT})\s+to\s+(${IDENT})`, 'i').exec(action))) {
             cols.delete(ident(a[1]));
