@@ -131,6 +131,12 @@ describe('tab buckets (behavior frozen from the pre-registry literal arrays)', (
       'roster_invite',
       // Program 2 D (mig 187): a visitor's org-site form — the owner's bell.
       'site_form_submission',
+      // Events program (mig 205): the sport_event_* family.
+      'sport_event_invite',
+      'sport_event_live',
+      'sport_event_request',
+      'sport_event_request_decision',
+      'sport_event_results',
       'tag_alert',
     ]);
   });

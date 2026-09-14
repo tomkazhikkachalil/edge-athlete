@@ -111,7 +111,20 @@ export const NOTIFICATION_TYPE_META = {
   org_listing_request: { tab: null, icon: 'fa-list-check' },
   // Program 2, D (187): a visitor sent a form on the org's site — the owner and managers hear.
   site_form_submission: { tab: null, icon: 'fa-envelope' },
+  // Events program (mig 205): the sport_event_* family — `event_*` is the
+  // calendar's. invite + request are actionable (accept / decline from the
+  // bell); sport_event_live is registered but unsent in phase 1 (Live Now
+  // is the surface). tab null = All / Unread only (the tab buckets are
+  // frozen from the pre-registry arrays; newer families live there).
+  sport_event_invite: { tab: null, icon: 'fa-flag-checkered' },
+  sport_event_request: { tab: null, icon: 'fa-flag-checkered' },
+  sport_event_request_decision: { tab: null, icon: 'fa-flag-checkered' },
+  sport_event_live: { tab: null, icon: 'fa-trophy' },
+  sport_event_results: { tab: null, icon: 'fa-trophy' },
 } as const satisfies Record<string, NotificationTypeMeta>;
+
+/** Types a viewer answers from the bell (accept / decline through POST /api/notifications/[id]/action). */
+export const ACTIONABLE_TYPES: ReadonlySet<string> = new Set(['follow_request', 'sport_event_invite', 'sport_event_request']);
 
 export type KnownNotificationType = keyof typeof NOTIFICATION_TYPE_META;
 

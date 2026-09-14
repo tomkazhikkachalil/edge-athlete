@@ -26,6 +26,7 @@ export const RESERVED_ROOT_SLUGS: ReadonlySet<string> = new Set([
   'dashboard',
   'event', // Contest Place E1: /event/[contestId] (seeded into reserved_handles by mig 181)
   'explore',
+  'sports', // Events program: /sports/{explore,events,leaderboards} (seeded into reserved_handles by mig 206)
   'feed',
   'forgot-password',
   'goodbye',
