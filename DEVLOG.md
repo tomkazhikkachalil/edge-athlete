@@ -1,5 +1,48 @@
 # Development Log
 
+## September 16, 2026 — Hygiene sweep H4: migration 199 removes what the baselines recorded as redundant; the sweep closes
+
+- **199 `cleanup`** — every drop backed by a body-by-body comparison of the
+  Sep 14 catalog and a caller search (the analysis is the header): the
+  archived policy sets on golf_hole_scores (3), golf_participant_scores (5)
+  and golf_scorecard_data (6) — byte-identical to or implied by the chain's
+  sets — after **the fold**: `golf_scores_update_policy` recreated with
+  BOTH branches, participant OR group-post creator, because the creator
+  branch lived only in the archived `participant_scores_update_policy` and
+  `calculate_golf_participant_totals()` (SECURITY INVOKER) needs it to
+  write a creator-entered player's totals (Tom's call; the OR of the
+  table's UPDATE policies is unchanged); the two duplicate count triggers
+  (a strict subset and an identical twin of the chain's); the duplicate
+  group_posts `updated_at` trigger 198 had just recorded; both
+  `mark_all_notifications_read` overloads (no caller anywhere; the uuid one
+  42703-broken since 083); `athlete_badges` (never a row; H3 deployed
+  first). **Revoked** (Tom's call) API-role EXECUTE on the SECURITY
+  DEFINER trigger functions still carrying it — `handle_updated_at`,
+  `update_post_reposts_count`, `consent_records_forbid_mutation`, and
+  `notify_post_comment` (040 revoked it; 095's DROP + CREATE reset it —
+  the same class, so included); trigger firing does not check EXECUTE
+  (040's thirteen prove it); `is_conversation_participant` untouched — an
+  RLS helper evaluates as the invoking role. Totals after: 107 tables ·
+  172 policies · 105 functions · 97 non-internal triggers. Grid + twin
+  `verify-199-cleanup.sql`; the 190 / 191 / 196 / 197 twins re-counted
+  with a `-- 199` remark each (the migration files untouched).
+- **Recorded, not taken:** golf_hole_scores' UPDATE policy is participant-
+  only in both sets, so a creator RE-submitting another player's scorecard
+  hits 42501 on the upsert's ON CONFLICT DO UPDATE — a real bug, one
+  predicate wide, a product decision.
+- **The parser** now reads `DROP TABLE` as dropping the table's policies
+  and triggers (the core already disowned the table). The real-chain pins
+  flip: the dropped triggers, policies and functions, the folded policy
+  with `creator_id` in its USING, the four revoked grant sets.
+- **The expected red window:** until Tom runs 199, `check:schema` against
+  the Sep 14 catalog reports the dropped objects as "the chain last DROPs
+  it" (18 policies, 3 triggers, 2 functions) and `athlete_badges` as a live
+  table the chain no longer owns — the correct reading of "dropped in the
+  chain, present live"; it closes when 199 runs. Not allowlisted through.
+- Tom merges #726 → #727 → #728 (deploy) → #729, runs 198 then 199 (every
+  grid row OK), then `npm run check:schema -- --save-catalog` reads OK on
+  five facets and the new catalog is cited here.
+
 ## September 16, 2026 — Hygiene sweep H3: the app stops naming athlete_badges (zero DDL, deployed before 199)
 
 - `athlete_badges` never held a row and has been delete-only since the

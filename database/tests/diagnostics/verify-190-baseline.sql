@@ -145,8 +145,8 @@ SELECT 'post_likes: policies', '3', count(*)::text,
 
 UNION ALL
 
-SELECT 'post_likes: triggers', '3', count(*)::text,
-       CASE WHEN count(*) = 3 THEN 'OK' ELSE 'CHECK FAILED' END
+SELECT 'post_likes: triggers', '2', count(*)::text, -- 199 dropped the duplicate count trigger (was 3)
+       CASE WHEN count(*) = 2 THEN 'OK' ELSE 'CHECK FAILED' END
   FROM pg_trigger WHERE tgrelid = 'public.post_likes'::regclass AND NOT tgisinternal
 
 UNION ALL
@@ -181,8 +181,8 @@ SELECT 'post_comments: policies', '4', count(*)::text,
 
 UNION ALL
 
-SELECT 'post_comments: triggers', '3', count(*)::text,
-       CASE WHEN count(*) = 3 THEN 'OK' ELSE 'CHECK FAILED' END
+SELECT 'post_comments: triggers', '2', count(*)::text, -- 199 dropped the duplicate count trigger (was 3)
+       CASE WHEN count(*) = 2 THEN 'OK' ELSE 'CHECK FAILED' END
   FROM pg_trigger WHERE tgrelid = 'public.post_comments'::regclass AND NOT tgisinternal
 
 UNION ALL

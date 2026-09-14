@@ -500,6 +500,13 @@ export function parseCatalogChain(files) {
           continue;
         }
 
+        // DROP TABLE t — every policy and trigger of t goes with it (the core disowns the table itself).
+        if ((x = new RegExp(String.raw`^drop\s+table\s+(?:if\s+exists\s+)?(${IDENT})`, 'i').exec(m))) {
+          const table = ident(x[1]);
+          for (const [key, e] of [...policies]) if (key.startsWith(`${table}|`) && e.state === 'created') setPolicy(key, { state: 'dropped', file: f.name, line });
+          for (const [key, e] of [...triggers]) if (key.startsWith(`${table}|`) && e.state === 'created') setTrigger(key, { state: 'dropped', file: f.name, line });
+          continue;
+        }
         // CREATE [CONSTRAINT] TRIGGER name … ON table … EXECUTE FUNCTION f(args)
         if (/^create\s+(?:constraint\s+)?trigger\b/i.test(m)) {
           const t = parseTriggerStatement(m, r);

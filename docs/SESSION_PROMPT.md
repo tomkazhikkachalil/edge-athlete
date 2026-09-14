@@ -450,12 +450,19 @@ with `verify-19N-baseline.sql` twins; the allowlist is EMPTY and
 service-role catalog RPC (RAN — "all rows OK"), the catalog parser +
 `check:schema` facets (#723), 196 the 56 unowned policies + 29 stale
 claims (#724), 197 the 13 function bodies + grants (#725) — every facet OK
-against the saved catalog, allowlist still empty. Tom runs 196 then 197
-(no-ops; every grid row OK). Parked with owners: a triggers facet (the RPC
-already returns them), grants as a gating facet, the redundant golf policy
-sets and the duplicate `mark_all_notifications_read` overload (one
-cleanup migration), the DROP of `athlete_badges`, the two duplicate count
-triggers, `minHeadline` in the scout form. Tom's phone pass of the
+against the saved catalog, allowlist still empty; 196 + 197 RAN Sep 15
+("it worked"), live check OK on three facets. **Hygiene sweep (Sep 16,
+#726–#729, migs 198–199):** trigger + grant facets (a normalised trigger
+tuple; the chain's simulated EXECUTE grantee set vs proacl), 198 records
+the one unowned trigger, 199 removes what the baselines recorded as
+redundant (14 golf policies after the creator-branch FOLD, 3 duplicate
+triggers, the mark_all_notifications_read pair, athlete_badges) and
+revokes API-role EXECUTE on four SECURITY DEFINER trigger functions. Tom
+runs 198 then 199 (grid rows OK); then the live check reads OK on FIVE
+facets. Parked with owners: the golf_hole_scores UPDATE policy is
+participant-only, so a creator re-submitting another player's scorecard
+hits 42501 on the upsert (a product decision); `minHeadline` in the scout
+form. Tom's phone pass of the
 builder; his device pass of a
 contest page and the scouting area; the device pass of a real branded
 club through the editor; the one-hour number once real publishes exist;
@@ -465,9 +472,7 @@ Sections list; arrows on a fixed section; the canvas's cross-column push;
 bracket / meet formats and ad-hoc teams, adapter competition hooks, a
 composer attach-to-event picker (DEVLOG E4); the recruiting growth paths
 in `docs/RECRUITING.md`; `minHeadline` in the scout form once a per-sport
-label exists; a "function provenance" pass (md5(prosrc) compare) for the
-DB-only function bodies; the later DROP of `athlete_badges` (delete-only
-in the app). The program after part 1 closes is Tom's call.
+label exists. The next program is Tom's call.
 
 ## Production standard (the baseline, already in force)
 

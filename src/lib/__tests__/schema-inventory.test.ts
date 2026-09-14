@@ -117,7 +117,7 @@ describe('the real chain', () => {
     expect(owned.tables.get('posts')).toContain('contest_id'); // 181's ALTER, absorbed by 190
     expect(owned.tables.get('post_media')).toContain('width'); // existed nowhere in the repo before 190
     expect(owned.tables.get('post_comments')).toContain('likes_count');
-    expect(owned.tables.get('athlete_badges')).toContain('color_token'); // 191
+    expect(owned.tables.has('athlete_badges')).toBe(false); // 191 created it, 199 dropped it — the core disowns a dropped table
     expect(owned.tables.get('golf_rounds')).toContain('slope_rating'); // 192
     expect(owned.tables.get('profiles')).toContain('gpa'); // 193
     // A guarded ADD CONSTRAINT names no column.
