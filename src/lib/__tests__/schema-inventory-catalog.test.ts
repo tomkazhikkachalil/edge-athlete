@@ -8,6 +8,9 @@ import {
   identityTypes,
   liveFromCatalog,
   maskSql,
+  DEFAULT_GRANTEES,
+  parseTriggerStatement,
+  triggerTuple,
   normalizeBody,
   normalizeSearchPath,
   normalizeType,
@@ -186,7 +189,8 @@ describe('diffCatalog', () => {
   ]);
   const fn = (name: string, arg_types: string, body: string, extra: Record<string, unknown> = {}) => ({
     name, arg_types, identity_args: arg_types, returns: 'void', kind: 'f', language: 'sql', volatility: 'v', secdef: false, config: null,
-    body_md5: md5(body), body_md5_norm: md5(normalizeBody(body)), body_bytes: body.length, definition: `CREATE OR REPLACE FUNCTION public.${name}(${arg_types}) …`, acl: null, owner: 'postgres', ...extra,
+    body_md5: md5(body), body_md5_norm: md5(normalizeBody(body)), body_bytes: body.length, definition: `CREATE OR REPLACE FUNCTION public.${name}(${arg_types}) …`,
+    acl: ['=X/postgres', 'postgres=X/postgres', 'anon=X/postgres', 'authenticated=X/postgres', 'service_role=X/postgres'], owner: 'postgres', ...extra,
   });
   const catalog = {
     rls: [{ table: 't', enabled: true, forced: false }],
@@ -260,7 +264,152 @@ describe('diffCatalog', () => {
     const r = diffCatalog(clean, chain);
     expect(r.ok).toBe(true);
     expect(r.whitespaceOnly.map(f => f.key)).toEqual(['ws()']);
-    expect(formatCatalogReport(r)).toContain('OK — every live policy and function is owned or documented.');
+    expect(formatCatalogReport(r)).toContain('OK — every live policy, function, trigger and grant is owned or documented.');
+  });
+});
+
+describe('parseCatalogChain — triggers', () => {
+  const grantees = (chain: ReturnType<typeof parseCatalogChain>, key: string) => [...(chain.grants.get(key) ?? [])].sort();
+  it('reads timing, events, UPDATE OF, level, function and args; PROCEDURE ≡ FUNCTION; public. stripped', () => {
+    const chain = parseCatalogChain([file('001.sql', [
+      'CREATE TRIGGER t1 AFTER INSERT OR DELETE OR UPDATE OF status, b ON public.posts\n  FOR EACH ROW EXECUTE FUNCTION f();',
+      "CREATE TRIGGER t2 BEFORE UPDATE ON posts FOR EACH ROW EXECUTE PROCEDURE public.g('post');",
+      'CREATE TRIGGER t3 AFTER INSERT ON auth.users FOR EACH ROW EXECUTE FUNCTION handle_new_user();',
+    ].join('\n'))]);
+    expect(chain.triggers.get('posts|t1')).toMatchObject({ state: 'created', timing: 'after', events: ['delete', 'insert', 'update'], updateOf: ['b', 'status'], level: 'row', fn: 'f', args: '', when: null, constraint: false, line: 1 });
+    expect(chain.triggers.get('posts|t2')).toMatchObject({ timing: 'before', events: ['update'], fn: 'g', args: "'post'", line: 3 });
+    expect(chain.foreignSchema).toEqual([{ file: '001.sql', line: 4, statement: 'create trigger', table: 'auth.users' }]);
+    expect(triggerTuple(chain.triggers.get('posts|t2')!)).toBe(triggerTuple(parseTriggerStatement(...(() => { const d = "CREATE TRIGGER t2 BEFORE UPDATE ON public.posts FOR EACH ROW EXECUTE FUNCTION g('post')"; return [maskSql(d).masked, d] as const; })())!));
+  });
+  it('constraint triggers, WHEN spellings, drop-then-create, drop-only, CASCADE', () => {
+    const chain = parseCatalogChain([
+      file('048.sql', 'CREATE CONSTRAINT TRIGGER profile_access_last_guardian AFTER DELETE OR UPDATE OF role ON profile_access DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION enforce_last_guardian(); CREATE CONSTRAINT TRIGGER c2 AFTER INSERT ON t FOR EACH ROW EXECUTE FUNCTION h();'),
+      file('008.sql', "CREATE TRIGGER trig_when AFTER INSERT ON post_tags FOR EACH ROW\n  WHEN (NEW.status = 'active')\n  EXECUTE FUNCTION notify_profile_tagged();"),
+      file('025.sql', 'DROP TRIGGER IF EXISTS trig_when ON post_tags CASCADE; DROP TRIGGER IF EXISTS gone ON posts; CREATE TRIGGER trig_when AFTER INSERT ON post_tags FOR EACH ROW WHEN (NEW.status = \'active\') EXECUTE FUNCTION notify_profile_tagged();'),
+    ]);
+    expect(chain.triggers.get('profile_access|profile_access_last_guardian')).toMatchObject({ constraint: true, deferrable: true, initially: 'deferred', events: ['delete', 'update'], updateOf: ['role'] });
+    expect(chain.triggers.get('t|c2')).toMatchObject({ constraint: true, deferrable: false, initially: 'immediate' });
+    expect(chain.triggers.get('post_tags|trig_when')).toMatchObject({ state: 'created', file: '025.sql', when: "NEW.status = 'active'" });
+    expect(chain.triggers.get('posts|gone')).toMatchObject({ state: 'dropped', file: '025.sql' });
+    const liveDef = "CREATE TRIGGER trig_when AFTER INSERT ON public.post_tags FOR EACH ROW WHEN ((new.status = 'active'::text)) EXECUTE FUNCTION notify_profile_tagged()";
+    expect(triggerTuple(parseTriggerStatement(maskSql(liveDef).masked, liveDef)!)).toBe(triggerTuple(chain.triggers.get('post_tags|trig_when')!));
+    const changed = "CREATE TRIGGER trig_when AFTER INSERT ON public.post_tags FOR EACH ROW WHEN ((new.status = 'pending'::text)) EXECUTE FUNCTION notify_profile_tagged()";
+    expect(triggerTuple(parseTriggerStatement(maskSql(changed).masked, changed)!)).not.toBe(triggerTuple(chain.triggers.get('post_tags|trig_when')!));
+  });
+  it("EXECUTE '…' literals are parsed as statements: the 014 single-line and the 003 next-line shapes, with '' unescaped and lines mapped", () => {
+    const sql = [
+      'DO $$',
+      'BEGIN',
+      "  IF EXISTS (SELECT 1) THEN",
+      "    EXECUTE 'CREATE TRIGGER trigger_notify_post_like AFTER INSERT ON post_likes FOR EACH ROW EXECUTE FUNCTION notify_post_like()';",
+      "    EXECUTE '",
+      "      CREATE FUNCTION nf()",
+      "      RETURNS TRIGGER AS $func$ BEGIN RETURN NEW; END; $func$ LANGUAGE plpgsql;",
+      "      ';",
+      "    EXECUTE '",
+      "      CREATE TRIGGER t_next AFTER INSERT ON post_comments FOR EACH ROW WHEN (NEW.content = ''x'') EXECUTE FUNCTION nf();",
+      "      ';",
+      "    EXECUTE 'DROP FUNCTION ' || r.sig::text;",
+      "  END IF;",
+      'END $$;',
+    ].join('\n');
+    const chain = parseCatalogChain([file('003.sql', sql)]);
+    expect(chain.triggers.get('post_likes|trigger_notify_post_like')).toMatchObject({ state: 'created', line: 4 });
+    expect(chain.functions.get('nf()')).toMatchObject({ state: 'created', body: ' BEGIN RETURN NEW; END; ', line: 6 });
+    expect(chain.triggers.get('post_comments|t_next')).toMatchObject({ state: 'created', when: "NEW.content = 'x'", line: 10 });
+    expect(chain.dynamic.map(d => d.kind)).toEqual(['drop function']);
+  });
+  it('grants: the default on a fresh CREATE; REVOKE / GRANT / ALL; DROP + CREATE resets; OR REPLACE keeps; a REVOKE before the first CREATE means the function existed', () => {
+    const chain = parseCatalogChain([
+      file('001.sql', 'create function f(a int) returns void language sql as $$ $$; create function g() returns void language sql as $$ $$; create function h() returns void language sql as $$ $$;'),
+      file('040.sql', 'REVOKE EXECUTE ON FUNCTION public.f(integer) FROM PUBLIC, anon, authenticated; REVOKE ALL ON FUNCTION g() FROM PUBLIC; GRANT EXECUTE ON FUNCTION g() TO authenticated, anon; REVOKE EXECUTE ON FUNCTION pre() FROM PUBLIC, anon, authenticated;'),
+      file('050.sql', 'DROP FUNCTION IF EXISTS h(); create function h() returns void language sql as $$ $$; create or replace function f(a INT) returns void language sql as $$ $$; CREATE OR REPLACE FUNCTION public.pre() RETURNS void LANGUAGE sql AS $$ $$;'),
+    ]);
+    expect(grantees(chain, 'f(integer)')).toEqual(['service_role']);
+    expect(grantees(chain, 'g()')).toEqual(['anon', 'authenticated', 'service_role']);
+    expect(grantees(chain, 'h()')).toEqual([...DEFAULT_GRANTEES].sort());
+    expect(grantees(chain, 'pre()')).toEqual(['service_role']);
+  });
+  it('grants: the 040 FOREACH ARRAY loop and the 085 proname loop resolve names and roles; 052-style policy loops stay unresolved', () => {
+    const chain = parseCatalogChain([
+      file('001.sql', 'create function a() returns void language sql as $$ $$; create function b(x uuid) returns void language sql as $$ $$; create function b(x uuid, y text) returns void language sql as $$ $$;'),
+      file('040.sql', "DO $$ DECLARE fn text; BEGIN FOREACH fn IN ARRAY ARRAY['a', 'never_created'] LOOP BEGIN EXECUTE format('REVOKE EXECUTE ON FUNCTION public.%I() FROM PUBLIC, anon, authenticated', fn); EXCEPTION WHEN undefined_function THEN RAISE NOTICE 'skip %', fn; END; END LOOP; END $$;"),
+      file('085.sql', "DO $$ DECLARE r RECORD; BEGIN FOR r IN SELECT p.proname, pg_get_function_identity_arguments(p.oid) AS args FROM pg_proc p WHERE p.proname IN ('b') LOOP EXECUTE format('REVOKE EXECUTE ON FUNCTION public.%I(%s) FROM PUBLIC, anon, authenticated', r.proname, r.args); END LOOP; END $$;"),
+      file('052.sql', "DO $$ DECLARE t TEXT; BEGIN FOREACH t IN ARRAY ARRAY['p','q'] LOOP EXECUTE format('CREATE POLICY %I ON %I FOR SELECT USING (true)', t || '_s', t); END LOOP; END $$;"),
+    ]);
+    expect(grantees(chain, 'a()')).toEqual(['service_role']);
+    expect(grantees(chain, 'never_created()')).toEqual(['service_role']); // seeded by %I(): the function existed live
+    expect(grantees(chain, 'b(uuid)')).toEqual(['service_role']);
+    expect(grantees(chain, 'b(uuid,text)')).toEqual(['service_role']);
+    expect(chain.dynamic.map(d => [d.file, d.kind, d.names])).toEqual([['040.sql', 'revoke', ['a', 'never_created']], ['085.sql', 'revoke', ['b']], ['052.sql', 'create policy', []]]);
+  });
+});
+
+describe('diffCatalog — triggers and grants', () => {
+  const chain = parseCatalogChain([file('001.sql', [
+    'create table t (id uuid);',
+    'create function f() returns trigger language plpgsql security definer as $$ begin return new; end $$;',
+    'create function g() returns void language sql as $$ select 1 $$;',
+    'REVOKE EXECUTE ON FUNCTION g() FROM PUBLIC, anon, authenticated;',
+    'CREATE TRIGGER owned AFTER INSERT ON t FOR EACH ROW EXECUTE FUNCTION f();',
+    'CREATE TRIGGER drifted AFTER INSERT ON t FOR EACH ROW EXECUTE FUNCTION f();',
+    'CREATE TRIGGER stale AFTER DELETE ON t FOR EACH ROW EXECUTE FUNCTION f();',
+    'CREATE TRIGGER dropped AFTER DELETE ON t FOR EACH ROW EXECUTE FUNCTION f(); DROP TRIGGER IF EXISTS dropped ON t;',
+  ].join('\n'))]);
+  const fn = (name: string, body: string, extra: Record<string, unknown> = {}) => ({
+    name, arg_types: '', identity_args: '', returns: 'void', kind: 'f', language: 'sql', volatility: 'v', secdef: false, config: null,
+    body_md5: md5(body), body_md5_norm: md5(normalizeBody(body)), body_bytes: body.length, definition: '', acl: null, owner: 'postgres', ...extra,
+  });
+  const trg = (name: string, def: string) => ({ table: 't', name, enabled: 'O', definition: def });
+  const live = liveFromCatalog({
+    rls: [{ table: 't', enabled: true }],
+    policies: [],
+    functions: [
+      fn('f', ' begin return new; end ', { secdef: true, returns: 'trigger', language: 'plpgsql', acl: ['=X/postgres', 'postgres=X/postgres', 'anon=X/postgres', 'authenticated=X/postgres', 'service_role=X/postgres'] }),
+      fn('g', ' select 1 ', { acl: ['postgres=X/postgres', 'service_role=X/postgres', 'anon=X/postgres'] }),
+    ],
+    triggers: [
+      trg('owned', 'CREATE TRIGGER owned AFTER INSERT ON public.t FOR EACH ROW EXECUTE FUNCTION f()'),
+      trg('drifted', 'CREATE TRIGGER drifted BEFORE INSERT ON public.t FOR EACH ROW EXECUTE FUNCTION f()'),
+      trg('dropped', 'CREATE TRIGGER dropped AFTER DELETE ON public.t FOR EACH ROW EXECUTE FUNCTION f()'),
+      trg('unowned', 'CREATE TRIGGER unowned AFTER DELETE ON public.t FOR EACH ROW EXECUTE FUNCTION f()'),
+    ],
+  });
+  it('classifies unowned, stale, drifted triggers and a grant drift; reports the advisory', () => {
+    const r = diffCatalog(live, chain);
+    expect(r.unownedTriggers.map(t => [t.name, t.why.split(' (')[0]])).toEqual([['dropped', 'the chain last DROPs it'], ['unowned', 'no numbered file creates it']]);
+    expect(r.staleTriggerClaims.map(t => t.name)).toEqual(['stale']);
+    expect(r.triggerDrift.map(t => t.key)).toEqual(['t|drifted']);
+    expect(r.grantDrift).toEqual([{ key: 'g()', at: '001.sql:3', chain: ['service_role'], live: ['anon', 'service_role'] }]);
+    expect(r.secdefPublic.map(s => s.key)).toEqual(['f()']);
+    expect(r.counts).toMatchObject({ liveTriggers: 4, chainTriggers: 3, liveGrants: 2 });
+    expect(r.ok).toBe(false);
+    const report = formatCatalogReport(r);
+    expect(report).toContain('UNOWNED TRIGGERS (2)');
+    expect(report).toContain('GRANT DRIFT (1)');
+    expect(report).toContain('SECURITY DEFINER functions executable by an API role');
+  });
+  it('trigger and grant allowlist entries document, and go stale when owned or gone', () => {
+    const allow = [
+      { kind: 'trigger', table: 't', name: 'unowned', reason: 'r', ref: 'x' },
+      { kind: 'trigger', table: 't', name: 'dropped', reason: 'r', ref: 'x' },
+      { kind: 'trigger', table: 't', name: 'drifted', reason: 'r', ref: 'x' },
+      { kind: 'trigger', table: 't', name: 'owned', reason: 'r', ref: 'x' },
+      { kind: 'trigger', table: 't', name: 'never', reason: 'r', ref: 'x' },
+      { kind: 'grant', name: 'g', args: '', reason: 'r', ref: 'x' },
+      { kind: 'grant', name: 'f', args: '', reason: 'r', ref: 'x' },
+    ];
+    const r = diffCatalog(live, chain, allow);
+    expect(r.unownedTriggers).toEqual([]);
+    expect(r.triggerDrift).toEqual([]);
+    expect(r.grantDrift).toEqual([]);
+    expect(r.documented.length).toBe(4);
+    expect(r.staleAllowlist.map(e => [e.kind, e.name, e.why])).toEqual([['trigger', 'owned', 'owned now'], ['trigger', 'never', 'not live'], ['grant', 'f', 'owned now']]);
+    expect(r.staleTriggerClaims.map(t => t.name)).toEqual(['stale']);
+  });
+  it('acl → grantees: the owner removed, the empty grantee is public, a null acl is the public default', () => {
+    const l = liveFromCatalog({ rls: [], policies: [], triggers: [], functions: [fn('a', ' ', { acl: ['postgres=X/postgres', 'service_role=X/postgres'] }), fn('b', ' ', { acl: null }), fn('c', ' ', { acl: ['=X/postgres', 'postgres=X/postgres'] })] });
+    expect(l.functions.map(f => f.grantees)).toEqual([['service_role'], ['public'], ['public']]);
   });
 });
 
@@ -294,9 +443,28 @@ describe('the real chain', () => {
     expect(chain.functions.get('get_tagged_posts(uuid,uuid,integer,integer)')).toMatchObject({ searchPath: 'public' });
     const dyn = chain.dynamic.map(d => `${d.file.slice(0, 3)}:${d.kind}${d.names.length ? ':' + d.names.join(',') : ''}`);
     expect(dyn).toContain('052:create policy');
+    expect(dyn.some(d => d.startsWith('003:'))).toBe(false); // 003's EXECUTE '…' literals are parsed now
+    expect(dyn).toContain('040:revoke:update_equipment_updated_at,update_conversation_on_message,handle_new_user,notify_comment_like,notify_follow_accepted,notify_follow_declined,notify_follow_request,notify_new_follower,notify_post_comment,notify_post_like,notify_profile_tagged,update_post_comments_count,update_post_likes_count');
     expect(dyn).toContain('127:drop function:get_conversation_list');
     expect(dyn).toContain('082:alter function:get_unread_notification_count,get_tagged_posts');
-    expect(chain.foreignSchema.map(s => `${s.file.slice(0, 3)}:${s.table}`)).toEqual(['040:storage.objects', '040:storage.objects', '040:storage.objects']);
+    const foreign = chain.foreignSchema.map(s => `${s.file.slice(0, 3)}:${s.statement}:${s.table}`);
+    expect(foreign.filter(f => f.includes('storage.objects'))).toEqual(['040:drop policy:storage.objects', '040:drop policy:storage.objects', '040:drop policy:storage.objects']);
+    expect(foreign).toContain('001:create trigger:auth.users'); // on_auth_user_created — the auth schema is Supabase's
+  });
+  it('reads every trigger claim and simulates every grant set', () => {
+    const g = (key: string) => [...(chain.grants.get(key) ?? [])].sort();
+    expect(chain.triggers.get('post_likes|trigger_update_post_likes_count')).toMatchObject({ state: 'created', file: '190_baseline_social_core.sql' });
+    expect(chain.triggers.get('post_likes|update_post_likes_count_trigger')).toMatchObject({ state: 'created', file: '190_baseline_social_core.sql' });
+    expect(chain.triggers.get('post_likes|trigger_notify_post_like')).toMatchObject({ state: 'created', file: '190_baseline_social_core.sql' });
+    expect(chain.triggers.get('posts|trigger_notify_profile_tagged')).toMatchObject({ state: 'dropped', file: '025_fix_tag_notification_trigger.sql' });
+    expect(chain.triggers.get('profiles|profiles_search_vector_trigger')).toMatchObject({ state: 'dropped', file: '108_profiles_clubs_places.sql' });
+    expect(chain.triggers.get('profile_access|profile_access_last_guardian')).toMatchObject({ constraint: true, deferrable: true, initially: 'deferred', updateOf: ['role'] });
+    expect(chain.triggers.get('posts|posts_search_doc_delete')).toMatchObject({ fn: 'search_document_delete', args: "'post'" });
+    expect(g('notify_post_like()')).toEqual(['service_role']); // 014 create → 040's FOREACH revoke → 190 OR REPLACE keeps
+    expect(g('notify_comment_like()')).toEqual(['service_role']); // existed before the chain: 040 revoked it, 190 OR REPLACEd it
+    expect(g('bump_site_hit(uuid,date,text,text)')).toEqual(['service_role']);
+    expect(g('decrement_post_save_count()')).toEqual(['anon', 'authenticated', 'public', 'service_role']); // 197's explicit re-grant
+    expect(g('handle_updated_at()')).toEqual(['anon', 'authenticated', 'public', 'service_role']); // never revoked
   });
   it('reads every policy claim: 196 records the drop of 001\'s profile family and makes 052\'s loop products literal', () => {
     const created = [...chain.policies.values()].filter(p => p.state === 'created');
@@ -318,5 +486,9 @@ describe('the real chain', () => {
     for (const name of ['update_follows_updated_at()', 'posts_search_vector_update()', 'notify_post_like()', 'notify_comment_like()']) {
       expect(r.bodyDrift.map(f => f.key), name).not.toContain(name);
     }
+    expect(r.grantDrift).toEqual([]); // the simulated grantee sets agree with proacl for every chain-defined function
+    expect(r.triggerDrift).toEqual([]);
+    expect(r.staleTriggerClaims).toEqual([]);
+    expect(r.secdefPublic.map(s => s.key)).toContain('is_conversation_participant(uuid,uuid)');
   });
 });

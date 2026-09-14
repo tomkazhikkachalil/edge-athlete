@@ -1,5 +1,33 @@
 # Development Log
 
+## September 16, 2026 — Hygiene sweep H1: check:schema reads triggers and grants (zero DDL)
+
+- **Two more catalog facets** on 195's RPC (it already carried every
+  trigger and every `proacl`): a live TRIGGER is owned when the chain's
+  last statement for (table, name) is a CREATE with the same normalised
+  tuple — timing, sorted events (+ `UPDATE OF` columns), level, function +
+  arguments, WHEN with casts and doubled parens stripped (190's pg_dump
+  spelling and 008's hand-written one are the same trigger), constraint /
+  deferrable; a live function's EXECUTE GRANTEES must equal the set the
+  chain SIMULATES for it — Supabase's default on a fresh CREATE, kept on
+  CREATE OR REPLACE over a function the chain created OR had already
+  GRANTed / REVOKEd (a REVOKE before the first CREATE is proof the
+  function existed — the archive-created, 040-locked, 190-re-declared
+  `notify_*` case; the first cut reset those to the default and reported
+  three false drifts), minus every REVOKE, plus every GRANT, literal or
+  dynamic (`proname` literals, `FOREACH … IN ARRAY ARRAY['…']` lists,
+  `%I()` naming the zero-arg key). The parser now also reads the four
+  triggers 003 / 014 create inside `EXECUTE '…'` strings (003's with the
+  statement on the NEXT line) — six former dynamic sites are literal.
+  SECURITY DEFINER functions executable by an API role are an ADVISORY
+  (13 live, mostly RLS helpers that must stay executable), never drift.
+- **First run over the Sep 14 catalog:** 100 of 101 live triggers claimed
+  with zero drift and zero stale claims; 107 of 107 grant sets agree with
+  `proacl`; ONE unowned trigger — `group_posts.trigger_group_posts_updated_at`
+  (from `archive/loose-legacy/add-shared-golf-rounds.sql`). Migration 198
+  records it (H2). `--facet triggers | grants`; allowlist kinds `trigger`
+  / `grant`. 21 → 32 tests + the real-chain pins.
+
 ## September 15, 2026 — Provenance round, PR D: migration 197 records the 13 function bodies the chain did not own; the round closes (NO-OP on prod)
 
 - **197 `baseline_functions`** — generated from the saved catalog through
