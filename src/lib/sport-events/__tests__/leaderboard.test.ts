@@ -62,4 +62,16 @@ describe('computeLeaderboard', () => {
     // index halved 9.0 → CH round(9*128/113 + (35.6-36)) = round(10.19-0.4) = 10 → every hole gets a stroke, SI ≤ 10 mod 18 = 10: all 9 re-ranked indexes 1..9 get one → net = gross − 2
     expect(rows[0]).toMatchObject({ courseHandicap: 10, gross: 9, net: 7, thru: 2 });
   });
+  it('an off-catalog round (no hole data) scores against par 4 over its range; net stays unavailable', () => {
+    const rows = computeLeaderboard(input([player('a', card({ 10: 5, 11: 3 }), 12.3), player('b', card({ 10: 4 }))], { format: 'stroke_gross', holes: 9, startingHole: 10, holeData: null, courseRating: null, slopeRating: null }));
+    expect(rows.map(r => [r.name, r.rankLabel, r.gross, r.toPar, r.thru, r.net, r.netReason])).toEqual([
+      ['B', '1', 4, 0, 1, null, 'no_index'],
+      ['A', '2', 8, 0, 2, null, 'no_rating'],
+    ]);
+    // A net event on an unrated course ranks nobody — net is never guessed.
+    const net = computeLeaderboard(input([player('a', card({ 10: 5 }), 12.3)], { format: 'stroke_net', holes: 9, startingHole: 10, holeData: null, courseRating: null, slopeRating: null }));
+    expect(net[0]).toMatchObject({ rankLabel: '—', gross: 5, net: null, netReason: 'no_rating' });
+    // A hole outside the range is not on the card.
+    expect(computeLeaderboard(input([player('a', card({ 3: 4 }))], { holes: 9, startingHole: 10, holeData: null }))[0].thru).toBe(0);
+  });
 });

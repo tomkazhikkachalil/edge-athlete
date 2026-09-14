@@ -78,7 +78,8 @@ Pure halves (node-tested) and `*-server.ts` I/O halves, one concern each:
 | `lifecycle.ts` | `lifecycle-server.ts` | draft → open \| cancelled; open → live \| cancelled; live → completed; named refusals; the organizer override. `applyTransition` compare-and-sets the status; open mints the POST, live mints the ROUND (`mintRound`, idempotent), completed finalizes / mirrors / re-timestamps, cancelled deletes the announce post. `syncRoundRoster` keeps a minted round's roster in step after go-live. |
 | `join.ts` | `join-server.ts` | `planJoin` for the ten actions; seats = accepted AND playing; full → waitlisted; a vacancy or a capacity raise promotes lowest position first; a follower may be invited. |
 | `handicap.ts` | `handicap-server.ts` | the frozen index at accept (`snapshotAtAccept`; an organizer override is never overwritten); the read-time course handicap. |
-| `leaderboard.ts` | (PR 7) | the one computation. |
+| `leaderboard.ts` | `leaderboard-server.ts` | the one computation; `fetchRoundLeaderboard` reads the field, the cards and the names (`leaderboard-rows.ts`, pure) and computes on every request — nothing stored. |
+| `opt-out.ts` | `results-server.ts` | the results opt-out: `mirrorCompletedRound` skips (and un-mirrors) a player who hid the result — the ONE edit in `round-mirror.ts`; `applyProfileOptOut` for a late flip. |
 | `scoring-authz.ts` | `scoring-authz-server.ts` | `scoringRight` — the via / client matrix over the card status; `resolveScoringRight` reads the row, the round, the event role + group and the card, and BOTH score routes (`api/golf/scorecards/[id]/scores`, `api/golf/participant-scores`) pick the client from its verdict; `detectConflict` (`expected_updated_at` → 409 `{current}`); `holeRangeFor` (an event round's own start and length). |
 | `cards.ts` | — | `planCardAction`: submit (owner) · finalize / reopen (organizers). |
 | `rounds.ts` | `rounds-server.ts` | the round's course snapshot WITH the stroke index; `starts_on` has one writer (`writeStartsOn`). |
@@ -87,7 +88,7 @@ Pure halves (node-tested) and `*-server.ts` I/O halves, one concern each:
 | — | `scorecard-context.ts` | the `sport_event` block the scorecard GET carries. |
 | `validate.ts` | — | request bodies: a miss is a 400 naming the field, never a clamp. |
 | `view.ts` | `view-server.ts` | the GET projection: names through `publicDisplayName`, the link token only to organizers, `hide_from_profile` only to self / organizers, never an email or a supervision state. |
-| `notify.ts` | — | the bells (direct inserts; a supervised invitee's guardians get a copy). |
+| `notify.ts` | — | the bells: invite (+ a guardian copy for a supervised invitee), request, decision / promotion, results (completion). |
 | `actor-server.ts` | — | the acting profile (`profile_id` in a body, `?as=` on a GET) through `resolveActingProfile`. |
 
 ## The API — `/api/sport-events/…` (PR 4)
@@ -128,7 +129,12 @@ more gate: a same-group partner or an organizer writes on the admin
 client; `expected_updated_at` answers 409 on a newer card; holes outside
 the round's range are refused by name.
 
-Not yet: the leaderboard route, the results opt-out, the results bell — PR 7.
+| `GET /api/sport-events/[id]/rounds/[rid]/leaderboard?token=` | may view | computed on read; `private, max-age=5` signed in, `s-maxage=10` anonymous on a public event |
+
+The results: on completion the round is mirrored into every player's
+`golf_rounds` (the profile, the handicap, the dataset) EXCEPT players
+with `hide_from_profile`; the flip is theirs alone (`PATCH …/participants/
+[pid] {hide_from_profile}`), before or after completion.
 
 ## Not in phase 1 (named, parked)
 

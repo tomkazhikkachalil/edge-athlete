@@ -13,8 +13,8 @@
  *   completed → override finalizes the cards as they stand; the round's
  *               group_post is forced to completed (guarded), mirrored
  *               (golf_rounds + media), its post re-timestamped (the End
- *               Round path); rounds → completed. PR 7 adds the opt-out
- *               skip and the results bell.
+ *               Round path); rounds → completed; the results bell. The
+ *               mirror itself skips players who hid the result (opt-out.ts).
  *   cancelled → rounds → cancelled, the announce post deleted (nothing
  *               else was minted: live is never cancelled).
  *
@@ -27,6 +27,7 @@ import { EVENT_COLUMNS, PARTICIPANT_COLUMNS } from './access-server';
 import { transitionStamp, TRANSITION_REFUSAL_COPY, validateTransition, type TransitionFacts, type TransitionRefusal } from './lifecycle';
 import { announcePostRow, groupPostRow, participantRows, scorecardRow } from './mint';
 import { buildMintPlan, type MintGroup, type MintPlayer } from './rounds';
+import { notifyResults } from './notify';
 import { ROUND_COLUMNS } from './rounds-server';
 import type { SportEventParticipantRow, SportEventRoundRow, SportEventRow, SportEventStatus } from './types';
 
@@ -182,6 +183,7 @@ export async function applyTransition(admin: Admin, req: TransitionRequest): Pro
     const { error } = await admin.from('sport_event_rounds').update({ status: roundStatus }).eq('sport_event_id', req.eventId).neq('status', 'cancelled');
     if (error) console.error('[sport-events] round status write failed:', error);
   }
+  if (req.to === 'completed') await notifyResults(admin, event, req.actorProfileId);
 
   return { ok: true, event: updated as SportEventRow, rounds: await readRounds(admin, req.eventId) };
 }

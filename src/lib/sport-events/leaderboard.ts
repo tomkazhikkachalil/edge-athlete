@@ -20,6 +20,8 @@
  *     to-par, then thru DESCENDING for ORDER only — a player further along
  *     on the same score lists first but shares the rank.
  *   * Players with no scored hole rank last, rank null.
+ *   * An off-catalog round (no hole data) scores against par 4 over its
+ *     hole range — the totals trigger's rule — and never has net.
  */
 import { rankStrokeIndexes, strokesForHole } from '@/lib/golf/adjusted-gross';
 import { assignSharedRanks } from '@/lib/competitions/scoring';
@@ -41,6 +43,8 @@ export interface LeaderboardPlayer {
 export interface LeaderboardInput {
   format: SportEventFormat;
   holes: 9 | 18;
+  /** The first hole when there is no hole data (an off-catalog round); defaults to 1. */
+  startingHole?: number;
   holeData: SportEventHoleDatum[] | null;
   courseRating: number | null;
   slopeRating: number | null;
@@ -129,6 +133,15 @@ export function computeLeaderboard(input: LeaderboardInput): LeaderboardRow[] {
   for (const h of input.holeData ?? []) {
     parByHole.set(h.hole, h.par);
     siByHole.set(h.hole, typeof h.handicap === 'number' && h.handicap >= 1 && h.handicap <= 18 ? h.handicap : null);
+  }
+  if (parByHole.size === 0) {
+    // An off-catalog round has no hole data: the totals trigger scores it
+    // against par 4, and so does the board. Holes run from the starting hole.
+    const first = input.startingHole ?? 1;
+    for (let n = first; n < first + input.holes && n <= 18; n++) {
+      parByHole.set(n, 4);
+      siByHole.set(n, null);
+    }
   }
   const scored = input.players.map(p => scorePlayer(p, input, parByHole, siByHole));
   const useNet = input.format === 'stroke_net';

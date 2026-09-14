@@ -10,6 +10,7 @@ import { isFull } from '@/lib/sport-events/join';
 import { applyCapacityChange, applyJoin, ORGANIZER_ACTIONS, readRoster, toSnapshot, type JoinOutcome } from '@/lib/sport-events/join-server';
 import type { JoinAction } from '@/lib/sport-events/join';
 import type { SportEventParticipantRow } from '@/lib/sport-events/types';
+import { applyProfileOptOut } from '@/lib/sport-events/results-server';
 import { parseParticipantPatch } from '@/lib/sport-events/validate';
 
 const NOT_FOUND = () => NextResponse.json({ error: 'Event not found' }, { status: 404 });
@@ -85,7 +86,9 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     const row = target as SportEventParticipantRow;
     const isSelf = row.profile_id === actor.profileId;
     const canManage = read.access.canManage;
-    if (read.event.status === 'completed' || read.event.status === 'cancelled') return NextResponse.json({ error: 'This event is over.' }, { status: 409 });
+    if (read.event.status === 'cancelled') return NextResponse.json({ error: 'This event is over.' }, { status: 409 });
+    // After completion only the opt-out may change (the roster and the index are frozen with the results).
+    if (read.event.status === 'completed' && (parsed.value.handicap_index !== undefined || parsed.value.playing !== undefined)) return NextResponse.json({ error: 'The event is over — only the profile setting can change.' }, { status: 409 });
 
     const update: Record<string, unknown> = {};
     if (parsed.value.handicap_index !== undefined) {
@@ -121,6 +124,12 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       return NextResponse.json({ error: 'Could not update the participant' }, { status: 500 });
     }
     const promoted = seatFreed ? await applyCapacityChange(admin, read.event, read.event.capacity, actor.profileId) : [];
+    // A late opt-out (or opt back in) after the results were mirrored: the
+    // ONE mirror forgets or rebuilds this player's round (Tom: hidden
+    // everywhere — profile, handicap, dataset).
+    if (parsed.value.hide_from_profile !== undefined && parsed.value.hide_from_profile !== row.hide_from_profile && read.event.status === 'completed') {
+      await applyProfileOptOut(admin, id, row.profile_id, parsed.value.hide_from_profile);
+    }
     return NextResponse.json({ participant: updated, promoted }, { headers: { 'Cache-Control': 'private, no-store' } });
   } catch (error) {
     console.error('[api/sport-events/participants/[pid]] PATCH error:', error);
