@@ -114,6 +114,13 @@ export const RATE_LIMITS = {
   // touches a real manager and, with delete-on-decline, is the backstop
   // against re-invite spam.
   affiliation: { max: 20, windowSeconds: 3600, keyBy: 'user' },
+  // Events program (PR 4): creating / editing an event and its roster is a
+  // setup-evening shape (bursty, like org structure); joins and follows are
+  // the follow bucket's shape; the event GET is anonymous-reachable for a
+  // public or link event, so it is IP-keyed like contest-view.
+  'sport-event': { max: 120, windowSeconds: 3600, keyBy: 'user' },
+  'sport-event-join': { max: 60, windowSeconds: 3600, keyBy: 'user' },
+  'sport-event-view': { max: 240, windowSeconds: 60, keyBy: 'ip' },
   // Org structure CRUD (phase 1) — setup evenings are BURSTY (a league
   // owner creating 8 divisions × 30 teams × entries in one sitting);
   // affiliation's 20/h would starve that, the guardian-split lesson.

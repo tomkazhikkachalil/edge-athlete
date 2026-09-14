@@ -1,0 +1,121 @@
+/**
+ * The sport_event_* bells (Events program, PR 4) — direct inserts on the
+ * admin client (create_notification's preference gate has no branch for
+ * these types and would drop them silently — the shared-round precedent),
+ * every sender BEST-EFFORT. A supervised invitee gets their own bell AND a
+ * guardian copy (notifyGuardians, the roster-invite shape). The copy is
+ * pure (`bellCopy`) so a node test pins every line.
+ *
+ * Phase-1 senders: invite, request, request_decision (approve / reject /
+ * a waitlist promotion). `sport_event_live` is registered and unsent (Live
+ * Now is the surface); `sport_event_results` arrives with completion (PR 7).
+ */
+import type { SupabaseClient } from '@supabase/supabase-js';
+import { notifyGuardians } from '@/lib/guardian-notify';
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type Admin = SupabaseClient<any, 'public', any>;
+
+export type SportEventBell = 'sport_event_invite' | 'sport_event_request' | 'sport_event_request_decision';
+
+export interface BellCopy {
+  type: SportEventBell;
+  title: string;
+  message: string | null;
+  action_url: string;
+}
+
+export function eventPath(eventId: string, tab?: 'players' | 'leaderboard' | 'overview'): string {
+  return tab ? `/events/${eventId}?tab=${tab}` : `/events/${eventId}`;
+}
+
+export function bellCopy(
+  kind: 'invite' | 'request' | 'approved' | 'rejected' | 'promoted',
+  ctx: { eventId: string; eventName: string; actorName: string },
+): BellCopy {
+  switch (kind) {
+    case 'invite':
+      return { type: 'sport_event_invite', title: `${ctx.actorName} invited you to ${ctx.eventName}`, message: 'Accept to play, or decline.', action_url: eventPath(ctx.eventId, 'players') };
+    case 'request':
+      return { type: 'sport_event_request', title: `${ctx.actorName} asked to join ${ctx.eventName}`, message: 'Approve or decline the request.', action_url: eventPath(ctx.eventId, 'players') };
+    case 'approved':
+      return { type: 'sport_event_request_decision', title: `You're in: ${ctx.eventName}`, message: `${ctx.actorName} accepted your request.`, action_url: eventPath(ctx.eventId) };
+    case 'rejected':
+      return { type: 'sport_event_request_decision', title: `Not this time: ${ctx.eventName}`, message: `${ctx.actorName} declined your request.`, action_url: eventPath(ctx.eventId) };
+    case 'promoted':
+      return { type: 'sport_event_request_decision', title: `A spot opened up: ${ctx.eventName}`, message: "You're off the waitlist and in the field.", action_url: eventPath(ctx.eventId) };
+  }
+}
+
+export async function actorDisplayName(admin: Admin, profileId: string): Promise<string> {
+  const { data } = await admin.from('profiles').select('first_name, last_name, full_name, display_name').eq('id', profileId).maybeSingle();
+  if (!data) return 'Someone';
+  return [data.first_name, data.last_name].filter(Boolean).join(' ') || data.display_name || data.full_name || 'Someone';
+}
+
+async function insertBells(admin: Admin, recipients: string[], actorId: string | null, copy: BellCopy, metadata: Record<string, unknown>): Promise<void> {
+  const unique = [...new Set(recipients)].filter(id => id && id !== actorId);
+  if (unique.length === 0) return;
+  try {
+    const { error } = await admin.from('notifications').insert(
+      unique.map(user_id => ({
+        user_id,
+        type: copy.type,
+        actor_id: actorId,
+        title: copy.title,
+        message: copy.message,
+        action_url: copy.action_url,
+        is_read: false,
+        metadata,
+      })),
+    );
+    if (error) console.error('[sport-events notify] insert failed:', error);
+  } catch (e) {
+    console.error('[sport-events notify] insert failed:', e);
+  }
+}
+
+export interface BellContext {
+  admin: Admin;
+  eventId: string;
+  eventName: string;
+  actorProfileId: string;
+}
+
+/** Invite bells to the invitees; a supervised invitee's guardians get a copy. */
+export async function notifyInvites(ctx: BellContext, inviteeProfileIds: string[]): Promise<void> {
+  if (inviteeProfileIds.length === 0) return;
+  const actorName = await actorDisplayName(ctx.admin, ctx.actorProfileId);
+  const copy = bellCopy('invite', { eventId: ctx.eventId, eventName: ctx.eventName, actorName });
+  const meta = { sport_event_id: ctx.eventId };
+  await insertBells(ctx.admin, inviteeProfileIds, ctx.actorProfileId, copy, meta);
+  try {
+    const { data: supervised } = await ctx.admin.from('profiles').select('id').in('id', inviteeProfileIds).eq('supervision_state', 'supervised');
+    for (const child of supervised ?? []) {
+      await notifyGuardians(ctx.admin, child.id as string, {
+        type: 'sport_event_invite',
+        title: copy.title.replace('invited you', 'invited your athlete'),
+        message: copy.message,
+        actionUrl: copy.action_url,
+        actorId: ctx.actorProfileId,
+        metadata: meta,
+      }, ctx.actorProfileId);
+    }
+  } catch (e) {
+    console.error('[sport-events notify] guardian copy failed:', e);
+  }
+}
+
+/** A join request → the host and the co-organizers. */
+export async function notifyRequest(ctx: BellContext, organizerProfileIds: string[]): Promise<void> {
+  const actorName = await actorDisplayName(ctx.admin, ctx.actorProfileId);
+  const copy = bellCopy('request', { eventId: ctx.eventId, eventName: ctx.eventName, actorName });
+  await insertBells(ctx.admin, organizerProfileIds, ctx.actorProfileId, copy, { sport_event_id: ctx.eventId });
+}
+
+/** The organizer's decision (or a promotion) → the requester. */
+export async function notifyDecision(ctx: BellContext, recipientProfileId: string, kind: 'approved' | 'rejected' | 'promoted'): Promise<void> {
+  const actorName = await actorDisplayName(ctx.admin, ctx.actorProfileId);
+  const copy = bellCopy(kind, { eventId: ctx.eventId, eventName: ctx.eventName, actorName });
+  await insertBells(ctx.admin, [recipientProfileId], ctx.actorProfileId, copy, { sport_event_id: ctx.eventId });
+}

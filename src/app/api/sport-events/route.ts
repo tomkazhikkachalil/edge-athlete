@@ -1,0 +1,177 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { getServerAuth, getSupabaseAdmin } from '@/lib/auth-server';
+import { enforceRateLimit } from '@/lib/rate-limit';
+import { requireOrgManager } from '@/lib/orgs/structure-server';
+import { resolveSportEventAccess } from '@/lib/sport-events/access';
+import { EVENT_COLUMNS, PARTICIPANT_COLUMNS } from '@/lib/sport-events/access-server';
+import { readJson, resolveActor } from '@/lib/sport-events/actor-server';
+import { snapshotAtAccept } from '@/lib/sport-events/handicap-server';
+import { mintLinkToken } from '@/lib/sport-events/link-token';
+import { snapshotRound } from '@/lib/sport-events/rounds-server';
+import type { SportEventParticipantRow, SportEventRow } from '@/lib/sport-events/types';
+import { isDateOnly, parseCreateBody, parseListScope } from '@/lib/sport-events/validate';
+import { projectEvent } from '@/lib/sport-events/view';
+import { fetchSportEventView } from '@/lib/sport-events/view-server';
+
+/**
+ * /api/sport-events (Events program, PR 4).
+ *
+ * POST — create an event: the header row, round 1 (the catalog snapshot
+ * WITH the stroke index), the host's participant row (organizer, accepted,
+ * playing unless `host_plays: false`), a link token when visibility is
+ * `link`; `publish: true` creates it `open` (the wizard's Publish). An org
+ * attach needs `manage_competitions` on that org and is never acting-as.
+ *
+ * GET ?scope=mine|hosting|upcoming|live|past — the signed-in viewer's
+ * events (host, or a participant row that is not declined / removed),
+ * newest first for past, soonest first otherwise. Phase 1 lists at most
+ * 100; a keyset cursor arrives with the tournaments phase.
+ */
+export async function POST(request: NextRequest) {
+  try {
+    const { user, error: authError } = await getServerAuth(request);
+    if (authError || !user) return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
+    const limited = await enforceRateLimit(request, 'sport-event', { userId: user.id });
+    if (limited) return limited;
+
+    const parsed = parseCreateBody(await readJson(request));
+    if (!parsed.ok) return NextResponse.json({ error: parsed.error }, { status: 400 });
+    const input = parsed.value;
+
+    const actor = await resolveActor(user.id, input.profile_id, 'Not authorized to host for this profile');
+    if (!actor.ok) return actor.response;
+    const admin = getSupabaseAdmin();
+
+    if (input.club_id || input.league_id) {
+      if (actor.actingAs) return NextResponse.json({ error: 'An organization event is hosted from your own account.' }, { status: 403 });
+      const side = input.club_id ? 'club' : 'league';
+      const gate = await requireOrgManager(admin, user, side, (input.club_id ?? input.league_id) as string, { intent: 'manage_competitions' });
+      if (!gate.ok) return gate.response;
+    }
+
+    const round = await snapshotRound(admin, input.round);
+    if (!round) return NextResponse.json({ error: 'Course not found' }, { status: 400 });
+
+    const now = new Date().toISOString();
+    const { data: event, error: insertError } = await admin
+      .from('sport_events')
+      .insert({
+        host_profile_id: actor.profileId,
+        created_by_user_id: user.id,
+        club_id: input.club_id,
+        league_id: input.league_id,
+        sport_key: input.sport_key,
+        name: input.name,
+        description: input.description,
+        join_mode: input.join_mode,
+        visibility: input.visibility,
+        link_token: input.visibility === 'link' ? mintLinkToken() : null,
+        format: input.format,
+        status: input.publish ? 'open' : 'draft',
+        opened_at: input.publish ? now : null,
+        capacity: input.capacity,
+        starts_on: round.scheduled_on,
+      })
+      .select(EVENT_COLUMNS)
+      .single();
+    if (insertError || !event) {
+      console.error('[api/sport-events] insert failed:', insertError);
+      return NextResponse.json({ error: 'Could not create the event' }, { status: 500 });
+    }
+    const row = event as SportEventRow;
+
+    const { error: roundError } = await admin.from('sport_event_rounds').insert({ sport_event_id: row.id, sequence: 1, ...round });
+    if (roundError) {
+      console.error('[api/sport-events] round insert failed:', roundError);
+      await admin.from('sport_events').delete().eq('id', row.id);
+      return NextResponse.json({ error: 'Could not create the round' }, { status: 500 });
+    }
+
+    const { data: host, error: hostError } = await admin
+      .from('sport_event_participants')
+      .insert({ sport_event_id: row.id, profile_id: actor.profileId, role: 'organizer', status: 'accepted', playing: input.host_plays, accepted_at: now, responded_at: now })
+      .select(PARTICIPANT_COLUMNS)
+      .single();
+    if (hostError || !host) {
+      console.error('[api/sport-events] host row insert failed:', hostError);
+      await admin.from('sport_events').delete().eq('id', row.id);
+      return NextResponse.json({ error: 'Could not create the event' }, { status: 500 });
+    }
+    if (input.host_plays) await snapshotAtAccept(admin, host as SportEventParticipantRow);
+
+    const view = await fetchSportEventView(admin, row.id, actor.profileId, null);
+    return NextResponse.json(view, { status: 201, headers: { 'Cache-Control': 'private, no-store' } });
+  } catch (error) {
+    console.error('[api/sport-events] POST error:', error);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+  }
+}
+
+export async function GET(request: NextRequest) {
+  try {
+    const { user, error: authError } = await getServerAuth(request);
+    if (authError || !user) return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
+    const url = new URL(request.url);
+    const scope = parseListScope(url.searchParams.get('scope'));
+    const actor = await resolveActor(user.id, url.searchParams.get('as'));
+    if (!actor.ok) return actor.response;
+    const todayParam = url.searchParams.get('today');
+    const today = isDateOnly(todayParam) ? todayParam : new Date().toISOString().slice(0, 10);
+    const admin = getSupabaseAdmin();
+
+    const { data: mine, error: rowsError } = await admin
+      .from('sport_event_participants')
+      .select(PARTICIPANT_COLUMNS)
+      .eq('profile_id', actor.profileId)
+      .not('status', 'in', '(declined,removed)');
+    if (rowsError) {
+      console.error('[api/sport-events] roster read failed:', rowsError);
+      return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    }
+    const rowByEvent = new Map<string, SportEventParticipantRow>();
+    for (const r of (mine ?? []) as SportEventParticipantRow[]) rowByEvent.set(r.sport_event_id, r);
+
+    const { data: hosted } = await admin.from('sport_events').select('id').eq('host_profile_id', actor.profileId);
+    const ids = new Set<string>([...rowByEvent.keys(), ...((hosted ?? []) as Array<{ id: string }>).map(h => h.id)]);
+    if (ids.size === 0) return NextResponse.json({ events: [], scope }, { headers: { 'Cache-Control': 'private, no-store' } });
+
+    const { data: events, error: eventsError } = await admin.from('sport_events').select(EVENT_COLUMNS).in('id', [...ids]);
+    if (eventsError) {
+      console.error('[api/sport-events] list read failed:', eventsError);
+      return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    }
+
+    const out = [];
+    for (const e of (events ?? []) as SportEventRow[]) {
+      const own = rowByEvent.get(e.id) ?? null;
+      const access = resolveSportEventAccess({
+        event: { hostProfileId: e.host_profile_id, visibility: e.visibility, status: e.status, linkToken: e.link_token },
+        viewerId: actor.profileId,
+        presentedToken: null,
+        participant: own ? { role: own.role, status: own.status } : null,
+      });
+      if (!access) continue;
+      const isHosting = access.canManage;
+      const isPast = e.status === 'completed' || e.status === 'cancelled' || (e.status !== 'live' && e.starts_on !== null && e.starts_on < today);
+      const keep =
+        scope === 'mine' ? true
+        : scope === 'hosting' ? isHosting
+        : scope === 'live' ? e.status === 'live'
+        : scope === 'past' ? isPast
+        : /* upcoming */ !isPast && e.status !== 'live';
+      if (!keep) continue;
+      out.push({ ...projectEvent(e, access), my_role: access.role, my_status: access.participantStatus, can_manage: access.canManage });
+    }
+    const dir = scope === 'past' || scope === 'mine' ? -1 : 1;
+    out.sort((a, b) => {
+      const ka = a.starts_on ?? '';
+      const kb = b.starts_on ?? '';
+      if (ka !== kb) return ka < kb ? -dir : dir;
+      return a.id < b.id ? -1 : 1;
+    });
+    return NextResponse.json({ events: out.slice(0, 100), scope }, { headers: { 'Cache-Control': 'private, no-store' } });
+  } catch (error) {
+    console.error('[api/sport-events] GET error:', error);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+  }
+}
