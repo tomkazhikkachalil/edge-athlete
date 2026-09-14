@@ -460,6 +460,7 @@ describe('the real chain', () => {
     expect(chain.triggers.get('profiles|profiles_search_vector_trigger')).toMatchObject({ state: 'dropped', file: '108_profiles_clubs_places.sql' });
     expect(chain.triggers.get('profile_access|profile_access_last_guardian')).toMatchObject({ constraint: true, deferrable: true, initially: 'deferred', updateOf: ['role'] });
     expect(chain.triggers.get('posts|posts_search_doc_delete')).toMatchObject({ fn: 'search_document_delete', args: "'post'" });
+    expect(chain.triggers.get('group_posts|trigger_group_posts_updated_at')).toMatchObject({ state: 'created', file: '198_baseline_triggers.sql', fn: 'handle_updated_at' }); // the one unowned trigger, recorded
     expect(g('notify_post_like()')).toEqual(['service_role']); // 014 create → 040's FOREACH revoke → 190 OR REPLACE keeps
     expect(g('notify_comment_like()')).toEqual(['service_role']); // existed before the chain: 040 revoked it, 190 OR REPLACEd it
     expect(g('bump_site_hit(uuid,date,text,text)')).toEqual(['service_role']);

@@ -1,5 +1,22 @@
 # Development Log
 
+## September 16, 2026 — Hygiene sweep H2: migration 198 records the one trigger the chain never named (NO-OP on prod)
+
+- **198 `baseline_triggers`** — `trigger_group_posts_updated_at ON
+  group_posts` (from `archive/loose-legacy/add-shared-golf-rounds.sql`),
+  verbatim from `pg_get_triggerdef` in the 190 idiom (DROP IF EXISTS +
+  CREATE, same definition = a functional no-op). The grant side had
+  nothing to record: all 107 sets agree. Grid: the trigger's
+  `md5(pg_get_triggerdef)`, group_posts' trigger count, the public total
+  of 101; twin `verify-198-baseline.sql`.
+- Recorded as found: group_posts carries TWO BEFORE UPDATE triggers that
+  set `updated_at` (this archived one and the chain's
+  `trigger_update_group_post_timestamp`); same-event triggers fire in name
+  order, so the chain's value wins and the archived one changes nothing —
+  199 drops it. With 198 in the chain the triggers facet reads OK against
+  the saved catalog; every facet is green with the allowlist still empty.
+- Tom runs 198 (every grid row OK before and after).
+
 ## September 16, 2026 — Hygiene sweep H1: check:schema reads triggers and grants (zero DDL)
 
 - **Two more catalog facets** on 195's RPC (it already carried every
