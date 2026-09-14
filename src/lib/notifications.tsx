@@ -5,6 +5,7 @@ import { RealtimePostgresChangesPayload } from '@supabase/supabase-js';
 import { useAuth } from '@/lib/auth';
 import { supabase } from '@/lib/supabase';
 import { formatDisplayName } from '@/lib/formatters';
+import { decidedText } from '@/lib/notification-actions';
 
 // Web Notification API is missing in some runtimes (older iOS Safari, in-app
 // browsers, embedded WebViews, some Brave / enterprise configurations).
@@ -74,6 +75,10 @@ export function getNotificationText(notification: Notification): string {
       return notification.message || 'System notification';
     case 'league_join':
       return `${actorName} joined your league`;
+    case 'sport_event_invite':
+    case 'sport_event_request':
+      // Events program: a decided bell says what you did; pending keeps the stored line.
+      return decidedText(notification, actorName) ?? notification.title;
     default:
       return notification.title;
   }
@@ -92,6 +97,8 @@ interface NotificationsContextType {
   deleteNotification: (notificationId: string) => Promise<void>;
   clearAll: () => Promise<void>;
   refreshUnreadCount: () => Promise<void>;
+  /** Events program: the action row decided a bell — reflect it locally. */
+  applyActionStatus: (notificationId: string, status: 'accepted' | 'declined') => void;
 }
 
 const NotificationsContext = createContext<NotificationsContextType | undefined>(undefined);
@@ -296,6 +303,10 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
   }, [user, notifications, fetchNotifications]);
 
   // Delete notification
+  const applyActionStatus = useCallback((notificationId: string, status: 'accepted' | 'declined') => {
+    setNotifications(prev => prev.map(n => (n.id === notificationId ? { ...n, action_status: status, is_read: true } : n)));
+  }, []);
+
   const deleteNotification = useCallback(async (notificationId: string) => {
     if (!user) return;
 
@@ -516,7 +527,8 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
         markAllAsRead,
         deleteNotification,
         clearAll,
-        refreshUnreadCount
+        refreshUnreadCount,
+        applyActionStatus
       }}
     >
       {children}

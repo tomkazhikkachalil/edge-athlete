@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { isUuid } from '@/lib/uuid';
 import { requireAuth, getSupabaseAdmin } from '@/lib/auth-server';
+import { ACTIONABLE_TYPES } from '@/lib/notification-registry';
+import { readSportEventAccess } from '@/lib/sport-events/access-server';
+import { applyJoin } from '@/lib/sport-events/join-server';
 
 export async function POST(
   request: NextRequest,
@@ -26,7 +29,7 @@ export async function POST(
     // Get the notification to verify ownership and get follow_id
     const { data: notification, error: notifError } = await supabaseAdmin
       .from('notifications')
-      .select('id, user_id, type, follow_id, action_status')
+      .select('id, user_id, type, follow_id, action_status, metadata')
       .eq('id', id)
       .single();
 
@@ -46,8 +49,9 @@ export async function POST(
       );
     }
 
-    // Only allow actions on follow_request notifications
-    if (notification.type !== 'follow_request') {
+    // Only the actionable types (the registry's set: a fan request, an
+    // event invitation, a request to join your event).
+    if (!ACTIONABLE_TYPES.has(notification.type)) {
       return NextResponse.json(
         { error: 'This notification does not support actions' },
         { status: 400 }
@@ -57,9 +61,33 @@ export async function POST(
     // Check if action was already taken
     if (notification.action_status && notification.action_status !== 'pending') {
       return NextResponse.json(
-        { error: `Follow request already ${notification.action_status}` },
+        { error: `Already ${notification.action_status}` },
         { status: 400 }
       );
+    }
+
+    // Events program (PR 11): the sport_event_* branches go through the
+    // event's own gate and join rules (applyJoin), then stamp the bell.
+    if (notification.type === 'sport_event_invite' || notification.type === 'sport_event_request') {
+      const meta = (notification.metadata ?? {}) as { sport_event_id?: string; requester_profile_id?: string };
+      const eventId = typeof meta.sport_event_id === 'string' ? meta.sport_event_id : null;
+      if (!eventId || !isUuid(eventId)) return NextResponse.json({ error: 'This event is no longer available' }, { status: 404 });
+      const read = await readSportEventAccess(supabaseAdmin, eventId, user.id, null);
+      if (!read) return NextResponse.json({ error: 'This event is no longer available' }, { status: 404 });
+      let outcome;
+      if (notification.type === 'sport_event_invite') {
+        outcome = await applyJoin(supabaseAdmin, { event: read.event, access: read.access, action: action === 'accept' ? 'accept' : 'decline', actorProfileId: user.id });
+      } else {
+        const requester = typeof meta.requester_profile_id === 'string' ? meta.requester_profile_id : null;
+        const { data: row } = requester ? await supabaseAdmin.from('sport_event_participants').select('id').eq('sport_event_id', eventId).eq('profile_id', requester).maybeSingle() : { data: null };
+        if (!row) return NextResponse.json({ error: 'That request is no longer open' }, { status: 404 });
+        outcome = await applyJoin(supabaseAdmin, { event: read.event, access: read.access, action: action === 'accept' ? 'approve' : 'reject', actorProfileId: user.id, targetParticipantId: row.id as string });
+      }
+      if (!outcome.ok) return NextResponse.json({ error: outcome.error }, { status: outcome.status });
+      const action_status = action === 'accept' ? 'accepted' : 'declined';
+      const { error: stampError } = await supabaseAdmin.from('notifications').update({ action_status, is_read: true }).eq('id', id);
+      if (stampError) console.error('[NOTIFICATION ACTION] stamp failed:', stampError);
+      return NextResponse.json({ success: true, action_status });
     }
 
     // Get the follow_id

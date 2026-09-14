@@ -172,3 +172,12 @@ Explore, `?course=` kept), `events` (`?filter=upcoming|live|past|mine`),
 `src/lib/sports-nav.ts` is the rule. `/explore` redirects, query preserved.
 The bottom tab bar is a later round.
 
+## Notifications (PR 11)
+
+`sport_event_invite` and `sport_event_request` are inserted `pending` and
+carry Accept / Decline (`NotificationActionRow`, rule in
+`src/lib/notification-actions.ts`) on the notifications page and in the
+bell; `POST /api/notifications/[id]/action` decides them through the
+event's gate and `applyJoin`, then stamps the bell. A decided bell reads
+what you did.
+

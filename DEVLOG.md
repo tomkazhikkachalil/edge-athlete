@@ -1,5 +1,34 @@
 # Development Log
 
+## September 16, 2026 — Events program, PR 11: the bells with an action row · the widened action route (zero DDL)
+
+- **The action row** (`src/components/NotificationActionRow.tsx`, the
+  rule in `src/lib/notification-actions.ts` — pure, pinned): Accept /
+  Decline on an actionable bell while it is still pending (the registry's
+  `ACTIONABLE_TYPES`: a fan request, an event invitation, a request to
+  join your event), on the notifications page and in the bell dropdown
+  (compact). Optimistic through the context's new `applyActionStatus`;
+  a refusal shows under the buttons; clicks never bubble to the row's
+  navigation. A decided sport-event bell reads what you did ("You
+  accepted the invitation to {event}"); the fan request keeps its own
+  lines.
+- **The bells carry the decision**: `notify.ts` inserts
+  `sport_event_invite` and `sport_event_request` with `action_status:
+  'pending'` and the event's name in `metadata` (the request bell also
+  names the requester); results and decisions stay plain.
+- **The action route** (`POST /api/notifications/[id]/action`) is widened
+  from follow requests to the registry's set: an invitation → your own
+  accept / decline through the event's gate and `applyJoin`; a request →
+  approve / reject of the requester's row (organizers only, the gate
+  decides); then the bell is stamped `accepted | declined` and read. A
+  gone event or request answers 404 with a plain line.
+
+Phone pass: `e2e/sport-events-notifications.spec.ts` is `@mobile`
+(Chromium and WebKit at 390 × 844): B accepts A's invitation from the
+page and lands as Playing; A accepts B's join request from the same row;
+the decided lines read back and the rows are gone. Next: PR 12 — the
+groups editor.
+
 ## September 16, 2026 — Events program, PR 10: the Sports section · the /explore redirect · the header's Sports link (zero DDL)
 
 Phase-1-minimal navigation (Tom): the header and the drawer stay; Sports

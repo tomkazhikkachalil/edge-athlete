@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useNotifications, getNotificationText } from '@/lib/notifications';
+import NotificationActionRow from '@/components/NotificationActionRow';
 import { getNotificationIcon } from '@/lib/notification-registry';
 import { formatDisplayName, getInitials } from '@/lib/formatters';
 import { AvatarImage } from '@/components/OptimizedImage';
@@ -221,6 +222,7 @@ export default function NotificationBell() {
                         <p className="text-xs text-muted mt-1">
                           {getRelativeTime(notification.created_at)}
                         </p>
+                        <NotificationActionRow notification={notification} compact />
                       </div>
                     </div>
                   </div>
