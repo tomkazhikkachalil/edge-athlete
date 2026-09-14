@@ -459,10 +459,11 @@ redundant (14 golf policies after the creator-branch FOLD, 3 duplicate
 triggers, the mark_all_notifications_read pair, athlete_badges) and
 revokes API-role EXECUTE on four SECURITY DEFINER trigger functions. Tom
 runs 198 then 199 (grid rows OK); then the live check reads OK on FIVE
-facets. Parked with owners: the golf_hole_scores UPDATE policy is
-participant-only, so a creator re-submitting another player's scorecard
-hits 42501 on the upsert (a product decision); `minHeadline` in the scout
-form. Tom's phone pass of the
+facets. **Migration 200** (Sep 16) fixed the hole-scores creator
+re-submit bug the sweep surfaced (UPDATE policy now participant OR
+creator, the INSERT predicate verbatim; `round-invite.spec.ts` carries
+the regression). Parked with owners: `minHeadline` in the scout form.
+Tom's phone pass of the
 builder; his device pass of a
 contest page and the scouting area; the device pass of a real branded
 club through the editor; the one-hour number once real publishes exist;

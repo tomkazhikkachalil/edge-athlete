@@ -1,5 +1,41 @@
 # Development Log
 
+## September 16, 2026 — Migration 200: a round's creator may UPDATE another player's hole scores (the re-submit bug)
+
+- **The bug.** On `golf_hole_scores` INSERT and DELETE admitted the
+  participant OR the group-post creator; UPDATE admitted the participant
+  only — 004 wrote it that way ("Participant can update their own hole
+  scores"), 126 re-wrapped it and changed no semantics, nothing since
+  touched it. Both routes gate on the creator at the app level and then
+  UPSERT through the session client (`ON CONFLICT (golf_participant_id,
+  hole_number) DO UPDATE`), which needs the UPDATE policy too. A creator's
+  first entry for a player worked (pure INSERT); every re-submit — the
+  shared-round card's creator-only "Edit" on a scored player, the live
+  page's pre-filled modal, the composer's "re-enter them from the post"
+  advice — hit 42501, reported by the bulk route as a 200 with
+  `failures[]` and by the per-participant route as a generic 500. The
+  provenance sweep's policy comparison (199's header) surfaced it.
+- **200 `hole_scores_creator_update`** — DROP + CREATE
+  `hole_scores_update_policy` with the INSERT policy's predicate verbatim,
+  so the three write policies are one predicate. USING only, the table's
+  shape. Complete because of 199's fold: the totals trigger is SECURITY
+  INVOKER and updates `golf_participant_scores`, whose UPDATE policy now
+  admits the creator. No app code. Grid + `verify-200-hole-scores.sql`;
+  the policy count stays 4, the public total 172 (verify-199 unchanged).
+- **The e2e gap was total:** no spec ever scored another player as the
+  creator, and none submitted the same participant's scores twice, so the
+  UPDATE branch was never exercised. `round-invite.spec.ts` gains the
+  regression on its two-user round: A enters B's scores, re-enters them,
+  enters and re-enters their own, asserting `failures` empty each time and
+  reading B's card back (the second strokes, a recomputed total). Run
+  against production BEFORE 200: it fails at exactly the re-submit step —
+  `{"error":"Failed to save scores","failures":[{"error":"Failed to save
+  hole scores"}]}` (a 500 because the only participant failed; with a
+  second participant it would have been a 200) — the bug, reproduced;
+  green once Tom runs 200.
+- Noted, not changed: the bulk route reports a failed upsert as a 200
+  with `failures[]` — the reason this stayed invisible.
+
 ## September 16, 2026 — Hygiene sweep CLOSED on prod: 198 and 199 ran, five facets green, the catalog re-saved
 
 - **Tom ran 198 then 199 ("all rows OK")** after merging #726 → #729 in
