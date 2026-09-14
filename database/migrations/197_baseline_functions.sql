@@ -11,7 +11,10 @@
 -- linter-remediation script. Tom's rule for this round: the body checksum
 -- must match, and a baseline records LIVE. So this file re-declares each of
 -- the 13 functions EXACTLY as pg_get_functiondef prints it today (its own
--- $function$ tag, the identity with argument names and defaults, SECURITY
+-- dollar-quote tag — never named in a comment: an odd number of tags in a
+-- file confuses a client-side statement splitter, which is how the first
+-- run of this file died at "relation total_strokes" — the identity with
+-- argument names and defaults, SECURITY
 -- and search_path included — a CREATE OR REPLACE whose body md5 equals the
 -- live md5(prosrc) is a no-op), reproduces its live EXECUTE grants from
 -- proacl, and pins the one config-only drift with ALTER FUNCTION. Never a
