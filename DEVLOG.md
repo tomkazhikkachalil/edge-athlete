@@ -1,5 +1,49 @@
 # Development Log
 
+## September 16, 2026 — Events program, PR 6: scoring authorization for group-mates · the 409 conflict · the hole range · submit / finalize (zero DDL)
+
+Live entry on an event round now honours the spec's rights: every player
+enters their own card, a player may enter for a PARTNER IN THE SAME GROUP,
+the organizer edits any card and marks it final. The round's creator keeps
+the shared-round creator right.
+
+- **One gate in both score routes** (`scoring-authz-server.ts
+  resolveScoringRight` → PR 3's pure `scoringRight`): the participant row,
+  its round, the event context (the viewer's event role; same group =
+  both rows in ONE `sport_event_group_members` group on that round), the
+  card's status. The verdict picks the CLIENT: self and the creator write
+  on the session client (RLS, mig 200); a group-mate or an organizer on
+  the admin client — the gate IS the authorization. `in_progress` admits
+  all four; `submitted` admits the owner (the write REOPENS the card —
+  `reopenIfNeeded`), organizers and the creator, never a partner; `final`
+  admits organizers only. Old clients on plain shared rounds see exactly
+  the old behaviour. The bulk route (`participant-scores`) reports a
+  refusal as a named failure for THAT entry — never a silent skip.
+- **The 409 conflict**: `expected_updated_at` (the card's
+  `golf_participant_scores.updated_at` the client last saw — the 039
+  totals trigger bumps it on every hole write) newer on the server →
+  `409 {current}`; the client asks keep mine / keep theirs. Optional, so
+  old clients are untouched. Per entry on the bulk route.
+- **The hole range** (`holeRangeFor`): an EVENT round answers its own
+  `starting_hole` / `holes` (so an off-catalog back nine, with no hole
+  data to encode 10..18, still validates); a plain shared round derives
+  from its hole data (`startingHoleNumber`). A miss names the range.
+- **Cards** (`cards.ts planCardAction`, pure): `POST
+  /api/sport-events/[id]/cards/[pid]/submit` (the owner; `submitted` +
+  `submitted_at` + `scores_confirmed`; a final card is closed; no scores
+  yet is a 409) and `…/finalize {reopen?}` (organizers; `final` +
+  `finalized_by`, a never-scored player's row is created final; reopen →
+  `in_progress`). [pid] is the round's `group_post_participants` row and
+  must belong to THIS event's minted round.
+
+Verify green; 64 sport-events unit tests. `e2e/sport-events-scoring.spec.ts`:
+B scores A's card as a group-mate on a back nine, hole 3 refused by name,
+a stale stamp is a 409 carrying the current one, submit locks the partner
+out and the owner's write reopens, finalize locks the owner out and reopen
+restores, completion waits for every card and passes without override
+once both are final. Next: PR 7 — the leaderboard route, the results
+opt-out (the ONE edit in `round-mirror.ts`), the results bell.
+
 ## September 16, 2026 — Events program, PR 5: rounds · groups · the mint at Open and at go-live · the transitions (zero DDL)
 
 The Event becomes a live round. `lifecycle-server.ts applyTransition` reads

@@ -3,6 +3,8 @@ import { getServerAuth, getSupabaseAdmin } from '@/lib/auth-server';
 import { sanitizePenalties } from '@/lib/golf/penalties';
 import { advanceRoundStatus } from '@/lib/golf/round-status';
 import { mirrorCompletedRound, mirrorRoundMedia } from '@/lib/golf/round-mirror';
+import { detectConflict, holeNumberInRange } from '@/lib/sport-events/scoring-authz';
+import { reopenIfNeeded, resolveScoringRight } from '@/lib/sport-events/scoring-authz-server';
 
 export async function POST(request: NextRequest) {
   try {
@@ -65,6 +67,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Process each participant's scores
+    const admin = getSupabaseAdmin();
     const results = [];
     const failures: Array<{ participant_id: string; error: string }> = [];
     for (const participantScore of participant_scores) {
@@ -80,15 +83,36 @@ export async function POST(request: NextRequest) {
         continue; // Skip if not a valid participant
       }
 
-      // Only allow creator to enter scores for others, or participants to enter their own
-      if (!isCreator && participant_id !== user.id) {
-        continue; // Skip unauthorized score entries
+      // Who may write this card, and on which client (Events program, PR 6)
+      // — the same gate as the single-card route. A refusal is a named
+      // failure for THIS entry, never a silent skip and never a batch 500.
+      const resolved = await resolveScoringRight(admin, user.id, participantRecordId);
+      if (!resolved.ok) {
+        failures.push({ participant_id, error: resolved.error });
+        continue;
+      }
+      const ctx = resolved.ctx;
+      if (!ctx.right.allowed) {
+        failures.push({ participant_id, error: ctx.right.error });
+        continue;
+      }
+      const db = ctx.right.client === 'admin' ? admin : supabase;
+      if (detectConflict(typeof participantScore.expected_updated_at === 'string' ? participantScore.expected_updated_at : null, ctx.card.updated_at)) {
+        failures.push({ participant_id, error: `These scores changed since you last loaded them (current: ${ctx.card.updated_at}).` });
+        continue;
       }
 
-      // Filter out holes without strokes
+      // Filter out holes without strokes; a hole outside the round's range
+      // fails the entry by name.
       const validHoleScores = hole_scores.filter((hole: { strokes?: number }) =>
         hole.strokes !== undefined && hole.strokes > 0
       );
+      const outOfRange = validHoleScores.find((hole: { hole_number?: unknown }) => typeof hole.hole_number !== 'number' || !holeNumberInRange(hole.hole_number, ctx.range.startingHole, ctx.range.holesPlayed));
+      if (outOfRange) {
+        failures.push({ participant_id, error: `Invalid hole_number: ${String((outOfRange as { hole_number?: unknown }).hole_number)}. This round plays holes ${ctx.range.startingHole}–${ctx.range.startingHole + ctx.range.holesPlayed - 1}.` });
+        continue;
+      }
+      await reopenIfNeeded(admin, ctx);
 
       if (validHoleScores.length === 0) {
         continue; // Skip if no valid scores
@@ -99,7 +123,7 @@ export async function POST(request: NextRequest) {
       // `continue` on the 23505 — a RETRY after a partial failure dropped
       // every already-saved participant without a trace.
       let golfParticipantId: string | null = null;
-      const { data: existingRecord } = await supabase
+      const { data: existingRecord } = await db
         .from('golf_participant_scores')
         .select('id')
         .eq('participant_id', participantRecordId)
@@ -107,7 +131,7 @@ export async function POST(request: NextRequest) {
       if (existingRecord) {
         golfParticipantId = existingRecord.id;
       } else {
-        const { data: created, error: scoreError } = await supabase
+        const { data: created, error: scoreError } = await db
           .from('golf_participant_scores')
           .insert({
             participant_id: participantRecordId,
@@ -118,7 +142,7 @@ export async function POST(request: NextRequest) {
           .single();
         if (scoreError?.code === '23505') {
           // Lost a creation race — the row exists now; use it.
-          const { data: raced } = await supabase
+          const { data: raced } = await db
             .from('golf_participant_scores')
             .select('id')
             .eq('participant_id', participantRecordId)
@@ -164,7 +188,7 @@ export async function POST(request: NextRequest) {
 
       // UPSERT (was insert): a retry or a re-submit of the same scorecard
       // updates in place instead of failing the UNIQUE and vanishing.
-      const { error: holeScoresError } = await supabase
+      const { error: holeScoresError } = await db
         .from('golf_hole_scores')
         .upsert(holeScoreRecords, { onConflict: 'golf_participant_id,hole_number' });
 

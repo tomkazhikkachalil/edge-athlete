@@ -79,7 +79,8 @@ Pure halves (node-tested) and `*-server.ts` I/O halves, one concern each:
 | `join.ts` | `join-server.ts` | `planJoin` for the ten actions; seats = accepted AND playing; full → waitlisted; a vacancy or a capacity raise promotes lowest position first; a follower may be invited. |
 | `handicap.ts` | `handicap-server.ts` | the frozen index at accept (`snapshotAtAccept`; an organizer override is never overwritten); the read-time course handicap. |
 | `leaderboard.ts` | (PR 7) | the one computation. |
-| `scoring-authz.ts` | (PR 6) | the via / client matrix over the card status. |
+| `scoring-authz.ts` | `scoring-authz-server.ts` | `scoringRight` — the via / client matrix over the card status; `resolveScoringRight` reads the row, the round, the event role + group and the card, and BOTH score routes (`api/golf/scorecards/[id]/scores`, `api/golf/participant-scores`) pick the client from its verdict; `detectConflict` (`expected_updated_at` → 409 `{current}`); `holeRangeFor` (an event round's own start and length). |
+| `cards.ts` | — | `planCardAction`: submit (owner) · finalize / reopen (organizers). |
 | `rounds.ts` | `rounds-server.ts` | the round's course snapshot WITH the stroke index; `starts_on` has one writer (`writeStartsOn`). |
 | `mint.ts` | — | the rows the mint writes (the announce post, the group_post, the scorecard, the participant rows) — pure, pinned. |
 | `groups.ts` | — | `validateGroupsPlan`: the organizer's whole plan for a round, against the roster. |
@@ -119,8 +120,15 @@ The scorecard GET (`/api/group-posts/[id]/scorecard`) answers `sport_event`
 for an event's round; the feed lists an event's round from Open (one post,
 three states); the abandonment sweep leaves an event's round alone.
 
-Not yet: the leaderboard route, cards submit / finalize, group-mate scoring
-— PR 6–7.
+| `POST /api/sport-events/[id]/cards/[pid]/submit` | the card's owner; live | `submitted` + `submitted_at` + `scores_confirmed` ([pid] = the round's `group_post_participants` row) |
+| `POST /api/sport-events/[id]/cards/[pid]/finalize` `{reopen?}` | canManage; live | `final` + `finalized_by` (a never-scored player's row is created final); `reopen` → `in_progress` |
+
+Scoring on an event round goes through the EXISTING score routes with one
+more gate: a same-group partner or an organizer writes on the admin
+client; `expected_updated_at` answers 409 on a newer card; holes outside
+the round's range are refused by name.
+
+Not yet: the leaderboard route, the results opt-out, the results bell — PR 7.
 
 ## Not in phase 1 (named, parked)
 

@@ -5,6 +5,8 @@ import { notifyScoresPosted, groupPostActionUrl } from '@/lib/golf/group-notific
 import { validatePenalties } from '@/lib/golf/penalties';
 import { advanceRoundStatus } from '@/lib/golf/round-status';
 import { mirrorCompletedRound, mirrorRoundMedia } from '@/lib/golf/round-mirror';
+import { detectConflict, holeNumberInRange } from '@/lib/sport-events/scoring-authz';
+import { reopenIfNeeded, resolveScoringRight } from '@/lib/sport-events/scoring-authz-server';
 
 /**
  * POST /api/golf/scorecards/[id]/scores
@@ -40,34 +42,20 @@ export async function POST(
       );
     }
 
-    // Get participant details
-    const { data: participant, error: participantError } = await supabase
-      .from('group_post_participants')
-      .select(`
-        *,
-        group_post:group_post_id (
-          id,
-          type,
-          creator_id
-        )
-      `)
-      .eq('id', participant_id)
-      .single();
-
-    if (participantError || !participant) {
-      return NextResponse.json({ error: 'Participant not found' }, { status: 404 });
-    }
-
-    // Verify user is participant or creator
-    const isParticipant = participant.profile_id === user.id;
-    const isCreator = (participant.group_post as { creator_id: string }).creator_id === user.id;
-
-    if (!isParticipant && !isCreator) {
-      return NextResponse.json(
-        { error: 'Only the participant or group post creator can enter scores' },
-        { status: 403 }
-      );
-    }
+    // Who may write this card, and on which client (Events program, PR 6):
+    // the participant and the round's creator on the session client (RLS,
+    // mig 200); a same-group partner or an organizer of the round's EVENT on
+    // the admin client — the gate IS the authorization. A submitted card
+    // refuses a partner and reopens for its owner; a final card is the
+    // organizer's. Old clients see exactly the old behaviour.
+    const admin = getSupabaseAdmin();
+    const resolved = await resolveScoringRight(admin, user.id, participant_id);
+    if (!resolved.ok) return NextResponse.json({ error: resolved.error }, { status: resolved.status });
+    const ctx = resolved.ctx;
+    if (!ctx.right.allowed) return NextResponse.json({ error: ctx.right.error }, { status: ctx.right.status });
+    const db = ctx.right.client === 'admin' ? admin : supabase;
+    const participant = { profile_id: ctx.participant.profile_id, status: ctx.participant.status, group_post: ctx.groupPost };
+    const isParticipant = ctx.right.via === 'self';
 
     // Under the auto-confirm model only an explicit decline blocks score
     // entry (legacy 'pending' rows count as playing — see isActiveParticipant)
@@ -78,8 +66,24 @@ export async function POST(
       );
     }
 
+    // A client replaying an outbox sends the card's updated_at it last saw;
+    // a newer server value means someone else scored meanwhile → 409 with
+    // the current stamp, and the client asks (keep mine / keep theirs).
+    if (detectConflict(typeof body.expected_updated_at === 'string' ? body.expected_updated_at : null, ctx.card.updated_at)) {
+      return NextResponse.json({ error: 'These scores changed since you last loaded them.', current: ctx.card.updated_at }, { status: 409 });
+    }
+
+    // Holes run from the round's starting hole (an event round knows its
+    // own; a back nine is 10..18).
+    for (const score of scores as Array<{ hole_number?: unknown }>) {
+      if (typeof score?.hole_number !== 'number' || !holeNumberInRange(score.hole_number, ctx.range.startingHole, ctx.range.holesPlayed)) {
+        return NextResponse.json({ error: `Invalid hole_number: ${String(score?.hole_number)}. This round plays holes ${ctx.range.startingHole}–${ctx.range.startingHole + ctx.range.holesPlayed - 1}.` }, { status: 400 });
+      }
+    }
+    await reopenIfNeeded(admin, ctx);
+
     // Create or get golf_participant_scores record
-    const { data: golfParticipantScore, error: participantScoreError } = await supabase
+    const { data: golfParticipantScore, error: participantScoreError } = await db
       .from('golf_participant_scores')
       .select('id')
       .eq('participant_id', participant_id)
@@ -89,7 +93,7 @@ export async function POST(
 
     if (participantScoreError && participantScoreError.code === 'PGRST116') {
       // Create new golf participant score record
-      const { data: newGolfParticipant, error: insertError } = await supabase
+      const { data: newGolfParticipant, error: insertError } = await db
         .from('golf_participant_scores')
         .insert({
           participant_id,
@@ -104,7 +108,7 @@ export async function POST(
         // can land concurrently with the foreground save, both see no row,
         // both insert, the loser hits UNIQUE(participant_id). The row exists
         // now — use it rather than failing a save that must block navigation.
-        const { data: raced, error: racedError } = await supabase
+        const { data: raced, error: racedError } = await db
           .from('golf_participant_scores')
           .select('id')
           .eq('participant_id', participant_id)
@@ -176,7 +180,7 @@ export async function POST(
     });
 
     // Upsert hole scores (insert or update if exists)
-    const { data: insertedScores, error: scoresError } = await supabase
+    const { data: insertedScores, error: scoresError } = await db
       .from('golf_hole_scores')
       .upsert(validatedScores, {
         onConflict: 'golf_participant_id,hole_number',
@@ -189,7 +193,7 @@ export async function POST(
     }
 
     // Fetch updated participant scores (triggers will auto-calculate totals)
-    const { data: updatedGolfScores, error: fetchError } = await supabase
+    const { data: updatedGolfScores, error: fetchError } = await db
       .from('golf_participant_scores')
       .select(`
         *,
@@ -212,7 +216,6 @@ export async function POST(
     // Notify the creator (+ leaderboard-final fan-out when everyone has
     // scored). Best-effort — never fails the save.
     {
-      const admin = getSupabaseAdmin();
       const groupPostId = (participant.group_post as { id: string }).id;
       const creatorId = (participant.group_post as { creator_id: string }).creator_id;
 
