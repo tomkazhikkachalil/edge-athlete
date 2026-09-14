@@ -15,6 +15,12 @@
   truth; performances have one fact table"); `docs/SESSION_PROMPT.md`
   re-aligned: migration head 194, the program's part 1 open on the dump
   grids, the backfill run and the four counts owed by Tom.
+- **The backfill ran (Tom, from the dashboard panel, Sep 13):** the table
+  holds 32 rows — every golf round on production with a score (29
+  `live_round` mirrors, 3 solo `post` rounds; all `self_reported`, golf),
+  equal to the 32 `golf_rounds` with a gross. The other three sources had
+  nothing to write: production holds no stat-line posts, no org-entered
+  lines and no league results yet — honest zeros, not skips.
 - **Part 1 waits on the dump.** Only grid 8 (row counts) has arrived; the
   baselines 190–193 are written from grids 1–7 verbatim. Parked with an
   owner named: a "function provenance" pass (`md5(prosrc)` compare) for
