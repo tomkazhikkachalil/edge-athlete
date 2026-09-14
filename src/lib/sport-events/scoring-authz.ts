@@ -90,3 +90,15 @@ export function holeNumberInRange(holeNumber: number, startingHole: number, hole
   if (!Number.isInteger(holeNumber) || !Number.isInteger(startingHole) || !Number.isInteger(holesPlayed)) return false;
   return holeNumber >= startingHole && holeNumber < startingHole + holesPlayed && holeNumber >= 1 && holeNumber <= 18;
 }
+
+/**
+ * The hole range a card accepts. An EVENT round knows its own start and
+ * length (sport_event_rounds), so an off-catalog back nine — no hole data
+ * to encode 10..18 — still validates; a plain shared round derives the
+ * start from its hole data (src/lib/golf/holes.ts) and falls back to 1.
+ */
+export function holeRangeFor(input: { eventRound: { starting_hole: number; holes: number } | null; derivedStartingHole: number; holesPlayed: number | null | undefined }): { startingHole: number; holesPlayed: number } {
+  if (input.eventRound) return { startingHole: input.eventRound.starting_hole, holesPlayed: input.eventRound.holes };
+  const holes = typeof input.holesPlayed === 'number' && input.holesPlayed > 0 ? input.holesPlayed : 18;
+  return { startingHole: input.derivedStartingHole, holesPlayed: holes };
+}
