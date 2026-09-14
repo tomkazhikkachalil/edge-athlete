@@ -1,5 +1,44 @@
 # Development Log
 
+## September 16, 2026 — Events program, PR 1: migrations 201–202 — the header, the rounds, the people (two empty tables sets)
+
+- **The program.** Tom's design doc ("Events and Tournaments Plan") went
+  through the audit it required first: three read-only passes over the
+  data model, the navigation / feed / event-like surfaces, and live
+  scoring / offline / leaderboards. The verdict Tom adopted: an Event is a
+  NEW thin header table + a rounds table, and each round IS one shared
+  round (`group_posts`) minted at go-live — live scoring, realtime, the
+  completion mirror and `athlete_performances` are reused, not rebuilt;
+  the round's score-derived machine stays untouched and the event's
+  draft → open → live → completed is organizer intent above it. Naming
+  (Tom: "the more details and the better breakdown"): `sport_events` in
+  the database, API and code — the calendar owns `events` and the
+  `event_*` bell types — "Events" on screen, `/events/[id]` the page. The
+  16-PR plan and every decision are in `docs/EVENTS.md`.
+- **201 `sport_events_core`** — `sport_events` (host, optional club |
+  league, sport, join_mode invite | request, visibility public | link |
+  private + link_token, format stroke_gross | stroke_net, status draft →
+  open → live → completed | cancelled, capacity, starts_on denormalised
+  with one writer, the transition timestamps) and `sport_event_rounds`
+  (sequence per event, date, course_id nullable + course_name text,
+  tee, holes 9 | 18, starting hole 1 | 10, the catalog tee's rating /
+  slope, `hole_data` WITH the stroke index, status). **202
+  `sport_event_people`** — `sport_event_participants` (role organizer |
+  co_organizer | participant | follower; status invited | requested |
+  accepted | declined | removed | withdrawn | waitlisted; playing; the
+  WHS index frozen at accept + its source; flight for phase 2; waitlist
+  position; `hide_from_profile`), `sport_event_groups` (per round: tee
+  time, starting hole) and `sport_event_group_members` (ordered; the
+  round id denormalised so "one group per participant per round" is a
+  UNIQUE). All posture A, inline indexes (empty tables), the 001
+  `handle_updated_at` triggers; SELECT-only grids + `verify-201/202-
+  sport-events.sql` twins; `src/lib/sport-events/types.ts` mirrors every
+  CHECK by name.
+- Tom runs 201 then 202 (every grid row OK); `npm run check:schema` stays
+  OK with the allowlist empty (every object is a chain CREATE). Next: PR 2
+  — 203 the round / post links, 204 the scorecard status, 205 the bells,
+  206 the reserved `sports` slug.
+
 ## September 16, 2026 — Migration 200: a round's creator may UPDATE another player's hole scores (the re-submit bug)
 
 - **The bug.** On `golf_hole_scores` INSERT and DELETE admitted the
