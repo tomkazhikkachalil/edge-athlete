@@ -1,5 +1,35 @@
 # Development Log
 
+## September 16, 2026 — Events program, PR 2: migrations 203–206 — the round / post links, the scorecard status, the bells, the reserved root
+
+- **203 `sport_event_round_links`** — `group_posts.sport_event_round_id`
+  and `posts.sport_event_round_id` (SET NULL, partial UNIQUE indexes, the
+  181 shape): a round IS a live round once minted at go-live, and ONE post
+  is its feed card through the whole life — minted at Open (announced),
+  attached to the group_post at go-live (live), the score-led card at
+  completion (results). One writer, `rounds-server.ts`.
+- **204 `scorecard_status`** — `golf_participant_scores.status` in_progress
+  | submitted | final + `submitted_at` + `finalized_by` (guarded CHECKs,
+  fast default): the card's own vocabulary, shaped so attestation adds no
+  migration; `scores_confirmed` keeps meaning "the participant entered it
+  themselves". Every existing card reads in_progress.
+- **205 `sport_event_notifications`** — the type CHECK re-ADDed (187's
+  list verbatim + `sport_event_invite`, `_request`, `_request_decision`,
+  `_live`, `_results`); the registry gains the five (the parity test forces
+  it) and an `ACTIONABLE_TYPES` set; the guardian union gains invite +
+  results. `event_*` was the calendar's, hence the family name.
+- **206 `reserved_sports_root`** — `reserved_handles` gains `sports`
+  (`events` / `event` were seeded by 166 / 181); `RESERVED_ROOT_SLUGS`
+  gains it in the same PR.
+- Deliberately NOT here: the zero-DDL app changes that READ the new
+  columns (the scorecard payload's `sport_event_round_id`, the feed
+  listing's relaxation for sport-event posts, the stroke-index keep in the
+  shared-round writer) land in PR 5 with the mint, after 203 has run — a
+  select naming a missing column is 42703, and this PR must be safe to
+  deploy before Tom runs it.
+- Tom runs 203 → 204 → 205 → 206 (every grid row OK); `check:schema`
+  stays OK.
+
 ## September 16, 2026 — Events program, PR 1: migrations 201–202 — the header, the rounds, the people (two empty tables sets)
 
 - **The program.** Tom's design doc ("Events and Tournaments Plan") went

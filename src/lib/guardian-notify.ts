@@ -49,7 +49,11 @@ export type GuardianNotificationType =
   | 'golf_league_window_closing'
   // Phase 6e S6: an org's announcement, copied to a supervised member's guardians.
   | 'league_update'
-  | 'club_update';
+  | 'club_update'
+  // Events program (mig 205): a supervised athlete was invited to an event /
+  // an event they played has results — the guardian sees the copy.
+  | 'sport_event_invite'
+  | 'sport_event_results';
 
 export interface GuardianNotification {
   type: GuardianNotificationType;
