@@ -120,10 +120,12 @@ duration` exist nowhere in the repo. A schema with no single source of
 truth is corrosive for an analysis / recruiting dataset.
 
 **The method — live truth, never the archive.** `database/provenance/
-live-dump.sql` is a READ-ONLY set of `pg_catalog` queries (columns with
-precision, constraints with names, indexes, RLS state and grants, policy
-bodies, triggers and their functions, row counts) pasted into the SQL
-editor; the grids are committed verbatim under `database/provenance/dumps/`
+live-dump.sql` is ONE read-only `pg_catalog` statement whose single result
+carries eight tagged grids (columns with precision, constraints, indexes,
+RLS + grants, policy bodies, triggers and their functions, row counts) —
+one statement because the SQL editor shows only the LAST statement's
+result; pasted in, copied out as markdown, committed verbatim under
+`database/provenance/dumps/`
 and the baseline migrations (190 social core, 191 athlete legacy, 192 golf
 conditions, 193 profiles) are written FROM them: `CREATE TABLE IF NOT
 EXISTS` with the live shape, `ADD COLUMN IF NOT EXISTS` per column, guarded
