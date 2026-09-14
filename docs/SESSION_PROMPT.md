@@ -445,10 +445,11 @@ every body from the catalog, each a NO-OP on prod ending in a check grid,
 with `verify-19N-baseline.sql` twins; the allowlist is EMPTY and
 `check:schema` reads 108/108 live tables owned. **The backfill RAN Sep 13:
 32 golf rows** (29 live-round mirrors + 3 solo; the other sources empty).
-Open: Tom runs 190 → 191 → 192 → 193 in the SQL editor (every grid row
-OK). Parked with owners: policy provenance for `profiles` / `golf_rounds`
-(live names came from archived scripts), function provenance
-(`md5(prosrc)`), the DROP of `athlete_badges`, the two duplicate count
+**190 → 193 RAN Sep 14 (Tom: "all rows OK"); `check:schema` live after
+= OK.** NEXT ROUND (Tom, Sep 14: "save those for the next round
+tomorrow"): policy provenance for `profiles` / `golf_rounds` (live names
+came from archived scripts) and function provenance (`md5(prosrc)`).
+Parked with owners: the DROP of `athlete_badges`, the two duplicate count
 triggers, `minHeadline` in the scout form. Tom's phone pass of the
 builder; his device pass of a
 contest page and the scouting area; the device pass of a real branded
