@@ -59,14 +59,57 @@ the org contest place.
 |---|---|---|
 | 201 | `sport_events_core.sql` | the header + the rounds |
 | 202 | `sport_event_people.sql` | participants, groups, members |
-| 203 | (next) | `group_posts.sport_event_round_id`, `posts.sport_event_round_id` |
-| 204 | (next) | `golf_participant_scores.status / submitted_at / finalized_by` |
-| 205 | (next) | the `sport_event_*` notification types |
-| 206 | (next) | `reserved_handles` gains `sports` |
+| 203 | `sport_event_round_links.sql` | `group_posts.sport_event_round_id`, `posts.sport_event_round_id` |
+| 204 | `scorecard_status.sql` | `golf_participant_scores.status / submitted_at / finalized_by` |
+| 205 | `sport_event_notifications.sql` | the `sport_event_*` notification types |
+| 206 | `reserved_sports_root.sql` | `reserved_handles` gains `sports` |
 
 Posture A on every new table (RLS on, zero policies, REVOKE from anon and
 authenticated): the service client behind `resolveSportEventAccess` is the
 only reader; a refusal is the same 404 as not-found.
+
+## The library — `src/lib/sport-events/`
+
+Pure halves (node-tested) and `*-server.ts` I/O halves, one concern each:
+
+| pure | server | the rule |
+|---|---|---|
+| `access.ts` | `access-server.ts` | `resolveSportEventAccess` — THE ONE GATE. Public → everyone; link → the token, an admitting participant, or the host; private → any non-declined / non-removed participant (followers included) or an organizer. `null` = 404. |
+| `lifecycle.ts` | (PR 5) | draft → open \| cancelled; open → live \| cancelled; live → completed; named refusals; the organizer override. |
+| `join.ts` | `join-server.ts` | `planJoin` for the ten actions; seats = accepted AND playing; full → waitlisted; a vacancy or a capacity raise promotes lowest position first; a follower may be invited. |
+| `handicap.ts` | `handicap-server.ts` | the frozen index at accept (`snapshotAtAccept`; an organizer override is never overwritten); the read-time course handicap. |
+| `leaderboard.ts` | (PR 7) | the one computation. |
+| `scoring-authz.ts` | (PR 6) | the via / client matrix over the card status. |
+| `rounds.ts` | `rounds-server.ts` | the round's course snapshot WITH the stroke index; `starts_on` has one writer (`writeStartsOn`); `mintRound` arrives in PR 5. |
+| `validate.ts` | — | request bodies: a miss is a 400 naming the field, never a clamp. |
+| `view.ts` | `view-server.ts` | the GET projection: names through `publicDisplayName`, the link token only to organizers, `hide_from_profile` only to self / organizers, never an email or a supervision state. |
+| `notify.ts` | — | the bells (direct inserts; a supervised invitee's guardians get a copy). |
+| `actor-server.ts` | — | the acting profile (`profile_id` in a body, `?as=` on a GET) through `resolveActingProfile`. |
+
+## The API — `/api/sport-events/…` (PR 4)
+
+Cookie-header auth; every read and write goes through the gate; the new
+tables are read and written on the admin client (posture A — the gate IS
+the authorization). Rate buckets: `sport-event` (edits, 120/h per user),
+`sport-event-join` (60/h per user), `sport-event-view` (240/min per IP —
+the GET is anonymous-reachable for a public or link event).
+
+| route | who | what |
+|---|---|---|
+| `POST /api/sport-events` | signed in (acting-as ok) | name, description, visibility, join_mode, format, capacity, club_id \| league_id (`manage_competitions`, never acting-as), `round {scheduled_on, course_id, course_name, tee, holes, starting_hole}`, `host_plays`, `publish` → the header, round 1 (catalog snapshot), the host's organizer row; a link token for `link` |
+| `GET /api/sport-events?scope=mine\|hosting\|upcoming\|live\|past` | signed in | the viewer's events (host or a non-declined / non-removed row), ≤ 100 |
+| `GET /api/sport-events/[id]?token=&as=` | optional auth → 404 | `{event, rounds (+ group_post_id), participants, groups, counts, viewer}` |
+| `PATCH /api/sport-events/[id]` | canManage; draft / open | the editable fields; a capacity raise promotes; `visibility: 'link'` mints a token |
+| `DELETE /api/sport-events/[id]` | the host; draft / cancelled / completed | a minted round detaches (203 SET NULL) |
+| `POST /api/sport-events/[id]/link-token` | the host; `link` | rotate |
+| `POST /api/sport-events/[id]/participants` | canManage; draft / open | `{profile_ids, handles}` → invites; blocked skipped silently; the supervised invite dial; `{invited, skipped: {unknown, blocked, supervised, existing}}` |
+| `POST /api/sport-events/[id]/participants/request?token=` | may view; open + `request` | a join request → the organizers' bell |
+| `POST /api/sport-events/[id]/participants/[pid]` `{action}` | self: accept \| decline \| withdraw; canManage: approve \| reject \| remove | the plan from `planJoin`; an accept freezes the index; `{participant, promoted}` |
+| `PATCH /api/sport-events/[id]/participants/[pid]` | `handicap_index` canManage (null clears + recomputes); `hide_from_profile` self; `playing` self or canManage | stepping out promotes the waitlist |
+| `POST` / `DELETE /api/sport-events/[id]/follow?token=` | may view | a follower row; never a seat |
+
+Not yet: rounds PUT, groups PUT, transitions, the leaderboard, cards
+submit / finalize — PR 5–7.
 
 ## Not in phase 1 (named, parked)
 

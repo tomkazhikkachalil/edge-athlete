@@ -1,5 +1,57 @@
 # Development Log
 
+## September 16, 2026 — Events program, PR 4: the sport-events routes — create / read / update / delete · participants · follow · link token (zero DDL)
+
+The first I/O of the program, over PR 3's pure rules. Seven route files
+under `src/app/api/sport-events/`, six `*-server.ts` halves, the request
+validators, and an API e2e (`e2e/sport-events-api.spec.ts`) that walks the
+whole join story. `docs/EVENTS.md` carries the route table.
+
+- **The gate on every read and write.** `access-server.ts
+  readSportEventAccess` reads the event and the viewer's participant row on
+  the admin client and asks `resolveSportEventAccess`; a refusal is the
+  same 404 as not-found (the contest rule). The new tables are posture A,
+  so the gate IS the authorization; nothing goes through RLS.
+- **Create** (`POST /api/sport-events`): the header, round 1 from the
+  catalog WITH the stroke index (`rounds-server.ts snapshotRound`;
+  off-catalog = a name and no ratings), the host's organizer row (accepted,
+  playing unless `host_plays: false`, index frozen), a link token for
+  `link`, `open` when `publish: true`. Acting-as through
+  `resolveActingProfile` — a supervised athlete MAY host (Tom); an org
+  attach needs `manage_competitions` and is never acting-as.
+  `created_by_user_id` records the author.
+- **Read**: `view-server.ts fetchSportEventView` is the one reader for the
+  event place and every tab; `view.ts` is its pure projection — names
+  through `publicDisplayName`, the link token only to organizers,
+  `hide_from_profile` only to its owner and the organizers, the declined /
+  removed / withdrawn hidden from non-organizers, never an email or a
+  supervision state. `GET /api/sport-events?scope=` lists the viewer's
+  events (≤ 100; a keyset cursor waits for the tournaments phase).
+- **Join** (`join-server.ts applyJoin`): the roster, `planJoin`, the write,
+  the promotion of the waitlist, the frozen index on an accept
+  (`handicap-server.ts snapshotAtAccept` — an organizer override is never
+  overwritten), the bells. Invites resolve ids and handles, skip blocked
+  profiles silently, pass every supervised invitee through the calendar's
+  invite dial, and answer `{invited, skipped: {unknown, blocked, supervised,
+  existing}}`. A capacity raise or a player stepping out promotes. Two
+  accepts racing for the last seat are NOT serialised yet (named for
+  phase 2: a `FOR UPDATE` RPC).
+- **Bells** (`notify.ts`): `sport_event_invite` (+ a guardian copy for a
+  supervised invitee), `sport_event_request` to the host and co-organizers,
+  `sport_event_request_decision` for approve / reject / a promotion. Direct
+  inserts on the admin client, best-effort; the copy is pure and pinned.
+- **Validation** (`validate.ts`): a miss is a 400 naming the field, an
+  unknown PATCH field is refused (a typo is never a silent no-op), dates are
+  the date-only class (a real calendar date, never Date's local parser).
+- **Rate buckets**: `sport-event` (120/h per user — setup evenings are
+  bursty), `sport-event-join` (60/h), `sport-event-view` (240/min per IP —
+  the GET is anonymous-reachable for a public or link event).
+
+Verify green; guardrails green; 54 sport-events unit tests. The e2e runs
+locally against the built app and again on prod after the merge. Next:
+PR 5 — rounds PUT, groups PUT, the mint at Open (the post) and at go-live
+(the round), the transitions.
+
 ## September 16, 2026 — Events program, PR 3: the pure sport-events library — access, lifecycle, join, handicap, leaderboard, scoring authz, rounds (zero DDL)
 
 Seven pure modules under `src/lib/sport-events/`, each the rule half of a
