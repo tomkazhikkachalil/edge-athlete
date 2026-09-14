@@ -7,8 +7,8 @@
  * pure (`bellCopy`) so a node test pins every line.
  *
  * Phase-1 senders: invite, request, request_decision (approve / reject /
- * a waitlist promotion). `sport_event_live` is registered and unsent (Live
- * Now is the surface); `sport_event_results` arrives with completion (PR 7).
+ * a waitlist promotion), results (completion — results-server.ts).
+ * `sport_event_live` is registered and unsent (Live Now is the surface).
  */
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { notifyGuardians } from '@/lib/guardian-notify';
@@ -16,7 +16,7 @@ import { notifyGuardians } from '@/lib/guardian-notify';
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Admin = SupabaseClient<any, 'public', any>;
 
-export type SportEventBell = 'sport_event_invite' | 'sport_event_request' | 'sport_event_request_decision';
+export type SportEventBell = 'sport_event_invite' | 'sport_event_request' | 'sport_event_request_decision' | 'sport_event_results';
 
 export interface BellCopy {
   type: SportEventBell;
@@ -30,7 +30,7 @@ export function eventPath(eventId: string, tab?: 'players' | 'leaderboard' | 'ov
 }
 
 export function bellCopy(
-  kind: 'invite' | 'request' | 'approved' | 'rejected' | 'promoted',
+  kind: 'invite' | 'request' | 'approved' | 'rejected' | 'promoted' | 'results',
   ctx: { eventId: string; eventName: string; actorName: string },
 ): BellCopy {
   switch (kind) {
@@ -44,6 +44,8 @@ export function bellCopy(
       return { type: 'sport_event_request_decision', title: `Not this time: ${ctx.eventName}`, message: `${ctx.actorName} declined your request.`, action_url: eventPath(ctx.eventId) };
     case 'promoted':
       return { type: 'sport_event_request_decision', title: `A spot opened up: ${ctx.eventName}`, message: "You're off the waitlist and in the field.", action_url: eventPath(ctx.eventId) };
+    case 'results':
+      return { type: 'sport_event_results', title: `Results are in for ${ctx.eventName}`, message: 'See the final leaderboard.', action_url: eventPath(ctx.eventId, 'leaderboard') };
   }
 }
 
@@ -118,4 +120,23 @@ export async function notifyDecision(ctx: BellContext, recipientProfileId: strin
   const actorName = await actorDisplayName(ctx.admin, ctx.actorProfileId);
   const copy = bellCopy(kind, { eventId: ctx.eventId, eventName: ctx.eventName, actorName });
   await insertBells(ctx.admin, [recipientProfileId], ctx.actorProfileId, copy, { sport_event_id: ctx.eventId });
+}
+
+/** "Results are in" → every accepted participant (players and followers); the guardians of a supervised player get a copy. */
+export async function notifyResults(admin: Admin, event: { id: string; name: string }, actorProfileId: string): Promise<void> {
+  try {
+    const { data: rows } = await admin.from('sport_event_participants').select('profile_id, playing').eq('sport_event_id', event.id).eq('status', 'accepted');
+    const all = (rows ?? []) as Array<{ profile_id: string; playing: boolean }>;
+    const copy = bellCopy('results', { eventId: event.id, eventName: event.name, actorName: '' });
+    const meta = { sport_event_id: event.id };
+    await insertBells(admin, all.map(r => r.profile_id), actorProfileId, copy, meta);
+    const players = all.filter(r => r.playing).map(r => r.profile_id);
+    if (players.length === 0) return;
+    const { data: supervised } = await admin.from('profiles').select('id').in('id', players).eq('supervision_state', 'supervised');
+    for (const child of supervised ?? []) {
+      await notifyGuardians(admin, child.id as string, { type: 'sport_event_results', title: copy.title, message: copy.message, actionUrl: copy.action_url, actorId: actorProfileId, metadata: meta }, actorProfileId);
+    }
+  } catch (e) {
+    console.error('[sport-events notify] results failed:', e);
+  }
 }

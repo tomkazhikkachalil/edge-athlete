@@ -12,6 +12,7 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { isActiveParticipant } from './round-status';
+import { hiddenProfileIdsForRound, removeMirrorFor } from '@/lib/sport-events/opt-out';
 import { syncGolfRoundPerformance } from '@/lib/performance/write-server';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -222,8 +223,18 @@ export async function mirrorCompletedRound(admin: Admin, groupPostId: string): P
       ? holeData.reduce((sum, h) => sum + h.par, 0)
       : holesPlayed * 4;
 
+    // Events program (PR 7): the ONE edit for the results opt-out — a
+    // player who hid an event result is skipped here (and a mirror row
+    // written before a late opt-out is removed), so the profile, the
+    // handicap and the dataset all forget it together.
+    const hidden = await hiddenProfileIdsForRound(admin, round.id);
+
     for (const p of round.participants || []) {
       if (!isActiveParticipant(p.status)) continue;
+      if (hidden.has(p.profile_id)) {
+        await removeMirrorFor(admin, round.id, p.profile_id);
+        continue;
+      }
       const scores = Array.isArray(p.scores) ? p.scores[0] : p.scores;
       const holeScores: MirrorHoleInput[] = scores?.hole_scores || [];
       if (!scores?.total_score || holeScores.length === 0) continue; // never scored

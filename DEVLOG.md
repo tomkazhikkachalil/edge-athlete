@@ -1,5 +1,45 @@
 # Development Log
 
+## September 16, 2026 — Events program, PR 7: the leaderboard route · the results opt-out · the results bell (zero DDL)
+
+- **The leaderboard route** — `GET /api/sport-events/[id]/rounds/[rid]/
+  leaderboard?token=`: everyone who may view the event (a private event's
+  followers included, Tom's call) reads a board computed on every request
+  by PR 3's `computeLeaderboard` — the one computation, nothing stored.
+  `leaderboard-server.ts fetchRoundLeaderboard` reads the field (accepted,
+  playing participants with their frozen index), the cards on the minted
+  round, the names (masked), and `leaderboard-rows.ts toLeaderboardPlayers`
+  (pure) shapes them; a player who has not scored ranks last with thru 0;
+  before go-live the board is the bare field. A signed-in read caches
+  privately for 5 s; an anonymous read of a public event lets the CDN
+  hold it 10 s. An OFF-CATALOG round (no hole data) scores against par 4
+  over its hole range — the totals trigger's rule — which the first draft
+  missed (every scored hole was dropped; the e2e caught it).
+- **The results opt-out — the ONE edit in `round-mirror.ts`**: `mirrorCompletedRound`
+  asks `opt-out.ts hiddenProfileIdsForRound` (empty for a plain shared
+  round) and SKIPS a player who hid the result — removing a mirror row
+  written before a late opt-out — so the profile, the handicap (which
+  recomputes from `golf_rounds`) and the dataset (`athlete_performances`,
+  deleted by source) forget it together. A late flip after completion
+  goes through `results-server.ts applyProfileOptOut` from the participant
+  PATCH: hide → the rows go; show → the round is re-mirrored (the mirror
+  is idempotent and skips everyone still hidden). After completion only
+  the opt-out may change; the index and `playing` are frozen with the
+  results.
+- **The results bell** (`notify.ts notifyResults`, sent by the completed
+  transition): "Results are in for {event}" → every accepted participant
+  (players and followers), landing on the leaderboard tab; the guardians
+  of a supervised player get the copy (the 205 type is in
+  guardian-notify's union).
+
+Verify green; 515 golf + sport-events unit tests. `e2e/sport-events-
+results.spec.ts`: the empty board before go-live, a stranger's 404, A 8 /
+B 9 over two holes ranks 1 / 2 with a private cache header, completion
+mirrors B's nine onto B's rounds list and sends the bell, the organizer
+cannot flip B's opt-out, B's opt-out removes the mirror, the opt back in
+restores it, the completed board is final. Next: PR 8 — the Sports nav
+section, the /explore redirect, the Create sheet.
+
 ## September 16, 2026 — Events program, PR 6: scoring authorization for group-mates · the 409 conflict · the hole range · submit / finalize (zero DDL)
 
 Live entry on an event round now honours the spec's rights: every player
