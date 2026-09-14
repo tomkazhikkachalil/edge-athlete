@@ -474,7 +474,30 @@ export function parseCatalogChain(files) {
 
 // ── the live side ───────────────────────────────────────────────────────────
 
-/** The RPC's jsonb → a comparable shape. */
+/** @typedef {{ key: string, table: string, name: string, cmd: string, roles: string[], permissive: string, qual: string|null, withCheck: string|null }} LivePolicy */
+/** @typedef {{ key: string, name: string, types: string[], identityArgs: string, returns: string|null, kind: string, language: string|null, secdef: boolean, searchPath: string|null, bodyMd5: string|null, bodyMd5Norm: string|null, bodyBytes: number|null, definition: string|null, acl: unknown, owner: string|null }} LiveFunction */
+/** @typedef {{ meta: unknown, tables: Set<string>, policies: LivePolicy[], functions: LiveFunction[], triggers: unknown[] }} LiveCatalog */
+/**
+ * @typedef {Object} CatalogDiff
+ * @property {Array<any>} unownedPolicies
+ * @property {Array<any>} stalePolicyClaims
+ * @property {Array<any>} policyMismatch
+ * @property {Array<any>} unownedFunctions
+ * @property {Array<any>} bodyDrift
+ * @property {Array<any>} whitespaceOnly
+ * @property {Array<any>} configDrift
+ * @property {Array<any>} chainOnlyFunctions
+ * @property {Array<any>} documented
+ * @property {Array<any>} staleAllowlist
+ * @property {Array<any>} dynamic
+ * @property {Array<any>} foreignSchema
+ * @property {Record<string, number>} counts
+ * @property {boolean} ok
+ */
+
+/** The RPC's jsonb → a comparable shape.
+ *  @param {any} json
+ *  @returns {LiveCatalog} */
 export function liveFromCatalog(json) {
   const tables = new Set((json.rls ?? []).map(t => t.table));
   const policies = (json.policies ?? []).map(p => ({
@@ -521,17 +544,22 @@ const where = e => `${e.file}:${e.line}`;
  * bodyDrift, configDrift, staleAllowlist. Informational: whitespaceOnly,
  * chainOnlyFunctions, dynamic, foreignSchema.
  */
+/** @param {LiveCatalog} live
+ *  @param {ReturnType<typeof parseCatalogChain>} chain
+ *  @param {Array<any>} [allowlist]
+ *  @returns {CatalogDiff} */
 export function diffCatalog(live, chain, allowlist = []) {
   const allowPolicy = new Map(allowlist.filter(e => e.kind === 'policy').map(e => [`${e.table}|${e.name}`, e]));
   const allowFn = new Map(allowlist.filter(e => e.kind === 'function').map(e => [fnKey(e.name, String(e.args ?? '').split(',').map(s => s.trim()).filter(Boolean).map(normalizeType)), e]));
   const usedAllow = new Set();
-  const r = {
+  const r = /** @type {CatalogDiff} */ ({
+    ok: false,
     unownedPolicies: [], stalePolicyClaims: [], policyMismatch: [],
     unownedFunctions: [], bodyDrift: [], whitespaceOnly: [], configDrift: [], chainOnlyFunctions: [],
     documented: [], staleAllowlist: [],
     dynamic: chain.dynamic, foreignSchema: chain.foreignSchema,
     counts: { livePolicies: live.policies.length, liveFunctions: live.functions.length, liveTriggers: live.triggers.length, chainPolicies: 0, chainFunctions: 0 },
-  };
+  });
   const livePolicyKeys = new Set(live.policies.map(p => p.key));
   for (const p of live.policies) {
     const c = chain.policies.get(p.key);
@@ -600,6 +628,7 @@ export function diffCatalog(live, chain, allowlist = []) {
   return r;
 }
 
+/** @param {CatalogDiff} r */
 export function formatCatalogReport(r) {
   const lines = [];
   lines.push(`catalog-inventory: ${r.counts.livePolicies} live policies (${r.counts.chainPolicies} claimed by the chain), ${r.counts.liveFunctions} live functions (${r.counts.chainFunctions} defined by the chain), ${r.counts.liveTriggers} triggers (informational)`);
