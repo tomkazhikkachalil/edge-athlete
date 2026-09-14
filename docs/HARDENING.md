@@ -39,7 +39,10 @@ column, constraint, index, policy and trigger of the social core (`follows`,
 the athlete legacy set — `npm run check:schema` proves table/column
 provenance (LOCAL, service key), and `database/tests/diagnostics/
 verify-190-baseline.sql` / `verify-191-baseline.sql` re-assert the recorded
-index, policy and trigger COUNTS. What the repo cannot know is index
+index, policy and trigger COUNTS, and `verify-196-baseline.sql` /
+`verify-197-baseline.sql` the policy counts and function-body md5s the
+provenance round recorded (`check:schema` compares all of it live, through
+195's RPC). What the repo cannot know is index
 *usage*: confirm that directly, in the Supabase SQL editor:
 ```sql
 SELECT tablename, indexname, indexdef FROM pg_indexes

@@ -731,8 +731,15 @@ const { canView } = await response.json();
    `database/provenance/dumps/`, every body verbatim, each a NO-OP on
    prod with a check grid (a baseline that rewrites live behaviour is not
    a baseline; what it found odd it RECORDS in its header for a later
-   migration). Not yet owned: policy provenance for chain-created tables
-   and DB-only function bodies (the `md5(prosrc)` pass). **The common
+   migration). **Policies and functions have owners too (provenance round,
+   Sep 15 2026, #722–#725, migs 195–197):** `provenance_inventory()` (195,
+   a service-role-only RPC) is the live catalog; `check:schema` requires
+   every live policy to be the chain's LAST statement for it (same cmd /
+   roles) and every live function BODY to equal the chain's dollar-quoted
+   text (`md5(prosrc)`, plus SECURITY DEFINER / `search_path`) — 196
+   recorded the 56 policies the chain never named and dropped its 29 stale
+   claims, 197 re-declared 13 function bodies verbatim. Whitespace-only
+   body diffs are informational; a triggers facet is parked. **The common
    shape**: `athlete_performances` (194, posture A) is ONE row per EVENT
    per athlete — `natural_key` = the ORIGIN ROW id (`post:` ·
    `golf_round:` · `contest_stat_line:`; never (contest, profile)), a

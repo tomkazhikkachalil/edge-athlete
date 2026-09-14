@@ -1,5 +1,42 @@
 # Development Log
 
+## September 15, 2026 — Provenance round, PR D: migration 197 records the 13 function bodies the chain did not own; the round closes (NO-OP on prod)
+
+- **197 `baseline_functions`** — generated from the saved catalog through
+  the checker's diff: the 5 functions no numbered file defined
+  (`generate_connection_suggestions` — the one the app calls, from
+  `/api/suggestions` — `get_pending_requests_count`, both
+  `mark_all_notifications_read` overloads, `search_profiles`; all from the
+  archived notification attempts and search-path fix scripts) and the 8
+  whose LIVE body differed from the chain's last definition, each
+  re-declared EXACTLY as `pg_get_functiondef` prints it (its own tag, the
+  identity with argument names and defaults, SECURITY and `search_path`
+  included), followed by its live EXECUTE grants reproduced from `proacl`;
+  `is_valid_handle(text)`'s `search_path`-only drift pinned with ALTER
+  FUNCTION. Never a DROP FUNCTION. What the chain had wrong: six bodies
+  are `public.`-qualified live (an archived linter remediation), one is
+  `calculate_round_stats` WITH the par sum (the golf fix under
+  `features/golf/`, never numbered), one is `handle_new_user` writing
+  `full_name` from the auth metadata with `ON CONFLICT DO NOTHING` — the
+  signup path the app relies on, which 001 never described. Recorded, not
+  fixed: the `mark_all_notifications_read` overload pair; three functions
+  EXECUTE-granted to PUBLIC live (two trigger functions PostgREST cannot
+  call, one pure validator). Check grid: `md5(prosrc)` per function
+  against the recorded value (the strongest no-op proof), the one config
+  row, anon locked out of the service-only ones, the public total of 107;
+  twin `verify-197-baseline.sql`.
+- **The round closes:** with 196 and 197 in the chain every facet reads OK
+  against the saved catalog — 108/108 tables, 190 policies, 107 functions
+  — with the allowlist still EMPTY; the real-chain test pins
+  `handle_new_user()` and `is_valid_handle(text)` to 197. Docs:
+  `MIGRATIONS.md` "Not owned yet" → "Owned since 196 / 197", CLAUDE.md
+  convention 16, `HARDENING.md` B1, `SESSION_PROMPT.md`. Two chain policy
+  claims sit on `athlete_clubs`, a table 001 created that is not live —
+  noted, not a stale claim. Parked with owners: a triggers facet, grants
+  as gating, the redundant golf policy sets + the overload pair (one
+  cleanup migration).
+- Tom runs 196 then 197; every grid row OK before and after.
+
 ## September 15, 2026 — Provenance round, PR C: migration 196 records every live policy the chain never named (NO-OP on prod)
 
 - **The first live run of the catalog facets** (195 RAN — Tom: "all rows

@@ -182,12 +182,24 @@ baseline cites), `--facet tables|policies|functions`. Before 195 has run
 the RPC answers PGRST202 and the two facets are skipped with a notice.
 `verify-195-rpc.sql` re-asserts the RPC's presence and its grants.
 
-**Not owned yet (separate passes, each with its own idiom):** the POLICIES
-of the chain-created tables `profiles` and `golf_rounds` (their live names —
-`profiles_select_policy`, `golf_rounds_select_policy` … — came from archived
-scripts that replaced 001's / 002's; 190–193 record policies only for the
-13 tables they create) and the DB-only FUNCTION bodies (`CREATE OR REPLACE`
-is not a no-op guard; that pass compares `md5(prosrc)`).
+**Owned since 196 / 197 (provenance round, Sep 15 2026).** The first live
+run of the catalog facets found 56 live policies no numbered file created,
+29 policies the chain still claimed that production had lost, 5 functions
+no file defined, 8 function bodies that differed from the chain's last
+definition (none whitespace-only) and 9 `search_path` drifts — all of it
+from archived scripts. **196 `baseline_policies`** recorded the 56
+verbatim (052's loop products literal for the first time; three golf
+tables' redundant policy sets as found) and dropped the 29 stale claims;
+**197 `baseline_functions`** re-declared the 13 functions exactly as
+`pg_get_functiondef` prints them, with their live EXECUTE grants, and
+pinned the one config-only drift — both NO-OPS, each with an md5 / count
+grid and a `verify-19N-baseline.sql` twin. `check:schema` is OK on every
+facet with the allowlist still EMPTY. Two chain claims sit on a table 001
+created that is not live (`athlete_clubs`) — table provenance's business,
+not a policy stale claim. Informational only, by design: whitespace-only
+body differences (a paste artefact), chain-only functions (a dynamic drop
+explains each), the RPC's `triggers` array (a triggers facet is parked, as
+is treating grants as gating).
 
 **Loose files that never reached production** (absent from the live
 schema; reference only): `features/golf/setup-shared-golf-scorecards.sql`,
