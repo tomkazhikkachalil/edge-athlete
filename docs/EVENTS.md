@@ -142,3 +142,16 @@ N rounds in the UI, per-round / overall leaderboard tabs, flights (the column
 exists), breakdown views, `contest_id` stamping for org-hosted events, the
 calendar publication, a per-hole `client_seq` version column, the bottom
 tab bar, match play and brackets.
+
+## The event page — `/events/[id]` (PR 8)
+
+The contest place's shape (`src/app/(app)/events/[id]/`): a public event is
+server-rendered; everything else goes through `EventGate` with the session.
+`src/components/sport-events/`: `EventPlace` (the shell — view, `?tab=`,
+actions, one refetch), `EventHeader` + `EventJoinButton` (`join-state.ts`
+is the one rule), `EventOverview`, `EventSchedule`, `EventPlayers` +
+`InviteWindow`, `EventLeaderboard`, `EventTabs`. `src/lib/sport-events/
+client.ts` is the page's fetch helper (the link token rides every call).
+Re-sequenced UI: page → wizard + Create sheet → Sports nav + `/explore`
+redirect, so no PR links to a page that is not there yet.
+
