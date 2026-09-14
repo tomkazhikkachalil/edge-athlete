@@ -109,6 +109,26 @@ export default function AppHeader({ onCreatePost, onEditProfile }: AppHeaderProp
     })();
     return () => { cancelled = true; };
   }, [user?.id, managedOrgs, isProfileDropdownOpen, isMobileMenuOpen]);
+  // Data foundation F5c: the admin dashboard's door. The dashboard was
+  // reachable only by typing /dashboard (Tom: "where do I see the admin
+  // dashboard?") — a screen behind a hand-typed URL breaks the house rule.
+  // Asked lazily when a menu opens, once per signed-in user; a non-admin
+  // (403) simply never sees the entry.
+  const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
+  useEffect(() => {
+    if (!user?.id || isAdmin !== null) return;
+    if (!isProfileDropdownOpen && !isMobileMenuOpen) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch('/api/admin/me', { cache: 'no-store' });
+        if (!cancelled) setIsAdmin(res.ok);
+      } catch {
+        if (!cancelled) setIsAdmin(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [user?.id, isAdmin, isProfileDropdownOpen, isMobileMenuOpen]);
   const profileMenuRef = useRef<HTMLDivElement | null>(null);
   const closeProfileDropdown = useCallback(() => setIsProfileDropdownOpen(false), []);
   usePopoverDismiss(profileMenuRef, isProfileDropdownOpen, closeProfileDropdown);
@@ -484,6 +504,7 @@ export default function AppHeader({ onCreatePost, onEditProfile }: AppHeaderProp
               <div ref={profileMenuRef} className="hidden lg:block relative">
                 <button
                   onClick={() => setIsProfileDropdownOpen(!isProfileDropdownOpen)}
+                  data-profile-menu-trigger=""
                   className="flex items-center gap-2 hover:bg-surface-sunken rounded-lg p-1.5 transition-colors"
                   aria-label="Account menu"
                   aria-expanded={isProfileDropdownOpen}
@@ -631,6 +652,22 @@ export default function AppHeader({ onCreatePost, onEditProfile }: AppHeaderProp
                               <span className="truncate">Manage {org.name}</span>
                             </button>
                           ))}
+                        </div>
+                      )}
+
+                      {isAdmin && (
+                        <div className="py-1 border-b border-border-subtle">
+                          <button
+                            onClick={() => {
+                              router.push('/dashboard');
+                              setIsProfileDropdownOpen(false);
+                            }}
+                            className="w-full text-left px-4 py-2 text-sm text-secondary hover:bg-surface-muted flex items-center gap-3"
+                            data-admin-dashboard-link=""
+                          >
+                            <i className="fas fa-shield-halved w-4"></i>
+                            <span>Admin dashboard</span>
+                          </button>
                         </div>
                       )}
 
@@ -908,6 +945,22 @@ export default function AppHeader({ onCreatePost, onEditProfile }: AppHeaderProp
                     <span className="font-medium flex-1 min-w-0 truncate">Manage {org.name}</span>
                   </button>
                 ))}
+              </div>
+            )}
+
+            {isAdmin && (
+              <div className="pt-2 mt-2 border-t border-border">
+                <button
+                  onClick={() => {
+                    router.push('/dashboard');
+                    setIsMobileMenuOpen(false);
+                  }}
+                  className="flex items-center gap-3 w-full px-4 py-3 text-left text-secondary hover:bg-surface-muted rounded-lg transition-colors"
+                  data-admin-dashboard-link=""
+                >
+                  <i className="fas fa-shield-halved w-5 text-center shrink-0"></i>
+                  <span className="font-medium flex-1 min-w-0 truncate">Admin dashboard</span>
+                </button>
               </div>
             )}
 

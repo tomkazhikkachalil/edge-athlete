@@ -17,8 +17,13 @@ test('admin dashboard: the performance backfill panel dry-runs all four sources 
   const ctx = await browser.newContext({ storageState: await mintStorageState(adminUser) });
   let postId = '';
   try {
+    // F5c: the dashboard has a door — the account menu's "Admin dashboard"
+    // entry for an admin; a plain athlete's menu never shows it.
     const page = await ctx.newPage();
-    await page.goto('/dashboard');
+    await page.goto('/feed');
+    await page.locator('[data-profile-menu-trigger]').click();
+    await page.locator('[data-admin-dashboard-link]').first().click();
+    await expect(page).toHaveURL(/\/dashboard$/, { timeout: 20_000 });
     const panel = page.locator('[data-admin-performance-backfill]');
     await expect(panel).toBeVisible({ timeout: 20_000 });
 

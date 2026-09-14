@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { isAdminEmail } from '../auth-server';
+import { OWNER_EMAILS, isAdminEmail } from '../auth-server';
 
 // The admin gate is one string comparison, and it guards /api/admin/* —
 // user listing, moderation reports, consent reviews, guardian support and the
@@ -61,5 +61,19 @@ describe('isAdminEmail — matching', () => {
   it('handles a single-entry allowlist with no commas', () => {
     expect(isAdminEmail('solo@example.com', 'solo@example.com')).toBe(true);
     expect(isAdminEmail('other@example.com', 'solo@example.com')).toBe(false);
+  });
+});
+
+describe('isAdminEmail — the owner fallback (Sep 13 2026)', () => {
+  it('admits the project owner with the env var unset, empty, or naming someone else — case-insensitively', () => {
+    expect(OWNER_EMAILS).toEqual(['tom.kazhikkachalil@gmail.com']);
+    expect(isAdminEmail('tom.kazhikkachalil@gmail.com', undefined)).toBe(true);
+    expect(isAdminEmail('  Tom.Kazhikkachalil@Gmail.com ', '')).toBe(true);
+    expect(isAdminEmail('tom.kazhikkachalil@gmail.com', 'ops@example.com')).toBe(true);
+  });
+  it('admits nobody else without the env var — the fail-closed contract survives the fallback', () => {
+    expect(isAdminEmail('tom.kazhikkachalil@example.com', undefined)).toBe(false);
+    expect(isAdminEmail('kazhikkachalil@gmail.com', undefined)).toBe(false);
+    expect(isAdminEmail('tom@example.com', undefined)).toBe(false);
   });
 });

@@ -1,5 +1,26 @@
 # Development Log
 
+## September 13, 2026 — Data foundation F5c: the admin dashboard gets a door in the account menu (zero DDL)
+
+- Tom, after the backfill: "How did I get to that admin page? where do I
+  see the admin dashboard?" — it was reachable only by typing
+  `/dashboard`, which breaks the navigation rule (never require the user
+  to edit the URL). `GET /api/admin/me` (requireAdmin; 200 carries only
+  the fact, `no-store`) and an **Admin dashboard** entry in BOTH the
+  desktop account dropdown and the phone drawer (the drawer is a superset
+  of the dropdown), asked lazily when a menu opens, once per signed-in
+  user; a non-admin's 403 simply hides it. `e2e/admin-backfill-panel
+  .spec.ts` now reaches the dashboard through the menu.
+- **The owner is an admin without the env var (Tom, same day: "make a
+  dashboard / admin link only for the profile with
+  tom.kazhikkachalil@gmail.com for now, for easy testing" — his Vercel
+  project has no `ADMIN_EMAILS`).** `isAdminEmail` gains a built-in
+  `OWNER_EMAILS` fallback — the project owner's account, admitted whether
+  or not `ADMIN_EMAILS` is set; every other address still needs the env
+  list, and an unset list still denies everyone else (the fail-closed
+  contract, re-pinned). One constant in `auth-server.ts`; remove it when
+  a real roles system lands.
+
 ## September 13, 2026 — Data foundation, F7: part 2 closes — the convention, the session doc, the state of part 1
 
 - **Part 2 is complete and prod-proven** (#709–#716; migration 194 RAN,
