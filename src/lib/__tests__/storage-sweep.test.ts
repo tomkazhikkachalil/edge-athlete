@@ -90,6 +90,10 @@ describe('URL_SOURCE_COLUMNS', () => {
     expect(covered(table, column)).toBe(true);
   });
 
+  it('does not scan athlete_badges — the table is dropped by migration 199, and a missing table fails the whole sweep', () => {
+    expect(covered('athlete_badges', 'icon_url')).toBe(false);
+    expect(URL_SOURCE_COLUMNS.some(s => s.table === 'athlete_badges')).toBe(false);
+  });
   it('lists no table twice, so a column added to the wrong entry is not silently lost', () => {
     const tables = URL_SOURCE_COLUMNS.map(s => s.table);
     expect(new Set(tables).size).toBe(tables.length);

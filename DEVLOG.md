@@ -1,5 +1,18 @@
 # Development Log
 
+## September 16, 2026 — Hygiene sweep H3: the app stops naming athlete_badges (zero DDL, deployed before 199)
+
+- `athlete_badges` never held a row and has been delete-only since the
+  August cleanup; migration 199 drops it. Two references had to leave
+  FIRST, and be deployed: the storage sweep's URL-source entry
+  (`src/lib/storage-sweep.ts`) — its scan of a missing table would 42P01
+  and `storage-sweep-server.ts` rethrows any scan failure on purpose (a
+  missed source makes live files look unreferenced), so the nightly cron
+  would have thrown on every run — and the best-effort delete in
+  `account-deletion.ts` (its error was swallowed, so it would not have
+  broken deletion, only lied). The comment-only mentions stay as
+  tombstones. A test pins that the sweep no longer scans the table.
+
 ## September 16, 2026 — Hygiene sweep H2: migration 198 records the one trigger the chain never named (NO-OP on prod)
 
 - **198 `baseline_triggers`** — `trigger_group_posts_updated_at ON
