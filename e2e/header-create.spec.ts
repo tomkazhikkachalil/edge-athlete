@@ -6,12 +6,15 @@ import { apiAs } from './helpers/qa-user';
 // silently navigated instead of composing. It now hands off to the feed's
 // ?create=1 deep link, the same battle-tested path the rounds page and the
 // onboarding CTA use. This guards the handoff end-to-end from two such pages.
+// Events program: the button is now "Create" and opens the two-door sheet
+// (Post | Event); Post is the same handoff as before.
 for (const route of ['/explore', '/messages']) {
   test(`header + on ${route} opens the composer via /feed?create=1`, async ({ page }) => {
     await page.goto(route);
-    // Desktop viewport (1280×800): the "+ Post" button is in the header
+    // Desktop viewport (1280×800): the "+ Create" button is in the header
     // directly — no drawer needed.
-    await page.getByRole('button', { name: 'Create new post' }).click();
+    await page.getByRole('button', { name: 'Create', exact: true }).click();
+    await page.locator('[data-create-post]').click();
 
     // The feed consumes ?create=1 and strips it from the URL, so asserting
     // the query races the cleanup — assert the OUTCOME: we're on /feed with
@@ -53,4 +56,13 @@ test('own profile shows adapter-declared sport quick links', async ({ page }) =>
     expect(undo.ok()).toBeTruthy();
     await api.dispose();
   }
+});
+
+// The sheet's second door: Event → the creation wizard (Events program).
+test('header Create → Event opens the wizard', async ({ page }) => {
+  await page.goto('/messages');
+  await page.getByRole('button', { name: 'Create', exact: true }).click();
+  await page.locator('[data-create-event]').click();
+  await expect(page).toHaveURL(/\/sports\/events\/new/, { timeout: 15_000 });
+  await expect(page.getByRole('heading', { name: 'Create an event' })).toBeVisible({ timeout: 15_000 });
 });
