@@ -1,5 +1,39 @@
 # Development Log
 
+## September 16, 2026 — Hygiene sweep CLOSED on prod: 198 and 199 ran, five facets green, the catalog re-saved
+
+- **Tom ran 198 then 199 ("all rows OK")** after merging #726 → #729 in
+  order (the #728 deploy Ready before 199). The live check afterwards —
+  `npm run check:schema` — reads OK on every facet with the allowlist
+  still EMPTY:
+
+  | facet | live | owned by the chain |
+  |---|---|---|
+  | tables | 107 | 107 |
+  | policies | 172 | 172 |
+  | functions (grant sets) | 105 (105) | 105 (105) |
+  | triggers | 97 | 97 |
+
+  The post-cleanup catalog is `database/provenance/dumps/2026-09-16-
+  catalog.json` (272 KB); the Sep 14 one stays as the evidence 196–199
+  cite. A trap caught on the way: `--save-catalog` names the file by the
+  machine's date and silently OVERWROTE the Sep 14 evidence (restored from
+  git) — the runner now refuses to overwrite a saved catalog and takes the
+  next free suffix.
+- **Prod probes:** the three shared-round specs against production
+  (`round-details`, `round-lifecycle`, `round-invite` — creator-entered
+  scores through `/api/golf/participant-scores`, the SECURITY INVOKER
+  totals trigger, now under the folded `golf_scores_update_policy`) — 7
+  passed. The admin-site-metrics spec (the storage-sweep dry run) is
+  skipped locally (no admin QA user in .env.local); Tom's dashboard "Storage
+  sweep (dry run)" click is the probe that the sweep no longer scans a
+  dropped table.
+- **The sweep is complete.** Every live table, column, policy, function
+  body, trigger and EXECUTE grant set now has one owner in the numbered
+  chain, and the check that proves it needs nothing from the owner. Parked
+  for a product decision: golf_hole_scores' participant-only UPDATE policy
+  (a creator re-submit hits 42501 on the upsert). Next program: Tom's call.
+
 ## September 16, 2026 — Hygiene sweep H4: migration 199 removes what the baselines recorded as redundant; the sweep closes
 
 - **199 `cleanup`** — every drop backed by a body-by-body comparison of the
