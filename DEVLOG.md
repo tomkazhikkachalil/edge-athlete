@@ -1,5 +1,32 @@
 # Development Log
 
+## September 13, 2026 — Data foundation, F7: part 2 closes — the convention, the session doc, the state of part 1
+
+- **Part 2 is complete and prod-proven** (#709–#716; migration 194 RAN,
+  its check grid all true): the provenance inventory, one provenance
+  ladder, the server-side stat-line 400, `athlete_performances` with its
+  mappers and one writer, every writer hooked, the admin backfill with
+  its dashboard door, and the scout search as the first reader. The
+  final prod probes on the #715 deploy: `performance-data`,
+  `scout-search-performance`, `stat-line-validation` — green; the #716
+  deploy answers the backfill route 401 anonymously (the panel is behind
+  the admin gate).
+- CLAUDE.md gains **convention 16** ("the schema has one source of
+  truth; performances have one fact table"); `docs/SESSION_PROMPT.md`
+  re-aligned: migration head 194, the program's part 1 open on the dump
+  grids, the backfill run and the four counts owed by Tom.
+- **The backfill ran (Tom, from the dashboard panel, Sep 13):** the table
+  holds 32 rows — every golf round on production with a score (29
+  `live_round` mirrors, 3 solo `post` rounds; all `self_reported`, golf),
+  equal to the 32 `golf_rounds` with a gross. The other three sources had
+  nothing to write: production holds no stat-line posts, no org-entered
+  lines and no league results yet — honest zeros, not skips.
+- **Part 1 waits on the dump.** Only grid 8 (row counts) has arrived; the
+  baselines 190–193 are written from grids 1–7 verbatim. Parked with an
+  owner named: a "function provenance" pass (`md5(prosrc)` compare) for
+  the DB-only function bodies; the later DROP of `athlete_badges`;
+  `minHeadline` in the scout form once a per-sport label exists.
+
 ## September 13, 2026 — Data foundation F5b: the backfill gets a door on the admin dashboard (zero DDL)
 
 - Tom, asked to run the backfill from a browser console: "I don't

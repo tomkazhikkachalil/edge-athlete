@@ -715,6 +715,38 @@ const { canView } = await response.json();
    column — always `.not(col, 'is', null)` before an `.in()` (a NULL in a
    PostgREST `in()` is a 400 that emptied the whole side for anyone in a
    club AND a league). `e2e/profile-orgs.spec.ts` is the regression.
+16. **The schema has one source of truth; performances have one fact
+   table (Data foundation, Sep 13 2026, #709–#716, mig 194)** — Tom's
+   vision is a multi-sport ANALYSIS / RECRUITING dataset, so two things
+   got one owner each. **Provenance**: every live table and column is
+   named by a numbered migration or by an entry in
+   `database/provenance/allowlist.json` (42 entries, only ever shrinks);
+   `npm run check:schema` (LOCAL only — the service key; never CI) reads
+   PostgREST's OpenAPI as the live inventory and fails on drift or a stale
+   entry; the read-only `database/provenance/live-dump.sql` is how the
+   baselines 190–193 are written (from the pasted grids, verbatim — a
+   baseline that rewrites live behaviour is not a baseline). **The common
+   shape**: `athlete_performances` (194, posture A) is ONE row per EVENT
+   per athlete — `natural_key` = the ORIGIN ROW id (`post:` ·
+   `golf_round:` · `contest_stat_line:`; never (contest, profile)), a
+   golf league result is an OVERLAY on the round's row (never a second
+   row), NUMERIC-ONLY `metrics` in the sport's stat-schema vocabulary, the
+   152 provenance ladder with `DEFAULT 'self_reported'` (load-bearing: a
+   PostgREST upsert updates only the payload's columns), no visibility
+   snapshot. `src/lib/performance/`: pure mappers (`map.ts`), the ONE
+   writer (`write-server.ts` — never throws, never fails the user's
+   write, pre-194 `skipped`; every hook AWAITED after the origin write),
+   the backfill (`backfill.ts` + `/api/admin/performance-backfill`,
+   dry-run by default, keyset-paged, the dashboard panel is its door —
+   an owner action gets a UI, never a console recipe). A stat line is
+   validated SERVER-SIDE (`stat-line-validate.ts`): a schema miss is a
+   400 naming the field — never clamped, never stripped. The scout
+   search is the first reader (`since`, `minProvenance` over
+   `rungsAtOrAbove`, `minHeadline` by `HEADLINE_DIRECTION`; a post's row
+   counts only while the post is public and published). ONE ladder:
+   `PROVENANCE_RANK` in `provenance-copy.ts`. `docs/PERFORMANCE_DATA.md`
+   is the reference; read DEVLOG Sep 13 2026 P1, F1–F6 first.
+
 ---
 
 ## 🔧 Common Tasks

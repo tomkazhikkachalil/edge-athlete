@@ -1,17 +1,14 @@
 # Start Session — Edge Athlete Development
 
 > Tom's session-start prompt. Paste this (or point Claude at it) when opening a
-> development session. Last aligned with project state: **September 11, 2026
-> (after the Site Builder program, phases 1–11, #616–#644, its hardening
-> round H1–H8, #645–#652, its backlog round B1–B6, #653–#658, the Contest
-> Place program E1–E4, #661–#664, the Recruiting skeleton R1–R5, #665–#669,
-> the Sep 11 felt-customization round #672–#676, Site Builder program 2
-> #677–#695, and Site Builder program 3 #697–#707)** — migration head 189
-> (Tom runs 189 after #702 merges, before #703); `main` at the program-3
-> docs close once the chain merges, deployed and prod-probed step by step;
-> **no program is open after program 3**. If the
-> "Where the project actually is" section drifts stale, ask
-> Claude to re-align it against DEVLOG.md and session memory.
+> development session. Last aligned with project state: **September 13, 2026
+> (after the Site Builder programs 1–3, #616–#707, the Contest Place and
+> Recruiting programs #661–#669, and the Data foundation program's part 2,
+> #709–#716)** — migration head 194 (RAN); `main` at the #716 merge,
+> deployed and prod-probed; **the Data foundation program is OPEN: part 1
+> (the schema baselines 190–193) waits on the provenance dump grids Tom
+> pastes back**. If the "Where the project actually is" section drifts
+> stale, ask Claude to re-align it against DEVLOG.md and session memory.
 
 ## Context & Vision
 
@@ -421,22 +418,42 @@ content laid over the canvas as it is typed; the contact card's field
 order. **F** (#707) closed the docs. Every step was probed after its
 deploy; the final probe set runs after the chain merges.
 
-Open: **Tom runs migration 189** (after #702, before #703 — the pin
-refuses itself by name until then). Tom's phone pass — create a golf club → the welcome
-card → Use this → the editor's list → Move / Size → a page → Settings →
-Publish; his device pass of a contest page
-(`/event/[id]`, the org-site twin) and the scouting area (`/app/scout`,
-`/app/scout/search`); the device pass of a real branded club through the
-editor; the one-hour number once real publishes exist; Search Console,
-custom-domain env, the capture-fix device pass, a first real staff invite.
-Parked code (no owner): drag-to-reorder in the Sections list (the panel's
-lists drag on a desktop; iOS stays on the arrows); arrows on a fixed
-section (CSS-only paging costs a history entry per click); the canvas's
-cross-column push (CSS grid tracks are global — the public page pushes at
-least as much as the canvas; a custom compactor would close it); bracket / meet
-formats and ad-hoc teams, adapter competition hooks, a composer
-attach-to-event picker (DEVLOG E4); the recruiting growth paths in
-`docs/RECRUITING.md`. The next program is Tom's call.
+**Sep 13 — Data foundation program, part 2 COMPLETE + prod-proven
+(#709–#716, migration 194 RAN); part 1 OPEN.** Tom chose the data
+foundation over the competition formats: his vision is a multi-sport
+ANALYSIS / RECRUITING dataset. His decisions: both parts in one program; a
+post's stat payload that fails the schema is REJECTED with a 400 (never
+clamped or stripped); the legacy tables are recorded now, unused ones
+dropped later. **P1** (#709): the live inventory (PostgREST OpenAPI),
+`npm run check:schema`, a 42-entry allowlist that only shrinks, the
+read-only dump Tom runs. **F1–F2** (#710–#711): one provenance ladder;
+the server-side stat-line validator. **F3–F4** (#712–#713):
+`athlete_performances` (194) — one row per event, the origin row as the
+natural key, the league result an overlay — and every writer hooked.
+**F5 / F5b** (#714, #716): the admin backfill, dry-run by default, with a
+dashboard panel (Tom: "I don't understand where I input this
+information" — an owner action gets a UI door). **F6** (#715): the scout
+search reads the table (Active since, Verified only, a headline floor).
+`docs/PERFORMANCE_DATA.md` is the reference; CLAUDE.md convention 16.
+
+Open: **Tom pastes grids 1–7 of `database/provenance/live-dump.sql`**
+(only grid 8, the row counts, has arrived) → migrations 190 (social
+core), 191 (athlete legacy), 192 (golf conditions), 193 (profile
+measurables), each a no-op on prod, each run by Tom, each shrinking the
+allowlist to empty; then the P6 docs close. **Tom runs the backfill from
+the dashboard panel** (dry run all → run for real) and reports the four
+"written" counts. Tom's phone pass of the builder; his device pass of a
+contest page and the scouting area; the device pass of a real branded
+club through the editor; the one-hour number once real publishes exist;
+Search Console, custom-domain env, the capture-fix device pass, a first
+real staff invite. Parked code (no owner): drag-to-reorder in the
+Sections list; arrows on a fixed section; the canvas's cross-column push;
+bracket / meet formats and ad-hoc teams, adapter competition hooks, a
+composer attach-to-event picker (DEVLOG E4); the recruiting growth paths
+in `docs/RECRUITING.md`; `minHeadline` in the scout form once a per-sport
+label exists; a "function provenance" pass (md5(prosrc) compare) for the
+DB-only function bodies; the later DROP of `athlete_badges` (delete-only
+in the app). The program after part 1 closes is Tom's call.
 
 ## Production standard (the baseline, already in force)
 
