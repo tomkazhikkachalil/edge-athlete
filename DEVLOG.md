@@ -1,5 +1,35 @@
 # Development Log
 
+## September 16, 2026 — Events program, PR 12: the groups editor (zero DDL)
+
+- **The Groups tab** (organizers only — `tabs.ts tabsFor({canManage})`;
+  a player's deep link to it lands on the overview) hosts
+  `EventGroupsEditor`: the unassigned pool on top (accepted, playing
+  participants in no group; "Add to…" per player), the groups below —
+  each with a name, a tee time (a local "HH:MM" on the round's date;
+  stored as the timestamptz), a starting hole, and its players in order
+  through the house `ReorderList` (Move up / down at every width, drag on
+  a desktop), plus take-out, move-group and remove-group. Everything is
+  local until **Save groups**, which replaces the round's whole plan in
+  one PUT (`validateGroupsPlan` is the server's rule); the mint reads it
+  at go-live. Read-only once the event is live.
+- **The operations are pure** (`src/lib/sport-events/groups-editor.ts`,
+  pinned): `groupsFromSaved`, `assign` (out of any other group first),
+  `unassign`, `reorderMembers` (a partial list is ignored), `moveGroup`,
+  `pruneTo` (a withdrawn player leaves the draft), `toPlanBody`,
+  `samePlan`, and the tee-time round trip through the local clock.
+- **No effect re-seeds the editor**: a null draft FOLLOWS the saved plan,
+  so a refetch after an accept or a removal re-seeds for free; the first
+  edit forks the draft, and a dirty draft is pruned at render. (The
+  `set-state-in-effect` rule caught the first draft's effect.)
+
+Phone pass: `e2e/sport-events-groups.spec.ts` is `@mobile` (Chromium and
+WebKit at 390 × 844): add a group, place B then A, move B down, name it,
+set 08:10 and hole 10, save — the API shows A, B in that order with the
+name, the hole and a tee time; a player has no Groups tab. Next: PR 13 —
+the Scorecard tab (card statuses, Mark final / Reopen, Complete with the
+not-final list).
+
 ## September 16, 2026 — e2e: the prod probe waits for the deploy (zero DDL)
 
 Every prod probe run right after a merge this week hit the PREVIOUS build
