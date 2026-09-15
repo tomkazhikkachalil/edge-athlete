@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import dynamic from 'next/dynamic';
 import { useRouter } from 'next/navigation';
+import { sportEventHref } from '@/lib/calendar/sport-event-overlay';
 import { addDays, addMonths, format, isSameMonth, startOfDay } from 'date-fns';
 import { monthMatrix, eventOverlapsDay, localDayKey } from '@/lib/calendar/grid';
 import { categoryColor, CATEGORY_LABELS } from '@/lib/calendar/categories';
@@ -275,6 +276,11 @@ export default function FeedCalendarWidget() {
   >(null);
 
   const selectEvent = (event: EventListItem) => {
+    // A sport event round (phase 2b) IS a place: the event's page, on that round.
+    if (event.kind === 'sport_event' && event.sport_event) {
+      router.push(sportEventHref(event.sport_event));
+      return;
+    }
     if (event.kind === 'activity' && event.activity) {
       if (event.activity.post_id) setPreviewPostId(event.activity.post_id);
       else setPreviewActivity({ payload: event.activity, title: event.title });
