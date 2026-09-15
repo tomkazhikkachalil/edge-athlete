@@ -2,11 +2,13 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import type { EventApi } from '@/lib/sport-events/client';
 import { formatThru, formatToPar } from '@/lib/sport-events/leaderboard';
 import type { OverallLeaderboard, RoundLeaderboard } from '@/lib/sport-events/leaderboard-server';
 import { offersOverall, type RoundSelection } from '@/lib/sport-events/tabs';
 import type { SportEventViewPayload } from '@/lib/sport-events/view';
+import FlightSegment from './FlightSegment';
 import OverallBoard from './OverallBoard';
 import RoundSwitcher from './RoundSwitcher';
 
@@ -23,15 +25,19 @@ interface Props {
 /**
  * The leaderboard tab — the route's rows, pure props to the table; Net /
  * Gross switch on a net event. Phase 2: the round switcher on a tournament
- * ("Overall" first — the OverallBoard — then each round's own board).
+ * ("Overall" first — the OverallBoard — then each round's own board) and
+ * the flight filter (`?flight=`, ranks within the flight) when the field
+ * has flights.
  */
 export default function EventLeaderboard({ view, api, version, selected, onSelect }: Props) {
+  const params = useSearchParams();
   const overall = selected === 'overall';
   const round = !overall && selected ? view.rounds.find(r => r.id === selected) ?? null : null;
   const [board, setBoard] = useState<RoundLeaderboard | null>(null);
   const [overallBoard, setOverallBoard] = useState<OverallLeaderboard | null>(null);
   const [state, setState] = useState<'loading' | 'ready' | 'error'>('loading');
   const [mode, setMode] = useState<'net' | 'gross'>(view.event.format === 'stroke_net' ? 'net' : 'gross');
+  const [flight, setFlight] = useState<string | null>(() => { const f = params.get('flight'); return f && f.trim() ? f.trim() : null; });
   const roundId = round?.id ?? null;
 
   useEffect(() => {
@@ -39,18 +45,27 @@ export default function EventLeaderboard({ view, api, version, selected, onSelec
     let cancelled = false;
     (async () => {
       if (overall) {
-        const res = await api.overall();
+        const res = await api.overall(flight);
         if (cancelled) return;
         if (res.ok && res.data) { setOverallBoard(res.data); setState('ready'); } else setState('error');
       } else if (roundId) {
-        const res = await api.leaderboard(roundId);
+        const res = await api.leaderboard(roundId, flight);
         if (cancelled) return;
         if (res.ok && res.data) { setBoard(res.data); setState('ready'); } else setState('error');
       }
     })();
     return () => { cancelled = true; };
-  }, [api, overall, roundId, version]);
+  }, [api, overall, roundId, version, flight]);
 
+  const changeFlight = (next: string | null) => {
+    setFlight(next);
+    const url = new URL(window.location.href);
+    if (next) url.searchParams.set('flight', next);
+    else url.searchParams.delete('flight');
+    window.history.replaceState(window.history.state, '', url.toString());
+  };
+  const flights = overall ? overallBoard?.board.flights ?? [] : board?.flights ?? [];
+  const segment = <FlightSegment flights={flights} selected={flight} onChange={changeFlight} />;
   const switcher = <RoundSwitcher rounds={view.rounds} selected={selected} onChange={onSelect} includeOverall={offersOverall('leaderboard', view.rounds)} label="Leaderboard round" />;
   const toggle = view.event.format === 'stroke_net' && (
     <div className="flex rounded-lg border border-border-strong overflow-hidden w-fit" role="group" aria-label="Scoring">
@@ -73,6 +88,7 @@ export default function EventLeaderboard({ view, api, version, selected, onSelec
     return (
       <div className="space-y-3" data-event-leaderboard="overall">
         {switcher}
+        {segment}
         {toggle}
         {!anyScored && (
           <p className="text-sm text-muted">
@@ -90,6 +106,7 @@ export default function EventLeaderboard({ view, api, version, selected, onSelec
   return (
     <div className="space-y-3" data-event-leaderboard={round!.id}>
       {switcher}
+      {segment}
       {toggle}
       {!anyScored && (
         <p className="text-sm text-muted">

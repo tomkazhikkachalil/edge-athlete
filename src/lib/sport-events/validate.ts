@@ -64,6 +64,17 @@ export const DESCRIPTION_MAX = 2000;
 export const COURSE_NAME_MAX = 200;
 export const TEE_MAX = 40;
 export const CAPACITY_MAX = 500;
+export const FLIGHT_MAX = 20;
+
+/** A flight label: trimmed text of 1..FLIGHT_MAX characters; empty / null clears. */
+export function normalizeFlight(v: unknown, field = 'flight'): Parsed<string | null> {
+  if (v === undefined || v === null) return { ok: true, value: null };
+  if (typeof v !== 'string') return { ok: false, error: `${field} must be text` };
+  const t = v.trim();
+  if (t.length === 0) return { ok: true, value: null };
+  if (t.length > FLIGHT_MAX) return { ok: false, error: `${field} must be at most ${FLIGHT_MAX} characters` };
+  return { ok: true, value: t };
+}
 
 function isRecord(v: unknown): v is Record<string, unknown> {
   return typeof v === 'object' && v !== null && !Array.isArray(v);
@@ -268,11 +279,24 @@ export function parseInviteBody(body: unknown): Parsed<{ profileIds: string[]; h
   return { ok: true, value: { profileIds: [...new Set(ids as string[])], handles: [...new Set((handles as string[]).map(h => h.toLowerCase()))] } };
 }
 
-/** The participant PATCH: an organizer's index override, or the player's own toggles. */
-export function parseParticipantPatch(body: unknown): Parsed<{ handicap_index?: number | null; hide_from_profile?: boolean; playing?: boolean }> {
+export interface ParticipantPatchInput {
+  handicap_index?: number | null;
+  hide_from_profile?: boolean;
+  playing?: boolean;
+  /** The organizer's flight for the player (phase 2); null clears. */
+  flight?: string | null;
+}
+
+/** The participant PATCH: an organizer's index override or flight, or the player's own toggles. */
+export function parseParticipantPatch(body: unknown): Parsed<ParticipantPatchInput> {
   if (!isRecord(body)) return { ok: false, error: 'A JSON body is required' };
-  const out: { handicap_index?: number | null; hide_from_profile?: boolean; playing?: boolean } = {};
-  for (const key of Object.keys(body)) if (!['handicap_index', 'hide_from_profile', 'playing'].includes(key)) return { ok: false, error: `Unknown field: ${key}` };
+  const out: ParticipantPatchInput = {};
+  for (const key of Object.keys(body)) if (!['handicap_index', 'hide_from_profile', 'playing', 'flight'].includes(key)) return { ok: false, error: `Unknown field: ${key}` };
+  if ('flight' in body) {
+    const f = normalizeFlight(body.flight);
+    if (!f.ok) return f;
+    out.flight = f.value;
+  }
   if ('handicap_index' in body) {
     const v = body.handicap_index;
     if (v === null) out.handicap_index = null;

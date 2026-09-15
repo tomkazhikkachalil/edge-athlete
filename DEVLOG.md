@@ -1,5 +1,41 @@
 # Development Log
 
+## September 16, 2026 — Events program, phase 2, PR 6: flights (zero DDL)
+
+The 202 column `sport_event_participants.flight` was reserved for this;
+zero `flight` reads existed in src.
+
+- `src/lib/sport-events/flights.ts` — `planFlights(rows, spec)`: count
+  mode splits the INDEXED players, lowest index first, into N near-equal
+  flights (A, B, C …; the first flights take the extra; never more
+  flights than players; the cap is six); bands mode places each in the
+  first band whose ceiling holds the index (above every band → the last).
+  A player with no index is never guessed — `unindexed` names them for
+  the organizer. `parseFlightsPlan` (every id an accepted, playing
+  player, none twice, each label normalized) and `normalizeFlight`
+  (validate.ts: 1..20 characters, trimmed, empty clears).
+- Routes: NEW `PUT /api/sport-events/[id]/flights` (the whole plan in one
+  call; refused after completion — the results freeze with the roster);
+  `PATCH …/participants/[pid]` takes `flight` (organizers; a follower is
+  refused); the round leaderboard takes `?flight=` like the overall one
+  and both payloads carry `flights` — `fetchRoundLeaderboard` filters the
+  field BEFORE `computeLeaderboard`, so a flight ranks within itself.
+- `view.ts ParticipantView.flight` (visible to everyone who sees the
+  roster). `client.ts saveFlights`.
+- UI: the Players tab's **Flights** button → `FlightsWindow` (the house
+  bottom sheet: an input per player, "Auto-flight by index" with a count
+  select, the unindexed named, Save = one PUT; closing dirty asks); the
+  roster row's "· Flight A"; `FlightSegment` ("All · A · B") above both
+  boards, writing `?flight=`; the boards' player cell already carried the
+  flight chip from PR 3. Bands have the rule and its tests; their editor
+  is a follow-up (the count is what a club organizer reaches for).
+
+Verification: `npm run verify` green; `flights.test.ts` (labels, the
+count split 7 → 3/2/2, the caps, no index never guessed, bands, the
+plan's refusals by entry); `e2e/sport-events-flights.spec.ts @mobile`
+(Chromium + WebKit). Next: PR 7, migration 207 (format_config · round
+name · the flight CHECK) — the one DDL of phase 2.
+
 ## September 16, 2026 — Events program, phase 2, PR 5: the wizard's rounds list (zero DDL)
 
 The creation wizard makes a tournament:

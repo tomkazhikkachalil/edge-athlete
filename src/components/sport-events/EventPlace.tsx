@@ -19,6 +19,7 @@ import EventPlayers from './EventPlayers';
 import EventSchedule from './EventSchedule';
 import EventScorecardTab from './EventScorecardTab';
 import EventTabs from './EventTabs';
+import FlightsWindow from './FlightsWindow';
 import InviteWindow from './InviteWindow';
 import RoundEditWindow from './RoundEditWindow';
 
@@ -61,6 +62,7 @@ export default function EventPlace({ eventId, initialView, token }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [inviteOpen, setInviteOpen] = useState(false);
+  const [flightsOpen, setFlightsOpen] = useState(false);
   const [roundEdit, setRoundEdit] = useState<RoundEdit>(null);
   const [confirm, setConfirm] = useState<Confirm>(null);
   const [version, setVersion] = useState(0);
@@ -212,6 +214,7 @@ export default function EventPlace({ eventId, initialView, token }: Props) {
               onDecide={(target, action) => run(() => api.participantAction(target, action))}
               onHideToggle={(target, hidden) => run(() => api.participantPatch(target, { hide_from_profile: hidden }))}
               onIndexOverride={(target, index) => run(() => api.participantPatch(target, { handicap_index: index }))}
+              onOpenFlights={() => setFlightsOpen(true)}
             />
           )}
           {visibleTab === 'groups' && viewer.can_manage && <EventGroupsEditor view={view} api={api} selected={selectedRound} onSelect={changeRound} onSaved={v => { setView(v); setVersion(x => x + 1); }} />}
@@ -241,6 +244,17 @@ export default function EventPlace({ eventId, initialView, token }: Props) {
             if (!res.ok) { setError(res.error); return false; }
             await refetch();
             return (res.data?.invited ?? []).includes(id);
+          }}
+        />
+      )}
+      {flightsOpen && (
+        <FlightsWindow
+          players={view.participants.filter(p => p.status === 'accepted' && p.playing && p.role !== 'follower')}
+          onClose={() => setFlightsOpen(false)}
+          onSave={async assignments => {
+            const res = await api.saveFlights(assignments);
+            if (res.ok) { setNotice('Flights saved.'); await refetch(); }
+            return { ok: res.ok, error: res.error };
           }}
         />
       )}

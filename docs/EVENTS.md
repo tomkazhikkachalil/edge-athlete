@@ -111,7 +111,8 @@ the GET is anonymous-reachable for a public or link event).
 | `POST /api/sport-events/[id]/participants` | canManage; draft / open | `{profile_ids, handles}` → invites; blocked skipped silently; the supervised invite dial; `{invited, skipped: {unknown, blocked, supervised, existing}}` |
 | `POST /api/sport-events/[id]/participants/request?token=` | may view; open + `request` | a join request → the organizers' bell |
 | `POST /api/sport-events/[id]/participants/[pid]` `{action}` | self: accept \| decline \| withdraw; canManage: approve \| reject \| remove | the plan from `planJoin`; an accept freezes the index; `{participant, promoted}` |
-| `PATCH /api/sport-events/[id]/participants/[pid]` | `handicap_index` canManage (null clears + recomputes); `hide_from_profile` self; `playing` self or canManage | stepping out promotes the waitlist |
+| `PATCH /api/sport-events/[id]/participants/[pid]` | `handicap_index` canManage (null clears + recomputes); `hide_from_profile` self; `playing` self or canManage; `flight` canManage, not after completion (phase 2) | stepping out promotes the waitlist |
+| `PUT /api/sport-events/[id]/flights` `{assignments: [{participant_id, flight \| null}]}` | canManage; not completed / cancelled | the whole plan in one call (phase 2): every id an accepted, playing player, none twice; a player left out keeps their flight |
 | `POST` / `DELETE /api/sport-events/[id]/follow?token=` | may view | a follower row; never a seat |
 
 | `POST /api/sport-events/[id]/transition` `{to, override?, today?}` | canManage | open · live · completed · cancelled; a 409 carries the named `reason`. Phase 2: `live` starts the next startable ROUND, `completed` completes the live round and refuses `rounds_remaining` while another round is scheduled — a single-round event behaves as in phase 1 |
@@ -235,6 +236,7 @@ specs run at 390 × 844 on Chromium AND WebKit.
 | `sport-events-scorecard` `@mobile` | submit · mark final · reopen · complete with the not-final list |
 | `sport-events-group-card` `@mobile` | the group card · OFFLINE queue and reconnect · a partner's hole |
 | `sport-events-feed` | the announce card and the chip, announced → live |
+| `sport-events-flights` `@mobile` (phase 2) | the Flights window from the Players tab · the chip on the roster · the segment and `?flight=` rank within the flight · a player's own PATCH refused · an unknown field and a stranger in the plan refused by name · the API's `?flight=` |
 | `sport-events-tournament-page` `@mobile` (phase 2) | the `?round=overall` deep link and the switcher · the header's round line · Start round 1 from the schedule card · groups per round while round 1 is live · the scorecard follows the live round · Complete round 1 from the header (the event stays live, "Start round 2") · add a round from the window |
 | `sport-events-overall` (phase 2) | two nine-hole rounds: round 1 totals and ranks · round 2 live (today / thru, the total moves, the not-started player's standing holds) · round 2 completed with a missed round → below the full field · movement · the stranger's 404 · the flight filter |
 | `sport-events-rounds` (phase 2) | test 2: the round lifecycle — in order, one at a time, regroup round 2 while round 1 is live, `rounds_remaining`, complete round 1 (one mirror, no bell), add + cancel a round while live, complete the last round (the event completes: one bell, two mirrors) · test 1: create with three rounds · the phase-1 body · both shapes / an unordered list refused by name · add (appended; earlier date refused; the announce post) · edit keeps the order · delete renumbers · the last round stays · the cap |
@@ -337,6 +339,24 @@ renders one `RoundFields` per round; the review sums a tournament up
 (`roundsSummary`) and lists each round. The format step is unchanged —
 the cut and flights are event-page settings, they need the roster and the
 rounds to exist.
+
+### Flights (PR 6)
+
+A flight is a label on the PARTICIPANT (`sport_event_participants.flight`,
+202 — one per player for the whole tournament, the Golf Genius norm), so
+the boards rank within it: `?flight=` on the round route and the overall
+route filters the field before ranking; both payloads carry `flights`
+(every label in the whole field, natural order). `src/lib/sport-events/
+flights.ts planFlights` splits the INDEXED players into N near-equal
+flights from the lowest index (A, B, C …; the first flights take the
+extra) or into index bands; a player with no index is never guessed —
+they are listed for the organizer to place by hand. `parseFlightsPlan` is
+the PUT's rule; `normalizeFlight` (validate.ts) the label's (1..20
+characters, trimmed, empty clears). The organizer's door is the Players
+tab's **Flights** button → `FlightsWindow` (the house bottom sheet: an
+input per player, "Auto-flight by index" with a count, Save = one PUT);
+the roster row carries "· Flight A"; `FlightSegment` ("All · A · B") sits
+above both boards and writes `?flight=`.
 
 ## Phase 1 status
 
