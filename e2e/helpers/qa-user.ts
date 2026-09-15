@@ -454,7 +454,10 @@ export async function sweepStaleQaUsers(): Promise<void> {
 }
 
 /** Read a persisted QA user from e2e/.auth (written by global setup). */
-export function loadQaUser(file: 'user.json' | 'user-b.json'): QaUser {
+export type QaUserFile = 'user.json' | 'user-b.json' | 'user-c.json' | 'user-d.json';
+export type QaStateFile = 'state.json' | 'state-b.json' | 'state-c.json' | 'state-d.json';
+
+export function loadQaUser(file: QaUserFile): QaUser {
   return JSON.parse(readFileSync(join(process.cwd(), 'e2e', '.auth', file), 'utf8'));
 }
 
@@ -465,7 +468,7 @@ export function loadQaUser(file: 'user.json' | 'user-b.json'): QaUser {
  * `await ctx.dispose()` when done.
  */
 export async function apiAs(
-  stateFile: 'state.json' | 'state-b.json'
+  stateFile: QaStateFile
 ): Promise<APIRequestContext> {
   return request.newContext({
     baseURL: E2E_BASE_URL,

@@ -1,3 +1,5 @@
+import { existsSync } from 'fs';
+import { join } from 'path';
 import { expect, request as pwRequest, type APIRequestContext } from '@playwright/test';
 import { adminClient, apiAs, E2E_BASE_URL, loadQaUser, readErrorBody, resetRateBucket, type QaUser } from './qa-user';
 
@@ -51,6 +53,11 @@ export interface EventView {
 export interface EventSession {
   apiA: APIRequestContext;
   apiB: APIRequestContext;
+  /** Phase 3: the third and fourth QA users (four-ball, foursomes, a bracket) — null when the setup minted two only (an older checkout). */
+  apiC: APIRequestContext | null;
+  apiD: APIRequestContext | null;
+  userC: QaUser | null;
+  userD: QaUser | null;
   /** A real stranger: the config's `use.storageState` reaches even a bare newContext, so this one carries an EMPTY state. */
   anon: APIRequestContext;
   userA: QaUser;
@@ -63,23 +70,33 @@ export interface EventSession {
 export async function openEventSession(): Promise<EventSession> {
   const userA = loadQaUser('user.json');
   const userB = loadQaUser('user-b.json');
+  const four = existsSync(join(process.cwd(), 'e2e', '.auth', 'user-d.json'));
+  const userC = four ? loadQaUser('user-c.json') : null;
+  const userD = four ? loadQaUser('user-d.json') : null;
   const admin = adminClient();
-  for (const u of [userA, userB]) {
+  for (const u of [userA, userB, userC, userD]) {
+    if (!u) continue;
     await resetRateBucket(admin, 'sport-event', u.id);
     await resetRateBucket(admin, 'sport-event-join', u.id);
   }
   const apiA = await apiAs('state.json');
   const apiB = await apiAs('state-b.json');
+  const apiC = four ? await apiAs('state-c.json') : null;
+  const apiD = four ? await apiAs('state-d.json') : null;
   const anon = await pwRequest.newContext({ baseURL: E2E_BASE_URL, storageState: { cookies: [], origins: [] } });
   return {
     apiA,
     apiB,
+    apiC,
+    apiD,
     anon,
     userA,
     userB,
+    userC,
+    userD,
     stamp: Date.now(),
     dispose: async () => {
-      await Promise.all([apiA.dispose(), apiB.dispose(), anon.dispose()]);
+      await Promise.all([apiA.dispose(), apiB.dispose(), anon.dispose(), apiC?.dispose(), apiD?.dispose()]);
     },
   };
 }
@@ -124,6 +141,12 @@ export async function readView(api: APIRequestContext, eventId: string, token?: 
 
 /** A invites B by profile id; B accepts. Returns B's participant row id and the host's. */
 export async function inviteAndAccept(s: Pick<EventSession, 'apiA' | 'apiB' | 'userB'>, eventId: string): Promise<{ participantId: string; hostRowId: string; view: EventView }> {
+  return inviteAndAcceptAs(s.apiA, s.apiB, s.userB, eventId);
+}
+
+/** A invites `user` (any QA user) by profile id; they accept through `api`. */
+export async function inviteAndAcceptAs(apiA: APIRequestContext, api: APIRequestContext, user: QaUser, eventId: string): Promise<{ participantId: string; hostRowId: string; view: EventView }> {
+  const s = { apiA, apiB: api, userB: user };
   const invited = await s.apiA.post(`/api/sport-events/${eventId}/participants`, { data: { profile_ids: [s.userB.id] } });
   expect(invited.ok(), await readErrorBody(invited)).toBe(true);
   const asB = await readView(s.apiB, eventId);

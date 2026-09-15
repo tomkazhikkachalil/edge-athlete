@@ -3,7 +3,15 @@
  * organizer arranges the accepted, playing participants into groups; the
  * whole plan is saved in one PUT (`groups.ts validateGroupsPlan` is the
  * server's rule). Every operation returns a new array; nothing mutates.
+ * Phase 3: on a match format every member has a SIDE (1 | 2) — set by
+ * hand (`setSide`) or derived from the position at save (`derivedSide`,
+ * the server's rule for a plain id); `groupsIncomplete` (match.ts) names
+ * the groups the start would refuse.
  */
+import { derivedSide } from './groups';
+import { groupsIncomplete, MATCH_SIDE_SIZE, type SideRefusal } from './match';
+import type { MatchSides } from './types';
+
 export interface EditorGroup {
   key: string;
   name: string;
@@ -11,6 +19,8 @@ export interface EditorGroup {
   teeTime: string;
   startingHole: number;
   members: string[];
+  /** Phase 3: the side each member was SET to (absent = derived from the position on a match format). */
+  sides?: Record<string, 1 | 2>;
 }
 
 export interface EditorPlayer {
@@ -40,11 +50,46 @@ export function localToTeeTime(dateOnly: string, hhmm: string): string | null {
 }
 
 /** The editor's groups from the saved plan. */
-export function groupsFromSaved(saved: Array<{ id: string; sequence: number; name: string | null; tee_time: string | null; starting_hole: number; members: Array<{ participant_id: string; position: number }> }>): EditorGroup[] {
+export function groupsFromSaved(saved: Array<{ id: string; sequence: number; name: string | null; tee_time: string | null; starting_hole: number; members: Array<{ participant_id: string; position: number; side?: 1 | 2 | null }> }>): EditorGroup[] {
   return [...saved]
     .sort((a, b) => a.sequence - b.sequence)
-    .map(g => ({ key: g.id, name: g.name ?? '', teeTime: teeTimeToLocal(g.tee_time), startingHole: g.starting_hole, members: [...g.members].sort((a, b) => a.position - b.position).map(m => m.participant_id) }));
+    .map(g => {
+      const members = [...g.members].sort((a, b) => a.position - b.position);
+      const sides: Record<string, 1 | 2> = {};
+      for (const m of members) if (m.side === 1 || m.side === 2) sides[m.participant_id] = m.side;
+      return { key: g.id, name: g.name ?? '', teeTime: teeTimeToLocal(g.tee_time), startingHole: g.starting_hole, members: members.map(m => m.participant_id), ...(Object.keys(sides).length > 0 ? { sides } : {}) };
+    });
 }
+
+/** The side a member plays in the editor: the one set, else the position's derived side on a match format. */
+export function sideInEditor(group: EditorGroup, participantId: string, matchSides: MatchSides | null): 1 | 2 | null {
+  const set = group.sides?.[participantId];
+  if (set === 1 || set === 2) return set;
+  if (!matchSides) return null;
+  const position = group.members.indexOf(participantId) + 1;
+  return position > 0 ? derivedSide(position, matchSides) : null;
+}
+
+/** Set a member's side by hand (a match format). */
+export function setSide(groups: EditorGroup[], key: string, participantId: string, side: 1 | 2): EditorGroup[] {
+  return groups.map(g => (g.key === key && g.members.includes(participantId) ? { ...g, sides: { ...(g.sides ?? {}), [participantId]: side } } : g));
+}
+
+/** The groups the start would refuse on a match format, by 1-based index (the plan's sequence), with the reason. */
+export function editorGroupsIncomplete(groups: EditorGroup[], matchSides: MatchSides, bracket: boolean): Array<{ index: number; reason: SideRefusal }> {
+  return groupsIncomplete(
+    groups.map((g, i) => ({ sequence: i + 1, members: g.members.map((id, n) => ({ participant_id: id, position: n + 1, side: sideInEditor(g, id, matchSides) })) })),
+    matchSides,
+    bracket,
+  ).map(x => ({ index: x.sequence, reason: x.reason }));
+}
+
+export const SIDE_REFUSAL_COPY: Readonly<Record<SideRefusal, (sides: MatchSides) => string>> = {
+  empty: () => 'No players yet.',
+  no_side: () => 'Every player needs a side.',
+  too_many: sides => `At most ${MATCH_SIDE_SIZE[sides]} a side.`,
+  wrong_size: sides => (MATCH_SIDE_SIZE[sides] === 1 ? 'One player a side — two players.' : 'Two players a side — four players.'),
+};
 
 /** Players in no group, in roster order. */
 export function unassigned(players: EditorPlayer[], groups: EditorGroup[]): EditorPlayer[] {
@@ -65,15 +110,22 @@ export function updateGroup(groups: EditorGroup[], key: string, patch: Partial<P
 }
 
 /** Put a player in a group (out of any other first); at the end of it. */
+const withoutSide = (g: EditorGroup, participantId: string): EditorGroup => {
+  if (!g.sides || !(participantId in g.sides)) return g;
+  const rest = { ...g.sides };
+  delete rest[participantId];
+  return { ...g, sides: rest };
+};
+
 export function assign(groups: EditorGroup[], participantId: string, key: string): EditorGroup[] {
   return groups.map(g => {
     const without = g.members.filter(id => id !== participantId);
-    return g.key === key ? { ...g, members: [...without, participantId] } : { ...g, members: without };
+    return g.key === key ? { ...g, members: [...without, participantId] } : withoutSide({ ...g, members: without }, participantId);
   });
 }
 
 export function unassign(groups: EditorGroup[], participantId: string): EditorGroup[] {
-  return groups.map(g => ({ ...g, members: g.members.filter(id => id !== participantId) }));
+  return groups.map(g => withoutSide({ ...g, members: g.members.filter(id => id !== participantId) }, participantId));
 }
 
 export function reorderMembers(groups: EditorGroup[], key: string, ids: string[]): EditorGroup[] {
@@ -99,24 +151,25 @@ export function pruneTo(groups: EditorGroup[], eligible: Set<string>): EditorGro
   return groups.map(g => ({ ...g, members: g.members.filter(id => eligible.has(id)) }));
 }
 
-/** The PUT body — empty groups are kept (an organizer may set tee times before assigning). */
-export function toPlanBody(groups: EditorGroup[], roundDate: string) {
+/** The PUT body — empty groups are kept (an organizer may set tee times before assigning). On a match format every member goes as `{participant_id, side}` (the side set, else the position's). */
+export function toPlanBody(groups: EditorGroup[], roundDate: string, opts: { matchSides?: MatchSides | null } = {}) {
+  const matchSides = opts.matchSides ?? null;
   return {
     groups: groups.map(g => ({
       name: g.name.trim() || null,
       tee_time: localToTeeTime(roundDate, g.teeTime),
       starting_hole: g.startingHole,
-      members: g.members,
+      members: matchSides ? g.members.map(id => ({ participant_id: id, side: sideInEditor(g, id, matchSides) })) : g.members,
     })),
   };
 }
 
-/** Same plan? (order, names, times, holes, members) */
+/** Same plan? (order, names, times, holes, members, the sides set) */
 export function samePlan(a: EditorGroup[], b: EditorGroup[]): boolean {
   if (a.length !== b.length) return false;
   return a.every((g, i) => {
     const h = b[i];
-    return g.name.trim() === h.name.trim() && g.teeTime === h.teeTime && g.startingHole === h.startingHole && g.members.length === h.members.length && g.members.every((m, j) => m === h.members[j]);
+    return g.name.trim() === h.name.trim() && g.teeTime === h.teeTime && g.startingHole === h.startingHole && g.members.length === h.members.length && g.members.every((m, j) => m === h.members[j] && (g.sides?.[m] ?? null) === (h.sides?.[m] ?? null));
   });
 }
 
