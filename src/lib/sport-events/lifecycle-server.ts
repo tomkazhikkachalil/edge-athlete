@@ -268,10 +268,14 @@ export async function applyRoundTransition(admin: Admin, req: RoundTransitionReq
         await mirrorRoundMedia(admin, round.group_post_id);
         const { error: bumpError } = await admin.from('posts').update({ created_at: now }).eq('group_post_id', round.group_post_id);
         if (bumpError) console.error('[sport-events] results post bump failed:', bumpError);
-        // Phase 2b (211): an org-hosted event's round writes the org's contest
-        // results from ITS leaderboard — after the mirror, never inside it.
-        await syncSportEventContest(admin, event, round, req.actorProfileId);
       }
+      // Phase 2b (211): an org-hosted event's round writes the org's contest
+      // results from ITS leaderboard — after the mirror, never inside it, and
+      // on EVERY completion: when every card was already full, the score
+      // route's auto-advance completed the group post before this transition
+      // (the guard above then skips the second mirror), and the results must
+      // still be written. Idempotent (an upsert on the participant).
+      await syncSportEventContest(admin, event, round, req.actorProfileId);
     }
   }
 

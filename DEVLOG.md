@@ -1,5 +1,18 @@
 # Development Log
 
+## September 16, 2026 — Events program, phase 2b: the results writer runs on EVERY completion (hotfix, zero DDL)
+
+The first prod probe of `sport-events-contest` after 211 (every earlier
+step green: the mint, the refusals, the engine guard, `in_progress`)
+found no contest results after the round completed. The writer sat
+inside the completion branch's `prior?.status !== 'completed'` guard —
+the guard that skips a SECOND mirror when the score route's
+auto-advance had already completed the group post (every card full, as
+in the spec). `syncSportEventContest` now runs on every completion,
+after the guard; it is an upsert on the participant, so a repeat is a
+no-op. Locally the spec had self-skipped pre-211 — the first real run
+was prod's, which is what the probe is for.
+
 ## September 16, 2026 — Events program, phase 2b, PR 10: the pickers, the rows the Overview never had, "Played as"; the docs close (B1)
 
 - The wizard's basics gain **Counts toward** under "Hosted for" (the org's
