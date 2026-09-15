@@ -40,9 +40,14 @@ export type TransitionRefusal =
 export interface TransitionFacts {
   name: string;
   rounds: Array<{ scheduledOn: string; groupPostMinted: boolean; status?: SportEventRoundStatus }>;
-  /** Accepted AND playing participants. */
+  /** Accepted AND playing participants (the `no_players` gate on live). */
   acceptedPlaying: number;
-  /** The cards of the accepted + playing participants, by status. */
+  /**
+   * The ROUND's field, one entry per minted accepted-playing player — a
+   * player with no card yet reads `in_progress`. The roster is never the
+   * measure (phase 3): a round past a cut, or a bracket round, has a field
+   * smaller than the roster and completes on its own field.
+   */
   cards: Array<{ status: 'in_progress' | 'submitted' | 'final' }>;
   /** The organizer completes with cards not yet final: they are finalized as they stand. */
   override?: boolean;
@@ -70,9 +75,14 @@ export function validateTransition(from: SportEventStatus, to: SportEventStatus,
   }
   if (to === 'completed' && facts.rounds.some(r => r.status === 'scheduled')) return { ok: false, reason: 'rounds_remaining' };
   if (to === 'completed' && !facts.override) {
-    if (facts.cards.length < facts.acceptedPlaying || facts.cards.some(c => c.status !== 'final')) return { ok: false, reason: 'cards_not_final' };
+    if (!fieldFinal(facts.cards)) return { ok: false, reason: 'cards_not_final' };
   }
   return { ok: true };
+}
+
+/** Every card of the round's field is final; an empty field never is. */
+export function fieldFinal(cards: ReadonlyArray<{ status: 'in_progress' | 'submitted' | 'final' }>): boolean {
+  return cards.length > 0 && cards.every(c => c.status === 'final');
 }
 
 /** The timestamp column a transition stamps, if any. */
@@ -134,7 +144,7 @@ export interface RoundTransitionFacts {
   /** Every round of the event (this one included). */
   rounds: Array<{ sequence: number; status: SportEventRoundStatus }>;
   acceptedPlaying: number;
-  /** THIS round's cards, by status. */
+  /** THIS round's FIELD (one entry per minted accepted-playing player; no card = in_progress) — never the roster. */
   cards: Array<{ status: 'in_progress' | 'submitted' | 'final' }>;
   override?: boolean;
 }
@@ -157,7 +167,7 @@ export function validateRoundTransition(to: SportEventRoundStatus, facts: RoundT
     if (!facts.round.groupPostMinted) return { ok: false, reason: 'round_not_minted' };
   }
   if (to === 'completed' && !facts.override) {
-    if (facts.cards.length < facts.acceptedPlaying || facts.cards.some(c => c.status !== 'final')) return { ok: false, reason: 'cards_not_final' };
+    if (!fieldFinal(facts.cards)) return { ok: false, reason: 'cards_not_final' };
   }
   if (to === 'cancelled') {
     if (!others.some(r => r.status !== 'cancelled')) return { ok: false, reason: 'last_round' };

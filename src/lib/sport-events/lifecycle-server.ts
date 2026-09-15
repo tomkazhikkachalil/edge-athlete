@@ -70,11 +70,27 @@ async function acceptedPlaying(admin: Admin, eventId: string): Promise<SportEven
   return (data ?? []) as SportEventParticipantRow[];
 }
 
-/** The cards of the accepted, playing participants on the minted rounds. */
-async function readCards(admin: Admin, rounds: MintedRound[], players: SportEventParticipantRow[]): Promise<Array<{ participant_row_id: string; profile_id: string; status: 'in_progress' | 'submitted' | 'final'; has_card: boolean }>> {
+/**
+ * The participants a round does NOT field (phase 3, the ONE helper the mint
+ * and the completion gate share — two copies would drift): past a decided
+ * cut, the missed-cut set from the overall board (never stored). The host's
+ * creator row is minted regardless (they run the round), so the completion
+ * field must drop them here too — the host who missed their own cut used to
+ * block round 2 with an empty card.
+ */
+export async function roundFieldExclusions(admin: Admin, event: SportEventRow, rounds: MintedRound[], round: Pick<MintedRound, 'sequence'>): Promise<ReadonlySet<string>> {
+  const cut = readFormatConfig(event.format_config, activeRounds(rounds).length).cut ?? null;
+  if (!cut || round.sequence <= cut.after_round || !cutDecided(cut, rounds)) return new Set();
+  const board = await fetchOverallLeaderboard(admin, event, rounds, { cut });
+  return new Set(board.board.rows.filter(r => r.madeCut === false).map(r => r.participantId));
+}
+
+/** The round's FIELD: the cards of the accepted, playing participants minted into the rounds, minus the excluded (one entry per player; no card = in_progress). */
+async function readCards(admin: Admin, rounds: MintedRound[], players: SportEventParticipantRow[], excluded: ReadonlySet<string> = new Set()): Promise<Array<{ participant_row_id: string; profile_id: string; status: 'in_progress' | 'submitted' | 'final'; has_card: boolean }>> {
   const gpIds = rounds.map(r => r.group_post_id).filter((v): v is string => !!v);
-  if (gpIds.length === 0 || players.length === 0) return [];
-  const profileIds = new Set(players.map(p => p.profile_id));
+  const fielded = players.filter(p => !excluded.has(p.id));
+  if (gpIds.length === 0 || fielded.length === 0) return [];
+  const profileIds = new Set(fielded.map(p => p.profile_id));
   const { data: rows } = await admin.from('group_post_participants').select('id, profile_id, status').in('group_post_id', gpIds);
   const playing = ((rows ?? []) as Array<{ id: string; profile_id: string; status: string }>).filter(r => profileIds.has(r.profile_id) && r.status !== 'declined');
   if (playing.length === 0) return [];
@@ -208,7 +224,9 @@ export async function applyRoundTransition(admin: Admin, req: RoundTransitionReq
   const round = rounds.find(r => r.id === req.roundId);
   if (!round) return { ok: false, status: 404, reason: 'not_found', error: 'Round not found' };
   const players = await acceptedPlaying(admin, req.eventId);
-  const cards = req.to === 'completed' ? await readCards(admin, [round], players) : [];
+  // The round's field (the cut's missed set, never stored) — the same set the mint below excludes.
+  const excluded = req.to === 'live' || req.to === 'completed' ? await roundFieldExclusions(admin, event, rounds, round) : new Set<string>();
+  const cards = req.to === 'completed' ? await readCards(admin, [round], players, excluded) : [];
 
   const factsFor = (minted: boolean): RoundTransitionFacts => ({
     eventStatus: event.status,
@@ -224,14 +242,8 @@ export async function applyRoundTransition(admin: Admin, req: RoundTransitionReq
     const pre = validateRoundTransition('live', factsFor(true));
     if (!pre.ok) return { ok: false, status: 409, reason: pre.reason, error: ROUND_REFUSAL_COPY[pre.reason] };
     if (!round.group_post_id) {
-      // Phase 2: past a decided cut, the missed-cut set is not minted into this round (the overall board decides — never stored).
-      const cut = readFormatConfig(event.format_config, activeRounds(rounds).length).cut ?? null;
-      let exclude: ReadonlySet<string> | undefined;
-      if (cut && round.sequence > cut.after_round && cutDecided(cut, rounds)) {
-        const board = await fetchOverallLeaderboard(admin, event, rounds, { cut });
-        exclude = new Set(board.board.rows.filter(r => r.madeCut === false).map(r => r.participantId));
-      }
-      const gpId = await mintRound(admin, event, round, activeRounds(rounds).length, req.today ?? null, { excludeParticipantIds: exclude });
+      // Phase 2: past a decided cut, the missed-cut set is not minted into this round (the overall board decides — never stored; `roundFieldExclusions` is the one rule).
+      const gpId = await mintRound(admin, event, round, activeRounds(rounds).length, req.today ?? null, { excludeParticipantIds: excluded.size > 0 ? excluded : undefined });
       if (!gpId) return { ok: false, status: 500, reason: 'mint_failed', error: ROUND_REFUSAL_COPY.round_not_minted };
       round.group_post_id = gpId;
     }
