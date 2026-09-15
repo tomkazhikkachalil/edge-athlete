@@ -229,6 +229,10 @@ body {
   -moz-osx-font-smoothing: grayscale;
   -webkit-tap-highlight-color: transparent;
   text-rendering: optimizeLegibility;
+  /* The phone tab bar's measured height (TabBar.tsx sets --ea-tabbar-h on
+     <html>; 0 at lg: and when hidden) — the ONE padding site, so the last
+     row of any page clears the bar. The --vvh shells subtract it themselves. */
+  padding-bottom: var(--ea-tabbar-h, 0px);
 }
 
 /* Selection color — subtle brand polish */

@@ -283,7 +283,7 @@ export default function LiveRoundPage() {
   };
 
   return (
-    <div className="flex flex-col bg-canvas" style={{ height: 'var(--vvh, 100dvh)' }}>
+    <div className="flex flex-col bg-canvas" style={{ height: 'calc(var(--vvh, 100dvh) - var(--ea-tabbar-h, 0px))' }}>
       <AppHeader />
       {/* Compact strip: back link + view switcher. The old page stacked the
           map under the scoring card — cramped on a phone mid-round; each
