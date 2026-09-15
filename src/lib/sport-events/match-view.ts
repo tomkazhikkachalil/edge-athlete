@@ -6,6 +6,7 @@
  * every write must carry — never a hole score (the group card has them),
  * never a profile's private fields.
  */
+import type { BracketMatch } from './bracket';
 import type { Concession, ExtraHole, MatchState, Side } from './match';
 import type { MatchSides } from './types';
 
@@ -98,6 +99,19 @@ export interface EventMatchesPayload {
 export function matchColumns<T extends { participant_id: string; profile_id: string; position: number; side?: 1 | 2 | null }>(members: ReadonlyArray<T>, cardParticipantIds: ReadonlyArray<string>): T[] {
   const counting = new Set(cardParticipantIds);
   return [...members].filter(m => counting.has(m.participant_id)).sort((a, b) => ((a.side ?? 3) - (b.side ?? 3)) || (a.position - b.position));
+}
+
+/** The route's matches as the bracket's per-round model (`bracket.ts`), keyed by round id; the names of everyone in them beside. */
+export function bracketMatchesFrom(matches: ReadonlyArray<Pick<MatchView, 'round_id' | 'group' | 'sides' | 'state'>>): { byRound: Map<string, BracketMatch[]>; names: Map<string, string> } {
+  const byRound = new Map<string, BracketMatch[]>();
+  const names = new Map<string, string>();
+  for (const m of matches) {
+    for (const s of m.sides) for (const p of s.members) names.set(p.participant_id, p.name);
+    const list = byRound.get(m.round_id) ?? [];
+    list.push({ sequence: m.group.sequence, groupId: m.group.id, sides: [m.sides[0].members.map(p => p.participant_id), m.sides[1].members.map(p => p.participant_id)], winnerSide: m.state.winnerSide, decidedBy: m.state.decidedBy, result: m.state.result });
+    byRound.set(m.round_id, list);
+  }
+  return { byRound, names };
 }
 
 /** The match a viewer may act on: the side they play (by profile), or null. */
