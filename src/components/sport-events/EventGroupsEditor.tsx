@@ -3,7 +3,8 @@
 import { useMemo, useState } from 'react';
 import ReorderList from '@/components/site-builder/ReorderList';
 import type { EventApi } from '@/lib/sport-events/client';
-import { addGroup, assign, groupsFromSaved, moveGroup, pruneTo, removeGroup, reorderMembers, samePlan, toPlanBody, unassign, unassigned, updateGroup, type EditorGroup, type EditorPlayer } from '@/lib/sport-events/groups-editor';
+import ConfirmModal from '@/components/ConfirmModal';
+import { addGroup, assign, groupsByStanding, groupsFromSaved, moveGroup, pruneTo, removeGroup, reorderMembers, samePlan, toPlanBody, unassign, unassigned, updateGroup, type EditorGroup, type EditorPlayer, type StandingGroupOptions } from '@/lib/sport-events/groups-editor';
 import type { RoundSelection } from '@/lib/sport-events/tabs';
 import type { SportEventViewPayload } from '@/lib/sport-events/view';
 import RoundSwitcher from './RoundSwitcher';
@@ -15,7 +16,11 @@ import RoundSwitcher from './RoundSwitcher';
  * every width, drag on a desktop). Everything is local until Save, which
  * replaces the round's whole plan in one PUT; the mint reads it at
  * go-live. Read-only once THE ROUND has started (phase 2: round 2 is
- * regrouped while round 1 is live; the switcher picks the round).
+ * regrouped while round 1 is live; the switcher picks the round). "Group
+ * by standing" (a round after a completed one) lays the next round's
+ * groups from the overall board: leaders last (the PGA norm) or first,
+ * a group size, optional tee times — the draft is replaced, Save is the
+ * same PUT, the mint honours it.
  */
 interface Props {
   view: SportEventViewPayload;
@@ -45,12 +50,27 @@ export default function EventGroupsEditor({ view, api, onSaved, selected, onSele
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [standingOpts, setStandingOpts] = useState<StandingGroupOptions & { first: string; intervalMin: number }>({ groupSize: 4, order: 'leaders_last', first: '', intervalMin: 10 });
+  const [confirmStanding, setConfirmStanding] = useState(false);
   const groups = draft ? pruneTo(draft, eligible) : saved;
   const setGroups = (fn: (prev: EditorGroup[]) => EditorGroup[]) => setDraft(fn(groups));
 
   const dirty = !samePlan(groups, saved);
   const nameOf = (id: string) => players.find(p => p.participantId === id)?.name ?? 'Player';
   const pool = unassigned(players, groups);
+
+  const canRegroup = !!round && editable && round.sequence > 1 && view.rounds.some(r => r.sequence < round.sequence && r.status === 'completed');
+  const regroup = async () => {
+    setError(null);
+    setNotice(null);
+    const res = await api.overall();
+    if (!res.ok || !res.data) { setError(res.error ?? 'Could not read the standing.'); return; }
+    const rows = res.data.board.rows.filter(r => eligible.has(r.participantId)).map(r => ({ participantId: r.participantId, rank: r.rank, madeCut: r.madeCut }));
+    const next = groupsByStanding(rows, { groupSize: standingOpts.groupSize, order: standingOpts.order, teeTimes: /^\d{2}:\d{2}$/.test(standingOpts.first) ? { first: standingOpts.first, intervalMin: standingOpts.intervalMin } : null });
+    setDraft(next);
+    setNotice(`${next.length} group${next.length === 1 ? '' : 's'} from the standing — save when ready.`);
+  };
+  const askRegroup = () => { if (groups.some(g => g.members.length > 0)) setConfirmStanding(true); else void regroup(); };
 
   const save = async () => {
     if (!round) return;
@@ -73,6 +93,38 @@ export default function EventGroupsEditor({ view, api, onSaved, selected, onSele
     <div className="space-y-5" data-event-groups-editor={round.id}>
       {switcher}
       {!editable && <p className="text-sm text-muted" data-groups-locked="">Groups are set before the round starts.</p>}
+      {canRegroup && (
+        <section className="bg-surface rounded-lg border border-border p-3 space-y-2" data-groups-standing="">
+          <h2 className="text-sm font-bold text-primary">Group by standing</h2>
+          <p className="text-xs text-muted">Lays this round&apos;s groups from the overall board. Players who missed the cut are left out.</p>
+          <div className="flex flex-wrap items-end gap-2">
+            <label className="text-xs text-secondary space-y-1">
+              <span className="block">Players per group</span>
+              <select value={standingOpts.groupSize} onChange={e => setStandingOpts(o => ({ ...o, groupSize: Number(e.target.value) as 2 | 3 | 4 | 5 }))} className={`${INPUT} text-sm`} aria-label="Players per group" data-standing-size="">
+                {[2, 3, 4, 5].map(n => <option key={n} value={n}>{n}</option>)}
+              </select>
+            </label>
+            <label className="text-xs text-secondary space-y-1">
+              <span className="block">Order</span>
+              <select value={standingOpts.order} onChange={e => setStandingOpts(o => ({ ...o, order: e.target.value as 'leaders_last' | 'leaders_first' }))} className={`${INPUT} text-sm`} aria-label="Tee order" data-standing-order="">
+                <option value="leaders_last">Leaders tee off last</option>
+                <option value="leaders_first">Leaders tee off first</option>
+              </select>
+            </label>
+            <label className="text-xs text-secondary space-y-1">
+              <span className="block">First tee time <span className="text-muted">(optional)</span></span>
+              <input type="time" value={standingOpts.first} onChange={e => setStandingOpts(o => ({ ...o, first: e.target.value }))} className={INPUT} aria-label="First tee time" />
+            </label>
+            <label className="text-xs text-secondary space-y-1">
+              <span className="block">Minutes between groups</span>
+              <select value={standingOpts.intervalMin} onChange={e => setStandingOpts(o => ({ ...o, intervalMin: Number(e.target.value) }))} className={`${INPUT} text-sm`} aria-label="Minutes between groups">
+                {[8, 9, 10, 11, 12, 15].map(n => <option key={n} value={n}>{n}</option>)}
+              </select>
+            </label>
+            <button type="button" onClick={askRegroup} disabled={busy} className={BTN} data-groups-by-standing=""><i className="fas fa-list-ol mr-2" aria-hidden="true"></i>Group by standing</button>
+          </div>
+        </section>
+      )}
       <section>
         <h2 className="text-sm font-bold text-primary mb-1">Not in a group ({pool.length})</h2>
         {pool.length === 0 ? <p className="text-sm text-muted">Everyone is placed.</p> : (
@@ -138,6 +190,16 @@ export default function EventGroupsEditor({ view, api, onSaved, selected, onSele
         </div>
       )}
       {(error || notice) && <p role="status" className={`text-sm ${error ? 'text-red-700 dark:text-red-300' : 'text-emerald-700 dark:text-emerald-300'}`} data-groups-notice="">{error ?? notice}</p>}
+      {confirmStanding && (
+        <ConfirmModal
+          isOpen
+          title="Replace the groups with the standing?"
+          message="The groups you have arranged are replaced by groups laid from the overall board. Nothing is saved until you press Save groups."
+          confirmText="Replace"
+          onConfirm={async () => { setConfirmStanding(false); await regroup(); }}
+          onCancel={() => setConfirmStanding(false)}
+        />
+      )}
     </div>
   );
 }

@@ -119,3 +119,66 @@ export function samePlan(a: EditorGroup[], b: EditorGroup[]): boolean {
     return g.name.trim() === h.name.trim() && g.teeTime === h.teeTime && g.startingHole === h.startingHole && g.members.length === h.members.length && g.members.every((m, j) => m === h.members[j]);
   });
 }
+
+// ── Regroup by standing (Events program, phase 2) ────────────────────────────
+
+export interface StandingRow {
+  participantId: string;
+  /** The overall rank (shared), null when unranked. */
+  rank: number | null;
+  /** false = missed the cut: never in a later round's groups. */
+  madeCut: boolean | null;
+}
+
+export interface StandingGroupOptions {
+  groupSize: 2 | 3 | 4 | 5;
+  /** leaders_last = the PGA norm (the leaders tee off last); leaders_first = the leaders go out first. */
+  order: 'leaders_last' | 'leaders_first';
+  /** Optional tee times: the first group's "HH:MM" and the minutes between groups. */
+  teeTimes?: { first: string; intervalMin: number } | null;
+}
+
+/** "HH:MM" plus minutes, wrapping at midnight. */
+export function addMinutes(hhmm: string, minutes: number): string {
+  const m = /^(\d{2}):(\d{2})$/.exec(hhmm);
+  if (!m) return hhmm;
+  const total = ((Number(m[1]) * 60 + Number(m[2]) + minutes) % (24 * 60) + 24 * 60) % (24 * 60);
+  return `${String(Math.floor(total / 60)).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}`;
+}
+
+/**
+ * The next round's groups from the overall standing: the missed-cut set is
+ * left out; the standing is the ranked players by rank (ties keep their
+ * board order) with the unranked at its end; the tee order is that
+ * standing reversed for leaders_last (the worst out first, the leaders in
+ * the last group) or as is for leaders_first; the groups are chunks of
+ * `groupSize` and the SHORT group, when the field does not divide, is the
+ * first to tee off (the norm — nobody waits behind a twosome). "Group n";
+ * hole 1; tee times spaced when given.
+ */
+export function groupsByStanding(rows: ReadonlyArray<StandingRow>, opts: StandingGroupOptions): EditorGroup[] {
+  const eligible = rows.filter(r => r.madeCut !== false);
+  const ranked = eligible.filter(r => r.rank !== null).sort((a, b) => (a.rank as number) - (b.rank as number));
+  const unranked = eligible.filter(r => r.rank === null);
+  const standing = [...ranked, ...unranked].map(r => r.participantId);
+  const teeOrder = opts.order === 'leaders_last' ? [...standing].reverse() : standing;
+  if (teeOrder.length === 0) return [];
+  const size = Math.min(5, Math.max(2, opts.groupSize));
+  const remainder = teeOrder.length % size;
+  const sizes: number[] = [];
+  if (remainder > 0) sizes.push(remainder);
+  for (let n = teeOrder.length - remainder; n > 0; n -= size) sizes.push(size);
+  const out: EditorGroup[] = [];
+  let at = 0;
+  sizes.forEach((n, i) => {
+    out.push({
+      key: nextKey(),
+      name: `Group ${i + 1}`,
+      teeTime: opts.teeTimes ? addMinutes(opts.teeTimes.first, opts.teeTimes.intervalMin * i) : '',
+      startingHole: 1,
+      members: teeOrder.slice(at, at + n),
+    });
+    at += n;
+  });
+  return out;
+}
