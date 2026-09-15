@@ -10,6 +10,7 @@
  */
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { ACTIVE_PARTICIPANT_STATUSES, type SportEventParticipantStatus, type SportEventRole } from '@/lib/sport-events/types';
+import { publishedContestRounds } from '@/lib/sport-events/contest-sync-server';
 import { utcDay } from './day';
 import { sportEventRoundToItem, type SportEventItem } from './sport-event-overlay';
 
@@ -66,9 +67,13 @@ export async function fetchSportEventOverlay(admin: Admin, viewerId: string, fro
     teeByRound.set(m.sport_event_round_id, g?.tee_time ?? null);
   }
 
+  // A round whose org contest is published to the calendar is already a real
+  // row on the members' calendars (the contest mirror) — no second item.
+  const published = await publishedContestRounds(admin, rounds.map(r => r.id));
   const eventById = new Map(events.map(e => [e.id, e]));
   const out: SportEventItem[] = [];
   for (const round of rounds) {
+    if (published.has(round.id)) continue;
     const event = eventById.get(round.sport_event_id);
     const p = byEvent.get(round.sport_event_id);
     if (!event || !p) continue;

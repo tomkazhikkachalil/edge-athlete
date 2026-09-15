@@ -54,6 +54,8 @@ interface ContestRow {
   participants: ParticipantRow[];
   /** G1 (172): a golf league round's declaration. Absent pre-172. */
   venue_id?: string | null;
+  /** Phase 2b (211): an event round's contest — its results come from the event, the golf-sync cluster hides. */
+  sport_event?: { event_id: string; round_id: string } | null;
   holes?: number | null;
   play_from?: string | null;
   play_to?: string | null;
@@ -1370,7 +1372,16 @@ export default function CompetitionDetailPage() {
                           )}
                       </div>
                       <div className="flex flex-wrap gap-2 min-w-0">
-                        {contest.status !== 'canceled' && (
+                        {contest.sport_event && (
+                          <Link
+                            href={`/events/${contest.sport_event.event_id}?tab=leaderboard&round=${contest.sport_event.round_id}`}
+                            className="px-2 py-1 text-xs rounded-md border border-border-strong text-brand-fg hover:bg-surface-sunken transition-colors inline-flex items-center"
+                            data-contest-from-event=""
+                          >
+                            From event →
+                          </Link>
+                        )}
+                        {contest.status !== 'canceled' && !contest.sport_event && (
                           <button
                             type="button"
                             onClick={() => {
@@ -1395,6 +1406,7 @@ export default function CompetitionDetailPage() {
                         )}
                         {/* G2: a golf league round fills itself. */}
                         {contest.status !== 'canceled' &&
+                          !contest.sport_event &&
                           competition.sport_key === 'golf' &&
                           competition.format === 'leaderboard' &&
                           !!contest.holes && (

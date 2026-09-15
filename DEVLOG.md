@@ -1,5 +1,37 @@
 # Development Log
 
+## September 16, 2026 — Events program, phase 2b, PR 9: the org's results from the event's board (B1, reads 211 tolerantly)
+
+- `src/lib/sport-events/contest-sync.ts` (pure, tested): `contestResultFor`
+  — a leaderboard row into a `contest_results` row: the competition's rule
+  picks the score (net when the rule is net and a net exists, else gross,
+  flagged `noIndex` / `noRating` — `scoreForRule`'s rule), the provenance
+  is the ORG's (`club_recorded` for a club, `league_verified` for a
+  league — the org recorded it from its own event, never `self_reported`),
+  `roundRef` names the mirrored golf round; **Tom's rule: an opted-out
+  player still counts** — `roundRef.roundId: null`, `groupPostId` set, so
+  the org's standings count them while the profile, the handicap and the
+  dataset never see it (the performance overlay skips a null roundId;
+  `GolfResultPayload.roundRef.roundId` widens to `string | null`).
+- `contest-sync-server.ts syncSportEventContest` on `applyRoundTransition`'s
+  completion branch (after `mirrorRoundMedia`, never inside the mirror):
+  the event's own `fetchRoundLeaderboard` → everyone on the board entered
+  (a late joiner too) → the upsert (`onConflict: participant_id`) → the
+  contest `completed` + the mirror event → standings → org site →
+  `stampContestAttachments` (the live round's `contest_id`) → the
+  performance overlay per mirrored round → the "counted" bells. Never
+  throws, never fails the transition; a round with no link is a no-op.
+  `syncContestStatus` on live (`in_progress`) and cancel (`canceled`).
+- The calendar overlay (PR 5's parked line): a round whose org contest is
+  published to the calendar is skipped — the contest mirror row is
+  already on the members' calendars.
+- The console: the competition detail carries `sport_event` per contest
+  (a tolerant second read); an event round's contest hides Enter score /
+  Sync / Send a reminder / Confirm and shows "From event →".
+- e2e `sport-events-contest.spec.ts` grows (round 1 played and completed;
+  the results, the opted-out player, the stamp, the `results_exist`
+  refusal).
+
 ## September 16, 2026 — Events program, phase 2b, PR 8: "Counts toward" — the contest link (B1, mig 211)
 
 An org-hosted event may count toward one of the org's golf leaderboard

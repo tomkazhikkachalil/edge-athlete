@@ -222,7 +222,8 @@ export interface GolfResultPayload {
   /** True when the tee is rated but the member has no handicap index yet
    *  (or the round carries no par). Gross-only, with that reason. */
   noIndex?: true;
-  roundRef: { roundId: string; groupPostId: string | null };
+  /** `roundId` null (phase 2b): an event's opted-out player — the org's result stands, no golf round mirrors it. */
+  roundRef: { roundId: string | null; groupPostId: string | null };
   [key: string]: unknown;
 }
 
