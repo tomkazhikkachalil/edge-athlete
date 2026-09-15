@@ -25,6 +25,55 @@ export interface WizardCourse {
   holesCount: number | null;
 }
 
+/** One round as the round fields edit it (the wizard's step, the event page's add / edit window). */
+export interface RoundDraft {
+  scheduled_on: string;
+  course: WizardCourse | null;
+  tee: string;
+  holes: 9 | 18;
+  starting_hole: 1 | 10;
+}
+
+export function emptyRoundDraft(): RoundDraft {
+  return { scheduled_on: '', course: null, tee: '', holes: 18, starting_hole: 1 };
+}
+
+/** A stored round → a draft for the edit window (the catalog's tees are not on the row: the tee stays free text). */
+export function roundDraftFrom(round: { scheduled_on: string; course_id: string | null; course_name: string; tee: string | null; holes: number; starting_hole: number }): RoundDraft {
+  return {
+    scheduled_on: round.scheduled_on,
+    course: { id: round.course_id, name: round.course_name, tees: [], holesCount: null },
+    tee: round.tee ?? '',
+    holes: round.holes === 9 ? 9 : 18,
+    starting_hole: round.holes === 9 && round.starting_hole === 10 ? 10 : 1,
+  };
+}
+
+/** The first refusal on a round draft, or null. */
+export function validateRoundDraft(d: RoundDraft): string | null {
+  if (!isDateOnly(d.scheduled_on)) return 'Pick the date.';
+  if (!d.course || !d.course.name.trim()) return 'Pick a course, or type its name.';
+  if (d.holes === 18 && d.starting_hole === 10) return 'An 18-hole round starts on hole 1.';
+  return null;
+}
+
+/** The round body the routes take (parseRoundInput's shape). */
+export function roundBodyFrom(d: RoundDraft) {
+  return {
+    scheduled_on: d.scheduled_on,
+    course_id: d.course?.id ?? null,
+    course_name: d.course?.name.trim() ?? null,
+    tee: d.tee.trim() || null,
+    holes: d.holes,
+    starting_hole: d.holes === 9 ? d.starting_hole : 1,
+  };
+}
+
+/** The wizard state's round as a draft (the state keeps the round flat until the rounds-list PR). */
+export function wizardRoundDraft(s: Pick<WizardState, 'scheduled_on' | 'course' | 'tee' | 'holes' | 'starting_hole'>): RoundDraft {
+  return { scheduled_on: s.scheduled_on, course: s.course, tee: s.tee, holes: s.holes, starting_hole: s.starting_hole };
+}
+
 export interface WizardState {
   name: string;
   description: string;
@@ -60,12 +109,8 @@ export function validateWizardStep(step: WizardStep, s: WizardState): string | n
       if (s.description.length > DESCRIPTION_MAX) return `Keep the description under ${DESCRIPTION_MAX} characters.`;
       return null;
     }
-    case 'round': {
-      if (!isDateOnly(s.scheduled_on)) return 'Pick the date.';
-      if (!s.course || !s.course.name.trim()) return 'Pick a course, or type its name.';
-      if (s.holes === 18 && s.starting_hole === 10) return 'An 18-hole round starts on hole 1.';
-      return null;
-    }
+    case 'round':
+      return validateRoundDraft(wizardRoundDraft(s));
     case 'format': {
       if (s.capacity.trim() !== '') {
         const n = Number(s.capacity);
@@ -93,14 +138,7 @@ export function wizardToCreateBody(s: WizardState, opts: { publish: boolean; pro
     host_plays: s.host_plays,
     publish: opts.publish,
     profile_id: opts.profileId,
-    round: {
-      scheduled_on: s.scheduled_on,
-      course_id: s.course?.id ?? null,
-      course_name: s.course?.name.trim() ?? null,
-      tee: s.tee.trim() || null,
-      holes: s.holes,
-      starting_hole: s.holes === 9 ? s.starting_hole : 1,
-    },
+    round: roundBodyFrom(wizardRoundDraft(s)),
   };
 }
 

@@ -222,8 +222,19 @@ export async function cleanupEvent(apiA: APIRequestContext, eventId: string | nu
     const res = await apiA.get(`/api/sport-events/${eventId}`);
     if (res.status() === 404) return;
     const view = (await res.json()) as EventView;
-    if (view.event.status === 'live') await apiA.post(`/api/sport-events/${eventId}/transition`, { data: { to: 'completed', override: true } }).catch(() => null);
-    else if (view.event.status === 'open') await apiA.post(`/api/sport-events/${eventId}/transition`, { data: { to: 'cancelled' } }).catch(() => null);
+    if (view.event.status === 'live') {
+      // A live tournament: every scheduled round is cancelled first (the
+      // event-level complete refuses `rounds_remaining`), then the live
+      // round completes with the override — the event follows its rounds.
+      for (const r of view.rounds.filter(x => x.status === 'scheduled')) {
+        await apiA.post(`/api/sport-events/${eventId}/rounds/${r.id}/transition`, { data: { to: 'cancelled' } }).catch(() => null);
+      }
+      const live = view.rounds.find(x => x.status === 'live');
+      if (live) await apiA.post(`/api/sport-events/${eventId}/rounds/${live.id}/transition`, { data: { to: 'completed', override: true } }).catch(() => null);
+      else await apiA.post(`/api/sport-events/${eventId}/transition`, { data: { to: 'completed', override: true } }).catch(() => null);
+    } else if (view.event.status === 'open') {
+      await apiA.post(`/api/sport-events/${eventId}/transition`, { data: { to: 'cancelled' } }).catch(() => null);
+    }
     await apiA.delete(`/api/sport-events/${eventId}`).catch(() => null);
   } catch {
     // best-effort

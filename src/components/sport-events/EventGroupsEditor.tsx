@@ -4,7 +4,9 @@ import { useMemo, useState } from 'react';
 import ReorderList from '@/components/site-builder/ReorderList';
 import type { EventApi } from '@/lib/sport-events/client';
 import { addGroup, assign, groupsFromSaved, moveGroup, pruneTo, removeGroup, reorderMembers, samePlan, toPlanBody, unassign, unassigned, updateGroup, type EditorGroup, type EditorPlayer } from '@/lib/sport-events/groups-editor';
+import type { RoundSelection } from '@/lib/sport-events/tabs';
 import type { SportEventViewPayload } from '@/lib/sport-events/view';
+import RoundSwitcher from './RoundSwitcher';
 
 /**
  * The organizer's groups editor (Events program, PR 12): the unassigned
@@ -12,20 +14,23 @@ import type { SportEventViewPayload } from '@/lib/sport-events/view';
  * starting hole and its players in order (ReorderList: Move up / down at
  * every width, drag on a desktop). Everything is local until Save, which
  * replaces the round's whole plan in one PUT; the mint reads it at
- * go-live. Read-only once the event is live.
+ * go-live. Read-only once THE ROUND has started (phase 2: round 2 is
+ * regrouped while round 1 is live; the switcher picks the round).
  */
 interface Props {
   view: SportEventViewPayload;
   api: EventApi;
   onSaved: (view: SportEventViewPayload) => void;
+  selected: RoundSelection | null;
+  onSelect: (next: RoundSelection) => void;
 }
 
 const BTN = 'ea-interactive border border-border-strong text-secondary px-3 min-h-[44px] rounded-lg text-sm font-semibold disabled:opacity-60';
 const INPUT = 'min-h-[44px] px-3 rounded-lg border border-border-strong bg-surface text-primary text-base';
 
-export default function EventGroupsEditor({ view, api, onSaved }: Props) {
-  const round = view.rounds[0] ?? null;
-  const editable = view.viewer.can_manage && (view.event.status === 'draft' || view.event.status === 'open');
+export default function EventGroupsEditor({ view, api, onSaved, selected, onSelect }: Props) {
+  const round = selected && selected !== 'overall' ? view.rounds.find(r => r.id === selected) ?? null : null;
+  const editable = view.viewer.can_manage && round?.status === 'scheduled' && view.event.status !== 'completed' && view.event.status !== 'cancelled';
   const players: EditorPlayer[] = useMemo(
     () => view.participants.filter(p => p.status === 'accepted' && p.playing && p.role !== 'follower').map(p => ({ participantId: p.id, name: p.name })),
     [view.participants],
@@ -60,12 +65,14 @@ export default function EventGroupsEditor({ view, api, onSaved }: Props) {
     onSaved(res.data);
   };
 
-  if (!round) return <p className="text-sm text-muted">No round yet.</p>;
-  if (players.length === 0) return <p className="text-sm text-muted">Groups are made from players who have accepted — none yet.</p>;
+  const switcher = <RoundSwitcher rounds={view.rounds} selected={selected} onChange={onSelect} label="Groups round" />;
+  if (!round) return <div className="space-y-3">{switcher}<p className="text-sm text-muted">No round yet.</p></div>;
+  if (players.length === 0) return <div className="space-y-3">{switcher}<p className="text-sm text-muted">Groups are made from players who have accepted — none yet.</p></div>;
 
   return (
-    <div className="space-y-5" data-event-groups-editor="">
-      {!editable && <p className="text-sm text-muted">Groups are set before the event goes live.</p>}
+    <div className="space-y-5" data-event-groups-editor={round.id}>
+      {switcher}
+      {!editable && <p className="text-sm text-muted" data-groups-locked="">Groups are set before the round starts.</p>}
       <section>
         <h2 className="text-sm font-bold text-primary mb-1">Not in a group ({pool.length})</h2>
         {pool.length === 0 ? <p className="text-sm text-muted">Everyone is placed.</p> : (
