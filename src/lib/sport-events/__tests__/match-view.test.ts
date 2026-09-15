@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { computeMatch, type MatchInput } from '../match';
-import { matchLine, matchTitle, projectMatch, sideOfViewer, type MatchSideProjection } from '../match-view';
+import { matchColumns, matchLine, matchTitle, projectMatch, sideOfViewer, type MatchSideProjection } from '../match-view';
 
 const member = (id: string, name: string) => ({ participant_id: id, profile_id: `pf-${id}`, name, handle: null, avatar_url: null });
 const side = (s: 1 | 2, members: ReturnType<typeof member>[]): MatchSideProjection => ({ side: s, members, card_participant_ids: members.map(m => m.participant_id) });
@@ -27,5 +27,12 @@ describe('the match view', () => {
     expect(sideOfViewer(view, 'pf-a')).toBe(1);
     expect(sideOfViewer(view, 'pf-x')).toBeNull();
     expect(sideOfViewer(view, null)).toBeNull();
+  });
+  it('the group card\'s columns on a match round: the counting cards only, side 1 first, then by position', () => {
+    const m = (participant_id: string, position: number, side: 1 | 2 | null) => ({ participant_id, profile_id: `pf-${participant_id}`, position, side });
+    const members = [m('b1', 3, 2), m('a2', 2, 1), m('a1', 1, 1), m('b2', 4, 2)];
+    expect(matchColumns(members, ['a1', 'a2', 'b1', 'b2']).map(x => x.participant_id)).toEqual(['a1', 'a2', 'b1', 'b2']);
+    expect(matchColumns(members, ['a1', 'b1']).map(x => x.participant_id)).toEqual(['a1', 'b1']); // foursomes: the captains
+    expect(matchColumns([m('x', 1, null)], ['x']).map(x => x.participant_id)).toEqual(['x']);
   });
 });

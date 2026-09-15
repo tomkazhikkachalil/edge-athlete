@@ -7,6 +7,8 @@ import NumberWheel from '@/components/golf/NumberWheel';
 import { useScoreOutbox } from '@/hooks/useScoreOutbox';
 import { cardComplete } from '@/lib/golf/score-entry';
 import { cellState, overlayOutbox } from '@/lib/golf/score-outbox';
+import { eventApi } from '@/lib/sport-events/client';
+import { matchColumns } from '@/lib/sport-events/match-view';
 import type { CompleteGolfScorecard } from '@/types/group-posts';
 
 /**
@@ -20,6 +22,16 @@ import type { CompleteGolfScorecard } from '@/types/group-posts';
  * (the per-hole compare-and-set, 209) names both scores and asks keep
  * mine / keep theirs. The footer submits or confirms the player's own
  * card once it is complete.
+ *
+ * Phase 3 — a MATCH round: the columns are the counting cards only
+ * (foursomes → the captains, headed "A & B"), the MatchStrip above the
+ * grid carries the engine's status line, "Concede hole n" for the viewer's
+ * side on the selected hole and "Concede the match", and the extra-hole
+ * editor when the match is all square after the last (a NumberWheel per
+ * counting player, saved through the match route with its `version` —
+ * never the outbox: extra holes cannot enter golf_hole_scores). The footer
+ * never offers "Submit my card" on a match round: a conceded hole leaves
+ * the card short, and card status is irrelevant to a match.
  */
 interface Props {
   scorecard: CompleteGolfScorecard;
@@ -36,12 +48,18 @@ const DOT: Record<string, string> = { saved: 'bg-emerald-500', pending: 'bg-ambe
 
 export default function GroupScoreCard({ scorecard, viewerId, holesPlayed, startingHole, onRefresh, onSubmitCard }: Props) {
   const event = scorecard.sport_event ?? null;
-  const groupProfileIds = useMemo(() => new Set((event?.group?.members ?? []).map(m => m.profile_id)), [event]);
+  const match = event?.match ?? null;
+  // On a match round the columns are the COUNTING cards (foursomes: the captains), side 1 first.
+  const orderedMembers = useMemo(() => {
+    const members = event?.group?.members ?? [];
+    return match ? matchColumns(members, match.sides.flatMap(s => s.card_participant_ids)) : [...members].sort((a, b) => a.position - b.position);
+  }, [event, match]);
+  const groupProfileIds = useMemo(() => new Set(orderedMembers.map(m => m.profile_id)), [orderedMembers]);
   const columns = useMemo(() => {
     const members = scorecard.participants.filter(p => groupProfileIds.has(p.participant.profile_id) && p.participant.status !== 'declined');
-    const order = new Map((event?.group?.members ?? []).map(m => [m.profile_id, m.position]));
+    const order = new Map(orderedMembers.map((m, i) => [m.profile_id, i]));
     return [...members].sort((a, b) => (order.get(a.participant.profile_id) ?? 99) - (order.get(b.participant.profile_id) ?? 99));
-  }, [scorecard.participants, groupProfileIds, event]);
+  }, [scorecard.participants, groupProfileIds, orderedMembers]);
   const holes = useMemo(() => Array.from({ length: holesPlayed }, (_, i) => startingHole + i), [holesPlayed, startingHole]);
   const parOf = (hole: number) => scorecard.golf_data.hole_data?.find(h => h.hole === hole)?.par ?? 4;
 
@@ -52,9 +70,47 @@ export default function GroupScoreCard({ scorecard, viewerId, holesPlayed, start
   const [draft, setDraft] = useState<{ strokes: number | null; putts: number | null; fir: boolean | null; gir: boolean | null }>({ strokes: null, putts: null, fir: null, gir: null });
   const [submitting, setSubmitting] = useState(false);
   const [conflictFor, setConflictFor] = useState<{ participantId: string; hole: number } | null>(null);
+  const [matchBusy, setMatchBusy] = useState(false);
+  const [matchError, setMatchError] = useState<string | null>(null);
+  const [askConcedeMatch, setAskConcedeMatch] = useState(false);
+  const [extra, setExtra] = useState<Record<string, number | null>>({});
 
   const mine = columns.find(c => c.participant.profile_id === viewerId) ?? null;
   const nameOf = (c: (typeof columns)[number]) => `${c.participant.profile?.first_name ?? ''} ${c.participant.profile?.last_name?.[0] ?? ''}`.trim() || 'Player';
+  // Foursomes: the column is the SIDE's card ("Ann & Al"), never the captain alone.
+  const headerOf = (c: (typeof columns)[number]) => {
+    if (!match || match.config.sides !== 'foursomes') return nameOf(c);
+    const side = match.sides.find(s => s.members.some(m => m.profile_id === c.participant.profile_id));
+    return side ? side.members.map(m => m.name).join(' & ') : nameOf(c);
+  };
+  const conceded = useMemo(() => new Set((match?.concessions ?? []).map(c => c.hole).filter((h): h is number => h !== null)), [match]);
+  const matchLive = !!match && match.state.status !== 'completed' && event?.status === 'live';
+  const mySide = match?.side_of_viewer ?? null;
+  const matchApi = event ? eventApi(event.id, null) : null;
+  const concede = async (hole: number | null) => {
+    if (!match || !matchApi || mySide === null) return;
+    setMatchBusy(true);
+    setMatchError(null);
+    const res = await matchApi.concede(match.id, { hole, side: mySide, version: match.version });
+    if (!res.ok) setMatchError(res.error ?? 'That did not go through.');
+    else if (hole !== null) setSel(null);
+    await onRefresh();
+    setMatchBusy(false);
+  };
+  const saveExtraHole = async () => {
+    if (!match || !matchApi || !match.state.nextExtraHole) return;
+    const counting = match.sides.flatMap(s => s.card_participant_ids);
+    const par = parOf(match.state.nextExtraHole.hole_number);
+    const strokes: Record<string, number | null> = {};
+    for (const id of counting) strokes[id] = extra[id] ?? par;
+    setMatchBusy(true);
+    setMatchError(null);
+    const res = await matchApi.extraHole(match.id, { n: match.state.nextExtraHole.n, hole_number: match.state.nextExtraHole.hole_number, strokes, version: match.version });
+    if (!res.ok) setMatchError(res.error ?? 'That did not go through.');
+    else setExtra({});
+    await onRefresh();
+    setMatchBusy(false);
+  };
   const scoresOf = useCallback((c: (typeof columns)[number]) => overlayOutbox(c.scores.hole_scores ?? [], entries, c.participant.id), [entries]);
   const valueAt = (c: (typeof columns)[number], hole: number) => scoresOf(c).find(h => h.hole_number === hole) ?? null;
 
@@ -101,22 +157,37 @@ export default function GroupScoreCard({ scorecard, viewerId, holesPlayed, start
     <div className="flex flex-col h-full" data-group-score-card="">
       {event && (
         <div className="px-4 pt-3 pb-1 flex items-center justify-between gap-2">
-          <Link href={`/events/${event.id}?tab=leaderboard`} className="inline-flex items-center gap-2 text-sm font-semibold text-brand-fg-strong min-h-[44px]" data-gsc-back="">
+          <Link href={`/events/${event.id}?tab=${match ? 'matches' : 'leaderboard'}`} className="inline-flex items-center gap-2 text-sm font-semibold text-brand-fg-strong min-h-[44px]" data-gsc-back="">
             <i className="fas fa-chevron-left text-xs" aria-hidden="true"></i>{event.name}
           </Link>
           <span className="text-xs text-muted">{event.group?.name ?? (event.group ? `Group ${event.group.sequence}` : '')}</span>
         </div>
       )}
       <div className="flex-1 min-h-0 overflow-y-auto px-2 pb-2">
+        {match && (
+          <div className="mb-2 rounded-lg border border-border bg-surface-muted px-3 py-2 space-y-1" data-match-strip="" data-match-strip-status={match.state.status}>
+            <p className="text-sm font-bold text-primary" data-match-strip-summary="">{match.state.summary}</p>
+            <p className="text-xs text-muted">{match.line}{match.state.netReason ? ` · gross (${match.state.netReason === 'no_index' ? 'no index' : 'no stroke index'})` : ''}</p>
+            {matchLive && mySide !== null && (
+              <div className="flex flex-wrap gap-2 pt-1">
+                {sel && !conceded.has(sel.hole) && !match.state.holes.some(h => !h.extra && h.hole === sel.hole) && (
+                  <button type="button" disabled={matchBusy} onClick={() => concede(sel.hole)} className="ea-interactive border border-border-strong text-secondary px-3 min-h-[44px] rounded-lg text-xs font-semibold disabled:opacity-60" data-gsc-concede={sel.hole}>Concede hole {sel.hole}</button>
+                )}
+                <button type="button" disabled={matchBusy} onClick={() => setAskConcedeMatch(true)} className="ea-interactive border border-border-strong text-secondary px-3 min-h-[44px] rounded-lg text-xs font-semibold disabled:opacity-60" data-gsc-concede-match="">Concede the match</button>
+              </div>
+            )}
+            {matchError && <p role="alert" className="text-xs text-red-700 dark:text-red-300" data-match-strip-error="">{matchError}</p>}
+          </div>
+        )}
         <div className="grid gap-px bg-border rounded-lg overflow-hidden text-sm" style={{ gridTemplateColumns: cols }} role="grid" aria-label="Group scorecard">
           <div className="bg-surface-muted px-2 py-2 text-xs font-semibold text-muted">Hole</div>
           {columns.map(c => (
             <div key={c.participant.id} className="bg-surface-muted px-1 py-2 text-center min-w-0" data-gsc-col={c.participant.profile_id}>
-              <span className="block text-xs font-bold text-primary truncate">{nameOf(c)}{c.participant.profile_id === viewerId ? ' (you)' : ''}</span>
+              <span className="block text-xs font-bold text-primary truncate">{headerOf(c)}{c.participant.profile_id === viewerId ? ' (you)' : ''}</span>
             </div>
           ))}
           {holes.map(hole => (
-            <HoleRow key={hole} hole={hole} par={parOf(hole)} cols={columns} sel={sel} entries={entries} valueAt={valueAt} onSelect={select} />
+            <HoleRow key={hole} hole={hole} par={parOf(hole)} conceded={conceded.has(hole)} cols={columns} sel={sel} entries={entries} valueAt={valueAt} onSelect={select} />
           ))}
           {holesPlayed === 18 && <TotalsRow label="Out" cols={columns} value={c => sum(c, startingHole, startingHole + 8)} />}
           {holesPlayed === 18 && <TotalsRow label="In" cols={columns} value={c => sum(c, startingHole + 9, startingHole + 17)} />}
@@ -147,6 +218,22 @@ export default function GroupScoreCard({ scorecard, viewerId, holesPlayed, start
             Save{draft.strokes === null ? ` ${parOf(sel.hole)}` : ` ${draft.strokes}`} & next
           </button>
         </div>
+      ) : match && matchLive && match.state.needsExtraHole && match.state.nextExtraHole ? (
+        <div className="shrink-0 border-t border-border bg-surface px-4 pt-3 pb-3 safe-bottom" data-extra-hole-editor={match.state.nextExtraHole.n}>
+          <p className="text-sm font-bold text-primary mb-2">All square — extra hole {match.state.nextExtraHole.n} · hole {match.state.nextExtraHole.hole_number} · par {parOf(match.state.nextExtraHole.hole_number)}</p>
+          <div className="flex items-stretch gap-3 overflow-x-auto">
+            {match.sides.flatMap(s => s.card_participant_ids.map(id => ({ id, name: s.members.find(m => m.participant_id === id)?.name ?? 'Player' }))).map(p => (
+              <div key={p.id} data-extra-hole-wheel={p.id}>
+                <NumberWheel label={p.name} min={1} max={15} value={extra[p.id] ?? null} defaultValue={parOf(match.state.nextExtraHole!.hole_number)} onChange={v => setExtra(x => ({ ...x, [p.id]: v }))} tone="green" />
+              </div>
+            ))}
+          </div>
+          <button type="button" disabled={matchBusy} onClick={saveExtraHole} className="mt-3 w-full ea-cta text-white min-h-[48px] rounded-lg text-sm font-semibold disabled:opacity-60" data-extra-hole-save="">Save extra hole {match.state.nextExtraHole.n}</button>
+        </div>
+      ) : match ? (
+        <div className="shrink-0 border-t border-border bg-surface px-4 py-3 safe-bottom">
+          <p className="text-xs text-muted">{match.state.status === 'completed' ? 'The match is decided.' : mine ? 'Tap a hole to score. A hole you cannot win is conceded from the match line.' : 'Match play — the sides score their own cards.'}</p>
+        </div>
       ) : mine ? (
         <div className="shrink-0 border-t border-border bg-surface px-4 py-3 safe-bottom flex flex-wrap items-center justify-between gap-2">
           <p className="text-xs text-muted">{myStatus === 'submitted' ? 'Your card is submitted.' : myStatus === 'final' ? 'Your card is final.' : myComplete ? (myPending ? 'Saving your last holes…' : 'Your card is complete.') : 'Tap a hole to score.'}</p>
@@ -164,6 +251,17 @@ export default function GroupScoreCard({ scorecard, viewerId, holesPlayed, start
         </div>
       ) : null}
 
+      {askConcedeMatch && (
+        <ConfirmModal
+          isOpen
+          title="Concede the match?"
+          message="Your side gives the match — it is decided at once and cannot be reopened. The holes played stay on the cards."
+          confirmText="Concede"
+          confirmButtonClass="bg-red-600 hover:bg-red-700 text-white"
+          onConfirm={() => { setAskConcedeMatch(false); void concede(null); }}
+          onCancel={() => setAskConcedeMatch(false)}
+        />
+      )}
       {askUnlock && (
         <ConfirmModal
           isOpen
@@ -203,12 +301,12 @@ export function conflictCopy(entry: { strokes: number; current?: { strokes: numb
 
 type Col = CompleteGolfScorecard['participants'][number];
 
-function HoleRow({ hole, par, cols, sel, entries, valueAt, onSelect }: { hole: number; par: number; cols: Col[]; sel: Sel; entries: ReturnType<typeof useScoreOutbox>['entries']; valueAt: (c: Col, hole: number) => { strokes: number | null } | null; onSelect: (c: Col, hole: number) => void }) {
+function HoleRow({ hole, par, conceded = false, cols, sel, entries, valueAt, onSelect }: { hole: number; par: number; conceded?: boolean; cols: Col[]; sel: Sel; entries: ReturnType<typeof useScoreOutbox>['entries']; valueAt: (c: Col, hole: number) => { strokes: number | null } | null; onSelect: (c: Col, hole: number) => void }) {
   return (
     <>
-      <div className="bg-surface px-2 py-1 min-h-[44px] flex flex-col justify-center">
+      <div className="bg-surface px-2 py-1 min-h-[44px] flex flex-col justify-center" data-gsc-hole={hole} data-gsc-conceded={conceded ? '' : undefined}>
         <span className="text-sm font-bold text-primary leading-none">{hole}</span>
-        <span className="text-[10px] text-muted leading-none mt-1">par {par}</span>
+        <span className="text-[10px] text-muted leading-none mt-1">par {par}{conceded ? ' · conceded' : ''}</span>
       </div>
       {cols.map(c => {
         const v = valueAt(c, hole);
