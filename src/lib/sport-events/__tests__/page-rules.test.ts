@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { fieldLine, formatDateOnly, headerRoundLine, holesLabel, joinLine, ROUND_STATUS_LABEL, roundsSummary } from '../format';
 import { joinControl, type JoinStateInput } from '../join-state';
 import { confirmCopyFor, nextOrganizerStep, ROUND_ACTION_LABEL, roundActionsFor, type RoundForRules } from '../page-rules';
-import { defaultRoundFor, offersOverall, parseEventTab, parseRoundParam, roundsForTab, type RoundForTabs } from '../tabs';
+import { defaultRoundFor, offersBracket, offersOverall, parseEventTab, parseRoundParam, roundsForTab, tabsFor, type RoundForTabs } from '../tabs';
 import { emptyRoundDraft, roundBodyFrom, roundDraftFrom, validateRoundDraft } from '../wizard';
 
 describe('the event page rules', () => {
@@ -126,6 +126,30 @@ describe('the organizer rules (phase 2)', () => {
     expect(confirmCopyFor('cancel', r('b', 2, 'scheduled'), [])).toMatchObject({ danger: true, confirmText: 'Cancel round' });
     expect(confirmCopyFor('remove', r('b', 2, 'scheduled'), [])).toMatchObject({ danger: true, title: 'Remove round 2?' });
     expect(ROUND_ACTION_LABEL.cancel).toBe('Cancel round');
+  });
+  it('phase 3: a match event shows Matches instead of Leaderboard; ?round=bracket only on a bracket event with two rounds; the complete copy never promises "as they stand"', () => {
+    const t = (id: string, sequence: number, status: RoundForTabs['status'], minted = false): RoundForTabs => ({ id, sequence, status, group_post_id: minted ? 'gp' : null });
+    const one = [t('a', 1, 'live', true)];
+    const two = [t('a', 1, 'completed', true), t('b', 2, 'live', true), t('c', 3, 'scheduled')];
+    expect(tabsFor({ canManage: false, matchPlay: true })).toEqual(['overview', 'schedule', 'players', 'matches']);
+    expect(tabsFor({ canManage: false })).toEqual(['overview', 'schedule', 'players', 'leaderboard']);
+    expect(parseEventTab('leaderboard', { canManage: true, matchPlay: true })).toBe('overview');
+    expect(parseEventTab('matches', { canManage: true, matchPlay: true })).toBe('matches');
+    expect(parseEventTab('matches', { canManage: true })).toBe('overview');
+    expect(offersBracket('matches', two, true)).toBe(true);
+    expect(offersBracket('matches', one, true)).toBe(false);
+    expect(offersBracket('matches', two, false)).toBe(false);
+    expect(offersBracket('leaderboard', two, true)).toBe(false);
+    expect(parseRoundParam('bracket', two, 'matches', { bracket: true })).toBe('bracket');
+    expect(parseRoundParam('bracket', two, 'matches')).toBe('b');
+    expect(defaultRoundFor('matches', two, { bracket: true })).toBe('bracket');
+    expect(defaultRoundFor('matches', two)).toBe('b');
+    const m = confirmCopyFor('complete', r('a', 1, 'live'), [r('a', 1, 'live')], { matchPlay: true });
+    expect(m.title).toBe('Complete the event?');
+    expect(m.message).toContain('Every match must be decided');
+    expect(m.message).not.toContain('as they stand');
+    expect(confirmCopyFor('complete', r('a', 1, 'live'), [r('a', 1, 'live'), r('b', 2, 'scheduled')], { matchPlay: true }).message).toContain('stays live');
+    expect(confirmCopyFor('start', r('a', 1, 'scheduled'), [r('a', 1, 'scheduled')], { matchPlay: true }).title).toBe('Go live?');
   });
 });
 

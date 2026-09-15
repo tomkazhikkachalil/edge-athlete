@@ -52,12 +52,20 @@ export interface ConfirmCopy {
   danger?: boolean;
 }
 
-/** The confirm each action reads. A single-round event keeps phase 1's words; a tournament names the round. */
-export function confirmCopyFor(action: Exclude<RoundAction, 'edit'>, round: RoundForRules, rounds: ReadonlyArray<RoundForRules>): ConfirmCopy {
+/** The confirm each action reads. A single-round event keeps phase 1's words; a tournament names the round. Phase 3: a match round never promises "finalized as they stand" — every match must be decided first. */
+export function confirmCopyFor(action: Exclude<RoundAction, 'edit'>, round: RoundForRules, rounds: ReadonlyArray<RoundForRules>, opts: { matchPlay?: boolean } = {}): ConfirmCopy {
   const active = activeRounds(rounds);
   const single = active.length <= 1;
   const n = round.sequence;
   const last = !active.some(r => r.status === 'scheduled' && r.id !== round.id);
+  if (action === 'complete' && opts.matchPlay) {
+    const results = 'Each match\'s result is recorded and every played hole posts to the players\' profiles unless they opted out.';
+    return single
+      ? { title: 'Complete the event?', message: `Every match must be decided. ${results}`, confirmText: 'Complete' }
+      : last
+        ? { title: `Complete round ${n}?`, message: `This is the last round: every match must be decided. ${results}`, confirmText: 'Complete' }
+        : { title: `Complete round ${n}?`, message: `Every match must be decided. ${results} The event stays live until its last round completes.`, confirmText: 'Complete' };
+  }
   switch (action) {
     case 'start':
       return single

@@ -1,5 +1,32 @@
 # Development Log
 
+## September 16, 2026 — Events program, phase 3, PR 7: the Matches tab (zero DDL, @mobile)
+
+- `tabs.ts`: `matches` joins the tabs — shown on a match format INSTEAD
+  of `leaderboard` (`TabViewer.matchPlay`; an old bell's `?tab=leaderboard`
+  deep link lands on the overview, never a gross board); `?round=bracket`
+  replaces `overall` on a bracket event with more than one round
+  (`offersBracket`, `parseRoundParam(…, { bracket })`, the default there).
+- `page-rules.ts confirmCopyFor(…, { matchPlay })`: a match round's
+  complete confirm says "every match must be decided" and never
+  "finalized as they stand"; `EventPlace` sends NO override on a match
+  round (the route refuses `matches_undecided` regardless) and the
+  scorecard tab's Complete hides on a match round — the Matches tab owns
+  completion.
+- NEW `EventMatchesTab`: the round's matches as rows ("Ann vs Bob" with
+  the winner bold, the engine's summary — "Not started" / "Ann 2 UP thru
+  14" / "Ann wins 3&2"), refreshed every 15 s while live, a Scorecard link
+  to the round's place; the organizer's Complete (disabled while a match
+  is open, the open list named) with the match confirm; the **Decide
+  sheet** (`LargerWindow`, one button per side, "Clear decision" on their
+  own decision); `?round=bracket` stacks every round's matches (PR 10
+  draws the columns). `RoundSwitcher` gains a "Bracket" pill.
+- e2e `sport-events-match-page.spec.ts @mobile` (self-skips before 212):
+  the strip (Matches, no Leaderboard, the old deep link → overview), the
+  format line, "Not started", the disabled Complete with the open list,
+  the Decide sheet opens and closes, 4s vs 5s → "wins 5&4" with the winner
+  bold, Complete → the match wording → "The event is final."
+
 ## September 16, 2026 — Events program, phase 3, PR 6: the match routes (zero DDL)
 
 - `GET /api/sport-events/[id]/matches?round=` — every round's matches by
