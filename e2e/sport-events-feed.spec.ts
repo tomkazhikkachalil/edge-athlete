@@ -122,7 +122,8 @@ test('feed: a match round — the format on the announce card, the results card 
     const post = feed.posts.find(p => p.sport_event?.id === eventId);
     expect(post?.sport_event?.match).toEqual({ sides: 'singles', bracket: false });
     expect(post?.sport_event?.match_results).toHaveLength(1);
-    expect(post!.sport_event!.match_results![0]).toMatchObject({ result: 'conceded', kind: 'decided', loser: expect.stringContaining('Bravo') });
+    // The QA users are private: names are masked ("Edge B.") — the contest rule.
+    expect(post!.sport_event!.match_results![0]).toMatchObject({ result: 'conceded', kind: 'decided', loser: 'Edge B.', winner: 'Edge A.' });
     await page.goto('/feed');
     const results = page.locator(`[data-event-match-results="${eventId}"]`);
     await expect(results).toBeVisible({ timeout: 20_000 });
