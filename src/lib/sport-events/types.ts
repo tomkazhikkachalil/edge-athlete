@@ -58,8 +58,19 @@ export interface CutRule {
   top_n?: number;
   to_par?: number;
 }
+/** Phase 3 — match play: the sides of a match and whether the rounds form a knockout bracket. */
+export const MATCH_SIDES = ['singles', 'fourball', 'foursomes'] as const;
+export type MatchSides = (typeof MATCH_SIDES)[number];
+export interface MatchConfig {
+  sides: MatchSides;
+  bracket: boolean;
+  /** The handicap allowance in percent; absent = the WHS default for the sides (100 · 90 · 50). */
+  allowance?: number;
+}
 export interface FormatConfig {
   cut?: CutRule | null;
+  /** Phase 3 (212): present on a match format only; `cut` and `match` never coexist. */
+  match?: MatchConfig | null;
 }
 
 export interface SportEventRow {
