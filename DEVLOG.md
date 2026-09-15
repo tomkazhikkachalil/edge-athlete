@@ -1,5 +1,43 @@
 # Development Log
 
+## September 16, 2026 — Events program, PR 14: the group card · the score outbox · the /live mount (zero DDL)
+
+- **`GroupScoreCard`** (`src/components/golf/`) is live ENTRY for a playing
+  group: hole-as-ROW × player-as-COLUMN (`grid-cols-[48px_repeat(n,…)]` —
+  four players fit 375px; the viewing grids keep players as rows). A cell
+  is a selection target; the bottom editor strip reuses `NumberWheel`
+  (strokes resting on par, putts on 2) with FIR / GIR; **Save & next**
+  commits and advances the selected column to its next hole. A partner's
+  column unlocks after "Enter scores for {name}?" (the group-mate right,
+  PR 6). Every scored cell carries a sync dot — saved · waiting for
+  signal · needs you — with a legend; a conflict asks keep mine / keep
+  theirs. The footer's **Submit my card** (or **Confirm my card** when a
+  partner entered it) enables once the card is complete and nothing is
+  pending: `scores_confirmed` + the cards submit route.
+- **The score outbox** (`src/lib/golf/score-outbox.ts`, pure and pinned;
+  `score-flush.ts`; `useScoreOutbox`): every commit is a DESIRED STATE per
+  (participant, hole), overwritten in place — never a log — in state and
+  localStorage (the score-entry draft pattern, 48 h TTL). The flusher
+  drains one entry at a time in queue order on `online`, on becoming
+  visible, every 15 s and after each commit; `pagehide` fires the
+  keepalive half. Network / 5xx / 429 keep with a doubling backoff; 409
+  is a conflict the player resolves; other 4xx drop with the error on the
+  cell and a Retry. `overlayOutbox` paints pending values over the
+  server's card; a success refetches so the overlay lifts.
+- **The /live mount**: when the scorecard carries `sport_event.group` and
+  the viewer may score, the page mounts the group card in place and does
+  NOT auto-open the one-player modal (which stays for solo / non-event
+  rounds and the organizer's fix path); the back link names the event and
+  lands on its leaderboard tab. `CompleteGolfScorecard` gains
+  `sport_event`.
+
+Phone pass: `e2e/sport-events-group-card.spec.ts` is `@mobile` (Chromium
+and WebKit at 390 × 844): two columns, the event back link, hole 1 saved,
+hole 2 queued OFFLINE (`context.setOffline`) and saved on reconnect, a
+partner's hole after the confirm — the API holds all three. Tom's
+on-course pass with airplane mode is owed. Next: PR 15 — the feed's
+announce card and the event chip (the freeze lift).
+
 ## September 16, 2026 — Events program, PR 13: the Scorecard tab (zero DDL)
 
 - **The tab** shows once the round is minted, to players and organizers

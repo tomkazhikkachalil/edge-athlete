@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { useAuth } from '@/lib/auth';
 import AppHeader from '@/components/AppHeader';
 import ScoreEntryModal from '@/components/golf/ScoreEntryModal';
+import GroupScoreCard from '@/components/golf/GroupScoreCard';
 import SharedRoundQuickView from '@/components/golf/SharedRoundQuickView';
 import SharedRoundFullCard from '@/components/golf/SharedRoundFullCard';
 import { useSharedRound } from '@/hooks/useSharedRound';
@@ -163,7 +164,12 @@ export default function LiveRoundPage() {
   // guard means closing the scorer to check the leaderboard sticks; leaving the
   // page and coming back remounts and re-arms it, which is the asked-for
   // "pick up where I left off".
-  if (!autoOpened && entry.mode === 'score' && !scoringParticipantId) {
+  // Events program: a round that belongs to an event AND has the viewer in
+  // a playing group mounts the GROUP card in place (GroupScoreCard) — the
+  // one-player modal stays for solo / non-event rounds and the organizer's
+  // fix path.
+  const groupCard = !!scorecard?.sport_event?.group && entry.mode === 'score';
+  if (!autoOpened && entry.mode === 'score' && !scoringParticipantId && !groupCard) {
     setAutoOpened(true);
     setScoringParticipantId(entry.participantId);
   }
@@ -284,11 +290,12 @@ export default function LiveRoundPage() {
           view now gets the full panel. */}
       <div className="w-full max-w-2xl mx-auto px-4 pt-3 pb-2 flex items-center justify-between gap-3">
         <Link
-          href="/live"
+          href={scorecard.sport_event ? `/events/${scorecard.sport_event.id}?tab=leaderboard` : '/live'}
           className="inline-flex items-center gap-2 text-sm font-semibold text-brand-fg-strong hover:text-violet-800 dark:hover:text-violet-300 min-h-[44px]"
+          data-live-back=""
         >
           <i className="fas fa-chevron-left text-xs"></i>
-          Live Now
+          {scorecard.sport_event ? scorecard.sport_event.name : 'Live Now'}
         </Link>
         {mapAvailable && (
           <div role="tablist" aria-label="Round views" className="flex items-center gap-2">
@@ -357,7 +364,25 @@ export default function LiveRoundPage() {
         onDeleted={() => router.replace('/feed')}
       />
 
-      {entry.mode === 'score' && !scoringParticipantId && (
+      {groupCard && entry.mode === 'score' && (
+        <div className="mt-4 -mx-4 bg-surface rounded-lg border border-border overflow-hidden" style={{ minHeight: '60vh' }}>
+          <GroupScoreCard
+            scorecard={scorecard}
+            viewerId={user.id}
+            holesPlayed={holesPlayedN}
+            startingHole={startHole}
+            onRefresh={async () => { await refresh(); }}
+            onSubmitCard={async participantId => {
+              const eventId = scorecard.sport_event?.id;
+              const ok1 = (await fetch(`/api/golf/scorecards/${participantId}/scores`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ scores_confirmed: true }) })).ok;
+              const ok2 = eventId ? (await fetch(`/api/sport-events/${eventId}/cards/${participantId}/submit`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' })).ok : true;
+              await refresh();
+              return ok1 && ok2;
+            }}
+          />
+        </div>
+      )}
+      {!groupCard && entry.mode === 'score' && !scoringParticipantId && (
         <button
           type="button"
           onClick={() => openScorer(entry.participantId)}
