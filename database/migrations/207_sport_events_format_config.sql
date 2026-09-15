@@ -64,58 +64,13 @@ COMMENT ON COLUMN sport_event_rounds.name IS 'Optional label ("Saturday", "Final
 
 NOTIFY pgrst, 'reload schema';
 
--- ── Check grid (SELECT-only; safe to re-run; every row OK) ──────────────────
-SELECT 'sport_events.format_config column' AS check_name, '1' AS expected, count(*)::text AS actual,
-       CASE WHEN count(*) = 1 THEN 'OK' ELSE 'CHECK FAILED' END AS status
-  FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'sport_events' AND column_name = 'format_config' AND data_type = 'jsonb' AND is_nullable = 'NO'
-
-UNION ALL
-
-SELECT 'sport_event_rounds.name column', '1', count(*)::text,
-       CASE WHEN count(*) = 1 THEN 'OK' ELSE 'CHECK FAILED' END
-  FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'sport_event_rounds' AND column_name = 'name' AND data_type = 'text' AND is_nullable = 'YES'
-
-UNION ALL
-
-SELECT 'three constraints named', '3', count(*)::text,
-       CASE WHEN count(*) = 3 THEN 'OK' ELSE 'CHECK FAILED' END
-  FROM pg_constraint WHERE conname IN ('sport_events_format_config_check', 'sport_event_rounds_name_check', 'sport_event_participants_flight_check') AND contype = 'c'
-
-UNION ALL
-
-SELECT 'sport_events: constraints (201 had 11)', '12', count(*)::text,
-       CASE WHEN count(*) = 12 THEN 'OK' ELSE 'CHECK FAILED' END
-  FROM pg_constraint WHERE conrelid = 'public.sport_events'::regclass AND contype IN ('c', 'u', 'p')
-
-UNION ALL
-
-SELECT 'sport_event_rounds: constraints (201 had 8)', '9', count(*)::text,
-       CASE WHEN count(*) = 9 THEN 'OK' ELSE 'CHECK FAILED' END
-  FROM pg_constraint WHERE conrelid = 'public.sport_event_rounds'::regclass AND contype IN ('c', 'u', 'p')
-
-UNION ALL
-
-SELECT 'sport_event_participants: constraints (202 had 10)', '11', count(*)::text,
-       CASE WHEN count(*) = 11 THEN 'OK' ELSE 'CHECK FAILED' END
-  FROM pg_constraint WHERE conrelid = 'public.sport_event_participants'::regclass AND contype IN ('c', 'u', 'p')
-
-UNION ALL
-
-SELECT 'every event has an object format_config', '0', count(*)::text,
-       CASE WHEN count(*) = 0 THEN 'OK' ELSE 'CHECK FAILED' END
-  FROM sport_events WHERE format_config IS NULL OR jsonb_typeof(format_config) <> 'object'
-
-UNION ALL
-
-SELECT 'no flight outside 1..20', '0', count(*)::text,
-       CASE WHEN count(*) = 0 THEN 'OK' ELSE 'CHECK FAILED' END
-  FROM sport_event_participants WHERE flight IS NOT NULL AND length(btrim(flight)) NOT BETWEEN 1 AND 20
-
-UNION ALL
-
-SELECT 'rls still on, zero policies, all three', 'true',
-       (bool_and(c.relrowsecurity) AND (SELECT count(*) = 0 FROM pg_policies WHERE tablename IN ('sport_events', 'sport_event_rounds', 'sport_event_participants')))::text,
-       CASE WHEN bool_and(c.relrowsecurity) AND (SELECT count(*) = 0 FROM pg_policies WHERE tablename IN ('sport_events', 'sport_event_rounds', 'sport_event_participants')) THEN 'OK' ELSE 'CHECK FAILED' END
-  FROM pg_class c WHERE c.oid IN ('public.sport_events'::regclass, 'public.sport_event_rounds'::regclass, 'public.sport_event_participants'::regclass)
-
-ORDER BY 1;
+-- ── Result (the ONE row the editor shows; the nine-row grid is the twin,
+--    database/tests/diagnostics/verify-207-sport-events.sql) ──────────────
+-- Expected: 207 APPLIED | 2 | 3
+SELECT '207 APPLIED' AS result,
+       (SELECT count(*) FROM information_schema.columns
+         WHERE table_schema = 'public'
+           AND ((table_name = 'sport_events' AND column_name = 'format_config')
+             OR (table_name = 'sport_event_rounds' AND column_name = 'name'))) AS columns_expect_2,
+       (SELECT count(*) FROM pg_constraint
+         WHERE conname IN ('sport_events_format_config_check', 'sport_event_rounds_name_check', 'sport_event_participants_flight_check')) AS constraints_expect_3;
