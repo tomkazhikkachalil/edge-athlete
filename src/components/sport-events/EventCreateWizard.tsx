@@ -3,13 +3,13 @@
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import ConfirmModal from '@/components/ConfirmModal';
-import CourseSearchField from '@/components/golf/CourseSearchField';
 import { useDirtyClose } from '@/hooks/useDirtyClose';
 import { useAuth } from '@/lib/auth';
 import { COPY } from '@/lib/copy';
 import { SPORT_EVENT_SPORTS } from '@/lib/sport-events/types';
 import { formatDateOnly, formatLabel, holesLabel, joinLine, VISIBILITY_LABEL } from '@/lib/sport-events/format';
-import { emptyWizardState, isWizardDirty, validateWizardStep, wizardCourseFrom, wizardToCreateBody, WIZARD_STEP_LABEL, WIZARD_STEPS, type WizardState, type WizardStep } from '@/lib/sport-events/wizard';
+import { emptyWizardState, isWizardDirty, validateWizardStep, wizardRoundDraft, wizardToCreateBody, WIZARD_STEP_LABEL, WIZARD_STEPS, type WizardState, type WizardStep } from '@/lib/sport-events/wizard';
+import RoundFields, { Choice } from './RoundFields';
 import { getEnabledSports } from '@/lib/sports/SportRegistry';
 
 /**
@@ -25,22 +25,6 @@ interface ManagedOrg { kind: 'club' | 'league'; id: string; name: string; role: 
 const INPUT = 'w-full min-h-[44px] px-3 rounded-lg border border-border-strong bg-surface text-primary text-base';
 const PRIMARY = 'ea-cta text-white px-5 min-h-[44px] rounded-lg text-sm font-semibold inline-flex items-center justify-center disabled:opacity-60';
 const SECONDARY = 'ea-interactive border border-border-strong text-secondary px-4 min-h-[44px] rounded-lg text-sm font-semibold inline-flex items-center justify-center disabled:opacity-60';
-
-function Choice<T extends string>({ name, value, options, onChange }: { name: string; value: T; options: Array<{ value: T; label: string; hint?: string }>; onChange: (v: T) => void }) {
-  return (
-    <div role="radiogroup" aria-label={name} className="grid gap-2 sm:grid-cols-2">
-      {options.map(o => (
-        <label key={o.value} className={`flex items-start gap-3 rounded-lg border p-3 min-h-[44px] cursor-pointer ${value === o.value ? 'border-brand bg-brand-soft' : 'border-border-strong bg-surface'}`}>
-          <input type="radio" name={name} value={o.value} checked={value === o.value} onChange={() => onChange(o.value)} className="mt-1 h-4 w-4" />
-          <span className="min-w-0">
-            <span className="block text-sm font-semibold text-primary">{o.label}</span>
-            {o.hint && <span className="block text-xs text-muted">{o.hint}</span>}
-          </span>
-        </label>
-      ))}
-    </div>
-  );
-}
 
 export default function EventCreateWizard() {
   const router = useRouter();
@@ -160,49 +144,7 @@ export default function EventCreateWizard() {
       {step === 'round' && (
         <div className="space-y-4">
           <h2 className="text-h3 font-bold text-primary">The round</h2>
-          <label className="block space-y-1">
-            <span className="text-sm font-medium text-secondary">Date</span>
-            <input type="date" value={s.scheduled_on} onChange={e => set('scheduled_on', e.target.value)} className={INPUT} data-event-wizard-date="" />
-          </label>
-          <div className="space-y-1">
-            <label htmlFor="event-course" className="text-sm font-medium text-secondary">Course</label>
-            <CourseSearchField
-              id="event-course"
-              value={s.course ? { id: s.course.id, name: s.course.name } : null}
-              onSelect={(course, typed) => {
-                if (course) {
-                  const wc = wizardCourseFrom(course);
-                  setS(prev => ({ ...prev, course: wc, tee: wc.tees[0] ?? '', holes: wc.holesCount === 9 ? 9 : prev.holes }));
-                } else if (typed) {
-                  setS(prev => ({ ...prev, course: { id: null, name: typed, tees: [], holesCount: null }, tee: '' }));
-                } else {
-                  setS(prev => ({ ...prev, course: null, tee: '' }));
-                }
-              }}
-            />
-            <p className="text-xs text-muted">Not in the catalog? Type the name and press Enter — the round scores against par 4.</p>
-          </div>
-          <label className="block space-y-1">
-            <span className="text-sm font-medium text-secondary">Tees <span className="text-muted font-normal">(optional)</span></span>
-            {s.course && s.course.tees.length > 0 ? (
-              <select value={s.tee} onChange={e => set('tee', e.target.value)} className={INPUT}>
-                <option value="">Any</option>
-                {s.course.tees.map(t => <option key={t} value={t}>{t}</option>)}
-              </select>
-            ) : (
-              <input value={s.tee} onChange={e => set('tee', e.target.value)} maxLength={40} className={INPUT} placeholder="White" />
-            )}
-          </label>
-          <div className="space-y-1">
-            <span className="text-sm font-medium text-secondary">Holes</span>
-            <Choice name="Holes" value={String(s.holes) as '9' | '18'} onChange={v => setS(prev => ({ ...prev, holes: v === '9' ? 9 : 18, starting_hole: v === '9' ? prev.starting_hole : 1 }))} options={[{ value: '18', label: '18 holes' }, { value: '9', label: '9 holes' }]} />
-          </div>
-          {s.holes === 9 && (
-            <div className="space-y-1">
-              <span className="text-sm font-medium text-secondary">Start on</span>
-              <Choice name="Starting hole" value={String(s.starting_hole) as '1' | '10'} onChange={v => set('starting_hole', v === '10' ? 10 : 1)} options={[{ value: '1', label: 'Hole 1 (front nine)' }, { value: '10', label: 'Hole 10 (back nine)' }]} />
-            </div>
-          )}
+          <RoundFields value={wizardRoundDraft(s)} onChange={patch => setS(prev => ({ ...prev, ...patch }))} idPrefix="event-wizard-round" />
         </div>
       )}
 

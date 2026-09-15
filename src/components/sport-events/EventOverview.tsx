@@ -2,7 +2,8 @@
 
 import { useState } from 'react';
 import type { SportEventViewPayload } from '@/lib/sport-events/view';
-import { formatDateOnly, formatLabel, holesLabel, joinLine, VISIBILITY_LABEL } from '@/lib/sport-events/format';
+import { formatDateOnly, formatLabel, holesLabel, joinLine, roundsSummary, VISIBILITY_LABEL } from '@/lib/sport-events/format';
+import { activeRounds, currentRound } from '@/lib/sport-events/rounds';
 
 interface Props {
   view: SportEventViewPayload;
@@ -21,7 +22,9 @@ function Row({ label, children }: { label: string; children: React.ReactNode }) 
 
 export default function EventOverview({ view, onRotateLink, busy }: Props) {
   const { event, rounds, viewer } = view;
-  const round = rounds[0] ?? null;
+  const active = activeRounds(rounds);
+  const many = active.length > 1;
+  const round = currentRound(active);
   const [copied, setCopied] = useState(false);
   const link = event.link_token && typeof window !== 'undefined' ? `${window.location.origin}/events/${event.id}?token=${event.link_token}` : null;
 
@@ -40,9 +43,10 @@ export default function EventOverview({ view, onRotateLink, busy }: Props) {
     <div className="space-y-4">
       {event.description && <p className="text-sm text-primary whitespace-pre-wrap">{event.description}</p>}
       <dl className="bg-surface-muted rounded-lg px-4 py-1">
-        {round && <Row label="Date">{formatDateOnly(round.scheduled_on, { weekday: true })}</Row>}
-        {round && <Row label="Course">{round.course_name}{round.tee ? ` · ${round.tee} tees` : ''}</Row>}
-        {round && <Row label="Holes">{holesLabel(round.holes, round.starting_hole)}</Row>}
+        {many && <Row label="Rounds">{roundsSummary(rounds)}</Row>}
+        {!many && round && <Row label="Date">{formatDateOnly(round.scheduled_on, { weekday: true })}</Row>}
+        {round && <Row label={many ? `Round ${round.sequence}` : 'Course'}>{round.course_name}{round.tee ? ` · ${round.tee} tees` : ''}{many ? ` · ${holesLabel(round.holes, round.starting_hole)}` : ''}</Row>}
+        {!many && round && <Row label="Holes">{holesLabel(round.holes, round.starting_hole)}</Row>}
         <Row label="Format">{formatLabel(event.format)}</Row>
         <Row label="Who can see it">{VISIBILITY_LABEL[event.visibility]}</Row>
         <Row label="Joining">{joinLine(event.join_mode)}</Row>

@@ -3,7 +3,8 @@ import type { Metadata } from 'next';
 import AppHeader from '@/components/AppHeader';
 import EventPlace from '@/components/sport-events/EventPlace';
 import { getSupabaseAdmin } from '@/lib/auth-server';
-import { formatDateOnly } from '@/lib/sport-events/format';
+import { roundsSummary } from '@/lib/sport-events/format';
+import { activeRounds, currentRound } from '@/lib/sport-events/rounds';
 import { fetchSportEventView } from '@/lib/sport-events/view-server';
 import { UUID_RE } from '@/lib/uuid';
 import EventGate from './_components/EventGate';
@@ -28,10 +29,11 @@ export async function generateMetadata({ params }: PageParams): Promise<Metadata
   if (!UUID_RE.test(id)) return { title: 'Event' };
   const view = await getPublicView(id);
   if (!view) return { title: 'Event' };
-  const round = view.rounds[0];
+  const round = currentRound(activeRounds(view.rounds));
+  const summary = roundsSummary(view.rounds);
   return {
     title: `${view.event.name} — Edge Athlete`,
-    description: round ? `${formatDateOnly(round.scheduled_on)} · ${round.course_name}` : 'A golf event on Edge Athlete.',
+    description: round ? `${summary} · ${round.course_name}` : 'A golf event on Edge Athlete.',
   };
 }
 

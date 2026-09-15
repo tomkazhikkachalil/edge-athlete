@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import type { SportEventViewPayload } from '@/lib/sport-events/view';
-import { fieldLine, formatDateOnly, STATUS_LABEL } from '@/lib/sport-events/format';
+import { fieldLine, headerRoundLine, STATUS_LABEL } from '@/lib/sport-events/format';
 import type { JoinControl } from '@/lib/sport-events/join-state';
 import EventJoinButton from './EventJoinButton';
 
@@ -22,11 +22,13 @@ interface Props {
   actions: React.ComponentProps<typeof EventJoinButton> extends infer P ? Omit<P, 'control' | 'busy'> : never;
   /** Organizer lifecycle controls, rendered under the title. */
   organizerControls?: React.ReactNode;
+  /** The viewer's local day (YYYY-MM-DD) — "today" on the round line. */
+  todayKey?: string | null;
 }
 
-export default function EventHeader({ view, hostName, control, busy, actions, organizerControls }: Props) {
+export default function EventHeader({ view, hostName, control, busy, actions, organizerControls, todayKey = null }: Props) {
   const { event, rounds, counts } = view;
-  const round = rounds[0] ?? null;
+  const line = headerRoundLine(rounds, todayKey);
   return (
     <header className="bg-surface rounded-lg border border-border p-4 sm:p-6" data-event-id={event.id} data-event-status={event.status}>
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -42,11 +44,8 @@ export default function EventHeader({ view, hostName, control, busy, actions, or
           <p className="mt-1 text-sm text-secondary">
             Hosted by <Link href={`/athlete/${event.host_profile_id}`} className="text-brand-fg hover:text-brand-fg-strong font-medium">{hostName}</Link>
           </p>
-          {round && (
-            <p className="mt-2 text-sm text-secondary">
-              {formatDateOnly(round.scheduled_on, { weekday: true })} · {round.course_name}
-            </p>
-          )}
+          {line.primary && <p className="mt-2 text-sm text-secondary" data-event-round-line="">{line.primary}</p>}
+          {line.secondary && <p className="text-sm text-tertiary" data-event-round-next="">{line.secondary}</p>}
           <p className="text-sm text-tertiary">{fieldLine(counts, event.capacity)}{counts.followers > 0 ? ` · ${counts.followers} following` : ''}</p>
         </div>
         <div className="shrink-0">

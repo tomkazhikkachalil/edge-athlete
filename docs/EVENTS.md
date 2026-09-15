@@ -235,6 +235,7 @@ specs run at 390 × 844 on Chromium AND WebKit.
 | `sport-events-scorecard` `@mobile` | submit · mark final · reopen · complete with the not-final list |
 | `sport-events-group-card` `@mobile` | the group card · OFFLINE queue and reconnect · a partner's hole |
 | `sport-events-feed` | the announce card and the chip, announced → live |
+| `sport-events-tournament-page` `@mobile` (phase 2) | the `?round=overall` deep link and the switcher · the header's round line · Start round 1 from the schedule card · groups per round while round 1 is live · the scorecard follows the live round · Complete round 1 from the header (the event stays live, "Start round 2") · add a round from the window |
 | `sport-events-overall` (phase 2) | two nine-hole rounds: round 1 totals and ranks · round 2 live (today / thru, the total moves, the not-started player's standing holds) · round 2 completed with a missed round → below the full field · movement · the stranger's 404 · the flight filter |
 | `sport-events-rounds` (phase 2) | test 2: the round lifecycle — in order, one at a time, regroup round 2 while round 1 is live, `rounds_remaining`, complete round 1 (one mirror, no bell), add + cancel a round while live, complete the last round (the event completes: one bell, two mirrors) · test 1: create with three rounds · the phase-1 body · both shapes / an unordered list refused by name · add (appended; earlier date refused; the announce post) · edit keeps the order · delete renumbers · the last round stays · the cap |
 | `header-create`, `round-invite` | the Create sheet's two doors; the plain shared round still scores |
@@ -298,6 +299,30 @@ the same fold over the rounds before the current one (null before round
 whole field's labels; `cutLine` / `madeCut` are null until the cut PR.
 `GET /api/sport-events/[id]/leaderboard` is the door; the round route and
 `FieldRow` now carry `flight`.
+
+### The event page for N rounds (PR 4)
+
+ONE selected round per page (`?round=overall|<id>`): `tabs.ts
+parseRoundParam` answers what the tab can show — the tournament board
+('overall') on the leaderboard of a multi-round event, else the current
+round (live → next scheduled → last completed); the scorecard only among
+minted rounds; an unknown value is the tab's default, never a blank panel.
+`RoundSwitcher` (a pill strip, "Overall" first where offered, a live dot /
+a check per round; hidden with one choice so a single-round event looks
+as in phase 1) sits on the Leaderboard (`OverallBoard`: Pos · Mv · Player ·
+R1…Rn · Today · Thru · Total · To par, Pos and Player pinned on a phone),
+the Scorecard (minted rounds; "Complete round n" completes THIS round) and
+the Groups (editable while THAT round is scheduled). The header's line is
+`format.ts headerRoundLine` ("Round 2 of 3 · Sat, Jun 8 · course · live"
++ "Next: Round 3 · …"); its primary action is `page-rules.ts
+nextOrganizerStep` (Publish → Start round n → Complete round n). The
+Schedule's cards carry a status chip and the organizer's actions from
+`roundActionsFor` (only what the lifecycle accepts) plus "Add a round";
+`RoundEditWindow` (the house bottom sheet over `RoundFields`, the wizard's
+round inputs extracted — the wizard now renders them too) adds or edits a
+round with the wizard's rules (`validateRoundDraft`, `roundBodyFrom`).
+The confirm copy is `confirmCopyFor`: phase 1's words on a single round,
+the round named on a tournament, the last round says the results post.
 
 ## Phase 1 status
 

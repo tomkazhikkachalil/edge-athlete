@@ -1,5 +1,56 @@
 # Development Log
 
+## September 16, 2026 — Events program, phase 2, PR 4: the event page for N rounds (zero DDL)
+
+Every screen picked `rounds[0]`. Now the page holds ONE selected round:
+
+- `tabs.ts parseRoundParam(value, rounds, tab)` — `?round=overall|<id>`;
+  the tournament board on a multi-round event's leaderboard, else the
+  current round (live → next scheduled → last completed); the scorecard
+  only among minted rounds; an unknown value is the tab's default, never a
+  blank panel. Re-derived on every render in `EventPlace` so a round an
+  action just minted or completed moves the selection without an effect.
+- `RoundSwitcher` — the pill strip the Leaderboard, Scorecard and Groups
+  share ("Overall" first where offered; a live dot, a check when final;
+  scrolls at phone width); hidden with one choice, so a single-round
+  event looks exactly as in phase 1 and every phase-1 page spec stays
+  green.
+- `OverallBoard` — Pos · Mv · Player · R1…Rn · Today · Thru · Total · To
+  par over the overall route; Pos and Player pinned on a phone; the
+  movement column carries an arrow with an accessible label; a scheduled
+  round is a header with "—" cells.
+- `format.ts headerRoundLine` ("Round 2 of 3 · Sat, Jun 8, 2030 · course ·
+  live / today / final" + "Next: Round 3 · …"; one round reads as phase 1)
+  and `roundsSummary` (the overview's "3 rounds · Jun 1 – Jun 3, 2030" and
+  the page metadata).
+- NEW `page-rules.ts` — `nextOrganizerStep` (the header's one primary
+  action: Publish → Start round n → Complete round n → nothing),
+  `roundActionsFor` (a schedule card offers only what the lifecycle would
+  accept: start on the next startable round, edit, remove / cancel when
+  not the last), `confirmCopyFor` (phase 1's words on a single round; the
+  round named on a tournament; the last round says the results post).
+- `RoundFields` — the wizard's round inputs extracted (the wizard renders
+  them now; the shared `Choice` control moved with them) and
+  `RoundEditWindow` — the house bottom sheet that adds or edits a round
+  with the wizard's rules (`wizard.ts roundDraftFrom` / `validateRoundDraft`
+  / `roundBodyFrom`); closing with unsaved input asks first.
+- `EventSchedule` gains the status chip, the organizer's card actions and
+  "Add a round"; `EventScorecardTab` follows the selected minted round,
+  reads a completed round read-only and completes THIS round;
+  `EventGroupsEditor` edits the selected round while it is scheduled
+  ("Groups are set before the round starts."); `EventOverview` shows the
+  rounds summary; the page metadata reads the current round.
+
+Verification: `npm run verify` green; `page-rules.test.ts` (the round
+selection rule, the header line, the summary, the organizer step, the
+card actions, the confirm copy, the round draft);
+`e2e/sport-events-tournament-page.spec.ts @mobile` (Chromium + WebKit)
+plus the phase-1 `sport-events-page`, `-groups`, `-scorecard`, `-create`
+mobile specs re-run green. Phone pass at 375px: the switcher scrolls, Pos
+and Player stay pinned on the overall board, the round window opens as a
+bottom sheet, the schedule's actions wrap. Next: PR 5, the wizard's rounds
+list.
+
 ## September 16, 2026 — Events program, phase 2, PR 3: the overall leaderboard (zero DDL)
 
 The tournament's board, the way Golf Genius and the PGA Tour app show
