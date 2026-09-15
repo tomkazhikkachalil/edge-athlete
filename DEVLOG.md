@@ -6,7 +6,14 @@ The WebKit re-probe (one run at a time this time) passed the cut, the
 match card and the Matches tab; the pairs spec timed out at the default
 minute on both attempts — it took 58 s on Chromium (four players, two
 events, ~60 prod calls). `test.setTimeout(150_000)` on the pairs and the
-bracket specs (the routes test got the same in #787). No product change.
+bracket specs (the routes test got the same in #787).
+
+The post-#787 probe then showed the `lost` bell right and the `won` bell
+MISSING: the winner was the organizer who completed the round, and
+`insertBells` never bells the actor (right for an invite, wrong for a
+match bell — the member is the subject). The `set` and `won` / `lost`
+senders now insert with NO actor (the organizer's id rides the metadata
+as `set_by` / `completed_by`), so an organizer who plays gets theirs.
 
 ## September 16, 2026 — Events program, phase 3: the first prod probe (two spec fixes, one bell fix)
 
