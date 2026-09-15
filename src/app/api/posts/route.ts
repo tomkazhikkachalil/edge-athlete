@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { SPORT_EVENT_ROUND_LABEL_SELECT, sportEventLabelsByRound } from '@/lib/sport-events/feed';
 import { UUID_RE, isUuid } from '@/lib/uuid';
 import { filterBlockedBidirectional } from '@/lib/blocks';
 import { getEnabledSports } from '@/lib/sports/SportRegistry';
@@ -919,6 +920,13 @@ export async function GET(request: NextRequest) {
         }
       }
 
+      // Events program (203): the event beside a deep-linked post.
+      let singleSportEvent = null;
+      if (post.sport_event_round_id) {
+        const { data: rows } = await getSupabaseAdmin().from('sport_event_rounds').select(SPORT_EVENT_ROUND_LABEL_SELECT).eq('id', post.sport_event_round_id);
+        singleSportEvent = sportEventLabelsByRound(rows ?? []).get(post.sport_event_round_id) ?? null;
+      }
+
       // Transform single post
       const transformedPost = {
         id: post.id,
@@ -927,6 +935,8 @@ export async function GET(request: NextRequest) {
         post_category: post.post_category ?? null,
         event_id: post.event_id ?? null,
         event: post.event ?? null,
+        sport_event_round_id: post.sport_event_round_id ?? null,
+        sport_event: singleSportEvent,
         stats_data: post.stats_data,
         visibility: post.visibility,
         status: post.status ?? 'published',
@@ -1278,7 +1288,10 @@ export async function GET(request: NextRequest) {
     // attached (the column rides the `*` select once 181 has run).
     const contestIds = [...new Set(finalVisiblePosts.map(p => p.contest_id).filter(Boolean))] as string[];
 
-    const [roundsResult, groupsResult, tagProfilesResult, sharedResult, contestsResult] = await Promise.all([
+    // Events program (203): the event beside a post — the chip's label and
+    // the announce card's facts (name, date, course, status, joining).
+    const sportEventRoundIds = [...new Set(finalVisiblePosts.map(p => p.sport_event_round_id).filter(Boolean))] as string[];
+    const [roundsResult, groupsResult, tagProfilesResult, sharedResult, contestsResult, sportEventRoundsResult] = await Promise.all([
       fetchGolfRoundsByIds(supabase, roundIds as string[]),
       groupPostIds.length > 0
         ? supabase.from('group_posts').select(GROUP_SCORECARD_SELECT).in('id', groupPostIds)
@@ -1295,7 +1308,12 @@ export async function GET(request: NextRequest) {
       contestIds.length > 0
         ? supabase.from('contests').select('id, round, competition:competition_id (name)').in('id', contestIds)
         : Promise.resolve({ data: [], error: null }),
+      sportEventRoundIds.length > 0
+        ? getSupabaseAdmin().from('sport_event_rounds').select(SPORT_EVENT_ROUND_LABEL_SELECT).in('id', sportEventRoundIds)
+        : Promise.resolve({ data: [], error: null }),
     ]);
+    if (sportEventRoundsResult.error) console.error('[GET] Error fetching sport event labels:', sportEventRoundsResult.error);
+    const sportEventByRound = sportEventLabelsByRound(sportEventRoundsResult.data ?? []);
     if (contestsResult.error) console.error('[GET] Error fetching contest labels:', contestsResult.error);
     const contestById = new Map<string, { id: string; round: string | null; competition_name: string }>();
     for (const c of (contestsResult.data ?? []) as { id: string; round: string | null; competition: { name: string } | { name: string }[] | null }[]) {
@@ -1382,6 +1400,8 @@ export async function GET(request: NextRequest) {
           // E2: the counted contest (mig 181) + its chip label.
           contest_id: post.contest_id ?? null,
           contest: post.contest_id ? (contestById.get(post.contest_id) ?? null) : null,
+          sport_event_round_id: post.sport_event_round_id ?? null,
+          sport_event: post.sport_event_round_id ? (sportEventByRound.get(post.sport_event_round_id) ?? null) : null,
           stats_data: post.stats_data,
           visibility: post.visibility,
           status: post.status ?? 'published',

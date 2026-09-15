@@ -1,5 +1,39 @@
 # Development Log
 
+## September 16, 2026 — Events program, PR 15: the feed's announce card · the event chip — the freeze lift, this branch only (zero DDL)
+
+Tom's decision: the golf feed rendering freeze (Aug 2026) is lifted for
+the ANNOUNCE branch only — the rest of the golf feed is untouched and the
+freeze stands again after this PR.
+
+- **The feed carries the event beside a post** (`src/lib/sport-events/
+  feed.ts`, a pure projection over `sport_event_rounds` + its event —
+  name, status, joining, date, course, holes): `GET /api/posts` (the
+  listing AND the single-post read) answers `sport_event_round_id` and
+  `sport_event` on a post; nothing private leaves.
+- **The announce card** (`EventAnnounceCard`, props-only): the ONE edit in
+  `SportPostBody`'s null branch — a sport-event post with no scores yet
+  (announced, or live before the first hole) leads with the event: the
+  status chip (Live now with the dot when it is), name, date · course ·
+  holes, the joining line, one door to the event's place where the join
+  control lives. `post-stat-highlights.ts` and `GolfRoundCard` untouched;
+  live with scores = the existing round card; results = the existing
+  highlight card, re-timestamped on completion (PR 5).
+- **The event chip** on the post (`PostCard`, after the contest chip,
+  mirroring it: fa-flag-checkered, "From {event}", `data-post-event-chip`)
+  is the way from the feed to `/events/[id]`.
+
+- **A fix the feed spec caught**: creating an event with `publish: true`
+  wrote it `open` directly and bypassed the open transition, so the
+  announce post was never minted until go-live created it. Creation is
+  always a draft now; `publish` goes through `applyTransition('open')`.
+
+`e2e/sport-events-feed.spec.ts`: the post carries the event, the feed
+shows the card with the chip, going live keeps it listed and reads Live
+now, the chip lands on the event. `feed-post` still green. Next: PR 16 —
+CLAUDE.md convention 17, EVENTS.md complete, the DEVLOG close, the prod
+run of every event spec.
+
 ## September 16, 2026 — Events program, PR 14: the group card · the score outbox · the /live mount (zero DDL)
 
 - **`GroupScoreCard`** (`src/components/golf/`) is live ENTRY for a playing
