@@ -39,6 +39,7 @@ export function eventApi(eventId: string, token: string | null) {
     inviteHandles: (handles: string[]) => call<{ invited: string[]; skipped: Record<string, number> }>(`${base}/participants`, { method: 'POST', body: JSON.stringify({ handles }) }),
     invite: (profileIds: string[]) => call<{ invited: string[]; skipped: Record<string, number> }>(`${base}/participants`, { method: 'POST', body: JSON.stringify({ profile_ids: profileIds }) }),
     rotateLink: () => call<{ link_token: string }>(`${base}/link-token`, { method: 'POST', body: '{}' }),
+    saveGroups: (roundId: string, body: unknown) => call<SportEventViewPayload>(`${base}/rounds/${roundId}/groups`, { method: 'PUT', body: JSON.stringify(body) }),
     leaderboard: (roundId: string) => call<import('./leaderboard-server').RoundLeaderboard>(`${base}/rounds/${roundId}/leaderboard${q(token)}`),
   };
 }

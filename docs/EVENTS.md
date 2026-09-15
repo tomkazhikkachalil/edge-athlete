@@ -181,3 +181,11 @@ bell; `POST /api/notifications/[id]/action` decides them through the
 event's gate and `applyJoin`, then stamps the bell. A decided bell reads
 what you did.
 
+## Groups (PR 12)
+
+The organizers' **Groups** tab (`EventGroupsEditor`, operations in
+`src/lib/sport-events/groups-editor.ts`) arranges the accepted, playing
+participants into groups with a name, a tee time and a starting hole;
+Save replaces the round's plan in one PUT. The mint orders the round's
+players by it at go-live.
+

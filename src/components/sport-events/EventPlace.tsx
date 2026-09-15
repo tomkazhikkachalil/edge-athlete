@@ -9,6 +9,7 @@ import { eventApi } from '@/lib/sport-events/client';
 import { joinControl } from '@/lib/sport-events/join-state';
 import { parseEventTab, tabsFor, type EventTab } from '@/lib/sport-events/tabs';
 import type { SportEventViewPayload } from '@/lib/sport-events/view';
+import EventGroupsEditor from './EventGroupsEditor';
 import EventHeader from './EventHeader';
 import EventLeaderboard from './EventLeaderboard';
 import EventOverview from './EventOverview';
@@ -38,7 +39,7 @@ export default function EventPlace({ eventId, initialView, token }: Props) {
   const params = useSearchParams();
   const api = useMemo(() => eventApi(eventId, token), [eventId, token]);
   const [view, setView] = useState<SportEventViewPayload | null>(initialView);
-  const [tab, setTab] = useState<EventTab>(parseEventTab(params.get('tab')));
+  const [tab, setTab] = useState<EventTab>(parseEventTab(params.get('tab'), { canManage: initialView?.viewer.can_manage ?? true }));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -88,6 +89,7 @@ export default function EventPlace({ eventId, initialView, token }: Props) {
 
   if (!view) return null;
   const { event, viewer } = view;
+  const visibleTab: EventTab = tab === 'groups' && !viewer.can_manage ? 'overview' : tab;
   const own = view.participants.find(p => p.id === viewer.participant_id) ?? null;
   const host = view.participants.find(p => p.profile_id === event.host_profile_id);
   const control = joinControl({
@@ -141,11 +143,11 @@ export default function EventPlace({ eventId, initialView, token }: Props) {
         </p>
       )}
       <section className="bg-surface rounded-lg border border-border">
-        <EventTabs tabs={tabsFor()} active={tab} onChange={changeTab} />
-        <div id={`event-panel-${tab}`} role="tabpanel" aria-labelledby={`event-tab-${tab}`} className="p-4 sm:p-6">
-          {tab === 'overview' && <EventOverview view={view} busy={busy} onRotateLink={async () => { await run(() => api.rotateLink(), 'New link ready.'); }} />}
-          {tab === 'schedule' && <EventSchedule view={view} />}
-          {tab === 'players' && (
+        <EventTabs tabs={tabsFor({ canManage: viewer.can_manage })} active={visibleTab} onChange={changeTab} />
+        <div id={`event-panel-${visibleTab}`} role="tabpanel" aria-labelledby={`event-tab-${visibleTab}`} className="p-4 sm:p-6">
+          {visibleTab === 'overview' && <EventOverview view={view} busy={busy} onRotateLink={async () => { await run(() => api.rotateLink(), 'New link ready.'); }} />}
+          {visibleTab === 'schedule' && <EventSchedule view={view} />}
+          {visibleTab === 'players' && (
             <EventPlayers
               view={view}
               control={control}
@@ -158,7 +160,8 @@ export default function EventPlace({ eventId, initialView, token }: Props) {
               onIndexOverride={(target, index) => run(() => api.participantPatch(target, { handicap_index: index }))}
             />
           )}
-          {tab === 'leaderboard' && <EventLeaderboard view={view} api={api} version={version} />}
+          {visibleTab === 'groups' && viewer.can_manage && <EventGroupsEditor view={view} api={api} onSaved={v => { setView(v); setVersion(x => x + 1); }} />}
+          {visibleTab === 'leaderboard' && <EventLeaderboard view={view} api={api} version={version} />}
         </div>
       </section>
       {inviteOpen && (

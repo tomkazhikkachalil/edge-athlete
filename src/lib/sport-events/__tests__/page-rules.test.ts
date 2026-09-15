@@ -7,7 +7,7 @@ describe('the event page rules', () => {
   it('tabs: unknown → overview; the four deep links parse', () => {
     expect(parseEventTab(null)).toBe('overview');
     expect(parseEventTab('players')).toBe('players');
-    expect(parseEventTab('groups')).toBe('overview');
+    expect(parseEventTab('scorecard')).toBe('overview');
   });
   it('dates format from their parts (never the local parser); labels read as English', () => {
     expect(formatDateOnly('2030-06-01')).toBe('Jun 1, 2030');
