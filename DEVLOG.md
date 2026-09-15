@@ -1,5 +1,35 @@
 # Development Log
 
+## September 16, 2026 — Events program, phase 2b, PR 1: the per-hole version (mig 209) — the pure half
+
+Phase 2b opens (plan: `~/.claude/plans/let-s-start-phase-2-transient-
+fountain.md` Part B, verified against the tree first). B3 lands first
+because it fixes a real defect: the group card's conflict guard compares
+the CARD's `updated_at`, which the 039 totals trigger bumps on every hole
+write by anyone — two group-mates scoring different holes false-conflict,
+and an outbox replaying five holes conflicts on four.
+
+- **209** `golf_hole_scores.version integer NOT NULL DEFAULT 1` (CHECK
+  ≥ 1), bumped by `bump_hole_score_version()` BEFORE UPDATE only when one
+  of the five scored fields changes (compared in the body — an idempotent
+  re-send never bumps; the ELSE pins it to OLD so a client can never set
+  it). Invoker, empty `search_path`, EXECUTE revoked from the API roles.
+  ONE result row `209 APPLIED | 1 | 1 | 1 | 1`; the twin
+  `verify-209-hole-score-version.sql` reads the column through `to_jsonb`
+  so it runs before the migration. `client_seq` (the phase 1 parked name)
+  is dropped: the outbox is a set of desired states, nothing to sequence.
+- `src/lib/golf/hole-writes.ts` (pure): `detectHoleConflict(expected,
+  current)` — absent = unchecked, `0` = "I saw no score" (a live row
+  conflicts), `n` = the row must still be at n (a vanished row conflicts);
+  `parseExpectedVersion`; `planHoleWrites(scores, currentByHole)` →
+  inserts / updates / unchecked / conflicts (each conflict carries the
+  CURRENT row); `holeRow` builds the write with `penalties` ONLY when the
+  write names it — the fix for a second defect found in verification:
+  every outbox save sent no penalties and the full-row upsert nulled them.
+- Nothing selects `version` yet (the 42703 rule). `npm run check:schema`
+  reads `CHAIN-ONLY golf_hole_scores.version` until Tom runs 209 — that
+  line is the gate for PR 2 (the server CAS) and PR 3 (the client).
+
 ## September 16, 2026 — Events program, phase 2 close: 207 applied late; the schema check asks the reverse question (mig 208, a no-op)
 
 Tom merged #751–#761 in one go. #761 makes every event read select
