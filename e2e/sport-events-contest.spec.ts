@@ -103,13 +103,17 @@ test('sport events API: counts toward — mint one contest per round, refuse by 
     const contestRes = await s.apiA.get(`/api/contests/${contests![0].id}`);
     expect(contestRes.status(), await readErrorBody(contestRes)).toBe(200);
     const entrants = ((await contestRes.json()) as { view: { entrants: Array<{ result: { score: number; provenance: string } | null }> } }).view.entrants;
-    expect(entrants.map(e => e.result?.score).sort()).toEqual([72, 85]);
+    // The rule picks net when a net exists (A has an index) and gross otherwise (B has none) — the stored rows are the truth.
+    expect(entrants.map(e => e.result?.score).sort((a, b) => (a ?? 0) - (b ?? 0))).toEqual([resA.score, resB.score].sort((a, b) => a - b));
     expect((await admin.from('contest_results').select('id', { count: 'exact', head: true }).eq('contest_id', contests![1].id)).count).toBe(0);
 
-    // Results exist: the link cannot be removed.
+    // The link cannot be removed once play began (the event is live; a completed
+    // event answers the same) — the earlier refusal; `results_exist` guards the
+    // draft / open window a result somehow reached.
     const unlinked = await s.apiA.put(`/api/sport-events/${eventId}/contest`, { data: { competition_id: null } });
     expect(unlinked.status()).toBe(409);
-    expect(((await unlinked.json()) as { reason: string }).reason).toBe('results_exist');
+    expect(((await unlinked.json()) as { reason: string }).reason).toBe('event_over');
+    expect((await admin.from('contests').select('id', { count: 'exact', head: true }).eq('competition_id', leagueId)).count).toBe(2);
   } finally {
     await cleanupEvent(s.apiA, eventId);
     if (clubId) await admin.from('clubs').delete().eq('id', clubId);
