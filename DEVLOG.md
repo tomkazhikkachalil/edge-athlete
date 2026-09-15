@@ -1,5 +1,43 @@
 # Development Log
 
+## September 16, 2026 — Events program, phase 2b, PR 8: "Counts toward" — the contest link (B1, mig 211)
+
+An org-hosted event may count toward one of the org's golf leaderboard
+competitions. The house shape: the contests row points at what it
+mirrors (`contests.event_id` is the calendar precedent), the org OWNS the
+contest and its results, the host owns the event.
+
+- **211** `contests.sport_event_round_id uuid REFERENCES sport_event_rounds
+  ON DELETE SET NULL` + the partial UNIQUE (one contest per round); ONE
+  result row `211 APPLIED | 1 | 1`; twin. Nothing selects the column
+  un-tolerantly; `check:schema` reads `CHAIN-ONLY contests.
+  sport_event_round_id` until it ran.
+- `src/lib/sport-events/contest-link.ts` (pure, tested): `linkRefusal`
+  (no_org · event_over · not_found · other_org · not_golf_leaderboard ·
+  not_athletes · competition_closed · results_exist, each with copy),
+  `contestRowFor` (a one-day window on the round's DATE, its holes,
+  "Round n" or the round's own name), `eventOrg`.
+- `contest-link-server.ts` — the ONE writer: `mintContestsForEvent`
+  (idempotent on the UNIQUE; the accepted playing players get an approved
+  `competition_entries` row — the organizer's authority is
+  `manage_competitions`, `entryAddPOST`'s roster rule is NOT re-applied:
+  the event's field is theirs — and a `contest_participants` row; the
+  org's venue on the round's course when one exists), `unlinkContests
+  ForEvent` (refused once any result exists; a published mirror event is
+  deleted with the contest), `readCountsToward` (round → contest; null
+  pre-211), `readSportEventRoundLink` — **the golf-sync engine's guard**:
+  `syncGolfContest` answers `blocked: 'an event round — results come
+  from the event'` (else it would overwrite the event's `club_recorded`
+  results with `self_reported` from the mirrored rounds).
+- `PUT /api/sport-events/[id]/contest {competition_id | null}`: the
+  organizer who also holds `manage_competitions` on the event's org
+  (the create route's authority); draft / open only; every refusal named.
+- e2e NEW `sport-events-contest.spec.ts` (self-skips before 211);
+  `CreateEventOptions` gains `club_id` / `league_id`.
+- PR 9 writes the results on round completion; PR 10 adds the pickers,
+  the "Hosted for" / "Counts toward" rows the Overview never had, and the
+  contest place's "Played as".
+
 ## September 16, 2026 — Events program, phase 2b: B3 + B4 + B2 merged and prod-proven; the catalog re-saved after 209 (zero DDL)
 
 Tom merged #763–#769 in one go and ran 209 and 210. 209 confirmed live

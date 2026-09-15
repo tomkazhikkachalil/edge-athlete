@@ -90,6 +90,9 @@ export interface CreateEventOptions {
   capacity?: number;
   publish?: boolean;
   host_plays?: boolean;
+  /** Hosted for an org (phase 2b): the create route gates on manage_competitions. */
+  club_id?: string;
+  league_id?: string;
   /** One round (phase 1's body) … */
   round?: RoundBody;
   /** … or the list (phase 2). Exactly one of the two. */
