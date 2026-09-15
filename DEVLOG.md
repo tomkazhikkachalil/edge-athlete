@@ -1,5 +1,24 @@
 # Development Log
 
+## September 16, 2026 — Events program, phase 2b, PR 6: "Add to calendar" — the event as an .ics (B2, zero DDL)
+
+- `src/lib/sport-events/ics.ts` (pure, tested): `sportEventIcs(event,
+  rounds)` — one VEVENT per non-cancelled round, all-day on the round's
+  DATE through `buildVEvent`'s VALUE=DATE path (a `scheduled_on` is a DATE,
+  never an instant), "{name} · Round n of N" on a tournament, the course
+  as the location, the round's name + holes as the description, the whole
+  event cancelled → every VEVENT `STATUS:CANCELLED`; `X-WR-CALNAME` the
+  event; `icsFilename`.
+- `GET /api/sport-events/[id]/ics?token=` — the SAME gate as the event view
+  (`readSportEventAccess`; a refusal is the 404 of not-found), the
+  `sport-event-view` rate bucket, `Content-Disposition: attachment`,
+  `no-store`. Cookie-authed, so the schedule's "Add to calendar" is a plain
+  `<a href>` (`data-event-ics`), shown to everyone who can see the page
+  while the event is not cancelled. The subscribe feed stays rows-only
+  (its charter — read-time items never enter it).
+- e2e `sport-events-calendar.spec.ts` grows (one VEVENT on the date, the
+  link, a stranger's 404).
+
 ## September 16, 2026 — Events program, phase 2b, PR 5: event rounds on the calendar (B2, the overlay — zero DDL)
 
 The calendar's fourth read-time list. A participant's upcoming and live
