@@ -6,6 +6,7 @@ import { resolveSportEventAccess } from '@/lib/sport-events/access';
 import { EVENT_COLUMNS, PARTICIPANT_COLUMNS } from '@/lib/sport-events/access-server';
 import { readJson, resolveActor } from '@/lib/sport-events/actor-server';
 import { snapshotAtAccept } from '@/lib/sport-events/handicap-server';
+import { applyTransition } from '@/lib/sport-events/lifecycle-server';
 import { mintLinkToken } from '@/lib/sport-events/link-token';
 import { snapshotRound } from '@/lib/sport-events/rounds-server';
 import type { SportEventParticipantRow, SportEventRow } from '@/lib/sport-events/types';
@@ -67,8 +68,9 @@ export async function POST(request: NextRequest) {
         visibility: input.visibility,
         link_token: input.visibility === 'link' ? mintLinkToken() : null,
         format: input.format,
-        status: input.publish ? 'open' : 'draft',
-        opened_at: input.publish ? now : null,
+        // Always born a draft: `publish` goes through the open transition
+        // below, which mints the announce post (one post per round).
+        status: 'draft',
         capacity: input.capacity,
         starts_on: round.scheduled_on,
       })
@@ -98,6 +100,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Could not create the event' }, { status: 500 });
     }
     if (input.host_plays) await snapshotAtAccept(admin, host as SportEventParticipantRow);
+
+    if (input.publish) {
+      const opened = await applyTransition(admin, { eventId: row.id, to: 'open', actorProfileId: actor.profileId });
+      if (!opened.ok) console.error('[api/sport-events] publish on create failed:', opened.reason, opened.error);
+    }
 
     const view = await fetchSportEventView(admin, row.id, actor.profileId, null);
     return NextResponse.json(view, { status: 201, headers: { 'Cache-Control': 'private, no-store' } });

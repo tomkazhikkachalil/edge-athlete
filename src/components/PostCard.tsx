@@ -5,6 +5,7 @@ import { format, formatDistanceToNow } from 'date-fns';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { contestChipLabel } from '@/lib/competitions/contest-attachments';
+import type { PostSportEvent } from '@/lib/sport-events/feed';
 import { useSharedRound } from '@/hooks/useSharedRound';
 import LazyImage from './LazyImage';
 import MediaTile from './media/MediaTile';
@@ -109,6 +110,10 @@ interface Post {
    *  written by the golf sync only. The chip opens /event/[id]. */
   contest_id?: string | null;
   contest?: { id: string; round: string | null; competition_name: string } | null;
+  /** Events program (203): the event this post belongs to — one post per
+   *  round through announced → live → results. The chip opens /events/[id]. */
+  sport_event_round_id?: string | null;
+  sport_event?: PostSportEvent | null;
 }
 
 // Module scope, so the component identity is stable across renders.
@@ -765,6 +770,22 @@ function PostCard({
           </p>
         )}
 
+        {/* Event link (Events program) — the post is the round of an event;
+            the chip is the way from the feed to the event's place. */}
+        {post.sport_event && (
+          <p className="flex items-center gap-1.5 text-sm text-gray-500 mb-3 min-w-0">
+            <i className="fas fa-flag-checkered text-xs" aria-hidden="true"></i>
+            <Link
+              href={`/events/${post.sport_event.id}`}
+              className="truncate hover:text-brand-fg"
+              data-post-event-chip={post.sport_event.id}
+              onClick={e => e.stopPropagation()}
+            >
+              From {post.sport_event.name}
+            </Link>
+          </p>
+        )}
+
         {/* Quoted original (repost) — the caption above is the reposter's
             commentary; tapping the embed opens the original. */}
         {post.shared_post_id !== undefined && post.shared_post_id !== null && (
@@ -853,6 +874,7 @@ function PostCard({
           viewerId={currentUserId}
           author={post.profile}
           onExpandScorecard={groupScorecard ? () => setShowFullScorecard(true) : undefined}
+          sportEvent={post.sport_event ?? null}
         />
 
         {/* Shared Round Scorecard — LIVE rounds only.

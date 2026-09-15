@@ -208,3 +208,11 @@ queues offline and replays on reconnect, a 409 conflict resolved by the
 player, Submit / Confirm my card. The one-player modal stays for other
 rounds.
 
+## The feed (PR 15)
+
+One post per round, three states. `GET /api/posts` carries `sport_event`
+beside a post (`src/lib/sport-events/feed.ts`); `SportPostBody`'s null
+branch renders `EventAnnounceCard` for a sport-event post without scores
+(the golf feed freeze is lifted for this branch only); `PostCard` shows
+the event chip. Live with scores and results use the existing round cards.
+

@@ -13,6 +13,8 @@ import StatHighlightCard from './StatHighlightCard';
 import { isStatLineData } from '@/lib/sports/stat-schemas';
 import { buildStatHighlights } from '@/lib/sports/post-stat-highlights';
 import type { GolfRound } from '@/types/golf';
+import EventAnnounceCard from './sport-events/EventAnnounceCard';
+import type { PostSportEvent } from '@/lib/sport-events/feed';
 
 interface SportPostBodyProps {
   sportKey: string | null | undefined;
@@ -28,6 +30,8 @@ interface SportPostBodyProps {
   author?: any;
   /** Opens the full scorecard from the golf card. */
   onExpandScorecard?: () => void;
+  /** Events program: the event this post belongs to (one post, three states). */
+  sportEvent?: PostSportEvent | null;
 }
 
 export default function SportPostBody({
@@ -39,6 +43,7 @@ export default function SportPostBody({
   viewerId,
   author,
   onExpandScorecard,
+  sportEvent,
 }: SportPostBodyProps) {
   // Solo rounds disclose their scorecard inline (shared rounds open a modal
   // owned by PostCard instead). Unconditional: hooks can't sit behind the
@@ -63,7 +68,11 @@ export default function SportPostBody({
 
     // A score-less round gives the highlight card nothing to lead with; the
     // classic round card is the whole body, exactly as before.
+    // Events program (the freeze lift, THIS branch only): a sport-event post
+    // with no scores yet — announced, or live before the first hole — leads
+    // with the event itself.
     if (!highlights) {
+      if (sportEvent) return <EventAnnounceCard event={sportEvent} />;
       return golfRound ? <GolfRoundCard round={golfRound} /> : null;
     }
 
