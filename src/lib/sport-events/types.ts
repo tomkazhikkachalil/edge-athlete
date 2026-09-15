@@ -20,8 +20,11 @@ export type SportEventVisibility = (typeof SPORT_EVENT_VISIBILITIES)[number];
 export const SPORT_EVENT_JOIN_MODES = ['invite', 'request'] as const;
 export type SportEventJoinMode = (typeof SPORT_EVENT_JOIN_MODES)[number];
 
-export const SPORT_EVENT_FORMATS = ['stroke_gross', 'stroke_net'] as const;
+/** Phase 3 (212): match play joins stroke play; the CHECK `sport_events_format_check` carries the four. */
+export const SPORT_EVENT_FORMATS = ['stroke_gross', 'stroke_net', 'match_gross', 'match_net'] as const;
 export type SportEventFormat = (typeof SPORT_EVENT_FORMATS)[number];
+export const isMatchFormat = (format: string | null | undefined): boolean => format === 'match_gross' || format === 'match_net';
+export const isNetFormat = (format: string | null | undefined): boolean => format === 'stroke_net' || format === 'match_net';
 
 export const SPORT_EVENT_ROUND_STATUSES = ['scheduled', 'live', 'completed', 'cancelled'] as const;
 export type SportEventRoundStatus = (typeof SPORT_EVENT_ROUND_STATUSES)[number];
@@ -156,6 +159,8 @@ export interface SportEventGroupMemberRow {
   sport_event_round_id: string;
   participant_id: string;
   position: number;
+  /** 212 — 1 | 2 on a match-format round; null on a stroke round. Optional until PR 4 reads the column. */
+  side?: 1 | 2 | null;
   created_at: string;
 }
 

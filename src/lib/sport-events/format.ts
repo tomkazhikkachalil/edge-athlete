@@ -3,7 +3,7 @@
  * Dates are the date-only class: a `YYYY-MM-DD` is formatted from its parts,
  * never through Date's local parser (the calendar's timezone lesson).
  */
-import type { SportEventJoinMode, SportEventStatus, SportEventVisibility } from './types';
+import type { MatchConfig, MatchSides, SportEventJoinMode, SportEventStatus, SportEventVisibility } from './types';
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -47,8 +47,16 @@ export function joinLine(joinMode: SportEventJoinMode): string {
   return joinMode === 'request' ? 'Open to requests' : 'Invite only';
 }
 
-export function formatLabel(format: string): string {
-  return format === 'stroke_net' ? 'Stroke play · Net' : 'Stroke play · Gross';
+export const MATCH_SIDES_LABEL: Readonly<Record<MatchSides, string>> = { singles: 'Singles', fourball: 'Four-ball', foursomes: 'Foursomes' };
+
+/** "Stroke play · Net" · "Match play · Singles · Gross" · "Match play · Four-ball · Net · Bracket" (a match format with no config reads as singles). */
+export function formatLabel(format: string, match?: Pick<MatchConfig, 'sides' | 'bracket'> | null): string {
+  const net = format === 'stroke_net' || format === 'match_net';
+  if (format === 'match_gross' || format === 'match_net') {
+    const sides = match?.sides ?? 'singles';
+    return `Match play · ${MATCH_SIDES_LABEL[sides]} · ${net ? 'Net' : 'Gross'}${match?.bracket ? ' · Bracket' : ''}`;
+  }
+  return net ? 'Stroke play · Net' : 'Stroke play · Gross';
 }
 
 /** "18 holes" · "9 holes from the 10th" */

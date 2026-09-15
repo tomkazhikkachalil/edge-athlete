@@ -111,7 +111,7 @@ export async function applyJoin(admin: Admin, req: JoinRequest): Promise<JoinOut
   }
 
   // Phase 2: an invite past a decided cut is refused (the rounds are read only for an invite on an event with a cut).
-  const cut = action === 'invite' ? readFormatConfig(event.format_config, 8).cut ?? null : null;
+  const cut = action === 'invite' ? readFormatConfig(event.format_config, 8, event.format).cut ?? null : null;
   const cutMade = cut ? cutDecided(cut, await readRounds(admin, event.id)) : false;
   const plan = planJoin(action, {
     event: { status: event.status, joinMode: event.join_mode, capacity: event.capacity },

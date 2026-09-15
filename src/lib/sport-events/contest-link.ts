@@ -8,8 +8,11 @@
  * Eligible: a GOLF LEADERBOARD competition with ATHLETE entrants, on the
  * event's own org, still open (not completed / archived). Tom's rule: the
  * opted-out players (hide_from_profile) still count for the org — the
- * results writer (PR 9) handles that; nothing here reads the flag.
+ * results writer (PR 9) handles that; nothing here reads the flag. Phase 3:
+ * a MATCH-PLAY event never counts toward a competition (`not_stroke_play`
+ * — an org-side bracket is the masterplan's own program).
  */
+import { isMatchFormat } from './types';
 export interface CompetitionForLink {
   id: string;
   name: string;
@@ -21,10 +24,11 @@ export interface CompetitionForLink {
   status: string;
 }
 
-export type LinkRefusal = 'no_org' | 'not_found' | 'other_org' | 'not_golf_leaderboard' | 'not_athletes' | 'competition_closed' | 'event_over' | 'results_exist';
+export type LinkRefusal = 'no_org' | 'not_stroke_play' | 'not_found' | 'other_org' | 'not_golf_leaderboard' | 'not_athletes' | 'competition_closed' | 'event_over' | 'results_exist';
 
 export const LINK_REFUSAL_COPY: Readonly<Record<LinkRefusal, string>> = {
   no_org: 'Only an event hosted for a club or league can count toward a competition.',
+  not_stroke_play: 'A match-play event cannot count toward a competition.',
   not_found: 'That competition was not found.',
   other_org: 'That competition belongs to another organization.',
   not_golf_leaderboard: 'Only a golf leaderboard competition can count an event.',
@@ -35,8 +39,9 @@ export const LINK_REFUSAL_COPY: Readonly<Record<LinkRefusal, string>> = {
 };
 
 /** Why a competition cannot count this event, or null when it can. */
-export function linkRefusal(event: { club_id: string | null; league_id: string | null; status: string }, competition: CompetitionForLink | null): LinkRefusal | null {
+export function linkRefusal(event: { club_id: string | null; league_id: string | null; status: string; format?: string | null }, competition: CompetitionForLink | null): LinkRefusal | null {
   if (!event.club_id && !event.league_id) return 'no_org';
+  if (isMatchFormat(event.format)) return 'not_stroke_play';
   if (event.status !== 'draft' && event.status !== 'open') return 'event_over';
   if (!competition) return 'not_found';
   if ((event.club_id && competition.club_id !== event.club_id) || (event.league_id && competition.league_id !== event.league_id)) return 'other_org';
@@ -46,7 +51,7 @@ export function linkRefusal(event: { club_id: string | null; league_id: string |
   return null;
 }
 
-export const eligibleCompetition = (event: { club_id: string | null; league_id: string | null }, c: CompetitionForLink): boolean => linkRefusal({ ...event, status: 'draft' }, c) === null;
+export const eligibleCompetition = (event: { club_id: string | null; league_id: string | null; format?: string | null }, c: CompetitionForLink): boolean => linkRefusal({ ...event, status: 'draft' }, c) === null;
 
 export interface ContestRowInput {
   competition_id: string;

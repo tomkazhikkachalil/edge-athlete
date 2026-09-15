@@ -41,6 +41,8 @@ export interface CreateEventInput {
   league_id: string | null;
   /** Phase 2b: the org's competition the event counts toward (needs an org); the route mints the contests. */
   competition_id: string | null;
+  /** Phase 3: the raw format options at creation (the match shape); the route validates it against the format and the round count. */
+  format_config?: unknown;
   /** The host plays (default true); false = organizes only. */
   host_plays: boolean;
   /** true = create as `open` (the wizard's Publish); false = draft. */
@@ -178,6 +180,7 @@ export function parseCreateBody(body: unknown): Parsed<CreateEventInput> {
   if (!profile.ok) return profile;
   if (body.host_plays !== undefined && typeof body.host_plays !== 'boolean') return { ok: false, error: 'host_plays must be true or false' };
   if (body.publish !== undefined && typeof body.publish !== 'boolean') return { ok: false, error: 'publish must be true or false' };
+  if (body.format_config !== undefined && (typeof body.format_config !== 'object' || body.format_config === null || Array.isArray(body.format_config))) return { ok: false, error: 'format_config must be an object' };
   const rounds = parseRoundsInput(body);
   if (!rounds.ok) return rounds;
   return {
@@ -193,6 +196,7 @@ export function parseCreateBody(body: unknown): Parsed<CreateEventInput> {
       club_id: club.value,
       league_id: league.value,
       competition_id: competition.value,
+      ...(body.format_config !== undefined ? { format_config: body.format_config } : {}),
       host_plays: body.host_plays !== false,
       publish: body.publish === true,
       profile_id: profile.value,

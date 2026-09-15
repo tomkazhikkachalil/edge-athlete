@@ -510,6 +510,32 @@ verified spec.
   "Hosted for" / "Counts toward" (rows it never had), the contest place's
   "Played as".
 
+## Phase 3 — match play and brackets (Sep 16 2026, in progress)
+
+Plan: `~/.claude/plans/let-s-start-phase-2-transient-fountain.md` (the
+phase 3 rewrite). Tom's decisions: singles + four-ball + foursomes, gross
+or net; the organizer sets every draw by hand; a halved match goes to
+sudden-death extra holes; a standalone match event AND a bracketed one; a
+match round posts to the profile and the handicap as played; the match
+bells ship in this phase (213).
+
+**The one idea, extended.** A MATCH is a group with two SIDES on a
+match-format round. The strokes stay on the cards (an opponent may mark;
+the outbox and the per-hole CAS apply). What a card cannot carry lives on
+ONE row per match, `sport_event_matches` (212): concessions, sudden-death
+extra holes, an organizer's decision, a bye — plus the outcome written
+ONCE at round completion. The match status is computed on every read
+(`match.ts computeMatch`), never stored while live. A BRACKET is nothing
+new: the rounds ARE the bracket rounds; match k of round n+1 is fed by
+matches 2k−1 and 2k of round n by group `sequence` (`bracket.ts`).
+
+| PR | what |
+|---|---|
+| 1 (#775) | the round's own field: `fieldFinal(cards)`; `roundFieldExclusions` shared by the mint and the completion gate; the board's field = the minted rows |
+| 2 (#776) | the pure engine `match.ts` (status, playing handicaps, concessions, extra holes, the write refusals) + `bracket.ts` |
+| 3 (#777) | migration 212 |
+| 4 | the vocabulary: `match_gross \| match_net`; `format_config.match {sides, bracket, allowance?}` (strict; `cut` ⊕ `match`; the format is part of the parse); `event.match` on the view (defaults filled); the groups PUT takes a `side` per member (derived from the position for a plain id; refused by name on a stroke event); `not_stroke_play` for "counts toward"; the wizard's four formats + sides + bracket; `FormatSettingsWindow` hosts the match shape |
+
 ## Phase 2b status
 
 Complete (Sep 16 2026): #763–#773, migrations 209 · 210 · 211. Every PR

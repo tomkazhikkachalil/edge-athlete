@@ -79,7 +79,7 @@ async function acceptedPlaying(admin: Admin, eventId: string): Promise<SportEven
  * block round 2 with an empty card.
  */
 export async function roundFieldExclusions(admin: Admin, event: SportEventRow, rounds: MintedRound[], round: Pick<MintedRound, 'sequence'>): Promise<ReadonlySet<string>> {
-  const cut = readFormatConfig(event.format_config, activeRounds(rounds).length).cut ?? null;
+  const cut = readFormatConfig(event.format_config, activeRounds(rounds).length, event.format).cut ?? null;
   if (!cut || round.sequence <= cut.after_round || !cutDecided(cut, rounds)) return new Set();
   const board = await fetchOverallLeaderboard(admin, event, rounds, { cut });
   return new Set(board.board.rows.filter(r => r.madeCut === false).map(r => r.participantId));

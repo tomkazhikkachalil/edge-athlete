@@ -12,6 +12,10 @@ describe('linkRefusal — which competitions may count an event', () => {
   });
   it('names every refusal, and every refusal has copy', () => {
     expect(linkRefusal({ club_id: null, league_id: null, status: 'open' }, comp())).toBe('no_org');
+    expect(linkRefusal({ ...club, format: 'match_gross' }, comp())).toBe('not_stroke_play');
+    expect(linkRefusal({ ...club, format: 'match_net' }, comp())).toBe('not_stroke_play');
+    expect(linkRefusal({ ...club, format: 'stroke_net' }, comp())).toBeNull();
+    expect(eligibleCompetition({ ...club, format: 'match_gross' }, comp())).toBe(false);
     expect(linkRefusal({ ...club, status: 'live' }, comp())).toBe('event_over');
     expect(linkRefusal(club, null)).toBe('not_found');
     expect(linkRefusal(club, comp({ club_id: 'c2' }))).toBe('other_org');
@@ -20,7 +24,7 @@ describe('linkRefusal — which competitions may count an event', () => {
     expect(linkRefusal(club, comp({ sport_key: 'ice_hockey' }))).toBe('not_golf_leaderboard');
     expect(linkRefusal(club, comp({ entrant_type: 'team' }))).toBe('not_athletes');
     expect(linkRefusal(club, comp({ status: 'completed' }))).toBe('competition_closed');
-    for (const key of ['no_org', 'not_found', 'other_org', 'not_golf_leaderboard', 'not_athletes', 'competition_closed', 'event_over', 'results_exist'] as const) expect(LINK_REFUSAL_COPY[key]).toBeTruthy();
+    for (const key of ['no_org', 'not_stroke_play', 'not_found', 'other_org', 'not_golf_leaderboard', 'not_athletes', 'competition_closed', 'event_over', 'results_exist'] as const) expect(LINK_REFUSAL_COPY[key]).toBeTruthy();
   });
 });
 

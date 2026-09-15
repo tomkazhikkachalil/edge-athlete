@@ -37,11 +37,13 @@ export interface EventView {
     went_live_at: string | null;
     completed_at: string | null;
     /** 207 (phase 2): the organizer's format options. */
-    format_config?: { cut?: { after_round: number; top_n?: number; to_par?: number } | null };
+    format_config?: { cut?: { after_round: number; top_n?: number; to_par?: number } | null; match?: { sides: string; bracket: boolean; allowance?: number } | null };
+    /** Phase 3: the match options (defaults filled) — null on a stroke format. */
+    match?: { sides: 'singles' | 'fourball' | 'foursomes'; bracket: boolean; allowance: number } | null;
   };
   rounds: Array<{ id: string; sequence: number; scheduled_on: string; course_name: string; holes: number; starting_hole: number; status: string; group_post_id: string | null; name?: string | null }>;
   participants: Array<{ id: string; profile_id: string; status: string; role: string; playing: boolean; waitlist_position: number | null; handicap_index: number | null }>;
-  groups: Array<{ id: string; sport_event_round_id: string; sequence: number; members: Array<{ participant_id: string; position: number }> }>;
+  groups: Array<{ id: string; sport_event_round_id: string; sequence: number; name?: string | null; starting_hole?: number; members: Array<{ participant_id: string; position: number; side?: 1 | 2 | null }> }>;
   counts: { playing: number; followers: number; waitlisted: number };
   viewer: { role: string | null; can_manage: boolean; participant_id: string | null; participant_status: string | null };
 }
@@ -86,7 +88,9 @@ export interface CreateEventOptions {
   name: string;
   visibility?: 'public' | 'link' | 'private';
   join_mode?: 'invite' | 'request';
-  format?: 'stroke_gross' | 'stroke_net';
+  format?: 'stroke_gross' | 'stroke_net' | 'match_gross' | 'match_net';
+  /** Phase 3: the match shape at creation. */
+  format_config?: { match?: { sides: 'singles' | 'fourball' | 'foursomes'; bracket?: boolean; allowance?: number } | null; cut?: { after_round: number; top_n?: number; to_par?: number } | null };
   capacity?: number;
   publish?: boolean;
   host_plays?: boolean;
@@ -132,7 +136,8 @@ export async function inviteAndAccept(s: Pick<EventSession, 'apiA' | 'apiB' | 'u
 }
 
 /** Replace a round's groups (organizer). */
-export async function setGroups(apiA: APIRequestContext, eventId: string, roundId: string, groups: Array<{ name?: string; tee_time?: string; starting_hole?: number; members: string[] }>): Promise<EventView> {
+export type GroupMemberBody = string | { participant_id: string; side: 1 | 2 };
+export async function setGroups(apiA: APIRequestContext, eventId: string, roundId: string, groups: Array<{ name?: string; tee_time?: string; starting_hole?: number; members: GroupMemberBody[] }>): Promise<EventView> {
   const res = await apiA.put(`/api/sport-events/${eventId}/rounds/${roundId}/groups`, { data: { groups } });
   expect(res.ok(), await readErrorBody(res)).toBe(true);
   return (await res.json()) as EventView;

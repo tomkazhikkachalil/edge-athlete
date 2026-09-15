@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { applyCut, cutDecided, cutEditable } from '../cut';
-import { cutLabel, parseCutRule, parseFormatConfig, readFormatConfig } from '../format-config';
+import { cutLabel, MATCH_ALLOWANCE_DEFAULT, parseCutRule, parseFormatConfig, parseMatchConfig, readFormatConfig, readMatchConfig } from '../format-config';
 
 describe('parseFormatConfig — strict, a miss names the field', () => {
-  const ctx = { roundCount: 3 };
+  const ctx = { roundCount: 3, format: 'stroke_gross' };
   it('accepts {} and {cut: null} as no cut; refuses an unknown key by name', () => {
     expect(parseFormatConfig({}, ctx)).toEqual({ ok: true, value: {} });
     expect(parseFormatConfig({ cut: null }, ctx)).toEqual({ ok: true, value: {} });
@@ -24,14 +24,43 @@ describe('parseFormatConfig — strict, a miss names the field', () => {
     expect(parseCutRule({ after_round: 1, top_n: 5, extra: 1 }, ctx)).toEqual({ ok: false, error: 'Unknown field: format_config.cut.extra' });
   });
   it('readFormatConfig never throws on a hand-written row; cutLabel reads as English', () => {
-    expect(readFormatConfig(null, 3)).toEqual({});
-    expect(readFormatConfig({ cut: { after_round: 9, top_n: 2 } }, 3)).toEqual({});
-    expect(readFormatConfig({ cut: { after_round: 1, top_n: 2 } }, 1)).toEqual({ cut: { after_round: 1, top_n: 2 } }); // a stored cut survives a round being cancelled
+    expect(readFormatConfig(null, 3, 'stroke_gross')).toEqual({});
+    expect(readFormatConfig({ cut: { after_round: 9, top_n: 2 } }, 3, 'stroke_gross')).toEqual({});
+    expect(readFormatConfig({ cut: { after_round: 1, top_n: 2 } }, 1, 'stroke_net')).toEqual({ cut: { after_round: 1, top_n: 2 } }); // a stored cut survives a round being cancelled
     expect(cutLabel({ after_round: 2, top_n: 20 })).toBe('Cut after round 2 · top 20');
     expect(cutLabel({ after_round: 1, to_par: 4 })).toBe('Cut after round 1 · +4 or better');
     expect(cutLabel({ after_round: 1, to_par: 0 })).toBe('Cut after round 1 · even or better');
     expect(cutLabel({ after_round: 1, to_par: -2 })).toBe('Cut after round 1 · −2 or better');
     expect(cutLabel(null)).toBeNull();
+  });
+});
+
+describe('the match options (phase 3, 212)', () => {
+  const match = { roundCount: 3, format: 'match_net' };
+  it('sides is required and one of three; bracket defaults false; allowance 0..100 whole; unknown keys by name', () => {
+    expect(parseMatchConfig({ sides: 'singles' })).toEqual({ ok: true, value: { sides: 'singles', bracket: false } });
+    expect(parseMatchConfig({ sides: 'fourball', bracket: true, allowance: 85 })).toEqual({ ok: true, value: { sides: 'fourball', bracket: true, allowance: 85 } });
+    expect(parseMatchConfig({})).toMatchObject({ ok: false, error: 'format_config.match.sides must be one of singles, fourball, foursomes' });
+    expect(parseMatchConfig({ sides: 'scramble' })).toMatchObject({ ok: false, error: expect.stringContaining('sides') });
+    expect(parseMatchConfig({ sides: 'singles', bracket: 'yes' })).toMatchObject({ ok: false, error: 'format_config.match.bracket must be true or false' });
+    expect(parseMatchConfig({ sides: 'singles', allowance: 101 })).toMatchObject({ ok: false, error: expect.stringContaining('allowance') });
+    expect(parseMatchConfig({ sides: 'singles', allowance: 90.5 })).toMatchObject({ ok: false });
+    expect(parseMatchConfig({ sides: 'singles', extra_holes: 3 })).toEqual({ ok: false, error: 'Unknown field: format_config.match.extra_holes' });
+  });
+  it('cut and match never coexist: a cut on a match format and a match on a stroke format are refused by name', () => {
+    expect(parseFormatConfig({ match: { sides: 'singles' } }, match)).toEqual({ ok: true, value: { match: { sides: 'singles', bracket: false } } });
+    expect(parseFormatConfig({ match: null }, match)).toEqual({ ok: true, value: {} });
+    expect(parseFormatConfig({ cut: { after_round: 1, top_n: 4 } }, match)).toEqual({ ok: false, error: 'format_config.cut is not allowed on a match-play format' });
+    expect(parseFormatConfig({ match: { sides: 'singles' } }, { roundCount: 3, format: 'stroke_net' })).toEqual({ ok: false, error: 'format_config.match is only allowed on a match-play format' });
+  });
+  it('readMatchConfig: null on a stroke format; a match format with no key reads as singles, no bracket, the WHS allowance; a stored allowance wins', () => {
+    expect(readMatchConfig({}, 'stroke_gross')).toBeNull();
+    expect(readMatchConfig({}, 'match_gross')).toEqual({ sides: 'singles', bracket: false, allowance: 100 });
+    expect(readMatchConfig({ match: { sides: 'foursomes', bracket: true } }, 'match_net')).toEqual({ sides: 'foursomes', bracket: true, allowance: 50 });
+    expect(readMatchConfig({ match: { sides: 'fourball', bracket: false, allowance: 75 } }, 'match_net')).toEqual({ sides: 'fourball', bracket: false, allowance: 75 });
+    expect(MATCH_ALLOWANCE_DEFAULT).toEqual({ singles: 100, fourball: 90, foursomes: 50 });
+    // A stored match key on a row whose format went back to stroke reads as no options (tolerant), never a throw.
+    expect(readFormatConfig({ match: { sides: 'singles' } }, 3, 'stroke_gross')).toEqual({});
   });
 });
 
