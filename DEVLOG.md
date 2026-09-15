@@ -1,5 +1,38 @@
 # Development Log
 
+## September 16, 2026 — Events program, phase 2b, PR 5: event rounds on the calendar (B2, the overlay — zero DDL)
+
+The calendar's fourth read-time list. A participant's upcoming and live
+event rounds appear on their calendar without a row (Tom's B2 decision:
+a read-time overlay; participant status churns, and a mirrored row would
+be a second state machine kept in step from `join-server.ts`). A
+completed round is NOT here — the mirrored golf round in the activity
+overlay is its record.
+
+- `src/lib/calendar/sport-event-overlay.ts` (pure, tested): `sportEvent
+  RoundToItem` — a DATE-only round is all-day on its UTC day with an
+  exclusive end (the 057 convention, the `YMD_RE` guard from the stat-line
+  builder — a malformed date is null, never epoch); the viewer's group
+  `tee_time` makes it TIMED (4h30 for 18, 2h15 for nine); category
+  `tournament`; "{name} · Round n of N" on a tournament; `my_status`
+  `invited` keeps the dashed needs-reply chip, anything else is solid;
+  `is_organizer` from the role; `kind: 'sport_event'`; `id: sport_event:
+  <roundId>`; `sportEventHref` → the event's page on that round (the
+  leaderboard while live). `src/lib/calendar/day.ts utcDay` is now the
+  shared DATE-filter helper (was private to the activity overlay).
+- `sport-event-overlay-server.ts fetchSportEventOverlay(admin, viewerId,
+  from, to)`: active participations (invited · requested · accepted ·
+  waitlisted — followers included; a private event is roster-scoped by
+  construction) → events `open | live` → rounds `scheduled | live` by
+  date, capped at 200 → the viewer's tee time per round. The fourth list
+  in `GET /api/calendar/events`, its own try/catch, read as `readAs`.
+- `src/components/calendar/types.ts kind?: 'activity' | 'sport_event'`
+  (+ `sport_event?`) — a `kind` is no longer "is an activity"; the two
+  click sites (`CalendarPage`, `FeedCalendarWidget`) branch on
+  `'sport_event'` FIRST → `router.push(sportEventHref)`.
+- e2e NEW `sport-events-calendar.spec.ts @mobile`.
+- Parked for PR 9 (needs 211): skipping rounds whose org contest already
+  publishes to the calendar (`contests.event_id`).
 ## September 16, 2026 — Events program, phase 2b, PR 4: the phone tab bar (B4, zero DDL)
 
 Tom's decision: FIVE tabs — Feed · Sports · Live · Calendar · Profile —

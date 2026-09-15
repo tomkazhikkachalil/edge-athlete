@@ -13,6 +13,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { isStatLineData } from '@/lib/sports/stat-schemas';
 import { SPORT_REGISTRY, type SportKey } from '@/lib/sports/SportRegistry';
+import { utcDay } from './day';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Admin = SupabaseClient<any, 'public', any>;
@@ -246,10 +247,6 @@ export function activityHref(activity: ActivityPayload): string {
   }
 }
 
-/** YYYY-MM-DD (UTC) for date-column range filters. */
-function utcDay(ms: number): string {
-  return new Date(ms).toISOString().slice(0, 10);
-}
 
 /**
  * Map round id → the feed post it appears as, in ONE query. Solo rounds are

@@ -8,6 +8,7 @@ import { notifyEventInvites } from '@/lib/calendar/notifications';
 import { formatEventWhen } from '@/lib/calendar/format-server';
 import { buildRoutineSnapshot, type RoutinePlan } from '@/lib/calendar/event-routine';
 import { fetchActivityOverlay } from '@/lib/calendar/activity-overlay';
+import { fetchSportEventOverlay } from '@/lib/calendar/sport-event-overlay-server';
 import { fetchOrgEventsForViewer } from '@/lib/calendar/org-merge-server';
 import { hasEventScope, resolveEventScope } from '@/lib/calendar/event-scope';
 import { enforceRateLimit } from '@/lib/rate-limit';
@@ -105,7 +106,17 @@ export async function GET(request: NextRequest) {
       console.error('[CALENDAR] activity overlay failed:', e);
     }
 
-    return NextResponse.json({ events: [...events, ...orgEvents, ...overlay] });
+    // Sport events (phase 2b): the reader's upcoming and live event rounds,
+    // read-time like the activity overlay (never rows, never the ICS feed);
+    // a tap goes to the event's page. Best-effort like the two above.
+    let sportEvents: Awaited<ReturnType<typeof fetchSportEventOverlay>> = [];
+    try {
+      sportEvents = await fetchSportEventOverlay(admin, readAs, fromMs, toMs);
+    } catch (e) {
+      console.error('[CALENDAR] sport event overlay failed:', e);
+    }
+
+    return NextResponse.json({ events: [...events, ...orgEvents, ...overlay, ...sportEvents] });
   } catch (error) {
     if (error instanceof Response) return error;
     console.error('[CALENDAR] list error:', error);

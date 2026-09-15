@@ -2,6 +2,7 @@
 
 import type { EventRoutine } from '@/lib/calendar/event-routine';
 import type { ActivityPayload } from '@/lib/calendar/activity-overlay';
+import type { SportEventItemPayload } from '@/lib/calendar/sport-event-overlay';
 
 export type MyStatus = 'invited' | 'accepted' | 'declined' | 'maybe';
 export type CalendarViewKind = 'month' | 'week' | 'day' | 'agenda';
@@ -47,11 +48,13 @@ export interface EventListItem {
   /** Present on org-merged list items (fan-out round). */
   is_org_event?: boolean;
   org_name?: string | null;
-  /** Present on completed-activity overlay items; absent on real events.
-   *  Activity items must never open EventDetailModal (guaranteed 404) —
-   *  they deep-link to their home surface instead. */
-  kind?: 'activity';
+  /** Present on read-time overlay items; absent on real events. Neither
+   *  kind may open EventDetailModal (a guaranteed 404): an activity
+   *  previews in place, a sport event round (phase 2b) deep-links to the
+   *  event's page. A `kind` is NOT "is an activity" — branch on the value. */
+  kind?: 'activity' | 'sport_event';
   activity?: ActivityPayload;
+  sport_event?: SportEventItemPayload;
   /** Present on layered /calendar items (calendar round): the 'me' sentinel
    *  and/or child profile ids this event belongs to — see lib/calendar/layers. */
   personIds?: string[];

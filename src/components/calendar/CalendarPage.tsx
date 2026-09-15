@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import dynamic from 'next/dynamic';
 import { useRouter } from 'next/navigation';
+import { sportEventHref } from '@/lib/calendar/sport-event-overlay';
 import { addDays, addMonths, addWeeks, format, startOfDay } from 'date-fns';
 import { useAuth } from '@/lib/auth';
 import { useToast } from '@/components/Toast';
@@ -247,6 +248,11 @@ export default function CalendarPage({
 
   const selectEvent = (id: string) => {
     const item = events.find(e => e.id === id);
+    // A sport event round (phase 2b) IS a place: the event's page, on that round.
+    if (item?.kind === 'sport_event' && item.sport_event) {
+      router.push(sportEventHref(item.sport_event));
+      return;
+    }
     if (item?.kind === 'activity' && item.activity) {
       if (item.activity.post_id) setPreviewPostId(item.activity.post_id);
       else setPreviewActivity({ payload: item.activity, title: item.title });
