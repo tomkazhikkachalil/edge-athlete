@@ -1,5 +1,13 @@
 # Development Log
 
+## September 16, 2026 — Events program, phase 3: the pairs and bracket specs get the time prod needs
+
+The WebKit re-probe (one run at a time this time) passed the cut, the
+match card and the Matches tab; the pairs spec timed out at the default
+minute on both attempts — it took 58 s on Chromium (four players, two
+events, ~60 prod calls). `test.setTimeout(150_000)` on the pairs and the
+bracket specs (the routes test got the same in #787). No product change.
+
 ## September 16, 2026 — Events program, phase 3: the first prod probe (two spec fixes, one bell fix)
 
 The whole chain (#775–#786) merged and 212 / 213 ran; the phase 3 specs

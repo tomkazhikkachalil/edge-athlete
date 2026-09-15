@@ -15,6 +15,7 @@ import { cleanupEvent, completeRound, createEvent, inviteAndAcceptAs, openEventS
  * names its winner.
  */
 test('a bracket: same-day rounds, Fill from winners, the bracket view, the Final\'s winner @mobile', async ({ page }) => {
+  test.setTimeout(150_000); // four players, two events / two rounds against prod — 58 s on Chromium, over the default minute on WebKit
   const s = await openEventSession();
   const admin = adminClient();
   const probe = await admin.from('sport_event_matches').select('id').limit(1);
