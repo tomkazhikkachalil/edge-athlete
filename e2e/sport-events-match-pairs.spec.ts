@@ -13,6 +13,7 @@ import { cardRowFor, cleanupEvent, createEvent, inviteAndAcceptAs, openEventSess
  * pairs; the captain's card counts and the partner's is never read.
  */
 test('pairs: four-ball better ball and foursomes on the captain\'s card, the Side control @mobile', async ({ page }) => {
+  test.setTimeout(150_000); // four players, two events / two rounds against prod — 58 s on Chromium, over the default minute on WebKit
   const s = await openEventSession();
   const admin = adminClient();
   const probe = await admin.from('sport_event_matches').select('id').limit(1);
