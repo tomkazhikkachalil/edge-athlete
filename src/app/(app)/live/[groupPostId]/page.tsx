@@ -290,7 +290,7 @@ export default function LiveRoundPage() {
           view now gets the full panel. */}
       <div className="w-full max-w-2xl mx-auto px-4 pt-3 pb-2 flex items-center justify-between gap-3">
         <Link
-          href={scorecard.sport_event ? `/events/${scorecard.sport_event.id}?tab=leaderboard` : '/live'}
+          href={scorecard.sport_event ? `/events/${scorecard.sport_event.id}?tab=${scorecard.sport_event.match ? 'matches' : 'leaderboard'}` : '/live'}
           className="inline-flex items-center gap-2 text-sm font-semibold text-brand-fg-strong hover:text-violet-800 dark:hover:text-violet-300 min-h-[44px]"
           data-live-back=""
         >

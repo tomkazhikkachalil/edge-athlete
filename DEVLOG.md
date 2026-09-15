@@ -1,5 +1,32 @@
 # Development Log
 
+## September 16, 2026 — Events program, phase 3, PR 8: the group card's MatchStrip (zero DDL, @mobile)
+
+- `scorecard-context.ts`: the scorecard GET's `sport_event` carries
+  `match` on a match round — the viewer's group's match computed on read
+  (`fetchRoundMatches` for that one group), projected like the route's,
+  plus `config` (sides, bracket, allowance) and `side_of_viewer`; the
+  group's members carry `side`.
+- `GroupScoreCard`: on a match round the columns are the COUNTING cards
+  (`match-view.ts matchColumns` — foursomes shows the captains, headed
+  "Ann & Al", side 1 first); the **MatchStrip** above the grid carries the
+  engine's status line and the match line, "Concede hole n" for the
+  viewer's side on the selected hole (a hole not yet played or conceded)
+  and "Concede the match" (a confirm); a conceded hole's row reads
+  "conceded"; the **extra-hole editor** replaces the footer when the
+  match is all square after the last — a NumberWheel per counting player
+  resting on the hole's par, saved through the match route with the
+  match `version` (never the outbox: an extra hole cannot enter
+  `golf_hole_scores`); the footer never offers "Submit my card" on a match
+  round. The back links (the card's and the live page's) land on
+  `?tab=matches`.
+- e2e `sport-events-match-card.spec.ts @mobile` (self-skips before 212):
+  two columns, the back link, "Not started", no Submit; A scores holes 1–2
+  through the grid, B through the API → "All square thru 2"; B concedes
+  hole 3 → "1 UP thru 3" and the hole reads conceded; A concedes hole 4
+  from the strip → "All square thru 4"; holes 5–9 halved → the extra-hole
+  editor, B's wheel to 5 → "wins · 10 holes", the editor gone.
+
 ## September 16, 2026 — Events program, phase 3, PR 7: the Matches tab (zero DDL, @mobile)
 
 - `tabs.ts`: `matches` joins the tabs — shown on a match format INSTEAD

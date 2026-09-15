@@ -94,6 +94,12 @@ export interface EventMatchesPayload {
   computed_at: string;
 }
 
+/** The group card's columns on a match round: the counting cards only (foursomes → the captains), side 1 first, then by position. */
+export function matchColumns<T extends { participant_id: string; profile_id: string; position: number; side?: 1 | 2 | null }>(members: ReadonlyArray<T>, cardParticipantIds: ReadonlyArray<string>): T[] {
+  const counting = new Set(cardParticipantIds);
+  return [...members].filter(m => counting.has(m.participant_id)).sort((a, b) => ((a.side ?? 3) - (b.side ?? 3)) || (a.position - b.position));
+}
+
 /** The match a viewer may act on: the side they play (by profile), or null. */
 export function sideOfViewer(match: Pick<MatchView, 'sides'>, profileId: string | null): Side | null {
   if (!profileId) return null;
