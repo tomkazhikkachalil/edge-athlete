@@ -83,6 +83,8 @@ export interface WizardState {
   visibility: SportEventVisibility;
   join_mode: SportEventJoinMode;
   org: { kind: 'club' | 'league'; id: string } | null;
+  /** Phase 2b: the org's competition the event counts toward (only with an org). */
+  competition: string | null;
   /** The rounds in order (1..MAX_ROUNDS); a tournament is more than one. */
   rounds: RoundDraft[];
   format: SportEventFormat;
@@ -91,7 +93,7 @@ export interface WizardState {
 }
 
 export function emptyWizardState(): WizardState {
-  return { name: '', description: '', visibility: 'private', join_mode: 'invite', org: null, rounds: [emptyRoundDraft()], format: 'stroke_gross', capacity: '', host_plays: true };
+  return { name: '', description: '', visibility: 'private', join_mode: 'invite', org: null, competition: null, rounds: [emptyRoundDraft()], format: 'stroke_gross', capacity: '', host_plays: true };
 }
 
 function isRoundDirty(r: RoundDraft): boolean {
@@ -101,7 +103,7 @@ function isRoundDirty(r: RoundDraft): boolean {
 
 export function isWizardDirty(s: WizardState): boolean {
   const e = emptyWizardState();
-  return s.name !== e.name || s.description !== e.description || s.rounds.length !== 1 || s.rounds.some(isRoundDirty) || s.capacity !== '' || s.visibility !== e.visibility || s.join_mode !== e.join_mode || s.org !== null || s.format !== e.format || s.host_plays !== e.host_plays;
+  return s.name !== e.name || s.description !== e.description || s.rounds.length !== 1 || s.rounds.some(isRoundDirty) || s.capacity !== '' || s.visibility !== e.visibility || s.join_mode !== e.join_mode || s.org !== null || s.competition !== null || s.format !== e.format || s.host_plays !== e.host_plays;
 }
 
 /** "Add a round": the previous round's course, tees and holes with an empty date (36 holes in a weekend is the common case). Refused at MAX_ROUNDS. */
@@ -169,6 +171,7 @@ export function wizardToCreateBody(s: WizardState, opts: { publish: boolean; pro
     capacity: s.capacity.trim() === '' ? null : Number(s.capacity),
     club_id: s.org?.kind === 'club' ? s.org.id : null,
     league_id: s.org?.kind === 'league' ? s.org.id : null,
+    competition_id: s.org ? s.competition : null,
     host_plays: s.host_plays,
     publish: opts.publish,
     profile_id: opts.profileId,

@@ -39,6 +39,8 @@ export interface CreateEventInput {
   capacity: number | null;
   club_id: string | null;
   league_id: string | null;
+  /** Phase 2b: the org's competition the event counts toward (needs an org); the route mints the contests. */
+  competition_id: string | null;
   /** The host plays (default true); false = organizes only. */
   host_plays: boolean;
   /** true = create as `open` (the wizard's Publish); false = draft. */
@@ -169,6 +171,9 @@ export function parseCreateBody(body: unknown): Parsed<CreateEventInput> {
   const league = optionalUuid(body.league_id, 'league_id');
   if (!league.ok) return league;
   if (club.value && league.value) return { ok: false, error: 'An event belongs to a club or a league, not both' };
+  const competition = optionalUuid(body.competition_id, 'competition_id');
+  if (!competition.ok) return competition;
+  if (competition.value && !club.value && !league.value) return { ok: false, error: 'competition_id needs a club or a league' };
   const profile = optionalUuid(body.profile_id, 'profile_id');
   if (!profile.ok) return profile;
   if (body.host_plays !== undefined && typeof body.host_plays !== 'boolean') return { ok: false, error: 'host_plays must be true or false' };
@@ -187,6 +192,7 @@ export function parseCreateBody(body: unknown): Parsed<CreateEventInput> {
       capacity: cap.value,
       club_id: club.value,
       league_id: league.value,
+      competition_id: competition.value,
       host_plays: body.host_plays !== false,
       publish: body.publish === true,
       profile_id: profile.value,

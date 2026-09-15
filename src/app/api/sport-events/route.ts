@@ -2,14 +2,17 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerAuth, getSupabaseAdmin } from '@/lib/auth-server';
 import { enforceRateLimit } from '@/lib/rate-limit';
 import { requireOrgManager } from '@/lib/orgs/structure-server';
+import { LINK_REFUSAL_COPY, linkRefusal, type CompetitionForLink } from '@/lib/sport-events/contest-link';
+import { mintContestsForEvent, readCompetitionForLink } from '@/lib/sport-events/contest-link-server';
 import { resolveSportEventAccess } from '@/lib/sport-events/access';
+import { ROUND_COLUMNS } from '@/lib/sport-events/rounds-server';
 import { EVENT_COLUMNS, PARTICIPANT_COLUMNS } from '@/lib/sport-events/access-server';
 import { readJson, resolveActor } from '@/lib/sport-events/actor-server';
 import { snapshotAtAccept } from '@/lib/sport-events/handicap-server';
 import { applyTransition } from '@/lib/sport-events/lifecycle-server';
 import { mintLinkToken } from '@/lib/sport-events/link-token';
 import { snapshotRound, startsOnFor, type RoundSnapshot } from '@/lib/sport-events/rounds-server';
-import type { SportEventParticipantRow, SportEventRow } from '@/lib/sport-events/types';
+import type { SportEventParticipantRow, SportEventRow, SportEventRoundRow } from '@/lib/sport-events/types';
 import { isDateOnly, parseCreateBody, parseListScope } from '@/lib/sport-events/validate';
 import { projectEvent } from '@/lib/sport-events/view';
 import { fetchSportEventView } from '@/lib/sport-events/view-server';
@@ -49,6 +52,13 @@ export async function POST(request: NextRequest) {
       const side = input.club_id ? 'club' : 'league';
       const gate = await requireOrgManager(admin, user, side, (input.club_id ?? input.league_id) as string, { intent: 'manage_competitions' });
       if (!gate.ok) return gate.response;
+    }
+    // Phase 2b: "Counts toward" — refused by name BEFORE any insert.
+    let competition: CompetitionForLink | null = null;
+    if (input.competition_id) {
+      competition = await readCompetitionForLink(admin, input.competition_id);
+      const refusal = linkRefusal({ club_id: input.club_id, league_id: input.league_id, status: 'draft' }, competition);
+      if (refusal) return NextResponse.json({ error: LINK_REFUSAL_COPY[refusal], reason: refusal }, { status: 400 });
     }
 
     // Every round's catalog snapshot BEFORE any insert: a missing course refuses the whole create.
@@ -106,6 +116,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Could not create the event' }, { status: 500 });
     }
     if (input.host_plays) await snapshotAtAccept(admin, host as SportEventParticipantRow);
+
+    // Phase 2b: one contest per round on the chosen competition (best-effort — the
+    // organizer can pick it again from the event page; a pre-211 database skips).
+    if (competition) {
+      const { data: roundRows } = await admin.from('sport_event_rounds').select(ROUND_COLUMNS).eq('sport_event_id', row.id).order('sequence', { ascending: true });
+      const minted = await mintContestsForEvent(admin, row, (roundRows ?? []) as SportEventRoundRow[], competition.id);
+      if (!minted.ok) console.error('[api/sport-events] counts-toward mint skipped:', minted.reason);
+    }
 
     if (input.publish) {
       const opened = await applyTransition(admin, { eventId: row.id, to: 'open', actorProfileId: actor.profileId });

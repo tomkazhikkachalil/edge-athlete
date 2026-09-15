@@ -49,6 +49,7 @@ export function eventApi(eventId: string, token: string | null) {
     rotateLink: () => call<{ link_token: string }>(`${base}/link-token`, { method: 'POST', body: '{}' }),
     patchEvent: (patch: Record<string, unknown>) => call<SportEventViewPayload>(base, { method: 'PATCH', body: JSON.stringify(patch) }),
     saveFlights: (assignments: Array<{ participant_id: string; flight: string | null }>) => call<SportEventViewPayload>(`${base}/flights`, { method: 'PUT', body: JSON.stringify({ assignments }) }),
+    setContest: (competitionId: string | null) => call<{ counts_toward: unknown; reason?: string }>(`${base}/contest`, { method: 'PUT', body: JSON.stringify({ competition_id: competitionId }) }),
     roundTransition: (roundId: string, to: string, extra: Record<string, unknown> = {}) => call<SportEventViewPayload>(`${base}/rounds/${roundId}/transition`, { method: 'POST', body: JSON.stringify({ to, ...extra }) }),
     addRound: (body: Record<string, unknown>) => call<SportEventViewPayload>(`${base}/rounds`, { method: 'POST', body: JSON.stringify(body) }),
     updateRound: (roundId: string, body: Record<string, unknown>) => call<SportEventViewPayload>(`${base}/rounds/${roundId}`, { method: 'PUT', body: JSON.stringify(body) }),

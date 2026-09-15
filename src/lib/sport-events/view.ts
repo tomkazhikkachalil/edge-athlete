@@ -157,6 +157,20 @@ export interface GroupView extends SportEventGroupRow {
   members: Array<Pick<SportEventGroupMemberRow, 'id' | 'participant_id' | 'position'>>;
 }
 
+/** Phase 2b: the org the event is hosted for, by name. */
+export interface HostOrgView {
+  side: 'club' | 'league';
+  id: string;
+  name: string;
+}
+
+/** Phase 2b (211): the competition the event counts toward and its contest per round. */
+export interface CountsTowardView {
+  competition_id: string;
+  competition_name: string;
+  contests: Array<{ round_id: string; contest_id: string }>;
+}
+
 /** The whole GET payload. */
 export interface SportEventViewPayload {
   event: EventView;
@@ -165,6 +179,10 @@ export interface SportEventViewPayload {
   groups: GroupView[];
   counts: { playing: number; followers: number; waitlisted: number };
   viewer: ViewerView;
+  /** null when the event is the host's own. */
+  host_org: HostOrgView | null;
+  /** null when the event counts toward nothing (or pre-211). */
+  counts_toward: CountsTowardView | null;
 }
 
 export function roundCounts(rows: SportEventParticipantRow[]): SportEventViewPayload['counts'] {

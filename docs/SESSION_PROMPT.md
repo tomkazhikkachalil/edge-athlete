@@ -4,17 +4,16 @@
 > development session. Last aligned with project state: **September 16, 2026
 > (after the Site Builder programs 1–3, #616–#707, the Contest Place and
 > Recruiting programs #661–#669, the Data foundation and provenance rounds
-> #709–#731, the Events program #732–#748, and Events phase 2 —
-> tournaments — #750–#760)** — migration head 207 (`207_sport_events_
-> format_config.sql`: Tom runs it after merging #756, then `npm run
-> check:schema`; PR 8 — the cut and round names wired — merges only after
-> that); `main` deployed and every PR prod-probed (the probe waits for the
-> deploy by itself); **phase 2b of Events (contest stamping, the calendar
-> overlay + .ics + reminder bell, the per-hole version, the five-tab bar)
-> is decided and specified in the phase 2 plan file — the next program is
-> Tom's call**. If the "Where the project actually is"
-> section drifts stale, ask Claude to re-align it against DEVLOG.md and
-> session memory.
+> #709–#731, the Events program #732–#748, Events phase 2 — tournaments —
+> #750–#762, and Events phase 2b — the integrations — #763–#773)** —
+> migration head 211 (`211_contests_sport_event_round.sql`); `main`
+> deployed and every PR prod-probed (the probe waits for the deploy by
+> itself; "NNN ran" means `npm run check:schema` is OK — it asks the schema
+> question BOTH ways). **The next program is Tom's call** (Events phase 3:
+> match play and brackets, from the parked list; or competition formats,
+> performance readers, the multi-sport pipeline). If the "Where the project
+> actually is" section drifts stale, ask Claude to re-align it against
+> DEVLOG.md and session memory.
 
 ## Context & Vision
 

@@ -45,7 +45,7 @@ describe('the wizard rules', () => {
   });
   it('the body is the create route\'s shape; a nine keeps its start, an eighteen starts on 1; blanks become null', () => {
     expect(wizardToCreateBody(filled(), { publish: true, profileId: null })).toEqual({
-      name: 'Spring Open', description: null, sport_key: 'golf', visibility: 'private', join_mode: 'invite', format: 'stroke_net', capacity: 8, club_id: null, league_id: null, host_plays: true, publish: true, profile_id: null,
+      name: 'Spring Open', description: null, sport_key: 'golf', visibility: 'private', join_mode: 'invite', format: 'stroke_net', capacity: 8, club_id: null, league_id: null, competition_id: null, host_plays: true, publish: true, profile_id: null,
       round: { scheduled_on: '2030-06-01', name: null, course_id: null, course_name: 'Eagle Creek', tee: null, holes: 9, starting_hole: 10 },
     });
     const body = wizardToCreateBody({ ...filled(), rounds: [{ ...round1, holes: 18, tee: ' Blue ' }], org: { kind: 'club', id: 'c1' } }, { publish: false, profileId: 'child' });
