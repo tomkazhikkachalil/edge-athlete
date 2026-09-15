@@ -50,8 +50,8 @@ ALTER TABLE notifications
 NOTIFY pgrst, 'reload schema';
 
 -- ── Result (ONE row; the twin under tests/diagnostics/ is the grid) ─────────
--- Expected: 210 APPLIED | 62 | 1
+-- Expected: 210 APPLIED | 65 | 1
 SELECT '210 APPLIED' AS result,
-       (SELECT count(*) FROM regexp_matches(pg_get_constraintdef(oid), '''[a-z_]+''', 'g')) AS types_expect_62,
+       (SELECT count(*) FROM regexp_matches(pg_get_constraintdef(oid), '''[a-z_]+''', 'g')) AS types_expect_65,
        (pg_get_constraintdef(oid) LIKE '%sport_event_reminder%')::int AS carries_reminder_expect_1
   FROM pg_constraint WHERE conname = 'notifications_type_check';

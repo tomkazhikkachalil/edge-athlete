@@ -1,5 +1,30 @@
 # Development Log
 
+## September 16, 2026 — Events program, phase 2b: B3 + B4 + B2 merged and prod-proven; the catalog re-saved after 209 (zero DDL)
+
+Tom merged #763–#769 in one go and ran 209 and 210. 209 confirmed live
+(`golf_hole_scores.version` answers; `check:schema` OK on every facet —
+the reverse question, the function, the trigger); 210's result row read
+`210 APPLIED | 65 | 1` — the "62" in my labels was a miscount (the 205
+list carried 64 types, not 61); the migration's alias, the twin, and the
+docs now say 65.
+
+- Prod probes on main e044211d, all green: `sport-events-scoring`
+  (desktop); `sport-events-scoring-conflict` and `sport-events-group-card`
+  (mobile + webkit-mobile — the first real run of the per-hole CAS);
+  `tab-bar` (mobile + webkit-mobile + desktop); `sport-events-calendar`
+  (mobile + webkit-mobile); `sport-events-reminder` (desktop, after 210);
+  `sport-events-notifications` and `sports-nav` as regressions.
+- The catalog re-saved after 209 (`database/provenance/dumps/2026-09-16-
+  post-209-catalog.json` — 106 functions, 102 triggers); the catalog unit
+  test's named tolerance for 209's trigger claim is gone. Trap: the test
+  reads the LAST catalog by filename sort, so a new dump's name must sort
+  after the previous one (a date-only name that sorts earlier is ignored).
+- Trap (chains): every PR adds a DEVLOG entry at the top and Events-doc
+  rows at the same anchor, so two parallel PR chains conflict on the
+  second merge — phase 2b's seven PRs were folded into ONE linear chain
+  before merging.
+
 ## September 16, 2026 — Events program, phase 2b, PR 3: the client half of the per-hole compare-and-set (merges with PR 2)
 
 - `score-outbox.ts`: an entry carries the HOLE's `expectedVersion` (0 =
@@ -71,9 +96,9 @@ Tom: "add the reminder bell too". Both Vercel cron slots are taken, so it
 is a STEP in `/api/cron/daily` (after the golf window reminders), not a
 cron.
 
-- **210** re-declares `notifications_type_check` (the 205 shape, the 61
-  values verbatim + `sport_event_reminder` = 62; ONE result row `210
-  APPLIED | 62 | 1`; twin `verify-210-sport-event-reminder.sql`). The
+- **210** re-declares `notifications_type_check` (the 205 shape, the 64
+  values verbatim + `sport_event_reminder` = 65; ONE result row `210
+  APPLIED | 65 | 1`; twin `verify-210-sport-event-reminder.sql`). The
   registry gains the entry (the parity test).
 - `src/lib/sport-events/reminders.ts` (pure, tested): `reminderCopy`
   ("Tomorrow: {name} · Round n of N" / "{day} · {round name} · {course}" →
