@@ -1,5 +1,43 @@
 # Development Log
 
+## September 16, 2026 — Events program, phase 3, PR 5: the lifecycle of a match round (zero DDL)
+
+- **The gate is the matches', never the cards'.** `lifecycle.ts` gains
+  two refusals: `groups_incomplete` at start (every group needs its two
+  full sides — a one-side group is a bye on a bracket only; no draw at all
+  refuses too; the error names the groups) and `matches_undecided` at
+  completion (`override` never bypasses it — a conceded hole has no
+  strokes, so cards can never read complete; the organizer decides an
+  open match from the page; the error names the open matches).
+  `RoundTransitionFacts.match` carries both counts; null on a stroke
+  format, where `cards_not_final` keeps its rule.
+- **A match round fields ONLY its draw**: `roundFieldExclusions` (the one
+  helper the mint and the completion share) returns the accepted players
+  outside this round's groups on a match format — a late acceptor is
+  drawn into a later round by hand (`syncRoundRoster` skips `add` on a
+  live match round; `drop` still marks the row). The host's creator row
+  is minted regardless.
+- **`match-server.ts`** — the I/O half: `fetchRoundMatches` (the draw,
+  the rows, the cards on the minted round, the names, the course
+  handicaps → `computeMatch`, on every read); `mintMatches` (one row per
+  group at start, idempotent on the group UNIQUE; a bracket bye decided
+  at mint); `closeMatchesOnCompletion` (the outcome written ONCE for
+  every match decided by the holes or the extra holes — a concession, a
+  decision or a bye was stored at the act); `writeMatch`, the ONE writer
+  (a compare-and-set on `version`; 0 rows = conflict, the caller re-reads
+  and replays).
+- The scorecard row reads `game_format 'match'` (032's CHECK admits it;
+  no card reader branches on it); completion finalizes every card as it
+  stands and writes the matches instead of the org contest (a match event
+  never counts toward one); the results bell lands on `?tab=matches`.
+- e2e `sport-events-match-api.spec.ts` grows a second test (self-skips
+  before 212): no draw → `groups_incomplete`; a one-side group names it;
+  A vs B starts → a match card, one match row, a second start mints no
+  second row; `matches_undecided` even with the override; five holes 4s
+  vs 5s → the round completes WITHOUT the override, the row reads
+  `holes · 1 · 5&4 · version 1`, every card final, B's results bell on
+  the Matches tab.
+
 ## September 16, 2026 — Events program, phase 3, PR 4: the match-play vocabulary (the first 212 reader, zero DDL)
 
 The first PR that names 212's objects — it merges only after Tom ran 212

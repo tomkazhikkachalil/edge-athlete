@@ -136,7 +136,11 @@ export type RoundTransitionRefusal =
   | 'no_players'
   | 'round_not_minted'
   | 'cards_not_final'
-  | 'last_round';
+  | 'last_round'
+  /** Phase 3: a match round starts only with a complete draw (every group two full sides; a one-side group is a bye on a bracket only). */
+  | 'groups_incomplete'
+  /** Phase 3: a match round completes only when every match has a winner — `override` never bypasses it (a conceded hole has no strokes; the organizer decides from the page). */
+  | 'matches_undecided';
 
 export interface RoundTransitionFacts {
   eventStatus: SportEventStatus;
@@ -147,6 +151,8 @@ export interface RoundTransitionFacts {
   /** THIS round's FIELD (one entry per minted accepted-playing player; no card = in_progress) — never the roster. */
   cards: Array<{ status: 'in_progress' | 'submitted' | 'final' }>;
   override?: boolean;
+  /** Phase 3: on a MATCH format the round's draw and its matches — the gate is theirs, never the cards'. Null / absent on a stroke format. */
+  match?: { groupsIncomplete: number; undecided: number } | null;
 }
 
 export type RoundTransitionVerdict = { ok: true } | { ok: false; reason: RoundTransitionRefusal };
@@ -164,10 +170,15 @@ export function validateRoundTransition(to: SportEventRoundStatus, facts: RoundT
     if (others.some(r => r.status === 'live')) return { ok: false, reason: 'another_round_live' };
     if (others.some(r => r.sequence < facts.round.sequence && r.status !== 'completed' && r.status !== 'cancelled')) return { ok: false, reason: 'earlier_round_pending' };
     if (facts.acceptedPlaying < 1) return { ok: false, reason: 'no_players' };
+    if (facts.match && facts.match.groupsIncomplete > 0) return { ok: false, reason: 'groups_incomplete' };
     if (!facts.round.groupPostMinted) return { ok: false, reason: 'round_not_minted' };
   }
-  if (to === 'completed' && !facts.override) {
-    if (!fieldFinal(facts.cards)) return { ok: false, reason: 'cards_not_final' };
+  if (to === 'completed') {
+    if (facts.match) {
+      if (facts.match.undecided > 0) return { ok: false, reason: 'matches_undecided' };
+    } else if (!facts.override && !fieldFinal(facts.cards)) {
+      return { ok: false, reason: 'cards_not_final' };
+    }
   }
   if (to === 'cancelled') {
     if (!others.some(r => r.status !== 'cancelled')) return { ok: false, reason: 'last_round' };
@@ -206,4 +217,6 @@ export const ROUND_REFUSAL_COPY: Readonly<Record<RoundTransitionRefusal, string>
   round_not_minted: 'The round could not be started. Try again.',
   cards_not_final: 'Some scorecards are not final yet. Mark them final, or complete anyway to finalize them as they stand.',
   last_round: 'An event needs at least one round — cancel the event instead.',
+  groups_incomplete: 'Every match needs its two sides before the round starts. Finish the draw.',
+  matches_undecided: 'A match is still undecided. Play it out, concede it, or decide it from the Matches tab — the round completes when every match has a winner.',
 };
