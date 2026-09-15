@@ -25,6 +25,14 @@ async function call<T>(url: string, init?: RequestInit): Promise<ApiResult<T>> {
 }
 
 const q = (token: string | null) => (token ? `?token=${encodeURIComponent(token)}` : '');
+/** The token plus an optional flight filter. */
+const qs = (token: string | null, flight?: string | null) => {
+  const p = new URLSearchParams();
+  if (token) p.set('token', token);
+  if (flight) p.set('flight', flight);
+  const str = p.toString();
+  return str ? `?${str}` : '';
+};
 
 export function eventApi(eventId: string, token: string | null) {
   const base = `/api/sport-events/${eventId}`;
@@ -47,7 +55,8 @@ export function eventApi(eventId: string, token: string | null) {
     scorecard: (groupPostId: string) => call<{ scorecard: { participants: import('./cards-view').ScorecardParticipant[] } }>(`/api/group-posts/${groupPostId}/scorecard`),
     submitCard: (pid: string) => call<{ card: { status: string } }>(`${base}/cards/${pid}/submit`, { method: 'POST', body: '{}' }),
     finalizeCard: (pid: string, reopen = false) => call<{ card: { status: string } }>(`${base}/cards/${pid}/finalize`, { method: 'POST', body: JSON.stringify({ reopen }) }),
-    leaderboard: (roundId: string) => call<import('./leaderboard-server').RoundLeaderboard>(`${base}/rounds/${roundId}/leaderboard${q(token)}`),
+    leaderboard: (roundId: string, flight?: string | null) => call<import('./leaderboard-server').RoundLeaderboard>(`${base}/rounds/${roundId}/leaderboard${qs(token, flight)}`),
+    overall: (flight?: string | null) => call<import('./leaderboard-server').OverallLeaderboard>(`${base}/leaderboard${qs(token, flight)}`),
   };
 }
 

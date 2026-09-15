@@ -36,6 +36,8 @@ export interface LeaderboardPlayer {
   name: string;
   handle: string | null;
   handicapIndex: number | null;
+  /** The participant's flight (phase 2) — carried through to the row; the overall board segments by it. */
+  flight?: string | null;
   holeScores: Array<{ hole_number: number; strokes: number | null }>;
   cardStatus: 'in_progress' | 'submitted' | 'final';
 }
@@ -56,6 +58,7 @@ export interface LeaderboardRow {
   profileId: string;
   name: string;
   handle: string | null;
+  flight: string | null;
   rank: number | null;
   tied: boolean;
   rankLabel: string;
@@ -174,6 +177,7 @@ function toRow(s: Scored, rank: number | null, tied: boolean): LeaderboardRow {
     profileId: s.player.profileId,
     name: s.player.name,
     handle: s.player.handle,
+    flight: s.player.flight ?? null,
     rank,
     tied,
     rankLabel: formatRank(rank, tied),

@@ -12,6 +12,7 @@ export interface FieldRow {
   id: string;
   profile_id: string;
   handicap_index: number | null;
+  flight?: string | null;
 }
 
 export interface CardRow {
@@ -33,6 +34,7 @@ export function toLeaderboardPlayers(field: FieldRow[], cards: CardRow[], profil
       name: p ? publicDisplayName(p) : 'Athlete',
       handle: p ? publicHandle(p) : null,
       handicapIndex: f.handicap_index,
+      flight: f.flight ?? null,
       holeScores: c?.card?.hole_scores ?? [],
       cardStatus: status === 'submitted' || status === 'final' ? status : 'in_progress',
     };
