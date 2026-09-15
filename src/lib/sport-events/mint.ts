@@ -57,13 +57,14 @@ export function groupPostRow(event: Pick<SportEventRow, 'host_profile_id' | 'nam
   };
 }
 
-export function scorecardRow(round: Pick<SportEventRoundRow, 'course_name' | 'course_id' | 'holes' | 'tee' | 'slope_rating' | 'course_rating' | 'hole_data'>, groupPostId: string) {
+/** `gameFormat` (phase 3): 'match' on a match-format round — 032's CHECK admits it; the card readers never branch on it. */
+export function scorecardRow(round: Pick<SportEventRoundRow, 'course_name' | 'course_id' | 'holes' | 'tee' | 'slope_rating' | 'course_rating' | 'hole_data'>, groupPostId: string, gameFormat: 'stroke' | 'match' = 'stroke') {
   return {
     group_post_id: groupPostId,
     course_name: round.course_name,
     course_id: round.course_id,
     round_type: 'outdoor' as const,
-    game_format: 'stroke' as const,
+    game_format: gameFormat,
     holes_played: round.holes,
     tee_color: round.tee,
     slope_rating: round.slope_rating,

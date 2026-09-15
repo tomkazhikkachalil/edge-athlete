@@ -39,7 +39,7 @@ export type MatchFormat = 'match_gross' | 'match_net';
 export type { Side } from './match-types';
 export { MATCH_ALLOWANCE_DEFAULT } from './format-config';
 export const MATCH_SIDE_SIZE: Readonly<Record<MatchSides, 1 | 2>> = { singles: 1, fourball: 2, foursomes: 2 };
-export const MATCH_SIDES_LABEL: Readonly<Record<MatchSides, string>> = { singles: 'Singles', fourball: 'Four-ball', foursomes: 'Foursomes' };
+export { MATCH_SIDES_LABEL } from './format';
 export const EXTRA_HOLE_MAX = 9;
 
 export interface MatchPlayer {

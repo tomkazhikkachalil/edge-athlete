@@ -85,6 +85,17 @@ describe('the round lifecycle (phase 2)', () => {
     expect(validateRoundTransition('completed', rf({ eventStatus: 'live', round: live, cards: [{ status: 'in_progress' }], override: true }))).toEqual({ ok: true });
   });
 
+  it('phase 3: a match round starts only with a complete draw and completes only when every match is decided — override never bypasses it, the cards never gate it', () => {
+    const live = { sequence: 1, status: 'live' as const, groupPostMinted: true };
+    expect(validateRoundTransition('live', rf({ match: { groupsIncomplete: 2, undecided: 0 } }))).toEqual({ ok: false, reason: 'groups_incomplete' });
+    expect(validateRoundTransition('live', rf({ match: { groupsIncomplete: 0, undecided: 0 } }))).toEqual({ ok: true });
+    expect(validateRoundTransition('completed', rf({ eventStatus: 'live', round: live, match: { groupsIncomplete: 0, undecided: 1 }, override: true }))).toEqual({ ok: false, reason: 'matches_undecided' });
+    expect(validateRoundTransition('completed', rf({ eventStatus: 'live', round: live, cards: [{ status: 'in_progress' }], match: { groupsIncomplete: 0, undecided: 0 } }))).toEqual({ ok: true });
+    expect(validateRoundTransition('completed', rf({ eventStatus: 'live', round: live, cards: [{ status: 'in_progress' }], match: null }))).toEqual({ ok: false, reason: 'cards_not_final' });
+    expect(ROUND_REFUSAL_COPY.groups_incomplete).toBeTruthy();
+    expect(ROUND_REFUSAL_COPY.matches_undecided).toBeTruthy();
+  });
+
   it('a scheduled round cancels unless it is the last non-cancelled round', () => {
     expect(validateRoundTransition('cancelled', rf())).toEqual({ ok: true });
     expect(validateRoundTransition('cancelled', rf({ rounds: [{ sequence: 1, status: 'scheduled' }] }))).toEqual({ ok: false, reason: 'last_round' });

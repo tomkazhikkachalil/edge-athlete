@@ -12,3 +12,11 @@ describe('the sport_event_* bell copy', () => {
     expect(eventPath('e1', 'leaderboard')).toBe('/events/e1?tab=leaderboard');
   });
 });
+
+describe('phase 3 — the results bell on a match event', () => {
+  it('lands on the Matches tab, the leaderboard otherwise', () => {
+    expect(eventPath('e1', 'matches')).toBe('/events/e1?tab=matches');
+    expect(bellCopy('results', { eventId: 'e1', eventName: 'Cup', actorName: '', matchPlay: true })).toMatchObject({ type: 'sport_event_results', action_url: '/events/e1?tab=matches' });
+    expect(bellCopy('results', { eventId: 'e1', eventName: 'Cup', actorName: '' }).action_url).toBe('/events/e1?tab=leaderboard');
+  });
+});

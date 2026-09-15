@@ -535,6 +535,7 @@ matches 2k−1 and 2k of round n by group `sequence` (`bracket.ts`).
 | 2 (#776) | the pure engine `match.ts` (status, playing handicaps, concessions, extra holes, the write refusals) + `bracket.ts` |
 | 3 (#777) | migration 212 |
 | 4 | the vocabulary: `match_gross \| match_net`; `format_config.match {sides, bracket, allowance?}` (strict; `cut` ⊕ `match`; the format is part of the parse); `event.match` on the view (defaults filled); the groups PUT takes a `side` per member (derived from the position for a plain id; refused by name on a stroke event); `not_stroke_play` for "counts toward"; the wizard's four formats + sides + bracket; `FormatSettingsWindow` hosts the match shape |
+| 5 | the lifecycle of a match round: `groups_incomplete` at start (the draw complete; a bye on a bracket only), `matches_undecided` at completion (override never bypasses it; the cards never gate a match round); a match round fields ONLY its draw (`roundFieldExclusions`; a late acceptor waits for the next draw); `match-server.ts` — `fetchRoundMatches` (computed on every read), `mintMatches` (one row per group, idempotent; a bye decided at mint), `closeMatchesOnCompletion` (the outcome written once), `writeMatch` (the one CAS writer); the card reads `game_format 'match'`; the results bell → `?tab=matches` |
 
 ## Phase 2b status
 

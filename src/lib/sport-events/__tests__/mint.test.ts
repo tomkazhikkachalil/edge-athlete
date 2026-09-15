@@ -29,6 +29,7 @@ describe('the mint rows', () => {
     expect(card).toMatchObject({ group_post_id: 'gp', course_id: 'course', round_type: 'outdoor', game_format: 'stroke', holes_played: 9, tee_color: 'Blue', slope_rating: 128, course_rating: 35.6 });
     expect(card.hole_data).toEqual([{ hole: 10, par: 4, yardage: 400, handicap: 8 }, { hole: 11, par: 3 }]);
     expect(scorecardRow({ ...round, hole_data: null }, 'gp').hole_data).toBeNull();
+    expect(scorecardRow(round, 'gp', 'match').game_format).toBe('match'); // phase 3: a match round's card (032's CHECK admits it)
   });
   it('participant rows carry the plan order and are confirmed at mint', () => {
     const rows = participantRows({ groupPost: { type: 'golf_round', visibility: 'public' }, participantRows: [{ profile_id: 'host', role: 'creator', status: 'confirmed', position: 1 }, { profile_id: 'b', role: 'participant', status: 'confirmed', position: 2 }] }, 'gp', 'now');

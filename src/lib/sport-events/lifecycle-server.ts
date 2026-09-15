@@ -36,10 +36,12 @@ import { notifyResults } from './notify';
 import { syncContestStatus, syncSportEventContest } from './contest-sync-server';
 import { ROUND_COLUMNS } from './rounds-server';
 import { cutDecided } from './cut';
-import { readFormatConfig } from './format-config';
+import { readFormatConfig, readMatchConfig } from './format-config';
+import { groupsIncomplete } from './match';
+import { closeMatchesOnCompletion, fetchRoundMatches, mintMatches, readRoundGroups, type RoundGroup, type RoundMatch } from './match-server';
 import { fetchOverallLeaderboard } from './leaderboard-server';
 import { writeStartsOn } from './rounds-server';
-import type { SportEventParticipantRow, SportEventRoundRow, SportEventRoundStatus, SportEventRow, SportEventStatus } from './types';
+import { isMatchFormat, type SportEventParticipantRow, type SportEventRoundRow, type SportEventRoundStatus, type SportEventRow, type SportEventStatus } from './types';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Admin = SupabaseClient<any, 'public', any>;
@@ -76,10 +78,19 @@ async function acceptedPlaying(admin: Admin, eventId: string): Promise<SportEven
  * cut, the missed-cut set from the overall board (never stored). The host's
  * creator row is minted regardless (they run the round), so the completion
  * field must drop them here too — the host who missed their own cut used to
- * block round 2 with an empty card.
+ * block round 2 with an empty card. On a MATCH format the round fields ONLY
+ * its draw: an accepted player in no group of this round is not minted (a
+ * late acceptor is drawn into a later round by hand).
  */
-export async function roundFieldExclusions(admin: Admin, event: SportEventRow, rounds: MintedRound[], round: Pick<MintedRound, 'sequence'>): Promise<ReadonlySet<string>> {
-  const cut = readFormatConfig(event.format_config, activeRounds(rounds).length, event.format).cut ?? null;
+export async function roundFieldExclusions(admin: Admin, event: SportEventRow, rounds: MintedRound[], round: Pick<MintedRound, 'id' | 'sequence'>, opts: { groups?: RoundGroup[] } = {}): Promise<ReadonlySet<string>> {
+  const config = readFormatConfig(event.format_config, activeRounds(rounds).length, event.format);
+  if (readMatchConfig(config, event.format)) {
+    const groups = opts.groups ?? await readRoundGroups(admin, round.id);
+    const grouped = new Set(groups.flatMap(g => g.members.map(m => m.participant_id)));
+    const players = await acceptedPlaying(admin, event.id);
+    return new Set(players.filter(p => !grouped.has(p.id)).map(p => p.id));
+  }
+  const cut = config.cut ?? null;
   if (!cut || round.sequence <= cut.after_round || !cutDecided(cut, rounds)) return new Set();
   const board = await fetchOverallLeaderboard(admin, event, rounds, { cut });
   return new Set(board.board.rows.filter(r => r.madeCut === false).map(r => r.participantId));
@@ -224,8 +235,15 @@ export async function applyRoundTransition(admin: Admin, req: RoundTransitionReq
   const round = rounds.find(r => r.id === req.roundId);
   if (!round) return { ok: false, status: 404, reason: 'not_found', error: 'Round not found' };
   const players = await acceptedPlaying(admin, req.eventId);
-  // The round's field (the cut's missed set, never stored) — the same set the mint below excludes.
-  const excluded = req.to === 'live' || req.to === 'completed' ? await roundFieldExclusions(admin, event, rounds, round) : new Set<string>();
+  // Phase 3: a match round's draw and its matches — the gate is theirs (groups_incomplete at start, matches_undecided at completion), never the cards'.
+  const match = readMatchConfig(readFormatConfig(event.format_config, activeRounds(rounds).length, event.format), event.format);
+  const groups = match && (req.to === 'live' || req.to === 'completed') ? await readRoundGroups(admin, round.id) : [];
+  const incomplete = match && req.to === 'live' ? groupsIncomplete(groups, match.sides, match.bracket) : [];
+  const matches: RoundMatch[] = match && req.to === 'completed' ? await fetchRoundMatches(admin, event, round, { groups }) : [];
+  const undecided = matches.filter(m => m.state.status !== 'completed');
+  const groupName = (sequence: number) => groups.find(g => g.sequence === sequence)?.name?.trim() || `Match ${sequence}`;
+  // The round's field (the cut's missed set, or the players outside a match round's draw — never stored) — the same set the mint below excludes.
+  const excluded = req.to === 'live' || req.to === 'completed' ? await roundFieldExclusions(admin, event, rounds, round, { groups }) : new Set<string>();
   const cards = req.to === 'completed' ? await readCards(admin, [round], players, excluded) : [];
 
   const factsFor = (minted: boolean): RoundTransitionFacts => ({
@@ -235,27 +253,36 @@ export async function applyRoundTransition(admin: Admin, req: RoundTransitionReq
     acceptedPlaying: players.length,
     cards: cards.map(c => ({ status: c.status })),
     override: req.override === true,
+    match: match ? { groupsIncomplete: incomplete.length + (req.to === 'live' && groups.length === 0 ? 1 : 0), undecided: undecided.length } : null,
   });
+  const refusalError = (reason: RoundTransitionRefusal): string => {
+    if (reason === 'groups_incomplete') return groups.length === 0 ? 'Set the draw before the round starts — every match needs its two sides.' : `${ROUND_REFUSAL_COPY.groups_incomplete} Check: ${incomplete.map(i => groupName(i.sequence)).join(', ')}.`;
+    if (reason === 'matches_undecided') return `${ROUND_REFUSAL_COPY.matches_undecided} Still open: ${undecided.map(m => m.group.name?.trim() || `Match ${m.group.sequence}`).join(', ')}.`;
+    return ROUND_REFUSAL_COPY[reason];
+  };
 
   // The mint runs BEFORE the live verdict so `round_not_minted` is a real refusal, never a scheduling gap.
   if (req.to === 'live') {
     const pre = validateRoundTransition('live', factsFor(true));
-    if (!pre.ok) return { ok: false, status: 409, reason: pre.reason, error: ROUND_REFUSAL_COPY[pre.reason] };
+    if (!pre.ok) return { ok: false, status: 409, reason: pre.reason, error: refusalError(pre.reason) };
     if (!round.group_post_id) {
-      // Phase 2: past a decided cut, the missed-cut set is not minted into this round (the overall board decides — never stored; `roundFieldExclusions` is the one rule).
-      const gpId = await mintRound(admin, event, round, activeRounds(rounds).length, req.today ?? null, { excludeParticipantIds: excluded.size > 0 ? excluded : undefined });
+      // Phase 2: past a decided cut, the missed-cut set is not minted into this round (the overall board decides — never stored; `roundFieldExclusions` is the one rule). Phase 3: a match round mints its draw only.
+      const gpId = await mintRound(admin, event, round, activeRounds(rounds).length, req.today ?? null, { excludeParticipantIds: excluded.size > 0 ? excluded : undefined, gameFormat: match ? 'match' : 'stroke' });
       if (!gpId) return { ok: false, status: 500, reason: 'mint_failed', error: ROUND_REFUSAL_COPY.round_not_minted };
       round.group_post_id = gpId;
     }
+    // Phase 3: one match row per group (idempotent; a bracket bye decided at mint).
+    if (match && !(await mintMatches(admin, round.id, groups, match, new Date().toISOString()))) return { ok: false, status: 500, reason: 'mint_failed', error: ROUND_REFUSAL_COPY.round_not_minted };
   }
 
   const verdict = validateRoundTransition(req.to, factsFor(round.group_post_id !== null));
-  if (!verdict.ok) return { ok: false, status: 409, reason: verdict.reason, error: ROUND_REFUSAL_COPY[verdict.reason] };
+  if (!verdict.ok) return { ok: false, status: 409, reason: verdict.reason, error: refusalError(verdict.reason) };
 
   const now = new Date().toISOString();
 
   if (req.to === 'completed') {
-    if (req.override === true) {
+    // A match round finalizes every card as it stands (a conceded hole has no strokes — card status is irrelevant to a match; the matches were the gate).
+    if (req.override === true || match) {
       // "Finalized as they stand": existing cards are closed; a player who
       // never scored gets a final, empty card (the finalize route's rule),
       // so the round reads final for everyone.
@@ -286,8 +313,11 @@ export async function applyRoundTransition(admin: Admin, req: RoundTransitionReq
       // on EVERY completion: when every card was already full, the score
       // route's auto-advance completed the group post before this transition
       // (the guard above then skips the second mirror), and the results must
-      // still be written. Idempotent (an upsert on the participant).
-      await syncSportEventContest(admin, event, round, req.actorProfileId);
+      // still be written. Idempotent (an upsert on the participant). Phase 3:
+      // a match round writes its matches' outcomes instead — a match event
+      // never counts toward a competition (`not_stroke_play`).
+      if (match) await closeMatchesOnCompletion(admin, matches, now);
+      else await syncSportEventContest(admin, event, round, req.actorProfileId);
     }
   }
 
@@ -378,7 +408,7 @@ export async function mintAnnouncePost(admin: Admin, event: SportEventRow, round
  * the post). Any failure deletes the group_post (FK cascades take the
  * children) and answers null — the abortCreation semantics.
  */
-export async function mintRound(admin: Admin, event: SportEventRow, round: MintedRound, roundCount: number, today: string | null, opts: { excludeParticipantIds?: ReadonlySet<string> } = {}): Promise<string | null> {
+export async function mintRound(admin: Admin, event: SportEventRow, round: MintedRound, roundCount: number, today: string | null, opts: { excludeParticipantIds?: ReadonlySet<string>; gameFormat?: 'stroke' | 'match' } = {}): Promise<string | null> {
   const { data: existing } = await admin.from('group_posts').select('id').eq('sport_event_round_id', round.id).maybeSingle();
   if (existing?.id) return existing.id as string;
 
@@ -413,7 +443,7 @@ export async function mintRound(admin: Admin, event: SportEventRow, round: Minte
   const now = new Date().toISOString();
   const { error: partError } = await admin.from('group_post_participants').insert(participantRows(plan, gpId, now));
   if (partError) return abort('participants', partError);
-  const { error: cardError } = await admin.from('golf_scorecard_data').insert(scorecardRow(round, gpId));
+  const { error: cardError } = await admin.from('golf_scorecard_data').insert(scorecardRow(round, gpId, opts.gameFormat ?? 'stroke'));
   if (cardError) return abort('scorecard', cardError);
 
   let postId = round.announce_post_id;
@@ -435,13 +465,17 @@ export async function mintRound(admin: Admin, event: SportEventRow, round: Minte
  * remove marks its row declined so the round machine ignores them. A
  * completed round's roster is history (phase 2 — adding a late joiner
  * there would mirror an empty round later), and a scheduled round is not
- * minted yet (the mint reads the roster). Best-effort.
+ * minted yet (the mint reads the roster). Phase 3: on a MATCH format a late
+ * acceptor never joins a live round (they are drawn into a later round by
+ * hand); a drop still marks their row. Best-effort.
  */
 export async function syncRoundRoster(admin: Admin, eventId: string, profileId: string, change: 'add' | 'drop'): Promise<void> {
   try {
-    const rounds = await readRounds(admin, eventId);
+    const [{ data: ev }, rounds] = await Promise.all([admin.from('sport_events').select('format').eq('id', eventId).maybeSingle(), readRounds(admin, eventId)]);
+    const matchPlay = isMatchFormat((ev as { format?: string } | null)?.format);
     for (const round of rounds) {
       if (!round.group_post_id || round.status !== 'live') continue;
+      if (change === 'add' && matchPlay) continue;
       const { data: existing } = await admin.from('group_post_participants').select('id, status, position').eq('group_post_id', round.group_post_id).eq('profile_id', profileId).maybeSingle();
       if (change === 'drop') {
         if (existing?.id) await admin.from('group_post_participants').update({ status: 'declined' }).eq('id', existing.id);
