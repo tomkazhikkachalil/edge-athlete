@@ -5,7 +5,7 @@ import Link from 'next/link';
 import AppHeader from '@/components/AppHeader';
 import SportsSubnav from '@/components/sports/SportsSubnav';
 import { useAuth } from '@/lib/auth';
-import EventCard, { type ListedEvent } from '@/components/sports/EventCard';
+import EventCard, { leaderboardHref, type ListedEvent } from '@/components/sports/EventCard';
 
 /** /sports/leaderboards — phase 1: the boards of your live and finished events (the events' own leaderboard tab). */
 export default function LeaderboardsPage() {
@@ -55,7 +55,7 @@ export default function LeaderboardsPage() {
           </div>
         ) : (
           <ul className="grid sm:grid-cols-2 gap-4" data-leaderboards-list="">
-            {events.map(e => <EventCard key={e.id} event={e} href={`/events/${e.id}?tab=leaderboard`} />)}
+            {events.map(e => <EventCard key={e.id} event={e} href={leaderboardHref(e)} />)}
           </ul>
         )}
       </main>
