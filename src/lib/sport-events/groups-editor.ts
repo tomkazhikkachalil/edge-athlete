@@ -8,6 +8,7 @@
  * the server's rule for a plain id); `groupsIncomplete` (match.ts) names
  * the groups the start would refuse.
  */
+import { bracketNextRound, type BracketMatch } from './bracket';
 import { derivedSide } from './groups';
 import { groupsIncomplete, MATCH_SIDE_SIZE, type SideRefusal } from './match';
 import type { MatchSides } from './types';
@@ -59,6 +60,27 @@ export function groupsFromSaved(saved: Array<{ id: string; sequence: number; nam
       for (const m of members) if (m.side === 1 || m.side === 2) sides[m.participant_id] = m.side;
       return { key: g.id, name: g.name ?? '', teeTime: teeTimeToLocal(g.tee_time), startingHole: g.starting_hole, members: members.map(m => m.participant_id), ...(Object.keys(sides).length > 0 ? { sides } : {}) };
     });
+}
+
+/**
+ * "Fill from winners" (a bracket round after a completed match round): the
+ * next round's draw in bracket order — match k from the winners of 2k−1
+ * (side 1) and 2k (side 2); an undecided feeder leaves the side EMPTY (the
+ * editor shows "Winner of match n"; the start refuses `groups_incomplete`);
+ * an odd tail is a bye. Names "Match k". The feeders ride beside the groups
+ * so the editor can label an empty side.
+ */
+export function drawFromWinners(prev: ReadonlyArray<BracketMatch>): { groups: EditorGroup[]; feeders: Record<string, [number, number]> } {
+  const feeders: Record<string, [number, number]> = {};
+  const groups = bracketNextRound(prev).map(d => {
+    const key = nextKey();
+    const sides: Record<string, 1 | 2> = {};
+    for (const id of d.sides[0]) sides[id] = 1;
+    for (const id of d.sides[1]) sides[id] = 2;
+    feeders[key] = d.feeders;
+    return { key, name: d.name, teeTime: '', startingHole: 1, members: [...d.sides[0], ...d.sides[1]], sides };
+  });
+  return { groups, feeders };
 }
 
 /** The side a member plays in the editor: the one set, else the position's derived side on a match format. */

@@ -1,5 +1,33 @@
 # Development Log
 
+## September 16, 2026 — Events program, phase 3, PR 10: brackets (zero DDL, @mobile)
+
+A bracket is nothing new: the rounds ARE the bracket rounds, and match k
+of round n+1 is fed by matches 2k−1 and 2k of round n by group SEQUENCE
+(`bracket.ts`, PR 2). What this PR adds is the two doors:
+- **"Fill from winners"** on the Groups tab of a bracket round after a
+  completed match round (`groups-editor.ts drawFromWinners` over the
+  matches route's previous round): the draw in bracket order with the
+  sides SET, an undecided feeder leaves the side empty and the editor
+  says "Side 2: winner of match 4" (`data-groups-winner-of`), an odd tail
+  is a bye (legal only on a bracket — `groupsIncomplete(…, bracket)`);
+  the draft is replaced (a confirm when one exists) and stays editable —
+  Tom's rule, the organizer sets every draw. Same-day bracket rounds are
+  legal (`dateOrderRefusal` is strict).
+- **`BracketView`** at `?round=bracket` on the Matches tab (the Bracket
+  pill): a column per round from `bracketColumns` (the round's own name,
+  else Final · Semifinals · Quarterfinals · Round of 2n), every slot a
+  name list or "TBD" / "Winner of match n", the winner bold with the
+  result, the Final's winner above (`bracketWinner`); columns side by
+  side from `sm:`, stacked per round on a phone. `match-view.ts
+  bracketMatchesFrom` turns the route's payload into the model.
+- e2e `sport-events-bracket.spec.ts @mobile` (self-skips before 212 or
+  without the four users): two same-day rounds; round 1 A vs B, C vs D,
+  the losers concede, the round completes; Fill from winners → A (side 1)
+  vs C (side 2) → Save; the Final starts; the bracket view's two columns,
+  the conceded slot with the winner bold; the organizer decides the Final
+  for C, the round completes, "wins the bracket".
+
 ## September 16, 2026 — Events program, phase 3, PR 9: pairs — four-ball and foursomes; four QA users (zero DDL, @mobile)
 
 - **The e2e suite mints FOUR QA users** (`global-setup.ts`: Alpha, Bravo,

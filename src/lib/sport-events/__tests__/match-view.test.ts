@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { computeMatch, type MatchInput } from '../match';
-import { matchColumns, matchLine, matchTitle, projectMatch, sideOfViewer, type MatchSideProjection } from '../match-view';
+import { bracketMatchesFrom, matchColumns, matchLine, matchTitle, projectMatch, sideOfViewer, type MatchSideProjection } from '../match-view';
 
 const member = (id: string, name: string) => ({ participant_id: id, profile_id: `pf-${id}`, name, handle: null, avatar_url: null });
 const side = (s: 1 | 2, members: ReturnType<typeof member>[]): MatchSideProjection => ({ side: s, members, card_participant_ids: members.map(m => m.participant_id) });
@@ -27,6 +27,15 @@ describe('the match view', () => {
     expect(sideOfViewer(view, 'pf-a')).toBe(1);
     expect(sideOfViewer(view, 'pf-x')).toBeNull();
     expect(sideOfViewer(view, null)).toBeNull();
+  });
+  it('the bracket\'s per-round model from the route\'s matches, with the names beside', () => {
+    const state = (winnerSide: 1 | 2 | null, result: string | null) => ({ winnerSide, decidedBy: winnerSide ? 'holes' : null, result }) as unknown as Parameters<typeof bracketMatchesFrom>[0][number]['state'];
+    const { byRound, names } = bracketMatchesFrom([
+      { round_id: 'r1', group: { id: 'g2', sequence: 2, name: null, starting_hole: 1, tee_time: null }, sides: [side(1, [member('c', 'Cy')]), side(2, [member('d', 'Di')])], state: state(null, null) },
+      { round_id: 'r1', group: { id: 'g1', sequence: 1, name: null, starting_hole: 1, tee_time: null }, sides: [side(1, [member('a', 'Ann')]), side(2, [member('b', 'Bob')])], state: state(1, '3&2') },
+    ]);
+    expect(byRound.get('r1')!.map(m => [m.sequence, m.sides, m.winnerSide, m.result])).toEqual([[2, [['c'], ['d']], null, null], [1, [['a'], ['b']], 1, '3&2']]);
+    expect([...names.entries()]).toEqual([['c', 'Cy'], ['d', 'Di'], ['a', 'Ann'], ['b', 'Bob']]);
   });
   it('the group card\'s columns on a match round: the counting cards only, side 1 first, then by position', () => {
     const m = (participant_id: string, position: number, side: 1 | 2 | null) => ({ participant_id, profile_id: `pf-${participant_id}`, position, side });

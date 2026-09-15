@@ -10,6 +10,7 @@ import { confirmCopyFor } from '@/lib/sport-events/page-rules';
 import { activeRounds } from '@/lib/sport-events/rounds';
 import { offersBracket, type RoundSelection } from '@/lib/sport-events/tabs';
 import type { SportEventViewPayload } from '@/lib/sport-events/view';
+import BracketView from './BracketView';
 import RoundSwitcher from './RoundSwitcher';
 
 interface Props {
@@ -33,7 +34,8 @@ const BTN = 'ea-interactive border border-border-strong text-secondary px-3 min-
  * while the round is live; the undecided list; "Complete round n" with the
  * matches-undecided copy (the route refuses until every match has a
  * winner — never an override); the organizer's Decide sheet on an open
- * match. `?round=bracket` stacks every round (PR 10 draws the columns).
+ * match. `?round=bracket` draws the whole bracket (`BracketView`: a column
+ * per round, stacked on a phone).
  * The same component at 390 and on a desktop.
  */
 export default function EventMatchesTab({ view, api, version, selected, onSelect, onCompleteRound, onChanged }: Props) {
@@ -111,6 +113,15 @@ export default function EventMatchesTab({ view, api, version, selected, onSelect
       </li>
     );
   };
+
+  if (bracket && data) {
+    return (
+      <div className="space-y-4" data-event-matches="bracket">
+        {switcher}
+        <BracketView data={data} />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4" data-event-matches={bracket ? 'bracket' : round!.id}>

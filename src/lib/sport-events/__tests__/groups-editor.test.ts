@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { addGroup, addMinutes, assign, editorGroupsIncomplete, groupsByStanding, groupsFromSaved, localToTeeTime, moveGroup, pruneTo, removeGroup, reorderMembers, samePlan, setSide, SIDE_REFUSAL_COPY, sideInEditor, teeTimeToLocal, toPlanBody, unassign, unassigned, updateGroup, type EditorGroup } from '../groups-editor';
+import { addGroup, addMinutes, assign, drawFromWinners, editorGroupsIncomplete, groupsByStanding, groupsFromSaved, localToTeeTime, moveGroup, pruneTo, removeGroup, reorderMembers, samePlan, setSide, SIDE_REFUSAL_COPY, sideInEditor, teeTimeToLocal, toPlanBody, unassign, unassigned, updateGroup, type EditorGroup } from '../groups-editor';
 import { parseEventTab, tabsFor } from '../tabs';
 
 const g = (key: string, members: string[], over: Partial<EditorGroup> = {}): EditorGroup => ({ key, name: '', teeTime: '', startingHole: 1, members, ...over });
@@ -63,6 +63,15 @@ describe('the groups editor operations', () => {
     expect(editorGroupsIncomplete([g('a', ['p1', 'p2', 'p3', 'p4'])], 'foursomes', false)).toEqual([]);
     expect(SIDE_REFUSAL_COPY.wrong_size('fourball')).toContain('four players');
     expect(SIDE_REFUSAL_COPY.too_many('singles')).toContain('At most 1');
+  });
+  it('phase 3: "Fill from winners" draws the next round in bracket order with the sides set, an undecided feeder empty, an odd tail a bye', () => {
+    const m = (sequence: number, a: string[], b: string[], winnerSide: 1 | 2 | null) => ({ sequence, groupId: `g${sequence}`, sides: [a, b] as [string[], string[]], winnerSide, decidedBy: winnerSide ? 'holes' : null, result: winnerSide ? '2&1' : null });
+    const { groups, feeders } = drawFromWinners([m(1, ['a'], ['b'], 1), m(2, ['c'], ['d'], null), m(3, ['e'], ['f'], 2)]);
+    expect(groups.map(g => [g.name, g.members, g.sides])).toEqual([['Match 1', ['a'], { a: 1 }], ['Match 2', ['f'], { f: 1 }]]);
+    expect(Object.values(feeders)).toEqual([[1, 2], [3, 4]]);
+    // On a bracket a one-side group is a bye, so the engine admits both; an undecided feeder can only exist while the previous round is live, when the start is refused as `earlier_round_pending` anyway.
+    expect(editorGroupsIncomplete(groups, 'singles', true)).toEqual([]);
+    expect(editorGroupsIncomplete(groups, 'singles', false)).toEqual([{ index: 1, reason: 'wrong_size' }, { index: 2, reason: 'wrong_size' }]);
   });
   it('the Groups tab is the organizers\'', () => {
     expect(tabsFor({ canManage: true })).toContain('groups');

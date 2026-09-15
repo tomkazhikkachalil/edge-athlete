@@ -4,8 +4,9 @@ import { useMemo, useState } from 'react';
 import ReorderList from '@/components/site-builder/ReorderList';
 import type { EventApi } from '@/lib/sport-events/client';
 import ConfirmModal from '@/components/ConfirmModal';
-import { addGroup, assign, editorGroupsIncomplete, groupsByStanding, groupsFromSaved, moveGroup, pruneTo, removeGroup, reorderMembers, samePlan, setSide, SIDE_REFUSAL_COPY, sideInEditor, toPlanBody, unassign, unassigned, updateGroup, type EditorGroup, type EditorPlayer, type StandingGroupOptions } from '@/lib/sport-events/groups-editor';
+import { addGroup, assign, drawFromWinners, editorGroupsIncomplete, groupsByStanding, groupsFromSaved, moveGroup, pruneTo, removeGroup, reorderMembers, samePlan, setSide, SIDE_REFUSAL_COPY, sideInEditor, toPlanBody, unassign, unassigned, updateGroup, type EditorGroup, type EditorPlayer, type StandingGroupOptions } from '@/lib/sport-events/groups-editor';
 import { MATCH_SIDES_LABEL } from '@/lib/sport-events/format';
+import { bracketMatchesFrom } from '@/lib/sport-events/match-view';
 import type { RoundSelection } from '@/lib/sport-events/tabs';
 import type { SportEventViewPayload } from '@/lib/sport-events/view';
 import RoundSwitcher from './RoundSwitcher';
@@ -25,7 +26,11 @@ import RoundSwitcher from './RoundSwitcher';
  * match ("Match n"), every member gets a Side 1 / Side 2 control (the
  * position's side by default; the first on a side is the captain on
  * foursomes), an incomplete group is flagged with what it needs, and
- * "Group by standing" is hidden (no standing exists).
+ * "Group by standing" is hidden (no standing exists). On a BRACKET round
+ * after a completed match round, "Fill from winners" pre-fills the draw in
+ * bracket order (match k from the winners of 2k−1 and 2k; an undecided
+ * feeder shows "Winner of match n"; an odd tail is a bye) — the draft is
+ * replaced and stays editable; Save is the same PUT.
  */
 interface Props {
   view: SportEventViewPayload;
@@ -57,6 +62,8 @@ export default function EventGroupsEditor({ view, api, onSaved, selected, onSele
   const [notice, setNotice] = useState<string | null>(null);
   const [standingOpts, setStandingOpts] = useState<StandingGroupOptions & { first: string; intervalMin: number }>({ groupSize: 4, order: 'leaders_last', first: '', intervalMin: 10 });
   const [confirmStanding, setConfirmStanding] = useState(false);
+  const [confirmWinners, setConfirmWinners] = useState(false);
+  const [feeders, setFeeders] = useState<Record<string, [number, number]>>({});
   const groups = draft ? pruneTo(draft, eligible) : saved;
   const setGroups = (fn: (prev: EditorGroup[]) => EditorGroup[]) => setDraft(fn(groups));
   const match = view.event.match;
@@ -81,6 +88,23 @@ export default function EventGroupsEditor({ view, api, onSaved, selected, onSele
   };
   const askRegroup = () => { if (groups.some(g => g.members.length > 0)) setConfirmStanding(true); else void regroup(); };
 
+  // Phase 3: a bracket round is fed by the previous round's winners.
+  const prevRound = match?.bracket && round ? [...view.rounds].filter(r => r.status !== 'cancelled' && r.sequence < round.sequence).sort((a, b) => b.sequence - a.sequence)[0] ?? null : null;
+  const canFillWinners = !!prevRound && editable && prevRound.status === 'completed';
+  const fillWinners = async () => {
+    if (!prevRound) return;
+    setError(null);
+    setNotice(null);
+    const res = await api.matches(prevRound.id);
+    if (!res.ok || !res.data) { setError(res.error ?? 'Could not read the previous round.'); return; }
+    const { byRound } = bracketMatchesFrom(res.data.matches);
+    const next = drawFromWinners(byRound.get(prevRound.id) ?? []);
+    setFeeders(next.feeders);
+    setDraft(next.groups);
+    setNotice(`${next.groups.length} match${next.groups.length === 1 ? '' : 'es'} from round ${prevRound.sequence}'s winners — save when ready.`);
+  };
+  const askFillWinners = () => { if (groups.some(g => g.members.length > 0)) setConfirmWinners(true); else void fillWinners(); };
+
   const save = async () => {
     if (!round) return;
     setBusy(true);
@@ -102,6 +126,12 @@ export default function EventGroupsEditor({ view, api, onSaved, selected, onSele
     <div className="space-y-5" data-event-groups-editor={round.id}>
       {switcher}
       {!editable && <p className="text-sm text-muted" data-groups-locked="">{match ? 'The draw is set before the round starts.' : 'Groups are set before the round starts.'}</p>}
+      {canFillWinners && (
+        <div className="flex flex-wrap items-center gap-2" data-groups-winners="">
+          <button type="button" onClick={askFillWinners} disabled={busy} className={BTN} data-groups-fill-winners=""><i className="fas fa-trophy mr-2" aria-hidden="true"></i>Fill from winners</button>
+          <span className="text-xs text-muted">Round {prevRound!.sequence}&apos;s winners in bracket order — match 1 from matches 1 and 2, and so on. Edit it as you like.</span>
+        </div>
+      )}
       {match && <p className="text-xs text-muted" data-groups-match-hint="">{MATCH_SIDES_LABEL[match.sides]}: {match.sides === 'singles' ? 'one player a side' : 'two players a side'}{match.sides === 'foursomes' ? ' — the first on a side keeps the card' : ''}. {match.bracket ? 'A match with one side is a bye.' : 'Every match needs both sides before the round starts.'}</p>}
       {canRegroup && (
         <section className="bg-surface rounded-lg border border-border p-3 space-y-2" data-groups-standing="">
@@ -194,6 +224,11 @@ export default function EventGroupsEditor({ view, api, onSaved, selected, onSele
                 })}
               </ul>
             )}
+            {match?.bracket && feeders[g.key] && ([1, 2] as const).some(side => !g.members.some(id => sideInEditor(g, id, matchSides) === side)) && (
+              <p className="text-xs text-muted" data-groups-winner-of="">
+                {([1, 2] as const).filter(side => !g.members.some(id => sideInEditor(g, id, matchSides) === side)).map(side => `Side ${side}: winner of match ${feeders[g.key][side - 1]}`).join(' · ')}
+              </p>
+            )}
             {match && incomplete.some(x => x.index === i + 1) && (
               <p className="text-xs text-amber-800 dark:text-amber-200" data-groups-incomplete={i + 1}>{SIDE_REFUSAL_COPY[incomplete.find(x => x.index === i + 1)!.reason](match.sides)}</p>
             )}
@@ -220,6 +255,16 @@ export default function EventGroupsEditor({ view, api, onSaved, selected, onSele
         </div>
       )}
       {(error || notice) && <p role="status" className={`text-sm ${error ? 'text-red-700 dark:text-red-300' : 'text-emerald-700 dark:text-emerald-300'}`} data-groups-notice="">{error ?? notice}</p>}
+      {confirmWinners && (
+        <ConfirmModal
+          isOpen
+          title="Replace the draw with the winners?"
+          message="The matches you have arranged are replaced by the previous round's winners in bracket order. Nothing is saved until you press Save groups."
+          confirmText="Replace"
+          onConfirm={async () => { setConfirmWinners(false); await fillWinners(); }}
+          onCancel={() => setConfirmWinners(false)}
+        />
+      )}
       {confirmStanding && (
         <ConfirmModal
           isOpen
