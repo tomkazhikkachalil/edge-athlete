@@ -22,7 +22,8 @@ const API_ROOT = join(process.cwd(), 'src/app/api');
 /** Every way a route legitimately authenticates or authorizes today. */
 const GATE_RE =
   // requireScout (Recruiting skeleton R3) wraps requireAuth + the scout-account decider.
-  /\b(requireAuth|getServerAuth|requireAdmin|requireProfileRole|requireGuardianAccount|resolveActingProfile|getProfileRole|mayManagePostMedia|requireScout|CRON_SECRET|auth\.getUser)\b/;
+  // openMatchWrite (Events phase 3, PR 6) wraps getServerAuth + resolveActor + the event gate + the match membership for the three match writes.
+  /\b(requireAuth|getServerAuth|requireAdmin|requireProfileRole|requireGuardianAccount|resolveActingProfile|getProfileRole|mayManagePostMedia|requireScout|openMatchWrite|CRON_SECRET|auth\.getUser)\b/;
 
 /** Gates that scope access to a PROFILE (not just "some session exists").
  *  requireAdmin qualifies: admin surfaces act cross-profile by design. */

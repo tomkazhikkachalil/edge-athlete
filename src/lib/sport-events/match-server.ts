@@ -210,6 +210,28 @@ export async function fetchRoundMatches(admin: Admin, event: SportEventRow, roun
   return out;
 }
 
+/** Every round's matches (the bracket reads them all) — one rows read, one computation per round. */
+export async function fetchEventMatches(admin: Admin, event: SportEventRow, rounds: SportEventRoundRow[]): Promise<RoundMatch[]> {
+  const active = [...rounds].filter(r => r.status !== 'cancelled').sort((a, b) => a.sequence - b.sequence);
+  if (active.length === 0) return [];
+  const rows = await readMatchRows(admin, active.map(r => r.id));
+  const perRound = await Promise.all(active.map(r => fetchRoundMatches(admin, event, r, { rows: rows.filter(x => x.sport_event_round_id === r.id) })));
+  return perRound.flat();
+}
+
+/** A match by id for a write: its row, its round and the computed match (null = not this event's). */
+export async function readMatchContext(admin: Admin, event: SportEventRow, matchId: string, roundColumns: string): Promise<{ round: SportEventRoundRow; match: RoundMatch } | null> {
+  const { data: row } = await admin.from('sport_event_matches').select(MATCH_COLUMNS).eq('id', matchId).maybeSingle();
+  if (!row) return null;
+  const r = row as MatchRow;
+  const { data: roundRow } = await admin.from('sport_event_rounds').select(roundColumns).eq('id', r.sport_event_round_id).eq('sport_event_id', event.id).maybeSingle();
+  if (!roundRow) return null;
+  const round = roundRow as unknown as SportEventRoundRow;
+  const matches = await fetchRoundMatches(admin, event, round, { rows: [r] });
+  const match = matches.find(m => m.id === r.id);
+  return match ? { round, match } : null;
+}
+
 /** One match row per group at the round's start — idempotent on the group UNIQUE; a one-side group (a bracket bye) is decided at mint. */
 export async function mintMatches(admin: Admin, roundId: string, groups: RoundGroup[], match: { sides: MatchSides; bracket: boolean }, now: string): Promise<boolean> {
   if (groups.length === 0) return true;

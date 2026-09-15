@@ -1,5 +1,42 @@
 # Development Log
 
+## September 16, 2026 — Events program, phase 3, PR 6: the match routes (zero DDL)
+
+- `GET /api/sport-events/[id]/matches?round=` — every round's matches by
+  default (the bracket reads them all), one round's when asked; each
+  computed on read (`fetchEventMatches` / `fetchRoundMatches`), the gate
+  and the cache rule the leaderboard's; a stroke event answers 409
+  `not_match_play`. The projection is pure (`match-view.ts projectMatch`:
+  the computed state, the intent — concessions, extra holes, the stored
+  decision — and the `version` every write carries; never a hole score,
+  the group card has them; "Match n" / the group's name; "A vs B" / "A & B
+  vs C & D" / "A · bye").
+- The three intent writes share one preamble (`match-write-server.ts
+  openMatchWrite`: auth, the bucket, the actor, the event gate, the match
+  by id, a member of the match or an organizer, the round LIVE) and every
+  one is a compare-and-set on `version` (`writeMatch`; 409 `conflict` =
+  re-read and replay — a concession is not a score, no keep-mine /
+  keep-theirs): `POST …/concede {hole | null, side, version}` (a member of
+  THAT side or an organizer; `null` concedes the match, decided at once);
+  `POST …/extra-hole {n, hole_number?, strokes, version}` (any member; `n`
+  the next; the outcome still written at completion); `POST …/decide
+  {winner_side | null, version}` (organizers; `null` clears their own
+  decision — a concession or a bye is not theirs to clear).
+- The round leaderboard, the overall board and the breakdown answer 409
+  `not_stroke_play` on a match event — an old bell's deep link never
+  renders a gross board.
+- `client.ts`: `matches`, `concede`, `extraHole`, `decideMatch`.
+- e2e `sport-events-match-api.spec.ts` grows a third test (self-skips
+  before 212): the stranger 404s; B reads "Not started"; the boards
+  refuse by name; B concedes hole 1, the wrong side 403s, a stale version
+  409s, the same hole twice 400s, A concedes hole 2 → all square; seven
+  halved holes → extra holes: too early refused, n=1 halved, an unknown
+  participant refused, n=2 → "11 holes"; a concession on a decided match
+  409s; the round completes without the override, the row reads
+  `extra_holes`, a write after completion is `round_not_live`. A second
+  event: B may not decide, the organizer decides, clears, B concedes the
+  match, the organizer cannot clear a concession, ONE results bell.
+
 ## September 16, 2026 — Events program, phase 3, PR 5: the lifecycle of a match round (zero DDL)
 
 - **The gate is the matches', never the cards'.** `lifecycle.ts` gains
