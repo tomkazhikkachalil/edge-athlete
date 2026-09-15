@@ -1,5 +1,41 @@
 # Development Log
 
+## September 16, 2026 — Events program, phase 2b, PR 4: the phone tab bar (B4, zero DDL)
+
+Tom's decision: FIVE tabs — Feed · Sports · Live · Calendar · Profile —
+mirroring the desktop header's places; Create stays in the header at
+every width; Messages / Notifications stay header icons; the drawer stays
+the superset. The desktop (`lg:`) gains nothing.
+
+- `src/lib/nav-active.ts activeNavPath(pathname, path)` — the ONE active
+  rule, extracted verbatim from `AppHeader.isActivePath` (now a strict
+  boolean); the header's pill and the bar both light from it (a page can
+  never read as Sports in one and Feed in the other). `src/lib/tab-bar.ts`:
+  the five links in the header's order and `showsTabBar(pathname)` — an
+  allowlist of signed-in places minus the screens that own their bottom
+  edge (`/live/[id]` the scorer's screen, `/messages/[id]` the composer,
+  `/sports/events/new` the wizard's footer) and the BrandBar funnels under
+  `/app`. Both pinned by tests.
+- `src/components/TabBar.tsx`, mounted ONCE in the root layout between
+  the page and the chat dock — the first app-wide chrome (every page
+  mounts its own header, so this is the one thing that never remounts on
+  navigation). The header's three-branch discipline (nothing while auth
+  boots, nothing signed out, nothing where `showsTabBar` says no); real
+  56px targets; `aria-current="page"`; the Live tab carries the
+  `ea-live-dot` when `useLiveNow` counts a live round; z-30 under the
+  header and the drawer backdrop, under LargerWindow and the modals;
+  toasts anchor at the top so nothing collides.
+- `--ea-tabbar-h` on `<html>` is the bar's MEASURED height (a
+  ResizeObserver — the StickyBanner recipe; 0 at `lg:` and when hidden).
+  ONE padding site, `globals.css body { padding-bottom: var(--ea-tabbar-h,
+  0px) }`; the three `--vvh` shells (the messages list and thread, the
+  live page) subtract it, so the messages list keeps the bar without
+  losing its last row and the two hidden screens subtract 0.
+- e2e NEW `tab-bar.spec.ts @mobile` + a desktop twin (absent at 1280, the
+  body padding 0); `sports-nav.spec.ts` and `header-create.spec.ts`
+  unchanged (the drawer and Create stay).
+- Phone pass (390): the five targets clear the safe area, the Live dot,
+  the bar under the bubble windows and modals, the wizard's own footer.
 ## September 16, 2026 — Events program, phase 2b, PR 1: the per-hole version (mig 209) — the pure half
 
 Phase 2b opens (plan: `~/.claude/plans/let-s-start-phase-2-transient-

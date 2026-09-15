@@ -9,6 +9,7 @@ import ActingAsBanner from "@/components/ActingAsBanner";
 import TransferBanner from "@/components/TransferBanner";
 import DeletionScheduledBanner from "@/components/DeletionScheduledBanner";
 import ChatDock from "@/components/chat-dock/ChatDock";
+import TabBar from '@/components/TabBar';
 import ThemeApplier from "@/components/ThemeApplier";
 import { THEME_INIT_SCRIPT } from "@/lib/theme-script";
 import { FLOOR_POLYFILLS_SCRIPT } from "@/lib/floor-polyfills";
@@ -118,6 +119,9 @@ export default async function RootLayout({
               <TransferBanner />
               <DeletionScheduledBanner />
               {children}
+              {/* The phone tab bar (below lg) — the first app-wide chrome;
+                  mounted once so it never remounts on navigation. */}
+              <TabBar />
               {/* Persistent chat dock (big screens; flag-gated internally).
                   Root-level = survives every client navigation untouched. */}
               <ChatDock />

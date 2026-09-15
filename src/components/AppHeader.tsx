@@ -10,7 +10,7 @@ import ResumeOrgInviteBanner from '@/components/orgs/ResumeOrgInviteBanner';
 import { formatDisplayName, getInitials } from '@/lib/formatters';
 import { AvatarImage } from '@/components/OptimizedImage';
 import CreateSheet from '@/components/CreateSheet';
-import { isSportsPath } from '@/lib/sports-nav';
+import { activeNavPath } from '@/lib/nav-active';
 import NotificationBell from '@/components/NotificationBell';
 import MessagesBell from '@/components/messages/MessagesBell';
 import HeaderSearch from '@/components/HeaderSearch';
@@ -183,18 +183,8 @@ export default function AppHeader({ onCreatePost, onEditProfile }: AppHeaderProp
     setIsMobileMenuOpen(false);
   };
 
-  const isActivePath = (path: string) => {
-    if (path === '/feed') return pathname === '/feed';
-    if (path === '/athlete') return pathname === '/athlete' || pathname?.startsWith('/athlete/');
-    if (path === '/messages') return pathname === '/messages' || pathname?.startsWith('/messages/');
-    if (path === '/notifications') return pathname === '/notifications';
-    // A round page IS the Live section; exact-match left the tab dark while
-    // you were literally watching a live round.
-    if (path === '/live') return pathname === '/live' || pathname?.startsWith('/live/');
-    // The Sports section is /sports/* AND an event's own page (/events/*).
-    if (path === '/sports') return isSportsPath(pathname);
-    return pathname === path;
-  };
+  // ONE active rule, shared with the phone tab bar (src/lib/nav-active.ts).
+  const isActivePath = (path: string) => activeNavPath(pathname, path);
 
   // The destinations, without Live — it gets inserted at the midpoint below.
   const placeLinks: NavLink[] = [
@@ -205,10 +195,8 @@ export default function AppHeader({ onCreatePost, onEditProfile }: AppHeaderProp
     { path: '/athlete', label: 'Profile', icon: 'fa-user' },
   ];
 
-  // Live sits in the MIDDLE of the nav. Computed rather than hard-coded because
-  // Calendar is flag-gated — the nav is 4 items in production and 5 with the
-  // flag on, so a fixed index would centre Live in one environment and not the
-  // other. `ceil` keeps Feed and Sports together on the 4-item nav.
+  // Live sits in the MIDDLE of the nav (Feed · Sports · Live · Calendar ·
+  // Profile — the order the phone tab bar mirrors, src/lib/tab-bar.ts).
   // Copy-then-splice, NOT `toSpliced`: that is ES2023 (Safari/iOS 16.4+), below
   // the project's iOS 15 floor and outside Next's polyfill set — it threw on
   // every render of this header on an older iPhone (Sep 3 round 6).

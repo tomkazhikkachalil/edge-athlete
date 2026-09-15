@@ -101,7 +101,7 @@ function MessagesContent() {
 
 export default function MessagesPage() {
   return (
-    <div className="flex flex-col h-dvh bg-surface" style={{ height: 'var(--vvh, 100dvh)' }}>
+    <div className="flex flex-col h-dvh bg-surface" style={{ height: 'calc(var(--vvh, 100dvh) - var(--ea-tabbar-h, 0px))' }}>
       <AppHeader showSearch={false} />
       <div className="flex-1 min-h-0">
         <Suspense fallback={
