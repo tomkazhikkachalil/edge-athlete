@@ -81,3 +81,41 @@ export async function writeStartsOn(admin: Admin, eventId: string): Promise<void
   const { error } = await admin.from('sport_events').update({ starts_on: startsOn }).eq('id', eventId);
   if (error) console.error('[sport-events] starts_on write failed:', error);
 }
+
+/** Append a round (phase 2): the next sequence, the snapshot, then starts_on. Null on failure. */
+export async function insertRound(admin: Admin, eventId: string, sequence: number, snapshot: RoundSnapshot): Promise<{ id: string } | null> {
+  const { data, error } = await admin.from('sport_event_rounds').insert({ sport_event_id: eventId, sequence, ...snapshot }).select('id').single();
+  if (error || !data) {
+    console.error('[sport-events] round insert failed:', error);
+    return null;
+  }
+  await writeStartsOn(admin, eventId);
+  return { id: data.id as string };
+}
+
+/**
+ * Remove a scheduled round (phase 2). Its announce post goes FIRST — 203
+ * links the post with SET NULL, so deleting the row alone would leave an
+ * orphan in the feed; the round row next (groups and members cascade);
+ * then the later rounds move up one, lowest first, so the non-deferrable
+ * UNIQUE never collides; then starts_on. The caller has already refused a
+ * minted / non-scheduled round, so there is never a group_post to detach.
+ */
+export async function deleteRound(admin: Admin, eventId: string, round: { id: string; sequence: number }, renumber: Array<{ id: string; sequence: number }>): Promise<boolean> {
+  const { error: postError } = await admin.from('posts').delete().eq('sport_event_round_id', round.id).is('group_post_id', null);
+  if (postError) {
+    console.error('[sport-events] round announce post delete failed:', postError);
+    return false;
+  }
+  const { error } = await admin.from('sport_event_rounds').delete().eq('id', round.id).eq('sport_event_id', eventId);
+  if (error) {
+    console.error('[sport-events] round delete failed:', error);
+    return false;
+  }
+  for (const r of renumber) {
+    const { error: seqError } = await admin.from('sport_event_rounds').update({ sequence: r.sequence }).eq('id', r.id);
+    if (seqError) console.error('[sport-events] round renumber failed:', seqError);
+  }
+  await writeStartsOn(admin, eventId);
+  return true;
+}

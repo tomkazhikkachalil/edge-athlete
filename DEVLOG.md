@@ -1,5 +1,65 @@
 # Development Log
 
+## September 16, 2026 — Events program, phase 2, PR 1: rounds as a list (zero DDL)
+
+Phase 2 opened from Tom's "Let's start phase 2 of the Events program". The
+audit (three agents) found the schema and most lib halves already N-round
+(201's `sequence` + per-round `status`, 202's per-round groups, 203's
+per-round post and group_post links, `readRounds` / `mintRound` /
+`startsOnFor` / `EventSchedule` all loop); the single-round assumptions
+are the lifecycle's blanket status write and the mint-every-round at
+go-live, the completion arithmetic across rounds, the one-round
+leaderboard, and `rounds[0]` in seven components and eleven specs. Tom's
+decisions: everything parked is in, as TWO programs — phase 2 = the
+tournament core (12 PRs, one migration 207 for the cut / round names /
+the flight CHECK), phase 2b = the integrations (per-hole version 209, the
+FIVE-tab bar Feed · Sports · Live · Calendar · Profile with Create staying
+in the header, calendar overlay + .ics + a reminder bell 210, org contest
+stamping 208 with opted-out players still counting for the org) —
+specified now in the plan, built after the core closes. Rounds run one at
+a time; the overall board is cumulative stroke play the way Golf Genius /
+the PGA Tour app show it. Stableford is parked, named.
+
+This PR is the list itself, zero DDL:
+
+- `validate.ts` — the create body takes `round: {…}` (phase 1, every e2e)
+  OR `rounds: [{…}]` (1..`MAX_ROUNDS` = 8, sequence order, dates
+  non-decreasing; a miss names `rounds[i].scheduled_on`); both at once is
+  a 400. `parseRoundInput(body, field)` names the field it refuses.
+- `rounds.ts` — the pure rules: `nextSequence` (max + 1; a cancelled round
+  keeps its slot), `dateOrderRefusal` (never before the previous
+  non-cancelled round nor after the next; cancelled rounds do not count),
+  `renumberAfterDelete` (only the LATER rounds, lowest first — the 201
+  UNIQUE is not deferrable and PostgREST issues one statement per call,
+  so rounds are append-only and never reorder), `deleteRefusal`
+  (`not_scheduled` / `last_round`), `currentRound` (live → next scheduled →
+  last completed → first), `activeRounds`.
+- `rounds-server.ts insertRound` / `deleteRound` — the delete removes the
+  announce post FIRST (203 links `posts.sport_event_round_id` with SET
+  NULL; the row alone would leave an orphan in the feed), then the row
+  (groups cascade), then the renumber, then `starts_on`.
+- `POST /api/sport-events` snapshots every round before any insert and
+  inserts them sequenced; `starts_on = startsOnFor(rounds)`.
+- NEW `POST /api/sport-events/[id]/rounds` (draft / open / live; an open
+  or live event mints the round's announce post — `mintAnnouncePost`
+  extracted from the open transition, idempotent on the 203 UNIQUE);
+  `PUT …/rounds/[rid]` is gated on the ROUND being `scheduled` (round 3 is
+  editable while round 1 is live) and keeps the date order; NEW
+  `DELETE …/rounds/[rid]`.
+- `client.ts` gains `addRound` / `updateRound` / `deleteRound`.
+- `e2e/helpers/sport-events.ts` — the one helper the tournament specs
+  share (`openEventSession` resets both event rate buckets for A and B —
+  a tournament spec makes several times phase 1's calls against a 120/h
+  bucket; `cleanupEvent` never throws). Phase-1 specs are migrated only
+  as they are touched.
+
+Verification: `npm run verify` green; unit tests for the two pure halves
+(26 in the two files); `e2e/sport-events-rounds.spec.ts` (API) locally
+against the built app, plus the phase-1 `sport-events-api` and
+`sport-events-lifecycle` specs re-run (a single round IS round 1). Next:
+PR 2, the round lifecycle (start / complete / cancel a round; the event
+follows its rounds; the blanket status write and the mint-every-round go).
+
 ## September 16, 2026 — Maintenance checklist (zero DDL)
 
 Run on a fresh `main` (006c334b, after the Events program's close):

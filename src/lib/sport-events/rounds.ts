@@ -123,3 +123,97 @@ export function buildMintPlan(input: { hostProfileId: string; visibility: SportE
   }
   return { groupPost: { type: 'golf_round', visibility: roundVisibility(input.visibility) }, participantRows: rows };
 }
+
+// ── The rounds LIST (Events program, phase 2) ────────────────────────────────
+//
+// A tournament is a sequence of rounds. `sequence` is the order AND the
+// chronology: the date-order rule below keeps scheduled_on non-decreasing by
+// sequence, so there is never a reorder. The 201 UNIQUE (sport_event_id,
+// sequence) is NOT deferrable, and PostgREST issues one statement per call,
+// so rounds are APPEND-ONLY (`nextSequence` = max + 1) and a delete renumbers
+// only the LATER rounds, ascending (k+1 → k first — a hole never collides).
+
+export const MAX_ROUNDS = 8;
+
+export interface RoundLike {
+  id: string;
+  sequence: number;
+  scheduled_on: string;
+  status: 'scheduled' | 'live' | 'completed' | 'cancelled';
+}
+
+/** The next round's sequence: one past the highest (cancelled rounds keep their slot). */
+export function nextSequence(rounds: ReadonlyArray<Pick<RoundLike, 'sequence'>>): number {
+  let max = 0;
+  for (const r of rounds) if (r.sequence > max) max = r.sequence;
+  return max + 1;
+}
+
+export type RoundDateRefusal = 'before_previous' | 'after_next';
+
+/**
+ * The date-order rule: a round's date is never before the previous
+ * non-cancelled round's, nor after the next one's. `sequence` null = a new
+ * round appended after the last. Null = fine.
+ */
+export function dateOrderRefusal(
+  rounds: ReadonlyArray<Pick<RoundLike, 'sequence' | 'scheduled_on' | 'status'>>,
+  candidate: { sequence: number | null; scheduled_on: string },
+): RoundDateRefusal | null {
+  const live = rounds.filter(r => r.status !== 'cancelled' && r.sequence !== candidate.sequence).sort((a, b) => a.sequence - b.sequence);
+  const seq = candidate.sequence ?? Number.MAX_SAFE_INTEGER;
+  let prev: (typeof live)[number] | null = null;
+  let next: (typeof live)[number] | null = null;
+  for (const r of live) {
+    if (r.sequence < seq) prev = r;
+    else if (next === null) next = r;
+  }
+  if (prev && candidate.scheduled_on < prev.scheduled_on) return 'before_previous';
+  if (next && candidate.scheduled_on > next.scheduled_on) return 'after_next';
+  return null;
+}
+
+export const ROUND_DATE_REFUSAL_COPY: Readonly<Record<RoundDateRefusal, string>> = {
+  before_previous: 'scheduled_on must not be before the previous round',
+  after_next: 'scheduled_on must not be after the next round',
+};
+
+/** The sequence rewrites after a delete: every later round moves up one, LOWEST first (never a collision). */
+export function renumberAfterDelete<T extends Pick<RoundLike, 'id' | 'sequence'>>(rounds: ReadonlyArray<T>, deletedSequence: number): Array<{ id: string; sequence: number }> {
+  return [...rounds]
+    .filter(r => r.sequence > deletedSequence)
+    .sort((a, b) => a.sequence - b.sequence)
+    .map(r => ({ id: r.id, sequence: r.sequence - 1 }));
+}
+
+export type RoundDeleteRefusal = 'not_scheduled' | 'last_round';
+
+/** A round is removable while it is scheduled and is not the event's last non-cancelled round. */
+export function deleteRefusal(round: Pick<RoundLike, 'id' | 'status'>, rounds: ReadonlyArray<Pick<RoundLike, 'id' | 'status'>>): RoundDeleteRefusal | null {
+  if (round.status !== 'scheduled') return 'not_scheduled';
+  if (!rounds.some(r => r.id !== round.id && r.status !== 'cancelled')) return 'last_round';
+  return null;
+}
+
+export const ROUND_DELETE_REFUSAL_COPY: Readonly<Record<RoundDeleteRefusal, string>> = {
+  not_scheduled: 'A round that has started cannot be removed.',
+  last_round: 'An event needs at least one round — cancel the event instead.',
+};
+
+/**
+ * The round a screen shows by default: the live one, else the next
+ * scheduled, else the last completed, else the first row. Null on no rounds.
+ */
+export function currentRound<T extends Pick<RoundLike, 'sequence' | 'status'>>(rounds: ReadonlyArray<T>): T | null {
+  const sorted = [...rounds].sort((a, b) => a.sequence - b.sequence);
+  return sorted.find(r => r.status === 'live')
+    ?? sorted.find(r => r.status === 'scheduled')
+    ?? [...sorted].reverse().find(r => r.status === 'completed')
+    ?? sorted[0]
+    ?? null;
+}
+
+/** The rounds that count: every round that is not cancelled, in sequence order. */
+export function activeRounds<T extends Pick<RoundLike, 'sequence' | 'status'>>(rounds: ReadonlyArray<T>): T[] {
+  return [...rounds].filter(r => r.status !== 'cancelled').sort((a, b) => a.sequence - b.sequence);
+}

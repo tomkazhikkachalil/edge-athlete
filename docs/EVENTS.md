@@ -101,7 +101,7 @@ the GET is anonymous-reachable for a public or link event).
 
 | route | who | what |
 |---|---|---|
-| `POST /api/sport-events` | signed in (acting-as ok) | name, description, visibility, join_mode, format, capacity, club_id \| league_id (`manage_competitions`, never acting-as), `round {scheduled_on, course_id, course_name, tee, holes, starting_hole}`, `host_plays`, `publish` → the header, round 1 (catalog snapshot), the host's organizer row; a link token for `link` |
+| `POST /api/sport-events` | signed in (acting-as ok) | name, description, visibility, join_mode, format, capacity, club_id \| league_id (`manage_competitions`, never acting-as), `round {scheduled_on, course_id, course_name, tee, holes, starting_hole}` OR (phase 2) `rounds: [{…}]` (1..8, sequence order, dates non-decreasing — never both), `host_plays`, `publish` → the header, the rounds (each a catalog snapshot), the host's organizer row; a link token for `link` |
 | `GET /api/sport-events?scope=mine\|hosting\|upcoming\|live\|past` | signed in | the viewer's events (host or a non-declined / non-removed row), ≤ 100 |
 | `GET /api/sport-events/[id]?token=&as=` | optional auth → 404 | `{event, rounds (+ group_post_id), participants, groups, counts, viewer}` |
 | `PATCH /api/sport-events/[id]` | canManage; draft / open | the editable fields; a capacity raise promotes; `visibility: 'link'` mints a token |
@@ -114,7 +114,9 @@ the GET is anonymous-reachable for a public or link event).
 | `POST` / `DELETE /api/sport-events/[id]/follow?token=` | may view | a follower row; never a seat |
 
 | `POST /api/sport-events/[id]/transition` `{to, override?, today?}` | canManage | open · live · completed · cancelled; a 409 carries the named `reason` |
-| `PUT /api/sport-events/[id]/rounds/[rid]` | canManage; draft / open | the round's plan; re-snapshots the catalog; rewrites `starts_on` |
+| `POST /api/sport-events/[id]/rounds` | canManage; draft / open / live | add a round (phase 2): appended as `max(sequence) + 1`, its date never before the previous round's (`round_out_of_order`), at most 8 (`too_many_rounds`); an open or live event mints its announce post at once |
+| `PUT /api/sport-events/[id]/rounds/[rid]` | canManage; the ROUND is `scheduled` | the round's plan; keeps the date order against its neighbours; re-snapshots the catalog; rewrites `starts_on` |
+| `DELETE /api/sport-events/[id]/rounds/[rid]` | canManage; the round is `scheduled` and not the last non-cancelled one (`not_scheduled` / `last_round`) | its announce post FIRST (203 links the post with SET NULL), then the row (groups cascade), then the later rounds move up one, lowest first |
 | `PUT /api/sport-events/[id]/rounds/[rid]/groups` `{groups: [{name?, tee_time?, starting_hole?, members}]}` | canManage; draft / open | the whole plan replaced |
 
 The scorecard GET (`/api/group-posts/[id]/scorecard`) answers `sport_event`
@@ -230,7 +232,35 @@ specs run at 390 × 844 on Chromium AND WebKit.
 | `sport-events-scorecard` `@mobile` | submit · mark final · reopen · complete with the not-final list |
 | `sport-events-group-card` `@mobile` | the group card · OFFLINE queue and reconnect · a partner's hole |
 | `sport-events-feed` | the announce card and the chip, announced → live |
+| `sport-events-rounds` (phase 2) | create with three rounds · the phase-1 body · both shapes / an unordered list refused by name · add (appended; earlier date refused; the announce post) · edit keeps the order · delete renumbers · the last round stays · the cap |
 | `header-create`, `round-invite` | the Create sheet's two doors; the plain shared round still scores |
+
+## Phase 2 — tournaments (Sep 16 2026, in progress)
+
+Plan: `~/.claude/plans/let-s-start-phase-2-transient-fountain.md` (approved;
+it also carries the phase 2b spec — contest stamping, calendar, the
+per-hole version, the five-tab bar — decided and parked). The one idea,
+extended: an Event is organizer intent over a SEQUENCE of live rounds, run
+one at a time; the round's status becomes the unit of intent and the
+event's status follows its rounds.
+
+### The rounds list (PR 1)
+
+`sequence` is the order AND the chronology: `src/lib/sport-events/rounds.ts`
+keeps `scheduled_on` non-decreasing by sequence (`dateOrderRefusal`), so
+rounds never reorder. The 201 UNIQUE `(sport_event_id, sequence)` is not
+deferrable and PostgREST issues one statement per call, so rounds are
+APPEND-ONLY (`nextSequence` = max + 1; a cancelled round keeps its slot)
+and a delete renumbers only the LATER rounds, lowest first
+(`renumberAfterDelete`). A round is removable while `scheduled` and never
+as the last non-cancelled round (`deleteRefusal` — cancel the event
+instead); its announce post is deleted before the row because 203 links
+the post with SET NULL. `currentRound` is the round a screen shows by
+default (live, else next scheduled, else last completed). `MAX_ROUNDS = 8`.
+The e2e helper `e2e/helpers/sport-events.ts` (`openEventSession`,
+`createEvent`, `inviteAndAccept`, `setGroups`, `goLive`, `scoreHoles`,
+`roundBoard`, `cleanupEvent` — the last never throws) replaces the inlined
+flows as specs are touched.
 
 ## Phase 1 status
 
