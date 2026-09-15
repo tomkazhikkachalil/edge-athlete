@@ -14,7 +14,9 @@ import type { SportEventAccess } from './access';
 import { PARTICIPANT_COLUMNS } from './access-server';
 import { snapshotAtAccept } from './handicap-server';
 import { moveWaitlistTo, planCapacityChange, planJoin, repackWaitlist, type JoinAction, type ParticipantSnapshot } from './join';
-import { syncRoundRoster } from './lifecycle-server';
+import { cutDecided } from './cut';
+import { readFormatConfig } from './format-config';
+import { readRounds, syncRoundRoster } from './lifecycle-server';
 import { notifyDecision, notifyRequest } from './notify';
 import type { SportEventParticipantRow, SportEventRow } from './types';
 
@@ -108,11 +110,15 @@ export async function applyJoin(admin: Admin, req: JoinRequest): Promise<JoinOut
     return { ok: false, status: 400, error: 'Unknown action.' };
   }
 
+  // Phase 2: an invite past a decided cut is refused (the rounds are read only for an invite on an event with a cut).
+  const cut = action === 'invite' ? readFormatConfig(event.format_config, 8).cut ?? null : null;
+  const cutMade = cut ? cutDecided(cut, await readRounds(admin, event.id)) : false;
   const plan = planJoin(action, {
     event: { status: event.status, joinMode: event.join_mode, capacity: event.capacity },
     actorRole: access.role,
     row: row ? toSnapshot(row) : null,
     rows: snapshots,
+    cutDecided: cutMade,
   });
   if (!plan.ok) return { ok: false, status: plan.status, error: plan.error };
 

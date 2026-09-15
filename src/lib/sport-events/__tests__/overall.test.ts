@@ -133,3 +133,31 @@ describe('computeOverallLeaderboard', () => {
     expect(board.rows.map(r => [r.name, r.rankLabel, r.today?.thru])).toEqual([['B', 'T1', 12], ['A', 'T1', 9]]);
   });
 });
+
+describe('the cut (phase 2)', () => {
+  const cut = { after_round: 1, top_n: 2 };
+  it('not decided until round K completes; then the top N (ties included) play on and the rest rank below the line', () => {
+    const live = computeOverallLeaderboard([round(1, 'live', [scored('a', 70, -2), scored('b', 72, 0), scored('c', 72, 0), scored('d', 75, 3)])], 'stroke_gross', { cut });
+    expect(live.cutLine).toBeNull();
+    expect(live.rows.every(r => r.madeCut === null)).toBe(true);
+    const board = computeOverallLeaderboard([
+      round(1, 'completed', [scored('a', 70, -2), scored('b', 72, 0), scored('c', 72, 0), scored('d', 75, 3)]),
+      round(2, 'live', [scored('a', 36, 0, 9), scored('b', 34, -2, 9), scored('c', 40, 4, 9), row('d')]),
+    ], 'stroke_gross', { cut });
+    expect(board.cutLine).toEqual({ afterRound: 1, score: 72, madeCut: 3, missed: 1 });
+    expect(board.rows.map(r => [r.name, r.rankLabel, r.madeCut, r.missedRounds])).toEqual([
+      ['A', 'T1', true, []], // 106 apiece
+      ['B', 'T1', true, []],
+      ['C', '3', true, []],
+      ['D', '4', false, []], // below the line, never "missing" round 2
+    ]);
+  });
+  it('a missed-cut player stays below even with a lower total; to-par cuts work the same way', () => {
+    const board = computeOverallLeaderboard([
+      round(1, 'completed', [scored('a', 80, 8), scored('b', 70, -2)]),
+      round(2, 'completed', [scored('a', 70, -2), scored('b', 72, 0)]),
+    ], 'stroke_gross', { cut: { after_round: 1, to_par: 0 } });
+    expect(board.rows.map(r => [r.name, r.rank, r.total, r.madeCut])).toEqual([['B', 1, 142, true], ['A', 2, 150, false]]);
+    expect(board.cutLine).toMatchObject({ madeCut: 1, missed: 1, score: 70 });
+  });
+});

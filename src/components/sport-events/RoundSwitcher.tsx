@@ -17,6 +17,8 @@ export interface SwitchRound {
   sequence: number;
   status: string;
   scheduled_on: string;
+  /** 207 — the round's label replaces the date on the pill when set. */
+  name?: string | null;
 }
 
 interface Props {
@@ -55,7 +57,7 @@ export default function RoundSwitcher({ rounds, selected, onChange, includeOvera
   return (
     <div role="group" aria-label={label} className="flex gap-2 overflow-x-auto scrollbar-hide -mx-4 px-4 sm:mx-0 sm:px-0 pb-1" data-round-switcher="">
       {includeOverall && pill('overall', 'Overall', 'Overall')}
-      {active.map(r => pill(r.id, `R${r.sequence} · ${shortDate(r.scheduled_on)}`, `Round ${r.sequence}, ${formatDateOnly(r.scheduled_on, { weekday: true })}${r.status === 'live' ? ', live' : r.status === 'completed' ? ', final' : ''}`, r.status))}
+      {active.map(r => pill(r.id, `R${r.sequence} · ${r.name ?? shortDate(r.scheduled_on)}`, `Round ${r.sequence}${r.name ? `, ${r.name}` : ''}, ${formatDateOnly(r.scheduled_on, { weekday: true })}${r.status === 'live' ? ', live' : r.status === 'completed' ? ', final' : ''}`, r.status))}
     </div>
   );
 }

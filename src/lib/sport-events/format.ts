@@ -71,7 +71,7 @@ export function fieldLine(counts: { playing: number; waitlisted: number }, capac
  * was the last, and a second line "Next: Round 3 · Sun, Jun 9, 2030".
  */
 export function headerRoundLine(
-  rounds: ReadonlyArray<{ sequence: number; scheduled_on: string; course_name: string; status: string }>,
+  rounds: ReadonlyArray<{ sequence: number; scheduled_on: string; course_name: string; status: string; name?: string | null }>,
   todayKey: string | null,
 ): { primary: string; secondary: string | null } {
   const active = [...rounds].filter(r => r.status !== 'cancelled').sort((a, b) => a.sequence - b.sequence);
@@ -82,8 +82,8 @@ export function headerRoundLine(
   const tail = focus.status === 'live' ? ' · live' : focus.status === 'completed' && !scheduledLeft ? ' · final' : todayKey && focus.scheduled_on === todayKey ? ' · today' : '';
   const next = active.find(r => r.sequence > focus.sequence && r.status === 'scheduled') ?? null;
   return {
-    primary: `Round ${focus.sequence} of ${active.length} · ${formatDateOnly(focus.scheduled_on, { weekday: true })} · ${focus.course_name}${tail}`,
-    secondary: next ? `Next: Round ${next.sequence} · ${formatDateOnly(next.scheduled_on, { weekday: true })}` : null,
+    primary: `Round ${focus.sequence} of ${active.length}${focus.name ? ` · ${focus.name}` : ''} · ${formatDateOnly(focus.scheduled_on, { weekday: true })} · ${focus.course_name}${tail}`,
+    secondary: next ? `Next: Round ${next.sequence}${next.name ? ` · ${next.name}` : ''} · ${formatDateOnly(next.scheduled_on, { weekday: true })}` : null,
   };
 }
 

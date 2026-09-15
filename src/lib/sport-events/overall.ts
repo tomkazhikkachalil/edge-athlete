@@ -24,10 +24,14 @@
  *     null before round 2;
  *   * a flight filter ranks WITHIN the flight; `flights` lists the whole
  *     field's flight labels either way;
- *   * the cut (`madeCut`, `cutLine`) is wired in a later PR — the shape is
- *     here so the board's consumers are stable: null = no cut rule.
+ *   * the cut (207 `format_config.cut`): once the round it follows has
+ *     completed, the standing through that round decides (cut.ts) — the
+ *     missed-cut set ranks below the line (`madeCut` false; `cutLine`),
+ *     never "missing" the rounds it was not in; null = no cut or not yet
+ *     decided.
  */
 import { assignSharedRanks } from '@/lib/competitions/scoring';
+import { applyCut, cutDecided, type CutLine } from './cut';
 import { formatRank, type LeaderboardRow, type NetReason } from './leaderboard';
 import type { SportEventFormat, SportEventRoundStatus } from './types';
 
@@ -39,15 +43,11 @@ export interface RoundBoardInput {
   rows: LeaderboardRow[];
 }
 
-export interface CutRule {
-  after_round: number;
-  top_n?: number;
-  to_par?: number;
-}
+export type { CutRule } from './types';
 
 export interface OverallOptions {
-  /** Reserved for the cut PR; ignored until then. */
-  cut?: CutRule | null;
+  /** The organizer's cut (207); applied once the round it follows has completed. */
+  cut?: import('./types').CutRule | null;
   /** Rank within this flight only. */
   flight?: string | null;
   /** The round the board is "as of": the live round's sequence, else the last completed. Derived when omitted. */
@@ -103,7 +103,7 @@ export interface OverallBoard {
   scoredRounds: number[];
   /** Every flight label in the whole field, sorted. */
   flights: string[];
-  cutLine: { afterRound: number; score: number; madeCut: number; missed: number } | null;
+  cutLine: CutLine | null;
 }
 
 const MINTED: ReadonlySet<SportEventRoundStatus> = new Set(['live', 'completed']);
@@ -238,6 +238,22 @@ export function computeOverallLeaderboard(input: RoundBoardInput[], format: Spor
   const current = options.current ?? currentSequence(rounds);
   const liveSequence = rounds.find(r => r.status === 'live')?.sequence ?? null;
   const allFolded = fold(rounds, format, liveSequence);
+
+  // The cut: the standing THROUGH round K decides; a player who missed it
+  // ranks below the line and is never "missing" the rounds they were not
+  // in. Decided only once round K has completed (cut.ts cutDecided).
+  let cutLine: CutLine | null = null;
+  const cut = options.cut ?? null;
+  if (cut && cutDecided(cut, rounds)) {
+    const throughK = rank(fold(rounds.filter(r => r.sequence <= cut.after_round), format, null));
+    const decided = applyCut(throughK.map(r => ({ participantId: r.participantId, rank: r.rank, keyToPar: format === 'stroke_net' ? r.netToPar : r.totalToPar, key: format === 'stroke_net' ? r.net : r.total })), cut);
+    cutLine = decided.line;
+    for (const f of allFolded) {
+      f.row.madeCut = decided.made.has(f.row.participantId);
+      if (!f.row.madeCut) f.row.missedRounds = f.row.missedRounds.filter(seq => seq <= cut.after_round);
+    }
+  }
+
   const flights = flightsOf(allFolded.map(f => f.row));
   const folded = options.flight ? allFolded.filter(f => f.row.flight === options.flight) : allFolded;
   const rows = rank(folded);
@@ -256,7 +272,7 @@ export function computeOverallLeaderboard(input: RoundBoardInput[], format: Spor
   }
 
   const scoredRounds = rounds.filter(r => r.rows.some(row => row.thru > 0)).map(r => r.sequence);
-  return { rows, current, scoredRounds, flights, cutLine: null };
+  return { rows, current, scoredRounds, flights, cutLine };
 }
 
 /** "▲2", "▼1", "—" — the movement column's text; the arrow is the component's, this is the accessible label's number. */

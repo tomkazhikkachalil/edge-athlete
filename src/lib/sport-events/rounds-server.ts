@@ -14,10 +14,12 @@ import type { RoundInput } from './validate';
 type Admin = SupabaseClient<any, 'public', any>;
 
 export const ROUND_COLUMNS =
-  'id, sport_event_id, sequence, scheduled_on, course_id, course_name, tee, holes, starting_hole, course_rating, slope_rating, hole_data, status, created_at, updated_at';
+  'id, sport_event_id, sequence, scheduled_on, course_id, course_name, tee, holes, starting_hole, course_rating, slope_rating, hole_data, status, name, created_at, updated_at';
 
 export interface RoundSnapshot {
   scheduled_on: string;
+  /** 207 — an optional label ("Saturday", "Final round"). */
+  name: string | null;
   course_id: string | null;
   course_name: string;
   tee: string | null;
@@ -33,6 +35,7 @@ export async function snapshotRound(admin: Admin, input: RoundInput): Promise<Ro
   if (!input.course_id) {
     return {
       scheduled_on: input.scheduled_on,
+      name: input.name ?? null,
       course_id: null,
       course_name: input.course_name ?? 'Course',
       tee: input.tee,
@@ -56,6 +59,7 @@ export async function snapshotRound(admin: Admin, input: RoundInput): Promise<Ro
   const rating = ratingForTee(course as { course_rating: Record<string, number> | null; slope_rating: Record<string, number> | null }, input.tee);
   return {
     scheduled_on: input.scheduled_on,
+    name: input.name ?? null,
     course_id: course.id as string,
     course_name: input.course_name ?? (course.name as string),
     tee: input.tee,

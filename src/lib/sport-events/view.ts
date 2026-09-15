@@ -7,6 +7,8 @@
  */
 import { publicDisplayName, publicHandle, type MaskableProfile } from '@/lib/orgs/public-names';
 import type { SportEventAccess } from './access';
+import { readFormatConfig } from './format-config';
+import type { FormatConfig } from './types';
 import type { SportEventGroupMemberRow, SportEventGroupRow, SportEventParticipantRow, SportEventRoundRow, SportEventRow } from './types';
 
 export type ProfileForView = MaskableProfile & { id: string; handle?: string | null; avatar_url?: string | null };
@@ -25,6 +27,8 @@ export interface EventView {
   /** Organizers only; null for everyone else. */
   link_token: string | null;
   format: SportEventRow['format'];
+  /** 207 — the organizer's format options (the cut), read tolerantly. */
+  format_config: FormatConfig;
   status: SportEventRow['status'];
   capacity: number | null;
   starts_on: string | null;
@@ -83,6 +87,7 @@ export function projectEvent(row: SportEventRow, access: SportEventAccess): Even
     visibility: row.visibility,
     link_token: access.canManage ? row.link_token : null,
     format: row.format,
+    format_config: readFormatConfig(row.format_config, 8),
     status: row.status,
     capacity: row.capacity,
     starts_on: row.starts_on,

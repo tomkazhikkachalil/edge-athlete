@@ -1,5 +1,42 @@
 # Development Log
 
+## September 16, 2026 — Events program, phase 2, PR 8: the cut and the round names wired (reads 207 — merges after it ran)
+
+The PR that ends the 42703 window: `EVENT_COLUMNS` / `ROUND_COLUMNS`
+name `format_config` and `name` from here on, so it merges only after
+Tom ran 207 (the grid every row OK, `check:schema` OK).
+
+- The event PATCH takes `format_config` — validated against the
+  non-cancelled round count (`parseFormatConfig`), allowed while live for
+  the format alone, refused `cut_already_passed` once the round the cut
+  follows completed; the view carries `format_config` read tolerantly.
+- `overall.ts` applies the cut once it is decided (`cutDecided`): the
+  standing THROUGH round K through `applyCut` — the missed-cut set ranks
+  below the line (`madeCut` false, the sort's second key), never
+  "missing" the rounds it was not in; `cutLine`. `fetchOverallLeaderboard`
+  passes the event's cut.
+- `applyRoundTransition` 'live' past a decided cut computes the
+  missed-cut set from the overall board and EXCLUDES it from the mint
+  (`mintRound {excludeParticipantIds}`) — the board decides, nothing is
+  stored. `planJoin('invite')` refuses `cutDecided` (a late joiner would
+  rank below it by the rule).
+- A round's `name` (1..40) rides `parseRoundInput`, the snapshot, the
+  wizard's draft and the round fields; `headerRoundLine` ("Round 2 of 2 ·
+  Final · …"), the switcher's pill and the schedule show it.
+- UI: `FormatSettingsWindow` (the house bottom sheet: the cut on / off,
+  after round — completed rounds greyed — top N or to-par; locked once
+  the cut is made; Save = one PATCH) behind the Overview's **Format
+  settings** door on a tournament; the Overview's "Cut after round 1 ·
+  top 20" line; the overall board's cut line row and the "cut" mark.
+
+Verification: `npm run verify` green; `overall.test.ts` (the cut: not
+decided until round K completes, ties included, the to-par form, a
+missed-cut player below even with a lower total), `join.test.ts`,
+`validate.test.ts`, `wizard.test.ts`, `page-rules.test.ts`;
+`e2e/sport-events-cut.spec.ts @mobile` — RUN AFTER 207 (the target must
+have the columns) on Chromium + WebKit, then on prod after the merge.
+Phase 2 closes with this PR.
+
 ## September 16, 2026 — Events program, phase 2, PR 12: the waitlist polish · the docs close (zero DDL)
 
 The waitlist, finished:

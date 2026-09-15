@@ -11,8 +11,9 @@ import type { SportEventParticipantRow, SportEventRow } from './types';
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Admin = SupabaseClient<any, 'public', any>;
 
+/** 207's `format_config` rides here since PR 8 (phase 2) — every gate read selects it; the column MUST exist (a missing column 404s the API). */
 export const EVENT_COLUMNS =
-  'id, host_profile_id, created_by_user_id, club_id, league_id, sport_key, name, description, cover_path, join_mode, visibility, link_token, format, status, capacity, starts_on, opened_at, went_live_at, completed_at, cancelled_at, created_at, updated_at';
+  'id, host_profile_id, created_by_user_id, club_id, league_id, sport_key, name, description, cover_path, join_mode, visibility, link_token, format, status, capacity, format_config, starts_on, opened_at, went_live_at, completed_at, cancelled_at, created_at, updated_at';
 
 export const PARTICIPANT_COLUMNS =
   'id, sport_event_id, profile_id, role, status, playing, handicap_index, handicap_source, flight, waitlist_position, hide_from_profile, invited_by, accepted_at, responded_at, created_at, updated_at';

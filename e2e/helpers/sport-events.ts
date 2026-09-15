@@ -36,8 +36,10 @@ export interface EventView {
     opened_at: string | null;
     went_live_at: string | null;
     completed_at: string | null;
+    /** 207 (phase 2): the organizer's format options. */
+    format_config?: { cut?: { after_round: number; top_n?: number; to_par?: number } | null };
   };
-  rounds: Array<{ id: string; sequence: number; scheduled_on: string; course_name: string; holes: number; starting_hole: number; status: string; group_post_id: string | null }>;
+  rounds: Array<{ id: string; sequence: number; scheduled_on: string; course_name: string; holes: number; starting_hole: number; status: string; group_post_id: string | null; name?: string | null }>;
   participants: Array<{ id: string; profile_id: string; status: string; role: string; playing: boolean; waitlist_position: number | null; handicap_index: number | null }>;
   groups: Array<{ id: string; sport_event_round_id: string; sequence: number; members: Array<{ participant_id: string; position: number }> }>;
   counts: { playing: number; followers: number; waitlisted: number };

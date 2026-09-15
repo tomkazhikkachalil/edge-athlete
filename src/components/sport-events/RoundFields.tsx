@@ -44,6 +44,10 @@ export default function RoundFields({ value: d, onChange, idPrefix = 'event-roun
         <span className="text-sm font-medium text-secondary">Date</span>
         <input type="date" value={d.scheduled_on} onChange={e => onChange({ scheduled_on: e.target.value })} className={FIELD_INPUT} data-event-wizard-date="" data-round-date="" />
       </label>
+      <label className="block space-y-1">
+        <span className="text-sm font-medium text-secondary">Name <span className="text-muted font-normal">(optional — &ldquo;Saturday&rdquo;, &ldquo;Final round&rdquo;)</span></span>
+        <input value={d.name} onChange={e => onChange({ name: e.target.value })} maxLength={40} className={FIELD_INPUT} placeholder="Round name" data-round-name="" />
+      </label>
       <div className="space-y-1">
         <label htmlFor={`${idPrefix}-course`} className="text-sm font-medium text-secondary">Course</label>
         <CourseSearchField

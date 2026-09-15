@@ -6,8 +6,12 @@ import { requireOrgManager } from '@/lib/orgs/structure-server';
 import { EVENT_COLUMNS, readSportEventAccess } from '@/lib/sport-events/access-server';
 import { bodyProfileId, readJson, resolveActor } from '@/lib/sport-events/actor-server';
 import { applyCapacityChange } from '@/lib/sport-events/join-server';
+import { cutEditable } from '@/lib/sport-events/cut';
+import { parseFormatConfig } from '@/lib/sport-events/format-config';
 import { mintLinkToken } from '@/lib/sport-events/link-token';
-import type { SportEventRow } from '@/lib/sport-events/types';
+import { activeRounds } from '@/lib/sport-events/rounds';
+import { ROUND_COLUMNS } from '@/lib/sport-events/rounds-server';
+import type { SportEventRoundRow, SportEventRow } from '@/lib/sport-events/types';
 import { parseEventPatch } from '@/lib/sport-events/validate';
 import { fetchSportEventView } from '@/lib/sport-events/view-server';
 
@@ -23,8 +27,11 @@ const NOT_FOUND = () => NextResponse.json({ error: 'Event not found' }, { status
  * guardian read as a supervised athlete.
  *
  * PATCH — the editable fields while draft / open (name, description,
- * visibility, join mode, format, capacity, the org). Organizers only. A
- * capacity raise promotes the waitlist; switching to `link` mints a token.
+ * visibility, join mode, format, capacity, the org) and, while live too,
+ * `format_config` (phase 2: the cut — validated against the round count,
+ * refused `cut_already_passed` once the round it follows completed).
+ * Organizers only. A capacity raise promotes the waitlist; switching to
+ * `link` mints a token.
  *
  * DELETE — the host only, and only draft / cancelled / completed. A minted
  * round detaches (203's SET NULL) and stays the players' round.
@@ -67,13 +74,24 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     const read = await readSportEventAccess(admin, id, actor.profileId, null);
     if (!read) return NOT_FOUND();
     if (!read.access.canManage) return NextResponse.json({ error: 'Only an organizer can edit this event.' }, { status: 403 });
-    if (read.event.status !== 'draft' && read.event.status !== 'open') return NextResponse.json({ error: 'This event can no longer be edited.' }, { status: 409 });
 
     const patchBody = typeof body === 'object' && body !== null ? { ...(body as Record<string, unknown>) } : body;
     if (patchBody && typeof patchBody === 'object') delete (patchBody as Record<string, unknown>).profile_id;
     const parsed = parseEventPatch(patchBody);
     if (!parsed.ok) return NextResponse.json({ error: parsed.error }, { status: 400 });
     const patch = parsed.value;
+    // Phase 2: the format options (the cut) may change while live, until the round the cut follows has completed; everything else is draft / open only.
+    const onlyFormatConfig = Object.keys(patch).every(k => k === 'format_config');
+    if (read.event.status !== 'draft' && read.event.status !== 'open' && !(onlyFormatConfig && read.event.status === 'live')) return NextResponse.json({ error: 'This event can no longer be edited.' }, { status: 409 });
+    let formatConfig: Record<string, unknown> | null = null;
+    if (patch.format_config !== undefined) {
+      const { data: roundRows } = await admin.from('sport_event_rounds').select(ROUND_COLUMNS).eq('sport_event_id', id);
+      const rounds = activeRounds((roundRows ?? []) as SportEventRoundRow[]);
+      const fc = parseFormatConfig(patch.format_config, { roundCount: rounds.length });
+      if (!fc.ok) return NextResponse.json({ error: fc.error }, { status: 400 });
+      if (fc.value.cut && !cutEditable(fc.value.cut, rounds)) return NextResponse.json({ error: 'That cut falls after a round that has already completed.', reason: 'cut_already_passed' }, { status: 409 });
+      formatConfig = fc.value as Record<string, unknown>;
+    }
 
     const nextClub = patch.club_id !== undefined ? patch.club_id : read.event.club_id;
     const nextLeague = patch.league_id !== undefined ? patch.league_id : read.event.league_id;
@@ -86,6 +104,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     }
 
     const update: Record<string, unknown> = { ...patch };
+    if (formatConfig !== null) update.format_config = formatConfig;
     if (patch.visibility === 'link' && !read.event.link_token) update.link_token = mintLinkToken();
 
     const { data: updated, error: updateError } = await admin.from('sport_events').update(update).eq('id', id).select(EVENT_COLUMNS).single();

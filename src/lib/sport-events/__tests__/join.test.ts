@@ -97,3 +97,10 @@ describe('the waitlist polish (phase 2)', () => {
     expect(aheadOf(rows, rows[0].id)).toBeNull();
   });
 });
+
+describe('the cut and the invite (phase 2)', () => {
+  it('no invites once the cut has been made', () => {
+    expect(planJoin('invite', ctx({ actorRole: 'organizer', cutDecided: true }))).toMatchObject({ ok: false, status: 409, error: expect.stringContaining('cut') });
+    expect(planJoin('invite', ctx({ actorRole: 'organizer', cutDecided: false }))).toMatchObject({ ok: true });
+  });
+});
