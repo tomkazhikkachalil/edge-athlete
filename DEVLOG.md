@@ -1,5 +1,29 @@
 # Development Log
 
+## September 16, 2026 — Maintenance checklist (zero DDL)
+
+Run on a fresh `main` (006c334b, after the Events program's close):
+
+- `npm run verify` — `VERIFY_EXIT=0` read from the log: typecheck · lint at
+  zero warnings · 3299 tests in 340 files · build · the browser-floor syntax
+  gate.
+- `npm run check:schema` — OK: every live table, column, policy, function,
+  trigger and grant owned by the chain; the allowlist stays empty
+  (migration head 206).
+- `scripts/hardening-guardrails.sh` — passed.
+- `npm audit --omit=dev` — 0 vulnerabilities.
+- Working tree: one stray empty file at the root (`edge-athlete@0.1.0`, a
+  shell mis-redirect from a session command, untracked) removed; nothing
+  else.
+- Dependencies (information only, nothing upgraded — upgrades are their
+  own decision): minor bumps available for `@playwright/test`,
+  `@sentry/nextjs`, `@supabase/ssr`, `@supabase/supabase-js`,
+  `emoji-picker-react`, `lucide-react`, `eslint-config-next`, the React
+  types; majors waiting for `eslint` (10) and `@types/node` (26) — the
+  latter would move the Node baseline and is not a drive-by.
+
+Nothing in flight after this entry; the next program is Tom's call.
+
 ## September 16, 2026 — Events program, PR 16: the close — CLAUDE.md convention 17, docs/EVENTS.md complete, the session prompt (zero DDL)
 
 Phase 1 of the Events program is complete: sixteen PRs (#732–#748), six
