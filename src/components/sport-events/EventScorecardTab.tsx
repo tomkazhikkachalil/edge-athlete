@@ -9,6 +9,7 @@ import { confirmCopyFor } from '@/lib/sport-events/page-rules';
 import { activeRounds } from '@/lib/sport-events/rounds';
 import type { RoundSelection } from '@/lib/sport-events/tabs';
 import type { SportEventViewPayload } from '@/lib/sport-events/view';
+import { isMatchFormat } from '@/lib/sport-events/types';
 import RoundSwitcher from './RoundSwitcher';
 
 /**
@@ -137,7 +138,7 @@ export default function EventScorecardTab({ view, api, version, selected, onSele
         </ul>
       </section>
 
-      {viewer.can_manage && round.status === 'live' && (
+      {viewer.can_manage && round.status === 'live' && !isMatchFormat(event.format) && (
         <div className="space-y-2">
           <button type="button" disabled={busy !== null} onClick={() => setConfirm(true)} className="ea-cta text-white px-4 min-h-[44px] rounded-lg text-sm font-semibold disabled:opacity-60" data-complete-event="">{many ? `Complete round ${round.sequence}` : 'Complete event'}</button>
           <p className="text-xs text-muted">{pending.length === 0 ? 'Every card is final.' : `${pending.length} card${pending.length === 1 ? ' is' : 's are'} not final: ${pending.join(', ')}.`}</p>

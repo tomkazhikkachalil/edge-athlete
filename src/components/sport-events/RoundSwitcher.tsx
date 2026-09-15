@@ -26,6 +26,8 @@ interface Props {
   selected: RoundSelection | null;
   onChange: (next: RoundSelection) => void;
   includeOverall?: boolean;
+  /** Phase 3: the whole bracket, first (the Matches tab on a bracket event). */
+  includeBracket?: boolean;
   label?: string;
 }
 
@@ -33,9 +35,9 @@ function shortDate(value: string): string {
   return formatDateOnly(value).replace(/, \d{4}$/, '');
 }
 
-export default function RoundSwitcher({ rounds, selected, onChange, includeOverall = false, label = 'Round' }: Props) {
+export default function RoundSwitcher({ rounds, selected, onChange, includeOverall = false, includeBracket = false, label = 'Round' }: Props) {
   const active = rounds.filter(r => r.status !== 'cancelled').sort((a, b) => a.sequence - b.sequence);
-  if (active.length + (includeOverall ? 1 : 0) < 2) return null;
+  if (active.length + (includeOverall ? 1 : 0) + (includeBracket ? 1 : 0) < 2) return null;
   const pill = (key: RoundSelection, text: string, ariaLabel: string, status?: string) => {
     const on = selected === key;
     return (
@@ -57,6 +59,7 @@ export default function RoundSwitcher({ rounds, selected, onChange, includeOvera
   return (
     <div role="group" aria-label={label} className="flex gap-2 overflow-x-auto scrollbar-hide -mx-4 px-4 sm:mx-0 sm:px-0 pb-1" data-round-switcher="">
       {includeOverall && pill('overall', 'Overall', 'Overall')}
+      {includeBracket && pill('bracket', 'Bracket', 'The whole bracket')}
       {active.map(r => pill(r.id, `R${r.sequence} · ${r.name ?? shortDate(r.scheduled_on)}`, `Round ${r.sequence}${r.name ? `, ${r.name}` : ''}, ${formatDateOnly(r.scheduled_on, { weekday: true })}${r.status === 'live' ? ', live' : r.status === 'completed' ? ', final' : ''}`, r.status))}
     </div>
   );

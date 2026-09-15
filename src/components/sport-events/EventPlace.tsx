@@ -10,6 +10,7 @@ import { joinControl } from '@/lib/sport-events/join-state';
 import { confirmCopyFor, nextOrganizerStep, type RoundAction } from '@/lib/sport-events/page-rules';
 import { activeRounds, nextSequence } from '@/lib/sport-events/rounds';
 import { parseEventTab, parseRoundParam, tabsFor, type EventTab, type RoundSelection } from '@/lib/sport-events/tabs';
+import { isMatchFormat } from '@/lib/sport-events/types';
 import type { SportEventViewPayload } from '@/lib/sport-events/view';
 import EventGroupsEditor from './EventGroupsEditor';
 import EventHeader from './EventHeader';
@@ -17,6 +18,7 @@ import EventLeaderboard from './EventLeaderboard';
 import EventOverview from './EventOverview';
 import EventPlayers from './EventPlayers';
 import EventSchedule from './EventSchedule';
+import EventMatchesTab from './EventMatchesTab';
 import EventScorecardTab from './EventScorecardTab';
 import EventTabs from './EventTabs';
 import FlightsWindow from './FlightsWindow';
@@ -58,7 +60,7 @@ export default function EventPlace({ eventId, initialView, token }: Props) {
   const params = useSearchParams();
   const api = useMemo(() => eventApi(eventId, token), [eventId, token]);
   const [view, setView] = useState<SportEventViewPayload | null>(initialView);
-  const [tab, setTab] = useState<EventTab>(parseEventTab(params.get('tab'), { canManage: true, isPlayer: true, roundMinted: true }));
+  const [tab, setTab] = useState<EventTab>(parseEventTab(params.get('tab'), { canManage: true, isPlayer: true, roundMinted: true, matchPlay: isMatchFormat(initialView?.event.format) || params.get('tab') === 'matches' }));
   const [roundParam, setRoundParam] = useState<string | null>(params.get('round'));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -122,9 +124,10 @@ export default function EventPlace({ eventId, initialView, token }: Props) {
 
   if (!view) return null;
   const { event, viewer } = view;
-  const tabViewer = { canManage: viewer.can_manage, isPlayer: viewer.participant_status === 'accepted' && viewer.playing, roundMinted: view.rounds.some(r => r.group_post_id !== null) };
+  const matchPlay = isMatchFormat(event.format);
+  const tabViewer = { canManage: viewer.can_manage, isPlayer: viewer.participant_status === 'accepted' && viewer.playing, roundMinted: view.rounds.some(r => r.group_post_id !== null), matchPlay };
   const visibleTab: EventTab = tabsFor(tabViewer).includes(tab) ? tab : 'overview';
-  const selectedRound = parseRoundParam(roundParam, view.rounds, visibleTab);
+  const selectedRound = parseRoundParam(roundParam, view.rounds, visibleTab, { bracket: !!event.match?.bracket });
   const many = activeRounds(view.rounds).length > 1;
   const own = view.participants.find(p => p.id === viewer.participant_id) ?? null;
   const host = view.participants.find(p => p.profile_id === event.host_profile_id);
@@ -156,7 +159,7 @@ export default function EventPlace({ eventId, initialView, token }: Props) {
   // The round actions — the confirm copy is page-rules.ts's; a single-round event keeps phase 1's words.
   const roundAction = (round: RoundView, action: RoundAction) => {
     if (action === 'edit') { setRoundEdit({ mode: 'edit', round }); return; }
-    const copy = confirmCopyFor(action, round, view.rounds);
+    const copy = confirmCopyFor(action, round, view.rounds, { matchPlay });
     const done = action === 'start' ? (many ? `Round ${round.sequence} is live.` : 'The round is live.')
       : action === 'complete' ? (many && view.rounds.some(r => r.status === 'scheduled' && r.id !== round.id) ? `Round ${round.sequence} is final.` : 'Results are in.')
       : action === 'cancel' ? `Round ${round.sequence} cancelled.` : `Round ${round.sequence} removed.`;
@@ -164,7 +167,8 @@ export default function EventPlace({ eventId, initialView, token }: Props) {
       ...copy,
       run: async () => {
         if (action === 'start') await run(() => api.roundTransition(round.id, 'live', { today: today() }), done);
-        else if (action === 'complete') await run(() => api.roundTransition(round.id, 'completed', { override: true }), done);
+        // A match round ignores the override (every match must be decided — the route refuses `matches_undecided`); a stroke round finalizes as it stands.
+        else if (action === 'complete') await run(() => api.roundTransition(round.id, 'completed', { override: !matchPlay }), done);
         else if (action === 'cancel') await run(() => api.roundTransition(round.id, 'cancelled'), done);
         else await run(() => api.deleteRound(round.id), done);
       },
@@ -225,6 +229,20 @@ export default function EventPlace({ eventId, initialView, token }: Props) {
           )}
           {visibleTab === 'groups' && viewer.can_manage && <EventGroupsEditor view={view} api={api} selected={selectedRound} onSelect={changeRound} onSaved={v => { setView(v); setVersion(x => x + 1); }} />}
           {visibleTab === 'leaderboard' && <EventLeaderboard view={view} api={api} version={version} selected={selectedRound} onSelect={changeRound} />}
+          {visibleTab === 'matches' && (
+            <EventMatchesTab
+              view={view}
+              api={api}
+              version={version}
+              selected={selectedRound}
+              onSelect={changeRound}
+              onChanged={() => setVersion(v => v + 1)}
+              onCompleteRound={async round => {
+                const done = many && view.rounds.some(r => r.status === 'scheduled' && r.id !== round.id) ? `Round ${round.sequence} is final.` : 'Results are in.';
+                await run(() => api.roundTransition(round.id, 'completed', {}), done);
+              }}
+            />
+          )}
           {visibleTab === 'scorecard' && (
             <EventScorecardTab
               view={view}
@@ -235,7 +253,7 @@ export default function EventPlace({ eventId, initialView, token }: Props) {
               onChanged={() => setVersion(v => v + 1)}
               onCompleteRound={async round => {
                 const done = many && view.rounds.some(r => r.status === 'scheduled' && r.id !== round.id) ? `Round ${round.sequence} is final.` : 'Results are in.';
-                await run(() => api.roundTransition(round.id, 'completed', { override: true }), done);
+                await run(() => api.roundTransition(round.id, 'completed', { override: !matchPlay }), done);
               }}
             />
           )}
