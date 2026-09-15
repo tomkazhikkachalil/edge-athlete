@@ -79,6 +79,7 @@ Pure halves (node-tested) and `*-server.ts` I/O halves, one concern each:
 | `join.ts` | `join-server.ts` | `planJoin` for the ten actions; seats = accepted AND playing; full → waitlisted; a vacancy or a capacity raise promotes lowest position first; a follower may be invited. |
 | `handicap.ts` | `handicap-server.ts` | the frozen index at accept (`snapshotAtAccept`; an organizer override is never overwritten); the read-time course handicap. |
 | `leaderboard.ts` | `leaderboard-server.ts` | the one computation; `fetchRoundLeaderboard` reads the field, the cards and the names (`leaderboard-rows.ts`, pure) and computes on every request — nothing stored. |
+| `overall.ts` | `leaderboard-server.ts fetchOverallLeaderboard` | THE TOURNAMENT'S BOARD (phase 2): a pure fold over the rounds' boards — the format's key summed over every minted round's scored holes (the live round's partial counts), a missed completed round ranks below the full field, shared ranks through `assignSharedRanks`, order-only tiebreak today's thru DESC, unscored last, net only when every played round has net, `today` = the live round's cell, `movement` vs the standing before the current round, a flight filter ranks within the flight. Never stored. |
 | `opt-out.ts` | `results-server.ts` | the results opt-out: `mirrorCompletedRound` skips (and un-mirrors) a player who hid the result — the ONE edit in `round-mirror.ts`; `applyProfileOptOut` for a late flip. |
 | `scoring-authz.ts` | `scoring-authz-server.ts` | `scoringRight` — the via / client matrix over the card status; `resolveScoringRight` reads the row, the round, the event role + group and the card, and BOTH score routes (`api/golf/scorecards/[id]/scores`, `api/golf/participant-scores`) pick the client from its verdict; `detectConflict` (`expected_updated_at` → 409 `{current}`); `holeRangeFor` (an event round's own start and length). |
 | `cards.ts` | — | `planCardAction`: submit (owner) · finalize / reopen (organizers). |
@@ -132,7 +133,8 @@ more gate: a same-group partner or an organizer writes on the admin
 client; `expected_updated_at` answers 409 on a newer card; holes outside
 the round's range are refused by name.
 
-| `GET /api/sport-events/[id]/rounds/[rid]/leaderboard?token=` | may view | computed on read; `private, max-age=5` signed in, `s-maxage=10` anonymous on a public event |
+| `GET /api/sport-events/[id]/rounds/[rid]/leaderboard?token=&flight=` | may view | computed on read; `private, max-age=5` signed in, `s-maxage=10` anonymous on a public event |
+| `GET /api/sport-events/[id]/leaderboard?token=&flight=` | may view | the OVERALL board (phase 2): the minted rounds' boards folded — `{event, rounds (the headers, scheduled ones included), board: {rows, current, scoredRounds, flights, cutLine}}`; the same cache rule |
 
 The results: on completion the round is mirrored into every player's
 `golf_rounds` (the profile, the handicap, the dataset) EXCEPT players
@@ -233,6 +235,7 @@ specs run at 390 × 844 on Chromium AND WebKit.
 | `sport-events-scorecard` `@mobile` | submit · mark final · reopen · complete with the not-final list |
 | `sport-events-group-card` `@mobile` | the group card · OFFLINE queue and reconnect · a partner's hole |
 | `sport-events-feed` | the announce card and the chip, announced → live |
+| `sport-events-overall` (phase 2) | two nine-hole rounds: round 1 totals and ranks · round 2 live (today / thru, the total moves, the not-started player's standing holds) · round 2 completed with a missed round → below the full field · movement · the stranger's 404 · the flight filter |
 | `sport-events-rounds` (phase 2) | test 2: the round lifecycle — in order, one at a time, regroup round 2 while round 1 is live, `rounds_remaining`, complete round 1 (one mirror, no bell), add + cancel a round while live, complete the last round (the event completes: one bell, two mirrors) · test 1: create with three rounds · the phase-1 body · both shapes / an unordered list refused by name · add (appended; earlier date refused; the announce post) · edit keeps the order · delete renumbers · the last round stays · the cap |
 | `header-create`, `round-invite` | the Create sheet's two doors; the plain shared round still scores |
 
@@ -278,6 +281,23 @@ write left); completion finalizes / mirrors THIS round's cards only (the
 phase-1 completion counted cards across every minted round); a late
 joiner is added to the LIVE round only. A live round is never cancelled;
 a completed round is neither cancelled nor deleted.
+
+### The overall leaderboard (PR 3)
+
+`src/lib/sport-events/overall.ts computeOverallLeaderboard(rounds, format,
+{flight?})` is the tournament's board — pinned rules: the format's key
+(net on a net event, else gross) summed over every MINTED round's scored
+holes, so the Total moves during a live round; a player who missed a
+COMPLETED round ranks below every full-field player whatever the total
+(missing more ranks lower); ties share a rank ("T2") with today's thru
+DESC as the order-only tiebreak; a player with no scored hole is unranked
+last; net needs net in every played round (else null with the first
+reason); `today` is the live round's cell; `movement` is the change from
+the same fold over the rounds before the current one (null before round
+2); a flight filter ranks within the flight while `flights` lists the
+whole field's labels; `cutLine` / `madeCut` are null until the cut PR.
+`GET /api/sport-events/[id]/leaderboard` is the door; the round route and
+`FieldRow` now carry `flight`.
 
 ## Phase 1 status
 

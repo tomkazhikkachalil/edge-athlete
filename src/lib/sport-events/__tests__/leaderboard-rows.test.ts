@@ -17,9 +17,9 @@ describe('toLeaderboardPlayers', () => {
       profiles,
     );
     expect(out).toEqual([
-      { participantId: 'pa', profileId: 'a', name: 'Ann Lee', handle: 'ann', handicapIndex: 10, holeScores: [{ hole_number: 1, strokes: 4 }], cardStatus: 'submitted' },
-      { participantId: 'pb', profileId: 'b', name: 'Bo K.', handle: null, handicapIndex: null, holeScores: [], cardStatus: 'in_progress' },
-      { participantId: 'pc', profileId: 'c', name: 'Athlete', handle: null, handicapIndex: null, holeScores: [], cardStatus: 'in_progress' },
+      { participantId: 'pa', profileId: 'a', name: 'Ann Lee', handle: 'ann', handicapIndex: 10, flight: null, holeScores: [{ hole_number: 1, strokes: 4 }], cardStatus: 'submitted' },
+      { participantId: 'pb', profileId: 'b', name: 'Bo K.', handle: null, handicapIndex: null, flight: null, holeScores: [], cardStatus: 'in_progress' },
+      { participantId: 'pc', profileId: 'c', name: 'Athlete', handle: null, handicapIndex: null, flight: null, holeScores: [], cardStatus: 'in_progress' },
     ]);
     expect(JSON.stringify(out)).not.toContain('@x.com');
   });

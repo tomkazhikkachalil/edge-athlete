@@ -1,5 +1,42 @@
 # Development Log
 
+## September 16, 2026 — Events program, phase 2, PR 3: the overall leaderboard (zero DDL)
+
+The tournament's board, the way Golf Genius and the PGA Tour app show
+one (Tom: "what users and sites have used before … make it smart"):
+
+- `src/lib/sport-events/overall.ts computeOverallLeaderboard` — a pure
+  fold over the rounds' boards (each round's rows still come from
+  `computeLeaderboard`, the one computation; nothing here re-reads a
+  hole). The key is the format's, summed over every MINTED round's scored
+  holes — the live round's partial total counts, so the Total moves
+  during play. A player who missed a COMPLETED round ranks below every
+  full-field player whatever the total (a nine-hole zero never "wins");
+  ties share a rank through `assignSharedRanks` and print T2; the
+  order-only tiebreak is today's thru DESC, then name; a player with no
+  scored hole is unranked last; net needs net in every played round or
+  is null with the first reason; `today` is the live round's cell;
+  `movement` is the change from the same fold over the rounds before the
+  current one (null before round 2); a flight filter ranks within the
+  flight while `flights` lists the whole field's labels; `cutLine` /
+  `madeCut` are on the shape (null) so the board's consumers are stable
+  before the cut PR.
+- `leaderboard-server.ts fetchOverallLeaderboard` reads the minted rounds'
+  boards in parallel and folds them; the payload carries every
+  non-cancelled round as a column header (a scheduled round has no cells
+  yet). NEW `GET /api/sport-events/[id]/leaderboard?token=&flight=` — the
+  round route's gate and cache rule. `LeaderboardPlayer` / `LeaderboardRow`
+  / `FieldRow` carry `flight` (selected from the participant row); the
+  filter itself is the flights PR's.
+- `client.ts overall(flight?)`; `leaderboard(roundId, flight?)`.
+
+Verification: `npm run verify` green; `overall.test.ts` (the sum and the
+ranks, a missed round below the field, a live round's today / thru with
+the not-started player's standing holding, movement, net needing every
+round, a nine plus an eighteen, the flight filter, the order-only
+tiebreak); `e2e/sport-events-overall.spec.ts` locally + on prod after the
+merge. Next: PR 4, the event page for N rounds.
+
 ## September 16, 2026 — Events program, phase 2, PR 2: the round lifecycle — the event follows its rounds (zero DDL)
 
 Rounds run one at a time (Tom's decision). `sport_event_rounds.status`
