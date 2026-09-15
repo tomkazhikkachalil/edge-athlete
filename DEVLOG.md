@@ -1,5 +1,45 @@
 # Development Log
 
+## September 16, 2026 — Events program, phase 3, PR 2: the pure match engine (zero DDL)
+
+Phase 3's arithmetic, settled before any route or column exists.
+`src/lib/sport-events/match.ts` and `bracket.ts` are pure and pinned
+(17 tests); nothing imports them yet — the DB vocabulary (`match_gross`
+/ `match_net`, `side`, `sport_event_matches`) waits for mig 212 and PR 4.
+
+- **A match is a group with two sides.** `computeMatch(input)` walks the
+  round's holes in the GROUP's order (`holeOrderFor` rotates to a shotgun
+  start): a hole counts when both sides have a counting score — own
+  ball (singles), the better NET ball (four-ball), the captain's card
+  (foursomes); a concession on a hole wins it for the OTHER side whatever
+  the scores; ties halve. Status is computed on every read — `up`,
+  `thru`, `remaining`, `dormie`, `closedOut`; "3&2" / "2 up" when
+  decided by holes; all square after the last → sudden death, the first
+  extra hole won decides ("10 holes" on a nine); a stored decision
+  (organizer / concession / bye) wins over the computation.
+  `completionSnapshot` is what round completion writes, for the
+  holes-and-extra-holes outcomes only (a concession or a decision was
+  stored at the act).
+- **Strokes given by the difference, on the stroke index.**
+  `playingHandicaps`: singles 100% each, the difference to the lower;
+  four-ball 90% PER PLAYER, each the difference to the lowest of the
+  four (a side has no single handicap in four-ball); foursomes 50% of
+  the combined, the difference given to the higher side's captain. Any
+  missing index → GROSS with `netReason 'no_index'`, a missing stroke
+  index → `'no_stroke_index'`: never a guessed stroke (the leaderboard's
+  rule).
+- **The rules the routes will enforce** are here too: `sidesOf` /
+  `groupsIncomplete` (side sizes per format; a one-side group is a bye
+  only on a bracket), `concessionRefusal`, `extraHoleRefusal`.
+- **A bracket is nothing new** (`bracket.ts`): the rounds ARE the
+  bracket rounds; `bracketNextRound` feeds match k from 2k−1 and 2k by
+  group sequence (an undecided feeder leaves the side empty, an odd tail
+  is a bye); `bracketColumns` names every slot ("TBD" on the first
+  round, "Winner of match n" after); `bracketRoundName` (Final ·
+  Semifinals · Quarterfinals · Round of 2n).
+- `types.ts` gains the `format_config.match` SHAPE only (`sides`,
+  `bracket`, `allowance?`); the strict parser learns it in PR 4.
+
 ## September 16, 2026 — Events program, phase 3, PR 1: the round's own field (zero DDL)
 
 Phase 3 (match play and brackets) opens on a substrate fix the audit
