@@ -124,6 +124,8 @@ export const NOTIFICATION_TYPE_META = {
   // Phase 2b (mig 210): the day-before reminder — the daily cron bells every
   // accepted participant of a round scheduled tomorrow, once per round.
   sport_event_reminder: { tab: null, icon: 'fa-bell' },
+  // Phase 3 (mig 213): one type, three copies by metadata.kind (set · won · lost).
+  sport_event_match: { tab: null, icon: 'fa-flag-checkered' },
 } as const satisfies Record<string, NotificationTypeMeta>;
 
 /** Types a viewer answers from the bell (accept / decline through POST /api/notifications/[id]/action). */

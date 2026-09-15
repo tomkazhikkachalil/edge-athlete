@@ -70,6 +70,7 @@ the org contest place.
 | 210 | `sport_event_reminder.sql` | phase 2b (B2): `sport_event_reminder` joins the notifications type CHECK (the 205 shape, 65 values). The daily cron's `sportEventReminders` step bells every accepted participant of a round scheduled tomorrow, once per round (deduped on the bell's metadata); the sender tolerates a pre-210 CHECK (logs and skips) |
 | 211 | `contests_sport_event_round.sql` | phase 2b (B1): `contests.sport_event_round_id` (FK SET NULL) + the partial UNIQUE — an org-hosted event counts toward one of the org's golf leaderboard competitions, one contest per round, ONE writer `contest-link-server.ts`; every read is 42703-tolerant and the golf-sync engine is guarded on it |
 | 212 | `sport_event_match_play.sql` | phase 3 (PR 3): `sport_events.format` widens to `match_gross \| match_net` (DROP + ADD of the one named CHECK — a 23514 window, the app names the values only after it ran); `sport_event_group_members.side` (1 \| 2, NULL on a stroke round); `sport_event_matches` (posture A, one per group — concessions, sudden-death extra holes, an organizer decision, a bye, the outcome written once at completion, `version` the app-level CAS; status computed on read, never stored). Nothing reads any of it until `check:schema` says 212 ran |
+| 213 | `sport_event_match_bell.sql` | phase 3 (PR 12): `sport_event_match` joins the notifications type CHECK (the 210 list verbatim + one; 66 values) — one type, three copies by `metadata.kind` (`set` on the draw, `won` / `lost` at completion); the senders are 23514-tolerant |
 
 Posture A on every new table (RLS on, zero policies, REVOKE from anon and
 authenticated): the service client behind `resolveSportEventAccess` is the
@@ -266,6 +267,7 @@ specs run at 390 × 844 on Chromium AND WebKit.
 | `sport-events-match-card` `@mobile` (phase 3, NEEDS 212) | two columns · the back link → matches · "Not started" · no Submit · holes 1–2 through the grid → "All square thru 2" · B concedes hole 3 → "1 UP thru 3", the hole reads conceded · A concedes hole 4 from the strip → "All square thru 4" · holes 5–9 halved → the extra-hole editor → "wins · 10 holes" |
 | `sport-events-match-pairs` `@mobile` (phase 3, NEEDS 212 + the four QA users) | four-ball: the Side control derives 1·1·2·2, three on a side flags the group, Save; four columns; the better balls halve hole 1, C & D win hole 2 · foursomes: two columns headed by the pairs; the captains' cards count, the partner's is never read |
 | `sport-events-bracket` `@mobile` (phase 3, NEEDS 212 + the four QA users) | two same-day rounds · round 1 the losers concede, completes · Fill from winners → A vs C with the sides set · the bracket view's two columns, the conceded slot with the winner bold · the organizer decides the Final · "wins the bracket" |
+| `sport-events-notifications` `@mobile` (phase 3 test, NEEDS 212 + 213 — self-skips before) | B's `set` bell on the draw (a re-save adds none), rendered on the notifications page · B concedes, the round completes → B's `lost`, A's `won` |
 | `sport-events-feed` (phase 3 test, NEEDS 212) | the announce card names the format and the round · B concedes the match, the round completes → the results card names the winner first, "def.", "conceded"; the API carries `match` + `match_results` |
 
 ## Phase 2 — tournaments (Sep 16 2026, in progress)
@@ -548,12 +550,13 @@ matches 2k−1 and 2k of round n by group `sequence` (`bracket.ts`).
 | 9 | pairs (`@mobile`): FOUR QA users per run (`global-setup.ts`; `openEventSession` `apiC` / `apiD`; `inviteAndAcceptAs`); the groups editor's Side control (`groups-editor.ts` `setSide` / `sideInEditor` / `editorGroupsIncomplete`; the PUT body carries `{participant_id, side}` on a match format), "Match n", the incomplete flag, "Group by standing" hidden; four-ball's better ball and foursomes' captain card proven end to end |
 | 10 | brackets (`@mobile`): "Fill from winners" on a bracket round after a completed match round (`drawFromWinners` → the sides set, "winner of match n" on an empty side, an odd tail a bye); `BracketView` at `?round=bracket` (`bracketColumns` — a column per round, the slots named, the winner bold, the Final's winner); same-day bracket rounds are legal |
 | 11 | the feed + the docs close: the label carries the round's `name`, the event's `format` and `match`; the announce card prints "Match play · Singles · Gross" and the round's name; a COMPLETED match round's post leads with `EventMatchResultsCard` (one line per match, the winner first, "def.", the result — never the stroke totals; `feed-server.ts applyMatchResults` behind the existing round branch, one matches read per such round); CLAUDE.md convention 19; `docs/SESSION_PROMPT.md` |
+| 12 | the match bells (migration 213): `set` to every member of a complete match whose match changed with the save (`match-bells.ts matchSetRecipients`; `notifyMatchSet` from the groups PUT), `won` / `lost` to each member of a decided match at completion (`notifyMatchClosed`); the action URL → the round's Matches tab; 23514-tolerant |
 
 ## Phase 3 status
 
-In progress (Sep 16 2026): #775 → #784 open as ONE stacked chain (PR 1 the
-round's own field → PR 2 the engine → PR 3 migration 212 → PRs 4–11), PR 12
-(the bells, migration 213) to follow. Every PR verify-green; the phase 3
+In progress (Sep 16 2026): #775 → #786 open as ONE stacked chain (PR 1 the
+round's own field → PR 2 the engine → PR 3 migration 212 → PRs 4–11 → PR 12
+the bells, migration 213). Every PR verify-green; the phase 3
 e2e specs self-skip before 212 and are run locally the moment it is live,
 before PR 4 merges (a self-skipping spec has never run). The merge gate
 for PRs 4+ is `npm run check:schema` OK after Tom ran 212. Parked from

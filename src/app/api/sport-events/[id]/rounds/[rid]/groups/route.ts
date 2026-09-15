@@ -6,6 +6,10 @@ import { readSportEventAccess } from '@/lib/sport-events/access-server';
 import { bodyProfileId, readJson, resolveActor } from '@/lib/sport-events/actor-server';
 import { readFormatConfig, readMatchConfig } from '@/lib/sport-events/format-config';
 import { validateGroupsPlan } from '@/lib/sport-events/groups';
+import { sidesOf } from '@/lib/sport-events/match';
+import { readRoundGroups, type RoundGroup } from '@/lib/sport-events/match-server';
+import { notifyMatchSet } from '@/lib/sport-events/notify';
+import type { DrawGroupForBells } from '@/lib/sport-events/match-bells';
 import { fetchSportEventView } from '@/lib/sport-events/view-server';
 
 /**
@@ -15,7 +19,8 @@ import { fetchSportEventView } from '@/lib/sport-events/view-server';
  * The mint reads these at go-live to order the round's players. Phase 3
  * (212): on a match format every member gets a `side` (1 | 2 — sent, or
  * derived from the position for a plain id); on a stroke format a `side`
- * is refused by name.
+ * is refused by name. The `set` bell (213) goes to every member of a
+ * complete match whose match changed with this save.
  */
 export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string; rid: string }> }) {
   const { id, rid } = await params;
@@ -38,11 +43,12 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     // Phase 2: the gate is the ROUND's — round 2 is regrouped while round 1 is live.
     if (round.status !== 'scheduled') return NextResponse.json({ error: 'Groups are set before the round starts.' }, { status: 409 });
 
-    const { data: eligible } = await admin.from('sport_event_participants').select('id').eq('sport_event_id', id).eq('status', 'accepted').eq('playing', true);
+    const { data: eligible } = await admin.from('sport_event_participants').select('id, profile_id').eq('sport_event_id', id).eq('status', 'accepted').eq('playing', true);
     const match = readMatchConfig(readFormatConfig(read.event.format_config, 8, read.event.format), read.event.format);
     const plan = validateGroupsPlan(body, new Set(((eligible ?? []) as Array<{ id: string }>).map(r => r.id)), { sides: match?.sides ?? null });
     if (!plan.ok) return NextResponse.json({ error: plan.error }, { status: 400 });
 
+    const previous: RoundGroup[] = match ? await readRoundGroups(admin, rid) : [];
     const { error: clearError } = await admin.from('sport_event_groups').delete().eq('sport_event_round_id', rid);
     if (clearError) {
       console.error('[api/sport-events/groups] clear failed:', clearError);
@@ -61,6 +67,13 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
           return NextResponse.json({ error: 'Could not save the groups' }, { status: 500 });
         }
       }
+    }
+    // Phase 3 (213): the match-set bells, best-effort — every member of a complete match whose match changed.
+    if (match) {
+      const toBells = (groups: RoundGroup[]): DrawGroupForBells[] => groups.map(g => { const r = sidesOf(g.members, match.sides, { allowBye: match.bracket }); return { members: g.members.map(m => ({ participant_id: m.participant_id, side: m.side })), complete: r.ok && !r.bye }; });
+      const next = await readRoundGroups(admin, rid);
+      const participantProfile = new Map(((eligible ?? []) as Array<{ id: string; profile_id?: string }>).filter(r => r.profile_id).map(r => [r.id, r.profile_id as string]));
+      await notifyMatchSet(admin, read.event, rid, toBells(previous), toBells(next), participantProfile, actor.profileId);
     }
     const view = await fetchSportEventView(admin, id, actor.profileId, null);
     return NextResponse.json(view, { headers: { 'Cache-Control': 'private, no-store' } });
