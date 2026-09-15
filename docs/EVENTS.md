@@ -261,6 +261,12 @@ specs run at 390 × 844 on Chromium AND WebKit.
 | `sport-events-overall` (phase 2) | two nine-hole rounds: round 1 totals and ranks · round 2 live (today / thru, the total moves, the not-started player's standing holds) · round 2 completed with a missed round → below the full field · movement · the stranger's 404 · the flight filter |
 | `sport-events-rounds` (phase 2) | test 2: the round lifecycle — in order, one at a time, regroup round 2 while round 1 is live, `rounds_remaining`, complete round 1 (one mirror, no bell), add + cancel a round while live, complete the last round (the event completes: one bell, two mirrors) · test 1: create with three rounds · the phase-1 body · both shapes / an unordered list refused by name · add (appended; earlier date refused; the announce post) · edit keeps the order · delete renumbers · the last round stays · the cap |
 | `header-create`, `round-invite` | the Create sheet's two doors; the plain shared round still scores |
+| `sport-events-match-api` (phase 3, NEEDS 212 — self-skips before) | test 1: the config refusals by name · the defaults-filled `match` · the allowance PATCH · sides derived and sent · `format_config_stale` · a stroke event refuses `side` · `not_stroke_play` · test 2: no draw / a one-side group → `groups_incomplete` · a match card · one match row (a second start mints none) · `matches_undecided` even with the override · 4s vs 5s → the round completes without the override, the row `holes · 1 · 5&4`, every card final, the results bell on the Matches tab · test 3: the routes — GET (the stranger 404s; the boards refuse) · concede (the wrong side 403, a stale version 409, twice 400) · extra holes (too early, unknown participant, "11 holes") · `round_not_live` after · decide / clear / a conceded match / ONE bell |
+| `sport-events-match-page` `@mobile` (phase 3, NEEDS 212) | Matches replaces Leaderboard (the old deep link → overview) · the format line · "Not started" · the disabled Complete with the open list · the Decide sheet · "wins 5&4" with the winner bold · Complete → the match wording → "The event is final." |
+| `sport-events-match-card` `@mobile` (phase 3, NEEDS 212) | two columns · the back link → matches · "Not started" · no Submit · holes 1–2 through the grid → "All square thru 2" · B concedes hole 3 → "1 UP thru 3", the hole reads conceded · A concedes hole 4 from the strip → "All square thru 4" · holes 5–9 halved → the extra-hole editor → "wins · 10 holes" |
+| `sport-events-match-pairs` `@mobile` (phase 3, NEEDS 212 + the four QA users) | four-ball: the Side control derives 1·1·2·2, three on a side flags the group, Save; four columns; the better balls halve hole 1, C & D win hole 2 · foursomes: two columns headed by the pairs; the captains' cards count, the partner's is never read |
+| `sport-events-bracket` `@mobile` (phase 3, NEEDS 212 + the four QA users) | two same-day rounds · round 1 the losers concede, completes · Fill from winners → A vs C with the sides set · the bracket view's two columns, the conceded slot with the winner bold · the organizer decides the Final · "wins the bracket" |
+| `sport-events-feed` (phase 3 test, NEEDS 212) | the announce card names the format and the round · B concedes the match, the round completes → the results card names the winner first, "def.", "conceded"; the API carries `match` + `match_results` |
 
 ## Phase 2 — tournaments (Sep 16 2026, in progress)
 
@@ -510,7 +516,7 @@ verified spec.
   "Hosted for" / "Counts toward" (rows it never had), the contest place's
   "Played as".
 
-## Phase 3 — match play and brackets (Sep 16 2026, in progress)
+## Phase 3 — match play and brackets (Sep 16 2026)
 
 Plan: `~/.claude/plans/let-s-start-phase-2-transient-fountain.md` (the
 phase 3 rewrite). Tom's decisions: singles + four-ball + foursomes, gross
@@ -541,6 +547,18 @@ matches 2k−1 and 2k of round n by group `sequence` (`bracket.ts`).
 | 8 | the group card's MatchStrip (`@mobile`): the scorecard GET's `sport_event.match` (the viewer's match, computed on read; `side_of_viewer`; the members' `side`); the columns are the counting cards (`matchColumns`; foursomes → the captains headed "A & B"); the strip — the engine's status line, "Concede hole n" for the viewer's side on the selected hole, "Concede the match"; a conceded hole's row says so; the extra-hole editor (a wheel per counting player, saved through the match route with its `version` — never the outbox); never "Submit my card" on a match round; the back links → `?tab=matches` |
 | 9 | pairs (`@mobile`): FOUR QA users per run (`global-setup.ts`; `openEventSession` `apiC` / `apiD`; `inviteAndAcceptAs`); the groups editor's Side control (`groups-editor.ts` `setSide` / `sideInEditor` / `editorGroupsIncomplete`; the PUT body carries `{participant_id, side}` on a match format), "Match n", the incomplete flag, "Group by standing" hidden; four-ball's better ball and foursomes' captain card proven end to end |
 | 10 | brackets (`@mobile`): "Fill from winners" on a bracket round after a completed match round (`drawFromWinners` → the sides set, "winner of match n" on an empty side, an odd tail a bye); `BracketView` at `?round=bracket` (`bracketColumns` — a column per round, the slots named, the winner bold, the Final's winner); same-day bracket rounds are legal |
+| 11 | the feed + the docs close: the label carries the round's `name`, the event's `format` and `match`; the announce card prints "Match play · Singles · Gross" and the round's name; a COMPLETED match round's post leads with `EventMatchResultsCard` (one line per match, the winner first, "def.", the result — never the stroke totals; `feed-server.ts applyMatchResults` behind the existing round branch, one matches read per such round); CLAUDE.md convention 19; `docs/SESSION_PROMPT.md` |
+
+## Phase 3 status
+
+In progress (Sep 16 2026): #775 → #784 open as ONE stacked chain (PR 1 the
+round's own field → PR 2 the engine → PR 3 migration 212 → PRs 4–11), PR 12
+(the bells, migration 213) to follow. Every PR verify-green; the phase 3
+e2e specs self-skip before 212 and are run locally the moment it is live,
+before PR 4 merges (a self-skipping spec has never run). The merge gate
+for PRs 4+ is `npm run check:schema` OK after Tom ran 212. Parked from
+phase 3: an org-side bracket (the masterplan's own program), a match
+event counting toward a competition (`not_stroke_play`), Stableford.
 
 ## Phase 2b status
 

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { applyRoundCounts, SPORT_EVENT_ROUND_LABEL_SELECT, sportEventIdsOf, sportEventLabelsByRound } from '@/lib/sport-events/feed';
+import { applyMatchResults } from '@/lib/sport-events/feed-server';
 import { UUID_RE, isUuid } from '@/lib/uuid';
 import { filterBlockedBidirectional } from '@/lib/blocks';
 import { getEnabledSports } from '@/lib/sports/SportRegistry';
@@ -931,6 +932,8 @@ export async function GET(request: NextRequest) {
           const { data: counts } = await getSupabaseAdmin().from('sport_event_rounds').select('sport_event_id').in('sport_event_id', eventIds).neq('status', 'cancelled');
           applyRoundCounts(labels, (counts ?? []) as Array<{ sport_event_id: string }>);
         }
+        // Phase 3: a completed match round's results ride the label (one matches read per such round).
+        await applyMatchResults(getSupabaseAdmin(), labels);
         singleSportEvent = labels.get(post.sport_event_round_id) ?? null;
       }
 
@@ -1327,6 +1330,8 @@ export async function GET(request: NextRequest) {
       const { data: roundCounts, error: countsError } = await getSupabaseAdmin().from('sport_event_rounds').select('sport_event_id').in('sport_event_id', sportEventIds).neq('status', 'cancelled');
       if (countsError) console.error('[GET] Error fetching sport event round counts:', countsError);
       applyRoundCounts(sportEventByRound, (roundCounts ?? []) as Array<{ sport_event_id: string }>);
+      // Phase 3: a completed match round's results ride the label — behind the same branch (one matches read per such round on the page).
+      await applyMatchResults(getSupabaseAdmin(), sportEventByRound);
     }
     if (contestsResult.error) console.error('[GET] Error fetching contest labels:', contestsResult.error);
     const contestById = new Map<string, { id: string; round: string | null; competition_name: string }>();

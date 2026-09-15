@@ -1,5 +1,31 @@
 # Development Log
 
+## September 16, 2026 — Events program, phase 3, PR 11: the feed and the docs close (zero DDL)
+
+- `feed.ts`: the round label carries the round's `name`, the event's
+  `format` and its `match` options (`SPORT_EVENT_ROUND_LABEL_SELECT` gains
+  `name`, `format`, `format_config` — both sites in `posts/route.ts`
+  share the one constant); `matchResultsFor` turns a completed match
+  round's matches into results lines (the winner first, "def.", the
+  result; a bye names its side); `labelsWantingMatchResults` names the
+  labels a completed match round wants filled. `feed-server.ts
+  applyMatchResults` fills them behind the EXISTING round branch — one
+  `fetchRoundMatches` per such round on the page, never a query per post
+  — and never throws (a failure leaves the announce shape).
+- `EventAnnounceCard` prints "Match play · Singles · Gross" and the
+  round's name; NEW `EventMatchResultsCard` is the results branch for a
+  match round (`SportPostBody`: a match round never leads with the
+  StatHighlightCard's stroke totals — its results are its matches); one
+  door to the Matches tab (the bracket on a bracket event).
+- The docs close: `docs/EVENTS.md` "Phase 3" (the PR table, the e2e rows,
+  the status), CLAUDE.md convention 19 (the match rules), and
+  `docs/SESSION_PROMPT.md` re-aligned (phase 3 in flight; 212 / 213 on the
+  chain).
+- e2e `sport-events-feed.spec.ts` grows a test (self-skips before 212):
+  the announce card names the format and the round; B concedes the match,
+  the round completes → the results card names the winner first, "def.",
+  "conceded"; the API carries `match` + `match_results`.
+
 ## September 16, 2026 — Events program, phase 3, PR 10: brackets (zero DDL, @mobile)
 
 A bracket is nothing new: the rounds ARE the bracket rounds, and match k
