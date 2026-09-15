@@ -40,6 +40,9 @@ export function eventApi(eventId: string, token: string | null) {
     invite: (profileIds: string[]) => call<{ invited: string[]; skipped: Record<string, number> }>(`${base}/participants`, { method: 'POST', body: JSON.stringify({ profile_ids: profileIds }) }),
     rotateLink: () => call<{ link_token: string }>(`${base}/link-token`, { method: 'POST', body: '{}' }),
     saveGroups: (roundId: string, body: unknown) => call<SportEventViewPayload>(`${base}/rounds/${roundId}/groups`, { method: 'PUT', body: JSON.stringify(body) }),
+    scorecard: (groupPostId: string) => call<{ scorecard: { participants: import('./cards-view').ScorecardParticipant[] } }>(`/api/group-posts/${groupPostId}/scorecard`),
+    submitCard: (pid: string) => call<{ card: { status: string } }>(`${base}/cards/${pid}/submit`, { method: 'POST', body: '{}' }),
+    finalizeCard: (pid: string, reopen = false) => call<{ card: { status: string } }>(`${base}/cards/${pid}/finalize`, { method: 'POST', body: JSON.stringify({ reopen }) }),
     leaderboard: (roundId: string) => call<import('./leaderboard-server').RoundLeaderboard>(`${base}/rounds/${roundId}/leaderboard${q(token)}`),
   };
 }

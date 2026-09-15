@@ -75,6 +75,9 @@ export const GROUP_SCORECARD_SELECT = `
       to_par,
       holes_completed,
       scores_confirmed,
+      status,
+      submitted_at,
+      finalized_by,
       updated_at,
       hole_scores:golf_hole_scores (
         hole_number,
@@ -154,7 +157,7 @@ export function transformGroupPostToScorecard(groupData: any): any | null {
       participant: { ...participantFields, profile },
       scores: scoreRec
         ? { ...scoreRec, hole_scores: holeScores }
-        : { id: null, total_score: null, to_par: null, holes_completed: 0, scores_confirmed: false, updated_at: null, hole_scores: [] },
+        : { id: null, total_score: null, to_par: null, holes_completed: 0, scores_confirmed: false, status: 'in_progress', submitted_at: null, finalized_by: null, updated_at: null, hole_scores: [] },
     };
   });
 

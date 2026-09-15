@@ -61,7 +61,7 @@ async function acceptedPlaying(admin: Admin, eventId: string): Promise<SportEven
 }
 
 /** The cards of the accepted, playing participants on the minted rounds. */
-async function readCards(admin: Admin, rounds: MintedRound[], players: SportEventParticipantRow[]): Promise<Array<{ participant_row_id: string; profile_id: string; status: 'in_progress' | 'submitted' | 'final' }>> {
+async function readCards(admin: Admin, rounds: MintedRound[], players: SportEventParticipantRow[]): Promise<Array<{ participant_row_id: string; profile_id: string; status: 'in_progress' | 'submitted' | 'final'; has_card: boolean }>> {
   const gpIds = rounds.map(r => r.group_post_id).filter((v): v is string => !!v);
   if (gpIds.length === 0 || players.length === 0) return [];
   const profileIds = new Set(players.map(p => p.profile_id));
@@ -71,7 +71,7 @@ async function readCards(admin: Admin, rounds: MintedRound[], players: SportEven
   const { data: cards } = await admin.from('golf_participant_scores').select('participant_id, status').in('participant_id', playing.map(r => r.id));
   const statusByRow = new Map<string, string>();
   for (const c of (cards ?? []) as Array<{ participant_id: string; status: string }>) statusByRow.set(c.participant_id, c.status);
-  return playing.map(r => ({ participant_row_id: r.id, profile_id: r.profile_id, status: (statusByRow.get(r.id) ?? 'in_progress') as 'in_progress' | 'submitted' | 'final' }));
+  return playing.map(r => ({ participant_row_id: r.id, profile_id: r.profile_id, status: (statusByRow.get(r.id) ?? 'in_progress') as 'in_progress' | 'submitted' | 'final', has_card: statusByRow.has(r.id) }));
 }
 
 export type TransitionOutcome =
@@ -136,10 +136,19 @@ export async function applyTransition(admin: Admin, req: TransitionRequest): Pro
 
   if (req.to === 'completed') {
     if (req.override === true) {
-      const open = cards.filter(c => c.status !== 'final').map(c => c.participant_row_id);
-      if (open.length > 0) {
-        const { error } = await admin.from('golf_participant_scores').update({ status: 'final', finalized_by: req.actorProfileId, submitted_at: now }).in('participant_id', open);
+      // "Finalized as they stand": existing cards are closed; a player who
+      // never scored gets a final, empty card (the finalize route's rule),
+      // so the round reads final for everyone.
+      const open = cards.filter(c => c.status !== 'final');
+      const existing = open.filter(c => c.has_card).map(c => c.participant_row_id);
+      if (existing.length > 0) {
+        const { error } = await admin.from('golf_participant_scores').update({ status: 'final', finalized_by: req.actorProfileId, submitted_at: now }).in('participant_id', existing);
         if (error) console.error('[sport-events] override finalize failed:', error);
+      }
+      const missing = open.filter(c => !c.has_card);
+      if (missing.length > 0) {
+        const { error } = await admin.from('golf_participant_scores').insert(missing.map(c => ({ participant_id: c.participant_row_id, entered_by: req.actorProfileId, scores_confirmed: false, status: 'final', finalized_by: req.actorProfileId, submitted_at: now })));
+        if (error) console.error('[sport-events] override finalize (empty cards) failed:', error);
       }
     }
     for (const round of rounds) {
