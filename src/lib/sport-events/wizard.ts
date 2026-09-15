@@ -1,10 +1,14 @@
 /**
  * The creation wizard's rules (Events program, the wizard) — pure. Four
  * steps, one validator per step (the copy is the refusal the user reads),
- * and the body the POST takes. The wizard component is the I/O.
+ * and the body the POST takes. The wizard component is the I/O. Phase 2:
+ * the round step is a LIST of rounds (`rounds: RoundDraft[]`, 1..MAX_ROUNDS,
+ * date order — the create route's rule) and "Add a round" copies the
+ * previous round's course, tees and holes with an empty date.
  */
 import type { CourseHole } from '@/types/golf';
 import { NAME_MAX, DESCRIPTION_MAX, isDateOnly } from './validate';
+import { MAX_ROUNDS } from './rounds';
 import type { SportEventFormat, SportEventJoinMode, SportEventVisibility } from './types';
 
 export const WIZARD_STEPS = ['basics', 'round', 'format', 'review'] as const;
@@ -69,34 +73,60 @@ export function roundBodyFrom(d: RoundDraft) {
   };
 }
 
-/** The wizard state's round as a draft (the state keeps the round flat until the rounds-list PR). */
-export function wizardRoundDraft(s: Pick<WizardState, 'scheduled_on' | 'course' | 'tee' | 'holes' | 'starting_hole'>): RoundDraft {
-  return { scheduled_on: s.scheduled_on, course: s.course, tee: s.tee, holes: s.holes, starting_hole: s.starting_hole };
-}
-
 export interface WizardState {
   name: string;
   description: string;
   visibility: SportEventVisibility;
   join_mode: SportEventJoinMode;
   org: { kind: 'club' | 'league'; id: string } | null;
-  scheduled_on: string;
-  course: WizardCourse | null;
-  tee: string;
-  holes: 9 | 18;
-  starting_hole: 1 | 10;
+  /** The rounds in order (1..MAX_ROUNDS); a tournament is more than one. */
+  rounds: RoundDraft[];
   format: SportEventFormat;
   capacity: string;
   host_plays: boolean;
 }
 
 export function emptyWizardState(): WizardState {
-  return { name: '', description: '', visibility: 'private', join_mode: 'invite', org: null, scheduled_on: '', course: null, tee: '', holes: 18, starting_hole: 1, format: 'stroke_gross', capacity: '', host_plays: true };
+  return { name: '', description: '', visibility: 'private', join_mode: 'invite', org: null, rounds: [emptyRoundDraft()], format: 'stroke_gross', capacity: '', host_plays: true };
+}
+
+function isRoundDirty(r: RoundDraft): boolean {
+  const e = emptyRoundDraft();
+  return r.scheduled_on !== e.scheduled_on || r.course !== null || r.tee !== '' || r.holes !== e.holes || r.starting_hole !== e.starting_hole;
 }
 
 export function isWizardDirty(s: WizardState): boolean {
   const e = emptyWizardState();
-  return s.name !== e.name || s.description !== e.description || s.scheduled_on !== e.scheduled_on || s.course !== null || s.tee !== '' || s.capacity !== '' || s.visibility !== e.visibility || s.join_mode !== e.join_mode || s.org !== null || s.holes !== e.holes || s.format !== e.format || s.host_plays !== e.host_plays;
+  return s.name !== e.name || s.description !== e.description || s.rounds.length !== 1 || s.rounds.some(isRoundDirty) || s.capacity !== '' || s.visibility !== e.visibility || s.join_mode !== e.join_mode || s.org !== null || s.format !== e.format || s.host_plays !== e.host_plays;
+}
+
+/** "Add a round": the previous round's course, tees and holes with an empty date (36 holes in a weekend is the common case). Refused at MAX_ROUNDS. */
+export function addWizardRound(s: WizardState): WizardState {
+  if (s.rounds.length >= MAX_ROUNDS) return s;
+  const prev = s.rounds[s.rounds.length - 1] ?? emptyRoundDraft();
+  return { ...s, rounds: [...s.rounds, { ...prev, scheduled_on: '' }] };
+}
+
+/** Remove a round from the list (never the first — an event needs a round). */
+export function removeWizardRound(s: WizardState, index: number): WizardState {
+  if (index <= 0 || index >= s.rounds.length) return s;
+  return { ...s, rounds: s.rounds.filter((_, i) => i !== index) };
+}
+
+export function updateWizardRound(s: WizardState, index: number, patch: Partial<RoundDraft>): WizardState {
+  return { ...s, rounds: s.rounds.map((r, i) => (i === index ? { ...r, ...patch } : r)) };
+}
+
+/** The first refusal across the rounds: a round's own miss ("Round 2: Pick the date.") or the date order. */
+export function validateWizardRounds(rounds: RoundDraft[]): string | null {
+  if (rounds.length === 0) return 'Add a round.';
+  const many = rounds.length > 1;
+  for (let i = 0; i < rounds.length; i++) {
+    const r = validateRoundDraft(rounds[i]);
+    if (r) return many ? `Round ${i + 1}: ${r}` : r;
+    if (i > 0 && rounds[i].scheduled_on < rounds[i - 1].scheduled_on) return `Round ${i + 1} must not be before round ${i}.`;
+  }
+  return null;
 }
 
 /** The first refusal on a step, or null when it may advance. */
@@ -110,7 +140,7 @@ export function validateWizardStep(step: WizardStep, s: WizardState): string | n
       return null;
     }
     case 'round':
-      return validateRoundDraft(wizardRoundDraft(s));
+      return validateWizardRounds(s.rounds);
     case 'format': {
       if (s.capacity.trim() !== '') {
         const n = Number(s.capacity);
@@ -138,7 +168,8 @@ export function wizardToCreateBody(s: WizardState, opts: { publish: boolean; pro
     host_plays: s.host_plays,
     publish: opts.publish,
     profile_id: opts.profileId,
-    round: roundBodyFrom(wizardRoundDraft(s)),
+    // One round keeps phase 1's body; a tournament sends the list (the route accepts either, never both).
+    ...(s.rounds.length === 1 ? { round: roundBodyFrom(s.rounds[0]) } : { rounds: s.rounds.map(roundBodyFrom) }),
   };
 }
 

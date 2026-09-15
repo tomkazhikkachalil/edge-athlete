@@ -1,5 +1,36 @@
 # Development Log
 
+## September 16, 2026 — Events program, phase 2, PR 5: the wizard's rounds list (zero DDL)
+
+The creation wizard makes a tournament:
+
+- `wizard.ts` — `WizardState.rounds: RoundDraft[]` replaces the flat
+  round (`scheduled_on` / `course` / `tee` / `holes` / `starting_hole`
+  were top-level fields); `addWizardRound` copies the previous round's
+  course, tees and holes with an empty date (36 holes in a weekend is the
+  common case) and stops at `MAX_ROUNDS`; `removeWizardRound` never takes
+  the first round; `updateWizardRound`; `validateWizardRounds` names the
+  round in its refusal ("Round 2: Pick the date.") and keeps the date
+  order ("Round 2 must not be before round 1." — the create route's
+  rule, said in the wizard's words); `isWizardDirty` counts a second
+  round; `wizardToCreateBody` sends phase 1's `round` for one round and
+  `rounds: [...]` for a tournament (the route accepts either, never
+  both). The PR 4 bridge `wizardRoundDraft` is gone.
+- `EventCreateWizard` — the round step is one `RoundFields` per round
+  ("Round n" cards from the second round on, Remove on those, "Add a
+  round"); the review sums a tournament up (`roundsSummary`) and lists
+  each round's date, course and holes. The format step is unchanged:
+  the cut and flights are event-page settings (they need the roster and
+  the rounds to exist).
+
+Verification: `npm run verify` green; `wizard.test.ts` (add copies the
+course, remove never takes the first, the refusals name the round and the
+order, the cap, the body's two shapes); `sport-events-create.spec.ts`
+grows (Add a round → the course copied; the two refusals; Remove; then a
+two-round tournament published from the wizard lands on a place that
+reads "Round 1 of 2") on Chromium and WebKit at 390px. Next: PR 6,
+flights.
+
 ## September 16, 2026 — Events program, phase 2, PR 4: the event page for N rounds (zero DDL)
 
 Every screen picked `rounds[0]`. Now the page holds ONE selected round:

@@ -7,8 +7,9 @@ import { useDirtyClose } from '@/hooks/useDirtyClose';
 import { useAuth } from '@/lib/auth';
 import { COPY } from '@/lib/copy';
 import { SPORT_EVENT_SPORTS } from '@/lib/sport-events/types';
-import { formatDateOnly, formatLabel, holesLabel, joinLine, VISIBILITY_LABEL } from '@/lib/sport-events/format';
-import { emptyWizardState, isWizardDirty, validateWizardStep, wizardRoundDraft, wizardToCreateBody, WIZARD_STEP_LABEL, WIZARD_STEPS, type WizardState, type WizardStep } from '@/lib/sport-events/wizard';
+import { formatDateOnly, formatLabel, holesLabel, joinLine, roundsSummary, VISIBILITY_LABEL } from '@/lib/sport-events/format';
+import { MAX_ROUNDS } from '@/lib/sport-events/rounds';
+import { addWizardRound, emptyWizardState, isWizardDirty, removeWizardRound, updateWizardRound, validateWizardStep, wizardToCreateBody, WIZARD_STEP_LABEL, WIZARD_STEPS, type WizardState, type WizardStep } from '@/lib/sport-events/wizard';
 import RoundFields, { Choice } from './RoundFields';
 import { getEnabledSports } from '@/lib/sports/SportRegistry';
 
@@ -142,9 +143,23 @@ export default function EventCreateWizard() {
       )}
 
       {step === 'round' && (
-        <div className="space-y-4">
-          <h2 className="text-h3 font-bold text-primary">The round</h2>
-          <RoundFields value={wizardRoundDraft(s)} onChange={patch => setS(prev => ({ ...prev, ...patch }))} idPrefix="event-wizard-round" />
+        <div className="space-y-5">
+          <h2 className="text-h3 font-bold text-primary">{s.rounds.length > 1 ? 'The rounds' : 'The round'}</h2>
+          {s.rounds.map((r, i) => (
+            <section key={i} className={s.rounds.length > 1 ? 'bg-surface-muted rounded-lg p-4 space-y-4' : 'space-y-4'} data-wizard-round={i + 1}>
+              {s.rounds.length > 1 && (
+                <div className="flex items-center justify-between gap-2">
+                  <h3 className="text-sm font-bold text-primary">Round {i + 1}</h3>
+                  {i > 0 && <button type="button" onClick={() => { setRefusal(null); setS(prev => removeWizardRound(prev, i)); }} className="text-sm text-secondary hover:text-primary min-h-[44px] px-2" data-wizard-round-remove={i + 1}>Remove</button>}
+                </div>
+              )}
+              <RoundFields value={r} onChange={patch => setS(prev => updateWizardRound(prev, i, patch))} idPrefix={`event-wizard-round-${i + 1}`} />
+            </section>
+          ))}
+          {s.rounds.length < MAX_ROUNDS && (
+            <button type="button" onClick={() => { setRefusal(null); setS(prev => addWizardRound(prev)); }} className={SECONDARY} data-wizard-add-round=""><i className="fas fa-plus mr-2" aria-hidden="true"></i>Add a round</button>
+          )}
+          {s.rounds.length > 1 && <p className="text-xs text-muted">Rounds run in date order, one at a time. You start each one from the event page on its day.</p>}
         </div>
       )}
 
@@ -173,9 +188,13 @@ export default function EventCreateWizard() {
           <dl className="bg-surface-muted rounded-lg px-4 py-1 text-sm">
             {[
               ['Name', s.name.trim()],
-              ['Date', formatDateOnly(s.scheduled_on, { weekday: true })],
-              ['Course', `${s.course?.name ?? ''}${s.tee ? ` · ${s.tee} tees` : ''}`],
-              ['Holes', holesLabel(s.holes, s.holes === 9 ? s.starting_hole : 1)],
+              ...(s.rounds.length > 1
+                ? [['Rounds', roundsSummary(s.rounds.map((r, i) => ({ sequence: i + 1, scheduled_on: r.scheduled_on, status: 'scheduled' })))], ...s.rounds.map((r, i) => [`Round ${i + 1}`, `${formatDateOnly(r.scheduled_on)} · ${r.course?.name ?? ''}${r.tee ? ` · ${r.tee} tees` : ''} · ${holesLabel(r.holes, r.holes === 9 ? r.starting_hole : 1)}`])]
+                : [
+                  ['Date', formatDateOnly(s.rounds[0].scheduled_on, { weekday: true })],
+                  ['Course', `${s.rounds[0].course?.name ?? ''}${s.rounds[0].tee ? ` · ${s.rounds[0].tee} tees` : ''}`],
+                  ['Holes', holesLabel(s.rounds[0].holes, s.rounds[0].holes === 9 ? s.rounds[0].starting_hole : 1)],
+                ]),
               ['Format', formatLabel(s.format)],
               ['Who can see it', VISIBILITY_LABEL[s.visibility]],
               ['Joining', joinLine(s.join_mode)],
