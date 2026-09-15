@@ -2,9 +2,10 @@
 -- Verify migration 207 (sport_events.format_config · sport_event_rounds.name ·
 -- the flight CHECK — Events program, phase 2's one migration)
 -- ============================================================================
--- READ ONLY. Safe to run any time. Every row should read OK. The same grid
--- closes the migration file; this copy is the standalone check, the
--- 201–206 shape.
+-- READ ONLY. Safe to run any time — BEFORE 207 it reads CHECK FAILED on the
+-- column / constraint rows (never an error); AFTER 207 every row reads OK.
+-- The same grid closes the migration file; this copy is the standalone
+-- check, the 201–206 shape.
 -- ============================================================================
 
 SELECT 'sport_events.format_config column' AS check_name, '1' AS expected, count(*)::text AS actual,
@@ -43,9 +44,12 @@ SELECT 'sport_event_participants: constraints (202 had 10)', '11', count(*)::tex
 
 UNION ALL
 
+-- Read through to_jsonb(row) so this grid still RUNS before 207 (a missing
+-- column is then a CHECK FAILED row, not a 42703 error — the twin is the
+-- "did it run?" question, so it must answer "no" rather than crash).
 SELECT 'every event has an object format_config', '0', count(*)::text,
        CASE WHEN count(*) = 0 THEN 'OK' ELSE 'CHECK FAILED' END
-  FROM sport_events WHERE format_config IS NULL OR jsonb_typeof(format_config) <> 'object'
+  FROM sport_events e WHERE jsonb_typeof(to_jsonb(e) -> 'format_config') IS DISTINCT FROM 'object'
 
 UNION ALL
 
