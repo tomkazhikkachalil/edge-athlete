@@ -41,7 +41,8 @@ export interface CreateEventInput {
   publish: boolean;
   /** Acting-as (guardian hosting for a supervised athlete). */
   profile_id: string | null;
-  round: RoundInput;
+  /** The rounds in sequence order (1..MAX_ROUNDS); phase 1's `round: {…}` body is round 1. */
+  rounds: RoundInput[];
 }
 
 export interface EventPatchInput {
@@ -108,20 +109,21 @@ function capacity(v: unknown): Parsed<number | null> {
   return { ok: true, value: v };
 }
 
-export function parseRoundInput(body: unknown): Parsed<RoundInput> {
-  if (!isRecord(body)) return { ok: false, error: 'round is required' };
-  if (!isDateOnly(body.scheduled_on)) return { ok: false, error: 'round.scheduled_on must be a date (YYYY-MM-DD)' };
-  const courseId = optionalUuid(body.course_id, 'round.course_id');
+/** One round's plan; `field` names it in a refusal (`round`, or `rounds[2]`). */
+export function parseRoundInput(body: unknown, field = 'round'): Parsed<RoundInput> {
+  if (!isRecord(body)) return { ok: false, error: `${field} is required` };
+  if (!isDateOnly(body.scheduled_on)) return { ok: false, error: `${field}.scheduled_on must be a date (YYYY-MM-DD)` };
+  const courseId = optionalUuid(body.course_id, `${field}.course_id`);
   if (!courseId.ok) return courseId;
-  const courseName = optionalText(body.course_name, 'round.course_name', COURSE_NAME_MAX);
+  const courseName = optionalText(body.course_name, `${field}.course_name`, COURSE_NAME_MAX);
   if (!courseName.ok) return courseName;
-  if (courseId.value === null && courseName.value === null) return { ok: false, error: 'round.course_name is required when no course is picked' };
-  const tee = optionalText(body.tee, 'round.tee', TEE_MAX);
+  if (courseId.value === null && courseName.value === null) return { ok: false, error: `${field}.course_name is required when no course is picked` };
+  const tee = optionalText(body.tee, `${field}.tee`, TEE_MAX);
   if (!tee.ok) return tee;
   const holes = body.holes === undefined ? 18 : body.holes;
-  if (holes !== 9 && holes !== 18) return { ok: false, error: 'round.holes must be 9 or 18' };
+  if (holes !== 9 && holes !== 18) return { ok: false, error: `${field}.holes must be 9 or 18` };
   const startingHole = body.starting_hole === undefined ? 1 : body.starting_hole;
-  if (startingHole !== 1 && startingHole !== 10) return { ok: false, error: 'round.starting_hole must be 1 or 10' };
+  if (startingHole !== 1 && startingHole !== 10) return { ok: false, error: `${field}.starting_hole must be 1 or 10` };
   if (holes === 18 && startingHole === 10) return { ok: false, error: 'an 18-hole round starts on hole 1' };
   return { ok: true, value: { scheduled_on: body.scheduled_on, course_id: courseId.value, course_name: courseName.value, tee: tee.value, holes, starting_hole: startingHole } };
 }
@@ -152,8 +154,8 @@ export function parseCreateBody(body: unknown): Parsed<CreateEventInput> {
   if (!profile.ok) return profile;
   if (body.host_plays !== undefined && typeof body.host_plays !== 'boolean') return { ok: false, error: 'host_plays must be true or false' };
   if (body.publish !== undefined && typeof body.publish !== 'boolean') return { ok: false, error: 'publish must be true or false' };
-  const round = parseRoundInput(body.round);
-  if (!round.ok) return round;
+  const rounds = parseRoundsInput(body);
+  if (!rounds.ok) return rounds;
   return {
     ok: true,
     value: {
@@ -169,9 +171,37 @@ export function parseCreateBody(body: unknown): Parsed<CreateEventInput> {
       host_plays: body.host_plays !== false,
       publish: body.publish === true,
       profile_id: profile.value,
-      round: round.value,
+      rounds: rounds.value,
     },
   };
+}
+
+export const MAX_ROUNDS = 8;
+
+/**
+ * The create body's rounds: phase 1's single `round: {…}` OR phase 2's
+ * `rounds: [{…}, …]` (1..MAX_ROUNDS, sequence order, dates non-decreasing —
+ * a miss names `rounds[i].scheduled_on`). Both at once is a 400: the caller
+ * must mean one of them.
+ */
+export function parseRoundsInput(body: Record<string, unknown>): Parsed<RoundInput[]> {
+  const hasRound = body.round !== undefined;
+  const hasRounds = body.rounds !== undefined;
+  if (hasRound && hasRounds) return { ok: false, error: 'Send round or rounds, not both' };
+  if (!hasRounds) {
+    const one = parseRoundInput(body.round);
+    return one.ok ? { ok: true, value: [one.value] } : one;
+  }
+  if (!Array.isArray(body.rounds) || body.rounds.length === 0) return { ok: false, error: 'rounds must be a non-empty list' };
+  if (body.rounds.length > MAX_ROUNDS) return { ok: false, error: `rounds must have at most ${MAX_ROUNDS} entries` };
+  const out: RoundInput[] = [];
+  for (let i = 0; i < body.rounds.length; i++) {
+    const one = parseRoundInput(body.rounds[i], `rounds[${i}]`);
+    if (!one.ok) return one;
+    if (i > 0 && one.value.scheduled_on < out[i - 1].scheduled_on) return { ok: false, error: `rounds[${i}].scheduled_on must not be before rounds[${i - 1}].scheduled_on` };
+    out.push(one.value);
+  }
+  return { ok: true, value: out };
 }
 
 /** A PATCH names only the fields it changes; an unknown field is refused (a typo must never be a silent no-op). */

@@ -125,12 +125,9 @@ export async function applyTransition(admin: Admin, req: TransitionRequest): Pro
   if (req.to === 'open') {
     for (const round of rounds) {
       if (round.announce_post_id || round.status === 'cancelled') continue;
-      const { data: post, error } = await admin.from('posts').insert(announcePostRow(event, round)).select('id').single();
-      if (error || !post) {
-        console.error('[sport-events] announce post mint failed:', error);
-        return { ok: false, status: 500, reason: 'mint_failed', error: 'Could not publish the event. Nothing was changed — please try again.' };
-      }
-      round.announce_post_id = post.id as string;
+      const postId = await mintAnnouncePost(admin, event, round);
+      if (!postId) return { ok: false, status: 500, reason: 'mint_failed', error: 'Could not publish the event. Nothing was changed — please try again.' };
+      round.announce_post_id = postId;
     }
   }
 
@@ -195,6 +192,23 @@ export async function applyTransition(admin: Admin, req: TransitionRequest): Pro
   if (req.to === 'completed') await notifyResults(admin, event, req.actorProfileId);
 
   return { ok: true, event: updated as SportEventRow, rounds: await readRounds(admin, req.eventId) };
+}
+
+/**
+ * Mint a round's announce post (the announced card — one post per round).
+ * Idempotent on the 203 partial UNIQUE: a round that already has its post
+ * answers that id. Called by the open transition for every round and by
+ * the add-round route when the event is already open or live.
+ */
+export async function mintAnnouncePost(admin: Admin, event: SportEventRow, round: Pick<SportEventRoundRow, 'id' | 'course_name' | 'scheduled_on'>): Promise<string | null> {
+  const { data: existing } = await admin.from('posts').select('id').eq('sport_event_round_id', round.id).maybeSingle();
+  if (existing?.id) return existing.id as string;
+  const { data: post, error } = await admin.from('posts').insert(announcePostRow(event, round)).select('id').single();
+  if (error || !post) {
+    console.error('[sport-events] announce post mint failed:', error);
+    return null;
+  }
+  return post.id as string;
 }
 
 /**

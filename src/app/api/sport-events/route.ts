@@ -8,7 +8,7 @@ import { readJson, resolveActor } from '@/lib/sport-events/actor-server';
 import { snapshotAtAccept } from '@/lib/sport-events/handicap-server';
 import { applyTransition } from '@/lib/sport-events/lifecycle-server';
 import { mintLinkToken } from '@/lib/sport-events/link-token';
-import { snapshotRound } from '@/lib/sport-events/rounds-server';
+import { snapshotRound, startsOnFor, type RoundSnapshot } from '@/lib/sport-events/rounds-server';
 import type { SportEventParticipantRow, SportEventRow } from '@/lib/sport-events/types';
 import { isDateOnly, parseCreateBody, parseListScope } from '@/lib/sport-events/validate';
 import { projectEvent } from '@/lib/sport-events/view';
@@ -17,8 +17,9 @@ import { fetchSportEventView } from '@/lib/sport-events/view-server';
 /**
  * /api/sport-events (Events program, PR 4).
  *
- * POST — create an event: the header row, round 1 (the catalog snapshot
- * WITH the stroke index), the host's participant row (organizer, accepted,
+ * POST — create an event: the header row, its rounds (`round: {…}` = one
+ * round; `rounds: [{…}]` = a tournament, phase 2 — each a catalog snapshot
+ * WITH the stroke index, sequenced in order), the host's participant row (organizer, accepted,
  * playing unless `host_plays: false`), a link token when visibility is
  * `link`; `publish: true` creates it `open` (the wizard's Publish). An org
  * attach needs `manage_competitions` on that org and is never acting-as.
@@ -50,8 +51,13 @@ export async function POST(request: NextRequest) {
       if (!gate.ok) return gate.response;
     }
 
-    const round = await snapshotRound(admin, input.round);
-    if (!round) return NextResponse.json({ error: 'Course not found' }, { status: 400 });
+    // Every round's catalog snapshot BEFORE any insert: a missing course refuses the whole create.
+    const rounds: RoundSnapshot[] = [];
+    for (let i = 0; i < input.rounds.length; i++) {
+      const snap = await snapshotRound(admin, input.rounds[i]);
+      if (!snap) return NextResponse.json({ error: input.rounds.length > 1 ? `rounds[${i}]: course not found` : 'Course not found' }, { status: 400 });
+      rounds.push(snap);
+    }
 
     const now = new Date().toISOString();
     const { data: event, error: insertError } = await admin
@@ -72,7 +78,7 @@ export async function POST(request: NextRequest) {
         // below, which mints the announce post (one post per round).
         status: 'draft',
         capacity: input.capacity,
-        starts_on: round.scheduled_on,
+        starts_on: startsOnFor(rounds),
       })
       .select(EVENT_COLUMNS)
       .single();
@@ -82,7 +88,7 @@ export async function POST(request: NextRequest) {
     }
     const row = event as SportEventRow;
 
-    const { error: roundError } = await admin.from('sport_event_rounds').insert({ sport_event_id: row.id, sequence: 1, ...round });
+    const { error: roundError } = await admin.from('sport_event_rounds').insert(rounds.map((r, i) => ({ sport_event_id: row.id, sequence: i + 1, ...r })));
     if (roundError) {
       console.error('[api/sport-events] round insert failed:', roundError);
       await admin.from('sport_events').delete().eq('id', row.id);

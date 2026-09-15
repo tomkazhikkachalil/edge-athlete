@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { isDateOnly, parseCreateBody, parseEventPatch, parseInviteBody, parseListScope, parseParticipantPatch, parseRoundInput } from '../validate';
+import { isDateOnly, MAX_ROUNDS, parseCreateBody, parseEventPatch, parseInviteBody, parseListScope, parseParticipantPatch, parseRoundInput } from '../validate';
 
 const round = { scheduled_on: '2026-10-03', course_name: 'Eagle Creek', holes: 18, starting_hole: 1 };
 const create = (over: Record<string, unknown> = {}) => ({ name: 'Spring Open', round, ...over });
@@ -80,5 +80,28 @@ describe('parseInviteBody / parseParticipantPatch / parseListScope', () => {
     expect(parseListScope('live')).toBe('live');
     expect(parseListScope('everything')).toBe('mine');
     expect(parseListScope(null)).toBe('mine');
+  });
+});
+
+describe('parseRoundsInput — round or rounds[] (phase 2)', () => {
+  it("phase 1's single round is round 1; both shapes at once are refused", () => {
+    const one = parseCreateBody(create());
+    expect(one.ok && one.value.rounds).toHaveLength(1);
+    expect(parseCreateBody(create({ rounds: [round] }))).toMatchObject({ ok: false, error: 'Send round or rounds, not both' });
+  });
+  it('a list keeps sequence order and non-decreasing dates; a miss names rounds[i]', () => {
+    const two = parseCreateBody({ name: 'Open', rounds: [round, { ...round, scheduled_on: '2026-10-04' }] });
+    expect(two.ok && two.value.rounds.map(r => r.scheduled_on)).toEqual(['2026-10-03', '2026-10-04']);
+    expect(parseCreateBody({ name: 'Open', rounds: [round, { ...round, scheduled_on: '2026-10-02' }] })).toMatchObject({ ok: false, error: 'rounds[1].scheduled_on must not be before rounds[0].scheduled_on' });
+    expect(parseCreateBody({ name: 'Open', rounds: [round, { ...round, holes: 12 }] })).toMatchObject({ ok: false, error: expect.stringContaining('rounds[1].holes') });
+    expect(parseCreateBody({ name: 'Open', rounds: [round, { scheduled_on: '2026-10-04' }] })).toMatchObject({ ok: false, error: expect.stringContaining('rounds[1].course_name') });
+  });
+  it('an empty list and more than MAX_ROUNDS are refused', () => {
+    expect(parseCreateBody({ name: 'Open', rounds: [] })).toMatchObject({ ok: false, error: expect.stringContaining('non-empty') });
+    expect(parseCreateBody({ name: 'Open', rounds: Array.from({ length: MAX_ROUNDS + 1 }, () => round) })).toMatchObject({ ok: false, error: expect.stringContaining(`at most ${MAX_ROUNDS}`) });
+    expect(parseCreateBody({ name: 'Open', rounds: Array.from({ length: MAX_ROUNDS }, () => round) })).toMatchObject({ ok: true });
+  });
+  it('the same date twice in a row is fine (36 holes in a day)', () => {
+    expect(parseCreateBody({ name: 'Open', rounds: [round, round] })).toMatchObject({ ok: true });
   });
 });
