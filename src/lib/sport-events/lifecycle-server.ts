@@ -33,6 +33,7 @@ import { canTransition, eventStatusAfterRound, nextStartableRound, ROUND_REFUSAL
 import { announcePostRow, groupPostRow, participantRows, scorecardRow } from './mint';
 import { activeRounds, buildMintPlan, type MintGroup, type MintPlayer } from './rounds';
 import { notifyResults } from './notify';
+import { syncContestStatus, syncSportEventContest } from './contest-sync-server';
 import { ROUND_COLUMNS } from './rounds-server';
 import { cutDecided } from './cut';
 import { readFormatConfig } from './format-config';
@@ -267,6 +268,9 @@ export async function applyRoundTransition(admin: Admin, req: RoundTransitionReq
         await mirrorRoundMedia(admin, round.group_post_id);
         const { error: bumpError } = await admin.from('posts').update({ created_at: now }).eq('group_post_id', round.group_post_id);
         if (bumpError) console.error('[sport-events] results post bump failed:', bumpError);
+        // Phase 2b (211): an org-hosted event's round writes the org's contest
+        // results from ITS leaderboard — after the mirror, never inside it.
+        await syncSportEventContest(admin, event, round, req.actorProfileId);
       }
     }
   }
@@ -274,7 +278,9 @@ export async function applyRoundTransition(admin: Admin, req: RoundTransitionReq
   if (req.to === 'cancelled') {
     const { error } = await admin.from('posts').delete().eq('sport_event_round_id', round.id).is('group_post_id', null);
     if (error) console.error('[sport-events] announce post delete on round cancel failed:', error);
+    await syncContestStatus(admin, round.id, 'cancelled');
   }
+  if (req.to === 'live') await syncContestStatus(admin, round.id, 'live');
 
   // Compare-and-set THIS round's status; a lost race answers 409 without undoing the idempotent mint.
   const { data: updatedRound, error: roundError } = await admin

@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { adminClient, readErrorBody } from './helpers/qa-user';
-import { cleanupEvent, createEvent, openEventSession } from './helpers/sport-events';
+import { cardRowFor, cleanupEvent, completeRound, createEvent, inviteAndAccept, openEventSession, readScorecard, scoreHoles, setGroups, startRound } from './helpers/sport-events';
 
 /**
  * Events program, phase 2b (B1) — an org-hosted event counts toward one of
@@ -11,7 +11,10 @@ import { cleanupEvent, createEvent, openEventSession } from './helpers/sport-eve
  * window, A entered as a participant); again → idempotent; the hockey
  * competition → 400 by name; B (no org authority) → 403; null → the link
  * removed while no result exists. The golf-sync engine refuses an event
- * round's contest. Self-skips before 211.
+ * round's contest. Then (PR 9) round 1 is played and completed: the org's
+ * results come from the EVENT's board as club_recorded, an opted-out
+ * player counts with no golf round, the live round is stamped, and the
+ * link can no longer be removed. Self-skips before 211.
  */
 test('sport events API: counts toward — mint one contest per round, refuse by name, unlink, the engine guard', async () => {
   const s = await openEventSession();
@@ -68,10 +71,45 @@ test('sport events API: counts toward — mint one contest per round, refuse by 
     const asB = await s.apiB.put(`/api/sport-events/${eventId}/contest`, { data: { competition_id: leagueId } });
     expect([403, 404]).toContain(asB.status());
 
-    // Unlink while no result exists.
+    // PR 9: the results. B joins and opts out of their profile; round 1 goes live (the
+    // contest reads in_progress), both score, the round completes with the override →
+    // the contest is completed with club_recorded results from the EVENT's board, B's
+    // roundRef.roundId null (no golf round for an opted-out player) yet counted, the
+    // live round stamped with the contest, and the link can no longer be removed.
+    const { participantId: rowBEvent, hostRowId } = await inviteAndAccept(s, eventId);
+    expect((await s.apiB.patch(`/api/sport-events/${eventId}/participants/${rowBEvent}`, { data: { hide_from_profile: true } })).ok()).toBe(true);
+    await setGroups(s.apiA, eventId, r1.id, [{ members: [hostRowId, rowBEvent] }]);
+    const live = await startRound(s.apiA, eventId, r1.id, '2030-06-01');
+    const gp = live.rounds[0].group_post_id as string;
+    expect((await admin.from('contests').select('status').eq('id', contests![0].id).single()).data!.status).toBe('in_progress');
+    const card = await readScorecard(s.apiA, gp);
+    const holesFor = (strokes: number) => Array.from({ length: 18 }, (_, i) => ({ hole_number: i + 1, strokes }));
+    await scoreHoles(s.apiA, cardRowFor(card, s.userA.id), holesFor(4));
+    await scoreHoles(s.apiB, cardRowFor(card, s.userB.id), holesFor(5));
+    await completeRound(s.apiA, eventId, r1.id, true);
+    const { data: results } = await admin.from('contest_results').select('participant_id, score, provenance, entered_by, payload').eq('contest_id', contests![0].id);
+    expect(results).toHaveLength(2);
+    for (const r of results!) expect(r.provenance).toBe('club_recorded');
+    const byProfile = new Map((await admin.from('contest_participants').select('id, competition_entries!inner(profile_id)').eq('contest_id', contests![0].id)).data!.map(p => [((Array.isArray(p.competition_entries) ? p.competition_entries[0] : p.competition_entries) as { profile_id: string }).profile_id, p.id as string]));
+    const resA = results!.find(r => r.participant_id === byProfile.get(s.userA.id))!;
+    const resB = results!.find(r => r.participant_id === byProfile.get(s.userB.id))!;
+    expect((resA.payload as { gross: number; roundRef: { roundId: string | null; groupPostId: string } }).gross).toBe(72);
+    expect((resA.payload as { roundRef: { roundId: string | null } }).roundRef.roundId).toBeTruthy();
+    expect((resB.payload as { gross: number }).gross).toBe(90);
+    expect((resB.payload as { roundRef: { roundId: string | null; groupPostId: string } }).roundRef).toEqual({ roundId: null, groupPostId: gp });
+    expect((await admin.from('golf_rounds').select('id', { count: 'exact', head: true }).eq('group_post_id', gp).eq('profile_id', s.userB.id)).count).toBe(0);
+    expect((await admin.from('contests').select('status').eq('id', contests![0].id).single()).data!.status).toBe('completed');
+    expect((await admin.from('group_posts').select('contest_id').eq('id', gp).single()).data!.contest_id).toBe(contests![0].id);
+    const contestRes = await s.apiA.get(`/api/contests/${contests![0].id}`);
+    expect(contestRes.status(), await readErrorBody(contestRes)).toBe(200);
+    const entrants = ((await contestRes.json()) as { view: { entrants: Array<{ result: { score: number; provenance: string } | null }> } }).view.entrants;
+    expect(entrants.map(e => e.result?.score).sort()).toEqual([72, 85]);
+    expect((await admin.from('contest_results').select('id', { count: 'exact', head: true }).eq('contest_id', contests![1].id)).count).toBe(0);
+
+    // Results exist: the link cannot be removed.
     const unlinked = await s.apiA.put(`/api/sport-events/${eventId}/contest`, { data: { competition_id: null } });
-    expect(unlinked.status(), await readErrorBody(unlinked)).toBe(200);
-    expect((await admin.from('contests').select('id', { count: 'exact', head: true }).eq('competition_id', leagueId)).count).toBe(0);
+    expect(unlinked.status()).toBe(409);
+    expect(((await unlinked.json()) as { reason: string }).reason).toBe('results_exist');
   } finally {
     await cleanupEvent(s.apiA, eventId);
     if (clubId) await admin.from('clubs').delete().eq('id', clubId);

@@ -714,6 +714,23 @@ export async function competitionDetailGET(
   if (contestsError?.code === '42703') {
     ({ data: contestsData, error: contestsError } = await readContests(CONTEST_FIELDS_BASE));
   }
+  // Phase 2b (211): which contests are an event round's — a second, tolerant
+  // read (the column may not exist yet); the console hides the golf-sync
+  // cluster for them and links the event.
+  const eventLinks = new Map<string, { event_id: string; round_id: string }>();
+  {
+    const { data: linkRows, error: linkError } = await admin
+      .from('contests')
+      .select('id, sport_event_round_id, round:sport_event_round_id (sport_event_id)')
+      .eq('competition_id', competitionId)
+      .not('sport_event_round_id', 'is', null);
+    if (!linkError) {
+      for (const r of (linkRows ?? []) as Array<{ id: string; sport_event_round_id: string; round: { sport_event_id: string } | Array<{ sport_event_id: string }> | null }>) {
+        const rr = Array.isArray(r.round) ? r.round[0] : r.round;
+        if (rr) eventLinks.set(r.id, { event_id: rr.sport_event_id, round_id: r.sport_event_round_id });
+      }
+    }
+  }
   const contests = contestsData as unknown as
     | {
         id: string;
@@ -783,6 +800,8 @@ export async function competitionDetailGET(
     contests: (contests ?? []).map(c => ({
       ...c,
       participants: participantsByContest.get(c.id) ?? [],
+      // Phase 2b: an event round's contest (null otherwise; absent pre-211 reads as null too).
+      sport_event: eventLinks.get(c.id) ?? null,
     })),
     standings: (standingRows ?? []).map(r => ({
       ...r,
