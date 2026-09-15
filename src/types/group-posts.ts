@@ -371,6 +371,9 @@ export interface CompleteGolfScorecard {
   }>;
   /** Segment-tagged photos/videos from the round (migrations 042, 061). */
   media?: RoundMediaItem[];
+  /** Events program (203): the event context when the round belongs to a
+   *  sport event — the live page mounts the group card from it. */
+  sport_event?: import('@/lib/sport-events/scorecard-context').ScorecardEventContext | null;
 }
 
 // ============================================

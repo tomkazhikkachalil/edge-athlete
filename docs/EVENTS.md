@@ -198,3 +198,13 @@ organizer's Mark final / Reopen per card and Complete with the not-final
 list. The scorecard payload carries `status`, `submitted_at`,
 `finalized_by`.
 
+## Live entry — the group card (PR 14)
+
+`/live/[groupPostId]` mounts `GroupScoreCard` (`src/components/golf/`) when
+the round belongs to an event and the viewer is in a playing group:
+holes as rows, players as columns, a partner's column after a confirm,
+the score outbox (`src/lib/golf/score-outbox.ts` + `useScoreOutbox`) that
+queues offline and replays on reconnect, a 409 conflict resolved by the
+player, Submit / Confirm my card. The one-player modal stays for other
+rounds.
+
