@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { addGroup, assign, groupsFromSaved, localToTeeTime, moveGroup, pruneTo, removeGroup, reorderMembers, samePlan, teeTimeToLocal, toPlanBody, unassign, unassigned, updateGroup, type EditorGroup } from '../groups-editor';
+import { addGroup, addMinutes, assign, groupsByStanding, groupsFromSaved, localToTeeTime, moveGroup, pruneTo, removeGroup, reorderMembers, samePlan, teeTimeToLocal, toPlanBody, unassign, unassigned, updateGroup, type EditorGroup } from '../groups-editor';
 import { parseEventTab, tabsFor } from '../tabs';
 
 const g = (key: string, members: string[], over: Partial<EditorGroup> = {}): EditorGroup => ({ key, name: '', teeTime: '', startingHole: 1, members, ...over });
@@ -47,5 +47,30 @@ describe('the groups editor operations', () => {
     expect(tabsFor({ canManage: false })).not.toContain('groups');
     expect(parseEventTab('groups', { canManage: false })).toBe('overview');
     expect(parseEventTab('groups', { canManage: true })).toBe('groups');
+  });
+});
+
+describe('groupsByStanding (phase 2)', () => {
+  const row = (id: string, rank: number | null, madeCut: boolean | null = null) => ({ participantId: id, rank, madeCut });
+  const seven = [row('a', 1), row('b', 2), row('c', 2), row('d', 4), row('e', 5), row('f', null), row('g', 7)];
+
+  it('leaders last: the standing reversed, the short group first, the leaders in the last group; the unranked go out first', () => {
+    const groups = groupsByStanding(seven, { groupSize: 3, order: 'leaders_last' });
+    expect(groups.map(g => g.members)).toEqual([['f'], ['g', 'e', 'd'], ['c', 'b', 'a']]);
+    expect(groups.map(g => g.name)).toEqual(['Group 1', 'Group 2', 'Group 3']);
+    expect(groups.every(g => g.startingHole === 1 && g.teeTime === '')).toBe(true);
+  });
+  it('leaders first: the standing as is; tee times spaced from the first', () => {
+    const groups = groupsByStanding(seven, { groupSize: 4, order: 'leaders_first', teeTimes: { first: '07:50', intervalMin: 10 } });
+    expect(groups.map(g => g.members)).toEqual([['a', 'b', 'c'], ['d', 'e', 'g', 'f']]); // the unranked player at the standing's end
+    expect(groups.map(g => g.teeTime)).toEqual(['07:50', '08:00']);
+    expect(addMinutes('23:55', 10)).toBe('00:05');
+    expect(addMinutes('bad', 10)).toBe('bad');
+  });
+  it('the missed-cut set is left out; an even field has no short group; the size is clamped 2..5', () => {
+    const cut = [row('a', 1, true), row('b', 2, true), row('c', 3, false), row('d', 4, true), row('e', 5, true)];
+    expect(groupsByStanding(cut, { groupSize: 2, order: 'leaders_last' }).map(g => g.members)).toEqual([['e', 'd'], ['b', 'a']]);
+    expect(groupsByStanding([], { groupSize: 4, order: 'leaders_last' })).toEqual([]);
+    expect(groupsByStanding(seven, { groupSize: 9 as unknown as 5, order: 'leaders_first' }).map(g => g.members.length)).toEqual([2, 5]);
   });
 });

@@ -234,7 +234,7 @@ specs run at 390 × 844 on Chromium AND WebKit.
 | `sport-events-create` `@mobile` | the wizard's refusals · a typed course · a back nine · Publish → the place · Cancel asks · (phase 2) Add a round copies the course, the refusal names the round and the order, a two-round tournament lands on "Round 1 of 2" |
 | `sports-nav` `@mobile` | the redirect · the subnav · the drawer · the events list · the leaderboards place |
 | `sport-events-notifications` `@mobile` | Accept an invitation and a join request from the bell's row |
-| `sport-events-groups` `@mobile` | the groups editor end to end · hidden from a player |
+| `sport-events-groups` `@mobile` | the groups editor end to end · hidden from a player · (phase 2) round 2 grouped by standing, leaders last — B before A — and the mint honours it |
 | `sport-events-scorecard` `@mobile` | submit · mark final · reopen · complete with the not-final list |
 | `sport-events-group-card` `@mobile` | the group card · OFFLINE queue and reconnect · a partner's hole |
 | `sport-events-feed` | the announce card and the chip, announced → live |
@@ -392,6 +392,20 @@ every board row is a button (the bubble language) to `BreakdownWindow`
 the house ring classes — then the tiles, a tile hidden when nothing was
 tracked; "This round / All rounds" on a tournament) and
 `HardestHolesPanel` sits under the board (three cells, "Show all").
+
+### Regroup by standing (PR 10)
+
+`groups-editor.ts groupsByStanding(rows, {groupSize, order, teeTimes?})`
+lays a later round's groups from the overall board: the missed-cut set
+is left out; the standing is the ranked players by rank (ties keep the
+board's order) with the unranked at its end; leaders_last (the PGA norm
+— the leaders in the last group, the worst out first) reverses it,
+leaders_first keeps it; chunks of the group size with the SHORT group
+first to tee off; "Group n", hole 1, tee times spaced from the first
+when given. The Groups tab offers it on a round after a completed one
+(size · order · first tee time · interval); the draft is replaced (a
+confirm when groups were arranged), Save is the same PUT, the mint
+honours it.
 
 ## Phase 1 status
 

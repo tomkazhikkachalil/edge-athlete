@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { apiAs, loadQaUser, readErrorBody } from './helpers/qa-user';
+import { cardRowFor, cleanupEvent, completeRound, createEvent, inviteAndAccept, openEventSession, readScorecard, readView, scoreHoles, startRound } from './helpers/sport-events';
 
 /**
  * Events program — the groups editor on the event page. A places B and
@@ -68,5 +69,60 @@ test('groups editor: add, assign, reorder, tee time, save; hidden from a player 
     }
     await apiA.dispose();
     await apiB.dispose();
+  }
+});
+
+/**
+ * Phase 2, PR 10 — regroup by standing: after round 1 (A 36, B 45) the
+ * organizer lays round 2's groups from the overall board, leaders last:
+ * B tees off before A in one group; Save; the round 2 mint honours it.
+ */
+test('groups editor: group round 2 by standing, leaders last; the mint honours it @mobile', async ({ page }) => {
+  const s = await openEventSession();
+  let eventId: string | null = null;
+  try {
+    let view = await createEvent(s.apiA, {
+      name: `QA Standing ${s.stamp}`,
+      publish: true,
+      rounds: [
+        { scheduled_on: '2030-06-01', course_name: 'QA Links', holes: 9, starting_hole: 1 },
+        { scheduled_on: '2030-06-02', course_name: 'QA Links', holes: 9, starting_hole: 1 },
+      ],
+    });
+    eventId = view.event.id;
+    const [r1, r2] = view.rounds.map(r => r.id);
+    await inviteAndAccept(s, eventId);
+    view = await startRound(s.apiA, eventId, r1, '2030-06-01');
+    const card1 = await readScorecard(s.apiA, view.rounds[0].group_post_id!);
+    const nine = (strokes: number) => Array.from({ length: 9 }, (_, i) => ({ hole_number: i + 1, strokes }));
+    await scoreHoles(s.apiA, cardRowFor(card1, s.userA.id), nine(4));
+    await scoreHoles(s.apiB, cardRowFor(card1, s.userB.id), nine(5));
+    await completeRound(s.apiA, eventId, r1);
+
+    await page.goto(`/events/${eventId}?tab=groups&round=${r2}`);
+    await expect(page.locator(`[data-event-groups-editor="${r2}"]`)).toBeVisible({ timeout: 20_000 });
+    await expect(page.locator('[data-groups-standing]')).toBeVisible();
+    await page.locator('[data-standing-size]').selectOption('4');
+    await page.locator('[data-standing-order]').selectOption('leaders_last');
+    await page.locator('[data-groups-by-standing]').click();
+    await expect(page.locator('[data-groups-notice]')).toContainText('from the standing');
+    await expect(page.locator('[data-groups-group="1"]')).toBeVisible();
+    await expect(page.locator('[data-groups-group="1"] ol, [data-groups-group="1"] [data-reorder-list]').first()).toContainText(/Edge B\.[\s\S]*Edge A\./);
+    await page.locator('[data-groups-save]').click();
+    await expect(page.locator('[data-groups-notice]')).toHaveText('Groups saved.', { timeout: 15_000 });
+
+    const after = await readView(s.apiA, eventId);
+    const idOf = (profile: string) => after.participants.find(p => p.profile_id === profile)!.id;
+    const g2 = after.groups.filter(g => g.sport_event_round_id === r2);
+    expect(g2).toHaveLength(1);
+    expect(g2[0].members.map(m => m.participant_id)).toEqual([idOf(s.userB.id), idOf(s.userA.id)]);
+
+    // The round 2 mint honours the plan.
+    view = await startRound(s.apiA, eventId, r2, '2030-06-02');
+    const card2 = await readScorecard(s.apiA, view.rounds[1].group_post_id!);
+    expect(card2.sport_event!.group!.members.map(m => m.profile_id)).toEqual([s.userB.id, s.userA.id]);
+  } finally {
+    await cleanupEvent(s.apiA, eventId);
+    await s.dispose();
   }
 });

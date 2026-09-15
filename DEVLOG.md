@@ -1,5 +1,30 @@
 # Development Log
 
+## September 16, 2026 — Events program, phase 2, PR 10: regroup by standing (zero DDL)
+
+- `groups-editor.ts groupsByStanding(rows, {groupSize, order,
+  teeTimes?})` — the next round's groups from the overall board: the
+  missed-cut set left out; the standing = the ranked by rank (ties keep
+  the board's order) then the unranked; `leaders_last` (the PGA norm)
+  reverses it so the leaders are in the last group and the worst go out
+  first, `leaders_first` keeps it; chunks of the group size with the
+  SHORT group first to tee off (nobody waits behind a twosome); "Group
+  n"; hole 1; tee times spaced from the first (`addMinutes`, wrapping at
+  midnight). Pinned by tests.
+- `EventGroupsEditor` — "Group by standing" on a round after a completed
+  one: players per group (2–5), the order, an optional first tee time
+  and the interval; it reads the overall board (`api.overall`), lays the
+  draft and says so; a confirm when groups were already arranged; Save
+  is the same PUT; the mint honours the plan.
+
+Verification: `npm run verify` green; `groups-editor.test.ts` grows
+(leaders last / first, the short group first, the unranked out first,
+the missed cut left out, the clamp, the tee spacing);
+`sport-events-groups.spec.ts` gains a second test (round 1 played,
+round 2 grouped by standing leaders last → B before A, saved, the mint
+honours it) on Chromium + WebKit. Next: PR 11, the feed's round-aware
+cards and the leaderboards list.
+
 ## September 16, 2026 — Events program, phase 2, PR 9: breakdowns — per player, per round and across rounds; the hardest holes (zero DDL)
 
 No par-3 / 4 / 5 split existed anywhere in the app; the shared-round
