@@ -136,13 +136,6 @@ The results: on completion the round is mirrored into every player's
 with `hide_from_profile`; the flip is theirs alone (`PATCH …/participants/
 [pid] {hide_from_profile}`), before or after completion.
 
-## Not in phase 1 (named, parked)
-
-N rounds in the UI, per-round / overall leaderboard tabs, flights (the column
-exists), breakdown views, `contest_id` stamping for org-hosted events, the
-calendar publication, a per-hole `client_seq` version column, the bottom
-tab bar, match play and brackets.
-
 ## The event page — `/events/[id]` (PR 8)
 
 The contest place's shape (`src/app/(app)/events/[id]/`): a public event is
@@ -216,3 +209,38 @@ branch renders `EventAnnounceCard` for a sport-event post without scores
 (the golf feed freeze is lifted for this branch only); `PostCard` shows
 the event chip. Live with scores and results use the existing round cards.
 
+## Verification — the e2e specs
+
+Every spec drives the API with the two QA users (A hosts, B plays) and
+runs against production after a merge (`npm run test:e2e:prod -- <name>`;
+the global setup waits for the merged commit to be live). `@mobile`
+specs run at 390 × 844 on Chromium AND WebKit.
+
+| spec | what it proves |
+|---|---|
+| `sport-events-api` | create · the gate per visibility · invite → waitlist → promotion · the link token and its rotation · follow · delete |
+| `sport-events-lifecycle` | open → live (the round minted, the scorecard carries the event) → withdraw while live → complete refused → override → delete detaches |
+| `sport-events-scoring` | group-mate scoring · the hole range · the 409 conflict · submit / finalize / reopen · completion waits for every card |
+| `sport-events-results` | the leaderboard (computed, gated) · the results mirror · the opt-out and opt back in |
+| `sport-events-page` `@mobile` | accept from the players tab · publish · the stranger screen · public SSR |
+| `sport-events-create` `@mobile` | the wizard's refusals · a typed course · a back nine · Publish → the place · Cancel asks |
+| `sports-nav` `@mobile` | the redirect · the subnav · the drawer · the events list · the leaderboards place |
+| `sport-events-notifications` `@mobile` | Accept an invitation and a join request from the bell's row |
+| `sport-events-groups` `@mobile` | the groups editor end to end · hidden from a player |
+| `sport-events-scorecard` `@mobile` | submit · mark final · reopen · complete with the not-final list |
+| `sport-events-group-card` `@mobile` | the group card · OFFLINE queue and reconnect · a partner's hole |
+| `sport-events-feed` | the announce card and the chip, announced → live |
+| `header-create`, `round-invite` | the Create sheet's two doors; the plain shared round still scores |
+
+## Phase 1 status
+
+Complete (Sep 16 2026): #732–#748, migrations 201–206. Phase 2
+(tournaments: N rounds, flights, breakdowns) and phase 3 (match play,
+brackets) start from the parked list below.
+
+## Not in phase 1 (named, parked)
+
+N rounds in the UI, per-round / overall leaderboard tabs, flights (the column
+exists), breakdown views, `contest_id` stamping for org-hosted events, the
+calendar publication, a per-hole `client_seq` version column, the bottom
+tab bar, match play and brackets.

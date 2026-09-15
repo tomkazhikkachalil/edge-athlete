@@ -764,6 +764,53 @@ const { canView } = await response.json();
    counts only while the post is public and published). ONE ladder:
    `PROVENANCE_RANK` in `provenance-copy.ts`. `docs/PERFORMANCE_DATA.md`
    is the reference; read DEVLOG Sep 13 2026 P1, F1–F6 first.
+17. **An Event is organizer intent layered over a live round (Events
+   program, Sep 16 2026, #732–#748, migs 201–206)** — Tom's design doc
+   makes Events a first-class object; the audit found the live round
+   (`group_posts` + its scorecard, machine, mirror and feed post) already
+   IS a single-day event, so the Event is a thin header: `sport_events` →
+   `sport_event_rounds`, each round ONE `group_posts` row minted at
+   go-live and linked by `group_posts.sport_event_round_id` (203, one
+   writer: `lifecycle-server.ts mintRound`); `sport_event_participants`
+   (roles organizer | co_organizer | participant | follower; the frozen
+   `handicap_index`; `hide_from_profile`; the waitlist), groups + members.
+   Naming: `sport_events` in the database, API and code; "Events" on
+   screen; `/events/[id]` the place (the calendar owns `events`, the
+   contest place owns `/event/[id]`). The rules, each pure and pinned in
+   `src/lib/sport-events/`: `resolveSportEventAccess` is THE ONE GATE
+   (public → everyone; link → the token or a participant; private → any
+   non-declined participant, followers included; a refusal is a 404);
+   `validateTransition` (draft → open | cancelled; open → live |
+   cancelled; live → completed — never cancelled) with `applyTransition`
+   compare-and-setting the status (open mints the round's POST, live
+   mints the ROUND, completed finalizes / mirrors / re-timestamps and
+   sends the results bell, cancelled deletes the announce post);
+   `planJoin` (seats = accepted AND playing; full → waitlisted; any
+   vacancy promotes lowest position first; a follower may be invited);
+   `computeLeaderboard` (the one computation, never stored; gross and net
+   over SCORED holes; T2; an off-catalog round scores against par 4);
+   `scoringRight` (both score routes: self and the creator on the session
+   client, a same-group partner or an organizer on the ADMIN client — the
+   gate IS the authorization; submitted admits the owner, who reopens it;
+   final admits organizers only; `expected_updated_at` → 409); the
+   results opt-out is the ONE edit in `round-mirror.ts` (a hidden result
+   leaves the profile, the handicap and the dataset together). One post
+   per round, three states (announced → live → results; hide-until-
+   finished relaxed for event rounds only; the golf feed freeze lifted
+   for the announce branch only). Live entry is `GroupScoreCard` over the
+   score outbox (a set of desired states per participant × hole, replayed
+   on reconnect; 409 = the player decides). Bells: `sport_event_invite` /
+   `_request` are inserted `pending` and carry Accept / Decline
+   (`NotificationActionRow`; the action route decides through
+   `applyJoin`). Navigation is phase-1-minimal: Sports replaces Explore
+   (`/sports/{explore,events,leaderboards}`, `/explore` redirects), the
+   header's Create sheet (Post | Event), the drawer a superset. A
+   supervised profile MAY host. Every prod probe waits for the deploy
+   (`e2e/helpers/deploy.ts`). `docs/EVENTS.md` is the reference; read
+   DEVLOG Sep 16 2026 PR 1–16 first. Parked: N rounds in the UI, flights,
+   `contest_id` stamping for org-hosted events, the calendar publication,
+   a per-hole `client_seq`, the bottom tab bar, match play and brackets.
+
 
 ---
 

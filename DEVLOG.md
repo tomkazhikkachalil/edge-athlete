@@ -1,5 +1,19 @@
 # Development Log
 
+## September 16, 2026 — Events program, PR 16: the close — CLAUDE.md convention 17, docs/EVENTS.md complete, the session prompt (zero DDL)
+
+Phase 1 of the Events program is complete: sixteen PRs (#732–#748), six
+migrations (201–206, all run), zero DDL after PR 2, every PR prod-probed
+after its merge. CLAUDE.md gains convention 17 — "an Event is organizer
+intent layered over a live round" — with the rules and their owners;
+`docs/EVENTS.md` is the reference (the one idea, naming, Tom's
+decisions, the migrations, the library, the API, every surface, the e2e
+table, the parked list); `SESSION_PROMPT.md` names the program. What Tom
+owes: the on-course pass with airplane mode; the device look at each
+surface. What is parked: N rounds in the UI, flights, `contest_id`
+stamping for org-hosted events, the calendar publication, a per-hole
+`client_seq`, the bottom tab bar, match play and brackets.
+
 ## September 16, 2026 — Events program, PR 15: the feed's announce card · the event chip — the freeze lift, this branch only (zero DDL)
 
 Tom's decision: the golf feed rendering freeze (Aug 2026) is lifted for
