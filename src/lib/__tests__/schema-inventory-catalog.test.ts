@@ -505,7 +505,10 @@ describe('the real chain', () => {
     const revokedBy199 = ['handle_updated_at()', 'update_post_reposts_count()', 'consent_records_forbid_mutation()', 'notify_post_comment()'];
     expect(r.grantDrift.map(g => g.key).filter(k => !revokedBy199.includes(k))).toEqual([]);
     expect(r.triggerDrift).toEqual([]);
-    expect(r.staleTriggerClaims).toEqual([]);
+    // A trigger the chain creates on a table the saved catalog KNOWS reads as a stale claim until that
+    // migration ran and the catalog was re-saved (`--save-catalog`) — the 199 shape above. 209's is pending.
+    const pendingClaims = ['golf_hole_scores|trigger_bump_hole_score_version'];
+    expect(r.staleTriggerClaims.filter(c => !pendingClaims.includes(`${c.table}|${c.name}`))).toEqual([]);
     expect(r.secdefPublic.map(s => s.key)).toContain('is_conversation_participant(uuid,uuid)');
   });
 });

@@ -66,6 +66,7 @@ the org contest place.
 | 205 | `sport_event_notifications.sql` | the `sport_event_*` notification types |
 | 206 | `reserved_sports_root.sql` | `reserved_handles` gains `sports` |
 | 207 | `sport_events_format_config.sql` | phase 2's ONE migration: `sport_events.format_config` jsonb (`{cut?: {after_round, top_n? \| to_par?}}`; ONE writer the event PATCH; `stableford` reserved), `sport_event_rounds.name`, the `flight` CHECK (1..20). Runs BEFORE PR 8 reads the columns (the 42703 window — which bit on Sep 16: #761 merged first, prod's event reads 42703'd until 207 ran; `check:schema` now asks the reverse question, so a merge ahead of its migration reads `CHAIN-ONLY` by name) |
+| 209 | `hole_score_version.sql` | phase 2b (B3): `golf_hole_scores.version` — a per-hole compare-and-set (starts at 1, +1 by `trigger_bump_hole_score_version` only when a scored field changes); a client sends `expected_version`, the server writes WHERE `version = expected`, 0 rows = 409 with the current row. Nothing reads the column until `check:schema` says 209 ran |
 
 Posture A on every new table (RLS on, zero policies, REVOKE from anon and
 authenticated): the service client behind `resolveSportEventAccess` is the
