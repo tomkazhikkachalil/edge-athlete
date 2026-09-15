@@ -5,12 +5,16 @@
 > (after the Site Builder programs 1–3, #616–#707, the Contest Place and
 > Recruiting programs #661–#669, the Data foundation and provenance rounds
 > #709–#731, the Events program #732–#748, Events phase 2 — tournaments —
-> #750–#762, and Events phase 2b — the integrations — #763–#773)** —
-> migration head 211 (`211_contests_sport_event_round.sql`); `main`
+> #750–#762, Events phase 2b — the integrations — #763–#773, and Events
+> phase 3 — match play and brackets — #775–#785, OPEN as one stacked chain)** —
+> migration head 211 run, 212 (`212_sport_event_match_play.sql`) and 213
+> waiting on the chain; `main`
 > deployed and every PR prod-probed (the probe waits for the deploy by
 > itself; "NNN ran" means `npm run check:schema` is OK — it asks the schema
-> question BOTH ways). **The next program is Tom's call** (Events phase 3:
-> match play and brackets, from the parked list; or competition formats,
+> question BOTH ways). **Events phase 3 is in flight**: Tom merges #775 →
+> #785 in order, RUNS 212 after #777 (then `check:schema` OK gates #778+)
+> and 213 after #785; every match spec runs locally the moment 212 is live.
+> After that the next program is Tom's call (competition formats,
 > performance readers, the multi-sport pipeline). If the "Where the project
 > actually is" section drifts stale, ask Claude to re-align it against
 > DEVLOG.md and session memory.
@@ -105,7 +109,10 @@ ops/console gates (docs/LAUNCH_RUNBOOK.md), not code.
   score card with an offline outbox; gross and net leaderboards computed on
   read; results mirrored to the profile with an opt-out; the Sports section
   replaces Explore; the Create sheet. CLAUDE.md convention 17,
-  `docs/EVENTS.md`.
+  `docs/EVENTS.md`. Phase 2 (tournaments, conv 18), 2b (the integrations)
+  and 3 (match play + brackets, conv 19: a match is a group with two
+  sides, status computed, the outcome written once, sudden death, the
+  organizer's draw, the rounds ARE the bracket) followed.
 - **Search & geo** — instant search, places, clubs, leagues, affiliations,
   facets.
 - **Hardening** — RLS everywhere, CI route-authorization audit, enforced CSP,

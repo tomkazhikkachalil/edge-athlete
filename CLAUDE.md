@@ -874,6 +874,49 @@ const { canView } = await response.json();
    `roundRef.roundId` null, the golf-sync engine GUARDED on the link).
    `docs/EVENTS.md` "Phase 2b" is the reference.
 
+19. **A match is a group with two sides; its status is computed, its
+   outcome written once (Events program, phase 3, Sep 16 2026, #775–#785,
+   migs 212 · 213)** — Tom's decisions: singles + four-ball + foursomes,
+   gross or net; the organizer sets EVERY draw by hand; a halved match
+   goes to sudden-death extra holes; a standalone match event AND a
+   bracketed one; a match round posts to the profile and the handicap as
+   played (the mirror untouched). The rules, each pure and pinned in
+   `src/lib/sport-events/`: `match.ts computeMatch` is THE ONE computation
+   (a hole counts when both sides have a counting score — own ball / the
+   better net ball / the captain's card; a concession wins the hole for
+   the other side; ties halve; "3&2" / "2 up"; all square after the last →
+   extra holes, the first won decides; a stored organizer / concession /
+   bye decision wins over the computation; strokes given by the DIFFERENCE
+   in playing handicaps on the stroke index — 100 · 90 per player · 50 of
+   the combined; a missing index → gross with `no_index`, never a guess);
+   the strokes stay on the cards (the outbox, the per-hole CAS), what a
+   card cannot carry lives on `sport_event_matches` (212: concessions,
+   extra holes — never `golf_hole_scores`, CHECK 1..18 — an organizer
+   decision, a bye; `version` the APP-level compare-and-set, every write
+   `WHERE id AND version`, 0 rows = 409 re-read and replay; the outcome
+   written ONCE at round completion, `closeMatchesOnCompletion`); no
+   `status` column. `format` widens to `match_gross | match_net`;
+   `format_config.match {sides, bracket, allowance?}` (strict, `cut` ⊕
+   `match`, the format part of the parse, defaults filled on the view);
+   `sport_event_group_members.side` (1 | 2; derived from the position for a
+   plain id; refused by name on a stroke event). The lifecycle's gate on a
+   match round is the MATCHES', never the cards': `groups_incomplete` at
+   start (a one-side group is a bye on a bracket only), `matches_undecided`
+   at completion (`override` never bypasses it; the page sends none); a
+   match round fields ONLY its draw (`roundFieldExclusions`); every card is
+   finalized as it stands; a match event never counts toward a competition
+   (`not_stroke_play`); the leaderboard + breakdown routes answer 409 on a
+   match event and the Matches tab replaces Leaderboard. Three intent
+   routes behind one preamble (`match-write-server.ts`: a member of the
+   match or an organizer, the round live): concede (a member of THAT side;
+   `hole: null` = the match), extra-hole (any member; `n` the next), decide
+   (organizers; `null` clears their own). A BRACKET is nothing new: the
+   rounds ARE the bracket rounds, match k of round n+1 is fed by 2k−1 and
+   2k of round n by group SEQUENCE ("Fill from winners" pre-fills, the
+   organizer edits; `BracketView` at `?round=bracket`). The e2e suite mints
+   FOUR QA users (pairs, brackets). `docs/EVENTS.md` "Phase 3" is the
+   reference; read DEVLOG Sep 16 2026 phase 3 PR 1–12 first.
+
 
 ---
 

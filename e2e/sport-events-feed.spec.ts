@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { apiAs, readErrorBody } from './helpers/qa-user';
+import { adminClient, apiAs, loadQaUser, readErrorBody } from './helpers/qa-user';
 
 /**
  * Events program — one post, three states in the feed. A publishes an
@@ -70,5 +70,69 @@ test('feed: the announce card and the event chip, announced → live', async ({ 
       await api.delete(`/api/sport-events/${id}`).catch(() => null);
     }
     await api.dispose();
+  }
+});
+
+/**
+ * Phase 3 (PR 11) — a match round in the feed: the announce card names
+ * the format ("Match play · Singles · Gross"); once the round completes
+ * (B concedes the match) the post leads with the match results card —
+ * the winner first, "def.", "conceded" — never the stroke totals. The
+ * API carries `match` and `match_results` on the post. Self-skips
+ * before 212.
+ */
+test('feed: a match round — the format on the announce card, the results card names the winner', async ({ page }) => {
+  const stamp = Date.now();
+  const api = await apiAs('state.json');
+  const apiB = await apiAs('state-b.json');
+  const userB = loadQaUser('user-b.json');
+  const admin = adminClient();
+  const probe = await admin.from('sport_event_matches').select('id').limit(1);
+  test.skip(!!probe.error, 'sport_event_matches missing — run migration 212');
+  let eventId: string | null = null;
+  try {
+    const created = await api.post('/api/sport-events', { data: { name: `QA Feed Match ${stamp}`, visibility: 'public', publish: true, format: 'match_gross', format_config: { match: { sides: 'singles' } }, round: { scheduled_on: '2030-06-01', course_name: 'QA Feed Links', holes: 9, name: 'Final' } } });
+    expect(created.status(), await readErrorBody(created)).toBe(201);
+    const view = (await created.json()) as { event: { id: string }; rounds: Array<{ id: string }> };
+    eventId = view.event.id;
+    const roundId = view.rounds[0].id;
+
+    await page.goto('/feed');
+    const card = page.locator(`[data-event-announce-card="${eventId}"]`);
+    await expect(card).toBeVisible({ timeout: 20_000 });
+    await expect(card.locator('[data-event-announce-format]')).toHaveText('Match play · Singles · Gross');
+    await expect(card.locator('[data-event-announce-round-name]')).toHaveText('Final');
+
+    // B accepts, the draw, the start, B concedes the match, the round completes without the override.
+    expect((await api.post(`/api/sport-events/${eventId}/participants`, { data: { profile_ids: [userB.id] } })).ok()).toBe(true);
+    const asB = (await (await apiB.get(`/api/sport-events/${eventId}`)).json()) as { viewer: { participant_id: string }; participants: Array<{ id: string; role: string }> };
+    expect((await apiB.post(`/api/sport-events/${eventId}/participants/${asB.viewer.participant_id}`, { data: { action: 'accept' } })).ok()).toBe(true);
+    const host = asB.participants.find(p => p.role === 'organizer')!;
+    expect((await api.put(`/api/sport-events/${eventId}/rounds/${roundId}/groups`, { data: { groups: [{ members: [host.id, asB.viewer.participant_id] }] } })).ok()).toBe(true);
+    const live = await api.post(`/api/sport-events/${eventId}/rounds/${roundId}/transition`, { data: { to: 'live', today: '2030-06-01' } });
+    expect(live.ok(), await readErrorBody(live)).toBe(true);
+    const matchId = ((await (await api.get(`/api/sport-events/${eventId}/matches`)).json()) as { matches: Array<{ id: string }> }).matches[0].id;
+    const conceded = await apiB.post(`/api/sport-events/${eventId}/matches/${matchId}/concede`, { data: { hole: null, side: 2, version: 0 } });
+    expect(conceded.status(), await readErrorBody(conceded)).toBe(200);
+    const done = await api.post(`/api/sport-events/${eventId}/rounds/${roundId}/transition`, { data: { to: 'completed' } });
+    expect(done.ok(), await readErrorBody(done)).toBe(true);
+
+    // The API and the feed: the results card, the winner first.
+    const feed = (await (await api.get('/api/posts?limit=20')).json()) as { posts: Array<{ sport_event?: { id: string; match: unknown; match_results?: Array<{ winner: string; loser: string; result: string; kind: string }> | null } | null }> };
+    const post = feed.posts.find(p => p.sport_event?.id === eventId);
+    expect(post?.sport_event?.match).toEqual({ sides: 'singles', bracket: false });
+    expect(post?.sport_event?.match_results).toHaveLength(1);
+    expect(post!.sport_event!.match_results![0]).toMatchObject({ result: 'conceded', kind: 'decided', loser: expect.stringContaining('Bravo') });
+    await page.goto('/feed');
+    const results = page.locator(`[data-event-match-results="${eventId}"]`);
+    await expect(results).toBeVisible({ timeout: 20_000 });
+    await expect(results.locator('[data-event-match-line]')).toHaveCount(1);
+    await expect(results.locator('[data-event-match-line]')).toContainText('def.');
+    await expect(results.locator('[data-event-match-line]')).toContainText('conceded');
+    await expect(page.locator(`[data-event-announce-card="${eventId}"]`)).toHaveCount(0);
+  } finally {
+    if (eventId) await api.delete(`/api/sport-events/${eventId}`).catch(() => null);
+    await api.dispose();
+    await apiB.dispose();
   }
 });

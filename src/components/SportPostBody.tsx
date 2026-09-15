@@ -14,6 +14,8 @@ import { isStatLineData } from '@/lib/sports/stat-schemas';
 import { buildStatHighlights } from '@/lib/sports/post-stat-highlights';
 import type { GolfRound } from '@/types/golf';
 import EventAnnounceCard from './sport-events/EventAnnounceCard';
+import EventMatchResultsCard from './sport-events/EventMatchResultsCard';
+import { isMatchFormat } from '@/lib/sport-events/types';
 import type { PostSportEvent } from '@/lib/sport-events/feed';
 
 interface SportPostBodyProps {
@@ -65,6 +67,12 @@ export default function SportPostBody({
       viewerId,
       author,
     });
+
+    // Phase 3: a MATCH round never leads with stroke totals — its results
+    // are its matches (the announce card until the round completed).
+    if (sportEvent && isMatchFormat(sportEvent.format)) {
+      return sportEvent.match_results ? <EventMatchResultsCard event={sportEvent} /> : <EventAnnounceCard event={sportEvent} />;
+    }
 
     // A score-less round gives the highlight card nothing to lead with; the
     // classic round card is the whole body, exactly as before.
