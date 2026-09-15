@@ -17,8 +17,9 @@ import type { CompleteGolfScorecard } from '@/types/group-posts';
  * the outbox and advances the selected column to its next hole. A
  * partner's column unlocks after "Enter scores for {name}?". Every cell
  * carries a sync dot (saved · pending · conflict · error); a conflict
- * asks keep mine / keep theirs. The footer submits or confirms the
- * player's own card once it is complete.
+ * (the per-hole compare-and-set, 209) names both scores and asks keep
+ * mine / keep theirs. The footer submits or confirms the player's own
+ * card once it is complete.
  */
 interface Props {
   scorecard: CompleteGolfScorecard;
@@ -72,7 +73,10 @@ export default function GroupScoreCard({ scorecard, viewerId, holesPlayed, start
     if (!sel || !selected) return;
     // The wheel RESTS on par: an untouched wheel saves par — what the button says.
     const strokes = draft.strokes ?? parOf(sel.hole);
-    commit({ participantId: sel.participantId, holeNumber: sel.hole, strokes, putts: draft.putts, fairwayHit: draft.fir, greenInRegulation: draft.gir, expectedUpdatedAt: selected.scores.updated_at ?? null });
+    // The hole's version as the card showed it (0 = no score seen) — the
+    // per-hole compare-and-set (209); the hook keeps its own saves ahead.
+    const serverHole = (selected.scores.hole_scores ?? []).find(h => h.hole_number === sel.hole) as { version?: number } | undefined;
+    commit({ participantId: sel.participantId, holeNumber: sel.hole, strokes, putts: draft.putts, fairwayHit: draft.fir, greenInRegulation: draft.gir, expectedVersion: serverHole?.version ?? 0 });
     const idx = holes.indexOf(sel.hole);
     const next = holes[idx + 1];
     if (next) {
@@ -174,7 +178,7 @@ export default function GroupScoreCard({ scorecard, viewerId, holesPlayed, start
         <ConfirmModal
           isOpen
           title="Someone else scored this hole"
-          message="Keep your score, or take theirs?"
+          message={conflictCopy(entries.find(e => e.participantId === conflictFor.participantId && e.holeNumber === conflictFor.hole), conflictFor.hole)}
           confirmText="Keep mine"
           cancelText="Keep theirs"
           onConfirm={() => { const c = conflictFor; setConflictFor(null); void resolveConflict(c.participantId, c.hole, 'mine'); }}
@@ -188,6 +192,13 @@ export default function GroupScoreCard({ scorecard, viewerId, holesPlayed, start
       )}
     </div>
   );
+}
+
+/** "They have 6 on hole 3, you entered 5. Keep yours, or take theirs?" — the 409's current row against the queued value. */
+export function conflictCopy(entry: { strokes: number; current?: { strokes: number } | null } | undefined, hole: number): string {
+  if (!entry) return 'Keep your score, or take theirs?';
+  if (!entry.current) return `Their score on hole ${hole} was removed; you entered ${entry.strokes}. Keep yours, or leave it empty?`;
+  return `They have ${entry.current.strokes} on hole ${hole}; you entered ${entry.strokes}. Keep yours, or take theirs?`;
 }
 
 type Col = CompleteGolfScorecard['participants'][number];

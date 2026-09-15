@@ -1,5 +1,35 @@
 # Development Log
 
+## September 16, 2026 — Events program, phase 2b, PR 3: the client half of the per-hole compare-and-set (merges with PR 2)
+
+- `score-outbox.ts`: an entry carries the HOLE's `expectedVersion` (0 =
+  no score seen; null = unchecked) and `penalties` only when named;
+  storage is `v2` (the key carries it) and a `v1` box left by a phone
+  that crossed the deploy mid-round is READ and converted — its entries
+  become unchecked, a held conflict is re-queued — never dropped (those
+  holes were scored on the course). `writeOutbox` removes the v1 key.
+- `score-flush.ts payloadFor` (pure, tested) sends `expected_version` and
+  `penalties` by the same rules; a 201 yields the saved version
+  (`savedVersionFrom`), a 409 the hole's current row
+  (`conflictCurrentFrom`); the keepalive half sends the same payloads.
+- `useScoreOutbox`: a `known` map of the versions its OWN saves produced
+  substitutes for the card's older version at flush time (a second commit
+  on a hole whose first save landed but whose refetch has not must not
+  conflict with itself — someone else's write still does); a done flush
+  removes the entry only if no newer commit replaced it mid-flight;
+  **Keep mine resends AGAINST `current.version`** — a real CAS, a third
+  writer conflicts again, never a forced overwrite; Keep theirs forgets
+  our version and refetches.
+- `GroupScoreCard` commits with the hole's version the card showed and the
+  conflict dialog names both scores ("They have 6 on hole 3; you entered
+  4. Keep yours, or take theirs?" — `conflictCopy`, exported). The solo
+  modal, the composer and the live page's solo mode stay unchecked (one
+  writer), said in the modal's flush.
+- e2e NEW `sport-events-scoring-conflict.spec.ts @mobile` (needs 209): B
+  offline scores 2, 3, 4; A posts B's hole 3 = 6; back online 2 and 4 land
+  and 3 asks; Keep mine → 4 at version 2; A posts 7; B's re-score against
+  the card's 2 conflicts; Keep theirs → 7 at version 3.
+
 ## September 16, 2026 — Events program, phase 2b, PR 2: the server compare-and-set (reads 209 — merges after it ran)
 
 `npm run check:schema` OK is the gate: this PR selects `version`.
