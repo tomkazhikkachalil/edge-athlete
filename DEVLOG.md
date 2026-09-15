@@ -1,5 +1,33 @@
 # Development Log
 
+## September 16, 2026 — Events program, PR 13: the Scorecard tab (zero DDL)
+
+- **The tab** shows once the round is minted, to players and organizers
+  (`tabs.ts tabsFor({canManage, isPlayer, roundMinted})`). A player sees
+  **My card** — its 204 status chip, holes and total, "Open my scorecard"
+  (the live round) and "Submit my card" (own, in progress, at least one
+  hole) — and the field. An organizer sees every card with its chip and
+  **Mark final / Reopen** per card, and **Complete event** whose confirm
+  names the cards that are not final (they are finalized as they stand).
+  The header's Complete stays for the quick path.
+- **The rows are pure** (`src/lib/sport-events/cards-view.ts`, pinned):
+  the round's scorecard joined to the event's participants by profile —
+  the round row id is the cards routes' `[pid]` — with what the viewer may
+  do; declined round rows are skipped.
+- **The scorecard payload carries the card's status** (`GROUP_SCORECARD_
+  SELECT` gains `status, submitted_at, finalized_by`; a missing card
+  answers `in_progress`) — 204 has run.
+- **Completion finalizes a never-scored player too**: the override used to
+  close existing cards only, so a player with no card row read "in
+  progress" after the event was Final (the e2e caught it); it now inserts
+  a final, empty card for them — the finalize route's rule.
+
+Phone pass: `e2e/sport-events-scorecard.spec.ts` is `@mobile` (Chromium
+and WebKit at 390 × 844): B submits from the tab, A marks it final,
+reopens, marks it final again, the Complete confirm names A's own card,
+completing flips the header to Final and both cards read final. Next:
+PR 14 — `GroupScoreCard`, the score outbox, the `/live` mount.
+
 ## September 16, 2026 — Events program, PR 12: the groups editor (zero DDL)
 
 - **The Groups tab** (organizers only — `tabs.ts tabsFor({canManage})`;

@@ -15,6 +15,7 @@ import EventLeaderboard from './EventLeaderboard';
 import EventOverview from './EventOverview';
 import EventPlayers from './EventPlayers';
 import EventSchedule from './EventSchedule';
+import EventScorecardTab from './EventScorecardTab';
 import EventTabs from './EventTabs';
 import InviteWindow from './InviteWindow';
 
@@ -39,7 +40,7 @@ export default function EventPlace({ eventId, initialView, token }: Props) {
   const params = useSearchParams();
   const api = useMemo(() => eventApi(eventId, token), [eventId, token]);
   const [view, setView] = useState<SportEventViewPayload | null>(initialView);
-  const [tab, setTab] = useState<EventTab>(parseEventTab(params.get('tab'), { canManage: initialView?.viewer.can_manage ?? true }));
+  const [tab, setTab] = useState<EventTab>(parseEventTab(params.get('tab'), { canManage: true, isPlayer: true, roundMinted: true }));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -89,7 +90,8 @@ export default function EventPlace({ eventId, initialView, token }: Props) {
 
   if (!view) return null;
   const { event, viewer } = view;
-  const visibleTab: EventTab = tab === 'groups' && !viewer.can_manage ? 'overview' : tab;
+  const tabViewer = { canManage: viewer.can_manage, isPlayer: viewer.participant_status === 'accepted' && viewer.playing, roundMinted: (view.rounds[0]?.group_post_id ?? null) !== null };
+  const visibleTab: EventTab = tabsFor(tabViewer).includes(tab) ? tab : 'overview';
   const own = view.participants.find(p => p.id === viewer.participant_id) ?? null;
   const host = view.participants.find(p => p.profile_id === event.host_profile_id);
   const control = joinControl({
@@ -143,7 +145,7 @@ export default function EventPlace({ eventId, initialView, token }: Props) {
         </p>
       )}
       <section className="bg-surface rounded-lg border border-border">
-        <EventTabs tabs={tabsFor({ canManage: viewer.can_manage })} active={visibleTab} onChange={changeTab} />
+        <EventTabs tabs={tabsFor(tabViewer)} active={visibleTab} onChange={changeTab} />
         <div id={`event-panel-${visibleTab}`} role="tabpanel" aria-labelledby={`event-tab-${visibleTab}`} className="p-4 sm:p-6">
           {visibleTab === 'overview' && <EventOverview view={view} busy={busy} onRotateLink={async () => { await run(() => api.rotateLink(), 'New link ready.'); }} />}
           {visibleTab === 'schedule' && <EventSchedule view={view} />}
@@ -162,6 +164,15 @@ export default function EventPlace({ eventId, initialView, token }: Props) {
           )}
           {visibleTab === 'groups' && viewer.can_manage && <EventGroupsEditor view={view} api={api} onSaved={v => { setView(v); setVersion(x => x + 1); }} />}
           {visibleTab === 'leaderboard' && <EventLeaderboard view={view} api={api} version={version} />}
+          {visibleTab === 'scorecard' && (
+            <EventScorecardTab
+              view={view}
+              api={api}
+              version={version}
+              onChanged={() => setVersion(v => v + 1)}
+              onCompleted={async () => { await run(() => api.transition('completed', { override: true }), 'Results are in.'); }}
+            />
+          )}
         </div>
       </section>
       {inviteOpen && (

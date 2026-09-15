@@ -189,3 +189,12 @@ participants into groups with a name, a tee time and a starting hole;
 Save replaces the round's plan in one PUT. The mint orders the round's
 players by it at go-live.
 
+## The Scorecard tab (PR 13)
+
+Once the round is minted, players and organizers get **Scorecard**
+(`EventScorecardTab`, rows in `src/lib/sport-events/cards-view.ts`): a
+player's own card with Submit and the door to the live round; an
+organizer's Mark final / Reopen per card and Complete with the not-final
+list. The scorecard payload carries `status`, `submitted_at`,
+`finalized_by`.
+
