@@ -2,10 +2,12 @@ import { NextRequest, NextResponse } from 'next/server';
 import { isUuid } from '@/lib/uuid';
 import { getSupabaseAdmin, getServerAuth } from '@/lib/auth-server';
 import { notifyScoresPosted, groupPostActionUrl } from '@/lib/golf/group-notifications';
+import { parseExpectedVersion, type HoleWrite } from '@/lib/golf/hole-writes';
+import { writeHoleScores } from '@/lib/golf/hole-scores-server';
 import { validatePenalties } from '@/lib/golf/penalties';
 import { advanceRoundStatus } from '@/lib/golf/round-status';
 import { mirrorCompletedRound, mirrorRoundMedia } from '@/lib/golf/round-mirror';
-import { detectConflict, holeNumberInRange } from '@/lib/sport-events/scoring-authz';
+import { holeNumberInRange } from '@/lib/sport-events/scoring-authz';
 import { reopenIfNeeded, resolveScoringRight } from '@/lib/sport-events/scoring-authz-server';
 
 /**
@@ -13,8 +15,20 @@ import { reopenIfNeeded, resolveScoringRight } from '@/lib/sport-events/scoring-
  * Add or update golf scores for a participant
  * [id] is the participant_id from group_post_participants table
  * Body:
- *   - scores: Array of { hole_number, strokes, putts?, fairway_hit?, green_in_regulation? }
+ *   - scores: Array of { hole_number, strokes, putts?, fairway_hit?,
+ *     green_in_regulation?, penalties?, expected_version? }
  *   - entered_by is always the session user (never body-supplied)
+ *
+ * Conflicts (phase 2b, mig 209): a score that carries `expected_version`
+ * is a per-hole compare-and-set — 0 = "I saw no score" (insert), n = the
+ * row must still be at n (update WHERE version = n). Any conflict → 409
+ * `{ error, conflicts: [{ hole_number, current }] }` with the hole's
+ * current row; the client decides (keep mine = resend with
+ * current.version). A score without `expected_version` is unchecked
+ * (last writer wins — old clients). `expected_updated_at` (the card-stamp
+ * guard this replaced) is accepted and ignored for one release.
+ * Penalties ride only when the body names them: an absent key leaves the
+ * stored penalties alone, `[]` / null clears them.
  */
 export async function POST(
   request: NextRequest,
@@ -64,13 +78,6 @@ export async function POST(
         { error: 'This participant declined the round' },
         { status: 400 }
       );
-    }
-
-    // A client replaying an outbox sends the card's updated_at it last saw;
-    // a newer server value means someone else scored meanwhile → 409 with
-    // the current stamp, and the client asks (keep mine / keep theirs).
-    if (detectConflict(typeof body.expected_updated_at === 'string' ? body.expected_updated_at : null, ctx.card.updated_at)) {
-      return NextResponse.json({ error: 'These scores changed since you last loaded them.', current: ctx.card.updated_at }, { status: 409 });
     }
 
     // Holes run from the round's starting hole (an event round knows its
@@ -133,18 +140,29 @@ export async function POST(
 
     // Penalties: STRICT vocabulary check per score — an unknown type rejects
     // the batch with the validator's message (400), it is never silently
-    // dropped on this path (the bulk creator path sanitizes instead).
-    const penaltiesByIndex: Array<string[] | null> = [];
+    // dropped on this path (the bulk creator path sanitizes instead). A
+    // score WITHOUT the key leaves the stored penalties alone (209).
+    const penaltiesByIndex: Array<string[] | null | undefined> = [];
     for (const score of scores as Array<{ penalties?: unknown }>) {
+      if (!Object.prototype.hasOwnProperty.call(score, 'penalties')) {
+        penaltiesByIndex.push(undefined);
+        continue;
+      }
       const validated = validatePenalties(score.penalties);
       if (validated !== null && !Array.isArray(validated)) {
         return NextResponse.json({ error: validated.error }, { status: 400 });
       }
       penaltiesByIndex.push(validated);
     }
+    const expectedByIndex: Array<number | undefined> = [];
+    for (const score of scores as Array<{ hole_number: number; expected_version?: unknown }>) {
+      const expected = parseExpectedVersion(score.expected_version);
+      if (expected === null) return NextResponse.json({ error: `Invalid expected_version on hole ${score.hole_number}: a whole number, 0 for a hole you saw unscored.` }, { status: 400 });
+      expectedByIndex.push(expected);
+    }
 
     // Validate and insert/update hole scores
-    const validatedScores = scores.map((score: {
+    const validatedScores: HoleWrite[] = scores.map((score: {
       hole_number: number;
       strokes: number;
       putts?: number;
@@ -168,28 +186,27 @@ export async function POST(
         throw new Error(`Invalid putts: ${putts}. Must be between 0 and ${strokes}.`);
       }
 
-      return {
-        golf_participant_id,
+      const write: HoleWrite = {
         hole_number,
         strokes,
         putts: putts ?? null,
         fairway_hit: fairway_hit ?? null,
         green_in_regulation: green_in_regulation ?? null,
-        penalties: penaltiesByIndex[index],
       };
+      if (penaltiesByIndex[index] !== undefined) write.penalties = penaltiesByIndex[index];
+      if (expectedByIndex[index] !== undefined) write.expected_version = expectedByIndex[index];
+      return write;
     });
 
-    // Upsert hole scores (insert or update if exists)
-    const { data: insertedScores, error: scoresError } = await db
-      .from('golf_hole_scores')
-      .upsert(validatedScores, {
-        onConflict: 'golf_participant_id,hole_number',
-      })
-      .select();
-
-    if (scoresError) {
-      console.error('Error inserting hole scores:', scoresError);
-      return NextResponse.json({ error: 'Failed to insert hole scores' }, { status: 500 });
+    // The per-hole compare-and-set (209): unchecked writes upsert, checked
+    // writes insert / update WHERE version = expected; a conflict names the
+    // hole and carries its current row.
+    const outcome = await writeHoleScores(db, golf_participant_id, validatedScores);
+    if (outcome.error) {
+      return NextResponse.json({ error: outcome.error }, { status: 500 });
+    }
+    if (outcome.conflicts.length > 0) {
+      return NextResponse.json({ error: 'Someone else scored this hole since you last saw it.', conflicts: outcome.conflicts, written: outcome.written }, { status: 409 });
     }
 
     // Fetch updated participant scores (triggers will auto-calculate totals)
@@ -203,7 +220,8 @@ export async function POST(
           putts,
           fairway_hit,
           green_in_regulation,
-          penalties
+          penalties,
+          version
         )
       `)
       .eq('id', golf_participant_id)
@@ -261,7 +279,7 @@ export async function POST(
 
     return NextResponse.json({
       golf_scores: updatedGolfScores,
-      inserted_count: insertedScores?.length || 0,
+      inserted_count: outcome.written,
       message: 'Golf scores saved successfully',
     }, { status: 201 });
   } catch (error) {
@@ -324,6 +342,7 @@ export async function GET(
           fairway_hit,
           green_in_regulation,
           penalties,
+          version,
           created_at
         )
       `)
