@@ -14,7 +14,9 @@ interface Props {
   joinActions: Omit<React.ComponentProps<typeof EventJoinButton>, 'control' | 'busy'>;
   onOpenInvite: () => void;
   onInviteHandle: (handle: string) => Promise<void>;
-  onDecide: (pid: string, action: 'approve' | 'reject' | 'remove') => void;
+  onDecide: (pid: string, action: 'approve' | 'reject' | 'remove' | 'promote') => void;
+  /** Phase 2: the organizer moves a waitlisted player to a 1-based place in the queue. */
+  onWaitlistMove?: (pid: string, position: number) => void;
   onHideToggle: (pid: string, hidden: boolean) => void;
   onIndexOverride: (pid: string, index: number | null) => void;
   /** Phase 2: the organizer's Flights window. */
@@ -59,8 +61,8 @@ function IndexField({ p, onChange }: { p: ParticipantView; onChange: (index: num
   );
 }
 
-export default function EventPlayers({ view, control, busy, joinActions, onOpenInvite, onInviteHandle, onDecide, onHideToggle, onIndexOverride, onOpenFlights }: Props) {
-  const { event, participants, viewer } = view;
+export default function EventPlayers({ view, control, busy, joinActions, onOpenInvite, onInviteHandle, onDecide, onHideToggle, onIndexOverride, onOpenFlights, onWaitlistMove }: Props) {
+  const { event, participants, viewer, counts } = view;
   const canManage = viewer.can_manage;
   const canInvite = canManage && (event.status === 'draft' || event.status === 'open');
   const [handle, setHandle] = useState('');
@@ -158,7 +160,26 @@ export default function EventPlayers({ view, control, busy, joinActions, onOpenI
         </Section>
       )}
       {invited.length > 0 && <Section title={`Invited (${invited.length})`}>{invited.map(p => row(p, organizerRowActions(p)))}</Section>}
-      {waitlisted.length > 0 && <Section title={`Waitlist (${waitlisted.length})`}>{waitlisted.map(p => row(p, <><span className="text-xs text-muted">#{p.waitlist_position}</span>{organizerRowActions(p)}</>))}</Section>}
+      {waitlisted.length > 0 && (
+        <Section title={`Waitlist (${counts.waitlisted})`}>
+          {waitlisted.map((p, i) => row(p, (
+            <>
+              <span className="text-xs text-muted" data-waitlist-position={p.waitlist_position ?? ''}>#{p.waitlist_position}</span>
+              {p.profile_id === viewer.profile_id && !canManage && viewer.waitlist_ahead !== null && (
+                <span className="text-xs text-amber-700 dark:text-amber-300" data-waitlist-self="">{viewer.waitlist_ahead === 0 ? "You're next" : `${viewer.waitlist_ahead} ahead of you`}</span>
+              )}
+              {canManage && onWaitlistMove && event.status !== 'completed' && event.status !== 'cancelled' && (
+                <>
+                  <button type="button" onClick={() => onWaitlistMove(p.id, i)} disabled={busy || i === 0} className={`${BTN} min-h-[36px] text-xs`} aria-label={`Move ${p.name} up the waitlist`} data-waitlist-up={p.profile_id}>↑</button>
+                  <button type="button" onClick={() => onWaitlistMove(p.id, i + 2)} disabled={busy || i === waitlisted.length - 1} className={`${BTN} min-h-[36px] text-xs`} aria-label={`Move ${p.name} down the waitlist`} data-waitlist-down={p.profile_id}>↓</button>
+                  <button type="button" onClick={() => onDecide(p.id, 'promote')} disabled={busy} className="ea-cta text-white px-3 min-h-[44px] rounded-lg text-sm font-semibold disabled:opacity-60" data-waitlist-promote={p.profile_id}>Promote now</button>
+                </>
+              )}
+              {organizerRowActions(p)}
+            </>
+          )))}
+        </Section>
+      )}
       {followers.length > 0 && <Section title={`Following (${followers.length})`}>{followers.map(p => row(p))}</Section>}
       {canManage && gone.length > 0 && <Section title="Not playing">{gone.map(p => row(p, <span className="text-xs text-muted capitalize">{p.status}</span>))}</Section>}
     </div>

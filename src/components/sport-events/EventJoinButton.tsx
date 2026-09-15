@@ -44,7 +44,7 @@ export default function EventJoinButton({ control, busy, onAccept, onDecline, on
     case 'waitlisted':
       return (
         <div className="flex items-center gap-3" data-event-join="waitlisted">
-          <span className="text-sm font-semibold text-amber-700 dark:text-amber-300">Waitlisted{control.position ? ` #${control.position}` : ''}</span>
+          <span className="text-sm font-semibold text-amber-700 dark:text-amber-300" data-event-waitlisted={control.position ?? ''}>Waitlisted{control.position ? ` #${control.position}` : ''}{control.ahead !== null ? (control.ahead === 0 ? ' · you\'re next' : ` · ${control.ahead} ahead`) : ''}</span>
           <button type="button" onClick={onWithdraw} disabled={busy} className={SECONDARY}>Leave</button>
         </div>
       );

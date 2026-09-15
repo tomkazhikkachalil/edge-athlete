@@ -11,7 +11,7 @@ export type JoinControl =
   | { kind: 'request' }            // Request to join
   | { kind: 'requested' }          // Requested · (cancel)
   | { kind: 'in'; playing: boolean } // You're in · Withdraw
-  | { kind: 'waitlisted'; position: number | null }
+  | { kind: 'waitlisted'; position: number | null; ahead: number | null }
   | { kind: 'follow' }
   | { kind: 'following' }
   | { kind: 'none' };
@@ -23,6 +23,8 @@ export interface JoinStateInput {
   participantStatus: SportEventParticipantStatus | null;
   playing: boolean;
   waitlistPosition: number | null;
+  /** Phase 2: how many are ahead (the server's count); null when unknown. */
+  waitlistAhead?: number | null;
   event: { status: SportEventStatus; joinMode: SportEventJoinMode };
 }
 
@@ -36,7 +38,7 @@ export function joinControl(i: JoinStateInput): JoinControl {
       case 'invited': return over ? { kind: 'none' } : { kind: 'respond' };
       case 'requested': return over ? { kind: 'none' } : { kind: 'requested' };
       case 'accepted': return { kind: 'in', playing: i.playing };
-      case 'waitlisted': return { kind: 'waitlisted', position: i.waitlistPosition };
+      case 'waitlisted': return { kind: 'waitlisted', position: i.waitlistPosition, ahead: i.waitlistAhead ?? null };
       default: break; // declined / removed / withdrawn fall through to follow
     }
   }

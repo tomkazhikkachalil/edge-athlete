@@ -13,7 +13,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import type { SportEventAccess } from './access';
 import { PARTICIPANT_COLUMNS } from './access-server';
 import { snapshotAtAccept } from './handicap-server';
-import { planCapacityChange, planJoin, type JoinAction, type ParticipantSnapshot } from './join';
+import { moveWaitlistTo, planCapacityChange, planJoin, repackWaitlist, type JoinAction, type ParticipantSnapshot } from './join';
 import { syncRoundRoster } from './lifecycle-server';
 import { notifyDecision, notifyRequest } from './notify';
 import type { SportEventParticipantRow, SportEventRow } from './types';
@@ -22,7 +22,7 @@ import type { SportEventParticipantRow, SportEventRow } from './types';
 type Admin = SupabaseClient<any, 'public', any>;
 
 export const SELF_ACTIONS: ReadonlySet<JoinAction> = new Set(['request', 'accept', 'decline', 'withdraw', 'follow', 'unfollow']);
-export const ORGANIZER_ACTIONS: ReadonlySet<JoinAction> = new Set(['approve', 'reject', 'remove']);
+export const ORGANIZER_ACTIONS: ReadonlySet<JoinAction> = new Set(['approve', 'reject', 'remove', 'promote']);
 
 export function toSnapshot(r: SportEventParticipantRow): ParticipantSnapshot {
   return { id: r.id, profileId: r.profile_id, role: r.role, status: r.status, playing: r.playing, waitlistPosition: r.waitlist_position, createdAt: r.created_at };
@@ -49,6 +49,26 @@ export interface JoinRequest {
   actorProfileId: string;
   /** For organizer actions: the target participant row id. */
   targetParticipantId?: string | null;
+}
+
+/** The ONE writer of waitlist positions after the seat-or-waitlist append: the packed order (phase 2). Best-effort. */
+export async function writeWaitlistOrder(admin: Admin, updates: Array<{ id: string; waitlistPosition: number }>): Promise<void> {
+  for (const u of updates) {
+    const { error } = await admin.from('sport_event_participants').update({ waitlist_position: u.waitlistPosition }).eq('id', u.id).eq('status', 'waitlisted');
+    if (error) console.error('[sport-events] waitlist order write failed:', error);
+  }
+}
+
+/** Re-pack the waitlist 1..n from the fresh roster (after a promotion, a decline, a withdraw, a removal). */
+export async function repackAfter(admin: Admin, eventId: string): Promise<void> {
+  const rows = await readRoster(admin, eventId);
+  await writeWaitlistOrder(admin, repackWaitlist(rows.map(toSnapshot)));
+}
+
+/** An organizer moves a waitlisted row to a position in the queue (phase 2). */
+export async function moveWaitlist(admin: Admin, eventId: string, participantId: string, position: number): Promise<void> {
+  const rows = await readRoster(admin, eventId);
+  await writeWaitlistOrder(admin, moveWaitlistTo(rows.map(toSnapshot), participantId, position));
 }
 
 /** Promote the given waitlisted rows: accepted, seat, index snapshot, bell. */
@@ -152,7 +172,12 @@ export async function applyJoin(admin: Admin, req: JoinRequest): Promise<JoinOut
     await notifyDecision(bell, row.profile_id, written?.status === 'accepted' ? 'approved' : 'promoted');
   } else if (action === 'reject' && row) {
     await notifyDecision(bell, row.profile_id, 'rejected');
+  } else if (action === 'promote' && row) {
+    await notifyDecision(bell, row.profile_id, 'promoted');
   }
+
+  // Phase 2: the queue stays packed 1..n after anything that could have opened a gap.
+  if (action !== 'follow' && action !== 'unfollow' && action !== 'invite') await repackAfter(admin, event.id);
 
   return { ok: true, participant: written, promoted };
 }
@@ -161,5 +186,7 @@ export async function applyJoin(admin: Admin, req: JoinRequest): Promise<JoinOut
 export async function applyCapacityChange(admin: Admin, event: SportEventRow, newCapacity: number | null, actorProfileId: string): Promise<string[]> {
   const rows = await readRoster(admin, event.id);
   const ids = planCapacityChange(rows.map(toSnapshot), newCapacity);
-  return ids.length > 0 ? promoteRows(admin, event, rows, ids, actorProfileId) : [];
+  const promoted = ids.length > 0 ? await promoteRows(admin, event, rows, ids, actorProfileId) : [];
+  if (promoted.length > 0) await repackAfter(admin, event.id);
+  return promoted;
 }

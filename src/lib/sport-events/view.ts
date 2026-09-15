@@ -65,6 +65,8 @@ export interface ViewerView {
   participant_status: SportEventAccess['participantStatus'];
   playing: boolean;
   hide_from_profile: boolean;
+  /** Phase 2: how many waitlisted players are ahead of the viewer; null when not waitlisted. */
+  waitlist_ahead: number | null;
 }
 
 export function projectEvent(row: SportEventRow, access: SportEventAccess): EventView {
@@ -114,13 +116,21 @@ export function projectParticipant(row: SportEventParticipantRow, profile: Profi
   };
 }
 
-/** Rows a viewer may see: organizers see everyone; everyone else sees the roster minus the declined / removed / withdrawn. */
+/**
+ * Rows a viewer may see: organizers see everyone; everyone else sees the
+ * roster minus the declined / removed / withdrawn — and (phase 2) minus
+ * OTHER people's waitlisted rows: a queue position is between the player
+ * and the organizer; the count still rides on `counts.waitlisted`.
+ */
 export function visibleParticipants(rows: SportEventParticipantRow[], viewer: { profileId: string | null; canManage: boolean }): SportEventParticipantRow[] {
   if (viewer.canManage) return rows;
-  return rows.filter(r => r.profile_id === viewer.profileId || (r.status !== 'declined' && r.status !== 'removed' && r.status !== 'withdrawn'));
+  return rows.filter(r => r.profile_id === viewer.profileId || (r.status !== 'declined' && r.status !== 'removed' && r.status !== 'withdrawn' && r.status !== 'waitlisted'));
 }
 
-export function projectViewer(viewerId: string | null, access: SportEventAccess, own: SportEventParticipantRow | null): ViewerView {
+export function projectViewer(viewerId: string | null, access: SportEventAccess, own: SportEventParticipantRow | null, rows: ReadonlyArray<SportEventParticipantRow> = []): ViewerView {
+  const ahead = own && own.status === 'waitlisted'
+    ? rows.filter(r => r.status === 'waitlisted' && r.id !== own.id && ((r.waitlist_position ?? Infinity) - (own.waitlist_position ?? Infinity) || r.created_at.localeCompare(own.created_at)) < 0).length
+    : null;
   return {
     profile_id: viewerId,
     role: access.role,
@@ -130,6 +140,7 @@ export function projectViewer(viewerId: string | null, access: SportEventAccess,
     participant_status: access.participantStatus,
     playing: own?.playing ?? false,
     hide_from_profile: own?.hide_from_profile ?? false,
+    waitlist_ahead: ahead,
   };
 }
 

@@ -807,9 +807,56 @@ const { canView } = await response.json();
    header's Create sheet (Post | Event), the drawer a superset. A
    supervised profile MAY host. Every prod probe waits for the deploy
    (`e2e/helpers/deploy.ts`). `docs/EVENTS.md` is the reference; read
-   DEVLOG Sep 16 2026 PR 1–16 first. Parked: N rounds in the UI, flights,
-   `contest_id` stamping for org-hosted events, the calendar publication,
-   a per-hole `client_seq`, the bottom tab bar, match play and brackets.
+   DEVLOG Sep 16 2026 PR 1–16 first. Phase 2 (below) took N rounds,
+   flights, breakdowns and the cut; parked for phase 2b: `contest_id`
+   stamping for org-hosted events, the calendar publication, the per-hole
+   version column, the five-tab bar; match play and brackets are phase 3.
+
+18. **A tournament is a SEQUENCE of rounds run one at a time; the event
+   follows its rounds (Events program, phase 2, Sep 16 2026, #750–#760,
+   mig 207 the ONLY DDL)** — the plan `~/.claude/plans/let-s-start-phase-
+   2-transient-fountain.md` carries the phase 2b spec too. The rules,
+   each pure and pinned in `src/lib/sport-events/`: `sport_event_rounds.
+   status` is the unit of organizer intent (`lifecycle.ts
+   validateRoundTransition`: scheduled → live | cancelled; live →
+   completed; one live round at a time, in sequence order; a live round is
+   never cancelled) and the EVENT's status is DERIVED
+   (`eventStatusAfterRound`: the first start takes an open event live, the
+   last completion — or cancellation after a played round — completes
+   it); `POST [id]/rounds/[rid]/transition` is the door and the
+   event-level live / completed are sugar (`rounds_remaining` while a
+   round is scheduled); the mint is per ROUND, completion finalizes /
+   mirrors THIS round's cards, a late joiner joins the LIVE round only,
+   the event's cancel is the one round-wide status write. Rounds are
+   APPEND-ONLY (`rounds.ts`: the 201 UNIQUE on `sequence` is not
+   deferrable; a delete renumbers the later rounds lowest first; the date
+   order keeps sequence = chronology; a round's announce post is deleted
+   BEFORE the row — 203 is SET NULL). The overall board is a pure FOLD
+   over the rounds' boards (`overall.ts computeOverallLeaderboard`: the
+   format's key summed over every minted round's scored holes, a missed
+   completed round below the full field, shared ranks through the one
+   ranking rule, today's thru the order-only tiebreak, `movement` vs the
+   standing before the current round, a flight ranks within itself,
+   `madeCut` from `cut.ts applyCut` — ties at the nth place all make it;
+   the missed-cut set is excluded from every later mint) — never stored.
+   The page holds ONE selected round (`tabs.ts parseRoundParam`,
+   `?round=overall|<id>`, never a blank panel) and a single-round event
+   looks exactly as in phase 1. Flights are a label on the PARTICIPANT
+   (one per tournament; `flights.ts planFlights` never guesses an
+   unindexed player). Breakdowns and the hardest holes are their own
+   route (`breakdown.ts`), never `?detail=1` on the polled board. The
+   waitlist is packed 1..n after every change (`join-server.ts
+   writeWaitlistOrder` the one writer), an organizer may promote now
+   (capacity is theirs to exceed) and a queue place is between the player
+   and the organizer (`view.ts visibleParticipants`). `format_config`
+   (207) has ONE writer, the event PATCH, and `EVENT_COLUMNS` /
+   `ROUND_COLUMNS` name 207's columns only after Tom confirmed it ran (a
+   select naming a missing column 404s the whole API). `docs/EVENTS.md`
+   "Phase 2" is the reference; read DEVLOG Sep 16 2026 phase 2 PR 1–12
+   first. Parked (phase 2b, decided): contest stamping, the calendar
+   overlay + .ics + reminder bell, the per-hole `version`, the five-tab
+   bar; also Stableford, a round reorder, the waitlist UNIQUE via an RPC,
+   the `FOR UPDATE` accept race; phase 3: match play, brackets.
 
 
 ---
