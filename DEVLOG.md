@@ -1,5 +1,34 @@
 # Development Log
 
+## September 16, 2026 — Events program, phase 2b, PR 7: the day-before reminder bell (B2, mig 210)
+
+Tom: "add the reminder bell too". Both Vercel cron slots are taken, so it
+is a STEP in `/api/cron/daily` (after the golf window reminders), not a
+cron.
+
+- **210** re-declares `notifications_type_check` (the 205 shape, the 61
+  values verbatim + `sport_event_reminder` = 62; ONE result row `210
+  APPLIED | 62 | 1`; twin `verify-210-sport-event-reminder.sql`). The
+  registry gains the entry (the parity test).
+- `src/lib/sport-events/reminders.ts` (pure, tested): `reminderCopy`
+  ("Tomorrow: {name} · Round n of N" / "{day} · {round name} · {course}" →
+  the schedule) and `planRoundReminders` (accepted players AND followers,
+  minus the already-belled, deduped — invited / waitlisted / declined get
+  nothing). `reminders-server.ts sendRoundReminders(admin, tomorrowKey)`:
+  rounds `scheduled` on that DATE on events `open | live` (cap 100) → the
+  accepted participants → minus those belled for THIS round
+  (query-before-insert on `.contains('metadata', {sport_event_round_id})`,
+  the golf_league_window_closing precedent) → one insert per round.
+  **23514-tolerant**: before 210 ran the CHECK refuses the type — the
+  sender logs "run migration 210", reports `skipped: 'pre-210'` and the
+  cron's day is otherwise untouched. `runSportEventReminders` = tomorrow,
+  the UTC day (the cron runs 14:00 UTC; the 057 convention).
+- `notify.ts insertBells` is exported and returns the insert error (so a
+  CHECK miss is readable); the jsonb column is `metadata`, never `data`.
+- e2e NEW `sport-events-reminder.spec.ts`: an inserted reminder bell
+  renders with its copy; self-skips before 210 (the golf-league-sync
+  recipe).
+
 ## September 16, 2026 — Events program, phase 2b, PR 6: "Add to calendar" — the event as an .ics (B2, zero DDL)
 
 - `src/lib/sport-events/ics.ts` (pure, tested): `sportEventIcs(event,

@@ -16,7 +16,7 @@ import { notifyGuardians } from '@/lib/guardian-notify';
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Admin = SupabaseClient<any, 'public', any>;
 
-export type SportEventBell = 'sport_event_invite' | 'sport_event_request' | 'sport_event_request_decision' | 'sport_event_results';
+export type SportEventBell = 'sport_event_invite' | 'sport_event_request' | 'sport_event_request_decision' | 'sport_event_results' | 'sport_event_reminder';
 
 export interface BellCopy {
   type: SportEventBell;
@@ -55,9 +55,10 @@ export async function actorDisplayName(admin: Admin, profileId: string): Promise
   return [data.first_name, data.last_name].filter(Boolean).join(' ') || data.display_name || data.full_name || 'Someone';
 }
 
-async function insertBells(admin: Admin, recipients: string[], actorId: string | null, copy: BellCopy, metadata: Record<string, unknown>, extra: Record<string, unknown> = {}): Promise<void> {
+/** ONE insert per call; `metadata` is the jsonb column (never `data`). Returns the insert error so a caller can read a CHECK miss (23514). */
+export async function insertBells(admin: Admin, recipients: string[], actorId: string | null, copy: BellCopy, metadata: Record<string, unknown>, extra: Record<string, unknown> = {}): Promise<{ error: { code?: string; message?: string } | null }> {
   const unique = [...new Set(recipients)].filter(id => id && id !== actorId);
-  if (unique.length === 0) return;
+  if (unique.length === 0) return { error: null };
   try {
     const { error } = await admin.from('notifications').insert(
       unique.map(user_id => ({
@@ -72,9 +73,14 @@ async function insertBells(admin: Admin, recipients: string[], actorId: string |
         ...extra,
       })),
     );
-    if (error) console.error('[sport-events notify] insert failed:', error);
+    if (error) {
+      console.error('[sport-events notify] insert failed:', error);
+      return { error: { code: (error as { code?: string }).code, message: error.message } };
+    }
+    return { error: null };
   } catch (e) {
     console.error('[sport-events notify] insert failed:', e);
+    return { error: { message: String(e) } };
   }
 }
 
