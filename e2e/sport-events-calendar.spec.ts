@@ -5,7 +5,8 @@ import { cleanupEvent, createEvent, openEventSession, readView } from './helpers
  * Events program, phase 2b (B2) — a sport event round on the calendar. A
  * hosts an event next month and invites B; before accepting, B's calendar
  * carries the round as a needs-reply item; after accepting, the agenda at
- * 390 lists it and a tap opens the event's page on that round. The API carries the item with
+ * 390 lists it and a tap opens the event's page on that round. The .ics
+ * download carries one VEVENT on the round's date (PR 6). The API carries the item with
  * `kind: 'sport_event'`. Tagged @mobile on Chromium and WebKit.
  */
 test('calendar: an event round appears on the day, dashed while invited, and taps through to the event @mobile', async ({ page }) => {
@@ -52,6 +53,19 @@ test('calendar: an event round appears on the day, dashed while invited, and tap
     await chip.click();
     await expect(page).toHaveURL(new RegExp(`/events/${eventId}\\?tab=schedule&round=${roundId}`), { timeout: 20_000 });
     await expect(page.locator('[data-event-status-chip]')).toBeVisible({ timeout: 20_000 });
+
+    // The .ics download (PR 6): one VEVENT on the round's date; the schedule's
+    // "Add to calendar" points at it; a stranger gets the same 404 as not-found.
+    await expect(page.locator('[data-event-ics]')).toHaveAttribute('href', `/api/sport-events/${eventId}/ics`);
+    const ics = await s.apiB.get(`/api/sport-events/${eventId}/ics`);
+    expect(ics.status()).toBe(200);
+    expect(ics.headers()['content-type']).toContain('text/calendar');
+    expect(ics.headers()['content-disposition']).toContain('.ics');
+    const text = await ics.text();
+    expect(text.match(/BEGIN:VEVENT/g)).toHaveLength(1);
+    expect(text).toContain(`DTSTART;VALUE=DATE:${day.replace(/-/g, '')}`);
+    expect(text).toContain(`SUMMARY:QA Cal ${s.stamp}`);
+    expect((await s.anon.get(`/api/sport-events/${eventId}/ics`)).status()).toBe(404);
   } finally {
     await cleanupEvent(s.apiA, eventId);
     await s.dispose();

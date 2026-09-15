@@ -11,7 +11,8 @@ import { activeRounds, MAX_ROUNDS } from '@/lib/sport-events/rounds';
  * course, holes, rating, groups and, once minted, the door to the live
  * round. Phase 2: a status chip per round, the organizer's actions on the
  * card (Start · Complete · Edit · Remove · Cancel round — only what the
- * lifecycle would accept, page-rules.ts) and "Add a round".
+ * lifecycle would accept, page-rules.ts), "Add a round" and, for everyone,
+ * "Add to calendar" (the .ics download, phase 2b).
  */
 const TONE: Record<string, string> = {
   scheduled: 'bg-surface-muted text-secondary border-border',
@@ -96,9 +97,15 @@ export default function EventSchedule({ view, busy = false, onRoundAction, onAdd
           </section>
         );
       })}
-      {canAdd && (
-        <button type="button" disabled={busy} onClick={onAddRound} className={BTN} data-round-add=""><i className="fas fa-plus mr-2" aria-hidden="true"></i>Add a round</button>
-      )}
+      <div className="flex flex-wrap gap-2">
+        {canAdd && (
+          <button type="button" disabled={busy} onClick={onAddRound} className={BTN} data-round-add=""><i className="fas fa-plus mr-2" aria-hidden="true"></i>Add a round</button>
+        )}
+        {event.status !== 'cancelled' && activeRounds(rounds).length > 0 && (
+          // The .ics download (phase 2b): one entry per round; cookie-authed, so a plain link.
+          <a href={`/api/sport-events/${event.id}/ics`} className={`${BTN} inline-flex items-center`} data-event-ics=""><i className="fas fa-calendar-plus mr-2" aria-hidden="true"></i>Add to calendar</a>
+        )}
+      </div>
     </div>
   );
 }
