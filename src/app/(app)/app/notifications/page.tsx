@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { useAuth } from '@/lib/auth';
 import { useNotifications, getNotificationText } from '@/lib/notifications';
+import NotificationActionRow from '@/components/NotificationActionRow';
 import { getNotificationIcon, notificationTab } from '@/lib/notification-registry';
 import { formatDisplayName, getInitials } from '@/lib/formatters';
 import AppHeader from '@/components/AppHeader';
@@ -252,6 +253,8 @@ export default function NotificationsPage() {
                           !notification.is_read ? 'bg-brand-soft' : ''
                         }`}
                         onClick={() => handleNotificationClick(notification)}
+                        data-notification-card={notification.id}
+                        data-notification-type={notification.type}
                       >
                         <div className="flex items-start gap-4">
                           {/* Actor Avatar or Icon */}
@@ -300,6 +303,7 @@ export default function NotificationsPage() {
                             <p className="text-xs text-muted mt-2">
                               {getRelativeTime(notification.created_at)}
                             </p>
+                            <NotificationActionRow notification={notification} />
                           </div>
 
                           {/* Actions */}

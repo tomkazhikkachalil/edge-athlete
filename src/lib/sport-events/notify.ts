@@ -55,7 +55,7 @@ export async function actorDisplayName(admin: Admin, profileId: string): Promise
   return [data.first_name, data.last_name].filter(Boolean).join(' ') || data.display_name || data.full_name || 'Someone';
 }
 
-async function insertBells(admin: Admin, recipients: string[], actorId: string | null, copy: BellCopy, metadata: Record<string, unknown>): Promise<void> {
+async function insertBells(admin: Admin, recipients: string[], actorId: string | null, copy: BellCopy, metadata: Record<string, unknown>, extra: Record<string, unknown> = {}): Promise<void> {
   const unique = [...new Set(recipients)].filter(id => id && id !== actorId);
   if (unique.length === 0) return;
   try {
@@ -69,6 +69,7 @@ async function insertBells(admin: Admin, recipients: string[], actorId: string |
         action_url: copy.action_url,
         is_read: false,
         metadata,
+        ...extra,
       })),
     );
     if (error) console.error('[sport-events notify] insert failed:', error);
@@ -89,8 +90,9 @@ export async function notifyInvites(ctx: BellContext, inviteeProfileIds: string[
   if (inviteeProfileIds.length === 0) return;
   const actorName = await actorDisplayName(ctx.admin, ctx.actorProfileId);
   const copy = bellCopy('invite', { eventId: ctx.eventId, eventName: ctx.eventName, actorName });
-  const meta = { sport_event_id: ctx.eventId };
-  await insertBells(ctx.admin, inviteeProfileIds, ctx.actorProfileId, copy, meta);
+  const meta = { sport_event_id: ctx.eventId, sport_event_name: ctx.eventName };
+  // action_status pending: the bell carries Accept / Decline until decided (the action route).
+  await insertBells(ctx.admin, inviteeProfileIds, ctx.actorProfileId, copy, meta, { action_status: 'pending' });
   try {
     const { data: supervised } = await ctx.admin.from('profiles').select('id').in('id', inviteeProfileIds).eq('supervision_state', 'supervised');
     for (const child of supervised ?? []) {
@@ -112,14 +114,14 @@ export async function notifyInvites(ctx: BellContext, inviteeProfileIds: string[
 export async function notifyRequest(ctx: BellContext, organizerProfileIds: string[]): Promise<void> {
   const actorName = await actorDisplayName(ctx.admin, ctx.actorProfileId);
   const copy = bellCopy('request', { eventId: ctx.eventId, eventName: ctx.eventName, actorName });
-  await insertBells(ctx.admin, organizerProfileIds, ctx.actorProfileId, copy, { sport_event_id: ctx.eventId });
+  await insertBells(ctx.admin, organizerProfileIds, ctx.actorProfileId, copy, { sport_event_id: ctx.eventId, sport_event_name: ctx.eventName, requester_profile_id: ctx.actorProfileId }, { action_status: 'pending' });
 }
 
 /** The organizer's decision (or a promotion) → the requester. */
 export async function notifyDecision(ctx: BellContext, recipientProfileId: string, kind: 'approved' | 'rejected' | 'promoted'): Promise<void> {
   const actorName = await actorDisplayName(ctx.admin, ctx.actorProfileId);
   const copy = bellCopy(kind, { eventId: ctx.eventId, eventName: ctx.eventName, actorName });
-  await insertBells(ctx.admin, [recipientProfileId], ctx.actorProfileId, copy, { sport_event_id: ctx.eventId });
+  await insertBells(ctx.admin, [recipientProfileId], ctx.actorProfileId, copy, { sport_event_id: ctx.eventId, sport_event_name: ctx.eventName });
 }
 
 /** "Results are in" → every accepted participant (players and followers); the guardians of a supervised player get a copy. */
@@ -128,7 +130,7 @@ export async function notifyResults(admin: Admin, event: { id: string; name: str
     const { data: rows } = await admin.from('sport_event_participants').select('profile_id, playing').eq('sport_event_id', event.id).eq('status', 'accepted');
     const all = (rows ?? []) as Array<{ profile_id: string; playing: boolean }>;
     const copy = bellCopy('results', { eventId: event.id, eventName: event.name, actorName: '' });
-    const meta = { sport_event_id: event.id };
+    const meta = { sport_event_id: event.id, sport_event_name: event.name };
     await insertBells(admin, all.map(r => r.profile_id), actorProfileId, copy, meta);
     const players = all.filter(r => r.playing).map(r => r.profile_id);
     if (players.length === 0) return;
