@@ -5,7 +5,9 @@ import { apiAs } from './helpers/qa-user';
  * Events program — the creation wizard at /sports/events/new. Four steps
  * with the refusal copy, an off-catalog course typed as a name, a back
  * nine, net format, Publish → the event's place, status Open. Cancel on a
- * dirty form asks first. Tagged @mobile: single column, 44px controls, the
+ * dirty form asks first. Phase 2: Add a round (the course copied, the
+ * refusal names the round and the order), and a two-round tournament
+ * lands on a place that reads "Round 1 of 2". Tagged @mobile: single column, 44px controls, the
  * sticky footer above the safe area, on Chromium and WebKit at 390px.
  */
 test('event wizard: refusals, typed course, back nine, publish → the place; cancel asks @mobile', async ({ page }) => {
@@ -33,6 +35,18 @@ test('event wizard: refusals, typed course, back nine, publish → the place; ca
   await expect(page.locator('[data-course-picked="typed"]')).toBeVisible();
   await page.getByRole('radio', { name: '9 holes' }).check();
   await page.getByRole('radio', { name: 'Hole 10 (back nine)' }).check();
+
+  // Phase 2: Add a round copies the course with an empty date; the refusal names the round, then the order; remove it again.
+  await page.locator('[data-wizard-add-round]').click();
+  await expect(page.locator('[data-wizard-round="2"]')).toBeVisible();
+  await expect(page.locator('[data-wizard-round="2"] [data-course-picked="typed"]')).toBeVisible();
+  await page.locator('[data-event-wizard-next]').click();
+  await expect(page.locator('[data-event-wizard-refusal]')).toHaveText('Round 2: Pick the date.');
+  await page.locator('[data-wizard-round="2"] [data-event-wizard-date]').fill('2030-05-31');
+  await page.locator('[data-event-wizard-next]').click();
+  await expect(page.locator('[data-event-wizard-refusal]')).toHaveText('Round 2 must not be before round 1.');
+  await page.locator('[data-wizard-round-remove="2"]').click();
+  await expect(page.locator('[data-wizard-round="2"]')).toHaveCount(0);
   await page.locator('[data-event-wizard-next]').click();
 
   // Format: net, a field of 8.
@@ -60,10 +74,30 @@ test('event wizard: refusals, typed course, back nine, publish → the place; ca
   await page.getByRole('button', { name: 'Keep editing' }).click();
   await expect(page.locator('[data-event-wizard-name]')).toHaveValue('Half typed');
 
+  // A two-round tournament from the wizard: the review sums it up; the place reads "Round 1 of 2".
+  const name2 = `QA Wizard Tourney ${stamp}`;
+  await page.locator('[data-event-wizard-name]').fill(name2);
+  await page.locator('[data-event-wizard-next]').click();
+  await page.locator('[data-event-wizard-date]').fill('2030-06-01');
+  await page.locator('[data-course-search]').fill(`QA Tourney Links ${stamp}`);
+  await page.locator('[data-course-typed]').click();
+  await page.locator('[data-wizard-add-round]').click();
+  await page.locator('[data-wizard-round="2"] [data-event-wizard-date]').fill('2030-06-02');
+  await page.locator('[data-event-wizard-next]').click();
+  await expect(page.locator('[data-event-wizard="format"]')).toBeVisible();
+  await page.locator('[data-event-wizard-next]').click();
+  await expect(page.getByText('2 rounds · Jun 1 – Jun 2, 2030')).toBeVisible();
+  await page.locator('[data-event-wizard-publish]').click();
+  await expect(page).toHaveURL(/\/events\/[0-9a-f-]{36}$/, { timeout: 20_000 });
+  await expect(page.locator('[data-event-round-line]')).toHaveText(/Round 1 of 2/, { timeout: 20_000 });
+  const eventId2 = page.url().split('/events/')[1];
+
   const api = await apiAs('state.json');
   try {
-    await api.post(`/api/sport-events/${eventId}/transition`, { data: { to: 'cancelled' } });
-    await api.delete(`/api/sport-events/${eventId}`);
+    for (const id of [eventId, eventId2]) {
+      await api.post(`/api/sport-events/${id}/transition`, { data: { to: 'cancelled' } });
+      await api.delete(`/api/sport-events/${id}`);
+    }
   } finally {
     await api.dispose();
   }

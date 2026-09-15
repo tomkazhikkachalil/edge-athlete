@@ -228,7 +228,7 @@ specs run at 390 × 844 on Chromium AND WebKit.
 | `sport-events-scoring` | group-mate scoring · the hole range · the 409 conflict · submit / finalize / reopen · completion waits for every card |
 | `sport-events-results` | the leaderboard (computed, gated) · the results mirror · the opt-out and opt back in |
 | `sport-events-page` `@mobile` | accept from the players tab · publish · the stranger screen · public SSR |
-| `sport-events-create` `@mobile` | the wizard's refusals · a typed course · a back nine · Publish → the place · Cancel asks |
+| `sport-events-create` `@mobile` | the wizard's refusals · a typed course · a back nine · Publish → the place · Cancel asks · (phase 2) Add a round copies the course, the refusal names the round and the order, a two-round tournament lands on "Round 1 of 2" |
 | `sports-nav` `@mobile` | the redirect · the subnav · the drawer · the events list · the leaderboards place |
 | `sport-events-notifications` `@mobile` | Accept an invitation and a join request from the bell's row |
 | `sport-events-groups` `@mobile` | the groups editor end to end · hidden from a player |
@@ -323,6 +323,20 @@ round inputs extracted — the wizard now renders them too) adds or edits a
 round with the wizard's rules (`validateRoundDraft`, `roundBodyFrom`).
 The confirm copy is `confirmCopyFor`: phase 1's words on a single round,
 the round named on a tournament, the last round says the results post.
+
+### The wizard's rounds list (PR 5)
+
+`wizard.ts WizardState.rounds: RoundDraft[]` (1..`MAX_ROUNDS`): "Add a
+round" (`addWizardRound`) copies the previous round's course, tees and
+holes with an empty date — 36 holes in a weekend is the common case;
+`removeWizardRound` never takes the first; `validateWizardRounds` names
+the round in its refusal ("Round 2: Pick the date.") and keeps the date
+order ("Round 2 must not be before round 1."); the body sends phase 1's
+`round` for one round and `rounds: [...]` for a tournament. The round step
+renders one `RoundFields` per round; the review sums a tournament up
+(`roundsSummary`) and lists each round. The format step is unchanged —
+the cut and flights are event-page settings, they need the roster and the
+rounds to exist.
 
 ## Phase 1 status
 
