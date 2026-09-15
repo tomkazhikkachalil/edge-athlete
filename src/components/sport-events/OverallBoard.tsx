@@ -13,15 +13,24 @@ import { formatMovement } from '@/lib/sport-events/overall';
  * with an accessible label. A scheduled round is a header with "—" cells.
  * `data-overall-board` / `data-overall-row` are the e2e hooks.
  */
+export interface BoardPick {
+  participantId: string;
+  profileId: string;
+  name: string;
+  rankLabel: string;
+}
+
 interface Props {
   data: OverallLeaderboard;
   /** The Net / Gross switch: which numbers fill the cells (the columns never change). */
   net: boolean;
+  /** The whole row is the button (the bubble language): opens the player's breakdown. */
+  onPick?: (pick: BoardPick) => void;
 }
 
 const NET_REASON: Record<string, string> = { no_index: 'no index', no_rating: 'unrated', no_stroke_index: 'no SI' };
 
-export default function OverallBoard({ data, net }: Props) {
+export default function OverallBoard({ data, net, onPick }: Props) {
   const rounds = data.rounds;
   const rows = data.board.rows;
   const liveSeq = data.board.current !== null && rounds.find(r => r.sequence === data.board.current)?.status === 'live' ? data.board.current : null;
@@ -46,14 +55,20 @@ export default function OverallBoard({ data, net }: Props) {
             const key = net ? r.net : r.total;
             const keyToPar = net ? r.netToPar : r.totalToPar;
             return (
-              <tr key={r.participantId} className="border-b border-border-subtle" data-overall-row={r.profileId} data-overall-rank={r.rank ?? ''}>
+              <tr
+                key={r.participantId}
+                className={`border-b border-border-subtle ${onPick ? 'cursor-pointer hover:bg-surface-muted focus-visible:bg-surface-muted' : ''}`}
+                data-overall-row={r.profileId}
+                data-overall-rank={r.rank ?? ''}
+                {...(onPick ? { role: 'button', tabIndex: 0, 'aria-haspopup': 'dialog' as const, 'aria-label': `${r.name}, ${r.rankLabel} — breakdown`, onClick: () => onPick({ participantId: r.participantId, profileId: r.profileId, name: r.name, rankLabel: r.rankLabel }), onKeyDown: (e: React.KeyboardEvent) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onPick({ participantId: r.participantId, profileId: r.profileId, name: r.name, rankLabel: r.rankLabel }); } } } : {})}
+              >
                 <td className="sticky left-0 z-10 bg-surface pl-4 sm:pl-2 pr-2 py-2 font-bold text-primary">{r.rankLabel}</td>
                 <td className={`px-1 py-2 text-center text-xs ${mv.direction === 'up' ? 'text-emerald-700 dark:text-emerald-300' : mv.direction === 'down' ? 'text-red-700 dark:text-red-300' : 'text-muted'}`}>
                   <span className="sr-only">{mv.label}</span>
                   <span aria-hidden="true">{mv.direction === 'up' ? `▲${r.movement}` : mv.direction === 'down' ? `▼${Math.abs(r.movement ?? 0)}` : '—'}</span>
                 </td>
                 <td className="sticky left-12 z-10 bg-surface px-2 py-2 text-primary whitespace-nowrap">
-                  {r.handle ? <Link href={`/u/${r.handle}`} className="hover:text-brand-fg">{r.name}</Link> : r.name}
+                  {r.handle ? <Link href={`/u/${r.handle}`} className="hover:text-brand-fg" onClick={e => e.stopPropagation()}>{r.name}</Link> : r.name}
                   {r.flight && <span className="ml-1.5 px-1.5 py-0.5 rounded-md border border-border text-[10px] text-secondary">{r.flight}</span>}
                   {r.missedRounds.length > 0 && <span className="ml-1 text-[10px] uppercase tracking-wide text-muted" title={`Missed round ${r.missedRounds.join(', ')}`}>{r.missedRounds.length === 1 ? 'missed R' + r.missedRounds[0] : 'missed ' + r.missedRounds.length}</span>}
                 </td>
