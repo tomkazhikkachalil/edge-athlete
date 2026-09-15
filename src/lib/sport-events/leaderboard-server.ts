@@ -32,7 +32,7 @@ export async function fetchRoundLeaderboard(admin: Admin, event: SportEventRow, 
     admin.from('sport_event_participants').select('id, profile_id, handicap_index, flight').eq('sport_event_id', event.id).eq('status', 'accepted').eq('playing', true),
     admin.from('group_posts').select('id').eq('sport_event_round_id', round.id).maybeSingle(),
   ]);
-  const field = (fieldRows ?? []) as FieldRow[];
+  let field = (fieldRows ?? []) as FieldRow[];
   const groupPostId = (gp?.id as string | undefined) ?? null;
 
   let cards: CardRow[] = [];
@@ -42,6 +42,10 @@ export async function fetchRoundLeaderboard(admin: Admin, event: SportEventRow, 
       .select('profile_id, status, card:golf_participant_scores (status, hole_scores:golf_hole_scores (hole_number, strokes))')
       .eq('group_post_id', groupPostId);
     cards = ((data ?? []) as Array<{ profile_id: string; status: string; card: CardRow['card'] | CardRow['card'][] }>).map(r => ({ profile_id: r.profile_id, status: r.status, card: Array.isArray(r.card) ? (r.card[0] ?? null) : r.card }));
+    // Once minted, the board's field is the ROUND's (phase 3): the roster minus
+    // whoever was never minted into it (the missed-cut set) — not a thru-0 row each.
+    const minted = new Set(cards.filter(c => c.status !== 'declined').map(c => c.profile_id));
+    field = field.filter(f => minted.has(f.profile_id));
   }
 
   const profiles = new Map<string, ProfileForView>();

@@ -25,7 +25,9 @@ describe('the organizer-intent lifecycle', () => {
   });
   it('live → completed needs every card final, unless the organizer overrides', () => {
     expect(validateTransition('live', 'completed', facts({ cards: [{ status: 'final' }, { status: 'submitted' }] }))).toEqual({ ok: false, reason: 'cards_not_final' });
-    expect(validateTransition('live', 'completed', facts({ cards: [{ status: 'final' }] }))).toEqual({ ok: false, reason: 'cards_not_final' }); // a player never started
+    expect(validateTransition('live', 'completed', facts({ cards: [{ status: 'final' }, { status: 'in_progress' }] }))).toEqual({ ok: false, reason: 'cards_not_final' }); // a player never started reads in_progress
+    expect(validateTransition('live', 'completed', facts({ cards: [{ status: 'final' }] }))).toEqual({ ok: true }); // the round's FIELD is one player (past a cut) — the roster is never the measure
+    expect(validateTransition('live', 'completed', facts({ cards: [] }))).toEqual({ ok: false, reason: 'cards_not_final' }); // an empty field never completes
     expect(validateTransition('live', 'completed', facts({ cards: [{ status: 'in_progress' }], override: true }))).toEqual({ ok: true });
     expect(validateTransition('live', 'completed', facts())).toEqual({ ok: true });
   });
@@ -77,7 +79,9 @@ describe('the round lifecycle (phase 2)', () => {
     const live = { sequence: 1, status: 'live' as const, groupPostMinted: true };
     expect(validateRoundTransition('completed', rf({ eventStatus: 'live', round: live }))).toEqual({ ok: true });
     expect(validateRoundTransition('completed', rf({ eventStatus: 'live', round: live, cards: [{ status: 'final' }, { status: 'submitted' }] }))).toEqual({ ok: false, reason: 'cards_not_final' });
-    expect(validateRoundTransition('completed', rf({ eventStatus: 'live', round: live, cards: [{ status: 'final' }] }))).toEqual({ ok: false, reason: 'cards_not_final' }); // a player never started
+    expect(validateRoundTransition('completed', rf({ eventStatus: 'live', round: live, cards: [{ status: 'final' }, { status: 'in_progress' }] }))).toEqual({ ok: false, reason: 'cards_not_final' }); // a player never started reads in_progress
+    expect(validateRoundTransition('completed', rf({ eventStatus: 'live', round: live, cards: [{ status: 'final' }] }))).toEqual({ ok: true }); // the round's field past a cut
+    expect(validateRoundTransition('completed', rf({ eventStatus: 'live', round: live, cards: [] }))).toEqual({ ok: false, reason: 'cards_not_final' });
     expect(validateRoundTransition('completed', rf({ eventStatus: 'live', round: live, cards: [{ status: 'in_progress' }], override: true }))).toEqual({ ok: true });
   });
 

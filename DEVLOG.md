@@ -1,5 +1,31 @@
 # Development Log
 
+## September 16, 2026 — Events program, phase 3, PR 1: the round's own field (zero DDL)
+
+Phase 3 (match play and brackets) opens on a substrate fix the audit
+found latent since phase 2: `applyRoundTransition` compared the round's
+cards against `acceptedPlaying` — the WHOLE event roster — so any round
+with a partial field (past a cut; every bracket round to come) could only
+complete with `override`. The cut spec never noticed because the e2e
+helper's `completeRound` defaults `override = true` and the page always
+sends it.
+
+- `lifecycle.ts`: both validators judge the ROUND's field — `fieldFinal
+  (cards)`: every card final and the field not empty. A minted player
+  with no card reads `in_progress` (the "never started" case keeps
+  refusing); the roster is never the measure.
+- `lifecycle-server.ts roundFieldExclusions(admin, event, rounds, round)`
+  — the ONE helper the mint and the completion gate share (past a decided
+  cut, the missed-cut set from the overall board, never stored); two
+  copies would drift. `readCards` drops the excluded: the host's creator
+  row is minted regardless (they run the round), so the host who missed
+  their own cut used to block round 2 with an empty card.
+- `fetchRoundLeaderboard`: once minted, the board's field is the round's
+  (the roster ∩ the minted rows) — a missed-cut player no longer shows on
+  round 2 with thru 0.
+- e2e `sport-events-cut.spec.ts` proves it: round 2 (A alone) completes
+  WITHOUT the override once A's card is final, and the event follows.
+
 ## September 16, 2026 — Events program, phase 2b: the results writer runs on EVERY completion (hotfix, zero DDL)
 
 The first prod probe of `sport-events-contest` after 211 (every earlier

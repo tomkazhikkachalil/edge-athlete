@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { readErrorBody } from './helpers/qa-user';
-import { cardRowFor, cleanupEvent, completeRound, createEvent, inviteAndAccept, openEventSession, readScorecard, readView, scoreHoles, startRound } from './helpers/sport-events';
+import { cardRowFor, cleanupEvent, completeRound, createEvent, finalizeCard, inviteAndAccept, openEventSession, readScorecard, readView, scoreHoles, startRound } from './helpers/sport-events';
 
 /**
  * Events program, phase 2, PR 8 — the cut and the round names (207), at
@@ -79,6 +79,14 @@ test('the cut: set while open, decided by round 1, the missed-cut set out of rou
     await expect(page.locator('[data-overall-board]')).toBeVisible({ timeout: 20_000 });
     await expect(page.locator('[data-cut-line]')).toContainText('Cut after round 1 · 36 · 1 made it · 1 missed');
     await expect(page.locator(`[data-overall-row="${s.userB.id}"] [data-missed-cut]`)).toBeVisible();
+
+    // Phase 3 (the round's own field): round 2's field is A alone — once A's card is
+    // final the round completes WITHOUT the override (the roster is never the
+    // measure), and the event follows.
+    await scoreHoles(s.apiA, cardRowFor(card2, s.userA.id), nine(4));
+    await finalizeCard(s.apiA, eventId, cardRowFor(card2, s.userA.id));
+    const done = await completeRound(s.apiA, eventId, r2, false);
+    expect(done.event.status).toBe('completed');
   } finally {
     await cleanupEvent(s.apiA, eventId);
     await s.dispose();
