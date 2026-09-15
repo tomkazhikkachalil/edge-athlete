@@ -1,5 +1,28 @@
 # Development Log
 
+## September 16, 2026 — Events program, phase 3: the first prod probe (two spec fixes, one bell fix)
+
+The whole chain (#775–#786) merged and 212 / 213 ran; the phase 3 specs
+ran for the first time, against prod. Two findings and one lesson:
+- **The won / lost bells spoke in masked names** ("Edge A. beat you")
+  while every other event bell — the invite, the `set` bell — uses full
+  names ("Edge Alpha invited you"): `notifyMatchClosed` read the match
+  view's names (masked for a private profile, the contest rule) instead
+  of the profiles'. It now resolves the members' names the way the `set`
+  bell does; the members of a match already know each other.
+- Two spec expectations were wrong about masking the other way: the feed
+  results card names the LOSER through the view (masked, "Edge B." — the
+  QA users are private), and the routes test's ~40 prod calls need more
+  than the default minute (`test.setTimeout(150_000)`).
+- **Never run two prod probes in parallel** (memory
+  `prod-probe-parallel-trap`): both global setups write the same
+  `e2e/.auth` files, so one run's teardown deleted the other's QA users
+  mid-run — the WebKit half of the mobile run failed in a cascade of
+  one-second "User not found" errors and one bracket attempt saw "Event
+  not found" as a swapped user. Everything else was green: the API
+  vocabulary and lifecycle, the routes (on retry), the Matches tab, the
+  match card, pairs, the bracket, the cut regression.
+
 ## September 16, 2026 — Events program, phase 3, PR 12: the match bells (migration 213)
 
 The phase's last PR. ONE new notification type, `sport_event_match`

@@ -199,6 +199,9 @@ export async function notifyMatchSet(admin: Admin, event: { id: string; name: st
 /** Phase 3 (213): "You beat Bob 3&2" / "Bob beat you 3&2" — each member of a decided match at the round's completion; a bye bells nobody. 23514-tolerant. */
 export async function notifyMatchClosed(admin: Admin, event: { id: string; name: string }, roundId: string, matches: ReadonlyArray<RoundMatch>, actorProfileId: string): Promise<void> {
   try {
+    // The bells speak in full names (the invite's "Edge Alpha invited you"), never the view's masked ones — the members already know each other.
+    const names = await namesFor(admin, [...new Set(matches.flatMap(m => m.sides.flatMap(s => s.members.map(x => x.profile_id))))]);
+    const nameOf = (x: { profile_id: string; name: string }) => names.get(x.profile_id) ?? x.name;
     for (const m of matches) {
       const w = m.state.winnerSide;
       if (!w || m.bye) continue;
@@ -206,8 +209,8 @@ export async function notifyMatchClosed(admin: Admin, event: { id: string; name:
         const won = side.side === w;
         const other = m.sides[side.side === 1 ? 1 : 0];
         for (const member of side.members) {
-          const partner = side.members.filter(x => x.participant_id !== member.participant_id).map(x => x.name);
-          const copy = matchBellCopy(won ? 'won' : 'lost', { eventId: event.id, eventName: event.name, roundId, line: matchClosedLine(won, partner, other.members.map(x => x.name), m.state.result) });
+          const partner = side.members.filter(x => x.participant_id !== member.participant_id).map(nameOf);
+          const copy = matchBellCopy(won ? 'won' : 'lost', { eventId: event.id, eventName: event.name, roundId, line: matchClosedLine(won, partner, other.members.map(nameOf), m.state.result) });
           const { error } = await insertBells(admin, [member.profile_id], actorProfileId, copy, { sport_event_id: event.id, sport_event_round_id: roundId, sport_event_match_id: m.id, kind: won ? 'won' : 'lost' });
           if (error?.code === '23514') { console.warn('[sport-events notify] sport_event_match is not in the type CHECK — run migration 213'); return; }
         }

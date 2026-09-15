@@ -184,6 +184,7 @@ test('sport events API: match round lifecycle — groups_incomplete, the match r
  * with ONE results bell for B.
  */
 test('sport events API: the match routes — GET, concede, extra holes, decide, the CAS', async () => {
+  test.setTimeout(150_000); // two events, ~40 calls against prod — the default minute was a timeout on the first prod probe
   const s = await openEventSession();
   const admin = adminClient();
   const probe = await admin.from('sport_event_matches').select('id').limit(1);
