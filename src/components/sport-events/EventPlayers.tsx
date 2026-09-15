@@ -17,6 +17,8 @@ interface Props {
   onDecide: (pid: string, action: 'approve' | 'reject' | 'remove') => void;
   onHideToggle: (pid: string, hidden: boolean) => void;
   onIndexOverride: (pid: string, index: number | null) => void;
+  /** Phase 2: the organizer's Flights window. */
+  onOpenFlights?: () => void;
 }
 
 const BTN = 'ea-interactive border border-border-strong text-secondary px-3 min-h-[44px] rounded-lg text-sm font-semibold disabled:opacity-60';
@@ -57,7 +59,7 @@ function IndexField({ p, onChange }: { p: ParticipantView; onChange: (index: num
   );
 }
 
-export default function EventPlayers({ view, control, busy, joinActions, onOpenInvite, onInviteHandle, onDecide, onHideToggle, onIndexOverride }: Props) {
+export default function EventPlayers({ view, control, busy, joinActions, onOpenInvite, onInviteHandle, onDecide, onHideToggle, onIndexOverride, onOpenFlights }: Props) {
   const { event, participants, viewer } = view;
   const canManage = viewer.can_manage;
   const canInvite = canManage && (event.status === 'draft' || event.status === 'open');
@@ -87,6 +89,7 @@ export default function EventPlayers({ view, control, busy, joinActions, onOpenI
           <p className="text-xs text-muted truncate">
             {roleLabel(p) ?? (p.handle ? `@${p.handle}` : '')}
             {net && p.status === 'accepted' && p.playing && (p.handicap_index !== null ? ` · index ${p.handicap_index}` : ' · no index')}
+            {p.flight && p.status === 'accepted' && p.playing && <span data-event-player-flight={p.flight}> · Flight {p.flight}</span>}
           </p>
         </div>
         <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">{extra}</div>
@@ -117,11 +120,18 @@ export default function EventPlayers({ view, control, busy, joinActions, onOpenI
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <EventJoinButton control={control} busy={busy} {...joinActions} />
-        {canInvite && (
-          <button type="button" onClick={onOpenInvite} className="ea-cta text-white px-4 min-h-[44px] rounded-lg text-sm font-semibold inline-flex items-center" data-event-invite-open="">
-            <i className="fas fa-user-plus mr-2" aria-hidden="true"></i>Invite
-          </button>
-        )}
+        <div className="flex flex-wrap gap-2">
+          {canManage && onOpenFlights && playing.length > 0 && event.status !== 'completed' && event.status !== 'cancelled' && (
+            <button type="button" onClick={onOpenFlights} className={BTN} data-event-flights-open="">
+              <i className="fas fa-layer-group mr-2" aria-hidden="true"></i>Flights
+            </button>
+          )}
+          {canInvite && (
+            <button type="button" onClick={onOpenInvite} className="ea-cta text-white px-4 min-h-[44px] rounded-lg text-sm font-semibold inline-flex items-center" data-event-invite-open="">
+              <i className="fas fa-user-plus mr-2" aria-hidden="true"></i>Invite
+            </button>
+          )}
+        </div>
       </div>
       {canInvite && (
         <form

@@ -24,7 +24,8 @@ const ROW_ACTIONS: ReadonlySet<string> = new Set(['accept', 'decline', 'withdraw
  *
  * PATCH — `handicap_index` (organizers; null clears the override and
  * recomputes), `hide_from_profile` (the player), `playing` (the player or
- * an organizer; stepping out frees a seat and promotes the waitlist).
+ * an organizer; stepping out frees a seat and promotes the waitlist),
+ * `flight` (organizers, phase 2; a player's flight for the whole event).
  */
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string; pid: string }> }) {
   const { id, pid } = await params;
@@ -88,7 +89,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     const canManage = read.access.canManage;
     if (read.event.status === 'cancelled') return NextResponse.json({ error: 'This event is over.' }, { status: 409 });
     // After completion only the opt-out may change (the roster and the index are frozen with the results).
-    if (read.event.status === 'completed' && (parsed.value.handicap_index !== undefined || parsed.value.playing !== undefined)) return NextResponse.json({ error: 'The event is over — only the profile setting can change.' }, { status: 409 });
+    if (read.event.status === 'completed' && (parsed.value.handicap_index !== undefined || parsed.value.playing !== undefined || parsed.value.flight !== undefined)) return NextResponse.json({ error: 'The event is over — only the profile setting can change.' }, { status: 409 });
 
     const update: Record<string, unknown> = {};
     if (parsed.value.handicap_index !== undefined) {
@@ -100,6 +101,11 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       } else {
         Object.assign(update, applyOverride(parsed.value.handicap_index));
       }
+    }
+    if (parsed.value.flight !== undefined) {
+      if (!canManage) return NextResponse.json({ error: 'Only an organizer can set a flight.' }, { status: 403 });
+      if (row.role === 'follower') return NextResponse.json({ error: 'A follower does not play in a flight.' }, { status: 409 });
+      update.flight = parsed.value.flight;
     }
     if (parsed.value.hide_from_profile !== undefined) {
       if (!isSelf) return NextResponse.json({ error: 'Only the player decides what shows on their profile.' }, { status: 403 });

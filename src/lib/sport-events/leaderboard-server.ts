@@ -9,7 +9,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { computeLeaderboard, type LeaderboardRow } from './leaderboard';
 import { toLeaderboardPlayers, type CardRow, type FieldRow } from './leaderboard-rows';
-import { computeOverallLeaderboard, type OverallBoard, type OverallOptions } from './overall';
+import { computeOverallLeaderboard, flightsOf, type OverallBoard, type OverallOptions } from './overall';
 import type { SportEventRoundRow, SportEventRow } from './types';
 import type { ProfileForView } from './view';
 
@@ -20,10 +20,13 @@ export interface RoundLeaderboard {
   round: { id: string; sequence: number; status: string; scheduled_on: string; course_name: string; holes: number; starting_hole: number; course_rating: number | null; slope_rating: number | null; group_post_id: string | null };
   format: SportEventRow['format'];
   rows: LeaderboardRow[];
+  /** Every flight label in the whole field (phase 2), sorted; `flight` = the filter the rows are ranked within, if any. */
+  flights: string[];
+  flight: string | null;
   computed_at: string;
 }
 
-export async function fetchRoundLeaderboard(admin: Admin, event: SportEventRow, round: SportEventRoundRow): Promise<RoundLeaderboard> {
+export async function fetchRoundLeaderboard(admin: Admin, event: SportEventRow, round: SportEventRoundRow, options: { flight?: string | null } = {}): Promise<RoundLeaderboard> {
   const [{ data: fieldRows }, { data: gp }] = await Promise.all([
     admin.from('sport_event_participants').select('id, profile_id, handicap_index, flight').eq('sport_event_id', event.id).eq('status', 'accepted').eq('playing', true),
     admin.from('group_posts').select('id').eq('sport_event_round_id', round.id).maybeSingle(),
@@ -46,6 +49,8 @@ export async function fetchRoundLeaderboard(admin: Admin, event: SportEventRow, 
     for (const p of (data ?? []) as ProfileForView[]) profiles.set(p.id, p);
   }
 
+  const players = toLeaderboardPlayers(field, cards, profiles);
+  const flight = options.flight ?? null;
   const rows = computeLeaderboard({
     format: event.format,
     holes: round.holes,
@@ -53,12 +58,15 @@ export async function fetchRoundLeaderboard(admin: Admin, event: SportEventRow, 
     holeData: round.hole_data,
     courseRating: round.course_rating,
     slopeRating: round.slope_rating,
-    players: toLeaderboardPlayers(field, cards, profiles),
+    // A flight filter ranks WITHIN the flight (the overall board's rule).
+    players: flight ? players.filter(p => (p.flight ?? null) === flight) : players,
   });
   return {
     round: { id: round.id, sequence: round.sequence, status: round.status, scheduled_on: round.scheduled_on, course_name: round.course_name, holes: round.holes, starting_hole: round.starting_hole, course_rating: round.course_rating, slope_rating: round.slope_rating, group_post_id: groupPostId },
     format: event.format,
     rows,
+    flights: flightsOf(players.map(p => ({ flight: p.flight ?? null }))),
+    flight,
     computed_at: new Date().toISOString(),
   };
 }

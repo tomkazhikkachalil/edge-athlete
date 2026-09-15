@@ -48,6 +48,8 @@ export interface ParticipantView {
   waitlist_position: number | null;
   handicap_index: number | null;
   handicap_source: SportEventParticipantRow['handicap_source'];
+  /** The organizer's flight (phase 2), visible to everyone who sees the roster. */
+  flight: string | null;
   /** Self and organizers only; null otherwise. */
   hide_from_profile: boolean | null;
   accepted_at: string | null;
@@ -105,6 +107,7 @@ export function projectParticipant(row: SportEventParticipantRow, profile: Profi
     waitlist_position: row.waitlist_position,
     handicap_index: row.handicap_index,
     handicap_source: row.handicap_source,
+    flight: row.flight ?? null,
     hide_from_profile: self || viewer.canManage ? row.hide_from_profile : null,
     accepted_at: row.accepted_at,
     created_at: row.created_at,
