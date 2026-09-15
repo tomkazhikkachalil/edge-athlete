@@ -253,6 +253,32 @@ transactional part) and `NNN_name.indexes.sql` (each statement
 verified by its grid). A table created empty in the same migration may
 index itself inline.
 
+## "NNN ran" is a command, not a grid (Sep 16 2026)
+
+`npm run check:schema` asks the schema question BOTH ways: every live
+table and column must be owned by the chain (or documented), AND every
+table and column the chain owns must be live — a `CHAIN-ONLY` line names
+the migration that has not run. That is the ONLY accepted proof that a
+migration ran. Why: on Sep 16 2026 #761 (which selects 207's columns on
+every event read) was merged before 207 had run; the forward-only check
+stayed green, prod's Events API answered 42703 on every read, and the
+diagnostics twin's nine-row grid was pasted four times as "207 ran".
+Two conventions follow, applied from 207 on:
+
+- **A migration ends in ONE result row**, never a grid:
+  `SELECT 'NNN APPLIED' AS result, <count>_expect_<n>, …` — what the
+  editor shows cannot be mistaken for anything else.
+- **The diagnostics twin (`tests/diagnostics/verify-NNN-*.sql`) is the
+  grid**, its first row `'0 file' | '<its own filename>'`, and it must
+  RUN before the migration (read a new column through
+  `to_jsonb(row) -> 'col'`, never by name) so a missing column is a
+  `CHECK FAILED` row, not a 42703 error.
+
+208 (`notification_preferences_tag_column`) is the reverse question's
+first finding: 008's `tag_notifications_enabled` never landed (live has
+`tags_enabled`; nothing reads the 008 name) — a no-op DROP that retires
+the claim. Phase 2b's migrations shift to 209–211.
+
 ## ⚠️ Everything else is historical — do NOT run it
 
 These directories are **reference only**. Running any script in them against a

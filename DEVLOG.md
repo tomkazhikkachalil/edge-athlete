@@ -1,5 +1,38 @@
 # Development Log
 
+## September 16, 2026 — Events program, phase 2 close: 207 applied late; the schema check asks the reverse question (mig 208, a no-op)
+
+Tom merged #751–#761 in one go. #761 makes every event read select
+207's `format_config` and `name`; 207 had not run, so `POST
+/api/sport-events` 500'd and every event page 404'd on prod (42703) —
+the window the plan named, real for the minutes between the merge and
+the paste. The diagnostics twin's nine-row grid was pasted four times as
+"207 ran": it reads CHECK FAILED before the migration by design, and it
+looked like the migration's own closing grid. What changed so it cannot
+recur:
+
+- `check:schema` asks the REVERSE question too (`diff` →
+  `chainOnlyTables` / `chainOnlyColumns`, gating): every table and
+  column the chain owns must be live, a miss reads `CHAIN-ONLY … (the
+  migration has not run)` by name. "NNN ran" now means this command is
+  OK, never a pasted grid (the rule in `database/MIGRATIONS.md`).
+- Its first finding: 008's `notification_preferences.
+  tag_notifications_enabled` never landed (live has `tags_enabled`;
+  nothing reads the 008 name). **208** is the no-op `DROP COLUMN IF
+  EXISTS` that retires the claim; the allowlist stays empty. Phase 2b's
+  migrations shift to 209–211.
+- A migration ends in ONE result row (`207 APPLIED | 2 | 3`, `208
+  APPLIED | 0 | 1`), never a grid; the twin is the grid, names its own
+  file in row `0 file`, and runs before the migration (the
+  `to_jsonb(row)` read).
+- Prod probes after 207 ran, all green on c82e98a1: rounds · overall ·
+  feed (desktop); tournament page · create · flights · breakdown ·
+  groups · waitlist · cut on `mobile` + `webkit-mobile`; the phase-1
+  api · lifecycle · results · scoring regression set. The cut spec's
+  first real run against 207 passed on both engines. One WebKit
+  breakdown attempt hit the 60 s test timeout and passed on retry and
+  on a clean re-run (a slow first load, not a defect).
+
 ## September 16, 2026 — Events program, phase 2, PR 8: the cut and the round names wired (reads 207 — merges after it ran)
 
 The PR that ends the 42703 window: `EVENT_COLUMNS` / `ROUND_COLUMNS`
