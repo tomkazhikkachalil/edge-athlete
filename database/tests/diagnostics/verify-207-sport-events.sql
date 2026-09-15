@@ -4,12 +4,17 @@
 -- ============================================================================
 -- READ ONLY. Safe to run any time — BEFORE 207 it reads CHECK FAILED on the
 -- column / constraint rows (never an error); AFTER 207 every row reads OK.
--- The same grid closes the migration file; this copy is the standalone
--- check, the 201–206 shape.
+-- The migration file ends in ONE result row ("207 APPLIED | 2 | 3"), not
+-- this grid, and the first row here names THIS file — Sep 16 2026 this grid
+-- was pasted four times as "207 ran" while the migration had not run.
 -- ============================================================================
 
-SELECT 'sport_events.format_config column' AS check_name, '1' AS expected, count(*)::text AS actual,
-       CASE WHEN count(*) = 1 THEN 'OK' ELSE 'CHECK FAILED' END AS status
+SELECT '0 file' AS check_name, 'verify-207-sport-events.sql' AS expected, 'verify-207-sport-events.sql' AS actual, 'OK' AS status
+
+UNION ALL
+
+SELECT 'sport_events.format_config column', '1', count(*)::text,
+       CASE WHEN count(*) = 1 THEN 'OK' ELSE 'CHECK FAILED' END
   FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'sport_events' AND column_name = 'format_config' AND data_type = 'jsonb' AND is_nullable = 'NO'
 
 UNION ALL

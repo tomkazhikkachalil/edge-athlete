@@ -92,8 +92,33 @@ describe('diff + allowlist', () => {
     expect(live.tables).toEqual({ t: ['id', 'a'] });
     expect(live.rpcs).toEqual(['do_thing']);
     const r = diff(live.tables, owned);
-    expect(formatReport(r, { liveTables: 1, ownedTables: 1, rpcs: live.rpcs })).toContain('OK — every live table and column is owned or documented.');
+    expect(formatReport(r, { liveTables: 1, ownedTables: 1, rpcs: live.rpcs })).toContain('OK — every live table and column is owned or documented');
     expect(formatReport(diff({ q: [] }, owned))).toContain('UNOWNED TABLES (1)');
+  });
+});
+
+describe('the reverse question — every owned table and column is live', () => {
+  const owned = parseChain([file('a.sql', 'create table t (id int, a int); alter table pre add column x int; create table gone (id int);')]);
+  it('a chain column or table the live database lacks is drift by name (the migration has not run)', () => {
+    const r = diff({ t: ['id'], pre: ['id'] }, owned);
+    expect(r.chainOnlyTables).toEqual(['gone']);
+    expect(r.chainOnlyColumns).toEqual([{ table: 'pre', column: 'x' }, { table: 't', column: 'a' }]);
+    expect(r.ok).toBe(false);
+    const out = formatReport(r);
+    expect(out).toContain('CHAIN-ONLY TABLES (1)');
+    expect(out).toContain('CHAIN-ONLY COLUMNS (2)');
+    expect(out).toContain('t.a');
+  });
+  it('is silent when the live shape carries everything the chain owns; a pre-chain table only ALTERed is judged on its added columns alone', () => {
+    const r = diff({ t: ['id', 'a'], pre: ['id', 'x', 'legacy'], gone: ['id'] }, owned, [{ table: 'pre', column: null, reason: 'pre-chain', ref: 'x' }]);
+    expect(r.chainOnlyTables).toEqual([]);
+    expect(r.chainOnlyColumns).toEqual([]);
+    expect(r.ok).toBe(true);
+    expect(formatReport(r)).toContain('every owned table and column is live');
+  });
+  it('a DROP COLUMN later in the chain retires the claim (the 208 shape)', () => {
+    const chain = parseChain([file('a.sql', 'create table t (id int); alter table t add column if not exists old int;'), file('b.sql', 'alter table t drop column if exists old;')]);
+    expect(diff({ t: ['id'] }, chain).ok).toBe(true);
   });
 });
 

@@ -311,7 +311,27 @@ export function diff(live, owned, allowlist = []) {
     } else if (!liveCols.includes(e.column)) staleAllowlist.push({ ...e, why: 'column not live' });
     else if (ownedCols && ownedCols.has(e.column)) staleAllowlist.push({ ...e, why: 'column is owned now' });
   }
-  return { unownedTables: unownedTables.sort(), unownedColumns, documented, staleAllowlist, ok: unownedTables.length === 0 && unownedColumns.length === 0 && staleAllowlist.length === 0 };
+  // The REVERSE question (Sep 16 2026): everything the chain owns must be
+  // live. A migration merged before it ran — 207's columns selected by
+  // every event read while prod had none of them — passed the forward
+  // question for hours; this is what says "NNN has not run" by name.
+  const chainOnlyTables = [];
+  const chainOnlyColumns = [];
+  const owes = (table, cols) => {
+    const liveCols = live[table];
+    if (!liveCols) {
+      chainOnlyTables.push(table);
+      return;
+    }
+    for (const col of cols) if (!liveCols.includes(col)) chainOnlyColumns.push({ table, column: col });
+  };
+  for (const [table, cols] of owned.tables) owes(table, cols);
+  // A pre-chain table the chain only ALTERs: its added columns must be live too.
+  for (const [table, cols] of owned.altered ?? []) if (live[table]) owes(table, cols);
+  chainOnlyTables.sort();
+  chainOnlyColumns.sort((a, b) => `${a.table}.${a.column}`.localeCompare(`${b.table}.${b.column}`));
+  const ok = unownedTables.length === 0 && unownedColumns.length === 0 && staleAllowlist.length === 0 && chainOnlyTables.length === 0 && chainOnlyColumns.length === 0;
+  return { unownedTables: unownedTables.sort(), unownedColumns, documented, staleAllowlist, chainOnlyTables, chainOnlyColumns, ok };
 }
 
 export function formatReport(result, opts = {}) {
@@ -326,12 +346,20 @@ export function formatReport(result, opts = {}) {
     lines.push(`\nUNOWNED COLUMNS (${result.unownedColumns.length}) — live, but no numbered migration adds them:`);
     for (const c of result.unownedColumns) lines.push(`  ${c.table}.${c.column}`);
   }
+  if (result.chainOnlyTables?.length) {
+    lines.push(`\nCHAIN-ONLY TABLES (${result.chainOnlyTables.length}) — a numbered migration creates them, but they are NOT live (the migration has not run):`);
+    for (const t of result.chainOnlyTables) lines.push(`  ${t}`);
+  }
+  if (result.chainOnlyColumns?.length) {
+    lines.push(`\nCHAIN-ONLY COLUMNS (${result.chainOnlyColumns.length}) — a numbered migration adds them, but they are NOT live (the migration has not run):`);
+    for (const c of result.chainOnlyColumns) lines.push(`  ${c.table}.${c.column}`);
+  }
   if (result.staleAllowlist.length) {
     lines.push(`\nSTALE ALLOWLIST (${result.staleAllowlist.length}) — remove these entries:`);
     for (const e of result.staleAllowlist) lines.push(`  ${e.table}${e.column ? '.' + e.column : ''} — ${e.why}`);
   }
   if (result.documented.length) lines.push(`\nDocumented exceptions (allowlist): ${result.documented.length}`);
   if (opts.rpcs?.length) lines.push(`\nLive RPCs (informational — function provenance is a separate pass): ${opts.rpcs.length}`);
-  lines.push(result.ok ? '\nOK — every live table and column is owned or documented.' : '\nDRIFT — see above.');
+  lines.push(result.ok ? '\nOK — every live table and column is owned or documented, and every owned table and column is live.' : '\nDRIFT — see above.');
   return lines.join('\n');
 }

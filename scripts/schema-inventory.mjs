@@ -7,7 +7,10 @@
  *  • TABLES / COLUMNS — PostgREST's OpenAPI definitions (every table and
  *    column the service role can see — the anon key would miss the
  *    posture-A tables) against what the numbered chain CREATEs / ADDs
- *    (`schema-inventory-core.mjs`).
+ *    (`schema-inventory-core.mjs`) — BOTH ways since Sep 16 2026: a live
+ *    object the chain never named is drift, and so is a chain object the
+ *    live database lacks (CHAIN-ONLY = "that migration has not run", by
+ *    name). "NNN ran" means this command is OK — never a pasted grid.
  *  • POLICIES, FUNCTIONS, TRIGGERS and GRANTS — `public.provenance_inventory()` (migration
  *    195, service-role only) against the chain's last CREATE POLICY / CREATE
  *    FUNCTION for each object: a policy must be claimed with the same cmd /
