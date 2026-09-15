@@ -188,7 +188,8 @@ export async function notifyMatchSet(admin: Admin, event: { id: string; name: st
       const profileId = participantProfile.get(r.participant_id);
       if (!profileId) continue;
       const copy = matchBellCopy('set', { eventId: event.id, eventName: event.name, roundId, line: matchSetLine(r.partner.map(nameOf), r.opponents.map(nameOf)) });
-      const { error } = await insertBells(admin, [profileId], actorProfileId, copy, { sport_event_id: event.id, sport_event_round_id: roundId, kind: 'set' });
+      // No actor: the member is the subject, and insertBells never bells the actor — an organizer who plays must still get theirs.
+      const { error } = await insertBells(admin, [profileId], null, copy, { sport_event_id: event.id, sport_event_round_id: roundId, kind: 'set', set_by: actorProfileId });
       if (error?.code === '23514') { console.warn('[sport-events notify] sport_event_match is not in the type CHECK — run migration 213'); return; }
     }
   } catch (e) {
@@ -211,7 +212,7 @@ export async function notifyMatchClosed(admin: Admin, event: { id: string; name:
         for (const member of side.members) {
           const partner = side.members.filter(x => x.participant_id !== member.participant_id).map(nameOf);
           const copy = matchBellCopy(won ? 'won' : 'lost', { eventId: event.id, eventName: event.name, roundId, line: matchClosedLine(won, partner, other.members.map(nameOf), m.state.result) });
-          const { error } = await insertBells(admin, [member.profile_id], actorProfileId, copy, { sport_event_id: event.id, sport_event_round_id: roundId, sport_event_match_id: m.id, kind: won ? 'won' : 'lost' });
+          const { error } = await insertBells(admin, [member.profile_id], null, copy, { sport_event_id: event.id, sport_event_round_id: roundId, sport_event_match_id: m.id, kind: won ? 'won' : 'lost', completed_by: actorProfileId });
           if (error?.code === '23514') { console.warn('[sport-events notify] sport_event_match is not in the type CHECK — run migration 213'); return; }
         }
       }
