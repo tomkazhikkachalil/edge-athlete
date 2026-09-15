@@ -161,7 +161,7 @@ export async function goLive(apiA: APIRequestContext, eventId: string, today?: s
 export interface Scorecard {
   scorecard: {
     group_post: { id: string; status: string; sport_event_round_id: string | null };
-    participants: Array<{ participant: { id: string; profile_id: string; role: string; status: string; position: number }; scores: { status?: string; updated_at: string | null; hole_scores?: Array<{ hole_number: number; strokes: number }> } | null }>;
+    participants: Array<{ participant: { id: string; profile_id: string; role: string; status: string; position: number }; scores: { status?: string; updated_at: string | null; hole_scores?: Array<{ hole_number: number; strokes: number; version?: number }> } | null }>;
     sport_event: { id: string; name: string; round_id?: string; group: { members: Array<{ profile_id: string; position: number }> } | null } | null;
   };
 }

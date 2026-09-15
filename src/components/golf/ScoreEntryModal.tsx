@@ -232,6 +232,8 @@ export default function ScoreEntryModal({
       const { holeData: holes, dirtyHoles: dirty, currentHole: pos } = flushRef.current;
       const hole = holes[pos - 1];
       if (!dirty.has(pos) || !hole || hole.strokes === null || hole.hole_number === null) return;
+      // No `expected_version` here (nor on this modal's saves or the composer's): the solo
+      // scorer's card has one writer, so these stay unchecked — last writer wins (209).
       try {
         fetch(`/api/golf/scorecards/${participantId}/scores`, {
           method: 'POST',
