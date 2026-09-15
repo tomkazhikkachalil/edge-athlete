@@ -1,5 +1,35 @@
 # Development Log
 
+## September 16, 2026 — Events program, phase 3, PR 9: pairs — four-ball and foursomes; four QA users (zero DDL, @mobile)
+
+- **The e2e suite mints FOUR QA users** (`global-setup.ts`: Alpha, Bravo,
+  Charlie, Delta — no name a substring of another; `qa-user.ts` file
+  unions widened; `openEventSession` exposes `apiC` / `apiD` / `userC` /
+  `userD`, null on an older setup; `inviteAndAcceptAs` for any user); the
+  pairs and bracket specs self-skip without them.
+- `groups-editor.ts`: every member of a match group has a SIDE — read
+  from the saved plan, set by hand (`setSide`), or the position's
+  (`sideInEditor` → `derivedSide`, the server's rule for a plain id);
+  `toPlanBody(…, { matchSides })` sends `{participant_id, side}`;
+  `samePlan` compares the sides set; `editorGroupsIncomplete` names the
+  groups the start would refuse (the engine's `groupsIncomplete`) with
+  copy per reason.
+- `EventGroupsEditor` on a match format: "Match n" (the placeholder and
+  the pool's "Add to…"), a Side 1 / Side 2 control per member, the
+  incomplete flag per group ("At most 2 a side." / "Two players a side —
+  four players."), the format hint (the first on a side keeps the card
+  on foursomes; a one-side match is a bye on a bracket), "Add match";
+  "Group by standing" hidden (no standing exists).
+- The group card and the Matches tab already spoke pairs since PRs 7–8
+  (four columns; the captains headed "A & B"; "A & B vs C & D").
+- e2e `sport-events-match-pairs.spec.ts @mobile` (self-skips before 212
+  or without the four users): four-ball — the Side control derives
+  1 · 1 · 2 · 2, moving D to side 1 flags the group, back to 2 clears it,
+  Save; four columns; hole 1 halved on the better balls, hole 2 to C & D
+  → "1 UP thru 2"; foursomes — two columns headed by the pairs, the
+  captains' cards count (`card_participant_ids`), the partner's 3 is
+  never read.
+
 ## September 16, 2026 — Events program, phase 3, PR 8: the group card's MatchStrip (zero DDL, @mobile)
 
 - `scorecard-context.ts`: the scorecard GET's `sport_event` carries

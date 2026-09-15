@@ -4,7 +4,8 @@ import { useMemo, useState } from 'react';
 import ReorderList from '@/components/site-builder/ReorderList';
 import type { EventApi } from '@/lib/sport-events/client';
 import ConfirmModal from '@/components/ConfirmModal';
-import { addGroup, assign, groupsByStanding, groupsFromSaved, moveGroup, pruneTo, removeGroup, reorderMembers, samePlan, toPlanBody, unassign, unassigned, updateGroup, type EditorGroup, type EditorPlayer, type StandingGroupOptions } from '@/lib/sport-events/groups-editor';
+import { addGroup, assign, editorGroupsIncomplete, groupsByStanding, groupsFromSaved, moveGroup, pruneTo, removeGroup, reorderMembers, samePlan, setSide, SIDE_REFUSAL_COPY, sideInEditor, toPlanBody, unassign, unassigned, updateGroup, type EditorGroup, type EditorPlayer, type StandingGroupOptions } from '@/lib/sport-events/groups-editor';
+import { MATCH_SIDES_LABEL } from '@/lib/sport-events/format';
 import type { RoundSelection } from '@/lib/sport-events/tabs';
 import type { SportEventViewPayload } from '@/lib/sport-events/view';
 import RoundSwitcher from './RoundSwitcher';
@@ -20,7 +21,11 @@ import RoundSwitcher from './RoundSwitcher';
  * by standing" (a round after a completed one) lays the next round's
  * groups from the overall board: leaders last (the PGA norm) or first,
  * a group size, optional tee times — the draft is replaced, Save is the
- * same PUT, the mint honours it.
+ * same PUT, the mint honours it. Phase 3 — a MATCH format: a group is a
+ * match ("Match n"), every member gets a Side 1 / Side 2 control (the
+ * position's side by default; the first on a side is the captain on
+ * foursomes), an incomplete group is flagged with what it needs, and
+ * "Group by standing" is hidden (no standing exists).
  */
 interface Props {
   view: SportEventViewPayload;
@@ -54,12 +59,16 @@ export default function EventGroupsEditor({ view, api, onSaved, selected, onSele
   const [confirmStanding, setConfirmStanding] = useState(false);
   const groups = draft ? pruneTo(draft, eligible) : saved;
   const setGroups = (fn: (prev: EditorGroup[]) => EditorGroup[]) => setDraft(fn(groups));
+  const match = view.event.match;
+  const matchSides = match?.sides ?? null;
+  const incomplete = match ? editorGroupsIncomplete(groups, match.sides, match.bracket) : [];
+  const unit = match ? 'Match' : 'Group';
 
   const dirty = !samePlan(groups, saved);
   const nameOf = (id: string) => players.find(p => p.participantId === id)?.name ?? 'Player';
   const pool = unassigned(players, groups);
 
-  const canRegroup = !!round && editable && round.sequence > 1 && view.rounds.some(r => r.sequence < round.sequence && r.status === 'completed');
+  const canRegroup = !match && !!round && editable && round.sequence > 1 && view.rounds.some(r => r.sequence < round.sequence && r.status === 'completed');
   const regroup = async () => {
     setError(null);
     setNotice(null);
@@ -77,7 +86,7 @@ export default function EventGroupsEditor({ view, api, onSaved, selected, onSele
     setBusy(true);
     setError(null);
     setNotice(null);
-    const res = await api.saveGroups(round.id, toPlanBody(groups, round.scheduled_on));
+    const res = await api.saveGroups(round.id, toPlanBody(groups, round.scheduled_on, { matchSides }));
     setBusy(false);
     if (!res.ok || !res.data) { setError(res.error ?? 'Could not save the groups.'); return; }
     setNotice('Groups saved.');
@@ -92,7 +101,8 @@ export default function EventGroupsEditor({ view, api, onSaved, selected, onSele
   return (
     <div className="space-y-5" data-event-groups-editor={round.id}>
       {switcher}
-      {!editable && <p className="text-sm text-muted" data-groups-locked="">Groups are set before the round starts.</p>}
+      {!editable && <p className="text-sm text-muted" data-groups-locked="">{match ? 'The draw is set before the round starts.' : 'Groups are set before the round starts.'}</p>}
+      {match && <p className="text-xs text-muted" data-groups-match-hint="">{MATCH_SIDES_LABEL[match.sides]}: {match.sides === 'singles' ? 'one player a side' : 'two players a side'}{match.sides === 'foursomes' ? ' — the first on a side keeps the card' : ''}. {match.bracket ? 'A match with one side is a bye.' : 'Every match needs both sides before the round starts.'}</p>}
       {canRegroup && (
         <section className="bg-surface rounded-lg border border-border p-3 space-y-2" data-groups-standing="">
           <h2 className="text-sm font-bold text-primary">Group by standing</h2>
@@ -140,7 +150,7 @@ export default function EventGroupsEditor({ view, api, onSaved, selected, onSele
                     onChange={e => { if (e.target.value) setGroups(g => assign(g, p.participantId, e.target.value)); }}
                   >
                     <option value="">Add to…</option>
-                    {groups.map((g, i) => <option key={g.key} value={g.key}>{g.name.trim() || `Group ${i + 1}`}</option>)}
+                    {groups.map((g, i) => <option key={g.key} value={g.key}>{g.name.trim() || `${unit} ${i + 1}`}</option>)}
                   </select>
                 )}
               </li>
@@ -153,8 +163,8 @@ export default function EventGroupsEditor({ view, api, onSaved, selected, onSele
         {groups.map((g, i) => (
           <li key={g.key} className="bg-surface-muted rounded-lg p-3 space-y-3" data-groups-group={i + 1}>
             <div className="flex flex-wrap items-center gap-2">
-              <span className="text-xs font-semibold text-muted">Group {i + 1}</span>
-              <input value={g.name} disabled={!editable} onChange={e => setGroups(gs => updateGroup(gs, g.key, { name: e.target.value }))} placeholder="Name (optional)" maxLength={60} aria-label={`Group ${i + 1} name`} className={`${INPUT} flex-1 min-w-[8rem]`} />
+              <span className="text-xs font-semibold text-muted">{unit} {i + 1}</span>
+              <input value={g.name} disabled={!editable} onChange={e => setGroups(gs => updateGroup(gs, g.key, { name: e.target.value }))} placeholder={match ? `Match ${i + 1}` : 'Name (optional)'} maxLength={60} aria-label={`${unit} ${i + 1} name`} className={`${INPUT} flex-1 min-w-[8rem]`} />
               <input type="time" value={g.teeTime} disabled={!editable} onChange={e => setGroups(gs => updateGroup(gs, g.key, { teeTime: e.target.value }))} aria-label={`Group ${i + 1} tee time`} className={INPUT} data-groups-tee="" />
               <select value={g.startingHole} disabled={!editable} onChange={e => setGroups(gs => updateGroup(gs, g.key, { startingHole: Number(e.target.value) }))} aria-label={`Group ${i + 1} starting hole`} className={INPUT}>
                 {Array.from({ length: 18 }, (_, n) => n + 1).map(n => <option key={n} value={n}>Hole {n}</option>)}
@@ -167,9 +177,29 @@ export default function EventGroupsEditor({ view, api, onSaved, selected, onSele
                 <ol className="text-sm text-primary space-y-1">{g.members.map((id, n) => <li key={id}>{n + 1}. {nameOf(id)}</li>)}</ol>
               )
             )}
+            {match && g.members.length > 0 && (
+              <ul className="space-y-1" data-groups-sides="">
+                {g.members.map(id => {
+                  const side = sideInEditor(g, id, matchSides);
+                  return (
+                    <li key={id} className="flex items-center justify-between gap-2" data-groups-side={id} data-groups-side-value={side ?? ''}>
+                      <span className="text-sm text-primary truncate">{nameOf(id)}</span>
+                      <div className="flex rounded-lg border border-border-strong overflow-hidden" role="group" aria-label={`${nameOf(id)}'s side`}>
+                        {([1, 2] as const).map(s => (
+                          <button key={s} type="button" disabled={!editable} aria-pressed={side === s} onClick={() => setGroups(gs => setSide(gs, g.key, id, s))} className={`min-h-[36px] px-3 text-xs font-semibold ${side === s ? 'bg-brand text-white' : 'bg-surface text-tertiary'}`} data-groups-side-pick={s}>Side {s}</button>
+                        ))}
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+            {match && incomplete.some(x => x.index === i + 1) && (
+              <p className="text-xs text-amber-800 dark:text-amber-200" data-groups-incomplete={i + 1}>{SIDE_REFUSAL_COPY[incomplete.find(x => x.index === i + 1)!.reason](match.sides)}</p>
+            )}
             {editable && g.members.length > 0 && (
               <div className="flex flex-wrap gap-2">
-                {g.members.map(id => <button key={id} type="button" onClick={() => setGroups(gs => unassign(gs, id))} className={`${BTN} min-h-[36px] text-xs`} aria-label={`Take ${nameOf(id)} out of group ${i + 1}`}>{nameOf(id)} ×</button>)}
+                {g.members.map(id => <button key={id} type="button" onClick={() => setGroups(gs => unassign(gs, id))} className={`${BTN} min-h-[36px] text-xs`} aria-label={`Take ${nameOf(id)} out of ${unit.toLowerCase()} ${i + 1}`}>{nameOf(id)} ×</button>)}
               </div>
             )}
             {editable && (
@@ -185,7 +215,7 @@ export default function EventGroupsEditor({ view, api, onSaved, selected, onSele
 
       {editable && (
         <div className="flex flex-wrap items-center gap-2">
-          <button type="button" onClick={() => setGroups(gs => addGroup(gs))} className={BTN} data-groups-add=""><i className="fas fa-plus mr-2" aria-hidden="true"></i>Add group</button>
+          <button type="button" onClick={() => setGroups(gs => addGroup(gs))} className={BTN} data-groups-add=""><i className="fas fa-plus mr-2" aria-hidden="true"></i>{match ? 'Add match' : 'Add group'}</button>
           <button type="button" onClick={save} disabled={!dirty || busy} className="ea-cta text-white px-4 min-h-[44px] rounded-lg text-sm font-semibold disabled:opacity-60" data-groups-save="">{busy ? 'Saving…' : dirty ? 'Save groups' : 'Saved'}</button>
         </div>
       )}

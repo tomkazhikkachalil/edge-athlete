@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { addGroup, addMinutes, assign, groupsByStanding, groupsFromSaved, localToTeeTime, moveGroup, pruneTo, removeGroup, reorderMembers, samePlan, teeTimeToLocal, toPlanBody, unassign, unassigned, updateGroup, type EditorGroup } from '../groups-editor';
+import { addGroup, addMinutes, assign, editorGroupsIncomplete, groupsByStanding, groupsFromSaved, localToTeeTime, moveGroup, pruneTo, removeGroup, reorderMembers, samePlan, setSide, SIDE_REFUSAL_COPY, sideInEditor, teeTimeToLocal, toPlanBody, unassign, unassigned, updateGroup, type EditorGroup } from '../groups-editor';
 import { parseEventTab, tabsFor } from '../tabs';
 
 const g = (key: string, members: string[], over: Partial<EditorGroup> = {}): EditorGroup => ({ key, name: '', teeTime: '', startingHole: 1, members, ...over });
@@ -41,6 +41,28 @@ describe('the groups editor operations', () => {
     expect(body.groups[1]).toEqual({ name: null, tee_time: null, starting_hole: 1, members: [] });
     expect(samePlan([g('a', ['p1'])], [g('z', ['p1'])])).toBe(true);
     expect(samePlan([g('a', ['p1'])], [g('a', ['p1', 'p2'])])).toBe(false);
+  });
+  it('phase 3: sides — read from the saved plan, set by hand, derived from the position otherwise; the PUT body carries them on a match format; the incomplete groups are named', () => {
+    const saved = groupsFromSaved([{ id: 'a', sequence: 1, name: null, tee_time: null, starting_hole: 1, members: [{ participant_id: 'p1', position: 1, side: 2 }, { participant_id: 'p2', position: 2, side: 1 }] }]);
+    expect(saved[0].sides).toEqual({ p1: 2, p2: 1 });
+    expect(sideInEditor(saved[0], 'p1', 'singles')).toBe(2);
+    expect(sideInEditor(g('b', ['p1', 'p2', 'p3', 'p4']), 'p3', 'fourball')).toBe(2); // the position's side
+    expect(sideInEditor(g('b', ['p1', 'p2', 'p3']), 'p3', 'singles')).toBeNull();
+    expect(sideInEditor(g('b', ['p1']), 'p1', null)).toBeNull();
+    let groups = [g('a', ['p1', 'p2'])];
+    groups = setSide(groups, 'a', 'p2', 1);
+    expect(groups[0].sides).toEqual({ p2: 1 });
+    expect(samePlan(groups, [g('a', ['p1', 'p2'])])).toBe(false);
+    expect(unassign(groups, 'p2')[0].sides).toEqual({});
+    expect(assign(groups, 'p2', 'z')[0].sides).toEqual({});
+    expect(toPlanBody(groups, '2030-06-01', { matchSides: 'singles' }).groups[0].members).toEqual([{ participant_id: 'p1', side: 1 }, { participant_id: 'p2', side: 1 }]);
+    expect(toPlanBody(groups, '2030-06-01').groups[0].members).toEqual(['p1', 'p2']);
+    expect(editorGroupsIncomplete(groups, 'singles', false)).toEqual([{ index: 1, reason: 'too_many' }]);
+    expect(editorGroupsIncomplete([g('a', ['p1', 'p2']), g('b', ['p3']), g('c', [])], 'singles', false)).toEqual([{ index: 2, reason: 'wrong_size' }, { index: 3, reason: 'empty' }]);
+    expect(editorGroupsIncomplete([g('a', ['p1', 'p2']), g('b', ['p3'])], 'singles', true)).toEqual([]); // a bye on a bracket
+    expect(editorGroupsIncomplete([g('a', ['p1', 'p2', 'p3', 'p4'])], 'foursomes', false)).toEqual([]);
+    expect(SIDE_REFUSAL_COPY.wrong_size('fourball')).toContain('four players');
+    expect(SIDE_REFUSAL_COPY.too_many('singles')).toContain('At most 1');
   });
   it('the Groups tab is the organizers\'', () => {
     expect(tabsFor({ canManage: true })).toContain('groups');
