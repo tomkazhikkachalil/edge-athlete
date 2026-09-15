@@ -131,6 +131,7 @@ export default function EventPlace({ eventId, initialView, token }: Props) {
     participantStatus: viewer.participant_status,
     playing: viewer.playing,
     waitlistPosition: own?.waitlist_position ?? null,
+    waitlistAhead: viewer.waitlist_ahead,
     event: { status: event.status, joinMode: event.join_mode },
   });
   const pid = viewer.participant_id;
@@ -215,6 +216,7 @@ export default function EventPlace({ eventId, initialView, token }: Props) {
               onHideToggle={(target, hidden) => run(() => api.participantPatch(target, { hide_from_profile: hidden }))}
               onIndexOverride={(target, index) => run(() => api.participantPatch(target, { handicap_index: index }))}
               onOpenFlights={() => setFlightsOpen(true)}
+              onWaitlistMove={(target, position) => run(() => api.participantPatch(target, { waitlist_position: position }))}
             />
           )}
           {visibleTab === 'groups' && viewer.can_manage && <EventGroupsEditor view={view} api={api} selected={selectedRound} onSelect={changeRound} onSaved={v => { setView(v); setVersion(x => x + 1); }} />}

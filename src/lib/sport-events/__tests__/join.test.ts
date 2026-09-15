@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { freeSeats, isFull, nextWaitlistPosition, planCapacityChange, planJoin, planWaitlistPromotion, seatsTaken, type JoinContext, type ParticipantSnapshot } from '../join';
+import { aheadOf, freeSeats, isFull, moveWaitlistTo, nextWaitlistPosition, planCapacityChange, planJoin, planWaitlistPromotion, repackWaitlist, seatsTaken, type JoinContext, type ParticipantSnapshot } from '../join';
 
 let n = 0;
 const row = (over: Partial<ParticipantSnapshot> = {}): ParticipantSnapshot => ({ id: `r${++n}`, profileId: `p${n}`, role: 'participant', status: 'accepted', playing: true, waitlistPosition: null, createdAt: `2026-09-16T00:00:${String(n).padStart(2, '0')}Z`, ...over });
@@ -65,5 +65,35 @@ describe('planJoin', () => {
     expect(planJoin('unfollow', ctx({ row: row({ role: 'follower', playing: false }) }))).toMatchObject({ ok: true, delete: true });
     expect(planJoin('unfollow', ctx({ row: row() }))).toMatchObject({ ok: false, status: 409 });
     expect(planJoin('follow', ctx({ event: { status: 'completed', joinMode: 'invite', capacity: null } }))).toMatchObject({ ok: false, status: 409 });
+  });
+});
+
+describe('the waitlist polish (phase 2)', () => {
+  it('promote: organizers only, a waitlisted row only, seated now whatever the capacity', () => {
+    const w = row({ status: 'waitlisted', waitlistPosition: 1 });
+    const full = ctx({ actorRole: 'organizer', row: w, rows: [row(), w], event: { status: 'open', joinMode: 'invite', capacity: 1 } });
+    expect(planJoin('promote', full)).toMatchObject({ ok: true, next: { status: 'accepted', waitlistPosition: null, accepted: true }, promote: [] });
+    expect(planJoin('promote', { ...full, actorRole: 'participant' })).toMatchObject({ ok: false, status: 403 });
+    expect(planJoin('promote', { ...full, row: row() })).toMatchObject({ ok: false, status: 409 });
+  });
+  it('repack renumbers 1..n in position then arrival order and reports only the changed rows', () => {
+    const a = row({ status: 'waitlisted', waitlistPosition: 4 });
+    const b = row({ status: 'waitlisted', waitlistPosition: 7 });
+    const c = row({ status: 'waitlisted', waitlistPosition: 1 });
+    expect(repackWaitlist([row(), a, b, c])).toEqual([{ id: a.id, waitlistPosition: 2 }, { id: b.id, waitlistPosition: 3 }]);
+    expect(repackWaitlist([c, row()])).toEqual([]);
+  });
+  it('moveWaitlistTo places a row at a 1-based spot (clamped) and returns the packed changes; aheadOf counts the queue in front', () => {
+    const a = row({ status: 'waitlisted', waitlistPosition: 1 });
+    const b = row({ status: 'waitlisted', waitlistPosition: 2 });
+    const c = row({ status: 'waitlisted', waitlistPosition: 3 });
+    const rows = [row(), a, b, c];
+    expect(moveWaitlistTo(rows, c.id, 1)).toEqual([{ id: c.id, waitlistPosition: 1 }, { id: a.id, waitlistPosition: 2 }, { id: b.id, waitlistPosition: 3 }]);
+    expect(moveWaitlistTo(rows, a.id, 99)).toEqual([{ id: b.id, waitlistPosition: 1 }, { id: c.id, waitlistPosition: 2 }, { id: a.id, waitlistPosition: 3 }]);
+    expect(moveWaitlistTo(rows, a.id, 1)).toEqual([]);
+    expect(moveWaitlistTo(rows, 'nope', 1)).toEqual([]);
+    expect(aheadOf(rows, c.id)).toBe(2);
+    expect(aheadOf(rows, a.id)).toBe(0);
+    expect(aheadOf(rows, rows[0].id)).toBeNull();
   });
 });

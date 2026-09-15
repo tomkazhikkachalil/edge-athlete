@@ -16,10 +16,18 @@
  *   * Followers never take a seat and never count.
  *   * A late accept while live is allowed (the server adds them to the
  *     round); a request while live is not.
+ *   * Phase 2 (waitlist polish): an organizer may PROMOTE a waitlisted
+ *     player now — the field goes one over the capacity by the organizer's
+ *     choice (later accepts still waitlist); positions are RE-PACKED
+ *     1..n after every change (`repackWaitlist`, the one writer is
+ *     join-server.ts writeWaitlistOrder) and an organizer may reorder
+ *     (`moveWaitlistTo`); a waitlisted player sees how many are ahead
+ *     (`aheadOf`) — a queue position is between the player and the
+ *     organizer (view.ts hides others' waitlisted rows from the roster).
  */
 import type { SportEventJoinMode, SportEventParticipantStatus, SportEventRole, SportEventStatus } from './types';
 
-export type JoinAction = 'invite' | 'request' | 'accept' | 'decline' | 'approve' | 'reject' | 'remove' | 'withdraw' | 'follow' | 'unfollow';
+export type JoinAction = 'invite' | 'request' | 'accept' | 'decline' | 'approve' | 'reject' | 'remove' | 'withdraw' | 'follow' | 'unfollow' | 'promote';
 
 export interface ParticipantSnapshot {
   id: string;
@@ -135,6 +143,12 @@ export function planJoin(action: JoinAction, ctx: JoinContext): JoinPlan {
       const freed = row.status === 'accepted' && row.playing ? 1 : 0;
       return { ok: true, create: false, next: { status: 'withdrawn', waitlistPosition: null, responded: true }, promote: freed ? planWaitlistPromotion(others, event.capacity, freeSeats(others, event.capacity)) : [] };
     }
+    case 'promote': {
+      if (!MANAGES(actorRole)) return { ok: false, status: 403, error: 'Only an organizer can promote a player.' };
+      if (!row || row.status !== 'waitlisted') return { ok: false, status: 409, error: 'Not on the waitlist.' };
+      // The organizer's call: seated now, capacity or not (a later accept still waitlists).
+      return { ok: true, create: false, next: { status: 'accepted', waitlistPosition: null, accepted: true }, promote: [] };
+    }
     case 'follow': {
       if (row && (row.status === 'accepted' || row.status === 'waitlisted' || row.status === 'invited' || row.status === 'requested')) return { ok: false, status: 409, error: 'You are already part of this event.' };
       if (row && row.role === 'follower' && row.status === 'accepted') return { ok: false, status: 409, error: 'Already following.' };
@@ -157,4 +171,31 @@ export function freeSeats(rows: ParticipantSnapshot[], capacity: number | null):
 /** A capacity raise (or an organizer stepping out of play) promotes as many as the new room allows. */
 export function planCapacityChange(rows: ParticipantSnapshot[], newCapacity: number | null): string[] {
   return planWaitlistPromotion(rows, newCapacity);
+}
+
+/** The waitlist packed 1..n in position order (then arrival) — the rows whose position changes. */
+export function repackWaitlist(rows: ParticipantSnapshot[]): Array<{ id: string; waitlistPosition: number }> {
+  return rows
+    .filter(r => r.status === 'waitlisted')
+    .sort(byPosition)
+    .map((r, i) => ({ id: r.id, waitlistPosition: i + 1 }))
+    .filter(u => rows.find(r => r.id === u.id)?.waitlistPosition !== u.waitlistPosition);
+}
+
+/** Move a waitlisted row to a 1-based position in the packed queue (clamped); the full packed order's changes. */
+export function moveWaitlistTo(rows: ParticipantSnapshot[], id: string, position: number): Array<{ id: string; waitlistPosition: number }> {
+  const queue = rows.filter(r => r.status === 'waitlisted').sort(byPosition);
+  const at = queue.findIndex(r => r.id === id);
+  if (at < 0) return [];
+  const [moved] = queue.splice(at, 1);
+  const to = Math.min(queue.length, Math.max(0, position - 1));
+  queue.splice(to, 0, moved);
+  return queue.map((r, i) => ({ id: r.id, waitlistPosition: i + 1 })).filter(u => rows.find(r => r.id === u.id)?.waitlistPosition !== u.waitlistPosition);
+}
+
+/** How many waitlisted players are ahead of this one; null when not waitlisted. */
+export function aheadOf(rows: ParticipantSnapshot[], id: string): number | null {
+  const own = rows.find(r => r.id === id);
+  if (!own || own.status !== 'waitlisted') return null;
+  return rows.filter(r => r.status === 'waitlisted' && r.id !== id && byPosition(r, own) < 0).length;
 }

@@ -32,7 +32,8 @@ describe('the event page rules', () => {
     expect(joinControl({ ...base, role: 'participant', participantStatus: 'invited' })).toEqual({ kind: 'respond' });
     expect(joinControl({ ...base, role: 'participant', participantStatus: 'requested' })).toEqual({ kind: 'requested' });
     expect(joinControl({ ...base, role: 'participant', participantStatus: 'accepted', playing: true })).toEqual({ kind: 'in', playing: true });
-    expect(joinControl({ ...base, role: 'participant', participantStatus: 'waitlisted', waitlistPosition: 2 })).toEqual({ kind: 'waitlisted', position: 2 });
+    expect(joinControl({ ...base, role: 'participant', participantStatus: 'waitlisted', waitlistPosition: 2 })).toEqual({ kind: 'waitlisted', position: 2, ahead: null });
+    expect(joinControl({ ...base, role: 'participant', participantStatus: 'waitlisted', waitlistPosition: 2, waitlistAhead: 1 })).toEqual({ kind: 'waitlisted', position: 2, ahead: 1 });
     expect(joinControl({ ...base, role: 'follower', participantStatus: 'accepted' })).toEqual({ kind: 'following' });
     expect(joinControl({ ...base, role: 'participant', participantStatus: 'withdrawn' })).toEqual({ kind: 'follow' });
     expect(joinControl({ ...base, role: 'participant', participantStatus: 'removed', event: { status: 'open', joinMode: 'request' } })).toEqual({ kind: 'follow' });

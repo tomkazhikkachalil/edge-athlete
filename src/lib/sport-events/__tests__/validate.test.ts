@@ -105,3 +105,14 @@ describe('parseRoundsInput — round or rounds[] (phase 2)', () => {
     expect(parseCreateBody({ name: 'Open', rounds: [round, round] })).toMatchObject({ ok: true });
   });
 });
+
+describe('the participant patch — phase 2 fields', () => {
+  it('flight and waitlist_position are known; a bad place is refused by name', () => {
+    expect(parseParticipantPatch({ flight: ' A ' })).toEqual({ ok: true, value: { flight: 'A' } });
+    expect(parseParticipantPatch({ flight: '' })).toEqual({ ok: true, value: { flight: null } });
+    expect(parseParticipantPatch({ waitlist_position: 2 })).toEqual({ ok: true, value: { waitlist_position: 2 } });
+    expect(parseParticipantPatch({ waitlist_position: 0 })).toMatchObject({ ok: false, error: expect.stringContaining('waitlist_position') });
+    expect(parseParticipantPatch({ waitlist_position: 1.5 })).toMatchObject({ ok: false });
+    expect(parseParticipantPatch({ flite: 'A' })).toEqual({ ok: false, error: 'Unknown field: flite' });
+  });
+});

@@ -7,20 +7,21 @@ import { bodyProfileId, readJson, resolveActor } from '@/lib/sport-events/actor-
 import { applyOverride } from '@/lib/sport-events/handicap';
 import { snapshotAtAccept } from '@/lib/sport-events/handicap-server';
 import { isFull } from '@/lib/sport-events/join';
-import { applyCapacityChange, applyJoin, ORGANIZER_ACTIONS, readRoster, toSnapshot, type JoinOutcome } from '@/lib/sport-events/join-server';
+import { applyCapacityChange, applyJoin, moveWaitlist, ORGANIZER_ACTIONS, readRoster, toSnapshot, type JoinOutcome } from '@/lib/sport-events/join-server';
 import type { JoinAction } from '@/lib/sport-events/join';
 import type { SportEventParticipantRow } from '@/lib/sport-events/types';
 import { applyProfileOptOut } from '@/lib/sport-events/results-server';
 import { parseParticipantPatch } from '@/lib/sport-events/validate';
 
 const NOT_FOUND = () => NextResponse.json({ error: 'Event not found' }, { status: 404 });
-const ROW_ACTIONS: ReadonlySet<string> = new Set(['accept', 'decline', 'withdraw', 'approve', 'reject', 'remove']);
+const ROW_ACTIONS: ReadonlySet<string> = new Set(['accept', 'decline', 'withdraw', 'approve', 'reject', 'remove', 'promote']);
 
 /**
  * POST {action} — accept | decline | withdraw on YOUR OWN row (or a
  * supervised athlete's, acting-as through `profile_id`); approve | reject
- * | remove on a target row (organizers). The seat / waitlist / promotion
- * rules live in planJoin; an accept freezes the index.
+ * | remove | promote (phase 2: seat a waitlisted player now, capacity or
+ * not) on a target row (organizers). The seat / waitlist / promotion rules
+ * live in planJoin; an accept freezes the index.
  *
  * PATCH — `handicap_index` (organizers; null clears the override and
  * recomputes), `hide_from_profile` (the player), `playing` (the player or
@@ -37,7 +38,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     if (limited) return limited;
     const body = await readJson(request);
     const action = typeof body === 'object' && body !== null ? (body as Record<string, unknown>).action : null;
-    if (typeof action !== 'string' || !ROW_ACTIONS.has(action)) return NextResponse.json({ error: 'action must be one of accept, decline, withdraw, approve, reject, remove' }, { status: 400 });
+    if (typeof action !== 'string' || !ROW_ACTIONS.has(action)) return NextResponse.json({ error: 'action must be one of accept, decline, withdraw, approve, reject, remove, promote' }, { status: 400 });
     const actor = await resolveActor(user.id, bodyProfileId(body));
     if (!actor.ok) return actor.response;
 
@@ -89,7 +90,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     const canManage = read.access.canManage;
     if (read.event.status === 'cancelled') return NextResponse.json({ error: 'This event is over.' }, { status: 409 });
     // After completion only the opt-out may change (the roster and the index are frozen with the results).
-    if (read.event.status === 'completed' && (parsed.value.handicap_index !== undefined || parsed.value.playing !== undefined || parsed.value.flight !== undefined)) return NextResponse.json({ error: 'The event is over — only the profile setting can change.' }, { status: 409 });
+    if (read.event.status === 'completed' && (parsed.value.handicap_index !== undefined || parsed.value.playing !== undefined || parsed.value.flight !== undefined || parsed.value.waitlist_position !== undefined)) return NextResponse.json({ error: 'The event is over — only the profile setting can change.' }, { status: 409 });
 
     const update: Record<string, unknown> = {};
     if (parsed.value.handicap_index !== undefined) {
@@ -100,6 +101,16 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         Object.assign(update, fresh);
       } else {
         Object.assign(update, applyOverride(parsed.value.handicap_index));
+      }
+    }
+    if (parsed.value.waitlist_position !== undefined) {
+      // Phase 2: the organizer's reorder — its own writer (the packed queue), never the row update below.
+      if (!canManage) return NextResponse.json({ error: 'Only an organizer can reorder the waitlist.' }, { status: 403 });
+      if (row.status !== 'waitlisted') return NextResponse.json({ error: 'Not on the waitlist.' }, { status: 409 });
+      await moveWaitlist(admin, id, pid, parsed.value.waitlist_position);
+      if (Object.keys(parsed.value).length === 1) {
+        const { data: moved } = await admin.from('sport_event_participants').select(PARTICIPANT_COLUMNS).eq('id', pid).maybeSingle();
+        return NextResponse.json({ participant: moved, promoted: [] }, { headers: { 'Cache-Control': 'private, no-store' } });
       }
     }
     if (parsed.value.flight !== undefined) {

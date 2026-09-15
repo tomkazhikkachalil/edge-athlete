@@ -4,11 +4,15 @@
 > development session. Last aligned with project state: **September 16, 2026
 > (after the Site Builder programs 1–3, #616–#707, the Contest Place and
 > Recruiting programs #661–#669, the Data foundation and provenance rounds
-> #709–#731, and the Events program #732–#748)** — migration head 206 (RAN;
-> `npm run check:schema` OK, allowlist empty); `main` deployed and every PR
-> prod-probed (the probe waits for the deploy by itself); **no program in
-> flight — the next one is Tom's call** (phase 2 of Events, tournaments, is
-> parked in `docs/EVENTS.md`). If the "Where the project actually is"
+> #709–#731, the Events program #732–#748, and Events phase 2 —
+> tournaments — #750–#760)** — migration head 207 (`207_sport_events_
+> format_config.sql`: Tom runs it after merging #756, then `npm run
+> check:schema`; PR 8 — the cut and round names wired — merges only after
+> that); `main` deployed and every PR prod-probed (the probe waits for the
+> deploy by itself); **phase 2b of Events (contest stamping, the calendar
+> overlay + .ics + reminder bell, the per-hole version, the five-tab bar)
+> is decided and specified in the phase 2 plan file — the next program is
+> Tom's call**. If the "Where the project actually is"
 > section drifts stale, ask Claude to re-align it against DEVLOG.md and
 > session memory.
 

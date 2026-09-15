@@ -33,16 +33,22 @@ describe('the event projection', () => {
     expect(projectParticipant(r, pub, { profileId: 'x', canManage: true }).hide_from_profile).toBe(true); // organizer
     expect(projectParticipant(r, null, { profileId: 'x', canManage: false }).name).toBe('Athlete');
   });
-  it('organizers see the whole roster; a player sees the live roster plus their own row', () => {
+  it("organizers see the whole roster; a player sees the live roster plus their own row — never another's queue place (phase 2)", () => {
     const rows = [row({ profile_id: 'me', status: 'declined' }), row({ status: 'removed' }), row({ status: 'withdrawn' }), row({ status: 'invited' }), row({ status: 'waitlisted', waitlist_position: 1 }), row()];
     expect(visibleParticipants(rows, { profileId: 'x', canManage: true })).toHaveLength(6);
-    expect(visibleParticipants(rows, { profileId: 'x', canManage: false })).toHaveLength(3);
-    expect(visibleParticipants(rows, { profileId: 'me', canManage: false })).toHaveLength(4);
+    expect(visibleParticipants(rows, { profileId: 'x', canManage: false })).toHaveLength(2);
+    expect(visibleParticipants(rows, { profileId: 'me', canManage: false })).toHaveLength(3);
+    const q = row({ profile_id: 'queued', status: 'waitlisted', waitlist_position: 2 });
+    expect(visibleParticipants([...rows, q], { profileId: 'queued', canManage: false }).map(r => r.profile_id)).toContain('queued'); // your own queue place, always
   });
   it('counts and the viewer block', () => {
     const rows = [row(), row({ role: 'follower', playing: false }), row({ status: 'waitlisted', waitlist_position: 1 }), row({ playing: false }), row({ status: 'invited' })];
     expect(roundCounts(rows)).toEqual({ playing: 1, followers: 1, waitlisted: 1 });
-    expect(projectViewer('v', view, null)).toEqual({ profile_id: 'v', role: 'viewer', can_manage: false, can_delete: false, participant_id: null, participant_status: null, playing: false, hide_from_profile: false });
+    expect(projectViewer('v', view, null)).toEqual({ profile_id: 'v', role: 'viewer', can_manage: false, can_delete: false, participant_id: null, participant_status: null, playing: false, hide_from_profile: false, waitlist_ahead: null });
+    const q1 = row({ status: 'waitlisted', waitlist_position: 1 });
+    const q2 = row({ status: 'waitlisted', waitlist_position: 2 });
+    expect(projectViewer(q2.profile_id, view, q2, [row(), q1, q2]).waitlist_ahead).toBe(1); // phase 2: the queue in front
+    expect(projectViewer(q1.profile_id, view, q1, [row(), q1, q2]).waitlist_ahead).toBe(0);
     expect(projectViewer('v', manage, row({ id: 'own', hide_from_profile: true }))).toMatchObject({ participant_id: 'own', can_manage: true, hide_from_profile: true, playing: true });
   });
 });

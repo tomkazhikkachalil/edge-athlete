@@ -62,6 +62,6 @@ export async function fetchSportEventView(admin: Admin, eventId: string, viewerI
     participants,
     groups,
     counts: roundCounts(roster as SportEventParticipantRow[]),
-    viewer: projectViewer(viewerId, access, participant),
+    viewer: projectViewer(viewerId, access, participant, roster as SportEventParticipantRow[]),
   };
 }

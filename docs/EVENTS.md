@@ -1,8 +1,10 @@
 # Events and Tournaments — the reference
 
-**Status:** phase 1 in progress (Sep 16 2026). Plan:
-`~/.claude/plans/let-s-start-the-policy-lucky-widget.md` (the approved
-16-PR sequence). This file is the durable reference; it grows with each PR.
+**Status:** phase 1 complete, phase 2 (tournaments) complete (Sep 16
+2026). Plans: phase 1 `~/.claude/plans/let-s-start-the-policy-lucky-
+widget.md`; phase 2 (+ the phase 2b spec) `~/.claude/plans/let-s-start-
+phase-2-transient-fountain.md`. This file is the durable reference; it
+grows with each PR.
 
 ## The one idea
 
@@ -111,8 +113,8 @@ the GET is anonymous-reachable for a public or link event).
 | `POST /api/sport-events/[id]/link-token` | the host; `link` | rotate |
 | `POST /api/sport-events/[id]/participants` | canManage; draft / open | `{profile_ids, handles}` → invites; blocked skipped silently; the supervised invite dial; `{invited, skipped: {unknown, blocked, supervised, existing}}` |
 | `POST /api/sport-events/[id]/participants/request?token=` | may view; open + `request` | a join request → the organizers' bell |
-| `POST /api/sport-events/[id]/participants/[pid]` `{action}` | self: accept \| decline \| withdraw; canManage: approve \| reject \| remove | the plan from `planJoin`; an accept freezes the index; `{participant, promoted}` |
-| `PATCH /api/sport-events/[id]/participants/[pid]` | `handicap_index` canManage (null clears + recomputes); `hide_from_profile` self; `playing` self or canManage; `flight` canManage, not after completion (phase 2) | stepping out promotes the waitlist |
+| `POST /api/sport-events/[id]/participants/[pid]` `{action}` | self: accept \| decline \| withdraw; canManage: approve \| reject \| remove \| promote (phase 2: seat a waitlisted player now, capacity or not) | the plan from `planJoin`; an accept freezes the index; `{participant, promoted}`; the waitlist is re-packed 1..n after |
+| `PATCH /api/sport-events/[id]/participants/[pid]` | `handicap_index` canManage (null clears + recomputes); `hide_from_profile` self; `playing` self or canManage; `flight` canManage, not after completion (phase 2); `waitlist_position` canManage on a waitlisted row — the organizer's reorder, its own writer (phase 2) | stepping out promotes the waitlist |
 | `PUT /api/sport-events/[id]/flights` `{assignments: [{participant_id, flight \| null}]}` | canManage; not completed / cancelled | the whole plan in one call (phase 2): every id an accepted, playing player, none twice; a player left out keeps their flight |
 | `POST` / `DELETE /api/sport-events/[id]/follow?token=` | may view | a follower row; never a seat |
 
@@ -238,6 +240,7 @@ specs run at 390 × 844 on Chromium AND WebKit.
 | `sport-events-scorecard` `@mobile` | submit · mark final · reopen · complete with the not-final list |
 | `sport-events-group-card` `@mobile` | the group card · OFFLINE queue and reconnect · a partner's hole |
 | `sport-events-feed` | the announce card and the chip, announced → live · (phase 2) a two-round tournament: the round-2 card reads "Round 2 of 2" and is not live while round 1 is, the chip names the round, the list's `rounds` summary |
+| `sport-events-waitlist` `@mobile` (phase 2) | capacity 1: B waitlisted #1 → "you're next" in the header and on the roster · B cannot reorder · a bad place refused by name · Promote now from the Players tab → the field one over the capacity · a promoted row can no longer be moved |
 | `sport-events-breakdown` `@mobile` (phase 2) | the API shapes (`?round=all` with the aggregate, `?participant=` narrows, a bad round param) · a board row opens the window · All rounds = two strips + summed tiles · This round from a round's board · the hardest holes name hole 2 |
 | `sport-events-flights` `@mobile` (phase 2) | the Flights window from the Players tab · the chip on the roster · the segment and `?flight=` rank within the flight · a player's own PATCH refused · an unknown field and a stranger in the plan refused by name · the API's `?flight=` |
 | `sport-events-tournament-page` `@mobile` (phase 2) | the `?round=overall` deep link and the switcher · the header's round line · Start round 1 from the schedule card · groups per round while round 1 is live · the scorecard follows the live round · Complete round 1 from the header (the event stays live, "Start round 2") · add a round from the window |
@@ -422,15 +425,46 @@ adds "Round 2 of 3 live" / "Final · 3 rounds" / "n rounds"; the
 Leaderboards place links a tournament to `?tab=leaderboard&round=overall`
 (`leaderboardHref`).
 
+### The waitlist (PR 12)
+
+Positions are RE-PACKED 1..n after every change (`join.ts repackWaitlist`;
+the one writer is `join-server.ts writeWaitlistOrder` — phase 1 appended
+max + 1 and never re-packed, so a queue read #1, #4, #7); an organizer may
+PROMOTE a waitlisted player now (`planJoin('promote')` — the field goes
+one over the capacity by their choice; later accepts still waitlist) and
+REORDER (`moveWaitlistTo`, the PATCH's `waitlist_position`); a waitlisted
+player sees how many are ahead (`view.ts projectViewer` →
+`viewer.waitlist_ahead`; the header reads "Waitlisted #3 · 2 ahead", the
+roster row "You're next"); a queue place is between the player and the
+organizer — `visibleParticipants` hides OTHER people's waitlisted rows from
+a non-organizer, the count still rides on `counts.waitlisted`.
+
+## Phase 2 status
+
+Complete (Sep 16 2026): #750 and the stack #751 → #760 (12 PRs; migration
+207 the only DDL — PR 8, the cut and round names wired, is the last, after
+207 ran). Every PR verify-green and e2e-green locally (mobile specs on
+Chromium and WebKit); each prod-probed after its merge. Phase 2b (contest
+stamping, the calendar overlay + .ics + reminder bell, the per-hole
+version, the five-tab bar) is DECIDED and specified in the phase 2 plan
+file; phase 3 (match play, brackets) starts from the parked list.
+
 ## Phase 1 status
 
 Complete (Sep 16 2026): #732–#748, migrations 201–206. Phase 2
 (tournaments: N rounds, flights, breakdowns) and phase 3 (match play,
 brackets) start from the parked list below.
 
-## Not in phase 1 (named, parked)
+## Not in phase 1 (named, parked) — where each went
 
-N rounds in the UI, per-round / overall leaderboard tabs, flights (the column
-exists), breakdown views, `contest_id` stamping for org-hosted events, the
-calendar publication, a per-hole `client_seq` version column, the bottom
-tab bar, match play and brackets.
+N rounds in the UI, per-round / overall leaderboard tabs, flights, breakdown
+views → phase 2 (above). `contest_id` stamping for org-hosted events, the
+calendar publication (+ the .ics download and the reminder bell), the
+per-hole version column (the `client_seq` name dropped: the outbox is a
+set of desired states, nothing to sequence), the five-tab bottom bar →
+phase 2b (decided, in the phase 2 plan file). Match play and brackets →
+phase 3. Also parked from phase 2: Stableford (the `format` CHECK, a
+reverse sort through both computations, `mint.ts game_format`, a mirror
+decision), a round reorder (the 201 UNIQUE is not deferrable), the
+waitlist UNIQUE via an RPC re-pack, the `FOR UPDATE` accept race, the
+flight bands editor (the rule exists).

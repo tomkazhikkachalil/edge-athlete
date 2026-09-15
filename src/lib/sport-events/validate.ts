@@ -285,13 +285,20 @@ export interface ParticipantPatchInput {
   playing?: boolean;
   /** The organizer's flight for the player (phase 2); null clears. */
   flight?: string | null;
+  /** The organizer moves a waitlisted player to this 1-based place in the queue (phase 2). */
+  waitlist_position?: number;
 }
 
 /** The participant PATCH: an organizer's index override or flight, or the player's own toggles. */
 export function parseParticipantPatch(body: unknown): Parsed<ParticipantPatchInput> {
   if (!isRecord(body)) return { ok: false, error: 'A JSON body is required' };
   const out: ParticipantPatchInput = {};
-  for (const key of Object.keys(body)) if (!['handicap_index', 'hide_from_profile', 'playing', 'flight'].includes(key)) return { ok: false, error: `Unknown field: ${key}` };
+  for (const key of Object.keys(body)) if (!['handicap_index', 'hide_from_profile', 'playing', 'flight', 'waitlist_position'].includes(key)) return { ok: false, error: `Unknown field: ${key}` };
+  if ('waitlist_position' in body) {
+    const v = body.waitlist_position;
+    if (typeof v !== 'number' || !Number.isInteger(v) || v < 1 || v > 500) return { ok: false, error: 'waitlist_position must be a whole number from 1 to 500' };
+    out.waitlist_position = v;
+  }
   if ('flight' in body) {
     const f = normalizeFlight(body.flight);
     if (!f.ok) return f;

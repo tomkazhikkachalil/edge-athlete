@@ -1,5 +1,42 @@
 # Development Log
 
+## September 16, 2026 — Events program, phase 2, PR 12: the waitlist polish · the docs close (zero DDL)
+
+The waitlist, finished:
+
+- `join.ts` — `planJoin('promote')` (organizers seat a waitlisted player
+  now; the field goes one over the capacity by their choice — later
+  accepts still waitlist), `repackWaitlist` (1..n in position then
+  arrival order; phase 1 appended max + 1 and never re-packed, so a
+  queue read #1, #4, #7), `moveWaitlistTo` (a 1-based place, clamped),
+  `aheadOf`. `join-server.ts writeWaitlistOrder` is the ONE writer of
+  positions after the seat-or-waitlist append; `repackAfter` runs after
+  every join action that could open a gap and after a capacity change;
+  `moveWaitlist` serves the PATCH's `waitlist_position` (organizers, a
+  waitlisted row only — a bad place is refused by name).
+- `view.ts` — `projectViewer` carries `waitlist_ahead` (the server
+  counts the queue in front; a non-organizer cannot); `visibleParticipants`
+  hides OTHER people's waitlisted rows from a non-organizer (a queue place
+  is between the player and the organizer; `counts.waitlisted` still
+  carries the number). `join-state.ts` carries `ahead`.
+- UI: the header reads "Waitlisted #3 · 2 ahead" / "· you're next"; the
+  Players tab's waitlist section shows the organizer Promote now and ↑ / ↓
+  per row, the waitlisted player their own row with "You're next" / "n
+  ahead of you", everyone else only the count.
+- The docs close: CLAUDE.md convention 18 (the tournament rules —
+  rounds one at a time, the event follows its rounds, the overall fold,
+  flights per event, the cut, the waitlist rule, the 42703 window),
+  `docs/EVENTS.md` (the waitlist section, the phase 2 status, the parked
+  list rewritten with where each item went), `docs/SESSION_PROMPT.md`
+  re-aligned (migration head 207, PR 8 last, phase 2b decided).
+
+Verification: `npm run verify` green; `join.test.ts` (promote, re-pack,
+move, ahead), `validate.test.ts`, `page-rules.test.ts`, `view.test.ts`
+(the visibility rule, `waitlist_ahead`); `e2e/sport-events-waitlist.spec.ts
+@mobile` (Chromium + WebKit) + the phase-1 `sport-events-api` and
+`sport-events-page`. After this: PR 8 (the cut and round names wired)
+once Tom has run 207; phase 2 then closes.
+
 ## September 16, 2026 — Events program, phase 2, PR 11: the feed's round-aware cards and the lists (zero DDL)
 
 A round-2 announce post used to read "Live" because the EVENT was live:
