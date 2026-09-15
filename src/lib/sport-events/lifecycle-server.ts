@@ -32,7 +32,7 @@ import { EVENT_COLUMNS, PARTICIPANT_COLUMNS } from './access-server';
 import { canTransition, eventStatusAfterRound, nextStartableRound, ROUND_REFUSAL_COPY, transitionStamp, TRANSITION_REFUSAL_COPY, validateRoundTransition, validateTransition, type RoundTransitionFacts, type RoundTransitionRefusal, type TransitionFacts, type TransitionRefusal } from './lifecycle';
 import { announcePostRow, groupPostRow, participantRows, scorecardRow } from './mint';
 import { activeRounds, buildMintPlan, type MintGroup, type MintPlayer } from './rounds';
-import { notifyResults } from './notify';
+import { notifyMatchClosed, notifyResults } from './notify';
 import { syncContestStatus, syncSportEventContest } from './contest-sync-server';
 import { ROUND_COLUMNS } from './rounds-server';
 import { cutDecided } from './cut';
@@ -316,8 +316,10 @@ export async function applyRoundTransition(admin: Admin, req: RoundTransitionReq
       // still be written. Idempotent (an upsert on the participant). Phase 3:
       // a match round writes its matches' outcomes instead — a match event
       // never counts toward a competition (`not_stroke_play`).
-      if (match) await closeMatchesOnCompletion(admin, matches, now);
-      else await syncSportEventContest(admin, event, round, req.actorProfileId);
+      if (match) {
+        await closeMatchesOnCompletion(admin, matches, now);
+        await notifyMatchClosed(admin, event, round.id, matches, req.actorProfileId); // 213; best-effort, 23514-tolerant
+      } else await syncSportEventContest(admin, event, round, req.actorProfileId);
     }
   }
 

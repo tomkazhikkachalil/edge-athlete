@@ -1,5 +1,32 @@
 # Development Log
 
+## September 16, 2026 — Events program, phase 3, PR 12: the match bells (migration 213)
+
+The phase's last PR. ONE new notification type, `sport_event_match`
+(213: the 210 list verbatim + the one type, 66 values; the registry entry
+in the same PR — the parity test parses the latest re-declaration), three
+copies by `metadata.kind` (the `sport_event_request_decision` precedent):
+- **`set`** when a match round's draw is saved — every member of a
+  COMPLETE match whose match CHANGED with this save (`match-bells.ts
+  matchSetRecipients`: a re-save of the same draw bells nobody; a new
+  opponent, a new partner or a first placement does) — "You play Bob in
+  the Spring Open" / "You and Al play Bob & Ben in …"; sent from the groups
+  PUT (`notifyMatchSet`, the previous draw read before the replace).
+- **`won` / `lost`** at the round's completion — each member of a decided
+  match (a bye bells nobody) — "You beat Bob 3&2 in …" / "Bob beat you ·
+  conceded in …"; sent after `closeMatchesOnCompletion`
+  (`notifyMatchClosed`).
+- Every action URL lands on the round's Matches tab (`eventPath(id,
+  'matches', roundId)`); both senders are 23514-tolerant (before 213 they
+  log "run migration 213" and stop; nothing throws).
+- e2e `sport-events-notifications.spec.ts` grows a test (self-skips before
+  212 and, by a probe insert, before 213): B's `set` bell on the draw
+  (a re-save adds none), rendered on the notifications page at 390; B
+  concedes, the round completes → B's `lost`, A's `won`.
+- The twin `verify-213-sport-event-match-bell.sql` (the `0 file` row, 66
+  types, the old ones still there); the migration ends in ONE row
+  (`213 APPLIED | 66 | 1`).
+
 ## September 16, 2026 — Events program, phase 3, PR 11: the feed and the docs close (zero DDL)
 
 - `feed.ts`: the round label carries the round's `name`, the event's

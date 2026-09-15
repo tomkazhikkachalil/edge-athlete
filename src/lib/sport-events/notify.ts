@@ -10,6 +10,8 @@
  * a waitlist promotion), results (completion — results-server.ts).
  * `sport_event_live` is registered and unsent (Live Now is the surface).
  */
+import { matchClosedLine, matchSetLine, matchSetRecipients, type DrawGroupForBells } from './match-bells';
+import type { RoundMatch } from './match-server';
 import { isMatchFormat } from './types';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { notifyGuardians } from '@/lib/guardian-notify';
@@ -17,7 +19,7 @@ import { notifyGuardians } from '@/lib/guardian-notify';
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Admin = SupabaseClient<any, 'public', any>;
 
-export type SportEventBell = 'sport_event_invite' | 'sport_event_request' | 'sport_event_request_decision' | 'sport_event_results' | 'sport_event_reminder';
+export type SportEventBell = 'sport_event_invite' | 'sport_event_request' | 'sport_event_request_decision' | 'sport_event_results' | 'sport_event_reminder' | 'sport_event_match';
 
 export interface BellCopy {
   type: SportEventBell;
@@ -26,8 +28,16 @@ export interface BellCopy {
   action_url: string;
 }
 
-export function eventPath(eventId: string, tab?: 'players' | 'leaderboard' | 'overview' | 'matches'): string {
-  return tab ? `/events/${eventId}?tab=${tab}` : `/events/${eventId}`;
+export function eventPath(eventId: string, tab?: 'players' | 'leaderboard' | 'overview' | 'matches', roundId?: string | null): string {
+  if (!tab) return `/events/${eventId}`;
+  return roundId ? `/events/${eventId}?tab=${tab}&round=${roundId}` : `/events/${eventId}?tab=${tab}`;
+}
+
+/** Phase 3 (213): the match bells' copy — one type, three kinds; `line` is match-bells.ts's. */
+export function matchBellCopy(kind: 'set' | 'won' | 'lost', ctx: { eventId: string; eventName: string; roundId: string; line: string }): BellCopy {
+  const title = `${ctx.line} in ${ctx.eventName}`;
+  const message = kind === 'set' ? 'Your match is set — see the draw.' : kind === 'won' ? 'Well played — see how the round ended.' : 'See how the round ended.';
+  return { type: 'sport_event_match', title, message, action_url: eventPath(ctx.eventId, 'matches', ctx.roundId) };
 }
 
 export function bellCopy(
@@ -149,5 +159,61 @@ export async function notifyResults(admin: Admin, event: { id: string; name: str
     }
   } catch (e) {
     console.error('[sport-events notify] results failed:', e);
+  }
+}
+
+/** Display names for a set of profiles (first + last, else the display / full name) — the bells' voice. */
+async function namesFor(admin: Admin, profileIds: string[]): Promise<Map<string, string>> {
+  const out = new Map<string, string>();
+  if (profileIds.length === 0) return out;
+  const { data } = await admin.from('profiles').select('id, first_name, last_name, full_name, display_name').in('id', profileIds);
+  for (const p of (data ?? []) as Array<{ id: string; first_name: string | null; last_name: string | null; full_name: string | null; display_name: string | null }>) {
+    out.set(p.id, [p.first_name, p.last_name].filter(Boolean).join(' ') || p.display_name || p.full_name || 'Someone');
+  }
+  return out;
+}
+
+/**
+ * Phase 3 (213): "You play Bob" — every member of a complete match whose
+ * match changed with this save of the draw (a re-save bells nobody). The
+ * sender is 23514-tolerant: before 213 ran it logs and stops.
+ */
+export async function notifyMatchSet(admin: Admin, event: { id: string; name: string }, roundId: string, previous: ReadonlyArray<DrawGroupForBells>, next: ReadonlyArray<DrawGroupForBells>, participantProfile: ReadonlyMap<string, string>, actorProfileId: string): Promise<void> {
+  try {
+    const recipients = matchSetRecipients(previous, next);
+    if (recipients.length === 0) return;
+    const names = await namesFor(admin, [...new Set([...participantProfile.values()])]);
+    const nameOf = (participantId: string) => names.get(participantProfile.get(participantId) ?? '') ?? 'Someone';
+    for (const r of recipients) {
+      const profileId = participantProfile.get(r.participant_id);
+      if (!profileId) continue;
+      const copy = matchBellCopy('set', { eventId: event.id, eventName: event.name, roundId, line: matchSetLine(r.partner.map(nameOf), r.opponents.map(nameOf)) });
+      const { error } = await insertBells(admin, [profileId], actorProfileId, copy, { sport_event_id: event.id, sport_event_round_id: roundId, kind: 'set' });
+      if (error?.code === '23514') { console.warn('[sport-events notify] sport_event_match is not in the type CHECK — run migration 213'); return; }
+    }
+  } catch (e) {
+    console.error('[sport-events notify] match set failed:', e);
+  }
+}
+
+/** Phase 3 (213): "You beat Bob 3&2" / "Bob beat you 3&2" — each member of a decided match at the round's completion; a bye bells nobody. 23514-tolerant. */
+export async function notifyMatchClosed(admin: Admin, event: { id: string; name: string }, roundId: string, matches: ReadonlyArray<RoundMatch>, actorProfileId: string): Promise<void> {
+  try {
+    for (const m of matches) {
+      const w = m.state.winnerSide;
+      if (!w || m.bye) continue;
+      for (const side of m.sides) {
+        const won = side.side === w;
+        const other = m.sides[side.side === 1 ? 1 : 0];
+        for (const member of side.members) {
+          const partner = side.members.filter(x => x.participant_id !== member.participant_id).map(x => x.name);
+          const copy = matchBellCopy(won ? 'won' : 'lost', { eventId: event.id, eventName: event.name, roundId, line: matchClosedLine(won, partner, other.members.map(x => x.name), m.state.result) });
+          const { error } = await insertBells(admin, [member.profile_id], actorProfileId, copy, { sport_event_id: event.id, sport_event_round_id: roundId, sport_event_match_id: m.id, kind: won ? 'won' : 'lost' });
+          if (error?.code === '23514') { console.warn('[sport-events notify] sport_event_match is not in the type CHECK — run migration 213'); return; }
+        }
+      }
+    }
+  } catch (e) {
+    console.error('[sport-events notify] match closed failed:', e);
   }
 }
