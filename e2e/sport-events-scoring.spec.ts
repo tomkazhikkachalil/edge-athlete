@@ -5,7 +5,7 @@ import { apiAs, loadQaUser, readErrorBody } from './helpers/qa-user';
  * Events program, PR 6 — scoring authorization on an event round. A hosts
  * and plays, B plays in A's group (a back nine from hole 10). B scores A's
  * card as a GROUP-MATE (never possible before), the hole range refuses
- * hole 3, a stale expected_updated_at is a 409, A submits and B may no
+ * hole 3, a stale expected_version is a 409 naming the hole (209), A submits and B may no
  * longer touch A's card, A finalizes B's card and B is locked out of their
  * own, reopen restores it, completion waits for every card to be final.
  */
@@ -15,7 +15,8 @@ type View = {
   participants: Array<{ id: string; profile_id: string; role: string }>;
   viewer: { participant_id: string | null };
 };
-type Scorecard = { scorecard: { participants: Array<{ participant: { id: string; profile_id: string }; scores: { status?: string; updated_at: string | null; hole_scores: Array<{ hole_number: number; strokes: number }> } }> } };
+type Scorecard = { scorecard: { participants: Array<{ participant: { id: string; profile_id: string }; scores: { status?: string; updated_at: string | null; hole_scores: Array<{ hole_number: number; strokes: number; version?: number }> } }> } };
+type Conflict409 = { error: string; conflicts: Array<{ hole_number: number; current: { version: number; strokes: number } | null }>; written: number };
 
 test('sport events API: group-mate scoring · hole range · conflict · submit · finalize · complete', async () => {
   const userA = loadQaUser('user.json');
@@ -57,14 +58,32 @@ test('sport events API: group-mate scoring · hole range · conflict · submit �
     const offCard = await apiB.post(`/api/golf/scorecards/${rowA}/scores`, { data: { scores: [{ hole_number: 3, strokes: 4 }] } });
     expect(offCard.status()).toBe(400);
     expect(await offCard.text()).toContain('holes 10–18');
-    // A stale stamp is a conflict; the current stamp is not.
+    // The per-hole compare-and-set (209): hole 10 is at version 1 after B's
+    // write; a stale expected_version is a 409 naming the hole with its
+    // current row; the right version writes and bumps it; 0 on an unscored
+    // hole inserts, 0 again conflicts; the old card-stamp guard is ignored.
     card = await readCard();
-    const stampA = card.participants.find(p => p.participant.profile_id === userA.id)!.scores.updated_at!;
-    const stale = await apiB.post(`/api/golf/scorecards/${rowA}/scores`, { data: { scores: [{ hole_number: 11, strokes: 4 }], expected_updated_at: '2020-01-01T00:00:00Z' } });
+    const hole10 = card.participants.find(p => p.participant.profile_id === userA.id)!.scores.hole_scores.find(h => h.hole_number === 10)!;
+    expect(hole10.version).toBe(1);
+    const stale = await apiB.post(`/api/golf/scorecards/${rowA}/scores`, { data: { scores: [{ hole_number: 10, strokes: 4, expected_version: 5 }] } });
     expect(stale.status()).toBe(409);
-    expect(((await stale.json()) as { current: string }).current).toBe(stampA);
-    const fresh = await apiB.post(`/api/golf/scorecards/${rowA}/scores`, { data: { scores: [{ hole_number: 11, strokes: 4 }], expected_updated_at: stampA } });
-    expect(fresh.status(), await readErrorBody(fresh)).toBe(201);
+    const staleBody = (await stale.json()) as Conflict409;
+    expect(staleBody.conflicts).toEqual([{ hole_number: 10, current: expect.objectContaining({ version: 1, strokes: 5 }) }]);
+    expect(staleBody.written).toBe(0);
+    const right = await apiB.post(`/api/golf/scorecards/${rowA}/scores`, { data: { scores: [{ hole_number: 10, strokes: 4, expected_version: 1 }] } });
+    expect(right.status(), await readErrorBody(right)).toBe(201);
+    card = await readCard();
+    expect(card.participants.find(p => p.participant.profile_id === userA.id)!.scores.hole_scores.find(h => h.hole_number === 10)).toMatchObject({ strokes: 4, version: 2 });
+    const unscored = await apiB.post(`/api/golf/scorecards/${rowA}/scores`, { data: { scores: [{ hole_number: 11, strokes: 4, expected_version: 0 }] } });
+    expect(unscored.status(), await readErrorBody(unscored)).toBe(201);
+    const twice = await apiB.post(`/api/golf/scorecards/${rowA}/scores`, { data: { scores: [{ hole_number: 11, strokes: 3, expected_version: 0 }] } });
+    expect(twice.status()).toBe(409);
+    expect(((await twice.json()) as Conflict409).conflicts[0]).toMatchObject({ hole_number: 11, current: { version: 1, strokes: 4 } });
+    const bad = await apiB.post(`/api/golf/scorecards/${rowA}/scores`, { data: { scores: [{ hole_number: 11, strokes: 3, expected_version: -1 }] } });
+    expect(bad.status()).toBe(400);
+    expect(await bad.text()).toContain('expected_version');
+    const legacy = await apiB.post(`/api/golf/scorecards/${rowA}/scores`, { data: { scores: [{ hole_number: 12, strokes: 4 }], expected_updated_at: '2020-01-01T00:00:00Z' } });
+    expect(legacy.status(), await readErrorBody(legacy)).toBe(201);
 
     // A submits; B may no longer touch A's card; A's own write reopens it; A submits again.
     const submit = await apiA.post(`/api/sport-events/${eventId}/cards/${rowA}/submit`);

@@ -1,11 +1,23 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerAuth, getSupabaseAdmin } from '@/lib/auth-server';
+import { parseExpectedVersion, type HoleConflict, type HoleWrite } from '@/lib/golf/hole-writes';
+import { writeHoleScores } from '@/lib/golf/hole-scores-server';
 import { sanitizePenalties } from '@/lib/golf/penalties';
 import { advanceRoundStatus } from '@/lib/golf/round-status';
 import { mirrorCompletedRound, mirrorRoundMedia } from '@/lib/golf/round-mirror';
-import { detectConflict, holeNumberInRange } from '@/lib/sport-events/scoring-authz';
+import { holeNumberInRange } from '@/lib/sport-events/scoring-authz';
 import { reopenIfNeeded, resolveScoringRight } from '@/lib/sport-events/scoring-authz-server';
 
+/**
+ * POST /api/golf/participant-scores — the bulk creator-entered path. Body
+ * `{ group_post_id, participant_scores: [{ participant_id (a PROFILE id),
+ * hole_scores: [{ hole_number, strokes, …, penalties?, expected_version? }] }] }`.
+ * Conflicts (phase 2b, mig 209): a hole with `expected_version` is a
+ * per-hole compare-and-set; any conflict in the batch answers 409
+ * `{ error, conflicts: [{ participant_id, hole_number, current }], results,
+ * failures }` — the other entries' writes stand. `expected_updated_at` is
+ * accepted and ignored for one release. Penalties ride only when named.
+ */
 export async function POST(request: NextRequest) {
   try {
     // Authenticate user
@@ -70,6 +82,7 @@ export async function POST(request: NextRequest) {
     const admin = getSupabaseAdmin();
     const results = [];
     const failures: Array<{ participant_id: string; error: string }> = [];
+    const conflicts: Array<HoleConflict & { participant_id: string }> = [];
     for (const participantScore of participant_scores) {
       const { participant_id, hole_scores } = participantScore;
 
@@ -97,10 +110,6 @@ export async function POST(request: NextRequest) {
         continue;
       }
       const db = ctx.right.client === 'admin' ? admin : supabase;
-      if (detectConflict(typeof participantScore.expected_updated_at === 'string' ? participantScore.expected_updated_at : null, ctx.card.updated_at)) {
-        failures.push({ participant_id, error: `These scores changed since you last loaded them (current: ${ctx.card.updated_at}).` });
-        continue;
-      }
 
       // Filter out holes without strokes; a hole outside the round's range
       // fails the entry by name.
@@ -158,49 +167,48 @@ export async function POST(request: NextRequest) {
         }
       }
 
-      // Insert hole scores
-      const holeScoreRecords = validHoleScores.map((hole: {
-        hole_number: number;
-        strokes: number;
-        putts?: number;
-        fairway_hit?: boolean;
-        green_in_regulation?: boolean;
-        penalties?: string[] | null;
-        par?: number;
-        yardage?: number;
-      }) => ({
-        // NOTE: golf_hole_scores has no par/distance_yards columns (verified
-        // against the live schema) — including them made every insert fail
-        // with 42703 and silently discarded all creator-entered scores.
-        golf_participant_id: golfParticipantId,
-        hole_number: hole.hole_number,
-        strokes: hole.strokes,
-        putts: hole.putts ?? null,
-        fairway_hit: hole.fairway_hit ?? null,
-        green_in_regulation: hole.green_in_regulation ?? null,
-        // ?? not ||: false is a TRACKED miss and 0 putts is a real value —
-        // || collapsed both into null ("untracked"), losing the distinction
-        // the round-detail stats now render.
-        // LENIENT on this bulk path: unknown types are dropped, not fatal —
-        // one bad entry must not discard a whole creator-entered scorecard.
-        penalties: sanitizePenalties(hole.penalties)
-      }));
+      // The hole writes. NOTE: golf_hole_scores has no par/distance_yards
+      // columns (verified against the live schema) — including them made
+      // every insert fail with 42703 and silently discarded all
+      // creator-entered scores. `?? null` not `||`: false is a TRACKED miss
+      // and 0 putts is a real value. Penalties are LENIENT on this bulk
+      // path (unknown types dropped, not fatal) and ride only when the
+      // hole names them (209). A bad expected_version fails THIS entry.
+      let badVersion: string | null = null;
+      const holeWrites: HoleWrite[] = [];
+      for (const hole of validHoleScores as Array<{ hole_number: number; strokes: number; putts?: number; fairway_hit?: boolean; green_in_regulation?: boolean; penalties?: unknown; expected_version?: unknown }>) {
+        const expected = parseExpectedVersion(hole.expected_version);
+        if (expected === null) {
+          badVersion = `Invalid expected_version on hole ${hole.hole_number}`;
+          break;
+        }
+        const w: HoleWrite = { hole_number: hole.hole_number, strokes: hole.strokes, putts: hole.putts ?? null, fairway_hit: hole.fairway_hit ?? null, green_in_regulation: hole.green_in_regulation ?? null };
+        if (Object.prototype.hasOwnProperty.call(hole, 'penalties')) w.penalties = sanitizePenalties(hole.penalties);
+        if (expected !== undefined) w.expected_version = expected;
+        holeWrites.push(w);
+      }
+      if (badVersion) {
+        failures.push({ participant_id, error: badVersion });
+        continue;
+      }
 
-      // UPSERT (was insert): a retry or a re-submit of the same scorecard
-      // updates in place instead of failing the UNIQUE and vanishing.
-      const { error: holeScoresError } = await db
-        .from('golf_hole_scores')
-        .upsert(holeScoreRecords, { onConflict: 'golf_participant_id,hole_number' });
+      if (!golfParticipantId) {
+        failures.push({ participant_id, error: 'Could not create score record' });
+        continue;
+      }
 
-      if (!holeScoresError) {
+      // Unchecked writes UPSERT (a retry or a re-submit of the same scorecard
+      // updates in place); checked writes are the per-hole compare-and-set.
+      const outcome = await writeHoleScores(db, golfParticipantId, holeWrites);
+      for (const c of outcome.conflicts) conflicts.push({ participant_id, ...c });
+      if (outcome.error) {
+        failures.push({ participant_id, error: outcome.error });
+      } else if (outcome.written > 0 || outcome.conflicts.length === 0) {
         results.push({
           participant_id,
           score_record_id: golfParticipantId,
-          holes_entered: holeScoreRecords.length
+          holes_entered: outcome.written
         });
-      } else {
-        console.error('[PARTICIPANT SCORES] hole insert failed:', holeScoresError);
-        failures.push({ participant_id, error: 'Failed to save hole scores' });
       }
     }
 
@@ -221,6 +229,15 @@ export async function POST(request: NextRequest) {
       // Keep the golf_rounds mirror in sync (no-op unless completed)
       await mirrorCompletedRound(getSupabaseAdmin(), group_post_id);
       await mirrorRoundMedia(getSupabaseAdmin(), group_post_id);
+    }
+
+    if (conflicts.length > 0) {
+      return NextResponse.json({
+        error: 'Someone else scored a hole since you last saw it.',
+        conflicts,
+        results,
+        failures,
+      }, { status: 409 });
     }
 
     return NextResponse.json({

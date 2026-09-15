@@ -134,6 +134,8 @@ describe('tab buckets (behavior frozen from the pre-registry literal arrays)', (
       // Events program (mig 205): the sport_event_* family.
       'sport_event_invite',
       'sport_event_live',
+      // Phase 2b (mig 210): the day-before reminder.
+      'sport_event_reminder',
       'sport_event_request',
       'sport_event_request_decision',
       'sport_event_results',

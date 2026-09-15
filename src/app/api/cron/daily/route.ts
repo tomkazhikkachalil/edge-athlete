@@ -6,6 +6,7 @@ import { extendRecurringSeries } from '@/lib/calendar/series-server';
 import { runReminderSweep } from '@/lib/calendar/reminders-server';
 import { runRoundSweep } from '@/lib/golf/round-sweep';
 import { runGolfLeagueSync, runGolfWindowReminders } from '@/lib/competitions/golf-league-server';
+import { runSportEventReminders } from '@/lib/sport-events/reminders-server';
 import { runDeletionPurge } from '@/lib/account-park';
 import { runAnalyticsPrune } from '@/lib/org-sites/analytics-server';
 import { runFormSubmissionPurge } from '@/lib/org-sites/forms-server';
@@ -106,6 +107,16 @@ export async function GET(request: NextRequest) {
   } catch (e) {
     console.error('[DAILY] golf reminders phase failed:', e);
     summary.golfReminders = { ok: false };
+  }
+
+  // Events program, phase 2b (mig 210): "tomorrow" for every accepted
+  // participant of a round scheduled tomorrow (the UTC day), once per round
+  // (deduped on the bell's metadata). 23514-tolerant before 210 ran.
+  try {
+    summary.sportEventReminders = await runSportEventReminders(admin);
+  } catch (e) {
+    console.error('[DAILY] sport event reminders phase failed:', e);
+    summary.sportEventReminders = { ok: false };
   }
 
   // 5. Soft-delete purge (Wave 1e, migration 128): hard-delete accounts

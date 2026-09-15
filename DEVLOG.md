@@ -1,5 +1,99 @@
 # Development Log
 
+## September 16, 2026 — Events program, phase 2b, PR 3: the client half of the per-hole compare-and-set (merges with PR 2)
+
+- `score-outbox.ts`: an entry carries the HOLE's `expectedVersion` (0 =
+  no score seen; null = unchecked) and `penalties` only when named;
+  storage is `v2` (the key carries it) and a `v1` box left by a phone
+  that crossed the deploy mid-round is READ and converted — its entries
+  become unchecked, a held conflict is re-queued — never dropped (those
+  holes were scored on the course). `writeOutbox` removes the v1 key.
+- `score-flush.ts payloadFor` (pure, tested) sends `expected_version` and
+  `penalties` by the same rules; a 201 yields the saved version
+  (`savedVersionFrom`), a 409 the hole's current row
+  (`conflictCurrentFrom`); the keepalive half sends the same payloads.
+- `useScoreOutbox`: a `known` map of the versions its OWN saves produced
+  substitutes for the card's older version at flush time (a second commit
+  on a hole whose first save landed but whose refetch has not must not
+  conflict with itself — someone else's write still does); a done flush
+  removes the entry only if no newer commit replaced it mid-flight;
+  **Keep mine resends AGAINST `current.version`** — a real CAS, a third
+  writer conflicts again, never a forced overwrite; Keep theirs forgets
+  our version and refetches.
+- `GroupScoreCard` commits with the hole's version the card showed and the
+  conflict dialog names both scores ("They have 6 on hole 3; you entered
+  4. Keep yours, or take theirs?" — `conflictCopy`, exported). The solo
+  modal, the composer and the live page's solo mode stay unchecked (one
+  writer), said in the modal's flush.
+- e2e NEW `sport-events-scoring-conflict.spec.ts @mobile` (needs 209): B
+  offline scores 2, 3, 4; A posts B's hole 3 = 6; back online 2 and 4 land
+  and 3 asks; Keep mine → 4 at version 2; A posts 7; B's re-score against
+  the card's 2 conflicts; Keep theirs → 7 at version 3.
+
+## September 16, 2026 — Events program, phase 2b, PR 2: the server compare-and-set (reads 209 — merges after it ran)
+
+`npm run check:schema` OK is the gate: this PR selects `version`.
+
+- `src/lib/golf/hole-scores-server.ts writeHoleScores(db, golfParticipantId,
+  scores)` — the ONE writer of `golf_hole_scores` for both routes: reads
+  the live rows once when any write is checked, `planHoleWrites`, then
+  unchecked writes UPSERT (one batch per key shape — PostgREST refuses
+  mixed keys, and a row omits `penalties` on purpose), `expected 0`
+  INSERTs (23505 → conflict), `expected n` UPDATEs `WHERE version = n`
+  (0 rows → conflict); a conflict carries the hole's CURRENT row re-read
+  after the attempt. Returns `{written, conflicts, error}`.
+- Route A (`api/golf/scorecards/[id]/scores`): `scores[].expected_version?`
+  (a bad one → 400 by hole); any conflict → **409 `{error, conflicts:
+  [{hole_number, current}], written}`**; `expected_updated_at` accepted
+  and ignored for one release; `penalties` only when the score names it
+  (the outbox never did — every queued save nulled them); the hole
+  selects carry `version`. Route B (`api/golf/participant-scores`):
+  `hole_scores[].expected_version?` and a REAL 409 `{error, conflicts:
+  [{participant_id, hole_number, current}], results, failures}` — the
+  other entries' writes stand (a conflict was a string in `failures[]`
+  with HTTP 200 before).
+- `GROUP_SCORECARD_SELECT` hole rows carry `version`; `GolfHoleScore.
+  version?`; `GolfParticipantScores` gains the 204 fields the type lacked
+  (`status`, `submitted_at`, `finalized_by`, optional).
+- `scoring-authz.ts` drops `detectConflict` (the card-stamp guard the 039
+  totals trigger defeated); `resolveScoringRight` no longer selects the
+  card's `updated_at`.
+- e2e `sport-events-scoring.spec.ts`: hole 10 at version 1 → a stale
+  `expected_version` 409s naming hole 10 with `{version: 1, strokes: 5}`,
+  version 1 writes and bumps to 2, `0` on an unscored hole inserts and `0`
+  again conflicts, `-1` → 400, the legacy `expected_updated_at` alone →
+  201. The catalog test's 209 tolerance stays until the catalog is
+  re-saved after 209 ran (PR 3 or the close).
+
+## September 16, 2026 — Events program, phase 2b, PR 7: the day-before reminder bell (B2, mig 210)
+
+Tom: "add the reminder bell too". Both Vercel cron slots are taken, so it
+is a STEP in `/api/cron/daily` (after the golf window reminders), not a
+cron.
+
+- **210** re-declares `notifications_type_check` (the 205 shape, the 61
+  values verbatim + `sport_event_reminder` = 62; ONE result row `210
+  APPLIED | 62 | 1`; twin `verify-210-sport-event-reminder.sql`). The
+  registry gains the entry (the parity test).
+- `src/lib/sport-events/reminders.ts` (pure, tested): `reminderCopy`
+  ("Tomorrow: {name} · Round n of N" / "{day} · {round name} · {course}" →
+  the schedule) and `planRoundReminders` (accepted players AND followers,
+  minus the already-belled, deduped — invited / waitlisted / declined get
+  nothing). `reminders-server.ts sendRoundReminders(admin, tomorrowKey)`:
+  rounds `scheduled` on that DATE on events `open | live` (cap 100) → the
+  accepted participants → minus those belled for THIS round
+  (query-before-insert on `.contains('metadata', {sport_event_round_id})`,
+  the golf_league_window_closing precedent) → one insert per round.
+  **23514-tolerant**: before 210 ran the CHECK refuses the type — the
+  sender logs "run migration 210", reports `skipped: 'pre-210'` and the
+  cron's day is otherwise untouched. `runSportEventReminders` = tomorrow,
+  the UTC day (the cron runs 14:00 UTC; the 057 convention).
+- `notify.ts insertBells` is exported and returns the insert error (so a
+  CHECK miss is readable); the jsonb column is `metadata`, never `data`.
+- e2e NEW `sport-events-reminder.spec.ts`: an inserted reminder bell
+  renders with its copy; self-skips before 210 (the golf-league-sync
+  recipe).
+
 ## September 16, 2026 — Events program, phase 2b, PR 6: "Add to calendar" — the event as an .ics (B2, zero DDL)
 
 - `src/lib/sport-events/ics.ts` (pure, tested): `sportEventIcs(event,

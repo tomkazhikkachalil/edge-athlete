@@ -195,6 +195,10 @@ export interface GolfParticipantScores {
   total_score: number | null;
   to_par: number | null;
   holes_completed: number;
+  /** 204 — in_progress | submitted | final; present on the group scorecard payload. */
+  status?: 'in_progress' | 'submitted' | 'final';
+  submitted_at?: string | null;
+  finalized_by?: string | null;
   created_at: string;
   updated_at: string;
 
@@ -213,6 +217,8 @@ export interface GolfHoleScore {
   green_in_regulation: boolean | null;
   /** One element per occurrence — vocabulary in src/lib/golf/penalties.ts (migration 078). */
   penalties?: string[] | null;
+  /** 209 — the per-hole compare-and-set; a client sends it back as expected_version. Absent on pre-209 payloads. */
+  version?: number;
   created_at: string;
   updated_at: string;
 }

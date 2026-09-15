@@ -17,7 +17,7 @@ type Admin = SupabaseClient<any, 'public', any>;
 export interface ScoringContext {
   participant: { id: string; profile_id: string; status: string; group_post_id: string };
   groupPost: { id: string; creator_id: string; sport_event_round_id: string | null };
-  card: { id: string | null; status: CardStatus; updated_at: string | null };
+  card: { id: string | null; status: CardStatus };
   event: { id: string; round_id: string; viewer_role: SportEventRole | 'viewer' | null; same_group: boolean } | null;
   range: { startingHole: number; holesPlayed: number };
   right: ScoringRight;
@@ -41,8 +41,8 @@ export async function resolveScoringRight(admin: Admin, viewerId: string, partic
   const gp = gpRaw as { id: string; creator_id: string; sport_event_round_id: string | null; golf_data: { hole_data: Array<{ hole: number }> | null; holes_played: number | null } | Array<{ hole_data: Array<{ hole: number }> | null; holes_played: number | null }> | null };
   const golfData = Array.isArray(gp.golf_data) ? gp.golf_data[0] : gp.golf_data;
 
-  const { data: cardRow } = await admin.from('golf_participant_scores').select('id, status, updated_at').eq('participant_id', p.id).maybeSingle();
-  const card = { id: (cardRow?.id as string | undefined) ?? null, status: ((cardRow?.status as CardStatus | undefined) ?? 'in_progress'), updated_at: (cardRow?.updated_at as string | undefined) ?? null };
+  const { data: cardRow } = await admin.from('golf_participant_scores').select('id, status').eq('participant_id', p.id).maybeSingle();
+  const card = { id: (cardRow?.id as string | undefined) ?? null, status: ((cardRow?.status as CardStatus | undefined) ?? 'in_progress') };
 
   let event: ScoringContext['event'] = null;
   let eventRound: { starting_hole: number; holes: number } | null = null;

@@ -21,11 +21,12 @@
  * session client stays for self / creator writes so RLS remains the second
  * lock where it can be.
  *
- * Conflicts: the server's (participant, hole) upsert is last-writer-wins.
- * A client that replays an offline outbox sends the `updated_at` it last saw
- * for the hole; a newer server value means someone else scored it
- * meanwhile → 409, and the client asks (keep mine / keep theirs). No version
- * column yet (phase 2's client_seq).
+ * Conflicts live PER HOLE since phase 2b (mig 209 `golf_hole_scores.
+ * version`): `src/lib/golf/hole-writes.ts` is the pure verdict and
+ * `hole-scores-server.ts` the compare-and-set. The card-stamp guard that
+ * lived here (`detectConflict` on the card's updated_at — bumped by the
+ * 039 totals trigger on every hole write by anyone, so group-mates
+ * false-conflicted) is gone.
  */
 import type { SportEventRole } from './types';
 
@@ -70,19 +71,6 @@ export function scoringRight(i: ScoringRightInput): ScoringRight {
   if (isOrganizer) return { allowed: true, via: 'organizer', client: 'admin', reopens: false };
   if (i.sameGroup) return { allowed: true, via: 'groupmate', client: 'admin', reopens: false };
   return { allowed: false, status: 403, error: 'Only the player, a partner in their group, or an organizer can enter these scores.' };
-}
-
-/**
- * A client that last saw `expected` (ISO) for the hole conflicts when the
- * server now holds something newer. Absent `expected` = an old client or a
- * first write: never a conflict.
- */
-export function detectConflict(expected: string | null | undefined, current: string | null | undefined): boolean {
-  if (!expected || !current) return false;
-  const e = Date.parse(expected);
-  const c = Date.parse(current);
-  if (!Number.isFinite(e) || !Number.isFinite(c)) return false;
-  return c > e;
 }
 
 /** Holes of a card run from the starting hole for `holesPlayed` holes (a back nine is 10..18). */
