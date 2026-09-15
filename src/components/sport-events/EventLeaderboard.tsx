@@ -8,8 +8,11 @@ import { formatThru, formatToPar } from '@/lib/sport-events/leaderboard';
 import type { OverallLeaderboard, RoundLeaderboard } from '@/lib/sport-events/leaderboard-server';
 import { offersOverall, type RoundSelection } from '@/lib/sport-events/tabs';
 import type { SportEventViewPayload } from '@/lib/sport-events/view';
+import type { EventBreakdown } from '@/lib/sport-events/breakdown-server';
+import BreakdownWindow from './BreakdownWindow';
 import FlightSegment from './FlightSegment';
-import OverallBoard from './OverallBoard';
+import HardestHolesPanel from './HardestHolesPanel';
+import OverallBoard, { type BoardPick } from './OverallBoard';
 import RoundSwitcher from './RoundSwitcher';
 
 interface Props {
@@ -27,7 +30,9 @@ interface Props {
  * Gross switch on a net event. Phase 2: the round switcher on a tournament
  * ("Overall" first — the OverallBoard — then each round's own board) and
  * the flight filter (`?flight=`, ranks within the flight) when the field
- * has flights.
+ * has flights; every row is a button to the player's breakdown
+ * (BreakdownWindow) and the hardest holes sit under the board — both from
+ * ONE breakdown fetch per view (its own route, never the polled board).
  */
 export default function EventLeaderboard({ view, api, version, selected, onSelect }: Props) {
   const params = useSearchParams();
@@ -38,7 +43,21 @@ export default function EventLeaderboard({ view, api, version, selected, onSelec
   const [state, setState] = useState<'loading' | 'ready' | 'error'>('loading');
   const [mode, setMode] = useState<'net' | 'gross'>(view.event.format === 'stroke_net' ? 'net' : 'gross');
   const [flight, setFlight] = useState<string | null>(() => { const f = params.get('flight'); return f && f.trim() ? f.trim() : null; });
+  const [breakdown, setBreakdown] = useState<EventBreakdown | null>(null);
+  const [pick, setPick] = useState<BoardPick | null>(null);
   const roundId = round?.id ?? null;
+  const anyMinted = view.rounds.some(r => r.group_post_id !== null);
+
+  // The breakdowns: one fetch per view (every round), refreshed with the board's version.
+  useEffect(() => {
+    if (!anyMinted) return;
+    let cancelled = false;
+    (async () => {
+      const res = await api.breakdown('all');
+      if (!cancelled && res.ok && res.data) setBreakdown(res.data);
+    })();
+    return () => { cancelled = true; };
+  }, [api, anyMinted, version]);
 
   useEffect(() => {
     if (!overall && !roundId) return;
@@ -65,6 +84,9 @@ export default function EventLeaderboard({ view, api, version, selected, onSelec
     window.history.replaceState(window.history.state, '', url.toString());
   };
   const flights = overall ? overallBoard?.board.flights ?? [] : board?.flights ?? [];
+  const hardest = overall ? breakdown?.overall?.hardest ?? breakdown?.rounds[0]?.hardest ?? [] : breakdown?.rounds.find(r => r.round.id === roundId)?.hardest ?? [];
+  const pickRow = (r: { participantId: string; profileId: string; name: string; rankLabel: string }) => setPick({ participantId: r.participantId, profileId: r.profileId, name: r.name, rankLabel: r.rankLabel });
+  const pickWindow = pick ? <BreakdownWindow player={pick} data={breakdown} roundId={overall ? null : roundId} onClose={() => setPick(null)} /> : null;
   const segment = <FlightSegment flights={flights} selected={flight} onChange={changeFlight} />;
   const switcher = <RoundSwitcher rounds={view.rounds} selected={selected} onChange={onSelect} includeOverall={offersOverall('leaderboard', view.rounds)} label="Leaderboard round" />;
   const toggle = view.event.format === 'stroke_net' && (
@@ -95,7 +117,9 @@ export default function EventLeaderboard({ view, api, version, selected, onSelec
             {view.event.status === 'live' ? 'No scores yet — the board fills in as players enter holes.' : view.event.status === 'completed' ? 'No scores were recorded.' : 'The board fills in once the event is live.'}
           </p>
         )}
-        <OverallBoard data={overallBoard} net={net} />
+        <OverallBoard data={overallBoard} net={net} onPick={pickRow} />
+        <HardestHolesPanel hardest={hardest} />
+        {pickWindow}
       </div>
     );
   }
@@ -129,10 +153,20 @@ export default function EventLeaderboard({ view, api, version, selected, onSelec
           </thead>
           <tbody>
             {rows.map(r => (
-              <tr key={r.participantId} className="border-b border-border-subtle" data-leaderboard-row={r.profileId}>
+              <tr
+                key={r.participantId}
+                className="border-b border-border-subtle cursor-pointer hover:bg-surface-muted focus-visible:bg-surface-muted"
+                data-leaderboard-row={r.profileId}
+                role="button"
+                tabIndex={0}
+                aria-haspopup="dialog"
+                aria-label={`${r.name}, ${r.rankLabel} — breakdown`}
+                onClick={() => pickRow(r)}
+                onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); pickRow(r); } }}
+              >
                 <td className="sticky left-0 bg-surface pl-4 sm:pl-2 pr-2 py-2 font-bold text-primary">{r.rankLabel}</td>
                 <td className="px-2 py-2 text-primary whitespace-nowrap">
-                  {r.handle ? <Link href={`/u/${r.handle}`} className="hover:text-brand-fg">{r.name}</Link> : r.name}
+                  {r.handle ? <Link href={`/u/${r.handle}`} className="hover:text-brand-fg" onClick={e => e.stopPropagation()}>{r.name}</Link> : r.name}
                   {r.flight && <span className="ml-1.5 px-1.5 py-0.5 rounded-md border border-border text-[10px] text-secondary">{r.flight}</span>}
                   {r.cardStatus === 'final' && <span className="ml-1 text-[10px] uppercase tracking-wide text-emerald-700 dark:text-emerald-300">final</span>}
                 </td>
@@ -146,6 +180,8 @@ export default function EventLeaderboard({ view, api, version, selected, onSelec
           </tbody>
         </table>
       </div>
+      <HardestHolesPanel hardest={hardest} />
+      {pickWindow}
     </div>
   );
 }

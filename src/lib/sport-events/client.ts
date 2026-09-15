@@ -57,6 +57,13 @@ export function eventApi(eventId: string, token: string | null) {
     submitCard: (pid: string) => call<{ card: { status: string } }>(`${base}/cards/${pid}/submit`, { method: 'POST', body: '{}' }),
     finalizeCard: (pid: string, reopen = false) => call<{ card: { status: string } }>(`${base}/cards/${pid}/finalize`, { method: 'POST', body: JSON.stringify({ reopen }) }),
     leaderboard: (roundId: string, flight?: string | null) => call<import('./leaderboard-server').RoundLeaderboard>(`${base}/rounds/${roundId}/leaderboard${qs(token, flight)}`),
+    breakdown: (round: 'all' | string = 'all', participant?: string | null) => {
+      const p = new URLSearchParams();
+      if (token) p.set('token', token);
+      p.set('round', round);
+      if (participant) p.set('participant', participant);
+      return call<import('./breakdown-server').EventBreakdown>(`${base}/breakdown?${p.toString()}`);
+    },
     overall: (flight?: string | null) => call<import('./leaderboard-server').OverallLeaderboard>(`${base}/leaderboard${qs(token, flight)}`),
   };
 }

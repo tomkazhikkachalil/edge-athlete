@@ -136,6 +136,7 @@ client; `expected_updated_at` answers 409 on a newer card; holes outside
 the round's range are refused by name.
 
 | `GET /api/sport-events/[id]/rounds/[rid]/leaderboard?token=&flight=` | may view | computed on read; `private, max-age=5` signed in, `s-maxage=10` anonymous on a public event |
+| `GET /api/sport-events/[id]/breakdown?round=all\|<rid>&participant=&token=` | may view | the breakdowns (phase 2): every minted round's cards with the five hole fields, per player per round, the tournament aggregate (`overall`, present with more than one round; its `hardest` only when the rounds share a course and range) and the hardest holes; its own route, never `?detail=1` on the polled board; the board's cache rule |
 | `GET /api/sport-events/[id]/leaderboard?token=&flight=` | may view | the OVERALL board (phase 2): the minted rounds' boards folded — `{event, rounds (the headers, scheduled ones included), board: {rows, current, scoredRounds, flights, cutLine}}`; the same cache rule |
 
 The results: on completion the round is mirrored into every player's
@@ -237,6 +238,7 @@ specs run at 390 × 844 on Chromium AND WebKit.
 | `sport-events-scorecard` `@mobile` | submit · mark final · reopen · complete with the not-final list |
 | `sport-events-group-card` `@mobile` | the group card · OFFLINE queue and reconnect · a partner's hole |
 | `sport-events-feed` | the announce card and the chip, announced → live |
+| `sport-events-breakdown` `@mobile` (phase 2) | the API shapes (`?round=all` with the aggregate, `?participant=` narrows, a bad round param) · a board row opens the window · All rounds = two strips + summed tiles · This round from a round's board · the hardest holes name hole 2 |
 | `sport-events-flights` `@mobile` (phase 2) | the Flights window from the Players tab · the chip on the roster · the segment and `?flight=` rank within the flight · a player's own PATCH refused · an unknown field and a stranger in the plan refused by name · the API's `?flight=` |
 | `sport-events-tournament-page` `@mobile` (phase 2) | the `?round=overall` deep link and the switcher · the header's round line · Start round 1 from the schedule card · groups per round while round 1 is live · the scorecard follows the live round · Complete round 1 from the header (the event stays live, "Start round 2") · add a round from the window |
 | `sport-events-overall` (phase 2) | two nine-hole rounds: round 1 totals and ranks · round 2 live (today / thru, the total moves, the not-started player's standing holds) · round 2 completed with a missed round → below the full field · movement · the stranger's 404 · the flight filter |
@@ -373,6 +375,23 @@ ranking rule) or everyone at or under a to-par; the unranked miss; the
 line carries the cut score. `cutDecided` (the round after which it falls
 is completed) and `cutEditable` (no round up to it completed) are the
 gates PR 8 wires into the mint, the board and the PATCH.
+
+### Breakdowns (PR 9)
+
+`src/lib/sport-events/breakdown.ts playerBreakdown(holes, holeData,
+range)` — front / back, par 3s / 4s / 5s (6s), eagles → double-plus,
+putts, fairways (never on a par 3), greens, penalties — over the SCORED
+holes within the round's range; an off-catalog round scores against par
+4; reuses `calcPlayerTotals` / `holePar` / `classifyScore`.
+`aggregateBreakdowns` is a tournament's "All rounds"; `eventHardestHoles`
+is the average over par per hole across every card (two cards at least
+— one player's blow-up is not the hole's), hardest first. The route
+computes it on read (`breakdown-server.ts fetchBreakdown`). On the page
+every board row is a button (the bubble language) to `BreakdownWindow`
+(the house bottom sheet: a `HoleStrip` per round — OUT / IN / TOTAL in
+the house ring classes — then the tiles, a tile hidden when nothing was
+tracked; "This round / All rounds" on a tournament) and
+`HardestHolesPanel` sits under the board (three cells, "Show all").
 
 ## Phase 1 status
 

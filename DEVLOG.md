@@ -1,5 +1,39 @@
 # Development Log
 
+## September 16, 2026 — Events program, phase 2, PR 9: breakdowns — per player, per round and across rounds; the hardest holes (zero DDL)
+
+No par-3 / 4 / 5 split existed anywhere in the app; the shared-round
+world had `calcPlayerTotals` (front / back, the counts) and
+`course-stats.ts HardestHole`. Now:
+
+- `src/lib/sport-events/breakdown.ts` — `playerBreakdown` (front / back,
+  par buckets with averages, eagles → double-plus, putts per hole,
+  fairways — never on a par 3 — greens, penalties; over the SCORED holes
+  within the round's range; an off-catalog round against par 4),
+  `aggregateBreakdowns` (sums, then the averages again),
+  `eventHardestHoles` (the average over par per hole across every card,
+  two cards at least, hardest first), `formatAvgOverPar`.
+- `breakdown-server.ts fetchBreakdown` + NEW `GET
+  /api/sport-events/[id]/breakdown?round=all|<rid>&participant=` — its own
+  route (the board is polled and cached; the breakdown carries every
+  hole of every card and is fetched once per view); the tournament
+  aggregate rides along when more than one round is on the payload, its
+  hardest holes only when the rounds share a course and range.
+- UI: every board row is a button (`role="button"`, Enter / Space,
+  `aria-haspopup="dialog"`) to `BreakdownWindow` — the house bottom
+  sheet with a `HoleStrip` per round (the read-only scorecard idiom: hole
+  · par · score in the ring classes, OUT / IN / TOTAL) and the tiles (two
+  columns at phone width, four from `sm:`; a tile hides when nothing was
+  tracked); "This round / All rounds" on a tournament. `HardestHolesPanel`
+  under both boards. ONE breakdown fetch per view, refreshed with the
+  board's version — never on the poll.
+
+Verification: `npm run verify` green; `breakdown.test.ts` (the buckets,
+the tracked-only stats, the par-3 fairway rule, an off-catalog back
+nine, the aggregate, the hardest holes' threshold and order); `e2e/
+sport-events-breakdown.spec.ts @mobile` (Chromium + WebKit). Next: PR
+10, regroup by standing.
+
 ## September 16, 2026 — Events program, phase 2, PR 7: migration 207 — format_config · round name · the flight CHECK (the phase's ONE DDL)
 
 Phase 2 needed no DDL for N rounds, the round lifecycle, the overall
