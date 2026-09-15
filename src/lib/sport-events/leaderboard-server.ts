@@ -92,7 +92,7 @@ export async function fetchOverallLeaderboard(admin: Admin, event: SportEventRow
   const board = computeOverallLeaderboard(
     boards.map((b, i) => ({ roundId: minted[i].id, sequence: minted[i].sequence, status: minted[i].status, holes: minted[i].holes, rows: b.rows })),
     event.format,
-    { ...options, cut: options.cut ?? readFormatConfig(event.format_config, active.length).cut ?? null },
+    { ...options, cut: options.cut ?? readFormatConfig(event.format_config, active.length, event.format).cut ?? null },
   );
   const gpByRound = new Map<string, string | null>();
   boards.forEach((b, i) => gpByRound.set(minted[i].id, b.round.group_post_id));

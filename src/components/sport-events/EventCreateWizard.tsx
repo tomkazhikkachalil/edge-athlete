@@ -7,7 +7,8 @@ import { useDirtyClose } from '@/hooks/useDirtyClose';
 import { useAuth } from '@/lib/auth';
 import { COPY } from '@/lib/copy';
 import { SPORT_EVENT_SPORTS } from '@/lib/sport-events/types';
-import { formatDateOnly, formatLabel, holesLabel, joinLine, roundsSummary, VISIBILITY_LABEL } from '@/lib/sport-events/format';
+import { formatDateOnly, formatLabel, holesLabel, joinLine, MATCH_SIDES_LABEL, roundsSummary, VISIBILITY_LABEL } from '@/lib/sport-events/format';
+import { isMatchFormat, MATCH_SIDES } from '@/lib/sport-events/types';
 import { MAX_ROUNDS } from '@/lib/sport-events/rounds';
 import { addWizardRound, emptyWizardState, isWizardDirty, removeWizardRound, updateWizardRound, validateWizardStep, wizardToCreateBody, WIZARD_STEP_LABEL, WIZARD_STEPS, type WizardState, type WizardStep } from '@/lib/sport-events/wizard';
 import { eligibleCompetition, type CompetitionForLink } from '@/lib/sport-events/contest-link';
@@ -205,7 +206,24 @@ export default function EventCreateWizard() {
           <Choice name="Format" value={s.format} onChange={v => set('format', v)} options={[
             { value: 'stroke_gross', label: 'Stroke play · Gross', hint: 'Lowest total wins.' },
             { value: 'stroke_net', label: 'Stroke play · Net', hint: 'Each player\'s Edge Athlete index is frozen when they accept; you can set one by hand.' },
+            { value: 'match_gross', label: 'Match play · Gross', hint: 'Two sides a group; a hole won, lost or halved. You set every draw.' },
+            { value: 'match_net', label: 'Match play · Net', hint: 'Strokes given by the difference in playing handicaps, on the stroke index.' },
           ]} />
+          {isMatchFormat(s.format) && (
+            <div className="space-y-3" data-wizard-match="">
+              <Choice name="Sides" value={s.match.sides} onChange={v => set('match', { ...s.match, sides: v })} options={MATCH_SIDES.map(k => ({
+                value: k,
+                label: MATCH_SIDES_LABEL[k],
+                hint: k === 'singles' ? 'One against one.' : k === 'fourball' ? 'Two a side, the better ball counts.' : 'Two a side, one ball — the captain keeps the card.',
+              }))} />
+              <label className="flex items-center gap-3 min-h-[44px]">
+                <input type="checkbox" checked={s.match.bracket} onChange={e => set('match', { ...s.match, bracket: e.target.checked })} className="h-4 w-4" data-wizard-bracket="" />
+                <span className="text-sm text-primary">A knockout bracket — the rounds are its rounds; winners go through</span>
+              </label>
+              {s.match.bracket && s.rounds.length < 2 && <p className="text-xs text-muted">A bracket needs at least two rounds — go back and add them.</p>}
+              <p className="text-xs text-muted">A halved match goes to sudden-death extra holes. Every match round posts to each player&apos;s profile and handicap as played.</p>
+            </div>
+          )}
           <label className="block space-y-1">
             <span className="text-sm font-medium text-secondary">Field size <span className="text-muted font-normal">(optional)</span></span>
             <input type="number" inputMode="numeric" min={1} max={500} value={s.capacity} onChange={e => set('capacity', e.target.value)} className={INPUT} placeholder="No limit" />
@@ -231,7 +249,7 @@ export default function EventCreateWizard() {
                   ['Course', `${s.rounds[0].course?.name ?? ''}${s.rounds[0].tee ? ` · ${s.rounds[0].tee} tees` : ''}`],
                   ['Holes', holesLabel(s.rounds[0].holes, s.rounds[0].holes === 9 ? s.rounds[0].starting_hole : 1)],
                 ]),
-              ['Format', formatLabel(s.format)],
+              ['Format', formatLabel(s.format, isMatchFormat(s.format) ? s.match : null)],
               ['Who can see it', VISIBILITY_LABEL[s.visibility]],
               ['Joining', joinLine(s.join_mode)],
               ['Field size', s.capacity.trim() ? `${s.capacity} players` : 'No limit'],

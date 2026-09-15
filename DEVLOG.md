@@ -1,5 +1,46 @@
 # Development Log
 
+## September 16, 2026 — Events program, phase 3, PR 4: the match-play vocabulary (the first 212 reader, zero DDL)
+
+The first PR that names 212's objects — it merges only after Tom ran 212
+and `npm run check:schema` reads OK (a select naming a missing column
+404s the whole event API: the 207 lesson).
+
+- `types.ts`: `SPORT_EVENT_FORMATS` gains `match_gross | match_net`
+  (`isMatchFormat` / `isNetFormat`); `SportEventGroupMemberRow.side`.
+- `format-config.ts`: the strict parser learns `match` — `{sides,
+  bracket?, allowance?}`, every miss by name; `cut` and `match` never
+  coexist (a cut on a match format, a match on a stroke format: 400s by
+  name); the parser now takes the FORMAT (`readFormatConfig(raw,
+  roundCount, format)` at its four call sites — the PATCH passes the NEXT
+  format when both change). `readMatchConfig` fills the defaults: a match
+  format with no `match` key plays singles, no bracket, the WHS
+  allowance (100 · 90 · 50, `MATCH_ALLOWANCE_DEFAULT` — the engine
+  re-exports it). The view carries `event.match` (defaults filled; null
+  on a stroke format). `formatLabel` is exhaustive: "Match play ·
+  Four-ball · Net · Bracket".
+- The create body takes `format_config` (the same parser against THIS
+  body's format and rounds) so the wizard creates a match event in one
+  call; the PATCH stays the one UPDATE writer. A format change across
+  families with the other family's key stored is refused
+  (`format_config_stale`) — never a silent strip; while live the match
+  SHAPE is locked (`match_locked`), the allowance may still change.
+- `groups.ts`: a member is a plain id or `{participant_id, side}`; on a
+  match format a plain id's side is DERIVED from the position (singles
+  1 → 1, 2 → 2; pairs 1–2 → 1, 3–4 → 2; past that none — the start will
+  refuse `groups_incomplete`, PR 5); on a stroke format a `side` is a 400
+  by name. The PUT writes `side`; the view reads it.
+- `contest-link.ts`: `not_stroke_play` — a match-play event never counts
+  toward a competition (the create route and the contest PUT).
+- The wizard offers the four formats, the sides and the bracket (a
+  bracket needs two rounds; a match event clears the competition);
+  `EventOverview` prints the label and the allowance;
+  `FormatSettingsWindow` hosts the match shape on a match format.
+- e2e `sport-events-match-api.spec.ts` (self-skips before 212): the
+  refusals by name, the defaults-filled `match`, the allowance PATCH,
+  sides derived and sent, `format_config_stale`, a stroke event refusing
+  `side`, `not_stroke_play` on an org event.
+
 ## September 16, 2026 — Events program, phase 3, PR 3: migration 212 (match play)
 
 The phase's ONE schema migration, shipped alone so the 42703 window

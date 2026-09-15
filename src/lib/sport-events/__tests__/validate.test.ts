@@ -124,5 +124,10 @@ describe('phase 2 fields on the round and the event patch', () => {
     expect(parseRoundInput({ ...round, name: 'x'.repeat(41) })).toMatchObject({ ok: false, error: expect.stringContaining('round.name') });
     expect(parseEventPatch({ format_config: { cut: { after_round: 1, top_n: 5 } } })).toEqual({ ok: true, value: { format_config: { cut: { after_round: 1, top_n: 5 } } } });
     expect(parseEventPatch({ format_config: 'x' })).toMatchObject({ ok: false, error: 'format_config must be an object' });
+    expect(parseEventPatch({ format: 'match_net' })).toEqual({ ok: true, value: { format: 'match_net' } });
+    expect(parseEventPatch({ format: 'match_scramble' })).toMatchObject({ ok: false, error: 'format must be one of stroke_gross, stroke_net, match_gross, match_net' });
+    const created = parseCreateBody({ name: 'Cup', format: 'match_gross', format_config: { match: { sides: 'singles' } }, round: { scheduled_on: '2030-06-01', course_name: 'Links' } });
+    expect(created).toMatchObject({ ok: true, value: { format: 'match_gross', format_config: { match: { sides: 'singles' } } } });
+    expect(parseCreateBody({ name: 'Cup', format_config: [], round: { scheduled_on: '2030-06-01', course_name: 'Links' } })).toMatchObject({ ok: false, error: 'format_config must be an object' });
   });
 });

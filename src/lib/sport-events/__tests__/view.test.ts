@@ -21,6 +21,11 @@ describe('the event projection', () => {
     expect(projectEvent(event, view).link_token).toBeNull();
     expect(JSON.stringify(projectEvent(event, manage))).not.toContain('guardian-user');
   });
+  it('phase 3: `match` is null on a stroke format and the defaults-filled options on a match format', () => {
+    expect(projectEvent(event, view).match).toBeNull();
+    expect(projectEvent({ ...event, format: 'match_gross' }, view).match).toEqual({ sides: 'singles', bracket: false, allowance: 100 });
+    expect(projectEvent({ ...event, format: 'match_net', format_config: { match: { sides: 'fourball', bracket: true } } }, view)).toMatchObject({ format_config: { match: { sides: 'fourball', bracket: true } }, match: { sides: 'fourball', bracket: true, allowance: 90 } });
+  });
   it('a participant is masked like a contest player: a private profile prints "First L.", never an email or supervision state', () => {
     const r = row({ profile_id: 'p' });
     const priv = { id: 'p', first_name: 'Sam', last_name: 'Kim', full_name: 'Sam Kim', visibility: 'private', email: 'sam@example.com', supervision_state: null, handle: 'samk', avatar_url: null };

@@ -6,6 +6,7 @@ import type { SportEventViewPayload } from '@/lib/sport-events/view';
 import { formatDateOnly, formatLabel, holesLabel, joinLine, roundsSummary, VISIBILITY_LABEL } from '@/lib/sport-events/format';
 import { cutLabel } from '@/lib/sport-events/format-config';
 import { activeRounds, currentRound } from '@/lib/sport-events/rounds';
+import { isMatchFormat } from '@/lib/sport-events/types';
 
 interface Props {
   view: SportEventViewPayload;
@@ -53,7 +54,8 @@ export default function EventOverview({ view, onRotateLink, busy, onOpenFormat, 
         {!many && round && <Row label="Date">{formatDateOnly(round.scheduled_on, { weekday: true })}</Row>}
         {round && <Row label={many ? `Round ${round.sequence}` : 'Course'}>{round.course_name}{round.tee ? ` · ${round.tee} tees` : ''}{many ? ` · ${holesLabel(round.holes, round.starting_hole)}` : ''}</Row>}
         {!many && round && <Row label="Holes">{holesLabel(round.holes, round.starting_hole)}</Row>}
-        <Row label="Format">{formatLabel(event.format)}</Row>
+        <Row label="Format"><span data-event-format-line="">{formatLabel(event.format, event.match)}</span></Row>
+        {event.match && <Row label="Handicap allowance">{event.match.allowance}%</Row>}
         {event.format_config.cut && <Row label="Cut"><span data-event-cut-line="">{cutLabel(event.format_config.cut)}</span></Row>}
         <Row label="Who can see it">{VISIBILITY_LABEL[event.visibility]}</Row>
         <Row label="Joining">{joinLine(event.join_mode)}</Row>
@@ -72,7 +74,7 @@ export default function EventOverview({ view, onRotateLink, busy, onOpenFormat, 
       </dl>
       {viewer.can_manage && (
         <div className="flex flex-wrap gap-2">
-          {onOpenFormat && many && event.status !== 'completed' && event.status !== 'cancelled' && (
+          {onOpenFormat && (many || isMatchFormat(event.format)) && event.status !== 'completed' && event.status !== 'cancelled' && (
             <button type="button" onClick={onOpenFormat} disabled={busy} className="ea-interactive border border-border-strong text-secondary px-3 min-h-[44px] rounded-lg text-sm font-semibold disabled:opacity-60" data-event-format-open="">
               <i className="fas fa-sliders-h mr-2" aria-hidden="true"></i>Format settings
             </button>

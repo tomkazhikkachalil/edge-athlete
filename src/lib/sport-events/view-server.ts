@@ -36,7 +36,7 @@ export async function fetchSportEventView(admin: Admin, eventId: string, viewerI
       ? admin.from('sport_event_groups').select('id, sport_event_round_id, sequence, name, tee_time, starting_hole, created_at, updated_at').in('sport_event_round_id', roundIds).order('sequence', { ascending: true })
       : Promise.resolve({ data: [] as SportEventGroupRow[] }),
     roundIds.length > 0
-      ? admin.from('sport_event_group_members').select('id, group_id, sport_event_round_id, participant_id, position, created_at').in('sport_event_round_id', roundIds).order('position', { ascending: true })
+      ? admin.from('sport_event_group_members').select('id, group_id, sport_event_round_id, participant_id, position, side, created_at').in('sport_event_round_id', roundIds).order('position', { ascending: true })
       : Promise.resolve({ data: [] as SportEventGroupMemberRow[] }),
     roundIds.length > 0
       ? admin.from('group_posts').select('id, sport_event_round_id').in('sport_event_round_id', roundIds)
@@ -68,7 +68,7 @@ export async function fetchSportEventView(admin: Admin, eventId: string, viewerI
   const members = (membersRes.data ?? []) as SportEventGroupMemberRow[];
   const groups: GroupView[] = ((groupsRes.data ?? []) as SportEventGroupRow[]).map(g => ({
     ...g,
-    members: members.filter(m => m.group_id === g.id).map(m => ({ id: m.id, participant_id: m.participant_id, position: m.position })),
+    members: members.filter(m => m.group_id === g.id).map(m => ({ id: m.id, participant_id: m.participant_id, position: m.position, side: m.side === 1 || m.side === 2 ? m.side : null })),
   }));
 
   return {

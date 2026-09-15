@@ -9,7 +9,7 @@
 import type { CourseHole } from '@/types/golf';
 import { NAME_MAX, DESCRIPTION_MAX, isDateOnly } from './validate';
 import { MAX_ROUNDS } from './rounds';
-import type { SportEventFormat, SportEventJoinMode, SportEventVisibility } from './types';
+import { isMatchFormat, type MatchSides, type SportEventFormat, type SportEventJoinMode, type SportEventVisibility } from './types';
 
 export const WIZARD_STEPS = ['basics', 'round', 'format', 'review'] as const;
 export type WizardStep = (typeof WIZARD_STEPS)[number];
@@ -88,12 +88,14 @@ export interface WizardState {
   /** The rounds in order (1..MAX_ROUNDS); a tournament is more than one. */
   rounds: RoundDraft[];
   format: SportEventFormat;
+  /** Phase 3: the match shape — read only when `format` is a match format. */
+  match: { sides: MatchSides; bracket: boolean };
   capacity: string;
   host_plays: boolean;
 }
 
 export function emptyWizardState(): WizardState {
-  return { name: '', description: '', visibility: 'private', join_mode: 'invite', org: null, competition: null, rounds: [emptyRoundDraft()], format: 'stroke_gross', capacity: '', host_plays: true };
+  return { name: '', description: '', visibility: 'private', join_mode: 'invite', org: null, competition: null, rounds: [emptyRoundDraft()], format: 'stroke_gross', match: { sides: 'singles', bracket: false }, capacity: '', host_plays: true };
 }
 
 function isRoundDirty(r: RoundDraft): boolean {
@@ -103,7 +105,7 @@ function isRoundDirty(r: RoundDraft): boolean {
 
 export function isWizardDirty(s: WizardState): boolean {
   const e = emptyWizardState();
-  return s.name !== e.name || s.description !== e.description || s.rounds.length !== 1 || s.rounds.some(isRoundDirty) || s.capacity !== '' || s.visibility !== e.visibility || s.join_mode !== e.join_mode || s.org !== null || s.competition !== null || s.format !== e.format || s.host_plays !== e.host_plays;
+  return s.name !== e.name || s.description !== e.description || s.rounds.length !== 1 || s.rounds.some(isRoundDirty) || s.capacity !== '' || s.visibility !== e.visibility || s.join_mode !== e.join_mode || s.org !== null || s.competition !== null || s.format !== e.format || s.match.sides !== e.match.sides || s.match.bracket !== e.match.bracket || s.host_plays !== e.host_plays;
 }
 
 /** "Add a round": the previous round's course, tees and holes with an empty date (36 holes in a weekend is the common case). Refused at MAX_ROUNDS. */
@@ -148,6 +150,8 @@ export function validateWizardStep(step: WizardStep, s: WizardState): string | n
     case 'round':
       return validateWizardRounds(s.rounds);
     case 'format': {
+      if (isMatchFormat(s.format) && s.competition) return 'A match-play event cannot count toward a competition — pick stroke play, or clear the competition.';
+      if (isMatchFormat(s.format) && s.match.bracket && s.rounds.length < 2) return 'A bracket needs at least two rounds — add the rounds it plays over.';
       if (s.capacity.trim() !== '') {
         const n = Number(s.capacity);
         if (!Number.isInteger(n) || n < 1 || n > 500) return 'Field size is a whole number from 1 to 500, or blank.';
@@ -172,6 +176,7 @@ export function wizardToCreateBody(s: WizardState, opts: { publish: boolean; pro
     club_id: s.org?.kind === 'club' ? s.org.id : null,
     league_id: s.org?.kind === 'league' ? s.org.id : null,
     competition_id: s.org ? s.competition : null,
+    ...(isMatchFormat(s.format) ? { format_config: { match: { sides: s.match.sides, bracket: s.match.bracket } } } : {}),
     host_plays: s.host_plays,
     publish: opts.publish,
     profile_id: opts.profileId,

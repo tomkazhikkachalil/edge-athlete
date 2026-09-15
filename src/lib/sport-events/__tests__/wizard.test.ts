@@ -16,12 +16,17 @@ describe('the wizard rules', () => {
     expect(validateWizardStep('format', { ...filled(), capacity: '' })).toBeNull();
     expect(validateWizardStep('review', filled())).toBeNull();
     expect(validateWizardStep('review', { ...filled(), name: '' })).toBe('Give the event a name.');
+    // Phase 3: a match-play event never counts toward a competition; a bracket needs two rounds.
+    expect(validateWizardStep('format', { ...filled(), format: 'match_gross', org: { kind: 'club', id: 'c1' }, competition: 'k1' })).toContain('match-play');
+    expect(validateWizardStep('format', { ...filled(), format: 'match_net', match: { sides: 'singles', bracket: true } })).toContain('at least two rounds');
+    expect(validateWizardStep('format', { ...filled(), format: 'match_net', match: { sides: 'fourball', bracket: true }, rounds: [round1, { ...round1, scheduled_on: '2030-06-02' }] })).toBeNull();
   });
   it('dirty means anything typed or picked', () => {
     expect(isWizardDirty(emptyWizardState())).toBe(false);
     expect(isWizardDirty({ ...emptyWizardState(), name: 'x' })).toBe(true);
     expect(isWizardDirty({ ...emptyWizardState(), rounds: [{ ...emptyRoundDraft(), holes: 9 }] })).toBe(true);
     expect(isWizardDirty(addWizardRound(emptyWizardState()))).toBe(true);
+    expect(isWizardDirty({ ...emptyWizardState(), match: { sides: 'fourball', bracket: false } })).toBe(true);
   });
   it('the rounds list: add copies the previous course with an empty date, remove never takes the first, the refusals name the round and the order', () => {
     const one = filled();
@@ -50,6 +55,9 @@ describe('the wizard rules', () => {
     });
     const body = wizardToCreateBody({ ...filled(), rounds: [{ ...round1, holes: 18, tee: ' Blue ' }], org: { kind: 'club', id: 'c1' } }, { publish: false, profileId: 'child' });
     expect(body).toMatchObject({ club_id: 'c1', league_id: null, publish: false, profile_id: 'child', round: { starting_hole: 1, tee: 'Blue' } });
+    // Phase 3: a match format carries its shape as format_config.match; a stroke format sends no format_config.
+    expect('format_config' in wizardToCreateBody(filled(), { publish: true, profileId: null })).toBe(false);
+    expect(wizardToCreateBody({ ...filled(), format: 'match_net', match: { sides: 'foursomes', bracket: true } }, { publish: true, profileId: null })).toMatchObject({ format: 'match_net', format_config: { match: { sides: 'foursomes', bracket: true } } });
   });
   it('a catalog course brings its tees from the ratings, else the yardages', () => {
     expect(wizardCourseFrom({ id: 'c', name: 'Eagle', courseRating: { Blue: 71.5, White: 69.9 }, slopeRating: { Blue: 128 }, holesCount: 18 })).toEqual({ id: 'c', name: 'Eagle', tees: ['Blue', 'White'], holesCount: 18 });

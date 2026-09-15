@@ -37,7 +37,7 @@ import type { MatchSides, SportEventHoleDatum } from './types';
 
 export type MatchFormat = 'match_gross' | 'match_net';
 export type { Side } from './match-types';
-export const MATCH_ALLOWANCE_DEFAULT: Readonly<Record<MatchSides, number>> = { singles: 100, fourball: 90, foursomes: 50 };
+export { MATCH_ALLOWANCE_DEFAULT } from './format-config';
 export const MATCH_SIDE_SIZE: Readonly<Record<MatchSides, 1 | 2>> = { singles: 1, fourball: 2, foursomes: 2 };
 export const MATCH_SIDES_LABEL: Readonly<Record<MatchSides, string>> = { singles: 'Singles', fourball: 'Four-ball', foursomes: 'Foursomes' };
 export const EXTRA_HOLE_MAX = 9;
