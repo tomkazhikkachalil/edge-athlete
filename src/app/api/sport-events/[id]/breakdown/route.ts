@@ -6,7 +6,8 @@ import { readSportEventAccess } from '@/lib/sport-events/access-server';
 import { resolveActor } from '@/lib/sport-events/actor-server';
 import { fetchBreakdown } from '@/lib/sport-events/breakdown-server';
 import { ROUND_COLUMNS } from '@/lib/sport-events/rounds-server';
-import type { SportEventRoundRow } from '@/lib/sport-events/types';
+import { isMatchFormat, type SportEventRoundRow } from '@/lib/sport-events/types';
+import { MATCH_REFUSAL_COPY } from '@/lib/sport-events/match';
 
 const NOT_FOUND = () => NextResponse.json({ error: 'Event not found' }, { status: 404, headers: { 'Cache-Control': 'no-store' } });
 
@@ -40,6 +41,8 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     const admin = getSupabaseAdmin();
     const read = await readSportEventAccess(admin, id, viewerId, url.searchParams.get('token'));
     if (!read) return NOT_FOUND();
+    // Phase 3: a match event has no gross board — an old bell's deep link never renders one.
+    if (isMatchFormat(read.event.format)) return NextResponse.json({ error: MATCH_REFUSAL_COPY.not_stroke_play, reason: 'not_stroke_play' }, { status: 409, headers: { 'Cache-Control': 'no-store' } });
     const { data: rounds } = await admin.from('sport_event_rounds').select(ROUND_COLUMNS).eq('sport_event_id', id).order('sequence', { ascending: true });
     const data = await fetchBreakdown(admin, read.event, (rounds ?? []) as SportEventRoundRow[], { round: roundParam, participant });
     const cache = viewerId ? 'private, max-age=5' : 'public, max-age=5, s-maxage=10';

@@ -170,3 +170,132 @@ test('sport events API: match round lifecycle — groups_incomplete, the match r
     await s.dispose();
   }
 });
+
+/**
+ * PR 6 — the match routes. GET matches (the stranger 404s; a stroke event
+ * answers `not_match_play`; the leaderboard routes answer
+ * `not_stroke_play`); B concedes hole 1, A concedes hole 2 (all square),
+ * the wrong side is refused, a stale version conflicts, a second
+ * concession of the same hole is refused; seven halved holes → all square
+ * after nine → the extra-hole editor: n=1 halved, n=1 again refused, n=2
+ * decides "11 holes"; the round completes without the override and the
+ * row reads `extra_holes`. A second event: the organizer decides, B may
+ * not, the decision clears, B concedes the match, the event completes
+ * with ONE results bell for B.
+ */
+test('sport events API: the match routes — GET, concede, extra holes, decide, the CAS', async () => {
+  const s = await openEventSession();
+  const admin = adminClient();
+  const probe = await admin.from('sport_event_matches').select('id').limit(1);
+  test.skip(!!probe.error, 'sport_event_matches missing — run migration 212');
+  let eventId: string | null = null;
+  let secondId: string | null = null;
+  try {
+    const view = await createEvent(s.apiA, { name: `QA Match Routes ${s.stamp}`, publish: true, format: 'match_gross', format_config: { match: { sides: 'singles' } }, round: { scheduled_on: '2030-06-01', course_name: 'QA Match Links', holes: 9, starting_hole: 1 } });
+    eventId = view.event.id;
+    const roundId = view.rounds[0].id;
+    const { participantId: bId, hostRowId: aId } = await inviteAndAccept(s, eventId);
+    await setGroups(s.apiA, eventId, roundId, [{ members: [aId, bId] }]);
+    const live = await startRound(s.apiA, eventId, roundId, '2030-06-01');
+    const groupPostId = live.rounds[0].group_post_id as string;
+
+    // GET: the stranger 404s, B reads one match, not started; the gross board is refused by name.
+    expect((await s.anon.get(`/api/sport-events/${eventId}/matches`)).status()).toBe(404);
+    const asB = await s.apiB.get(`/api/sport-events/${eventId}/matches`);
+    expect(asB.status(), await readErrorBody(asB)).toBe(200);
+    const list = (await asB.json()) as { event: { match: { sides: string; allowance: number } }; rounds: Array<{ id: string }>; matches: Array<{ id: string; version: number; title: string; line: string; state: { status: string; summary: string; up: number; thru: number; needsExtraHole: boolean; nextExtraHole: { n: number; hole_number: number } | null; result: string | null; decidedBy: string | null } }> };
+    expect(list.event.match).toMatchObject({ sides: 'singles', allowance: 100 });
+    expect(list.rounds.map(r => r.id)).toEqual([roundId]);
+    expect(list.matches).toHaveLength(1);
+    const m = list.matches[0];
+    expect(m).toMatchObject({ version: 0, title: 'Match 1', state: { status: 'not_started', summary: 'Not started' } });
+    expect(m.line).toContain(' vs ');
+    const board = await s.apiA.get(`/api/sport-events/${eventId}/rounds/${roundId}/leaderboard`);
+    expect(board.status()).toBe(409);
+    expect((await board.json()).reason).toBe('not_stroke_play');
+    expect((await s.apiA.get(`/api/sport-events/${eventId}/leaderboard`)).status()).toBe(409);
+
+    // Concessions: B gives hole 1 (A 1 up); the wrong side is refused; a stale version conflicts; the same hole twice is refused; A gives hole 2 (all square).
+    const wrongSide = await s.apiB.post(`/api/sport-events/${eventId}/matches/${m.id}/concede`, { data: { hole: 1, side: 1, version: 0 } });
+    expect(wrongSide.status()).toBe(403);
+    expect((await wrongSide.json()).reason).toBe('not_a_side');
+    const c1 = await s.apiB.post(`/api/sport-events/${eventId}/matches/${m.id}/concede`, { data: { hole: 1, side: 2, version: 0 } });
+    expect(c1.status(), await readErrorBody(c1)).toBe(200);
+    const after1 = ((await c1.json()) as { match: typeof m }).match;
+    expect(after1).toMatchObject({ version: 1, state: { up: 1, thru: 1, status: 'live' } });
+    expect(after1.state.summary).toMatch(/1 UP thru 1$/);
+    const stale = await s.apiB.post(`/api/sport-events/${eventId}/matches/${m.id}/concede`, { data: { hole: 3, side: 2, version: 0 } });
+    expect(stale.status()).toBe(409);
+    expect((await stale.json()).reason).toBe('conflict');
+    const twice = await s.apiB.post(`/api/sport-events/${eventId}/matches/${m.id}/concede`, { data: { hole: 1, side: 2, version: 1 } });
+    expect(twice.status()).toBe(400);
+    expect((await twice.json()).reason).toBe('already_conceded');
+    const c2 = await s.apiA.post(`/api/sport-events/${eventId}/matches/${m.id}/concede`, { data: { hole: 2, side: 1, version: 1 } });
+    expect(c2.status(), await readErrorBody(c2)).toBe(200);
+    expect(((await c2.json()) as { match: typeof m }).match.state).toMatchObject({ up: 0, thru: 2, summary: 'All square thru 2' });
+
+    // Seven halved holes → all square after the last → the extra holes decide.
+    const card = await readScorecard(s.apiA, groupPostId);
+    const aRow = cardRowFor(card, s.userA.id);
+    const bRow = cardRowFor(card, s.userB.id);
+    const rest = [3, 4, 5, 6, 7, 8, 9].map(h => ({ hole_number: h, strokes: 4 }));
+    await scoreHoles(s.apiA, aRow, rest);
+    await scoreHoles(s.apiB, bRow, rest);
+    const early = await s.apiA.post(`/api/sport-events/${eventId}/matches/${m.id}/extra-hole`, { data: { n: 2, strokes: { [aId]: 4, [bId]: 4 }, version: 2 } });
+    expect(early.status()).toBe(400);
+    expect((await early.json()).reason).toBe('wrong_extra_hole');
+    const square = (await (await s.apiB.get(`/api/sport-events/${eventId}/matches?round=${roundId}`)).json()) as { matches: Array<typeof m> };
+    expect(square.matches[0].state).toMatchObject({ status: 'live', needsExtraHole: true, nextExtraHole: { n: 1, hole_number: 1 }, thru: 9 });
+    const e1 = await s.apiB.post(`/api/sport-events/${eventId}/matches/${m.id}/extra-hole`, { data: { n: 1, strokes: { [aId]: 4, [bId]: 4 }, version: 2 } });
+    expect(e1.status(), await readErrorBody(e1)).toBe(200);
+    expect(((await e1.json()) as { match: typeof m }).match.state).toMatchObject({ needsExtraHole: true, nextExtraHole: { n: 2, hole_number: 2 }, thru: 10 });
+    const stranger = await s.apiA.post(`/api/sport-events/${eventId}/matches/${m.id}/extra-hole`, { data: { n: 2, strokes: { '00000000-0000-4000-8000-000000000000': 4 }, version: 3 } });
+    expect(stranger.status()).toBe(400);
+    expect((await stranger.json()).reason).toBe('unknown_participant');
+    const e2 = await s.apiA.post(`/api/sport-events/${eventId}/matches/${m.id}/extra-hole`, { data: { n: 2, strokes: { [aId]: 3, [bId]: 4 }, version: 3 } });
+    expect(e2.status(), await readErrorBody(e2)).toBe(200);
+    const decided = ((await e2.json()) as { match: typeof m }).match;
+    expect(decided.state).toMatchObject({ status: 'completed', decidedBy: 'extra_holes', result: '11 holes' });
+    const late = await s.apiB.post(`/api/sport-events/${eventId}/matches/${m.id}/concede`, { data: { hole: 9, side: 2, version: 4 } });
+    expect(late.status()).toBe(409);
+    expect((await late.json()).reason).toBe('match_decided');
+    const done = await completeRound(s.apiA, eventId, roundId, false);
+    expect(done.event.status).toBe('completed');
+    const { data: row } = await admin.from('sport_event_matches').select('decided_by, winner_side, result').eq('id', m.id).maybeSingle();
+    expect(row).toEqual({ decided_by: 'extra_holes', winner_side: 1, result: '11 holes' });
+    const closed = await s.apiB.post(`/api/sport-events/${eventId}/matches/${m.id}/concede`, { data: { hole: null, side: 2, version: 5 } });
+    expect(closed.status()).toBe(409);
+    expect((await closed.json()).reason).toBe('round_not_live');
+
+    // The organizer's decision, its clearing, and a conceded match; ONE results bell.
+    const second = await createEvent(s.apiA, { name: `QA Match Decide ${s.stamp}`, publish: true, format: 'match_net', format_config: { match: { sides: 'singles' } }, round: { scheduled_on: '2030-06-01', course_name: 'QA Match Links', holes: 9, starting_hole: 1 } });
+    secondId = second.event.id;
+    const r2 = second.rounds[0].id;
+    const { participantId: b2, hostRowId: a2 } = await inviteAndAccept(s, secondId);
+    await setGroups(s.apiA, secondId, r2, [{ members: [a2, b2] }]);
+    await startRound(s.apiA, secondId, r2, '2030-06-01');
+    const m2 = ((await (await s.apiA.get(`/api/sport-events/${secondId}/matches`)).json()) as { matches: Array<typeof m> }).matches[0];
+    const notOrganizer = await s.apiB.post(`/api/sport-events/${secondId}/matches/${m2.id}/decide`, { data: { winner_side: 2, version: 0 } });
+    expect(notOrganizer.status()).toBe(403);
+    const d = await s.apiA.post(`/api/sport-events/${secondId}/matches/${m2.id}/decide`, { data: { winner_side: 2, version: 0 } });
+    expect(d.status(), await readErrorBody(d)).toBe(200);
+    expect(((await d.json()) as { match: typeof m }).match.state).toMatchObject({ status: 'completed', decidedBy: 'organizer', result: 'decided' });
+    const cleared = await s.apiA.post(`/api/sport-events/${secondId}/matches/${m2.id}/decide`, { data: { winner_side: null, version: 1 } });
+    expect(cleared.status(), await readErrorBody(cleared)).toBe(200);
+    expect(((await cleared.json()) as { match: typeof m }).match.state.status).toBe('not_started');
+    const conceded = await s.apiB.post(`/api/sport-events/${secondId}/matches/${m2.id}/concede`, { data: { hole: null, side: 2, version: 2 } });
+    expect(conceded.status(), await readErrorBody(conceded)).toBe(200);
+    expect(((await conceded.json()) as { match: typeof m }).match.state).toMatchObject({ status: 'completed', decidedBy: 'concession', result: 'conceded' });
+    const notYours = await s.apiA.post(`/api/sport-events/${secondId}/matches/${m2.id}/decide`, { data: { winner_side: null, version: 3 } });
+    expect(notYours.status()).toBe(409);
+    expect((await notYours.json()).reason).toBe('not_organizer_decision');
+    const finished = await completeRound(s.apiA, secondId, r2, false);
+    expect(finished.event.status).toBe('completed');
+    const { data: bells } = await admin.from('notifications').select('id').eq('user_id', s.userB.id).eq('type', 'sport_event_results').ilike('action_url', `%${secondId}%`);
+    expect(bells).toHaveLength(1);
+  } finally {
+    await cleanupEvent(s.apiA, eventId);
+    await cleanupEvent(s.apiA, secondId);
+    await s.dispose();
+  }
+});

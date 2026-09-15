@@ -67,6 +67,17 @@ export function eventApi(eventId: string, token: string | null) {
       return call<import('./breakdown-server').EventBreakdown>(`${base}/breakdown?${p.toString()}`);
     },
     overall: (flight?: string | null) => call<import('./leaderboard-server').OverallLeaderboard>(`${base}/leaderboard${qs(token, flight)}`),
+    // Phase 3: the matches (every round's, or one round's) and the three intent writes — each carries the match `version` (409 conflict = re-read and replay).
+    matches: (roundId?: string | null) => {
+      const p = new URLSearchParams();
+      if (token) p.set('token', token);
+      if (roundId) p.set('round', roundId);
+      const str = p.toString();
+      return call<import('./match-view').EventMatchesPayload>(`${base}/matches${str ? `?${str}` : ''}`);
+    },
+    concede: (matchId: string, body: { hole: number | null; side: 1 | 2; version: number }) => call<{ match: import('./match-view').MatchView }>(`${base}/matches/${matchId}/concede`, { method: 'POST', body: JSON.stringify(body) }),
+    extraHole: (matchId: string, body: { n: number; hole_number?: number; strokes: Record<string, number | null>; version: number }) => call<{ match: import('./match-view').MatchView }>(`${base}/matches/${matchId}/extra-hole`, { method: 'POST', body: JSON.stringify(body) }),
+    decideMatch: (matchId: string, body: { winner_side: 1 | 2 | null; version: number }) => call<{ match: import('./match-view').MatchView }>(`${base}/matches/${matchId}/decide`, { method: 'POST', body: JSON.stringify(body) }),
   };
 }
 

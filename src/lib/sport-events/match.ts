@@ -367,7 +367,8 @@ export function extraHoleRefusal(state: MatchState, input: MatchInput, e: { n: n
   return null;
 }
 
-export const MATCH_REFUSAL_COPY: Readonly<Record<ConcessionRefusal | ExtraHoleRefusal | 'not_a_side' | 'conflict', string>> = {
+export type MatchRouteRefusal = 'not_a_side' | 'conflict' | 'round_not_live' | 'not_organizer_decision' | 'not_match_play' | 'not_stroke_play';
+export const MATCH_REFUSAL_COPY: Readonly<Record<ConcessionRefusal | ExtraHoleRefusal | MatchRouteRefusal, string>> = {
   match_decided: 'This match has been decided.',
   hole_outside_round: 'That hole is not on this round.',
   already_conceded: 'That hole was already conceded.',
@@ -378,4 +379,8 @@ export const MATCH_REFUSAL_COPY: Readonly<Record<ConcessionRefusal | ExtraHoleRe
   bad_strokes: 'Strokes are a whole number from 1 to 15.',
   not_a_side: 'Only a player on the side, or an organizer, can concede for it.',
   conflict: 'The match changed while you were working. Reload and try again.',
+  round_not_live: 'The round is not live — a match can only change while its round is being played.',
+  not_organizer_decision: 'Only a decision made by an organizer can be cleared.',
+  not_match_play: 'This event is stroke play — it has no matches.',
+  not_stroke_play: 'This event is match play — see the Matches tab.',
 };
