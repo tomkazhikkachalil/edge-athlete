@@ -46,6 +46,22 @@ export interface SportEventHoleDatum {
   handicap?: number | null;
 }
 
+/**
+ * The organizer's format options (207, `sport_events.format_config` jsonb;
+ * validated by format-config.ts parseFormatConfig; ONE writer: PATCH
+ * /api/sport-events/[id]). `cut`: after round K, the top N (ties at the
+ * nth place all make it) or everyone at or under a to-par. `stableford`
+ * is a reserved key (parked).
+ */
+export interface CutRule {
+  after_round: number;
+  top_n?: number;
+  to_par?: number;
+}
+export interface FormatConfig {
+  cut?: CutRule | null;
+}
+
 export interface SportEventRow {
   id: string;
   host_profile_id: string;
@@ -62,6 +78,8 @@ export interface SportEventRow {
   format: SportEventFormat;
   status: SportEventStatus;
   capacity: number | null;
+  /** 207 — optional until PR 8 reads the column (never name it in a select before Tom confirms 207 ran). */
+  format_config?: FormatConfig;
   starts_on: string | null;
   opened_at: string | null;
   went_live_at: string | null;
@@ -85,6 +103,8 @@ export interface SportEventRoundRow {
   slope_rating: number | null;
   hole_data: SportEventHoleDatum[] | null;
   status: SportEventRoundStatus;
+  /** 207 — an optional label ("Saturday", "Final round"); optional until PR 8 reads the column. */
+  name?: string | null;
   created_at: string;
   updated_at: string;
 }

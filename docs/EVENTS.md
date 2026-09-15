@@ -63,6 +63,7 @@ the org contest place.
 | 204 | `scorecard_status.sql` | `golf_participant_scores.status / submitted_at / finalized_by` |
 | 205 | `sport_event_notifications.sql` | the `sport_event_*` notification types |
 | 206 | `reserved_sports_root.sql` | `reserved_handles` gains `sports` |
+| 207 | `sport_events_format_config.sql` | phase 2's ONE migration: `sport_events.format_config` jsonb (`{cut?: {after_round, top_n? \| to_par?}}`; ONE writer the event PATCH; `stableford` reserved), `sport_event_rounds.name`, the `flight` CHECK (1..20). Runs BEFORE PR 8 reads the columns (the 42703 window) |
 
 Posture A on every new table (RLS on, zero policies, REVOKE from anon and
 authenticated): the service client behind `resolveSportEventAccess` is the
@@ -357,6 +358,21 @@ tab's **Flights** button → `FlightsWindow` (the house bottom sheet: an
 input per player, "Auto-flight by index" with a count, Save = one PUT);
 the roster row carries "· Flight A"; `FlightSegment` ("All · A · B") sits
 above both boards and writes `?flight=`.
+
+### Migration 207 and the cut's rules (PR 7)
+
+The one DDL of phase 2 (above). `src/lib/sport-events/format-config.ts
+parseFormatConfig(body, {roundCount})` is strict — an unknown key is a 400
+naming `format_config.<path>`; the cut needs `after_round` in
+1..roundCount − 1 and EXACTLY ONE of `top_n` (1..500) or `to_par`
+(−20..40); `readFormatConfig` reads a stored row tolerantly (never
+throws); `cutLabel` is its English. `cut.ts applyCut(rowsThroughK, rule)`
+decides who plays on from the standing through round K — the top N by
+rank (ties at the nth place ALL make it — shared ranks are the one
+ranking rule) or everyone at or under a to-par; the unranked miss; the
+line carries the cut score. `cutDecided` (the round after which it falls
+is completed) and `cutEditable` (no round up to it completed) are the
+gates PR 8 wires into the mint, the board and the PATCH.
 
 ## Phase 1 status
 

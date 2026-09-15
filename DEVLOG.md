@@ -1,5 +1,41 @@
 # Development Log
 
+## September 16, 2026 — Events program, phase 2, PR 7: migration 207 — format_config · round name · the flight CHECK (the phase's ONE DDL)
+
+Phase 2 needed no DDL for N rounds, the round lifecycle, the overall
+board, flights, breakdowns or regrouping (201–204 already carry it). What
+an organizer must STORE is here, in one file Tom runs:
+
+- `database/migrations/207_sport_events_format_config.sql` —
+  `sport_events.format_config jsonb NOT NULL DEFAULT '{}'` + CHECK
+  `jsonb_typeof = 'object'` (the organizer's format options: today the
+  cut — a jsonb and not columns because the option set is the format's,
+  not the table's; `stableford` reserved); `sport_event_rounds.name text`
+  + CHECK 1..40 ("Saturday", "Final round"); the `flight` CHECK 1..20 the
+  app already enforces (phase 1 never wrote the column; PR 6's writers
+  normalize). Fast defaults, no rewrite; the constraints in a DO block
+  (the 204 shape) so a re-run is a no-op; the check grid pins the three
+  tables' constraint counts (12 / 9 / 11), the columns' types, no
+  non-object config, no flight outside the range, RLS still posture A.
+- `format-config.ts parseFormatConfig` (strict; a miss names
+  `format_config.<path>`; `after_round` 1..n−1; exactly one of `top_n`
+  1..500 | `to_par` −20..40), `readFormatConfig` (tolerant on read),
+  `cutLabel`. `cut.ts applyCut` (the top N — ties at the nth place all
+  make it — or a to-par; the unranked miss; the line's cut score),
+  `cutDecided`, `cutEditable`. `types.ts CutRule` / `FormatConfig`;
+  `SportEventRow.format_config?` and `SportEventRoundRow.name?` are
+  OPTIONAL on purpose — nothing selects them yet.
+- **The 42703 window:** `EVENT_COLUMNS` / `ROUND_COLUMNS` name the new
+  columns only in PR 8, after Tom confirms 207 ran (the grid every row
+  OK, then `npm run check:schema` OK with the allowlist empty). Every
+  gate read selects those lists; a select naming a missing column 404s
+  the whole API.
+
+Verification: `npm run verify` green; `format-config.test.ts` (the
+parser's refusals by name, the tolerant read, the label, the cut's ties,
+to-par, decided / editable). No e2e — nothing reads the columns yet.
+Next: Tom runs 207; then PR 8 wires the cut and the round names.
+
 ## September 16, 2026 — Events program, phase 2, PR 6: flights (zero DDL)
 
 The 202 column `sport_event_participants.flight` was reserved for this;
