@@ -1,5 +1,27 @@
 # Development Log
 
+## September 16, 2026 — Events program, phase 3, PR 3: migration 212 (match play)
+
+The phase's ONE schema migration, shipped alone so the 42703 window
+holds nothing (the 207 lesson): `sport_events.format` widens to
+`match_gross | match_net` (DROP + ADD of the one named CHECK — 201's
+grid still counts 11 constraints on the table, 207's 12; a 23514 window,
+the app names the values only in PR 4, after `check:schema` says 212
+ran); `sport_event_group_members.side smallint` (1 | 2, uniform on
+every match format — the engine never guesses a side from position;
+NULL on a stroke round); `sport_event_matches` (posture A, one row per
+group, CASCADE with the group and the round): `concessions` and
+`extra_holes` as jsonb arrays (an extra hole can never live in
+`golf_hole_scores` — CHECK 1..18, UNIQUE per card), `decided_by` /
+`winner_side` / `result` / `decided_at` set TOGETHER by a CHECK, and
+`version` — the app-level compare-and-set (the 039 lesson: a
+trigger-bumped stamp defeats a CAS; two players may concede or enter an
+extra hole at once). No `status` column: the match status is computed
+on every read. The file ends in ONE result row (`212 APPLIED | 1 | 1 |
+1`); the twin `verify-212-sport-event-match-play.sql` is the sixteen-row
+grid, runs pre-212 (the new table through the catalogs by name, the
+new column through `to_jsonb`) and starts with its `0 file` row.
+
 ## September 16, 2026 — Events program, phase 3, PR 2: the pure match engine (zero DDL)
 
 Phase 3's arithmetic, settled before any route or column exists.
