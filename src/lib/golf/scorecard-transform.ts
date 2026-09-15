@@ -86,6 +86,7 @@ export const GROUP_SCORECARD_SELECT = `
         fairway_hit,
         green_in_regulation,
         penalties,
+        version,
         created_at
       )
     )

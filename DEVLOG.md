@@ -1,5 +1,40 @@
 # Development Log
 
+## September 16, 2026 — Events program, phase 2b, PR 2: the server compare-and-set (reads 209 — merges after it ran)
+
+`npm run check:schema` OK is the gate: this PR selects `version`.
+
+- `src/lib/golf/hole-scores-server.ts writeHoleScores(db, golfParticipantId,
+  scores)` — the ONE writer of `golf_hole_scores` for both routes: reads
+  the live rows once when any write is checked, `planHoleWrites`, then
+  unchecked writes UPSERT (one batch per key shape — PostgREST refuses
+  mixed keys, and a row omits `penalties` on purpose), `expected 0`
+  INSERTs (23505 → conflict), `expected n` UPDATEs `WHERE version = n`
+  (0 rows → conflict); a conflict carries the hole's CURRENT row re-read
+  after the attempt. Returns `{written, conflicts, error}`.
+- Route A (`api/golf/scorecards/[id]/scores`): `scores[].expected_version?`
+  (a bad one → 400 by hole); any conflict → **409 `{error, conflicts:
+  [{hole_number, current}], written}`**; `expected_updated_at` accepted
+  and ignored for one release; `penalties` only when the score names it
+  (the outbox never did — every queued save nulled them); the hole
+  selects carry `version`. Route B (`api/golf/participant-scores`):
+  `hole_scores[].expected_version?` and a REAL 409 `{error, conflicts:
+  [{participant_id, hole_number, current}], results, failures}` — the
+  other entries' writes stand (a conflict was a string in `failures[]`
+  with HTTP 200 before).
+- `GROUP_SCORECARD_SELECT` hole rows carry `version`; `GolfHoleScore.
+  version?`; `GolfParticipantScores` gains the 204 fields the type lacked
+  (`status`, `submitted_at`, `finalized_by`, optional).
+- `scoring-authz.ts` drops `detectConflict` (the card-stamp guard the 039
+  totals trigger defeated); `resolveScoringRight` no longer selects the
+  card's `updated_at`.
+- e2e `sport-events-scoring.spec.ts`: hole 10 at version 1 → a stale
+  `expected_version` 409s naming hole 10 with `{version: 1, strokes: 5}`,
+  version 1 writes and bumps to 2, `0` on an unscored hole inserts and `0`
+  again conflicts, `-1` → 400, the legacy `expected_updated_at` alone →
+  201. The catalog test's 209 tolerance stays until the catalog is
+  re-saved after 209 ran (PR 3 or the close).
+
 ## September 16, 2026 — Events program, phase 2b, PR 7: the day-before reminder bell (B2, mig 210)
 
 Tom: "add the reminder bell too". Both Vercel cron slots are taken, so it

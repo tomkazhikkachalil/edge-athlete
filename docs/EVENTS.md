@@ -86,7 +86,7 @@ Pure halves (node-tested) and `*-server.ts` I/O halves, one concern each:
 | `leaderboard.ts` | `leaderboard-server.ts` | the one computation; `fetchRoundLeaderboard` reads the field, the cards and the names (`leaderboard-rows.ts`, pure) and computes on every request — nothing stored. |
 | `overall.ts` | `leaderboard-server.ts fetchOverallLeaderboard` | THE TOURNAMENT'S BOARD (phase 2): a pure fold over the rounds' boards — the format's key summed over every minted round's scored holes (the live round's partial counts), a missed completed round ranks below the full field, shared ranks through `assignSharedRanks`, order-only tiebreak today's thru DESC, unscored last, net only when every played round has net, `today` = the live round's cell, `movement` vs the standing before the current round, a flight filter ranks within the flight. Never stored. |
 | `opt-out.ts` | `results-server.ts` | the results opt-out: `mirrorCompletedRound` skips (and un-mirrors) a player who hid the result — the ONE edit in `round-mirror.ts`; `applyProfileOptOut` for a late flip. |
-| `scoring-authz.ts` | `scoring-authz-server.ts` | `scoringRight` — the via / client matrix over the card status; `resolveScoringRight` reads the row, the round, the event role + group and the card, and BOTH score routes (`api/golf/scorecards/[id]/scores`, `api/golf/participant-scores`) pick the client from its verdict; `detectConflict` (`expected_updated_at` → 409 `{current}`); `holeRangeFor` (an event round's own start and length). |
+| `scoring-authz.ts` | `scoring-authz-server.ts` | `scoringRight` — the via / client matrix over the card status; `resolveScoringRight` reads the row, the round, the event role + group and the card, and BOTH score routes (`api/golf/scorecards/[id]/scores`, `api/golf/participant-scores`) pick the client from its verdict; conflicts are PER HOLE since phase 2b (`src/lib/golf/hole-writes.ts` + `hole-scores-server.ts`, mig 209: `scores[].expected_version` → 409 `{conflicts: [{hole_number, current}]}`); `holeRangeFor` (an event round's own start and length). |
 | `cards.ts` | — | `planCardAction`: submit (owner) · finalize / reopen (organizers). |
 | `rounds.ts` | `rounds-server.ts` | the round's course snapshot WITH the stroke index; `starts_on` has one writer (`writeStartsOn`). |
 | `mint.ts` | — | the rows the mint writes (the announce post, the group_post, the scorecard, the participant rows) — pure, pinned. |
@@ -137,7 +137,7 @@ three states); the abandonment sweep leaves an event's round alone.
 
 Scoring on an event round goes through the EXISTING score routes with one
 more gate: a same-group partner or an organizer writes on the admin
-client; `expected_updated_at` answers 409 on a newer card; holes outside
+client; a hole's `expected_version` answers 409 with the current row (209); holes outside
 the round's range are refused by name.
 
 | `GET /api/sport-events/[id]/rounds/[rid]/leaderboard?token=&flight=` | may view | computed on read; `private, max-age=5` signed in, `s-maxage=10` anonymous on a public event |
