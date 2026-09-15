@@ -1,6 +1,7 @@
 import { mkdirSync, writeFileSync } from 'fs';
 import { join } from 'path';
 import { createQaUser, mintStorageState, sweepStaleQaUsers } from './helpers/qa-user';
+import { awaitDeployed } from './helpers/deploy';
 
 // Two disposable users: A drives most specs (default storageState), B exists
 // for the two-user flows (follow request, DM, round invite). Names must be
@@ -8,6 +9,8 @@ import { createQaUser, mintStorageState, sweepStaleQaUsers } from './helpers/qa-
 // ambiguate. Both stay PRIVATE — required for the follow-request path, and
 // privacy blocks neither DMs nor invites.
 export default async function globalSetup() {
+  // A remote target must be on the commit we expect before anything runs.
+  await awaitDeployed();
   await sweepStaleQaUsers();
 
   const authDir = join(process.cwd(), 'e2e', '.auth');

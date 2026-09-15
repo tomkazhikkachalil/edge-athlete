@@ -26,6 +26,10 @@ export async function GET() {
       status: 'ok',
       database: 'ok',
       latency_ms: Date.now() - startedAt,
+      // Which build answers: Vercel's system variable (null off Vercel). The
+      // prod e2e setup waits for the merged commit before probing — every
+      // probe run right after a merge used to hit the previous build.
+      commit: process.env.VERCEL_GIT_COMMIT_SHA ?? null,
     });
   } catch {
     return NextResponse.json(

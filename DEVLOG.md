@@ -1,5 +1,18 @@
 # Development Log
 
+## September 16, 2026 — e2e: the prod probe waits for the deploy (zero DDL)
+
+Every prod probe run right after a merge this week hit the PREVIOUS build
+for two to four minutes — Vercel deploys after the merge, and GitHub's
+deployment status says success a little before the route answers — so
+the first tests waited a minute each for a page that did not exist yet
+and the same tests passed later in the run. `GET /api/health` now reports
+the build's commit (`VERCEL_GIT_COMMIT_SHA`; null off Vercel) and the e2e
+global setup (`e2e/helpers/deploy.ts awaitDeployed`) polls it on a remote
+target until it equals `origin/main`'s head (or `E2E_EXPECT_COMMIT`), up
+to six minutes, before creating the QA users. Localhost skips; a target
+that reports no commit warns and continues.
+
 ## September 16, 2026 — Events program, PR 11: the bells with an action row · the widened action route (zero DDL)
 
 - **The action row** (`src/components/NotificationActionRow.tsx`, the
