@@ -26,6 +26,7 @@ import { golfOverlayFromResult, type ContestResultOrigin } from '@/lib/performan
 import { syncGolfRoundPerformance } from '@/lib/performance/write-server';
 import { revalidateOrgSiteForCompetition } from '@/lib/org-sites/revalidate';
 import { stampContestAttachments } from './contest-attachments-server';
+import { readSportEventRoundLink } from '@/lib/sport-events/contest-link-server';
 import { recomputeStandingsBestEffort } from './standings';
 import { addDaysIso, utcToday } from './golf-weeks';
 import {
@@ -127,6 +128,12 @@ export async function syncGolfContest(admin: Admin, contestId: string): Promise<
     return { ...report, blocked: 'not a golf league' };
   }
   if (contest.status === 'canceled') return { ...report, blocked: 'round canceled' };
+  // Phase 2b (211): an event round's contest is written from the EVENT's
+  // leaderboard on completion (club_recorded / league_verified) — this
+  // engine would overwrite it with self_reported from the mirrored rounds.
+  if (await readSportEventRoundLink(admin, contest.id)) {
+    return { ...report, blocked: 'an event round — results come from the event' };
+  }
   if (!contest.holes || !contest.play_from || !contest.play_to) {
     return { ...report, blocked: 'round has no hole count or play window' };
   }
