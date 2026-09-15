@@ -1,14 +1,16 @@
 # Start Session — Edge Athlete Development
 
 > Tom's session-start prompt. Paste this (or point Claude at it) when opening a
-> development session. Last aligned with project state: **September 14, 2026
+> development session. Last aligned with project state: **September 16, 2026
 > (after the Site Builder programs 1–3, #616–#707, the Contest Place and
-> Recruiting programs #661–#669, and the Data foundation program,
-> #709–#720)** — migration head 194 (RAN); the baselines 190–193 (#720) are
-> NO-OPS Tom runs in order, each ending in a check grid; `main` deployed
-> and prod-probed; **no program in flight — the next one is Tom's call**.
-> If the "Where the project actually is" section drifts
-> stale, ask Claude to re-align it against DEVLOG.md and session memory.
+> Recruiting programs #661–#669, the Data foundation and provenance rounds
+> #709–#731, and the Events program #732–#748)** — migration head 206 (RAN;
+> `npm run check:schema` OK, allowlist empty); `main` deployed and every PR
+> prod-probed (the probe waits for the deploy by itself); **no program in
+> flight — the next one is Tom's call** (phase 2 of Events, tournaments, is
+> parked in `docs/EVENTS.md`). If the "Where the project actually is"
+> section drifts stale, ask Claude to re-align it against DEVLOG.md and
+> session memory.
 
 ## Context & Vision
 
@@ -93,6 +95,14 @@ ops/console gates (docs/LAUNCH_RUNBOOK.md), not code.
   capabilities module, intents on every route family, owner-minted email
   invites, the Hierarchy & people console section, season expiry at
   rollover. Payments skipped by decision.
+- **Events (Sep 16, #732–#748, migs 201–206)** — an Event is organizer
+  intent layered over a live round: `sport_events` → rounds, each round
+  ONE `group_posts` row minted at go-live; invite / request joining with
+  capacity and a waitlist; draft → open → live → completed; the group
+  score card with an offline outbox; gross and net leaderboards computed on
+  read; results mirrored to the profile with an opt-out; the Sports section
+  replaces Explore; the Create sheet. CLAUDE.md convention 17,
+  `docs/EVENTS.md`.
 - **Search & geo** — instant search, places, clubs, leagues, affiliations,
   facets.
 - **Hardening** — RLS everywhere, CI route-authorization audit, enforced CSP,
