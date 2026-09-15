@@ -1,5 +1,52 @@
 # Development Log
 
+## September 16, 2026 — Events program, phase 2, PR 2: the round lifecycle — the event follows its rounds (zero DDL)
+
+Rounds run one at a time (Tom's decision). `sport_event_rounds.status`
+becomes the unit of organizer intent and the event's status is DERIVED
+from its rounds — the phase-1 machine had every round start at go-live
+and every round complete in one shot.
+
+- `lifecycle.ts` — the round table (scheduled → live | cancelled; live →
+  completed; a live round is never cancelled) with named refusals
+  (`event_not_open`, `event_over`, `another_round_live`,
+  `earlier_round_pending`, `no_players`, `round_not_minted`,
+  `cards_not_final`, `last_round`) and their copy; `eventStatusAfterRound`
+  (an open event goes live with its first started round; a live event
+  completes when no non-cancelled round is scheduled or live any more —
+  never when every round was cancelled); `nextStartableRound`. The event
+  table gains `rounds_remaining` (completed refuses while another round is
+  scheduled).
+- `lifecycle-server.ts applyRoundTransition` — the mint runs for THIS
+  round only (the missed-cut exclusion hook is in `mintRound` for PR 8);
+  completion finalizes / mirrors / re-timestamps THIS round's cards (the
+  phase-1 `readCards` aggregated cards across every minted round, so a
+  finished round could never read final while another was in progress);
+  every status write is a compare-and-set on the row's prior status; the
+  event follows (`went_live_at` / `completed_at` + the ONE results bell at
+  the end). `applyTransition` (the event) delegates `live` to the next
+  startable round and `completed` to the live round — a single-round
+  event behaves exactly as in phase 1, and every phase-1 spec stays green;
+  the mint-every-round loop and the blanket round-status write are gone
+  (the event's cancel is the one round-wide write left).
+- `syncRoundRoster` touches the LIVE round only (a completed round's
+  roster is history; adding a late joiner there mirrored an empty round
+  on the next opt-out flip).
+- NEW `POST /api/sport-events/[id]/rounds/[rid]/transition {to, override?,
+  today?}` — its own route: the round's `to` vocabulary differs from the
+  event's, and a shared field could not 400 by name honestly.
+- `PUT …/rounds/[rid]/groups` is gated on the ROUND being scheduled —
+  round 2 is regrouped while round 1 is live.
+- `client.ts roundTransition`; the e2e helper gains `startRound` /
+  `completeRound` / `cancelRound`.
+
+Verification: `npm run verify` green; `lifecycle.test.ts` (the round table
+× facts, the follow rule, `nextStartableRound`, `rounds_remaining`);
+`sport-events-rounds.spec.ts` test 2 locally, plus the phase-1
+`sport-events-lifecycle`, `-scoring`, `-results`, `-api` (desktop) and
+`-groups`, `-scorecard` (mobile) re-run green. Next: PR 3, the overall
+leaderboard.
+
 ## September 16, 2026 — Events program, phase 2, PR 1: rounds as a list (zero DDL)
 
 Phase 2 opened from Tom's "Let's start phase 2 of the Events program". The

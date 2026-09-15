@@ -39,6 +39,7 @@ export function eventApi(eventId: string, token: string | null) {
     inviteHandles: (handles: string[]) => call<{ invited: string[]; skipped: Record<string, number> }>(`${base}/participants`, { method: 'POST', body: JSON.stringify({ handles }) }),
     invite: (profileIds: string[]) => call<{ invited: string[]; skipped: Record<string, number> }>(`${base}/participants`, { method: 'POST', body: JSON.stringify({ profile_ids: profileIds }) }),
     rotateLink: () => call<{ link_token: string }>(`${base}/link-token`, { method: 'POST', body: '{}' }),
+    roundTransition: (roundId: string, to: string, extra: Record<string, unknown> = {}) => call<SportEventViewPayload>(`${base}/rounds/${roundId}/transition`, { method: 'POST', body: JSON.stringify({ to, ...extra }) }),
     addRound: (body: Record<string, unknown>) => call<SportEventViewPayload>(`${base}/rounds`, { method: 'POST', body: JSON.stringify(body) }),
     updateRound: (roundId: string, body: Record<string, unknown>) => call<SportEventViewPayload>(`${base}/rounds/${roundId}`, { method: 'PUT', body: JSON.stringify(body) }),
     deleteRound: (roundId: string) => call<SportEventViewPayload>(`${base}/rounds/${roundId}`, { method: 'DELETE' }),

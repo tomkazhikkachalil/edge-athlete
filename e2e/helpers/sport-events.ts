@@ -140,6 +140,17 @@ export async function transition(apiA: APIRequestContext, eventId: string, to: s
   return (await res.json()) as EventView;
 }
 
+/** The round-level transition (phase 2): live · completed · cancelled. */
+export async function roundTransition(apiA: APIRequestContext, eventId: string, roundId: string, to: 'live' | 'completed' | 'cancelled', extra: Record<string, unknown> = {}): Promise<EventView> {
+  const res = await apiA.post(`/api/sport-events/${eventId}/rounds/${roundId}/transition`, { data: { to, ...extra } });
+  expect(res.ok(), await readErrorBody(res)).toBe(true);
+  return (await res.json()) as EventView;
+}
+
+export const startRound = (apiA: APIRequestContext, eventId: string, roundId: string, today?: string) => roundTransition(apiA, eventId, roundId, 'live', today ? { today } : {});
+export const completeRound = (apiA: APIRequestContext, eventId: string, roundId: string, override = true) => roundTransition(apiA, eventId, roundId, 'completed', { override });
+export const cancelRound = (apiA: APIRequestContext, eventId: string, roundId: string) => roundTransition(apiA, eventId, roundId, 'cancelled');
+
 /** Go live on the organizer's date (defaults to the first round's). */
 export async function goLive(apiA: APIRequestContext, eventId: string, today?: string): Promise<EventView> {
   return transition(apiA, eventId, 'live', today ? { today } : {});

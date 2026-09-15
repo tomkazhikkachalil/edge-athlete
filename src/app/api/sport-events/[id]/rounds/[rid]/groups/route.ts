@@ -9,7 +9,7 @@ import { fetchSportEventView } from '@/lib/sport-events/view-server';
 
 /**
  * PUT {groups: [{name?, tee_time?, starting_hole?, members: [participantId]}]}
- * — replace the round's whole grouping (organizers, draft / open). Every
+ * — replace the round's whole grouping (organizers, while THE ROUND is scheduled). Every
  * member must be an accepted, playing participant; nobody in two groups.
  * The mint reads these at go-live to order the round's players.
  */
@@ -29,9 +29,10 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     const read = await readSportEventAccess(admin, id, actor.profileId, null);
     if (!read) return NextResponse.json({ error: 'Event not found' }, { status: 404 });
     if (!read.access.canManage) return NextResponse.json({ error: 'Only an organizer can set the groups.' }, { status: 403 });
-    if (read.event.status !== 'draft' && read.event.status !== 'open') return NextResponse.json({ error: 'Groups are set before the event goes live.' }, { status: 409 });
-    const { data: round } = await admin.from('sport_event_rounds').select('id').eq('id', rid).eq('sport_event_id', id).maybeSingle();
+    const { data: round } = await admin.from('sport_event_rounds').select('id, status').eq('id', rid).eq('sport_event_id', id).maybeSingle();
     if (!round) return NextResponse.json({ error: 'Round not found' }, { status: 404 });
+    // Phase 2: the gate is the ROUND's — round 2 is regrouped while round 1 is live.
+    if (round.status !== 'scheduled') return NextResponse.json({ error: 'Groups are set before the round starts.' }, { status: 409 });
 
     const { data: eligible } = await admin.from('sport_event_participants').select('id').eq('sport_event_id', id).eq('status', 'accepted').eq('playing', true);
     const plan = validateGroupsPlan(body, new Set(((eligible ?? []) as Array<{ id: string }>).map(r => r.id)));

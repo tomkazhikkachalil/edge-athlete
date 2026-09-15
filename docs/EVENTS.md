@@ -75,7 +75,7 @@ Pure halves (node-tested) and `*-server.ts` I/O halves, one concern each:
 | pure | server | the rule |
 |---|---|---|
 | `access.ts` | `access-server.ts` | `resolveSportEventAccess` — THE ONE GATE. Public → everyone; link → the token, an admitting participant, or the host; private → any non-declined / non-removed participant (followers included) or an organizer. `null` = 404. |
-| `lifecycle.ts` | `lifecycle-server.ts` | draft → open \| cancelled; open → live \| cancelled; live → completed; named refusals; the organizer override. `applyTransition` compare-and-sets the status; open mints the POST, live mints the ROUND (`mintRound`, idempotent), completed finalizes / mirrors / re-timestamps, cancelled deletes the announce post. `syncRoundRoster` keeps a minted round's roster in step after go-live. |
+| `lifecycle.ts` | `lifecycle-server.ts` | THE EVENT: draft → open \| cancelled; open → live \| cancelled; live → completed; named refusals; the organizer override. THE ROUND (phase 2): scheduled → live \| cancelled; live → completed — `validateRoundTransition`, `eventStatusAfterRound` (the event follows its rounds), `nextStartableRound`. `applyRoundTransition` compare-and-sets THIS round's status: live mints the ROUND (`mintRound`, idempotent) and takes an open event live; completed finalizes / mirrors / re-timestamps this round and completes the event with the last one (the results bell); cancelled deletes the announce post. `applyTransition` (the event) delegates live / completed to it; open mints the POSTS; cancelled is the one round-wide status write. `syncRoundRoster` keeps the LIVE round's roster in step. |
 | `join.ts` | `join-server.ts` | `planJoin` for the ten actions; seats = accepted AND playing; full → waitlisted; a vacancy or a capacity raise promotes lowest position first; a follower may be invited. |
 | `handicap.ts` | `handicap-server.ts` | the frozen index at accept (`snapshotAtAccept`; an organizer override is never overwritten); the read-time course handicap. |
 | `leaderboard.ts` | `leaderboard-server.ts` | the one computation; `fetchRoundLeaderboard` reads the field, the cards and the names (`leaderboard-rows.ts`, pure) and computes on every request — nothing stored. |
@@ -113,11 +113,12 @@ the GET is anonymous-reachable for a public or link event).
 | `PATCH /api/sport-events/[id]/participants/[pid]` | `handicap_index` canManage (null clears + recomputes); `hide_from_profile` self; `playing` self or canManage | stepping out promotes the waitlist |
 | `POST` / `DELETE /api/sport-events/[id]/follow?token=` | may view | a follower row; never a seat |
 
-| `POST /api/sport-events/[id]/transition` `{to, override?, today?}` | canManage | open · live · completed · cancelled; a 409 carries the named `reason` |
+| `POST /api/sport-events/[id]/transition` `{to, override?, today?}` | canManage | open · live · completed · cancelled; a 409 carries the named `reason`. Phase 2: `live` starts the next startable ROUND, `completed` completes the live round and refuses `rounds_remaining` while another round is scheduled — a single-round event behaves as in phase 1 |
+| `POST /api/sport-events/[id]/rounds/[rid]/transition` `{to: live \| completed \| cancelled, override?, today?}` | canManage | the ROUND's intent (phase 2): live mints THIS round (`event_not_open` · `another_round_live` · `earlier_round_pending` · `no_players` · `round_not_minted`); completed needs THIS round's cards final or the override, mirrors this round, completes the event when no round is left (the one results bell); cancelled for a scheduled round that is not the last (`last_round`) |
 | `POST /api/sport-events/[id]/rounds` | canManage; draft / open / live | add a round (phase 2): appended as `max(sequence) + 1`, its date never before the previous round's (`round_out_of_order`), at most 8 (`too_many_rounds`); an open or live event mints its announce post at once |
 | `PUT /api/sport-events/[id]/rounds/[rid]` | canManage; the ROUND is `scheduled` | the round's plan; keeps the date order against its neighbours; re-snapshots the catalog; rewrites `starts_on` |
 | `DELETE /api/sport-events/[id]/rounds/[rid]` | canManage; the round is `scheduled` and not the last non-cancelled one (`not_scheduled` / `last_round`) | its announce post FIRST (203 links the post with SET NULL), then the row (groups cascade), then the later rounds move up one, lowest first |
-| `PUT /api/sport-events/[id]/rounds/[rid]/groups` `{groups: [{name?, tee_time?, starting_hole?, members}]}` | canManage; draft / open | the whole plan replaced |
+| `PUT /api/sport-events/[id]/rounds/[rid]/groups` `{groups: [{name?, tee_time?, starting_hole?, members}]}` | canManage; the ROUND is `scheduled` | the whole plan replaced (phase 2: round 2 is regrouped while round 1 is live) |
 
 The scorecard GET (`/api/group-posts/[id]/scorecard`) answers `sport_event`
 for an event's round; the feed lists an event's round from Open (one post,
@@ -232,7 +233,7 @@ specs run at 390 × 844 on Chromium AND WebKit.
 | `sport-events-scorecard` `@mobile` | submit · mark final · reopen · complete with the not-final list |
 | `sport-events-group-card` `@mobile` | the group card · OFFLINE queue and reconnect · a partner's hole |
 | `sport-events-feed` | the announce card and the chip, announced → live |
-| `sport-events-rounds` (phase 2) | create with three rounds · the phase-1 body · both shapes / an unordered list refused by name · add (appended; earlier date refused; the announce post) · edit keeps the order · delete renumbers · the last round stays · the cap |
+| `sport-events-rounds` (phase 2) | test 2: the round lifecycle — in order, one at a time, regroup round 2 while round 1 is live, `rounds_remaining`, complete round 1 (one mirror, no bell), add + cancel a round while live, complete the last round (the event completes: one bell, two mirrors) · test 1: create with three rounds · the phase-1 body · both shapes / an unordered list refused by name · add (appended; earlier date refused; the announce post) · edit keeps the order · delete renumbers · the last round stays · the cap |
 | `header-create`, `round-invite` | the Create sheet's two doors; the plain shared round still scores |
 
 ## Phase 2 — tournaments (Sep 16 2026, in progress)
@@ -261,6 +262,22 @@ The e2e helper `e2e/helpers/sport-events.ts` (`openEventSession`,
 `createEvent`, `inviteAndAccept`, `setGroups`, `goLive`, `scoreHoles`,
 `roundBoard`, `cleanupEvent` — the last never throws) replaces the inlined
 flows as specs are touched.
+
+### The round lifecycle (PR 2)
+
+Rounds run ONE AT A TIME (Tom). `sport_event_rounds.status` is the unit of
+organizer intent; the event's status is derived: the first started round
+takes an open event `live`, the last completed (or cancelled) round takes a
+live event `completed` (`eventStatusAfterRound`, pinned). `POST
+…/rounds/[rid]/transition` is the door; the event-level route delegates
+`live` (the next startable round) and `completed` (the live round; refused
+`rounds_remaining` while another is scheduled). The mint runs for THIS
+round only (the phase-1 mint-every-round at go-live is gone, as is the
+blanket round-status write — the event's cancel is the one round-wide
+write left); completion finalizes / mirrors THIS round's cards only (the
+phase-1 completion counted cards across every minted round); a late
+joiner is added to the LIVE round only. A live round is never cancelled;
+a completed round is neither cancelled nor deleted.
 
 ## Phase 1 status
 

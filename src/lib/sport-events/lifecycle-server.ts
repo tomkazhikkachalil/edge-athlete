@@ -5,18 +5,23 @@
  * both win.
  *
  *   open      → mint the round's POST (announced)
- *   live      → mintRound: the group_posts row (the shared-round creation
+ *   live      → (phase 2: sugar for the next startable ROUND's start)
+ *               mintRound: the group_posts row (the shared-round creation
  *               sequence of api/group-posts/route.ts on the admin client,
  *               attaching the EXISTING post instead of creating one; no
  *               group_invite bells — the event's own bells did that);
- *               rounds → live
- *   completed → override finalizes the cards as they stand; the round's
- *               group_post is forced to completed (guarded), mirrored
- *               (golf_rounds + media), its post re-timestamped (the End
- *               Round path); rounds → completed; the results bell. The
- *               mirror itself skips players who hid the result (opt-out.ts).
- *   cancelled → rounds → cancelled, the announce post deleted (nothing
- *               else was minted: live is never cancelled).
+ *               that round → live; the event → live
+ *   completed → (phase 2: sugar for the LIVE round's completion; refused
+ *               while another round is scheduled) override finalizes that
+ *               round's cards as they stand; its group_post is forced to
+ *               completed (guarded), mirrored (golf_rounds + media), its
+ *               post re-timestamped (the End Round path); the round →
+ *               completed; the event follows when no round is left; the
+ *               results bell. The mirror skips players who hid the result.
+ *   cancelled → every round → cancelled (the one round-wide write left),
+ *               the announce posts deleted (nothing else was minted: live
+ *               is never cancelled).
+ * `applyRoundTransition` is the round-level machine itself (phase 2).
  *
  * Every mint is idempotent on the 203 UNIQUE: a round already minted is
  * reused, so a retry after a half-failure completes instead of doubling.
@@ -24,12 +29,13 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { mirrorCompletedRound, mirrorRoundMedia } from '@/lib/golf/round-mirror';
 import { EVENT_COLUMNS, PARTICIPANT_COLUMNS } from './access-server';
-import { transitionStamp, TRANSITION_REFUSAL_COPY, validateTransition, type TransitionFacts, type TransitionRefusal } from './lifecycle';
+import { canTransition, eventStatusAfterRound, nextStartableRound, ROUND_REFUSAL_COPY, transitionStamp, TRANSITION_REFUSAL_COPY, validateRoundTransition, validateTransition, type RoundTransitionFacts, type RoundTransitionRefusal, type TransitionFacts, type TransitionRefusal } from './lifecycle';
 import { announcePostRow, groupPostRow, participantRows, scorecardRow } from './mint';
-import { buildMintPlan, type MintGroup, type MintPlayer } from './rounds';
+import { activeRounds, buildMintPlan, type MintGroup, type MintPlayer } from './rounds';
 import { notifyResults } from './notify';
 import { ROUND_COLUMNS } from './rounds-server';
-import type { SportEventParticipantRow, SportEventRoundRow, SportEventRow, SportEventStatus } from './types';
+import { writeStartsOn } from './rounds-server';
+import type { SportEventParticipantRow, SportEventRoundRow, SportEventRoundStatus, SportEventRow, SportEventStatus } from './types';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Admin = SupabaseClient<any, 'public', any>;
@@ -76,7 +82,7 @@ async function readCards(admin: Admin, rounds: MintedRound[], players: SportEven
 
 export type TransitionOutcome =
   | { ok: true; event: SportEventRow; rounds: MintedRound[] }
-  | { ok: false; status: 404 | 409 | 500; reason: TransitionRefusal | 'mint_failed' | 'conflict' | 'not_found'; error: string };
+  | { ok: false; status: 404 | 409 | 500; reason: TransitionRefusal | RoundTransitionRefusal | 'mint_failed' | 'conflict' | 'not_found'; error: string };
 
 export interface TransitionRequest {
   eventId: string;
@@ -87,36 +93,42 @@ export interface TransitionRequest {
   today?: string | null;
 }
 
+/**
+ * The EVENT-level transition. Phase 2: `live` and `completed` are sugar
+ * over the round lifecycle — live starts the next startable round,
+ * completed completes the live round and refuses while another round is
+ * still scheduled (`rounds_remaining`) — so a single-round event behaves
+ * exactly as in phase 1. `open` and `cancelled` stay event-wide.
+ */
 export async function applyTransition(admin: Admin, req: TransitionRequest): Promise<TransitionOutcome> {
   const { data: eventRow } = await admin.from('sport_events').select(EVENT_COLUMNS).eq('id', req.eventId).maybeSingle();
   if (!eventRow) return { ok: false, status: 404, reason: 'not_found', error: 'Event not found' };
   const event = eventRow as SportEventRow;
   const from = event.status;
   const rounds = await readRounds(admin, req.eventId);
-  const players = await acceptedPlaying(admin, req.eventId);
-  const cards = req.to === 'completed' ? await readCards(admin, rounds, players) : [];
 
-  const facts: TransitionFacts = {
-    name: event.name,
-    rounds: rounds.map(r => ({ scheduledOn: r.scheduled_on, groupPostMinted: r.group_post_id !== null })),
-    acceptedPlaying: players.length,
-    cards: cards.map(c => ({ status: c.status })),
-    override: req.override === true,
-  };
-
-  // The mint runs BEFORE the live verdict so `round_not_minted` is a real refusal, never a scheduling gap.
-  if (req.to === 'live') {
-    const pre = validateTransition(from, 'live', { ...facts, rounds: facts.rounds.map(r => ({ ...r, groupPostMinted: true })) });
-    if (!pre.ok) return { ok: false, status: 409, reason: pre.reason, error: TRANSITION_REFUSAL_COPY[pre.reason] };
-    for (const round of rounds) {
-      if (round.group_post_id || round.status === 'cancelled') continue;
-      const gpId = await mintRound(admin, event, round, rounds.length, req.today ?? null);
-      if (!gpId) return { ok: false, status: 500, reason: 'mint_failed', error: TRANSITION_REFUSAL_COPY.round_not_minted };
-      round.group_post_id = gpId;
-      facts.rounds = rounds.map(r => ({ scheduledOn: r.scheduled_on, groupPostMinted: r.group_post_id !== null }));
+  if (req.to === 'live' || req.to === 'completed') {
+    if (!canTransition(from, req.to)) return { ok: false, status: 409, reason: 'invalid_transition', error: TRANSITION_REFUSAL_COPY.invalid_transition };
+    if (req.to === 'live') {
+      const next = nextStartableRound(rounds);
+      if (!next) return { ok: false, status: 409, reason: 'round_required', error: TRANSITION_REFUSAL_COPY.round_required };
+      return applyRoundTransition(admin, { eventId: req.eventId, roundId: next.id, to: 'live', actorProfileId: req.actorProfileId, override: req.override, today: req.today });
     }
+    if (rounds.some(r => r.status === 'scheduled')) return { ok: false, status: 409, reason: 'rounds_remaining', error: TRANSITION_REFUSAL_COPY.rounds_remaining };
+    const live = rounds.find(r => r.status === 'live');
+    if (live) return applyRoundTransition(admin, { eventId: req.eventId, roundId: live.id, to: 'completed', actorProfileId: req.actorProfileId, override: req.override, today: req.today });
+    // Nothing live, nothing scheduled: every round is already done — close the header.
+    return closeEvent(admin, event, req.actorProfileId);
   }
 
+  const players = await acceptedPlaying(admin, req.eventId);
+  const facts: TransitionFacts = {
+    name: event.name,
+    rounds: rounds.map(r => ({ scheduledOn: r.scheduled_on, groupPostMinted: r.group_post_id !== null, status: r.status })),
+    acceptedPlaying: players.length,
+    cards: [],
+    override: req.override === true,
+  };
   const verdict = validateTransition(from, req.to, facts);
   if (!verdict.ok) return { ok: false, status: 409, reason: verdict.reason, error: TRANSITION_REFUSAL_COPY[verdict.reason] };
 
@@ -128,37 +140,6 @@ export async function applyTransition(admin: Admin, req: TransitionRequest): Pro
       const postId = await mintAnnouncePost(admin, event, round);
       if (!postId) return { ok: false, status: 500, reason: 'mint_failed', error: 'Could not publish the event. Nothing was changed — please try again.' };
       round.announce_post_id = postId;
-    }
-  }
-
-  if (req.to === 'completed') {
-    if (req.override === true) {
-      // "Finalized as they stand": existing cards are closed; a player who
-      // never scored gets a final, empty card (the finalize route's rule),
-      // so the round reads final for everyone.
-      const open = cards.filter(c => c.status !== 'final');
-      const existing = open.filter(c => c.has_card).map(c => c.participant_row_id);
-      if (existing.length > 0) {
-        const { error } = await admin.from('golf_participant_scores').update({ status: 'final', finalized_by: req.actorProfileId, submitted_at: now }).in('participant_id', existing);
-        if (error) console.error('[sport-events] override finalize failed:', error);
-      }
-      const missing = open.filter(c => !c.has_card);
-      if (missing.length > 0) {
-        const { error } = await admin.from('golf_participant_scores').insert(missing.map(c => ({ participant_id: c.participant_row_id, entered_by: req.actorProfileId, scores_confirmed: false, status: 'final', finalized_by: req.actorProfileId, submitted_at: now })));
-        if (error) console.error('[sport-events] override finalize (empty cards) failed:', error);
-      }
-    }
-    for (const round of rounds) {
-      if (!round.group_post_id) continue;
-      const { data: prior } = await admin.from('group_posts').select('status').eq('id', round.group_post_id).maybeSingle();
-      if (prior?.status !== 'completed') {
-        const { error } = await admin.from('group_posts').update({ status: 'completed' }).eq('id', round.group_post_id).neq('status', 'completed');
-        if (error) console.error('[sport-events] round completion failed:', error);
-        await mirrorCompletedRound(admin, round.group_post_id);
-        await mirrorRoundMedia(admin, round.group_post_id);
-        const { error: bumpError } = await admin.from('posts').update({ created_at: now }).eq('group_post_id', round.group_post_id);
-        if (bumpError) console.error('[sport-events] results post bump failed:', bumpError);
-      }
     }
   }
 
@@ -184,14 +165,161 @@ export async function applyTransition(admin: Admin, req: TransitionRequest): Pro
     return { ok: false, status: 409, reason: 'conflict', error: 'The event changed while you were working. Reload and try again.' };
   }
 
-  const roundStatus = req.to === 'live' ? 'live' : req.to === 'completed' ? 'completed' : req.to === 'cancelled' ? 'cancelled' : null;
-  if (roundStatus) {
-    const { error } = await admin.from('sport_event_rounds').update({ status: roundStatus }).eq('sport_event_id', req.eventId).neq('status', 'cancelled');
+  // Cancelling the event is the one round-wide status write that survives phase 2: every round goes with it.
+  if (req.to === 'cancelled') {
+    const { error } = await admin.from('sport_event_rounds').update({ status: 'cancelled' }).eq('sport_event_id', req.eventId).neq('status', 'cancelled');
     if (error) console.error('[sport-events] round status write failed:', error);
   }
-  if (req.to === 'completed') await notifyResults(admin, event, req.actorProfileId);
 
   return { ok: true, event: updated as SportEventRow, rounds: await readRounds(admin, req.eventId) };
+}
+
+export interface RoundTransitionRequest {
+  eventId: string;
+  roundId: string;
+  to: SportEventRoundStatus;
+  actorProfileId: string;
+  override?: boolean;
+  today?: string | null;
+}
+
+/**
+ * The ROUND-level transition (phase 2 — the unit of organizer intent):
+ *   live      → mint THIS round (the missed-cut set excluded once a cut is
+ *               decided), the round → live, an open event → live;
+ *   completed → override finalizes THIS round's cards as they stand; its
+ *               group_post is forced complete (guarded), mirrored, its post
+ *               re-timestamped; the round → completed; a live event with no
+ *               round left scheduled or live → completed + the results bell;
+ *   cancelled → the announce post deleted, the round → cancelled,
+ *               starts_on rewritten; the event follows (a live event whose
+ *               last remaining round was cancelled completes).
+ * Every status write is a compare-and-set on the row's prior status.
+ */
+export async function applyRoundTransition(admin: Admin, req: RoundTransitionRequest): Promise<TransitionOutcome> {
+  const { data: eventRow } = await admin.from('sport_events').select(EVENT_COLUMNS).eq('id', req.eventId).maybeSingle();
+  if (!eventRow) return { ok: false, status: 404, reason: 'not_found', error: 'Event not found' };
+  const event = eventRow as SportEventRow;
+  const rounds = await readRounds(admin, req.eventId);
+  const round = rounds.find(r => r.id === req.roundId);
+  if (!round) return { ok: false, status: 404, reason: 'not_found', error: 'Round not found' };
+  const players = await acceptedPlaying(admin, req.eventId);
+  const cards = req.to === 'completed' ? await readCards(admin, [round], players) : [];
+
+  const factsFor = (minted: boolean): RoundTransitionFacts => ({
+    eventStatus: event.status,
+    round: { sequence: round.sequence, status: round.status, groupPostMinted: minted },
+    rounds: rounds.map(r => ({ sequence: r.sequence, status: r.status })),
+    acceptedPlaying: players.length,
+    cards: cards.map(c => ({ status: c.status })),
+    override: req.override === true,
+  });
+
+  // The mint runs BEFORE the live verdict so `round_not_minted` is a real refusal, never a scheduling gap.
+  if (req.to === 'live') {
+    const pre = validateRoundTransition('live', factsFor(true));
+    if (!pre.ok) return { ok: false, status: 409, reason: pre.reason, error: ROUND_REFUSAL_COPY[pre.reason] };
+    if (!round.group_post_id) {
+      const gpId = await mintRound(admin, event, round, activeRounds(rounds).length, req.today ?? null);
+      if (!gpId) return { ok: false, status: 500, reason: 'mint_failed', error: ROUND_REFUSAL_COPY.round_not_minted };
+      round.group_post_id = gpId;
+    }
+  }
+
+  const verdict = validateRoundTransition(req.to, factsFor(round.group_post_id !== null));
+  if (!verdict.ok) return { ok: false, status: 409, reason: verdict.reason, error: ROUND_REFUSAL_COPY[verdict.reason] };
+
+  const now = new Date().toISOString();
+
+  if (req.to === 'completed') {
+    if (req.override === true) {
+      // "Finalized as they stand": existing cards are closed; a player who
+      // never scored gets a final, empty card (the finalize route's rule),
+      // so the round reads final for everyone.
+      const open = cards.filter(c => c.status !== 'final');
+      const existing = open.filter(c => c.has_card).map(c => c.participant_row_id);
+      if (existing.length > 0) {
+        const { error } = await admin.from('golf_participant_scores').update({ status: 'final', finalized_by: req.actorProfileId, submitted_at: now }).in('participant_id', existing);
+        if (error) console.error('[sport-events] override finalize failed:', error);
+      }
+      const missing = open.filter(c => !c.has_card);
+      if (missing.length > 0) {
+        const { error } = await admin.from('golf_participant_scores').insert(missing.map(c => ({ participant_id: c.participant_row_id, entered_by: req.actorProfileId, scores_confirmed: false, status: 'final', finalized_by: req.actorProfileId, submitted_at: now })));
+        if (error) console.error('[sport-events] override finalize (empty cards) failed:', error);
+      }
+    }
+    if (round.group_post_id) {
+      const { data: prior } = await admin.from('group_posts').select('status').eq('id', round.group_post_id).maybeSingle();
+      if (prior?.status !== 'completed') {
+        const { error } = await admin.from('group_posts').update({ status: 'completed' }).eq('id', round.group_post_id).neq('status', 'completed');
+        if (error) console.error('[sport-events] round completion failed:', error);
+        await mirrorCompletedRound(admin, round.group_post_id);
+        await mirrorRoundMedia(admin, round.group_post_id);
+        const { error: bumpError } = await admin.from('posts').update({ created_at: now }).eq('group_post_id', round.group_post_id);
+        if (bumpError) console.error('[sport-events] results post bump failed:', bumpError);
+      }
+    }
+  }
+
+  if (req.to === 'cancelled') {
+    const { error } = await admin.from('posts').delete().eq('sport_event_round_id', round.id).is('group_post_id', null);
+    if (error) console.error('[sport-events] announce post delete on round cancel failed:', error);
+  }
+
+  // Compare-and-set THIS round's status; a lost race answers 409 without undoing the idempotent mint.
+  const { data: updatedRound, error: roundError } = await admin
+    .from('sport_event_rounds')
+    .update({ status: req.to })
+    .eq('id', round.id)
+    .eq('status', round.status)
+    .select('id')
+    .maybeSingle();
+  if (roundError || !updatedRound) {
+    if (roundError) console.error('[sport-events] round status write failed:', roundError);
+    return { ok: false, status: 409, reason: 'conflict', error: 'The round changed while you were working. Reload and try again.' };
+  }
+  if (req.to === 'cancelled') await writeStartsOn(admin, req.eventId);
+
+  // The event follows its rounds.
+  const after = rounds.map(r => ({ status: r.id === round.id ? req.to : r.status }));
+  const eventNext = eventStatusAfterRound(event.status, after);
+  let updatedEvent: SportEventRow = event;
+  if (eventNext) {
+    const stamp = transitionStamp(eventNext);
+    const { data: updated, error: casError } = await admin
+      .from('sport_events')
+      .update({ status: eventNext, ...(stamp ? { [stamp]: now } : {}) })
+      .eq('id', req.eventId)
+      .eq('status', event.status)
+      .select(EVENT_COLUMNS)
+      .maybeSingle();
+    if (casError || !updated) {
+      if (casError) console.error('[sport-events] event follow-up write failed:', casError);
+    } else {
+      updatedEvent = updated as SportEventRow;
+      if (eventNext === 'completed') await notifyResults(admin, updatedEvent, req.actorProfileId);
+    }
+  }
+
+  return { ok: true, event: updatedEvent, rounds: await readRounds(admin, req.eventId) };
+}
+
+/** Close a live event whose rounds are all done (nothing live, nothing scheduled) — the repair path of the event-level `completed`. */
+async function closeEvent(admin: Admin, event: SportEventRow, actorProfileId: string): Promise<TransitionOutcome> {
+  const now = new Date().toISOString();
+  const { data: updated, error } = await admin
+    .from('sport_events')
+    .update({ status: 'completed', completed_at: now })
+    .eq('id', event.id)
+    .eq('status', event.status)
+    .select(EVENT_COLUMNS)
+    .maybeSingle();
+  if (error || !updated) {
+    if (error) console.error('[sport-events] close write failed:', error);
+    return { ok: false, status: 409, reason: 'conflict', error: 'The event changed while you were working. Reload and try again.' };
+  }
+  await notifyResults(admin, updated as SportEventRow, actorProfileId);
+  return { ok: true, event: updated as SportEventRow, rounds: await readRounds(admin, event.id) };
 }
 
 /**
@@ -218,14 +346,14 @@ export async function mintAnnouncePost(admin: Admin, event: SportEventRow, round
  * the post). Any failure deletes the group_post (FK cascades take the
  * children) and answers null — the abortCreation semantics.
  */
-export async function mintRound(admin: Admin, event: SportEventRow, round: MintedRound, roundCount: number, today: string | null): Promise<string | null> {
+export async function mintRound(admin: Admin, event: SportEventRow, round: MintedRound, roundCount: number, today: string | null, opts: { excludeParticipantIds?: ReadonlySet<string> } = {}): Promise<string | null> {
   const { data: existing } = await admin.from('group_posts').select('id').eq('sport_event_round_id', round.id).maybeSingle();
   if (existing?.id) return existing.id as string;
 
   const { data: allRows } = await admin.from('sport_event_participants').select(PARTICIPANT_COLUMNS).eq('sport_event_id', event.id).eq('status', 'accepted');
   const accepted = (allRows ?? []) as SportEventParticipantRow[];
   const mintPlayers: MintPlayer[] = accepted
-    .filter(r => r.role !== 'follower')
+    .filter(r => r.role !== 'follower' && !opts.excludeParticipantIds?.has(r.id))
     .map(r => ({ participantId: r.id, profileId: r.profile_id, role: r.role as MintPlayer['role'], playing: r.playing }));
   const { data: groups } = await admin.from('sport_event_groups').select('id, sequence').eq('sport_event_round_id', round.id);
   const { data: members } = await admin.from('sport_event_group_members').select('group_id, participant_id, position').eq('sport_event_round_id', round.id);
@@ -270,16 +398,18 @@ export async function mintRound(admin: Admin, event: SportEventRow, round: Minte
 }
 
 /**
- * Keep the minted rounds' rosters in step with the event after go-live: a
- * late accept joins every minted round (at the end of the order); a
- * withdraw / remove marks the round row declined so the round machine
- * ignores them. Best-effort.
+ * Keep the LIVE round's roster in step with the event after go-live: a
+ * late accept joins the live round (at the end of the order); a withdraw /
+ * remove marks its row declined so the round machine ignores them. A
+ * completed round's roster is history (phase 2 — adding a late joiner
+ * there would mirror an empty round later), and a scheduled round is not
+ * minted yet (the mint reads the roster). Best-effort.
  */
 export async function syncRoundRoster(admin: Admin, eventId: string, profileId: string, change: 'add' | 'drop'): Promise<void> {
   try {
     const rounds = await readRounds(admin, eventId);
     for (const round of rounds) {
-      if (!round.group_post_id) continue;
+      if (!round.group_post_id || round.status !== 'live') continue;
       const { data: existing } = await admin.from('group_post_participants').select('id, status, position').eq('group_post_id', round.group_post_id).eq('profile_id', profileId).maybeSingle();
       if (change === 'drop') {
         if (existing?.id) await admin.from('group_post_participants').update({ status: 'declined' }).eq('id', existing.id);
