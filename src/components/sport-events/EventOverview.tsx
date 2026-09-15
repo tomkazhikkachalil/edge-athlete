@@ -3,12 +3,15 @@
 import { useState } from 'react';
 import type { SportEventViewPayload } from '@/lib/sport-events/view';
 import { formatDateOnly, formatLabel, holesLabel, joinLine, roundsSummary, VISIBILITY_LABEL } from '@/lib/sport-events/format';
+import { cutLabel } from '@/lib/sport-events/format-config';
 import { activeRounds, currentRound } from '@/lib/sport-events/rounds';
 
 interface Props {
   view: SportEventViewPayload;
   onRotateLink: () => Promise<void>;
   busy: boolean;
+  /** Phase 2: the organizer's format settings (the cut) on a tournament. */
+  onOpenFormat?: () => void;
 }
 
 function Row({ label, children }: { label: string; children: React.ReactNode }) {
@@ -20,7 +23,7 @@ function Row({ label, children }: { label: string; children: React.ReactNode }) 
   );
 }
 
-export default function EventOverview({ view, onRotateLink, busy }: Props) {
+export default function EventOverview({ view, onRotateLink, busy, onOpenFormat }: Props) {
   const { event, rounds, viewer } = view;
   const active = activeRounds(rounds);
   const many = active.length > 1;
@@ -48,10 +51,16 @@ export default function EventOverview({ view, onRotateLink, busy }: Props) {
         {round && <Row label={many ? `Round ${round.sequence}` : 'Course'}>{round.course_name}{round.tee ? ` · ${round.tee} tees` : ''}{many ? ` · ${holesLabel(round.holes, round.starting_hole)}` : ''}</Row>}
         {!many && round && <Row label="Holes">{holesLabel(round.holes, round.starting_hole)}</Row>}
         <Row label="Format">{formatLabel(event.format)}</Row>
+        {event.format_config.cut && <Row label="Cut"><span data-event-cut-line="">{cutLabel(event.format_config.cut)}</span></Row>}
         <Row label="Who can see it">{VISIBILITY_LABEL[event.visibility]}</Row>
         <Row label="Joining">{joinLine(event.join_mode)}</Row>
         {event.capacity !== null && <Row label="Field size">{event.capacity} players</Row>}
       </dl>
+      {viewer.can_manage && onOpenFormat && many && event.status !== 'completed' && event.status !== 'cancelled' && (
+        <button type="button" onClick={onOpenFormat} disabled={busy} className="ea-interactive border border-border-strong text-secondary px-3 min-h-[44px] rounded-lg text-sm font-semibold disabled:opacity-60" data-event-format-open="">
+          <i className="fas fa-sliders-h mr-2" aria-hidden="true"></i>Format settings
+        </button>
+      )}
       {viewer.can_manage && event.visibility === 'link' && link && (
         <div className="bg-surface rounded-lg border border-border p-4 space-y-2" data-event-link-share="">
           <p className="text-sm font-semibold text-primary">Share link</p>

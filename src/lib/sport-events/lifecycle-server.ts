@@ -34,6 +34,9 @@ import { announcePostRow, groupPostRow, participantRows, scorecardRow } from './
 import { activeRounds, buildMintPlan, type MintGroup, type MintPlayer } from './rounds';
 import { notifyResults } from './notify';
 import { ROUND_COLUMNS } from './rounds-server';
+import { cutDecided } from './cut';
+import { readFormatConfig } from './format-config';
+import { fetchOverallLeaderboard } from './leaderboard-server';
 import { writeStartsOn } from './rounds-server';
 import type { SportEventParticipantRow, SportEventRoundRow, SportEventRoundStatus, SportEventRow, SportEventStatus } from './types';
 
@@ -220,7 +223,14 @@ export async function applyRoundTransition(admin: Admin, req: RoundTransitionReq
     const pre = validateRoundTransition('live', factsFor(true));
     if (!pre.ok) return { ok: false, status: 409, reason: pre.reason, error: ROUND_REFUSAL_COPY[pre.reason] };
     if (!round.group_post_id) {
-      const gpId = await mintRound(admin, event, round, activeRounds(rounds).length, req.today ?? null);
+      // Phase 2: past a decided cut, the missed-cut set is not minted into this round (the overall board decides — never stored).
+      const cut = readFormatConfig(event.format_config, activeRounds(rounds).length).cut ?? null;
+      let exclude: ReadonlySet<string> | undefined;
+      if (cut && round.sequence > cut.after_round && cutDecided(cut, rounds)) {
+        const board = await fetchOverallLeaderboard(admin, event, rounds, { cut });
+        exclude = new Set(board.board.rows.filter(r => r.madeCut === false).map(r => r.participantId));
+      }
+      const gpId = await mintRound(admin, event, round, activeRounds(rounds).length, req.today ?? null, { excludeParticipantIds: exclude });
       if (!gpId) return { ok: false, status: 500, reason: 'mint_failed', error: ROUND_REFUSAL_COPY.round_not_minted };
       round.group_post_id = gpId;
     }

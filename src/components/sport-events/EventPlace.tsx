@@ -20,6 +20,7 @@ import EventSchedule from './EventSchedule';
 import EventScorecardTab from './EventScorecardTab';
 import EventTabs from './EventTabs';
 import FlightsWindow from './FlightsWindow';
+import FormatSettingsWindow from './FormatSettingsWindow';
 import InviteWindow from './InviteWindow';
 import RoundEditWindow from './RoundEditWindow';
 
@@ -63,6 +64,7 @@ export default function EventPlace({ eventId, initialView, token }: Props) {
   const [notice, setNotice] = useState<string | null>(null);
   const [inviteOpen, setInviteOpen] = useState(false);
   const [flightsOpen, setFlightsOpen] = useState(false);
+  const [formatOpen, setFormatOpen] = useState(false);
   const [roundEdit, setRoundEdit] = useState<RoundEdit>(null);
   const [confirm, setConfirm] = useState<Confirm>(null);
   const [version, setVersion] = useState(0);
@@ -202,7 +204,7 @@ export default function EventPlace({ eventId, initialView, token }: Props) {
       <section className="bg-surface rounded-lg border border-border">
         <EventTabs tabs={tabsFor(tabViewer)} active={visibleTab} onChange={changeTab} />
         <div id={`event-panel-${visibleTab}`} role="tabpanel" aria-labelledby={`event-tab-${visibleTab}`} className="p-4 sm:p-6">
-          {visibleTab === 'overview' && <EventOverview view={view} busy={busy} onRotateLink={async () => { await run(() => api.rotateLink(), 'New link ready.'); }} />}
+          {visibleTab === 'overview' && <EventOverview view={view} busy={busy} onRotateLink={async () => { await run(() => api.rotateLink(), 'New link ready.'); }} onOpenFormat={() => setFormatOpen(true)} />}
           {visibleTab === 'schedule' && <EventSchedule view={view} busy={busy} onRoundAction={roundAction} onAddRound={() => setRoundEdit({ mode: 'add' })} />}
           {visibleTab === 'players' && (
             <EventPlayers
@@ -246,6 +248,18 @@ export default function EventPlace({ eventId, initialView, token }: Props) {
             if (!res.ok) { setError(res.error); return false; }
             await refetch();
             return (res.data?.invited ?? []).includes(id);
+          }}
+        />
+      )}
+      {formatOpen && (
+        <FormatSettingsWindow
+          event={view.event}
+          rounds={view.rounds}
+          onClose={() => setFormatOpen(false)}
+          onSave={async format_config => {
+            const res = await api.patchEvent({ format_config });
+            if (res.ok) { setNotice('Format saved.'); await refetch(); }
+            return { ok: res.ok, error: res.error };
           }}
         />
       )}

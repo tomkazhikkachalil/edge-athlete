@@ -47,6 +47,8 @@ export interface JoinContext {
   row: ParticipantSnapshot | null;
   /** Every row of the event (for capacity + promotion). */
   rows: ParticipantSnapshot[];
+  /** Phase 2: the cut has been made — no new players (a late joiner would rank below it by the rule). */
+  cutDecided?: boolean;
 }
 
 export type JoinPlan =
@@ -94,6 +96,7 @@ export function planJoin(action: JoinAction, ctx: JoinContext): JoinPlan {
     case 'invite': {
       if (!MANAGES(actorRole)) return { ok: false, status: 403, error: 'Only an organizer can invite.' };
       if (event.status === 'live') return { ok: false, status: 409, error: 'The event is live — add players from the round.' };
+      if (ctx.cutDecided) return { ok: false, status: 409, error: 'The cut has been made — no new players.' };
       // A follower may be invited to play; a player already in any live state may not be invited twice.
       if (row && row.role !== 'follower' && (row.status === 'accepted' || row.status === 'invited' || row.status === 'waitlisted' || row.status === 'requested')) return { ok: false, status: 409, error: 'Already invited.' };
       return { ok: true, create: !row, next: { role: row?.role === 'follower' ? 'participant' : row?.role ?? 'participant', status: 'invited', playing: true, waitlistPosition: null }, promote: [] };

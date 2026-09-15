@@ -50,11 +50,21 @@ export default function OverallBoard({ data, net, onPick }: Props) {
           </tr>
         </thead>
         <tbody>
-          {rows.map(r => {
+          {rows.flatMap((r, i) => {
             const mv = formatMovement(r.movement);
+            const line = data.board.cutLine;
+            const firstMissed = line && r.madeCut === false && (i === 0 || rows[i - 1].madeCut !== false);
+            const columns = 3 + rounds.length + (liveSeq !== null ? 2 : 0) + 2;
+            const divider = firstMissed ? (
+              <tr key={`cut-${r.participantId}`} data-cut-line="">
+                <td colSpan={columns} className="px-2 py-2 text-xs font-semibold text-secondary bg-surface-muted">
+                  Cut after round {line!.afterRound}{line!.score !== null ? ` · ${line!.score}` : ''} · {line!.madeCut} made it · {line!.missed} missed
+                </td>
+              </tr>
+            ) : null;
             const key = net ? r.net : r.total;
             const keyToPar = net ? r.netToPar : r.totalToPar;
-            return (
+            const tr = (
               <tr
                 key={r.participantId}
                 className={`border-b border-border-subtle ${onPick ? 'cursor-pointer hover:bg-surface-muted focus-visible:bg-surface-muted' : ''}`}
@@ -70,6 +80,7 @@ export default function OverallBoard({ data, net, onPick }: Props) {
                 <td className="sticky left-12 z-10 bg-surface px-2 py-2 text-primary whitespace-nowrap">
                   {r.handle ? <Link href={`/u/${r.handle}`} className="hover:text-brand-fg" onClick={e => e.stopPropagation()}>{r.name}</Link> : r.name}
                   {r.flight && <span className="ml-1.5 px-1.5 py-0.5 rounded-md border border-border text-[10px] text-secondary">{r.flight}</span>}
+                  {r.madeCut === false && <span className="ml-1 text-[10px] uppercase tracking-wide text-muted" data-missed-cut="">cut</span>}
                   {r.missedRounds.length > 0 && <span className="ml-1 text-[10px] uppercase tracking-wide text-muted" title={`Missed round ${r.missedRounds.join(', ')}`}>{r.missedRounds.length === 1 ? 'missed R' + r.missedRounds[0] : 'missed ' + r.missedRounds.length}</span>}
                 </td>
                 {rounds.map(h => {
@@ -85,6 +96,7 @@ export default function OverallBoard({ data, net, onPick }: Props) {
                 <td className="px-2 py-2 text-right text-secondary tabular-nums">{formatToPar(keyToPar)}</td>
               </tr>
             );
+            return divider ? [divider, tr] : [tr];
           })}
         </tbody>
       </table>

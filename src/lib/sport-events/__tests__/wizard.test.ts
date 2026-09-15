@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { addWizardRound, emptyRoundDraft, emptyWizardState, isWizardDirty, removeWizardRound, updateWizardRound, validateWizardRounds, validateWizardStep, wizardCourseFrom, wizardToCreateBody, type RoundDraft, type WizardState } from '../wizard';
 
-const round1: RoundDraft = { scheduled_on: '2030-06-01', course: { id: null, name: 'Eagle Creek', tees: [], holesCount: null }, tee: '', holes: 9, starting_hole: 10 };
+const round1: RoundDraft = { scheduled_on: '2030-06-01', name: '', course: { id: null, name: 'Eagle Creek', tees: [], holesCount: null }, tee: '', holes: 9, starting_hole: 10 };
 const filled = (): WizardState => ({ ...emptyWizardState(), name: 'Spring Open', rounds: [round1], format: 'stroke_net', capacity: '8' });
 
 describe('the wizard rules', () => {
@@ -27,7 +27,8 @@ describe('the wizard rules', () => {
     const one = filled();
     const two = addWizardRound(one);
     expect(two.rounds).toHaveLength(2);
-    expect(two.rounds[1]).toEqual({ ...round1, scheduled_on: '' });
+    expect(two.rounds[1]).toEqual({ ...round1, scheduled_on: '', name: '' });
+    expect(wizardToCreateBody({ ...one, rounds: [{ ...round1, name: ' Saturday ' }] }, { publish: true, profileId: null })).toMatchObject({ round: { name: 'Saturday' } });
     expect(validateWizardRounds(two.rounds)).toBe('Round 2: Pick the date.');
     const early = updateWizardRound(two, 1, { scheduled_on: '2030-05-31' });
     expect(validateWizardRounds(early.rounds)).toBe('Round 2 must not be before round 1.');
@@ -45,7 +46,7 @@ describe('the wizard rules', () => {
   it('the body is the create route\'s shape; a nine keeps its start, an eighteen starts on 1; blanks become null', () => {
     expect(wizardToCreateBody(filled(), { publish: true, profileId: null })).toEqual({
       name: 'Spring Open', description: null, sport_key: 'golf', visibility: 'private', join_mode: 'invite', format: 'stroke_net', capacity: 8, club_id: null, league_id: null, host_plays: true, publish: true, profile_id: null,
-      round: { scheduled_on: '2030-06-01', course_id: null, course_name: 'Eagle Creek', tee: null, holes: 9, starting_hole: 10 },
+      round: { scheduled_on: '2030-06-01', name: null, course_id: null, course_name: 'Eagle Creek', tee: null, holes: 9, starting_hole: 10 },
     });
     const body = wizardToCreateBody({ ...filled(), rounds: [{ ...round1, holes: 18, tee: ' Blue ' }], org: { kind: 'club', id: 'c1' } }, { publish: false, profileId: 'child' });
     expect(body).toMatchObject({ club_id: 'c1', league_id: null, publish: false, profile_id: 'child', round: { starting_hole: 1, tee: 'Blue' } });

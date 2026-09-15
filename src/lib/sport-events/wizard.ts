@@ -32,6 +32,8 @@ export interface WizardCourse {
 /** One round as the round fields edit it (the wizard's step, the event page's add / edit window). */
 export interface RoundDraft {
   scheduled_on: string;
+  /** 207 — an optional label ("Saturday", "Final round"). */
+  name: string;
   course: WizardCourse | null;
   tee: string;
   holes: 9 | 18;
@@ -39,13 +41,14 @@ export interface RoundDraft {
 }
 
 export function emptyRoundDraft(): RoundDraft {
-  return { scheduled_on: '', course: null, tee: '', holes: 18, starting_hole: 1 };
+  return { scheduled_on: '', name: '', course: null, tee: '', holes: 18, starting_hole: 1 };
 }
 
 /** A stored round → a draft for the edit window (the catalog's tees are not on the row: the tee stays free text). */
-export function roundDraftFrom(round: { scheduled_on: string; course_id: string | null; course_name: string; tee: string | null; holes: number; starting_hole: number }): RoundDraft {
+export function roundDraftFrom(round: { scheduled_on: string; name?: string | null; course_id: string | null; course_name: string; tee: string | null; holes: number; starting_hole: number }): RoundDraft {
   return {
     scheduled_on: round.scheduled_on,
+    name: round.name ?? '',
     course: { id: round.course_id, name: round.course_name, tees: [], holesCount: null },
     tee: round.tee ?? '',
     holes: round.holes === 9 ? 9 : 18,
@@ -65,6 +68,7 @@ export function validateRoundDraft(d: RoundDraft): string | null {
 export function roundBodyFrom(d: RoundDraft) {
   return {
     scheduled_on: d.scheduled_on,
+    name: d.name.trim() || null,
     course_id: d.course?.id ?? null,
     course_name: d.course?.name.trim() ?? null,
     tee: d.tee.trim() || null,
@@ -92,7 +96,7 @@ export function emptyWizardState(): WizardState {
 
 function isRoundDirty(r: RoundDraft): boolean {
   const e = emptyRoundDraft();
-  return r.scheduled_on !== e.scheduled_on || r.course !== null || r.tee !== '' || r.holes !== e.holes || r.starting_hole !== e.starting_hole;
+  return r.scheduled_on !== e.scheduled_on || r.name !== '' || r.course !== null || r.tee !== '' || r.holes !== e.holes || r.starting_hole !== e.starting_hole;
 }
 
 export function isWizardDirty(s: WizardState): boolean {
@@ -104,7 +108,7 @@ export function isWizardDirty(s: WizardState): boolean {
 export function addWizardRound(s: WizardState): WizardState {
   if (s.rounds.length >= MAX_ROUNDS) return s;
   const prev = s.rounds[s.rounds.length - 1] ?? emptyRoundDraft();
-  return { ...s, rounds: [...s.rounds, { ...prev, scheduled_on: '' }] };
+  return { ...s, rounds: [...s.rounds, { ...prev, scheduled_on: '', name: '' }] };
 }
 
 /** Remove a round from the list (never the first — an event needs a round). */

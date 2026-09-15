@@ -108,7 +108,7 @@ the GET is anonymous-reachable for a public or link event).
 | `POST /api/sport-events` | signed in (acting-as ok) | name, description, visibility, join_mode, format, capacity, club_id \| league_id (`manage_competitions`, never acting-as), `round {scheduled_on, course_id, course_name, tee, holes, starting_hole}` OR (phase 2) `rounds: [{…}]` (1..8, sequence order, dates non-decreasing — never both), `host_plays`, `publish` → the header, the rounds (each a catalog snapshot), the host's organizer row; a link token for `link` |
 | `GET /api/sport-events?scope=mine\|hosting\|upcoming\|live\|past` | signed in | the viewer's events (host or a non-declined / non-removed row), ≤ 100 |
 | `GET /api/sport-events/[id]?token=&as=` | optional auth → 404 | `{event, rounds (+ group_post_id), participants, groups, counts, viewer}` |
-| `PATCH /api/sport-events/[id]` | canManage; draft / open | the editable fields; a capacity raise promotes; `visibility: 'link'` mints a token |
+| `PATCH /api/sport-events/[id]` | canManage; draft / open — and live for `format_config` alone | the editable fields; a capacity raise promotes; `visibility: 'link'` mints a token; `format_config` (207, phase 2) validated against the round count (`parseFormatConfig`), refused `cut_already_passed` once the round the cut follows completed |
 | `DELETE /api/sport-events/[id]` | the host; draft / cancelled / completed | a minted round detaches (203 SET NULL) |
 | `POST /api/sport-events/[id]/link-token` | the host; `link` | rotate |
 | `POST /api/sport-events/[id]/participants` | canManage; draft / open | `{profile_ids, handles}` → invites; blocked skipped silently; the supervised invite dial; `{invited, skipped: {unknown, blocked, supervised, existing}}` |
@@ -240,6 +240,7 @@ specs run at 390 × 844 on Chromium AND WebKit.
 | `sport-events-scorecard` `@mobile` | submit · mark final · reopen · complete with the not-final list |
 | `sport-events-group-card` `@mobile` | the group card · OFFLINE queue and reconnect · a partner's hole |
 | `sport-events-feed` | the announce card and the chip, announced → live · (phase 2) a two-round tournament: the round-2 card reads "Round 2 of 2" and is not live while round 1 is, the chip names the round, the list's `rounds` summary |
+| `sport-events-cut` `@mobile` (phase 2, NEEDS 207) | the strict PATCH · a named round · the standing decides the cut after round 1 (`cutLine`, B below) · `cut_already_passed` · round 2 minted without B · the header names the round · the Overview's cut line and the locked settings window · the board's cut line |
 | `sport-events-waitlist` `@mobile` (phase 2) | capacity 1: B waitlisted #1 → "you're next" in the header and on the roster · B cannot reorder · a bad place refused by name · Promote now from the Players tab → the field one over the capacity · a promoted row can no longer be moved |
 | `sport-events-breakdown` `@mobile` (phase 2) | the API shapes (`?round=all` with the aggregate, `?participant=` narrows, a bad round param) · a board row opens the window · All rounds = two strips + summed tiles · This round from a round's board · the hardest holes name hole 2 |
 | `sport-events-flights` `@mobile` (phase 2) | the Flights window from the Players tab · the chip on the roster · the segment and `?flight=` rank within the flight · a player's own PATCH refused · an unknown field and a stranger in the plan refused by name · the API's `?flight=` |
@@ -438,6 +439,25 @@ player sees how many are ahead (`view.ts projectViewer` →
 roster row "You're next"); a queue place is between the player and the
 organizer — `visibleParticipants` hides OTHER people's waitlisted rows from
 a non-organizer, the count still rides on `counts.waitlisted`.
+
+### The cut and the round names wired (PR 8 — after 207 ran)
+
+`EVENT_COLUMNS` / `ROUND_COLUMNS` name 207's columns from this PR on. The
+event PATCH takes `format_config` (validated against the non-cancelled
+round count; allowed while live for the format alone; `cut_already_passed`
+once the round it follows completed); the view carries `format_config`
+(read tolerantly). The overall fold applies the cut once it is decided
+(`applyCut` over the standing THROUGH round K — the missed-cut set ranks
+below the line, never "missing" the rounds it was not in; `cutLine`), the
+round mint EXCLUDES the missed-cut set from every later round
+(`mintRound {excludeParticipantIds}` from the overall board — never
+stored), and an invite past a decided cut is refused. A round's `name`
+rides the create / add / edit bodies (1..40), the header line ("Round 2
+of 2 · Final · …"), the switcher's pill and the schedule. The Overview
+shows the cut line and, for organizers of a tournament, the **Format
+settings** door (`FormatSettingsWindow`: on / after round / top N or
+to-par; locked once made); the overall board draws the cut line and a
+"cut" mark on the missed rows.
 
 ## Phase 2 status
 

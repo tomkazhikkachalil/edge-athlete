@@ -44,7 +44,7 @@ export default function EventSchedule({ view, busy = false, onRoundAction, onAdd
             <div className="flex flex-wrap items-start justify-between gap-2">
               <div>
                 <div className="flex flex-wrap items-center gap-2">
-                  <p className="text-sm font-semibold text-primary">{many ? `Round ${round.sequence} · ` : ''}{formatDateOnly(round.scheduled_on, { weekday: true })}</p>
+                  <p className="text-sm font-semibold text-primary">{many ? `Round ${round.sequence} · ` : ''}{round.name ? `${round.name} · ` : ''}{formatDateOnly(round.scheduled_on, { weekday: true })}</p>
                   {(many || round.status !== 'scheduled') && (
                     <span className={`px-2 py-0.5 rounded-md border text-xs font-semibold ${TONE[round.status] ?? TONE.scheduled}`} data-round-chip={round.status}>
                       {round.status === 'live' && <span className="mr-1.5 inline-block h-1.5 w-1.5 rounded-full bg-red-600 ea-live-dot align-middle" aria-hidden="true" />}

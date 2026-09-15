@@ -17,7 +17,7 @@ describe('isDateOnly — the date-only class', () => {
 
 describe('parseRoundInput', () => {
   it('needs a date and a course (id or name); defaults 18 from hole 1', () => {
-    expect(parseRoundInput({ scheduled_on: '2026-10-03', course_name: 'X' })).toEqual({ ok: true, value: { scheduled_on: '2026-10-03', course_id: null, course_name: 'X', tee: null, holes: 18, starting_hole: 1 } });
+    expect(parseRoundInput({ scheduled_on: '2026-10-03', course_name: 'X' })).toEqual({ ok: true, value: { scheduled_on: '2026-10-03', name: null, course_id: null, course_name: 'X', tee: null, holes: 18, starting_hole: 1 } });
     expect(parseRoundInput({ scheduled_on: 'tomorrow', course_name: 'X' })).toMatchObject({ ok: false, error: expect.stringContaining('scheduled_on') });
     expect(parseRoundInput({ scheduled_on: '2026-10-03' })).toMatchObject({ ok: false, error: expect.stringContaining('course_name') });
     expect(parseRoundInput({ scheduled_on: '2026-10-03', course_id: 'nope' })).toMatchObject({ ok: false, error: expect.stringContaining('course_id') });
@@ -114,5 +114,15 @@ describe('the participant patch — phase 2 fields', () => {
     expect(parseParticipantPatch({ waitlist_position: 0 })).toMatchObject({ ok: false, error: expect.stringContaining('waitlist_position') });
     expect(parseParticipantPatch({ waitlist_position: 1.5 })).toMatchObject({ ok: false });
     expect(parseParticipantPatch({ flite: 'A' })).toEqual({ ok: false, error: 'Unknown field: flite' });
+  });
+});
+
+describe('phase 2 fields on the round and the event patch', () => {
+  it('a round may carry a name (1..40); the event patch passes format_config through as an object', () => {
+    expect(parseRoundInput({ ...round, name: ' Saturday ' })).toMatchObject({ ok: true, value: { name: 'Saturday' } });
+    expect(parseRoundInput({ ...round, name: '' })).toMatchObject({ ok: true, value: { name: null } });
+    expect(parseRoundInput({ ...round, name: 'x'.repeat(41) })).toMatchObject({ ok: false, error: expect.stringContaining('round.name') });
+    expect(parseEventPatch({ format_config: { cut: { after_round: 1, top_n: 5 } } })).toEqual({ ok: true, value: { format_config: { cut: { after_round: 1, top_n: 5 } } } });
+    expect(parseEventPatch({ format_config: 'x' })).toMatchObject({ ok: false, error: 'format_config must be an object' });
   });
 });

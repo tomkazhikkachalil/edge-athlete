@@ -16,8 +16,12 @@ import {
 
 export type Parsed<T> = { ok: true; value: T } | { ok: false; error: string };
 
+export const ROUND_NAME_MAX = 40;
+
 export interface RoundInput {
   scheduled_on: string;
+  /** 207 — an optional label; null clears. */
+  name?: string | null;
   course_id: string | null;
   course_name: string | null;
   tee: string | null;
@@ -54,6 +58,8 @@ export interface EventPatchInput {
   capacity?: number | null;
   club_id?: string | null;
   league_id?: string | null;
+  /** 207 — the raw object; the route validates it against the round count (format-config.ts). */
+  format_config?: unknown;
 }
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -136,7 +142,9 @@ export function parseRoundInput(body: unknown, field = 'round'): Parsed<RoundInp
   const startingHole = body.starting_hole === undefined ? 1 : body.starting_hole;
   if (startingHole !== 1 && startingHole !== 10) return { ok: false, error: `${field}.starting_hole must be 1 or 10` };
   if (holes === 18 && startingHole === 10) return { ok: false, error: 'an 18-hole round starts on hole 1' };
-  return { ok: true, value: { scheduled_on: body.scheduled_on, course_id: courseId.value, course_name: courseName.value, tee: tee.value, holes, starting_hole: startingHole } };
+  const name = optionalText(body.name, `${field}.name`, ROUND_NAME_MAX);
+  if (!name.ok) return name;
+  return { ok: true, value: { scheduled_on: body.scheduled_on, name: name.value, course_id: courseId.value, course_name: courseName.value, tee: tee.value, holes, starting_hole: startingHole } };
 }
 
 export function parseCreateBody(body: unknown): Parsed<CreateEventInput> {
@@ -219,7 +227,7 @@ export function parseRoundsInput(body: Record<string, unknown>): Parsed<RoundInp
 export function parseEventPatch(body: unknown): Parsed<EventPatchInput> {
   if (!isRecord(body)) return { ok: false, error: 'A JSON body is required' };
   const out: EventPatchInput = {};
-  const known = new Set(['name', 'description', 'visibility', 'join_mode', 'format', 'capacity', 'club_id', 'league_id']);
+  const known = new Set(['name', 'description', 'visibility', 'join_mode', 'format', 'capacity', 'club_id', 'league_id', 'format_config']);
   for (const key of Object.keys(body)) if (!known.has(key)) return { ok: false, error: `Unknown field: ${key}` };
   if ('name' in body) {
     const name = optionalText(body.name, 'name', NAME_MAX);
@@ -261,6 +269,10 @@ export function parseEventPatch(body: unknown): Parsed<EventPatchInput> {
     const l = optionalUuid(body.league_id, 'league_id');
     if (!l.ok) return l;
     out.league_id = l.value;
+  }
+  if ('format_config' in body) {
+    if (typeof body.format_config !== 'object' || body.format_config === null || Array.isArray(body.format_config)) return { ok: false, error: 'format_config must be an object' };
+    out.format_config = body.format_config;
   }
   if (out.club_id && out.league_id) return { ok: false, error: 'An event belongs to a club or a league, not both' };
   if (Object.keys(out).length === 0) return { ok: false, error: 'Nothing to change' };

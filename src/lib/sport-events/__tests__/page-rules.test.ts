@@ -85,6 +85,7 @@ describe('the header round line and the rounds summary (phase 2)', () => {
     expect(headerRoundLine([rr(1, '2030-06-01', 'completed'), rr(2, '2030-06-02', 'completed')], null).primary).toBe('Round 2 of 2 · Sun, Jun 2, 2030 · Eagle Creek · final');
     expect(headerRoundLine([rr(1, '2030-06-01', 'cancelled'), rr(2, '2030-06-02', 'scheduled')], null).primary).toBe('Sun, Jun 2, 2030 · Eagle Creek');
     expect(headerRoundLine([], null)).toEqual({ primary: '', secondary: null });
+    expect(headerRoundLine([{ ...rr(1, '2030-06-01', 'live'), name: 'Saturday' }, { ...rr(2, '2030-06-02', 'scheduled'), name: 'Final' }], null)).toEqual({ primary: 'Round 1 of 2 · Saturday · Sat, Jun 1, 2030 · Eagle Creek · live', secondary: 'Next: Round 2 · Final · Sun, Jun 2, 2030' }); // 207's names
   });
   it('the summary: one date, or "n rounds · Jun 1 – Jun 3, 2030"', () => {
     expect(roundsSummary([rr(1, '2030-06-01', 'scheduled')])).toBe('Sat, Jun 1, 2030');
@@ -130,9 +131,9 @@ describe('the organizer rules (phase 2)', () => {
 
 describe('the round draft (phase 2)', () => {
   it('a stored round becomes a draft and back; the refusals name the miss', () => {
-    const d = roundDraftFrom({ scheduled_on: '2030-06-01', course_id: null, course_name: 'QA Links', tee: null, holes: 9, starting_hole: 10 });
-    expect(d).toEqual({ scheduled_on: '2030-06-01', course: { id: null, name: 'QA Links', tees: [], holesCount: null }, tee: '', holes: 9, starting_hole: 10 });
-    expect(roundBodyFrom(d)).toEqual({ scheduled_on: '2030-06-01', course_id: null, course_name: 'QA Links', tee: null, holes: 9, starting_hole: 10 });
+    const d = roundDraftFrom({ scheduled_on: '2030-06-01', name: 'Saturday', course_id: null, course_name: 'QA Links', tee: null, holes: 9, starting_hole: 10 });
+    expect(d).toEqual({ scheduled_on: '2030-06-01', name: 'Saturday', course: { id: null, name: 'QA Links', tees: [], holesCount: null }, tee: '', holes: 9, starting_hole: 10 });
+    expect(roundBodyFrom(d)).toEqual({ scheduled_on: '2030-06-01', name: 'Saturday', course_id: null, course_name: 'QA Links', tee: null, holes: 9, starting_hole: 10 });
     expect(roundBodyFrom({ ...d, holes: 18 })).toMatchObject({ starting_hole: 1 });
     expect(validateRoundDraft(emptyRoundDraft())).toBe('Pick the date.');
     expect(validateRoundDraft({ ...emptyRoundDraft(), scheduled_on: '2030-06-01' })).toBe('Pick a course, or type its name.');
