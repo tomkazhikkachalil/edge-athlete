@@ -1,5 +1,34 @@
 # Development Log
 
+## September 16, 2026 — Events program, phase 2, PR 11: the feed's round-aware cards and the lists (zero DDL)
+
+A round-2 announce post used to read "Live" because the EVENT was live:
+
+- `feed.ts` — `SPORT_EVENT_ROUND_LABEL_SELECT` carries the round's
+  `sequence` and `status` (never 207's `name` — that column waits for
+  PR 8); `PostSportEvent` gains `sequence`, `round_status`,
+  `round_count`; `applyRoundCounts` stamps the count from ONE grouped
+  read per feed page (`sport_event_rounds.sport_event_id`, non-cancelled,
+  behind the same branch as the labels — nothing on a feed without event
+  posts); `postEventState` reads the ROUND's status (announced while an
+  earlier round is live; final once its round completed; cancelled when
+  the round or the event is); `roundLabelOf` = "Round 2 of 3".
+- `EventAnnounceCard` leads with the round's state and shows the round
+  label; `PostCard`'s chip reads "From {name} · Round 2" on a tournament.
+- `GET /api/sport-events?scope=` carries `rounds: {count, completed,
+  live_sequence}` per event (one grouped read over the listed ids);
+  `EventCard` adds "Round 2 of 3 live" / "2 of 3 rounds played" / "Final ·
+  3 rounds" / "3 rounds"; the Leaderboards place links a tournament to
+  its overall board (`leaderboardHref`).
+
+Verification: `npm run verify` green; `feed.test.ts` grows (the count
+from the grouped read, the label only on a tournament, the round's
+state); `sport-events-feed.spec.ts` grows (a two-round tournament with
+round 1 live: the API's cards read `[1 live] [2 scheduled]` with count 2,
+the list's `rounds` summary, the round-2 card on /feed reads "Round 2 of
+2" and not Live now while the round-1 card does). Next: PR 12, the
+waitlist polish and the docs close.
+
 ## September 16, 2026 — Events program, phase 2, PR 10: regroup by standing (zero DDL)
 
 - `groups-editor.ts groupsByStanding(rows, {groupSize, order,

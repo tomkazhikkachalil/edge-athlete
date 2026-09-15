@@ -781,7 +781,7 @@ function PostCard({
               data-post-event-chip={post.sport_event.id}
               onClick={e => e.stopPropagation()}
             >
-              From {post.sport_event.name}
+              From {post.sport_event.name}{post.sport_event.round_count > 1 ? ` · Round ${post.sport_event.sequence}` : ''}
             </Link>
           </p>
         )}

@@ -237,7 +237,7 @@ specs run at 390 × 844 on Chromium AND WebKit.
 | `sport-events-groups` `@mobile` | the groups editor end to end · hidden from a player · (phase 2) round 2 grouped by standing, leaders last — B before A — and the mint honours it |
 | `sport-events-scorecard` `@mobile` | submit · mark final · reopen · complete with the not-final list |
 | `sport-events-group-card` `@mobile` | the group card · OFFLINE queue and reconnect · a partner's hole |
-| `sport-events-feed` | the announce card and the chip, announced → live |
+| `sport-events-feed` | the announce card and the chip, announced → live · (phase 2) a two-round tournament: the round-2 card reads "Round 2 of 2" and is not live while round 1 is, the chip names the round, the list's `rounds` summary |
 | `sport-events-breakdown` `@mobile` (phase 2) | the API shapes (`?round=all` with the aggregate, `?participant=` narrows, a bad round param) · a board row opens the window · All rounds = two strips + summed tiles · This round from a round's board · the hardest holes name hole 2 |
 | `sport-events-flights` `@mobile` (phase 2) | the Flights window from the Players tab · the chip on the roster · the segment and `?flight=` rank within the flight · a player's own PATCH refused · an unknown field and a stranger in the plan refused by name · the API's `?flight=` |
 | `sport-events-tournament-page` `@mobile` (phase 2) | the `?round=overall` deep link and the switcher · the header's round line · Start round 1 from the schedule card · groups per round while round 1 is live · the scorecard follows the live round · Complete round 1 from the header (the event stays live, "Start round 2") · add a round from the window |
@@ -406,6 +406,21 @@ when given. The Groups tab offers it on a round after a completed one
 (size · order · first tee time · interval); the draft is replaced (a
 confirm when groups were arranged), Save is the same PUT, the mint
 honours it.
+
+### The feed and the lists for N rounds (PR 11)
+
+`feed.ts`: the label select carries the round's `sequence` and `status`;
+`applyRoundCounts` stamps `round_count` from ONE grouped read per feed
+page (behind the same branch as the labels); `postEventState` reads the
+ROUND's status — a round-2 post is announced while round 1 is live, final
+once its round completed; `roundLabelOf` is "Round 2 of 3" on a
+tournament and nothing on a single round. `EventAnnounceCard` shows it
+beside the state; `PostCard`'s chip reads "From {name} · Round 2". The
+events list (`GET /api/sport-events?scope=`) carries `rounds: {count,
+completed, live_sequence}` per event from one grouped read; `EventCard`
+adds "Round 2 of 3 live" / "Final · 3 rounds" / "n rounds"; the
+Leaderboards place links a tournament to `?tab=leaderboard&round=overall`
+(`leaderboardHref`).
 
 ## Phase 1 status
 

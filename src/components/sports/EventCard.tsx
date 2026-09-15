@@ -14,6 +14,23 @@ export interface ListedEvent {
   my_role: string;
   my_status: string | null;
   can_manage: boolean;
+  /** Phase 2: the rounds at a glance (absent on an older payload). */
+  rounds?: { count: number; completed: number; live_sequence: number | null };
+}
+
+/** "Round 2 of 3 live" · "Final · 3 rounds" · "3 rounds" — nothing on a single round. */
+export function roundsLine(event: Pick<ListedEvent, 'status' | 'rounds'>): string | null {
+  const r = event.rounds;
+  if (!r || r.count <= 1) return null;
+  if (r.live_sequence !== null) return `Round ${r.live_sequence} of ${r.count} live`;
+  if (event.status === 'completed') return `Final · ${r.count} rounds`;
+  if (r.completed > 0) return `${r.completed} of ${r.count} rounds played`;
+  return `${r.count} rounds`;
+}
+
+/** The leaderboards place's link: the overall board on a tournament. */
+export function leaderboardHref(event: Pick<ListedEvent, 'id' | 'rounds'>): string {
+  return `/events/${event.id}?tab=leaderboard${(event.rounds?.count ?? 1) > 1 ? '&round=overall' : ''}`;
 }
 
 const CHIP: Record<string, string> = {
@@ -35,6 +52,7 @@ export default function EventCard({ event, href }: { event: ListedEvent; href?: 
         </div>
         <p className="text-sm font-bold text-primary truncate">{event.name}</p>
         <p className="text-xs text-secondary">{event.starts_on ? formatDateOnly(event.starts_on, { weekday: true }) : 'Date to be set'}{event.capacity !== null ? ` · ${fieldLine({ playing: 0, waitlisted: 0 }, event.capacity).replace('0 of ', 'up to ').replace(' playing', ' players')}` : ''}</p>
+        {roundsLine(event) && <p className="text-xs text-secondary" data-events-card-rounds="">{roundsLine(event)}</p>}
       </Link>
     </li>
   );

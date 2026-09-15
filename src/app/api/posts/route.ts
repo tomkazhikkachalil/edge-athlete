@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { SPORT_EVENT_ROUND_LABEL_SELECT, sportEventLabelsByRound } from '@/lib/sport-events/feed';
+import { applyRoundCounts, SPORT_EVENT_ROUND_LABEL_SELECT, sportEventIdsOf, sportEventLabelsByRound } from '@/lib/sport-events/feed';
 import { UUID_RE, isUuid } from '@/lib/uuid';
 import { filterBlockedBidirectional } from '@/lib/blocks';
 import { getEnabledSports } from '@/lib/sports/SportRegistry';
@@ -924,7 +924,14 @@ export async function GET(request: NextRequest) {
       let singleSportEvent = null;
       if (post.sport_event_round_id) {
         const { data: rows } = await getSupabaseAdmin().from('sport_event_rounds').select(SPORT_EVENT_ROUND_LABEL_SELECT).eq('id', post.sport_event_round_id);
-        singleSportEvent = sportEventLabelsByRound(rows ?? []).get(post.sport_event_round_id) ?? null;
+        const labels = sportEventLabelsByRound(rows ?? []);
+        const eventIds = sportEventIdsOf(labels);
+        if (eventIds.length > 0) {
+          // Phase 2: "Round n of m" — the event's non-cancelled rounds.
+          const { data: counts } = await getSupabaseAdmin().from('sport_event_rounds').select('sport_event_id').in('sport_event_id', eventIds).neq('status', 'cancelled');
+          applyRoundCounts(labels, (counts ?? []) as Array<{ sport_event_id: string }>);
+        }
+        singleSportEvent = labels.get(post.sport_event_round_id) ?? null;
       }
 
       // Transform single post
@@ -1314,6 +1321,13 @@ export async function GET(request: NextRequest) {
     ]);
     if (sportEventRoundsResult.error) console.error('[GET] Error fetching sport event labels:', sportEventRoundsResult.error);
     const sportEventByRound = sportEventLabelsByRound(sportEventRoundsResult.data ?? []);
+    // Phase 2: one grouped read for "Round n of m" — behind the same branch as the labels.
+    const sportEventIds = sportEventIdsOf(sportEventByRound);
+    if (sportEventIds.length > 0) {
+      const { data: roundCounts, error: countsError } = await getSupabaseAdmin().from('sport_event_rounds').select('sport_event_id').in('sport_event_id', sportEventIds).neq('status', 'cancelled');
+      if (countsError) console.error('[GET] Error fetching sport event round counts:', countsError);
+      applyRoundCounts(sportEventByRound, (roundCounts ?? []) as Array<{ sport_event_id: string }>);
+    }
     if (contestsResult.error) console.error('[GET] Error fetching contest labels:', contestsResult.error);
     const contestById = new Map<string, { id: string; round: string | null; competition_name: string }>();
     for (const c of (contestsResult.data ?? []) as { id: string; round: string | null; competition: { name: string } | { name: string }[] | null }[]) {

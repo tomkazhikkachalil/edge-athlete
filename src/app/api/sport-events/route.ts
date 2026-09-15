@@ -154,6 +154,17 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
     }
 
+    // Phase 2: each listed event's rounds at a glance — one grouped read.
+    const { data: roundRows } = await admin.from('sport_event_rounds').select('sport_event_id, sequence, status').in('sport_event_id', [...ids]).neq('status', 'cancelled');
+    const roundsByEvent = new Map<string, { count: number; completed: number; live_sequence: number | null }>();
+    for (const r of (roundRows ?? []) as Array<{ sport_event_id: string; sequence: number; status: string }>) {
+      const cur = roundsByEvent.get(r.sport_event_id) ?? { count: 0, completed: 0, live_sequence: null };
+      cur.count += 1;
+      if (r.status === 'completed') cur.completed += 1;
+      if (r.status === 'live') cur.live_sequence = r.sequence;
+      roundsByEvent.set(r.sport_event_id, cur);
+    }
+
     const out = [];
     for (const e of (events ?? []) as SportEventRow[]) {
       const own = rowByEvent.get(e.id) ?? null;
@@ -173,7 +184,7 @@ export async function GET(request: NextRequest) {
         : scope === 'past' ? isPast
         : /* upcoming */ !isPast && e.status !== 'live';
       if (!keep) continue;
-      out.push({ ...projectEvent(e, access), my_role: access.role, my_status: access.participantStatus, can_manage: access.canManage });
+      out.push({ ...projectEvent(e, access), my_role: access.role, my_status: access.participantStatus, can_manage: access.canManage, rounds: roundsByEvent.get(e.id) ?? { count: 1, completed: 0, live_sequence: null } });
     }
     const dir = scope === 'past' || scope === 'mine' ? -1 : 1;
     out.sort((a, b) => {
