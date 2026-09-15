@@ -8,7 +8,9 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { readSportEventAccess } from './access-server';
 import { ROUND_COLUMNS } from './rounds-server';
 import type { SportEventGroupMemberRow, SportEventGroupRow, SportEventParticipantRow, SportEventRoundRow } from './types';
-import { projectEvent, projectParticipant, projectViewer, roundCounts, visibleParticipants, type GroupView, type ProfileForView, type RoundView, type SportEventViewPayload } from './view';
+import { projectEvent, projectParticipant, projectViewer, roundCounts, visibleParticipants, type CountsTowardView, type GroupView, type HostOrgView, type ProfileForView, type RoundView, type SportEventViewPayload } from './view';
+import { eventOrg } from './contest-link';
+import { readCountsToward } from './contest-link-server';
 import { readRoster } from './join-server';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -50,6 +52,19 @@ export async function fetchSportEventView(admin: Admin, eventId: string, viewerI
   for (const gp of (groupPostsRes.data ?? []) as Array<{ id: string; sport_event_round_id: string }>) groupPostByRound.set(gp.sport_event_round_id, gp.id);
   const roundViews: RoundView[] = rounds.map(r => ({ ...r, group_post_id: groupPostByRound.get(r.id) ?? null }));
 
+  // Phase 2b: the host org by name and what the event counts toward (tolerant pre-211).
+  const org = eventOrg(event);
+  const [orgRes, countsToward] = await Promise.all([
+    org ? admin.from(org.side === 'club' ? 'clubs' : 'leagues').select('id, name').eq('id', org.id).maybeSingle() : Promise.resolve({ data: null }),
+    org && roundIds.length > 0 ? readCountsToward(admin, roundIds) : Promise.resolve(null),
+  ]);
+  const host_org: HostOrgView | null = org && orgRes.data ? { side: org.side, id: org.id, name: (orgRes.data as { name: string }).name } : null;
+  let counts_toward: CountsTowardView | null = null;
+  if (countsToward && countsToward.size > 0) {
+    const first = [...countsToward.values()][0];
+    counts_toward = { competition_id: first.competitionId, competition_name: first.competitionName, contests: [...countsToward.entries()].map(([round_id, c]) => ({ round_id, contest_id: c.contestId })) };
+  }
+
   const members = (membersRes.data ?? []) as SportEventGroupMemberRow[];
   const groups: GroupView[] = ((groupsRes.data ?? []) as SportEventGroupRow[]).map(g => ({
     ...g,
@@ -63,5 +78,7 @@ export async function fetchSportEventView(admin: Admin, eventId: string, viewerI
     groups,
     counts: roundCounts(roster as SportEventParticipantRow[]),
     viewer: projectViewer(viewerId, access, participant, roster as SportEventParticipantRow[]),
+    host_org,
+    counts_toward,
   };
 }

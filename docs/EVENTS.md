@@ -114,6 +114,7 @@ the GET is anonymous-reachable for a public or link event).
 | `PATCH /api/sport-events/[id]` | canManage; draft / open — and live for `format_config` alone | the editable fields; a capacity raise promotes; `visibility: 'link'` mints a token; `format_config` (207, phase 2) validated against the round count (`parseFormatConfig`), refused `cut_already_passed` once the round the cut follows completed |
 | `GET /api/sport-events/[id]/ics?token=` | the view's gate (may view) | the event as an .ics (phase 2b): one all-day VEVENT per non-cancelled round on its DATE, "Round n of N" in the title, the course as the location, `Content-Disposition: attachment`; the schedule's "Add to calendar". The subscribe feed stays rows-only |
 | `PUT /api/sport-events/[id]/contest` | canManage AND `requireOrgManager(manage_competitions)` on the event's org; draft / open | `{competition_id \| null}` (phase 2b, B1): a golf leaderboard of athletes on the event's own org — one contest per non-cancelled round minted (idempotent; the accepted playing players entered), the refusals named (`linkRefusal`); `null` removes the link while no result exists (`results_exist` → 409); pre-211 → 503 `needs_migration` |
+| `POST /api/sport-events` (+ `competition_id`) | the org gate | phase 2b: `competition_id` (needs `club_id` / `league_id`) is refused by name BEFORE any insert (`linkRefusal`) and mints one contest per round after the rounds (best-effort); the view carries `host_org` and `counts_toward` |
 | `DELETE /api/sport-events/[id]` | the host; draft / cancelled / completed | a minted round detaches (203 SET NULL) |
 | `POST /api/sport-events/[id]/link-token` | the host; `link` | rotate |
 | `POST /api/sport-events/[id]/participants` | canManage; draft / open | `{profile_ids, handles}` → invites; blocked skipped silently; the supervised invite dial; `{invited, skipped: {unknown, blocked, supervised, existing}}` |
@@ -250,7 +251,7 @@ specs run at 390 × 844 on Chromium AND WebKit.
 | `sport-events-calendar` `@mobile` (phase 2b, zero DDL) | the host's calendar GET carries the round as `kind: 'sport_event'` (accepted, all-day on its UTC day) · an invitee's item is dashed (`invited`) · after accepting, B jumps to June 2030 at 390, the chip is there, a tap opens `/events/[id]?tab=schedule&round=` |
 | `sport-events-calendar` `@mobile` (phase 2b, zero DDL) | the host's calendar GET carries the round as `kind: 'sport_event'` (accepted, all-day on its UTC day) · an invitee's item is dashed (`invited`) · after accepting, B finds it in the agenda at 390, a tap opens `/events/[id]?tab=schedule&round=` · the .ics download: one VEVENT on the date, the schedule's link, a stranger's 404 |
 | `sport-events-reminder` (phase 2b, NEEDS 210 — self-skips before) | an inserted `sport_event_reminder` bell renders on the notifications page with its copy (the sender is cron-only; its planner is unit-tested) |
-| `sport-events-contest` (phase 2b, NEEDS 211 — self-skips before) | a QA club with a golf net league + a hockey fixture · a two-round club event · PUT contest mints one contest per round on the rounds' dates with A entered · idempotent · the golf-sync engine refuses an event round's contest · the hockey competition → 400 `not_golf_leaderboard` · B → 403 · B joins and opts out · round 1 live → the contest `in_progress` · both score · complete → `club_recorded` results from the event's board, B counted with `roundRef.roundId` null and no golf round, the live round stamped, `/api/contests/[id]` shows both · unlink → 409 `results_exist` |
+| `sport-events-contest` (+ `@mobile` for the pickers; phase 2b, NEEDS 211 — self-skips before) | a QA club with a golf net league + a hockey fixture · a two-round club event · PUT contest mints one contest per round on the rounds' dates with A entered · idempotent · the golf-sync engine refuses an event round's contest · the hockey competition → 400 `not_golf_leaderboard` · B → 403 · B joins and opts out · round 1 live → the contest `in_progress` · both score · complete → `club_recorded` results from the event's board, B counted with `roundRef.roundId` null and no golf round, the live round stamped, `/api/contests/[id]` shows both · unlink → 409 `results_exist` |
 | `sport-events-scoring-conflict` `@mobile` (phase 2b, NEEDS 209) | B offline scores 2, 3, 4 · A posts B's hole 3 through the API · back online 2 and 4 land, 3 asks (the false-conflict regression) · the dialog names both scores · Keep mine = a CAS at version 2 · a fresh conflict · Keep theirs yields at version 3 |
 | `sport-events-waitlist` `@mobile` (phase 2) | capacity 1: B waitlisted #1 → "you're next" in the header and on the roster · B cannot reorder · a bad place refused by name · Promote now from the Players tab → the field one over the capacity · a promoted row can no longer be moved |
 | `sport-events-breakdown` `@mobile` (phase 2) | the API shapes (`?round=all` with the aggregate, `?participant=` narrows, a bad round param) · a board row opens the window · All rounds = two strips + summed tiles · This round from a round's board · the hardest holes name hole 2 |
@@ -469,6 +470,52 @@ shows the cut line and, for organizers of a tournament, the **Format
 settings** door (`FormatSettingsWindow`: on / after round / top N or
 to-par; locked once made); the overall board draws the cut line and a
 "cut" mark on the missed rows.
+
+## Phase 2b — the integrations (Sep 16 2026)
+
+Decided with phase 2 (Tom: five tabs; opted-out players still count for the
+org; the reminder bell; core first) and built as ten PRs on three
+migrations, in landing order B3 → B4 → B2 → B1 — the plan file
+`~/.claude/plans/let-s-start-phase-2-transient-fountain.md` Part B is the
+verified spec.
+
+- **B3 — the per-hole compare-and-set (209, #763–#765).** `golf_hole_scores.
+  version` bumped by trigger only when a scored field changes; both score
+  routes take `expected_version` per hole (0 = "I saw no score") and answer
+  409 `{conflicts: [{hole_number, current}]}`; the outbox (v2, the v1 box
+  converted) carries it, "keep mine" resends against `current.version` — a
+  real CAS, never a forced overwrite — and the conflict names both scores.
+  The old card-stamp guard (defeated by the 039 totals trigger) is gone;
+  penalties ride only when named (every outbox save used to null them).
+- **B4 — the five-tab phone bar (#766).** Feed · Sports · Live · Calendar ·
+  Profile below `lg`, one active rule shared with the header
+  (`src/lib/nav-active.ts`), mounted once in the root layout,
+  `--ea-tabbar-h` measured, hidden on the screens that own their bottom
+  edge (`src/lib/tab-bar.ts showsTabBar`).
+- **B2 — the calendar (#767–#769, 210).** A participant's upcoming and live
+  rounds as read-time items (`sport-event-overlay.ts`, never rows; a tap
+  opens the event on that round; an invite keeps the dashed chip), the
+  .ics download (`GET [id]/ics`, one VEVENT per round), the day-before
+  reminder bell (`sport_event_reminder`, a step in the daily cron, once
+  per round per person, 23514-tolerant).
+- **B1 — org contest stamping (#771–#773, 211).** An org-hosted event
+  counts toward one of the org's golf leaderboard competitions:
+  `contests.sport_event_round_id` (one contest per round, ONE writer
+  `contest-link-server.ts`, `PUT [id]/contest` or `competition_id` on
+  create), the org's results written from the EVENT's leaderboard on
+  round completion (`club_recorded` / `league_verified`; an opted-out
+  player counts with `roundRef.roundId` null), the golf-sync engine
+  GUARDED on the link, the console's "From event", the Overview's
+  "Hosted for" / "Counts toward" (rows it never had), the contest place's
+  "Played as".
+
+## Phase 2b status
+
+Complete (Sep 16 2026): #763–#773, migrations 209 · 210 · 211. Every PR
+verify-green; the e2e specs self-skip before their migration; each
+prod-probed after its merge. Parked: Stableford, a round reorder, the
+waitlist UNIQUE via an RPC, the `FOR UPDATE` accept race; phase 3 (match
+play, brackets) starts from the parked list.
 
 ## Phase 2 status
 

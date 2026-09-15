@@ -10,6 +10,7 @@ import { SPORT_EVENT_SPORTS } from '@/lib/sport-events/types';
 import { formatDateOnly, formatLabel, holesLabel, joinLine, roundsSummary, VISIBILITY_LABEL } from '@/lib/sport-events/format';
 import { MAX_ROUNDS } from '@/lib/sport-events/rounds';
 import { addWizardRound, emptyWizardState, isWizardDirty, removeWizardRound, updateWizardRound, validateWizardStep, wizardToCreateBody, WIZARD_STEP_LABEL, WIZARD_STEPS, type WizardState, type WizardStep } from '@/lib/sport-events/wizard';
+import { eligibleCompetition, type CompetitionForLink } from '@/lib/sport-events/contest-link';
 import RoundFields, { Choice } from './RoundFields';
 import { getEnabledSports } from '@/lib/sports/SportRegistry';
 
@@ -58,6 +59,31 @@ export default function EventCreateWizard() {
   }, [user?.id]);
 
   const set = <K extends keyof WizardState>(key: K, value: WizardState[K]) => setS(prev => ({ ...prev, [key]: value }));
+
+  // Phase 2b: the chosen org's eligible competitions ("Counts toward") — the
+  // fetched list is keyed by the org, so a switch DERIVES an empty list (no
+  // setState in the effect) until the new org's answer lands.
+  const [fetched, setFetched] = useState<{ key: string; list: CompetitionForLink[] } | null>(null);
+  const orgKey = s.org ? `${s.org.kind}:${s.org.id}` : '';
+  const competitions = fetched && fetched.key === orgKey ? fetched.list : [];
+  useEffect(() => {
+    if (!orgKey) return;
+    const [kind, id] = orgKey.split(':') as ['club' | 'league', string];
+    let cancelled = false;
+    (async () => {
+      let list: CompetitionForLink[] = [];
+      try {
+        const res = await fetch(`/api/${kind}s/${id}/competitions`, { cache: 'no-store' });
+        if (res.ok) {
+          const data = (await res.json()) as { competitions?: CompetitionForLink[] };
+          const ev = { club_id: kind === 'club' ? id : null, league_id: kind === 'league' ? id : null };
+          list = (data.competitions ?? []).map(c => ({ ...c, ...ev })).filter(c => eligibleCompetition(ev, c));
+        }
+      } catch { /* no picker */ }
+      if (!cancelled) setFetched({ key: orgKey, list });
+    })();
+    return () => { cancelled = true; };
+  }, [orgKey]);
   const stepIndex = WIZARD_STEPS.indexOf(step);
   const next = () => {
     const r = validateWizardStep(step, s);
@@ -118,10 +144,20 @@ export default function EventCreateWizard() {
           {orgs.length > 0 && (
             <label className="block space-y-1">
               <span className="text-sm font-medium text-secondary">Hosted for <span className="text-muted font-normal">(optional)</span></span>
-              <select value={s.org ? `${s.org.kind}:${s.org.id}` : ''} onChange={e => { const v = e.target.value; set('org', v ? { kind: v.split(':')[0] as 'club' | 'league', id: v.split(':')[1] } : null); }} className={INPUT}>
+              <select value={s.org ? `${s.org.kind}:${s.org.id}` : ''} onChange={e => { const v = e.target.value; setS(prev => ({ ...prev, org: v ? { kind: v.split(':')[0] as 'club' | 'league', id: v.split(':')[1] } : null, competition: null })); }} className={INPUT}>
                 <option value="">Just me</option>
                 {orgs.map(o => <option key={`${o.kind}:${o.id}`} value={`${o.kind}:${o.id}`}>{o.name}</option>)}
               </select>
+            </label>
+          )}
+          {s.org && competitions.length > 0 && (
+            <label className="block space-y-1">
+              <span className="text-sm font-medium text-secondary">Counts toward <span className="text-muted font-normal">(optional)</span></span>
+              <select value={s.competition ?? ''} onChange={e => set('competition', e.target.value || null)} className={INPUT} data-event-wizard-competition="">
+                <option value="">Just an event</option>
+                {competitions.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </select>
+              <span className="block text-xs text-muted">One contest per round on the competition; the org&apos;s results come from the leaderboard.</span>
             </label>
           )}
           <div className="space-y-1">
@@ -200,6 +236,7 @@ export default function EventCreateWizard() {
               ['Joining', joinLine(s.join_mode)],
               ['Field size', s.capacity.trim() ? `${s.capacity} players` : 'No limit'],
               ...(orgLabel ? [['Hosted for', orgLabel]] : []),
+              ...(s.competition ? [['Counts toward', competitions.find(c => c.id === s.competition)?.name ?? 'Competition']] : []),
               ['You', s.host_plays ? 'Playing' : 'Organizing only'],
             ].map(([k, v]) => (
               <div key={k} className="flex justify-between gap-4 py-2 border-b border-border-subtle last:border-b-0"><dt className="text-muted">{k}</dt><dd className="text-primary text-right">{v}</dd></div>

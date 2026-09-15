@@ -127,6 +127,8 @@ export interface ContestView {
   liveRounds: { groupPostId: string; label: string }[];
   /** Published, public posts attached to this contest (mig 181; 0 pre-181). */
   publicPostCount: number;
+  /** Phase 2b (211): the event this contest was played as, by name — null for a hand-made contest. */
+  sportEvent: { id: string; name: string; roundSequence: number } | null;
 }
 
 export interface ContestViewResult {
@@ -179,6 +181,7 @@ export interface RawContestRecord {
   media: ContestMediaItem[];
   liveRounds: { groupPostId: string; label: string }[];
   publicPostCount: number;
+  sportEvent: { id: string; name: string; roundSequence: number } | null;
 }
 
 const PROVENANCE: ResultProvenance[] = ['sanctioned', 'league_verified', 'club_recorded', 'self_reported', 'imported'];
@@ -259,6 +262,7 @@ export function projectContestView(raw: RawContestRecord): ContestView {
     media: raw.media,
     liveRounds: raw.liveRounds,
     publicPostCount: raw.publicPostCount,
+    sportEvent: raw.sportEvent,
   };
 }
 
@@ -335,6 +339,7 @@ interface ContestRow {
   holes?: number | null;
   play_from?: string | null;
   play_to?: string | null;
+  sport_event_round_id?: string | null;
 }
 
 interface CompetitionRow {
@@ -363,7 +368,11 @@ export async function fetchContestView(
     // Contest (the 172 golf columns ride the read; pre-172 retries without).
     const readContest = (fields: string) =>
       admin.from('contests').select(fields).eq('id', contestId).maybeSingle();
-    let { data: contestData, error: contestError } = await readContest(`${CONTEST_FIELDS_BASE}, holes, play_from, play_to`);
+    // Phase 2b (211): `sport_event_round_id` rides too; pre-211 → the 172 shape; pre-172 → the base.
+    let { data: contestData, error: contestError } = await readContest(`${CONTEST_FIELDS_BASE}, holes, play_from, play_to, sport_event_round_id`);
+    if (contestError?.code === '42703') {
+      ({ data: contestData, error: contestError } = await readContest(`${CONTEST_FIELDS_BASE}, holes, play_from, play_to`));
+    }
     if (contestError?.code === '42703') {
       ({ data: contestData, error: contestError } = await readContest(CONTEST_FIELDS_BASE));
     }
@@ -527,6 +536,15 @@ export async function fetchContestView(
 
     const sportName = (SPORT_REGISTRY as Record<string, { display_name: string } | undefined>)[comp.sport_key as SportKey]?.display_name ?? comp.sport_key;
 
+    // Phase 2b: the event this contest was played as (name + round), when linked.
+    let sportEvent: RawContestRecord['sportEvent'] = null;
+    if (contest.sport_event_round_id) {
+      const { data: ser } = await admin.from('sport_event_rounds').select('sequence, event:sport_event_id (id, name)').eq('id', contest.sport_event_round_id).maybeSingle();
+      const link = ser as { sequence: number; event: { id: string; name: string } | Array<{ id: string; name: string }> | null } | null;
+      const ev = link ? (Array.isArray(link.event) ? link.event[0] : link.event) : null;
+      if (link && ev) sportEvent = { id: ev.id, name: ev.name, roundSequence: link.sequence };
+    }
+
     const raw: RawContestRecord = {
       contest: {
         id: contest.id,
@@ -589,6 +607,7 @@ export async function fetchContestView(
       media,
       liveRounds,
       publicPostCount,
+      sportEvent,
     };
 
     return { access, view: projectContestView(raw) };

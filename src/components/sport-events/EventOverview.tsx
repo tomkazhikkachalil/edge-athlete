@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
 import type { SportEventViewPayload } from '@/lib/sport-events/view';
 import { formatDateOnly, formatLabel, holesLabel, joinLine, roundsSummary, VISIBILITY_LABEL } from '@/lib/sport-events/format';
 import { cutLabel } from '@/lib/sport-events/format-config';
@@ -12,6 +13,8 @@ interface Props {
   busy: boolean;
   /** Phase 2: the organizer's format settings (the cut) on a tournament. */
   onOpenFormat?: () => void;
+  /** Phase 2b: the organizer's "Counts toward" picker on an org-hosted event. */
+  onOpenCountsToward?: () => void;
 }
 
 function Row({ label, children }: { label: string; children: React.ReactNode }) {
@@ -23,8 +26,8 @@ function Row({ label, children }: { label: string; children: React.ReactNode }) 
   );
 }
 
-export default function EventOverview({ view, onRotateLink, busy, onOpenFormat }: Props) {
-  const { event, rounds, viewer } = view;
+export default function EventOverview({ view, onRotateLink, busy, onOpenFormat, onOpenCountsToward }: Props) {
+  const { event, rounds, viewer, host_org, counts_toward } = view;
   const active = activeRounds(rounds);
   const many = active.length > 1;
   const round = currentRound(active);
@@ -55,11 +58,31 @@ export default function EventOverview({ view, onRotateLink, busy, onOpenFormat }
         <Row label="Who can see it">{VISIBILITY_LABEL[event.visibility]}</Row>
         <Row label="Joining">{joinLine(event.join_mode)}</Row>
         {event.capacity !== null && <Row label="Field size">{event.capacity} players</Row>}
+        {host_org && (
+          <Row label="Hosted for"><Link href={`/${host_org.side}/${host_org.id}`} className="text-brand-fg hover:text-brand-fg-strong font-medium" data-event-hosted-for="">{host_org.name}</Link></Row>
+        )}
+        {counts_toward && (() => {
+          const contest = (round && counts_toward.contests.find(c => c.round_id === round.id)) ?? counts_toward.contests[0];
+          return (
+            <Row label="Counts toward">
+              {contest ? <Link href={`/event/${contest.contest_id}`} className="text-brand-fg hover:text-brand-fg-strong font-medium" data-event-counts-toward="">{counts_toward.competition_name}</Link> : <span data-event-counts-toward="">{counts_toward.competition_name}</span>}
+            </Row>
+          );
+        })()}
       </dl>
-      {viewer.can_manage && onOpenFormat && many && event.status !== 'completed' && event.status !== 'cancelled' && (
-        <button type="button" onClick={onOpenFormat} disabled={busy} className="ea-interactive border border-border-strong text-secondary px-3 min-h-[44px] rounded-lg text-sm font-semibold disabled:opacity-60" data-event-format-open="">
-          <i className="fas fa-sliders-h mr-2" aria-hidden="true"></i>Format settings
-        </button>
+      {viewer.can_manage && (
+        <div className="flex flex-wrap gap-2">
+          {onOpenFormat && many && event.status !== 'completed' && event.status !== 'cancelled' && (
+            <button type="button" onClick={onOpenFormat} disabled={busy} className="ea-interactive border border-border-strong text-secondary px-3 min-h-[44px] rounded-lg text-sm font-semibold disabled:opacity-60" data-event-format-open="">
+              <i className="fas fa-sliders-h mr-2" aria-hidden="true"></i>Format settings
+            </button>
+          )}
+          {onOpenCountsToward && host_org && (event.status === 'draft' || event.status === 'open') && (
+            <button type="button" onClick={onOpenCountsToward} disabled={busy} className="ea-interactive border border-border-strong text-secondary px-3 min-h-[44px] rounded-lg text-sm font-semibold disabled:opacity-60" data-event-counts-toward-open="">
+              <i className="fas fa-trophy mr-2" aria-hidden="true"></i>{counts_toward ? 'Counts toward…' : 'Count toward a competition'}
+            </button>
+          )}
+        </div>
       )}
       {viewer.can_manage && event.visibility === 'link' && link && (
         <div className="bg-surface rounded-lg border border-border p-4 space-y-2" data-event-link-share="">

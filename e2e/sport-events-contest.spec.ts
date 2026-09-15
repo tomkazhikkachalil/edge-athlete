@@ -116,3 +116,49 @@ test('sport events API: counts toward — mint one contest per round, refuse by 
     await s.dispose();
   }
 });
+
+/**
+ * PR 10 — the pickers and the places: an event created for the club WITH
+ * `competition_id` carries "Hosted for" and "Counts toward" on its Overview
+ * at 390; the row's link lands on the contest place, which reads "Played as
+ * {event} · Round 1" and links back. Self-skips before 211.
+ */
+test('event page: Hosted for · Counts toward · the contest place says Played as @mobile', async ({ page }) => {
+  const s = await openEventSession();
+  const admin = adminClient();
+  const probe = await admin.from('contests').select('sport_event_round_id').limit(1);
+  test.skip(!!probe.error, 'contests.sport_event_round_id missing — run migration 211');
+  let clubId: string | null = null;
+  let eventId: string | null = null;
+  try {
+    const { data: club } = await admin.from('clubs').insert({ name: `QA Counts UI Club ${s.stamp}`, owner_profile_id: s.userA.id }).select('id').single();
+    clubId = club!.id as string;
+    await admin.from('memberships').insert([
+      { club_id: clubId, profile_id: s.userA.id, role: 'owner', kind: 'follow' },
+      { club_id: clubId, profile_id: s.userA.id, role: 'owner', kind: 'roster' },
+    ]);
+    const { data: season } = await admin.from('seasons').insert({ club_id: clubId, label: `2030 ${s.stamp}` }).select('id').single();
+    const { data: league } = await admin.from('competitions').insert({ club_id: clubId, season_id: season!.id, sport_key: 'golf', name: `Counts UI League ${s.stamp}`, format: 'leaderboard', entrant_type: 'athlete', scoring_rule: 'golf_gross', status: 'active', visibility: 'public' }).select('id').single();
+    const created = await s.apiA.post('/api/sport-events', { data: { name: `QA Counts UI ${s.stamp}`, visibility: 'private', publish: true, club_id: clubId, competition_id: league!.id, round: { scheduled_on: '2030-06-01', course_name: 'QA Counts UI Links', holes: 9 } } });
+    expect(created.status(), await readErrorBody(created)).toBe(201);
+    const view = (await created.json()) as { event: { id: string }; host_org: { name: string } | null; counts_toward: { competition_name: string; contests: Array<{ contest_id: string }> } | null };
+    eventId = view.event.id;
+    expect(view.host_org?.name).toBe(`QA Counts UI Club ${s.stamp}`);
+    expect(view.counts_toward?.competition_name).toBe(`Counts UI League ${s.stamp}`);
+    expect(view.counts_toward?.contests).toHaveLength(1);
+
+    await page.goto(`/events/${eventId}?tab=overview`);
+    await expect(page.locator('[data-event-hosted-for]')).toHaveText(`QA Counts UI Club ${s.stamp}`, { timeout: 20_000 });
+    await expect(page.locator('[data-event-counts-toward]')).toHaveText(`Counts UI League ${s.stamp}`);
+    await expect(page.locator('[data-event-counts-toward-open]')).toBeVisible();
+    await page.locator('[data-event-counts-toward]').click();
+    await expect(page).toHaveURL(new RegExp(`/event/${view.counts_toward!.contests[0].contest_id}`), { timeout: 20_000 });
+    await expect(page.locator('[data-contest-played-as]')).toContainText(`Played as QA Counts UI ${s.stamp} · Round 1`, { timeout: 20_000 });
+    await page.locator('[data-contest-played-as]').click();
+    await expect(page).toHaveURL(new RegExp(`/events/${eventId}`), { timeout: 20_000 });
+  } finally {
+    await cleanupEvent(s.apiA, eventId);
+    if (clubId) await admin.from('clubs').delete().eq('id', clubId);
+    await s.dispose();
+  }
+});

@@ -11,5 +11,6 @@ export function appContestLinks(view: ContestView, publicSite: string | null = n
     standings: `${base}/standings`,
     player: handle => playerHref(handle),
     live: groupPostId => `/live/${groupPostId}`,
+    sportEvent: eventId => `/events/${eventId}`,
   };
 }

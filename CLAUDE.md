@@ -857,6 +857,22 @@ const { canView } = await response.json();
    overlay + .ics + reminder bell, the per-hole `version`, the five-tab
    bar; also Stableford, a round reorder, the waitlist UNIQUE via an RPC,
    the `FOR UPDATE` accept race; phase 3: match play, brackets.
+   **Phase 2b (Sep 16 2026, #763–#773, migs 209 · 210 · 211) landed the
+   integrations:** a score write is a PER-HOLE compare-and-set
+   (`golf_hole_scores.version`, `hole-writes.ts` / `hole-scores-server.ts`;
+   `expected_version` 0 = "I saw no score"; a 409 carries the hole's
+   current row; "keep mine" resends against it — never a forced
+   overwrite); the phone tab bar mounts once in the root layout with ONE
+   active rule (`nav-active.ts`) and hides where a screen owns its bottom
+   edge (`tab-bar.ts`); a participant's rounds are read-time calendar
+   items (`calendar/sport-event-overlay.ts`, never rows) with an .ics and a
+   day-before bell (a daily-cron step, once per round per person); an
+   org-hosted event COUNTS TOWARD one golf leaderboard competition
+   (`contests.sport_event_round_id`, ONE writer `contest-link-server.ts`,
+   the org's results written from the EVENT's board on completion as
+   `club_recorded` / `league_verified`, an opted-out player counted with
+   `roundRef.roundId` null, the golf-sync engine GUARDED on the link).
+   `docs/EVENTS.md` "Phase 2b" is the reference.
 
 
 ---

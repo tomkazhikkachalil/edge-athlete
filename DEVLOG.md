@@ -1,5 +1,27 @@
 # Development Log
 
+## September 16, 2026 — Events program, phase 2b, PR 10: the pickers, the rows the Overview never had, "Played as"; the docs close (B1)
+
+- The wizard's basics gain **Counts toward** under "Hosted for" (the org's
+  eligible competitions — the console's list, manager-gated, filtered by
+  the pure `eligibleCompetition`); `WizardState.competition` → the create
+  body's `competition_id`, refused by name BEFORE any insert and minted
+  (best-effort) after the rounds. The Overview gains the two rows it
+  never had — **Hosted for** (the org, by name, a link) and **Counts
+  toward** (the competition, a link to the current round's contest) — and
+  the organizer's door **Count toward a competition** → `CountsToward
+  Window` (the house bottom sheet, one PUT). The view carries `host_org`
+  and `counts_toward` (tolerant pre-211).
+- The contest place reads **Played as {event} · Round n** and links back
+  (`ContestView.sportEvent`, through the leak test; `ContestLinks.
+  sportEvent` in the app, nothing on a site); the contest read carries
+  `sport_event_round_id` tolerantly (211 → 172 → base).
+- Docs: `docs/EVENTS.md` "Phase 2b" + status, CLAUDE.md convention 18 →
+  the 2b rules, `docs/SESSION_PROMPT.md` re-aligned (migration head 211;
+  the next program is Tom's call).
+- e2e `sport-events-contest.spec.ts` gains the `@mobile` pickers test
+  (self-skips before 211).
+
 ## September 16, 2026 — Events program, phase 2b, PR 9: the org's results from the event's board (B1, reads 211 tolerantly)
 
 - `src/lib/sport-events/contest-sync.ts` (pure, tested): `contestResultFor`

@@ -31,6 +31,8 @@ export interface ContestLinks {
   /** E4: the contest's org-site twin, when the org has a published site
    *  (in-app only; the twin itself passes nothing). */
   publicSite?: string | null;
+  /** Phase 2b: the event this contest was played as (in-app; a site passes nothing). */
+  sportEvent?: (eventId: string) => string | null;
 }
 
 interface Props {
@@ -112,6 +114,15 @@ export default function ContestPage({ view, access, links, postsSlot }: Props) {
         </div>
         <p className="mt-3 text-sm text-secondary">{contestWhen(view)}</p>
         {where && <p className="text-sm text-tertiary">{where}</p>}
+        {view.sportEvent && (() => {
+          const href = links.sportEvent?.(view.sportEvent.id) ?? null;
+          const label = `Played as ${view.sportEvent.name} · Round ${view.sportEvent.roundSequence}`;
+          return href ? (
+            <p className="text-sm"><Link href={href} className="text-brand-fg hover:text-brand-fg-strong font-medium" data-contest-played-as="">{label} →</Link></p>
+          ) : (
+            <p className="text-sm text-tertiary" data-contest-played-as="">{label}</p>
+          );
+        })()}
         {links.publicSite && (
           <p className="mt-2 text-sm">
             <Link href={links.publicSite} className="text-brand-fg hover:text-brand-fg-strong font-medium inline-flex items-center min-h-[36px]" data-contest-public-site="">

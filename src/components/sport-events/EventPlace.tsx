@@ -20,6 +20,7 @@ import EventSchedule from './EventSchedule';
 import EventScorecardTab from './EventScorecardTab';
 import EventTabs from './EventTabs';
 import FlightsWindow from './FlightsWindow';
+import CountsTowardWindow from './CountsTowardWindow';
 import FormatSettingsWindow from './FormatSettingsWindow';
 import InviteWindow from './InviteWindow';
 import RoundEditWindow from './RoundEditWindow';
@@ -65,6 +66,7 @@ export default function EventPlace({ eventId, initialView, token }: Props) {
   const [inviteOpen, setInviteOpen] = useState(false);
   const [flightsOpen, setFlightsOpen] = useState(false);
   const [formatOpen, setFormatOpen] = useState(false);
+  const [countsTowardOpen, setCountsTowardOpen] = useState(false);
   const [roundEdit, setRoundEdit] = useState<RoundEdit>(null);
   const [confirm, setConfirm] = useState<Confirm>(null);
   const [version, setVersion] = useState(0);
@@ -204,7 +206,7 @@ export default function EventPlace({ eventId, initialView, token }: Props) {
       <section className="bg-surface rounded-lg border border-border">
         <EventTabs tabs={tabsFor(tabViewer)} active={visibleTab} onChange={changeTab} />
         <div id={`event-panel-${visibleTab}`} role="tabpanel" aria-labelledby={`event-tab-${visibleTab}`} className="p-4 sm:p-6">
-          {visibleTab === 'overview' && <EventOverview view={view} busy={busy} onRotateLink={async () => { await run(() => api.rotateLink(), 'New link ready.'); }} onOpenFormat={() => setFormatOpen(true)} />}
+          {visibleTab === 'overview' && <EventOverview view={view} busy={busy} onRotateLink={async () => { await run(() => api.rotateLink(), 'New link ready.'); }} onOpenFormat={() => setFormatOpen(true)} onOpenCountsToward={() => setCountsTowardOpen(true)} />}
           {visibleTab === 'schedule' && <EventSchedule view={view} busy={busy} onRoundAction={roundAction} onAddRound={() => setRoundEdit({ mode: 'add' })} />}
           {visibleTab === 'players' && (
             <EventPlayers
@@ -259,6 +261,17 @@ export default function EventPlace({ eventId, initialView, token }: Props) {
           onSave={async format_config => {
             const res = await api.patchEvent({ format_config });
             if (res.ok) { setNotice('Format saved.'); await refetch(); }
+            return { ok: res.ok, error: res.error };
+          }}
+        />
+      )}
+      {countsTowardOpen && (
+        <CountsTowardWindow
+          view={view}
+          onClose={() => setCountsTowardOpen(false)}
+          onSave={async competitionId => {
+            const res = await api.setContest(competitionId);
+            if (res.ok) { setNotice(competitionId ? 'The event counts toward the competition.' : 'The event no longer counts toward a competition.'); await refetch(); }
             return { ok: res.ok, error: res.error };
           }}
         />
