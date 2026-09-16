@@ -162,9 +162,9 @@ describe('format_config.game and the tabs on a team shape', () => {
     expect(readFormatConfig({ game: { side_names: ['A', 'B'] } }, 1, 'stroke_gross')).toEqual({});
   });
   it('a team shape shows Stats instead of Leaderboard / Matches / Scorecard; golf is unchanged', () => {
-    expect(tabsFor({ canManage: true, roundMinted: true, shape: 'game' })).toEqual(['overview', 'schedule', 'players', 'groups', 'stats']);
-    expect(tabsFor({ canManage: false, isPlayer: true, roundMinted: true, shape: 'session' })).toEqual(['overview', 'schedule', 'players', 'stats']);
-    expect(tabsFor({ canManage: true, roundMinted: true })).toEqual(['overview', 'schedule', 'players', 'groups', 'leaderboard', 'scorecard']);
+    expect(tabsFor({ canManage: true, roundMinted: true, shape: 'game' })).toEqual(['overview', 'schedule', 'players', 'groups', 'stats', 'gallery']);
+    expect(tabsFor({ canManage: false, isPlayer: true, roundMinted: true, shape: 'session' })).toEqual(['overview', 'schedule', 'players', 'stats', 'gallery']);
+    expect(tabsFor({ canManage: true, roundMinted: true })).toEqual(['overview', 'schedule', 'players', 'groups', 'leaderboard', 'scorecard', 'gallery']);
     expect(tabsFor({ canManage: true, roundMinted: true, shape: 'round' })).not.toContain('stats');
     expect(parseEventTab('stats', { canManage: false, shape: 'game' })).toBe('stats');
     expect(parseEventTab('stats', { canManage: false })).toBe('overview');

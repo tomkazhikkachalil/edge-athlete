@@ -135,8 +135,8 @@ describe('the organizer rules (phase 2)', () => {
     const t = (id: string, sequence: number, status: RoundForTabs['status'], minted = false): RoundForTabs => ({ id, sequence, status, group_post_id: minted ? 'gp' : null });
     const one = [t('a', 1, 'live', true)];
     const two = [t('a', 1, 'completed', true), t('b', 2, 'live', true), t('c', 3, 'scheduled')];
-    expect(tabsFor({ canManage: false, matchPlay: true })).toEqual(['overview', 'schedule', 'players', 'matches']);
-    expect(tabsFor({ canManage: false })).toEqual(['overview', 'schedule', 'players', 'leaderboard']);
+    expect(tabsFor({ canManage: false, matchPlay: true })).toEqual(['overview', 'schedule', 'players', 'matches', 'gallery']);
+    expect(tabsFor({ canManage: false })).toEqual(['overview', 'schedule', 'players', 'leaderboard', 'gallery']);
     expect(parseEventTab('leaderboard', { canManage: true, matchPlay: true })).toBe('overview');
     expect(parseEventTab('matches', { canManage: true, matchPlay: true })).toBe('matches');
     expect(parseEventTab('matches', { canManage: true })).toBe('overview');

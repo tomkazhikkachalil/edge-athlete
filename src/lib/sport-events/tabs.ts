@@ -7,7 +7,7 @@
 import { activeRounds, currentRound } from './rounds';
 import type { SportEventRoundStatus } from './types';
 
-export const EVENT_TABS = ['overview', 'schedule', 'players', 'groups', 'leaderboard', 'matches', 'scorecard', 'stats'] as const;
+export const EVENT_TABS = ['overview', 'schedule', 'players', 'groups', 'leaderboard', 'matches', 'scorecard', 'stats', 'gallery'] as const;
 export type EventTab = (typeof EVENT_TABS)[number];
 
 export const EVENT_TAB_LABEL: Readonly<Record<EventTab, string>> = {
@@ -19,6 +19,7 @@ export const EVENT_TAB_LABEL: Readonly<Record<EventTab, string>> = {
   matches: 'Matches',
   scorecard: 'Scorecard',
   stats: 'Stats',
+  gallery: 'Gallery',
 };
 
 export interface TabViewer {
@@ -36,6 +37,7 @@ export interface TabViewer {
 export function tabsFor(viewer: TabViewer): EventTab[] {
   const team = viewer.shape === 'game' || viewer.shape === 'session';
   return EVENT_TABS.filter(t => {
+    if (t === 'gallery') return true; // phase 4: everyone who sees the event sees its gallery
     if (t === 'stats') return team;
     if (team && (t === 'leaderboard' || t === 'matches' || t === 'scorecard')) return false;
     if (t === 'groups') return viewer.canManage;

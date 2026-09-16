@@ -4,6 +4,7 @@ import { resolveProfileAction } from '@/lib/profile-roles';
 import { fetchVitalsPrivacy } from '@/lib/vitals-privacy-server';
 import { aspectHidden } from '@/lib/vitals-privacy';
 import type { MediaTokenPayload } from './token';
+import { resolveSportEventAccess } from '@/lib/sport-events/access';
 
 /**
  * Server-side authorization for the media proxy. Given a verified token and
@@ -297,6 +298,29 @@ async function authorizeContestMedia(
   return DENY;
 }
 
+/**
+ * Events phase 4 (216): an event's media follows the EVENT's gate — a public
+ * event's bytes are public (signed out too); a private event admits any
+ * non-declined participant (followers included); a LINK event's bytes need a
+ * participant session (the proxy carries no token — documented).
+ */
+async function authorizeSportEventMedia(admin: SupabaseClient, mediaId: string, viewerId: string | null): Promise<MediaAuthResult> {
+  const { data: media } = await admin.from('sport_event_media').select('sport_event_id').eq('id', mediaId).maybeSingle();
+  if (!media) return DENY;
+  const { data: ev } = await admin.from('sport_events').select('id, host_profile_id, visibility, status, link_token').eq('id', media.sport_event_id).maybeSingle();
+  if (!ev) return DENY;
+  if (ev.visibility === 'public') return { allow: true, isPublic: true };
+  if (!viewerId) return DENY;
+  const { data: own } = await admin.from('sport_event_participants').select('role, status').eq('sport_event_id', ev.id).eq('profile_id', viewerId).maybeSingle();
+  const access = resolveSportEventAccess({
+    event: { hostProfileId: ev.host_profile_id, visibility: ev.visibility, status: ev.status, linkToken: ev.link_token },
+    viewerId,
+    presentedToken: null,
+    participant: own ? { role: own.role, status: own.status } : null,
+  });
+  return access ? { allow: true, isPublic: false } : DENY;
+}
+
 export async function authorizeMedia(
   admin: SupabaseClient,
   payload: MediaTokenPayload,
@@ -321,6 +345,8 @@ export async function authorizeMedia(
       return authorizeWorkout(admin, payload.id, viewerId);
     case 'contest_media':
       return authorizeContestMedia(admin, payload.id, viewerId);
+    case 'sport_event':
+      return authorizeSportEventMedia(admin, payload.id, viewerId);
     default:
       return DENY;
   }
