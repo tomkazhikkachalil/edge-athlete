@@ -73,7 +73,8 @@ test('notifications: accept an invitation and a join request from the action row
  * renders on the notifications page and lands on the round's Matches
  * tab; a re-save of the same draw bells nobody; B concedes the match and
  * the round completes: B reads "Edge Alpha beat you · conceded" (kind
- * lost), A "You beat Edge Bravo · conceded" (kind won). Self-skips before
+ * lost), A — the organizer who also plays — "You beat Edge Bravo · conceded"
+ * (kind won) beside their own `set` bell. Self-skips before
  * 213 (a probe insert on the type) and before 212.
  */
 test('notifications: the match bells — set on the draw, won / lost at completion @mobile', async ({ browser }) => {
@@ -127,7 +128,11 @@ test('notifications: the match bells — set on the draw, won / lost at completi
     expect(done.ok(), await readErrorBody(done)).toBe(true);
     const lost = await admin.from('notifications').select('title, metadata').eq('user_id', userB.id).eq('type', 'sport_event_match').ilike('action_url', `%${eventId}%`).order('created_at', { ascending: false }).limit(1).maybeSingle();
     expect(lost.data).toMatchObject({ title: `Edge Alpha beat you · conceded in QA Bell Match ${stamp}`, metadata: expect.objectContaining({ kind: 'lost' }) });
-    const won = await admin.from('notifications').select('title, metadata').eq('user_id', userA.id).eq('type', 'sport_event_match').ilike('action_url', `%${eventId}%`).maybeSingle();
+    // A is the organizer AND a player: two bells (`set` on the draw, `won` at completion) — read the latest, and assert the first too.
+    const bellsA = await admin.from('notifications').select('title, metadata').eq('user_id', userA.id).eq('type', 'sport_event_match').ilike('action_url', `%${eventId}%`).order('created_at', { ascending: false });
+    expect(bellsA.data).toHaveLength(2);
+    expect(bellsA.data![1]).toMatchObject({ title: `You play Edge Bravo in QA Bell Match ${stamp}`, metadata: expect.objectContaining({ kind: 'set' }) });
+    const won = { data: bellsA.data![0] };
     expect(won.data).toMatchObject({ title: `You beat Edge Bravo · conceded in QA Bell Match ${stamp}`, metadata: expect.objectContaining({ kind: 'won' }) });
   } finally {
     if (eventId) await apiA.delete(`/api/sport-events/${eventId}`).catch(() => null);
