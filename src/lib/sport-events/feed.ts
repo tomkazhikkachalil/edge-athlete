@@ -12,11 +12,13 @@
  * (`match_results`, filled by feed-server.ts behind the same branch — the
  * StatHighlightCard's stroke totals are wrong for a match).
  */
-import { readFormatConfig, readMatchConfig } from './format-config';
+import { readFormatConfig, readGameConfig, readMatchConfig } from './format-config';
+import { sideNamesOf } from './game';
 import type { MatchView } from './match-view';
 
 export const SPORT_EVENT_ROUND_LABEL_SELECT =
-  'id, sequence, status, scheduled_on, course_name, holes, starting_hole, name, event:sport_event_id (id, name, status, join_mode, visibility, host_profile_id, format, format_config)';
+  // Phase 4 (215): the shape, and a game's live score for the feed's label — named only after 215 ran (this select 404s on a missing column).
+  'id, sequence, status, scheduled_on, course_name, holes, starting_hole, name, side1_score, side2_score, period, event:sport_event_id (id, name, status, join_mode, visibility, host_profile_id, format, format_config, shape)';
 
 export interface PostSportEvent {
   id: string;
@@ -40,6 +42,10 @@ export interface PostSportEvent {
   match: { sides: 'singles' | 'fourball' | 'foursomes'; bracket: boolean } | null;
   /** Phase 3: a completed match round's results — one line per match; null until then (feed-server.ts fills it). */
   match_results?: MatchResultLine[] | null;
+  /** Phase 4 (215): the event's shape and, on a game, the live score + the side names. */
+  shape: 'round' | 'game' | 'session';
+  score: { side1_score: number | null; side2_score: number | null; period: number | null } | null;
+  sides: [string, string] | null;
 }
 
 /** One match as the feed's results card prints it: "Ann def. Bob · 3&2" (the winner first). */
@@ -62,6 +68,7 @@ interface RoundLabelEvent {
   host_profile_id: string;
   format?: string;
   format_config?: unknown;
+  shape?: string | null;
 }
 interface RoundLabelRow {
   id: string;
@@ -72,6 +79,9 @@ interface RoundLabelRow {
   holes: number;
   starting_hole: number;
   name?: string | null;
+  side1_score?: number | null;
+  side2_score?: number | null;
+  period?: number | null;
   event: RoundLabelEvent | RoundLabelEvent[] | null;
 }
 
@@ -81,8 +91,10 @@ export function sportEventLabelsByRound(rows: unknown[]): Map<string, PostSportE
     const ev = Array.isArray(raw.event) ? raw.event[0] : raw.event;
     if (!raw?.id || !ev) continue;
     const format = ev.format ?? 'stroke_gross';
-    const match = readMatchConfig(readFormatConfig(ev.format_config, 8, format), format);
-    out.set(raw.id, { id: ev.id, name: ev.name, status: ev.status, join_mode: ev.join_mode, visibility: ev.visibility, host_profile_id: ev.host_profile_id, round_id: raw.id, scheduled_on: raw.scheduled_on, course_name: raw.course_name, holes: raw.holes, starting_hole: raw.starting_hole, sequence: raw.sequence ?? 1, round_status: raw.status ?? 'scheduled', round_count: 1, round_name: raw.name ?? null, format, match: match ? { sides: match.sides, bracket: match.bracket } : null });
+    const shape: 'round' | 'game' | 'session' = ev.shape === 'game' || ev.shape === 'session' ? ev.shape : 'round';
+    const match = readMatchConfig(readFormatConfig(ev.format_config, 8, format, shape), format);
+    const game = readGameConfig(readFormatConfig(ev.format_config, 8, format, shape), shape);
+    out.set(raw.id, { id: ev.id, name: ev.name, status: ev.status, join_mode: ev.join_mode, visibility: ev.visibility, host_profile_id: ev.host_profile_id, round_id: raw.id, scheduled_on: raw.scheduled_on, course_name: raw.course_name, holes: raw.holes, starting_hole: raw.starting_hole, sequence: raw.sequence ?? 1, round_status: raw.status ?? 'scheduled', round_count: 1, round_name: raw.name ?? null, format, match: match ? { sides: match.sides, bracket: match.bracket } : null, shape, score: shape === 'game' ? { side1_score: raw.side1_score ?? null, side2_score: raw.side2_score ?? null, period: raw.period ?? null } : null, sides: game ? sideNamesOf(game) : null });
   }
   return out;
 }

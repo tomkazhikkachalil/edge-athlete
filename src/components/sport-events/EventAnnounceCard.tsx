@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { postEventState, roundLabelOf, type PostSportEvent } from '@/lib/sport-events/feed';
 import { formatDateOnly, formatLabel, holesLabel, joinLine, STATUS_LABEL } from '@/lib/sport-events/format';
 import { isMatchFormat } from '@/lib/sport-events/types';
+import { scoreLabel } from '@/lib/sport-events/game';
 
 /**
  * The feed's announce card (Events program, PR 15 — the freeze lift, this
@@ -29,10 +30,12 @@ export default function EventAnnounceCard({ event }: { event: PostSportEvent }) 
         {!roundLabel && event.round_name && <span className="text-muted" data-event-announce-round-name="">{event.round_name}</span>}
       </div>
       <p className="text-base font-bold text-primary">{event.name}</p>
-      <p className="text-sm text-secondary">{formatDateOnly(event.scheduled_on, { weekday: true })} · {event.course_name} · {holesLabel(event.holes, event.starting_hole)}</p>
+      <p className="text-sm text-secondary">{formatDateOnly(event.scheduled_on, { weekday: true })} · {event.course_name}{event.shape === 'round' ? ` · ${holesLabel(event.holes, event.starting_hole)}` : ''}</p>
+      {/* Phase 4: a live game's score on the feed's label. */}
+      {event.shape === 'game' && event.score && event.sides && live && <p className="text-base font-bold text-primary" data-event-announce-score="">{scoreLabel(event.score, event.sides)}</p>}
       {isMatchFormat(event.format) && <p className="text-xs text-secondary" data-event-announce-format="">{formatLabel(event.format, event.match)}</p>}
       {!over && <p className="text-xs text-muted mt-1">{event.status === 'open' && event.join_mode === 'open' ? 'Open to everyone — join with one tap' : event.join_mode === 'request' && event.status === 'open' ? 'Open to requests — ask to join' : joinLine(event.join_mode as 'invite' | 'request' | 'open')}</p>}
-      <span className="mt-3 inline-flex items-center min-h-[36px] text-sm font-semibold text-brand-fg">{live ? (isMatchFormat(event.format) ? 'Follow the matches →' : 'Follow the leaderboard →') : over ? 'See the results →' : 'See the event →'}</span>
+      <span className="mt-3 inline-flex items-center min-h-[36px] text-sm font-semibold text-brand-fg">{live ? (event.shape !== 'round' ? 'Follow the stats →' : isMatchFormat(event.format) ? 'Follow the matches →' : 'Follow the leaderboard →') : over ? 'See the results →' : 'See the event →'}</span>
     </Link>
   );
 }

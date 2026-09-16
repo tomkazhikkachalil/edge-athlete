@@ -15,6 +15,8 @@ import { buildStatHighlights } from '@/lib/sports/post-stat-highlights';
 import type { GolfRound } from '@/types/golf';
 import EventAnnounceCard from './sport-events/EventAnnounceCard';
 import EventMatchResultsCard from './sport-events/EventMatchResultsCard';
+import EventResultsCard from './sport-events/EventResultsCard';
+import { isSportEventResultsData } from '@/lib/sport-events/stat-results';
 import { isMatchFormat } from '@/lib/sport-events/types';
 import type { PostSportEvent } from '@/lib/sport-events/feed';
 
@@ -68,6 +70,10 @@ export default function SportPostBody({
       author,
     });
 
+    // Phase 4: a TEAM round's post — the announce card (with the live score) until completion, then the results card.
+    if (sportEvent && sportEvent.shape !== 'round') {
+      return isSportEventResultsData(statsData) ? <EventResultsCard event={sportEvent} results={statsData} /> : <EventAnnounceCard event={sportEvent} />;
+    }
     // Phase 3: a MATCH round never leads with stroke totals — its results
     // are its matches (the announce card until the round completed).
     if (sportEvent && isMatchFormat(sportEvent.format)) {
