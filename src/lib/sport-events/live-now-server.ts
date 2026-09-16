@@ -14,15 +14,15 @@ type Admin = SupabaseClient<any, 'public', any>;
 const LIMIT = 40;
 
 export async function readLiveEvents(admin: Admin, viewerId: string | null): Promise<LiveEventCard[]> {
-  const base = () => admin.from('sport_events').select('id, name, sport_key, format, visibility, status').eq('status', 'live');
+  const base = () => admin.from('sport_events').select('id, name, sport_key, format, visibility, status, shape').eq('status', 'live');
   const own = viewerId
     ? admin.from('sport_event_participants').select('sport_event_id, status').eq('profile_id', viewerId).eq('status', 'accepted').limit(200)
     : Promise.resolve({ data: [] as Array<{ sport_event_id: string; status: string }>, error: null });
   const [{ data: publicRows }, ownRes] = await Promise.all([base().eq('visibility', 'public').limit(LIMIT), own]);
   const ownIds = [...new Set(((ownRes.data ?? []) as Array<{ sport_event_id: string }>).map(r => r.sport_event_id))];
   const { data: ownRows } = ownIds.length > 0 ? await base().in('id', ownIds).limit(LIMIT) : { data: [] as unknown[] };
-  const byId = new Map<string, { id: string; name: string; sport_key: string; format: string; visibility: string; status: string }>();
-  for (const r of [...((publicRows ?? []) as Array<{ id: string; name: string; sport_key: string; format: string; visibility: string; status: string }>), ...((ownRows ?? []) as Array<{ id: string; name: string; sport_key: string; format: string; visibility: string; status: string }>)]) if (!byId.has(r.id)) byId.set(r.id, r);
+  const byId = new Map<string, { id: string; name: string; sport_key: string; format: string; visibility: string; status: string; shape?: string | null }>();
+  for (const r of [...((publicRows ?? []) as Array<{ id: string; name: string; sport_key: string; format: string; visibility: string; status: string; shape?: string | null }>), ...((ownRows ?? []) as Array<{ id: string; name: string; sport_key: string; format: string; visibility: string; status: string; shape?: string | null }>)]) if (!byId.has(r.id)) byId.set(r.id, r);
   const ids = [...byId.keys()];
   if (ids.length === 0) return [];
   const [{ data: rounds }, { data: parts }] = await Promise.all([

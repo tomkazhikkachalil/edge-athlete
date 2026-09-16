@@ -11,6 +11,7 @@ import { readRoundGroups, type RoundGroup } from '@/lib/sport-events/match-serve
 import { notifyMatchSet } from '@/lib/sport-events/notify';
 import type { DrawGroupForBells } from '@/lib/sport-events/match-bells';
 import { fetchSportEventView } from '@/lib/sport-events/view-server';
+import { shapeOf } from '@/lib/sport-events/types';
 
 /**
  * PUT {groups: [{name?, tee_time?, starting_hole?, members: [participantId | {participant_id, side}]}]}
@@ -45,7 +46,8 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
 
     const { data: eligible } = await admin.from('sport_event_participants').select('id, profile_id').eq('sport_event_id', id).eq('status', 'accepted').eq('playing', true);
     const match = readMatchConfig(readFormatConfig(read.event.format_config, 8, read.event.format), read.event.format);
-    const plan = validateGroupsPlan(body, new Set(((eligible ?? []) as Array<{ id: string }>).map(r => r.id)), { sides: match?.sides ?? null });
+    // Phase 4: a GAME's groups carry sides too (the two ad-hoc sides; any size; sent, never derived).
+    const plan = validateGroupsPlan(body, new Set(((eligible ?? []) as Array<{ id: string }>).map(r => r.id)), { sides: match?.sides ?? null, game: shapeOf(read.event) === 'game' });
     if (!plan.ok) return NextResponse.json({ error: plan.error }, { status: 400 });
 
     const previous: RoundGroup[] = match ? await readRoundGroups(admin, rid) : [];

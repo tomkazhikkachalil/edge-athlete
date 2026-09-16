@@ -32,7 +32,7 @@ describe('validateGroupsPlan', () => {
     const explicit = validateGroupsPlan({ groups: [{ members: [{ participant_id: a, side: 2 }, { participant_id: b, side: 1 }, c] }] }, eligible, { sides: 'fourball' });
     expect(explicit).toMatchObject({ ok: true, value: [{ members: [{ participant_id: a, position: 1, side: 2 }, { participant_id: b, position: 2, side: 1 }, { participant_id: c, position: 3, side: 2 }] }] });
     expect(validateGroupsPlan({ groups: [{ members: [{ participant_id: a, side: 3 }] }] }, eligible, { sides: 'singles' })).toMatchObject({ ok: false, error: 'Group 1: side must be 1 or 2' });
-    expect(validateGroupsPlan({ groups: [{ members: [{ participant_id: a, side: 1 }] }] }, eligible)).toMatchObject({ ok: false, error: 'Group 1: side is only set on a match-play event' });
+    expect(validateGroupsPlan({ groups: [{ members: [{ participant_id: a, side: 1 }] }] }, eligible)).toMatchObject({ ok: false, error: 'Group 1: side is only set on a match-play event or a game' });
     expect(validateGroupsPlan({ groups: [{ members: [{ participant_id: a }, { participant_id: a, side: 2 }] }] }, eligible, { sides: 'singles' })).toMatchObject({ ok: false, error: 'Group 1: a player is in two groups' });
     expect(validateGroupsPlan({ groups: [{ members: [{ side: 1 }] }] }, eligible, { sides: 'singles' })).toMatchObject({ ok: false, error: 'Group 1: a member must be a participant id' });
   });

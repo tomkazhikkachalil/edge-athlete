@@ -23,6 +23,8 @@ export interface RoundBody {
   tee?: string;
   holes?: 9 | 18;
   starting_hole?: 1 | 10;
+  /** Phase 4 (215): a team round's start (ISO). */
+  starts_at?: string;
 }
 
 export interface EventView {
@@ -44,8 +46,11 @@ export interface EventView {
     match?: { sides: 'singles' | 'fourball' | 'foursomes'; bracket: boolean; allowance: number } | null;
     /** Phase 4 (214). */
     self_entry?: boolean;
+    /** Phase 4 (215). */
+    shape?: 'round' | 'game' | 'session';
+    game?: { side_names: [string, string] } | null;
   };
-  rounds: Array<{ id: string; sequence: number; scheduled_on: string; course_name: string; holes: number; starting_hole: number; status: string; group_post_id: string | null; name?: string | null }>;
+  rounds: Array<{ id: string; sequence: number; scheduled_on: string; course_name: string; holes: number; starting_hole: number; status: string; group_post_id: string | null; name?: string | null; starts_at?: string | null; side1_score?: number | null; side2_score?: number | null; period?: number | null; score_version?: number }>;
   participants: Array<{ id: string; profile_id: string; status: string; role: string; playing: boolean; waitlist_position: number | null; handicap_index: number | null; recorder?: boolean }>;
   groups: Array<{ id: string; sport_event_round_id: string; sequence: number; name?: string | null; starting_hole?: number; members: Array<{ participant_id: string; position: number; side?: 1 | 2 | null }> }>;
   counts: { playing: number; followers: number; waitlisted: number };
@@ -105,11 +110,14 @@ export async function openEventSession(): Promise<EventSession> {
 
 export interface CreateEventOptions {
   name: string;
+  /** Phase 4 (215): a stat-line sport makes a game (default) or a session. */
+  sport_key?: string;
+  shape?: 'round' | 'game' | 'session';
   visibility?: 'public' | 'link' | 'private';
   join_mode?: 'invite' | 'request' | 'open';
   format?: 'stroke_gross' | 'stroke_net' | 'match_gross' | 'match_net';
   /** Phase 3: the match shape at creation. */
-  format_config?: { match?: { sides: 'singles' | 'fourball' | 'foursomes'; bracket?: boolean; allowance?: number } | null; cut?: { after_round: number; top_n?: number; to_par?: number } | null };
+  format_config?: { match?: { sides: 'singles' | 'fourball' | 'foursomes'; bracket?: boolean; allowance?: number } | null; cut?: { after_round: number; top_n?: number; to_par?: number } | null; game?: { side_names: [string, string] } | null };
   capacity?: number;
   publish?: boolean;
   host_plays?: boolean;

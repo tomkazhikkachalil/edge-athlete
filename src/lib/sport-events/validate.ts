@@ -7,11 +7,14 @@
 import {
   SPORT_EVENT_FORMATS,
   SPORT_EVENT_JOIN_MODES,
-  SPORT_EVENT_SPORTS,
+  SPORT_EVENT_SPORTS_ALL,
+  SPORT_EVENT_SHAPES,
   SPORT_EVENT_VISIBILITIES,
   type SportEventFormat,
   type SportEventJoinMode,
   type SportEventVisibility,
+  type SportEventSport,
+  type SportEventShape,
 } from './types';
 
 export type Parsed<T> = { ok: true; value: T } | { ok: false; error: string };
@@ -32,12 +35,16 @@ export interface RoundInput {
   tee: string | null;
   holes: 9 | 18;
   starting_hole: 1 | 10;
+  /** Phase 4 (215) — the start, ISO; a team round's clock (a golf round may carry one too). */
+  starts_at?: string | null;
 }
 
 export interface CreateEventInput {
   name: string;
   description: string | null;
-  sport_key: (typeof SPORT_EVENT_SPORTS)[number];
+  sport_key: SportEventSport;
+  /** Phase 4 (215): golf is a `round`; a team sport is a `game` (default) or a `session`. */
+  shape: SportEventShape;
   visibility: SportEventVisibility;
   join_mode: SportEventJoinMode;
   format: SportEventFormat;
@@ -137,10 +144,28 @@ function capacity(v: unknown): Parsed<number | null> {
   return { ok: true, value: v };
 }
 
-/** One round's plan; `field` names it in a refusal (`round`, or `rounds[2]`). */
-export function parseRoundInput(body: unknown, field = 'round'): Parsed<RoundInput> {
+/** The optional start (ISO, or anything Date.parse reads) → stored ISO; null clears. */
+function optionalStart(v: unknown, field: string): Parsed<string | null> {
+  if (v === undefined || v === null || v === '') return { ok: true, value: null };
+  if (typeof v !== 'string' || !Number.isFinite(Date.parse(v))) return { ok: false, error: `${field} must be a date-time` };
+  return { ok: true, value: new Date(v).toISOString() };
+}
+
+/** One round's plan; `field` names it in a refusal (`round`, or `rounds[2]`). Phase 4: a team sport's round is a PLACE (`course_name`) + an optional start — the golf fields are refused by name. */
+export function parseRoundInput(body: unknown, field = 'round', opts: { sport?: SportEventSport } = {}): Parsed<RoundInput> {
   if (!isRecord(body)) return { ok: false, error: `${field} is required` };
   if (!isDateOnly(body.scheduled_on)) return { ok: false, error: `${field}.scheduled_on must be a date (YYYY-MM-DD)` };
+  const startsAt = optionalStart(body.starts_at, `${field}.starts_at`);
+  if (!startsAt.ok) return startsAt;
+  if (opts.sport && opts.sport !== 'golf') {
+    for (const k of ['course_id', 'tee', 'holes', 'starting_hole'] as const) if (body[k] !== undefined && body[k] !== null) return { ok: false, error: `${field}.${k} is only for golf` };
+    const place = optionalText(body.course_name, `${field}.course_name`, COURSE_NAME_MAX);
+    if (!place.ok) return place;
+    if (place.value === null) return { ok: false, error: `${field}.course_name (the place) is required` };
+    const label = optionalText(body.name, `${field}.name`, ROUND_NAME_MAX);
+    if (!label.ok) return label;
+    return { ok: true, value: { scheduled_on: body.scheduled_on, name: label.value, course_id: null, course_name: place.value, tee: null, holes: 18, starting_hole: 1, starts_at: startsAt.value } };
+  }
   const courseId = optionalUuid(body.course_id, `${field}.course_id`);
   if (!courseId.ok) return courseId;
   const courseName = optionalText(body.course_name, `${field}.course_name`, COURSE_NAME_MAX);
@@ -155,7 +180,7 @@ export function parseRoundInput(body: unknown, field = 'round'): Parsed<RoundInp
   if (holes === 18 && startingHole === 10) return { ok: false, error: 'an 18-hole round starts on hole 1' };
   const name = optionalText(body.name, `${field}.name`, ROUND_NAME_MAX);
   if (!name.ok) return name;
-  return { ok: true, value: { scheduled_on: body.scheduled_on, name: name.value, course_id: courseId.value, course_name: courseName.value, tee: tee.value, holes, starting_hole: startingHole } };
+  return { ok: true, value: { scheduled_on: body.scheduled_on, name: name.value, course_id: courseId.value, course_name: courseName.value, tee: tee.value, holes, starting_hole: startingHole, starts_at: startsAt.value } };
 }
 
 export function parseCreateBody(body: unknown): Parsed<CreateEventInput> {
@@ -165,8 +190,13 @@ export function parseCreateBody(body: unknown): Parsed<CreateEventInput> {
   if (name.value === null) return { ok: false, error: 'name is required' };
   const description = optionalText(body.description, 'description', DESCRIPTION_MAX);
   if (!description.ok) return description;
-  const sport = oneOf(body.sport_key, SPORT_EVENT_SPORTS, 'sport_key', 'golf');
+  // Phase 4 (215): every event sport; the shape follows the sport both ways (golf ⇔ round).
+  const sport = oneOf(body.sport_key, SPORT_EVENT_SPORTS_ALL, 'sport_key', 'golf');
   if (!sport.ok) return sport;
+  const shape = oneOf(body.shape, SPORT_EVENT_SHAPES, 'shape', sport.value === 'golf' ? 'round' : 'game');
+  if (!shape.ok) return shape;
+  if ((sport.value === 'golf') !== (shape.value === 'round')) return { ok: false, error: sport.value === 'golf' ? 'A golf event is a round' : 'A team-sport event is a game or a session' };
+  if (sport.value !== 'golf' && body.format !== undefined) return { ok: false, error: 'format is golf vocabulary — a team event has none' };
   // Phase 4 (214): a NEW event defaults to PUBLIC and open to join (Tom: joining is fully open unless the organizer closes it).
   const visibility = oneOf(body.visibility, SPORT_EVENT_VISIBILITIES, 'visibility', 'public');
   if (!visibility.ok) return visibility;
@@ -190,7 +220,7 @@ export function parseCreateBody(body: unknown): Parsed<CreateEventInput> {
   if (body.self_entry !== undefined && typeof body.self_entry !== 'boolean') return { ok: false, error: 'self_entry must be true or false' };
   if (body.publish !== undefined && typeof body.publish !== 'boolean') return { ok: false, error: 'publish must be true or false' };
   if (body.format_config !== undefined && (typeof body.format_config !== 'object' || body.format_config === null || Array.isArray(body.format_config))) return { ok: false, error: 'format_config must be an object' };
-  const rounds = parseRoundsInput(body);
+  const rounds = parseRoundsInput(body, { sport: sport.value });
   if (!rounds.ok) return rounds;
   return {
     ok: true,
@@ -198,6 +228,7 @@ export function parseCreateBody(body: unknown): Parsed<CreateEventInput> {
       name: name.value,
       description: description.value,
       sport_key: sport.value,
+      shape: shape.value,
       visibility: visibility.value,
       join_mode: joinMode.value,
       format: format.value,
@@ -223,19 +254,19 @@ export const MAX_ROUNDS = 8;
  * a miss names `rounds[i].scheduled_on`). Both at once is a 400: the caller
  * must mean one of them.
  */
-export function parseRoundsInput(body: Record<string, unknown>): Parsed<RoundInput[]> {
+export function parseRoundsInput(body: Record<string, unknown>, opts: { sport?: SportEventSport } = {}): Parsed<RoundInput[]> {
   const hasRound = body.round !== undefined;
   const hasRounds = body.rounds !== undefined;
   if (hasRound && hasRounds) return { ok: false, error: 'Send round or rounds, not both' };
   if (!hasRounds) {
-    const one = parseRoundInput(body.round);
+    const one = parseRoundInput(body.round, 'round', opts);
     return one.ok ? { ok: true, value: [one.value] } : one;
   }
   if (!Array.isArray(body.rounds) || body.rounds.length === 0) return { ok: false, error: 'rounds must be a non-empty list' };
   if (body.rounds.length > MAX_ROUNDS) return { ok: false, error: `rounds must have at most ${MAX_ROUNDS} entries` };
   const out: RoundInput[] = [];
   for (let i = 0; i < body.rounds.length; i++) {
-    const one = parseRoundInput(body.rounds[i], `rounds[${i}]`);
+    const one = parseRoundInput(body.rounds[i], `rounds[${i}]`, opts);
     if (!one.ok) return one;
     if (i > 0 && one.value.scheduled_on < out[i - 1].scheduled_on) return { ok: false, error: `rounds[${i}].scheduled_on must not be before rounds[${i - 1}].scheduled_on` };
     out.push(one.value);

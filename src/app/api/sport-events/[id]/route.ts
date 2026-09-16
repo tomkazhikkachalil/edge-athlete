@@ -11,7 +11,7 @@ import { parseFormatConfig, readFormatConfig, readMatchConfig } from '@/lib/spor
 import { mintLinkToken } from '@/lib/sport-events/link-token';
 import { activeRounds } from '@/lib/sport-events/rounds';
 import { ROUND_COLUMNS } from '@/lib/sport-events/rounds-server';
-import { isMatchFormat, type SportEventRoundRow, type SportEventRow } from '@/lib/sport-events/types';
+import { isMatchFormat, type SportEventRoundRow, type SportEventRow, shapeOf } from '@/lib/sport-events/types';
 import { parseEventPatch } from '@/lib/sport-events/validate';
 import { fetchSportEventView } from '@/lib/sport-events/view-server';
 
@@ -89,12 +89,13 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     const onlyFormatConfig = Object.keys(patch).every(k => k === 'format_config');
     if (read.event.status !== 'draft' && read.event.status !== 'open' && !(onlyFormatConfig && read.event.status === 'live')) return NextResponse.json({ error: 'This event can no longer be edited.' }, { status: 409 });
     const nextFormat = patch.format ?? read.event.format;
-    const stored = readFormatConfig(read.event.format_config, 8, read.event.format);
+    const stored = readFormatConfig(read.event.format_config, 8, read.event.format, shapeOf(read.event));
+    if (patch.format !== undefined && shapeOf(read.event) !== 'round') return NextResponse.json({ error: 'format is golf vocabulary — a team event has none' }, { status: 400 });
     let formatConfig: Record<string, unknown> | null = null;
     if (patch.format_config !== undefined) {
       const { data: roundRows } = await admin.from('sport_event_rounds').select(ROUND_COLUMNS).eq('sport_event_id', id);
       const rounds = activeRounds((roundRows ?? []) as SportEventRoundRow[]);
-      const fc = parseFormatConfig(patch.format_config, { roundCount: rounds.length, format: nextFormat });
+      const fc = parseFormatConfig(patch.format_config, { roundCount: rounds.length, format: nextFormat, shape: shapeOf(read.event) });
       if (!fc.ok) return NextResponse.json({ error: fc.error }, { status: 400 });
       if (fc.value.cut && !cutEditable(fc.value.cut, rounds)) return NextResponse.json({ error: 'That cut falls after a round that has already completed.', reason: 'cut_already_passed' }, { status: 409 });
       // Phase 3: the match SHAPE is fixed once the event is live (the draw depends on it); the allowance may still change.

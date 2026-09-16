@@ -9,6 +9,7 @@ import { deleteRound, ROUND_COLUMNS, snapshotRound, writeStartsOn } from '@/lib/
 import type { SportEventRoundRow } from '@/lib/sport-events/types';
 import { parseRoundInput } from '@/lib/sport-events/validate';
 import { fetchSportEventView } from '@/lib/sport-events/view-server';
+import type { SportEventSport } from '@/lib/sport-events/types';
 
 const NOT_FOUND = () => NextResponse.json({ error: 'Event not found' }, { status: 404 });
 
@@ -29,12 +30,12 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     const body = await readJson(request);
     const actor = await resolveActor(user.id, bodyProfileId(body));
     if (!actor.ok) return actor.response;
-    const parsed = parseRoundInput(body);
-    if (!parsed.ok) return NextResponse.json({ error: parsed.error.replace(/^round\./, '') }, { status: 400 });
-
     const admin = getSupabaseAdmin();
     const read = await readSportEventAccess(admin, id, actor.profileId, null);
     if (!read) return NOT_FOUND();
+    // Phase 4: a team sport's round is a place + a start; the golf fields are refused by name.
+    const parsed = parseRoundInput(body, 'round', { sport: (read.event.sport_key as SportEventSport) });
+    if (!parsed.ok) return NextResponse.json({ error: parsed.error.replace(/^round\./, '') }, { status: 400 });
     if (!read.access.canManage) return NextResponse.json({ error: 'Only an organizer can edit the round.' }, { status: 403 });
     const { data: rows } = await admin.from('sport_event_rounds').select(ROUND_COLUMNS).eq('sport_event_id', id);
     const rounds = (rows ?? []) as SportEventRoundRow[];

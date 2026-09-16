@@ -26,6 +26,8 @@ import CountsTowardWindow from './CountsTowardWindow';
 import FormatSettingsWindow from './FormatSettingsWindow';
 import InviteWindow from './InviteWindow';
 import RoundEditWindow from './RoundEditWindow';
+import EventStatsTab from './EventStatsTab';
+import type { SportEventSport } from '@/lib/sport-events/types';
 
 /**
  * The event page shell (Events program). Holds the view, the active tab
@@ -60,7 +62,7 @@ export default function EventPlace({ eventId, initialView, token }: Props) {
   const params = useSearchParams();
   const api = useMemo(() => eventApi(eventId, token), [eventId, token]);
   const [view, setView] = useState<SportEventViewPayload | null>(initialView);
-  const [tab, setTab] = useState<EventTab>(parseEventTab(params.get('tab'), { canManage: true, isPlayer: true, roundMinted: true, matchPlay: isMatchFormat(initialView?.event.format) || params.get('tab') === 'matches' }));
+  const [tab, setTab] = useState<EventTab>(parseEventTab(params.get('tab'), { canManage: true, isPlayer: true, roundMinted: true, matchPlay: isMatchFormat(initialView?.event.format) || params.get('tab') === 'matches', shape: initialView?.event.shape ?? (params.get('tab') === 'stats' ? 'session' : undefined) }));
   const [roundParam, setRoundParam] = useState<string | null>(params.get('round'));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -125,7 +127,8 @@ export default function EventPlace({ eventId, initialView, token }: Props) {
   if (!view) return null;
   const { event, viewer } = view;
   const matchPlay = isMatchFormat(event.format);
-  const tabViewer = { canManage: viewer.can_manage, isPlayer: viewer.participant_status === 'accepted' && viewer.playing, roundMinted: view.rounds.some(r => r.group_post_id !== null), matchPlay };
+  // Phase 4: a team round is minted as its lines (no group post) — minted once it left `scheduled`.
+  const tabViewer = { canManage: viewer.can_manage, isPlayer: viewer.participant_status === 'accepted' && viewer.playing, roundMinted: view.rounds.some(r => r.group_post_id !== null || (event.shape !== 'round' && r.status !== 'scheduled')), matchPlay, shape: event.shape };
   const visibleTab: EventTab = tabsFor(tabViewer).includes(tab) ? tab : 'overview';
   const selectedRound = parseRoundParam(roundParam, view.rounds, visibleTab, { bracket: !!event.match?.bracket });
   const many = activeRounds(view.rounds).length > 1;
@@ -233,6 +236,7 @@ export default function EventPlace({ eventId, initialView, token }: Props) {
           )}
           {visibleTab === 'groups' && viewer.can_manage && <EventGroupsEditor view={view} api={api} selected={selectedRound} onSelect={changeRound} onSaved={v => { setView(v); setVersion(x => x + 1); }} />}
           {visibleTab === 'leaderboard' && <EventLeaderboard view={view} api={api} version={version} selected={selectedRound} onSelect={changeRound} />}
+          {visibleTab === 'stats' && <EventStatsTab view={view} api={api} version={version} selected={selectedRound} onSelect={changeRound} />}
           {visibleTab === 'matches' && (
             <EventMatchesTab
               view={view}
@@ -310,7 +314,7 @@ export default function EventPlace({ eventId, initialView, token }: Props) {
         />
       )}
       {roundEdit && (
-        <RoundEditWindow
+        <RoundEditWindow sport={event.sport_key as SportEventSport}
           round={roundEdit.mode === 'edit' ? roundEdit.round : null}
           nextSequence={nextSequence(view.rounds)}
           onClose={() => setRoundEdit(null)}

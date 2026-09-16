@@ -6,7 +6,7 @@
  * door (the board, or the matches on match play). Nothing private leaves:
  * the event's name, sport, format, the round's place and count.
  */
-import { isMatchFormat } from './types';
+import { isMatchFormat, isStatShape } from './types';
 
 export interface LiveEventRow {
   id: string;
@@ -15,6 +15,8 @@ export interface LiveEventRow {
   format: string;
   visibility: string;
   status: string;
+  /** Phase 4 (215): round | game | session; absent pre-215. */
+  shape?: string | null;
   rounds: Array<{ id: string; sequence: number; name: string | null; status: string; course_name: string; scheduled_on: string; group_post_id: string | null }>;
   /** Accepted playing rows. */
   playing: number;
@@ -52,7 +54,7 @@ export function liveEventCards(rows: ReadonlyArray<LiveEventRow>): LiveEventCard
     const round = liveRoundOf(row.rounds);
     if (!round) continue;
     const roundCount = row.rounds.filter(r => r.status !== 'cancelled').length;
-    const tab = isMatchFormat(row.format) ? 'matches' : 'leaderboard';
+    const tab = isStatShape(row.shape) ? 'stats' : isMatchFormat(row.format) ? 'matches' : 'leaderboard';
     out.push({
       id: row.id,
       name: row.name,

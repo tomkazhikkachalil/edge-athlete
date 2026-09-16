@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { apiAs } from './helpers/qa-user';
+import { adminClient, apiAs } from './helpers/qa-user';
 
 /**
  * Events program — the creation wizard at /sports/events/new. Four steps
@@ -98,6 +98,66 @@ test('event wizard: refusals, typed course, back nine, publish → the place; ca
       await api.post(`/api/sport-events/${id}/transition`, { data: { to: 'cancelled' } });
       await api.delete(`/api/sport-events/${id}`);
     }
+  } finally {
+    await api.dispose();
+  }
+});
+
+/**
+ * Phase 4 (215): the wizard's team path — the sport picker, Game | Session,
+ * the game's date / place / time, the two sides, the review, Publish → the
+ * place shows the kind, the place and the sides. NEEDS MIGRATION 215 ON
+ * THE TARGET (self-skips before).
+ */
+test('event wizard: a hockey game — sport, kind, place and time, the sides, publish → the place @mobile', async ({ page }) => {
+  const admin = adminClient();
+  const probe = await admin.from('sport_events').select('shape').limit(1);
+  test.skip(!!probe.error, 'sport_events.shape missing — run migration 215');
+  const stamp = Date.now();
+  const name = `QA Wizard Game ${stamp}`;
+  await page.goto('/sports/events/new');
+  await expect(page.getByRole('heading', { name: 'Create an event' })).toBeVisible({ timeout: 20_000 });
+  await page.locator('[data-event-wizard-name]').fill(name);
+  await page.getByRole('radio', { name: 'Ice Hockey' }).check();
+  await expect(page.locator('[data-wizard-shape]')).toBeVisible();
+  await expect(page.getByRole('radio', { name: 'A game' })).toBeChecked();
+  await page.locator('[data-event-wizard-next]').click();
+
+  // The game: the date, then the place is required; a time is optional.
+  await expect(page.getByRole('heading', { name: 'The game' })).toBeVisible();
+  await page.locator('[data-event-wizard-date]').fill('2030-06-01');
+  await page.locator('[data-event-wizard-next]').click();
+  await expect(page.locator('[data-event-wizard-refusal]')).toHaveText(/Where is it/);
+  await page.locator('[data-wizard-place]').fill(`QA Rink ${stamp}`);
+  await page.locator('[data-wizard-time]').fill('19:30');
+  await page.locator('[data-event-wizard-next]').click();
+
+  // Details: no golf format; the two sides must differ.
+  await expect(page.locator('[data-event-wizard="format"]')).toBeVisible();
+  await expect(page.getByRole('radio', { name: /Stroke play/ })).toHaveCount(0);
+  await page.locator('[data-wizard-side="1"]').fill('Reds');
+  await page.locator('[data-wizard-side="2"]').fill('reds');
+  await page.locator('[data-event-wizard-next]').click();
+  await expect(page.locator('[data-event-wizard-refusal]')).toHaveText(/different names/);
+  await page.locator('[data-wizard-side="2"]').fill('Blues');
+  await page.locator('[data-event-wizard-next]').click();
+
+  // Review → Publish → the place.
+  await expect(page.locator('[data-event-wizard="review"]')).toBeVisible();
+  await expect(page.getByText('Reds vs Blues')).toBeVisible();
+  await expect(page.getByText('A game')).toBeVisible();
+  await page.locator('[data-event-wizard-publish]').click();
+  await expect(page).toHaveURL(/\/events\/[0-9a-f-]{36}$/, { timeout: 20_000 });
+  await expect(page.getByRole('heading', { name })).toBeVisible({ timeout: 20_000 });
+  await expect(page.locator('[data-event-kind-line]')).toHaveText('A game');
+  await expect(page.locator('[data-event-sides-line]')).toHaveText('Reds vs Blues');
+  await expect(page.locator('[data-event-place-line]').first()).toContainText(`QA Rink ${stamp}`);
+  const eventId = page.url().split('/events/')[1];
+
+  const api = await apiAs('state.json');
+  try {
+    await api.post(`/api/sport-events/${eventId}/transition`, { data: { to: 'cancelled' } });
+    await api.delete(`/api/sport-events/${eventId}`);
   } finally {
     await api.dispose();
   }

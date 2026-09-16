@@ -8,7 +8,8 @@ import { lineState, nextStatToFlush, overlayStats, parseStatOutbox, removeStatEn
 import { conflictStatFrom, savedStatVersionFrom, statLinePath, statPayloadFor } from '../stat-flush';
 import { DEFAULT_SIDE_NAMES, parseFormatConfig, parseGameConfig, readFormatConfig, readGameConfig } from '../format-config';
 import { parseEventTab, tabsFor } from '../tabs';
-import { emptyRoundDraft, emptyWizardState, isWizardDirty, roundBodyFrom, validateRoundDraft, validateWizardStep, withSport, wizardToCreateBody } from '../wizard';
+import { emptyRoundDraft, emptyWizardState, isWizardDirty, localStartIso, localTimeOf, roundBodyFrom, validateRoundDraft, validateWizardStep, withSport, wizardToCreateBody } from '../wizard';
+import { validateGroupsPlan } from '../groups';
 import { isStatShape, isStatSport, shapeOf, SPORT_EVENT_SPORTS, SPORT_EVENT_SPORTS_ALL, SPORT_EVENT_STAT_SPORTS } from '../types';
 
 const hockey = STAT_SCHEMAS.ice_hockey!;
@@ -187,7 +188,13 @@ describe('the wizard — the sport, the shape, the side names, the team round', 
     expect(withSport(hockey, 'golf')).toMatchObject({ sport_key: 'golf', shape: 'round' });
     const draft = { ...emptyRoundDraft(), scheduled_on: '2030-01-01', place: 'The Rink', starts_at: '19:30' };
     const game = wizardToCreateBody({ ...hockey, name: 'Friday skate', side_names: ['Reds', 'Blues'], rounds: [draft] }, { publish: true, profileId: null });
-    expect(game).toMatchObject({ sport_key: 'ice_hockey', shape: 'game', format_config: { game: { side_names: ['Reds', 'Blues'] } }, round: { scheduled_on: '2030-01-01', course_name: 'The Rink', starts_at: '19:30', name: null } });
+    expect(game).toMatchObject({ sport_key: 'ice_hockey', shape: 'game', format_config: { game: { side_names: ['Reds', 'Blues'] } }, round: { scheduled_on: '2030-01-01', course_name: 'The Rink', name: null } });
+    // The start is the organizer's clock: HH:MM on the date → ISO, and back.
+    const startIso = (game as { round: { starts_at: string | null } }).round.starts_at;
+    expect(startIso).toMatch(/Z$/);
+    expect(localTimeOf(startIso)).toBe('19:30');
+    expect(localStartIso('2030-01-01', '9:00')).toBeNull();
+    expect(localTimeOf(null)).toBe('');
     expect((game as { round?: unknown }).round).not.toHaveProperty('holes');
     const session = wizardToCreateBody({ ...hockey, shape: 'session', name: 'Practice', rounds: [draft] }, { publish: true, profileId: null });
     expect(session).not.toHaveProperty('format_config');
@@ -206,5 +213,16 @@ describe('the wizard — the sport, the shape, the side names, the team round', 
     expect(validateWizardStep('format', { ...s, side_names: ['A', 'B'], capacity: '0' })).toMatch(/Field size/);
     expect(validateWizardStep('format', { ...s, side_names: ['A', 'B'] })).toBeNull();
     expect(validateWizardStep('format', { ...s, shape: 'session', side_names: ['A', 'a'] })).toBeNull();
+  });
+});
+
+describe('groups on a game — a side is sent (1 | 2) or left open, never derived; refused elsewhere', () => {
+  const a = '11111111-1111-4111-8111-111111111111';
+  const b = '22222222-2222-4222-8222-222222222222';
+  const eligible = new Set([a, b]);
+  it('admits explicit sides on a game and leaves a plain id open', () => {
+    expect(validateGroupsPlan({ groups: [{ members: [{ participant_id: a, side: 1 }, b] }] }, eligible, { sides: null, game: true })).toMatchObject({ ok: true, value: [{ members: [{ participant_id: a, position: 1, side: 1 }, { participant_id: b, position: 2, side: null }] }] });
+    expect(validateGroupsPlan({ groups: [{ members: [{ participant_id: a, side: 1 }, b] }] }, eligible, { sides: null })).toMatchObject({ ok: false, error: expect.stringContaining('match-play event or a game') });
+    expect(validateGroupsPlan({ groups: [{ members: [{ participant_id: a, side: 3 }] }] }, eligible, { sides: null, game: true })).toMatchObject({ ok: false });
   });
 });

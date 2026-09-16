@@ -54,7 +54,7 @@ const memberSide = (m: GroupMemberInput): 1 | 2 | null | undefined => (typeof m 
  * `sides` = the event's match shape, or null on a stroke format (a `side`
  * in the body is then refused by name).
  */
-export function validateGroupsPlan(body: unknown, eligibleParticipantIds: ReadonlySet<string>, opts: { sides: MatchSides | null } = { sides: null }): GroupsPlan {
+export function validateGroupsPlan(body: unknown, eligibleParticipantIds: ReadonlySet<string>, opts: { sides: MatchSides | null; game?: boolean } = { sides: null }): GroupsPlan {
   if (typeof body !== 'object' || body === null || !Array.isArray((body as { groups?: unknown }).groups)) return { ok: false, error: 'groups must be a list' };
   const groups = (body as { groups: unknown[] }).groups;
   if (groups.length > MAX_GROUPS) return { ok: false, error: `At most ${MAX_GROUPS} groups` };
@@ -76,10 +76,11 @@ export function validateGroupsPlan(body: unknown, eligibleParticipantIds: Readon
       const side = memberSide(m);
       if (id === null || !UUID.test(id) || seen.has(id) || !eligibleParticipantIds.has(id)) return;
       if (side !== undefined && side !== null && side !== 1 && side !== 2) return;
-      if (side !== undefined && side !== null && opts.sides === null) return;
+      if (side !== undefined && side !== null && opts.sides === null && !opts.game) return;
       seen.add(id);
       const position = members.length + 1;
-      members.push({ participant_id: id, position, side: opts.sides === null ? null : side === undefined ? derivedSide(position, opts.sides) : side });
+      // Phase 4: on a GAME a member's side is sent (1 | 2) or left open — never derived from the position (a side is any size).
+      members.push({ participant_id: id, position, side: opts.sides !== null ? (side === undefined ? derivedSide(position, opts.sides) : side) : opts.game ? side ?? null : null });
     }
     out.push({ sequence: i + 1, name, tee_time: teeTime, starting_hole: startingHole, members });
   });
@@ -96,7 +97,7 @@ export function validateGroupsPlan(body: unknown, eligibleParticipantIds: Readon
       const side = memberSide(m);
       if (id === null || !UUID.test(id)) return { ok: false, error: `Group ${i + 1}: a member must be a participant id` };
       if (side !== undefined && side !== null && side !== 1 && side !== 2) return { ok: false, error: `Group ${i + 1}: side must be 1 or 2` };
-      if (side !== undefined && side !== null && opts.sides === null) return { ok: false, error: `Group ${i + 1}: side is only set on a match-play event` };
+      if (side !== undefined && side !== null && opts.sides === null && !opts.game) return { ok: false, error: `Group ${i + 1}: side is only set on a match-play event or a game` };
       if (!eligibleParticipantIds.has(id)) return { ok: false, error: `Group ${i + 1}: a member is not an accepted, playing participant` };
     }
     return { ok: false, error: `Group ${i + 1}: a player is in two groups` };

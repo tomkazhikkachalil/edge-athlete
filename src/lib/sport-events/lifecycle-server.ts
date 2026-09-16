@@ -41,7 +41,8 @@ import { groupsIncomplete } from './match';
 import { closeMatchesOnCompletion, fetchRoundMatches, mintMatches, readRoundGroups, type RoundGroup, type RoundMatch } from './match-server';
 import { fetchOverallLeaderboard } from './leaderboard-server';
 import { writeStartsOn } from './rounds-server';
-import { isMatchFormat, type SportEventParticipantRow, type SportEventRoundRow, type SportEventRoundStatus, type SportEventRow, type SportEventStatus } from './types';
+import { isMatchFormat, isStatShape, shapeOf, type SportEventParticipantRow, type SportEventRoundRow, type SportEventRoundStatus, type SportEventRow, type SportEventShape, type SportEventStatus } from './types';
+import { mintStatRound, syncStatLineForPlayer } from './stats-server';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Admin = SupabaseClient<any, 'public', any>;
@@ -49,22 +50,30 @@ type Admin = SupabaseClient<any, 'public', any>;
 export interface MintedRound extends SportEventRoundRow {
   group_post_id: string | null;
   announce_post_id: string | null;
+  /** Phase 4 (215): a stat-line round is minted as its lines (no group post). */
+  stat_minted: boolean;
 }
 
-export async function readRounds(admin: Admin, eventId: string): Promise<MintedRound[]> {
+/** The ONE minted fact: a golf round's group post, or a stat round's lines. */
+export const roundMinted = (r: Pick<MintedRound, 'group_post_id' | 'stat_minted'>): boolean => r.group_post_id !== null || r.stat_minted === true;
+
+export async function readRounds(admin: Admin, eventId: string, shape: SportEventShape = 'round'): Promise<MintedRound[]> {
   const { data: rounds } = await admin.from('sport_event_rounds').select(ROUND_COLUMNS).eq('sport_event_id', eventId).order('sequence', { ascending: true });
   const rows = (rounds ?? []) as SportEventRoundRow[];
   if (rows.length === 0) return [];
   const ids = rows.map(r => r.id);
-  const [{ data: gps }, { data: posts }] = await Promise.all([
+  const [{ data: gps }, { data: posts }, statRes] = await Promise.all([
     admin.from('group_posts').select('id, sport_event_round_id').in('sport_event_round_id', ids),
     admin.from('posts').select('id, sport_event_round_id').in('sport_event_round_id', ids),
+    // Phase 4: a stat round's mint is its lines — read only off golf (a pre-215 database answers 42P01: read as unminted).
+    isStatShape(shape) ? admin.from('sport_event_stat_lines').select('sport_event_round_id').in('sport_event_round_id', ids) : Promise.resolve({ data: [] as Array<{ sport_event_round_id: string }>, error: null }),
   ]);
   const gpByRound = new Map<string, string>();
   for (const g of (gps ?? []) as Array<{ id: string; sport_event_round_id: string }>) gpByRound.set(g.sport_event_round_id, g.id);
   const postByRound = new Map<string, string>();
   for (const p of (posts ?? []) as Array<{ id: string; sport_event_round_id: string }>) postByRound.set(p.sport_event_round_id, p.id);
-  return rows.map(r => ({ ...r, group_post_id: gpByRound.get(r.id) ?? null, announce_post_id: postByRound.get(r.id) ?? null }));
+  const statRounds = new Set(((statRes.error ? [] : statRes.data ?? []) as Array<{ sport_event_round_id: string }>).map(l => l.sport_event_round_id));
+  return rows.map(r => ({ ...r, group_post_id: gpByRound.get(r.id) ?? null, announce_post_id: postByRound.get(r.id) ?? null, stat_minted: statRounds.has(r.id) }));
 }
 
 async function acceptedPlaying(admin: Admin, eventId: string): Promise<SportEventParticipantRow[]> {
@@ -136,7 +145,7 @@ export async function applyTransition(admin: Admin, req: TransitionRequest): Pro
   if (!eventRow) return { ok: false, status: 404, reason: 'not_found', error: 'Event not found' };
   const event = eventRow as SportEventRow;
   const from = event.status;
-  const rounds = await readRounds(admin, req.eventId);
+  const rounds = await readRounds(admin, req.eventId, shapeOf(event));
 
   if (req.to === 'live' || req.to === 'completed') {
     if (!canTransition(from, req.to)) return { ok: false, status: 409, reason: 'invalid_transition', error: TRANSITION_REFUSAL_COPY.invalid_transition };
@@ -155,7 +164,7 @@ export async function applyTransition(admin: Admin, req: TransitionRequest): Pro
   const players = await acceptedPlaying(admin, req.eventId);
   const facts: TransitionFacts = {
     name: event.name,
-    rounds: rounds.map(r => ({ scheduledOn: r.scheduled_on, groupPostMinted: r.group_post_id !== null, status: r.status })),
+    rounds: rounds.map(r => ({ scheduledOn: r.scheduled_on, groupPostMinted: roundMinted(r), status: r.status })),
     acceptedPlaying: players.length,
     cards: [],
     override: req.override === true,
@@ -202,7 +211,7 @@ export async function applyTransition(admin: Admin, req: TransitionRequest): Pro
     if (error) console.error('[sport-events] round status write failed:', error);
   }
 
-  return { ok: true, event: updated as SportEventRow, rounds: await readRounds(admin, req.eventId) };
+  return { ok: true, event: updated as SportEventRow, rounds: await readRounds(admin, req.eventId, shapeOf(event)) };
 }
 
 export interface RoundTransitionRequest {
@@ -231,7 +240,8 @@ export async function applyRoundTransition(admin: Admin, req: RoundTransitionReq
   const { data: eventRow } = await admin.from('sport_events').select(EVENT_COLUMNS).eq('id', req.eventId).maybeSingle();
   if (!eventRow) return { ok: false, status: 404, reason: 'not_found', error: 'Event not found' };
   const event = eventRow as SportEventRow;
-  const rounds = await readRounds(admin, req.eventId);
+  const shape = shapeOf(event);
+  const rounds = await readRounds(admin, req.eventId, shape);
   const round = rounds.find(r => r.id === req.roundId);
   if (!round) return { ok: false, status: 404, reason: 'not_found', error: 'Round not found' };
   const players = await acceptedPlaying(admin, req.eventId);
@@ -244,7 +254,8 @@ export async function applyRoundTransition(admin: Admin, req: RoundTransitionReq
   const groupName = (sequence: number) => groups.find(g => g.sequence === sequence)?.name?.trim() || `Match ${sequence}`;
   // The round's field (the cut's missed set, or the players outside a match round's draw — never stored) — the same set the mint below excludes.
   const excluded = req.to === 'live' || req.to === 'completed' ? await roundFieldExclusions(admin, event, rounds, round, { groups }) : new Set<string>();
-  const cards = req.to === 'completed' ? await readCards(admin, [round], players, excluded) : [];
+  // Phase 4: a stat round has no cards — its completion finalizes the lines as they stand (the organizer's Complete needs no override).
+  const cards = req.to === 'completed' && shape === 'round' ? await readCards(admin, [round], players, excluded) : [];
 
   const factsFor = (minted: boolean): RoundTransitionFacts => ({
     eventStatus: event.status,
@@ -265,17 +276,23 @@ export async function applyRoundTransition(admin: Admin, req: RoundTransitionReq
   if (req.to === 'live') {
     const pre = validateRoundTransition('live', factsFor(true));
     if (!pre.ok) return { ok: false, status: 409, reason: pre.reason, error: refusalError(pre.reason) };
-    if (!round.group_post_id) {
-      // Phase 2: past a decided cut, the missed-cut set is not minted into this round (the overall board decides — never stored; `roundFieldExclusions` is the one rule). Phase 3: a match round mints its draw only.
-      const gpId = await mintRound(admin, event, round, activeRounds(rounds).length, req.today ?? null, { excludeParticipantIds: excluded.size > 0 ? excluded : undefined, gameFormat: match ? 'match' : 'stroke' });
-      if (!gpId) return { ok: false, status: 500, reason: 'mint_failed', error: ROUND_REFUSAL_COPY.round_not_minted };
-      round.group_post_id = gpId;
+    if (!roundMinted(round)) {
+      if (shape === 'round') {
+        // Phase 2: past a decided cut, the missed-cut set is not minted into this round (the overall board decides — never stored; `roundFieldExclusions` is the one rule). Phase 3: a match round mints its draw only.
+        const gpId = await mintRound(admin, event, round, activeRounds(rounds).length, req.today ?? null, { excludeParticipantIds: excluded.size > 0 ? excluded : undefined, gameFormat: match ? 'match' : 'stroke' });
+        if (!gpId) return { ok: false, status: 500, reason: 'mint_failed', error: ROUND_REFUSAL_COPY.round_not_minted };
+        round.group_post_id = gpId;
+      } else {
+        // Phase 4 (215): a stat round mints ONE line per fielded player — nothing golf-ish, no group post; the announce post stays the round's one post.
+        if (!(await mintStatRound(admin, event, round, excluded))) return { ok: false, status: 500, reason: 'mint_failed', error: ROUND_REFUSAL_COPY.round_not_minted };
+        round.stat_minted = true;
+      }
     }
     // Phase 3: one match row per group (idempotent; a bracket bye decided at mint).
     if (match && !(await mintMatches(admin, round.id, groups, match, new Date().toISOString()))) return { ok: false, status: 500, reason: 'mint_failed', error: ROUND_REFUSAL_COPY.round_not_minted };
   }
 
-  const verdict = validateRoundTransition(req.to, factsFor(round.group_post_id !== null));
+  const verdict = validateRoundTransition(req.to, factsFor(roundMinted(round)));
   if (!verdict.ok) return { ok: false, status: 409, reason: verdict.reason, error: refusalError(verdict.reason) };
 
   const now = new Date().toISOString();
@@ -476,10 +493,15 @@ export async function mintRound(admin: Admin, event: SportEventRow, round: Minte
  */
 export async function syncRoundRoster(admin: Admin, eventId: string, profileId: string, change: 'add' | 'drop'): Promise<void> {
   try {
-    const [{ data: ev }, rounds] = await Promise.all([admin.from('sport_events').select('format').eq('id', eventId).maybeSingle(), readRounds(admin, eventId)]);
+    const { data: ev } = await admin.from('sport_events').select('format, shape, sport_key').eq('id', eventId).maybeSingle();
+    const shape = ev ? shapeOf(ev as { sport_key: string; shape?: string | null }) : 'round';
+    const rounds = await readRounds(admin, eventId, shape);
     const matchPlay = isMatchFormat((ev as { format?: string } | null)?.format);
     for (const round of rounds) {
-      if (!round.group_post_id || round.status !== 'live') continue;
+      if (!roundMinted(round) || round.status !== 'live') continue;
+      // Phase 4: a stat round's roster is its lines — a late joiner gets one, a drop removes an untouched one.
+      if (isStatShape(shape)) { await syncStatLineForPlayer(admin, round.id, eventId, profileId, change); continue; }
+      if (!round.group_post_id) continue;
       if (change === 'add' && matchPlay) continue;
       const { data: existing } = await admin.from('group_post_participants').select('id, status, position').eq('group_post_id', round.group_post_id).eq('profile_id', profileId).maybeSingle();
       if (change === 'drop') {
