@@ -9,6 +9,7 @@ export type JoinControl =
   | { kind: 'manage' }
   | { kind: 'respond' }            // Accept / Decline
   | { kind: 'request' }            // Request to join
+  | { kind: 'join' }               // Phase 4: one-tap Join (join_mode 'open')
   | { kind: 'requested' }          // Requested · (cancel)
   | { kind: 'in'; playing: boolean } // You're in · Withdraw
   | { kind: 'waitlisted'; position: number | null; ahead: number | null }
@@ -45,6 +46,7 @@ export function joinControl(i: JoinStateInput): JoinControl {
     }
   }
   if (over) return { kind: 'none' };
+  if (i.event.status === 'open' && i.event.joinMode === 'open' && i.participantStatus !== 'removed') return { kind: 'join' };
   if (i.event.status === 'open' && i.event.joinMode === 'request' && i.participantStatus !== 'removed') return { kind: 'request' };
   return { kind: 'follow' };
 }

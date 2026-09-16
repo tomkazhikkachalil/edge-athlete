@@ -8,6 +8,8 @@ interface Props {
   onAccept: () => void;
   onDecline: () => void;
   onRequest: () => void;
+  /** Phase 4: one-tap Join on an open event. */
+  onJoin?: () => void;
   onCancelRequest: () => void;
   onWithdraw: () => void;
   onFollow: () => void;
@@ -21,7 +23,7 @@ const PRIMARY = 'ea-cta text-white px-4 min-h-[44px] rounded-lg text-sm font-sem
 const SECONDARY = 'ea-interactive border border-border-strong text-secondary px-4 min-h-[44px] rounded-lg text-sm font-semibold inline-flex items-center justify-center disabled:opacity-60';
 
 /** One control, every join state — the header's and the players tab's. */
-export default function EventJoinButton({ control, busy, onAccept, onDecline, onRequest, onCancelRequest, onWithdraw, onFollow, onUnfollow, onManage, onSignIn }: Props) {
+export default function EventJoinButton({ control, busy, onAccept, onDecline, onRequest, onJoin, onCancelRequest, onWithdraw, onFollow, onUnfollow, onManage, onSignIn }: Props) {
   switch (control.kind) {
     case 'signin':
       return <button type="button" onClick={onSignIn} className={PRIMARY} data-event-join="signin">Log in to join</button>;
@@ -34,6 +36,8 @@ export default function EventJoinButton({ control, busy, onAccept, onDecline, on
           <button type="button" onClick={onDecline} disabled={busy} className={SECONDARY}>Decline</button>
         </div>
       );
+    case 'join':
+      return <button type="button" onClick={onJoin} disabled={busy} className={PRIMARY} data-event-join="join">Join</button>;
     case 'request':
       return <button type="button" onClick={onRequest} disabled={busy} className={PRIMARY} data-event-join="request">Request to join</button>;
     case 'requested':

@@ -38,6 +38,21 @@ describe('planJoin', () => {
     expect(planJoin('request', ctx({ event: { status: 'open', joinMode: 'request', capacity: null }, row: row({ status: 'invited' }) }))).toMatchObject({ ok: true, next: { status: 'accepted' } });
     expect(planJoin('request', ctx({ event: { status: 'open', joinMode: 'request', capacity: null }, row: row({ status: 'removed' }) }))).toMatchObject({ ok: false, status: 403 });
   });
+  it('phase 4 — join: open events under join_mode open only; a follower converts, an invited player accepts, a removed row stays out, a full field waitlists, live offers follow', () => {
+    const open = { status: 'open' as const, joinMode: 'open' as const, capacity: null };
+    expect(planJoin('join', ctx({ event: open }))).toMatchObject({ ok: true, create: true, next: { role: 'participant', status: 'accepted', playing: true, accepted: true } });
+    expect(planJoin('join', ctx({ event: { ...open, capacity: 1 }, rows: [row()] }))).toMatchObject({ ok: true, next: { status: 'waitlisted', waitlistPosition: 1 } });
+    const follower = row({ role: 'follower', playing: false });
+    expect(planJoin('join', ctx({ event: open, row: follower, rows: [follower] }))).toMatchObject({ ok: true, create: false, next: { role: 'participant', status: 'accepted', playing: true } });
+    const invited = row({ status: 'invited' });
+    expect(planJoin('join', ctx({ event: open, row: invited, rows: [invited] }))).toMatchObject({ ok: true, next: { status: 'accepted' } });
+    expect(planJoin('join', ctx({ event: open, row: row({ status: 'removed' }) }))).toMatchObject({ ok: false, status: 403 });
+    expect(planJoin('join', ctx({ event: open, row: row() }))).toMatchObject({ ok: false, status: 409, error: 'You are already in.' });
+    expect(planJoin('join', ctx({ event: { ...open, joinMode: 'request' } }))).toMatchObject({ ok: false, status: 403 });
+    expect(planJoin('join', ctx({ event: { ...open, joinMode: 'invite' } }))).toMatchObject({ ok: false, status: 403 });
+    expect(planJoin('join', ctx({ event: { ...open, status: 'live' } }))).toMatchObject({ ok: false, status: 409, error: expect.stringContaining('follow') });
+    expect(planJoin('join', ctx({ event: { ...open, status: 'draft' } }))).toMatchObject({ ok: false, status: 409 });
+  });
   it('accept seats the player, or waitlists them when full; approve is the organizer twin', () => {
     const full = [row(), row()];
     expect(planJoin('accept', ctx({ row: row({ status: 'invited' }), rows: full, event: { status: 'open', joinMode: 'invite', capacity: 2 } }))).toMatchObject({ ok: true, next: { status: 'waitlisted', waitlistPosition: 1 } });

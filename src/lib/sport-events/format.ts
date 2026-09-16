@@ -44,7 +44,7 @@ export const VISIBILITY_LABEL: Readonly<Record<SportEventVisibility, string>> = 
 };
 
 export function joinLine(joinMode: SportEventJoinMode): string {
-  return joinMode === 'request' ? 'Open to requests' : 'Invite only';
+  return joinMode === 'open' ? 'Open to everyone' : joinMode === 'request' ? 'Open to requests' : 'Invite only';
 }
 
 export const MATCH_SIDES_LABEL: Readonly<Record<MatchSides, string>> = { singles: 'Singles', fourball: 'Four-ball', foursomes: 'Foursomes' };

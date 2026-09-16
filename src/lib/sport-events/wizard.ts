@@ -7,7 +7,7 @@
  * previous round's course, tees and holes with an empty date.
  */
 import type { CourseHole } from '@/types/golf';
-import { NAME_MAX, DESCRIPTION_MAX, isDateOnly } from './validate';
+import { NAME_MAX, DESCRIPTION_MAX, defaultJoinMode, isDateOnly } from './validate';
 import { MAX_ROUNDS } from './rounds';
 import { isMatchFormat, type MatchSides, type SportEventFormat, type SportEventJoinMode, type SportEventVisibility } from './types';
 
@@ -95,7 +95,13 @@ export interface WizardState {
 }
 
 export function emptyWizardState(): WizardState {
-  return { name: '', description: '', visibility: 'private', join_mode: 'invite', org: null, competition: null, rounds: [emptyRoundDraft()], format: 'stroke_gross', match: { sides: 'singles', bracket: false }, capacity: '', host_plays: true };
+  // Phase 4: a new event is PUBLIC and open to join unless the organizer closes it.
+  return { name: '', description: '', visibility: 'public', join_mode: 'open', org: null, competition: null, rounds: [emptyRoundDraft()], format: 'stroke_gross', match: { sides: 'singles', bracket: false }, capacity: '', host_plays: true };
+}
+
+/** A visibility pick re-seats the joining choice — open for public, invite otherwise — unless the organizer touched joining themselves. */
+export function withVisibility(s: WizardState, visibility: SportEventVisibility, joinTouched: boolean): WizardState {
+  return { ...s, visibility, join_mode: joinTouched ? s.join_mode : defaultJoinMode(visibility) };
 }
 
 function isRoundDirty(r: RoundDraft): boolean {

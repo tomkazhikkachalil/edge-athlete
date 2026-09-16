@@ -1,5 +1,32 @@
 # Development Log
 
+## September 16, 2026 — Events program, phase 4, PR 4: open joining (the first 214 reader, zero DDL)
+
+The first PR that names 214's vocabulary — it merges only after Tom ran
+214 and `npm run check:schema` reads OK. Tom: joining is fully open unless
+the organizer closes it; new events are public by default.
+
+- `join_mode` gains `open` (`SPORT_EVENT_JOIN_MODES`); `planJoin('join')`
+  — an open event under `open` only; a follower row converts, an invited
+  player accepts, a removed row stays out (403), a full field waitlists, a
+  live event offers Follow (the roster is minted at go-live). The route
+  `POST [id]/participants/join?token=` (the request route's shape; the
+  `sport-event-join` bucket) refuses a block between the joiner and the
+  host with a 409 that never says who blocked whom.
+- `joinControl` gains `join` (one-tap "Join" in the header and on the
+  players tab); `EventJoinButton` / `EventPlace` / `client.ts join`.
+- The defaults: `parseCreateBody` — visibility PUBLIC when the caller says
+  nothing, joining `defaultJoinMode(visibility)` (open for public, invite
+  otherwise); the wizard starts public + open, offers "Open to everyone",
+  and a visibility pick re-seats the joining choice unless it was touched
+  (`withVisibility`); `joinLine` and the announce card say "Open to
+  everyone". Existing events are untouched (214 changed the DEFAULT only).
+- e2e `sport-events-open-join.spec.ts @mobile` (self-skips before 214 —
+  it runs locally the moment 214 is live, before this merges): B joins
+  with one tap from the header, twice → 409; C waitlists #1 on a field of
+  one; a removed B → 403; request mode → 403; a private open event → 404
+  to a stranger; the defaults → public + open, "Open to everyone".
+
 ## September 16, 2026 — Events program, phase 4, PR 3: migration 214 (open joining + recorders)
 
 The first of phase 4's three schema migrations, shipped alone so the

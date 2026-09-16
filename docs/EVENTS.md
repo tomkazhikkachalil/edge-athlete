@@ -571,6 +571,7 @@ gallery on the event page.
 | 1 | anonymous reading: `canViewSharedRound` admits a null viewer on a PUBLIC round; the scorecard GET's auth is optional; `/live/[gp]` watch mode signed out (a 401/404 → sign in with `?next=`); `joinControl` `signin` ("Log in to join"); `EventPlayerSheet` — the masked name, the role, this event's line; "View profile" only when the profile is public |
 | 2 | the live bell + Live Now for events: `notifyLive` (followers, once per round, no actor) from the round's `live` transition; `GET /api/sport-events/live-now[?count=1]` (public live events for anyone, signed out included, plus the viewer's own; `live-now.ts liveEventCards`); `LiveNowStrip` event cards; `useLiveNow` merges the two counts |
 | 3 | migration 214 — the phase's first DDL, alone |
+| 4 | open joining (the first 214 reader): `join_mode` `open`; `planJoin('join')` (a follower converts, an invited player accepts, a removed row stays out, a full field waitlists, live offers Follow); `POST [id]/participants/join` (a block → 409, never who); `joinControl` `join`; the defaults public + open (`parseCreateBody`, `defaultJoinMode`, the wizard's `withVisibility`); "Open to everyone" |
 
 ## Phase 3 status
 

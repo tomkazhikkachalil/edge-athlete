@@ -23,7 +23,7 @@ import type { SportEventParticipantRow, SportEventRow } from './types';
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Admin = SupabaseClient<any, 'public', any>;
 
-export const SELF_ACTIONS: ReadonlySet<JoinAction> = new Set(['request', 'accept', 'decline', 'withdraw', 'follow', 'unfollow']);
+export const SELF_ACTIONS: ReadonlySet<JoinAction> = new Set(['request', 'join', 'accept', 'decline', 'withdraw', 'follow', 'unfollow']);
 export const ORGANIZER_ACTIONS: ReadonlySet<JoinAction> = new Set(['approve', 'reject', 'remove', 'promote']);
 
 export function toSnapshot(r: SportEventParticipantRow): ParticipantSnapshot {

@@ -10,7 +10,7 @@ import { SPORT_EVENT_SPORTS } from '@/lib/sport-events/types';
 import { formatDateOnly, formatLabel, holesLabel, joinLine, MATCH_SIDES_LABEL, roundsSummary, VISIBILITY_LABEL } from '@/lib/sport-events/format';
 import { isMatchFormat, MATCH_SIDES } from '@/lib/sport-events/types';
 import { MAX_ROUNDS } from '@/lib/sport-events/rounds';
-import { addWizardRound, emptyWizardState, isWizardDirty, removeWizardRound, updateWizardRound, validateWizardStep, wizardToCreateBody, WIZARD_STEP_LABEL, WIZARD_STEPS, type WizardState, type WizardStep } from '@/lib/sport-events/wizard';
+import { addWizardRound, emptyWizardState, isWizardDirty, removeWizardRound, updateWizardRound, validateWizardStep, wizardToCreateBody, WIZARD_STEP_LABEL, WIZARD_STEPS, type WizardState, type WizardStep , withVisibility} from '@/lib/sport-events/wizard';
 import { eligibleCompetition, type CompetitionForLink } from '@/lib/sport-events/contest-link';
 import RoundFields, { Choice } from './RoundFields';
 import { getEnabledSports } from '@/lib/sports/SportRegistry';
@@ -33,6 +33,7 @@ export default function EventCreateWizard() {
   const router = useRouter();
   const { user, activeProfile } = useAuth();
   const [s, setS] = useState<WizardState>(emptyWizardState);
+  const [joinTouched, setJoinTouched] = useState(false);
   const [step, setStep] = useState<WizardStep>('basics');
   const [refusal, setRefusal] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -163,17 +164,18 @@ export default function EventCreateWizard() {
           )}
           <div className="space-y-1">
             <span className="text-sm font-medium text-secondary">Who can see it</span>
-            <Choice name="Visibility" value={s.visibility} onChange={v => set('visibility', v)} options={[
-              { value: 'private', label: 'Private', hint: 'Only people you invite, and followers of the event.' },
+            <Choice name="Visibility" value={s.visibility} onChange={v => { setRefusal(null); setS(prev => withVisibility(prev, v, joinTouched)); }} options={[
+              { value: 'public', label: 'Public', hint: 'Anyone can find it and watch — the scores, the players, everything. The default.' },
               { value: 'link', label: 'Anyone with the link', hint: 'You get a link to share.' },
-              { value: 'public', label: 'Public', hint: 'Anyone can find and follow it.' },
+              { value: 'private', label: 'Private', hint: 'Only people you invite, and followers of the event.' },
             ]} />
           </div>
           <div className="space-y-1">
             <span className="text-sm font-medium text-secondary">Joining</span>
-            <Choice name="Joining" value={s.join_mode} onChange={v => set('join_mode', v)} options={[
-              { value: 'invite', label: 'Invite only', hint: 'You add every player.' },
+            <Choice name="Joining" value={s.join_mode} onChange={v => { setJoinTouched(true); set('join_mode', v); }} options={[
+              { value: 'open', label: 'Open to everyone', hint: 'Anyone with an account joins with one tap. A field size still waitlists.' },
               { value: 'request', label: 'Open to requests', hint: 'Players ask; you approve. Invites still work.' },
+              { value: 'invite', label: 'Invite only', hint: 'You add every player.' },
             ]} />
           </div>
         </div>

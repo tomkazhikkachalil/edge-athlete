@@ -17,7 +17,8 @@ export type SportEventStatus = (typeof SPORT_EVENT_STATUSES)[number];
 export const SPORT_EVENT_VISIBILITIES = ['public', 'link', 'private'] as const;
 export type SportEventVisibility = (typeof SPORT_EVENT_VISIBILITIES)[number];
 
-export const SPORT_EVENT_JOIN_MODES = ['invite', 'request'] as const;
+/** Phase 4 (214): `open` — one-tap Join for any signed-in person; capacity and the waitlist still apply. */
+export const SPORT_EVENT_JOIN_MODES = ['invite', 'request', 'open'] as const;
 export type SportEventJoinMode = (typeof SPORT_EVENT_JOIN_MODES)[number];
 
 /** Phase 3 (212): match play joins stroke play; the CHECK `sport_events_format_check` carries the four. */
