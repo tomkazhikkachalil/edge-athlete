@@ -1,5 +1,9 @@
 'use client';
 
+import BracketColumnsView from '@/components/competitions/BracketColumnsView';
+import ReorderList from '@/components/site-builder/ReorderList';
+import { bracketColumnsFromContests, type BracketContestRow } from '@/lib/competitions/bracket-draw';
+import { ADVANCE_KINDS, ADVANCE_LABEL, deriveContestOutcome, type AdvanceKind } from '@/lib/competitions/contest-outcome';
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
@@ -24,6 +28,8 @@ import SeasonSummaryCard from '@/components/standings/SeasonSummaryCard';
 // with R3 on this page.
 
 interface EntryRow {
+  /** Track 2 (218): the seeded order of a bracket. */
+  seed?: number | null;
   id: string;
   team_id: string | null;
   profile_id: string | null;
@@ -59,6 +65,9 @@ interface ContestRow {
   holes?: number | null;
   play_from?: string | null;
   play_to?: string | null;
+  /** Track 2 (218): a bracket contest's place. */
+  stage?: number | null;
+  slot?: number | null;
 }
 
 interface VenueOption {
@@ -192,6 +201,13 @@ export default function CompetitionDetailPage() {
     summary: { rows: number; created: number; reused: number; errors: number };
   } | null>(null);
   const [scoreValues, setScoreValues] = useState<Record<string, string>>({});
+  // Track 2 PR 4: the bracket — the seeded order, the generate two-step, the tied result's decision.
+  const [seedOrder, setSeedOrder] = useState<string[] | null>(null);
+  const [seedsBusy, setSeedsBusy] = useState(false);
+  const [bracketBusy, setBracketBusy] = useState(false);
+  const [bracketReport, setBracketReport] = useState<{ dryRun: boolean; size: number; stages: number; contests: number; byes: number; replaced: number } | null>(null);
+  const [advanceSide, setAdvanceSide] = useState<Record<string, string>>({});
+  const [advanceKind, setAdvanceKind] = useState<Record<string, AdvanceKind>>({});
   const [deleteTarget, setDeleteTarget] = useState<ContestRow | null>(null);
   // Player stats: one expander at a time (the scoreContestId pattern).
   const [statsContestId, setStatsContestId] = useState<string | null>(null);
@@ -601,6 +617,8 @@ export default function CompetitionDetailPage() {
     const results = contest.participants.map(p => ({
       participantId: p.id,
       score: Number(scoreValues[p.id] ?? ''),
+      // Track 2: a tied knockout match carries its decision on the side that advances.
+      ...(competition?.format === 'bracket' && advanceSide[contest.id] === p.id ? { payload: { advance: advanceKind[contest.id] ?? 'shootout' } } : {}),
     }));
     if (results.some(r => !Number.isFinite(r.score))) {
       showError('Competition', 'Enter a score for every side');
@@ -621,6 +639,44 @@ export default function CompetitionDetailPage() {
       setScoreValues({});
     }
   };
+
+  // Track 2 PR 4: the bracket's helpers.
+  const seededEntries = (() => {
+    const approved = entries.filter(en => (en as { status?: string }).status === undefined || (en as { status?: string }).status === 'approved');
+    const stored = [...approved].sort((x, y) => (x.seed ?? 9999) - (y.seed ?? 9999) || x.entrant_name.localeCompare(y.entrant_name));
+    const order = seedOrder ?? stored.map(en => en.id);
+    return order.map(id => approved.find(en => en.id === id)).filter((en): en is EntryRow => !!en);
+  })();
+  const bracketDrawn = contests.some(c => c.stage != null);
+  const saveSeeds = async () => {
+    setSeedsBusy(true);
+    try {
+      const ok = await act(`${base}/seeds`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ competitionId, entryIds: seededEntries.map(en => en.id) }) }, 'Seeds saved', 'Failed to save the seeds');
+      if (ok) { setSeedOrder(null); setReloadKey(k => k + 1); }
+    } finally {
+      setSeedsBusy(false);
+    }
+  };
+  const runBracket = async (dryRun: boolean) => {
+    setBracketBusy(true);
+    try {
+      const response = await fetch(`${base}/bracket`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ competitionId, dryRun }) });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) { showError('Generate bracket', body.error || 'Could not generate the bracket'); return; }
+      setBracketReport(body.report ?? null);
+      if (!dryRun) { showSuccess('Generate bracket', `${body.report?.contests ?? 0} matches drawn`); setReloadKey(k => k + 1); }
+    } catch {
+      showError('Generate bracket', 'Could not generate the bracket');
+    } finally {
+      setBracketBusy(false);
+    }
+  };
+  const bracketRows: BracketContestRow[] = contests.filter(c => c.stage != null).map(c => {
+    const outcome = deriveContestOutcome({ format: 'bracket', sportKey: competition?.sport_key ?? '', scoringRule: null, status: c.status, stage: c.stage, slot: c.slot, participants: c.participants.map(p => ({ participantId: p.id, entryId: p.entry_id, side: p.side, startPosition: null, name: p.entrant_name, score: p.result?.score ?? null, payload: p.result?.payload ?? null })) });
+    return { id: c.id, stage: c.stage as number, slot: c.slot as number, status: c.status, home: c.participants.find(p => p.side === 'home')?.entry_id ?? null, away: c.participants.find(p => p.side === 'away')?.entry_id ?? null, winnerEntryId: outcome.kind === 'bracket' ? outcome.winnerEntryId : null, hasResult: c.participants.some(p => p.result?.score != null), scoreline: outcome.kind === 'bracket' ? outcome.scoreline : null };
+  });
+  const bracketNameOf = (id: string) => entries.find(en => en.id === id)?.entrant_name ?? 'Entrant';
+  const bracketFinal = bracketRows.length > 0 ? bracketRows.find(r => r.stage === Math.max(...bracketRows.map(x => x.stage)) && r.slot === 1) ?? null : null;
 
   const bySide = (contest: ContestRow) => {
     const home = contest.participants.find(p => p.side === 'home');
@@ -1048,6 +1104,48 @@ export default function CompetitionDetailPage() {
             </div>
           )}
 
+          {competition.format === 'bracket' && (
+            <div className="mb-4 space-y-3" data-bracket-panel="">
+              {seededEntries.length < 2 ? (
+                <p className="text-sm text-tertiary">Enter at least two teams from the console first.</p>
+              ) : (
+                <div className="border border-border rounded-lg p-3" data-bracket-seeds="">
+                  <p className="text-xs text-muted mb-2">The seeded order — 1 plays the lowest seed first; 1 and 2 meet only in the final. {bracketDrawn ? 'The bracket is drawn: regenerate to change the seeds.' : 'Save the seeds, then generate the bracket.'}</p>
+                  {!bracketDrawn && <ReorderList items={seededEntries.map(en => ({ id: en.id, label: en.entrant_name }))} onChange={ids => setSeedOrder(ids)} label="Seeds" idBase={`seeds-${competitionId}`} />}
+                  {bracketDrawn && <ol className="list-decimal pl-5 text-sm text-primary space-y-0.5">{seededEntries.map(en => <li key={en.id}>{en.entrant_name}</li>)}</ol>}
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {!bracketDrawn && (
+                      <button type="button" disabled={seedsBusy} onClick={() => void saveSeeds()} className="px-3 py-1.5 text-sm min-h-[36px] rounded-lg border border-border-strong text-secondary hover:bg-surface-sunken transition-colors disabled:opacity-50" data-bracket-save-seeds="">
+                        Save seeds
+                      </button>
+                    )}
+                    <button type="button" disabled={bracketBusy} onClick={() => void runBracket(true)} className="px-3 py-1.5 text-sm min-h-[36px] rounded-lg border border-border-strong text-secondary hover:bg-surface-sunken transition-colors disabled:opacity-50" data-bracket-preview="">
+                      Preview
+                    </button>
+                    <button type="button" disabled={bracketBusy || bracketReport === null || bracketReport.dryRun !== true} onClick={() => void runBracket(false)} title={bracketReport?.dryRun !== true ? 'Preview first' : undefined} className="px-3 py-1.5 text-sm min-h-[36px] rounded-lg bg-brand text-white font-medium hover:bg-brand-hover transition-colors disabled:opacity-50" data-bracket-generate="">
+                      {bracketDrawn ? 'Regenerate' : 'Generate'}
+                    </button>
+                  </div>
+                  {bracketReport && (
+                    <p className="mt-2 text-xs text-secondary" data-bracket-report="">
+                      <span className="font-medium text-primary">{bracketReport.dryRun ? 'Preview' : 'Generated'}:</span> a field of {bracketReport.size} over {bracketReport.stages} {bracketReport.stages === 1 ? 'round' : 'rounds'} · {bracketReport.contests} {bracketReport.contests === 1 ? 'match' : 'matches'}{bracketReport.byes > 0 ? ` · ${bracketReport.byes} ${bracketReport.byes === 1 ? 'bye' : 'byes'}` : ''}{bracketReport.replaced > 0 ? ` · replaces ${bracketReport.replaced}` : ''}
+                    </p>
+                  )}
+                </div>
+              )}
+              {bracketRows.length > 0 && (
+                <BracketColumnsView
+                  winner={bracketFinal?.winnerEntryId ? bracketNameOf(bracketFinal.winnerEntryId) : null}
+                  columns={bracketColumnsFromContests(bracketRows, bracketNameOf).map(col => ({
+                    key: String(col.stage),
+                    name: col.name,
+                    slots: col.slots.map(sl => ({ key: `${col.stage}:${sl.slot}`, title: `Match ${sl.slot}`, result: sl.scoreline, href: sl.contestId ? `/event/${sl.contestId}` : null, sides: [sl.home, sl.away].map((side, i) => ({ key: side?.entryId ?? `empty-${i}`, label: side?.name ?? (col.stage === 1 ? 'Bye' : 'TBD'), won: !!side && sl.winnerEntryId === side.entryId, empty: !side })) })),
+                  }))}
+                />
+              )}
+            </div>
+          )}
+
           {competition.format === 'fixture' && (
             entries.length < 2 ? (
               <p className="text-sm text-tertiary mb-4">
@@ -1311,6 +1409,9 @@ export default function CompetitionDetailPage() {
                             : `${home?.entrant_name ?? '—'}${
                                 scored ? ` ${home?.result?.score} – ${away?.result?.score} ` : ' vs '
                               }${away?.entrant_name ?? '—'}`}
+                          {contest.stage != null && (
+                            <span className="ml-2 text-xs font-normal text-tertiary" data-contest-stage={`${contest.stage}:${contest.slot}`}>{contest.round} · match {contest.slot}</span>
+                          )}
                           {/* G1: the golf league round's declaration chips. */}
                           {(contest.holes || contest.play_from) && (
                             <span className="ml-2 text-xs font-normal text-tertiary">
@@ -1641,6 +1742,23 @@ export default function CompetitionDetailPage() {
                             />
                           </label>
                         ))}
+                        {competition.format === 'bracket' && contest.participants.length === 2 && (scoreValues[contest.participants[0].id] ?? '') !== '' && scoreValues[contest.participants[0].id] === scoreValues[contest.participants[1].id] && (
+                          <>
+                            <label className="text-xs text-secondary">
+                              Advances
+                              <select value={advanceSide[contest.id] ?? ''} onChange={e => setAdvanceSide(prev => ({ ...prev, [contest.id]: e.target.value }))} aria-label="Advances" className="mt-0.5 block max-w-full px-2 py-1.5 border border-border-strong rounded-md outline-none text-sm">
+                                <option value="">Pick a side…</option>
+                                {contest.participants.map(p => <option key={p.id} value={p.id}>{p.entrant_name}</option>)}
+                              </select>
+                            </label>
+                            <label className="text-xs text-secondary">
+                              Advance by
+                              <select value={advanceKind[contest.id] ?? 'shootout'} onChange={e => setAdvanceKind(prev => ({ ...prev, [contest.id]: e.target.value as AdvanceKind }))} aria-label="Advance by" className="mt-0.5 block max-w-full px-2 py-1.5 border border-border-strong rounded-md outline-none text-sm">
+                                {ADVANCE_KINDS.map(k => <option key={k} value={k}>{ADVANCE_LABEL[k]}</option>)}
+                              </select>
+                            </label>
+                          </>
+                        )}
                         <button
                           type="button"
                           onClick={() => void saveScores(contest)}

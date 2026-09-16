@@ -235,7 +235,7 @@ export default function OrgConsolePage() {
     { id: string; name: string; club_name: string }[]
   >([]);
   const [rosterAthletes, setRosterAthletes] = useState<{ id: string; name: string }[]>([]);
-  const [compFormat, setCompFormat] = useState<'fixture' | 'leaderboard'>('fixture');
+  const [compFormat, setCompFormat] = useState<'fixture' | 'leaderboard' | 'bracket'>('fixture');
   const [compName, setCompName] = useState('');
   const [compSeasonId, setCompSeasonId] = useState('');
   const [compDivisionId, setCompDivisionId] = useState('');
@@ -2086,12 +2086,13 @@ export default function OrgConsolePage() {
               </select>
               <select
                 value={compFormat}
-                onChange={e => setCompFormat(e.target.value as 'fixture' | 'leaderboard')}
+                onChange={e => setCompFormat(e.target.value as 'fixture' | 'leaderboard' | 'bracket')}
                 aria-label="Competition format"
                 className="px-3 py-2 border border-border-strong rounded-md outline-none text-sm"
               >
                 <option value="fixture">Fixture (teams)</option>
                 <option value="leaderboard">Leaderboard (athletes)</option>
+                <option value="bracket">Bracket (knockout)</option>
               </select>
               {compFormat === 'leaderboard' && compSport === 'golf' && (
                 <>

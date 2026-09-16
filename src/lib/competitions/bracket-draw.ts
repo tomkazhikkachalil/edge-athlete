@@ -101,6 +101,8 @@ export interface BracketContestRow {
   winnerEntryId: string | null;
   /** Any result row exists on the contest. */
   hasResult: boolean;
+  /** "3–1" (home first) once both scores exist. */
+  scoreline?: string | null;
 }
 
 export interface FillOp {
@@ -188,7 +190,7 @@ export const SEEDS_REFUSAL_COPY: Readonly<Record<SeedsRefusal, string>> = {
 export interface BracketColumnView {
   stage: number;
   name: string;
-  slots: Array<{ slot: number; contestId: string | null; home: { entryId: string; name: string } | null; away: { entryId: string; name: string } | null; winnerEntryId: string | null; status: string }>;
+  slots: Array<{ slot: number; contestId: string | null; home: { entryId: string; name: string } | null; away: { entryId: string; name: string } | null; winnerEntryId: string | null; status: string; scoreline: string | null }>;
 }
 
 /** The bracket as columns (the events BracketView's shape) from the contests — for the console and the public block (PR 4). */
@@ -202,7 +204,7 @@ export function bracketColumnsFromContests(contests: ReadonlyArray<BracketContes
     for (let k = 1; k <= slots; k++) {
       const c = contests.find(x => x.stage === stage && x.slot === k) ?? null;
       const side = (id: string | null) => (id ? { entryId: id, name: nameOf(id) } : null);
-      col.slots.push({ slot: k, contestId: c?.id ?? null, home: side(c?.home ?? null), away: side(c?.away ?? null), winnerEntryId: c?.winnerEntryId ?? null, status: c?.status ?? 'bye' });
+      col.slots.push({ slot: k, contestId: c?.id ?? null, home: side(c?.home ?? null), away: side(c?.away ?? null), winnerEntryId: c?.winnerEntryId ?? null, status: c?.status ?? 'bye', scoreline: c?.scoreline ?? null });
     }
     out.push(col);
   }

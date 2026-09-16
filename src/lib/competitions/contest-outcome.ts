@@ -51,6 +51,7 @@ export interface OutcomeRow {
 export const ADVANCE_KINDS = ['shootout', 'extra_time', 'penalties', 'decision', 'forfeit'] as const;
 export type AdvanceKind = (typeof ADVANCE_KINDS)[number];
 export const isAdvanceKind = (v: unknown): v is AdvanceKind => typeof v === 'string' && (ADVANCE_KINDS as readonly string[]).includes(v);
+export const ADVANCE_LABEL: Readonly<Record<AdvanceKind, string>> = { shootout: 'won on a shootout', extra_time: 'won in extra time', penalties: 'won on penalties', decision: 'by decision', forfeit: 'by forfeit' };
 
 export interface BracketOutcomeExtra {
   stage: number | null;

@@ -9,6 +9,8 @@
 // VIEWER-INDEPENDENT is the contract: nothing here may branch on a
 // session, so one cached entry serves everyone (authed or not).
 
+import { BRACKET_COLUMNS, bracketColumnsFromContests, type BracketColumnView, type BracketContestRow } from './bracket-draw';
+import { readBracketRows } from './standings';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { parseGolfPointsConfig } from './golf-points';
 import { buildPointsRace, type PointsRace } from './golf-race';
@@ -73,6 +75,14 @@ export interface PublicCompetitionStandings {
    *  `golf_points` league with at least one completed round. Derived at
    *  read time from the same raw rows as `golf`. */
   race?: PointsRace;
+  /** Track 2 PR 4: the bracket drawn from the CONTESTS — PRESENT ONLY on a bracket competition with a draw (218). */
+  bracket?: PublicBracketBlock;
+}
+
+export interface PublicBracketBlock {
+  columns: BracketColumnView[];
+  /** The champion's masked name once the final is decided. */
+  champion: string | null;
 }
 
 export interface PublicStandingsPayload {
@@ -165,10 +175,17 @@ export async function fetchPublicStandings(
   const golfResultEntryIds = golfRaw.results
     .map(r => golfParticipantEntry.get(r.participant_id))
     .filter((id): id is string => !!id);
+  // Track 2 PR 4: the bracket competitions' staged contests (pre-218 → none). Their entries need names too.
+  const bracketRows = new Map<string, BracketContestRow[]>();
+  for (const c of competitions.filter(c => c.format === 'bracket')) {
+    const rows = await readBracketRows(admin, c.id as string, c.sport_key as string, c.scoring_rule as string | null);
+    if (rows && rows.length > 0) bracketRows.set(c.id as string, rows);
+  }
+  const bracketEntryIds = [...bracketRows.values()].flat().flatMap(r => [r.home, r.away]).filter((id): id is string => !!id);
 
   // Entrant display names, batched.
   const entryIds = [
-    ...new Set([...(standingsRes.data ?? []).map(r => r.entry_id), ...golfResultEntryIds]),
+    ...new Set([...(standingsRes.data ?? []).map(r => r.entry_id), ...golfResultEntryIds, ...bracketEntryIds]),
   ];
   const { data: entries } = entryIds.length
     ? await admin
@@ -271,6 +288,16 @@ export async function fetchPublicStandings(
     return race ? { race } : {};
   }
 
+  function bracketBlockFor(competitionId: string): { bracket?: PublicBracketBlock } {
+    const rows = bracketRows.get(competitionId);
+    if (!rows) return {};
+    const nameOf = (id: string) => (omittedEntries.has(id) ? 'Athlete' : (entryName.get(id) ?? 'Entrant'));
+    const columns = bracketColumnsFromContests(rows, nameOf);
+    const stages = rows.reduce((m, r) => Math.max(m, r.stage), 0);
+    const final = rows.find(r => r.stage === stages && r.slot === 1);
+    return { bracket: { columns, champion: final?.winnerEntryId ? nameOf(final.winnerEntryId) : null } };
+  }
+
   function golfBlockFor(competitionId: string, scoringRule: string | null): { golf?: PublicGolfBlock } {
     const contests = golfRaw.contestsByCompetition.get(competitionId);
     if (!contests || contests.length === 0) return {};
@@ -307,7 +334,9 @@ export async function fetchPublicStandings(
           ? resolveFixtureRule(c.sport_key as string, c.scoring_rule as string | null).columns
           : c.format === 'leaderboard'
             ? resolveLeaderboardRule(c.sport_key as string, c.scoring_rule as string | null).columns
-            : [],
+            : c.format === 'bracket'
+              ? BRACKET_COLUMNS
+              : [],
       rows: rowsByCompetition.get(c.id) ?? [],
       disputedCount: disputedByComp.get(c.id) ?? 0,
       direction:
@@ -319,6 +348,7 @@ export async function fetchPublicStandings(
       entrant_type: (c.entrant_type as string | null) ?? 'team',
       sport_key: c.sport_key as string,
       ...golfBlockFor(c.id, c.scoring_rule as string | null),
+      ...bracketBlockFor(c.id),
       ...raceFor(c.id, c.scoring_rule as string | null),
       ...seasonFor(c.id, c.scoring_rule as string | null),
     })),
