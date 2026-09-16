@@ -7,6 +7,7 @@ import { formatDateOnly, formatLabel, holesLabel, joinLine, roundsSummary, VISIB
 import { cutLabel } from '@/lib/sport-events/format-config';
 import { activeRounds, currentRound } from '@/lib/sport-events/rounds';
 import { isMatchFormat } from '@/lib/sport-events/types';
+import { RECORDING_MODE_LABEL, recordingModeOf } from '@/lib/sport-events/recording';
 
 interface Props {
   view: SportEventViewPayload;
@@ -59,6 +60,7 @@ export default function EventOverview({ view, onRotateLink, busy, onOpenFormat, 
         {event.format_config.cut && <Row label="Cut"><span data-event-cut-line="">{cutLabel(event.format_config.cut)}</span></Row>}
         <Row label="Who can see it">{VISIBILITY_LABEL[event.visibility]}</Row>
         <Row label="Joining">{joinLine(event.join_mode)}</Row>
+        <Row label="Recording"><span data-event-recording-line="">{RECORDING_MODE_LABEL[recordingModeOf(event, view.participants)]}</span></Row>
         {event.capacity !== null && <Row label="Field size">{event.capacity} players</Row>}
         {host_org && (
           <Row label="Hosted for"><Link href={`/${host_org.side}/${host_org.id}`} className="text-brand-fg hover:text-brand-fg-strong font-medium" data-event-hosted-for="">{host_org.name}</Link></Row>

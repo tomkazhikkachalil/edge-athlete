@@ -95,6 +95,8 @@ export interface SportEventRow {
   capacity: number | null;
   /** 207 — optional until PR 8 reads the column (never name it in a select before Tom confirms 207 ran). */
   format_config?: FormatConfig;
+  /** 214 (phase 4) — players enter their own; false = recorders / organizers only. Optional until PR 5 read the column. */
+  self_entry?: boolean;
   starts_on: string | null;
   opened_at: string | null;
   went_live_at: string | null;
@@ -136,6 +138,8 @@ export interface SportEventParticipantRow {
   flight: string | null;
   waitlist_position: number | null;
   hide_from_profile: boolean;
+  /** 214 (phase 4) — a named recorder (any accepted row). Optional until PR 5 read the column. */
+  recorder?: boolean;
   invited_by: string | null;
   accepted_at: string | null;
   responded_at: string | null;

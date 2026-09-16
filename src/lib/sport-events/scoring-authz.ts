@@ -15,6 +15,12 @@
  *                partner may no longer touch it
  *   final        organizers only
  *
+ * Phase 4 (214) — RECORDERS: a named recorder (`recorder` on the viewer's
+ * event row) writes any card on the admin client, `via: 'recorder'`, on an
+ * in-progress or submitted card (never a final one). When the event has
+ * `self_entry: false` the owner's own write and a partner's are refused
+ * (403 `recorder_only`) — the recorder or an organizer enters for everyone.
+ *
  * Client: RLS admits the participant and the round's creator (mig 200); a
  * group-mate or a co-organizer is authorised HERE and writes on the admin
  * client — the gate IS the authorization (the acting-as precedent). The
@@ -43,32 +49,43 @@ export interface ScoringRightInput {
   /** The viewer and the owner share a playing group on this round. */
   sameGroup: boolean;
   card: { status: CardStatus };
+  /** Phase 4: the viewer is a named recorder on the event. */
+  recorder?: boolean;
+  /** Phase 4: players enter their own (the event's `self_entry`); false = recorders / organizers only. */
+  selfEntry?: boolean;
 }
 
-export type ScoringVia = 'self' | 'creator' | 'groupmate' | 'organizer';
+export type ScoringVia = 'self' | 'creator' | 'groupmate' | 'organizer' | 'recorder';
 
 export type ScoringRight =
   | { allowed: true; via: ScoringVia; client: 'session' | 'admin'; reopens: boolean }
-  | { allowed: false; status: 403 | 409; error: string };
+  | { allowed: false; status: 403 | 409; error: string; reason?: 'recorder_only' };
 
 export function scoringRight(i: ScoringRightInput): ScoringRight {
   const isSelf = i.viewerId === i.ownerProfileId;
   const isCreator = i.viewerId === i.roundCreatorId;
   const isOrganizer = i.eventRole === 'organizer' || i.eventRole === 'co_organizer';
+  const isRecorder = i.recorder === true;
+  const selfEntry = i.selfEntry !== false;
+  const RECORDER_ONLY = { allowed: false as const, status: 403 as const, error: 'A recorder enters the scores for this event.', reason: 'recorder_only' as const };
 
   if (i.card.status === 'final') {
     if (isOrganizer) return { allowed: true, via: 'organizer', client: isCreator ? 'session' : 'admin', reopens: false };
     return { allowed: false, status: 409, error: 'This card is final. Ask the organizer to reopen it.' };
   }
   if (i.card.status === 'submitted') {
-    if (isSelf) return { allowed: true, via: 'self', client: 'session', reopens: true };
+    if (isSelf && selfEntry) return { allowed: true, via: 'self', client: 'session', reopens: true };
     if (isOrganizer) return { allowed: true, via: 'organizer', client: isCreator ? 'session' : 'admin', reopens: false };
     if (isCreator) return { allowed: true, via: 'creator', client: 'session', reopens: false };
+    if (isRecorder) return { allowed: true, via: 'recorder', client: 'admin', reopens: false };
+    if (isSelf) return RECORDER_ONLY;
     return { allowed: false, status: 409, error: 'This card has been submitted by its player.' };
   }
-  if (isSelf) return { allowed: true, via: 'self', client: 'session', reopens: false };
+  if (isSelf && selfEntry) return { allowed: true, via: 'self', client: 'session', reopens: false };
   if (isCreator) return { allowed: true, via: 'creator', client: 'session', reopens: false };
   if (isOrganizer) return { allowed: true, via: 'organizer', client: 'admin', reopens: false };
+  if (isRecorder) return { allowed: true, via: 'recorder', client: 'admin', reopens: false };
+  if (!selfEntry) return RECORDER_ONLY;
   if (i.sameGroup) return { allowed: true, via: 'groupmate', client: 'admin', reopens: false };
   return { allowed: false, status: 403, error: 'Only the player, a partner in their group, or an organizer can enter these scores.' };
 }

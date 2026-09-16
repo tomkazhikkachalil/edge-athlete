@@ -32,6 +32,12 @@ export interface ScorecardEventContext {
   starting_hole: number;
   viewer_role: string | null;
   viewer_participant_id: string | null;
+  /** Phase 4 (214): the viewer may enter for everyone — a named recorder, or an organizer. */
+  viewer_recorder: boolean;
+  /** Phase 4: players enter their own (false = the recorder's screen is the only entry). */
+  self_entry: boolean;
+  /** Phase 4: every group of the round (a recorder / organizer switches between them). */
+  groups: Array<{ id: string; name: string | null; sequence: number; starting_hole: number; tee_time: string | null; members: Array<{ participant_id: string; profile_id: string; position: number; side: 1 | 2 | null }> }>;
   group: {
     id: string;
     name: string | null;
@@ -54,14 +60,25 @@ export async function readScorecardEventContext(admin: Admin, sportEventRoundId:
 
   let viewerRole: string | null = null;
   let viewerParticipantId: string | null = null;
+  let viewerRecorder = false;
   if (viewerProfileId) {
-    const { data: own } = await admin.from('sport_event_participants').select('id, role, status').eq('sport_event_id', event.id).eq('profile_id', viewerProfileId).maybeSingle();
+    const { data: own } = await admin.from('sport_event_participants').select('id, role, status, recorder').eq('sport_event_id', event.id).eq('profile_id', viewerProfileId).maybeSingle();
     if (own && own.status !== 'declined' && own.status !== 'removed') {
       viewerRole = own.role as string;
       viewerParticipantId = own.id as string;
+      viewerRecorder = own.status === 'accepted' && (own as { recorder?: boolean }).recorder === true;
     }
     if (event.host_profile_id === viewerProfileId) viewerRole = 'organizer';
+    if (viewerRole === 'organizer' || viewerRole === 'co_organizer') viewerRecorder = true;
   }
+
+  // Phase 4: every group of the round with its members' profiles (the recorder's switcher).
+  const [{ data: allGroups }, { data: allMembers }] = await Promise.all([
+    admin.from('sport_event_groups').select('id, name, sequence, starting_hole, tee_time').eq('sport_event_round_id', round.id).order('sequence', { ascending: true }),
+    admin.from('sport_event_group_members').select('group_id, participant_id, position, side, participant:sport_event_participants (profile_id)').eq('sport_event_round_id', round.id).order('position', { ascending: true }),
+  ]);
+  const memberRows = ((allMembers ?? []) as Array<{ group_id: string; participant_id: string; position: number; side: number | null; participant: { profile_id: string } | { profile_id: string }[] | null }>).map(m => ({ group_id: m.group_id, participant_id: m.participant_id, position: m.position, side: (m.side === 1 || m.side === 2 ? m.side : null) as 1 | 2 | null, profile_id: (Array.isArray(m.participant) ? m.participant[0]?.profile_id : m.participant?.profile_id) ?? '' }));
+  const groups: ScorecardEventContext['groups'] = ((allGroups ?? []) as Array<{ id: string; name: string | null; sequence: number; starting_hole: number; tee_time: string | null }>).map(g => ({ id: g.id, name: g.name, sequence: g.sequence, starting_hole: g.starting_hole, tee_time: g.tee_time, members: memberRows.filter(m => m.group_id === g.id).map(m => ({ participant_id: m.participant_id, profile_id: m.profile_id, position: m.position, side: m.side })) }));
 
   let group: ScorecardEventContext['group'] = null;
   let match: ScorecardMatchContext | null = null;
@@ -111,6 +128,9 @@ export async function readScorecardEventContext(admin: Admin, sportEventRoundId:
     starting_hole: round.starting_hole,
     viewer_role: viewerRole,
     viewer_participant_id: viewerParticipantId,
+    viewer_recorder: viewerRecorder,
+    self_entry: event.self_entry !== false,
+    groups,
     group,
     match,
   };

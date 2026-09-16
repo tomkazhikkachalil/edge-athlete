@@ -572,6 +572,7 @@ gallery on the event page.
 | 2 | the live bell + Live Now for events: `notifyLive` (followers, once per round, no actor) from the round's `live` transition; `GET /api/sport-events/live-now[?count=1]` (public live events for anyone, signed out included, plus the viewer's own; `live-now.ts liveEventCards`); `LiveNowStrip` event cards; `useLiveNow` merges the two counts |
 | 3 | migration 214 — the phase's first DDL, alone |
 | 4 | open joining (the first 214 reader): `join_mode` `open`; `planJoin('join')` (a follower converts, an invited player accepts, a removed row stays out, a full field waitlists, live offers Follow); `POST [id]/participants/join` (a block → 409, never who); `joinControl` `join`; the defaults public + open (`parseCreateBody`, `defaultJoinMode`, the wizard's `withVisibility`); "Open to everyone" |
+| 5 | recorders (the second 214 reader): `recording.ts recordingModeOf` (derived from `self_entry` + the named recorders — never stored); `scoringRight` via `recorder` on the admin client (in-progress and submitted, never final) and `recorder_only` (403 by name) for the owner / a partner when `self_entry` is off; `resolveScoringRight` reads both facts; the live page's `record` mode + `GroupSwitcher` (`?group=`) + the no-confirm recorder rule on `GroupScoreCard`; `PATCH participants/[pid] {recorder}` (organizer, accepted rows), `POST participants {recorder: true}` ("Invite as recorder"); the roster chip + toggle, the overview's Recording row, the wizard's "Who enters the scores" |
 
 ## Phase 3 status
 

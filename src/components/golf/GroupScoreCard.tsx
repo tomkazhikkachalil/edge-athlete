@@ -40,20 +40,25 @@ interface Props {
   startingHole: number;
   onRefresh: () => Promise<void> | void;
   onSubmitCard: (participantId: string) => Promise<boolean>;
+  /** Phase 4: the group the card shows — a recorder / organizer switches between the round's groups; default the viewer's own. */
+  group?: NonNullable<CompleteGolfScorecard['sport_event']>['group'];
+  /** Phase 4: the viewer records for everyone (a named recorder or an organizer) — no partner confirm, no own card needed. */
+  recorder?: boolean;
 }
 
 type Sel = { participantId: string; hole: number } | null;
 
 const DOT: Record<string, string> = { saved: 'bg-emerald-500', pending: 'bg-amber-400', conflict: 'bg-red-500', error: 'bg-red-500' };
 
-export default function GroupScoreCard({ scorecard, viewerId, holesPlayed, startingHole, onRefresh, onSubmitCard }: Props) {
+export default function GroupScoreCard({ scorecard, viewerId, holesPlayed, startingHole, onRefresh, onSubmitCard, group: groupProp, recorder = false }: Props) {
   const event = scorecard.sport_event ?? null;
+  const group = groupProp ?? event?.group ?? null;
   const match = event?.match ?? null;
   // On a match round the columns are the COUNTING cards (foursomes: the captains), side 1 first.
   const orderedMembers = useMemo(() => {
-    const members = event?.group?.members ?? [];
+    const members = group?.members ?? [];
     return match ? matchColumns(members, match.sides.flatMap(s => s.card_participant_ids)) : [...members].sort((a, b) => a.position - b.position);
-  }, [event, match]);
+  }, [group, match]);
   const groupProfileIds = useMemo(() => new Set(orderedMembers.map(m => m.profile_id)), [orderedMembers]);
   const columns = useMemo(() => {
     const members = scorecard.participants.filter(p => groupProfileIds.has(p.participant.profile_id) && p.participant.status !== 'declined');
@@ -118,7 +123,7 @@ export default function GroupScoreCard({ scorecard, viewerId, holesPlayed, start
     const isSelf = c.participant.profile_id === viewerId;
     const state = cellState(entries, c.participant.id, hole);
     if (state === 'conflict') { setConflictFor({ participantId: c.participant.id, hole }); return; }
-    if (!isSelf && !unlocked.has(c.participant.id)) { setAskUnlock({ participantId: c.participant.id, name: nameOf(c), hole }); return; }
+    if (!isSelf && !recorder && !unlocked.has(c.participant.id)) { setAskUnlock({ participantId: c.participant.id, name: nameOf(c), hole }); return; }
     const existing = valueAt(c, hole);
     setDraft({ strokes: existing?.strokes ?? null, putts: existing?.putts ?? null, fir: existing?.fairway_hit ?? null, gir: existing?.green_in_regulation ?? null });
     setSel({ participantId: c.participant.id, hole });
@@ -160,7 +165,7 @@ export default function GroupScoreCard({ scorecard, viewerId, holesPlayed, start
           <Link href={`/events/${event.id}?tab=${match ? 'matches' : 'leaderboard'}`} className="inline-flex items-center gap-2 text-sm font-semibold text-brand-fg-strong min-h-[44px]" data-gsc-back="">
             <i className="fas fa-chevron-left text-xs" aria-hidden="true"></i>{event.name}
           </Link>
-          <span className="text-xs text-muted">{event.group?.name ?? (event.group ? `Group ${event.group.sequence}` : '')}</span>
+          <span className="text-xs text-muted">{group?.name ?? (group ? `Group ${group.sequence}` : '')}</span>
         </div>
       )}
       <div className="flex-1 min-h-0 overflow-y-auto px-2 pb-2">
@@ -236,8 +241,8 @@ export default function GroupScoreCard({ scorecard, viewerId, holesPlayed, start
         </div>
       ) : mine ? (
         <div className="shrink-0 border-t border-border bg-surface px-4 py-3 safe-bottom flex flex-wrap items-center justify-between gap-2">
-          <p className="text-xs text-muted">{myStatus === 'submitted' ? 'Your card is submitted.' : myStatus === 'final' ? 'Your card is final.' : myComplete ? (myPending ? 'Saving your last holes…' : 'Your card is complete.') : 'Tap a hole to score.'}</p>
-          {myStatus === 'in_progress' && (
+          <p className="text-xs text-muted" data-gsc-footer={mine ? 'player' : 'recorder'}>{!mine ? 'Recording for this group — tap a hole to score.' : myStatus === 'submitted' ? 'Your card is submitted.' : myStatus === 'final' ? 'Your card is final.' : myComplete ? (myPending ? 'Saving your last holes…' : 'Your card is complete.') : 'Tap a hole to score.'}</p>
+          {mine && myStatus === 'in_progress' && (
             <button
               type="button"
               disabled={!myComplete || myPending || submitting}

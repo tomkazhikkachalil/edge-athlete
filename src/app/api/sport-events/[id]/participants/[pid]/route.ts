@@ -90,7 +90,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     const canManage = read.access.canManage;
     if (read.event.status === 'cancelled') return NextResponse.json({ error: 'This event is over.' }, { status: 409 });
     // After completion only the opt-out may change (the roster and the index are frozen with the results).
-    if (read.event.status === 'completed' && (parsed.value.handicap_index !== undefined || parsed.value.playing !== undefined || parsed.value.flight !== undefined || parsed.value.waitlist_position !== undefined)) return NextResponse.json({ error: 'The event is over — only the profile setting can change.' }, { status: 409 });
+    if (read.event.status === 'completed' && (parsed.value.handicap_index !== undefined || parsed.value.playing !== undefined || parsed.value.flight !== undefined || parsed.value.waitlist_position !== undefined || parsed.value.recorder !== undefined)) return NextResponse.json({ error: 'The event is over — only the profile setting can change.' }, { status: 409 });
 
     const update: Record<string, unknown> = {};
     if (parsed.value.handicap_index !== undefined) {
@@ -117,6 +117,12 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       if (!canManage) return NextResponse.json({ error: 'Only an organizer can set a flight.' }, { status: 403 });
       if (row.role === 'follower') return NextResponse.json({ error: 'A follower does not play in a flight.' }, { status: 409 });
       update.flight = parsed.value.flight;
+    }
+    if (parsed.value.recorder !== undefined) {
+      // Phase 4 (214): the organizer names a recorder — any accepted row, a follower included (the non-playing recorder).
+      if (!canManage) return NextResponse.json({ error: 'Only an organizer can name a recorder.' }, { status: 403 });
+      if (row.status !== 'accepted') return NextResponse.json({ error: 'Only someone who is in the event can record.' }, { status: 409 });
+      update.recorder = parsed.value.recorder;
     }
     if (parsed.value.hide_from_profile !== undefined) {
       if (!isSelf) return NextResponse.json({ error: 'Only the player decides what shows on their profile.' }, { status: 403 });

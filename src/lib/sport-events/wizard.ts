@@ -10,6 +10,7 @@ import type { CourseHole } from '@/types/golf';
 import { NAME_MAX, DESCRIPTION_MAX, defaultJoinMode, isDateOnly } from './validate';
 import { MAX_ROUNDS } from './rounds';
 import { isMatchFormat, type MatchSides, type SportEventFormat, type SportEventJoinMode, type SportEventVisibility } from './types';
+import { selfEntryFor, type RecordingMode } from './recording';
 
 export const WIZARD_STEPS = ['basics', 'round', 'format', 'review'] as const;
 export type WizardStep = (typeof WIZARD_STEPS)[number];
@@ -92,11 +93,13 @@ export interface WizardState {
   match: { sides: MatchSides; bracket: boolean };
   capacity: string;
   host_plays: boolean;
+  /** Phase 4: who enters the scores — the one stored fact is `self_entry` (`selfEntryFor`). */
+  recording: RecordingMode;
 }
 
 export function emptyWizardState(): WizardState {
   // Phase 4: a new event is PUBLIC and open to join unless the organizer closes it.
-  return { name: '', description: '', visibility: 'public', join_mode: 'open', org: null, competition: null, rounds: [emptyRoundDraft()], format: 'stroke_gross', match: { sides: 'singles', bracket: false }, capacity: '', host_plays: true };
+  return { name: '', description: '', visibility: 'public', join_mode: 'open', org: null, competition: null, rounds: [emptyRoundDraft()], format: 'stroke_gross', match: { sides: 'singles', bracket: false }, capacity: '', host_plays: true, recording: 'self' };
 }
 
 /** A visibility pick re-seats the joining choice — open for public, invite otherwise — unless the organizer touched joining themselves. */
@@ -111,7 +114,7 @@ function isRoundDirty(r: RoundDraft): boolean {
 
 export function isWizardDirty(s: WizardState): boolean {
   const e = emptyWizardState();
-  return s.name !== e.name || s.description !== e.description || s.rounds.length !== 1 || s.rounds.some(isRoundDirty) || s.capacity !== '' || s.visibility !== e.visibility || s.join_mode !== e.join_mode || s.org !== null || s.competition !== null || s.format !== e.format || s.match.sides !== e.match.sides || s.match.bracket !== e.match.bracket || s.host_plays !== e.host_plays;
+  return s.name !== e.name || s.description !== e.description || s.rounds.length !== 1 || s.rounds.some(isRoundDirty) || s.capacity !== '' || s.visibility !== e.visibility || s.join_mode !== e.join_mode || s.org !== null || s.competition !== null || s.format !== e.format || s.match.sides !== e.match.sides || s.match.bracket !== e.match.bracket || s.host_plays !== e.host_plays || s.recording !== e.recording;
 }
 
 /** "Add a round": the previous round's course, tees and holes with an empty date (36 holes in a weekend is the common case). Refused at MAX_ROUNDS. */
@@ -184,6 +187,7 @@ export function wizardToCreateBody(s: WizardState, opts: { publish: boolean; pro
     competition_id: s.org ? s.competition : null,
     ...(isMatchFormat(s.format) ? { format_config: { match: { sides: s.match.sides, bracket: s.match.bracket } } } : {}),
     host_plays: s.host_plays,
+    self_entry: selfEntryFor(s.recording),
     publish: opts.publish,
     profile_id: opts.profileId,
     // One round keeps phase 1's body; a tournament sends the list (the route accepts either, never both).

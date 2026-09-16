@@ -18,7 +18,7 @@ export interface ScoringContext {
   participant: { id: string; profile_id: string; status: string; group_post_id: string };
   groupPost: { id: string; creator_id: string; sport_event_round_id: string | null };
   card: { id: string | null; status: CardStatus };
-  event: { id: string; round_id: string; viewer_role: SportEventRole | 'viewer' | null; same_group: boolean } | null;
+  event: { id: string; round_id: string; viewer_role: SportEventRole | 'viewer' | null; same_group: boolean; recorder: boolean; self_entry: boolean } | null;
   range: { startingHole: number; holesPlayed: number };
   right: ScoringRight;
 }
@@ -50,9 +50,10 @@ export async function resolveScoringRight(admin: Admin, viewerId: string, partic
     const { data: round } = await admin.from('sport_event_rounds').select('id, sport_event_id, starting_hole, holes').eq('id', gp.sport_event_round_id).maybeSingle();
     if (round) {
       eventRound = { starting_hole: round.starting_hole as number, holes: round.holes as number };
-      const { data: ev } = await admin.from('sport_events').select('id, host_profile_id').eq('id', round.sport_event_id).maybeSingle();
-      const { data: rows } = await admin.from('sport_event_participants').select('id, profile_id, role, status').eq('sport_event_id', round.sport_event_id).in('profile_id', [viewerId, p.profile_id]);
-      const list = (rows ?? []) as Array<{ id: string; profile_id: string; role: SportEventRole; status: string }>;
+      // Phase 4 (214): the event's self_entry and the viewer's recorder flag ride the same reads.
+      const { data: ev } = await admin.from('sport_events').select('id, host_profile_id, self_entry').eq('id', round.sport_event_id).maybeSingle();
+      const { data: rows } = await admin.from('sport_event_participants').select('id, profile_id, role, status, recorder').eq('sport_event_id', round.sport_event_id).in('profile_id', [viewerId, p.profile_id]);
+      const list = (rows ?? []) as Array<{ id: string; profile_id: string; role: SportEventRole; status: string; recorder?: boolean }>;
       const viewerRow = list.find(r => r.profile_id === viewerId) ?? null;
       const ownerRow = list.find(r => r.profile_id === p.profile_id) ?? null;
       let viewerRole: SportEventRole | 'viewer' | null = viewerRow && viewerRow.status !== 'declined' && viewerRow.status !== 'removed' ? viewerRow.role : 'viewer';
@@ -63,12 +64,12 @@ export async function resolveScoringRight(admin: Admin, viewerId: string, partic
         const groups = new Set(((members ?? []) as Array<{ group_id: string }>).map(m => m.group_id));
         sameGroup = (members ?? []).length === 2 && groups.size === 1;
       }
-      event = { id: round.sport_event_id as string, round_id: round.id as string, viewer_role: viewerRole, same_group: sameGroup };
+      event = { id: round.sport_event_id as string, round_id: round.id as string, viewer_role: viewerRole, same_group: sameGroup, recorder: !!viewerRow && viewerRow.status === 'accepted' && viewerRow.recorder === true, self_entry: (ev as { self_entry?: boolean } | null)?.self_entry !== false };
     }
   }
 
   const range = holeRangeFor({ eventRound, derivedStartingHole: startingHoleNumber(golfData?.hole_data ?? null, golfData?.holes_played ?? null), holesPlayed: golfData?.holes_played ?? null });
-  const right = scoringRight({ viewerId, ownerProfileId: p.profile_id, roundCreatorId: gp.creator_id, eventRole: event?.viewer_role ?? null, sameGroup: event?.same_group ?? false, card: { status: card.status } });
+  const right = scoringRight({ viewerId, ownerProfileId: p.profile_id, roundCreatorId: gp.creator_id, eventRole: event?.viewer_role ?? null, sameGroup: event?.same_group ?? false, card: { status: card.status }, recorder: event?.recorder ?? false, selfEntry: event?.self_entry ?? true });
   return {
     ok: true,
     ctx: {

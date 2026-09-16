@@ -30,6 +30,8 @@ export interface ViewerScorecard {
   };
   golf_data?: { holes_played?: number | null } | null;
   participants?: ViewerParticipant[] | null;
+  /** Events phase 4: the viewer may enter for everyone on this round (a named recorder or an organizer) even without a card of their own. */
+  sport_event?: { viewer_recorder?: boolean } | null;
 }
 
 export type RoundEntry =
@@ -40,7 +42,9 @@ export type RoundEntry =
    *  gate). Spectators and declined viewers get null. */
   | { mode: 'final'; postId: string | null; participantId: string | null; isCreator: boolean }
   | { mode: 'watch'; reason: 'spectator' | 'declined' | 'card-complete'; postId: string | null }
-  | { mode: 'score'; participantId: string; isCreator: boolean; postId: string | null };
+  | { mode: 'score'; participantId: string; isCreator: boolean; postId: string | null }
+  /** Events phase 4: a recorder / organizer with no card of their own (or a complete one) enters for the groups. */
+  | { mode: 'record'; postId: string | null };
 
 /** The viewer finished their own card — nothing left to enter, even while
  *  co-players keep the ROUND live. Same rule as the resume banner. */
@@ -89,8 +93,9 @@ export function resolveRoundEntry({
 
   if (!viewerId) return { mode: 'watch', reason: 'spectator', postId };
 
+  const recorder = scorecard.sport_event?.viewer_recorder === true;
   const mine = (scorecard.participants ?? []).find(p => p.participant.profile_id === viewerId);
-  if (!mine) return { mode: 'watch', reason: 'spectator', postId };
+  if (!mine) return recorder ? { mode: 'record', postId } : { mode: 'watch', reason: 'spectator', postId };
 
   // A declined participant can still watch a public round — they just have no
   // card to fill in.
@@ -99,7 +104,7 @@ export function resolveRoundEntry({
   }
 
   if (ownCardComplete(mine, scorecard.golf_data?.holes_played)) {
-    return { mode: 'watch', reason: 'card-complete', postId };
+    return recorder ? { mode: 'record', postId } : { mode: 'watch', reason: 'card-complete', postId };
   }
 
   return { mode: 'score', participantId: mine.participant.id, isCreator, postId };

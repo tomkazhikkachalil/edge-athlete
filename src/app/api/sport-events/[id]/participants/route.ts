@@ -73,7 +73,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       const row = rows.find(r => r.profile_id === pid) ?? null;
       const plan = planJoin('invite', { event: { status: read.event.status, joinMode: read.event.join_mode, capacity: read.event.capacity }, actorRole: read.access.role, row: row ? toSnapshot(row) : null, rows: snapshots });
       if (!plan.ok) { skipped.existing += 1; continue; }
-      const patch = { role: plan.next.role ?? 'participant', status: 'invited', playing: true, waitlist_position: null, invited_by: actor.profileId };
+      // Phase 4: "Invite as recorder" — the row carries the flag from the invite; a recorder who does not play flips playing off later.
+      const patch = { role: plan.next.role ?? 'participant', status: 'invited', playing: true, waitlist_position: null, invited_by: actor.profileId, ...(parsed.value.recorder ? { recorder: true } : {}) };
       const result = plan.create
         ? await admin.from('sport_event_participants').insert({ sport_event_id: id, profile_id: pid, ...patch }).select(PARTICIPANT_COLUMNS).single()
         : await admin.from('sport_event_participants').update({ ...patch, responded_at: null, accepted_at: null, updated_at: now }).eq('id', (row as SportEventParticipantRow).id).select(PARTICIPANT_COLUMNS).single();

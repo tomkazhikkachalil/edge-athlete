@@ -46,6 +46,9 @@ describe('parseCreateBody', () => {
     expect(parseCreateBody(create({ sport_key: 'tennis' }))).toMatchObject({ ok: false, error: expect.stringContaining('sport_key') });
     expect(parseCreateBody(create({ club_id: '11111111-1111-4111-8111-111111111111', league_id: '11111111-1111-4111-8111-111111111112' }))).toMatchObject({ ok: false, error: expect.stringContaining('not both') });
     expect(parseCreateBody(create({ host_plays: 'yes' }))).toMatchObject({ ok: false });
+    expect(parseCreateBody(create({}))).toMatchObject({ ok: true, value: { self_entry: true } });
+    expect(parseCreateBody(create({ self_entry: false }))).toMatchObject({ ok: true, value: { self_entry: false } });
+    expect(parseCreateBody(create({ self_entry: 'no' }))).toMatchObject({ ok: false });
     expect(parseCreateBody(null)).toMatchObject({ ok: false });
   });
   it('trims text and turns an empty description into null', () => {
@@ -66,7 +69,9 @@ describe('parseEventPatch', () => {
 describe('parseInviteBody / parseParticipantPatch / parseListScope', () => {
   it('invites: ids and handles, deduped, lower-cased handles, 50 max', () => {
     const id = '11111111-1111-4111-8111-111111111111';
-    expect(parseInviteBody({ profile_ids: [id, id], handles: ['Sam_K', 'sam_k'] })).toEqual({ ok: true, value: { profileIds: [id], handles: ['sam_k'] } });
+    expect(parseInviteBody({ profile_ids: [id, id], handles: ['Sam_K', 'sam_k'] })).toEqual({ ok: true, value: { profileIds: [id], handles: ['sam_k'], recorder: false } });
+    expect(parseInviteBody({ profile_ids: [id], recorder: true })).toMatchObject({ ok: true, value: { recorder: true } });
+    expect(parseInviteBody({ profile_ids: [id], recorder: 'yes' })).toMatchObject({ ok: false });
     expect(parseInviteBody({})).toMatchObject({ ok: false, error: 'Nobody to invite' });
     expect(parseInviteBody({ profile_ids: ['x'] })).toMatchObject({ ok: false });
     expect(parseInviteBody({ handles: Array.from({ length: 51 }, (_, i) => `h${i}`) })).toMatchObject({ ok: false, error: expect.stringContaining('50') });
@@ -78,6 +83,8 @@ describe('parseInviteBody / parseParticipantPatch / parseListScope', () => {
     expect(parseParticipantPatch({ hide_from_profile: 'yes' })).toMatchObject({ ok: false });
     expect(parseParticipantPatch({ playing: false, hide_from_profile: true })).toEqual({ ok: true, value: { playing: false, hide_from_profile: true } });
     expect(parseParticipantPatch({ role: 'organizer' })).toMatchObject({ ok: false, error: 'Unknown field: role' });
+    expect(parseParticipantPatch({ recorder: true })).toEqual({ ok: true, value: { recorder: true } });
+    expect(parseParticipantPatch({ recorder: 1 })).toMatchObject({ ok: false });
   });
   it('list scope defaults to mine', () => {
     expect(parseListScope('live')).toBe('live');

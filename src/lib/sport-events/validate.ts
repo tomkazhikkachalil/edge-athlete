@@ -50,6 +50,8 @@ export interface CreateEventInput {
   format_config?: unknown;
   /** The host plays (default true); false = organizes only. */
   host_plays: boolean;
+  /** Phase 4 (214): players enter their own (default true); false = recorders / organizers enter for everyone. */
+  self_entry: boolean;
   /** true = create as `open` (the wizard's Publish); false = draft. */
   publish: boolean;
   /** Acting-as (guardian hosting for a supervised athlete). */
@@ -185,6 +187,7 @@ export function parseCreateBody(body: unknown): Parsed<CreateEventInput> {
   const profile = optionalUuid(body.profile_id, 'profile_id');
   if (!profile.ok) return profile;
   if (body.host_plays !== undefined && typeof body.host_plays !== 'boolean') return { ok: false, error: 'host_plays must be true or false' };
+  if (body.self_entry !== undefined && typeof body.self_entry !== 'boolean') return { ok: false, error: 'self_entry must be true or false' };
   if (body.publish !== undefined && typeof body.publish !== 'boolean') return { ok: false, error: 'publish must be true or false' };
   if (body.format_config !== undefined && (typeof body.format_config !== 'object' || body.format_config === null || Array.isArray(body.format_config))) return { ok: false, error: 'format_config must be an object' };
   const rounds = parseRoundsInput(body);
@@ -204,6 +207,7 @@ export function parseCreateBody(body: unknown): Parsed<CreateEventInput> {
       competition_id: competition.value,
       ...(body.format_config !== undefined ? { format_config: body.format_config } : {}),
       host_plays: body.host_plays !== false,
+      self_entry: body.self_entry !== false,
       publish: body.publish === true,
       profile_id: profile.value,
       rounds: rounds.value,
@@ -296,7 +300,7 @@ export function parseEventPatch(body: unknown): Parsed<EventPatchInput> {
 }
 
 /** The invite body: profile ids and / or handles, at most 50 a call. */
-export function parseInviteBody(body: unknown): Parsed<{ profileIds: string[]; handles: string[] }> {
+export function parseInviteBody(body: unknown): Parsed<{ profileIds: string[]; handles: string[]; recorder: boolean }> {
   if (!isRecord(body)) return { ok: false, error: 'A JSON body is required' };
   const ids = body.profile_ids === undefined ? [] : body.profile_ids;
   const handles = body.handles === undefined ? [] : body.handles;
@@ -304,7 +308,8 @@ export function parseInviteBody(body: unknown): Parsed<{ profileIds: string[]; h
   if (!Array.isArray(handles) || !handles.every(v => typeof v === 'string' && /^[a-z0-9_.]{2,40}$/i.test(v))) return { ok: false, error: 'handles must be a list of handles' };
   if (ids.length + handles.length === 0) return { ok: false, error: 'Nobody to invite' };
   if (ids.length + handles.length > 50) return { ok: false, error: 'At most 50 invites a call' };
-  return { ok: true, value: { profileIds: [...new Set(ids as string[])], handles: [...new Set((handles as string[]).map(h => h.toLowerCase()))] } };
+  if (body.recorder !== undefined && typeof body.recorder !== 'boolean') return { ok: false, error: 'recorder must be true or false' };
+  return { ok: true, value: { profileIds: [...new Set(ids as string[])], handles: [...new Set((handles as string[]).map(h => h.toLowerCase()))], recorder: body.recorder === true } };
 }
 
 export interface ParticipantPatchInput {
@@ -315,13 +320,19 @@ export interface ParticipantPatchInput {
   flight?: string | null;
   /** The organizer moves a waitlisted player to this 1-based place in the queue (phase 2). */
   waitlist_position?: number;
+  /** Phase 4 (214): the organizer names (or un-names) a recorder. */
+  recorder?: boolean;
 }
 
 /** The participant PATCH: an organizer's index override or flight, or the player's own toggles. */
 export function parseParticipantPatch(body: unknown): Parsed<ParticipantPatchInput> {
   if (!isRecord(body)) return { ok: false, error: 'A JSON body is required' };
   const out: ParticipantPatchInput = {};
-  for (const key of Object.keys(body)) if (!['handicap_index', 'hide_from_profile', 'playing', 'flight', 'waitlist_position'].includes(key)) return { ok: false, error: `Unknown field: ${key}` };
+  for (const key of Object.keys(body)) if (!['handicap_index', 'hide_from_profile', 'playing', 'flight', 'waitlist_position', 'recorder'].includes(key)) return { ok: false, error: `Unknown field: ${key}` };
+  if ('recorder' in body) {
+    if (typeof body.recorder !== 'boolean') return { ok: false, error: 'recorder must be true or false' };
+    out.recorder = body.recorder;
+  }
   if ('waitlist_position' in body) {
     const v = body.waitlist_position;
     if (typeof v !== 'number' || !Number.isInteger(v) || v < 1 || v > 500) return { ok: false, error: 'waitlist_position must be a whole number from 1 to 500' };
