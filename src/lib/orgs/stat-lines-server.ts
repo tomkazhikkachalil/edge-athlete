@@ -322,12 +322,20 @@ export async function statLinesUpsertPOST(
   // Participating teams of THIS contest, narrowed by authority.
   const { data: participants } = await admin
     .from('contest_participants')
-    .select('entry:entry_id (team_id)')
+    .select('entry:entry_id (id, team_id)')
     .eq('contest_id', input.contestId);
   const contestTeamIds = new Set<string>();
+  const adHocEntryIds: string[] = [];
   for (const p of participants ?? []) {
-    const entry = Array.isArray(p.entry) ? p.entry[0] : p.entry;
+    const entry = (Array.isArray(p.entry) ? p.entry[0] : p.entry) as { id: string; team_id: string | null } | null;
     if (entry?.team_id) contestTeamIds.add(entry.team_id as string);
+    else if (entry?.id) adHocEntryIds.push(entry.id);
+  }
+  // Track 2 PR 6 (219): an AD-HOC side has no team — its members are its roster; the owner writes for it (a pre-219 database reads no members).
+  const adHocMembers = new Set<string>();
+  if (adHocEntryIds.length > 0 && access.authority === 'owner') {
+    const { data: memberRows } = await admin.from('competition_entry_members').select('profile_id').in('entry_id', adHocEntryIds);
+    for (const m of (memberRows ?? []) as Array<{ profile_id: string }>) adHocMembers.add(m.profile_id);
   }
   const allowedTeamIds =
     access.authority === 'owner'
@@ -336,6 +344,8 @@ export async function statLinesUpsertPOST(
 
   const roster = await rosterByTeam(admin, [...allowedTeamIds]);
   for (const line of input.lines) {
+    // An ad-hoc side's player carries no team: the side's member list is the gate.
+    if (!line.teamId && adHocMembers.has(line.profileId)) continue;
     if (!line.teamId || !allowedTeamIds.has(line.teamId)) {
       return NextResponse.json(
         { error: 'Each stat line must name a participating team you manage' },

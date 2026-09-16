@@ -70,9 +70,9 @@ function objectPayload(_format: CompetitionFormat, payload: unknown): PayloadChe
 const teamSport = (sportKey: string, defaultRule: 'points_2_1_0' | 'points_3_1_0', teamScoreStat: string): CompetitionProfile => ({
   sportKey,
   formats: {
-    fixture: { entrants: ['team'], defaultRule, rules: FIXTURE_RULES_ON_OFFER },
-    // Ad-hoc teams join in track 2 PR 6 (219); the bracket is PR 3 (218).
-    bracket: { entrants: ['team'], defaultRule: null, rules: [] },
+    // Track 2 PR 6 (219): an ad-hoc side — a named team of rostered players — enters a fixture or a bracket too.
+    fixture: { entrants: ['team', 'ad_hoc_team'], defaultRule, rules: FIXTURE_RULES_ON_OFFER },
+    bracket: { entrants: ['team', 'ad_hoc_team'], defaultRule: null, rules: [] },
   },
   teamScoreStat,
   validateResultPayload: objectPayload,
@@ -90,8 +90,8 @@ const PROFILES: Record<string, CompetitionProfile> = {
     sportKey: 'golf',
     formats: {
       leaderboard: { entrants: ['athlete'], defaultRule: 'stroke_total', rules: GOLF_RULES_ON_OFFER },
-      // A golf bracket = match play: singles (athlete) or four-ball (an ad-hoc pair, PR 6).
-      bracket: { entrants: ['athlete'], defaultRule: null, rules: [] },
+      // A golf bracket = match play: singles (athlete) or four-ball (an ad-hoc pair, 219).
+      bracket: { entrants: ['athlete', 'ad_hoc_team'], defaultRule: null, rules: [] },
     },
     teamScoreStat: null,
     validateResultPayload: objectPayload,

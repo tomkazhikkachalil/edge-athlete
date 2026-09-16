@@ -125,12 +125,15 @@ export async function publishContestToCalendar(
   // the competition name; a play-window round as "{round} — {competition}".
   const { data: participants } = await admin
     .from('contest_participants')
-    .select('side, entry:entry_id (team_id)')
+    .select('side, entry:entry_id (team_id, name)')
     .eq('contest_id', contest.id);
   const sideTeamIds: Record<string, string> = {};
+  // Track 2 PR 6 (219): an ad-hoc side's own name.
+  const sideAdHoc: { home?: string; away?: string } = {};
   for (const p of participants ?? []) {
     const entry = Array.isArray(p.entry) ? p.entry[0] : p.entry;
     if (p.side && entry?.team_id) sideTeamIds[p.side] = entry.team_id;
+    else if (p.side && (entry as { name?: string | null } | null)?.name) sideAdHoc[p.side as 'home' | 'away'] = (entry as { name?: string | null }).name as string;
   }
   const teamIds = Object.values(sideTeamIds);
   const { data: teams } = teamIds.length
@@ -140,8 +143,8 @@ export async function publishContestToCalendar(
   const title = windowed
     ? contestWindowTitle(competition.name, contest.round)
     : contestEventTitle(competition.name, {
-        home: sideTeamIds.home ? nameOf.get(sideTeamIds.home) : undefined,
-        away: sideTeamIds.away ? nameOf.get(sideTeamIds.away) : undefined,
+        home: sideTeamIds.home ? nameOf.get(sideTeamIds.home) : sideAdHoc.home,
+        away: sideTeamIds.away ? nameOf.get(sideTeamIds.away) : sideAdHoc.away,
       });
 
   // Venue name → the free-text location (the picker's own convention);

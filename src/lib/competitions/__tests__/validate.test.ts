@@ -59,6 +59,10 @@ describe('EntryAddSchema', () => {
     expect(EntryAddSchema.safeParse({ competitionId, teamId: ref, profileId: ref }).success).toBe(false);
     expect(EntryAddSchema.safeParse({ competitionId, teamId: ref }).success).toBe(true);
     expect(EntryAddSchema.safeParse({ competitionId, profileId: ref }).success).toBe(true);
+    // Track 2 PR 6: an ad-hoc entry is a name (+ members); members without a name are refused.
+    expect(EntryAddSchema.safeParse({ competitionId, name: 'Reds', memberProfileIds: [ref] }).success).toBe(true);
+    expect(EntryAddSchema.safeParse({ competitionId, name: 'Reds', teamId: ref }).success).toBe(false);
+    expect(EntryAddSchema.safeParse({ competitionId, teamId: ref, memberProfileIds: [ref] }).success).toBe(false);
   });
 });
 
