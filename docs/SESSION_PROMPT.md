@@ -6,16 +6,13 @@
 > Recruiting programs #661–#669, the Data foundation and provenance rounds
 > #709–#731, the Events program #732–#748, Events phase 2 — tournaments —
 > #750–#762, Events phase 2b — the integrations — #763–#773, and Events
-> phase 3 — match play and brackets — #775–#785, OPEN as one stacked chain)** —
-> migration head 211 run, 212 (`212_sport_event_match_play.sql`) and 213
-> waiting on the chain; `main`
+> phase 3 — match play and brackets — #775–#790)** — migration head 213
+> (`213_sport_event_match_bell.sql`); `main`
 > deployed and every PR prod-probed (the probe waits for the deploy by
 > itself; "NNN ran" means `npm run check:schema` is OK — it asks the schema
-> question BOTH ways). **Events phase 3 is in flight**: Tom merges #775 →
-> #785 in order, RUNS 212 after #777 (then `check:schema` OK gates #778+)
-> and 213 after #785; every match spec runs locally the moment 212 is live.
-> After that the next program is Tom's call (competition formats,
-> performance readers, the multi-sport pipeline). If the "Where the project
+> question BOTH ways). **No program is open.** The next program is Tom's
+> call (competition formats, performance readers, the multi-sport pipeline;
+> parked from Events phase 3: an org-side bracket, Stableford). If the "Where the project
 > actually is" section drifts stale, ask Claude to re-align it against
 > DEVLOG.md and session memory.
 

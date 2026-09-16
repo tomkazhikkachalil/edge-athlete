@@ -1,5 +1,15 @@
 # Development Log
 
+## September 16, 2026 — Events program, phase 3: COMPLETE and prod-proven
+
+After #790 the last phase 3 spec went green on prod on both engines: the
+match bells — B's `set` and `lost`, and the organizer-player's own `set`
+and `won`. Every phase 3 spec has now run green against prod: the match
+API, the feed, the Matches tab, the match card, pairs, the bracket, the
+cut regression and the bells, on Chromium and WebKit at 390. The docs
+mark the phase complete (`docs/EVENTS.md` "Phase 3 status", CLAUDE.md
+convention 19, the session prompt); no program is open.
+
 ## September 16, 2026 — Events program, phase 3: the match bells reach an organizer who plays (the fix that missed main)
 
 The post-#787 probe showed the `lost` bell right and the `won` bell

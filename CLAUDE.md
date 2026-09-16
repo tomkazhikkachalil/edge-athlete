@@ -875,7 +875,7 @@ const { canView } = await response.json();
    `docs/EVENTS.md` "Phase 2b" is the reference.
 
 19. **A match is a group with two sides; its status is computed, its
-   outcome written once (Events program, phase 3, Sep 16 2026, #775–#785,
+   outcome written once (Events program, phase 3, Sep 16 2026, #775–#790,
    migs 212 · 213)** — Tom's decisions: singles + four-ball + foursomes,
    gross or net; the organizer sets EVERY draw by hand; a halved match
    goes to sudden-death extra holes; a standalone match event AND a
@@ -914,8 +914,10 @@ const { canView } = await response.json();
    rounds ARE the bracket rounds, match k of round n+1 is fed by 2k−1 and
    2k of round n by group SEQUENCE ("Fill from winners" pre-fills, the
    organizer edits; `BracketView` at `?round=bracket`). The e2e suite mints
-   FOUR QA users (pairs, brackets). `docs/EVENTS.md` "Phase 3" is the
-   reference; read DEVLOG Sep 16 2026 phase 3 PR 1–12 first.
+   FOUR QA users (pairs, brackets). The bells (213) speak in FULL names
+   and carry NO actor (an organizer who plays gets theirs). `docs/EVENTS.md`
+   "Phase 3" is the reference; read DEVLOG Sep 16 2026 phase 3 PR 1–12 and
+   the four follow-ups first.
 
 
 ---
