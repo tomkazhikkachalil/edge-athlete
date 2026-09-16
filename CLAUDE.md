@@ -919,6 +919,52 @@ const { canView } = await response.json();
    "Phase 3" is the reference; read DEVLOG Sep 16 2026 phase 3 PR 1–12 and
    the four follow-ups first.
 
+20. **An event is a live place for EVERY sport; the shape lives on the
+   event, the mode is derived, the lines are the record (Events program,
+   phase 4, Sep 16 2026, #792–#803, migs 214 · 215 · 216)** — Tom's
+   decisions: every enabled sport (golf keeps its cards; the stat-line
+   sports get LIVE per-player stats); a team event is a GAME (two ad-hoc
+   sides + a live score) or a SESSION, chosen at creation; the organizer
+   picks the recording mode (named recorders — anyone, playing or not —
+   and/or self-entry); joining fully open unless closed, new events
+   default PUBLIC and viewable signed out (a participant's EVENT stats are
+   public even with a private profile — the masked name, never the
+   profile); live media by participants and spectators. The rules, each
+   pure and pinned in `src/lib/sport-events/`: `recordingModeOf` DERIVES
+   self | recorder | both from `self_entry` + the `recorder` rows (any
+   accepted row; a follower with it is the non-playing recorder) — never
+   stored; `scoringRight` / `statEntryRight` admit a recorder for everyone
+   on the admin client and refuse the owner by name (`recorder_only`) when
+   self entry is off; the SHAPE (`round` | `game` | `session`) is one
+   decision at creation, golf ⇔ round both ways (215's CHECK), `format`
+   and `cut` / `match` are golf vocabulary refused off golf,
+   `format_config.game` names the sides (Home / Away; an org's teams
+   pre-fill later), a team round is a PLACE + a start, a game's groups
+   carry SENT sides (never derived); `sport_event_stat_lines` is ONE row
+   per fielded player per round minted at go-live (`roundMinted` = a group
+   post OR the lines — nothing golf-ish off golf), the vocabulary is
+   `STAT_SCHEMAS` through the one validator (refused by name, never
+   clamped), NO line status (rights come from the ROUND's status), every
+   write the WHOLE object under an app-level CAS (`version`, a 409
+   carries the current line), the game score ON the round under
+   `score_version`; posture-A tables emit no realtime, so the POLL is the
+   live feed (`useRoundStats` 5 s live) and the stat outbox is the golf
+   outbox's shape (one desired state per LINE); completion writes one
+   `stat_line` POST per played line (found by
+   `stats_data.sport_event_stat_line_id`, never `posts.
+   sport_event_round_id` — 203's UNIQUE is the round's one post), the
+   performance row through `fromStatLinePost` with `provenanceForLine`,
+   the round's post → `sport_event_results`; `sport_event_media` is
+   posture A behind the ONE gate (add = any accepted row or an organizer;
+   remove = the uploader or an organizer; the proxy's `sport_event` entity
+   re-runs the event gate per byte; mirrored onto the round's post once);
+   the live stat screen `/events/[id]/live` owns its bottom edge
+   (`showsTabBar` hides). `SPORT_EVENT_SPORTS` (the create list) widened
+   only after 215 ran. `docs/EVENTS.md` "Phase 4" is the reference; read
+   DEVLOG Sep 16 2026 phase 4 PR 1–12 first. Parked: `track_field` (a
+   meet — track 2), pools, relays, the per-photo guardian bell, realtime
+   as a wake-up, the venue timezone for a team round's start.
+
 
 ---
 

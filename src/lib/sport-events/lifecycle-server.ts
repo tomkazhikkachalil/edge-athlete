@@ -44,6 +44,7 @@ import { writeStartsOn } from './rounds-server';
 import { isMatchFormat, isStatShape, shapeOf, type SportEventParticipantRow, type SportEventRoundRow, type SportEventRoundStatus, type SportEventRow, type SportEventShape, type SportEventStatus } from './types';
 import { mintStatRound, syncStatLineForPlayer } from './stats-server';
 import { mirrorStatRound } from './stat-results-server';
+import { mirrorEventMedia } from './media-server';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Admin = SupabaseClient<any, 'public', any>;
@@ -323,6 +324,7 @@ export async function applyRoundTransition(admin: Admin, req: RoundTransitionReq
         if (error) console.error('[sport-events] round completion failed:', error);
         await mirrorCompletedRound(admin, round.group_post_id);
         await mirrorRoundMedia(admin, round.group_post_id);
+        await mirrorEventMedia(admin, event, round); // phase 4 (216): the event's gallery rides the round's post
         const { error: bumpError } = await admin.from('posts').update({ created_at: now }).eq('group_post_id', round.group_post_id);
         if (bumpError) console.error('[sport-events] results post bump failed:', bumpError);
       }
@@ -341,6 +343,7 @@ export async function applyRoundTransition(admin: Admin, req: RoundTransitionReq
     } else if (isStatShape(shape)) {
       // Phase 4: a stat round's results — one stat-line post + performance row per fielded player, the round's post flips to the results. Idempotent, best-effort, awaited.
       await mirrorStatRound(admin, event, round);
+      await mirrorEventMedia(admin, event, round);
     }
   }
 
