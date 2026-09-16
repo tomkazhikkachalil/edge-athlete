@@ -8,7 +8,8 @@ import { formatDisplayName } from '@/lib/formatters';
 
 interface Props {
   excludeIds: Set<string>;
-  onInvite: (profileId: string) => Promise<boolean>;
+  /** Phase 4: `recorder` = "Invite as recorder" — the row carries the flag from the invite. */
+  onInvite: (profileId: string, recorder: boolean) => Promise<boolean>;
   onClose: () => void;
 }
 
@@ -17,10 +18,11 @@ export default function InviteWindow({ excludeIds, onInvite, onClose }: Props) {
   const search = useProfileSearch({ minChars: 2 });
   const [sent, setSent] = useState<Set<string>>(new Set());
   const [pending, setPending] = useState<string | null>(null);
+  const [asRecorder, setAsRecorder] = useState(false);
 
   const invite = async (id: string) => {
     setPending(id);
-    const ok = await onInvite(id);
+    const ok = await onInvite(id, asRecorder);
     setPending(null);
     if (ok) setSent(prev => new Set(prev).add(id));
   };
@@ -39,6 +41,10 @@ export default function InviteWindow({ excludeIds, onInvite, onClose }: Props) {
           className="w-full min-h-[44px] px-3 rounded-lg border border-border-strong bg-surface text-primary text-base"
           data-event-invite-search=""
         />
+        <label className="flex items-center gap-3 min-h-[44px] text-sm text-primary">
+          <input type="checkbox" checked={asRecorder} onChange={e => setAsRecorder(e.target.checked)} className="h-4 w-4" data-event-invite-recorder="" />
+          Invite as recorder <span className="text-xs text-muted">— enters scores for everyone; may play or not</span>
+        </label>
         {search.failed && <p className="text-sm text-red-700 dark:text-red-300">Search is unavailable right now.</p>}
         <ul className="divide-y divide-border-subtle">
           {search.results.map(p => {

@@ -1,12 +1,13 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/lib/auth';
 import AppHeader from '@/components/AppHeader';
 import ScoreEntryModal from '@/components/golf/ScoreEntryModal';
 import GroupScoreCard from '@/components/golf/GroupScoreCard';
+import GroupSwitcher from '@/components/golf/GroupSwitcher';
 import SharedRoundQuickView from '@/components/golf/SharedRoundQuickView';
 import SharedRoundFullCard from '@/components/golf/SharedRoundFullCard';
 import { useSharedRound } from '@/hooks/useSharedRound';
@@ -99,6 +100,18 @@ export default function LiveRoundPage() {
 
   const entry = resolveRoundEntry({ scorecard, viewerId: user?.id });
 
+  // Phase 4: a recorder / organizer records for ANY group of the round — `?group=` picks it (the deep link the
+  // switcher writes); a player's own group is the default, else the round's first.
+  const searchParams = useSearchParams();
+  const groupParam = searchParams.get('group');
+  const eventCtx = scorecard?.sport_event ?? null;
+  const isRecorder = eventCtx?.viewer_recorder === true;
+  const roundGroups = useMemo(() => eventCtx?.groups ?? [], [eventCtx]);
+  const activeGroup = useMemo(() => {
+    const picked = groupParam && isRecorder ? roundGroups.find(g => g.id === groupParam) ?? null : null;
+    return picked ?? eventCtx?.group ?? (isRecorder ? roundGroups[0] ?? null : null);
+  }, [groupParam, isRecorder, roundGroups, eventCtx]);
+
   const openScorer = useCallback(
     async (participantId: string, hole?: number) => {
       await refresh();
@@ -169,7 +182,7 @@ export default function LiveRoundPage() {
   // a playing group mounts the GROUP card in place (GroupScoreCard) — the
   // one-player modal stays for solo / non-event rounds and the organizer's
   // fix path.
-  const groupCard = !!scorecard?.sport_event?.group && entry.mode === 'score';
+  const groupCard = !!activeGroup && (entry.mode === 'score' || entry.mode === 'record');
   if (!autoOpened && entry.mode === 'score' && !scoringParticipantId && !groupCard) {
     setAutoOpened(true);
     setScoringParticipantId(entry.participantId);
@@ -366,11 +379,17 @@ export default function LiveRoundPage() {
         onDeleted={() => router.replace('/feed')}
       />
 
-      {groupCard && entry.mode === 'score' && user && (
+      {groupCard && (entry.mode === 'score' || entry.mode === 'record') && user && activeGroup && (
         <div className="mt-4 -mx-4 bg-surface rounded-lg border border-border overflow-hidden" style={{ minHeight: '60vh' }}>
+          {isRecorder && roundGroups.length > 1 && (
+            <GroupSwitcher groups={roundGroups} activeId={activeGroup.id} onPick={id => router.replace(`/live/${groupPostId}?group=${id}`)} />
+          )}
           <GroupScoreCard
+            key={activeGroup.id}
             scorecard={scorecard}
             viewerId={user.id}
+            group={activeGroup}
+            recorder={isRecorder}
             holesPlayed={holesPlayedN}
             startingHole={startHole}
             onRefresh={async () => { await refresh(); }}

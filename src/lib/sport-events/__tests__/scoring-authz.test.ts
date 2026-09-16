@@ -3,6 +3,28 @@ import { holeNumberInRange, scoringRight, type ScoringRightInput } from '../scor
 
 const base = (over: Partial<ScoringRightInput> = {}): ScoringRightInput => ({ viewerId: 'v', ownerProfileId: 'o', roundCreatorId: 'c', eventRole: 'participant', sameGroup: false, card: { status: 'in_progress' }, ...over });
 
+describe('scoringRight — phase 4: recorders and self_entry', () => {
+  it('a recorder writes any in-progress or submitted card on the admin client, never a final one', () => {
+    expect(scoringRight(base({ recorder: true }))).toMatchObject({ allowed: true, via: 'recorder', client: 'admin', reopens: false });
+    expect(scoringRight(base({ recorder: true, card: { status: 'submitted' } }))).toMatchObject({ allowed: true, via: 'recorder', client: 'admin', reopens: false });
+    expect(scoringRight(base({ recorder: true, card: { status: 'final' } }))).toMatchObject({ allowed: false, status: 409 });
+  });
+  it('self_entry false: the owner and a partner are refused by name (recorder_only); organizers, the creator and recorders still write', () => {
+    expect(scoringRight(base({ viewerId: 'o', selfEntry: false }))).toMatchObject({ allowed: false, status: 403, reason: 'recorder_only' });
+    expect(scoringRight(base({ viewerId: 'o', selfEntry: false, card: { status: 'submitted' } }))).toMatchObject({ allowed: false, status: 403, reason: 'recorder_only' });
+    expect(scoringRight(base({ sameGroup: true, selfEntry: false }))).toMatchObject({ allowed: false, status: 403, reason: 'recorder_only' });
+    expect(scoringRight(base({ viewerId: 'c', selfEntry: false }))).toMatchObject({ allowed: true, via: 'creator' });
+    expect(scoringRight(base({ eventRole: 'organizer', selfEntry: false }))).toMatchObject({ allowed: true, via: 'organizer' });
+    expect(scoringRight(base({ recorder: true, selfEntry: false }))).toMatchObject({ allowed: true, via: 'recorder' });
+    // A recorder who is also the owner enters their own card under self_entry false — as a recorder.
+    expect(scoringRight(base({ viewerId: 'o', recorder: true, selfEntry: false }))).toMatchObject({ allowed: true, via: 'recorder' });
+  });
+  it('the defaults keep phase 1: no recorder, self entry on', () => {
+    expect(scoringRight(base({ viewerId: 'o' }))).toMatchObject({ allowed: true, via: 'self' });
+    expect(scoringRight(base({ sameGroup: true }))).toMatchObject({ allowed: true, via: 'groupmate' });
+  });
+});
+
 describe('scoringRight — the via / client matrix', () => {
   it('in progress: self and the creator on the session client; organizers and group-mates on the admin client; strangers refused', () => {
     expect(scoringRight(base({ viewerId: 'o' }))).toMatchObject({ allowed: true, via: 'self', client: 'session' });

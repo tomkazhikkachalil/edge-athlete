@@ -42,12 +42,14 @@ export interface EventView {
     format_config?: { cut?: { after_round: number; top_n?: number; to_par?: number } | null; match?: { sides: string; bracket: boolean; allowance?: number } | null };
     /** Phase 3: the match options (defaults filled) — null on a stroke format. */
     match?: { sides: 'singles' | 'fourball' | 'foursomes'; bracket: boolean; allowance: number } | null;
+    /** Phase 4 (214). */
+    self_entry?: boolean;
   };
   rounds: Array<{ id: string; sequence: number; scheduled_on: string; course_name: string; holes: number; starting_hole: number; status: string; group_post_id: string | null; name?: string | null }>;
-  participants: Array<{ id: string; profile_id: string; status: string; role: string; playing: boolean; waitlist_position: number | null; handicap_index: number | null }>;
+  participants: Array<{ id: string; profile_id: string; status: string; role: string; playing: boolean; waitlist_position: number | null; handicap_index: number | null; recorder?: boolean }>;
   groups: Array<{ id: string; sport_event_round_id: string; sequence: number; name?: string | null; starting_hole?: number; members: Array<{ participant_id: string; position: number; side?: 1 | 2 | null }> }>;
   counts: { playing: number; followers: number; waitlisted: number };
-  viewer: { role: string | null; can_manage: boolean; participant_id: string | null; participant_status: string | null };
+  viewer: { role: string | null; can_manage: boolean; participant_id: string | null; participant_status: string | null; playing?: boolean; recorder?: boolean };
 }
 
 export interface EventSession {
@@ -111,6 +113,8 @@ export interface CreateEventOptions {
   capacity?: number;
   publish?: boolean;
   host_plays?: boolean;
+  /** Phase 4 (214): players enter their own (default true); false = recorders / organizers only. */
+  self_entry?: boolean;
   /** Hosted for an org (phase 2b): the create route gates on manage_competitions. */
   club_id?: string;
   league_id?: string;

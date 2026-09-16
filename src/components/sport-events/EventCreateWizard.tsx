@@ -14,6 +14,7 @@ import { addWizardRound, emptyWizardState, isWizardDirty, removeWizardRound, upd
 import { eligibleCompetition, type CompetitionForLink } from '@/lib/sport-events/contest-link';
 import RoundFields, { Choice } from './RoundFields';
 import { getEnabledSports } from '@/lib/sports/SportRegistry';
+import { RECORDING_MODE_LABEL } from '@/lib/sport-events/recording';
 
 /**
  * The creation wizard (Events program): basics → round → format → review,
@@ -231,6 +232,14 @@ export default function EventCreateWizard() {
             <input type="number" inputMode="numeric" min={1} max={500} value={s.capacity} onChange={e => set('capacity', e.target.value)} className={INPUT} placeholder="No limit" />
             <span className="text-xs text-muted">Players past the limit go on a waitlist and move up when a spot opens.</span>
           </label>
+          <div className="space-y-2" data-wizard-recording="">
+            <span className="block text-sm font-medium text-secondary">Who enters the scores</span>
+            <Choice name="Recording" value={s.recording} onChange={v => set('recording', v)} options={[
+              { value: 'self', label: 'Players enter their own', hint: 'Each player scores their card; group partners may help.' },
+              { value: 'both', label: 'Players and recorders', hint: 'Players score their own; recorders you name may enter for anyone.' },
+              { value: 'recorder', label: 'Recorders only', hint: 'Only recorders you name (and organizers) enter scores — name them on the Players tab.' },
+            ]} />
+          </div>
           <label className="flex items-center gap-3 min-h-[44px]">
             <input type="checkbox" checked={s.host_plays} onChange={e => set('host_plays', e.target.checked)} className="h-4 w-4" />
             <span className="text-sm text-primary">I&apos;m playing too</span>
@@ -257,6 +266,7 @@ export default function EventCreateWizard() {
               ['Field size', s.capacity.trim() ? `${s.capacity} players` : 'No limit'],
               ...(orgLabel ? [['Hosted for', orgLabel]] : []),
               ...(s.competition ? [['Counts toward', competitions.find(c => c.id === s.competition)?.name ?? 'Competition']] : []),
+              ['Recording', RECORDING_MODE_LABEL[s.recording]],
               ['You', s.host_plays ? 'Playing' : 'Organizing only'],
             ].map(([k, v]) => (
               <div key={k} className="flex justify-between gap-4 py-2 border-b border-border-subtle last:border-b-0"><dt className="text-muted">{k}</dt><dd className="text-primary text-right">{v}</dd></div>

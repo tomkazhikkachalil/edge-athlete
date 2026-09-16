@@ -31,6 +31,8 @@ export interface EventView {
   format_config: FormatConfig;
   /** Phase 3: the match options the event plays under (defaults filled) — null on a stroke format. */
   match: (MatchConfig & { allowance: number }) | null;
+  /** Phase 4 (214): players enter their own; false = a recorder / organizer enters for everyone. */
+  self_entry: boolean;
   status: SportEventRow['status'];
   capacity: number | null;
   starts_on: string | null;
@@ -58,6 +60,8 @@ export interface ParticipantView {
   flight: string | null;
   /** Self and organizers only; null otherwise. */
   hide_from_profile: boolean | null;
+  /** Phase 4 (214): a named recorder — visible to everyone who sees the roster. */
+  recorder: boolean;
   accepted_at: string | null;
   created_at: string;
 }
@@ -73,6 +77,8 @@ export interface ViewerView {
   hide_from_profile: boolean;
   /** Phase 2: how many waitlisted players are ahead of the viewer; null when not waitlisted. */
   waitlist_ahead: number | null;
+  /** Phase 4: the viewer is a named recorder (an organizer always may record). */
+  recorder: boolean;
 }
 
 export function projectEvent(row: SportEventRow, access: SportEventAccess): EventView {
@@ -91,6 +97,7 @@ export function projectEvent(row: SportEventRow, access: SportEventAccess): Even
     format: row.format,
     format_config: readFormatConfig(row.format_config, 8, row.format),
     match: readMatchConfig(readFormatConfig(row.format_config, 8, row.format), row.format),
+    self_entry: row.self_entry !== false,
     status: row.status,
     capacity: row.capacity,
     starts_on: row.starts_on,
@@ -119,6 +126,7 @@ export function projectParticipant(row: SportEventParticipantRow, profile: Profi
     handicap_source: row.handicap_source,
     flight: row.flight ?? null,
     hide_from_profile: self || viewer.canManage ? row.hide_from_profile : null,
+    recorder: row.recorder === true,
     accepted_at: row.accepted_at,
     created_at: row.created_at,
   };
@@ -149,6 +157,7 @@ export function projectViewer(viewerId: string | null, access: SportEventAccess,
     playing: own?.playing ?? false,
     hide_from_profile: own?.hide_from_profile ?? false,
     waitlist_ahead: ahead,
+    recorder: own?.status === 'accepted' && own.recorder === true,
   };
 }
 

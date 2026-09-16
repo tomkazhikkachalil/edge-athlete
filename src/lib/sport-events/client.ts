@@ -46,7 +46,7 @@ export function eventApi(eventId: string, token: string | null) {
     follow: () => call<{ following: boolean }>(`${base}/follow${q(token)}`, { method: 'POST', body: '{}' }),
     unfollow: () => call<{ following: boolean }>(`${base}/follow${q(token)}`, { method: 'DELETE' }),
     inviteHandles: (handles: string[]) => call<{ invited: string[]; skipped: Record<string, number> }>(`${base}/participants`, { method: 'POST', body: JSON.stringify({ handles }) }),
-    invite: (profileIds: string[]) => call<{ invited: string[]; skipped: Record<string, number> }>(`${base}/participants`, { method: 'POST', body: JSON.stringify({ profile_ids: profileIds }) }),
+    invite: (profileIds: string[], recorder = false) => call<{ invited: string[]; skipped: Record<string, number> }>(`${base}/participants`, { method: 'POST', body: JSON.stringify({ profile_ids: profileIds, ...(recorder ? { recorder: true } : {}) }) }),
     rotateLink: () => call<{ link_token: string }>(`${base}/link-token`, { method: 'POST', body: '{}' }),
     patchEvent: (patch: Record<string, unknown>) => call<SportEventViewPayload>(base, { method: 'PATCH', body: JSON.stringify(patch) }),
     saveFlights: (assignments: Array<{ participant_id: string; flight: string | null }>) => call<SportEventViewPayload>(`${base}/flights`, { method: 'PUT', body: JSON.stringify({ assignments }) }),

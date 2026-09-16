@@ -96,6 +96,7 @@ export async function POST(request: NextRequest) {
         // below, which mints the announce post (one post per round).
         status: 'draft',
         capacity: input.capacity,
+        self_entry: input.self_entry,
         starts_on: startsOnFor(rounds),
         ...(formatConfig !== null ? { format_config: formatConfig } : {}),
       })

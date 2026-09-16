@@ -20,6 +20,8 @@ interface Props {
   onWaitlistMove?: (pid: string, position: number) => void;
   onHideToggle: (pid: string, hidden: boolean) => void;
   onIndexOverride: (pid: string, index: number | null) => void;
+  /** Phase 4: the organizer names (or un-names) a recorder — any accepted row, a follower included. */
+  onRecorderToggle?: (pid: string, recorder: boolean) => void;
   /** Phase 2: the organizer's Flights window. */
   onOpenFlights?: () => void;
   /** Phase 4: the player sheet reads this event's line for the tapped player. */
@@ -64,7 +66,7 @@ function IndexField({ p, onChange }: { p: ParticipantView; onChange: (index: num
   );
 }
 
-export default function EventPlayers({ view, control, busy, joinActions, onOpenInvite, onInviteHandle, onDecide, onHideToggle, onIndexOverride, onOpenFlights, onWaitlistMove, api }: Props) {
+export default function EventPlayers({ view, control, busy, joinActions, onOpenInvite, onInviteHandle, onDecide, onHideToggle, onIndexOverride, onRecorderToggle, onOpenFlights, onWaitlistMove, api }: Props) {
   const [picked, setPicked] = useState<ParticipantView | null>(null);
   const { event, participants, viewer, counts } = view;
   const canManage = viewer.can_manage;
@@ -97,6 +99,7 @@ export default function EventPlayers({ view, control, busy, joinActions, onOpenI
             {roleLabel(p) ?? (p.handle ? `@${p.handle}` : '')}
             {net && p.status === 'accepted' && p.playing && (p.handicap_index !== null ? ` · index ${p.handicap_index}` : ' · no index')}
             {p.flight && p.status === 'accepted' && p.playing && <span data-event-player-flight={p.flight}> · Flight {p.flight}</span>}
+            {p.recorder && p.status === 'accepted' && <span data-event-player-recorder=""> · Recorder</span>}
           </p>
         </div>
         <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">{extra}</div>
@@ -110,6 +113,12 @@ export default function EventPlayers({ view, control, busy, joinActions, onOpenI
     return (
       <>
         {net && p.status === 'accepted' && p.playing && <IndexField p={p} onChange={i => onIndexOverride(p.id, i)} />}
+        {onRecorderToggle && p.status === 'accepted' && (
+          <label className="text-xs text-secondary inline-flex items-center gap-2 min-h-[44px]">
+            <input type="checkbox" checked={p.recorder} onChange={e => onRecorderToggle(p.id, e.target.checked)} disabled={busy} className="h-4 w-4" data-event-recorder-toggle={p.profile_id} />
+            Recorder
+          </label>
+        )}
         <button type="button" onClick={() => onDecide(p.id, 'remove')} disabled={busy} className={BTN} aria-label={`Remove ${p.name}`}>Remove</button>
       </>
     );
@@ -185,7 +194,7 @@ export default function EventPlayers({ view, control, busy, joinActions, onOpenI
           )))}
         </Section>
       )}
-      {followers.length > 0 && <Section title={`Following (${followers.length})`}>{followers.map(p => row(p))}</Section>}
+      {followers.length > 0 && <Section title={`Following (${followers.length})`}>{followers.map(p => row(p, organizerRowActions(p)))}</Section>}
       {canManage && gone.length > 0 && <Section title="Not playing">{gone.map(p => row(p, <span className="text-xs text-muted capitalize">{p.status}</span>))}</Section>}
       {picked && <EventPlayerSheet view={view} participant={picked} api={api ?? null} onClose={() => setPicked(null)} />}
     </div>

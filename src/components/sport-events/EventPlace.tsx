@@ -225,6 +225,7 @@ export default function EventPlace({ eventId, initialView, token }: Props) {
               onDecide={(target, action) => run(() => api.participantAction(target, action))}
               onHideToggle={(target, hidden) => run(() => api.participantPatch(target, { hide_from_profile: hidden }))}
               onIndexOverride={(target, index) => run(() => api.participantPatch(target, { handicap_index: index }))}
+              onRecorderToggle={(target, recorder) => run(() => api.participantPatch(target, { recorder }), recorder ? 'Named as a recorder.' : 'No longer a recorder.')}
               onOpenFlights={() => setFlightsOpen(true)}
               onWaitlistMove={(target, position) => run(() => api.participantPatch(target, { waitlist_position: position }))}
               api={api}
@@ -266,8 +267,8 @@ export default function EventPlace({ eventId, initialView, token }: Props) {
         <InviteWindow
           excludeIds={excludeIds}
           onClose={() => setInviteOpen(false)}
-          onInvite={async id => {
-            const res = await api.invite([id]);
+          onInvite={async (id, recorder) => {
+            const res = await api.invite([id], recorder);
             if (!res.ok) { setError(res.error); return false; }
             await refetch();
             return (res.data?.invited ?? []).includes(id);
