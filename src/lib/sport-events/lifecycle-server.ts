@@ -265,7 +265,8 @@ export async function applyRoundTransition(admin: Admin, req: RoundTransitionReq
     rounds: rounds.map(r => ({ sequence: r.sequence, status: r.status })),
     acceptedPlaying: players.length,
     cards: cards.map(c => ({ status: c.status })),
-    override: req.override === true,
+    // Phase 4: a stat round has no cards — an empty field never reads final, so completion is 'as it stands' by rule.
+    override: req.override === true || (req.to === 'completed' && isStatShape(shape)),
     match: match ? { groupsIncomplete: incomplete.length + (req.to === 'live' && groups.length === 0 ? 1 : 0), undecided: undecided.length } : null,
   });
   const refusalError = (reason: RoundTransitionRefusal): string => {

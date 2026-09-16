@@ -111,7 +111,7 @@ export default function EventLiveScreen({ eventId, initialView, token, roundPara
           disabled={!enterable}
           aria-pressed={selected === l.id}
           className={`w-full text-left flex items-center gap-3 px-3 min-h-[52px] rounded-lg ${selected === l.id ? 'bg-brand-soft border border-brand' : 'bg-surface border border-border'} disabled:opacity-100`}
-          data-live-line={l.participant_id}
+          data-live-line={l.profile_id}
           data-live-line-enterable={enterable ? '1' : '0'}
           data-line-state={st}
         >
@@ -122,7 +122,7 @@ export default function EventLiveScreen({ eventId, initialView, token, roundPara
           </span>
           {schema && (
             <span className="flex gap-2 text-xs tabular-nums text-secondary shrink-0">
-              {schema.fields.slice(0, 3).map(f => <span key={f.key} data-live-cell={`${l.participant_id}:${f.key}`}>{f.shortLabel} {l.stats[f.key] ?? 0}</span>)}
+              {schema.fields.slice(0, 3).map(f => <span key={f.key} data-live-cell={`${l.profile_id}:${f.key}`}>{f.shortLabel} {l.stats[f.key] ?? 0}</span>)}
             </span>
           )}
         </button>

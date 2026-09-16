@@ -56,7 +56,9 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       matches: matches.map(projectMatch),
       computed_at: new Date().toISOString(),
     };
-    const cache = viewerId ? 'private, max-age=5' : 'public, max-age=5, s-maxage=10';
+        // Never `s-maxage` here: the payload carries a VIEWER block, and Vercel's edge honours s-maxage regardless of
+    // vercel.json — a cached anonymous copy was served to signed-in readers for 10 s (prod probe, Sep 16 2026).
+    const cache = 'private, max-age=5';
     return NextResponse.json(payload, { headers: { 'Cache-Control': cache } });
   } catch (error) {
     console.error('[api/sport-events/matches] GET error:', error);

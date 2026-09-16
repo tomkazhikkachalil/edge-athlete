@@ -39,8 +39,9 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     if (!round) return NOT_FOUND();
     const payload = await readRoundStats(admin, read.event, round as SportEventRoundRow, { profileId: viewerId, canManage: read.access.canManage });
     if (!payload) return NextResponse.json({ error: 'This is a golf round — read its leaderboard.', reason: 'not_a_team_round' }, { status: 409, headers: { 'Cache-Control': 'no-store' } });
-    const cache = viewerId ? 'private, max-age=5' : 'public, max-age=5, s-maxage=10';
-    return NextResponse.json(payload, { headers: { 'Cache-Control': cache } });
+    // Never `s-maxage` here: the payload carries a VIEWER block, and Vercel's edge honours s-maxage regardless of
+    // vercel.json — a cached anonymous copy was served to signed-in readers for 10 s (prod probe, Sep 16 2026).
+    return NextResponse.json(payload, { headers: { 'Cache-Control': 'private, max-age=5' } });
   } catch (error) {
     console.error('[api/sport-events/stats] GET error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });

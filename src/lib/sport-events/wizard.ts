@@ -239,7 +239,8 @@ export function wizardToCreateBody(s: WizardState, opts: { publish: boolean; pro
     ...(s.sport_key !== 'golf' ? { shape: s.shape } : {}),
     visibility: s.visibility,
     join_mode: s.join_mode,
-    format: s.format,
+    // `format` is golf vocabulary — the create parser refuses it on a team sport (probe, Sep 16).
+    ...(s.sport_key === 'golf' ? { format: s.format } : {}),
     capacity: s.capacity.trim() === '' ? null : Number(s.capacity),
     club_id: s.org?.kind === 'club' ? s.org.id : null,
     league_id: s.org?.kind === 'league' ? s.org.id : null,
