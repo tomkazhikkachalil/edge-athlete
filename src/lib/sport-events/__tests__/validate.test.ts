@@ -30,9 +30,12 @@ describe('parseRoundInput', () => {
 });
 
 describe('parseCreateBody', () => {
-  it('fills the defaults: private, invite, gross, golf, host plays, draft', () => {
+  it('fills the defaults: PUBLIC and open to join (phase 4), gross, golf, host plays, draft', () => {
     const r = parseCreateBody(create());
-    expect(r).toMatchObject({ ok: true, value: { name: 'Spring Open', visibility: 'private', join_mode: 'invite', format: 'stroke_gross', sport_key: 'golf', host_plays: true, publish: false, capacity: null, club_id: null, league_id: null, profile_id: null } });
+    expect(r).toMatchObject({ ok: true, value: { name: 'Spring Open', visibility: 'public', join_mode: 'open', format: 'stroke_gross', sport_key: 'golf', host_plays: true, publish: false, capacity: null, club_id: null, league_id: null, profile_id: null } });
+    // A non-public visibility implies invite-only unless the caller says otherwise; 'open' is a legal value.
+    expect(parseCreateBody({ name: 'Cup', visibility: 'private', round: { scheduled_on: '2030-06-01', course_name: 'Links' } })).toMatchObject({ ok: true, value: { visibility: 'private', join_mode: 'invite' } });
+    expect(parseCreateBody({ name: 'Cup', visibility: 'private', join_mode: 'open', round: { scheduled_on: '2030-06-01', course_name: 'Links' } })).toMatchObject({ ok: true, value: { join_mode: 'open' } });
   });
   it('names the field it refuses; never clamps', () => {
     expect(parseCreateBody(create({ name: '   ' }))).toMatchObject({ ok: false, error: 'name is required' });

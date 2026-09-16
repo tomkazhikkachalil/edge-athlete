@@ -31,7 +31,7 @@ export default function EventAnnounceCard({ event }: { event: PostSportEvent }) 
       <p className="text-base font-bold text-primary">{event.name}</p>
       <p className="text-sm text-secondary">{formatDateOnly(event.scheduled_on, { weekday: true })} · {event.course_name} · {holesLabel(event.holes, event.starting_hole)}</p>
       {isMatchFormat(event.format) && <p className="text-xs text-secondary" data-event-announce-format="">{formatLabel(event.format, event.match)}</p>}
-      {!over && <p className="text-xs text-muted mt-1">{event.join_mode === 'request' && event.status === 'open' ? 'Open to requests — ask to join' : joinLine(event.join_mode as 'invite' | 'request')}</p>}
+      {!over && <p className="text-xs text-muted mt-1">{event.status === 'open' && event.join_mode === 'open' ? 'Open to everyone — join with one tap' : event.join_mode === 'request' && event.status === 'open' ? 'Open to requests — ask to join' : joinLine(event.join_mode as 'invite' | 'request' | 'open')}</p>}
       <span className="mt-3 inline-flex items-center min-h-[36px] text-sm font-semibold text-brand-fg">{live ? (isMatchFormat(event.format) ? 'Follow the matches →' : 'Follow the leaderboard →') : over ? 'See the results →' : 'See the event →'}</span>
     </Link>
   );

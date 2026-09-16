@@ -16,6 +16,11 @@ import {
 
 export type Parsed<T> = { ok: true; value: T } | { ok: false; error: string };
 
+/** Phase 4: the joining a visibility implies when the caller says nothing — open for a public event, invite-only otherwise. */
+export function defaultJoinMode(visibility: SportEventVisibility): SportEventJoinMode {
+  return visibility === 'public' ? 'open' : 'invite';
+}
+
 export const ROUND_NAME_MAX = 40;
 
 export interface RoundInput {
@@ -160,9 +165,10 @@ export function parseCreateBody(body: unknown): Parsed<CreateEventInput> {
   if (!description.ok) return description;
   const sport = oneOf(body.sport_key, SPORT_EVENT_SPORTS, 'sport_key', 'golf');
   if (!sport.ok) return sport;
-  const visibility = oneOf(body.visibility, SPORT_EVENT_VISIBILITIES, 'visibility', 'private');
+  // Phase 4 (214): a NEW event defaults to PUBLIC and open to join (Tom: joining is fully open unless the organizer closes it).
+  const visibility = oneOf(body.visibility, SPORT_EVENT_VISIBILITIES, 'visibility', 'public');
   if (!visibility.ok) return visibility;
-  const joinMode = oneOf(body.join_mode, SPORT_EVENT_JOIN_MODES, 'join_mode', 'invite');
+  const joinMode = oneOf(body.join_mode, SPORT_EVENT_JOIN_MODES, 'join_mode', defaultJoinMode(visibility.value));
   if (!joinMode.ok) return joinMode;
   const format = oneOf(body.format, SPORT_EVENT_FORMATS, 'format', 'stroke_gross');
   if (!format.ok) return format;

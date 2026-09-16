@@ -42,6 +42,7 @@ export function eventApi(eventId: string, token: string | null) {
     participantAction: (pid: string, action: string) => call<{ participant: unknown }>(`${base}/participants/${pid}`, { method: 'POST', body: JSON.stringify({ action }) }),
     participantPatch: (pid: string, patch: Record<string, unknown>) => call<{ participant: unknown }>(`${base}/participants/${pid}`, { method: 'PATCH', body: JSON.stringify(patch) }),
     request: () => call<{ participant: unknown }>(`${base}/participants/request${q(token)}`, { method: 'POST', body: '{}' }),
+    join: () => call<{ participant: unknown }>(`${base}/participants/join${q(token)}`, { method: 'POST', body: '{}' }),
     follow: () => call<{ following: boolean }>(`${base}/follow${q(token)}`, { method: 'POST', body: '{}' }),
     unfollow: () => call<{ following: boolean }>(`${base}/follow${q(token)}`, { method: 'DELETE' }),
     inviteHandles: (handles: string[]) => call<{ invited: string[]; skipped: Record<string, number> }>(`${base}/participants`, { method: 'POST', body: JSON.stringify({ handles }) }),

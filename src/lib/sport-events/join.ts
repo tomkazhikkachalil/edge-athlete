@@ -16,6 +16,11 @@
  *   * Followers never take a seat and never count.
  *   * A late accept while live is allowed (the server adds them to the
  *     round); a request while live is not.
+ *   * Phase 4 (214): `join_mode = 'open'` opens the JOIN door — any signed-in
+ *     person seats themselves with one tap while the event is open (a live
+ *     event offers Follow: the roster is minted at go-live); a follower row
+ *     converts; a removed row stays out; capacity waitlists as ever. Blocks
+ *     are the route's business (a 409 that never says who blocked whom).
  *   * Phase 2 (waitlist polish): an organizer may PROMOTE a waitlisted
  *     player now — the field goes one over the capacity by the organizer's
  *     choice (later accepts still waitlist); positions are RE-PACKED
@@ -27,7 +32,7 @@
  */
 import type { SportEventJoinMode, SportEventParticipantStatus, SportEventRole, SportEventStatus } from './types';
 
-export type JoinAction = 'invite' | 'request' | 'accept' | 'decline' | 'approve' | 'reject' | 'remove' | 'withdraw' | 'follow' | 'unfollow' | 'promote';
+export type JoinAction = 'invite' | 'request' | 'join' | 'accept' | 'decline' | 'approve' | 'reject' | 'remove' | 'withdraw' | 'follow' | 'unfollow' | 'promote';
 
 export interface ParticipantSnapshot {
   id: string;
@@ -109,6 +114,16 @@ export function planJoin(action: JoinAction, ctx: JoinContext): JoinPlan {
       if (row && row.status === 'invited') return planJoin('accept', ctx);
       if (row && row.status === 'removed') return { ok: false, status: 403, error: 'You were removed from this event.' };
       return { ok: true, create: !row, next: { role: 'participant', status: 'requested', playing: true, waitlistPosition: null, responded: true }, promote: [] };
+    }
+    case 'join': {
+      if (event.status !== 'open') return { ok: false, status: 409, error: event.status === 'live' ? 'The event is live — follow it, or ask the organizer to add you.' : 'The event is not open to join.' };
+      if (event.joinMode !== 'open') return { ok: false, status: 403, error: event.joinMode === 'request' ? 'This event takes requests — ask to join.' : 'This event is invite-only.' };
+      if (row && (row.status === 'accepted' || row.status === 'waitlisted') && row.role !== 'follower') return { ok: false, status: 409, error: 'You are already in.' };
+      if (row && row.status === 'invited') return planJoin('accept', ctx);
+      if (row && row.status === 'requested') return { ok: false, status: 409, error: 'Already requested.' };
+      if (row && row.status === 'removed') return { ok: false, status: 403, error: 'You were removed from this event.' };
+      const seat = seatOrWaitlist(ctx, others);
+      return { ok: true, create: !row, next: { role: 'participant', playing: true, ...seat, accepted: seat.status === 'accepted', responded: true }, promote: [] };
     }
     case 'accept': {
       if (!row || row.status !== 'invited') return { ok: false, status: 409, error: 'No invitation to accept.' };

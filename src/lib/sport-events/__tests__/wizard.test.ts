@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { addWizardRound, emptyRoundDraft, emptyWizardState, isWizardDirty, removeWizardRound, updateWizardRound, validateWizardRounds, validateWizardStep, wizardCourseFrom, wizardToCreateBody, type RoundDraft, type WizardState } from '../wizard';
+import { addWizardRound, emptyRoundDraft, emptyWizardState, isWizardDirty, removeWizardRound, updateWizardRound, validateWizardRounds, validateWizardStep, withVisibility, wizardCourseFrom, wizardToCreateBody, type RoundDraft, type WizardState } from '../wizard';
 
 const round1: RoundDraft = { scheduled_on: '2030-06-01', name: '', course: { id: null, name: 'Eagle Creek', tees: [], holesCount: null }, tee: '', holes: 9, starting_hole: 10 };
 const filled = (): WizardState => ({ ...emptyWizardState(), name: 'Spring Open', rounds: [round1], format: 'stroke_net', capacity: '8' });
@@ -20,6 +20,13 @@ describe('the wizard rules', () => {
     expect(validateWizardStep('format', { ...filled(), format: 'match_gross', org: { kind: 'club', id: 'c1' }, competition: 'k1' })).toContain('match-play');
     expect(validateWizardStep('format', { ...filled(), format: 'match_net', match: { sides: 'singles', bracket: true } })).toContain('at least two rounds');
     expect(validateWizardStep('format', { ...filled(), format: 'match_net', match: { sides: 'fourball', bracket: true }, rounds: [round1, { ...round1, scheduled_on: '2030-06-02' }] })).toBeNull();
+  });
+  it('phase 4: the wizard starts public + open; a visibility pick re-seats joining unless joining was touched', () => {
+    expect(emptyWizardState()).toMatchObject({ visibility: 'public', join_mode: 'open' });
+    expect(withVisibility(emptyWizardState(), 'private', false).join_mode).toBe('invite');
+    expect(withVisibility(emptyWizardState(), 'link', false).join_mode).toBe('invite');
+    expect(withVisibility({ ...emptyWizardState(), join_mode: 'request' }, 'private', true).join_mode).toBe('request');
+    expect(withVisibility(withVisibility(emptyWizardState(), 'private', false), 'public', false).join_mode).toBe('open');
   });
   it('dirty means anything typed or picked', () => {
     expect(isWizardDirty(emptyWizardState())).toBe(false);
@@ -50,7 +57,7 @@ describe('the wizard rules', () => {
   });
   it('the body is the create route\'s shape; a nine keeps its start, an eighteen starts on 1; blanks become null', () => {
     expect(wizardToCreateBody(filled(), { publish: true, profileId: null })).toEqual({
-      name: 'Spring Open', description: null, sport_key: 'golf', visibility: 'private', join_mode: 'invite', format: 'stroke_net', capacity: 8, club_id: null, league_id: null, competition_id: null, host_plays: true, publish: true, profile_id: null,
+      name: 'Spring Open', description: null, sport_key: 'golf', visibility: 'public', join_mode: 'open', format: 'stroke_net', capacity: 8, club_id: null, league_id: null, competition_id: null, host_plays: true, publish: true, profile_id: null,
       round: { scheduled_on: '2030-06-01', name: null, course_id: null, course_name: 'Eagle Creek', tee: null, holes: 9, starting_hole: 10 },
     });
     const body = wizardToCreateBody({ ...filled(), rounds: [{ ...round1, holes: 18, tee: ' Blue ' }], org: { kind: 'club', id: 'c1' } }, { publish: false, profileId: 'child' });

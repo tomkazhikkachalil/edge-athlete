@@ -147,6 +147,7 @@ export default function EventPlace({ eventId, initialView, token }: Props) {
     onAccept: () => { if (pid) run(() => api.participantAction(pid, 'accept'), "You're in."); },
     onDecline: () => { if (pid) run(() => api.participantAction(pid, 'decline')); },
     onRequest: () => run(() => api.request(), 'Request sent.'),
+    onJoin: () => run(() => api.join(), "You're in."),
     onCancelRequest: () => { if (pid) run(() => api.participantAction(pid, 'decline')); },
     onWithdraw: () => setConfirm({ title: 'Leave this event?', message: 'Your spot goes to the next player on the waitlist.', confirmText: 'Leave', danger: true, run: async () => { if (pid) await run(() => api.participantAction(pid, 'withdraw')); } }),
     onFollow: () => run(() => api.follow()),

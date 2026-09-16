@@ -104,7 +104,7 @@ export async function openEventSession(): Promise<EventSession> {
 export interface CreateEventOptions {
   name: string;
   visibility?: 'public' | 'link' | 'private';
-  join_mode?: 'invite' | 'request';
+  join_mode?: 'invite' | 'request' | 'open';
   format?: 'stroke_gross' | 'stroke_net' | 'match_gross' | 'match_net';
   /** Phase 3: the match shape at creation. */
   format_config?: { match?: { sides: 'singles' | 'fourball' | 'foursomes'; bracket?: boolean; allowance?: number } | null; cut?: { after_round: number; top_n?: number; to_par?: number } | null };
