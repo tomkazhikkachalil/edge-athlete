@@ -14,7 +14,7 @@ import type { RoundInput } from './validate';
 type Admin = SupabaseClient<any, 'public', any>;
 
 export const ROUND_COLUMNS =
-  'id, sport_event_id, sequence, scheduled_on, course_id, course_name, tee, holes, starting_hole, course_rating, slope_rating, hole_data, status, name, created_at, updated_at';
+  'id, sport_event_id, sequence, scheduled_on, course_id, course_name, tee, holes, starting_hole, course_rating, slope_rating, hole_data, status, name, starts_at, side1_score, side2_score, period, score_version, created_at, updated_at';
 
 export interface RoundSnapshot {
   scheduled_on: string;
@@ -28,6 +28,8 @@ export interface RoundSnapshot {
   course_rating: number | null;
   slope_rating: number | null;
   hole_data: SportEventHoleDatum[] | null;
+  /** Phase 4 (215): the start (a team round's clock; optional on golf). */
+  starts_at: string | null;
 }
 
 /** Resolve a round input against the catalog. Null = the picked course does not exist. */
@@ -44,6 +46,7 @@ export async function snapshotRound(admin: Admin, input: RoundInput): Promise<Ro
       course_rating: null,
       slope_rating: null,
       hole_data: null,
+      starts_at: input.starts_at ?? null,
     };
   }
   const { data: course, error } = await admin
@@ -68,6 +71,7 @@ export async function snapshotRound(admin: Admin, input: RoundInput): Promise<Ro
     course_rating: rating.course_rating,
     slope_rating: rating.slope_rating,
     hole_data: buildRoundHoleData({ hole_data: (course.hole_data as CatalogHole[] | null) ?? null }, input.holes, input.starting_hole, input.tee),
+    starts_at: input.starts_at ?? null,
   };
 }
 

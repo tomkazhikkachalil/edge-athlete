@@ -52,6 +52,23 @@ export function emptyRoundDraft(): RoundDraft {
 
 export const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
 
+/** A team round's start: the organizer's date + HH:MM on THEIR clock → ISO (null when blank / malformed). */
+export function localStartIso(dateOnly: string, time: string): string | null {
+  const t = time.trim();
+  if (!TIME_RE.test(t) || !isDateOnly(dateOnly)) return null;
+  const d = new Date(`${dateOnly}T${t}:00`);
+  return Number.isFinite(d.getTime()) ? d.toISOString() : null;
+}
+
+/** The inverse for the edit window: an ISO start → HH:MM on this clock ('' when none). */
+export function localTimeOf(iso: string | null | undefined): string {
+  if (!iso) return '';
+  const t = Date.parse(iso);
+  if (!Number.isFinite(t)) return '';
+  const d = new Date(t);
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+}
+
 /** A stored round → a draft for the edit window (the catalog's tees are not on the row: the tee stays free text). */
 export function roundDraftFrom(round: { scheduled_on: string; name?: string | null; course_id: string | null; course_name: string; tee: string | null; holes: number; starting_hole: number; starts_at?: string | null }): RoundDraft {
   return {
@@ -62,7 +79,7 @@ export function roundDraftFrom(round: { scheduled_on: string; name?: string | nu
     holes: round.holes === 9 ? 9 : 18,
     starting_hole: round.holes === 9 && round.starting_hole === 10 ? 10 : 1,
     place: round.course_name,
-    starts_at: round.starts_at ?? '',
+    starts_at: localTimeOf(round.starts_at),
   };
 }
 
@@ -82,7 +99,7 @@ export function validateRoundDraft(d: RoundDraft, sport: SportEventSport = 'golf
 /** The round body the routes take (parseRoundInput's shape). A team round sends the place as `course_name` and its start time; no course, no holes. */
 export function roundBodyFrom(d: RoundDraft, sport: SportEventSport = 'golf') {
   if (sport !== 'golf') {
-    return { scheduled_on: d.scheduled_on, name: d.name.trim() || null, course_name: d.place.trim(), starts_at: d.starts_at.trim() || null };
+    return { scheduled_on: d.scheduled_on, name: d.name.trim() || null, course_name: d.place.trim(), starts_at: localStartIso(d.scheduled_on, d.starts_at) };
   }
   return {
     scheduled_on: d.scheduled_on,

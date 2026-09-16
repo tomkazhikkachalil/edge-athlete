@@ -78,6 +78,10 @@ export function eventApi(eventId: string, token: string | null) {
     },
     concede: (matchId: string, body: { hole: number | null; side: 1 | 2; version: number }) => call<{ match: import('./match-view').MatchView }>(`${base}/matches/${matchId}/concede`, { method: 'POST', body: JSON.stringify(body) }),
     extraHole: (matchId: string, body: { n: number; hole_number?: number; strokes: Record<string, number | null>; version: number }) => call<{ match: import('./match-view').MatchView }>(`${base}/matches/${matchId}/extra-hole`, { method: 'POST', body: JSON.stringify(body) }),
+    // Phase 4: a team round's stats (polled), the whole-line CAS write and the game score's CAS write.
+    roundStats: (roundId: string) => call<import('./stats-server').RoundStatsPayload>(`${base}/rounds/${roundId}/stats${q(token)}`),
+    putStatLine: (roundId: string, lineId: string, body: { stats: Record<string, number>; expected_version: number }) => call<{ line: import('./stats-server').StatLineRow }>(`${base}/rounds/${roundId}/stats/${lineId}`, { method: 'PUT', body: JSON.stringify(body) }),
+    putScore: (roundId: string, body: { side1_score: number; side2_score: number; period?: number; expected_version: number }) => call<{ score: { side1_score: number; side2_score: number; period: number; version: number } }>(`${base}/rounds/${roundId}/score`, { method: 'PUT', body: JSON.stringify(body) }),
     decideMatch: (matchId: string, body: { winner_side: 1 | 2 | null; version: number }) => call<{ match: import('./match-view').MatchView }>(`${base}/matches/${matchId}/decide`, { method: 'POST', body: JSON.stringify(body) }),
   };
 }

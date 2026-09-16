@@ -64,7 +64,7 @@ export async function POST(request: NextRequest) {
     // Phase 3: the format options at creation (the match shape) — the same strict parser as the PATCH, against THIS body's format and rounds.
     let formatConfig: Record<string, unknown> | null = null;
     if (input.format_config !== undefined) {
-      const fc = parseFormatConfig(input.format_config, { roundCount: input.rounds.length, format: input.format });
+      const fc = parseFormatConfig(input.format_config, { roundCount: input.rounds.length, format: input.format, shape: input.shape });
       if (!fc.ok) return NextResponse.json({ error: fc.error }, { status: 400 });
       formatConfig = fc.value as Record<string, unknown>;
     }
@@ -92,6 +92,8 @@ export async function POST(request: NextRequest) {
         visibility: input.visibility,
         link_token: input.visibility === 'link' ? mintLinkToken() : null,
         format: input.format,
+        // Phase 4 (215): the shape — golf ⇔ round (the CHECK holds both ways).
+        shape: input.shape,
         // Always born a draft: `publish` goes through the open transition
         // below, which mints the announce post (one post per round).
         status: 'draft',

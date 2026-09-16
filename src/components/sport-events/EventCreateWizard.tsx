@@ -6,13 +6,14 @@ import ConfirmModal from '@/components/ConfirmModal';
 import { useDirtyClose } from '@/hooks/useDirtyClose';
 import { useAuth } from '@/lib/auth';
 import { COPY } from '@/lib/copy';
-import { SPORT_EVENT_SPORTS } from '@/lib/sport-events/types';
+import { SPORT_EVENT_SPORTS_ALL, type SportEventSport } from '@/lib/sport-events/types';
 import { formatDateOnly, formatLabel, holesLabel, joinLine, MATCH_SIDES_LABEL, roundsSummary, VISIBILITY_LABEL } from '@/lib/sport-events/format';
 import { isMatchFormat, MATCH_SIDES } from '@/lib/sport-events/types';
 import { MAX_ROUNDS } from '@/lib/sport-events/rounds';
-import { addWizardRound, emptyWizardState, isWizardDirty, removeWizardRound, updateWizardRound, validateWizardStep, wizardToCreateBody, WIZARD_STEP_LABEL, WIZARD_STEPS, type WizardState, type WizardStep , withVisibility} from '@/lib/sport-events/wizard';
+import { addWizardRound, emptyWizardState, isWizardDirty, removeWizardRound, updateWizardRound, validateWizardStep, wizardToCreateBody, WIZARD_STEP_LABEL, WIZARD_STEPS, type WizardState, type WizardStep , withVisibility, withSport } from '@/lib/sport-events/wizard';
 import { eligibleCompetition, type CompetitionForLink } from '@/lib/sport-events/contest-link';
 import RoundFields, { Choice } from './RoundFields';
+import GameFields from './GameFields';
 import { getEnabledSports } from '@/lib/sports/SportRegistry';
 import { RECORDING_MODE_LABEL } from '@/lib/sport-events/recording';
 
@@ -41,7 +42,10 @@ export default function EventCreateWizard() {
   const [error, setError] = useState<string | null>(null);
   const [orgs, setOrgs] = useState<ManagedOrg[]>([]);
   const submittingRef = useRef(false);
-  const sports = getEnabledSports().filter(sp => (SPORT_EVENT_SPORTS as readonly string[]).includes(sp.sport_key));
+  // Phase 4 (215): every event sport — golf, and the stat-line team sports.
+  const sports = getEnabledSports().filter(sp => (SPORT_EVENT_SPORTS_ALL as readonly string[]).includes(sp.sport_key));
+  const team = s.sport_key !== 'golf';
+  const sportName = sports.find(sp => sp.sport_key === s.sport_key)?.display_name ?? s.sport_key;
 
   const { requestClose, confirmOpen, confirmDiscard, cancelDiscard } = useDirtyClose(() => isWizardDirty(s), () => router.push('/feed'));
 
@@ -119,6 +123,22 @@ export default function EventCreateWizard() {
   };
 
   const orgLabel = s.org ? orgs.find(o => o.kind === s.org?.kind && o.id === s.org?.id)?.name ?? 'Organization' : null;
+  // Phase 4: a team event's review — the sport, the kind, the place and start, the sides; no golf rows.
+  const teamReviewRows: string[][] = [
+    ['Name', s.name.trim()],
+    ['Sport', sportName],
+    ['Kind', s.shape === 'game' ? 'A game' : 'A session'],
+    ...(s.rounds.length > 1
+      ? [['Rounds', roundsSummary(s.rounds.map((r, i) => ({ sequence: i + 1, scheduled_on: r.scheduled_on, status: 'scheduled' })))], ...s.rounds.map((r, i) => [`Round ${i + 1}`, `${formatDateOnly(r.scheduled_on)} · ${r.place.trim()}${r.starts_at.trim() ? ` · ${r.starts_at.trim()}` : ''}`])]
+      : [['Date', formatDateOnly(s.rounds[0].scheduled_on, { weekday: true })], ['Where', s.rounds[0].place.trim()], ...(s.rounds[0].starts_at.trim() ? [['Start', s.rounds[0].starts_at.trim()]] : [])]),
+    ...(s.shape === 'game' ? [['Sides', `${s.side_names[0].trim()} vs ${s.side_names[1].trim()}`]] : []),
+    ['Who can see it', VISIBILITY_LABEL[s.visibility]],
+    ['Joining', joinLine(s.join_mode)],
+    ['Field size', s.capacity.trim() ? `${s.capacity} players` : 'No limit'],
+    ...(orgLabel ? [['Hosted for', orgLabel]] : []),
+    ['Recording', RECORDING_MODE_LABEL[s.recording]],
+    ['You', s.host_plays ? 'Playing' : 'Organizing only'],
+  ];
 
   return (
     <div className="bg-surface rounded-xl shadow-sm border border-border p-4 sm:p-6 space-y-5" data-event-wizard={step}>
@@ -135,9 +155,18 @@ export default function EventCreateWizard() {
             <input value={s.name} onChange={e => set('name', e.target.value)} maxLength={120} className={INPUT} placeholder="Saturday Skins at Eagle Creek" data-event-wizard-name="" />
           </label>
           {sports.length > 1 && (
-            <div className="space-y-1">
+            <div className="space-y-1" data-wizard-sport="">
               <span className="text-sm font-medium text-secondary">Sport</span>
-              <div className="flex flex-wrap gap-2">{sports.map(sp => <span key={sp.sport_key} className="px-3 min-h-[36px] inline-flex items-center rounded-full border border-brand bg-brand-soft text-sm text-brand-fg">{sp.display_name}</span>)}</div>
+              <Choice name="Sport" value={s.sport_key} onChange={v => { setRefusal(null); setS(prev => withSport(prev, v)); }} options={sports.map(sp => ({ value: sp.sport_key as SportEventSport, label: sp.display_name }))} />
+            </div>
+          )}
+          {team && (
+            <div className="space-y-1" data-wizard-shape="">
+              <span className="text-sm font-medium text-secondary">What kind of event</span>
+              <Choice name="Kind" value={s.shape as 'game' | 'session'} onChange={v => set('shape', v)} options={[
+                { value: 'game', label: 'A game', hint: 'Two sides from the players who join, a live score and everyone\'s stats.' },
+                { value: 'session', label: 'A session', hint: 'One roster — a practice, a scrimmage, a pickup run — with everyone\'s stats.' },
+              ]} />
             </div>
           )}
           <label className="block space-y-1">
@@ -184,7 +213,7 @@ export default function EventCreateWizard() {
 
       {step === 'round' && (
         <div className="space-y-5">
-          <h2 className="text-h3 font-bold text-primary">{s.rounds.length > 1 ? 'The rounds' : 'The round'}</h2>
+          <h2 className="text-h3 font-bold text-primary">{s.rounds.length > 1 ? 'The rounds' : team ? (s.shape === 'game' ? 'The game' : 'The session') : 'The round'}</h2>
           {s.rounds.map((r, i) => (
             <section key={i} className={s.rounds.length > 1 ? 'bg-surface-muted rounded-lg p-4 space-y-4' : 'space-y-4'} data-wizard-round={i + 1}>
               {s.rounds.length > 1 && (
@@ -193,7 +222,9 @@ export default function EventCreateWizard() {
                   {i > 0 && <button type="button" onClick={() => { setRefusal(null); setS(prev => removeWizardRound(prev, i)); }} className="text-sm text-secondary hover:text-primary min-h-[44px] px-2" data-wizard-round-remove={i + 1}>Remove</button>}
                 </div>
               )}
-              <RoundFields value={r} onChange={patch => setS(prev => updateWizardRound(prev, i, patch))} idPrefix={`event-wizard-round-${i + 1}`} />
+              {team
+                ? <GameFields value={r} onChange={patch => setS(prev => updateWizardRound(prev, i, patch))} idPrefix={`event-wizard-round-${i + 1}`} />
+                : <RoundFields value={r} onChange={patch => setS(prev => updateWizardRound(prev, i, patch))} idPrefix={`event-wizard-round-${i + 1}`} />}
             </section>
           ))}
           {s.rounds.length < MAX_ROUNDS && (
@@ -205,7 +236,8 @@ export default function EventCreateWizard() {
 
       {step === 'format' && (
         <div className="space-y-4">
-          <h2 className="text-h3 font-bold text-primary">Format</h2>
+          <h2 className="text-h3 font-bold text-primary">{team ? 'Details' : 'Format'}</h2>
+          {!team && (<>
           <Choice name="Format" value={s.format} onChange={v => set('format', v)} options={[
             { value: 'stroke_gross', label: 'Stroke play · Gross', hint: 'Lowest total wins.' },
             { value: 'stroke_net', label: 'Stroke play · Net', hint: 'Each player\'s Edge Athlete index is frozen when they accept; you can set one by hand.' },
@@ -225,6 +257,17 @@ export default function EventCreateWizard() {
               </label>
               {s.match.bracket && s.rounds.length < 2 && <p className="text-xs text-muted">A bracket needs at least two rounds — go back and add them.</p>}
               <p className="text-xs text-muted">A halved match goes to sudden-death extra holes. Every match round posts to each player&apos;s profile and handicap as played.</p>
+            </div>
+          )}
+          </>)}
+          {team && s.shape === 'game' && (
+            <div className="space-y-2" data-wizard-sides="">
+              <span className="block text-sm font-medium text-secondary">The two sides</span>
+              <div className="grid grid-cols-2 gap-2">
+                <input value={s.side_names[0]} onChange={e => set('side_names', [e.target.value, s.side_names[1]])} maxLength={40} className={INPUT} aria-label="Side 1 name" data-wizard-side="1" />
+                <input value={s.side_names[1]} onChange={e => set('side_names', [s.side_names[0], e.target.value])} maxLength={40} className={INPUT} aria-label="Side 2 name" data-wizard-side="2" />
+              </div>
+              <span className="block text-xs text-muted">Players are sorted into the sides from the Groups tab once they&apos;ve joined — an organization&apos;s teams will pre-fill them later.</span>
             </div>
           )}
           <label className="block space-y-1">
@@ -251,7 +294,7 @@ export default function EventCreateWizard() {
         <div className="space-y-4">
           <h2 className="text-h3 font-bold text-primary">Review</h2>
           <dl className="bg-surface-muted rounded-lg px-4 py-1 text-sm">
-            {[
+            {(team ? teamReviewRows : [
               ['Name', s.name.trim()],
               ...(s.rounds.length > 1
                 ? [['Rounds', roundsSummary(s.rounds.map((r, i) => ({ sequence: i + 1, scheduled_on: r.scheduled_on, status: 'scheduled' })))], ...s.rounds.map((r, i) => [`Round ${i + 1}`, `${formatDateOnly(r.scheduled_on)} · ${r.course?.name ?? ''}${r.tee ? ` · ${r.tee} tees` : ''} · ${holesLabel(r.holes, r.holes === 9 ? r.starting_hole : 1)}`])]
@@ -268,7 +311,7 @@ export default function EventCreateWizard() {
               ...(s.competition ? [['Counts toward', competitions.find(c => c.id === s.competition)?.name ?? 'Competition']] : []),
               ['Recording', RECORDING_MODE_LABEL[s.recording]],
               ['You', s.host_plays ? 'Playing' : 'Organizing only'],
-            ].map(([k, v]) => (
+            ]).map(([k, v]) => (
               <div key={k} className="flex justify-between gap-4 py-2 border-b border-border-subtle last:border-b-0"><dt className="text-muted">{k}</dt><dd className="text-primary text-right">{v}</dd></div>
             ))}
           </dl>

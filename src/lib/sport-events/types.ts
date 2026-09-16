@@ -154,6 +154,12 @@ export interface SportEventRoundRow {
   status: SportEventRoundStatus;
   /** 207 — an optional label ("Saturday", "Final round"); optional until PR 8 reads the column. */
   name?: string | null;
+  /** 215 (phase 4) — a game's start; the live score ON the round; `score_version` is the score write's CAS. Optional until phase 4 PR 8 read them. */
+  starts_at?: string | null;
+  side1_score?: number | null;
+  side2_score?: number | null;
+  period?: number | null;
+  score_version?: number;
   created_at: string;
   updated_at: string;
 }

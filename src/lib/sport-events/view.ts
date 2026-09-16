@@ -7,9 +7,11 @@
  */
 import { publicDisplayName, publicHandle, type MaskableProfile } from '@/lib/orgs/public-names';
 import type { SportEventAccess } from './access';
-import { readFormatConfig, readMatchConfig } from './format-config';
+import { readFormatConfig, readGameConfig, readMatchConfig } from './format-config';
 import type { FormatConfig, MatchConfig } from './types';
 import type { SportEventGroupMemberRow, SportEventGroupRow, SportEventParticipantRow, SportEventRoundRow, SportEventRow } from './types';
+import { shapeOf } from './types';
+import type { GameConfig, SportEventShape } from './types';
 
 export type ProfileForView = MaskableProfile & { id: string; handle?: string | null; avatar_url?: string | null };
 
@@ -33,6 +35,10 @@ export interface EventView {
   match: (MatchConfig & { allowance: number }) | null;
   /** Phase 4 (214): players enter their own; false = a recorder / organizer enters for everyone. */
   self_entry: boolean;
+  /** Phase 4 (215): round (golf) | game | session. */
+  shape: SportEventShape;
+  /** Phase 4: a game's two sides (Home / Away by default); null off a game. */
+  game: GameConfig | null;
   status: SportEventRow['status'];
   capacity: number | null;
   starts_on: string | null;
@@ -95,9 +101,11 @@ export function projectEvent(row: SportEventRow, access: SportEventAccess): Even
     visibility: row.visibility,
     link_token: access.canManage ? row.link_token : null,
     format: row.format,
-    format_config: readFormatConfig(row.format_config, 8, row.format),
-    match: readMatchConfig(readFormatConfig(row.format_config, 8, row.format), row.format),
+    format_config: readFormatConfig(row.format_config, 8, row.format, shapeOf(row)),
+    match: readMatchConfig(readFormatConfig(row.format_config, 8, row.format, shapeOf(row)), row.format),
     self_entry: row.self_entry !== false,
+    shape: shapeOf(row),
+    game: readGameConfig(readFormatConfig(row.format_config, 8, row.format, shapeOf(row)), shapeOf(row)),
     status: row.status,
     capacity: row.capacity,
     starts_on: row.starts_on,

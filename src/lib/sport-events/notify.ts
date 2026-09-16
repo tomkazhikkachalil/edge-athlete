@@ -15,7 +15,7 @@
  */
 import { matchClosedLine, matchSetLine, matchSetRecipients, type DrawGroupForBells } from './match-bells';
 import type { RoundMatch } from './match-server';
-import { isMatchFormat } from './types';
+import { isMatchFormat, isStatShape } from './types';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { notifyGuardians } from '@/lib/guardian-notify';
 
@@ -31,7 +31,7 @@ export interface BellCopy {
   action_url: string;
 }
 
-export function eventPath(eventId: string, tab?: 'players' | 'leaderboard' | 'overview' | 'matches', roundId?: string | null): string {
+export function eventPath(eventId: string, tab?: 'players' | 'leaderboard' | 'overview' | 'matches' | 'stats', roundId?: string | null): string {
   if (!tab) return `/events/${eventId}`;
   return roundId ? `/events/${eventId}?tab=${tab}&round=${roundId}` : `/events/${eventId}?tab=${tab}`;
 }
@@ -45,15 +45,15 @@ export function matchBellCopy(kind: 'set' | 'won' | 'lost', ctx: { eventId: stri
 
 export function bellCopy(
   kind: 'invite' | 'request' | 'approved' | 'rejected' | 'promoted' | 'results' | 'live',
-  ctx: { eventId: string; eventName: string; actorName: string; matchPlay?: boolean; roundId?: string; roundLabel?: string | null },
+  ctx: { eventId: string; eventName: string; actorName: string; matchPlay?: boolean; roundId?: string; roundLabel?: string | null; teamShape?: boolean },
 ): BellCopy {
   switch (kind) {
     case 'live':
       return {
         type: 'sport_event_live',
         title: `Live now: ${ctx.eventName}${ctx.roundLabel ? ` · ${ctx.roundLabel}` : ''}`,
-        message: ctx.matchPlay ? 'Follow the matches as they happen.' : 'Follow the leaderboard as the scores come in.',
-        action_url: eventPath(ctx.eventId, ctx.matchPlay ? 'matches' : 'leaderboard', ctx.roundId ?? null),
+        message: ctx.teamShape ? 'Follow the score and the stats as they come in.' : ctx.matchPlay ? 'Follow the matches as they happen.' : 'Follow the leaderboard as the scores come in.',
+        action_url: eventPath(ctx.eventId, ctx.teamShape ? 'stats' : ctx.matchPlay ? 'matches' : 'leaderboard', ctx.roundId ?? null),
       };
     case 'invite':
       return { type: 'sport_event_invite', title: `${ctx.actorName} invited you to ${ctx.eventName}`, message: 'Accept to play, or decline.', action_url: eventPath(ctx.eventId, 'players') };
@@ -238,7 +238,7 @@ export async function notifyMatchClosed(admin: Admin, event: { id: string; name:
  * sport_event_round_id`), no actor. Best-effort; 23514-tolerant like every
  * sender (the type has been in the CHECK since 205).
  */
-export async function notifyLive(admin: Admin, event: { id: string; name: string; format?: string }, round: { id: string; sequence: number; name?: string | null }, roundCount: number): Promise<void> {
+export async function notifyLive(admin: Admin, event: { id: string; name: string; format?: string; shape?: string | null }, round: { id: string; sequence: number; name?: string | null }, roundCount: number): Promise<void> {
   try {
     const [{ data: rows }, { data: sent }] = await Promise.all([
       admin.from('sport_event_participants').select('profile_id').eq('sport_event_id', event.id).eq('status', 'accepted').eq('role', 'follower').limit(1000),
@@ -248,7 +248,7 @@ export async function notifyLive(admin: Admin, event: { id: string; name: string
     const recipients = ((rows ?? []) as Array<{ profile_id: string }>).map(r => r.profile_id).filter(id => !already.has(id));
     if (recipients.length === 0) return;
     const roundLabel = roundCount > 1 ? (round.name?.trim() || `Round ${round.sequence}`) : null;
-    const copy = bellCopy('live', { eventId: event.id, eventName: event.name, actorName: '', matchPlay: isMatchFormat(event.format), roundId: round.id, roundLabel });
+    const copy = bellCopy('live', { eventId: event.id, eventName: event.name, actorName: '', matchPlay: isMatchFormat(event.format), roundId: round.id, roundLabel, teamShape: isStatShape(event.shape) });
     const result = await insertBells(admin, recipients, null, copy, { sport_event_id: event.id, sport_event_round_id: round.id, sport_event_name: event.name });
     if (result.error?.code === '23514') console.warn('[sport-events notify] sport_event_live is not in the type CHECK');
   } catch (e) {

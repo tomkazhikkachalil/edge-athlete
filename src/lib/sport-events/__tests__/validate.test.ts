@@ -17,7 +17,7 @@ describe('isDateOnly — the date-only class', () => {
 
 describe('parseRoundInput', () => {
   it('needs a date and a course (id or name); defaults 18 from hole 1', () => {
-    expect(parseRoundInput({ scheduled_on: '2026-10-03', course_name: 'X' })).toEqual({ ok: true, value: { scheduled_on: '2026-10-03', name: null, course_id: null, course_name: 'X', tee: null, holes: 18, starting_hole: 1 } });
+    expect(parseRoundInput({ scheduled_on: '2026-10-03', course_name: 'X' })).toEqual({ ok: true, value: { scheduled_on: '2026-10-03', name: null, course_id: null, course_name: 'X', tee: null, starts_at: null, holes: 18, starting_hole: 1 } });
     expect(parseRoundInput({ scheduled_on: 'tomorrow', course_name: 'X' })).toMatchObject({ ok: false, error: expect.stringContaining('scheduled_on') });
     expect(parseRoundInput({ scheduled_on: '2026-10-03' })).toMatchObject({ ok: false, error: expect.stringContaining('course_name') });
     expect(parseRoundInput({ scheduled_on: '2026-10-03', course_id: 'nope' })).toMatchObject({ ok: false, error: expect.stringContaining('course_id') });
@@ -49,6 +49,23 @@ describe('parseCreateBody', () => {
     expect(parseCreateBody(create({}))).toMatchObject({ ok: true, value: { self_entry: true } });
     expect(parseCreateBody(create({ self_entry: false }))).toMatchObject({ ok: true, value: { self_entry: false } });
     expect(parseCreateBody(create({ self_entry: 'no' }))).toMatchObject({ ok: false });
+  });
+  it('phase 4 (215): the sport, the shape (golf ⇔ round), a team round is a place + a start — the golf fields refused by name', () => {
+    const rink = { scheduled_on: '2030-06-01', course_name: 'The Rink' };
+    expect(parseCreateBody(create({ sport_key: 'ice_hockey', round: rink }))).toMatchObject({ ok: true, value: { sport_key: 'ice_hockey', shape: 'game', format: 'stroke_gross', rounds: [{ course_name: 'The Rink', course_id: null, tee: null, holes: 18, starting_hole: 1, starts_at: null }] } });
+    expect(parseCreateBody(create({ sport_key: 'soccer', shape: 'session', round: rink }))).toMatchObject({ ok: true, value: { shape: 'session' } });
+    expect(parseCreateBody(create({}))).toMatchObject({ ok: true, value: { sport_key: 'golf', shape: 'round' } });
+    expect(parseCreateBody(create({ sport_key: 'ice_hockey', shape: 'round', round: rink }))).toMatchObject({ ok: false, error: expect.stringContaining('game or a session') });
+    expect(parseCreateBody(create({ shape: 'game' }))).toMatchObject({ ok: false, error: expect.stringContaining('golf event is a round') });
+    expect(parseCreateBody(create({ sport_key: 'soccer', format: 'stroke_net', round: rink }))).toMatchObject({ ok: false, error: expect.stringContaining('golf vocabulary') });
+    expect(parseCreateBody(create({ sport_key: 'track_field', round: rink }))).toMatchObject({ ok: false });
+    expect(parseCreateBody(create({ sport_key: 'ice_hockey', round: { ...rink, holes: 9 } }))).toMatchObject({ ok: false, error: 'round.holes is only for golf' });
+    expect(parseCreateBody({ name: 'X', sport_key: 'ice_hockey', rounds: [rink, { scheduled_on: '2030-06-02', course_name: 'Rink', course_id: '11111111-1111-4111-8111-111111111111' }] })).toMatchObject({ ok: false, error: 'rounds[1].course_id is only for golf' });
+    expect(parseRoundInput({ scheduled_on: '2030-06-01' }, 'round', { sport: 'soccer' })).toMatchObject({ ok: false, error: expect.stringContaining('place') });
+    expect(parseRoundInput({ ...rink, starts_at: '2030-06-01T19:30:00Z' }, 'round', { sport: 'soccer' })).toMatchObject({ ok: true, value: { starts_at: '2030-06-01T19:30:00.000Z' } });
+    expect(parseRoundInput({ ...rink, starts_at: 'noon' }, 'round', { sport: 'soccer' })).toMatchObject({ ok: false, error: expect.stringContaining('starts_at') });
+    // Golf keeps its shape and may carry a start too.
+    expect(parseRoundInput({ scheduled_on: '2030-06-01', course_name: 'Links', starts_at: '2030-06-01T08:00:00Z' })).toMatchObject({ ok: true, value: { holes: 18, starts_at: '2030-06-01T08:00:00.000Z' } });
     expect(parseCreateBody(null)).toMatchObject({ ok: false });
   });
   it('trims text and turns an empty description into null', () => {
