@@ -1,5 +1,38 @@
 # Development Log
 
+## September 16, 2026 — Events program, phase 4, PR 1: anonymous reading (zero DDL)
+
+Phase 4 (every sport live, open joining, recorders, media — plan
+`~/.claude/plans/let-s-start-phase-2-transient-fountain.md`) opens on the
+read side. Tom: a public event — its scores, participants, everything —
+is viewable WITHOUT an account; a private person's part in a public event
+is public, their profile is not.
+
+- `round-access.ts canViewSharedRound`: an anonymous viewer sees a PUBLIC
+  round (the SQL rule already admitted anon on the public branch; the app
+  copy refused every null viewer only because the route required a
+  session); private / participants_only stay a 404. The scorecard GET's
+  auth is OPTIONAL; a signed-out reader never sees a 401 that confirms a
+  round exists.
+- `/live/[groupPostId]`: no sign-in redirect up front — the fetch decides
+  (a 401/404 signed out → sign in with `?next=` back here); the scorer, the
+  group card and the modal mount only with a session (watch mode).
+- `joinControl` gains `signin` (a signed-out viewer of an event still open
+  to join / follow → "Log in to join" → `/?next=/events/[id]`, which the
+  login page already honours); an over event shows nothing. The old footer
+  copy is gone.
+- NEW `EventPlayerSheet` (the house bottom sheet): a name on the roster
+  opens the MASKED name, the avatar, the role, and this event's line (a
+  golf stroke round's board row: position, thru, to par, the total);
+  "View profile" ONLY when `handle` is non-null (`publicHandle` answers
+  null for a private profile) — a private profile is never reached from
+  the event.
+- e2e `sport-events-anon.spec.ts @mobile`: the scorecard GET answers a
+  stranger on a public round and 404s a private one; `/live/[gp]` renders
+  signed out; the players tab offers "Log in to join" (→ `?next=`); the
+  sheet shows "Edge B." with no profile link; a private round signed out
+  → the sign-in with a way back; signed in, A's sheet shows the line.
+
 ## September 16, 2026 — Events program, phase 3: COMPLETE and prod-proven
 
 After #790 the last phase 3 spec went green on prod on both engines: the

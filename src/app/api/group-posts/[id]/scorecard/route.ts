@@ -29,15 +29,17 @@ import { canViewSharedRound } from '@/lib/golf/round-access';
  * participants: []. Media visible, leaderboard empty, no error anywhere.
  * The gate mirrors the group_posts RLS rule exactly (creator OR public OR
  * participant) — see round-access.ts for the sync obligation with 063.
+ *
+ * Events phase 4: auth is OPTIONAL — a signed-out reader gets a PUBLIC round
+ * (the gate's anonymous branch); anything else stays the same 404 as
+ * not-found, never a 401 that confirms the round exists.
  */
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const { user, error: authError } = await getServerAuth(request);
-  if (authError || !user) {
-    return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
-  }
+  const { user } = await getServerAuth(request);
+  const viewerId = user?.id ?? null;
 
   try {
     const { id } = await params;
@@ -59,7 +61,7 @@ export async function GET(
     // confirm the round exists (same semantics as GET /api/posts).
     const participants = Array.isArray(data.participants) ? data.participants : [];
     const allowed = canViewSharedRound({
-      viewerId: user.id,
+      viewerId,
       creatorId: (data as { creator_id?: string }).creator_id ?? null,
       visibility: (data as { visibility?: string }).visibility ?? null,
       participantProfileIds: participants
@@ -80,7 +82,7 @@ export async function GET(
     // round belongs to a sport event — the live page mounts the group card
     // and links back to the event from it.
     const roundId = (data as { sport_event_round_id?: string | null }).sport_event_round_id ?? null;
-    const sport_event = roundId ? await readScorecardEventContext(getSupabaseAdmin(), roundId, user.id) : null;
+    const sport_event = roundId ? await readScorecardEventContext(getSupabaseAdmin(), roundId, viewerId) : null;
     return NextResponse.json({ scorecard: { ...scorecard, sport_event } });
   } catch (e) {
     console.error('Unexpected error in GET /api/group-posts/[id]/scorecard:', e);

@@ -38,8 +38,10 @@ describe('canViewSharedRound', () => {
     expect(canViewSharedRound({ viewerId: PLAYER, ...round('participants_only') })).toBe(true);
   });
 
-  it('anonymous viewer denied everything, including public', () => {
-    expect(canViewSharedRound({ viewerId: null, ...round('public') })).toBe(false);
+  it('anonymous viewer sees a public round only (Events phase 4) — private and participants_only stay denied', () => {
+    expect(canViewSharedRound({ viewerId: null, ...round('public') })).toBe(true);
+    expect(canViewSharedRound({ viewerId: null, ...round('private') })).toBe(false);
+    expect(canViewSharedRound({ viewerId: null, ...round('participants_only') })).toBe(false);
     expect(canViewSharedRound({ viewerId: null, ...round('private') })).toBe(false);
   });
 

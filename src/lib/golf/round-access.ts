@@ -8,6 +8,12 @@
 // enforcement there. If either layer's rule ever changes, change the other in
 // the same commit — they must stay identical or viewers will see different
 // data over REST vs realtime.
+//
+// Events phase 4 (Sep 2026): an ANONYMOUS viewer sees a PUBLIC round — the
+// SQL rule ("creator OR public OR participant") already admits anon on the
+// public branch; the app copy used to refuse every null viewer only because
+// the route required a session. A public event's live round is now a place
+// anyone can watch; a private / participants_only round stays a 404 to them.
 
 export interface SharedRoundAccessInput {
   viewerId: string | null;
@@ -29,7 +35,7 @@ export function canViewSharedRound({
   visibility,
   participantProfileIds,
 }: SharedRoundAccessInput): boolean {
-  if (!viewerId) return false;
+  if (!viewerId) return visibility === 'public';
   if (creatorId && viewerId === creatorId) return true;
   if (visibility === 'public') return true;
   return participantProfileIds.includes(viewerId);

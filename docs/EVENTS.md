@@ -552,6 +552,23 @@ matches 2k−1 and 2k of round n by group `sequence` (`bracket.ts`).
 | 11 | the feed + the docs close: the label carries the round's `name`, the event's `format` and `match`; the announce card prints "Match play · Singles · Gross" and the round's name; a COMPLETED match round's post leads with `EventMatchResultsCard` (one line per match, the winner first, "def.", the result — never the stroke totals; `feed-server.ts applyMatchResults` behind the existing round branch, one matches read per such round); CLAUDE.md convention 19; `docs/SESSION_PROMPT.md` |
 | 12 | the match bells (migration 213): `set` to every member of a complete match whose match changed with the save (`match-bells.ts matchSetRecipients`; `notifyMatchSet` from the groups PUT), `won` / `lost` to each member of a decided match at completion (`notifyMatchClosed`); the action URL → the round's Matches tab; 23514-tolerant |
 
+## Phase 4 — every sport live, open joining, recorders, media (Sep 16 2026, in progress)
+
+Plan: `~/.claude/plans/let-s-start-phase-2-transient-fountain.md` (track 1).
+Tom's decisions: every enabled sport (golf keeps its cards; the stat-line
+sports get LIVE per-player stats); a team event is a GAME (two ad-hoc
+sides from the joiners + a live score) or a SESSION (one roster), chosen at
+creation; the organizer picks the recording mode (named recorders —
+anyone, playing or not — and/or self-entry); joining FULLY OPEN unless
+closed — new events default public, viewable signed out, a participant's
+EVENT stats public even with a private profile (the masked name + their
+line, never the profile); live media by participants and spectators in a
+gallery on the event page.
+
+| PR | what |
+|---|---|
+| 1 | anonymous reading: `canViewSharedRound` admits a null viewer on a PUBLIC round; the scorecard GET's auth is optional; `/live/[gp]` watch mode signed out (a 401/404 → sign in with `?next=`); `joinControl` `signin` ("Log in to join"); `EventPlayerSheet` — the masked name, the role, this event's line; "View profile" only when the profile is public |
+
 ## Phase 3 status
 
 Complete (Sep 16 2026): the chain #775 → #786 (migrations 212 · 213) and

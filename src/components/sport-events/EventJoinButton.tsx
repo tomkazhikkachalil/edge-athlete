@@ -13,14 +13,18 @@ interface Props {
   onFollow: () => void;
   onUnfollow: () => void;
   onManage: () => void;
+  /** Phase 4: a signed-out viewer — sign in with a way back to this event. */
+  onSignIn?: () => void;
 }
 
 const PRIMARY = 'ea-cta text-white px-4 min-h-[44px] rounded-lg text-sm font-semibold inline-flex items-center justify-center disabled:opacity-60';
 const SECONDARY = 'ea-interactive border border-border-strong text-secondary px-4 min-h-[44px] rounded-lg text-sm font-semibold inline-flex items-center justify-center disabled:opacity-60';
 
 /** One control, every join state — the header's and the players tab's. */
-export default function EventJoinButton({ control, busy, onAccept, onDecline, onRequest, onCancelRequest, onWithdraw, onFollow, onUnfollow, onManage }: Props) {
+export default function EventJoinButton({ control, busy, onAccept, onDecline, onRequest, onCancelRequest, onWithdraw, onFollow, onUnfollow, onManage, onSignIn }: Props) {
   switch (control.kind) {
+    case 'signin':
+      return <button type="button" onClick={onSignIn} className={PRIMARY} data-event-join="signin">Log in to join</button>;
     case 'manage':
       return <button type="button" onClick={onManage} className={SECONDARY} data-event-join="manage">Manage players</button>;
     case 'respond':
