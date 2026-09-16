@@ -1,5 +1,18 @@
 # Development Log
 
+## September 16, 2026 — Events program, phase 3: the match bells reach an organizer who plays (the fix that missed main)
+
+The post-#787 probe showed the `lost` bell right and the `won` bell
+MISSING: the winner was the organizer who completed the round, and
+`insertBells` never bells the actor (right for an invite, wrong for a
+match bell — the member is the subject). The `set` and `won` / `lost`
+senders now insert with NO actor (the organizer's id rides the metadata
+as `set_by` / `completed_by`), so an organizer who plays gets theirs. The
+fix was first pushed onto #788 AFTER that PR had merged — orphaned on its
+branch, unnoticed until the next probe still showed A's bells carrying an
+actor — and lands here on its own. Process lesson: never push onto a PR
+after asking for its merge; open a new one.
+
 ## September 16, 2026 — Events program, phase 3: the match-bells spec reads the organizer-player's TWO bells
 
 After #788 the `won` bell reached the organizer who plays — and the spec's
