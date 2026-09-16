@@ -18,7 +18,9 @@ export async function GET(request: NextRequest) {
     const { user } = await getServerAuth(request);
     const viewerId = user?.id ?? null;
     const events = await readLiveEvents(getSupabaseAdmin(), viewerId);
-    const cache = viewerId ? 'private, max-age=10' : 'public, max-age=10, s-maxage=10';
+    // Never `s-maxage` here: the payload carries a VIEWER block, and Vercel's edge honours s-maxage regardless of
+    // vercel.json — a cached anonymous copy was served to signed-in readers for 10 s (prod probe, Sep 16 2026).
+    const cache = 'private, max-age=10';
     const countOnly = new URL(request.url).searchParams.get('count') === '1';
     return NextResponse.json(countOnly ? { count: events.length } : { events }, { headers: { 'Cache-Control': cache } });
   } catch (error) {

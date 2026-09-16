@@ -196,6 +196,7 @@ describe('the wizard — the sport, the shape, the side names, the team round', 
     expect(localStartIso('2030-01-01', '9:00')).toBeNull();
     expect(localTimeOf(null)).toBe('');
     expect((game as { round?: unknown }).round).not.toHaveProperty('holes');
+    expect(game).not.toHaveProperty('format'); // golf vocabulary — the route refuses it on a team sport
     const session = wizardToCreateBody({ ...hockey, shape: 'session', name: 'Practice', rounds: [draft] }, { publish: true, profileId: null });
     expect(session).not.toHaveProperty('format_config');
     expect(session.shape).toBe('session');

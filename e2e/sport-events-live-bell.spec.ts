@@ -51,8 +51,7 @@ test('the live bell to followers, once per round; Live Now lists a public live e
 
     // Completed → gone from the list.
     await completeRound(s.apiA, eventId, roundId, true);
-    const after = ((await (await s.anon.get('/api/sport-events/live-now')).json()) as { events: Array<{ id: string }> }).events;
-    expect(after.find(e => e.id === eventId)).toBeUndefined();
+    await expect.poll(async () => ((await (await s.anon.get('/api/sport-events/live-now')).json()) as { events: Array<{ id: string }> }).events.find(e => e.id === eventId), { timeout: 25_000 }).toBeUndefined();
   } finally {
     await cleanupEvent(s.apiA, eventId);
     await s.dispose();

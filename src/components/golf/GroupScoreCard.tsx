@@ -239,7 +239,7 @@ export default function GroupScoreCard({ scorecard, viewerId, holesPlayed, start
         <div className="shrink-0 border-t border-border bg-surface px-4 py-3 safe-bottom">
           <p className="text-xs text-muted">{match.state.status === 'completed' ? 'The match is decided.' : mine ? 'Tap a hole to score. A hole you cannot win is conceded from the match line.' : 'Match play — the sides score their own cards.'}</p>
         </div>
-      ) : mine ? (
+      ) : mine || recorder ? (
         <div className="shrink-0 border-t border-border bg-surface px-4 py-3 safe-bottom flex flex-wrap items-center justify-between gap-2">
           <p className="text-xs text-muted" data-gsc-footer={mine ? 'player' : 'recorder'}>{!mine ? 'Recording for this group — tap a hole to score.' : myStatus === 'submitted' ? 'Your card is submitted.' : myStatus === 'final' ? 'Your card is final.' : myComplete ? (myPending ? 'Saving your last holes…' : 'Your card is complete.') : 'Tap a hole to score.'}</p>
           {mine && myStatus === 'in_progress' && (
