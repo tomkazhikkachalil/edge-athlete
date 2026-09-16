@@ -1,5 +1,13 @@
 # Development Log
 
+## September 16, 2026 — Events program, phase 3: the match-bells spec reads the organizer-player's TWO bells
+
+After #788 the `won` bell reached the organizer who plays — and the spec's
+`maybeSingle` on A's bells answered null because A now has TWO
+(`set` on the draw, `won` at completion). The spec reads them in order and
+asserts both. Spec-only; the pairs spec passed on WebKit with its new
+timeout (60 s), the notifications action row on both engines.
+
 ## September 16, 2026 — Events program, phase 3: the pairs and bracket specs get the time prod needs
 
 The WebKit re-probe (one run at a time this time) passed the cut, the
