@@ -66,6 +66,7 @@ export function bellCopy(
     case 'promoted':
       return { type: 'sport_event_request_decision', title: `A spot opened up: ${ctx.eventName}`, message: "You're off the waitlist and in the field.", action_url: eventPath(ctx.eventId) };
     case 'results':
+      if (ctx.teamShape) return { type: 'sport_event_results', title: `Results are in for ${ctx.eventName}`, message: 'See the final score and the stats.', action_url: eventPath(ctx.eventId, 'stats') };
       return ctx.matchPlay
         ? { type: 'sport_event_results', title: `Results are in for ${ctx.eventName}`, message: 'See how every match ended.', action_url: eventPath(ctx.eventId, 'matches') }
         : { type: 'sport_event_results', title: `Results are in for ${ctx.eventName}`, message: 'See the final leaderboard.', action_url: eventPath(ctx.eventId, 'leaderboard') };
@@ -154,11 +155,11 @@ export async function notifyDecision(ctx: BellContext, recipientProfileId: strin
 }
 
 /** "Results are in" → every accepted participant (players and followers); the guardians of a supervised player get a copy. */
-export async function notifyResults(admin: Admin, event: { id: string; name: string; format?: string }, actorProfileId: string): Promise<void> {
+export async function notifyResults(admin: Admin, event: { id: string; name: string; format?: string; shape?: string | null }, actorProfileId: string): Promise<void> {
   try {
     const { data: rows } = await admin.from('sport_event_participants').select('profile_id, playing').eq('sport_event_id', event.id).eq('status', 'accepted');
     const all = (rows ?? []) as Array<{ profile_id: string; playing: boolean }>;
-    const copy = bellCopy('results', { eventId: event.id, eventName: event.name, actorName: '', matchPlay: isMatchFormat(event.format) });
+    const copy = bellCopy('results', { eventId: event.id, eventName: event.name, actorName: '', matchPlay: isMatchFormat(event.format), teamShape: isStatShape(event.shape) });
     const meta = { sport_event_id: event.id, sport_event_name: event.name };
     await insertBells(admin, all.map(r => r.profile_id), actorProfileId, copy, meta);
     const players = all.filter(r => r.playing).map(r => r.profile_id);

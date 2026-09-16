@@ -143,3 +143,72 @@ test('team events API: a hockey game — refusals, sides, the mint, self entry, 
     await s.dispose();
   }
 });
+
+/**
+ * PR 10 — completion mirrors the lines: B's stat-line POST (the existing
+ * `stat_line` shape, W 2-1 from the Reds' side) and its performance row
+ * (`post:<id>`, the metrics); the round's one post flips to the results
+ * (the score, the sides); the results bell opens the Stats tab; B's
+ * opt-out removes the post and the row, the opt back in restores them; an
+ * untouched line (C never scored) mirrors nothing.
+ */
+test('team events API: completion mirrors the lines, the results post, the bell, the opt-out', async () => {
+  test.setTimeout(150_000);
+  const s = await openEventSession();
+  const admin = adminClient();
+  const probe = await admin.from('sport_events').select('shape').limit(1);
+  test.skip(!!probe.error, 'sport_events.shape missing — run migration 215');
+  test.skip(!s.apiC || !s.userC, 'the four QA users are not minted — an older global setup');
+  const apiC = s.apiC!;
+  const userC = s.userC!;
+  let eventId: string | null = null;
+  const postsFor = async (lineId: string) => (await admin.from('posts').select('id, profile_id, visibility, stats_data').eq('stats_data->>sport_event_stat_line_id', lineId)).data ?? [];
+  try {
+    const view = await createEvent(s.apiA, { name: `QA Hockey Results ${s.stamp}`, sport_key: 'ice_hockey', shape: 'game', visibility: 'public', join_mode: 'open', publish: true, host_plays: false, format_config: { game: { side_names: ['Reds', 'Blues'] } }, round: { scheduled_on: '2030-06-01', course_name: 'QA Rink' } });
+    eventId = view.event.id;
+    const roundId = view.rounds[0].id;
+    for (const api of [s.apiB, apiC]) expect((await api.post(`/api/sport-events/${eventId}/participants/join`, { data: {} })).ok()).toBe(true);
+    let v = await readView(s.apiA, eventId);
+    const bId = v.participants.find(p => p.profile_id === s.userB.id)!.id;
+    const cId = v.participants.find(p => p.profile_id === userC.id)!.id;
+    const bRow = bId;
+    await setGroups(s.apiA, eventId, roundId, [{ name: 'The game', members: [{ participant_id: bId, side: 1 }, { participant_id: cId, side: 2 }] }]);
+    await goLive(s.apiA, eventId, '2030-06-01');
+    const statsUrl = `/api/sport-events/${eventId}/rounds/${roundId}/stats`;
+    const before = (await (await s.apiA.get(statsUrl)).json()) as StatsPayload;
+    const bLine = before.lines.find(l => l.profile_id === s.userB.id)!.id;
+    const cLine = before.lines.find(l => l.profile_id === userC.id)!.id;
+    expect((await s.apiB.put(`${statsUrl}/${bLine}`, { data: { stats: { goals: 2, assists: 1 }, expected_version: 0 } })).ok()).toBe(true);
+    expect((await s.apiA.put(`/api/sport-events/${eventId}/rounds/${roundId}/score`, { data: { side1_score: 2, side2_score: 1, period: 3, expected_version: 0 } })).ok()).toBe(true);
+
+    v = await roundTransition(s.apiA, eventId, roundId, 'completed');
+    expect(v.event.status).toBe('completed');
+
+    // B's mirrored post: the stat_line shape, W 2-1 vs Blues, public; the performance row over it.
+    const bPosts = await postsFor(bLine);
+    expect(bPosts).toHaveLength(1);
+    expect(bPosts[0]).toMatchObject({ profile_id: s.userB.id, visibility: 'public', stats_data: { type: 'stat_line', sport_key: 'ice_hockey', date: '2030-06-01', stats: { goals: 2, assists: 1 }, opponent: 'Blues', result: 'W', result_score: '2-1', sport_event_id: eventId, sport_event_round_id: roundId, sport_event_stat_line_id: bLine } });
+    const perf = await admin.from('athlete_performances').select('natural_key, profile_id, sport_key, occurred_on, metrics, provenance, context').eq('natural_key', `post:${bPosts[0].id as string}`).maybeSingle();
+    expect(perf.data).toMatchObject({ profile_id: s.userB.id, sport_key: 'ice_hockey', occurred_on: '2030-06-01', metrics: { goals: 2, assists: 1 }, provenance: 'self_reported', context: { result: 'W', sport_event_id: eventId, recorder: false } });
+    // C never scored: nothing mirrored.
+    expect(await postsFor(cLine)).toHaveLength(0);
+    // The round's one post: the results.
+    const roundPost = await admin.from('posts').select('stats_data').eq('sport_event_round_id', roundId).maybeSingle();
+    expect(roundPost.data?.stats_data).toMatchObject({ type: 'sport_event_results', shape: 'game', score: { side1_score: 2, side2_score: 1, period: 3 }, sides: [{ side: 1, name: 'Reds' }, { side: 2, name: 'Blues' }] });
+    // The results bell for B opens the Stats tab.
+    const bell = await admin.from('notifications').select('action_url, message').eq('user_id', s.userB.id).eq('type', 'sport_event_results').contains('metadata', { sport_event_id: eventId }).limit(1).maybeSingle();
+    expect(bell.data?.action_url).toContain('tab=stats');
+
+    // B's opt-out removes the post and the row; the opt back in restores them.
+    expect((await s.apiB.patch(`/api/sport-events/${eventId}/participants/${bRow}`, { data: { hide_from_profile: true } })).ok()).toBe(true);
+    await expect.poll(async () => (await postsFor(bLine)).length, { timeout: 20_000 }).toBe(0);
+    expect((await admin.from('athlete_performances').select('natural_key').eq('natural_key', `post:${bPosts[0].id as string}`)).data).toHaveLength(0);
+    expect((await s.apiB.patch(`/api/sport-events/${eventId}/participants/${bRow}`, { data: { hide_from_profile: false } })).ok()).toBe(true);
+    await expect.poll(async () => (await postsFor(bLine)).length, { timeout: 20_000 }).toBe(1);
+    const again = await postsFor(bLine);
+    expect((await admin.from('athlete_performances').select('natural_key').eq('natural_key', `post:${again[0].id as string}`)).data).toHaveLength(1);
+  } finally {
+    await cleanupEvent(s.apiA, eventId);
+    await s.dispose();
+  }
+});

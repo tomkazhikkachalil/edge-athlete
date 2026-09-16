@@ -43,6 +43,7 @@ import { fetchOverallLeaderboard } from './leaderboard-server';
 import { writeStartsOn } from './rounds-server';
 import { isMatchFormat, isStatShape, shapeOf, type SportEventParticipantRow, type SportEventRoundRow, type SportEventRoundStatus, type SportEventRow, type SportEventShape, type SportEventStatus } from './types';
 import { mintStatRound, syncStatLineForPlayer } from './stats-server';
+import { mirrorStatRound } from './stat-results-server';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Admin = SupabaseClient<any, 'public', any>;
@@ -337,6 +338,9 @@ export async function applyRoundTransition(admin: Admin, req: RoundTransitionReq
         await closeMatchesOnCompletion(admin, matches, now);
         await notifyMatchClosed(admin, event, round.id, matches, req.actorProfileId); // 213; best-effort, 23514-tolerant
       } else await syncSportEventContest(admin, event, round, req.actorProfileId);
+    } else if (isStatShape(shape)) {
+      // Phase 4: a stat round's results — one stat-line post + performance row per fielded player, the round's post flips to the results. Idempotent, best-effort, awaited.
+      await mirrorStatRound(admin, event, round);
     }
   }
 
