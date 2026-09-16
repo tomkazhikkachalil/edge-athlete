@@ -6,6 +6,8 @@ import { useAuth } from '@/lib/auth';
 import LazyImage from './LazyImage';
 import { formatDisplayName, getInitials } from '@/lib/formatters';
 import { liveRoundPath } from '@/lib/golf/round-route';
+import type { LiveEventCard } from '@/lib/sport-events/live-now';
+import { SPORT_REGISTRY, type SportKey } from '@/lib/sports/SportRegistry';
 
 interface LivePlayer {
   profile_id: string;
@@ -47,6 +49,7 @@ export default function LiveNowStrip({ variant = 'strip', showEmptyState = false
   const router = useRouter();
   const { user } = useAuth();
   const [rounds, setRounds] = useState<LiveRound[]>([]);
+  const [events, setEvents] = useState<LiveEventCard[]>([]);
 
   // Inlined cancellable IIFE. The 60s poll calls the SAME effect-local
   // closure, so the cancelled flag also stops a late poll response landing
@@ -54,9 +57,14 @@ export default function LiveNowStrip({ variant = 'strip', showEmptyState = false
   // guests, and the endpoint is authenticated — polling it anonymously is a
   // guaranteed 401 every minute.
   useEffect(() => {
-    if (!user) return;
     let cancelled = false;
     const run = async () => {
+      // Phase 4: live EVENTS answer signed out too (a public event is a place anyone can watch).
+      try {
+        const res = await fetch('/api/sport-events/live-now', { credentials: 'include' });
+        if (res.ok) { const data = await res.json(); if (!cancelled) setEvents(data.events || []); }
+      } catch { /* a nicety */ }
+      if (!user) return;
       try {
         const res = await fetch('/api/golf/live-now', { credentials: 'include' });
         if (!res.ok) return;
@@ -72,7 +80,7 @@ export default function LiveNowStrip({ variant = 'strip', showEmptyState = false
     };
   }, [user]);
 
-  if (rounds.length === 0) {
+  if (rounds.length === 0 && events.length === 0) {
     if (!showEmptyState) return null;
     return (
       <div className="bg-surface rounded-lg border-2 border-border p-8 text-center">
@@ -92,6 +100,31 @@ export default function LiveNowStrip({ variant = 'strip', showEmptyState = false
   // works even when post_id is null.
   const open = (groupPostId: string) => {
     router.push(liveRoundPath(groupPostId));
+  };
+
+  // Phase 4: a live EVENT (any sport) — its name, the sport, the round's place, the field — one door to its board or matches.
+  const eventCard = (e: LiveEventCard) => {
+    const sport = (SPORT_REGISTRY as Partial<Record<string, { display_name: string; icon_id: string }>>)[e.sport_key as SportKey];
+    return (
+      <button
+        key={`event:${e.id}`}
+        onClick={() => router.push(e.href)}
+        className={`text-left bg-surface border-2 border-red-200 dark:border-red-800 hover:border-red-400 rounded-lg p-3 transition-all hover:shadow-md ${variant === 'strip' ? 'min-w-[220px] flex-shrink-0' : 'w-full'}`}
+        data-live-event-card={e.id}
+      >
+        <div className="flex items-center gap-2 mb-2">
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-red-600 text-white text-[10px] font-bold rounded-full">
+            <span className="w-1.5 h-1.5 bg-white rounded-full animate-pulse"></span>
+            LIVE
+          </span>
+          <span className="text-sm font-bold text-primary truncate">{e.name}</span>
+        </div>
+        <div className="text-xs text-tertiary min-w-0 truncate">
+          <i className={`${sport?.icon_id ?? 'fas fa-flag-checkered'} mr-1`} aria-hidden="true"></i>
+          {sport?.display_name ?? e.sport_key} · {e.round.round_count > 1 ? `${e.round.name ?? `Round ${e.round.sequence}`} · ` : ''}{e.round.course_name} · {e.playing} playing
+        </div>
+      </button>
+    );
   };
 
   const card = (round: LiveRound) => {
@@ -164,6 +197,7 @@ export default function LiveNowStrip({ variant = 'strip', showEmptyState = false
             : 'grid gap-3 sm:grid-cols-2'
         }
       >
+        {events.map(eventCard)}
         {rounds.map(card)}
       </div>
 

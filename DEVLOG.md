@@ -1,5 +1,27 @@
 # Development Log
 
+## September 16, 2026 — Events program, phase 4, PR 2: the live bell and Live Now for events (zero DDL)
+
+- **`sport_event_live` is finally sent** (registered and unsent since 205):
+  `notifyLive` from the round's `live` transition to every accepted
+  FOLLOWER (players are playing; the results bell reaches everyone), once
+  per round (query-before-insert on `metadata.sport_event_round_id`, the
+  reminder's pattern), no actor (the 213 lesson); the copy names the event
+  (and the round on a tournament) and lands on the live board — the
+  matches on match play.
+- **Live Now for events**: `GET /api/sport-events/live-now` — the live
+  events (any sport) a viewer may open: public ones for ANYONE, signed out
+  included, plus the viewer's own; `?count=1` is the lean count. Pure
+  `live-now.ts liveEventCards` (the live round, the field, one door);
+  `live-now-server.ts` reads lean. `LiveNowStrip` fetches it beside the
+  golf rounds (signed out too — the golf list stays gated) and draws an
+  event card (the sport's icon and name, the round's place, the field);
+  `useLiveNow` merges the two lean counts for the header / tab-bar dot.
+- e2e `sport-events-live-bell.spec.ts`: C follows (when the four QA users
+  are minted), the round starts → C's ONE bell on the board, B (playing)
+  none, a refused second start bells none; the live-now route lists the
+  event for a stranger with its door and counts it; completed → gone.
+
 ## September 16, 2026 — Events program, phase 4, PR 1: anonymous reading (zero DDL)
 
 Phase 4 (every sport live, open joining, recorders, media — plan

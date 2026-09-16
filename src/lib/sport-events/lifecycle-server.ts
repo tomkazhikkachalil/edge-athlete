@@ -32,7 +32,7 @@ import { EVENT_COLUMNS, PARTICIPANT_COLUMNS } from './access-server';
 import { canTransition, eventStatusAfterRound, nextStartableRound, ROUND_REFUSAL_COPY, transitionStamp, TRANSITION_REFUSAL_COPY, validateRoundTransition, validateTransition, type RoundTransitionFacts, type RoundTransitionRefusal, type TransitionFacts, type TransitionRefusal } from './lifecycle';
 import { announcePostRow, groupPostRow, participantRows, scorecardRow } from './mint';
 import { activeRounds, buildMintPlan, type MintGroup, type MintPlayer } from './rounds';
-import { notifyMatchClosed, notifyResults } from './notify';
+import { notifyLive, notifyMatchClosed, notifyResults } from './notify';
 import { syncContestStatus, syncSportEventContest } from './contest-sync-server';
 import { ROUND_COLUMNS } from './rounds-server';
 import { cutDecided } from './cut';
@@ -328,7 +328,10 @@ export async function applyRoundTransition(admin: Admin, req: RoundTransitionReq
     if (error) console.error('[sport-events] announce post delete on round cancel failed:', error);
     await syncContestStatus(admin, round.id, 'cancelled');
   }
-  if (req.to === 'live') await syncContestStatus(admin, round.id, 'live');
+  if (req.to === 'live') {
+    await syncContestStatus(admin, round.id, 'live');
+    await notifyLive(admin, event, round, activeRounds(rounds).length); // phase 4: the followers' live bell, once per round
+  }
 
   // Compare-and-set THIS round's status; a lost race answers 409 without undoing the idempotent mint.
   const { data: updatedRound, error: roundError } = await admin

@@ -13,6 +13,14 @@ describe('the sport_event_* bell copy', () => {
   });
 });
 
+describe('phase 4 — the live bell', () => {
+  it('names the event (and the round on a tournament) and lands on the live board, or the matches on match play', () => {
+    expect(bellCopy('live', { eventId: 'e1', eventName: 'Cup', actorName: '', roundId: 'r1' })).toEqual({ type: 'sport_event_live', title: 'Live now: Cup', message: 'Follow the leaderboard as the scores come in.', action_url: '/events/e1?tab=leaderboard&round=r1' });
+    expect(bellCopy('live', { eventId: 'e1', eventName: 'Cup', actorName: '', roundId: 'r2', roundLabel: 'Round 2' }).title).toBe('Live now: Cup · Round 2');
+    expect(bellCopy('live', { eventId: 'e1', eventName: 'Cup', actorName: '', roundId: 'r1', matchPlay: true }).action_url).toBe('/events/e1?tab=matches&round=r1');
+  });
+});
+
 describe('phase 3 — the results bell on a match event', () => {
   it('lands on the Matches tab, the leaderboard otherwise', () => {
     expect(eventPath('e1', 'matches')).toBe('/events/e1?tab=matches');

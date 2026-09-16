@@ -8,7 +8,10 @@
  *
  * Phase-1 senders: invite, request, request_decision (approve / reject /
  * a waitlist promotion), results (completion — results-server.ts).
- * `sport_event_live` is registered and unsent (Live Now is the surface).
+ * Phase 4: `sport_event_live` is SENT — to every accepted FOLLOWER when a
+ * round goes live (players are playing; the results bell reaches everyone),
+ * once per round (dedupe on the bell's metadata, the reminder's pattern),
+ * no actor (the 213 lesson).
  */
 import { matchClosedLine, matchSetLine, matchSetRecipients, type DrawGroupForBells } from './match-bells';
 import type { RoundMatch } from './match-server';
@@ -19,7 +22,7 @@ import { notifyGuardians } from '@/lib/guardian-notify';
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Admin = SupabaseClient<any, 'public', any>;
 
-export type SportEventBell = 'sport_event_invite' | 'sport_event_request' | 'sport_event_request_decision' | 'sport_event_results' | 'sport_event_reminder' | 'sport_event_match';
+export type SportEventBell = 'sport_event_invite' | 'sport_event_request' | 'sport_event_request_decision' | 'sport_event_results' | 'sport_event_reminder' | 'sport_event_match' | 'sport_event_live';
 
 export interface BellCopy {
   type: SportEventBell;
@@ -41,10 +44,17 @@ export function matchBellCopy(kind: 'set' | 'won' | 'lost', ctx: { eventId: stri
 }
 
 export function bellCopy(
-  kind: 'invite' | 'request' | 'approved' | 'rejected' | 'promoted' | 'results',
-  ctx: { eventId: string; eventName: string; actorName: string; matchPlay?: boolean },
+  kind: 'invite' | 'request' | 'approved' | 'rejected' | 'promoted' | 'results' | 'live',
+  ctx: { eventId: string; eventName: string; actorName: string; matchPlay?: boolean; roundId?: string; roundLabel?: string | null },
 ): BellCopy {
   switch (kind) {
+    case 'live':
+      return {
+        type: 'sport_event_live',
+        title: `Live now: ${ctx.eventName}${ctx.roundLabel ? ` · ${ctx.roundLabel}` : ''}`,
+        message: ctx.matchPlay ? 'Follow the matches as they happen.' : 'Follow the leaderboard as the scores come in.',
+        action_url: eventPath(ctx.eventId, ctx.matchPlay ? 'matches' : 'leaderboard', ctx.roundId ?? null),
+      };
     case 'invite':
       return { type: 'sport_event_invite', title: `${ctx.actorName} invited you to ${ctx.eventName}`, message: 'Accept to play, or decline.', action_url: eventPath(ctx.eventId, 'players') };
     case 'request':
@@ -219,5 +229,29 @@ export async function notifyMatchClosed(admin: Admin, event: { id: string; name:
     }
   } catch (e) {
     console.error('[sport-events notify] match closed failed:', e);
+  }
+}
+
+/**
+ * Phase 4: the live bell — every accepted FOLLOWER of the event when a round
+ * goes live, once per round (query-before-insert on `metadata.
+ * sport_event_round_id`), no actor. Best-effort; 23514-tolerant like every
+ * sender (the type has been in the CHECK since 205).
+ */
+export async function notifyLive(admin: Admin, event: { id: string; name: string; format?: string }, round: { id: string; sequence: number; name?: string | null }, roundCount: number): Promise<void> {
+  try {
+    const [{ data: rows }, { data: sent }] = await Promise.all([
+      admin.from('sport_event_participants').select('profile_id').eq('sport_event_id', event.id).eq('status', 'accepted').eq('role', 'follower').limit(1000),
+      admin.from('notifications').select('user_id').eq('type', 'sport_event_live').contains('metadata', { sport_event_round_id: round.id }).limit(1000),
+    ]);
+    const already = new Set(((sent ?? []) as Array<{ user_id: string }>).map(n => n.user_id));
+    const recipients = ((rows ?? []) as Array<{ profile_id: string }>).map(r => r.profile_id).filter(id => !already.has(id));
+    if (recipients.length === 0) return;
+    const roundLabel = roundCount > 1 ? (round.name?.trim() || `Round ${round.sequence}`) : null;
+    const copy = bellCopy('live', { eventId: event.id, eventName: event.name, actorName: '', matchPlay: isMatchFormat(event.format), roundId: round.id, roundLabel });
+    const result = await insertBells(admin, recipients, null, copy, { sport_event_id: event.id, sport_event_round_id: round.id, sport_event_name: event.name });
+    if (result.error?.code === '23514') console.warn('[sport-events notify] sport_event_live is not in the type CHECK');
+  } catch (e) {
+    console.error('[sport-events notify] live failed:', e);
   }
 }

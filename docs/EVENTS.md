@@ -568,6 +568,7 @@ gallery on the event page.
 | PR | what |
 |---|---|
 | 1 | anonymous reading: `canViewSharedRound` admits a null viewer on a PUBLIC round; the scorecard GET's auth is optional; `/live/[gp]` watch mode signed out (a 401/404 → sign in with `?next=`); `joinControl` `signin` ("Log in to join"); `EventPlayerSheet` — the masked name, the role, this event's line; "View profile" only when the profile is public |
+| 2 | the live bell + Live Now for events: `notifyLive` (followers, once per round, no actor) from the round's `live` transition; `GET /api/sport-events/live-now[?count=1]` (public live events for anyone, signed out included, plus the viewer's own; `live-now.ts liveEventCards`); `LiveNowStrip` event cards; `useLiveNow` merges the two counts |
 
 ## Phase 3 status
 
