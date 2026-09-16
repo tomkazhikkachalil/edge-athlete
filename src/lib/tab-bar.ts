@@ -32,9 +32,13 @@ const PLACES = ['/feed', '/sports', '/events', '/calendar', '/athlete', '/u', '/
 /** Screens that own their bottom edge (or render BrandBar): no bar. */
 const HIDDEN_PREFIXES = ['/live/', '/messages/', '/sports/events/new', '/app/diag', '/app/transfer', '/app/guardian/consent', '/app/guardian/add-athlete', '/app/guardian/credentials'] as const;
 
+/** Phase 4: the live stat screen owns its bottom edge too (the entry strip) — a pattern, since the id sits in the middle. */
+const HIDDEN_PATTERNS: ReadonlyArray<RegExp> = [/^\/events\/[^/]+\/live$/];
+
 export function showsTabBar(pathname: string | null | undefined): boolean {
   if (!pathname) return false;
   const clean = pathname.length > 1 && pathname.endsWith('/') ? pathname.slice(0, -1) : pathname;
+  if (HIDDEN_PATTERNS.some(re => re.test(clean))) return false;
   for (const h of HIDDEN_PREFIXES) {
     if (h.endsWith('/') ? clean.startsWith(h) : clean === h || clean.startsWith(`${h}/`)) return false;
   }

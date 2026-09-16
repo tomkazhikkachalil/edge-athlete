@@ -16,6 +16,9 @@ describe('the phone tab bar', () => {
       expect(showsTabBar(p), p).toBe(false);
     }
     expect(showsTabBar(null)).toBe(false);
+    // Phase 4: the live stat screen owns its bottom edge; the event page itself keeps the bar.
+    expect(showsTabBar('/events/11111111-1111-4111-8111-111111111111/live')).toBe(false);
+    expect(showsTabBar('/events/11111111-1111-4111-8111-111111111111')).toBe(true);
     expect(showsTabBar('/feed/')).toBe(true);
   });
 });

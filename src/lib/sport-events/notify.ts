@@ -53,7 +53,7 @@ export function bellCopy(
         type: 'sport_event_live',
         title: `Live now: ${ctx.eventName}${ctx.roundLabel ? ` · ${ctx.roundLabel}` : ''}`,
         message: ctx.teamShape ? 'Follow the score and the stats as they come in.' : ctx.matchPlay ? 'Follow the matches as they happen.' : 'Follow the leaderboard as the scores come in.',
-        action_url: eventPath(ctx.eventId, ctx.teamShape ? 'stats' : ctx.matchPlay ? 'matches' : 'leaderboard', ctx.roundId ?? null),
+        action_url: ctx.teamShape ? `/events/${ctx.eventId}/live${ctx.roundId ? `?round=${ctx.roundId}` : ''}` : eventPath(ctx.eventId, ctx.matchPlay ? 'matches' : 'leaderboard', ctx.roundId ?? null),
       };
     case 'invite':
       return { type: 'sport_event_invite', title: `${ctx.actorName} invited you to ${ctx.eventName}`, message: 'Accept to play, or decline.', action_url: eventPath(ctx.eventId, 'players') };

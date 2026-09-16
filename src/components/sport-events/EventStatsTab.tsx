@@ -1,9 +1,10 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import Link from 'next/link';
+import { useRoundStats } from '@/hooks/useRoundStats';
 import type { EventApi } from '@/lib/sport-events/client';
 import { scoreLabel } from '@/lib/sport-events/game';
-import type { RoundStatsPayload, StatLineView } from '@/lib/sport-events/stats-server';
+import type { StatLineView } from '@/lib/sport-events/stats-server';
 import type { RoundSelection } from '@/lib/sport-events/tabs';
 import type { SportEventViewPayload } from '@/lib/sport-events/view';
 import { formatDateOnly, formatTeeTime } from '@/lib/sport-events/format';
@@ -17,14 +18,11 @@ interface Props {
   onSelect: (next: RoundSelection) => void;
 }
 
-const LIVE_POLL_MS = 5_000;
-const IDLE_POLL_MS = 30_000;
-
 /**
  * The Stats tab of a team event (Events program, phase 4): the round's
  * live score (a game) and every player's line, side by side — polled 5 s
  * while the round is live (posture-A tables emit no realtime), 30 s
- * otherwise. Read-only here; entry is the live screen (PR 9).
+ * otherwise. Read-only here; entry is the live screen (`/events/[id]/live`).
  */
 export default function EventStatsTab({ view, api, version, selected, onSelect }: Props) {
   const rounds = view.rounds.filter(r => r.status !== 'cancelled');
@@ -32,23 +30,9 @@ export default function EventStatsTab({ view, api, version, selected, onSelect }
   const round = picked ?? rounds.find(r => r.status === 'live') ?? rounds.find(r => r.status === 'scheduled') ?? rounds[rounds.length - 1] ?? null;
   const roundId = round?.id ?? null;
   const live = round?.status === 'live';
-  const [payload, setPayload] = useState<RoundStatsPayload | null>(null);
-  const [state, setState] = useState<'loading' | 'ready' | 'error'>('loading');
-
-  useEffect(() => {
-    if (!roundId) return;
-    let cancelled = false;
-    const load = async () => {
-      const res = await api.roundStats(roundId);
-      if (cancelled) return;
-      if (res.ok && res.data) { setPayload(res.data); setState('ready'); } else setState('error');
-    };
-    load();
-    const t = setInterval(load, live ? LIVE_POLL_MS : IDLE_POLL_MS);
-    const onVisible = () => { if (document.visibilityState === 'visible') load(); };
-    document.addEventListener('visibilitychange', onVisible);
-    return () => { cancelled = true; clearInterval(t); document.removeEventListener('visibilitychange', onVisible); };
-  }, [api, roundId, live, version]);
+  const { data: payload, state } = useRoundStats(api, roundId, live);
+  // The shell bumps `version` after an action; the poll carries it anyway.
+  void version;
 
   if (!round) return <p className="text-sm text-muted">No round yet.</p>;
   const sides = payload?.sides ?? null;
@@ -93,6 +77,11 @@ export default function EventStatsTab({ view, api, version, selected, onSelect }
       <p className="text-xs text-muted">{round.course_name}{round.starts_at ? ` · ${formatTeeTime(round.starts_at)}` : ''}{live ? ' · live' : round.status === 'completed' ? ' · final' : ''}</p>
       {payload && sides && (
         <p className="text-lg font-bold text-primary" data-event-score-line="">{scoreLabel(payload.round.score, sides)}</p>
+      )}
+      {payload && (live || payload.viewer.can_enter === 'all') && round.status !== 'completed' && (
+        <Link href={`/events/${view.event.id}/live?round=${round.id}`} className="ea-cta text-white px-4 min-h-[44px] rounded-lg text-sm font-semibold inline-flex items-center" data-event-live-open="">
+          <i className="fas fa-broadcast-tower mr-2" aria-hidden="true"></i>{payload.viewer.can_enter === 'all' || payload.viewer.can_enter.length > 0 ? 'Enter stats live' : 'Watch live'}
+        </Link>
       )}
       {state === 'error' && <p className="text-sm text-red-700 dark:text-red-300">Could not load the stats.</p>}
       {state === 'ready' && lines.length === 0 && <p className="text-sm text-muted">{round.status === 'scheduled' ? 'The lines are minted when the round starts.' : 'Nobody was fielded for this round.'}</p>}
