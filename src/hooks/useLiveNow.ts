@@ -36,10 +36,13 @@ async function fetchLiveCount(): Promise<number> {
 
   inFlight = (async () => {
     try {
-      const res = await fetch('/api/golf/live-now/count', { credentials: 'include' });
-      if (!res.ok) return cachedCount ?? 0;
-      const data = await res.json();
-      return typeof data.count === 'number' ? data.count : 0;
+      // Phase 4: the golf rounds' count + the live EVENTS' count (any sport), both lean.
+      const [golf, events] = await Promise.all([
+        fetch('/api/golf/live-now/count', { credentials: 'include' }).then(r => (r.ok ? r.json() : null)).catch(() => null),
+        fetch('/api/sport-events/live-now?count=1', { credentials: 'include' }).then(r => (r.ok ? r.json() : null)).catch(() => null),
+      ]);
+      if (!golf && !events) return cachedCount ?? 0;
+      return (typeof golf?.count === 'number' ? golf.count : 0) + (typeof events?.count === 'number' ? events.count : 0);
     } catch {
       // An indicator is a nicety. A failure means "show nothing", never an
       // error state in the header.
