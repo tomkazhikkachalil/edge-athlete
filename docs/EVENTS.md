@@ -71,6 +71,7 @@ the org contest place.
 | 211 | `contests_sport_event_round.sql` | phase 2b (B1): `contests.sport_event_round_id` (FK SET NULL) + the partial UNIQUE — an org-hosted event counts toward one of the org's golf leaderboard competitions, one contest per round, ONE writer `contest-link-server.ts`; every read is 42703-tolerant and the golf-sync engine is guarded on it |
 | 212 | `sport_event_match_play.sql` | phase 3 (PR 3): `sport_events.format` widens to `match_gross \| match_net` (DROP + ADD of the one named CHECK — a 23514 window, the app names the values only after it ran); `sport_event_group_members.side` (1 \| 2, NULL on a stroke round); `sport_event_matches` (posture A, one per group — concessions, sudden-death extra holes, an organizer decision, a bye, the outcome written once at completion, `version` the app-level CAS; status computed on read, never stored). Nothing reads any of it until `check:schema` says 212 ran |
 | 213 | `sport_event_match_bell.sql` | phase 3 (PR 12): `sport_event_match` joins the notifications type CHECK (the 210 list verbatim + one; 66 values) — one type, three copies by `metadata.kind` (`set` on the draw, `won` / `lost` at completion); the senders are 23514-tolerant |
+| 214 | `sport_events_open_joining_recorders.sql` | phase 4 (PR 3): `join_mode` widens to `open` (DROP + ADD of the one CHECK — the app names it only after it ran); `visibility` DEFAULT `public` (no UPDATE); `sport_events.self_entry` (the recording mode is derived: self \| recorder \| both); `sport_event_participants.recorder` (a named recorder on any accepted row, a follower included). Nothing reads the columns until `check:schema` says 214 ran |
 
 Posture A on every new table (RLS on, zero policies, REVOKE from anon and
 authenticated): the service client behind `resolveSportEventAccess` is the
@@ -569,6 +570,7 @@ gallery on the event page.
 |---|---|
 | 1 | anonymous reading: `canViewSharedRound` admits a null viewer on a PUBLIC round; the scorecard GET's auth is optional; `/live/[gp]` watch mode signed out (a 401/404 → sign in with `?next=`); `joinControl` `signin` ("Log in to join"); `EventPlayerSheet` — the masked name, the role, this event's line; "View profile" only when the profile is public |
 | 2 | the live bell + Live Now for events: `notifyLive` (followers, once per round, no actor) from the round's `live` transition; `GET /api/sport-events/live-now[?count=1]` (public live events for anyone, signed out included, plus the viewer's own; `live-now.ts liveEventCards`); `LiveNowStrip` event cards; `useLiveNow` merges the two counts |
+| 3 | migration 214 — the phase's first DDL, alone |
 
 ## Phase 3 status
 
