@@ -105,7 +105,7 @@ test('team events API: a hockey game — refusals, sides, the mint, self entry, 
     expect(notMine.status()).toBe(403);
     const unknown = await s.apiB.put(`${statsUrl}/${bLine}`, { data: { stats: { rebounds: 1 }, expected_version: 1 } });
     expect(unknown.status()).toBe(400);
-    expect(await readErrorBody(unknown)).toMatch(/Unknown stat "rebounds"/);
+    expect(await readErrorBody(unknown)).toMatch(/Unknown stat .*rebounds/); // the body reads back JSON-escaped — never anchor on the quotes
     const range = await s.apiB.put(`${statsUrl}/${bLine}`, { data: { stats: { goals: 99 }, expected_version: 1 } });
     expect(range.status()).toBe(400);
     expect(await readErrorBody(range)).toMatch(/out of range/);

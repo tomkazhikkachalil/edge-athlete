@@ -1,5 +1,9 @@
 # Development Log
 
+## September 16, 2026 — Events phase 4: the last two probe assertions (#805, spec-only) — TRACK 1 PROD-PROVEN
+
+After #804 every phase 4 spec is green on production except two assertions that were the SPECS' mistakes, not the app's: the team API spec anchored an error pattern on literal quotes that the body reads back JSON-escaped; the live screen spec expected two taps to coalesce into one write, but the outbox flushes each tap as it lands when online (it coalesces only while a flush is pending) — three writes landed, the stats were exactly right. Both assertions corrected and re-probed green from this checkout (a prod probe runs the local spec). With that, every track 1 spec is green on production on every engine it targets: page, anon, live bell, open join, recorder, team API, live screen, create (the team path), media, group card.
+
 ## September 16, 2026 — Events phase 4, the prod-probe hotfix (#804): the edge cache, the stat completion gate, the recorder footer, the wizard's format, the live screen's hooks
 
 **What the first prod run of the phase 4 chain found (after migrations 214–216 ran):** page, anon, open-join, media and group-card green; five reds, each with one cause.
