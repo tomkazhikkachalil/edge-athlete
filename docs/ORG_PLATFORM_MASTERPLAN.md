@@ -127,6 +127,7 @@ round (the plan: `~/.claude/plans/let-s-start-phase-2-transient-fountain.md`,
 | PR | what |
 |---|---|
 | 1 | `src/lib/sports/competition-profiles.ts` — the ONE owner of format × entrant × rule per sport (pure data; the scoring defaults read it; `FORMATS_LIVE` gates creation; an optional `entrantType` the profile must offer) |
+| 2 | migration 218 — `contests.stage` / `slot` (both null or both ≥ 1), the partial UNIQUE per competition × stage × slot, the seeded-entries index; the twin. Alone; no reader |
 
 One competition model covers both contexts:
 
