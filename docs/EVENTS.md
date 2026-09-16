@@ -267,7 +267,7 @@ specs run at 390 × 844 on Chromium AND WebKit.
 | `sport-events-match-card` `@mobile` (phase 3, NEEDS 212) | two columns · the back link → matches · "Not started" · no Submit · holes 1–2 through the grid → "All square thru 2" · B concedes hole 3 → "1 UP thru 3", the hole reads conceded · A concedes hole 4 from the strip → "All square thru 4" · holes 5–9 halved → the extra-hole editor → "wins · 10 holes" |
 | `sport-events-match-pairs` `@mobile` (phase 3, NEEDS 212 + the four QA users) | four-ball: the Side control derives 1·1·2·2, three on a side flags the group, Save; four columns; the better balls halve hole 1, C & D win hole 2 · foursomes: two columns headed by the pairs; the captains' cards count, the partner's is never read |
 | `sport-events-bracket` `@mobile` (phase 3, NEEDS 212 + the four QA users) | two same-day rounds · round 1 the losers concede, completes · Fill from winners → A vs C with the sides set · the bracket view's two columns, the conceded slot with the winner bold · the organizer decides the Final · "wins the bracket" |
-| `sport-events-notifications` `@mobile` (phase 3 test, NEEDS 212 + 213 — self-skips before) | B's `set` bell on the draw (a re-save adds none), rendered on the notifications page · B concedes, the round completes → B's `lost`, A's `won` |
+| `sport-events-notifications` `@mobile` (phase 3 test, NEEDS 212 + 213 — self-skips before) | B's `set` bell on the draw (a re-save adds none), rendered on the notifications page · B concedes, the round completes → B's `lost`; A — the organizer who plays — has TWO bells, `set` and `won` |
 | `sport-events-feed` (phase 3 test, NEEDS 212) | the announce card names the format and the round · B concedes the match, the round completes → the results card names the winner first, "def.", "conceded"; the API carries `match` + `match_results` |
 
 ## Phase 2 — tournaments (Sep 16 2026, in progress)
@@ -554,14 +554,15 @@ matches 2k−1 and 2k of round n by group `sequence` (`bracket.ts`).
 
 ## Phase 3 status
 
-In progress (Sep 16 2026): #775 → #786 open as ONE stacked chain (PR 1 the
-round's own field → PR 2 the engine → PR 3 migration 212 → PRs 4–11 → PR 12
-the bells, migration 213). Every PR verify-green; the phase 3
-e2e specs self-skip before 212 and are run locally the moment it is live,
-before PR 4 merges (a self-skipping spec has never run). The merge gate
-for PRs 4+ is `npm run check:schema` OK after Tom ran 212. Parked from
-phase 3: an org-side bracket (the masterplan's own program), a match
-event counting toward a competition (`not_stroke_play`), Stableford.
+Complete (Sep 16 2026): the chain #775 → #786 (migrations 212 · 213) and
+the follow-ups #787–#790 from the first prod probes (the won / lost bells
+speak in full names and reach an organizer who plays; two spec
+expectations about masking; the pairs / bracket / routes specs get the
+time prod needs). Every PR verify-green; every phase 3 spec green on prod
+— the API, the feed, the Matches tab, the match card, pairs, the bracket,
+the bells — on Chromium AND WebKit at 390. Parked: an org-side bracket
+(the masterplan's own program), a match event counting toward a
+competition (`not_stroke_play`), Stableford.
 
 ## Phase 2b status
 
