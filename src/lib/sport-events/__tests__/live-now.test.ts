@@ -19,3 +19,12 @@ describe('Live Now for events (phase 4)', () => {
     expect(liveEventCards([t, row()]).map(c => [c.id, c.href, c.round.round_count])).toEqual([['e2', '/events/e2?tab=matches&round=r2', 2], ['e1', '/events/e1?tab=leaderboard&round=r1', 1]]);
   });
 });
+
+describe('phase 4: a team shape\'s card opens the live stat screen', () => {
+  it('golf keeps the board; a game goes to /events/[id]/live?round=', () => {
+    const base = { id: 'e1', name: 'Friday skate', sport_key: 'ice_hockey', format: 'stroke_gross', visibility: 'public', status: 'live', rounds: [{ id: 'r1', sequence: 1, name: null, status: 'live', course_name: 'The Rink', scheduled_on: '2030-01-01', group_post_id: null }], playing: 6, followers: 0, viewer_status: null };
+    expect(liveEventCards([{ ...base, shape: 'game' }])[0]?.href).toBe('/events/e1/live?round=r1');
+    expect(liveEventCards([{ ...base, sport_key: 'golf', shape: 'round' }])[0]?.href).toBe('/events/e1?tab=leaderboard&round=r1');
+    expect(liveEventCards([{ ...base, sport_key: 'golf' }])[0]?.href).toBe('/events/e1?tab=leaderboard&round=r1');
+  });
+});

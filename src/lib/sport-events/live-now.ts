@@ -54,7 +54,9 @@ export function liveEventCards(rows: ReadonlyArray<LiveEventRow>): LiveEventCard
     const round = liveRoundOf(row.rounds);
     if (!round) continue;
     const roundCount = row.rounds.filter(r => r.status !== 'cancelled').length;
-    const tab = isStatShape(row.shape) ? 'stats' : isMatchFormat(row.format) ? 'matches' : 'leaderboard';
+    const tab = isMatchFormat(row.format) ? 'matches' : 'leaderboard';
+    // Phase 4: a team shape's door is the live stat screen.
+    const href = isStatShape(row.shape) ? `/events/${row.id}/live?round=${round.id}` : `/events/${row.id}?tab=${tab}&round=${round.id}`;
     out.push({
       id: row.id,
       name: row.name,
@@ -63,7 +65,7 @@ export function liveEventCards(rows: ReadonlyArray<LiveEventRow>): LiveEventCard
       round: { id: round.id, sequence: round.sequence, name: round.name, course_name: round.course_name, group_post_id: round.group_post_id, round_count: roundCount },
       playing: row.playing,
       followers: row.followers,
-      href: `/events/${row.id}?tab=${tab}&round=${round.id}`,
+      href,
     });
   }
   return out.sort((a, b) => a.name.localeCompare(b.name));

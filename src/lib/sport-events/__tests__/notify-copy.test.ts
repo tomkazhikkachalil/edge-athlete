@@ -28,3 +28,10 @@ describe('phase 3 — the results bell on a match event', () => {
     expect(bellCopy('results', { eventId: 'e1', eventName: 'Cup', actorName: '' }).action_url).toBe('/events/e1?tab=leaderboard');
   });
 });
+
+describe('phase 4: the live bell on a team shape', () => {
+  it('opens the live stat screen; golf keeps the board / the matches', () => {
+    expect(bellCopy('live', { eventId: 'e1', eventName: 'Friday skate', actorName: '', roundId: 'r1', teamShape: true })).toMatchObject({ type: 'sport_event_live', action_url: '/events/e1/live?round=r1', message: expect.stringContaining('score') });
+    expect(bellCopy('live', { eventId: 'e1', eventName: 'Open', actorName: '', roundId: 'r1' })).toMatchObject({ action_url: '/events/e1?tab=leaderboard&round=r1' });
+  });
+});
