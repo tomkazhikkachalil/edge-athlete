@@ -13,15 +13,21 @@
  *        never coexist (a cut on a match format, a match config on a
  *        stroke format: 400s by name). A match format with no `match` key
  *        reads as singles, no bracket, the WHS allowance (`readMatchConfig`).
+ *   game (phase 4, 215): {side_names: [a, b]} — on a `game` SHAPE only;
+ *        `cut` / `match` are golf vocabulary and 400 by name on a team
+ *        shape. A game with no `game` key reads as Home / Away.
  */
-import { isMatchFormat, MATCH_SIDES, type CutRule, type FormatConfig, type MatchConfig, type MatchSides } from './types';
+import { isMatchFormat, isStatShape, MATCH_SIDES, type CutRule, type FormatConfig, type GameConfig, type MatchConfig, type MatchSides, type SportEventShape } from './types';
 import type { Parsed } from './validate';
 
 export const CUT_TOP_N_MAX = 500;
 export const CUT_TO_PAR_MIN = -20;
 export const CUT_TO_PAR_MAX = 40;
 
-const KNOWN = new Set(['cut', 'match']);
+const KNOWN = new Set(['cut', 'match', 'game']);
+export const SIDE_NAME_MAX = 40;
+export const DEFAULT_SIDE_NAMES: readonly [string, string] = ['Home', 'Away'];
+const GAME_KEYS = new Set(['side_names']);
 const CUT_KEYS = new Set(['after_round', 'top_n', 'to_par']);
 const MATCH_KEYS = new Set(['sides', 'bracket', 'allowance']);
 
@@ -32,6 +38,8 @@ export interface FormatConfigContext {
   roundCount: number;
   /** The event's format (the NEXT one when a PATCH changes both). */
   format: string;
+  /** Phase 4: the event's shape; absent = `round` (golf). */
+  shape?: SportEventShape;
 }
 
 function isRecord(v: unknown): v is Record<string, unknown> {
@@ -75,19 +83,44 @@ export function parseMatchConfig(body: unknown, field = 'format_config.match'): 
   return { ok: true, value: out };
 }
 
+/** Phase 4: a game's two side names — each 1..40 characters, distinct (case-insensitively). */
+export function parseGameConfig(body: unknown, field = 'format_config.game'): Parsed<GameConfig> {
+  if (!isRecord(body)) return { ok: false, error: `${field} must be an object` };
+  for (const key of Object.keys(body)) if (!GAME_KEYS.has(key)) return { ok: false, error: `Unknown field: ${field}.${key}` };
+  const names = body.side_names;
+  if (!Array.isArray(names) || names.length !== 2) return { ok: false, error: `${field}.side_names must name two sides` };
+  const out: string[] = [];
+  for (let i = 0; i < 2; i++) {
+    const n = names[i];
+    if (typeof n !== 'string' || n.trim().length === 0 || n.trim().length > SIDE_NAME_MAX) return { ok: false, error: `${field}.side_names[${i}] must be 1 to ${SIDE_NAME_MAX} characters` };
+    out.push(n.trim());
+  }
+  if (out[0].toLowerCase() === out[1].toLowerCase()) return { ok: false, error: `${field}.side_names must differ` };
+  return { ok: true, value: { side_names: [out[0], out[1]] } };
+}
+
 /** The whole `format_config` object; `{}`, `{cut: null}` and `{match: null}` all mean no options. */
 export function parseFormatConfig(body: unknown, ctx: FormatConfigContext): Parsed<FormatConfig> {
   if (!isRecord(body)) return { ok: false, error: 'format_config must be an object' };
   for (const key of Object.keys(body)) if (!KNOWN.has(key)) return { ok: false, error: `Unknown field: format_config.${key}` };
   const out: FormatConfig = {};
   const match = isMatchFormat(ctx.format);
+  const team = isStatShape(ctx.shape);
+  if (body.game !== undefined && body.game !== null) {
+    if (ctx.shape !== 'game') return { ok: false, error: 'format_config.game is only allowed on a game' };
+    const g = parseGameConfig(body.game);
+    if (!g.ok) return g;
+    out.game = g.value;
+  }
   if (body.cut !== undefined && body.cut !== null) {
+    if (team) return { ok: false, error: 'format_config.cut is not allowed on a team event' };
     if (match) return { ok: false, error: 'format_config.cut is not allowed on a match-play format' };
     const cut = parseCutRule(body.cut, ctx);
     if (!cut.ok) return cut;
     out.cut = cut.value;
   }
   if (body.match !== undefined && body.match !== null) {
+    if (team) return { ok: false, error: 'format_config.match is not allowed on a team event' };
     if (!match) return { ok: false, error: 'format_config.match is only allowed on a match-play format' };
     const m = parseMatchConfig(body.match);
     if (!m.ok) return m;
@@ -97,9 +130,15 @@ export function parseFormatConfig(body: unknown, ctx: FormatConfigContext): Pars
 }
 
 /** The stored jsonb as the app reads it — tolerant (a row written by hand never breaks a read): an unparseable value reads as no options. */
-export function readFormatConfig(raw: unknown, roundCount: number, format: string): FormatConfig {
-  const parsed = parseFormatConfig(raw ?? {}, { roundCount: Math.max(roundCount, 2), format });
+export function readFormatConfig(raw: unknown, roundCount: number, format: string, shape: SportEventShape = 'round'): FormatConfig {
+  const parsed = parseFormatConfig(raw ?? {}, { roundCount: Math.max(roundCount, 2), format, shape });
   return parsed.ok ? parsed.value : {};
+}
+
+/** Phase 4: the sides a game plays under — the stored names or Home / Away; null off a game. */
+export function readGameConfig(config: FormatConfig | null | undefined, shape: SportEventShape | string | null | undefined): GameConfig | null {
+  if (shape !== 'game') return null;
+  return { side_names: config?.game?.side_names ?? [DEFAULT_SIDE_NAMES[0], DEFAULT_SIDE_NAMES[1]] };
 }
 
 /** The match options an event plays under: null on a stroke format; on a match format the stored `match` or the defaults (singles, no bracket, the WHS allowance). */

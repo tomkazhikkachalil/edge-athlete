@@ -11,6 +11,8 @@ import { NAME_MAX, DESCRIPTION_MAX, defaultJoinMode, isDateOnly } from './valida
 import { MAX_ROUNDS } from './rounds';
 import { isMatchFormat, type MatchSides, type SportEventFormat, type SportEventJoinMode, type SportEventVisibility } from './types';
 import { selfEntryFor, type RecordingMode } from './recording';
+import { DEFAULT_SIDE_NAMES, parseGameConfig } from './format-config';
+import type { SportEventShape, SportEventSport } from './types';
 
 export const WIZARD_STEPS = ['basics', 'round', 'format', 'review'] as const;
 export type WizardStep = (typeof WIZARD_STEPS)[number];
@@ -39,14 +41,19 @@ export interface RoundDraft {
   tee: string;
   holes: 9 | 18;
   starting_hole: 1 | 10;
+  /** Phase 4 — a team round: the PLACE (the rink, the field; stored as `course_name`) and the start time (HH:MM, optional). */
+  place: string;
+  starts_at: string;
 }
 
 export function emptyRoundDraft(): RoundDraft {
-  return { scheduled_on: '', name: '', course: null, tee: '', holes: 18, starting_hole: 1 };
+  return { scheduled_on: '', name: '', course: null, tee: '', holes: 18, starting_hole: 1, place: '', starts_at: '' };
 }
 
+export const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
+
 /** A stored round → a draft for the edit window (the catalog's tees are not on the row: the tee stays free text). */
-export function roundDraftFrom(round: { scheduled_on: string; name?: string | null; course_id: string | null; course_name: string; tee: string | null; holes: number; starting_hole: number }): RoundDraft {
+export function roundDraftFrom(round: { scheduled_on: string; name?: string | null; course_id: string | null; course_name: string; tee: string | null; holes: number; starting_hole: number; starts_at?: string | null }): RoundDraft {
   return {
     scheduled_on: round.scheduled_on,
     name: round.name ?? '',
@@ -54,19 +61,29 @@ export function roundDraftFrom(round: { scheduled_on: string; name?: string | nu
     tee: round.tee ?? '',
     holes: round.holes === 9 ? 9 : 18,
     starting_hole: round.holes === 9 && round.starting_hole === 10 ? 10 : 1,
+    place: round.course_name,
+    starts_at: round.starts_at ?? '',
   };
 }
 
-/** The first refusal on a round draft, or null. */
-export function validateRoundDraft(d: RoundDraft): string | null {
+/** The first refusal on a round draft, or null. A team sport's round needs a place (and a well-formed time when given), never a course. */
+export function validateRoundDraft(d: RoundDraft, sport: SportEventSport = 'golf'): string | null {
   if (!isDateOnly(d.scheduled_on)) return 'Pick the date.';
+  if (sport !== 'golf') {
+    if (!d.place.trim()) return 'Where is it? Name the rink, field or court.';
+    if (d.starts_at.trim() && !TIME_RE.test(d.starts_at.trim())) return 'The start time is HH:MM.';
+    return null;
+  }
   if (!d.course || !d.course.name.trim()) return 'Pick a course, or type its name.';
   if (d.holes === 18 && d.starting_hole === 10) return 'An 18-hole round starts on hole 1.';
   return null;
 }
 
-/** The round body the routes take (parseRoundInput's shape). */
-export function roundBodyFrom(d: RoundDraft) {
+/** The round body the routes take (parseRoundInput's shape). A team round sends the place as `course_name` and its start time; no course, no holes. */
+export function roundBodyFrom(d: RoundDraft, sport: SportEventSport = 'golf') {
+  if (sport !== 'golf') {
+    return { scheduled_on: d.scheduled_on, name: d.name.trim() || null, course_name: d.place.trim(), starts_at: d.starts_at.trim() || null };
+  }
   return {
     scheduled_on: d.scheduled_on,
     name: d.name.trim() || null,
@@ -95,11 +112,23 @@ export interface WizardState {
   host_plays: boolean;
   /** Phase 4: who enters the scores — the one stored fact is `self_entry` (`selfEntryFor`). */
   recording: RecordingMode;
+  /** Phase 4: the sport (golf, or a stat-line sport) and its shape — a team sport is a game or a session. */
+  sport_key: SportEventSport;
+  shape: SportEventShape;
+  /** Phase 4: a game's two sides. */
+  side_names: [string, string];
 }
 
 export function emptyWizardState(): WizardState {
   // Phase 4: a new event is PUBLIC and open to join unless the organizer closes it.
-  return { name: '', description: '', visibility: 'public', join_mode: 'open', org: null, competition: null, rounds: [emptyRoundDraft()], format: 'stroke_gross', match: { sides: 'singles', bracket: false }, capacity: '', host_plays: true, recording: 'self' };
+  return { name: '', description: '', visibility: 'public', join_mode: 'open', org: null, competition: null, rounds: [emptyRoundDraft()], format: 'stroke_gross', match: { sides: 'singles', bracket: false }, capacity: '', host_plays: true, recording: 'self', sport_key: 'golf', shape: 'round', side_names: [DEFAULT_SIDE_NAMES[0], DEFAULT_SIDE_NAMES[1]] };
+}
+
+/** Phase 4: switching the sport resets the shape (golf is a round; a team sport keeps game | session, defaulting to a game) and the golf vocabulary (format, match, competition). */
+export function withSport(s: WizardState, sport: SportEventSport): WizardState {
+  if (sport === s.sport_key) return s;
+  const shape: SportEventShape = sport === 'golf' ? 'round' : s.shape === 'session' ? 'session' : 'game';
+  return { ...s, sport_key: sport, shape, format: 'stroke_gross', match: { sides: 'singles', bracket: false }, competition: null };
 }
 
 /** A visibility pick re-seats the joining choice — open for public, invite otherwise — unless the organizer touched joining themselves. */
@@ -114,7 +143,7 @@ function isRoundDirty(r: RoundDraft): boolean {
 
 export function isWizardDirty(s: WizardState): boolean {
   const e = emptyWizardState();
-  return s.name !== e.name || s.description !== e.description || s.rounds.length !== 1 || s.rounds.some(isRoundDirty) || s.capacity !== '' || s.visibility !== e.visibility || s.join_mode !== e.join_mode || s.org !== null || s.competition !== null || s.format !== e.format || s.match.sides !== e.match.sides || s.match.bracket !== e.match.bracket || s.host_plays !== e.host_plays || s.recording !== e.recording;
+  return s.name !== e.name || s.description !== e.description || s.rounds.length !== 1 || s.rounds.some(isRoundDirty) || s.capacity !== '' || s.visibility !== e.visibility || s.join_mode !== e.join_mode || s.org !== null || s.competition !== null || s.format !== e.format || s.match.sides !== e.match.sides || s.match.bracket !== e.match.bracket || s.host_plays !== e.host_plays || s.recording !== e.recording || s.sport_key !== e.sport_key || s.shape !== e.shape || s.side_names[0] !== e.side_names[0] || s.side_names[1] !== e.side_names[1];
 }
 
 /** "Add a round": the previous round's course, tees and holes with an empty date (36 holes in a weekend is the common case). Refused at MAX_ROUNDS. */
@@ -135,11 +164,11 @@ export function updateWizardRound(s: WizardState, index: number, patch: Partial<
 }
 
 /** The first refusal across the rounds: a round's own miss ("Round 2: Pick the date.") or the date order. */
-export function validateWizardRounds(rounds: RoundDraft[]): string | null {
+export function validateWizardRounds(rounds: RoundDraft[], sport: SportEventSport = 'golf'): string | null {
   if (rounds.length === 0) return 'Add a round.';
   const many = rounds.length > 1;
   for (let i = 0; i < rounds.length; i++) {
-    const r = validateRoundDraft(rounds[i]);
+    const r = validateRoundDraft(rounds[i], sport);
     if (r) return many ? `Round ${i + 1}: ${r}` : r;
     if (i > 0 && rounds[i].scheduled_on < rounds[i - 1].scheduled_on) return `Round ${i + 1} must not be before round ${i}.`;
   }
@@ -157,8 +186,19 @@ export function validateWizardStep(step: WizardStep, s: WizardState): string | n
       return null;
     }
     case 'round':
-      return validateWizardRounds(s.rounds);
+      return validateWizardRounds(s.rounds, s.sport_key);
     case 'format': {
+      if (s.sport_key !== 'golf') {
+        if (s.shape === 'game') {
+          const g = parseGameConfig({ side_names: s.side_names });
+          if (!g.ok) return g.error.includes('differ') ? 'Give the two sides different names.' : 'Name both sides (up to 40 characters each).';
+        }
+        if (s.capacity.trim() !== '') {
+          const n = Number(s.capacity);
+          if (!Number.isInteger(n) || n < 1 || n > 500) return 'Field size is a whole number from 1 to 500, or blank.';
+        }
+        return null;
+      }
       if (isMatchFormat(s.format) && s.competition) return 'A match-play event cannot count toward a competition — pick stroke play, or clear the competition.';
       if (isMatchFormat(s.format) && s.match.bracket && s.rounds.length < 2) return 'A bracket needs at least two rounds — add the rounds it plays over.';
       if (s.capacity.trim() !== '') {
@@ -177,7 +217,9 @@ export function wizardToCreateBody(s: WizardState, opts: { publish: boolean; pro
   return {
     name: s.name.trim(),
     description: s.description.trim() || null,
-    sport_key: 'golf',
+    sport_key: s.sport_key,
+    // A team sport sends its shape; golf stays phase 1's body (the route reads a missing shape as `round`).
+    ...(s.sport_key !== 'golf' ? { shape: s.shape } : {}),
     visibility: s.visibility,
     join_mode: s.join_mode,
     format: s.format,
@@ -185,13 +227,14 @@ export function wizardToCreateBody(s: WizardState, opts: { publish: boolean; pro
     club_id: s.org?.kind === 'club' ? s.org.id : null,
     league_id: s.org?.kind === 'league' ? s.org.id : null,
     competition_id: s.org ? s.competition : null,
-    ...(isMatchFormat(s.format) ? { format_config: { match: { sides: s.match.sides, bracket: s.match.bracket } } } : {}),
+    ...(s.sport_key === 'golf' && isMatchFormat(s.format) ? { format_config: { match: { sides: s.match.sides, bracket: s.match.bracket } } } : {}),
+    ...(s.sport_key !== 'golf' && s.shape === 'game' ? { format_config: { game: { side_names: [s.side_names[0].trim(), s.side_names[1].trim()] } } } : {}),
     host_plays: s.host_plays,
     self_entry: selfEntryFor(s.recording),
     publish: opts.publish,
     profile_id: opts.profileId,
     // One round keeps phase 1's body; a tournament sends the list (the route accepts either, never both).
-    ...(s.rounds.length === 1 ? { round: roundBodyFrom(s.rounds[0]) } : { rounds: s.rounds.map(roundBodyFrom) }),
+    ...(s.rounds.length === 1 ? { round: roundBodyFrom(s.rounds[0], s.sport_key) } : { rounds: s.rounds.map(r => roundBodyFrom(r, s.sport_key)) }),
   };
 }
 

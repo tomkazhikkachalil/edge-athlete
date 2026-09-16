@@ -39,8 +39,32 @@ export type SportEventParticipantStatus = (typeof SPORT_EVENT_PARTICIPANT_STATUS
 export const HANDICAP_SOURCES = ['computed', 'organizer', 'none'] as const;
 export type HandicapSource = (typeof HANDICAP_SOURCES)[number];
 
-/** Phase 1 shows exactly one sport; the UI is sport-agnostic by reading this list. */
+/**
+ * The sports an event may be created for — the create parser's list. Phase 4
+ * widens it to `SPORT_EVENT_SPORTS_ALL` in the PR after migration 215 ran
+ * (the `shape` column + its CHECK): a team event created before 215 would
+ * violate `(sport_key = 'golf') = (shape = 'round')` when it runs.
+ */
 export const SPORT_EVENT_SPORTS = ['golf'] as const;
+/** Phase 4: the stat-line sports (each has a `STAT_SCHEMAS` entry) — a game or a session with LIVE per-player stats. `track_field` is a meet, not a game (parked: track 2). */
+export const SPORT_EVENT_STAT_SPORTS = ['ice_hockey', 'basketball', 'soccer', 'baseball', 'volleyball'] as const;
+export type SportEventStatSport = (typeof SPORT_EVENT_STAT_SPORTS)[number];
+export const SPORT_EVENT_SPORTS_ALL = ['golf', ...SPORT_EVENT_STAT_SPORTS] as const;
+export type SportEventSport = (typeof SPORT_EVENT_SPORTS_ALL)[number];
+export const isStatSport = (sportKey: string | null | undefined): sportKey is SportEventStatSport => (SPORT_EVENT_STAT_SPORTS as readonly string[]).includes(sportKey ?? '');
+
+/**
+ * Phase 4 (215): the SHAPE lives on the event, one decision at creation like
+ * `format` — `round` (golf: hole-by-hole cards), `game` (a team sport: the
+ * joiners sorted into two ad-hoc sides, a live score + per-player stats) or
+ * `session` (a team sport: one roster, per-player stats). The CHECK
+ * `(sport_key = 'golf') = (shape = 'round')` holds both ways.
+ */
+export const SPORT_EVENT_SHAPES = ['round', 'game', 'session'] as const;
+export type SportEventShape = (typeof SPORT_EVENT_SHAPES)[number];
+export const isStatShape = (shape: string | null | undefined): boolean => shape === 'game' || shape === 'session';
+/** The shape a row reads as: the stored one, else golf's `round` (every pre-215 row). */
+export const shapeOf = (row: { sport_key: string; shape?: string | null }): SportEventShape => (row.shape === 'game' || row.shape === 'session' ? row.shape : 'round');
 
 /** A round's copy of the course's holes — WITH the stroke index (`handicap`), unlike the shared-round writer of old. */
 export interface SportEventHoleDatum {
@@ -71,10 +95,16 @@ export interface MatchConfig {
   /** The handicap allowance in percent; absent = the WHS default for the sides (100 · 90 · 50). */
   allowance?: number;
 }
+/** Phase 4 — a game's two ad-hoc sides, named at creation (an org's default teams pre-fill them later). */
+export interface GameConfig {
+  side_names: [string, string];
+}
 export interface FormatConfig {
   cut?: CutRule | null;
   /** Phase 3 (212): present on a match format only; `cut` and `match` never coexist. */
   match?: MatchConfig | null;
+  /** Phase 4: present on a `game` shape only; never beside `cut` or `match` (golf vocabulary). */
+  game?: GameConfig | null;
 }
 
 export interface SportEventRow {
@@ -97,6 +127,8 @@ export interface SportEventRow {
   format_config?: FormatConfig;
   /** 214 (phase 4) — players enter their own; false = recorders / organizers only. Optional until PR 5 read the column. */
   self_entry?: boolean;
+  /** 215 (phase 4) — the shape; optional until PR 8 reads the column (`shapeOf` reads a missing one as `round`). */
+  shape?: SportEventShape;
   starts_on: string | null;
   opened_at: string | null;
   went_live_at: string | null;

@@ -7,7 +7,7 @@
 import { activeRounds, currentRound } from './rounds';
 import type { SportEventRoundStatus } from './types';
 
-export const EVENT_TABS = ['overview', 'schedule', 'players', 'groups', 'leaderboard', 'matches', 'scorecard'] as const;
+export const EVENT_TABS = ['overview', 'schedule', 'players', 'groups', 'leaderboard', 'matches', 'scorecard', 'stats'] as const;
 export type EventTab = (typeof EVENT_TABS)[number];
 
 export const EVENT_TAB_LABEL: Readonly<Record<EventTab, string>> = {
@@ -18,6 +18,7 @@ export const EVENT_TAB_LABEL: Readonly<Record<EventTab, string>> = {
   leaderboard: 'Leaderboard',
   matches: 'Matches',
   scorecard: 'Scorecard',
+  stats: 'Stats',
 };
 
 export interface TabViewer {
@@ -28,10 +29,15 @@ export interface TabViewer {
   roundMinted?: boolean;
   /** Phase 3: a match-play event shows Matches instead of Leaderboard (an old bell's deep link never renders a gross board). */
   matchPlay?: boolean;
+  /** Phase 4: a team shape (game | session) shows Stats instead of Leaderboard / Matches / Scorecard; Groups is the sides. */
+  shape?: 'round' | 'game' | 'session';
 }
 
 export function tabsFor(viewer: TabViewer): EventTab[] {
+  const team = viewer.shape === 'game' || viewer.shape === 'session';
   return EVENT_TABS.filter(t => {
+    if (t === 'stats') return team;
+    if (team && (t === 'leaderboard' || t === 'matches' || t === 'scorecard')) return false;
     if (t === 'groups') return viewer.canManage;
     if (t === 'scorecard') return !!viewer.roundMinted && (viewer.canManage || !!viewer.isPlayer);
     if (t === 'leaderboard') return !viewer.matchPlay;
