@@ -47,7 +47,29 @@ export interface OutcomeRow {
   stats: Record<string, number>;
 }
 
+/** Track 2: how a knockout tie was settled — carried IN the result payload of the advancing side, never a stored outcome column. */
+export const ADVANCE_KINDS = ['shootout', 'extra_time', 'penalties', 'decision', 'forfeit'] as const;
+export type AdvanceKind = (typeof ADVANCE_KINDS)[number];
+export const isAdvanceKind = (v: unknown): v is AdvanceKind => typeof v === 'string' && (ADVANCE_KINDS as readonly string[]).includes(v);
+
+export interface BracketOutcomeExtra {
+  stage: number | null;
+  slot: number | null;
+  roundName: string | null;
+  /** Set when a tied score was settled by the payload's `advance`. */
+  advancedBy: AdvanceKind | null;
+}
+
 export type ContestOutcome =
+  | ({
+      kind: 'bracket';
+      complete: boolean;
+      home: OutcomeSide | null;
+      away: OutcomeSide | null;
+      winnerEntryId: string | null;
+      tie: boolean;
+      scoreline: string | null;
+    } & BracketOutcomeExtra)
   | {
       kind: 'fixture';
       /** Both sides scored AND the contest is completed. */
@@ -78,6 +100,10 @@ export interface OutcomeInput {
   scoringRule: string | null;
   status: string;
   participants: OutcomeParticipantInput[];
+  /** Track 2 (218): a bracket contest's place; absent elsewhere. */
+  stage?: number | null;
+  slot?: number | null;
+  roundName?: string | null;
 }
 
 const isNum = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v);
@@ -85,8 +111,33 @@ const isNum = (v: unknown): v is number => typeof v === 'number' && Number.isFin
 export function deriveContestOutcome(input: OutcomeInput): ContestOutcome {
   const completed = input.status === 'completed';
   if (input.format === 'fixture') return fixtureOutcome(input, completed);
+  if (input.format === 'bracket') return bracketOutcome(input, completed);
   if (input.format === 'leaderboard') return leaderboardOutcome(input, completed);
   return { kind: 'unscored', complete: completed };
+}
+
+/** A bracket contest is the fixture shape; a tied score is settled by the payload's `advance` on exactly one side — else undecided. */
+function bracketOutcome(input: OutcomeInput, completed: boolean): ContestOutcome {
+  const f = fixtureOutcome(input, completed);
+  if (f.kind !== 'fixture') return f;
+  let winnerEntryId = f.winnerEntryId;
+  let tie = f.tie;
+  let advancedBy: AdvanceKind | null = null;
+  if (f.tie && f.home && f.away) {
+    const adv = (side: OutcomeSide) => {
+      const p = input.participants.find(x => x.participantId === side.participantId);
+      const v = p?.payload?.advance;
+      return isAdvanceKind(v) ? v : null;
+    };
+    const h = adv(f.home);
+    const a = adv(f.away);
+    if ((h && !a) || (a && !h)) {
+      winnerEntryId = h ? f.home.entryId : f.away.entryId;
+      advancedBy = h ?? a;
+      tie = false;
+    }
+  }
+  return { kind: 'bracket', complete: completed && !!winnerEntryId, home: f.home, away: f.away, winnerEntryId, tie, scoreline: f.scoreline, stage: input.stage ?? null, slot: input.slot ?? null, roundName: input.roundName ?? null, advancedBy };
 }
 
 function fixtureOutcome(input: OutcomeInput, completed: boolean): ContestOutcome {

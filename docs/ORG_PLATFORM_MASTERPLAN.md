@@ -128,6 +128,7 @@ round (the plan: `~/.claude/plans/let-s-start-phase-2-transient-fountain.md`,
 |---|---|
 | 1 | `src/lib/sports/competition-profiles.ts` — the ONE owner of format × entrant × rule per sport (pure data; the scoring defaults read it; `FORMATS_LIVE` gates creation; an optional `entrantType` the profile must offer) |
 | 2 | migration 218 — `contests.stage` / `slot` (both null or both ≥ 1), the partial UNIQUE per competition × stage × slot, the seeded-entries index; the twin. Alone; no reader |
+| 3 | the bracket engine (the first 218 reader): `bracket-draw.ts` (the classic seed order, byes never contests, advancement by slot, the progression standings), the `bracket` outcome (a tie's decision rides `payload.advance`), the standings branch, `seedsPUT` + `bracketGeneratePOST` (dry-run first; `results_exist`) + `advanceBracket`, the result rules (`slot_unfilled`, `tie_needs_decision`), `stage` / `slot` on the console and the contest place; bracket creatable |
 
 One competition model covers both contexts:
 

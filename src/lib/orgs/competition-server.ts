@@ -1,3 +1,7 @@
+import { bracketDraw, bracketFill, BRACKET_COLUMNS, SEEDS_REFUSAL_COPY, seedsRefusal } from '@/lib/competitions/bracket-draw';
+import { ADVANCE_KINDS, isAdvanceKind } from '@/lib/competitions/contest-outcome';
+import { readBracketRows } from '@/lib/competitions/standings';
+import type { BracketGenerateInput, SeedsPutInput } from '@/lib/competitions/validate';
 import { defaultEntrantFor, FORMAT_ENTRANT_REFUSAL_COPY, formatEntrantRefusal, resolveCompetitionProfile } from '@/lib/sports/competition-profiles';
 // ── Competition CRUD — the shared core (phase 2, round 1) ───────────────────
 // The structure-server pattern applied to migration 151: the
@@ -715,9 +719,13 @@ export async function competitionDetailGET(
       .eq('competition_id', competitionId)
     .order('scheduled_at', { ascending: true, nullsFirst: false });
   const CONTEST_FIELDS_BASE = 'id, event_id, venue_id, facility_id, scheduled_at, round, status, created_at';
+  // Track 2 (218): `stage, slot` ride as the OUTERMOST step; pre-218 → the 172 shape → the base.
   let { data: contestsData, error: contestsError } = await readContests(
-    `${CONTEST_FIELDS_BASE}, holes, play_from, play_to`
+    `${CONTEST_FIELDS_BASE}, holes, play_from, play_to, stage, slot`
   );
+  if (contestsError?.code === '42703') {
+    ({ data: contestsData, error: contestsError } = await readContests(`${CONTEST_FIELDS_BASE}, holes, play_from, play_to`));
+  }
   if (contestsError?.code === '42703') {
     ({ data: contestsData, error: contestsError } = await readContests(CONTEST_FIELDS_BASE));
   }
@@ -751,6 +759,8 @@ export async function competitionDetailGET(
         holes?: number | null;
         play_from?: string | null;
         play_to?: string | null;
+        stage?: number | null;
+        slot?: number | null;
       }[]
     | null;
   if (contestsError && !isMissingTableError(contestsError.code)) {
@@ -814,8 +824,107 @@ export async function competitionDetailGET(
       ...r,
       entrant_name: entryName.get(r.entry_id) ?? 'Entrant',
     })),
-    standingsColumns: rule?.columns ?? [],
+    standingsColumns: full?.format === 'bracket' ? BRACKET_COLUMNS : (rule?.columns ?? []),
   });
+}
+
+// ── Brackets (track 2 PR 3) ──────────────────────────────────────────────────
+
+async function pinBracketCompetition(admin: Admin, competitionId: string, scope: CompetitionScope | null): Promise<{ ok: true; comp: { id: string; format: string; sport_key: string; scoring_rule: string | null; status: string } } | { ok: false; response: NextResponse }> {
+  const { data: comp } = await admin.from('competitions').select('id, league_id, club_id, format, sport_key, scoring_rule, status').eq('id', competitionId).maybeSingle();
+  if (!comp || (scope && comp[orgColumn(scope.side)] !== scope.orgId)) return { ok: false, response: NextResponse.json({ error: 'Competition not found' }, { status: 404 }) };
+  if (comp.format !== 'bracket') return { ok: false, response: NextResponse.json({ error: 'This competition is not a bracket.', reason: 'not_bracket' }, { status: 400 }) };
+  return { ok: true, comp: comp as { id: string; format: string; sport_key: string; scoring_rule: string | null; status: string } };
+}
+
+/** PUT the FULL seeded order — refused once the bracket is drawn (regenerate first). */
+export async function seedsPUT(admin: Admin, input: SeedsPutInput, scope: CompetitionScope | null): Promise<NextResponse> {
+  const pinned = await pinBracketCompetition(admin, input.competitionId, scope);
+  if (!pinned.ok) return pinned.response;
+  const { data: entries } = await admin.from('competition_entries').select('id, status').eq('competition_id', input.competitionId).limit(500);
+  const { data: drawn, error: drawnError } = await admin.from('contests').select('id').eq('competition_id', input.competitionId).not('stage', 'is', null).limit(1);
+  if (drawnError?.code === '42703') return NextResponse.json({ error: 'Brackets need migration 218.', reason: 'needs_migration' }, { status: 409 });
+  const refusal = seedsRefusal(input.entryIds, (entries ?? []) as Array<{ id: string; status: string }>, (drawn ?? []).length > 0);
+  if (refusal) return NextResponse.json({ error: SEEDS_REFUSAL_COPY[refusal], reason: refusal }, { status: refusal === 'bracket_drawn' ? 409 : 400 });
+  for (let i = 0; i < input.entryIds.length; i++) {
+    const { error } = await admin.from('competition_entries').update({ seed: i + 1 }).eq('id', input.entryIds[i]);
+    if (error) { console.error(`${TAG} seed write failed:`, error); return NextResponse.json({ error: 'Failed to save the seeds' }, { status: 500 }); }
+  }
+  const { error: clearError } = await admin.from('competition_entries').update({ seed: null }).eq('competition_id', input.competitionId).not('id', 'in', `(${input.entryIds.join(',')})`);
+  if (clearError) console.warn(`${TAG} seed clear failed:`, clearError.message);
+  return NextResponse.json({ ok: true, seeded: input.entryIds.map((id, i) => ({ entryId: id, seed: i + 1 })) });
+}
+
+export interface BracketGenerateReport {
+  dryRun: boolean;
+  size: number;
+  stages: number;
+  contests: number;
+  byes: number;
+  /** Contests replaced (a previous draw without results). */
+  replaced: number;
+}
+
+/** Generate the bracket from the seeded order (dry-run by default). A draw with any result is never replaced (`results_exist`). */
+export async function bracketGeneratePOST(admin: Admin, input: BracketGenerateInput, scope: CompetitionScope | null): Promise<NextResponse> {
+  const pinned = await pinBracketCompetition(admin, input.competitionId, scope);
+  if (!pinned.ok) return pinned.response;
+  const { data: entries } = await admin.from('competition_entries').select('id, status, seed').eq('competition_id', input.competitionId).eq('status', 'approved').not('seed', 'is', null).order('seed', { ascending: true }).limit(64);
+  const seeded = ((entries ?? []) as Array<{ id: string; seed: number }>).map(e => ({ entryId: e.id, seed: e.seed }));
+  if (seeded.length < 2) return NextResponse.json({ error: 'Seed at least two approved entries first.', reason: 'not_enough_seeded' }, { status: 400 });
+  const { data: existing, error: existingError } = await admin.from('contests').select('id, event_id').eq('competition_id', input.competitionId).not('stage', 'is', null).limit(1000);
+  if (existingError?.code === '42703') return NextResponse.json({ error: 'Brackets need migration 218.', reason: 'needs_migration' }, { status: 409 });
+  const existingIds = ((existing ?? []) as Array<{ id: string }>).map(c => c.id);
+  if (existingIds.length > 0) {
+    const { count } = await admin.from('contest_results').select('participant_id', { count: 'exact', head: true }).in('contest_id', existingIds);
+    if ((count ?? 0) > 0) return NextResponse.json({ error: 'Results are in — the bracket can no longer be regenerated.', reason: 'results_exist' }, { status: 409 });
+  }
+  const draw = bracketDraw(seeded);
+  const report: BracketGenerateReport = { dryRun: input.dryRun, size: draw.size, stages: draw.stages, contests: draw.contests.length, byes: draw.byes.length, replaced: existingIds.length };
+  if (input.dryRun) return NextResponse.json({ report });
+  for (const c of (existing ?? []) as Array<{ id: string; event_id: string | null }>) {
+    await mirrorContestDelete(admin, c.event_id);
+  }
+  if (existingIds.length > 0) {
+    const { error } = await admin.from('contests').delete().in('id', existingIds);
+    if (error) { console.error(`${TAG} bracket clear failed:`, error); return NextResponse.json({ error: 'Failed to replace the previous draw' }, { status: 500 }); }
+  }
+  const created: string[] = [];
+  for (const c of draw.contests) {
+    const sides: { entry_id: string; side: 'home' | 'away' }[] = [];
+    if (c.home) sides.push({ entry_id: c.home, side: 'home' });
+    if (c.away) sides.push({ entry_id: c.away, side: 'away' });
+    // Later stages are minted with EMPTY sides and no time (trap 3: never auto-published to the calendar).
+    const ins = await insertContestWithParticipants(admin, { competition_id: input.competitionId, scheduled_at: null, round: c.round, venue_id: null, facility_id: null, holes: null, play_from: null, play_to: null, stage: c.stage, slot: c.slot }, sides);
+    if (!ins.ok) { console.error(`${TAG} bracket contest insert failed:`, ins.reason); return NextResponse.json({ error: 'Failed to generate the bracket', reason: ins.reason }, { status: ins.reason === 'needs_migration' ? 409 : 500 }); }
+    created.push(ins.contest.id);
+  }
+  await recomputeStandingsBestEffort(admin, input.competitionId);
+  await revalidateOrgSiteForCompetition(admin, input.competitionId);
+  return NextResponse.json({ report, contestIds: created }, { status: 201 });
+}
+
+/** Advance the winners: the pure `bracketFill` over the staged contests → participant rows written / re-pointed / cleared. Best-effort. */
+export async function advanceBracket(admin: Admin, competitionId: string): Promise<void> {
+  try {
+    const { data: comp } = await admin.from('competitions').select('sport_key, scoring_rule').eq('id', competitionId).maybeSingle();
+    if (!comp) return;
+    const rows = await readBracketRows(admin, competitionId, comp.sport_key as string, comp.scoring_rule as string | null);
+    if (!rows) return;
+    const ops = bracketFill(rows);
+    for (const op of ops) {
+      const { data: existing } = await admin.from('contest_participants').select('id').eq('contest_id', op.contestId).eq('side', op.side).maybeSingle();
+      if (op.entryId === null) {
+        if (existing?.id) await admin.from('contest_participants').delete().eq('id', existing.id);
+      } else if (existing?.id) {
+        await admin.from('contest_participants').update({ entry_id: op.entryId }).eq('id', existing.id);
+      } else {
+        await admin.from('contest_participants').insert({ contest_id: op.contestId, entry_id: op.entryId, side: op.side });
+      }
+    }
+  } catch (e) {
+    console.warn(`${TAG} advance failed:`, e instanceof Error ? e.message : e);
+  }
 }
 
 export async function contestCreatePOST(
@@ -925,9 +1034,14 @@ export interface ContestInsertRow {
  *  plain rounds), then the participants as one homogeneous batch (the
  *  PGRST102 rule) with a compensating delete — a contest without its
  *  sides is a broken fixture. Reasons map to the caller's own bodies. */
+export interface StagedContestInsert extends ContestInsertRow {
+  stage?: number;
+  slot?: number;
+}
+
 export async function insertContestWithParticipants(
   admin: Admin,
-  row: ContestInsertRow,
+  row: StagedContestInsert,
   sides: { entry_id: string; side: 'home' | 'away' | null }[]
 ): Promise<
   | { ok: true; contest: Record<string, unknown> & { id: string; competition_id: string } }
@@ -944,6 +1058,8 @@ export async function insertContestWithParticipants(
       ...(row.holes ? { holes: row.holes } : {}),
       ...(row.play_from ? { play_from: row.play_from } : {}),
       ...(row.play_to ? { play_to: row.play_to } : {}),
+      // Track 2 (218): a bracket contest's place.
+      ...(row.stage ? { stage: row.stage, slot: row.slot } : {}),
     })
     .select()
     .single();
@@ -1417,6 +1533,22 @@ export async function resultsUpsertPOST(
       );
     }
   }
+  // Track 2 PR 3: a bracket contest — both sides must be filled (trap 9: an empty side auto-completes on head-count),
+  // both results arrive together, and a tied score carries its decision (`payload.advance`) on exactly one side.
+  if (compRow.format === 'bracket') {
+    const sides = new Set((participants ?? []).map(p => p.side));
+    if ((participants ?? []).length !== 2 || !sides.has('home') || !sides.has('away')) {
+      return NextResponse.json({ error: 'This slot is not filled yet — the feeding matches decide who plays here.', reason: 'slot_unfilled' }, { status: 409 });
+    }
+    if (input.results.length !== 2) return NextResponse.json({ error: 'A bracket result carries both sides.', reason: 'both_sides' }, { status: 400 });
+    const [r1, r2] = input.results;
+    const adv = (r: { payload?: Record<string, unknown> }) => r.payload && 'advance' in r.payload ? r.payload.advance : undefined;
+    for (const r of input.results) if (adv(r) !== undefined && !isAdvanceKind(adv(r))) return NextResponse.json({ error: `advance must be one of ${ADVANCE_KINDS.join(', ')}` }, { status: 400 });
+    if (r1.score === r2.score) {
+      const decided = [adv(r1), adv(r2)].filter(v => v !== undefined).length;
+      if (decided !== 1) return NextResponse.json({ error: 'A tied knockout match needs its decision — shootout, extra time, penalties, a decision or a forfeit — on the side that advances.', reason: 'tie_needs_decision' }, { status: 400 });
+    }
+  }
 
   // One homogeneous-key batch upsert on the participant unique.
   const { error } = await admin.from('contest_results').upsert(
@@ -1447,6 +1579,8 @@ export async function resultsUpsertPOST(
   if (complete && contestRow.status !== 'completed') {
     await admin.from('contests').update({ status: 'completed' }).eq('id', input.contestId);
   }
+  // Track 2 PR 3: a bracket result feeds the next stage (best-effort, beside the recompute).
+  if (compRow.format === 'bracket') await advanceBracket(admin, compRow.id);
   await recomputeStandingsBestEffort(admin, compRow.id);
   await revalidateOrgSiteForCompetition(admin, compRow.id);
   return NextResponse.json({ ok: true, completed: complete, competitionId: compRow.id });

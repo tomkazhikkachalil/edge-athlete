@@ -102,6 +102,10 @@ export interface ContestView {
     venueName: string | null;
     facilityName: string | null;
     courseName: string | null;
+    /** Track 2 (218): a bracket contest's place; null elsewhere. */
+    stage: number | null;
+    slot: number | null;
+    roundName: string | null;
   };
   competition: {
     id: string;
@@ -231,6 +235,9 @@ export function projectContestView(raw: RawContestRecord): ContestView {
     sportKey: raw.competition.sportKey,
     scoringRule: raw.competition.scoringRule,
     status: raw.contest.status,
+    stage: raw.contest.stage,
+    slot: raw.contest.slot,
+    roundName: raw.contest.roundName,
     participants: entrants.map(e => ({
       participantId: e.participantId,
       entryId: e.entryId,
@@ -340,6 +347,8 @@ interface ContestRow {
   play_from?: string | null;
   play_to?: string | null;
   sport_event_round_id?: string | null;
+  stage?: number | null;
+  slot?: number | null;
 }
 
 interface CompetitionRow {
@@ -369,7 +378,11 @@ export async function fetchContestView(
     const readContest = (fields: string) =>
       admin.from('contests').select(fields).eq('id', contestId).maybeSingle();
     // Phase 2b (211): `sport_event_round_id` rides too; pre-211 → the 172 shape; pre-172 → the base.
-    let { data: contestData, error: contestError } = await readContest(`${CONTEST_FIELDS_BASE}, holes, play_from, play_to, sport_event_round_id`);
+    // Track 2 (218): `stage, slot` ride as the OUTERMOST step; pre-218 → the 211 shape → the 172 shape → the base.
+    let { data: contestData, error: contestError } = await readContest(`${CONTEST_FIELDS_BASE}, holes, play_from, play_to, sport_event_round_id, stage, slot`);
+    if (contestError?.code === '42703') {
+      ({ data: contestData, error: contestError } = await readContest(`${CONTEST_FIELDS_BASE}, holes, play_from, play_to, sport_event_round_id`));
+    }
     if (contestError?.code === '42703') {
       ({ data: contestData, error: contestError } = await readContest(`${CONTEST_FIELDS_BASE}, holes, play_from, play_to`));
     }
@@ -555,6 +568,9 @@ export async function fetchContestView(
         holes: contest.holes ?? null,
         playFrom: contest.play_from ?? null,
         playTo: contest.play_to ?? null,
+        stage: contest.stage ?? null,
+        slot: contest.slot ?? null,
+        roundName: contest.stage != null && contest.round ? contest.round : null,
         eventId: contest.event_id,
         venueName: venue?.name ?? null,
         facilityName: ((facilityRes.data as { name?: string | null } | null)?.name ?? null) || null,

@@ -126,7 +126,7 @@ describe('deriveContestOutcome — leaderboard', () => {
 
 describe('deriveContestOutcome — other formats', () => {
   it('is unscored for a format the registry does not accept', () => {
-    expect(deriveContestOutcome({ format: 'bracket', sportKey: 'tennis', scoringRule: null, status: 'scheduled', participants: [] }))
+    expect(deriveContestOutcome({ format: 'meet', sportKey: 'tennis', scoringRule: null, status: 'scheduled', participants: [] }))
       .toEqual({ kind: 'unscored', complete: false });
   });
 });
