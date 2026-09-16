@@ -1,3 +1,4 @@
+import { defaultEntrantFor, FORMAT_ENTRANT_REFUSAL_COPY, formatEntrantRefusal, resolveCompetitionProfile } from '@/lib/sports/competition-profiles';
 // ── Competition CRUD — the shared core (phase 2, round 1) ───────────────────
 // The structure-server pattern applied to migration 151: the
 // /api/admin/competitions* routes and the /api/{side}s/[id]/competitions*
@@ -25,7 +26,6 @@ import { NextResponse } from 'next/server';
 import type { SupabaseClient, User } from '@supabase/supabase-js';
 import { type OrgSide, capabilityAllows, getOrgAndCapabilities } from './authz';
 import {
-  FORMAT_ENTRANTS,
   isMissingTableError,
   type CompetitionCreateInput,
   type CompetitionPatchInput,
@@ -272,6 +272,13 @@ export async function competitionCreatePOST(
     }
   }
 
+  // Track 2 PR 1: the sport's competition profile is the authority on format × entrant (a miss is a 400 by name; a sport with no profile keeps the v1 pairs).
+  const profile = resolveCompetitionProfile(input.sportKey);
+  const refusal = formatEntrantRefusal(profile, input.format, input.entrantType ?? null);
+  if (refusal) return NextResponse.json({ error: FORMAT_ENTRANT_REFUSAL_COPY[refusal], reason: refusal }, { status: 400 });
+  const entrantType = input.entrantType ?? defaultEntrantFor(profile, input.format);
+  if (!entrantType) return NextResponse.json({ error: FORMAT_ENTRANT_REFUSAL_COPY.format_unsupported, reason: 'format_unsupported' }, { status: 400 });
+
   const insertRow: Record<string, unknown> = {
     // Org inherited from the season — the one place the rule is enforced.
     league_id: season.league_id,
@@ -281,8 +288,8 @@ export async function competitionCreatePOST(
     sport_key: input.sportKey,
     name: input.name,
     format: input.format,
-    // Entrant type is DERIVED from the format (v1 pairs) — never client-set.
-    entrant_type: FORMAT_ENTRANTS[input.format],
+    // Track 2: the entrant kind comes from the sport's competition profile — the organizer's choice when the profile offers it, else the format's default.
+    entrant_type: entrantType,
     scoring_rule: input.scoringRule ?? null,
     visibility: input.visibility,
   };

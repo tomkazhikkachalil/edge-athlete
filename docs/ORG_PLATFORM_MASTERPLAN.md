@@ -119,6 +119,15 @@ stat_line           contest_id, athlete_id, team_id, payload
 standing            competition_id, entrant_ref, derived (materialized)
 ```
 
+**Status (Competition formats program, track 2 — Sep 16 2026):** the four
+formats are being taken live in the app on one PR chain, each format its own
+round (the plan: `~/.claude/plans/let-s-start-phase-2-transient-fountain.md`,
+"Track 2"). What has landed:
+
+| PR | what |
+|---|---|
+| 1 | `src/lib/sports/competition-profiles.ts` — the ONE owner of format × entrant × rule per sport (pure data; the scoring defaults read it; `FORMATS_LIVE` gates creation; an optional `entrantType` the profile must offer) |
+
 One competition model covers both contexts:
 
 - **House league:** competition owned by KMHA, entrants are KMHA teams from

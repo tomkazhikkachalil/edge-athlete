@@ -17,17 +17,22 @@
 
 import { z } from 'zod';
 import { boundedText, optionalText, uuid } from '@/lib/validation';
+import { COMPETITION_FORMATS, ENTRANT_KINDS, type CompetitionFormat } from '@/lib/sports/competition-profiles';
 
 export { isMissingTableError } from '@/lib/leagues/validate';
 export { OrgSideSchema } from '@/lib/structure/validate';
 import { OrgSideSchema } from '@/lib/structure/validate';
 
-/** The v1 creatable pairs. Widening a round = widening THIS, not the DB. */
+/**
+ * The format vocabulary is the DB's four (track 2 PR 1); what is CREATABLE
+ * is `FORMATS_LIVE`, widened per round (PR 3: bracket · PR 7: meet) — the
+ * DB CHECKs never change. The entrant kind is DERIVED from the sport's
+ * competition profile (`defaultEntrantFor`) unless the organizer names one
+ * the profile allows (`formatEntrantRefusal`, checked in the server lib).
+ */
 export const COMPETITION_FORMATS_V1 = ['fixture', 'leaderboard'] as const;
-export const FORMAT_ENTRANTS: Record<(typeof COMPETITION_FORMATS_V1)[number], 'team' | 'athlete'> = {
-  fixture: 'team',
-  leaderboard: 'athlete',
-};
+export const FORMATS_LIVE: readonly CompetitionFormat[] = ['fixture', 'leaderboard'];
+export const isFormatLive = (format: string): format is CompetitionFormat => (FORMATS_LIVE as readonly string[]).includes(format);
 
 /** Phase 6c G1: a bare calendar date (golf_rounds.date is a DATE). */
 export const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
@@ -40,7 +45,9 @@ export const CompetitionCreateSchema = z
     divisionId: uuid.optional(),
     sportKey: boundedText(40),
     name: boundedText(80),
-    format: z.enum(COMPETITION_FORMATS_V1),
+    format: z.enum(COMPETITION_FORMATS).refine(isFormatLive, { message: 'That competition format is not available yet' }),
+    // Track 2: the organizer may name the entrant kind when the sport's profile offers more than one.
+    entrantType: z.enum(ENTRANT_KINDS).optional(),
     scoringRule: optionalText(40),
     visibility: z.enum(['public', 'private']).default('private'),
     // Phase 6c G1: shape-blind competition config; the first key is the

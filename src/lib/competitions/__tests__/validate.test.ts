@@ -3,7 +3,6 @@ import {
   CompetitionCreateSchema,
   CompetitionPatchSchema,
   EntryAddSchema,
-  FORMAT_ENTRANTS,
   GolfSeasonGenerateSchema,
 } from '../validate';
 
@@ -29,11 +28,11 @@ describe('CompetitionCreateSchema', () => {
     expect(CompetitionCreateSchema.safeParse({ ...base, format: 'leaderboard' }).success).toBe(true);
   });
 
-  it('strips client-sent entrant_type (derived server-side from format)', () => {
+  it('strips client-sent entrant_type; the camelCase entrantType is an optional named kind (the profile decides in the server lib)', () => {
     const parsed = CompetitionCreateSchema.parse({ ...base, entrant_type: 'athlete' });
     expect('entrant_type' in parsed).toBe(false);
-    expect(FORMAT_ENTRANTS.fixture).toBe('team');
-    expect(FORMAT_ENTRANTS.leaderboard).toBe('athlete');
+    expect(CompetitionCreateSchema.parse({ ...base, entrantType: 'ad_hoc_team' }).entrantType).toBe('ad_hoc_team');
+    expect(CompetitionCreateSchema.safeParse({ ...base, entrantType: 'club' }).success).toBe(false);
   });
 });
 
