@@ -1,5 +1,21 @@
 # Development Log
 
+## September 16, 2026 — Events program, phase 4, PR 3: migration 214 (open joining + recorders)
+
+The first of phase 4's three schema migrations, shipped alone so the
+42703 window holds nothing (the 207 lesson): `sport_events.join_mode`
+widens to `open` (DROP + ADD of the one named CHECK — a 23514 window; the
+app names `open` only in PR 4); `sport_events.visibility` DEFAULTS to
+`public` (no UPDATE — existing rows keep their visibility; the parsers and
+the wizard flip their fallbacks in PR 4); `sport_events.self_entry`
+(players enter their own — the recording mode is DERIVED from it and the
+recorder rows: self | recorder | both, no CHECK, no impossible state);
+`sport_event_participants.recorder` (a named recorder on ANY accepted row
+— a player, a co-organizer, or a follower: the non-playing recorder; 202's
+follower_check holds). ONE result row (`214 APPLIED | 3 | 1 | 1`); the
+twin `verify-214-sport-events-open-joining-recorders.sql` runs pre-214
+(the new columns through `to_jsonb`) with its `0 file` row.
+
 ## September 16, 2026 — Events program, phase 4, PR 2: the live bell and Live Now for events (zero DDL)
 
 - **`sport_event_live` is finally sent** (registered and unsent since 205):

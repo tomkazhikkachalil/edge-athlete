@@ -279,7 +279,9 @@ first finding: 008's `tag_notifications_enabled` never landed (live has
 `tags_enabled`; nothing reads the 008 name) — a no-op DROP that retires
 the claim. Phase 2b's migrations shift to 209–211; phase 3 (match play and
 brackets) is 212 (the format vocabulary, `side`, `sport_event_matches`) and
-213 (the match bell).
+213 (the match bell). Events phase 4 (every sport live, open joining, recorders,
+media) is 214 (open joining + recorders), 215 (team rounds + live stat lines) and
+216 (event media).
 
 ## ⚠️ Everything else is historical — do NOT run it
 
