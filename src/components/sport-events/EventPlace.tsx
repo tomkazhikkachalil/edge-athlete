@@ -152,6 +152,7 @@ export default function EventPlace({ eventId, initialView, token }: Props) {
     onFollow: () => run(() => api.follow()),
     onUnfollow: () => run(() => api.unfollow()),
     onManage: () => changeTab('players'),
+    onSignIn: () => router.push(`/?next=${encodeURIComponent(`/events/${eventId}`)}`),
   };
 
   const today = () => localDayKey(new Date());
@@ -225,6 +226,7 @@ export default function EventPlace({ eventId, initialView, token }: Props) {
               onIndexOverride={(target, index) => run(() => api.participantPatch(target, { handicap_index: index }))}
               onOpenFlights={() => setFlightsOpen(true)}
               onWaitlistMove={(target, position) => run(() => api.participantPatch(target, { waitlist_position: position }))}
+              api={api}
             />
           )}
           {visibleTab === 'groups' && viewer.can_manage && <EventGroupsEditor view={view} api={api} selected={selectedRound} onSelect={changeRound} onSaved={v => { setView(v); setVersion(x => x + 1); }} />}
@@ -327,11 +329,6 @@ export default function EventPlace({ eventId, initialView, token }: Props) {
           onConfirm={async () => { const c = confirm; setConfirm(null); await c.run(); }}
           onCancel={() => setConfirm(null)}
         />
-      )}
-      {!user && initialAuthCheckComplete && (
-        <p className="text-sm text-muted text-center">
-          <button type="button" onClick={() => router.push('/')} className="text-brand-fg hover:text-brand-fg-strong font-medium min-h-[44px]">Log in</button> to join or follow this event.
-        </p>
       )}
     </div>
   );

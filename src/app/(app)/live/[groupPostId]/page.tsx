@@ -61,18 +61,19 @@ export default function LiveRoundPage() {
   // coming back re-arms the auto-open, which is the behaviour asked for.
   const [autoOpened, setAutoOpened] = useState(false);
 
+  // Events phase 4: no sign-in redirect up front — a PUBLIC round is a place
+  // anyone can watch. The scorecard fetch decides: a 401/404 for a signed-out
+  // reader sends them to sign in with a way back; a signed-in stranger gets
+  // the not-available screen as before.
   useEffect(() => {
-    if (initialAuthCheckComplete && !authLoading && !user) router.push('/');
-  }, [user, authLoading, initialAuthCheckComplete, router]);
-
-  useEffect(() => {
-    if (!user || !groupPostId) return;
+    if (!initialAuthCheckComplete || authLoading || !groupPostId) return;
     let cancelled = false;
     (async () => {
       try {
         const res = await fetch(`/api/group-posts/${groupPostId}/scorecard`, { cache: 'no-store' });
         if (cancelled) return;
         if (!res.ok) {
+          if (!user) { router.replace(`/?next=${encodeURIComponent(`/live/${groupPostId}`)}`); return; }
           setNotFound(true);
           return;
         }
@@ -87,7 +88,7 @@ export default function LiveRoundPage() {
     return () => {
       cancelled = true;
     };
-  }, [user, groupPostId]);
+  }, [user, groupPostId, initialAuthCheckComplete, authLoading, router]);
 
   // Realtime + poll + the minute tick, exactly as the feed card gets them.
   const { scorecard, refresh, stale } = useSharedRound({
@@ -197,7 +198,7 @@ export default function LiveRoundPage() {
     </div>
   );
 
-  if (!initialAuthCheckComplete || authLoading || !user) return shell(spinner);
+  if (!initialAuthCheckComplete || authLoading) return shell(spinner);
   if (loading) return shell(spinner);
 
   if (notFound || entry.mode === 'not-found') {
@@ -227,7 +228,8 @@ export default function LiveRoundPage() {
 
   if (!scorecard) return shell(spinner);
 
-  const isCreator = scorecard.group_post.creator_id === user.id;
+  const viewerId = user?.id ?? null;
+  const isCreator = viewerId !== null && scorecard.group_post.creator_id === viewerId;
   const viewPostHref = entry.postId ? `/feed?post=${entry.postId}` : '/feed';
 
   const courseInfo = embeddedCourseToInfo(scorecard.golf_data.course);
@@ -237,7 +239,7 @@ export default function LiveRoundPage() {
   const roundOpen = effectiveRoundStatus(scorecard.group_post) !== 'completed';
   const holesPlayedN = scorecard.golf_data.holes_played;
   const startHole = startingHoleNumber(scorecard.golf_data.hole_data ?? null, holesPlayedN);
-  const myParticipant = scorecard.participants.find(p => p.participant.profile_id === user.id);
+  const myParticipant = viewerId ? scorecard.participants.find(p => p.participant.profile_id === viewerId) : undefined;
   // The chip, the floating button and the scorer's resume all share
   // firstUnscoredHole — they can never disagree about "the current hole".
   const nextHole = myParticipant
@@ -352,7 +354,7 @@ export default function LiveRoundPage() {
           the feed card can no longer disagree about whether a round is stale. */}
       <SharedRoundQuickView
         scorecard={scorecard}
-        currentUserId={user.id}
+        currentUserId={viewerId ?? undefined}
         stale={stale}
         onExpand={() => setShowFullCard(true)}
         // Ending the round re-timestamps the feed post to now, so the finished
@@ -364,7 +366,7 @@ export default function LiveRoundPage() {
         onDeleted={() => router.replace('/feed')}
       />
 
-      {groupCard && entry.mode === 'score' && (
+      {groupCard && entry.mode === 'score' && user && (
         <div className="mt-4 -mx-4 bg-surface rounded-lg border border-border overflow-hidden" style={{ minHeight: '60vh' }}>
           <GroupScoreCard
             scorecard={scorecard}
@@ -506,7 +508,7 @@ export default function LiveRoundPage() {
       {showFullCard && (
         <SharedRoundFullCard
           scorecard={scorecard}
-          currentUserId={user.id}
+          currentUserId={viewerId ?? undefined}
           onClose={() => setShowFullCard(false)}
           // Score entry on a FINAL round matches the feed card's long-standing
           // policy (canScore has no status gate): an active participant may
@@ -524,7 +526,7 @@ export default function LiveRoundPage() {
         />
       )}
 
-      {scoringParticipantId && (
+      {scoringParticipantId && user && (
         <ScoreEntryModal
           key={`${scoringParticipantId}:${scoringHole ?? 'resume'}`}
           groupPostId={scorecard.group_post.id}
@@ -553,7 +555,7 @@ export default function LiveRoundPage() {
                     ),
                     avatarUrl: p.participant.profile?.avatar_url ?? null,
                     holesCompleted: p.scores.holes_completed ?? 0,
-                    isSelf: p.participant.profile_id === user.id,
+                    isSelf: p.participant.profile_id === viewerId,
                   }))
               : undefined
           }
@@ -562,7 +564,7 @@ export default function LiveRoundPage() {
             const p = scorecard.participants.find(
               x => x.participant.id === scoringParticipantId
             );
-            if (!p || p.participant.profile_id === user.id) return undefined;
+            if (!p || p.participant.profile_id === viewerId) return undefined;
             return formatDisplayName(
               p.participant.profile?.first_name ?? null,
               null,

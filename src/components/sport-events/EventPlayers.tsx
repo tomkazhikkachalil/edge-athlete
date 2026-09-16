@@ -1,11 +1,12 @@
 'use client';
 
 import { useState } from 'react';
-import Link from 'next/link';
 import LazyImage from '@/components/LazyImage';
 import type { ParticipantView, SportEventViewPayload } from '@/lib/sport-events/view';
 import type { JoinControl } from '@/lib/sport-events/join-state';
 import EventJoinButton from './EventJoinButton';
+import EventPlayerSheet from './EventPlayerSheet';
+import type { EventApi } from '@/lib/sport-events/client';
 
 interface Props {
   view: SportEventViewPayload;
@@ -21,6 +22,8 @@ interface Props {
   onIndexOverride: (pid: string, index: number | null) => void;
   /** Phase 2: the organizer's Flights window. */
   onOpenFlights?: () => void;
+  /** Phase 4: the player sheet reads this event's line for the tapped player. */
+  api?: EventApi;
 }
 
 const BTN = 'ea-interactive border border-border-strong text-secondary px-3 min-h-[44px] rounded-lg text-sm font-semibold disabled:opacity-60';
@@ -61,7 +64,8 @@ function IndexField({ p, onChange }: { p: ParticipantView; onChange: (index: num
   );
 }
 
-export default function EventPlayers({ view, control, busy, joinActions, onOpenInvite, onInviteHandle, onDecide, onHideToggle, onIndexOverride, onOpenFlights, onWaitlistMove }: Props) {
+export default function EventPlayers({ view, control, busy, joinActions, onOpenInvite, onInviteHandle, onDecide, onHideToggle, onIndexOverride, onOpenFlights, onWaitlistMove, api }: Props) {
+  const [picked, setPicked] = useState<ParticipantView | null>(null);
   const { event, participants, viewer, counts } = view;
   const canManage = viewer.can_manage;
   const canInvite = canManage && (event.status === 'draft' || event.status === 'open');
@@ -85,7 +89,8 @@ export default function EventPlayers({ view, control, busy, joinActions, onOpenI
         <Avatar p={p} />
         <div className="min-w-0 flex-1">
           <p className="text-sm font-semibold text-primary truncate">
-            {p.handle ? <Link href={`/u/${p.handle}`} className="hover:text-brand-fg">{p.name}</Link> : p.name}
+            {/* Phase 4: a name opens the in-event sheet — the masked name and this event's line; the profile only when public (the sheet's rule). */}
+            <button type="button" onClick={() => setPicked(p)} className="text-left hover:text-brand-fg min-h-[44px] -my-2" data-event-player-open={p.profile_id}>{p.name}</button>
             {self && <span className="ml-1 text-xs font-normal text-muted">(you)</span>}
           </p>
           <p className="text-xs text-muted truncate">
@@ -182,6 +187,7 @@ export default function EventPlayers({ view, control, busy, joinActions, onOpenI
       )}
       {followers.length > 0 && <Section title={`Following (${followers.length})`}>{followers.map(p => row(p))}</Section>}
       {canManage && gone.length > 0 && <Section title="Not playing">{gone.map(p => row(p, <span className="text-xs text-muted capitalize">{p.status}</span>))}</Section>}
+      {picked && <EventPlayerSheet view={view} participant={picked} api={api ?? null} onClose={() => setPicked(null)} />}
     </div>
   );
 }

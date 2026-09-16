@@ -24,7 +24,8 @@ describe('the event page rules', () => {
   });
   it('the join control per viewer', () => {
     const base: JoinStateInput = { signedIn: true, canManage: false, role: 'viewer', participantStatus: null, playing: false, waitlistPosition: null, event: { status: 'open', joinMode: 'invite' } };
-    expect(joinControl({ ...base, signedIn: false })).toEqual({ kind: 'none' });
+    expect(joinControl({ ...base, signedIn: false })).toEqual({ kind: 'signin' }); // phase 4: "Log in to join"
+    expect(joinControl({ ...base, signedIn: false, event: { ...base.event, status: 'completed' } })).toEqual({ kind: 'none' });
     expect(joinControl({ ...base, canManage: true })).toEqual({ kind: 'manage' });
     expect(joinControl(base)).toEqual({ kind: 'follow' });
     expect(joinControl({ ...base, event: { status: 'open', joinMode: 'request' } })).toEqual({ kind: 'request' });
