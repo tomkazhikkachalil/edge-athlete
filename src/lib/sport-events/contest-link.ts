@@ -24,7 +24,7 @@ export interface CompetitionForLink {
   status: string;
 }
 
-export type LinkRefusal = 'no_org' | 'not_stroke_play' | 'not_found' | 'other_org' | 'not_golf_leaderboard' | 'not_athletes' | 'competition_closed' | 'event_over' | 'results_exist' | 'shape_mismatch' | 'not_a_game' | 'not_two_sided' | 'already_linked' | 'contest_over' | 'sport_unsupported' | 'side_size' | 'points_format';
+export type LinkRefusal = 'no_org' | 'not_stroke_play' | 'not_found' | 'other_org' | 'not_golf_leaderboard' | 'not_athletes' | 'competition_closed' | 'event_over' | 'results_exist' | 'shape_mismatch' | 'not_a_game' | 'not_two_sided' | 'already_linked' | 'contest_over' | 'sport_unsupported' | 'side_size' | 'points_format' | 'not_a_bracket' | 'not_golf_bracket' | 'bracket_shape' | 'bracket_not_drawn';
 
 /** Track 2 PR 10: what an event IS to the bridge — a stroke-play round, a match-play round, a game or a session. */
 export type EventShape = 'stroke' | 'match' | 'stableford' | 'game' | 'session';
@@ -44,7 +44,9 @@ export function competitionAcceptsShape(c: CompetitionForLink, shape: EventShape
   }
   if (shape === 'game') return c.sport_key === sportKey && c.format === 'fixture' && c.entrant_type === 'ad_hoc_team' ? null : 'shape_mismatch';
   if (shape === 'stableford') return 'points_format';
-  return shape === 'match' ? 'not_stroke_play' : 'shape_mismatch';
+  // Leftovers PR 7: a bracketed match event counts toward a golf BRACKET (athletes or ad-hoc pairs) — stage n ↔ round n, slot k ↔ match k.
+  if (shape === 'match') return c.sport_key === 'golf' && c.format === 'bracket' ? null : 'not_golf_bracket';
+  return 'shape_mismatch';
 }
 
 export const LINK_REFUSAL_COPY: Readonly<Record<LinkRefusal, string>> = {
@@ -65,23 +67,27 @@ export const LINK_REFUSAL_COPY: Readonly<Record<LinkRefusal, string>> = {
   sport_unsupported: 'This sport has no live events yet.',
   side_size: 'A match needs one player a side (singles) or two (four-ball).',
   points_format: 'A Stableford event ranks by points; the org’s golf leaderboards count strokes. Run it as stroke play to count, or keep it standalone.',
+  not_a_bracket: 'Only a bracket event counts toward a bracket competition — turn on the bracket in the format settings.',
+  not_golf_bracket: 'A match-play event counts toward a golf bracket competition.',
+  bracket_shape: 'The bracket’s rounds must equal this event’s rounds — a stage per round.',
+  bracket_not_drawn: 'Draw the bracket in the console first — the matches are linked to its slots.',
 };
 
 /** Why a competition cannot count this event, or null when it can. */
-export function linkRefusal(event: { club_id: string | null; league_id: string | null; status: string; format?: string | null; sport_key?: string; shape?: string | null }, competition: CompetitionForLink | null): LinkRefusal | null {
+export function linkRefusal(event: { club_id: string | null; league_id: string | null; status: string; format?: string | null; sport_key?: string; shape?: string | null; bracket?: boolean | null }, competition: CompetitionForLink | null): LinkRefusal | null {
   if (!event.club_id && !event.league_id) return 'no_org';
   const shape = eventShape(event);
-  if (shape === 'match') return 'not_stroke_play';
   if (event.status !== 'draft' && event.status !== 'open') return 'event_over';
   if (!competition) return 'not_found';
   if ((event.club_id && competition.club_id !== event.club_id) || (event.league_id && competition.league_id !== event.league_id)) return 'other_org';
   const byShape = competitionAcceptsShape(competition, shape, event.sport_key ?? 'golf');
   if (byShape) return byShape;
+  if (shape === 'match' && !event.bracket) return 'not_a_bracket';
   if (competition.status === 'completed' || competition.status === 'archived') return 'competition_closed';
   return null;
 }
 
-export const eligibleCompetition = (event: { club_id: string | null; league_id: string | null; format?: string | null; sport_key?: string; shape?: string | null }, c: CompetitionForLink): boolean => linkRefusal({ ...event, status: 'draft' }, c) === null;
+export const eligibleCompetition = (event: { club_id: string | null; league_id: string | null; format?: string | null; sport_key?: string; shape?: string | null; bracket?: boolean | null }, c: CompetitionForLink): boolean => linkRefusal({ ...event, status: 'draft' }, c) === null;
 
 export interface GameContestRowInput {
   competition_id: string;
@@ -129,4 +135,72 @@ export function eventOrg(event: { club_id: string | null; league_id: string | nu
   if (event.club_id) return { side: 'club', id: event.club_id };
   if (event.league_id) return { side: 'league', id: event.league_id };
   return null;
+}
+
+// ── The bracket door (leftovers PR 7): a bracketed MATCH event ↔ an org golf bracket, in one act ──
+// The org's contests sit at (stage, slot) (218); the event's matches at (round sequence, group sequence). The rule has ONE place:
+// stage n ↔ round n, slot k ↔ match k. Nothing is minted at link time — the intent lives on `sport_events.competition_id` (221) and each
+// round's matches are stamped onto the bracket's contests (220) at go-live.
+
+/** The link-time gate: the bracket must be drawn, and its stage count must equal the event's non-cancelled round count. */
+export function bracketShapeRefusal(stages: number, roundCount: number): 'bracket_not_drawn' | 'bracket_shape' | null {
+  if (stages <= 0) return 'bracket_not_drawn';
+  if (stages !== roundCount) return 'bracket_shape';
+  return null;
+}
+
+/** Match k of round n plays slot k of stage n — the one place the mapping is written. */
+export function slotForMatch(round: { sequence: number }, group: { sequence: number }): { stage: number; slot: number } {
+  return { stage: round.sequence, slot: group.sequence };
+}
+
+export interface MatchForLink {
+  matchId: string;
+  groupSequence: number;
+  /** The players on each side, as profile ids. */
+  sides: [string[], string[]];
+}
+
+export interface SlotContest {
+  id: string;
+  stage: number;
+  slot: number;
+  linkedMatchId: string | null;
+  hasResult: boolean;
+  /** The org side's players (an athlete entry's one profile, an ad-hoc pair's members), null on an unfilled slot. */
+  home: string[] | null;
+  away: string[] | null;
+}
+
+export type MatchLinkOp =
+  | { matchId: string; slot: number; contestId: string; action: 'stamp'; sidesAgree: boolean }
+  | { matchId: string; slot: number; contestId: string | null; action: 'skip'; reason: 'no_slot' | 'has_result' | 'already_linked' | 'already' };
+
+/** The same two sets of players, either orientation (the org may have drawn home / away the other way round). */
+export function sidesAgree(eventSides: [string[], string[]], home: string[] | null, away: string[] | null): boolean {
+  if (!home || !away) return false;
+  const same = (a: string[], b: string[]) => a.length === b.length && a.every(p => b.includes(p));
+  return (same(eventSides[0], home) && same(eventSides[1], away)) || (same(eventSides[0], away) && same(eventSides[1], home));
+}
+
+/** What go-live does to the bracket's stage: each match stamped onto its slot when the slot has no result and no other match. */
+export function matchLinkPlan(matches: ReadonlyArray<MatchForLink>, contests: ReadonlyArray<SlotContest>, stage: number): MatchLinkOp[] {
+  const bySlot = new Map(contests.filter(c => c.stage === stage).map(c => [c.slot, c]));
+  return matches.map(m => {
+    const slot = m.groupSequence;
+    const c = bySlot.get(slot);
+    if (!c) return { matchId: m.matchId, slot, contestId: null, action: 'skip', reason: 'no_slot' };
+    if (c.linkedMatchId === m.matchId) return { matchId: m.matchId, slot, contestId: c.id, action: 'skip', reason: 'already' };
+    if (c.hasResult) return { matchId: m.matchId, slot, contestId: c.id, action: 'skip', reason: 'has_result' };
+    if (c.linkedMatchId) return { matchId: m.matchId, slot, contestId: c.id, action: 'skip', reason: 'already_linked' };
+    return { matchId: m.matchId, slot, contestId: c.id, action: 'stamp', sidesAgree: sidesAgree(m.sides, c.home, c.away) };
+  });
+}
+
+export interface MatchLinkReport {
+  stage: number;
+  stamped: number;
+  /** The slots whose org draw disagrees with the event's sides — reported, never a gate. */
+  mismatched: number[];
+  skipped: Array<{ slot: number; reason: string }>;
 }

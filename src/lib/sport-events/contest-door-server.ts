@@ -23,7 +23,7 @@ import { revalidateOrgSiteForCompetition } from '@/lib/org-sites/revalidate';
 import { publicDisplayName, type MaskableProfile } from '@/lib/orgs/public-names';
 import { EVENT_COLUMNS } from './access-server';
 import { LINK_REFUSAL_COPY, type LinkRefusal } from './contest-link';
-import { linkContestToRound } from './contest-link-server';
+import { linkContestToRound, readSportEventMatchLink } from './contest-link-server';
 import { snapshotAtAccept } from './handicap-server';
 import { applyTransition } from './lifecycle-server';
 import { snapshotRound } from './rounds-server';
@@ -86,6 +86,7 @@ export async function contestRunAsEventPOST(admin: Admin, input: ContestRunAsEve
   if (!(SPORT_EVENT_SPORTS_ALL as readonly string[]).includes(comp.sport_key)) return refuse('sport_unsupported', 400);
   if (contestRow.status === 'completed' || contestRow.status === 'canceled') return refuse('contest_over', 409);
   if (contestRow.sport_event_round_id) return refuse('already_linked', 409);
+  if (await readSportEventMatchLink(admin, input.contestId)) return refuse('already_linked', 409);
 
   const { data: parts } = await admin.from('contest_participants').select('side, entry:entry_id (id, team_id, profile_id, name)').eq('contest_id', input.contestId);
   const sideOf = (side: 'home' | 'away'): SideEntry | null => {

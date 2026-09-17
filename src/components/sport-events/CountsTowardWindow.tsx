@@ -37,7 +37,7 @@ export default function CountsTowardWindow({ view, onClose, onSave }: Props) {
         if (!res.ok) { if (!cancelled) setOptions([]); return; }
         const data = (await res.json()) as { competitions?: Array<CompetitionForLink & Record<string, unknown>> };
         // Track 2 PR 10: the event's sport and shape pick the competitions (a game → a fixture of named sides in its sport).
-        const ev = { club_id: org.side === 'club' ? org.id : null, league_id: org.side === 'league' ? org.id : null, sport_key: view.event.sport_key, shape: view.event.shape, format: view.event.format };
+        const ev = { club_id: org.side === 'club' ? org.id : null, league_id: org.side === 'league' ? org.id : null, sport_key: view.event.sport_key, shape: view.event.shape, format: view.event.format, bracket: view.event.match?.bracket ?? false };
         const list = (data.competitions ?? []).map(c => ({ ...c, club_id: ev.club_id, league_id: ev.league_id })).filter(c => eligibleCompetition(ev, c));
         if (!cancelled) setOptions(list);
       } catch {
@@ -45,7 +45,7 @@ export default function CountsTowardWindow({ view, onClose, onSave }: Props) {
       }
     })();
     return () => { cancelled = true; };
-  }, [org, view.event.sport_key, view.event.shape, view.event.format]);
+  }, [org, view.event.sport_key, view.event.shape, view.event.format, view.event.match?.bracket]);
 
   const save = async () => {
     setBusy(true);
@@ -68,10 +68,10 @@ export default function CountsTowardWindow({ view, onClose, onSave }: Props) {
               <option value="">None — just an event</option>
               {options.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
-            {options.length === 0 && <p className="text-xs text-muted">{isStablefordFormat(view.event.format) ? 'A Stableford event does not count toward a competition — it ranks by points.' : view.event.shape === 'game' ? `No fixture of named sides in this sport on ${org.name} yet — a manager creates one in the console.` : `No golf leaderboard competition on ${org.name} yet — a manager creates one in the console.`}</p>}
+            {options.length === 0 && <p className="text-xs text-muted">{isStablefordFormat(view.event.format) ? 'A Stableford event does not count toward a competition — it ranks by points.' : view.event.match ? (view.event.match.bracket ? `No golf bracket competition on ${org.name} yet — a manager draws one in the console.` : 'Only a bracket event counts toward a bracket competition — turn on the bracket in the format settings.') : view.event.shape === 'game' ? `No fixture of named sides in this sport on ${org.name} yet — a manager creates one in the console.` : `No golf leaderboard competition on ${org.name} yet — a manager creates one in the console.`}</p>}
           </label>
         )}
-        <p className="text-xs text-muted">One contest per round is created on the competition; the org&apos;s results are written from the leaderboard when a round completes. The link can change until play begins.</p>
+        <p className="text-xs text-muted">{view.event.match?.bracket ? 'Match k of round n plays slot k of stage n. Nothing is created now — each match is linked to its bracket slot when its round starts; the bracket’s rounds must equal this event’s.' : 'One contest per round is created on the competition; the org’s results are written from the leaderboard when a round completes. The link can change until play begins.'}</p>
         {error && <p role="alert" className="text-sm text-red-700 dark:text-red-300" data-counts-toward-error="">{error}</p>}
         <div className="flex flex-wrap gap-2 justify-end">
           <button type="button" onClick={onClose} className="ea-interactive border border-border-strong text-secondary px-4 min-h-[44px] rounded-lg text-sm font-semibold">Cancel</button>

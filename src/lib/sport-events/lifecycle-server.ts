@@ -295,7 +295,7 @@ export async function applyRoundTransition(admin: Admin, req: RoundTransitionReq
     // Phase 3: one match row per group (idempotent; a bracket bye decided at mint).
     if (match && !(await mintMatches(admin, round.id, groups, match, new Date().toISOString()))) return { ok: false, status: 500, reason: 'mint_failed', error: ROUND_REFUSAL_COPY.round_not_minted };
     // Track 2 PR 11 (220): a bracket contest run as this match takes the minted match's id (the round link cleared).
-    if (match) await linkMatchesToContests(admin, round.id);
+    if (match) await linkMatchesToContests(admin, event, round);
   }
 
   const verdict = validateRoundTransition(req.to, factsFor(roundMinted(round)));

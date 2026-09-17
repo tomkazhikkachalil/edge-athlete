@@ -136,6 +136,8 @@ export interface SportEventRow {
   self_entry?: boolean;
   /** 215 (phase 4) — the shape; optional until PR 8 reads the column (`shapeOf` reads a missing one as `round`). */
   shape?: SportEventShape;
+  /** 221 (leftovers) — a bracketed MATCH event's org bracket, kept before go-live; optional until the reader PR names the column. */
+  competition_id?: string | null;
   starts_on: string | null;
   opened_at: string | null;
   went_live_at: string | null;
