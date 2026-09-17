@@ -66,3 +66,10 @@ export function parseScoreWrite(body: unknown): Parsed<ScoreWrite> {
   if (typeof ev !== 'number' || !Number.isInteger(ev) || ev < 0) return { ok: false, error: 'expected_version must be a whole number' };
   return { ok: true, value: { side1_score: s1.value, side2_score: s2.value, period, expected_version: ev } };
 }
+
+/** Leftovers PR 5: two rosters into two sides — a player on both plays HOME; each side without duplicates, in roster order. */
+export function splitSides(home: ReadonlyArray<string>, away: ReadonlyArray<string>): [string[], string[]] {
+  const h = [...new Set(home)];
+  const hs = new Set(h);
+  return [h, [...new Set(away)].filter(p => !hs.has(p))];
+}

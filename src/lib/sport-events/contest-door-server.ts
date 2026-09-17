@@ -28,6 +28,8 @@ import { snapshotAtAccept } from './handicap-server';
 import { applyTransition } from './lifecycle-server';
 import { snapshotRound } from './rounds-server';
 import { SPORT_EVENT_SPORTS_ALL, type SportEventParticipantRow, type SportEventRow } from './types';
+import { teamRosterMembers } from './side-prefill-server';
+import { splitSides } from './game';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Admin = SupabaseClient<any, 'public', any>;
@@ -55,10 +57,7 @@ const refuse = (reason: LinkRefusal, status: number) => NextResponse.json({ erro
 /** A side's players: an athlete entry's one profile, an ad-hoc entry's members, or a team's team-scope roster under the org. */
 async function sideMembers(admin: Admin, entry: SideEntry, org: { col: 'league_id' | 'club_id'; id: string }): Promise<string[]> {
   if (entry.profile_id) return [entry.profile_id];
-  if (entry.team_id) {
-    const { data } = await admin.from('memberships').select('profile_id').eq(org.col, org.id).eq('kind', 'roster').eq('scope_type', 'team').eq('scope_id', entry.team_id).in('status', ['active', 'placed']);
-    return [...new Set(((data ?? []) as Array<{ profile_id: string }>).map(r => r.profile_id))];
-  }
+  if (entry.team_id) return teamRosterMembers(admin, org, entry.team_id);
   const { data } = await admin.from('competition_entry_members').select('profile_id, position').eq('entry_id', entry.id).order('position', { ascending: true });
   return [...new Set(((data ?? []) as Array<{ profile_id: string }>).map(r => r.profile_id))];
 }
@@ -99,8 +98,7 @@ export async function contestRunAsEventPOST(admin: Admin, input: ContestRunAsEve
   if (!home || !away || (parts ?? []).length !== 2) return refuse('not_two_sided', 400);
   const org = { col: orgCol, id: scope.orgId } as const;
   const [homeMembers, awayMembers] = await Promise.all([sideMembers(admin, home, org), sideMembers(admin, away, org)]);
-  const awaySet = new Set(awayMembers);
-  const homeOnly = homeMembers.filter(p => !awaySet.has(p));
+  const [homeOnly] = splitSides(homeMembers, awayMembers);
   // A match's sides: one a side (singles) or two (four-ball) — never uneven.
   let matchSides: 'singles' | 'fourball' | null = null;
   if (kind === 'match') {

@@ -91,3 +91,18 @@ describe('applyCut', () => {
     expect(cutEditable({ after_round: 1, top_n: 5 }, [{ sequence: 1, status: 'scheduled' }, { sequence: 2, status: 'scheduled' }])).toBe(true);
   });
 });
+
+import { parseGameConfig as parseGame, readGameConfig as readGame } from '../format-config';
+
+describe('side teams (leftovers PR 5)', () => {
+  const t1 = '11111111-1111-4111-8111-111111111111';
+  const t2 = '22222222-2222-4222-8222-222222222222';
+  it('two distinct team ids ride the game config; the names default to Home / Away until the route fills them', () => {
+    expect(parseGame({ side_team_ids: [t1, t2] })).toEqual({ ok: true, value: { side_names: ['Home', 'Away'], side_team_ids: [t1, t2] } });
+    expect(parseGame({ side_names: ['Reds', 'Blues'], side_team_ids: [t1, t2] })).toMatchObject({ ok: true, value: { side_names: ['Reds', 'Blues'], side_team_ids: [t1, t2] } });
+    expect(parseGame({ side_team_ids: [t1, t1] })).toMatchObject({ ok: false, error: expect.stringContaining('differ') });
+    expect(parseGame({ side_team_ids: [t1] })).toMatchObject({ ok: false, error: expect.stringContaining('two teams') });
+    expect(parseGame({ side_team_ids: [t1, t2] }, 'format_config.game', { allowSideTeams: false })).toMatchObject({ ok: false, error: expect.stringContaining('created') });
+    expect(readGame({ game: { side_names: ['A', 'B'], side_team_ids: [t1, t2] } }, 'game')).toEqual({ side_names: ['A', 'B'], side_team_ids: [t1, t2] });
+  });
+});

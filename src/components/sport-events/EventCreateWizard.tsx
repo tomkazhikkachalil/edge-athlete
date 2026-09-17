@@ -10,7 +10,7 @@ import { SPORT_EVENT_SPORTS_ALL, type SportEventSport } from '@/lib/sport-events
 import { formatDateOnly, formatLabel, holesLabel, joinLine, MATCH_SIDES_LABEL, roundsSummary, VISIBILITY_LABEL } from '@/lib/sport-events/format';
 import { isMatchFormat, MATCH_SIDES } from '@/lib/sport-events/types';
 import { MAX_ROUNDS } from '@/lib/sport-events/rounds';
-import { addWizardRound, emptyWizardState, isWizardDirty, removeWizardRound, updateWizardRound, validateWizardStep, wizardToCreateBody, WIZARD_STEP_LABEL, WIZARD_STEPS, type WizardState, type WizardStep , withVisibility, withSport } from '@/lib/sport-events/wizard';
+import { addWizardRound, emptyWizardState, isWizardDirty, removeWizardRound, updateWizardRound, validateWizardStep, wizardToCreateBody, WIZARD_STEP_LABEL, WIZARD_STEPS, type WizardState, type WizardStep , withVisibility, withSport, withSideTeam } from '@/lib/sport-events/wizard';
 import { eligibleCompetition, type CompetitionForLink } from '@/lib/sport-events/contest-link';
 import RoundFields, { Choice } from './RoundFields';
 import GameFields from './GameFields';
@@ -91,6 +91,26 @@ export default function EventCreateWizard() {
     })();
     return () => { cancelled = true; };
   }, [orgKey]);
+  // Leftovers PR 5: the chosen org's teams pre-fill a game's sides — keyed by the org like the competitions.
+  const [fetchedTeams, setFetchedTeams] = useState<{ key: string; list: Array<{ id: string; name: string; display_name: string | null }> } | null>(null);
+  const orgTeams = fetchedTeams && fetchedTeams.key === orgKey ? fetchedTeams.list : [];
+  useEffect(() => {
+    if (!orgKey || !team || s.shape !== 'game') return;
+    const [kind, id] = orgKey.split(':') as ['club' | 'league', string];
+    let cancelled = false;
+    (async () => {
+      let list: Array<{ id: string; name: string; display_name: string | null }> = [];
+      try {
+        const res = await fetch(`/api/${kind}s/${id}/structure`, { cache: 'no-store' });
+        if (res.ok) {
+          const data = (await res.json()) as { teams?: Array<{ id: string; name: string; display_name?: string | null; status?: string }> };
+          list = (data.teams ?? []).filter(t => t.status !== 'archived').map(t => ({ id: t.id, name: t.name, display_name: t.display_name ?? null }));
+        }
+      } catch { /* the picks stay off */ }
+      if (!cancelled) setFetchedTeams({ key: orgKey, list });
+    })();
+    return () => { cancelled = true; };
+  }, [orgKey, team, s.shape]);
   const stepIndex = WIZARD_STEPS.indexOf(step);
   const next = () => {
     const r = validateWizardStep(step, s);
@@ -263,11 +283,21 @@ export default function EventCreateWizard() {
           {team && s.shape === 'game' && (
             <div className="space-y-2" data-wizard-sides="">
               <span className="block text-sm font-medium text-secondary">The two sides</span>
+              {s.org && orgTeams.length > 0 && (
+                <div className="grid grid-cols-2 gap-2">
+                  {([0, 1] as const).map(i => (
+                    <select key={i} value={s.side_teams[i] ?? ''} onChange={e => { const t = orgTeams.find(x => x.id === e.target.value) ?? null; setRefusal(null); setS(prev => withSideTeam(prev, i, t ? { id: t.id, name: t.display_name || t.name } : null)); }} className={INPUT} aria-label={`Side ${i + 1} team`} data-wizard-side-team={i + 1}>
+                      <option value="">Pick a team…</option>
+                      {orgTeams.map(t => <option key={t.id} value={t.id}>{t.display_name || t.name}</option>)}
+                    </select>
+                  ))}
+                </div>
+              )}
               <div className="grid grid-cols-2 gap-2">
                 <input value={s.side_names[0]} onChange={e => set('side_names', [e.target.value, s.side_names[1]])} maxLength={40} className={INPUT} aria-label="Side 1 name" data-wizard-side="1" />
                 <input value={s.side_names[1]} onChange={e => set('side_names', [s.side_names[0], e.target.value])} maxLength={40} className={INPUT} aria-label="Side 2 name" data-wizard-side="2" />
               </div>
-              <span className="block text-xs text-muted">Players are sorted into the sides from the Groups tab once they&apos;ve joined — an organization&apos;s teams will pre-fill them later.</span>
+              <span className="block text-xs text-muted">{s.org && orgTeams.length > 0 ? 'Pick two of the organization’s teams and their rosters become the sides — or type the names and sort the players from the Groups tab once they’ve joined.' : 'Players are sorted into the sides from the Groups tab once they’ve joined.'}</span>
             </div>
           )}
           <label className="block space-y-1">

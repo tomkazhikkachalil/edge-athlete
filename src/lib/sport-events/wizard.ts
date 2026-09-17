@@ -11,7 +11,7 @@ import { NAME_MAX, DESCRIPTION_MAX, defaultJoinMode, isDateOnly } from './valida
 import { MAX_ROUNDS } from './rounds';
 import { isMatchFormat, type MatchSides, type SportEventFormat, type SportEventJoinMode, type SportEventVisibility } from './types';
 import { selfEntryFor, type RecordingMode } from './recording';
-import { DEFAULT_SIDE_NAMES, parseGameConfig } from './format-config';
+import { DEFAULT_SIDE_NAMES, parseGameConfig, SIDE_NAME_MAX } from './format-config';
 import type { SportEventShape, SportEventSport } from './types';
 
 export const WIZARD_STEPS = ['basics', 'round', 'format', 'review'] as const;
@@ -134,11 +134,22 @@ export interface WizardState {
   shape: SportEventShape;
   /** Phase 4: a game's two sides. */
   side_names: [string, string];
+  /** Leftovers PR 5: the org teams the sides come from (both or neither). */
+  side_teams: [string | null, string | null];
 }
 
 export function emptyWizardState(): WizardState {
   // Phase 4: a new event is PUBLIC and open to join unless the organizer closes it.
-  return { name: '', description: '', visibility: 'public', join_mode: 'open', org: null, competition: null, rounds: [emptyRoundDraft()], format: 'stroke_gross', match: { sides: 'singles', bracket: false }, capacity: '', host_plays: true, recording: 'self', sport_key: 'golf', shape: 'round', side_names: [DEFAULT_SIDE_NAMES[0], DEFAULT_SIDE_NAMES[1]] };
+  return { name: '', description: '', visibility: 'public', join_mode: 'open', org: null, competition: null, rounds: [emptyRoundDraft()], format: 'stroke_gross', match: { sides: 'singles', bracket: false }, capacity: '', host_plays: true, recording: 'self', sport_key: 'golf', shape: 'round', side_names: [DEFAULT_SIDE_NAMES[0], DEFAULT_SIDE_NAMES[1]], side_teams: [null, null] };
+}
+
+/** Leftovers PR 5: a team pick fills the side's name from the team (clearing keeps the typed name). */
+export function withSideTeam(s: WizardState, i: 0 | 1, team: { id: string; name: string } | null): WizardState {
+  const side_teams: [string | null, string | null] = [s.side_teams[0], s.side_teams[1]];
+  side_teams[i] = team?.id ?? null;
+  const side_names: [string, string] = [s.side_names[0], s.side_names[1]];
+  if (team) side_names[i] = team.name.slice(0, SIDE_NAME_MAX);
+  return { ...s, side_teams, side_names };
 }
 
 /** Phase 4: switching the sport resets the shape (golf is a round; a team sport keeps game | session, defaulting to a game) and the golf vocabulary (format, match, competition). */
@@ -160,7 +171,7 @@ function isRoundDirty(r: RoundDraft): boolean {
 
 export function isWizardDirty(s: WizardState): boolean {
   const e = emptyWizardState();
-  return s.name !== e.name || s.description !== e.description || s.rounds.length !== 1 || s.rounds.some(isRoundDirty) || s.capacity !== '' || s.visibility !== e.visibility || s.join_mode !== e.join_mode || s.org !== null || s.competition !== null || s.format !== e.format || s.match.sides !== e.match.sides || s.match.bracket !== e.match.bracket || s.host_plays !== e.host_plays || s.recording !== e.recording || s.sport_key !== e.sport_key || s.shape !== e.shape || s.side_names[0] !== e.side_names[0] || s.side_names[1] !== e.side_names[1];
+  return s.name !== e.name || s.description !== e.description || s.rounds.length !== 1 || s.rounds.some(isRoundDirty) || s.capacity !== '' || s.visibility !== e.visibility || s.join_mode !== e.join_mode || s.org !== null || s.competition !== null || s.format !== e.format || s.match.sides !== e.match.sides || s.match.bracket !== e.match.bracket || s.host_plays !== e.host_plays || s.recording !== e.recording || s.sport_key !== e.sport_key || s.shape !== e.shape || s.side_names[0] !== e.side_names[0] || s.side_names[1] !== e.side_names[1] || s.side_teams[0] !== null || s.side_teams[1] !== null;
 }
 
 /** "Add a round": the previous round's course, tees and holes with an empty date (36 holes in a weekend is the common case). Refused at MAX_ROUNDS. */
@@ -207,6 +218,9 @@ export function validateWizardStep(step: WizardStep, s: WizardState): string | n
     case 'format': {
       if (s.sport_key !== 'golf') {
         if (s.shape === 'game') {
+          const picked = s.side_teams.filter(Boolean).length;
+          if (picked === 1) return 'Pick both teams, or neither.';
+          if (picked === 2 && s.side_teams[0] === s.side_teams[1]) return 'Pick two different teams.';
           const g = parseGameConfig({ side_names: s.side_names });
           if (!g.ok) return g.error.includes('differ') ? 'Give the two sides different names.' : 'Name both sides (up to 40 characters each).';
         }
@@ -246,7 +260,7 @@ export function wizardToCreateBody(s: WizardState, opts: { publish: boolean; pro
     league_id: s.org?.kind === 'league' ? s.org.id : null,
     competition_id: s.org ? s.competition : null,
     ...(s.sport_key === 'golf' && isMatchFormat(s.format) ? { format_config: { match: { sides: s.match.sides, bracket: s.match.bracket } } } : {}),
-    ...(s.sport_key !== 'golf' && s.shape === 'game' ? { format_config: { game: { side_names: [s.side_names[0].trim(), s.side_names[1].trim()] } } } : {}),
+    ...(s.sport_key !== 'golf' && s.shape === 'game' ? { format_config: { game: { side_names: [s.side_names[0].trim(), s.side_names[1].trim()], ...(s.side_teams[0] && s.side_teams[1] ? { side_team_ids: [s.side_teams[0], s.side_teams[1]] } : {}) } } } : {}),
     host_plays: s.host_plays,
     self_entry: selfEntryFor(s.recording),
     publish: opts.publish,

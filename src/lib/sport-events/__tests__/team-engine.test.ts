@@ -227,3 +227,12 @@ describe('groups on a game — a side is sent (1 | 2) or left open, never derive
     expect(validateGroupsPlan({ groups: [{ members: [{ participant_id: a, side: 3 }] }] }, eligible, { sides: null, game: true })).toMatchObject({ ok: false });
   });
 });
+
+import { splitSides } from '../game';
+
+describe('splitSides (leftovers PR 5)', () => {
+  it('a player on both rosters plays home; no duplicates; roster order kept', () => {
+    expect(splitSides(['a', 'b', 'a'], ['b', 'c', 'c'])).toEqual([['a', 'b'], ['c']]);
+    expect(splitSides([], ['x'])).toEqual([[], ['x']]);
+  });
+});

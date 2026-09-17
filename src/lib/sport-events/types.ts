@@ -98,6 +98,8 @@ export interface MatchConfig {
 /** Phase 4 — a game's two ad-hoc sides, named at creation (an org's default teams pre-fill them later). */
 export interface GameConfig {
   side_names: [string, string];
+  /** Leftovers PR 5: the org teams the sides were pre-filled from (set at creation only). */
+  side_team_ids?: [string, string];
 }
 export interface FormatConfig {
   cut?: CutRule | null;

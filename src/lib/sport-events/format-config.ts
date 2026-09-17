@@ -27,7 +27,8 @@ export const CUT_TO_PAR_MAX = 40;
 const KNOWN = new Set(['cut', 'match', 'game']);
 export const SIDE_NAME_MAX = 40;
 export const DEFAULT_SIDE_NAMES: readonly [string, string] = ['Home', 'Away'];
-const GAME_KEYS = new Set(['side_names']);
+const GAME_KEYS = new Set(['side_names', 'side_team_ids']);
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const CUT_KEYS = new Set(['after_round', 'top_n', 'to_par']);
 const MATCH_KEYS = new Set(['sides', 'bracket', 'allowance']);
 
@@ -40,6 +41,8 @@ export interface FormatConfigContext {
   format: string;
   /** Phase 4: the event's shape; absent = `round` (golf). */
   shape?: SportEventShape;
+  /** Leftovers PR 5: the event PATCH passes false — the side teams are set at creation only. */
+  allowSideTeams?: boolean;
 }
 
 function isRecord(v: unknown): v is Record<string, unknown> {
@@ -84,10 +87,19 @@ export function parseMatchConfig(body: unknown, field = 'format_config.match'): 
 }
 
 /** Phase 4: a game's two side names — each 1..40 characters, distinct (case-insensitively). */
-export function parseGameConfig(body: unknown, field = 'format_config.game'): Parsed<GameConfig> {
+export function parseGameConfig(body: unknown, field = 'format_config.game', opts: { allowSideTeams?: boolean } = {}): Parsed<GameConfig> {
   if (!isRecord(body)) return { ok: false, error: `${field} must be an object` };
   for (const key of Object.keys(body)) if (!GAME_KEYS.has(key)) return { ok: false, error: `Unknown field: ${field}.${key}` };
-  const names = body.side_names;
+  // Leftovers PR 5: two of the org's teams pre-fill the sides — set at creation (the PATCH refuses it); the names default to the teams' (the route fills them).
+  let sideTeams: [string, string] | undefined;
+  if (body.side_team_ids !== undefined && body.side_team_ids !== null) {
+    if (opts.allowSideTeams === false) return { ok: false, error: `${field}.side_team_ids is set when the event is created` };
+    const ids = body.side_team_ids;
+    if (!Array.isArray(ids) || ids.length !== 2 || ids.some(t => typeof t !== 'string' || !UUID_RE.test(t))) return { ok: false, error: `${field}.side_team_ids must name two teams` };
+    if (ids[0] === ids[1]) return { ok: false, error: `${field}.side_team_ids must differ` };
+    sideTeams = [ids[0] as string, ids[1] as string];
+  }
+  const names = body.side_names === undefined && sideTeams ? [DEFAULT_SIDE_NAMES[0], DEFAULT_SIDE_NAMES[1]] : body.side_names;
   if (!Array.isArray(names) || names.length !== 2) return { ok: false, error: `${field}.side_names must name two sides` };
   const out: string[] = [];
   for (let i = 0; i < 2; i++) {
@@ -96,7 +108,7 @@ export function parseGameConfig(body: unknown, field = 'format_config.game'): Pa
     out.push(n.trim());
   }
   if (out[0].toLowerCase() === out[1].toLowerCase()) return { ok: false, error: `${field}.side_names must differ` };
-  return { ok: true, value: { side_names: [out[0], out[1]] } };
+  return { ok: true, value: { side_names: [out[0], out[1]], ...(sideTeams ? { side_team_ids: sideTeams } : {}) } };
 }
 
 /** The whole `format_config` object; `{}`, `{cut: null}` and `{match: null}` all mean no options. */
@@ -108,7 +120,7 @@ export function parseFormatConfig(body: unknown, ctx: FormatConfigContext): Pars
   const team = isStatShape(ctx.shape);
   if (body.game !== undefined && body.game !== null) {
     if (ctx.shape !== 'game') return { ok: false, error: 'format_config.game is only allowed on a game' };
-    const g = parseGameConfig(body.game);
+    const g = parseGameConfig(body.game, 'format_config.game', { allowSideTeams: ctx.allowSideTeams ?? true });
     if (!g.ok) return g;
     out.game = g.value;
   }
@@ -138,7 +150,7 @@ export function readFormatConfig(raw: unknown, roundCount: number, format: strin
 /** Phase 4: the sides a game plays under — the stored names or Home / Away; null off a game. */
 export function readGameConfig(config: FormatConfig | null | undefined, shape: SportEventShape | string | null | undefined): GameConfig | null {
   if (shape !== 'game') return null;
-  return { side_names: config?.game?.side_names ?? [DEFAULT_SIDE_NAMES[0], DEFAULT_SIDE_NAMES[1]] };
+  return { side_names: config?.game?.side_names ?? [DEFAULT_SIDE_NAMES[0], DEFAULT_SIDE_NAMES[1]], ...(config?.game?.side_team_ids ? { side_team_ids: config.game.side_team_ids } : {}) };
 }
 
 /** The match options an event plays under: null on a stroke format; on a match format the stored `match` or the defaults (singles, no bracket, the WHS allowance). */
