@@ -130,6 +130,7 @@ round (the plan: `~/.claude/plans/let-s-start-phase-2-transient-fountain.md`,
 | 2 | migration 218 — `contests.stage` / `slot` (both null or both ≥ 1), the partial UNIQUE per competition × stage × slot, the seeded-entries index; the twin. Alone; no reader |
 | 3 | the bracket engine (the first 218 reader): `bracket-draw.ts` (the classic seed order, byes never contests, advancement by slot, the progression standings), the `bracket` outcome (a tie's decision rides `payload.advance`), the standings branch, `seedsPUT` + `bracketGeneratePOST` (dry-run first; `results_exist`) + `advanceBracket`, the result rules (`slot_unfilled`, `tie_needs_decision`), `stage` / `slot` on the console and the contest place; bracket creatable |
 | 4 | the bracket's surfaces (zero DDL): `BracketColumnsView` (shared with the events bracket), the console's seeding panel + Preview → Generate + the drawn bracket + the tied result's Advances / Advance by, the org console's Bracket option, the contest place's decision line, the public `bracket` block on the standings (SSR pages, the org-site module, the in-app standings) |
+| 5 | migration 219 — `competition_entries.name` / `source_ref` / `affiliation_team_id`, the entrant CHECK widened to an ad-hoc (both null + a name), the NULLS-NOT-DISTINCT UNIQUE replaced by four partial uniques, `competition_entry_members` (posture A); the twin. Alone; no reader |
 
 One competition model covers both contexts:
 
