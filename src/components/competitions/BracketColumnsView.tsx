@@ -21,6 +21,8 @@ export interface BracketViewSlot {
   result?: string | null;
   sides: BracketViewSide[];
   href?: string | null;
+  /** Leftovers PR 11: "Played as event" (+ the draw note) on a slot linked to an event's match. */
+  badge?: string | null;
 }
 
 export interface BracketViewColumn {
@@ -52,6 +54,7 @@ export default function BracketColumnsView({ columns, winner }: { columns: Brack
                 const body = (
                   <>
                     <p className="text-[10px] uppercase tracking-wide text-muted">{slot.title}{slot.result ? ` · ${slot.result}` : ''}</p>
+                    {slot.badge && <p className="text-[11px] text-emerald-800" data-bracket-slot-badge="">{slot.badge}</p>}
                     {slot.sides.map((side, i) => (
                       <p key={side.key} className={side.won ? 'font-bold text-primary' : side.empty ? 'text-muted italic' : 'text-primary'} data-bracket-side={i + 1}>
                         {side.label}

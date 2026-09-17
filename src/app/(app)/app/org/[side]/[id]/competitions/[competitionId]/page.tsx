@@ -812,6 +812,13 @@ export default function CompetitionDetailPage() {
 
   // Track 2 PR 10: run a two-sided game as a live event — the sides pre-filled from the entries' members.
   const runKind = competition?.format === 'fixture' && competition.sport_key !== 'golf' ? 'game' : competition?.format === 'bracket' && competition?.sport_key === 'golf' ? 'match' : null;
+  // Leftovers PR 11: a bracket slot played as an event's match — the badge, plus the draw note when the event's sides differed from the org's draw (reported at completion, never a gate).
+  const bracketSlotBadge = (contestId: string | null): string | null => {
+    const c = contestId ? contests.find(x => x.id === contestId) : null;
+    if (!c?.sport_event) return null;
+    const mismatch = c.participants.some(p => (p.result?.payload as { match?: { draw_mismatch?: boolean } } | null | undefined)?.match?.draw_mismatch === true);
+    return mismatch ? 'Played as event · the sides differed from the draw' : 'Played as event';
+  };
   const canRunAsEvent = (contest: ContestRow) => !!runKind && !contest.sport_event && contest.status === 'scheduled' && contest.participants.some(p => p.side === 'home') && contest.participants.some(p => p.side === 'away');
   const openRunEvent = (contest: ContestRow) => {
     if (runEventContestId === contest.id) { setRunEventContestId(null); return; }
@@ -1294,7 +1301,7 @@ export default function CompetitionDetailPage() {
                   columns={bracketColumnsFromContests(bracketRows, bracketNameOf).map(col => ({
                     key: String(col.stage),
                     name: col.name,
-                    slots: col.slots.map(sl => ({ key: `${col.stage}:${sl.slot}`, title: `Match ${sl.slot}`, result: sl.scoreline, href: sl.contestId ? `/event/${sl.contestId}` : null, sides: [sl.home, sl.away].map((side, i) => ({ key: side?.entryId ?? `empty-${i}`, label: side?.name ?? (col.stage === 1 ? 'Bye' : 'TBD'), won: !!side && sl.winnerEntryId === side.entryId, empty: !side })) })),
+                    slots: col.slots.map(sl => ({ key: `${col.stage}:${sl.slot}`, title: `Match ${sl.slot}`, result: sl.scoreline, href: sl.contestId ? `/event/${sl.contestId}` : null, badge: bracketSlotBadge(sl.contestId), sides: [sl.home, sl.away].map((side, i) => ({ key: side?.entryId ?? `empty-${i}`, label: side?.name ?? (col.stage === 1 ? 'Bye' : 'TBD'), won: !!side && sl.winnerEntryId === side.entryId, empty: !side })) })),
                   }))}
                 />
               )}
