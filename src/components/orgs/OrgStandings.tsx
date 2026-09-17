@@ -1,7 +1,8 @@
 'use client';
 
 import BracketBlock from '@/components/standings/BracketBlock';
-import type { PublicBracketBlock } from '@/lib/competitions/public-standings';
+import MeetWinners from '@/components/standings/MeetWinners';
+import type { PublicBracketBlock, PublicMeetBlock } from '@/lib/competitions/public-standings';
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import GolfWeeks from '@/components/standings/GolfWeeks';
@@ -41,6 +42,8 @@ interface CompetitionStandings {
   seasonSummary?: SeasonSummary;
   /** Track 2 PR 4: the bracket drawn from the contests. */
   bracket?: PublicBracketBlock;
+  /** Track 2 PR 8: the meet's events and winners. */
+  meet?: PublicMeetBlock;
 }
 
 interface OrgStandingsProps {
@@ -147,6 +150,7 @@ export default function OrgStandings({ side, orgId, scope = 'public', bare = fal
             {comp.seasonSummary && <SeasonSummaryCard summary={comp.seasonSummary} />}
             {comp.golf && <GolfWeeks golf={comp.golf} competitionId={comp.id} />}
             {comp.bracket && <BracketBlock bracket={comp.bracket} />}
+            {comp.meet && <MeetWinners meet={comp.meet} />}
             {comp.race && <PointsRaceTable race={comp.race} competitionId={comp.id} />}
           </div>
         ))}

@@ -236,7 +236,7 @@ export default function OrgConsolePage() {
     { id: string; name: string; club_name: string }[]
   >([]);
   const [rosterAthletes, setRosterAthletes] = useState<{ id: string; name: string }[]>([]);
-  const [compFormat, setCompFormat] = useState<'fixture' | 'leaderboard' | 'bracket'>('fixture');
+  const [compFormat, setCompFormat] = useState<'fixture' | 'leaderboard' | 'bracket' | 'meet'>('fixture');
   // Track 2 PR 6: the entrant kind when the sport's profile offers more than one for the format ('' = the profile's default).
   const [compEntrant, setCompEntrant] = useState<'' | EntrantKind>('');
   const [adHocName, setAdHocName] = useState<Record<string, string>>({});
@@ -250,6 +250,8 @@ export default function OrgConsolePage() {
   const [compGolfPick, setCompGolfPick] = useState<'first' | 'best'>('first');
   // Phase 7 C6: FedEx-style season points — the table and the base strokes.
   const [compPointsPreset, setCompPointsPreset] = useState<'pga' | 'linear'>('pga');
+  // Track 2 PR 8: the meet's points per place.
+  const [compMeetPoints, setCompMeetPoints] = useState<'standard' | 'dual'>('standard');
   const [compPointsScore, setCompPointsScore] = useState<'gross' | 'net'>('net');
   const [compPublic, setCompPublic] = useState(false);
   const [entriesCompetitionId, setEntriesCompetitionId] = useState<string | null>(null);
@@ -930,6 +932,7 @@ export default function OrgConsolePage() {
           name: compName.trim(),
           format: compFormat,
           ...(compEntrant ? { entrantType: compEntrant } : {}),
+          ...(compFormat === 'meet' && compMeetPoints === 'dual' ? { config: { meet: { points: [5, 3, 1] } } } : {}),
           visibility: compPublic ? 'public' : 'private',
           ...(compFormat === 'leaderboard' && compSport === 'golf'
             ? {
@@ -2092,14 +2095,26 @@ export default function OrgConsolePage() {
               </select>
               <select
                 value={compFormat}
-                onChange={e => setCompFormat(e.target.value as 'fixture' | 'leaderboard' | 'bracket')}
+                onChange={e => setCompFormat(e.target.value as 'fixture' | 'leaderboard' | 'bracket' | 'meet')}
                 aria-label="Competition format"
                 className="px-3 py-2 border border-border-strong rounded-md outline-none text-sm"
               >
                 <option value="fixture">Fixture (teams)</option>
                 <option value="leaderboard">Leaderboard (athletes)</option>
                 <option value="bracket">Bracket (knockout)</option>
+                <option value="meet">Meet (events · team points)</option>
               </select>
+              {compFormat === 'meet' && (
+                <select
+                  value={compMeetPoints}
+                  onChange={e => setCompMeetPoints(e.target.value as 'standard' | 'dual')}
+                  aria-label="Meet points"
+                  className="px-3 py-2 border border-border-strong rounded-md outline-none text-sm"
+                >
+                  <option value="standard">Points 10-8-6-5-4-3-2-1</option>
+                  <option value="dual">Dual meet 5-3-1</option>
+                </select>
+              )}
               {(resolveCompetitionProfile(compSport).formats[compFormat]?.entrants.length ?? 0) > 1 && (
                 <select
                   value={compEntrant}

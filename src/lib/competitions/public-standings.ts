@@ -11,7 +11,8 @@
 
 import { entryDisplayName } from './entries';
 import { BRACKET_COLUMNS, bracketColumnsFromContests, type BracketColumnView, type BracketContestRow } from './bracket-draw';
-import { readBracketRows } from './standings';
+import { readBracketRows, readMeetRows } from './standings';
+import { formatMark, MEET_COLUMNS, placeEvent } from './meet';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { parseGolfPointsConfig } from './golf-points';
 import { buildPointsRace, type PointsRace } from './golf-race';
@@ -78,12 +79,18 @@ export interface PublicCompetitionStandings {
   race?: PointsRace;
   /** Track 2 PR 4: the bracket drawn from the CONTESTS — PRESENT ONLY on a bracket competition with a draw (218). */
   bracket?: PublicBracketBlock;
+  /** Track 2 PR 8: the meet's events with their winners — PRESENT ONLY on a meet competition with events (218 + 219). */
+  meet?: PublicMeetBlock;
 }
 
 export interface PublicBracketBlock {
   columns: BracketColumnView[];
   /** The champion's masked name once the final is decided. */
   champion: string | null;
+}
+
+export interface PublicMeetBlock {
+  events: Array<{ contestId: string; round: string; completed: boolean; winner: { name: string; mark: string } | null }>;
 }
 
 export interface PublicStandingsPayload {
@@ -183,10 +190,17 @@ export async function fetchPublicStandings(
     if (rows && rows.length > 0) bracketRows.set(c.id as string, rows);
   }
   const bracketEntryIds = [...bracketRows.values()].flat().flatMap(r => [r.home, r.away]).filter((id): id is string => !!id);
+  // Track 2 PR 8: the meet competitions' event contests (pre-219 → none). The winners' entries need names too.
+  const meetRows = new Map<string, NonNullable<Awaited<ReturnType<typeof readMeetRows>>>>();
+  for (const c of competitions.filter(c => c.format === 'meet')) {
+    const rows = await readMeetRows(admin, c.id as string, c.sport_key as string);
+    if (rows && rows.contests.length > 0) meetRows.set(c.id as string, rows);
+  }
+  const meetEntryIds = [...meetRows.values()].flatMap(r => r.athletes.map(a => a.id));
 
   // Entrant display names, batched.
   const entryIds = [
-    ...new Set([...(standingsRes.data ?? []).map(r => r.entry_id), ...golfResultEntryIds, ...bracketEntryIds]),
+    ...new Set([...(standingsRes.data ?? []).map(r => r.entry_id), ...golfResultEntryIds, ...bracketEntryIds, ...meetEntryIds]),
   ];
   const { data: entries } = entryIds.length
     ? await admin
@@ -289,6 +303,17 @@ export async function fetchPublicStandings(
     return race ? { race } : {};
   }
 
+  function meetBlockFor(competitionId: string): { meet?: PublicMeetBlock } {
+    const rows = meetRows.get(competitionId);
+    if (!rows) return {};
+    const nameOf = (id: string) => (omittedEntries.has(id) ? 'Athlete' : (entryName.get(id) ?? 'Athlete'));
+    const events = rows.contests.map(c => {
+      const top = placeEvent(c.results, c.direction).find(p => p.place === 1) ?? null;
+      return { contestId: c.id, round: c.round ?? 'Event', completed: c.status === 'completed', winner: top && top.mark != null ? { name: nameOf(top.entryId), mark: formatMark(top.mark, c.unit ?? 's') } : null };
+    });
+    return { meet: { events } };
+  }
+
   function bracketBlockFor(competitionId: string): { bracket?: PublicBracketBlock } {
     const rows = bracketRows.get(competitionId);
     if (!rows) return {};
@@ -337,7 +362,9 @@ export async function fetchPublicStandings(
             ? resolveLeaderboardRule(c.sport_key as string, c.scoring_rule as string | null).columns
             : c.format === 'bracket'
               ? BRACKET_COLUMNS
-              : [],
+              : c.format === 'meet'
+                ? MEET_COLUMNS
+                : [],
       rows: rowsByCompetition.get(c.id) ?? [],
       disputedCount: disputedByComp.get(c.id) ?? 0,
       direction:
@@ -346,10 +373,12 @@ export async function fetchPublicStandings(
           : c.format === 'fixture'
             ? 'desc'
             : null,
-      entrant_type: (c.entrant_type as string | null) ?? 'team',
+      // A meet's standings rows are its TEAM entries (the affiliation roll-up) — the column reads Team.
+      entrant_type: c.format === 'meet' ? 'team' : ((c.entrant_type as string | null) ?? 'team'),
       sport_key: c.sport_key as string,
       ...golfBlockFor(c.id, c.scoring_rule as string | null),
       ...bracketBlockFor(c.id),
+      ...meetBlockFor(c.id),
       ...raceFor(c.id, c.scoring_rule as string | null),
       ...seasonFor(c.id, c.scoring_rule as string | null),
     })),

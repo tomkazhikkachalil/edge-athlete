@@ -19,6 +19,8 @@ import PointsRaceTable from '@/components/standings/PointsRaceTable';
 import type { PointsRace } from '@/lib/competitions/golf-race';
 import type { SeasonSummary } from '@/lib/competitions/golf-season-wrap';
 import SeasonSummaryCard from '@/components/standings/SeasonSummaryCard';
+import { formatMark, meetEventFor, placeEvent } from '@/lib/competitions/meet';
+import { resolveCompetitionProfile } from '@/lib/sports/competition-profiles';
 
 // ── The competition detail console (phase 2 R2) ─────────────────────────────
 // The org-console template one level deeper: schedule (contests) + score
@@ -209,6 +211,13 @@ export default function CompetitionDetailPage() {
   const [advanceSide, setAdvanceSide] = useState<Record<string, string>>({});
   const [advanceKind, setAdvanceKind] = useState<Record<string, AdvanceKind>>({});
   const [deleteTarget, setDeleteTarget] = useState<ContestRow | null>(null);
+  // Track 2 PR 8: the meet's events picker and marks form.
+  const [meetPick, setMeetPick] = useState<Record<string, boolean>>({});
+  const [meetSession, setMeetSession] = useState('1');
+  const [meetBusy, setMeetBusy] = useState(false);
+  const [marksContestId, setMarksContestId] = useState<string | null>(null);
+  const [markValues, setMarkValues] = useState<Record<string, string>>({});
+  const [dqValues, setDqValues] = useState<Record<string, boolean>>({});
   // Player stats: one expander at a time (the scoreContestId pattern).
   const [statsContestId, setStatsContestId] = useState<string | null>(null);
   // Game media: same pattern (phase 4 R3).
@@ -678,6 +687,48 @@ export default function CompetitionDetailPage() {
   const bracketNameOf = (id: string) => entries.find(en => en.id === id)?.entrant_name ?? 'Entrant';
   const bracketFinal = bracketRows.length > 0 ? bracketRows.find(r => r.stage === Math.max(...bracketRows.map(x => x.stage)) && r.slot === 1) ?? null : null;
 
+  // Track 2 PR 8: the meet's helpers — each event is a contest; the marks form lists the approved athletes.
+  const meetEvents = competition?.format === 'meet' ? (resolveCompetitionProfile(competition.sport_key).meetEvents ?? []) : [];
+  const mintedRounds = new Set(contests.map(c => c.round));
+  const meetAthletes = entries.filter(en => en.profile_id && en.status === 'approved');
+  const addMeetEvents = async () => {
+    const eventKeys = meetEvents.filter(e => meetPick[e.key]).map(e => e.key);
+    if (eventKeys.length === 0) { showError('Competition', 'Pick at least one event'); return; }
+    setMeetBusy(true);
+    try {
+      const ok = await act(`${base}/meet/events`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ competitionId, eventKeys, session: Math.min(20, Math.max(1, Number(meetSession) || 1)) }) }, 'Events added', 'Failed to add the events');
+      if (ok) setMeetPick({});
+    } finally {
+      setMeetBusy(false);
+    }
+  };
+  const openMarks = (contest: ContestRow) => {
+    if (marksContestId === contest.id) { setMarksContestId(null); return; }
+    const def = meetEventFor(meetEvents, { round: contest.round });
+    setMarksContestId(contest.id);
+    setMarkValues(Object.fromEntries(meetAthletes.map(en => {
+      const mark = contest.participants.find(p => p.entry_id === en.id)?.result?.payload?.mark;
+      return [en.id, typeof mark === 'number' && def ? formatMark(mark, def.unit) : ''];
+    })));
+    setDqValues(Object.fromEntries(meetAthletes.map(en => [en.id, contest.participants.find(p => p.entry_id === en.id)?.result?.payload?.dq === true])));
+  };
+  const saveMarks = async (contest: ContestRow) => {
+    const marks = meetAthletes
+      .filter(en => dqValues[en.id] || (markValues[en.id] ?? '').trim() !== '')
+      .map(en => ({ entryId: en.id, ...(dqValues[en.id] ? { dq: true } : { mark: (markValues[en.id] ?? '').trim() }) }));
+    if (marks.length === 0) { showError('Competition', 'Enter at least one mark'); return; }
+    const ok = await act(`${base}/meet/results`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ contestId: contest.id, marks }) }, 'Marks saved', 'Failed to save the marks');
+    if (ok) setMarksContestId(null);
+  };
+  const meetResultsLine = (contest: ContestRow): string | null => {
+    const def = meetEventFor(meetEvents, { round: contest.round });
+    if (!def) return null;
+    const placed = placeEvent(contest.participants.filter(p => p.result).map(p => ({ entryId: p.entry_id, mark: p.result?.score ?? null, dq: p.result?.payload?.dq === true })), def.direction);
+    if (placed.length === 0) return null;
+    const nameOf = (id: string) => contest.participants.find(p => p.entry_id === id)?.entrant_name ?? 'Athlete';
+    return placed.map(p => (p.dq ? `${nameOf(p.entryId)} DQ` : `${p.place ?? '–'}. ${nameOf(p.entryId)} ${p.mark == null ? '' : formatMark(p.mark, def.unit)}`.trim())).join(' · ');
+  };
+
   const bySide = (contest: ContestRow) => {
     const home = contest.participants.find(p => p.side === 'home');
     const away = contest.participants.find(p => p.side === 'away');
@@ -1146,6 +1197,35 @@ export default function CompetitionDetailPage() {
             </div>
           )}
 
+          {competition.format === 'meet' && (
+            <div className="mb-4 border border-border rounded-lg p-3" data-meet-panel="">
+              <p className="text-xs text-muted mb-2">Each event is a contest: the marks place the athletes, the places score for their teams. Pick the events to add.</p>
+              {meetEvents.length === 0 ? (
+                <p className="text-sm text-tertiary">This sport has no meet events yet.</p>
+              ) : (
+                <>
+                  <div className="flex flex-wrap gap-2">
+                    {meetEvents.map(ev => (
+                      <label key={ev.key} className={`px-2.5 py-1.5 text-sm rounded-md border flex items-center gap-1.5 ${mintedRounds.has(ev.label) ? 'border-border text-muted' : 'border-border-strong text-secondary'}`}>
+                        <input type="checkbox" disabled={mintedRounds.has(ev.label)} checked={!!meetPick[ev.key]} onChange={e => setMeetPick(prev => ({ ...prev, [ev.key]: e.target.checked }))} aria-label={ev.label} />
+                        {ev.label}{mintedRounds.has(ev.label) ? ' · added' : ''}
+                      </label>
+                    ))}
+                  </div>
+                  <div className="mt-2 flex flex-wrap items-end gap-2">
+                    <label className="text-xs text-secondary">
+                      Session
+                      <input type="number" min={1} max={20} value={meetSession} onChange={e => setMeetSession(e.target.value)} aria-label="Session" className="mt-0.5 block w-20 px-2 py-1.5 border border-border-strong rounded-md outline-none text-sm" />
+                    </label>
+                    <button type="button" disabled={meetBusy} onClick={() => void addMeetEvents()} className="px-3 py-1.5 text-sm min-h-[36px] rounded-lg bg-brand text-white font-medium hover:bg-brand-hover transition-colors disabled:opacity-50" data-meet-add="">
+                      Add events
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+
           {competition.format === 'fixture' && (
             entries.length < 2 ? (
               <p className="text-sm text-tertiary mb-4">
@@ -1404,13 +1484,15 @@ export default function CompetitionDetailPage() {
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <div className="min-w-0">
                         <p className="font-medium text-primary">
-                          {competition.format === 'leaderboard'
+                          {competition.format === 'meet'
+                            ? `${contest.round || 'Event'} · ${contest.participants.length} ${contest.participants.length === 1 ? 'mark' : 'marks'}`
+                            : competition.format === 'leaderboard'
                             ? `${contest.round || 'Round'} · ${contest.participants.length} player${contest.participants.length === 1 ? '' : 's'}`
                             : `${home?.entrant_name ?? '—'}${
                                 scored ? ` ${home?.result?.score} – ${away?.result?.score} ` : ' vs '
                               }${away?.entrant_name ?? '—'}`}
                           {contest.stage != null && (
-                            <span className="ml-2 text-xs font-normal text-tertiary" data-contest-stage={`${contest.stage}:${contest.slot}`}>{contest.round} · match {contest.slot}</span>
+                            <span className="ml-2 text-xs font-normal text-tertiary" data-contest-stage={`${contest.stage}:${contest.slot}`}>{competition.format === 'meet' ? `session ${contest.stage}` : `${contest.round} · match ${contest.slot}`}</span>
                           )}
                           {/* G1: the golf league round's declaration chips. */}
                           {(contest.holes || contest.play_from) && (
@@ -1456,6 +1538,9 @@ export default function CompetitionDetailPage() {
                             </span>
                           )}
                         </p>
+                        {competition.format === 'meet' && meetResultsLine(contest) && (
+                          <p className="mt-0.5 text-xs text-secondary" data-meet-results={contest.id}>{meetResultsLine(contest)}</p>
+                        )}
                         {/* P5: the manager sees who still owes a round (a manager surface — real names). */}
                         {competition.sport_key === 'golf' &&
                           competition.format === 'leaderboard' &&
@@ -1482,7 +1567,12 @@ export default function CompetitionDetailPage() {
                             From event →
                           </Link>
                         )}
-                        {contest.status !== 'canceled' && !contest.sport_event && (
+                        {contest.status !== 'canceled' && competition.format === 'meet' && (
+                          <button type="button" onClick={() => openMarks(contest)} className="px-2 py-1 text-xs rounded-md border border-border-strong text-secondary hover:bg-surface-sunken transition-colors" data-meet-enter={contest.id}>
+                            {marksContestId === contest.id ? 'Close marks' : contest.participants.length > 0 ? 'Edit marks' : 'Enter marks'}
+                          </button>
+                        )}
+                        {contest.status !== 'canceled' && !contest.sport_event && competition.format !== 'meet' && (
                           <button
                             type="button"
                             onClick={() => {
@@ -1769,6 +1859,31 @@ export default function CompetitionDetailPage() {
                       </div>
                     )}
 
+                    {marksContestId === contest.id && (
+                      <div className="mt-2 border-t border-border-subtle pt-2" data-meet-marks={contest.id}>
+                        {meetAthletes.length === 0 ? (
+                          <p className="text-sm text-tertiary">Enter athletes from the console first.</p>
+                        ) : (
+                          <>
+                            <ul className="space-y-1.5">
+                              {meetAthletes.map(en => (
+                                <li key={en.id} className="flex flex-wrap items-center gap-2 text-sm">
+                                  <span className="min-w-0 flex-1 truncate text-primary">{en.entrant_name}</span>
+                                  <input type="text" inputMode="decimal" value={markValues[en.id] ?? ''} disabled={!!dqValues[en.id]} onChange={e => setMarkValues(prev => ({ ...prev, [en.id]: e.target.value }))} placeholder="11.85 or 4:05.30" aria-label={`Mark for ${en.entrant_name}`} data-meet-mark={en.id} className="w-32 px-2 py-1.5 border border-border-strong rounded-md outline-none text-sm disabled:opacity-50" />
+                                  <label className="text-xs text-secondary flex items-center gap-1">
+                                    <input type="checkbox" checked={!!dqValues[en.id]} onChange={e => setDqValues(prev => ({ ...prev, [en.id]: e.target.checked }))} aria-label={`DQ ${en.entrant_name}`} data-meet-dq={en.id} />
+                                    DQ
+                                  </label>
+                                </li>
+                              ))}
+                            </ul>
+                            <button type="button" onClick={() => void saveMarks(contest)} className="mt-2 px-3 py-1.5 text-sm min-h-[36px] rounded-lg bg-brand text-white font-medium hover:bg-brand-hover transition-colors" data-meet-save-marks="">
+                              Save marks
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    )}
                     {statsContestId === contest.id && (
                       <PlayerStatsPanel base={base} contestId={contest.id} />
                     )}
@@ -1814,7 +1929,7 @@ export default function CompetitionDetailPage() {
                   <tr className="text-left text-xs text-muted">
                     <th className="py-1.5 pr-2 font-medium">#</th>
                     <th className="py-1.5 pr-3 font-medium">
-                      {competition.entrant_type === 'athlete' ? 'Player' : 'Team'}
+                      {competition.entrant_type === 'athlete' && competition.format !== 'meet' ? 'Player' : 'Team'}
                     </th>
                     {standingsColumns.map(col => (
                       <th key={col.key} className="py-1.5 px-2 font-medium text-right" title={col.label}>

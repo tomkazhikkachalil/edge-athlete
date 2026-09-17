@@ -8,6 +8,7 @@ import {
   contestWhere,
   PROVENANCE_LABEL,
 } from '@/lib/competitions/contest-format';
+import { formatMark, meetEventRuleFor } from '@/lib/competitions/meet';
 
 // ── The contest page body (Contest Place E1) ──────────────────────────────
 // Props-only and server-safe: no hooks, no next/headers, no Font Awesome,
@@ -109,7 +110,7 @@ export default function ContestPage({ view, access, links, postsSlot }: Props) {
           {competition.seasonLabel && (
             <span className="px-2 py-0.5 rounded-md border border-border text-secondary">{competition.seasonLabel}</span>
           )}
-          {contest.round && (outcome.kind === 'fixture' || outcome.kind === 'bracket') && (
+          {contest.round && (outcome.kind === 'fixture' || outcome.kind === 'bracket' || competition.format === 'meet') && (
             <span className="px-2 py-0.5 rounded-md border border-border text-secondary">{contest.round}</span>
           )}
         </div>
@@ -210,7 +211,13 @@ export default function ContestPage({ view, access, links, postsSlot }: Props) {
                         </td>
                         {outcome.columns.map(c => (
                           <td key={c.key} className="px-2 py-2 text-right tabular-nums text-primary">
-                            {c.key === 'score' ? (r.score ?? '–') : (r.stats[c.key] ?? '–')}
+                            {c.key === 'score'
+                              ? r.score == null
+                                ? (entrant?.result?.payload?.dq === true ? 'DQ' : '–')
+                                : competition.format === 'meet'
+                                  ? formatMark(r.score, meetEventRuleFor(competition.sportKey, contest.round)?.unit ?? 's')
+                                  : r.score
+                              : (r.stats[c.key] ?? '–')}
                           </td>
                         ))}
                         <td className="px-2 py-2 text-right sm:pr-2 pr-4">
