@@ -55,6 +55,14 @@ npm run verify       # typecheck + lint + test + build — THE GATE
 
 **`npm run verify` is the gate.** Run it before every commit; nothing lands red.
 
+**`typecheck` and `build` carry an explicit 4 GB heap ceiling (Sep 17 2026).** A
+COLD check of this program needs ~2.9 GB and node's default on an 8 GB machine
+(this Mac, Vercel's builder) is ~2 GB — the abort is exit 134 / "heap out of
+memory", never a type error. The build's form is `NODE_OPTIONS` on purpose: a plain
+`node --max-old-space-size` does not reach Next's typecheck worker. When a cold
+check nears 4 GB, split the program (e2e out of the root tsconfig, or project
+references) rather than raising the number — DEVLOG Sep 17 2026 has the measurements.
+
 **`lint` is at zero and stays there.** The cap spent a year as a ratchet
 (45 → 43 → 30 → 19 → 11 → 7 → 0, lowered in the same commit that removed the
 warnings); as of August 2026 it is `--max-warnings 0`, so a warning fails
