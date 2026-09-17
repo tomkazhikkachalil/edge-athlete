@@ -117,7 +117,8 @@ test('bracket API: seeds, generate (dry + real), the tie decision, advancement b
     // The contest place carries the stage and the round name.
     const view = await api.get(`/api/contests/${final.id}`);
     expect(view.ok(), await readErrorBody(view)).toBe(true);
-    expect(((await view.json()) as { contest: { stage: number; slot: number; roundName: string }; outcome: { kind: string; winnerEntryId: string } }).contest).toMatchObject({ stage: 3, slot: 1, roundName: 'Final' });
+    // The contest API answers `{ access, view, publicSitePath }` — the contest sits under `view`.
+    expect(((await view.json()) as { view: { contest: { stage: number; slot: number; roundName: string } } }).view.contest).toMatchObject({ stage: 3, slot: 1, roundName: 'Final' });
   } finally {
     await admin.from('leagues').delete().eq('id', leagueId);
     await api.dispose();

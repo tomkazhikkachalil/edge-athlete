@@ -12,7 +12,8 @@ import { adminClient, loadQaUser } from './helpers/qa-user';
  */
 test('bracket surfaces: seeds → preview → generate → a tied match decided → the contest place → the public bracket @mobile', async ({ page }) => {
   test.setTimeout(180_000);
-  const owner = loadQaUser('user-b.json');
+  // The mobile projects' default session is user A (`user.json`) — the console needs the OWNER's session, so A owns the league.
+  const owner = loadQaUser('user.json');
   const admin = adminClient();
   const probe = await admin.from('contests').select('stage').limit(1);
   test.skip(!!probe.error, 'contests.stage missing — run migration 218');
