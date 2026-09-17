@@ -162,3 +162,56 @@ test('event wizard: a hockey game — sport, kind, place and time, the sides, pu
     await api.dispose();
   }
 });
+
+/**
+ * Events + formats leftovers, PR 12 (221): a team round's own time zone —
+ * the wizard's zone select, the start read on the venue's clock, the overview
+ * showing the venue time beside the viewer's (the viewer pinned to Los
+ * Angeles so the line is deterministic), the view's zone, the instant, the
+ * .ics on UTC instants naming the venue time. NEEDS MIGRATION 221 ON THE
+ * TARGET (self-skips before).
+ */
+test.describe('the round zone', () => {
+  test.use({ timezoneId: 'America/Los_Angeles' });
+  test('event wizard: a hockey game in Honolulu — the venue time beside the viewer\'s, the zone on the view, the .ics @mobile', async ({ page }) => {
+    const admin = adminClient();
+    const probe = await admin.from('sport_event_rounds').select('timezone').limit(1);
+    test.skip(!!probe.error, 'sport_event_rounds.timezone missing — run migration 221');
+    const stamp = Date.now();
+    const name = `QA Wizard Zone ${stamp}`;
+    await page.goto('/sports/events/new');
+    await expect(page.getByRole('heading', { name: 'Create an event' })).toBeVisible({ timeout: 20_000 });
+    await page.locator('[data-event-wizard-name]').fill(name);
+    await page.getByRole('radio', { name: 'Ice Hockey' }).check();
+    await page.locator('[data-event-wizard-next]').click();
+    await expect(page.getByRole('heading', { name: 'The game' })).toBeVisible();
+    await page.locator('[data-event-wizard-date]').fill('2030-06-01');
+    await page.locator('[data-wizard-place]').fill(`QA Rink ${stamp}`);
+    await page.locator('[data-wizard-time]').fill('19:00');
+    await page.locator('[data-wizard-zone]').selectOption('Pacific/Honolulu');
+    await page.locator('[data-event-wizard-next]').click();
+    await page.locator('[data-wizard-side="1"]').fill('Reds');
+    await page.locator('[data-wizard-side="2"]').fill('Blues');
+    await page.locator('[data-event-wizard-next]').click();
+    await expect(page.locator('[data-event-wizard="review"]')).toBeVisible();
+    await page.locator('[data-event-wizard-publish]').click();
+    await expect(page).toHaveURL(/\/events\/[0-9a-f-]{36}$/, { timeout: 20_000 });
+    await expect(page.locator('[data-event-place-line]').first()).toContainText('7:00 PM HST · 10:00 PM your time', { timeout: 20_000 });
+    const width = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+    expect(width).toBeLessThanOrEqual(1);
+    const eventId = page.url().split('/events/')[1];
+
+    const api = await apiAs('state.json');
+    try {
+      const view = (await (await api.get(`/api/sport-events/${eventId}`)).json()) as { rounds: Array<{ starts_at: string | null; timezone: string | null }> };
+      expect(view.rounds[0]).toMatchObject({ starts_at: '2030-06-02T05:00:00.000Z', timezone: 'Pacific/Honolulu' });
+      const ics = await (await api.get(`/api/sport-events/${eventId}/ics`)).text();
+      expect(ics).toContain('DTSTART:20300602T050000Z');
+      expect(ics).toContain('Starts 7:00 PM HST');
+      await api.post(`/api/sport-events/${eventId}/transition`, { data: { to: 'cancelled' } });
+      await api.delete(`/api/sport-events/${eventId}`);
+    } finally {
+      await api.dispose();
+    }
+  });
+});

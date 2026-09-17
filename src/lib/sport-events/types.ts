@@ -165,6 +165,8 @@ export interface SportEventRoundRow {
   name?: string | null;
   /** 215 (phase 4) — a game's start; the live score ON the round; `score_version` is the score write's CAS. Optional until phase 4 PR 8 read them. */
   starts_at?: string | null;
+  /** Leftovers (221, RAN): the round's own IANA zone; `ROUND_COLUMNS` names it since PR 12. */
+  timezone?: string | null;
   side1_score?: number | null;
   side2_score?: number | null;
   period?: number | null;

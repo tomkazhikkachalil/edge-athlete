@@ -1,7 +1,7 @@
 # Start Session — Edge Athlete Development
 
 > Tom's session-start prompt. Paste this (or point Claude at it) when opening a
-> development session. Last aligned with project state: **September 16, 2026
+> development session. Last aligned with project state: **September 17, 2026
 > (after the Site Builder programs 1–3, #616–#707, the Contest Place and
 > Recruiting programs #661–#669, the Data foundation and provenance rounds
 > #709–#731, the Events program #732–#748, Events phase 2 — tournaments —
@@ -10,15 +10,17 @@
 > sport live, open joining, recorders, media — #792–#805 (merged, migrations
 > 214–216 ran, prod-proven), and Competition formats — track 2: profiles,
 > stages, the bracket, ad-hoc sides, the meet, the two-door bridge —
-> #806–#816)** — migration head 220 (`220_contests_sport_event_match.sql`,
-> with 218 and 219 — the track 2 chain is OPEN, unmerged, one linear chain;
-> Tom merges in order, runs 218 / 219 / 220 after their DDL PRs, `npm run
-> check:schema` gates each first reader, and every self-skipping spec runs
-> locally before its reader merges); `main` deployed through #805 and every
-> merged PR prod-probed (the probe waits for the deploy by itself; "NNN ran"
+> #806–#819, merged, migrations 218–220 ran, prod-proven — and Events +
+> formats leftovers: pools, relays, meet sessions, default-team sides,
+> Stableford, the one-act bracket door, the round's zone — #820–#831)** —
+> migration head 221 (`221_sport_events_leftovers.sql` — the leftovers chain
+> is OPEN, unmerged, one linear chain; Tom merges in order, runs 221 after
+> its DDL PR #828, `npm run check:schema` gates PRs 10–12, and every
+> self-skipping spec runs locally before its reader merges); `main` deployed
+> through #819 and every merged PR prod-probed (the probe waits for the deploy by itself; "NNN ran"
 > means `npm run check:schema` is OK — it asks the schema question BOTH
 > ways). The plan is `~/.claude/plans/let-s-start-phase-2-transient-fountain.md`;
-> CLAUDE.md conventions 20 and 21 and `docs/EVENTS.md` are the references.
+> CLAUDE.md conventions 20–22 and `docs/EVENTS.md` are the references.
 > If the "Where the project actually is" section drifts stale, ask Claude to
 > re-align it against DEVLOG.md and session memory.
 

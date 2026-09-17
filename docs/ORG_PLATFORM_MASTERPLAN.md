@@ -122,9 +122,10 @@ standing            competition_id, entrant_ref, derived (materialized)
 **Status (Competition formats program, track 2 — Sep 16 2026):** the four
 formats are live in the app on one PR chain (#806–#816, migrations 218 ·
 219 · 220), each format its own round (the plan: `~/.claude/plans/let-s-start-phase-2-transient-fountain.md`,
-"Track 2"); the §3.3 gaps this table names are closed except pools / pool play →
+"Track 2"); the §3.3 gaps this table names are closed — pools / pool play →
 knockout, relays and a whole bracketed match event linking to an org bracket in
-one act (parked, named in EVENTS.md). What landed:
+one act landed with the leftovers program (Sep 17 2026, #820–#831, migration
+221; EVENTS.md "Events + formats leftovers"). What track 2 landed:
 
 | PR | what |
 |---|---|

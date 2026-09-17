@@ -7,7 +7,7 @@ import { scoreLabel } from '@/lib/sport-events/game';
 import type { StatLineView } from '@/lib/sport-events/stats-server';
 import type { RoundSelection } from '@/lib/sport-events/tabs';
 import type { SportEventViewPayload } from '@/lib/sport-events/view';
-import { formatDateOnly, formatTeeTime } from '@/lib/sport-events/format';
+import { formatDateOnly, startTimeLine } from '@/lib/sport-events/format';
 
 interface Props {
   view: SportEventViewPayload;
@@ -74,7 +74,7 @@ export default function EventStatsTab({ view, api, version, selected, onSelect }
           </select>
         </label>
       )}
-      <p className="text-xs text-muted">{round.course_name}{round.starts_at ? ` · ${formatTeeTime(round.starts_at)}` : ''}{live ? ' · live' : round.status === 'completed' ? ' · final' : ''}</p>
+      <p className="text-xs text-muted">{round.course_name}{round.starts_at ? ` · ${startTimeLine(round.starts_at, round.timezone)}` : ''}{live ? ' · live' : round.status === 'completed' ? ' · final' : ''}</p>
       {payload && sides && (
         <p className="text-lg font-bold text-primary" data-event-score-line="">{scoreLabel(payload.round.score, sides)}</p>
       )}

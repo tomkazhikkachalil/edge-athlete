@@ -7,7 +7,7 @@ import AppHeader from '@/components/AppHeader';
 import { useRoundStats } from '@/hooks/useRoundStats';
 import { useStatOutbox } from '@/hooks/useStatOutbox';
 import { eventApi } from '@/lib/sport-events/client';
-import { formatDateOnly, formatTeeTime } from '@/lib/sport-events/format';
+import { formatDateOnly, startTimeLine } from '@/lib/sport-events/format';
 import { lineState, overlayStats } from '@/lib/sport-events/stat-outbox';
 import { statSchemaFor } from '@/lib/sport-events/stats';
 import type { StatLineView } from '@/lib/sport-events/stats-server';
@@ -134,7 +134,7 @@ export default function EventLiveScreen({ eventId, initialView, token, roundPara
     <div className="mt-3 space-y-4">
       <div>
         <h1 className="text-h3 font-bold text-primary">{round.name?.trim() || (rounds.length > 1 ? `Round ${round.sequence}` : view.event.shape === 'game' ? 'The game' : 'The session')}</h1>
-        <p className="text-xs text-muted">{formatDateOnly(round.scheduled_on, { weekday: true })} · {round.course_name}{round.starts_at ? ` · ${formatTeeTime(round.starts_at)}` : ''}{live ? ' · live' : round.status === 'completed' ? ' · final' : ' · not started'}</p>
+        <p className="text-xs text-muted">{formatDateOnly(round.scheduled_on, { weekday: true })} · {round.course_name}{round.starts_at ? ` · ${startTimeLine(round.starts_at, round.timezone)}` : ''}{live ? ' · live' : round.status === 'completed' ? ' · final' : ' · not started'}</p>
       </div>
       {data && sides && roundId && (
         <ScoreControl eventId={eventId} roundId={roundId} score={data.round.score} sides={sides} canScore={!!user && live && data.viewer.can_score} onSaved={refresh} />
