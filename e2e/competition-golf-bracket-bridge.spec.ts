@@ -31,7 +31,7 @@ test('the match bridge: a bracket final runs as a match, go-live swaps the link,
   let eventId: string | null = null;
   try {
     await admin.from('memberships').insert([
-      { league_id: leagueId, profile_id: s.userA.id, role: 'owner' },
+      { league_id: leagueId, profile_id: s.userA.id, kind: 'follow', role: 'owner', status: 'active', scope_type: 'org', scope_id: null },
       ...[s.userB.id, userC.id].map(profile_id => ({ league_id: leagueId, profile_id, kind: 'roster', role: 'member', status: 'active', scope_type: 'org', scope_id: null })),
     ]);
     const { data: season } = await admin.from('seasons').insert({ league_id: leagueId, label: '2026' }).select().single();

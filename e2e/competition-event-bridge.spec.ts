@@ -34,7 +34,7 @@ test('the game bridge: a contest runs as an event, completion writes the fixture
   let eventId2: string | null = null;
   try {
     await admin.from('memberships').insert([
-      { league_id: leagueId, profile_id: s.userA.id, role: 'owner' },
+      { league_id: leagueId, profile_id: s.userA.id, kind: 'follow', role: 'owner', status: 'active', scope_type: 'org', scope_id: null },
       ...[s.userB.id, userC.id, userD.id].map(profile_id => ({ league_id: leagueId, profile_id, kind: 'roster', role: 'member', status: 'active', scope_type: 'org', scope_id: null })),
     ]);
     const { data: season } = await admin.from('seasons').insert({ league_id: leagueId, label: '2026-27' }).select().single();
