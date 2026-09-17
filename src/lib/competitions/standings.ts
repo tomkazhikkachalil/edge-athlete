@@ -203,7 +203,7 @@ export async function readBracketRows(admin: Admin, competitionId: string, sport
     });
     const home = parts.find(p => p.side === 'home')?.entry_id ?? null;
     const away = parts.find(p => p.side === 'away')?.entry_id ?? null;
-    return { id: c.id as string, stage: c.stage as number, slot: c.slot as number, status: c.status as string, home, away, winnerEntryId: outcome.kind === 'bracket' ? outcome.winnerEntryId : null, hasResult: parts.some(p => resultBy.has(p.id)) };
+    return { id: c.id as string, stage: c.stage as number, slot: c.slot as number, status: c.status as string, home, away, winnerEntryId: outcome.kind === 'bracket' ? outcome.winnerEntryId : null, hasResult: parts.some(p => resultBy.has(p.id)), scoreline: outcome.kind === 'bracket' ? outcome.scoreline : null };
   });
 }
 

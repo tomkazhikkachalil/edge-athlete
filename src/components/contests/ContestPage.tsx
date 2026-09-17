@@ -1,3 +1,4 @@
+import { ADVANCE_LABEL } from '@/lib/competitions/contest-outcome';
 import Link from 'next/link';
 import type { ContestAccess, ContestView } from '@/lib/competitions/contest-view';
 import {
@@ -170,11 +171,11 @@ export default function ContestPage({ view, access, links, postsSlot }: Props) {
                 );
               }).flatMap((node, i) => (i === 0 ? [node, <span key="vs" className="text-sm text-muted">vs</span>] : [node]))}
             </div>
-            <p className="mt-3 text-sm text-tertiary">
+            <p className="mt-3 text-sm text-tertiary" data-contest-outcome-line="">
               {outcome.complete
                 ? outcome.tie
                   ? 'Final · tie'
-                  : `Final · ${outcome.scoreline}`
+                  : `Final · ${outcome.scoreline}${outcome.kind === 'bracket' && outcome.advancedBy ? ` · ${ADVANCE_LABEL[outcome.advancedBy]}` : ''}`
                 : outcome.scoreline
                   ? `${outcome.scoreline} · ${contestStatusLabel(contest.status)}`
                   : 'No score yet'}
