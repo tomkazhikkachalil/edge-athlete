@@ -272,6 +272,22 @@ export const EntryPoolSchema = z.object({
 export type EntryPoolInput = z.infer<typeof EntryPoolSchema>;
 export const EntryPatchSchema = z.union([EntryDecideSchema, EntryAffiliationSchema, EntryPoolSchema]);
 
+/** Leftovers PR 2: the round-robin per pool (dry-run by default; one or two legs). */
+export const PoolsGenerateSchema = z.object({
+  competitionId: uuid,
+  dryRun: z.boolean().default(true),
+  legs: z.union([z.literal(1), z.literal(2)]).default(1),
+});
+export type PoolsGenerateInput = z.infer<typeof PoolsGenerateSchema>;
+
+/** Leftovers PR 2: seed a bracket competition from the pools' tables — the top n of each pool, crossed (A1, B1, …, A2, B2 …). */
+export const PoolsSeedSchema = z.object({
+  competitionId: uuid,
+  targetCompetitionId: uuid,
+  perPool: z.number().int().min(1).max(8),
+});
+export type PoolsSeedInput = z.infer<typeof PoolsSeedSchema>;
+
 /** Track 2 PR 10: run a two-sided contest as a one-round game EVENT of the competition's sport, hosted for the org. */
 export const ContestRunAsEventSchema = z.object({
   competitionId: uuid,

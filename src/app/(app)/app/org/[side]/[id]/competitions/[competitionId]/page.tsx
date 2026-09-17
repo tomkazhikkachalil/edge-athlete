@@ -139,6 +139,13 @@ export default function CompetitionDetailPage() {
   const [standingsColumns, setStandingsColumns] = useState<StandingsColumnUi[]>([]);
   // Leftovers PR 1: the pools among the approved entries (the detail GET's `pools`).
   const [pools, setPools] = useState<PoolGroup[]>([]);
+  // Leftovers PR 2: the round-robin per pool and the seeding into a bracket.
+  const [poolLegs, setPoolLegs] = useState<1 | 2>(1);
+  const [poolsBusy, setPoolsBusy] = useState(false);
+  const [poolsReport, setPoolsReport] = useState<{ dryRun: boolean; legs: number; games: number; skipped: number; pools: Array<{ pool: string; entries: number; games: number; skipped: number }> } | null>(null);
+  const [poolTargets, setPoolTargets] = useState<Array<{ id: string; name: string }>>([]);
+  const [poolTargetId, setPoolTargetId] = useState('');
+  const [poolPerPool, setPoolPerPool] = useState('1');
   const [reloadKey, setReloadKey] = useState(0);
 
   // Create form
@@ -699,6 +706,39 @@ export default function CompetitionDetailPage() {
   const bracketNameOf = (id: string) => entries.find(en => en.id === id)?.entrant_name ?? 'Entrant';
   const bracketFinal = bracketRows.length > 0 ? bracketRows.find(r => r.stage === Math.max(...bracketRows.map(x => x.stage)) && r.slot === 1) ?? null : null;
 
+  // Leftovers PR 2: the pools' helpers.
+  const runPools = async (dryRun: boolean) => {
+    setPoolsBusy(true);
+    try {
+      const response = await fetch(`${base}/pools/generate`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ competitionId, dryRun, legs: poolLegs }) });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) { showError('Pool games', body.error || 'Could not plan the pool games'); return; }
+      setPoolsReport(body.report ?? null);
+      if (!dryRun) { showSuccess('Pool games', `${body.report?.games ?? 0} games added`); setReloadKey(k => k + 1); }
+    } catch {
+      showError('Pool games', 'Could not plan the pool games');
+    } finally {
+      setPoolsBusy(false);
+    }
+  };
+  const loadPoolTargets = async () => {
+    try {
+      const res = await fetch(`/api/${plural}/${orgId}/competitions`, { cache: 'no-store' });
+      if (!res.ok) return;
+      const data = (await res.json()) as { competitions?: Array<{ id: string; name: string; format: string; sport_key?: string; status?: string }> };
+      setPoolTargets((data.competitions ?? []).filter(c => c.format === 'bracket' && c.id !== competitionId && (!c.sport_key || c.sport_key === competition?.sport_key) && c.status !== 'completed' && c.status !== 'archived').map(c => ({ id: c.id, name: c.name })));
+    } catch { /* the select stays empty */ }
+  };
+  const seedFromPools = async () => {
+    if (!poolTargetId) { showError('Seed a bracket', 'Pick the bracket to seed'); return; }
+    setPoolsBusy(true);
+    try {
+      await act(`${base}/pools/seed`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ competitionId, targetCompetitionId: poolTargetId, perPool: Math.min(8, Math.max(1, Number(poolPerPool) || 1)) }) }, 'Seeds written', 'Could not seed the bracket');
+    } finally {
+      setPoolsBusy(false);
+    }
+  };
+
   // Track 2 PR 8: the meet's helpers — each event is a contest; the marks form lists the approved athletes.
   const meetEvents = competition?.format === 'meet' ? (resolveCompetitionProfile(competition.sport_key).meetEvents ?? []) : [];
   const mintedRounds = new Set(contests.map(c => c.round));
@@ -1229,6 +1269,48 @@ export default function CompetitionDetailPage() {
                   }))}
                 />
               )}
+            </div>
+          )}
+
+          {competition.format === 'fixture' && pools.length > 0 && (
+            <div className="mb-4 border border-border rounded-lg p-3 space-y-2" data-pools-panel="">
+              <p className="text-xs text-muted">Pools: {pools.map(p => `${p.pool} (${p.entryIds.length})`).join(' · ')}. Every pair in a pool plays once (or home and away); the pools&apos; tables seed a bracket.</p>
+              <div className="flex flex-wrap items-end gap-2">
+                <label className="text-xs text-secondary">
+                  Legs
+                  <select value={poolLegs} onChange={e => setPoolLegs(Number(e.target.value) === 2 ? 2 : 1)} aria-label="Pool legs" className="mt-0.5 block px-2 py-1.5 border border-border-strong rounded-md outline-none text-sm">
+                    <option value={1}>Once</option>
+                    <option value={2}>Home and away</option>
+                  </select>
+                </label>
+                <button type="button" disabled={poolsBusy} onClick={() => void runPools(true)} className="px-3 py-1.5 text-sm min-h-[36px] rounded-lg border border-border-strong text-secondary hover:bg-surface-sunken transition-colors disabled:opacity-50" data-pools-preview="">
+                  Preview
+                </button>
+                <button type="button" disabled={poolsBusy || poolsReport === null || poolsReport.dryRun !== true || poolsReport.games === 0} title={poolsReport?.dryRun !== true ? 'Preview first' : undefined} onClick={() => void runPools(false)} className="px-3 py-1.5 text-sm min-h-[36px] rounded-lg bg-brand text-white font-medium hover:bg-brand-hover transition-colors disabled:opacity-50" data-pools-generate="">
+                  Generate pool games
+                </button>
+              </div>
+              {poolsReport && (
+                <p className="text-xs text-secondary" data-pools-report="">
+                  <span className="font-medium text-primary">{poolsReport.dryRun ? 'Preview' : 'Generated'}:</span> {poolsReport.games} {poolsReport.games === 1 ? 'game' : 'games'}{poolsReport.skipped > 0 ? ` · ${poolsReport.skipped} already played` : ''} — {poolsReport.pools.map(p => `Pool ${p.pool} ${p.games}`).join(' · ')}
+                </p>
+              )}
+              <div className="flex flex-wrap items-end gap-2 border-t border-border-subtle pt-2">
+                <label className="text-xs text-secondary">
+                  Seed a bracket
+                  <select value={poolTargetId} onFocus={() => { if (poolTargets.length === 0) void loadPoolTargets(); }} onChange={e => setPoolTargetId(e.target.value)} aria-label="Bracket to seed" className="mt-0.5 block max-w-full px-2 py-1.5 border border-border-strong rounded-md outline-none text-sm" data-pools-target="">
+                    <option value="">Pick a bracket…</option>
+                    {poolTargets.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                  </select>
+                </label>
+                <label className="text-xs text-secondary">
+                  Per pool
+                  <input type="number" min={1} max={8} value={poolPerPool} onChange={e => setPoolPerPool(e.target.value)} aria-label="Seeds per pool" className="mt-0.5 block w-16 px-2 py-1.5 border border-border-strong rounded-md outline-none text-sm" data-pools-per-pool="" />
+                </label>
+                <button type="button" disabled={poolsBusy} onClick={() => void seedFromPools()} className="px-3 py-1.5 text-sm min-h-[36px] rounded-lg border border-border-strong text-secondary hover:bg-surface-sunken transition-colors disabled:opacity-50" data-pools-seed="">
+                  Seed from standings
+                </button>
+              </div>
             </div>
           )}
 

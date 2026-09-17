@@ -6,9 +6,10 @@ import { pollUntil } from './helpers/isr';
  * Events + formats leftovers, PR 1 — pools at phone width on Chromium and
  * WebKit. The owner (A — the mobile session's user, who must OWN the
  * league) pools four teams A, A, B, B from the org page's entry pills;
- * two games are scored through the API; the console's standings and the
- * org's public standings render one table per pool with the rank within
- * it. PR 2 grows this file with the round-robin generator and the seeding.
+ * PR 2: the round-robin per pool from the console (Preview → Generate),
+ * the scores through the API; the console's standings and the org's public
+ * standings render one table per pool with the rank within it; the pools'
+ * tables seed a bracket (A1, B1).
  */
 type Detail = { pools: Array<{ pool: string; entryIds: string[] }>; standings: Array<{ entry_id: string; rank: number; points: number | null; stats: Record<string, number> }>; contests: Array<{ id: string; participants: Array<{ id: string; entry_id: string; side: string | null }> }> };
 
@@ -44,26 +45,36 @@ test('pools: the letter on the pills → two pooled games → one table per pool
     // A pool on a non-fixture is refused by name; an unknown letter by the schema.
     expect((await api.patch(`${base}/entries`, { data: { entryId: entryOf('Ash'), pool: 'Z' } })).status()).toBe(400);
 
-    // Two games, one per pool, scored through the API.
-    const play = async (home: string, away: string, hs: number, as: number) => {
-      const c = await api.post(`${base}/${competitionId}/contests`, { data: { competitionId, homeEntryId: entryOf(home), awayEntryId: entryOf(away), scheduledAt: '2030-06-01T19:00:00.000Z' } });
-      expect(c.ok(), await readErrorBody(c)).toBe(true);
-      const contest = ((await c.json()) as { contest: { id: string } }).contest;
-      const d = (await (await api.get(`${base}/${competitionId}`)).json()) as Detail;
-      const parts = d.contests.find(x => x.id === contest.id)!.participants;
-      const r = await api.post(`${base}/${competitionId}/results`, { data: { contestId: contest.id, results: [{ participantId: parts.find(p => p.side === 'home')!.id, score: hs }, { participantId: parts.find(p => p.side === 'away')!.id, score: as }] } });
+    // PR 2: the round-robin per pool from the console — Preview reads two games, Generate mints them; the scores through the API.
+    await page.goto(`/app/org/league/${leagueId}/competitions/${competitionId}`);
+    await expect(page.getByRole('heading', { name: 'Pool Play' })).toBeVisible({ timeout: 20_000 });
+    await expect(page.locator('[data-pools-panel]')).toBeVisible();
+    await page.locator('[data-pools-preview]').click();
+    await expect(page.locator('[data-pools-report]')).toContainText('Preview: 2 games', { timeout: 15_000 });
+    await page.locator('[data-pools-generate]').click();
+    await expect(page.getByText('2 games added')).toBeVisible({ timeout: 15_000 });
+    let d = (await (await api.get(`${base}/${competitionId}`)).json()) as Detail;
+    expect(d.contests).toHaveLength(2);
+    const again = await api.post(`${base}/${competitionId}/pools/generate`, { data: { competitionId, dryRun: true } });
+    expect(((await again.json()) as { report: { games: number; skipped: number } }).report).toMatchObject({ games: 0, skipped: 2 });
+    const score = async (home: string, hs: number, as: number) => {
+      const contest = d.contests.find(c => c.participants.some(p => p.side === 'home' && p.entry_id === entryOf(home)))!;
+      const r = await api.post(`${base}/${competitionId}/results`, { data: { contestId: contest.id, results: [{ participantId: contest.participants.find(p => p.side === 'home')!.id, score: hs }, { participantId: contest.participants.find(p => p.side === 'away')!.id, score: as }] } });
       expect(r.ok(), await readErrorBody(r)).toBe(true);
     };
-    await play('Ash', 'Birch', 3, 1);
-    await play('Dell', 'Cedar', 2, 2);
-    const d = (await (await api.get(`${base}/${competitionId}`)).json()) as Detail;
+    const homeOf = (prefixes: string[]) => prefixes.find(p => d.contests.some(c => c.participants.some(x => x.side === 'home' && x.entry_id === entryOf(p))))!;
+    const homeA = homeOf(['Ash', 'Birch']);
+    const homeB = homeOf(['Cedar', 'Dell']);
+    await score(homeA, 3, 1);
+    await score(homeB, 2, 0);
+    d = (await (await api.get(`${base}/${competitionId}`)).json()) as Detail;
     expect(d.pools).toEqual([{ pool: 'A', entryIds: expect.arrayContaining([entryOf('Ash'), entryOf('Birch')]) }, { pool: 'B', entryIds: expect.arrayContaining([entryOf('Cedar'), entryOf('Dell')]) }]);
     const row = (prefix: string) => d.standings.find(r => r.entry_id === entryOf(prefix))!;
-    expect([row('Ash').rank, row('Ash').stats.pool, row('Birch').rank]).toEqual([1, 1, 2]);
-    expect([row('Cedar').rank, row('Cedar').stats.pool, row('Dell').rank]).toEqual([1, 2, 1]);
+    expect([row(homeA).rank, row(homeA).stats.pool]).toEqual([1, 1]);
+    expect([row(homeB).rank, row(homeB).stats.pool]).toEqual([1, 2]);
 
     // The console's standings group by pool; no horizontal overflow at 390.
-    await page.goto(`/app/org/league/${leagueId}/competitions/${competitionId}`);
+    await page.reload();
     await expect(page.getByRole('heading', { name: 'Pool Play' })).toBeVisible({ timeout: 20_000 });
     await expect(page.locator('[data-standings-pool="A"]')).toBeVisible({ timeout: 20_000 });
     await expect(page.locator('[data-standings-pool="B"]')).toBeVisible();
@@ -80,6 +91,22 @@ test('pools: the letter on the pills → two pooled games → one table per pool
     await expect(page.locator('[data-standings-pool="A"]')).toBeVisible({ timeout: 20_000 });
     await expect(page.locator('[data-standings-pool="A"]')).toContainText(`Ash ${stamp}`);
     await expect(page.locator('[data-standings-pool="B"]')).toContainText(`Cedar ${stamp}`);
+
+    // PR 2: seed a bracket from the pools' tables — A1, B1 onto the target; a second pass re-writes the same seeds.
+    const { data: bracket } = await admin.from('competitions').insert({ league_id: leagueId, season_id: season!.id, sport_key: 'ice_hockey', name: 'Playoffs', format: 'bracket', entrant_type: 'team', status: 'active', visibility: 'public' }).select().single();
+    const bracketId = bracket!.id as string;
+    await page.goto(`/app/org/league/${leagueId}/competitions/${competitionId}`);
+    await expect(page.locator('[data-pools-target]')).toBeVisible({ timeout: 20_000 });
+    await page.locator('[data-pools-target]').focus();
+    await expect(page.locator('[data-pools-target] option', { hasText: 'Playoffs' })).toHaveCount(1, { timeout: 15_000 });
+    await page.locator('[data-pools-target]').selectOption(bracketId);
+    await page.locator('[data-pools-per-pool]').fill('1');
+    await page.locator('[data-pools-seed]').click();
+    await expect(page.getByText('Seeds written')).toBeVisible({ timeout: 15_000 });
+    const { data: seeded } = await admin.from('competition_entries').select('team_id, seed').eq('competition_id', bracketId).order('seed');
+    expect((seeded ?? []).map(e => [e.team_id, e.seed])).toEqual([[teamId(homeA), 1], [teamId(homeB), 2]]);
+    const wrongTarget = await api.post(`${base}/${competitionId}/pools/seed`, { data: { competitionId, targetCompetitionId: competitionId, perPool: 1 } });
+    expect(((await wrongTarget.json()) as { reason?: string }).reason).toBe('target_not_bracket');
   } finally {
     await admin.from('leagues').delete().eq('id', leagueId);
     await api.dispose();

@@ -43,6 +43,8 @@ import {
   type MeetEventsGenerateInput,
   type MeetResultsUpsertInput,
   type EntryPoolInput,
+  type PoolsGenerateInput,
+  type PoolsSeedInput,
 } from '@/lib/competitions/validate';
 import { generateRoundWindows } from '@/lib/competitions/golf-season';
 import {
@@ -64,7 +66,8 @@ import { upsertPerformances } from '@/lib/performance/write-server';
 import { getStatSchema } from '@/lib/sports/stat-schemas';
 import { validateStatsAgainstSchema } from '@/lib/sports/stat-line-validate';
 import { readSportEventMatchLink } from '@/lib/sport-events/contest-link-server';
-import { poolsOf } from '@/lib/competitions/pools';
+import { crossPoolSeeds, POOL_SEED_REFUSAL_COPY, poolGamePlan, poolSeedRefusal, poolsOf } from '@/lib/competitions/pools';
+import { ensureEntries, syncSideMembers } from '@/lib/sport-events/contest-link-server';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- matches the authz.ts Admin alias; schema-agnostic helper
 type Admin = SupabaseClient<any, 'public', any>;
@@ -907,13 +910,19 @@ export async function seedsPUT(admin: Admin, input: SeedsPutInput, scope: Compet
   if (drawnError?.code === '42703') return NextResponse.json({ error: 'Brackets need migration 218.', reason: 'needs_migration' }, { status: 409 });
   const refusal = seedsRefusal(input.entryIds, (entries ?? []) as Array<{ id: string; status: string }>, (drawn ?? []).length > 0);
   if (refusal) return NextResponse.json({ error: SEEDS_REFUSAL_COPY[refusal], reason: refusal }, { status: refusal === 'bracket_drawn' ? 409 : 400 });
-  for (let i = 0; i < input.entryIds.length; i++) {
-    const { error } = await admin.from('competition_entries').update({ seed: i + 1 }).eq('id', input.entryIds[i]);
-    if (error) { console.error(`${TAG} seed write failed:`, error); return NextResponse.json({ error: 'Failed to save the seeds' }, { status: 500 }); }
-  }
-  const { error: clearError } = await admin.from('competition_entries').update({ seed: null }).eq('competition_id', input.competitionId).not('id', 'in', `(${input.entryIds.join(',')})`);
-  if (clearError) console.warn(`${TAG} seed clear failed:`, clearError.message);
+  if (!(await writeSeeds(admin, input.competitionId, input.entryIds))) return NextResponse.json({ error: 'Failed to save the seeds' }, { status: 500 });
   return NextResponse.json({ ok: true, seeded: input.entryIds.map((id, i) => ({ entryId: id, seed: i + 1 })) });
+}
+
+/** THE seeds writer: the FULL order (seed = position + 1), every other entry's seed cleared. Leftovers PR 2 extracted it — the pools seed writes the TARGET through it. */
+export async function writeSeeds(admin: Admin, competitionId: string, entryIds: string[]): Promise<boolean> {
+  for (let i = 0; i < entryIds.length; i++) {
+    const { error } = await admin.from('competition_entries').update({ seed: i + 1 }).eq('id', entryIds[i]);
+    if (error) { console.error(`${TAG} seed write failed:`, error); return false; }
+  }
+  const { error: clearError } = await admin.from('competition_entries').update({ seed: null }).eq('competition_id', competitionId).not('id', 'in', `(${entryIds.join(',')})`);
+  if (clearError) console.warn(`${TAG} seed clear failed:`, clearError.message);
+  return true;
 }
 
 export interface BracketGenerateReport {
@@ -1702,6 +1711,110 @@ export async function entryAffiliationPATCH(admin: Admin, input: EntryAffiliatio
   await recomputeStandingsBestEffort(admin, compRow.id);
   await revalidateOrgSiteForCompetition(admin, compRow.id);
   return NextResponse.json({ ok: true, entryId: input.entryId, affiliationTeamId: input.affiliationTeamId });
+}
+
+async function pinFixtureCompetition(admin: Admin, competitionId: string, scope: CompetitionScope | null): Promise<{ ok: true; comp: { id: string; name: string; format: string; sport_key: string; entrant_type: string; status: string; league_id: string | null; club_id: string | null } } | { ok: false; response: NextResponse }> {
+  const { data: comp } = await admin.from('competitions').select('id, name, league_id, club_id, format, sport_key, entrant_type, status').eq('id', competitionId).maybeSingle();
+  if (!comp || (scope && comp[orgColumn(scope.side)] !== scope.orgId)) return { ok: false, response: NextResponse.json({ error: 'Competition not found' }, { status: 404 }) };
+  if (comp.format !== 'fixture') return { ok: false, response: NextResponse.json({ error: POOL_SEED_REFUSAL_COPY.not_fixture, reason: 'not_fixture' }, { status: 400 }) };
+  return { ok: true, comp: comp as { id: string; name: string; format: string; sport_key: string; entrant_type: string; status: string; league_id: string | null; club_id: string | null } };
+}
+
+/** The existing games' ordered pairs (`home:away`) — what the round-robin must not mint again. */
+async function existingPairs(admin: Admin, competitionId: string): Promise<Set<string>> {
+  const { data: contests } = await admin.from('contests').select('id').eq('competition_id', competitionId).neq('status', 'canceled').limit(1000);
+  const ids = ((contests ?? []) as Array<{ id: string }>).map(c => c.id);
+  const out = new Set<string>();
+  if (ids.length === 0) return out;
+  const { data: parts } = await admin.from('contest_participants').select('contest_id, entry_id, side').in('contest_id', ids);
+  const by = new Map<string, { home?: string; away?: string }>();
+  for (const p of (parts ?? []) as Array<{ contest_id: string; entry_id: string; side: string | null }>) {
+    const row = by.get(p.contest_id) ?? {};
+    if (p.side === 'home') row.home = p.entry_id;
+    if (p.side === 'away') row.away = p.entry_id;
+    by.set(p.contest_id, row);
+  }
+  for (const row of by.values()) if (row.home && row.away) out.add(`${row.home}:${row.away}`);
+  return out;
+}
+
+/** The round-robin per pool (dry-run by default): every pairing within each pool not yet played, minted as scheduled games with no time — never auto-published (trap 3). */
+export async function poolsGeneratePOST(admin: Admin, input: PoolsGenerateInput, scope: CompetitionScope | null): Promise<NextResponse> {
+  const pinned = await pinFixtureCompetition(admin, input.competitionId, scope);
+  if (!pinned.ok) return pinned.response;
+  if (pinned.comp.status === 'completed' || pinned.comp.status === 'archived') return NextResponse.json({ error: 'This competition is closed.', reason: 'closed' }, { status: 400 });
+  const { data: entries } = await admin.from('competition_entries').select('id, status, pool').eq('competition_id', input.competitionId).limit(500);
+  const pools = poolsOf((entries ?? []) as Array<{ id: string; pool: string | null; status: string }>);
+  if (pools.length === 0) return NextResponse.json({ error: POOL_SEED_REFUSAL_COPY.no_pools, reason: 'no_pools' }, { status: 400 });
+  const plan = poolGamePlan(pools, input.legs, await existingPairs(admin, input.competitionId));
+  if (input.dryRun) return NextResponse.json({ report: { dryRun: true, legs: input.legs, ...plan.report } });
+  const created: string[] = [];
+  for (const g of plan.games) {
+    const ins = await insertContestWithParticipants(admin, { competition_id: input.competitionId, scheduled_at: null, round: g.label, venue_id: null, facility_id: null, holes: null, play_from: null, play_to: null }, [{ entry_id: g.home, side: 'home' }, { entry_id: g.away, side: 'away' }]);
+    if (!ins.ok) { console.error(`${TAG} pool game insert failed:`, ins.reason); return NextResponse.json({ error: 'Failed to generate the pool games', reason: ins.reason, created }, { status: 500 }); }
+    created.push(ins.contest.id);
+  }
+  await recomputeStandingsBestEffort(admin, input.competitionId);
+  await revalidateOrgSiteForCompetition(admin, input.competitionId);
+  return NextResponse.json({ report: { dryRun: false, legs: input.legs, ...plan.report }, contestIds: created }, { status: created.length > 0 ? 201 : 200 });
+}
+
+/** Seed a BRACKET competition from the pools' tables: the top n of each pool in the cross order, each entry copied onto the target (team / athlete / ad-hoc with its members), the seeds written through the one writer. */
+export async function poolsSeedPOST(admin: Admin, input: PoolsSeedInput, scope: CompetitionScope | null): Promise<NextResponse> {
+  const pinned = await pinFixtureCompetition(admin, input.competitionId, scope);
+  if (!pinned.ok) return pinned.response;
+  const source = pinned.comp;
+  const { data: targetRow } = await admin.from('competitions').select('id, name, league_id, club_id, format, sport_key, entrant_type, status').eq('id', input.targetCompetitionId).maybeSingle();
+  const target = targetRow as { id: string; name: string; league_id: string | null; club_id: string | null; format: string; sport_key: string; entrant_type: string; status: string } | null;
+  if (!target || target.league_id !== source.league_id || target.club_id !== source.club_id) return NextResponse.json({ error: 'Target competition not found' }, { status: 404 });
+  const { data: drawn, error: drawnError } = await admin.from('contests').select('id').eq('competition_id', target.id).not('stage', 'is', null).limit(1);
+  if (drawnError?.code === '42703') return NextResponse.json({ error: 'Brackets need migration 218.', reason: 'needs_migration' }, { status: 409 });
+  const { data: entries } = await admin.from('competition_entries').select('id, team_id, profile_id, name, pool, status').eq('competition_id', source.id).limit(500);
+  const entryRows = (entries ?? []) as Array<{ id: string; team_id: string | null; profile_id: string | null; name: string | null; pool: string | null; status: string }>;
+  const pools = poolsOf(entryRows);
+  const { data: standing } = await admin.from('competition_standings').select('entry_id, rank').eq('competition_id', source.id).order('rank', { ascending: true }).order('entry_id', { ascending: true });
+  const order = new Map(((standing ?? []) as Array<{ entry_id: string }>).map((r, i) => [r.entry_id, i]));
+  const ranked = pools.map(p => ({ pool: p.pool, entryIds: [...p.entryIds].sort((a, b) => (order.get(a) ?? 1e9) - (order.get(b) ?? 1e9) || a.localeCompare(b)) }));
+  const seeds = crossPoolSeeds(ranked, input.perPool);
+  const refusal = poolSeedRefusal(source, target, { pools: pools.length, drawn: (drawn ?? []).length > 0, seeds: seeds.length });
+  if (refusal) return NextResponse.json({ error: POOL_SEED_REFUSAL_COPY[refusal], reason: refusal }, { status: refusal === 'target_drawn' ? 409 : 400 });
+
+  // Each seed copied onto the target: a team by (competition, team), an athlete through ensureEntries, an ad-hoc side by name with its members.
+  const byId = new Map(entryRows.map(e => [e.id, e]));
+  const targetIds: string[] = [];
+  for (const id of seeds) {
+    const e = byId.get(id)!;
+    let targetId: string | null = null;
+    if (e.team_id) {
+      const { data: have } = await admin.from('competition_entries').select('id').eq('competition_id', target.id).eq('team_id', e.team_id).maybeSingle();
+      targetId = (have as { id: string } | null)?.id ?? null;
+      if (!targetId) {
+        const { data: made, error } = await admin.from('competition_entries').insert({ competition_id: target.id, team_id: e.team_id, profile_id: null, status: 'approved' }).select('id').single();
+        if (error?.code === '23505') { const { data: again } = await admin.from('competition_entries').select('id').eq('competition_id', target.id).eq('team_id', e.team_id).maybeSingle(); targetId = (again as { id: string } | null)?.id ?? null; }
+        else targetId = (made as { id: string } | null)?.id ?? null;
+      }
+    } else if (e.profile_id) {
+      targetId = (await ensureEntries(admin, target.id, [e.profile_id])).get(e.profile_id) ?? null;
+    } else if (e.name) {
+      const { data: have } = await admin.from('competition_entries').select('id').eq('competition_id', target.id).is('team_id', null).is('profile_id', null).ilike('name', e.name).limit(1).maybeSingle();
+      targetId = (have as { id: string } | null)?.id ?? null;
+      if (!targetId) {
+        const { data: made, error } = await admin.from('competition_entries').insert({ competition_id: target.id, team_id: null, profile_id: null, name: e.name, source_ref: `pool_seed:${e.id}`, status: 'approved' }).select('id').single();
+        if (error && error.code !== '23505') console.error(`${TAG} pool seed ad-hoc insert failed:`, error);
+        targetId = (made as { id: string } | null)?.id ?? null;
+      }
+      if (targetId) {
+        const { data: members } = await admin.from('competition_entry_members').select('profile_id').eq('entry_id', e.id).order('position', { ascending: true });
+        await syncSideMembers(admin, targetId, ((members ?? []) as Array<{ profile_id: string }>).map(m => m.profile_id));
+      }
+    }
+    if (!targetId) return NextResponse.json({ error: 'Failed to copy an entry onto the bracket' }, { status: 500 });
+    targetIds.push(targetId);
+  }
+  if (!(await writeSeeds(admin, target.id, targetIds))) return NextResponse.json({ error: 'Failed to save the seeds' }, { status: 500 });
+  await recomputeStandingsBestEffort(admin, target.id);
+  await revalidateOrgSiteForCompetition(admin, target.id);
+  return NextResponse.json({ ok: true, target: { id: target.id, name: target.name }, seeded: targetIds.map((entryId, i) => ({ entryId, seed: i + 1, from: seeds[i] })) });
 }
 
 /** PATCH a fixture entry's POOL letter (null clears) — the standings regroup by it. */
