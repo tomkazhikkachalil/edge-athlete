@@ -63,12 +63,13 @@ export async function fetchSportEventView(admin: Admin, eventId: string, viewerI
   ]);
   const host_org: HostOrgView | null = org && orgRes.data ? { side: org.side, id: org.id, name: (orgRes.data as { name: string }).name } : null;
   let counts_toward: CountsTowardView | null = null;
-  if (countsToward && countsToward.size > 0) {
-    const first = [...countsToward.values()][0];
-    counts_toward = { competition_id: first.competitionId, competition_name: first.competitionName, contests: [...countsToward.entries()].map(([round_id, c]) => ({ round_id, contest_id: c.contestId })) };
-  } else if (bracketComp) {
+  if (bracketComp) {
+    // The bracket path lists PER MATCH (a round holds k stamped contests) — `readCountsTowardAll` folds match links one per round (the 2b shape), so it must not answer first here (prod probe, Sep 17).
     const stamped = matchLinks ? [...matchLinks.values()].filter(l => l.competitionId === bracketComp.id) : [];
     counts_toward = { competition_id: bracketComp.id, competition_name: bracketComp.name, contests: stamped.map(l => ({ round_id: l.roundId, contest_id: l.contestId })) };
+  } else if (countsToward && countsToward.size > 0) {
+    const first = [...countsToward.values()][0];
+    counts_toward = { competition_id: first.competitionId, competition_name: first.competitionName, contests: [...countsToward.entries()].map(([round_id, c]) => ({ round_id, contest_id: c.contestId })) };
   }
 
   const members = (membersRes.data ?? []) as SportEventGroupMemberRow[];
