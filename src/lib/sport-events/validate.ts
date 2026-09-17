@@ -16,6 +16,7 @@ import {
   type SportEventSport,
   type SportEventShape,
 } from './types';
+import { isValidTimeZone } from '@/lib/calendar/time-zones';
 
 export type Parsed<T> = { ok: true; value: T } | { ok: false; error: string };
 
@@ -37,6 +38,8 @@ export interface RoundInput {
   starting_hole: 1 | 10;
   /** Phase 4 (215) — the start, ISO; a team round's clock (a golf round may carry one too). */
   starts_at?: string | null;
+  /** Leftovers PR 8 (221) — the round's own IANA zone; present only when the body names one (the writer copies it after 221). */
+  timezone?: string;
 }
 
 export interface CreateEventInput {
@@ -145,6 +148,13 @@ function capacity(v: unknown): Parsed<number | null> {
 }
 
 /** The optional start (ISO, or anything Date.parse reads) → stored ISO; null clears. */
+/** An IANA zone by name, or null when the body leaves it out ('' clears). */
+function optionalZone(v: unknown, field: string): Parsed<string | null> {
+  if (v === undefined || v === null || v === '') return { ok: true, value: null };
+  if (typeof v !== 'string' || !isValidTimeZone(v)) return { ok: false, error: `${field} must be an IANA time zone` };
+  return { ok: true, value: v };
+}
+
 function optionalStart(v: unknown, field: string): Parsed<string | null> {
   if (v === undefined || v === null || v === '') return { ok: true, value: null };
   if (typeof v !== 'string' || !Number.isFinite(Date.parse(v))) return { ok: false, error: `${field} must be a date-time` };
@@ -157,6 +167,9 @@ export function parseRoundInput(body: unknown, field = 'round', opts: { sport?: 
   if (!isDateOnly(body.scheduled_on)) return { ok: false, error: `${field}.scheduled_on must be a date (YYYY-MM-DD)` };
   const startsAt = optionalStart(body.starts_at, `${field}.starts_at`);
   if (!startsAt.ok) return startsAt;
+  const zone = optionalZone(body.timezone, `${field}.timezone`);
+  if (!zone.ok) return zone;
+  const withZone = zone.value ? { timezone: zone.value } : {};
   if (opts.sport && opts.sport !== 'golf') {
     for (const k of ['course_id', 'tee', 'holes', 'starting_hole'] as const) if (body[k] !== undefined && body[k] !== null) return { ok: false, error: `${field}.${k} is only for golf` };
     const place = optionalText(body.course_name, `${field}.course_name`, COURSE_NAME_MAX);
@@ -164,7 +177,7 @@ export function parseRoundInput(body: unknown, field = 'round', opts: { sport?: 
     if (place.value === null) return { ok: false, error: `${field}.course_name (the place) is required` };
     const label = optionalText(body.name, `${field}.name`, ROUND_NAME_MAX);
     if (!label.ok) return label;
-    return { ok: true, value: { scheduled_on: body.scheduled_on, name: label.value, course_id: null, course_name: place.value, tee: null, holes: 18, starting_hole: 1, starts_at: startsAt.value } };
+    return { ok: true, value: { scheduled_on: body.scheduled_on, name: label.value, course_id: null, course_name: place.value, tee: null, holes: 18, starting_hole: 1, starts_at: startsAt.value, ...withZone } };
   }
   const courseId = optionalUuid(body.course_id, `${field}.course_id`);
   if (!courseId.ok) return courseId;
@@ -180,7 +193,7 @@ export function parseRoundInput(body: unknown, field = 'round', opts: { sport?: 
   if (holes === 18 && startingHole === 10) return { ok: false, error: 'an 18-hole round starts on hole 1' };
   const name = optionalText(body.name, `${field}.name`, ROUND_NAME_MAX);
   if (!name.ok) return name;
-  return { ok: true, value: { scheduled_on: body.scheduled_on, name: name.value, course_id: courseId.value, course_name: courseName.value, tee: tee.value, holes, starting_hole: startingHole, starts_at: startsAt.value } };
+  return { ok: true, value: { scheduled_on: body.scheduled_on, name: name.value, course_id: courseId.value, course_name: courseName.value, tee: tee.value, holes, starting_hole: startingHole, starts_at: startsAt.value, ...withZone } };
 }
 
 export function parseCreateBody(body: unknown): Parsed<CreateEventInput> {

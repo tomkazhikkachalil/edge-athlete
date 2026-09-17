@@ -8,6 +8,7 @@
 
 import { emailString } from '../validation';
 import { UUID_RE } from '@/lib/uuid';
+import { isValidTimeZone } from './time-zones';
 
 export const EVENT_CATEGORIES = [
   'general', 'practice', 'game', 'tournament', 'training', 'social', 'other', 'workout',
@@ -44,16 +45,6 @@ export interface NormalizedEventInput {
 export interface NormalizedGuestInput {
   profileIds: string[];
   emails: string[];
-}
-
-function isValidTimeZone(tz: string): boolean {
-  if (!tz || tz.length > 64) return false;
-  try {
-    new Intl.DateTimeFormat('en-US', { timeZone: tz });
-    return true;
-  } catch {
-    return false;
-  }
 }
 
 /** 'HH:mm' of an instant in a zone (dependency-free). */

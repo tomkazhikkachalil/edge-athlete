@@ -52,7 +52,8 @@ export interface SportEventItem {
 export interface SportEventItemInput {
   viewerId: string;
   event: { id: string; name: string };
-  round: { id: string; sequence: number; scheduled_on: string; status: 'scheduled' | 'live'; holes: number; course_name: string; name?: string | null };
+  /** `starts_at` / `timezone` (leftovers PR 8, 221): a round's own start — a timed item in the ROUND's zone when the viewer has no tee time. */
+  round: { id: string; sequence: number; scheduled_on: string; status: 'scheduled' | 'live'; holes: number; course_name: string; name?: string | null; starts_at?: string | null; timezone?: string | null };
   /** Non-cancelled rounds on the event. */
   roundCount: number;
   /** The viewer's group tee time (an ISO instant) when they are grouped on this round. */
@@ -79,13 +80,20 @@ export function sportEventRoundToItem(input: SportEventItemInput): SportEventIte
   const { viewerId, event, round, roundCount, teeTime, role, participantStatus } = input;
   if (!YMD_RE.test(round.scheduled_on)) return null;
   const teeMs = teeTime ? Date.parse(teeTime) : NaN;
+  const roundStartMs = round.starts_at ? Date.parse(round.starts_at) : NaN;
   let starts_at: string;
   let ends_at: string;
   let all_day: boolean;
+  let timezone = 'UTC';
   if (Number.isFinite(teeMs)) {
     starts_at = new Date(teeMs).toISOString();
     ends_at = new Date(teeMs + roundDurationMs(round.holes)).toISOString();
     all_day = false;
+  } else if (Number.isFinite(roundStartMs)) {
+    starts_at = new Date(roundStartMs).toISOString();
+    ends_at = new Date(roundStartMs + roundDurationMs(round.holes)).toISOString();
+    all_day = false;
+    timezone = round.timezone || 'UTC';
   } else {
     const [y, m, d] = round.scheduled_on.split('-').map(Number);
     const startMs = Date.UTC(y, m - 1, d);
@@ -103,7 +111,7 @@ export function sportEventRoundToItem(input: SportEventItemInput): SportEventIte
     starts_at,
     ends_at,
     all_day,
-    timezone: 'UTC',
+    timezone,
     category: 'tournament',
     status: 'active',
     cancelled_at: null,

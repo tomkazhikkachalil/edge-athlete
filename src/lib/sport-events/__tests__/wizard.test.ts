@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { addWizardRound, emptyRoundDraft, emptyWizardState, isWizardDirty, removeWizardRound, updateWizardRound, validateWizardRounds, validateWizardStep, withVisibility, wizardCourseFrom, wizardToCreateBody, type RoundDraft, type WizardState, withSideTeam, withSport } from '../wizard';
+import { addWizardRound, emptyRoundDraft, emptyWizardState, isWizardDirty, removeWizardRound, updateWizardRound, validateWizardRounds, validateWizardStep, withVisibility, wizardCourseFrom, wizardToCreateBody, type RoundDraft, type WizardState, withSideTeam, withSport, zonedStartIso, localTimeOf, roundBodyFrom, roundDraftFrom } from '../wizard';
 
-const round1: RoundDraft = { scheduled_on: '2030-06-01', name: '', course: { id: null, name: 'Eagle Creek', tees: [], holesCount: null }, tee: '', holes: 9, starting_hole: 10, place: '', starts_at: '' };
+const round1: RoundDraft = { scheduled_on: '2030-06-01', name: '', course: { id: null, name: 'Eagle Creek', tees: [], holesCount: null }, tee: '', holes: 9, starting_hole: 10, place: '', starts_at: '', timezone: 'UTC' };
 const filled = (): WizardState => ({ ...emptyWizardState(), name: 'Spring Open', rounds: [round1], format: 'stroke_net', capacity: '8' });
 
 describe('the wizard rules', () => {
@@ -89,5 +89,24 @@ describe('side teams (leftovers PR 5)', () => {
     expect(isWizardDirty(withSideTeam(emptyWizardState(), 0, { id: 'x', name: 'X' }))).toBe(true);
     s = withSideTeam(s, 1, null);
     expect([s.side_teams[1], s.side_names[1]]).toEqual([null, 'Blues']);
+  });
+});
+
+describe('the round zone (leftovers PR 8) — the start on the round\'s clock', () => {
+  it('zonedStartIso reads HH:MM in the zone; localTimeOf inverts it; a bad zone or time is null / blank', () => {
+    expect(zonedStartIso('2030-06-01', '19:00', 'Pacific/Honolulu')).toBe('2030-06-02T05:00:00.000Z');
+    expect(localTimeOf('2030-06-02T05:00:00.000Z', 'Pacific/Honolulu')).toBe('19:00');
+    expect(zonedStartIso('2030-06-01', '7pm', 'Pacific/Honolulu')).toBeNull();
+    expect(zonedStartIso('2030-6-1', '19:00', 'Pacific/Honolulu')).toBeNull();
+    expect(localTimeOf(null, 'Pacific/Honolulu')).toBe('');
+  });
+  it('a team round\'s body carries the zone and the zoned instant; the default zone reads as clean', () => {
+    const d = { ...emptyRoundDraft(), scheduled_on: '2030-06-01', place: 'The Rink', starts_at: '19:00', timezone: 'Pacific/Honolulu' };
+    expect(roundBodyFrom(d, 'ice_hockey')).toEqual({ scheduled_on: '2030-06-01', name: null, course_name: 'The Rink', starts_at: '2030-06-02T05:00:00.000Z', timezone: 'Pacific/Honolulu' });
+    expect(roundBodyFrom({ ...d, course: { id: null, name: 'Links', tees: [], holesCount: null } }, 'golf')).not.toHaveProperty('timezone');
+    expect(roundDraftFrom({ scheduled_on: '2030-06-01', course_id: null, course_name: 'The Rink', tee: null, holes: 18, starting_hole: 1, starts_at: '2030-06-02T05:00:00.000Z', timezone: 'Pacific/Honolulu' })).toMatchObject({ starts_at: '19:00', timezone: 'Pacific/Honolulu' });
+    expect(emptyRoundDraft().timezone).toBeTruthy();
+    expect(isWizardDirty(emptyWizardState())).toBe(false);
+    expect(isWizardDirty({ ...emptyWizardState(), rounds: [{ ...emptyRoundDraft(), timezone: 'Mars/Olympus' }] })).toBe(true);
   });
 });

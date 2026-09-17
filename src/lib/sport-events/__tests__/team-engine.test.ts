@@ -207,7 +207,7 @@ describe('the wizard — the sport, the shape, the side names, the team round', 
     expect(validateRoundDraft({ ...d, place: 'Pitch 2', starts_at: '9:00' }, 'soccer')).toMatch(/HH:MM/);
     expect(validateRoundDraft({ ...d, place: 'Pitch 2', starts_at: '09:00' }, 'soccer')).toBeNull();
     expect(validateRoundDraft({ ...d, place: 'Pitch 2' }, 'golf')).toMatch(/course/);
-    expect(roundBodyFrom({ ...d, place: ' Pitch 2 ' }, 'soccer')).toEqual({ scheduled_on: '2030-01-01', name: null, course_name: 'Pitch 2', starts_at: null });
+    expect(roundBodyFrom({ ...d, place: ' Pitch 2 ' }, 'soccer')).toEqual({ scheduled_on: '2030-01-01', name: null, course_name: 'Pitch 2', starts_at: null, timezone: expect.any(String) });
     const s = withSport(emptyWizardState(), 'soccer');
     expect(validateWizardStep('format', { ...s, side_names: ['A', 'a'] })).toMatch(/different names/);
     expect(validateWizardStep('format', { ...s, side_names: ['', 'B'] })).toMatch(/Name both sides/);

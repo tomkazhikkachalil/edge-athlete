@@ -160,7 +160,7 @@ describe('the organizer rules (phase 2)', () => {
 describe('the round draft (phase 2)', () => {
   it('a stored round becomes a draft and back; the refusals name the miss', () => {
     const d = roundDraftFrom({ scheduled_on: '2030-06-01', name: 'Saturday', course_id: null, course_name: 'QA Links', tee: null, holes: 9, starting_hole: 10 });
-    expect(d).toEqual({ scheduled_on: '2030-06-01', name: 'Saturday', course: { id: null, name: 'QA Links', tees: [], holesCount: null }, tee: '', holes: 9, starting_hole: 10, place: 'QA Links', starts_at: '' });
+    expect(d).toEqual({ scheduled_on: '2030-06-01', name: 'Saturday', course: { id: null, name: 'QA Links', tees: [], holesCount: null }, tee: '', holes: 9, starting_hole: 10, place: 'QA Links', starts_at: '', timezone: expect.any(String) });
     expect(roundBodyFrom(d)).toEqual({ scheduled_on: '2030-06-01', name: 'Saturday', course_id: null, course_name: 'QA Links', tee: null, holes: 9, starting_hole: 10 });
     expect(roundBodyFrom({ ...d, holes: 18 })).toMatchObject({ starting_hole: 1 });
     expect(validateRoundDraft(emptyRoundDraft())).toBe('Pick the date.');

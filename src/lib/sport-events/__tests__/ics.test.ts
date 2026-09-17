@@ -25,6 +25,16 @@ describe('sportEventIcs', () => {
     expect(cancelled).toContain('STATUS:CANCELLED');
     expect(icsRounds([round(1, { scheduled_on: '2030-6-1' }), round(2)]).map(r => r.id)).toEqual(['r2']);
   });
+  it('a round with a start is a timed VEVENT on UTC instants, the venue time in the description (leftovers PR 8)', () => {
+    const ics = sportEventIcs(event, [round(1, { starts_at: '2030-06-02T05:00:00.000Z', timezone: 'Pacific/Honolulu' })]);
+    expect(ics).toContain('DTSTART:20300602T050000Z');
+    expect(ics).toContain('DTEND:20300602T093000Z');
+    expect(ics).toContain('DESCRIPTION:18 holes · Starts 7:00 PM HST');
+    expect(ics).not.toContain('VALUE=DATE');
+    const noZone = sportEventIcs(event, [round(1, { starts_at: '2030-06-02T05:00:00.000Z' })]);
+    expect(noZone).toContain('DTSTART:20300602T050000Z');
+    expect(noZone).not.toContain('Starts');
+  });
   it('names the file from the event', () => {
     expect(icsFilename('Spring Open 2030!')).toBe('spring-open-2030.ics');
     expect(icsFilename('***')).toBe('event.ics');

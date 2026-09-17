@@ -61,3 +61,18 @@ describe('sportEventRoundToItem', () => {
     expect(json).toContain('"organizer_id":"me"');
   });
 });
+
+describe('the round\'s own start (leftovers PR 8)', () => {
+  it('a start without a tee time makes a timed item in the ROUND\'s zone; a tee time wins; no start stays all-day', () => {
+    const base = { viewerId: 'v', event: { id: 'e1', name: 'Cup' }, round: { id: 'r1', sequence: 1, scheduled_on: '2030-06-01', status: 'scheduled' as const, holes: 18, course_name: 'Rink', starts_at: '2030-06-02T05:00:00.000Z', timezone: 'Pacific/Honolulu' }, roundCount: 1, teeTime: null, role: null, participantStatus: 'accepted' as const };
+    const item = sportEventRoundToItem(base)!;
+    expect(item.all_day).toBe(false);
+    expect(item.starts_at).toBe('2030-06-02T05:00:00.000Z');
+    expect(item.timezone).toBe('Pacific/Honolulu');
+    const tee = sportEventRoundToItem({ ...base, teeTime: '2030-06-01T14:10:00.000Z' })!;
+    expect(tee.starts_at).toBe('2030-06-01T14:10:00.000Z');
+    expect(tee.timezone).toBe('UTC');
+    const none = sportEventRoundToItem({ ...base, round: { ...base.round, starts_at: null } })!;
+    expect(none.all_day).toBe(true);
+  });
+});

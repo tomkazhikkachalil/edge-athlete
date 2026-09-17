@@ -8,8 +8,8 @@
  * feed stays rows-only (its charter); this is the download.
  */
 import { buildCalendar, buildVEvent } from '@/lib/calendar/ics';
-import { roundSuffix } from '@/lib/calendar/sport-event-overlay';
-import { holesLabel } from './format';
+import { roundDurationMs, roundSuffix } from '@/lib/calendar/sport-event-overlay';
+import { formatTeeTimeIn, holesLabel } from './format';
 
 export interface IcsEventInput {
   id: string;
@@ -28,6 +28,9 @@ export interface IcsRoundInput {
   course_name: string;
   name?: string | null;
   updated_at: string;
+  /** Leftovers PR 8: a round with a start is a TIMED VEVENT (UTC instants — every client reads them right); its zone names the venue time in the description. */
+  starts_at?: string | null;
+  timezone?: string | null;
 }
 
 const YMD_RE = /^(\d{4})-(\d{2})-(\d{2})$/;
@@ -41,15 +44,19 @@ export function sportEventIcs(event: IcsEventInput, rounds: ReadonlyArray<IcsRou
   const active = icsRounds(rounds);
   const vevents = active.map(round => {
     const [, y, m, d] = YMD_RE.exec(round.scheduled_on) as RegExpExecArray;
-    const startMs = Date.UTC(Number(y), Number(m) - 1, Number(d));
-    const detail = [round.name, holesLabel(round.holes, round.starting_hole)].filter(Boolean).join(' · ');
+    const dayMs = Date.UTC(Number(y), Number(m) - 1, Number(d));
+    const startAt = round.starts_at ? Date.parse(round.starts_at) : NaN;
+    const timed = Number.isFinite(startAt);
+    const startMs = timed ? startAt : dayMs;
+    const venueTime = timed ? formatTeeTimeIn(round.starts_at, round.timezone) : '';
+    const detail = [round.name, holesLabel(round.holes, round.starting_hole), venueTime ? `Starts ${venueTime}` : ''].filter(Boolean).join(' · ');
     return buildVEvent({
       uid: `sport-event-round:${round.id}@edge-athlete`,
       dtstampMs: Date.parse(round.updated_at) || Date.parse(event.updated_at) || startMs,
       startMs,
-      endMs: startMs + 86_400_000,
-      allDay: true,
-      timezone: 'UTC',
+      endMs: timed ? startMs + roundDurationMs(round.holes) : startMs + 86_400_000,
+      allDay: !timed,
+      timezone: round.timezone ?? 'UTC',
       title: `${event.name}${roundSuffix(round.sequence, active.length)}`,
       description: detail || null,
       location: round.course_name,

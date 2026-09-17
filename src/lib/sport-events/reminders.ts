@@ -6,7 +6,7 @@
  */
 import type { SportEventParticipantStatus } from './types';
 import { eventPath } from './notify';
-import { formatDateOnly } from './format';
+import { formatDateOnly, formatTeeTimeIn } from './format';
 
 export interface ReminderCopy {
   type: 'sport_event_reminder';
@@ -15,14 +15,15 @@ export interface ReminderCopy {
   action_url: string;
 }
 
-/** "Tomorrow: Spring Open · Round 2 of 3" / "Sat, Jun 1 · QA Links" → the schedule. */
-export function reminderCopy(event: { id: string; name: string }, round: { sequence: number; scheduled_on: string; course_name: string; name?: string | null }, roundCount: number): ReminderCopy {
+/** "Tomorrow: Spring Open · Round 2 of 3" / "Sat, Jun 1 · QA Links · 7:00 PM HST" (the venue time when the round has a start AND a zone — leftovers PR 8) → the schedule. */
+export function reminderCopy(event: { id: string; name: string }, round: { sequence: number; scheduled_on: string; course_name: string; name?: string | null; starts_at?: string | null; timezone?: string | null }, roundCount: number): ReminderCopy {
   const roundPart = roundCount > 1 ? ` · Round ${round.sequence} of ${roundCount}` : '';
   const label = round.name ? ` · ${round.name}` : '';
+  const venueTime = formatTeeTimeIn(round.starts_at, round.timezone);
   return {
     type: 'sport_event_reminder',
     title: `Tomorrow: ${event.name}${roundPart}`,
-    message: `${formatDateOnly(round.scheduled_on, { weekday: true })}${label} · ${round.course_name}`,
+    message: `${formatDateOnly(round.scheduled_on, { weekday: true })}${label} · ${round.course_name}${venueTime ? ` · ${venueTime}` : ''}`,
     action_url: `${eventPath(event.id)}?tab=schedule`,
   };
 }

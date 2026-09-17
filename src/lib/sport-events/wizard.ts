@@ -13,6 +13,8 @@ import { isMatchFormat, type MatchSides, type SportEventFormat, type SportEventJ
 import { selfEntryFor, type RecordingMode } from './recording';
 import { DEFAULT_SIDE_NAMES, parseGameConfig, SIDE_NAME_MAX } from './format-config';
 import type { SportEventShape, SportEventSport } from './types';
+import { wallClockInZone, zonedWallClockToUtc } from '@/lib/calendar/recurrence';
+import { viewerTimeZone } from '@/lib/calendar/venue-time';
 
 export const WIZARD_STEPS = ['basics', 'round', 'format', 'review'] as const;
 export type WizardStep = (typeof WIZARD_STEPS)[number];
@@ -44,10 +46,12 @@ export interface RoundDraft {
   /** Phase 4 — a team round: the PLACE (the rink, the field; stored as `course_name`) and the start time (HH:MM, optional). */
   place: string;
   starts_at: string;
+  /** Leftovers PR 8 (221) — the round's OWN zone: the start time is read on this clock (defaults to the organizer's). */
+  timezone: string;
 }
 
 export function emptyRoundDraft(): RoundDraft {
-  return { scheduled_on: '', name: '', course: null, tee: '', holes: 18, starting_hole: 1, place: '', starts_at: '' };
+  return { scheduled_on: '', name: '', course: null, tee: '', holes: 18, starting_hole: 1, place: '', starts_at: '', timezone: viewerTimeZone() };
 }
 
 export const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
@@ -60,17 +64,38 @@ export function localStartIso(dateOnly: string, time: string): string | null {
   return Number.isFinite(d.getTime()) ? d.toISOString() : null;
 }
 
-/** The inverse for the edit window: an ISO start → HH:MM on this clock ('' when none). */
-export function localTimeOf(iso: string | null | undefined): string {
+/** A round's start on the ROUND's clock (leftovers PR 8): date + HH:MM in `zone` → ISO through the calendar's offset solver; a bad zone falls back to the organizer's clock. */
+export function zonedStartIso(dateOnly: string, time: string, zone: string): string | null {
+  const t = time.trim();
+  if (!TIME_RE.test(t) || !isDateOnly(dateOnly)) return null;
+  const [y, m, d] = dateOnly.split('-').map(Number);
+  const [hh, mm] = t.split(':').map(Number);
+  try {
+    return new Date(zonedWallClockToUtc(y, m, d, hh, mm, zone)).toISOString();
+  } catch {
+    return localStartIso(dateOnly, time);
+  }
+}
+
+const pad2 = (n: number) => String(n).padStart(2, '0');
+
+/** The inverse for the edit window: an ISO start → HH:MM on the round's clock when a zone is given, else this clock ('' when none). */
+export function localTimeOf(iso: string | null | undefined, zone?: string | null): string {
   if (!iso) return '';
   const t = Date.parse(iso);
   if (!Number.isFinite(t)) return '';
+  if (zone) {
+    try {
+      const w = wallClockInZone(t, zone);
+      return `${pad2(w.hh)}:${pad2(w.mm)}`;
+    } catch { /* an unknown zone reads on this clock */ }
+  }
   const d = new Date(t);
-  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+  return `${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
 }
 
 /** A stored round → a draft for the edit window (the catalog's tees are not on the row: the tee stays free text). */
-export function roundDraftFrom(round: { scheduled_on: string; name?: string | null; course_id: string | null; course_name: string; tee: string | null; holes: number; starting_hole: number; starts_at?: string | null }): RoundDraft {
+export function roundDraftFrom(round: { scheduled_on: string; name?: string | null; course_id: string | null; course_name: string; tee: string | null; holes: number; starting_hole: number; starts_at?: string | null; timezone?: string | null }): RoundDraft {
   return {
     scheduled_on: round.scheduled_on,
     name: round.name ?? '',
@@ -79,7 +104,8 @@ export function roundDraftFrom(round: { scheduled_on: string; name?: string | nu
     holes: round.holes === 9 ? 9 : 18,
     starting_hole: round.holes === 9 && round.starting_hole === 10 ? 10 : 1,
     place: round.course_name,
-    starts_at: localTimeOf(round.starts_at),
+    starts_at: localTimeOf(round.starts_at, round.timezone),
+    timezone: round.timezone || viewerTimeZone(),
   };
 }
 
@@ -99,7 +125,7 @@ export function validateRoundDraft(d: RoundDraft, sport: SportEventSport = 'golf
 /** The round body the routes take (parseRoundInput's shape). A team round sends the place as `course_name` and its start time; no course, no holes. */
 export function roundBodyFrom(d: RoundDraft, sport: SportEventSport = 'golf') {
   if (sport !== 'golf') {
-    return { scheduled_on: d.scheduled_on, name: d.name.trim() || null, course_name: d.place.trim(), starts_at: localStartIso(d.scheduled_on, d.starts_at) };
+    return { scheduled_on: d.scheduled_on, name: d.name.trim() || null, course_name: d.place.trim(), starts_at: zonedStartIso(d.scheduled_on, d.starts_at, d.timezone), timezone: d.timezone };
   }
   return {
     scheduled_on: d.scheduled_on,
@@ -166,7 +192,7 @@ export function withVisibility(s: WizardState, visibility: SportEventVisibility,
 
 function isRoundDirty(r: RoundDraft): boolean {
   const e = emptyRoundDraft();
-  return r.scheduled_on !== e.scheduled_on || r.name !== '' || r.course !== null || r.tee !== '' || r.holes !== e.holes || r.starting_hole !== e.starting_hole;
+  return r.scheduled_on !== e.scheduled_on || r.name !== '' || r.course !== null || r.tee !== '' || r.holes !== e.holes || r.starting_hole !== e.starting_hole || r.place !== '' || r.starts_at !== '' || r.timezone !== e.timezone;
 }
 
 export function isWizardDirty(s: WizardState): boolean {

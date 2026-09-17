@@ -64,6 +64,12 @@ describe('parseCreateBody', () => {
     expect(parseRoundInput({ scheduled_on: '2030-06-01' }, 'round', { sport: 'soccer' })).toMatchObject({ ok: false, error: expect.stringContaining('place') });
     expect(parseRoundInput({ ...rink, starts_at: '2030-06-01T19:30:00Z' }, 'round', { sport: 'soccer' })).toMatchObject({ ok: true, value: { starts_at: '2030-06-01T19:30:00.000Z' } });
     expect(parseRoundInput({ ...rink, starts_at: 'noon' }, 'round', { sport: 'soccer' })).toMatchObject({ ok: false, error: expect.stringContaining('starts_at') });
+    // Leftovers PR 8: the round's own zone, by name; absent when the body leaves it out.
+    expect(parseRoundInput({ ...rink, timezone: 'Pacific/Honolulu' }, 'round', { sport: 'soccer' })).toMatchObject({ ok: true, value: { timezone: 'Pacific/Honolulu' } });
+    expect(parseRoundInput({ ...rink, timezone: 'Mars/Olympus' }, 'round', { sport: 'soccer' })).toMatchObject({ ok: false, error: 'round.timezone must be an IANA time zone' });
+    expect(parseRoundInput({ ...rink, timezone: '' }, 'round', { sport: 'soccer' })).toMatchObject({ ok: true });
+    const parsed = parseRoundInput(rink, 'round', { sport: 'soccer' });
+    expect(parsed.ok && 'timezone' in parsed.value).toBe(false);
     // Golf keeps its shape and may carry a start too.
     expect(parseRoundInput({ scheduled_on: '2030-06-01', course_name: 'Links', starts_at: '2030-06-01T08:00:00Z' })).toMatchObject({ ok: true, value: { holes: 18, starts_at: '2030-06-01T08:00:00.000Z' } });
     expect(parseCreateBody(null)).toMatchObject({ ok: false });
