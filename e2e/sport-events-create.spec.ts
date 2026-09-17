@@ -204,7 +204,9 @@ test.describe('the round zone', () => {
     const api = await apiAs('state.json');
     try {
       const view = (await (await api.get(`/api/sport-events/${eventId}`)).json()) as { rounds: Array<{ starts_at: string | null; timezone: string | null }> };
-      expect(view.rounds[0]).toMatchObject({ starts_at: '2030-06-02T05:00:00.000Z', timezone: 'Pacific/Honolulu' });
+      // PostgREST renders the instant as `+00:00`, not `.000Z` — compare the instant, not the string (prod probe, Sep 17).
+      expect(view.rounds[0].timezone).toBe('Pacific/Honolulu');
+      expect(Date.parse(view.rounds[0].starts_at ?? '')).toBe(Date.parse('2030-06-02T05:00:00.000Z'));
       const ics = await (await api.get(`/api/sport-events/${eventId}/ics`)).text();
       expect(ics).toContain('DTSTART:20300602T050000Z');
       expect(ics).toContain('Starts 7:00 PM HST');
