@@ -11,8 +11,9 @@ import { adminClient, loadQaUser } from './helpers/qa-user';
  */
 test('meet surfaces: add an event → enter marks → the placed line and the team standings → the contest place → the public winners @mobile', async ({ page }) => {
   test.setTimeout(180_000);
-  const owner = loadQaUser('user-b.json');
-  const athleteA = loadQaUser('user.json');
+  // The mobile projects' default session is user A (`user.json`) — the console needs the OWNER's session, so A owns the league; B and C run.
+  const owner = loadQaUser('user.json');
+  const athleteA = loadQaUser('user-b.json');
   const athleteC = loadQaUser('user-c.json');
   const admin = adminClient();
   const probe = await admin.from('competition_entries').select('affiliation_team_id').limit(1);

@@ -107,7 +107,8 @@ test('meet API: affiliations, events minted, marks with a DQ, the event outcome,
     // The contest place: a leaderboard by the event's rule, D unranked.
     const view = await api.get(`/api/contests/${c100.id}`);
     expect(view.ok(), await readErrorBody(view)).toBe(true);
-    const outcome = ((await view.json()) as { outcome: { kind: string; direction?: string; columns?: Array<{ label: string }>; rows?: Array<{ entryId: string; rank: number | null }> } }).outcome;
+    // The contest API answers `{ access, view, publicSitePath }` — the outcome sits under `view`.
+    const outcome = ((await view.json()) as { view: { outcome: { kind: string; direction?: string; columns?: Array<{ label: string }>; rows?: Array<{ entryId: string; rank: number | null }> } } }).view.outcome;
     expect(outcome.kind).toBe('leaderboard');
     expect(outcome.direction).toBe('asc');
     expect(outcome.columns?.[0]?.label).toBe('100m mark');
