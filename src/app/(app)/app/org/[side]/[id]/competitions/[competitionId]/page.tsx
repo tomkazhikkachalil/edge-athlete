@@ -21,6 +21,7 @@ import type { SeasonSummary } from '@/lib/competitions/golf-season-wrap';
 import SeasonSummaryCard from '@/components/standings/SeasonSummaryCard';
 import { formatMark, meetEventFor, placeEvent } from '@/lib/competitions/meet';
 import { resolveCompetitionProfile } from '@/lib/sports/competition-profiles';
+import { groupRowsByPool, type PoolGroup } from '@/lib/competitions/pools';
 
 // ── The competition detail console (phase 2 R2) ─────────────────────────────
 // The org-console template one level deeper: schedule (contests) + score
@@ -136,6 +137,8 @@ export default function CompetitionDetailPage() {
   const [contests, setContests] = useState<ContestRow[]>([]);
   const [standings, setStandings] = useState<StandingRowUi[]>([]);
   const [standingsColumns, setStandingsColumns] = useState<StandingsColumnUi[]>([]);
+  // Leftovers PR 1: the pools among the approved entries (the detail GET's `pools`).
+  const [pools, setPools] = useState<PoolGroup[]>([]);
   const [reloadKey, setReloadKey] = useState(0);
 
   // Create form
@@ -268,6 +271,7 @@ export default function CompetitionDetailPage() {
         setContests(body.contests ?? []);
         setStandings(body.standings ?? []);
         setStandingsColumns(body.standingsColumns ?? []);
+        setPools(body.pools ?? []);
         // G1: the org's venues for the golf round form (best-effort).
         if (body.competition?.sport_key === 'golf') {
           try {
@@ -2013,7 +2017,13 @@ export default function CompetitionDetailPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {standings.map(row => (
+                  {groupRowsByPool(standings, pools.length > 0).flatMap(group => [
+                    ...(pools.length > 0 ? [(
+                      <tr key={`pool-${group.pool ?? 'none'}`} className="border-t border-border-subtle" data-standings-pool={group.pool ?? 'none'}>
+                        <td colSpan={2 + standingsColumns.length} className="pt-2 pb-0.5 text-xs font-semibold text-secondary">{group.pool ? `Pool ${group.pool}` : 'Unpooled'}</td>
+                      </tr>
+                    )] : []),
+                    ...group.rows.map(row => (
                     <tr key={row.entry_id} className="border-t border-border-subtle">
                       <td className="py-1.5 pr-2 text-muted">{row.rank}</td>
                       <td className="py-1.5 pr-3 font-medium text-primary">{row.entrant_name}</td>
@@ -2027,7 +2037,8 @@ export default function CompetitionDetailPage() {
                         </td>
                       ))}
                     </tr>
-                  ))}
+                    )),
+                  ])}
                 </tbody>
               </table>
             </div>

@@ -264,7 +264,13 @@ export const EntryAffiliationSchema = z.object({
   affiliationTeamId: uuid.nullable(),
 });
 export type EntryAffiliationInput = z.infer<typeof EntryAffiliationSchema>;
-export const EntryPatchSchema = z.union([EntryDecideSchema, EntryAffiliationSchema]);
+/** Leftovers PR 1: a pool letter on a fixture entry (null clears). The entries PATCH takes one intent per call — the route dispatches by key. */
+export const EntryPoolSchema = z.object({
+  entryId: uuid,
+  pool: z.enum(['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H']).nullable(),
+});
+export type EntryPoolInput = z.infer<typeof EntryPoolSchema>;
+export const EntryPatchSchema = z.union([EntryDecideSchema, EntryAffiliationSchema, EntryPoolSchema]);
 
 /** Track 2 PR 10: run a two-sided contest as a one-round game EVENT of the competition's sport, hosted for the org. */
 export const ContestRunAsEventSchema = z.object({

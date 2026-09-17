@@ -12,6 +12,7 @@ import type { SeasonSummary } from '@/lib/competitions/golf-season-wrap';
 import SeasonSummaryCard from '@/components/standings/SeasonSummaryCard';
 import { playerHref } from '@/lib/org-sites/player-links';
 import type { PublicGolfBlock } from '@/lib/competitions/golf-weeks';
+import { groupRowsByPool } from '@/lib/competitions/pools';
 
 // The org page's standings section (phase 2 R3) — public competitions'
 // materialized tables. The OrgUpcomingEvents contract: additive, renders
@@ -44,6 +45,8 @@ interface CompetitionStandings {
   bracket?: PublicBracketBlock;
   /** Track 2 PR 8: the meet's events and winners. */
   meet?: PublicMeetBlock;
+  /** Leftovers PR 1: the pool letters present on a pooled fixture. */
+  pools?: string[];
 }
 
 interface OrgStandingsProps {
@@ -103,8 +106,10 @@ export default function OrgStandings({ side, orgId, scope = 'public', bare = fal
               {comp.name}
               {comp.season_label ? <span className="text-muted"> · {comp.season_label}</span> : null}
             </p>
-            {comp.rows.length > 0 && (
-            <div className="overflow-x-auto">
+            {comp.rows.length > 0 && groupRowsByPool(comp.rows, !!comp.pools).map(group => (
+            <div key={group.pool ?? 'all'} className="overflow-x-auto" {...(group.pool ? { 'data-standings-pool': group.pool } : {})}>
+              {group.pool && <p className="text-xs font-semibold text-secondary mb-1">Pool {group.pool}</p>}
+              {!group.pool && comp.pools && <p className="text-xs font-semibold text-secondary mb-1">Unpooled</p>}
               <table className="w-full text-sm">
                 <thead>
                   <tr className="text-left text-xs text-muted">
@@ -120,7 +125,7 @@ export default function OrgStandings({ side, orgId, scope = 'public', bare = fal
                   </tr>
                 </thead>
                 <tbody>
-                  {comp.rows.map(row => (
+                  {group.rows.map(row => (
                     <tr key={`${comp.id}-${row.rank}-${row.entrant_name}`} className="border-t border-border-subtle">
                       <td className="py-1 pr-2 text-muted">{row.rank}</td>
                       <td className="py-1 pr-3 font-medium text-primary">
@@ -146,7 +151,7 @@ export default function OrgStandings({ side, orgId, scope = 'public', bare = fal
                 </tbody>
               </table>
             </div>
-            )}
+            ))}
             {comp.seasonSummary && <SeasonSummaryCard summary={comp.seasonSummary} />}
             {comp.golf && <GolfWeeks golf={comp.golf} competitionId={comp.id} />}
             {comp.bracket && <BracketBlock bracket={comp.bracket} />}

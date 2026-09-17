@@ -3,7 +3,7 @@ import { requireAuth, getSupabaseAdmin } from '@/lib/auth-server';
 import { enforceRateLimit } from '@/lib/rate-limit';
 import { parseBody } from '@/lib/validation';
 import { EntryAddSchema, EntryPatchSchema } from '@/lib/competitions/validate';
-import { entryAddPOST, entryAffiliationPATCH, entryDecidePATCH, entryDELETE, requireCompetitionManager } from '@/lib/orgs/competition-server';
+import { entryAddPOST, entryAffiliationPATCH, entryDecidePATCH, entryDELETE, entryPoolPATCH, requireCompetitionManager } from '@/lib/orgs/competition-server';
 import { UUID_RE } from '@/lib/golf/course-catalog';
 
 // ── /api/leagues/[id]/competitions/entries — manager entry CRUD (phase 2) ───
@@ -58,6 +58,7 @@ export async function PATCH(
     const parsed = await parseBody(request, EntryPatchSchema);
     if (!parsed.success) return parsed.response;
     if ('decision' in parsed.data) return await entryDecidePATCH(admin, parsed.data, { side: 'league', orgId: id }, user.id);
+    if ('pool' in parsed.data) return await entryPoolPATCH(admin, parsed.data, { side: 'league', orgId: id });
     return await entryAffiliationPATCH(admin, parsed.data, { side: 'league', orgId: id });
   } catch (error) {
     if (error instanceof Response) return error;

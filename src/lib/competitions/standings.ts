@@ -21,6 +21,7 @@ import {
 } from './scoring';
 import { computeMeetStandings, meetEventFor, parseMeetConfig, type MeetAthleteEntry, type MeetContestInput, type MeetTeamEntry } from './meet';
 import { resolveCompetitionProfile } from '@/lib/sports/competition-profiles';
+import { computePooledFixtureStandings } from './pools';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- matches the authz.ts Admin alias; schema-agnostic helper
 type Admin = SupabaseClient<any, 'public', any>;
@@ -72,9 +73,10 @@ export async function recomputeStandings(
 
     const { data: entries } = await admin
       .from('competition_entries')
-      .select('id, status')
+      .select('id, status, pool')
       .eq('competition_id', competitionId);
-    const entryIds = (entries ?? []).filter(e => e.status === 'approved').map(e => e.id as string);
+    const approved = (entries ?? []).filter(e => e.status === 'approved') as Array<{ id: string; status: string; pool: string | null }>;
+    const entryIds = approved.map(e => e.id);
 
     const { data: contests } = await admin
       .from('contests')
@@ -133,7 +135,8 @@ export async function recomputeStandings(
         sides: sidesByContest.get(id) ?? [],
       }));
       const rule = resolveFixtureRule(comp.sport_key as string, comp.scoring_rule as string | null);
-      rows = computeFixtureStandings(entryIds, contestInputs, rule);
+      // Leftovers PR 1: any approved entry with a pool letter → the pooled table (rank within the pool; every entry keeps its row).
+      rows = approved.some(e => e.pool) ? computePooledFixtureStandings(approved, contestInputs, rule) : computeFixtureStandings(entryIds, contestInputs, rule);
     } else {
       const rule = resolveLeaderboardRule(
         comp.sport_key as string,
