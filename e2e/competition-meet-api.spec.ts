@@ -131,6 +131,34 @@ test('meet API: affiliations, events minted, marks with a DQ, the event outcome,
       expect(perf.data).toHaveLength(2);
       expect((perf.data ?? []).map(r => (r.metrics as Record<string, number>).time_100m).sort()).toEqual([11.85, 12.1]);
     }
+    // Leftovers PR 4: session 1 on the calendar — ONE event, both contests share it; a re-publish moves it and keeps the id; a new event adopts it; cancel propagates only when every contest is out.
+    const pub = await api.post(`${base}/${compId}/meet/sessions/publish`, { data: { competitionId: compId, session: 1, startsAt: '2030-06-01T16:00:00.000Z', timezone: 'America/Denver' } });
+    expect(pub.status(), await readErrorBody(pub)).toBe(201);
+    const { eventId } = (await pub.json()) as { eventId: string; created: boolean };
+    const ev = await admin.from('events').select('title, starts_at, ends_at, timezone, league_id, category, status').eq('id', eventId).single();
+    expect(ev.data).toMatchObject({ title: 'Spring Meet — Session 1', timezone: 'America/Denver', league_id: leagueId, category: 'game', status: 'active' });
+    expect(Date.parse(ev.data!.starts_at as string)).toBe(Date.parse('2030-06-01T16:00:00Z'));
+    expect(Date.parse(ev.data!.ends_at as string) - Date.parse(ev.data!.starts_at as string)).toBe(180 * 60_000);
+    const shared = await admin.from('contests').select('id, event_id, scheduled_at').eq('competition_id', compId).eq('stage', 1);
+    expect((shared.data ?? []).map(c => c.event_id)).toEqual([eventId, eventId]);
+    expect(new Set((shared.data ?? []).map(c => Date.parse(c.scheduled_at as string)))).toEqual(new Set([Date.parse('2030-06-01T16:00:00Z')]));
+    const moved = await api.post(`${base}/${compId}/meet/sessions/publish`, { data: { competitionId: compId, session: 1, startsAt: '2030-06-01T17:00:00.000Z', endsAt: '2030-06-01T21:00:00.000Z', timezone: 'America/Denver' } });
+    expect(moved.status(), await readErrorBody(moved)).toBe(200);
+    expect(((await moved.json()) as { eventId: string }).eventId).toBe(eventId);
+    const movedEv = await admin.from('events').select('starts_at, ends_at').eq('id', eventId).single();
+    expect([Date.parse(movedEv.data!.starts_at as string), Date.parse(movedEv.data!.ends_at as string)]).toEqual([Date.parse('2030-06-01T17:00:00Z'), Date.parse('2030-06-01T21:00:00Z')]);
+    const more = await api.post(`${base}/${compId}/meet/events`, { data: { competitionId: compId, eventKeys: ['time_400m'], session: 1 } });
+    expect(more.status(), await readErrorBody(more)).toBe(201);
+    const c400 = ((await more.json()) as { created: Array<{ id: string }> }).created[0];
+    const adopted = await admin.from('contests').select('event_id, scheduled_at').eq('id', c400.id).single();
+    expect(adopted.data?.event_id).toBe(eventId);
+    expect(Date.parse(adopted.data!.scheduled_at as string)).toBe(Date.parse('2030-06-01T17:00:00Z'));
+    expect((await api.post(`${base}/${compId}/meet/sessions/publish`, { data: { competitionId: compId, session: 9, startsAt: '2030-06-01T16:00:00.000Z' } })).status()).toBe(404);
+    // One contest out → the event stays; every contest out → cancelled.
+    for (const id of [c100.id, c200.id]) expect((await api.patch(`${base}/${compId}/contests`, { data: { id, status: 'canceled' } })).ok()).toBe(true);
+    expect((await admin.from('events').select('status').eq('id', eventId).single()).data?.status).toBe('active');
+    expect((await api.patch(`${base}/${compId}/contests`, { data: { id: c400.id, status: 'canceled' } })).ok()).toBe(true);
+    expect((await admin.from('events').select('status').eq('id', eventId).single()).data?.status).toBe('cancelled');
   } finally {
     await admin.from('leagues').delete().eq('id', leagueId);
   }

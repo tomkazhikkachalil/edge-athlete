@@ -311,6 +311,19 @@ export const MeetEventsGenerateSchema = z.object({
 });
 export type MeetEventsGenerateInput = z.infer<typeof MeetEventsGenerateSchema>;
 
+/** Leftovers PR 4: ONE calendar event for a meet session — its start (and end), zone and venue; every contest of the session shares it. */
+export const MeetSessionPublishSchema = z
+  .object({
+    competitionId: uuid,
+    session: z.number().int().min(1).max(20),
+    startsAt: z.string().datetime({ offset: true }),
+    endsAt: z.string().datetime({ offset: true }).optional(),
+    timezone: boundedText(64).default('UTC'),
+    venueId: uuid.nullable().optional(),
+  })
+  .refine(v => !v.endsAt || Date.parse(v.endsAt) > Date.parse(v.startsAt), { path: ['endsAt'], message: 'The session ends before it starts' });
+export type MeetSessionPublishInput = z.infer<typeof MeetSessionPublishSchema>;
+
 /** Track 2 PR 7: the marks of one meet event — text marks ("11.85", "4:05.30", "6.42m") parsed server-side; a DQ carries no mark. */
 export const MeetResultsUpsertSchema = z.object({
   contestId: uuid,

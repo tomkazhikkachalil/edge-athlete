@@ -45,13 +45,13 @@ import {
   type EntryPoolInput,
   type PoolsGenerateInput,
   type PoolsSeedInput,
+  type MeetSessionPublishInput,
 } from '@/lib/competitions/validate';
 import { generateRoundWindows } from '@/lib/competitions/golf-season';
 import {
   mirrorContestChange,
   mirrorContestDelete,
-  publishContestToCalendar,
-} from '@/lib/competitions/calendar-mirror';
+  publishContestToCalendar, publishSessionToCalendar } from '@/lib/competitions/calendar-mirror';
 import { recomputeStandingsBestEffort } from '@/lib/competitions/standings';
 import {
   revalidateOrgSiteForCompetition,
@@ -1851,11 +1851,12 @@ export async function entryPoolPATCH(admin: Admin, input: EntryPoolInput, scope:
   return NextResponse.json({ ok: true, entryId: input.entryId, pool: input.pool });
 }
 
-async function pinMeetCompetition(admin: Admin, competitionId: string, scope: CompetitionScope | null): Promise<{ ok: true; comp: { id: string; sport_key: string; status: string } } | { ok: false; response: NextResponse }> {
-  const { data: comp } = await admin.from('competitions').select('id, league_id, club_id, format, sport_key, status').eq('id', competitionId).maybeSingle();
+type MeetComp = { id: string; name: string; sport_key: string; status: string; league_id: string | null; club_id: string | null; division_id: string | null };
+async function pinMeetCompetition(admin: Admin, competitionId: string, scope: CompetitionScope | null): Promise<{ ok: true; comp: MeetComp } | { ok: false; response: NextResponse }> {
+  const { data: comp } = await admin.from('competitions').select('id, name, league_id, club_id, division_id, format, sport_key, status').eq('id', competitionId).maybeSingle();
   if (!comp || (scope && comp[orgColumn(scope.side)] !== scope.orgId)) return { ok: false, response: NextResponse.json({ error: 'Competition not found' }, { status: 404 }) };
   if (comp.format !== 'meet') return { ok: false, response: NextResponse.json({ error: 'This competition is not a meet.', reason: 'not_meet' }, { status: 400 }) };
-  return { ok: true, comp: comp as { id: string; sport_key: string; status: string } };
+  return { ok: true, comp: comp as MeetComp };
 }
 
 /** Mint one contest per chosen event: `round` = the event's label, `stage` = the session, `slot` = the order within it, no participants,
@@ -1871,7 +1872,7 @@ export async function meetEventsGeneratePOST(admin: Admin, input: MeetEventsGene
     if (!def) return NextResponse.json({ error: `Unknown event: ${key}`, reason: 'unknown_event' }, { status: 400 });
     if (!chosen.includes(def)) chosen.push(def);
   }
-  const { data: existing, error: readError } = await admin.from('contests').select('id, round, stage, slot').eq('competition_id', input.competitionId).limit(1000);
+  const { data: existing, error: readError } = await admin.from('contests').select('id, round, stage, slot, event_id, scheduled_at, venue_id').eq('competition_id', input.competitionId).limit(1000);
   if (readError) {
     if (readError.code === '42703') return NextResponse.json({ error: 'Meets need migration 218.', reason: 'needs_migration' }, { status: 409 });
     return NextResponse.json({ error: 'Failed to read the meet' }, { status: 500 });
@@ -1890,8 +1891,42 @@ export async function meetEventsGeneratePOST(admin: Admin, input: MeetEventsGene
     }
     created.push({ id: res.contest.id, round: def.label, stage: input.session, slot });
   }
+  // Leftovers PR 4: a new event minted into a PUBLISHED session adopts the session's one calendar event, start and venue (keeps the session whole).
+  const published = ((existing ?? []) as Array<{ stage: number | null; event_id: string | null; scheduled_at: string | null; venue_id: string | null }>).find(c => c.stage === input.session && c.event_id);
+  if (created.length > 0 && published) {
+    const { error: adoptError } = await admin.from('contests').update({ event_id: published.event_id, scheduled_at: published.scheduled_at, venue_id: published.venue_id }).in('id', created.map(c => c.id));
+    if (adoptError) console.warn(`${TAG} session adopt failed:`, adoptError.message);
+  }
   if (created.length > 0) await revalidateOrgSiteForCompetition(admin, input.competitionId);
   return NextResponse.json({ created, skipped }, { status: created.length > 0 ? 201 : 200 });
+}
+
+/** ONE calendar event for a meet session (leftovers PR 4): its start, end, zone and venue; every contest of the session shares it (a re-publish moves it). */
+export async function meetSessionPublishPOST(admin: Admin, input: MeetSessionPublishInput, scope: CompetitionScope | null, organizerId: string): Promise<NextResponse> {
+  const pinned = await pinMeetCompetition(admin, input.competitionId, scope);
+  if (!pinned.ok) return pinned.response;
+  const { data: contests, error } = await admin.from('contests').select('id, event_id, round').eq('competition_id', input.competitionId).eq('stage', input.session).limit(200);
+  if (error) {
+    if (error.code === '42703') return NextResponse.json({ error: 'Meets need migration 218.', reason: 'needs_migration' }, { status: 409 });
+    return NextResponse.json({ error: 'Failed to read the session' }, { status: 500 });
+  }
+  const rows = (contests ?? []) as Array<{ id: string; event_id: string | null; round: string | null }>;
+  if (rows.length === 0) return NextResponse.json({ error: `Session ${input.session} has no events yet.`, reason: 'no_session' }, { status: 404 });
+  const published = await publishSessionToCalendar(admin, {
+    competition: { id: pinned.comp.id, name: pinned.comp.name, league_id: pinned.comp.league_id, club_id: pinned.comp.club_id, division_id: pinned.comp.division_id },
+    session: input.session,
+    contests: rows.map(r => ({ id: r.id, event_id: r.event_id })),
+    eventLabels: rows.map(r => r.round ?? '').filter(Boolean),
+    startsAt: input.startsAt,
+    endsAt: input.endsAt ?? null,
+    timezone: input.timezone,
+    venueId: input.venueId,
+  }, organizerId);
+  if ('error' in published) return NextResponse.json({ error: published.error, reason: published.reason }, { status: published.reason === 'session_split' ? 409 : 500 });
+  const orgId = pinned.comp.league_id ?? pinned.comp.club_id;
+  if (orgId) await revalidateOrgSiteForOrg(admin, pinned.comp.league_id ? 'league' : 'club', orgId);
+  await revalidateOrgSiteForCompetition(admin, pinned.comp.id);
+  return NextResponse.json({ ok: true, eventId: published.eventId, created: published.created, contests: rows.map(r => r.id) }, { status: published.created ? 201 : 200 });
 }
 
 /** The marks of one event: participants ensured, one result per athlete (`score` = the mark in the event's direction — null on a DQ;
