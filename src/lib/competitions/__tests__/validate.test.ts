@@ -22,8 +22,8 @@ describe('CompetitionCreateSchema', () => {
     expect(parsed.divisionId).toBeUndefined();
   });
 
-  it('v1 gates: bracket/meet are rejected HERE, not by the DB', () => {
-    expect(CompetitionCreateSchema.safeParse({ ...base, format: 'bracket' }).success).toBe(false);
+  it('the live gate: meet is rejected HERE, not by the DB; bracket is live since track 2 PR 3', () => {
+    expect(CompetitionCreateSchema.safeParse({ ...base, format: 'bracket' }).success).toBe(true);
     expect(CompetitionCreateSchema.safeParse({ ...base, format: 'meet' }).success).toBe(false);
     expect(CompetitionCreateSchema.safeParse({ ...base, format: 'leaderboard' }).success).toBe(true);
   });

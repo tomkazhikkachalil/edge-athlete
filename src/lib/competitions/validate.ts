@@ -31,7 +31,7 @@ import { OrgSideSchema } from '@/lib/structure/validate';
  * the profile allows (`formatEntrantRefusal`, checked in the server lib).
  */
 export const COMPETITION_FORMATS_V1 = ['fixture', 'leaderboard'] as const;
-export const FORMATS_LIVE: readonly CompetitionFormat[] = ['fixture', 'leaderboard'];
+export const FORMATS_LIVE: readonly CompetitionFormat[] = ['fixture', 'leaderboard', 'bracket'];
 export const isFormatLive = (format: string): format is CompetitionFormat => (FORMATS_LIVE as readonly string[]).includes(format);
 
 /** Phase 6c G1: a bare calendar date (golf_rounds.date is a DATE). */
@@ -90,6 +90,20 @@ export type CompetitionPatchInput = z.infer<typeof CompetitionPatchSchema>;
  *  (home/away entry ids); leaderboard contests (R5) are born bare and
  *  gain participants separately. Entry membership in the competition is
  *  the server lib's job. */
+/** Track 2 PR 3: the FULL seeded order (the flights PUT precedent) — every id an approved entry, once. */
+export const SeedsPutSchema = z.object({
+  competitionId: uuid,
+  entryIds: z.array(uuid).min(2).max(64),
+});
+export type SeedsPutInput = z.infer<typeof SeedsPutSchema>;
+
+/** Track 2 PR 3: generate the bracket from the seeded order — dry-run by default (the golf-season two-step). */
+export const BracketGenerateSchema = z.object({
+  competitionId: uuid,
+  dryRun: z.boolean().default(true),
+});
+export type BracketGenerateInput = z.infer<typeof BracketGenerateSchema>;
+
 export const ContestCreateSchema = z
   .object({
     competitionId: uuid,

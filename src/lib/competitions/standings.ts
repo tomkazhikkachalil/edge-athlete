@@ -7,6 +7,8 @@
 // PostgREST 1000-row-cap lesson) even though a season is far smaller —
 // the §12 scale risk is bounded HERE, not at the callers.
 
+import { computeBracketStandings, type BracketContestRow } from './bracket-draw';
+import { deriveContestOutcome } from './contest-outcome';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { awardRoundPoints, parseGolfPointsConfig } from './golf-points';
 import {
@@ -63,8 +65,8 @@ export async function recomputeStandings(
       .eq('id', competitionId)
       .maybeSingle();
     if (!comp) return null;
-    // Fixture + leaderboard are the live engines; bracket/meet defer.
-    if (comp.format !== 'fixture' && comp.format !== 'leaderboard') return null;
+    // Fixture + leaderboard + bracket (track 2 PR 3) are the live engines; meet defers to PR 7.
+    if (comp.format !== 'fixture' && comp.format !== 'leaderboard' && comp.format !== 'bracket') return null;
 
     const { data: entries } = await admin
       .from('competition_entries')
@@ -110,7 +112,12 @@ export async function recomputeStandings(
       });
     }
     let rows;
-    if (comp.format === 'fixture') {
+    if (comp.format === 'bracket') {
+      // The progression over the staged contests (218). A pre-218 database (42703) → skipped, never a throw.
+      const staged = await readBracketRows(admin, competitionId, comp.sport_key as string, comp.scoring_rule as string | null);
+      if (!staged) return null;
+      rows = computeBracketStandings(entryIds, staged);
+    } else if (comp.format === 'fixture') {
       const contestInputs: FixtureContestInput[] = contestIds.map(id => ({
         status: statusOf.get(id) ?? 'scheduled',
         sides: sidesByContest.get(id) ?? [],
@@ -175,6 +182,29 @@ export async function recomputeStandings(
     console.error(`${TAG} recompute failed:`, e);
     return null;
   }
+}
+
+/** The bracket's contests as the pure engine reads them: sides, the one ranking rule's winner, whether any result exists. Null on a pre-218 database. */
+export async function readBracketRows(admin: Admin, competitionId: string, sportKey: string, scoringRule: string | null): Promise<BracketContestRow[] | null> {
+  const { data: contests, error } = await admin.from('contests').select('id, status, stage, slot').eq('competition_id', competitionId).not('stage', 'is', null).limit(1000);
+  if (error) {
+    if (error.code !== '42703') console.warn(`${TAG} bracket contests read failed:`, error.message);
+    return null;
+  }
+  const ids = (contests ?? []).map(c => c.id as string);
+  const participants = await chunkedIn<{ id: string; contest_id: string; entry_id: string; side: 'home' | 'away' | null; start_position: number | null }>(admin, 'contest_participants', 'id, contest_id, entry_id, side, start_position', 'contest_id', ids);
+  const results = await chunkedIn<{ participant_id: string; contest_id: string; score: number | null; payload: Record<string, unknown> | null }>(admin, 'contest_results', 'participant_id, contest_id, score, payload', 'contest_id', ids);
+  const resultBy = new Map(results.map(r => [r.participant_id, r]));
+  return (contests ?? []).map(c => {
+    const parts = participants.filter(p => p.contest_id === c.id);
+    const outcome = deriveContestOutcome({
+      format: 'bracket', sportKey, scoringRule, status: c.status as string, stage: c.stage as number, slot: c.slot as number,
+      participants: parts.map(p => ({ participantId: p.id, entryId: p.entry_id, side: p.side, startPosition: p.start_position, name: '', score: resultBy.get(p.id)?.score ?? null, payload: resultBy.get(p.id)?.payload ?? null })),
+    });
+    const home = parts.find(p => p.side === 'home')?.entry_id ?? null;
+    const away = parts.find(p => p.side === 'away')?.entry_id ?? null;
+    return { id: c.id as string, stage: c.stage as number, slot: c.slot as number, status: c.status as string, home, away, winnerEntryId: outcome.kind === 'bracket' ? outcome.winnerEntryId : null, hasResult: parts.some(p => resultBy.has(p.id)) };
+  });
 }
 
 /** The hook-site wrapper: never throws, never fails the caller. */
