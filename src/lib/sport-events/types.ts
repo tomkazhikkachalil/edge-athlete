@@ -23,9 +23,14 @@ export type SportEventJoinMode = (typeof SPORT_EVENT_JOIN_MODES)[number];
 
 /** Phase 3 (212): match play joins stroke play; the CHECK `sport_events_format_check` carries the four. */
 export const SPORT_EVENT_FORMATS = ['stroke_gross', 'stroke_net', 'match_gross', 'match_net'] as const;
-export type SportEventFormat = (typeof SPORT_EVENT_FORMATS)[number];
+/** Leftovers (221): Stableford joins — the parsers name the two values only after the CHECK widened (`SPORT_EVENT_FORMATS` flips in the reader PR); the engine knows them now. */
+export const SPORT_EVENT_FORMATS_ALL = ['stroke_gross', 'stroke_net', 'match_gross', 'match_net', 'stableford_gross', 'stableford_net'] as const;
+export type SportEventFormat = (typeof SPORT_EVENT_FORMATS_ALL)[number];
 export const isMatchFormat = (format: string | null | undefined): boolean => format === 'match_gross' || format === 'match_net';
-export const isNetFormat = (format: string | null | undefined): boolean => format === 'stroke_net' || format === 'match_net';
+export const isStablefordFormat = (format: string | null | undefined): boolean => format === 'stableford_gross' || format === 'stableford_net';
+export const isNetFormat = (format: string | null | undefined): boolean => format === 'stroke_net' || format === 'match_net' || format === 'stableford_net';
+/** Which way a better score points: strokes ascend, Stableford points descend. */
+export const scoreDirection = (format: string | null | undefined): 'asc' | 'desc' => (isStablefordFormat(format) ? 'desc' : 'asc');
 
 export const SPORT_EVENT_ROUND_STATUSES = ['scheduled', 'live', 'completed', 'cancelled'] as const;
 export type SportEventRoundStatus = (typeof SPORT_EVENT_ROUND_STATUSES)[number];

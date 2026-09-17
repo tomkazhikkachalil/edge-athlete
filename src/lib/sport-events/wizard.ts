@@ -9,7 +9,7 @@
 import type { CourseHole } from '@/types/golf';
 import { NAME_MAX, DESCRIPTION_MAX, defaultJoinMode, isDateOnly } from './validate';
 import { MAX_ROUNDS } from './rounds';
-import { isMatchFormat, type MatchSides, type SportEventFormat, type SportEventJoinMode, type SportEventVisibility } from './types';
+import { isMatchFormat, type MatchSides, type SportEventFormat, type SportEventJoinMode, type SportEventVisibility, isStablefordFormat } from './types';
 import { selfEntryFor, type RecordingMode } from './recording';
 import { DEFAULT_SIDE_NAMES, parseGameConfig, SIDE_NAME_MAX } from './format-config';
 import type { SportEventShape, SportEventSport } from './types';
@@ -230,6 +230,7 @@ export function validateWizardStep(step: WizardStep, s: WizardState): string | n
         }
         return null;
       }
+      if (isStablefordFormat(s.format) && s.competition) return 'A Stableford event cannot count toward a competition — the org’s leaderboards count strokes. Pick stroke play, or clear the competition.';
       if (isMatchFormat(s.format) && s.competition) return 'A match-play event cannot count toward a competition — pick stroke play, or clear the competition.';
       if (isMatchFormat(s.format) && s.match.bracket && s.rounds.length < 2) return 'A bracket needs at least two rounds — add the rounds it plays over.';
       if (s.capacity.trim() !== '') {

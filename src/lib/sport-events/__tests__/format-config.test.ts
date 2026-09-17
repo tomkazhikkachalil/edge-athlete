@@ -106,3 +106,26 @@ describe('side teams (leftovers PR 5)', () => {
     expect(readGame({ game: { side_names: ['A', 'B'], side_team_ids: [t1, t2] } }, 'game')).toEqual({ side_names: ['A', 'B'], side_team_ids: [t1, t2] });
   });
 });
+
+import { applyCut as applyCutDir } from '../cut';
+import { formatConfigStale, parseCutRule as parseCut } from '../format-config';
+
+describe('Stableford (leftovers) — the cut by places only, the stale rule, the line by direction', () => {
+  it('to_par is refused by name on a Stableford format; top_n is fine', () => {
+    expect(parseCut({ after_round: 1, to_par: 2 }, { roundCount: 2, format: 'stableford_net' })).toMatchObject({ ok: false, error: expect.stringContaining('to_par is not allowed on a Stableford') });
+    expect(parseCut({ after_round: 1, top_n: 5 }, { roundCount: 2, format: 'stableford_net' })).toEqual({ ok: true, value: { after_round: 1, top_n: 5 } });
+    expect(parseCut({ after_round: 1, to_par: 2 }, { roundCount: 2, format: 'stroke_net' }).ok).toBe(true);
+  });
+  it('formatConfigStale: a family change with stored keys, or a move onto Stableford with a to-par cut', () => {
+    expect(formatConfigStale('stroke_gross', 'match_gross', { cut: { after_round: 1, top_n: 3 } })).toBe(true);
+    expect(formatConfigStale('stroke_gross', 'stroke_net', { cut: { after_round: 1, to_par: 2 } })).toBe(false);
+    expect(formatConfigStale('stroke_gross', 'stableford_gross', { cut: { after_round: 1, to_par: 2 } })).toBe(true);
+    expect(formatConfigStale('stroke_gross', 'stableford_gross', { cut: { after_round: 1, top_n: 2 } })).toBe(false);
+    expect(formatConfigStale('stableford_gross', 'stableford_net', {})).toBe(false);
+  });
+  it('the cut line is the fewest points that made it on a descending board', () => {
+    const rows = [{ participantId: 'a', rank: 1, keyToPar: null, key: 40 }, { participantId: 'b', rank: 2, keyToPar: null, key: 36 }, { participantId: 'c', rank: 3, keyToPar: null, key: 30 }];
+    expect(applyCutDir(rows, { after_round: 1, top_n: 2 }, 'desc').line.score).toBe(36);
+    expect(applyCutDir(rows, { after_round: 1, top_n: 2 }, 'asc').line.score).toBe(40);
+  });
+});

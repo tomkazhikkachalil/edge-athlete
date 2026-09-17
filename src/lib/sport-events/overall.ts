@@ -32,7 +32,7 @@
  */
 import { assignSharedRanks } from '@/lib/competitions/scoring';
 import { applyCut, cutDecided, type CutLine } from './cut';
-import { formatRank, type LeaderboardRow, type NetReason } from './leaderboard';
+import { formatRank, type LeaderboardRow, type NetReason, rankingKeys, type RankingKeys, type ScoreTuple } from './leaderboard';
 import type { SportEventFormat, SportEventRoundStatus } from './types';
 
 export interface RoundBoardInput {
@@ -63,6 +63,8 @@ export interface OverallRoundCell {
   toPar: number | null;
   net: number | null;
   netToPar: number | null;
+  points: number | null;
+  netPoints: number | null;
   thru: number;
   cardStatus: LeaderboardRow['cardStatus'];
   /** At least one hole scored in this round. */
@@ -81,11 +83,13 @@ export interface OverallRow {
   totalToPar: number | null;
   net: number | null;
   netToPar: number | null;
+  points: number | null;
+  netPoints: number | null;
   netReason: NetReason;
   roundsPlayed: number;
   /** The sequences of COMPLETED rounds this player never scored in. */
   missedRounds: number[];
-  today: { sequence: number; toPar: number | null; netToPar: number | null; thru: number; holes: number } | null;
+  today: { sequence: number; toPar: number | null; netToPar: number | null; points: number | null; netPoints: number | null; thru: number; holes: number } | null;
   rank: number | null;
   tied: boolean;
   rankLabel: string;
@@ -126,13 +130,11 @@ export function flightsOf(rows: ReadonlyArray<{ flight: string | null }>): strin
 
 interface Folded {
   row: Omit<OverallRow, 'rank' | 'tied' | 'rankLabel' | 'prevRank' | 'movement'>;
-  key: number | null;
-  keyToPar: number | null;
+  tuple: ScoreTuple;
   todayThru: number;
 }
 
-function fold(rounds: RoundBoardInput[], format: SportEventFormat, liveSequence: number | null): Folded[] {
-  const useNet = format === 'stroke_net';
+function fold(rounds: RoundBoardInput[], liveSequence: number | null): Folded[] {
   const byPlayer = new Map<string, { base: LeaderboardRow; cells: Map<number, LeaderboardRow> }>();
   for (const r of rounds) {
     for (const row of r.rows) {
@@ -156,6 +158,8 @@ function fold(rounds: RoundBoardInput[], format: SportEventFormat, liveSequence:
         toPar: played ? c!.toPar : null,
         net: played ? c!.net : null,
         netToPar: played ? c!.netToPar : null,
+        points: played ? c!.points : null,
+        netPoints: played ? c!.netPoints : null,
         thru: c?.thru ?? 0,
         cardStatus: c?.cardStatus ?? 'in_progress',
         played,
@@ -166,21 +170,25 @@ function fold(rounds: RoundBoardInput[], format: SportEventFormat, liveSequence:
     let totalToPar: number | null = null;
     let net: number | null = null;
     let netToPar: number | null = null;
+    let points: number | null = null;
+    let netPoints: number | null = null;
     let netReason: NetReason = null;
     if (played.length > 0) {
       total = played.reduce((sum, c) => sum + (c.gross as number), 0);
       totalToPar = played.reduce((sum, c) => sum + (c.toPar as number), 0);
+      points = played.reduce((sum, c) => sum + (c.points ?? 0), 0);
       const missingNet = played.find(c => c.net === null);
       if (missingNet) {
         netReason = entry.cells.get(missingNet.sequence)?.netReason ?? 'no_index';
       } else {
         net = played.reduce((sum, c) => sum + (c.net as number), 0);
         netToPar = played.reduce((sum, c) => sum + (c.netToPar as number), 0);
+        netPoints = played.reduce((sum, c) => sum + (c.netPoints ?? 0), 0);
       }
     }
     const missedRounds = cells.filter(c => c.status === 'completed' && !c.played).map(c => c.sequence);
     const todayCell = liveSequence === null ? null : cells.find(c => c.sequence === liveSequence) ?? null;
-    const today = todayCell ? { sequence: todayCell.sequence, toPar: todayCell.toPar, netToPar: todayCell.netToPar, thru: todayCell.thru, holes: todayCell.holes } : null;
+    const today = todayCell ? { sequence: todayCell.sequence, toPar: todayCell.toPar, netToPar: todayCell.netToPar, points: todayCell.points, netPoints: todayCell.netPoints, thru: todayCell.thru, holes: todayCell.holes } : null;
     out.push({
       row: {
         participantId,
@@ -193,14 +201,15 @@ function fold(rounds: RoundBoardInput[], format: SportEventFormat, liveSequence:
         totalToPar,
         net,
         netToPar,
+        points,
+        netPoints,
         netReason,
         roundsPlayed: played.length,
         missedRounds,
         today,
         madeCut: null,
       },
-      key: useNet ? net : total,
-      keyToPar: useNet ? netToPar : totalToPar,
+      tuple: { gross: total, toPar: totalToPar, net, netToPar, points, netPoints },
       todayThru: todayCell?.thru ?? 0,
     });
   }
@@ -208,20 +217,20 @@ function fold(rounds: RoundBoardInput[], format: SportEventFormat, liveSequence:
 }
 
 /** Rank a folded field: the sort tuple, shared ranks, unranked last. Returns rows in board order. */
-function rank(folded: Folded[]): OverallRow[] {
-  const ranked = folded.filter(f => f.row.roundsPlayed > 0 && f.key !== null);
-  const unranked = folded.filter(f => !(f.row.roundsPlayed > 0 && f.key !== null));
+function rank(folded: Folded[], keys: RankingKeys): OverallRow[] {
+  const ranked = folded.filter(f => f.row.roundsPlayed > 0 && keys.key(f.tuple) !== null);
+  const unranked = folded.filter(f => !(f.row.roundsPlayed > 0 && keys.key(f.tuple) !== null));
   const missedKey = (f: Folded) => f.row.missedRounds.length;
   const cutKey = (f: Folded) => (f.row.madeCut === false ? 1 : 0);
   ranked.sort((a, b) => {
     if (missedKey(a) !== missedKey(b)) return missedKey(a) - missedKey(b);
     if (cutKey(a) !== cutKey(b)) return cutKey(a) - cutKey(b);
-    if ((a.key as number) !== (b.key as number)) return (a.key as number) - (b.key as number);
-    if ((a.keyToPar as number) !== (b.keyToPar as number)) return (a.keyToPar as number) - (b.keyToPar as number);
+    const c = keys.compare(a.tuple, b.tuple);
+    if (c !== 0) return c;
     if (a.todayThru !== b.todayThru) return b.todayThru - a.todayThru;
     return a.row.name.localeCompare(b.row.name);
   });
-  const ranks = assignSharedRanks(ranked.length, i => `${missedKey(ranked[i])}|${cutKey(ranked[i])}|${ranked[i].key}|${ranked[i].keyToPar}`);
+  const ranks = assignSharedRanks(ranked.length, i => `${missedKey(ranked[i])}|${cutKey(ranked[i])}|${keys.rankKey(ranked[i].tuple)}`);
   const counts = new Map<number, number>();
   for (const r of ranks) counts.set(r, (counts.get(r) ?? 0) + 1);
   const rows: OverallRow[] = ranked.map((f, i) => {
@@ -237,7 +246,8 @@ export function computeOverallLeaderboard(input: RoundBoardInput[], format: Spor
   const rounds = [...input].filter(r => MINTED.has(r.status)).sort((a, b) => a.sequence - b.sequence);
   const current = options.current ?? currentSequence(rounds);
   const liveSequence = rounds.find(r => r.status === 'live')?.sequence ?? null;
-  const allFolded = fold(rounds, format, liveSequence);
+  const keys = rankingKeys(format);
+  const allFolded = fold(rounds, liveSequence);
 
   // The cut: the standing THROUGH round K decides; a player who missed it
   // ranks below the line and is never "missing" the rounds they were not
@@ -245,8 +255,9 @@ export function computeOverallLeaderboard(input: RoundBoardInput[], format: Spor
   let cutLine: CutLine | null = null;
   const cut = options.cut ?? null;
   if (cut && cutDecided(cut, rounds)) {
-    const throughK = rank(fold(rounds.filter(r => r.sequence <= cut.after_round), format, null));
-    const decided = applyCut(throughK.map(r => ({ participantId: r.participantId, rank: r.rank, keyToPar: format === 'stroke_net' ? r.netToPar : r.totalToPar, key: format === 'stroke_net' ? r.net : r.total })), cut);
+    const throughK = rank(fold(rounds.filter(r => r.sequence <= cut.after_round), null), keys);
+    const tupleOf = (r: OverallRow): ScoreTuple => ({ gross: r.total, toPar: r.totalToPar, net: r.net, netToPar: r.netToPar, points: r.points, netPoints: r.netPoints });
+    const decided = applyCut(throughK.map(r => ({ participantId: r.participantId, rank: r.rank, keyToPar: keys.stableford ? null : keys.second(tupleOf(r)), key: keys.key(tupleOf(r)) })), cut, keys.direction);
     cutLine = decided.line;
     for (const f of allFolded) {
       f.row.madeCut = decided.made.has(f.row.participantId);
@@ -256,13 +267,13 @@ export function computeOverallLeaderboard(input: RoundBoardInput[], format: Spor
 
   const flights = flightsOf(allFolded.map(f => f.row));
   const folded = options.flight ? allFolded.filter(f => f.row.flight === options.flight) : allFolded;
-  const rows = rank(folded);
+  const rows = rank(folded, keys);
 
   // Movement: the same fold over the rounds BEFORE the current one, when at least one of them is completed.
   const prior = current === null ? [] : rounds.filter(r => r.sequence < current && r.status === 'completed');
   if (prior.length > 0) {
-    const priorFolded = fold(prior, format, null);
-    const priorRows = rank(options.flight ? priorFolded.filter(f => f.row.flight === options.flight) : priorFolded);
+    const priorFolded = fold(prior, null);
+    const priorRows = rank(options.flight ? priorFolded.filter(f => f.row.flight === options.flight) : priorFolded, keys);
     const prevRank = new Map<string, number | null>();
     for (const r of priorRows) prevRank.set(r.participantId, r.rank);
     for (const r of rows) {

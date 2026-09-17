@@ -44,7 +44,7 @@ export async function syncSportEventContest(admin: Admin, event: SportEventRow, 
   // Track 2 PR 10: a GAME writes the fixture's two results from the live score and the players' lines; a session counts toward nothing.
   const kind = eventShape(event);
   if (kind === 'game') return syncGameContest(admin, event, round, actorProfileId);
-  if (kind === 'session') return null;
+  if (kind === 'session' || kind === 'stableford') return null;
   try {
     const org = eventOrg(event);
     if (!org) return null;

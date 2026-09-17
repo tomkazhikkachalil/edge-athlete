@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { computeLeaderboard, formatRank, formatThru, formatToPar, type LeaderboardInput, type LeaderboardPlayer } from '../leaderboard';
+import { computeLeaderboard, formatPoints, formatRank, formatThru, formatToPar, rankingKeys, type LeaderboardInput, type LeaderboardPlayer } from '../leaderboard';
 
 const holeData = Array.from({ length: 18 }, (_, i) => ({ hole: i + 1, par: [4, 4, 3, 5, 4, 4, 3, 5, 4, 4, 3, 5, 4, 4, 3, 5, 4, 4][i], yardage: 400, handicap: [7, 13, 17, 1, 9, 3, 15, 5, 11, 8, 18, 2, 10, 4, 16, 6, 12, 14][i] }));
 const card = (strokesByHole: Record<number, number>) => Object.entries(strokesByHole).map(([h, s]) => ({ hole_number: Number(h), strokes: s }));
@@ -73,5 +73,38 @@ describe('computeLeaderboard', () => {
     expect(net[0]).toMatchObject({ rankLabel: '—', gross: 5, net: null, netReason: 'no_rating' });
     // A hole outside the range is not on the card.
     expect(computeLeaderboard(input([player('a', card({ 3: 4 }))], { holes: 9, startingHole: 10, holeData: null }))[0].thru).toBe(0);
+  });
+});
+
+describe('Stableford (leftovers) — points on every row, the one ranking rule', () => {
+  it('gross points: the six bands against par; net points through the SAME allocation as the net strokes', () => {
+    // Every hole at par → 2 points each; with an index of 12.3 on the fixture (CH 13) thirteen holes carry a stroke → net birdie → 3.
+    const parCard = card(Object.fromEntries(holeData.map(h => [h.hole, h.par])));
+    const rows = computeLeaderboard(input([player('a', parCard, 12.3)], { format: 'stableford_net' }));
+    expect(rows[0]).toMatchObject({ points: 36, netPoints: 49, gross: 72, net: 59 });
+    // The bands: albatross 5, eagle 4, birdie 3, par 2, bogey 1, double 0 on a par 5.
+    const bands = computeLeaderboard(input([player('b', card({ 4: 2, 8: 3, 12: 4, 16: 5 })), player('c', card({ 4: 6, 8: 7 }))], { format: 'stableford_gross' }));
+    expect(bands.map(r => [r.name, r.points])).toEqual([['B', 14], ['C', 1]]);
+  });
+  it('more points rank first; equal points share a rank (fewer strokes lists first); no index on net is unranked; formatPoints', () => {
+    const rows = computeLeaderboard(input([
+      player('a', card({ 1: 4, 2: 4, 3: 3 }), 10),   // three pars = 6
+      player('b', card({ 1: 5, 2: 5, 3: 4 }), 10),   // three bogeys = 3
+      player('c', card({ 1: 3, 2: 5, 3: 3 }), 10),   // 3 + 1 + 2 = 6, more strokes than a? a=11, c=11 — equal
+      player('d', card({ 1: 4, 2: 4, 3: 3 }), null), // no index → unranked on net
+    ], { format: 'stableford_net' }));
+    expect(rows.map(r => [r.name, r.rankLabel])).toEqual([['A', 'T1'], ['C', 'T1'], ['B', '3'], ['D', '—']]);
+    expect(formatPoints(null)).toBe('—');
+    expect(formatPoints(31)).toBe('31');
+  });
+  it('rankingKeys: stroke keys keep the to-par in the shared key; Stableford keys are points alone, descending', () => {
+    const t = { gross: 72, toPar: 0, net: 68, netToPar: -4, points: 36, netPoints: 40 };
+    expect(rankingKeys('stroke_gross').rankKey(t)).toBe('72|0');
+    expect(rankingKeys('stroke_net').rankKey(t)).toBe('68|-4');
+    expect(rankingKeys('stableford_gross').rankKey(t)).toBe('36');
+    expect(rankingKeys('stableford_net').key(t)).toBe(40);
+    expect(rankingKeys('stableford_gross').compare({ ...t, points: 30 }, { ...t, points: 36 })).toBeGreaterThan(0);
+    expect(rankingKeys('stroke_gross').compare({ ...t, gross: 70 }, { ...t, gross: 72 })).toBeLessThan(0);
+    for (const f of ['stroke_gross', 'stroke_net', 'match_gross', 'match_net', 'stableford_gross', 'stableford_net'] as const) expect(['asc', 'desc']).toContain(rankingKeys(f).direction);
   });
 });

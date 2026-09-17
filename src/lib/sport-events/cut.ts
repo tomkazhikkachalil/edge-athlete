@@ -29,7 +29,7 @@ export interface CutLine {
 }
 
 /** Who made the cut, from the standing through round K (rows already ranked). */
-export function applyCut(rowsThroughK: ReadonlyArray<CutCandidate>, rule: CutRule): { made: Set<string>; line: CutLine } {
+export function applyCut(rowsThroughK: ReadonlyArray<CutCandidate>, rule: CutRule, direction: 'asc' | 'desc' = 'asc'): { made: Set<string>; line: CutLine } {
   const made = new Set<string>();
   let score: number | null = null;
   for (const r of rowsThroughK) {
@@ -37,7 +37,8 @@ export function applyCut(rowsThroughK: ReadonlyArray<CutCandidate>, rule: CutRul
     const ok = typeof rule.top_n === 'number' ? r.rank <= rule.top_n : typeof rule.to_par === 'number' ? (r.keyToPar ?? Number.POSITIVE_INFINITY) <= rule.to_par : true;
     if (!ok) continue;
     made.add(r.participantId);
-    if (r.key !== null && (score === null || r.key > score)) score = r.key;
+    // The cut line is the WORST score that made it: the highest strokes, the lowest points (Stableford descends).
+    if (r.key !== null && (score === null || (direction === 'asc' ? r.key > score : r.key < score))) score = r.key;
   }
   return { made, line: { afterRound: rule.after_round, score, madeCut: made.size, missed: rowsThroughK.length - made.size } };
 }
