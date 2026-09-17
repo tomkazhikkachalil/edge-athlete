@@ -24,7 +24,7 @@ describe('linkRefusal — which competitions may count an event', () => {
     expect(linkRefusal(club, comp({ sport_key: 'ice_hockey' }))).toBe('not_golf_leaderboard');
     expect(linkRefusal(club, comp({ entrant_type: 'team' }))).toBe('not_athletes');
     expect(linkRefusal(club, comp({ status: 'completed' }))).toBe('competition_closed');
-    for (const key of ['no_org', 'not_stroke_play', 'not_found', 'other_org', 'not_golf_leaderboard', 'not_athletes', 'competition_closed', 'event_over', 'results_exist', 'shape_mismatch', 'not_a_game', 'not_two_sided', 'already_linked', 'contest_over', 'sport_unsupported', 'side_size'] as const) expect(LINK_REFUSAL_COPY[key]).toBeTruthy();
+    for (const key of ['no_org', 'not_stroke_play', 'not_found', 'other_org', 'not_golf_leaderboard', 'not_athletes', 'competition_closed', 'event_over', 'results_exist', 'shape_mismatch', 'not_a_game', 'not_two_sided', 'already_linked', 'contest_over', 'sport_unsupported', 'side_size', 'points_format'] as const) expect(LINK_REFUSAL_COPY[key]).toBeTruthy();
   });
 });
 
@@ -47,6 +47,9 @@ describe('the shape table (track 2 PR 10) — which competition takes which even
     expect(eventShape({ sport_key: 'ice_hockey', shape: 'game' })).toBe('game');
     expect(eventShape({ sport_key: 'soccer', shape: 'session' })).toBe('session');
     expect(eventShape({})).toBe('stroke');
+    expect(eventShape({ sport_key: 'golf', format: 'stableford_net' })).toBe('stableford');
+    expect(linkRefusal({ ...club, format: 'stableford_gross' }, comp())).toBe('points_format');
+    expect(eligibleCompetition({ ...club, format: 'stableford_net' }, comp())).toBe(false);
   });
   it('a game counts toward a fixture of named sides in the SAME sport; a session toward nothing; a stroke round keeps the 2b rule', () => {
     expect(linkRefusal(game, pickup())).toBeNull();

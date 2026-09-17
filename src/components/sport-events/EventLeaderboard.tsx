@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import type { EventApi } from '@/lib/sport-events/client';
-import { formatThru, formatToPar } from '@/lib/sport-events/leaderboard';
+import { formatThru, formatToPar, formatPoints } from '@/lib/sport-events/leaderboard';
 import type { OverallLeaderboard, RoundLeaderboard } from '@/lib/sport-events/leaderboard-server';
 import { offersOverall, type RoundSelection } from '@/lib/sport-events/tabs';
 import type { SportEventViewPayload } from '@/lib/sport-events/view';
@@ -14,6 +14,7 @@ import FlightSegment from './FlightSegment';
 import HardestHolesPanel from './HardestHolesPanel';
 import OverallBoard, { type BoardPick } from './OverallBoard';
 import RoundSwitcher from './RoundSwitcher';
+import { isNetFormat, isStablefordFormat } from '@/lib/sport-events/types';
 
 interface Props {
   view: SportEventViewPayload;
@@ -41,7 +42,7 @@ export default function EventLeaderboard({ view, api, version, selected, onSelec
   const [board, setBoard] = useState<RoundLeaderboard | null>(null);
   const [overallBoard, setOverallBoard] = useState<OverallLeaderboard | null>(null);
   const [state, setState] = useState<'loading' | 'ready' | 'error'>('loading');
-  const [mode, setMode] = useState<'net' | 'gross'>(view.event.format === 'stroke_net' ? 'net' : 'gross');
+  const [mode, setMode] = useState<'net' | 'gross'>(isNetFormat(view.event.format) ? 'net' : 'gross');
   const [flight, setFlight] = useState<string | null>(() => { const f = params.get('flight'); return f && f.trim() ? f.trim() : null; });
   const [breakdown, setBreakdown] = useState<EventBreakdown | null>(null);
   const [pick, setPick] = useState<BoardPick | null>(null);
@@ -89,7 +90,7 @@ export default function EventLeaderboard({ view, api, version, selected, onSelec
   const pickWindow = pick ? <BreakdownWindow player={pick} data={breakdown} roundId={overall ? null : roundId} onClose={() => setPick(null)} /> : null;
   const segment = <FlightSegment flights={flights} selected={flight} onChange={changeFlight} />;
   const switcher = <RoundSwitcher rounds={view.rounds} selected={selected} onChange={onSelect} includeOverall={offersOverall('leaderboard', view.rounds)} label="Leaderboard round" />;
-  const toggle = view.event.format === 'stroke_net' && (
+  const toggle = (view.event.format === 'stroke_net' || view.event.format === 'stableford_net') && (
     <div className="flex rounded-lg border border-border-strong overflow-hidden w-fit" role="group" aria-label="Scoring">
       {(['net', 'gross'] as const).map(m => (
         <button key={m} type="button" onClick={() => setMode(m)} aria-pressed={mode === m} className={`h-10 px-4 text-sm font-medium transition ${mode === m ? 'bg-brand text-white' : 'bg-surface text-tertiary hover:text-brand-fg'}`}>
@@ -99,6 +100,8 @@ export default function EventLeaderboard({ view, api, version, selected, onSelec
     </div>
   );
   const net = mode === 'net';
+  // Leftovers: a Stableford board ranks on POINTS (desc) — the columns swap to Pts · Strokes, never added (the cut divider counts columns).
+  const stableford = isStablefordFormat(view.event.format);
 
   if (!overall && !round) return <div className="space-y-3">{switcher}<p className="text-sm text-muted">No round yet.</p></div>;
   const current = overall ? overallBoard : board;
@@ -117,7 +120,7 @@ export default function EventLeaderboard({ view, api, version, selected, onSelec
             {view.event.status === 'live' ? 'No scores yet — the board fills in as players enter holes.' : view.event.status === 'completed' ? 'No scores were recorded.' : 'The board fills in once the event is live.'}
           </p>
         )}
-        <OverallBoard data={overallBoard} net={net} onPick={pickRow} />
+        <OverallBoard data={overallBoard} net={net} stableford={stableford} onPick={pickRow} />
         <HardestHolesPanel hardest={hardest} />
         {pickWindow}
       </div>
@@ -147,8 +150,8 @@ export default function EventLeaderboard({ view, api, version, selected, onSelec
               <th className="sticky left-0 bg-surface pl-4 sm:pl-2 pr-2 py-2 font-semibold">Pos</th>
               <th className="px-2 py-2 font-semibold">Player</th>
               <th className="px-2 py-2 font-semibold text-right">Thru</th>
-              <th className="px-2 py-2 font-semibold text-right">To par</th>
-              <th className="px-2 py-2 font-semibold text-right">{net ? 'Net' : 'Total'}</th>
+              <th className="px-2 py-2 font-semibold text-right">{stableford ? 'Strokes' : 'To par'}</th>
+              <th className="px-2 py-2 font-semibold text-right">{stableford ? 'Pts' : net ? 'Net' : 'Total'}</th>
             </tr>
           </thead>
           <tbody>
@@ -171,9 +174,11 @@ export default function EventLeaderboard({ view, api, version, selected, onSelec
                   {r.cardStatus === 'final' && <span className="ml-1 text-[10px] uppercase tracking-wide text-emerald-700 dark:text-emerald-300">final</span>}
                 </td>
                 <td className="px-2 py-2 text-right text-secondary">{formatThru(r.thru, holes)}</td>
-                <td className="px-2 py-2 text-right text-secondary">{formatToPar(net ? r.netToPar : r.toPar)}</td>
-                <td className="px-2 py-2 text-right font-semibold text-primary">
-                  {net ? (r.net ?? (r.netReason ? <span className="text-xs font-normal text-muted">{r.netReason === 'no_index' ? 'no index' : r.netReason === 'no_rating' ? 'unrated' : 'no SI'}</span> : '—')) : (r.gross ?? '—')}
+                <td className="px-2 py-2 text-right text-secondary">{stableford ? ((net ? r.net : r.gross) ?? '—') : formatToPar(net ? r.netToPar : r.toPar)}</td>
+                <td className="px-2 py-2 text-right font-semibold text-primary" data-leaderboard-key="">
+                  {net && (stableford ? r.netPoints === null : r.net === null) && r.netReason
+                    ? <span className="text-xs font-normal text-muted">{r.netReason === 'no_index' ? 'no index' : r.netReason === 'no_rating' ? 'unrated' : 'no SI'}</span>
+                    : stableford ? formatPoints(net ? r.netPoints : r.points) : ((net ? r.net : r.gross) ?? '—')}
                 </td>
               </tr>
             ))}

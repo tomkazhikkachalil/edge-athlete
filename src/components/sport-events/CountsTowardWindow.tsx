@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import LargerWindow from '@/components/bubbles/LargerWindow';
 import { eligibleCompetition, type CompetitionForLink } from '@/lib/sport-events/contest-link';
 import type { SportEventViewPayload } from '@/lib/sport-events/view';
+import { isStablefordFormat } from '@/lib/sport-events/types';
 
 /**
  * "Counts toward" (Events program, phase 2b, B1): the organizer picks one
@@ -67,7 +68,7 @@ export default function CountsTowardWindow({ view, onClose, onSave }: Props) {
               <option value="">None — just an event</option>
               {options.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
-            {options.length === 0 && <p className="text-xs text-muted">{view.event.shape === 'game' ? `No fixture of named sides in this sport on ${org.name} yet — a manager creates one in the console.` : `No golf leaderboard competition on ${org.name} yet — a manager creates one in the console.`}</p>}
+            {options.length === 0 && <p className="text-xs text-muted">{isStablefordFormat(view.event.format) ? 'A Stableford event does not count toward a competition — it ranks by points.' : view.event.shape === 'game' ? `No fixture of named sides in this sport on ${org.name} yet — a manager creates one in the console.` : `No golf leaderboard competition on ${org.name} yet — a manager creates one in the console.`}</p>}
           </label>
         )}
         <p className="text-xs text-muted">One contest per round is created on the competition; the org&apos;s results are written from the leaderboard when a round completes. The link can change until play begins.</p>

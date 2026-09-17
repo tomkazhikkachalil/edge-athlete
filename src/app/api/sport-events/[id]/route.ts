@@ -7,13 +7,15 @@ import { EVENT_COLUMNS, readSportEventAccess } from '@/lib/sport-events/access-s
 import { bodyProfileId, readJson, resolveActor } from '@/lib/sport-events/actor-server';
 import { applyCapacityChange } from '@/lib/sport-events/join-server';
 import { cutEditable } from '@/lib/sport-events/cut';
-import { parseFormatConfig, readFormatConfig, readMatchConfig } from '@/lib/sport-events/format-config';
+import { parseFormatConfig, readFormatConfig, readMatchConfig, formatConfigStale } from '@/lib/sport-events/format-config';
 import { mintLinkToken } from '@/lib/sport-events/link-token';
 import { activeRounds } from '@/lib/sport-events/rounds';
 import { ROUND_COLUMNS } from '@/lib/sport-events/rounds-server';
-import { isMatchFormat, type SportEventRoundRow, type SportEventRow, shapeOf } from '@/lib/sport-events/types';
+import { type SportEventRoundRow, type SportEventRow, shapeOf } from '@/lib/sport-events/types';
 import { parseEventPatch } from '@/lib/sport-events/validate';
 import { fetchSportEventView } from '@/lib/sport-events/view-server';
+import { eventShape } from '@/lib/sport-events/contest-link';
+import { readCountsTowardAll } from '@/lib/sport-events/contest-link-server';
 
 const NOT_FOUND = () => NextResponse.json({ error: 'Event not found' }, { status: 404, headers: { 'Cache-Control': 'no-store' } });
 
@@ -105,8 +107,14 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         if (before && after && (before.sides !== after.sides || before.bracket !== after.bracket)) return NextResponse.json({ error: 'The sides and the bracket are set before the event starts.', reason: 'match_locked' }, { status: 409 });
       }
       formatConfig = fc.value as Record<string, unknown>;
-    } else if (isMatchFormat(nextFormat) !== isMatchFormat(read.event.format) && (stored.cut || stored.match)) {
-      return NextResponse.json({ error: 'Changing between stroke play and match play needs format_config for the new format.', reason: 'format_config_stale' }, { status: 400 });
+    } else if (formatConfigStale(read.event.format, nextFormat, stored)) {
+      return NextResponse.json({ error: 'Changing the format needs format_config for the new format.', reason: 'format_config_stale' }, { status: 400 });
+    }
+    // Leftovers: an event that counts toward a competition keeps its SHAPE (stroke → match / Stableford would orphan the link).
+    if (patch.format !== undefined && eventShape({ sport_key: read.event.sport_key, format: nextFormat, shape: read.event.shape }) !== eventShape(read.event)) {
+      const { data: roundIdRows } = await admin.from('sport_event_rounds').select('id').eq('sport_event_id', read.event.id);
+      const links = await readCountsTowardAll(admin, ((roundIdRows ?? []) as Array<{ id: string }>).map(r => r.id));
+      if (links && links.size > 0) return NextResponse.json({ error: 'Remove the competition link before changing the format.', reason: 'linked_competition' }, { status: 409 });
     }
 
     const nextClub = patch.club_id !== undefined ? patch.club_id : read.event.club_id;

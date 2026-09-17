@@ -42,7 +42,7 @@ import { groupsIncomplete } from './match';
 import { closeMatchesOnCompletion, fetchRoundMatches, mintMatches, readRoundGroups, type RoundGroup, type RoundMatch } from './match-server';
 import { fetchOverallLeaderboard } from './leaderboard-server';
 import { writeStartsOn } from './rounds-server';
-import { isMatchFormat, isStatShape, shapeOf, type SportEventParticipantRow, type SportEventRoundRow, type SportEventRoundStatus, type SportEventRow, type SportEventShape, type SportEventStatus } from './types';
+import { isMatchFormat, isStatShape, shapeOf, type SportEventParticipantRow, type SportEventRoundRow, type SportEventRoundStatus, type SportEventRow, type SportEventShape, type SportEventStatus, isStablefordFormat } from './types';
 import { mintStatRound, syncStatLineForPlayer } from './stats-server';
 import { mirrorStatRound } from './stat-results-server';
 import { mirrorEventMedia } from './media-server';
@@ -283,7 +283,7 @@ export async function applyRoundTransition(admin: Admin, req: RoundTransitionReq
     if (!roundMinted(round)) {
       if (shape === 'round') {
         // Phase 2: past a decided cut, the missed-cut set is not minted into this round (the overall board decides — never stored; `roundFieldExclusions` is the one rule). Phase 3: a match round mints its draw only.
-        const gpId = await mintRound(admin, event, round, activeRounds(rounds).length, req.today ?? null, { excludeParticipantIds: excluded.size > 0 ? excluded : undefined, gameFormat: match ? 'match' : 'stroke' });
+        const gpId = await mintRound(admin, event, round, activeRounds(rounds).length, req.today ?? null, { excludeParticipantIds: excluded.size > 0 ? excluded : undefined, gameFormat: match ? 'match' : isStablefordFormat(event.format) ? 'stableford' : 'stroke' });
         if (!gpId) return { ok: false, status: 500, reason: 'mint_failed', error: ROUND_REFUSAL_COPY.round_not_minted };
         round.group_post_id = gpId;
       } else {
@@ -444,7 +444,7 @@ export async function mintAnnouncePost(admin: Admin, event: SportEventRow, round
  * the post). Any failure deletes the group_post (FK cascades take the
  * children) and answers null — the abortCreation semantics.
  */
-export async function mintRound(admin: Admin, event: SportEventRow, round: MintedRound, roundCount: number, today: string | null, opts: { excludeParticipantIds?: ReadonlySet<string>; gameFormat?: 'stroke' | 'match' } = {}): Promise<string | null> {
+export async function mintRound(admin: Admin, event: SportEventRow, round: MintedRound, roundCount: number, today: string | null, opts: { excludeParticipantIds?: ReadonlySet<string>; gameFormat?: 'stroke' | 'match' | 'stableford' } = {}): Promise<string | null> {
   const { data: existing } = await admin.from('group_posts').select('id').eq('sport_event_round_id', round.id).maybeSingle();
   if (existing?.id) return existing.id as string;
 

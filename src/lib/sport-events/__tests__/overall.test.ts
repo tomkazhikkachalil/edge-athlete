@@ -17,6 +17,8 @@ const row = (id: string, over: Partial<LeaderboardRow> = {}): LeaderboardRow => 
   toPar: null,
   net: null,
   netToPar: null,
+  points: null,
+  netPoints: null,
   courseHandicap: null,
   netReason: null,
   cardStatus: 'in_progress',
@@ -63,9 +65,9 @@ describe('computeOverallLeaderboard', () => {
     expect(board.current).toBe(2);
     const a = board.rows.find(r => r.name === 'A')!;
     const b = board.rows.find(r => r.name === 'B')!;
-    expect(a.today).toEqual({ sequence: 2, toPar: 1, netToPar: null, thru: 2, holes: 18 });
+    expect(a.today).toMatchObject({ sequence: 2, toPar: 1, netToPar: null, thru: 2, holes: 18 });
     expect(a.total).toBe(81);
-    expect(b.today).toEqual({ sequence: 2, toPar: null, netToPar: null, thru: 0, holes: 18 });
+    expect(b.today).toMatchObject({ sequence: 2, toPar: null, netToPar: null, thru: 0, holes: 18 });
     expect(b.total).toBe(72);
     expect(b.missedRounds).toEqual([]);
     // B has not started today: the lower total still leads (yesterday's standing holds until someone passes it).
@@ -159,5 +161,18 @@ describe('the cut (phase 2)', () => {
     ], 'stroke_gross', { cut: { after_round: 1, to_par: 0 } });
     expect(board.rows.map(r => [r.name, r.rank, r.total, r.madeCut])).toEqual([['B', 1, 142, true], ['A', 2, 150, false]]);
     expect(board.cutLine).toMatchObject({ madeCut: 1, missed: 1, score: 70 });
+  });
+});
+
+describe('Stableford (leftovers) — the fold sums points, ranks descending, the cut line is the minimum', () => {
+  const pts = (id: string, points: number, gross: number, thru = 18) => row(id, { thru, gross, toPar: gross - 72, points, netPoints: null });
+  it('points summed over the rounds; more points rank first; equal points share a rank; a top_n cut keeps the line at the fewest points that made it', () => {
+    const board = computeOverallLeaderboard([
+      round(1, 'completed', [pts('a', 30, 80), pts('b', 34, 78), pts('c', 34, 79), pts('d', 20, 90)]),
+      round(2, 'completed', [pts('a', 36, 74), pts('b', 30, 82), pts('c', 30, 83)]),
+    ], 'stableford_gross', { cut: { after_round: 1, top_n: 3 } });
+    expect(board.rows.map(r => [r.name, r.rankLabel, r.points])).toEqual([['A', '1', 66], ['B', 'T2', 64], ['C', 'T2', 64], ['D', '4', 20]]);
+    expect(board.cutLine).toMatchObject({ afterRound: 1, score: 30, madeCut: 3, missed: 1 });
+    expect(board.rows.find(r => r.name === 'D')?.madeCut).toBe(false);
   });
 });

@@ -5,10 +5,10 @@ import Link from 'next/link';
 import LazyImage from '@/components/LazyImage';
 import LargerWindow from '@/components/bubbles/LargerWindow';
 import type { EventApi } from '@/lib/sport-events/client';
-import { formatThru, formatToPar } from '@/lib/sport-events/leaderboard';
+import { formatThru, formatToPar, formatPoints } from '@/lib/sport-events/leaderboard';
 import type { LeaderboardRow } from '@/lib/sport-events/leaderboard';
 import { currentRound } from '@/lib/sport-events/rounds';
-import { isMatchFormat } from '@/lib/sport-events/types';
+import { isMatchFormat, isStablefordFormat } from '@/lib/sport-events/types';
 import type { ParticipantView, SportEventViewPayload } from '@/lib/sport-events/view';
 
 /**
@@ -39,7 +39,8 @@ export default function EventPlayerSheet({ view, participant, api, onClose }: { 
   }, [showsBoard, round, api, participant.id]);
 
   const role = participant.role === 'organizer' ? 'Host' : participant.role === 'co_organizer' ? 'Co-organizer' : participant.role === 'follower' ? 'Following' : participant.playing ? 'Playing' : 'Not playing';
-  const net = event.format === 'stroke_net';
+  const net = event.format === 'stroke_net' || event.format === 'stableford_net';
+  const stableford = isStablefordFormat(event.format);
   return (
     <LargerWindow title={participant.name} subtitle={role} onClose={onClose} windowKey="event-player">
       <div className="space-y-4" data-event-player-sheet={participant.profile_id}>
@@ -60,8 +61,8 @@ export default function EventPlayerSheet({ view, participant, api, onClose }: { 
               <>
                 <div className="flex justify-between py-2 border-b border-border-subtle"><dt className="text-muted">Position</dt><dd className="text-primary font-semibold">{row.rankLabel}</dd></div>
                 <div className="flex justify-between py-2 border-b border-border-subtle"><dt className="text-muted">Thru</dt><dd className="text-primary">{formatThru(row.thru, round?.holes ?? 18)}</dd></div>
-                <div className="flex justify-between py-2 border-b border-border-subtle"><dt className="text-muted">To par</dt><dd className="text-primary">{formatToPar(net ? row.netToPar : row.toPar)}</dd></div>
-                <div className="flex justify-between py-2"><dt className="text-muted">{net ? 'Net' : 'Total'}</dt><dd className="text-primary font-semibold">{(net ? row.net : row.gross) ?? '—'}</dd></div>
+                <div className="flex justify-between py-2 border-b border-border-subtle"><dt className="text-muted">{stableford ? 'Strokes' : 'To par'}</dt><dd className="text-primary">{stableford ? ((net ? row.net : row.gross) ?? '—') : formatToPar(net ? row.netToPar : row.toPar)}</dd></div>
+                <div className="flex justify-between py-2"><dt className="text-muted">{stableford ? 'Pts' : net ? 'Net' : 'Total'}</dt><dd className="text-primary font-semibold">{stableford ? formatPoints(net ? row.netPoints : row.points) : ((net ? row.net : row.gross) ?? '—')}</dd></div>
               </>
             )}
           </dl>

@@ -8,7 +8,7 @@ import { COPY } from '@/lib/copy';
 import { cutEditable } from '@/lib/sport-events/cut';
 import { CUT_TO_PAR_MAX, CUT_TO_PAR_MIN, CUT_TOP_N_MAX, cutLabel, MATCH_ALLOWANCE_DEFAULT } from '@/lib/sport-events/format-config';
 import { formatLabel, MATCH_SIDES_LABEL } from '@/lib/sport-events/format';
-import { isMatchFormat, MATCH_SIDES, type MatchSides } from '@/lib/sport-events/types';
+import { isMatchFormat, MATCH_SIDES, type MatchSides, isStablefordFormat } from '@/lib/sport-events/types';
 import { activeRounds } from '@/lib/sport-events/rounds';
 import type { FormatConfig } from '@/lib/sport-events/types';
 import type { SportEventViewPayload } from '@/lib/sport-events/view';
@@ -34,7 +34,7 @@ const INPUT = 'min-h-[44px] px-3 rounded-lg border border-border-strong bg-surfa
 
 export default function FormatSettingsWindow({ event, rounds, onClose, onSave }: Props) {
   if (isMatchFormat(event.format)) return <MatchSettings event={event} rounds={rounds} onClose={onClose} onSave={onSave} />;
-  return <CutSettings event={event} rounds={rounds} onClose={onClose} onSave={onSave} />;
+  return <CutSettings stableford={isStablefordFormat(event.format)} event={event} rounds={rounds} onClose={onClose} onSave={onSave} />;
 }
 
 function MatchSettings({ event, rounds, onClose, onSave }: Props) {
@@ -105,7 +105,7 @@ function MatchSettings({ event, rounds, onClose, onSave }: Props) {
   );
 }
 
-function CutSettings({ event, rounds, onClose, onSave }: Props) {
+function CutSettings({ event, rounds, onClose, onSave, stableford = false }: Props & { stableford?: boolean }) {
   const active = activeRounds(rounds);
   const initialCut = event.format_config.cut ?? null;
   const [enabled, setEnabled] = useState(initialCut !== null);
@@ -159,7 +159,7 @@ function CutSettings({ event, rounds, onClose, onSave }: Props) {
                 </select>
               </label>
               <div role="radiogroup" aria-label="Who plays on" className="grid gap-2 sm:grid-cols-2">
-                {([['top_n', 'The top N', 'Ties at the nth place all make it.'], ['to_par', 'At or under a score to par', 'Everyone at or better than it plays on.']] as const).map(([m, label, hint]) => (
+                {([['top_n', 'The top N', 'Ties at the nth place all make it.'], ['to_par', 'At or under a score to par', 'Everyone at or better than it plays on.']] as const).filter(([m]) => m === 'top_n' || !stableford).map(([m, label, hint]) => (
                   <label key={m} className={`flex items-start gap-3 rounded-lg border p-3 min-h-[44px] cursor-pointer ${mode === m ? 'border-brand bg-brand-soft' : 'border-border-strong bg-surface'}`}>
                     <input type="radio" name="cut-mode" value={m} checked={mode === m} disabled={locked} onChange={() => setMode(m)} className="mt-1 h-4 w-4" data-cut-mode={m} />
                     <span className="min-w-0"><span className="block text-sm font-semibold text-primary">{label}</span><span className="block text-xs text-muted">{hint}</span></span>

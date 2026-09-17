@@ -51,7 +51,8 @@ export const MATCH_SIDES_LABEL: Readonly<Record<MatchSides, string>> = { singles
 
 /** "Stroke play · Net" · "Match play · Singles · Gross" · "Match play · Four-ball · Net · Bracket" (a match format with no config reads as singles). */
 export function formatLabel(format: string, match?: Pick<MatchConfig, 'sides' | 'bracket'> | null): string {
-  const net = format === 'stroke_net' || format === 'match_net';
+  const net = format === 'stroke_net' || format === 'match_net' || format === 'stableford_net';
+  if (format === 'stableford_gross' || format === 'stableford_net') return net ? 'Stableford · Net' : 'Stableford · Gross';
   if (format === 'match_gross' || format === 'match_net') {
     const sides = match?.sides ?? 'singles';
     return `Match play · ${MATCH_SIDES_LABEL[sides]} · ${net ? 'Net' : 'Gross'}${match?.bracket ? ' · Bracket' : ''}`;

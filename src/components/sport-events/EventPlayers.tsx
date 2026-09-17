@@ -72,7 +72,7 @@ export default function EventPlayers({ view, control, busy, joinActions, onOpenI
   const canManage = viewer.can_manage;
   const canInvite = canManage && (event.status === 'draft' || event.status === 'open');
   const [handle, setHandle] = useState('');
-  const net = event.format === 'stroke_net';
+  const net = event.format === 'stroke_net' || event.format === 'stableford_net';
 
   const playing = participants.filter(p => p.status === 'accepted' && p.playing && p.role !== 'follower');
   const organizing = participants.filter(p => p.status === 'accepted' && !p.playing && p.role !== 'follower');

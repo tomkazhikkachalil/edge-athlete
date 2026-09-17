@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { formatThru, formatToPar } from '@/lib/sport-events/leaderboard';
+import { formatThru, formatToPar, formatPoints } from '@/lib/sport-events/leaderboard';
 import type { OverallLeaderboard } from '@/lib/sport-events/leaderboard-server';
 import { formatMovement } from '@/lib/sport-events/overall';
 
@@ -26,11 +26,13 @@ interface Props {
   net: boolean;
   /** The whole row is the button (the bubble language): opens the player's breakdown. */
   onPick?: (pick: BoardPick) => void;
+  /** Leftovers: a Stableford event — the key is points (desc), the second column the strokes. */
+  stableford?: boolean;
 }
 
 const NET_REASON: Record<string, string> = { no_index: 'no index', no_rating: 'unrated', no_stroke_index: 'no SI' };
 
-export default function OverallBoard({ data, net, onPick }: Props) {
+export default function OverallBoard({ data, net, onPick, stableford = false }: Props) {
   const rounds = data.rounds;
   const rows = data.board.rows;
   const liveSeq = data.board.current !== null && rounds.find(r => r.sequence === data.board.current)?.status === 'live' ? data.board.current : null;
@@ -45,8 +47,8 @@ export default function OverallBoard({ data, net, onPick }: Props) {
             {rounds.map(r => <th key={r.id} scope="col" className="px-2 py-2 font-semibold text-right w-10" title={`Round ${r.sequence} · ${r.course_name}`}>R{r.sequence}</th>)}
             {liveSeq !== null && <th scope="col" className="px-2 py-2 font-semibold text-right">Today</th>}
             {liveSeq !== null && <th scope="col" className="px-2 py-2 font-semibold text-right">Thru</th>}
-            <th scope="col" className="px-2 py-2 font-semibold text-right">{net ? 'Net' : 'Total'}</th>
-            <th scope="col" className="px-2 py-2 font-semibold text-right">To par</th>
+            <th scope="col" className="px-2 py-2 font-semibold text-right">{stableford ? 'Pts' : net ? 'Net' : 'Total'}</th>
+            <th scope="col" className="px-2 py-2 font-semibold text-right">{stableford ? 'Strokes' : 'To par'}</th>
           </tr>
         </thead>
         <tbody>
@@ -62,8 +64,9 @@ export default function OverallBoard({ data, net, onPick }: Props) {
                 </td>
               </tr>
             ) : null;
-            const key = net ? r.net : r.total;
+            const key = stableford ? (net ? r.netPoints : r.points) : net ? r.net : r.total;
             const keyToPar = net ? r.netToPar : r.totalToPar;
+            const strokes = net ? r.net : r.total;
             const tr = (
               <tr
                 key={r.participantId}
@@ -85,15 +88,15 @@ export default function OverallBoard({ data, net, onPick }: Props) {
                 </td>
                 {rounds.map(h => {
                   const cell = r.rounds.find(c => c.roundId === h.id);
-                  const v = cell && cell.played ? (net ? cell.net : cell.gross) : null;
+                  const v = cell && cell.played ? (stableford ? (net ? cell.netPoints : cell.points) : net ? cell.net : cell.gross) : null;
                   return <td key={h.id} className="px-2 py-2 text-right text-secondary tabular-nums">{v ?? '—'}</td>;
                 })}
-                {liveSeq !== null && <td className="px-2 py-2 text-right text-secondary tabular-nums">{r.today && r.today.thru > 0 ? formatToPar(net ? r.today.netToPar : r.today.toPar) : '—'}</td>}
+                {liveSeq !== null && <td className="px-2 py-2 text-right text-secondary tabular-nums">{r.today && r.today.thru > 0 ? (stableford ? formatPoints(net ? r.today.netPoints : r.today.points) : formatToPar(net ? r.today.netToPar : r.today.toPar)) : '—'}</td>}
                 {liveSeq !== null && <td className="px-2 py-2 text-right text-secondary tabular-nums">{r.today ? formatThru(r.today.thru, r.today.holes) : '—'}</td>}
                 <td className="px-2 py-2 text-right font-semibold text-primary tabular-nums">
                   {key ?? (net && r.netReason ? <span className="text-xs font-normal text-muted">{NET_REASON[r.netReason] ?? r.netReason}</span> : '—')}
                 </td>
-                <td className="px-2 py-2 text-right text-secondary tabular-nums">{formatToPar(keyToPar)}</td>
+                <td className="px-2 py-2 text-right text-secondary tabular-nums">{stableford ? (strokes ?? '—') : formatToPar(keyToPar)}</td>
               </tr>
             );
             return divider ? [divider, tr] : [tr];

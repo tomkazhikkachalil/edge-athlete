@@ -36,3 +36,11 @@ describe('the mint rows', () => {
     expect(rows).toEqual([{ group_post_id: 'gp', profile_id: 'host', role: 'creator', status: 'confirmed', attested_at: 'now', position: 1 }, { group_post_id: 'gp', profile_id: 'b', role: 'participant', status: 'confirmed', attested_at: 'now', position: 2 }]);
   });
 });
+
+import { scorecardRow as cardRow } from '../mint';
+
+describe('Stableford (leftovers) — the card carries the game format', () => {
+  it("scorecardRow writes game_format 'stableford' (032's CHECK admits it)", () => {
+    expect(cardRow({ course_name: 'X', course_id: null, holes: 18, tee: null, slope_rating: null, course_rating: null, hole_data: null }, 'gp', 'stableford').game_format).toBe('stableford');
+  });
+});

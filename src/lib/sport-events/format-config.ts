@@ -17,7 +17,7 @@
  *        `cut` / `match` are golf vocabulary and 400 by name on a team
  *        shape. A game with no `game` key reads as Home / Away.
  */
-import { isMatchFormat, isStatShape, MATCH_SIDES, type CutRule, type FormatConfig, type GameConfig, type MatchConfig, type MatchSides, type SportEventShape } from './types';
+import { isMatchFormat, isStatShape, MATCH_SIDES, type CutRule, type FormatConfig, type GameConfig, type MatchConfig, type MatchSides, type SportEventShape, isStablefordFormat } from './types';
 import type { Parsed } from './validate';
 
 export const CUT_TOP_N_MAX = 500;
@@ -49,7 +49,7 @@ function isRecord(v: unknown): v is Record<string, unknown> {
   return typeof v === 'object' && v !== null && !Array.isArray(v);
 }
 
-export function parseCutRule(body: unknown, ctx: { roundCount: number }, field = 'format_config.cut'): Parsed<CutRule> {
+export function parseCutRule(body: unknown, ctx: { roundCount: number; format?: string }, field = 'format_config.cut'): Parsed<CutRule> {
   if (!isRecord(body)) return { ok: false, error: `${field} must be an object` };
   for (const key of Object.keys(body)) if (!CUT_KEYS.has(key)) return { ok: false, error: `Unknown field: ${field}.${key}` };
   const after = body.after_round;
@@ -60,6 +60,8 @@ export function parseCutRule(body: unknown, ctx: { roundCount: number }, field =
   const hasTop = body.top_n !== undefined && body.top_n !== null;
   const hasPar = body.to_par !== undefined && body.to_par !== null;
   if (hasTop === hasPar) return { ok: false, error: `${field} needs exactly one of top_n or to_par` };
+  // Leftovers: a Stableford board has no to-par — the cut is by places only.
+  if (hasPar && isStablefordFormat(ctx.format)) return { ok: false, error: `${field}.to_par is not allowed on a Stableford format — use top_n` };
   if (hasTop) {
     const n = body.top_n;
     if (typeof n !== 'number' || !Number.isInteger(n) || n < 1 || n > CUT_TOP_N_MAX) return { ok: false, error: `${field}.top_n must be a whole number from 1 to ${CUT_TOP_N_MAX}` };
@@ -139,6 +141,14 @@ export function parseFormatConfig(body: unknown, ctx: FormatConfigContext): Pars
     out.match = m.value;
   }
   return { ok: true, value: out };
+}
+
+/** The event PATCH's rule: a format change that leaves the stored options meaningless needs a fresh `format_config` — a stroke ↔ match
+ *  family change with any stored key (phase 3), or a move onto Stableford with a stored to-par cut (leftovers). Never a silent strip. */
+export function formatConfigStale(prevFormat: string, nextFormat: string, stored: FormatConfig): boolean {
+  if (isMatchFormat(prevFormat) !== isMatchFormat(nextFormat) && !!(stored.cut || stored.match)) return true;
+  if (isStablefordFormat(nextFormat) && !isStablefordFormat(prevFormat) && typeof stored.cut?.to_par === 'number') return true;
+  return false;
 }
 
 /** The stored jsonb as the app reads it — tolerant (a row written by hand never breaks a read): an unparseable value reads as no options. */

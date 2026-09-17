@@ -12,7 +12,7 @@
  * a MATCH-PLAY event never counts toward a competition (`not_stroke_play`
  * — an org-side bracket is the masterplan's own program).
  */
-import { isMatchFormat, shapeOf } from './types';
+import { isMatchFormat, isStablefordFormat, shapeOf } from './types';
 export interface CompetitionForLink {
   id: string;
   name: string;
@@ -24,13 +24,14 @@ export interface CompetitionForLink {
   status: string;
 }
 
-export type LinkRefusal = 'no_org' | 'not_stroke_play' | 'not_found' | 'other_org' | 'not_golf_leaderboard' | 'not_athletes' | 'competition_closed' | 'event_over' | 'results_exist' | 'shape_mismatch' | 'not_a_game' | 'not_two_sided' | 'already_linked' | 'contest_over' | 'sport_unsupported' | 'side_size';
+export type LinkRefusal = 'no_org' | 'not_stroke_play' | 'not_found' | 'other_org' | 'not_golf_leaderboard' | 'not_athletes' | 'competition_closed' | 'event_over' | 'results_exist' | 'shape_mismatch' | 'not_a_game' | 'not_two_sided' | 'already_linked' | 'contest_over' | 'sport_unsupported' | 'side_size' | 'points_format';
 
 /** Track 2 PR 10: what an event IS to the bridge — a stroke-play round, a match-play round, a game or a session. */
-export type EventShape = 'stroke' | 'match' | 'game' | 'session';
+export type EventShape = 'stroke' | 'match' | 'stableford' | 'game' | 'session';
 export function eventShape(event: { sport_key?: string; format?: string | null; shape?: string | null }): EventShape {
   const shape = shapeOf({ sport_key: event.sport_key ?? 'golf', shape: event.shape });
   if (shape === 'game' || shape === 'session') return shape;
+  if (isStablefordFormat(event.format)) return 'stableford';
   return isMatchFormat(event.format) ? 'match' : 'stroke';
 }
 
@@ -42,6 +43,7 @@ export function competitionAcceptsShape(c: CompetitionForLink, shape: EventShape
     return null;
   }
   if (shape === 'game') return c.sport_key === sportKey && c.format === 'fixture' && c.entrant_type === 'ad_hoc_team' ? null : 'shape_mismatch';
+  if (shape === 'stableford') return 'points_format';
   return shape === 'match' ? 'not_stroke_play' : 'shape_mismatch';
 }
 
@@ -62,6 +64,7 @@ export const LINK_REFUSAL_COPY: Readonly<Record<LinkRefusal, string>> = {
   contest_over: 'This game is over.',
   sport_unsupported: 'This sport has no live events yet.',
   side_size: 'A match needs one player a side (singles) or two (four-ball).',
+  points_format: 'A Stableford event ranks by points; the org’s golf leaderboards count strokes. Run it as stroke play to count, or keep it standalone.',
 };
 
 /** Why a competition cannot count this event, or null when it can. */
