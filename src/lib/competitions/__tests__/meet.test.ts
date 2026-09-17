@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { MEET_EVENTS_TRACK } from '@/lib/sports/competition-profiles';
-import { computeMeetStandings, formatMark, meetEventFor, meetIndividualLeaders, parseMark, parseMeetConfig, placeEvent } from '../meet';
+import { commonTeam, computeMeetStandings, formatMark, meetEntryAdmitted, meetEntryKindFor, meetEventFor, meetIndividualLeaders, parseMark, parseMeetConfig, placeEvent } from '../meet';
 
 describe('marks', () => {
   it('parses seconds, m:ss.xx, metres; refuses nonsense', () => {
@@ -54,5 +54,25 @@ describe('computeMeetStandings — the affiliation roll-up as team entries', () 
     expect(rows.map(r => [r.entry_id, r.rank, r.points, r.stats.golds])).toEqual([['T1', 1, 18, 1], ['T2', 1, 18, 1]]);
     const leaders = meetIndividualLeaders({ id: 'e1', status: 'completed', direction: 'asc', results: [{ entryId: 'a', mark: 245.3 }, { entryId: 'b', mark: null }] }, 's', id => id.toUpperCase());
     expect(leaders).toEqual([{ entryId: 'a', name: 'A', place: 1, mark: '4:05.30', dq: false }, { entryId: 'b', name: 'B', place: null, mark: null, dq: false }]);
+  });
+});
+
+describe('relays (leftovers PR 3) — the entry kind an event admits, the common team', () => {
+  it('a relay takes a named team, an individual event an athlete, the roll-up team never', () => {
+    const relay = { relay: true };
+    const sprint = { relay: false };
+    expect(meetEntryKindFor(relay)).toBe('ad_hoc_team');
+    expect(meetEntryKindFor(sprint)).toBe('athlete');
+    const team = { profile_id: null, team_id: 't', name: null };
+    const athlete = { profile_id: 'p', team_id: null, name: null };
+    const relayTeam = { profile_id: null, team_id: null, name: 'Red A' };
+    expect([meetEntryAdmitted(relay, relayTeam), meetEntryAdmitted(relay, athlete), meetEntryAdmitted(relay, team)]).toEqual([true, false, false]);
+    expect([meetEntryAdmitted(sprint, athlete), meetEntryAdmitted(sprint, relayTeam), meetEntryAdmitted(sprint, team)]).toEqual([true, false, false]);
+  });
+  it('the common team: every leg on ONE team, else null', () => {
+    expect(commonTeam([['red'], ['red', 'blue'], ['red']])).toBe('red');
+    expect(commonTeam([['red'], ['blue']])).toBeNull();
+    expect(commonTeam([['red', 'blue'], ['red', 'blue']])).toBeNull();
+    expect(commonTeam([])).toBeNull();
   });
 });
