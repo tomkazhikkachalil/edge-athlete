@@ -4,6 +4,8 @@
  * never through Date's local parser (the calendar's timezone lesson).
  */
 import type { MatchConfig, MatchSides, SportEventJoinMode, SportEventStatus, SportEventVisibility } from './types';
+import { wallClockInZone } from '@/lib/calendar/recurrence';
+import { viewerTimeZone } from '@/lib/calendar/venue-time';
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -27,6 +29,40 @@ export function formatTeeTime(iso: string | null | undefined): string {
   const t = Date.parse(iso);
   if (!Number.isFinite(t)) return '';
   return new Date(t).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+}
+
+const timeIn = (ms: number, zone: string, zoneName: boolean): string =>
+  new Intl.DateTimeFormat('en-US', { timeZone: zone, hour: 'numeric', minute: '2-digit', ...(zoneName ? { timeZoneName: 'short' } : {}) }).format(new Date(ms)).replace(/\u202f/g, ' ');
+
+/** A start in the ROUND's own zone — "7:00 PM HST" ('' without a start or a zone; a malformed zone degrades to ''). */
+export function formatTeeTimeIn(iso: string | null | undefined, zone: string | null | undefined): string {
+  if (!iso || !zone) return '';
+  const t = Date.parse(iso);
+  if (!Number.isFinite(t)) return '';
+  try { return timeIn(t, zone, true); } catch { return ''; }
+}
+
+/**
+ * The start line a viewer reads (leftovers PR 8): the venue's wall clock with
+ * the viewer's beside it — "7:00 PM HST · 9:00 PM your time" — ONLY when the
+ * zones AND the wall clocks differ (venue-time.ts's rule: a label repeating the
+ * visible time is noise). Without a zone: the viewer's clock, as before.
+ * `viewerTz` is injectable so a test never depends on the runner's zone.
+ */
+export function startTimeLine(iso: string | null | undefined, zone: string | null | undefined, viewerTz: string = viewerTimeZone()): string {
+  if (!iso) return '';
+  const t = Date.parse(iso);
+  if (!Number.isFinite(t)) return '';
+  let viewer: string;
+  try { viewer = timeIn(t, viewerTz, false); } catch { viewer = formatTeeTime(iso); }
+  if (!zone || zone === viewerTz) return viewer;
+  try {
+    const venue = wallClockInZone(t, zone);
+    const mine = wallClockInZone(t, viewerTz);
+    if (venue.hh === mine.hh && venue.mm === mine.mm && venue.d === mine.d) return viewer;
+  } catch { return viewer; }
+  const venueLabel = formatTeeTimeIn(iso, zone);
+  return venueLabel ? `${venueLabel} · ${viewer} your time` : viewer;
 }
 
 export const STATUS_LABEL: Readonly<Record<SportEventStatus, string>> = {

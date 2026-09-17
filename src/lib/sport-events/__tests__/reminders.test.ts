@@ -10,6 +10,9 @@ describe('reminderCopy — "Tomorrow: …" to the schedule', () => {
     expect(c.message).toContain('Final · QA Links');
     expect(c.action_url).toBe('/events/e1?tab=schedule');
     expect(reminderCopy({ id: 'e1', name: 'Spring Open' }, { sequence: 1, scheduled_on: '2030-06-01', course_name: 'QA Links' }, 1).title).toBe('Tomorrow: Spring Open');
+    // Leftovers PR 8: the venue time when the round has a start and a zone.
+    expect(reminderCopy({ id: 'e1', name: 'Cup' }, { sequence: 1, scheduled_on: '2030-06-01', course_name: 'Rink', starts_at: '2030-06-02T05:00:00.000Z', timezone: 'Pacific/Honolulu' }, 1).message).toBe('Sat, Jun 1, 2030 · Rink · 7:00 PM HST');
+    expect(reminderCopy({ id: 'e1', name: 'Cup' }, { sequence: 1, scheduled_on: '2030-06-01', course_name: 'Rink', starts_at: '2030-06-02T05:00:00.000Z' }, 1).message).toBe('Sat, Jun 1, 2030 · Rink');
   });
 });
 
