@@ -13,7 +13,8 @@ import { adminClient, apiAs, loadQaUser, readErrorBody } from './helpers/qa-user
  */
 test('ad-hoc sides: named entries from the console, a game between them, the names everywhere @mobile', async ({ page }) => {
   test.setTimeout(180_000);
-  const owner = loadQaUser('user-b.json');
+  // The mobile projects' default session is user A (`user.json`) — the console needs the OWNER's session, so A owns the league.
+  const owner = loadQaUser('user.json');
   const admin = adminClient();
   const probe = await admin.from('competition_entries').select('name').limit(1);
   test.skip(!!probe.error, 'competition_entries.name missing — run migration 219');
