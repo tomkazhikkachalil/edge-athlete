@@ -27,7 +27,12 @@ describe('competition profiles — one owner for format × entrant × rule per s
       const p = resolveCompetitionProfile(sport);
       if (p.teamScoreStat) expect(STAT_SCHEMAS[sport as keyof typeof STAT_SCHEMAS]?.fields.map(f => f.key), `${sport} teamScoreStat`).toContain(p.teamScoreStat);
     }
-    expect(resolveCompetitionProfile('track_field').meetEvents?.map(e => e.key)).toEqual(TRACK_EVENTS.map(e => e.key));
+    const keys = resolveCompetitionProfile('track_field').meetEvents?.map(e => e.key) ?? [];
+    expect(keys.slice(0, TRACK_EVENTS.length)).toEqual(TRACK_EVENTS.map(e => e.key));
+    // The relays follow the individual events and are NEVER stat-schema keys (a relay mark is no personal stat).
+    const relays = (resolveCompetitionProfile('track_field').meetEvents ?? []).filter(e => e.relay);
+    expect(relays.map(e => e.key)).toEqual(['relay_4x100', 'relay_4x400']);
+    for (const r of relays) expect((STAT_SCHEMAS.track_field?.fields ?? []).some(f => f.key === r.key)).toBe(false);
     expect(resolveCompetitionProfile('track_field').defaultMeetPoints).toEqual([10, 8, 6, 5, 4, 3, 2, 1]);
   });
   it('the scoring defaults read the profile — yesterday\'s answers exactly', () => {

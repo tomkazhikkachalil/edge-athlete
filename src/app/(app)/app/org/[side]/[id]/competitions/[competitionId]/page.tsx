@@ -19,7 +19,7 @@ import PointsRaceTable from '@/components/standings/PointsRaceTable';
 import type { PointsRace } from '@/lib/competitions/golf-race';
 import type { SeasonSummary } from '@/lib/competitions/golf-season-wrap';
 import SeasonSummaryCard from '@/components/standings/SeasonSummaryCard';
-import { formatMark, meetEventFor, placeEvent } from '@/lib/competitions/meet';
+import { formatMark, meetEntryAdmitted, meetEventFor, placeEvent } from '@/lib/competitions/meet';
 import { resolveCompetitionProfile } from '@/lib/sports/competition-profiles';
 import { groupRowsByPool, type PoolGroup } from '@/lib/competitions/pools';
 
@@ -38,6 +38,8 @@ interface EntryRow {
   profile_id: string | null;
   status: string;
   entrant_name: string;
+  /** Leftovers PR 3: an ad-hoc entry's name (a relay team on a meet). */
+  name?: string | null;
 }
 
 interface ParticipantRow {
@@ -742,7 +744,11 @@ export default function CompetitionDetailPage() {
   // Track 2 PR 8: the meet's helpers — each event is a contest; the marks form lists the approved athletes.
   const meetEvents = competition?.format === 'meet' ? (resolveCompetitionProfile(competition.sport_key).meetEvents ?? []) : [];
   const mintedRounds = new Set(contests.map(c => c.round));
-  const meetAthletes = entries.filter(en => en.profile_id && en.status === 'approved');
+  // Leftovers PR 3: the entries an event admits — a relay lists the relay teams, an individual event the athletes.
+  const meetEntriesFor = (contest: ContestRow) => {
+    const def = meetEventFor(meetEvents, { round: contest.round });
+    return entries.filter(en => en.status === 'approved' && (def ? meetEntryAdmitted(def, { profile_id: en.profile_id, team_id: en.team_id, name: en.name ?? null }) : !!en.profile_id));
+  };
   const addMeetEvents = async () => {
     const eventKeys = meetEvents.filter(e => meetPick[e.key]).map(e => e.key);
     if (eventKeys.length === 0) { showError('Competition', 'Pick at least one event'); return; }
@@ -758,14 +764,14 @@ export default function CompetitionDetailPage() {
     if (marksContestId === contest.id) { setMarksContestId(null); return; }
     const def = meetEventFor(meetEvents, { round: contest.round });
     setMarksContestId(contest.id);
-    setMarkValues(Object.fromEntries(meetAthletes.map(en => {
+    setMarkValues(Object.fromEntries(meetEntriesFor(contest).map(en => {
       const mark = contest.participants.find(p => p.entry_id === en.id)?.result?.payload?.mark;
       return [en.id, typeof mark === 'number' && def ? formatMark(mark, def.unit) : ''];
     })));
-    setDqValues(Object.fromEntries(meetAthletes.map(en => [en.id, contest.participants.find(p => p.entry_id === en.id)?.result?.payload?.dq === true])));
+    setDqValues(Object.fromEntries(meetEntriesFor(contest).map(en => [en.id, contest.participants.find(p => p.entry_id === en.id)?.result?.payload?.dq === true])));
   };
   const saveMarks = async (contest: ContestRow) => {
-    const marks = meetAthletes
+    const marks = meetEntriesFor(contest)
       .filter(en => dqValues[en.id] || (markValues[en.id] ?? '').trim() !== '')
       .map(en => ({ entryId: en.id, ...(dqValues[en.id] ? { dq: true } : { mark: (markValues[en.id] ?? '').trim() }) }));
     if (marks.length === 0) { showError('Competition', 'Enter at least one mark'); return; }
@@ -2021,12 +2027,12 @@ export default function CompetitionDetailPage() {
                     )}
                     {marksContestId === contest.id && (
                       <div className="mt-2 border-t border-border-subtle pt-2" data-meet-marks={contest.id}>
-                        {meetAthletes.length === 0 ? (
-                          <p className="text-sm text-tertiary">Enter athletes from the console first.</p>
+                        {meetEntriesFor(contest).length === 0 ? (
+                          <p className="text-sm text-tertiary">Enter the athletes (or relay teams) this event takes from the console first.</p>
                         ) : (
                           <>
                             <ul className="space-y-1.5">
-                              {meetAthletes.map(en => (
+                              {meetEntriesFor(contest).map(en => (
                                 <li key={en.id} className="flex flex-wrap items-center gap-2 text-sm">
                                   <span className="min-w-0 flex-1 truncate text-primary">{en.entrant_name}</span>
                                   <input type="text" inputMode="decimal" value={markValues[en.id] ?? ''} disabled={!!dqValues[en.id]} onChange={e => setMarkValues(prev => ({ ...prev, [en.id]: e.target.value }))} placeholder="11.85 or 4:05.30" aria-label={`Mark for ${en.entrant_name}`} data-meet-mark={en.id} className="w-32 px-2 py-1.5 border border-border-strong rounded-md outline-none text-sm disabled:opacity-50" />

@@ -158,3 +158,21 @@ export function meetEventRuleFor(sportKey: string, round: string | null): MeetEv
   const ev = meetEventFor(resolveCompetitionProfile(sportKey).meetEvents ?? [], { round });
   return ev ? { label: ev.label, unit: ev.unit, direction: ev.direction } : null;
 }
+
+/** Leftovers PR 3: the entry kind an event takes — a relay takes a named team of legs, an individual event an athlete. */
+export const meetEntryKindFor = (def: Pick<MeetEventDef, 'relay'>): 'athlete' | 'ad_hoc_team' => (def.relay ? 'ad_hoc_team' : 'athlete');
+
+/** Whether an entry may hold a mark in the event: a relay ⇔ an ad-hoc entry (a name, no team, no athlete); an individual event ⇔ an athlete; the roll-up team rows never. */
+export function meetEntryAdmitted(def: Pick<MeetEventDef, 'relay'>, entry: { profile_id: string | null; team_id: string | null; name?: string | null }): boolean {
+  if (entry.team_id) return false;
+  if (def.relay) return !entry.profile_id && !!entry.name;
+  return !!entry.profile_id;
+}
+
+/** The ONE team every member sits on (a relay's affiliation), else null — a mixed relay scores for nobody until the organizer sets it. */
+export function commonTeam(memberTeams: ReadonlyArray<ReadonlyArray<string>>): string | null {
+  if (memberTeams.length === 0) return null;
+  let common = new Set(memberTeams[0]);
+  for (const teams of memberTeams.slice(1)) common = new Set([...common].filter(t => teams.includes(t)));
+  return common.size === 1 ? [...common][0] : null;
+}

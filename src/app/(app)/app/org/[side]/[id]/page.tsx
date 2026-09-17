@@ -2400,7 +2400,7 @@ export default function OrgConsolePage() {
                           ))}
                         </select>
                       )}
-                      {comp.entrant_type === 'ad_hoc_team' && (
+                      {(comp.entrant_type === 'ad_hoc_team' || comp.format === 'meet') && (
                         <form
                           className="flex flex-wrap items-end gap-2 w-full"
                           data-adhoc-form={comp.id}
@@ -2415,8 +2415,8 @@ export default function OrgConsolePage() {
                                 headers: { 'Content-Type': 'application/json' },
                                 body: JSON.stringify({ competitionId: comp.id, name, memberProfileIds: adHocMembers[comp.id] ?? [] }),
                               },
-                              'Side added',
-                              'Failed to add the side'
+                              comp.format === 'meet' ? 'Relay team added' : 'Side added',
+                              comp.format === 'meet' ? 'Failed to add the relay team' : 'Failed to add the side'
                             ).then(ok => { if (ok) { setAdHocName(prev => ({ ...prev, [comp.id]: '' })); setAdHocMembers(prev => ({ ...prev, [comp.id]: [] })); } });
                           }}
                         >
@@ -2424,7 +2424,7 @@ export default function OrgConsolePage() {
                             value={adHocName[comp.id] ?? ''}
                             onChange={e => setAdHocName(prev => ({ ...prev, [comp.id]: e.target.value }))}
                             maxLength={80}
-                            placeholder="Side name"
+                            placeholder={comp.format === 'meet' ? 'Relay team name' : 'Side name'}
                             aria-label={`Side name for ${comp.name}`}
                             className="max-w-full px-2 py-1 text-xs border border-border-strong rounded-md outline-none"
                           />

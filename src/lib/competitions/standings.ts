@@ -224,13 +224,14 @@ export async function readBracketRows(admin: Admin, competitionId: string, sport
  *  event contest's marks (`score` = the mark in the event's direction; `payload.dq` unranked). A contest whose round label is off the
  *  sport's vocabulary scores nobody. Null on a pre-219 database. */
 export async function readMeetRows(admin: Admin, competitionId: string, sportKey: string): Promise<{ athletes: MeetAthleteEntry[]; teamEntries: MeetTeamEntry[]; contests: MeetContestInput[] } | null> {
-  const { data: entries, error } = await admin.from('competition_entries').select('id, status, team_id, profile_id, affiliation_team_id').eq('competition_id', competitionId);
+  const { data: entries, error } = await admin.from('competition_entries').select('id, status, team_id, profile_id, name, affiliation_team_id').eq('competition_id', competitionId);
   if (error) {
     if (error.code !== '42703') console.warn(`${TAG} meet entries read failed:`, error.message);
     return null;
   }
   const approved = (entries ?? []).filter(e => e.status === 'approved');
-  const athletes: MeetAthleteEntry[] = approved.filter(e => e.profile_id).map(e => ({ id: e.id as string, affiliationTeamId: (e.affiliation_team_id as string | null) ?? null }));
+  // The scoring entries: athletes AND relay teams (an ad-hoc entry — leftovers PR 3), each with its affiliation; the roll-up team rows are the other list.
+  const athletes: MeetAthleteEntry[] = approved.filter(e => e.profile_id || (e.name && !e.team_id)).map(e => ({ id: e.id as string, affiliationTeamId: (e.affiliation_team_id as string | null) ?? null }));
   const teamEntries: MeetTeamEntry[] = approved.filter(e => e.team_id).map(e => ({ id: e.id as string, teamId: e.team_id as string }));
   const events = resolveCompetitionProfile(sportKey).meetEvents ?? [];
   const { data: contests } = await admin.from('contests').select('id, status, round, stage, slot').eq('competition_id', competitionId).order('stage', { ascending: true, nullsFirst: false }).order('slot', { ascending: true }).limit(1000);

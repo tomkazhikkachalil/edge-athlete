@@ -37,6 +37,9 @@ export interface MeetEventDef {
   unit: 's' | 'm';
   /** Which way a better mark points: a time ascends, a distance descends. */
   direction: 'asc' | 'desc';
+  /** Leftovers PR 3: a RELAY takes a named team of legs (an ad-hoc entry with members), never an athlete; its mark is no personal stat. */
+  relay?: boolean;
+  legs?: number;
 }
 
 export type PayloadCheck = { ok: true } | { ok: false; error: string };
@@ -78,7 +81,12 @@ const teamSport = (sportKey: string, defaultRule: 'points_2_1_0' | 'points_3_1_0
   validateResultPayload: objectPayload,
 });
 
-export const MEET_EVENTS_TRACK: readonly MeetEventDef[] = TRACK_EVENTS.map(e => ({ key: e.key, label: e.label, unit: 's' as const, direction: 'asc' as const }));
+/** The relays live HERE, never in `TRACK_EVENTS` (shared with the stat schema and the PB tiles — a relay mark is never a personal stat line). */
+export const RELAY_EVENTS: readonly MeetEventDef[] = [
+  { key: 'relay_4x100', label: '4×100m relay', unit: 's', direction: 'asc', relay: true, legs: 4 },
+  { key: 'relay_4x400', label: '4×400m relay', unit: 's', direction: 'asc', relay: true, legs: 4 },
+];
+export const MEET_EVENTS_TRACK: readonly MeetEventDef[] = [...TRACK_EVENTS.map(e => ({ key: e.key, label: e.label, unit: 's' as const, direction: 'asc' as const })), ...RELAY_EVENTS];
 
 const PROFILES: Record<string, CompetitionProfile> = {
   ice_hockey: teamSport('ice_hockey', 'points_2_1_0', 'goals'),
@@ -99,7 +107,8 @@ const PROFILES: Record<string, CompetitionProfile> = {
   track_field: {
     sportKey: 'track_field',
     formats: {
-      meet: { entrants: ['athlete'], defaultRule: null, rules: [] },
+      // A meet is a MIXED field: athletes (the default) and relay teams (ad-hoc entries of legs — leftovers PR 3).
+      meet: { entrants: ['athlete', 'ad_hoc_team'], defaultRule: null, rules: [] },
     },
     meetEvents: MEET_EVENTS_TRACK,
     defaultMeetPoints: DEFAULT_MEET_POINTS,

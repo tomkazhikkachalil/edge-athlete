@@ -59,7 +59,7 @@ import {
 } from '@/lib/org-sites/revalidate';
 import { resolveFixtureRule, resolveLeaderboardRule } from '@/lib/competitions/scoring';
 import { stampProvenance } from './provenance';
-import { MEET_COLUMNS, meetEventFor, meetIndividualLeaders, parseMark } from '@/lib/competitions/meet';
+import { commonTeam, MEET_COLUMNS, meetEntryAdmitted, meetEntryKindFor, meetEventFor, meetIndividualLeaders, parseMark } from '@/lib/competitions/meet';
 import { fromContestStatLine, type ContestStatLineOrigin } from '@/lib/performance/map';
 import type { PerformanceRow } from '@/lib/performance/types';
 import { upsertPerformances } from '@/lib/performance/write-server';
@@ -415,7 +415,9 @@ export async function entryAddPOST(
   let crossOrg: { clubId: string; teamName: string } | null = null;
   // Track 2 PR 7 (219): a meet athlete's affiliation — the TEAM-scope roster row, snapshotted at entry (organizer-editable after; NULL = unattached).
   let affiliationTeamId: string | null = null;
-  if (comp.entrant_type === 'team') {
+  // Leftovers PR 3: a MEET is a mixed field — the body's kind decides (a name = a relay team of legs, a profile = an athlete); every other format keeps its one entrant kind.
+  const kind: string = comp.format === 'meet' ? (input.name ? 'ad_hoc_team' : 'athlete') : (comp.entrant_type as string);
+  if (kind === 'team') {
     if (!input.teamId) {
       return NextResponse.json({ error: 'This competition takes team entries' }, { status: 400 });
     }
@@ -475,7 +477,7 @@ export async function entryAddPOST(
         );
       }
     }
-  } else if (comp.entrant_type === 'athlete') {
+  } else if (kind === 'athlete') {
     if (!input.profileId) {
       return NextResponse.json({ error: 'This competition takes athlete entries' }, { status: 400 });
     }
@@ -502,7 +504,7 @@ export async function entryAddPOST(
       );
     }
     if (comp.format === 'meet') affiliationTeamId = await athleteAffiliationTeamId(admin, comp.league_id ? 'league_id' : 'club_id', (comp.league_id ?? comp.club_id) as string, input.profileId);
-  } else if (comp.entrant_type === 'ad_hoc_team') {
+  } else if (kind === 'ad_hoc_team') {
     // Track 2 PR 6 (219): an AD-HOC side — a name and members from the org's ROSTER (§8 invariant 3 holds: the
     // roster edge is the record edge). The shape an org's default team shadows later.
     if (!input.name) {
@@ -521,6 +523,13 @@ export async function entryAddPOST(
       : { data: [] };
     const refusal = adHocEntryRefusal({ name: input.name, memberProfileIds: members }, new Set(((rosterRows ?? []) as Array<{ profile_id: string }>).map(r => r.profile_id)));
     if (refusal) return NextResponse.json({ error: AD_HOC_REFUSAL_COPY[refusal], reason: refusal }, { status: 400 });
+    // A relay team's affiliation: the ONE team every leg sits on (their team-scope roster rows); else unattached until the organizer sets it.
+    if (comp.format === 'meet' && members.length > 0) {
+      const { data: teamRows } = await admin.from('memberships').select('profile_id, scope_id').eq(comp.league_id ? 'league_id' : 'club_id', (comp.league_id ?? comp.club_id) as string).eq('kind', 'roster').eq('scope_type', 'team').in('status', ['active', 'placed']).in('profile_id', members).not('scope_id', 'is', null);
+      const teamsOf = new Map<string, string[]>();
+      for (const r of (teamRows ?? []) as Array<{ profile_id: string; scope_id: string }>) teamsOf.set(r.profile_id, [...(teamsOf.get(r.profile_id) ?? []), r.scope_id]);
+      affiliationTeamId = commonTeam(members.map(m => teamsOf.get(m) ?? []));
+    }
   } else {
     return NextResponse.json({ error: 'This entrant type isn’t available yet' }, { status: 400 });
   }
@@ -531,7 +540,7 @@ export async function entryAddPOST(
       competition_id: input.competitionId,
       team_id: input.teamId ?? null,
       profile_id: input.profileId ?? null,
-      ...(comp.entrant_type === 'ad_hoc_team' && input.name ? { name: input.name.trim() } : {}),
+      ...(kind === 'ad_hoc_team' && input.name ? { name: input.name.trim() } : {}),
       ...(affiliationTeamId ? { affiliation_team_id: affiliationTeamId } : {}),
       // Cross-org entries await the owner's decision (the §5 eligibility
       // step); own-org entries are approved at birth.
@@ -541,7 +550,7 @@ export async function entryAddPOST(
     .single();
   if (error || !entry) {
     if (error?.code === '23505') {
-      return NextResponse.json({ error: comp.entrant_type === 'ad_hoc_team' ? 'A side with that name is already entered' : 'Already entered in this competition' }, { status: 409 });
+      return NextResponse.json({ error: kind === 'ad_hoc_team' ? (comp.format === 'meet' ? 'A relay team with that name is already entered' : 'A side with that name is already entered') : 'Already entered in this competition' }, { status: 409 });
     }
     if (error?.code === 'PGRST204' || error?.code === '42703') {
       return NextResponse.json({ error: 'Named sides need migration 219.', reason: 'needs_migration' }, { status: 409 });
@@ -549,7 +558,7 @@ export async function entryAddPOST(
     console.error(`${TAG} entry insert error:`, error);
     return NextResponse.json({ error: 'Failed to add the entry' }, { status: 500 });
   }
-  if (comp.entrant_type === 'ad_hoc_team' && (input.memberProfileIds ?? []).length > 0) {
+  if (kind === 'ad_hoc_team' && (input.memberProfileIds ?? []).length > 0) {
     const { error: memberError } = await admin
       .from('competition_entry_members')
       .insert((input.memberProfileIds ?? []).map((profileId, i) => ({ entry_id: entry.id, profile_id: profileId, position: i + 1 })));
@@ -1683,7 +1692,7 @@ async function athleteAffiliationTeamId(admin: Admin, orgCol: 'league_id' | 'clu
 export async function entryAffiliationPATCH(admin: Admin, input: EntryAffiliationInput, scope: CompetitionScope | null): Promise<NextResponse> {
   const { data: row } = await admin
     .from('competition_entries')
-    .select('id, profile_id, competition:competition_id (id, league_id, club_id, format)')
+    .select('id, profile_id, team_id, competition:competition_id (id, league_id, club_id, format)')
     .eq('id', input.entryId)
     .maybeSingle();
   type CompLite = { id: string; league_id: string | null; club_id: string | null; format: string };
@@ -1692,7 +1701,8 @@ export async function entryAffiliationPATCH(admin: Admin, input: EntryAffiliatio
   if (!row || !compRow || (scope && compRow[orgColumn(scope.side)] !== scope.orgId)) {
     return NextResponse.json({ error: 'Entry not found' }, { status: 404 });
   }
-  if (!row.profile_id) return NextResponse.json({ error: 'Only an athlete entry carries an affiliation.', reason: 'not_athlete' }, { status: 400 });
+  // An athlete or a relay team carries an affiliation; the roll-up TEAM rows never (leftovers PR 3 admits the relay).
+  if (row.team_id) return NextResponse.json({ error: 'Only an athlete or relay entry carries an affiliation.', reason: 'not_athlete' }, { status: 400 });
   if (input.affiliationTeamId) {
     const { data: team } = await admin
       .from('teams')
@@ -1913,7 +1923,8 @@ export async function meetResultsUpsertPOST(admin: Admin, input: MeetResultsUpse
     if (!m.dq && mark == null) return NextResponse.json({ error: 'Each athlete needs a mark or a DQ.', reason: 'mark_missing' }, { status: 400 });
     parsed.push({ entryId: m.entryId, mark: m.dq ? null : mark, ...(m.wind !== undefined ? { wind: m.wind } : {}), dq: !!m.dq });
   }
-  const schema = getStatSchema(comp.sport_key);
+  // The one validator guards an ATHLETE's mark (it becomes a stat line); a relay's key is no personal stat, so its mark is only a parsed number.
+  const schema = def.relay ? null : getStatSchema(comp.sport_key);
   if (schema) {
     for (const p of parsed) {
       if (p.mark == null) continue;
@@ -1921,11 +1932,13 @@ export async function meetResultsUpsertPOST(admin: Admin, input: MeetResultsUpse
       if (!checked.ok) return NextResponse.json({ error: checked.error, reason: 'bad_mark' }, { status: 400 });
     }
   }
-  const { data: entries } = await admin.from('competition_entries').select('id, profile_id, status').eq('competition_id', comp.id).in('id', parsed.map(p => p.entryId));
-  const entryBy = new Map(((entries ?? []) as Array<{ id: string; profile_id: string | null; status: string }>).map(e => [e.id, e]));
+  const { data: entries } = await admin.from('competition_entries').select('id, profile_id, team_id, name, status').eq('competition_id', comp.id).in('id', parsed.map(p => p.entryId));
+  const entryBy = new Map(((entries ?? []) as Array<{ id: string; profile_id: string | null; team_id: string | null; name: string | null; status: string }>).map(e => [e.id, e]));
   for (const p of parsed) {
     const e = entryBy.get(p.entryId);
-    if (!e || e.status !== 'approved' || !e.profile_id) return NextResponse.json({ error: 'A mark names an athlete who is not entered in this meet.', reason: 'entry_not_entered' }, { status: 400 });
+    if (!e || e.status !== 'approved') return NextResponse.json({ error: 'A mark names an entry that is not in this meet.', reason: 'entry_not_entered' }, { status: 400 });
+    // Leftovers PR 3: a relay takes relay teams, an individual event athletes — never the other, never a roll-up team row.
+    if (!meetEntryAdmitted(def, e)) return NextResponse.json({ error: meetEntryKindFor(def) === 'ad_hoc_team' ? 'A relay event takes relay teams.' : 'This event takes athletes.', reason: 'entry_kind' }, { status: 400 });
   }
 
   // Participants ensured (a meet event has no draw — the marks ARE the field).
@@ -1956,8 +1969,9 @@ export async function meetResultsUpsertPOST(admin: Admin, input: MeetResultsUpse
     return NextResponse.json({ error: 'Failed to save the marks' }, { status: 500 });
   }
   // The athlete's record: one stat line per athlete per event (a DQ writes none and clears a stale one), then the performance row. Best-effort.
-  const lines = parsed.filter(p => p.mark != null).map(p => ({ contest_id: input.contestId, team_id: null, profile_id: entryBy.get(p.entryId)!.profile_id as string, stats: { [def.key]: p.mark as number }, provenance: stampProvenance('owner'), entered_by: enteredBy }));
-  const dqProfiles = parsed.filter(p => p.mark == null).map(p => entryBy.get(p.entryId)!.profile_id as string);
+  // The athlete's record — athletes only: a relay team's mark is no personal stat line and no performance row.
+  const lines = parsed.filter(p => p.mark != null && entryBy.get(p.entryId)!.profile_id).map(p => ({ contest_id: input.contestId, team_id: null, profile_id: entryBy.get(p.entryId)!.profile_id as string, stats: { [def.key]: p.mark as number }, provenance: stampProvenance('owner'), entered_by: enteredBy }));
+  const dqProfiles = parsed.filter(p => p.mark == null && entryBy.get(p.entryId)!.profile_id).map(p => entryBy.get(p.entryId)!.profile_id as string);
   if (dqProfiles.length > 0) await admin.from('contest_stat_lines').delete().eq('contest_id', input.contestId).in('profile_id', dqProfiles);
   if (lines.length > 0) {
     const { data: written, error: lineError } = await admin.from('contest_stat_lines').upsert(lines, { onConflict: 'contest_id,profile_id' }).select('id, contest_id, profile_id, stats, provenance, entered_by, created_at');
