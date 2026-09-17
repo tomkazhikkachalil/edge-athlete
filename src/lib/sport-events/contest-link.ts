@@ -12,7 +12,7 @@
  * a MATCH-PLAY event never counts toward a competition (`not_stroke_play`
  * — an org-side bracket is the masterplan's own program).
  */
-import { isMatchFormat } from './types';
+import { isMatchFormat, shapeOf } from './types';
 export interface CompetitionForLink {
   id: string;
   name: string;
@@ -24,7 +24,26 @@ export interface CompetitionForLink {
   status: string;
 }
 
-export type LinkRefusal = 'no_org' | 'not_stroke_play' | 'not_found' | 'other_org' | 'not_golf_leaderboard' | 'not_athletes' | 'competition_closed' | 'event_over' | 'results_exist';
+export type LinkRefusal = 'no_org' | 'not_stroke_play' | 'not_found' | 'other_org' | 'not_golf_leaderboard' | 'not_athletes' | 'competition_closed' | 'event_over' | 'results_exist' | 'shape_mismatch' | 'not_a_game' | 'not_two_sided' | 'already_linked' | 'contest_over' | 'sport_unsupported';
+
+/** Track 2 PR 10: what an event IS to the bridge — a stroke-play round, a match-play round, a game or a session. */
+export type EventShape = 'stroke' | 'match' | 'game' | 'session';
+export function eventShape(event: { sport_key?: string; format?: string | null; shape?: string | null }): EventShape {
+  const shape = shapeOf({ sport_key: event.sport_key ?? 'golf', shape: event.shape });
+  if (shape === 'game' || shape === 'session') return shape;
+  return isMatchFormat(event.format) ? 'match' : 'stroke';
+}
+
+/** The bridge's shape table: a golf leaderboard of athletes takes a stroke-play round (2b); a fixture of named sides in the same sport takes a GAME (PR 10); a match round is PR 11; a session counts toward nothing. */
+export function competitionAcceptsShape(c: CompetitionForLink, shape: EventShape, sportKey: string): LinkRefusal | null {
+  if (shape === 'stroke') {
+    if (c.sport_key !== 'golf' || c.format !== 'leaderboard') return 'not_golf_leaderboard';
+    if (c.entrant_type !== 'athlete') return 'not_athletes';
+    return null;
+  }
+  if (shape === 'game') return c.sport_key === sportKey && c.format === 'fixture' && c.entrant_type === 'ad_hoc_team' ? null : 'shape_mismatch';
+  return shape === 'match' ? 'not_stroke_play' : 'shape_mismatch';
+}
 
 export const LINK_REFUSAL_COPY: Readonly<Record<LinkRefusal, string>> = {
   no_org: 'Only an event hosted for a club or league can count toward a competition.',
@@ -36,22 +55,43 @@ export const LINK_REFUSAL_COPY: Readonly<Record<LinkRefusal, string>> = {
   competition_closed: 'That competition is closed.',
   event_over: 'The event has already started — the competition can no longer change.',
   results_exist: 'Results have already been written — the link cannot be removed.',
+  shape_mismatch: 'That competition does not take this kind of event — a game counts toward a fixture of named sides in the same sport; a round toward a golf leaderboard.',
+  not_a_game: 'Only a fixture of two sides runs as a game event.',
+  not_two_sided: 'A game needs a home and an away side.',
+  already_linked: 'This game already runs as an event.',
+  contest_over: 'This game is over.',
+  sport_unsupported: 'This sport has no live events yet.',
 };
 
 /** Why a competition cannot count this event, or null when it can. */
-export function linkRefusal(event: { club_id: string | null; league_id: string | null; status: string; format?: string | null }, competition: CompetitionForLink | null): LinkRefusal | null {
+export function linkRefusal(event: { club_id: string | null; league_id: string | null; status: string; format?: string | null; sport_key?: string; shape?: string | null }, competition: CompetitionForLink | null): LinkRefusal | null {
   if (!event.club_id && !event.league_id) return 'no_org';
-  if (isMatchFormat(event.format)) return 'not_stroke_play';
+  const shape = eventShape(event);
+  if (shape === 'match') return 'not_stroke_play';
   if (event.status !== 'draft' && event.status !== 'open') return 'event_over';
   if (!competition) return 'not_found';
   if ((event.club_id && competition.club_id !== event.club_id) || (event.league_id && competition.league_id !== event.league_id)) return 'other_org';
-  if (competition.sport_key !== 'golf' || competition.format !== 'leaderboard') return 'not_golf_leaderboard';
-  if (competition.entrant_type !== 'athlete') return 'not_athletes';
+  const byShape = competitionAcceptsShape(competition, shape, event.sport_key ?? 'golf');
+  if (byShape) return byShape;
   if (competition.status === 'completed' || competition.status === 'archived') return 'competition_closed';
   return null;
 }
 
-export const eligibleCompetition = (event: { club_id: string | null; league_id: string | null; format?: string | null }, c: CompetitionForLink): boolean => linkRefusal({ ...event, status: 'draft' }, c) === null;
+export const eligibleCompetition = (event: { club_id: string | null; league_id: string | null; format?: string | null; sport_key?: string; shape?: string | null }, c: CompetitionForLink): boolean => linkRefusal({ ...event, status: 'draft' }, c) === null;
+
+export interface GameContestRowInput {
+  competition_id: string;
+  sport_event_round_id: string;
+  round: string | null;
+  status: 'scheduled';
+  venue_id: null;
+  scheduled_at: string | null;
+}
+
+/** The contest a GAME round mints (PR 10): the round's label, its start as the time, no venue (trap 2 — the facility FK), no golf columns. */
+export function gameContestRowFor(round: { id: string; sequence: number; starts_at?: string | null; name?: string | null }, competitionId: string): GameContestRowInput {
+  return { competition_id: competitionId, sport_event_round_id: round.id, round: round.name?.trim() || null, status: 'scheduled', venue_id: null, scheduled_at: round.starts_at ?? null };
+}
 
 export interface ContestRowInput {
   competition_id: string;

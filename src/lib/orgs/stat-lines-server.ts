@@ -284,7 +284,7 @@ export async function statLinesUpsertPOST(
   const { data: contestRow } = await admin
     .from('contests')
     .select(
-      'id, status, scheduled_at, competition:competition_id (id, name, sport_key, format, status, league_id, club_id)'
+      'id, status, scheduled_at, sport_event_round_id, competition:competition_id (id, name, sport_key, format, status, league_id, club_id)'
     )
     .eq('id', input.contestId)
     .maybeSingle();
@@ -297,6 +297,10 @@ export async function statLinesUpsertPOST(
   if (!access) return NextResponse.json({ error: 'Game not found' }, { status: 404 });
   if (contestRow.status === 'canceled') {
     return NextResponse.json({ error: 'This game was canceled' }, { status: 400 });
+  }
+  // Track 2 PR 10: a contest played as an EVENT takes its lines from the event's live stats, never by hand.
+  if ((contestRow as { sport_event_round_id?: string | null }).sport_event_round_id) {
+    return NextResponse.json({ error: 'This game runs as an event — its stats come from the event when the round completes.', reason: 'from_event' }, { status: 409 });
   }
   if (comp.format !== 'fixture') {
     return NextResponse.json(

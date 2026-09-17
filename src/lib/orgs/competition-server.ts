@@ -1538,7 +1538,7 @@ export async function resultsUpsertPOST(
 ): Promise<NextResponse> {
   const { data: contestRow } = await admin
     .from('contests')
-    .select('id, status, competition:competition_id (id, league_id, club_id, format)')
+    .select('id, status, sport_event_round_id, competition:competition_id (id, league_id, club_id, format)')
     .eq('id', input.contestId)
     .maybeSingle();
   const comp = contestRow?.competition as
@@ -1552,6 +1552,10 @@ export async function resultsUpsertPOST(
   }
   if (contestRow.status === 'canceled') {
     return NextResponse.json({ error: 'This game was canceled' }, { status: 400 });
+  }
+  // Track 2 PR 10: a contest played as an EVENT takes its result from the event, never by hand (the golf-sync guard's twin).
+  if (contestRow.sport_event_round_id) {
+    return NextResponse.json({ error: 'This game runs as an event — its result comes from the event when the round completes.', reason: 'from_event' }, { status: 409 });
   }
 
   const { data: participants } = await admin

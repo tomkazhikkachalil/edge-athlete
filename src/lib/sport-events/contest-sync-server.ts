@@ -16,8 +16,13 @@ import { recomputeStandingsBestEffort } from '@/lib/competitions/standings';
 import { revalidateOrgSiteForCompetition } from '@/lib/org-sites/revalidate';
 import { golfOverlayFromResult, type ContestResultOrigin } from '@/lib/performance/map';
 import { syncGolfRoundPerformance } from '@/lib/performance/write-server';
-import { eventOrg } from './contest-link';
-import { ensureContestParticipants, readCountsToward } from './contest-link-server';
+import { eventOrg, eventShape } from './contest-link';
+import { ensureContestParticipants, readCountsToward, readRoundSides, syncSideMembers } from './contest-link-server';
+import { readResultLines } from './stat-results-server';
+import { scoreOf } from './stats-server';
+import { getStatSchema } from '@/lib/sports/stat-schemas';
+import { validateStatsAgainstSchema } from '@/lib/sports/stat-line-validate';
+import { resolveCompetitionProfile } from '@/lib/sports/competition-profiles';
 import { contestResultFor, contestRule, contestStatusFor, provenanceForOrg, type ContestResultRow } from './contest-sync';
 import { fetchRoundLeaderboard } from './leaderboard-server';
 import type { SportEventRoundRow, SportEventRow } from './types';
@@ -35,6 +40,10 @@ export interface ContestSyncReport {
 
 /** Round completed: write the org's results from the event's leaderboard. */
 export async function syncSportEventContest(admin: Admin, event: SportEventRow, round: SportEventRoundRow & { group_post_id: string | null }, actorProfileId: string): Promise<ContestSyncReport | null> {
+  // Track 2 PR 10: a GAME writes the fixture's two results from the live score and the players' lines; a session counts toward nothing.
+  const kind = eventShape(event);
+  if (kind === 'game') return syncGameContest(admin, event, round, actorProfileId);
+  if (kind === 'session') return null;
   try {
     const org = eventOrg(event);
     if (!org) return null;
@@ -122,6 +131,75 @@ export async function syncSportEventContest(admin: Admin, event: SportEventRow, 
     return report;
   } catch (e) {
     console.error(`${TAG} failed (continuing):`, e);
+    return null;
+  }
+}
+
+/** A GAME round completed (track 2 PR 10): the fixture's two results from the LIVE score (home = side 1), the players' `contest_stat_lines`
+ *  from their event lines (the org's copy — the performance row stays the event's `post:` origin; a second origin for one game would double
+ *  the dataset), the sides' members re-synced ("who played"), then the golf-sync order: status → standings → site → attachments. A
+ *  team-score stat that disagrees with the live score is REPORTED, never blocking. Best-effort. */
+export async function syncGameContest(admin: Admin, event: SportEventRow, round: SportEventRoundRow, actorProfileId: string): Promise<ContestSyncReport | null> {
+  try {
+    const org = eventOrg(event);
+    if (!org) return null;
+    const links = await readCountsToward(admin, [round.id]);
+    const link = links?.get(round.id);
+    if (!link) return null;
+    const report: ContestSyncReport = { contestId: link.contestId, synced: 0, skipped: [] };
+    const { data: comp } = await admin.from('competitions').select('id, sport_key').eq('id', link.competitionId).maybeSingle();
+    if (!comp) return report;
+    const { data: parts } = await admin.from('contest_participants').select('id, side, entry:entry_id (id, team_id, name)').eq('contest_id', link.contestId);
+    type Part = { id: string; side: 'home' | 'away' | null; entry: { id: string; team_id: string | null; name: string | null } | Array<{ id: string; team_id: string | null; name: string | null }> | null };
+    const sideOf = (side: 'home' | 'away') => {
+      const p = ((parts ?? []) as Part[]).find(x => x.side === side);
+      const e = p ? (Array.isArray(p.entry) ? p.entry[0] : p.entry) : null;
+      return p && e ? { participantId: p.id, entry: e } : null;
+    };
+    const home = sideOf('home');
+    const away = sideOf('away');
+    if (!home || !away) { report.skipped.push({ profileId: '', reason: 'the contest has no two sides' }); return report; }
+
+    const provenance = provenanceForOrg(org);
+    const score = scoreOf(round);
+    if (typeof score.side1_score === 'number' && typeof score.side2_score === 'number') {
+      const rows = [
+        { contest_id: link.contestId, participant_id: home.participantId, score: score.side1_score, payload: { sportEvent: { eventId: event.id, roundId: round.id }, period: score.period ?? null, side: 1 }, provenance, entered_by: actorProfileId },
+        { contest_id: link.contestId, participant_id: away.participantId, score: score.side2_score, payload: { sportEvent: { eventId: event.id, roundId: round.id }, period: score.period ?? null, side: 2 }, provenance, entered_by: actorProfileId },
+      ];
+      const { error } = await admin.from('contest_results').upsert(rows, { onConflict: 'participant_id' });
+      if (error) { console.error(`${TAG} game results upsert failed:`, error); return report; }
+      report.synced = 2;
+    } else report.skipped.push({ profileId: '', reason: 'no score was kept' });
+
+    // The players' lines → the org's stat lines (one per athlete, 157's UNIQUE), the sides' members = who played.
+    const lines = await readResultLines(admin, event, round);
+    const schema = getStatSchema(comp.sport_key as string);
+    const teamOf = (side: 1 | 2 | null) => (side === 1 ? home.entry : side === 2 ? away.entry : null);
+    const statRows = lines
+      .filter(l => l.side !== null && Object.values(l.stats).some(v => typeof v === 'number' && Number.isFinite(v)))
+      .filter(l => !schema || validateStatsAgainstSchema(l.stats, schema).ok)
+      .map(l => ({ contest_id: link.contestId, team_id: teamOf(l.side)?.team_id ?? null, profile_id: l.profile_id, stats: l.stats, provenance, entered_by: l.entered_by ?? actorProfileId }));
+    if (statRows.length > 0) {
+      const { error } = await admin.from('contest_stat_lines').upsert(statRows, { onConflict: 'contest_id,profile_id' });
+      if (error) console.warn(`${TAG} game stat lines upsert failed:`, error.message);
+    }
+    const sides = await readRoundSides(admin, event.id, round.id);
+    if (!home.entry.team_id) await syncSideMembers(admin, home.entry.id, sides[0]);
+    if (!away.entry.team_id) await syncSideMembers(admin, away.entry.id, sides[1]);
+    const stat = resolveCompetitionProfile(comp.sport_key as string).teamScoreStat;
+    if (stat && typeof score.side1_score === 'number' && typeof score.side2_score === 'number') {
+      const sum = (side: 1 | 2) => lines.filter(l => l.side === side).reduce((n, l) => n + (typeof l.stats[stat] === 'number' ? (l.stats[stat] as number) : 0), 0);
+      if (sum(1) !== score.side1_score || sum(2) !== score.side2_score) report.skipped.push({ profileId: '', reason: `the players' ${stat} (${sum(1)}–${sum(2)}) differ from the score (${score.side1_score}–${score.side2_score})` });
+    }
+
+    await syncContestStatus(admin, round.id, 'completed');
+    await recomputeStandingsBestEffort(admin, comp.id as string);
+    await revalidateOrgSiteForCompetition(admin, comp.id as string);
+    await stampContestAttachments(admin, link.contestId);
+    return report;
+  } catch (e) {
+    console.error(`${TAG} game sync failed (continuing):`, e);
     return null;
   }
 }

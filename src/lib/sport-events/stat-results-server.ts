@@ -29,7 +29,7 @@ async function hiddenProfileIdsForEvent(admin: Admin, eventId: string): Promise<
   return new Set(((data ?? []) as Array<{ profile_id: string }>).map(r => r.profile_id));
 }
 
-async function readResultLines(admin: Admin, event: SportEventRow, round: SportEventRoundRow): Promise<ResultLineInput[]> {
+export async function readResultLines(admin: Admin, event: SportEventRow, round: SportEventRoundRow): Promise<ResultLineInput[]> {
   const [{ data: lineRows }, { data: memberRows }, { data: partRows }] = await Promise.all([
     admin.from('sport_event_stat_lines').select(STAT_LINE_COLUMNS).eq('sport_event_round_id', round.id),
     admin.from('sport_event_group_members').select('participant_id, side').eq('sport_event_round_id', round.id),
