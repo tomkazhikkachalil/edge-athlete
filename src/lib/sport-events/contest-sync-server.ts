@@ -16,7 +16,7 @@ import { recomputeStandingsBestEffort } from '@/lib/competitions/standings';
 import { revalidateOrgSiteForCompetition } from '@/lib/org-sites/revalidate';
 import { golfOverlayFromResult, type ContestResultOrigin } from '@/lib/performance/map';
 import { syncGolfRoundPerformance } from '@/lib/performance/write-server';
-import { eventOrg, eventShape } from './contest-link';
+import { eventOrg, eventShape, sidesAgree } from './contest-link';
 import { ensureContestParticipants, readCountsToward, readMatchLinks, readRoundSides, syncSideMembers } from './contest-link-server';
 import type { RoundMatch } from './match-server';
 import { readResultLines } from './stat-results-server';
@@ -239,12 +239,16 @@ export async function syncMatchContests(admin: Admin, event: SportEventRow, roun
       const memberIds = async (p: Part) => { const e = Array.isArray(p.entry) ? p.entry[0] : p.entry; if (!e) return []; if (e.profile_id) return [e.profile_id]; const { data } = await admin.from('competition_entry_members').select('profile_id').eq('entry_id', e.id); return ((data ?? []) as Array<{ profile_id: string }>).map(r => r.profile_id); };
       const side1Profiles = new Set(m.sides[0].members.map(x => x.profile_id));
       const awayIds = entryProfile(away) ? [entryProfile(away) as string] : await memberIds(away);
+      const homeIds = entryProfile(home) ? [entryProfile(home) as string] : await memberIds(home);
       const side1IsAway = awayIds.length > 0 && awayIds.every(id => side1Profiles.has(id));
+      // Leftovers PR 7: a draw that disagrees with the bracket's is REPORTED on the result, never a gate.
+      const agree = sidesAgree([m.sides[0].members.map(x => x.profile_id), m.sides[1].members.map(x => x.profile_id)], homeIds, awayIds);
+      if (!agree) report.skipped.push({ profileId: '', reason: `match ${m.group.sequence}: the sides differ from the bracket's draw` });
       const side1Part = side1IsAway ? away : home;
       const side2Part = side1IsAway ? home : away;
       const result = m.stored.result ?? m.state.result;
       const decidedBy = m.stored.decided_by ?? m.state.decidedBy;
-      const payload = (side: 1 | 2) => ({ match: { result, decidedBy, side, won: winnerSide === side }, sportEvent: { eventId: event.id, roundId: round.id, matchId: m.id } });
+      const payload = (side: 1 | 2) => ({ match: { result, decidedBy, side, won: winnerSide === side, ...(agree ? {} : { draw_mismatch: true }) }, sportEvent: { eventId: event.id, roundId: round.id, matchId: m.id } });
       const { error } = await admin.from('contest_results').upsert([
         { contest_id: link.contestId, participant_id: side1Part.id, score: winnerSide === 1 ? 1 : 0, payload: payload(1), provenance, entered_by: actorProfileId },
         { contest_id: link.contestId, participant_id: side2Part.id, score: winnerSide === 2 ? 1 : 0, payload: payload(2), provenance, entered_by: actorProfileId },

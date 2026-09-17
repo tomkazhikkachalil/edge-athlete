@@ -2,9 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerAuth, getSupabaseAdmin } from '@/lib/auth-server';
 import { enforceRateLimit } from '@/lib/rate-limit';
 import { requireOrgManager } from '@/lib/orgs/structure-server';
-import { LINK_REFUSAL_COPY, linkRefusal, type CompetitionForLink } from '@/lib/sport-events/contest-link';
+import { LINK_REFUSAL_COPY, linkRefusal, type CompetitionForLink, eventShape } from '@/lib/sport-events/contest-link';
 import { parseFormatConfig } from '@/lib/sport-events/format-config';
-import { mintContestsForEvent, readCompetitionForLink } from '@/lib/sport-events/contest-link-server';
+import { mintContestsForEvent, readCompetitionForLink, linkMatchEventToBracket } from '@/lib/sport-events/contest-link-server';
 import { resolveSportEventAccess } from '@/lib/sport-events/access';
 import { ROUND_COLUMNS } from '@/lib/sport-events/rounds-server';
 import { EVENT_COLUMNS, PARTICIPANT_COLUMNS } from '@/lib/sport-events/access-server';
@@ -60,7 +60,8 @@ export async function POST(request: NextRequest) {
     if (input.competition_id) {
       competition = await readCompetitionForLink(admin, input.competition_id);
       // Track 2 PR 10: the shape table needs the sport and the shape (a game → a fixture of named sides; without them a game read as a stroke round).
-      const refusal = linkRefusal({ club_id: input.club_id, league_id: input.league_id, status: 'draft', format: input.format, sport_key: input.sport_key, shape: input.shape }, competition);
+      const rawBracket = (input.format_config as { match?: { bracket?: unknown } } | undefined)?.match?.bracket === true;
+      const refusal = linkRefusal({ club_id: input.club_id, league_id: input.league_id, status: 'draft', format: input.format, sport_key: input.sport_key, shape: input.shape, bracket: rawBracket }, competition);
       if (refusal) return NextResponse.json({ error: LINK_REFUSAL_COPY[refusal], reason: refusal }, { status: 400 });
     }
     // Leftovers PR 5: two of the org's teams pre-fill a game's sides — the names default to the teams' (filled BEFORE the strict parse), the rosters land after the host row.
@@ -162,8 +163,14 @@ export async function POST(request: NextRequest) {
     // organizer can pick it again from the event page; a pre-211 database skips).
     if (competition) {
       const { data: roundRows } = await admin.from('sport_event_rounds').select(ROUND_COLUMNS).eq('sport_event_id', row.id).order('sequence', { ascending: true });
-      const minted = await mintContestsForEvent(admin, row, (roundRows ?? []) as SportEventRoundRow[], competition.id);
-      if (!minted.ok) console.error('[api/sport-events] counts-toward mint skipped:', minted.reason);
+      if (eventShape(row) === 'match') {
+        // Leftovers PR 7: the intent on the event; the stamps come at go-live.
+        const linked = await linkMatchEventToBracket(admin, row, (roundRows ?? []) as SportEventRoundRow[], competition.id);
+        if (!linked.ok) console.error('[api/sport-events] bracket link skipped:', linked.reason);
+      } else {
+        const minted = await mintContestsForEvent(admin, row, (roundRows ?? []) as SportEventRoundRow[], competition.id);
+        if (!minted.ok) console.error('[api/sport-events] counts-toward mint skipped:', minted.reason);
+      }
     }
 
     if (input.publish) {

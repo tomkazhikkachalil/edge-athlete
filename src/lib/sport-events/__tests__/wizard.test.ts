@@ -16,8 +16,9 @@ describe('the wizard rules', () => {
     expect(validateWizardStep('format', { ...filled(), capacity: '' })).toBeNull();
     expect(validateWizardStep('review', filled())).toBeNull();
     expect(validateWizardStep('review', { ...filled(), name: '' })).toBe('Give the event a name.');
-    // Phase 3: a match-play event never counts toward a competition; a bracket needs two rounds.
-    expect(validateWizardStep('format', { ...filled(), format: 'match_gross', org: { kind: 'club', id: 'c1' }, competition: 'k1' })).toContain('match-play');
+    // Phase 3 → leftovers PR 7: a PLAIN match-play event never counts toward a competition; a bracketed one may; a bracket needs two rounds.
+    expect(validateWizardStep('format', { ...filled(), format: 'match_gross', org: { kind: 'club', id: 'c1' }, competition: 'k1' })).toContain('Only a bracket event');
+    expect(validateWizardStep('format', { ...filled(), format: 'match_gross', org: { kind: 'club', id: 'c1' }, competition: 'k1', match: { sides: 'singles', bracket: true }, rounds: [round1, { ...round1, scheduled_on: '2030-06-02' }] })).toBeNull();
     expect(validateWizardStep('format', { ...filled(), format: 'match_net', match: { sides: 'singles', bracket: true } })).toContain('at least two rounds');
     expect(validateWizardStep('format', { ...filled(), format: 'match_net', match: { sides: 'fourball', bracket: true }, rounds: [round1, { ...round1, scheduled_on: '2030-06-02' }] })).toBeNull();
   });

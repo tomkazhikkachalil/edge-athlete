@@ -5,8 +5,9 @@ import { enforceRateLimit } from '@/lib/rate-limit';
 import { requireOrgManager } from '@/lib/orgs/structure-server';
 import { readSportEventAccess } from '@/lib/sport-events/access-server';
 import { readJson } from '@/lib/sport-events/actor-server';
-import { eventOrg, LINK_REFUSAL_COPY, linkRefusal } from '@/lib/sport-events/contest-link';
-import { mintContestsForEvent, readCompetitionForLink, unlinkContestsForEvent } from '@/lib/sport-events/contest-link-server';
+import { eventOrg, eventShape, LINK_REFUSAL_COPY, linkRefusal } from '@/lib/sport-events/contest-link';
+import { readFormatConfig, readMatchConfig } from '@/lib/sport-events/format-config';
+import { linkMatchEventToBracket, mintContestsForEvent, readCompetitionForLink, unlinkContestsForEvent } from '@/lib/sport-events/contest-link-server';
 import { ROUND_COLUMNS } from '@/lib/sport-events/rounds-server';
 import type { SportEventRoundRow } from '@/lib/sport-events/types';
 
@@ -50,7 +51,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
 
     if (raw === null) {
       if (read.event.status !== 'draft' && read.event.status !== 'open') return NextResponse.json({ error: LINK_REFUSAL_COPY.event_over, reason: 'event_over' }, { status: 409 });
-      const un = await unlinkContestsForEvent(admin, rounds.map(r => r.id));
+      const un = await unlinkContestsForEvent(admin, read.event, rounds.map(r => r.id));
       if (!un.ok) {
         if (un.reason === 'needs_migration') return NextResponse.json({ error: 'Counting toward a competition is not available yet (run migration 211)', reason: 'needs_migration' }, { status: 503 });
         return NextResponse.json({ error: LINK_REFUSAL_COPY.results_exist, reason: 'results_exist' }, { status: 409 });
@@ -59,8 +60,18 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     }
 
     const competition = await readCompetitionForLink(admin, raw);
-    const refusal = linkRefusal(read.event, competition);
+    const matchConfig = readMatchConfig(readFormatConfig(read.event.format_config, Math.max(rounds.length, 1), read.event.format), read.event.format);
+    const refusal = linkRefusal({ ...read.event, bracket: matchConfig?.bracket ?? false }, competition);
     if (refusal) return NextResponse.json({ error: LINK_REFUSAL_COPY[refusal], reason: refusal }, { status: refusal === 'event_over' ? 409 : 400 });
+    // Leftovers PR 7: a bracketed MATCH event keeps the intent on the event — nothing minted; each round's matches are stamped onto the bracket's slots at go-live.
+    if (eventShape(read.event) === 'match') {
+      const linked = await linkMatchEventToBracket(admin, read.event, rounds, raw);
+      if (!linked.ok) {
+        if (linked.reason === 'needs_migration') return NextResponse.json({ error: 'Counting a match event toward a bracket is not available yet (run migration 221)', reason: 'needs_migration' }, { status: 503 });
+        return NextResponse.json({ error: LINK_REFUSAL_COPY[linked.reason], reason: linked.reason }, { status: 409 });
+      }
+      return NextResponse.json({ counts_toward: { competition_id: competition!.id, competition_name: competition!.name, contests: [] }, stages: linked.stages });
+    }
     const minted = await mintContestsForEvent(admin, read.event, rounds, raw);
     if (!minted.ok) {
       if (minted.reason === 'needs_migration') return NextResponse.json({ error: 'Counting toward a competition is not available yet (run migration 211)', reason: 'needs_migration' }, { status: 503 });

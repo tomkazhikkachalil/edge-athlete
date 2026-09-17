@@ -72,9 +72,11 @@ export default function EventCreateWizard() {
   // setState in the effect) until the new org's answer lands.
   const [fetched, setFetched] = useState<{ key: string; list: CompetitionForLink[] } | null>(null);
   const orgKey = s.org ? `${s.org.kind}:${s.org.id}` : '';
-  const competitions = fetched && fetched.key === orgKey ? fetched.list : [];
+  // Leftovers PR 7: the eligible list follows the format too (a bracketed match event lists the org's golf brackets).
+  const pickKey = orgKey ? `${orgKey}|${s.sport_key}|${s.shape}|${s.format}|${s.match.bracket}` : '';
+  const competitions = fetched && fetched.key === pickKey ? fetched.list : [];
   useEffect(() => {
-    if (!orgKey) return;
+    if (!pickKey) return;
     const [kind, id] = orgKey.split(':') as ['club' | 'league', string];
     let cancelled = false;
     (async () => {
@@ -83,14 +85,15 @@ export default function EventCreateWizard() {
         const res = await fetch(`/api/${kind}s/${id}/competitions`, { cache: 'no-store' });
         if (res.ok) {
           const data = (await res.json()) as { competitions?: CompetitionForLink[] };
-          const ev = { club_id: kind === 'club' ? id : null, league_id: kind === 'league' ? id : null };
-          list = (data.competitions ?? []).map(c => ({ ...c, ...ev })).filter(c => eligibleCompetition(ev, c));
+          const ev = { club_id: kind === 'club' ? id : null, league_id: kind === 'league' ? id : null, sport_key: s.sport_key, shape: s.shape, format: s.format, bracket: s.match.bracket };
+          list = (data.competitions ?? []).map(c => ({ ...c, club_id: ev.club_id, league_id: ev.league_id })).filter(c => eligibleCompetition(ev, c));
         }
       } catch { /* no picker */ }
-      if (!cancelled) setFetched({ key: orgKey, list });
+      if (!cancelled) setFetched({ key: pickKey, list });
     })();
     return () => { cancelled = true; };
-  }, [orgKey]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- pickKey folds every input the fetch reads
+  }, [pickKey]);
   // Leftovers PR 5: the chosen org's teams pre-fill a game's sides — keyed by the org like the competitions.
   const [fetchedTeams, setFetchedTeams] = useState<{ key: string; list: Array<{ id: string; name: string; display_name: string | null }> } | null>(null);
   const orgTeams = fetchedTeams && fetchedTeams.key === orgKey ? fetchedTeams.list : [];

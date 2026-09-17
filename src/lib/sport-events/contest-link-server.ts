@@ -19,10 +19,10 @@
  */
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { mirrorContestDelete } from '@/lib/competitions/calendar-mirror';
-import { contestRowFor, eventShape, gameContestRowFor, type CompetitionForLink } from './contest-link';
+import { bracketShapeRefusal, contestRowFor, eventShape, gameContestRowFor, matchLinkPlan, slotForMatch, type CompetitionForLink, type MatchForLink, type MatchLinkReport, type SlotContest } from './contest-link';
 import { readFormatConfig, readGameConfig } from './format-config';
 import { sideNamesOf } from './game';
-import { readMatchRows, readRoundGroups } from './match-server';
+import { fetchRoundMatches, readMatchRows, readRoundGroups } from './match-server';
 import { shapeOf } from './types';
 import type { SportEventRoundRow, SportEventRow } from './types';
 
@@ -152,7 +152,20 @@ export async function ensureContestParticipants(admin: Admin, competitionId: str
 
 export type UnlinkOutcome = { ok: true; removed: number } | { ok: false; reason: 'results_exist' | 'needs_migration' };
 
-export async function unlinkContestsForEvent(admin: Admin, roundIds: string[]): Promise<UnlinkOutcome> {
+export async function unlinkContestsForEvent(admin: Admin, event: Pick<SportEventRow, 'id' | 'competition_id'>, roundIds: string[]): Promise<UnlinkOutcome> {
+  // Leftovers PR 7: a bracketed match event's link — the stamps cleared while no result exists, the intent cleared with them.
+  if (event.competition_id) {
+    const stamps = await readMatchLinks(admin, roundIds);
+    const contestIds = [...stamps.values()].map(s => s.contestId);
+    if (contestIds.length > 0) {
+      const { count } = await admin.from('contest_results').select('id', { count: 'exact', head: true }).in('contest_id', contestIds);
+      if ((count ?? 0) > 0) return { ok: false, reason: 'results_exist' };
+      await admin.from('contests').update({ sport_event_match_id: null, status: 'scheduled' }).in('id', contestIds);
+    }
+    const { error } = await admin.from('sport_events').update({ competition_id: null }).eq('id', event.id);
+    if (error && !missingColumn(error)) console.error('[contest-link] competition_id clear failed:', error);
+    return { ok: true, removed: contestIds.length };
+  }
   const linked = await readCountsToward(admin, roundIds);
   if (linked === null) return { ok: false, reason: 'needs_migration' };
   const contestIds = [...linked.values()].map(c => c.contestId);
@@ -276,20 +289,97 @@ export async function linkContestToRound(admin: Admin, contestId: string, roundI
 /** Go-live on a match round: the round-linked contest takes the minted match (`sport_event_match_id`), the round link cleared (220's CHECK: a
  *  round OR a match), the contest in progress. A pre-220 database keeps the round link (the sync falls back to it). One match per round today —
  *  the door draws one group; a bracketed event's k matches by slot is the parked step. */
-export async function linkMatchesToContests(admin: Admin, roundId: string): Promise<void> {
-  const links = await readCountsToward(admin, [roundId]);
-  const link = links?.get(roundId);
-  if (!link) return;
-  const rows = await readMatchRows(admin, [roundId]);
-  if (rows.length !== 1) {
-    if (rows.length > 1) console.warn('[contest-link] a round with several matches links by slot — parked; the round link stays');
-    return;
+export async function linkMatchesToContests(admin: Admin, event: SportEventRow, round: SportEventRoundRow): Promise<MatchLinkReport | null> {
+  // Path 1 (track 2 PR 11): the console door's round-linked contest takes the single match.
+  const links = await readCountsToward(admin, [round.id]);
+  const link = links?.get(round.id);
+  if (link) {
+    const rows = await readMatchRows(admin, [round.id]);
+    if (rows.length === 1) {
+      const { error } = await admin.from('contests').update({ sport_event_match_id: rows[0].id, sport_event_round_id: null, status: 'in_progress' }).eq('id', link.contestId);
+      if (error && !missingColumn(error)) console.error('[contest-link] match link stamp failed:', error);
+      return { stage: round.sequence, stamped: error ? 0 : 1, mismatched: [], skipped: [] };
+    }
+    if (rows.length > 1) console.warn('[contest-link] a round-linked contest with several matches — the round link stays');
+    return null;
   }
-  const { error } = await admin.from('contests').update({ sport_event_match_id: rows[0].id, sport_event_round_id: null, status: 'in_progress' }).eq('id', link.contestId);
-  if (error) {
-    if (missingColumn(error)) return;
-    console.error('[contest-link] match link stamp failed:', error);
+  // Path 2 (leftovers PR 7, 221): a bracketed match event's org bracket — match k of round n onto the contest at (stage n, slot k).
+  if (!event.competition_id) return null;
+  const matches = await fetchRoundMatches(admin, event, round);
+  const forLink: MatchForLink[] = matches.map(m => ({ matchId: m.id, groupSequence: m.group.sequence, sides: [m.sides[0].members.map(x => x.profile_id), m.sides[1].members.map(x => x.profile_id)] }));
+  const slots = await readSlotContests(admin, event.competition_id, round.sequence);
+  if (!slots) return null;
+  const report: MatchLinkReport = { stage: round.sequence, stamped: 0, mismatched: [], skipped: [] };
+  for (const op of matchLinkPlan(forLink, slots, slotForMatch(round, { sequence: 1 }).stage)) {
+    if (op.action === 'skip') { if (op.reason !== 'already') report.skipped.push({ slot: op.slot, reason: op.reason }); continue; }
+    const { data, error } = await admin.from('contests').update({ sport_event_match_id: op.matchId, status: 'in_progress' }).eq('id', op.contestId).is('sport_event_match_id', null).select('id');
+    if (error) {
+      if (missingColumn(error)) return null;
+      // 220's partial UNIQUE: a stamp race — logged, skipped.
+      report.skipped.push({ slot: op.slot, reason: error.code === '23505' ? 'already_linked' : 'stamp_failed' });
+      console.error('[contest-link] slot stamp failed:', error);
+      continue;
+    }
+    if ((data ?? []).length === 0) { report.skipped.push({ slot: op.slot, reason: 'already_linked' }); continue; }
+    report.stamped += 1;
+    if (!op.sidesAgree) report.mismatched.push(op.slot);
   }
+  if (report.mismatched.length > 0) console.warn(`[contest-link] stage ${report.stage}: the event's sides differ from the bracket's draw in slot(s) ${report.mismatched.join(', ')} — reported, never a gate`);
+  return report;
+}
+
+/** The bracket's contests of one stage as the plan reads them: the linked match, a result, the org side's players. Null on a pre-218 / pre-220 database. */
+async function readSlotContests(admin: Admin, competitionId: string, stage: number): Promise<SlotContest[] | null> {
+  const { data: contests, error } = await admin.from('contests').select('id, stage, slot, sport_event_match_id').eq('competition_id', competitionId).eq('stage', stage);
+  if (error) { if (!missingColumn(error)) console.error('[contest-link] slot contests read failed:', error); return null; }
+  const rows = (contests ?? []) as Array<{ id: string; stage: number; slot: number; sport_event_match_id: string | null }>;
+  if (rows.length === 0) return [];
+  const ids = rows.map(r => r.id);
+  const [{ data: parts }, { data: results }] = await Promise.all([
+    admin.from('contest_participants').select('contest_id, side, entry:entry_id (id, profile_id)').in('contest_id', ids),
+    admin.from('contest_results').select('contest_id').in('contest_id', ids),
+  ]);
+  const withResult = new Set(((results ?? []) as Array<{ contest_id: string }>).map(r => r.contest_id));
+  type Part = { contest_id: string; side: string | null; entry: { id: string; profile_id: string | null } | Array<{ id: string; profile_id: string | null }> | null };
+  const partRows = (parts ?? []) as Part[];
+  const adHocIds = partRows.map(p => (Array.isArray(p.entry) ? p.entry[0] : p.entry)).filter((e): e is { id: string; profile_id: string | null } => !!e && !e.profile_id).map(e => e.id);
+  const membersOf = new Map<string, string[]>();
+  if (adHocIds.length > 0) {
+    const { data: members } = await admin.from('competition_entry_members').select('entry_id, profile_id').in('entry_id', adHocIds);
+    for (const m of (members ?? []) as Array<{ entry_id: string; profile_id: string }>) membersOf.set(m.entry_id, [...(membersOf.get(m.entry_id) ?? []), m.profile_id]);
+  }
+  const playersOf = (contestId: string, side: 'home' | 'away'): string[] | null => {
+    const p = partRows.find(x => x.contest_id === contestId && x.side === side);
+    const e = p ? (Array.isArray(p.entry) ? p.entry[0] : p.entry) : null;
+    if (!e) return null;
+    return e.profile_id ? [e.profile_id] : (membersOf.get(e.id) ?? []);
+  };
+  return rows.map(r => ({ id: r.id, stage: r.stage, slot: r.slot, linkedMatchId: r.sport_event_match_id, hasResult: withResult.has(r.id), home: playersOf(r.id, 'home'), away: playersOf(r.id, 'away') }));
+}
+
+/** The drawn stage count of a bracket (the max `stage` among its contests); null on a pre-218 database. */
+export async function readBracketStages(admin: Admin, competitionId: string): Promise<number | null> {
+  const { data, error } = await admin.from('contests').select('stage').eq('competition_id', competitionId).not('stage', 'is', null);
+  if (error) { if (!missingColumn(error)) console.error('[contest-link] bracket stages read failed:', error); return null; }
+  return ((data ?? []) as Array<{ stage: number }>).reduce((m, r) => Math.max(m, r.stage), 0);
+}
+
+/** The event → competition door for a bracketed MATCH event: the intent kept on the event (221), nothing minted — the stamps come at go-live. */
+export async function linkMatchEventToBracket(admin: Admin, event: SportEventRow, rounds: SportEventRoundRow[], competitionId: string): Promise<{ ok: true; stages: number } | { ok: false; reason: 'needs_migration' | 'bracket_shape' | 'bracket_not_drawn' }> {
+  const stages = await readBracketStages(admin, competitionId);
+  if (stages === null) return { ok: false, reason: 'needs_migration' };
+  const refusal = bracketShapeRefusal(stages, rounds.filter(r => r.status !== 'cancelled').length);
+  if (refusal) return { ok: false, reason: refusal };
+  const { error } = await admin.from('sport_events').update({ competition_id: competitionId }).eq('id', event.id);
+  if (error) { if (!missingColumn(error)) console.error('[contest-link] competition_id write failed:', error); return { ok: false, reason: 'needs_migration' }; }
+  return { ok: true, stages };
+}
+
+/** The competition a bracketed match event counts toward, by name (the "Counts toward" row before go-live); null without a link. */
+export async function readEventCompetition(admin: Admin, event: Pick<SportEventRow, 'competition_id'>): Promise<{ id: string; name: string } | null> {
+  if (!event.competition_id) return null;
+  const { data } = await admin.from('competitions').select('id, name').eq('id', event.competition_id).maybeSingle();
+  return (data as { id: string; name: string } | null) ?? null;
 }
 
 export interface MatchLink {

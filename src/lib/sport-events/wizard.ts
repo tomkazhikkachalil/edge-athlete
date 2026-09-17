@@ -231,7 +231,7 @@ export function validateWizardStep(step: WizardStep, s: WizardState): string | n
         return null;
       }
       if (isStablefordFormat(s.format) && s.competition) return 'A Stableford event cannot count toward a competition — the org’s leaderboards count strokes. Pick stroke play, or clear the competition.';
-      if (isMatchFormat(s.format) && s.competition) return 'A match-play event cannot count toward a competition — pick stroke play, or clear the competition.';
+      if (isMatchFormat(s.format) && s.competition && !s.match.bracket) return 'Only a bracket event counts toward a bracket competition — turn on the bracket, or clear the competition.';
       if (isMatchFormat(s.format) && s.match.bracket && s.rounds.length < 2) return 'A bracket needs at least two rounds — add the rounds it plays over.';
       if (s.capacity.trim() !== '') {
         const n = Number(s.capacity);
