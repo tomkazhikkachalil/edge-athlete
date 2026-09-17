@@ -1,5 +1,9 @@
 # Development Log
 
+## September 17, 2026 — Maintenance pass: the gate on main after the leftovers program closed (zero DDL)
+
+**What:** the full checklist on `main` at 02d729f2 (after #833): `npm run verify` green on a clean `.next` — lint at zero warnings, typecheck, 3537 unit tests, the production build (186 static pages), the browser-floor check on 186 client chunks. `npm run check:schema` OK against the live database (migration head 221, allowlist empty). The Events + formats leftovers program (#820–#833, migration 221) is closed COMPLETE + PROD-PROVEN — every program spec and the six regressions green on prod. Nothing in flight; parked: the per-photo guardian bell, realtime as a wake-up for the stat poll.
+
 ## September 17, 2026 — Events + formats leftovers, probe fix: the round-zone spec compares the start as an INSTANT (spec only)
 
 **What:** the prod probe of `sport-events-create` (the round-zone test) found PostgREST rendering the round's `starts_at` as `2030-06-02T05:00:00+00:00`, not the `.000Z` the spec compared as a string; the instant, the zone, the venue-time line and the .ics were right. The spec compares `Date.parse` of both. Re-probed green on prod on both mobile engines before this PR opened (the prod probe runs the local spec file).
