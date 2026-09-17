@@ -115,7 +115,7 @@ export interface CreateEventOptions {
   shape?: 'round' | 'game' | 'session';
   visibility?: 'public' | 'link' | 'private';
   join_mode?: 'invite' | 'request' | 'open';
-  format?: 'stroke_gross' | 'stroke_net' | 'match_gross' | 'match_net';
+  format?: 'stroke_gross' | 'stroke_net' | 'match_gross' | 'match_net' | 'stableford_gross' | 'stableford_net';
   /** Phase 3: the match shape at creation. */
   format_config?: { match?: { sides: 'singles' | 'fourball' | 'foursomes'; bracket?: boolean; allowance?: number } | null; cut?: { after_round: number; top_n?: number; to_par?: number } | null; game?: { side_names: [string, string] } | null };
   capacity?: number;
@@ -248,6 +248,9 @@ export interface BoardRow {
   gross: number | null;
   toPar: number | null;
   net: number | null;
+  /** Leftovers (Stableford): the points on every row, whatever the format. */
+  points: number | null;
+  netPoints: number | null;
 }
 
 export async function roundBoard(api: APIRequestContext, eventId: string, roundId: string, token?: string | null): Promise<{ rows: BoardRow[] }> {
