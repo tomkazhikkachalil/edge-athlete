@@ -22,7 +22,7 @@ import { mirrorContestDelete } from '@/lib/competitions/calendar-mirror';
 import { contestRowFor, eventShape, gameContestRowFor, type CompetitionForLink } from './contest-link';
 import { readFormatConfig, readGameConfig } from './format-config';
 import { sideNamesOf } from './game';
-import { readRoundGroups } from './match-server';
+import { readMatchRows, readRoundGroups } from './match-server';
 import { shapeOf } from './types';
 import type { SportEventRoundRow, SportEventRow } from './types';
 
@@ -269,4 +269,69 @@ export async function linkContestToRound(admin: Admin, contestId: string, roundI
     return 'needs_migration';
   }
   return (data ?? []).length === 1 ? 'ok' : 'already_linked';
+}
+
+// ── The match bridge (track 2 PR 11, migration 220) ──────────────────────────
+
+/** Go-live on a match round: the round-linked contest takes the minted match (`sport_event_match_id`), the round link cleared (220's CHECK: a
+ *  round OR a match), the contest in progress. A pre-220 database keeps the round link (the sync falls back to it). One match per round today —
+ *  the door draws one group; a bracketed event's k matches by slot is the parked step. */
+export async function linkMatchesToContests(admin: Admin, roundId: string): Promise<void> {
+  const links = await readCountsToward(admin, [roundId]);
+  const link = links?.get(roundId);
+  if (!link) return;
+  const rows = await readMatchRows(admin, [roundId]);
+  if (rows.length !== 1) {
+    if (rows.length > 1) console.warn('[contest-link] a round with several matches links by slot — parked; the round link stays');
+    return;
+  }
+  const { error } = await admin.from('contests').update({ sport_event_match_id: rows[0].id, sport_event_round_id: null, status: 'in_progress' }).eq('id', link.contestId);
+  if (error) {
+    if (missingColumn(error)) return;
+    console.error('[contest-link] match link stamp failed:', error);
+  }
+}
+
+export interface MatchLink {
+  contestId: string;
+  competitionId: string;
+  competitionName: string;
+  matchId: string;
+  roundId: string;
+}
+
+/** The contests linked to a round's MATCHES (220) — empty pre-220, never an error. */
+export async function readMatchLinks(admin: Admin, roundIds: string[]): Promise<Map<string, MatchLink>> {
+  const out = new Map<string, MatchLink>();
+  if (roundIds.length === 0) return out;
+  const rows = await readMatchRows(admin, roundIds);
+  if (rows.length === 0) return out;
+  const { data, error } = await admin.from('contests').select('id, sport_event_match_id, competition:competition_id (id, name)').in('sport_event_match_id', rows.map(r => r.id));
+  if (error) {
+    if (!missingColumn(error)) console.error('[contest-link] match links read failed:', error);
+    return out;
+  }
+  const roundOf = new Map(rows.map(r => [r.id, r.sport_event_round_id]));
+  for (const row of (data ?? []) as Array<{ id: string; sport_event_match_id: string; competition: { id: string; name: string } | Array<{ id: string; name: string }> | null }>) {
+    const c = Array.isArray(row.competition) ? row.competition[0] : row.competition;
+    if (!c) continue;
+    out.set(row.sport_event_match_id, { contestId: row.id, competitionId: c.id, competitionName: c.name, matchId: row.sport_event_match_id, roundId: roundOf.get(row.sport_event_match_id) as string });
+  }
+  return out;
+}
+
+/** Round id → its contest by EITHER link (the round's, or one of its matches'). The view's "counts toward" reads this. */
+export async function readCountsTowardAll(admin: Admin, roundIds: string[]): Promise<Map<string, CountsToward> | null> {
+  const byRound = await readCountsToward(admin, roundIds);
+  if (byRound === null) return null;
+  const byMatch = await readMatchLinks(admin, roundIds);
+  for (const l of byMatch.values()) if (!byRound.has(l.roundId)) byRound.set(l.roundId, { contestId: l.contestId, competitionId: l.competitionId, competitionName: l.competitionName });
+  return byRound;
+}
+
+/** The hand writers' question (PR 11): is this contest a match's? (null pre-220 or unlinked.) */
+export async function readSportEventMatchLink(admin: Admin, contestId: string): Promise<string | null> {
+  const { data, error } = await admin.from('contests').select('sport_event_match_id').eq('id', contestId).maybeSingle();
+  if (error || !data) return null;
+  return (data as { sport_event_match_id: string | null }).sport_event_match_id ?? null;
 }

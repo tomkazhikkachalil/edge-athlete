@@ -24,7 +24,7 @@ export interface CompetitionForLink {
   status: string;
 }
 
-export type LinkRefusal = 'no_org' | 'not_stroke_play' | 'not_found' | 'other_org' | 'not_golf_leaderboard' | 'not_athletes' | 'competition_closed' | 'event_over' | 'results_exist' | 'shape_mismatch' | 'not_a_game' | 'not_two_sided' | 'already_linked' | 'contest_over' | 'sport_unsupported';
+export type LinkRefusal = 'no_org' | 'not_stroke_play' | 'not_found' | 'other_org' | 'not_golf_leaderboard' | 'not_athletes' | 'competition_closed' | 'event_over' | 'results_exist' | 'shape_mismatch' | 'not_a_game' | 'not_two_sided' | 'already_linked' | 'contest_over' | 'sport_unsupported' | 'side_size';
 
 /** Track 2 PR 10: what an event IS to the bridge — a stroke-play round, a match-play round, a game or a session. */
 export type EventShape = 'stroke' | 'match' | 'game' | 'session';
@@ -34,7 +34,7 @@ export function eventShape(event: { sport_key?: string; format?: string | null; 
   return isMatchFormat(event.format) ? 'match' : 'stroke';
 }
 
-/** The bridge's shape table: a golf leaderboard of athletes takes a stroke-play round (2b); a fixture of named sides in the same sport takes a GAME (PR 10); a match round is PR 11; a session counts toward nothing. */
+/** The bridge's shape table: a golf leaderboard of athletes takes a stroke-play round (2b); a fixture of named sides in the same sport takes a GAME (PR 10); a match round reaches a golf bracket from the CONSOLE side only (PR 11 — the contest → event door; the event → competition door has nowhere to keep the intent before go-live); a session counts toward nothing. */
 export function competitionAcceptsShape(c: CompetitionForLink, shape: EventShape, sportKey: string): LinkRefusal | null {
   if (shape === 'stroke') {
     if (c.sport_key !== 'golf' || c.format !== 'leaderboard') return 'not_golf_leaderboard';
@@ -47,7 +47,7 @@ export function competitionAcceptsShape(c: CompetitionForLink, shape: EventShape
 
 export const LINK_REFUSAL_COPY: Readonly<Record<LinkRefusal, string>> = {
   no_org: 'Only an event hosted for a club or league can count toward a competition.',
-  not_stroke_play: 'A match-play event cannot count toward a competition.',
+  not_stroke_play: 'A match-play event counts toward a bracket from the console: open the bracket match there and run it as an event.',
   not_found: 'That competition was not found.',
   other_org: 'That competition belongs to another organization.',
   not_golf_leaderboard: 'Only a golf leaderboard competition can count an event.',
@@ -61,6 +61,7 @@ export const LINK_REFUSAL_COPY: Readonly<Record<LinkRefusal, string>> = {
   already_linked: 'This game already runs as an event.',
   contest_over: 'This game is over.',
   sport_unsupported: 'This sport has no live events yet.',
+  side_size: 'A match needs one player a side (singles) or two (four-ball).',
 };
 
 /** Why a competition cannot count this event, or null when it can. */

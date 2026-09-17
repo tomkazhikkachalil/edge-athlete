@@ -36,6 +36,7 @@ import { isMissingTableError, type StatLinesUpsertInput } from '@/lib/competitio
 import { revalidateOrgSiteForCompetition } from '@/lib/org-sites/revalidate';
 import type { CompetitionScope } from './competition-server';
 import { canOverwriteProvenance, stampProvenance, type ResultProvenance } from './provenance';
+import { readSportEventMatchLink } from '@/lib/sport-events/contest-link-server';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- matches the authz.ts Admin alias; schema-agnostic helper
 type Admin = SupabaseClient<any, 'public', any>;
@@ -299,7 +300,7 @@ export async function statLinesUpsertPOST(
     return NextResponse.json({ error: 'This game was canceled' }, { status: 400 });
   }
   // Track 2 PR 10: a contest played as an EVENT takes its lines from the event's live stats, never by hand.
-  if ((contestRow as { sport_event_round_id?: string | null }).sport_event_round_id) {
+  if ((contestRow as { sport_event_round_id?: string | null }).sport_event_round_id || (await readSportEventMatchLink(admin, input.contestId))) {
     return NextResponse.json({ error: 'This game runs as an event — its stats come from the event when the round completes.', reason: 'from_event' }, { status: 409 });
   }
   if (comp.format !== 'fixture') {

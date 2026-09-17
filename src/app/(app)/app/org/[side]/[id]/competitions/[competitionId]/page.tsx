@@ -224,6 +224,8 @@ export default function CompetitionDetailPage() {
   const [runEventTime, setRunEventTime] = useState('');
   const [runEventPlace, setRunEventPlace] = useState('');
   const [runEventBusy, setRunEventBusy] = useState(false);
+  const [runEventCourseId, setRunEventCourseId] = useState('');
+  const [runEventFormat, setRunEventFormat] = useState<'match_gross' | 'match_net'>('match_gross');
   // Player stats: one expander at a time (the scoreContestId pattern).
   const [statsContestId, setStatsContestId] = useState<string | null>(null);
   // Game media: same pattern (phase 4 R3).
@@ -736,7 +738,8 @@ export default function CompetitionDetailPage() {
   };
 
   // Track 2 PR 10: run a two-sided game as a live event — the sides pre-filled from the entries' members.
-  const canRunAsEvent = (contest: ContestRow) => competition?.format === 'fixture' && competition.sport_key !== 'golf' && !contest.sport_event && contest.status === 'scheduled' && contest.participants.some(p => p.side === 'home') && contest.participants.some(p => p.side === 'away');
+  const runKind = competition?.format === 'fixture' && competition.sport_key !== 'golf' ? 'game' : competition?.format === 'bracket' && competition?.sport_key === 'golf' ? 'match' : null;
+  const canRunAsEvent = (contest: ContestRow) => !!runKind && !contest.sport_event && contest.status === 'scheduled' && contest.participants.some(p => p.side === 'home') && contest.participants.some(p => p.side === 'away');
   const openRunEvent = (contest: ContestRow) => {
     if (runEventContestId === contest.id) { setRunEventContestId(null); return; }
     const when = contest.scheduled_at ? new Date(contest.scheduled_at) : null;
@@ -750,7 +753,7 @@ export default function CompetitionDetailPage() {
     setRunEventBusy(true);
     try {
       const startsAt = runEventTime ? new Date(`${runEventDate}T${runEventTime}:00`).toISOString() : undefined;
-      const ok = await act(`${base}/contests/${contest.id}/event`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ competitionId, contestId: contest.id, scheduledOn: runEventDate, ...(startsAt ? { startsAt } : {}), ...(runEventPlace.trim() ? { place: runEventPlace.trim() } : {}) }) }, 'The game runs as an event', 'Could not create the event');
+      const ok = await act(`${base}/contests/${contest.id}/event`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ competitionId, contestId: contest.id, scheduledOn: runEventDate, ...(startsAt ? { startsAt } : {}), ...(runEventPlace.trim() ? { place: runEventPlace.trim() } : {}), ...(runKind === 'match' ? { format: runEventFormat, ...(runEventCourseId ? { courseId: runEventCourseId } : {}) } : {}) }) }, runKind === 'match' ? 'The match runs as an event' : 'The game runs as an event', 'Could not create the event');
       if (ok) setRunEventContestId(null);
     } finally {
       setRunEventBusy(false);
@@ -1588,7 +1591,7 @@ export default function CompetitionDetailPage() {
                       <div className="flex flex-wrap gap-2 min-w-0">
                         {contest.sport_event && (
                           <Link
-                            href={`/events/${contest.sport_event.event_id}?tab=${competition.sport_key === 'golf' ? 'leaderboard' : 'stats'}&round=${contest.sport_event.round_id}`}
+                            href={`/events/${contest.sport_event.event_id}?tab=${competition.sport_key !== 'golf' ? 'stats' : competition.format === 'bracket' ? 'matches' : 'leaderboard'}&round=${contest.sport_event.round_id}`}
                             className="px-2 py-1 text-xs rounded-md border border-border-strong text-brand-fg hover:bg-surface-sunken transition-colors inline-flex items-center"
                             data-contest-from-event=""
                           >
@@ -1894,7 +1897,7 @@ export default function CompetitionDetailPage() {
 
                     {runEventContestId === contest.id && (
                       <div className="mt-2 flex flex-wrap items-end gap-2 border-t border-border-subtle pt-2" data-run-event-form={contest.id}>
-                        <p className="w-full text-xs text-muted">A live game event hosted for the org: the two sides come from the entries, the score and the players&apos; stats are kept live, and the result lands here when the round completes.</p>
+                        <p className="w-full text-xs text-muted">{runKind === 'match' ? 'A match-play round hosted for the org: the two sides come from the entries, the match is scored live hole by hole, and the winner lands here when the round completes.' : 'A live game event hosted for the org: the two sides come from the entries, the score and the players\u2019 stats are kept live, and the result lands here when the round completes.'}</p>
                         <label className="text-xs text-secondary">
                           Date
                           <input type="date" value={runEventDate} onChange={e => setRunEventDate(e.target.value)} aria-label="Event date" className="mt-0.5 block px-2 py-1.5 border border-border-strong rounded-md outline-none text-sm" />
@@ -1907,6 +1910,24 @@ export default function CompetitionDetailPage() {
                           Place
                           <input type="text" value={runEventPlace} maxLength={200} onChange={e => setRunEventPlace(e.target.value)} placeholder="The rink, the field…" aria-label="Event place" className="mt-0.5 block w-40 px-2 py-1.5 border border-border-strong rounded-md outline-none text-sm" />
                         </label>
+                        {runKind === 'match' && (
+                          <>
+                            <label className="text-xs text-secondary">
+                              Course
+                              <select value={runEventCourseId} onChange={e => setRunEventCourseId(e.target.value)} aria-label="Event course" className="mt-0.5 block max-w-full px-2 py-1.5 border border-border-strong rounded-md outline-none text-sm">
+                                <option value="">Off catalog (par 4s)</option>
+                                {venues.flatMap(v => v.courses.map(c => <option key={c.id} value={c.id}>{c.name}</option>))}
+                              </select>
+                            </label>
+                            <label className="text-xs text-secondary">
+                              Scoring
+                              <select value={runEventFormat} onChange={e => setRunEventFormat(e.target.value as 'match_gross' | 'match_net')} aria-label="Match scoring" className="mt-0.5 block max-w-full px-2 py-1.5 border border-border-strong rounded-md outline-none text-sm">
+                                <option value="match_gross">Gross</option>
+                                <option value="match_net">Net (handicap)</option>
+                              </select>
+                            </label>
+                          </>
+                        )}
                         <button type="button" disabled={runEventBusy} onClick={() => void runAsEvent(contest)} className="px-3 py-1.5 text-sm min-h-[36px] rounded-lg bg-brand text-white font-medium hover:bg-brand-hover transition-colors disabled:opacity-50" data-run-event-submit="">
                           Create the event
                         </button>

@@ -120,9 +120,11 @@ standing            competition_id, entrant_ref, derived (materialized)
 ```
 
 **Status (Competition formats program, track 2 — Sep 16 2026):** the four
-formats are being taken live in the app on one PR chain, each format its own
-round (the plan: `~/.claude/plans/let-s-start-phase-2-transient-fountain.md`,
-"Track 2"). What has landed:
+formats are live in the app on one PR chain (#806–#816, migrations 218 ·
+219 · 220), each format its own round (the plan: `~/.claude/plans/let-s-start-phase-2-transient-fountain.md`,
+"Track 2"); the §3.3 gaps this table names are closed except pools / pool play →
+knockout, relays and a whole bracketed match event linking to an org bracket in
+one act (parked, named in EVENTS.md). What landed:
 
 | PR | what |
 |---|---|
@@ -136,6 +138,7 @@ round (the plan: `~/.claude/plans/let-s-start-phase-2-transient-fountain.md`,
 | 8 | the meet's surfaces (zero DDL): the console's events picker (the sport vocabulary, a session, added events greyed) + the marks form per event (a text mark or a DQ per approved athlete; the placed line on the row), the contest place's marks through `formatMark` with a DQ named, the org console's Meet option with a points preset (`config.meet.points`), the public `meet` block (each event's winner and mark; `MeetWinners` on the SSR standings, the org-site module and the in-app standings; the standings column reads Team) |
 | 9 | migration 220 — `contests.sport_event_match_id` (→ `sport_event_matches`, SET NULL), the partial UNIQUE (one contest per match), `contests_event_source_check` (a round OR a match, never both); the twin. Alone; no reader |
 | 10 | the game bridge (zero DDL): the shape table (`eventShape`, `competitionAcceptsShape` — a game counts toward a fixture of named sides in its sport, a session toward nothing), the event → competition door mints one fixture contest per game round between the event's two AD-HOC side entries (`source_ref sport_event_side:<event>:<side>`, a standing named side reused, members = who played), the contest → event door (`POST …/contests/[contestId]/event`: a one-round game event hosted for the org, sides pre-filled from the entries' members, the link stamped; refusals named), `syncGameContest` at completion (the live score as the two results, the players' lines as the org's stat lines, the team-score mismatch reported), `from_event` 409 on the results and stat-lines writers, the console's Run as event, the counts-toward window widened by the event's sport and shape |
+| 11 | the match bridge (the first 220 reader) + the docs close: a GOLF BRACKET contest runs as a match-play round (the console door: athletes → singles, ad-hoc pairs → four-ball, gross or net, a catalog course or off-catalog), the minted match stamped into `sport_event_match_id` at go-live (the round link cleared — 220's CHECK), `syncMatchContests` at completion (the winner 1 / the loser 0, `payload.match {result, decidedBy}`, the sides matched by the players, the bracket advanced by slot), the view's counts-toward through either link, the hand writers refuse a match's contest too; EVENTS.md, CLAUDE.md convention 21, SESSION_PROMPT |
 
 One competition model covers both contexts:
 
