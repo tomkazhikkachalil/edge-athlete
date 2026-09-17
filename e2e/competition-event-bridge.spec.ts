@@ -83,7 +83,7 @@ test('the game bridge: a contest runs as an event, completion writes the fixture
     // The hand writers are refused while linked.
     let d = await detail();
     const homePart = d.contests.find(c => c.id === contestId)!.participants.find(p => p.side === 'home')!;
-    const byHand = await s.apiA.post(`${base}/results`, { data: { contestId, results: [{ participantId: homePart.id, score: 1 }] } });
+    const byHand = await s.apiA.post(`${base}/${compId}/results`, { data: { contestId, results: [{ participantId: homePart.id, score: 1 }] } });
     expect(byHand.status()).toBe(409);
     expect(((await byHand.json()) as { reason?: string }).reason).toBe('from_event');
     const linesByHand = await s.apiA.post(`${base}/${compId}/stat-lines`, { data: { contestId, lines: [{ profileId: s.userB.id, stats: { goals: 9 } }] } });

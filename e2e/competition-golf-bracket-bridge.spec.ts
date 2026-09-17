@@ -80,7 +80,7 @@ test('the match bridge: a bracket final runs as a match, go-live swaps the link,
     const { data: matchRow } = await admin.from('sport_event_matches').select('id').eq('sport_event_round_id', opened.round_id).single();
     const linkAfter = await admin.from('contests').select('sport_event_round_id, sport_event_match_id, status').eq('id', final.id).single();
     expect(linkAfter.data).toEqual({ sport_event_round_id: null, sport_event_match_id: matchRow!.id, status: 'in_progress' });
-    const byHand = await s.apiA.post(`${base}/results`, { data: { contestId: final.id, results: [{ participantId: final.participants[0].id, score: 1 }] } });
+    const byHand = await s.apiA.post(`${base}/${compId}/results`, { data: { contestId: final.id, results: [{ participantId: final.participants[0].id, score: 1 }] } });
     expect(byHand.status()).toBe(409);
     expect(((await byHand.json()) as { reason?: string }).reason).toBe('from_event');
     v = await readView(s.apiA, opened.event_id);

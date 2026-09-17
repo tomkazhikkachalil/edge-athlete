@@ -58,7 +58,8 @@ export async function POST(request: NextRequest) {
     let competition: CompetitionForLink | null = null;
     if (input.competition_id) {
       competition = await readCompetitionForLink(admin, input.competition_id);
-      const refusal = linkRefusal({ club_id: input.club_id, league_id: input.league_id, status: 'draft', format: input.format }, competition);
+      // Track 2 PR 10: the shape table needs the sport and the shape (a game → a fixture of named sides; without them a game read as a stroke round).
+      const refusal = linkRefusal({ club_id: input.club_id, league_id: input.league_id, status: 'draft', format: input.format, sport_key: input.sport_key, shape: input.shape }, competition);
       if (refusal) return NextResponse.json({ error: LINK_REFUSAL_COPY[refusal], reason: refusal }, { status: 400 });
     }
     // Phase 3: the format options at creation (the match shape) — the same strict parser as the PATCH, against THIS body's format and rounds.
