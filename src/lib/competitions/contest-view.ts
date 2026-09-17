@@ -418,10 +418,10 @@ export async function fetchContestView(
     }[];
     const entryIds = [...new Set(participants.map(p => p.entry_id))];
     const { data: entryRows } = entryIds.length
-      ? await admin.from('competition_entries').select('id, team_id, profile_id').in('id', entryIds)
+      ? await admin.from('competition_entries').select('id, team_id, profile_id, name').in('id', entryIds)
       : { data: [] };
     const entryById = new Map(
-      ((entryRows ?? []) as { id: string; team_id: string | null; profile_id: string | null }[]).map(e => [e.id, e])
+      ((entryRows ?? []) as { id: string; team_id: string | null; profile_id: string | null; name?: string | null }[]).map(e => [e.id, e])
     );
 
     const [orgAccess, orgRow] = await Promise.all([
@@ -601,7 +601,7 @@ export async function fetchContestView(
           side: p.side === 'home' || p.side === 'away' ? p.side : null,
           startPosition: p.start_position,
           teamId: entry?.team_id ?? null,
-          teamName: team?.name ?? (entry?.team_id ? 'Team' : null),
+          teamName: (team?.name ?? (entry?.team_id ? 'Team' : null)) ?? entry?.name ?? null,
           teamClubId: team?.clubId ?? null,
           profile: entry?.profile_id ? (profileById.get(entry.profile_id) ?? null) : null,
           result: r

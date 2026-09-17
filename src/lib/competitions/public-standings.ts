@@ -9,6 +9,7 @@
 // VIEWER-INDEPENDENT is the contract: nothing here may branch on a
 // session, so one cached entry serves everyone (authed or not).
 
+import { entryDisplayName } from './entries';
 import { BRACKET_COLUMNS, bracketColumnsFromContests, type BracketColumnView, type BracketContestRow } from './bracket-draw';
 import { readBracketRows } from './standings';
 import type { SupabaseClient } from '@supabase/supabase-js';
@@ -190,7 +191,7 @@ export async function fetchPublicStandings(
   const { data: entries } = entryIds.length
     ? await admin
         .from('competition_entries')
-        .select('id, team_id, profile_id')
+        .select('id, team_id, profile_id, name')
         .in('id', entryIds)
     : { data: [] };
   const teamIds = [...new Set((entries ?? []).map(e => e.team_id).filter(Boolean))] as string[];
@@ -236,7 +237,7 @@ export async function fetchPublicStandings(
   const entryName = new Map(
     (entries ?? []).map(e => [
       e.id,
-      e.team_id ? (teamName.get(e.team_id) ?? 'Team') : (profileName.get(e.profile_id) ?? 'Athlete'),
+      entryDisplayName(e as { team_id: string | null; profile_id: string | null; name?: string | null }, teamName.get(e.team_id) ?? null, profileName.get(e.profile_id) ?? null),
     ])
   );
   const entryHandle = new Map<string, string>();

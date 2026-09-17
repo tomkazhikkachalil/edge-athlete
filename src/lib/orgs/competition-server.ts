@@ -1,3 +1,4 @@
+import { AD_HOC_REFUSAL_COPY, adHocEntryRefusal, entryDisplayName } from '@/lib/competitions/entries';
 import { bracketDraw, bracketFill, BRACKET_COLUMNS, SEEDS_REFUSAL_COPY, seedsRefusal } from '@/lib/competitions/bracket-draw';
 import { ADVANCE_KINDS, isAdvanceKind } from '@/lib/competitions/contest-outcome';
 import { readBracketRows } from '@/lib/competitions/standings';
@@ -143,7 +144,7 @@ export async function competitionsAggregateGET(
   const { data: entries } = competitionIds.length
     ? await admin
         .from('competition_entries')
-        .select('id, competition_id, team_id, profile_id, status, seed, pool')
+        .select('id, competition_id, team_id, profile_id, status, seed, pool, name')
         .in('competition_id', competitionIds)
         // Truncation past PostgREST's silent 1000 cap is data corruption
         // on the console — bound it explicitly (stage-gate fix).
@@ -181,7 +182,7 @@ export async function competitionsAggregateGET(
     if (!entriesByCompetition.has(e.competition_id)) entriesByCompetition.set(e.competition_id, []);
     entriesByCompetition.get(e.competition_id)!.push({
       ...e,
-      entrant_name: e.team_id ? (teamName.get(e.team_id) ?? 'Team') : (profileName.get(e.profile_id) ?? 'Athlete'),
+      entrant_name: entryDisplayName(e as { team_id: string | null; profile_id: string | null; name?: string | null }, teamName.get(e.team_id) ?? null, profileName.get(e.profile_id) ?? null),
     });
   }
 
@@ -483,8 +484,26 @@ export async function entryAddPOST(
         { status: 400 }
       );
     }
+  } else if (comp.entrant_type === 'ad_hoc_team') {
+    // Track 2 PR 6 (219): an AD-HOC side — a name and members from the org's ROSTER (§8 invariant 3 holds: the
+    // roster edge is the record edge). The shape an org's default team shadows later.
+    if (!input.name) {
+      return NextResponse.json({ error: 'This competition takes named sides — give the side a name.' }, { status: 400 });
+    }
+    const members = input.memberProfileIds ?? [];
+    const { data: rosterRows } = members.length
+      ? await admin
+          .from('memberships')
+          .select('profile_id')
+          .eq(comp.league_id ? 'league_id' : 'club_id', (comp.league_id ?? comp.club_id) as string)
+          .eq('kind', 'roster')
+          .eq('scope_type', 'org')
+          .in('status', ['active', 'placed'])
+          .in('profile_id', members)
+      : { data: [] };
+    const refusal = adHocEntryRefusal({ name: input.name, memberProfileIds: members }, new Set(((rosterRows ?? []) as Array<{ profile_id: string }>).map(r => r.profile_id)));
+    if (refusal) return NextResponse.json({ error: AD_HOC_REFUSAL_COPY[refusal], reason: refusal }, { status: 400 });
   } else {
-    // ad_hoc_team is front-loaded in the DB, app-gated off until its round.
     return NextResponse.json({ error: 'This entrant type isn’t available yet' }, { status: 400 });
   }
 
@@ -494,6 +513,7 @@ export async function entryAddPOST(
       competition_id: input.competitionId,
       team_id: input.teamId ?? null,
       profile_id: input.profileId ?? null,
+      ...(comp.entrant_type === 'ad_hoc_team' && input.name ? { name: input.name.trim() } : {}),
       // Cross-org entries await the owner's decision (the §5 eligibility
       // step); own-org entries are approved at birth.
       status: crossOrg ? 'pending' : 'approved',
@@ -502,10 +522,19 @@ export async function entryAddPOST(
     .single();
   if (error || !entry) {
     if (error?.code === '23505') {
-      return NextResponse.json({ error: 'Already entered in this competition' }, { status: 409 });
+      return NextResponse.json({ error: comp.entrant_type === 'ad_hoc_team' ? 'A side with that name is already entered' : 'Already entered in this competition' }, { status: 409 });
+    }
+    if (error?.code === 'PGRST204' || error?.code === '42703') {
+      return NextResponse.json({ error: 'Named sides need migration 219.', reason: 'needs_migration' }, { status: 409 });
     }
     console.error(`${TAG} entry insert error:`, error);
     return NextResponse.json({ error: 'Failed to add the entry' }, { status: 500 });
+  }
+  if (comp.entrant_type === 'ad_hoc_team' && (input.memberProfileIds ?? []).length > 0) {
+    const { error: memberError } = await admin
+      .from('competition_entry_members')
+      .insert((input.memberProfileIds ?? []).map((profileId, i) => ({ entry_id: entry.id, profile_id: profileId, position: i + 1 })));
+    if (memberError) console.error(`${TAG} entry members insert error:`, memberError);
   }
   if (crossOrg && comp.league_id) {
     const { notifyEntryPending } = await import('@/lib/competitions/notify');
@@ -682,7 +711,8 @@ export async function competitionDetailGET(
 
   const { data: entries } = await admin
     .from('competition_entries')
-    .select('id, team_id, profile_id, status, seed, pool')
+    // Track 2 PR 6 (219): `name` rides the read — an ad-hoc side's label; a pre-219 database retries without it.
+    .select('id, team_id, profile_id, status, seed, pool, name')
     .eq('competition_id', competitionId)
     .limit(500);
 
@@ -706,7 +736,7 @@ export async function competitionDetailGET(
   const entryName = new Map(
     (entries ?? []).map(e => [
       e.id,
-      e.team_id ? (teamName.get(e.team_id) ?? 'Team') : (profileName.get(e.profile_id) ?? 'Athlete'),
+      entryDisplayName(e as { team_id: string | null; profile_id: string | null; name?: string | null }, teamName.get(e.team_id) ?? null, profileName.get(e.profile_id) ?? null),
     ])
   );
 

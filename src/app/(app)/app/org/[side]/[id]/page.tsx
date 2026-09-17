@@ -1,5 +1,6 @@
 'use client';
 
+import { resolveCompetitionProfile, type EntrantKind } from '@/lib/sports/competition-profiles';
 import { useEffect, useState, Fragment, type ReactNode } from 'react';
 // Org staff program (178): the console's section vocabulary IS authz's
 // ORG_SECTIONS (a type-only import — this is a client component).
@@ -236,6 +237,10 @@ export default function OrgConsolePage() {
   >([]);
   const [rosterAthletes, setRosterAthletes] = useState<{ id: string; name: string }[]>([]);
   const [compFormat, setCompFormat] = useState<'fixture' | 'leaderboard' | 'bracket'>('fixture');
+  // Track 2 PR 6: the entrant kind when the sport's profile offers more than one for the format ('' = the profile's default).
+  const [compEntrant, setCompEntrant] = useState<'' | EntrantKind>('');
+  const [adHocName, setAdHocName] = useState<Record<string, string>>({});
+  const [adHocMembers, setAdHocMembers] = useState<Record<string, string[]>>({});
   const [compName, setCompName] = useState('');
   const [compSeasonId, setCompSeasonId] = useState('');
   const [compDivisionId, setCompDivisionId] = useState('');
@@ -924,6 +929,7 @@ export default function OrgConsolePage() {
           sportKey: compSport,
           name: compName.trim(),
           format: compFormat,
+          ...(compEntrant ? { entrantType: compEntrant } : {}),
           visibility: compPublic ? 'public' : 'private',
           ...(compFormat === 'leaderboard' && compSport === 'golf'
             ? {
@@ -2094,6 +2100,18 @@ export default function OrgConsolePage() {
                 <option value="leaderboard">Leaderboard (athletes)</option>
                 <option value="bracket">Bracket (knockout)</option>
               </select>
+              {(resolveCompetitionProfile(compSport).formats[compFormat]?.entrants.length ?? 0) > 1 && (
+                <select
+                  value={compEntrant}
+                  onChange={e => setCompEntrant(e.target.value as '' | EntrantKind)}
+                  aria-label="Entrant kind"
+                  className="px-3 py-2 border border-border-strong rounded-md outline-none text-sm"
+                >
+                  {resolveCompetitionProfile(compSport).formats[compFormat]!.entrants.map(k => (
+                    <option key={k} value={k}>{k === 'team' ? 'Teams' : k === 'athlete' ? 'Athletes' : 'Named sides (players)'}</option>
+                  ))}
+                </select>
+              )}
               {compFormat === 'leaderboard' && compSport === 'golf' && (
                 <>
                   <select
@@ -2193,7 +2211,7 @@ export default function OrgConsolePage() {
                         (~341px) can't fit 375px minus padding; the container
                         must be allowed to shrink so its own wrap engages. */}
                     <div className="flex flex-wrap gap-2 min-w-0">
-                      {(comp.entrant_type === 'team' || comp.entrant_type === 'athlete') && (
+                      {(comp.entrant_type === 'team' || comp.entrant_type === 'athlete' || comp.entrant_type === 'ad_hoc_team') && (
                         <button
                           type="button"
                           onClick={() =>
@@ -2344,6 +2362,50 @@ export default function OrgConsolePage() {
                             <option key={a.id} value={a.id}>{a.name}</option>
                           ))}
                         </select>
+                      )}
+                      {comp.entrant_type === 'ad_hoc_team' && (
+                        <form
+                          className="flex flex-wrap items-end gap-2 w-full"
+                          data-adhoc-form={comp.id}
+                          onSubmit={e => {
+                            e.preventDefault();
+                            const name = (adHocName[comp.id] ?? '').trim();
+                            if (!name) return;
+                            void act(
+                              `/api/${plural}/${orgId}/competitions/entries`,
+                              {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ competitionId: comp.id, name, memberProfileIds: adHocMembers[comp.id] ?? [] }),
+                              },
+                              'Side added',
+                              'Failed to add the side'
+                            ).then(ok => { if (ok) { setAdHocName(prev => ({ ...prev, [comp.id]: '' })); setAdHocMembers(prev => ({ ...prev, [comp.id]: [] })); } });
+                          }}
+                        >
+                          <input
+                            value={adHocName[comp.id] ?? ''}
+                            onChange={e => setAdHocName(prev => ({ ...prev, [comp.id]: e.target.value }))}
+                            maxLength={80}
+                            placeholder="Side name"
+                            aria-label={`Side name for ${comp.name}`}
+                            className="max-w-full px-2 py-1 text-xs border border-border-strong rounded-md outline-none"
+                          />
+                          {rosterAthletes.length > 0 && (
+                            <select
+                              multiple
+                              value={adHocMembers[comp.id] ?? []}
+                              onChange={e => setAdHocMembers(prev => ({ ...prev, [comp.id]: Array.from(e.target.selectedOptions).map(o => o.value) }))}
+                              aria-label={`Players on the side for ${comp.name}`}
+                              className="max-w-full px-2 py-1 text-xs border border-border-strong rounded-md outline-none"
+                            >
+                              {rosterAthletes.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+                            </select>
+                          )}
+                          <button type="submit" className="px-2 py-1 text-xs rounded-md border border-border-strong text-secondary hover:bg-surface-sunken transition-colors" data-adhoc-add={comp.id}>
+                            Add a team from players
+                          </button>
+                        </form>
                       )}
                       {comp.entrant_type === 'athlete' && rosterAthletes.length === 0 && (
                         <span className="text-xs text-muted">

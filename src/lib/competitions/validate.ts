@@ -255,11 +255,17 @@ export const EntryAddSchema = z
     competitionId: uuid,
     teamId: uuid.optional(),
     profileId: uuid.optional(),
+    /** Track 2 PR 6 (219): an AD-HOC entry — a named side with members from the org's roster. */
+    name: boundedText(80).optional(),
+    memberProfileIds: z.array(uuid).max(30).optional(),
   })
   .superRefine((val, ctx) => {
-    const kinds = [val.teamId, val.profileId].filter(Boolean).length;
+    const kinds = [val.teamId, val.profileId, val.name].filter(Boolean).length;
     if (kinds !== 1) {
-      ctx.addIssue({ code: 'custom', path: ['teamId'], message: 'Exactly one of teamId or profileId' });
+      ctx.addIssue({ code: 'custom', path: ['teamId'], message: 'Exactly one of teamId, profileId or name' });
+    }
+    if (val.memberProfileIds && !val.name) {
+      ctx.addIssue({ code: 'custom', path: ['memberProfileIds'], message: 'Members belong to an ad-hoc entry (name)' });
     }
   });
 export type EntryAddInput = z.infer<typeof EntryAddSchema>;
