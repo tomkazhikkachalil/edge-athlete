@@ -31,7 +31,7 @@ import { OrgSideSchema } from '@/lib/structure/validate';
  * the profile allows (`formatEntrantRefusal`, checked in the server lib).
  */
 export const COMPETITION_FORMATS_V1 = ['fixture', 'leaderboard'] as const;
-export const FORMATS_LIVE: readonly CompetitionFormat[] = ['fixture', 'leaderboard', 'bracket'];
+export const FORMATS_LIVE: readonly CompetitionFormat[] = ['fixture', 'leaderboard', 'bracket', 'meet'];
 export const isFormatLive = (format: string): format is CompetitionFormat => (FORMATS_LIVE as readonly string[]).includes(format);
 
 /** Phase 6c G1: a bare calendar date (golf_rounds.date is a DATE). */
@@ -247,6 +247,39 @@ export const EntryDecideSchema = z.object({
   decision: z.enum(['approved', 'rejected']),
 });
 export type EntryDecideInput = z.infer<typeof EntryDecideSchema>;
+
+/** Track 2 PR 7 (219): a meet athlete's affiliation, organizer-editable (null = unattached). The entries PATCH takes either shape. */
+export const EntryAffiliationSchema = z.object({
+  entryId: uuid,
+  affiliationTeamId: uuid.nullable(),
+});
+export type EntryAffiliationInput = z.infer<typeof EntryAffiliationSchema>;
+export const EntryPatchSchema = z.union([EntryDecideSchema, EntryAffiliationSchema]);
+
+/** Track 2 PR 7: mint one contest per chosen meet event (the sport profile's vocabulary), in one session. */
+export const MeetEventsGenerateSchema = z.object({
+  competitionId: uuid,
+  eventKeys: z.array(boundedText(40)).min(1).max(40),
+  session: z.number().int().min(1).max(20).default(1),
+});
+export type MeetEventsGenerateInput = z.infer<typeof MeetEventsGenerateSchema>;
+
+/** Track 2 PR 7: the marks of one meet event — text marks ("11.85", "4:05.30", "6.42m") parsed server-side; a DQ carries no mark. */
+export const MeetResultsUpsertSchema = z.object({
+  contestId: uuid,
+  marks: z
+    .array(
+      z.object({
+        entryId: uuid,
+        mark: z.string().trim().max(20).optional(),
+        wind: z.number().finite().min(-20).max(20).optional(),
+        dq: z.boolean().optional(),
+      })
+    )
+    .min(1)
+    .max(200),
+});
+export type MeetResultsUpsertInput = z.infer<typeof MeetResultsUpsertSchema>;
 
 /** One entrant, kind-matched to the competition's entrant_type in the
  *  server lib (never trusted from the client). */

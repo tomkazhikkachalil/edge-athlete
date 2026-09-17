@@ -22,9 +22,9 @@ describe('CompetitionCreateSchema', () => {
     expect(parsed.divisionId).toBeUndefined();
   });
 
-  it('the live gate: meet is rejected HERE, not by the DB; bracket is live since track 2 PR 3', () => {
+  it('the live gate: all four formats are live since track 2 PR 7 (meet); the gate stays in the schema, not the DB', () => {
     expect(CompetitionCreateSchema.safeParse({ ...base, format: 'bracket' }).success).toBe(true);
-    expect(CompetitionCreateSchema.safeParse({ ...base, format: 'meet' }).success).toBe(false);
+    expect(CompetitionCreateSchema.safeParse({ ...base, format: 'meet', sportKey: 'track_field' }).success).toBe(true);
     expect(CompetitionCreateSchema.safeParse({ ...base, format: 'leaderboard' }).success).toBe(true);
   });
 

@@ -12,6 +12,7 @@
 // leaderboard is ranked rows. Bracket / meet are out of scope (parked).
 
 import {
+  type LeaderboardScoringRule,
   assignSharedRanks,
   resolveFixtureRule,
   resolveLeaderboardRule,
@@ -105,6 +106,19 @@ export interface OutcomeInput {
   stage?: number | null;
   slot?: number | null;
   roundName?: string | null;
+  /** Track 2 PR 7: a meet event's rule — from the sport profile's `meetEvents`, matched by the contest's round label; a meet contest without one is unscored. */
+  meetEvent?: MeetEventRule | null;
+}
+
+export interface MeetEventRule {
+  label: string;
+  unit: 's' | 'm';
+  direction: 'asc' | 'desc';
+}
+
+/** A meet event IS a leaderboard contest with a per-event rule: the mark is the score, ordered by the event's direction (times ascend, distances descend); one column, the mark. */
+export function meetLeaderboardRule(ev: MeetEventRule): LeaderboardScoringRule {
+  return { key: `meet:${ev.label}`, kind: 'leaderboard', direction: ev.direction, columns: [{ key: 'points', label: `${ev.label} mark`, shortLabel: 'Mark' }], sumStats: [] };
 }
 
 const isNum = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v);
@@ -114,6 +128,7 @@ export function deriveContestOutcome(input: OutcomeInput): ContestOutcome {
   if (input.format === 'fixture') return fixtureOutcome(input, completed);
   if (input.format === 'bracket') return bracketOutcome(input, completed);
   if (input.format === 'leaderboard') return leaderboardOutcome(input, completed);
+  if (input.format === 'meet') return input.meetEvent ? leaderboardOutcome(input, completed, meetLeaderboardRule(input.meetEvent)) : { kind: 'unscored', complete: completed };
   return { kind: 'unscored', complete: completed };
 }
 
@@ -176,8 +191,8 @@ function fixtureOutcome(input: OutcomeInput, completed: boolean): ContestOutcome
   };
 }
 
-function leaderboardOutcome(input: OutcomeInput, completed: boolean): ContestOutcome {
-  const rule = resolveLeaderboardRule(input.sportKey, input.scoringRule);
+function leaderboardOutcome(input: OutcomeInput, completed: boolean, ruleOverride?: LeaderboardScoringRule): ContestOutcome {
+  const rule = ruleOverride ?? resolveLeaderboardRule(input.sportKey, input.scoringRule);
   const statKeys = [
     ...new Set([
       ...rule.columns.map(c => c.key).filter(k => k !== 'played' && k !== 'points'),

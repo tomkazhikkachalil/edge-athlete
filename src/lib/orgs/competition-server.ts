@@ -39,6 +39,9 @@ import {
   type EntryAddInput,
   type GolfSeasonGenerateInput,
   type ResultUpsertInput,
+  type EntryAffiliationInput,
+  type MeetEventsGenerateInput,
+  type MeetResultsUpsertInput,
 } from '@/lib/competitions/validate';
 import { generateRoundWindows } from '@/lib/competitions/golf-season';
 import {
@@ -53,6 +56,12 @@ import {
 } from '@/lib/org-sites/revalidate';
 import { resolveFixtureRule, resolveLeaderboardRule } from '@/lib/competitions/scoring';
 import { stampProvenance } from './provenance';
+import { MEET_COLUMNS, meetEventFor, meetIndividualLeaders, parseMark } from '@/lib/competitions/meet';
+import { fromContestStatLine, type ContestStatLineOrigin } from '@/lib/performance/map';
+import type { PerformanceRow } from '@/lib/performance/types';
+import { upsertPerformances } from '@/lib/performance/write-server';
+import { getStatSchema } from '@/lib/sports/stat-schemas';
+import { validateStatsAgainstSchema } from '@/lib/sports/stat-line-validate';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- matches the authz.ts Admin alias; schema-agnostic helper
 type Admin = SupabaseClient<any, 'public', any>;
@@ -385,7 +394,7 @@ export async function entryAddPOST(
 ): Promise<NextResponse> {
   const { data: competition } = await admin
     .from('competitions')
-    .select('id, name, league_id, club_id, division_id, entrant_type, status')
+    .select('id, name, league_id, club_id, division_id, entrant_type, status, format')
     .eq('id', input.competitionId)
     .maybeSingle();
   const comp =
@@ -398,6 +407,8 @@ export async function entryAddPOST(
   }
 
   let crossOrg: { clubId: string; teamName: string } | null = null;
+  // Track 2 PR 7 (219): a meet athlete's affiliation — the TEAM-scope roster row, snapshotted at entry (organizer-editable after; NULL = unattached).
+  let affiliationTeamId: string | null = null;
   if (comp.entrant_type === 'team') {
     if (!input.teamId) {
       return NextResponse.json({ error: 'This competition takes team entries' }, { status: 400 });
@@ -484,6 +495,7 @@ export async function entryAddPOST(
         { status: 400 }
       );
     }
+    if (comp.format === 'meet') affiliationTeamId = await athleteAffiliationTeamId(admin, comp.league_id ? 'league_id' : 'club_id', (comp.league_id ?? comp.club_id) as string, input.profileId);
   } else if (comp.entrant_type === 'ad_hoc_team') {
     // Track 2 PR 6 (219): an AD-HOC side — a name and members from the org's ROSTER (§8 invariant 3 holds: the
     // roster edge is the record edge). The shape an org's default team shadows later.
@@ -514,6 +526,7 @@ export async function entryAddPOST(
       team_id: input.teamId ?? null,
       profile_id: input.profileId ?? null,
       ...(comp.entrant_type === 'ad_hoc_team' && input.name ? { name: input.name.trim() } : {}),
+      ...(affiliationTeamId ? { affiliation_team_id: affiliationTeamId } : {}),
       // Cross-org entries await the owner's decision (the §5 eligibility
       // step); own-org entries are approved at birth.
       status: crossOrg ? 'pending' : 'approved',
@@ -854,7 +867,7 @@ export async function competitionDetailGET(
       ...r,
       entrant_name: entryName.get(r.entry_id) ?? 'Entrant',
     })),
-    standingsColumns: full?.format === 'bracket' ? BRACKET_COLUMNS : (rule?.columns ?? []),
+    standingsColumns: full?.format === 'bracket' ? BRACKET_COLUMNS : full?.format === 'meet' ? MEET_COLUMNS : (rule?.columns ?? []),
   });
 }
 
@@ -1614,4 +1627,188 @@ export async function resultsUpsertPOST(
   await recomputeStandingsBestEffort(admin, compRow.id);
   await revalidateOrgSiteForCompetition(admin, compRow.id);
   return NextResponse.json({ ok: true, completed: complete, competitionId: compRow.id });
+}
+
+// ── The meet (track 2 PR 7) ──────────────────────────────────────────────────
+
+/** The athlete's TEAM-scope roster row under this org (the newest active / placed one) — the affiliation a meet snapshots at entry. */
+async function athleteAffiliationTeamId(admin: Admin, orgCol: 'league_id' | 'club_id', orgId: string, profileId: string): Promise<string | null> {
+  const { data } = await admin
+    .from('memberships')
+    .select('scope_id, created_at')
+    .eq(orgCol, orgId)
+    .eq('profile_id', profileId)
+    .eq('kind', 'roster')
+    .eq('scope_type', 'team')
+    .in('status', ['active', 'placed'])
+    .not('scope_id', 'is', null)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  return (data?.scope_id as string | null) ?? null;
+}
+
+/** PATCH an athlete entry's affiliation (a meet's roll-up key): a team of THIS org, or null = unattached. Recomputes the standings. */
+export async function entryAffiliationPATCH(admin: Admin, input: EntryAffiliationInput, scope: CompetitionScope | null): Promise<NextResponse> {
+  const { data: row } = await admin
+    .from('competition_entries')
+    .select('id, profile_id, competition:competition_id (id, league_id, club_id, format)')
+    .eq('id', input.entryId)
+    .maybeSingle();
+  type CompLite = { id: string; league_id: string | null; club_id: string | null; format: string };
+  const comp = row?.competition as CompLite | CompLite[] | null | undefined;
+  const compRow = Array.isArray(comp) ? comp[0] : comp;
+  if (!row || !compRow || (scope && compRow[orgColumn(scope.side)] !== scope.orgId)) {
+    return NextResponse.json({ error: 'Entry not found' }, { status: 404 });
+  }
+  if (!row.profile_id) return NextResponse.json({ error: 'Only an athlete entry carries an affiliation.', reason: 'not_athlete' }, { status: 400 });
+  if (input.affiliationTeamId) {
+    const { data: team } = await admin
+      .from('teams')
+      .select('id')
+      .eq('id', input.affiliationTeamId)
+      .eq(compRow.league_id ? 'league_id' : 'club_id', (compRow.league_id ?? compRow.club_id) as string)
+      .maybeSingle();
+    if (!team) return NextResponse.json({ error: 'Team not found' }, { status: 404 });
+  }
+  const { error } = await admin.from('competition_entries').update({ affiliation_team_id: input.affiliationTeamId }).eq('id', input.entryId);
+  if (error) {
+    if (error.code === 'PGRST204' || error.code === '42703') return NextResponse.json({ error: 'Affiliations need migration 219.', reason: 'needs_migration' }, { status: 409 });
+    console.error(`${TAG} entry affiliation error:`, error);
+    return NextResponse.json({ error: 'Failed to save the affiliation' }, { status: 500 });
+  }
+  await recomputeStandingsBestEffort(admin, compRow.id);
+  await revalidateOrgSiteForCompetition(admin, compRow.id);
+  return NextResponse.json({ ok: true, entryId: input.entryId, affiliationTeamId: input.affiliationTeamId });
+}
+
+async function pinMeetCompetition(admin: Admin, competitionId: string, scope: CompetitionScope | null): Promise<{ ok: true; comp: { id: string; sport_key: string; status: string } } | { ok: false; response: NextResponse }> {
+  const { data: comp } = await admin.from('competitions').select('id, league_id, club_id, format, sport_key, status').eq('id', competitionId).maybeSingle();
+  if (!comp || (scope && comp[orgColumn(scope.side)] !== scope.orgId)) return { ok: false, response: NextResponse.json({ error: 'Competition not found' }, { status: 404 }) };
+  if (comp.format !== 'meet') return { ok: false, response: NextResponse.json({ error: 'This competition is not a meet.', reason: 'not_meet' }, { status: 400 }) };
+  return { ok: true, comp: comp as { id: string; sport_key: string; status: string } };
+}
+
+/** Mint one contest per chosen event: `round` = the event's label, `stage` = the session, `slot` = the order within it, no participants,
+ *  NEVER published (trap 3 — the calendar mirror is per published contest). An event already minted is skipped, not duplicated. */
+export async function meetEventsGeneratePOST(admin: Admin, input: MeetEventsGenerateInput, scope: CompetitionScope | null): Promise<NextResponse> {
+  const pinned = await pinMeetCompetition(admin, input.competitionId, scope);
+  if (!pinned.ok) return pinned.response;
+  if (pinned.comp.status === 'completed' || pinned.comp.status === 'archived') return NextResponse.json({ error: 'This meet is closed.', reason: 'closed' }, { status: 400 });
+  const events = resolveCompetitionProfile(pinned.comp.sport_key).meetEvents ?? [];
+  const chosen: typeof events[number][] = [];
+  for (const key of input.eventKeys) {
+    const def = events.find(e => e.key === key);
+    if (!def) return NextResponse.json({ error: `Unknown event: ${key}`, reason: 'unknown_event' }, { status: 400 });
+    if (!chosen.includes(def)) chosen.push(def);
+  }
+  const { data: existing, error: readError } = await admin.from('contests').select('id, round, stage, slot').eq('competition_id', input.competitionId).limit(1000);
+  if (readError) {
+    if (readError.code === '42703') return NextResponse.json({ error: 'Meets need migration 218.', reason: 'needs_migration' }, { status: 409 });
+    return NextResponse.json({ error: 'Failed to read the meet' }, { status: 500 });
+  }
+  const minted = new Set((existing ?? []).map(c => c.round as string | null));
+  let slot = Math.max(0, ...(existing ?? []).filter(c => c.stage === input.session).map(c => (c.slot as number | null) ?? 0));
+  const created: Array<{ id: string; round: string; stage: number; slot: number }> = [];
+  const skipped: string[] = [];
+  for (const def of chosen) {
+    if (minted.has(def.label)) { skipped.push(def.label); continue; }
+    slot += 1;
+    const res = await insertContestWithParticipants(admin, { competition_id: input.competitionId, scheduled_at: null, round: def.label, venue_id: null, facility_id: null, holes: null, play_from: null, play_to: null, stage: input.session, slot }, []);
+    if (!res.ok) {
+      if (res.reason === 'needs_migration') return NextResponse.json({ error: 'Meets need migration 218.', reason: 'needs_migration' }, { status: 409 });
+      return NextResponse.json({ error: 'Failed to add the event', created }, { status: 500 });
+    }
+    created.push({ id: res.contest.id, round: def.label, stage: input.session, slot });
+  }
+  if (created.length > 0) await revalidateOrgSiteForCompetition(admin, input.competitionId);
+  return NextResponse.json({ created, skipped }, { status: created.length > 0 ? 201 : 200 });
+}
+
+/** The marks of one event: participants ensured, one result per athlete (`score` = the mark in the event's direction — null on a DQ;
+ *  `payload {mark, unit, event_key, wind?, dq?}`, owner provenance), ONE `contest_stat_lines` row per athlete `{[event_key]: mark}`
+ *  (157's UNIQUE — one event, one contest) → the performance row (194's origin-row rule), the contest completed, the standings recomputed. */
+export async function meetResultsUpsertPOST(admin: Admin, input: MeetResultsUpsertInput, scope: CompetitionScope | null, enteredBy: string): Promise<NextResponse> {
+  const { data: contestRow } = await admin
+    .from('contests')
+    .select('id, status, round, scheduled_at, competition:competition_id (id, league_id, club_id, format, sport_key)')
+    .eq('id', input.contestId)
+    .maybeSingle();
+  type CompLite = { id: string; league_id: string | null; club_id: string | null; format: string; sport_key: string };
+  const compRaw = contestRow?.competition as CompLite | CompLite[] | null | undefined;
+  const comp = Array.isArray(compRaw) ? compRaw[0] : compRaw;
+  if (!contestRow || !comp || (scope && comp[orgColumn(scope.side)] !== scope.orgId)) return NextResponse.json({ error: 'Event not found' }, { status: 404 });
+  if (comp.format !== 'meet') return NextResponse.json({ error: 'This competition is not a meet.', reason: 'not_meet' }, { status: 400 });
+  if (contestRow.status === 'canceled') return NextResponse.json({ error: 'This event was canceled' }, { status: 400 });
+  const def = meetEventFor(resolveCompetitionProfile(comp.sport_key).meetEvents ?? [], { round: (contestRow.round as string | null) ?? null });
+  if (!def) return NextResponse.json({ error: 'This contest is not one of the meet’s events.', reason: 'unknown_event' }, { status: 400 });
+
+  // The marks: parsed by name; a DQ carries no mark; every entry an approved athlete of THIS meet, once.
+  const seen = new Set<string>();
+  const parsed: Array<{ entryId: string; mark: number | null; wind?: number; dq: boolean }> = [];
+  for (const m of input.marks) {
+    if (seen.has(m.entryId)) return NextResponse.json({ error: 'An athlete is listed twice.', reason: 'duplicate' }, { status: 400 });
+    seen.add(m.entryId);
+    const mark = m.mark ? parseMark(m.mark) : null;
+    if (m.mark && mark == null) return NextResponse.json({ error: `Could not read the mark "${m.mark}" — use 11.85, 4:05.30 or 6.42m.`, reason: 'bad_mark' }, { status: 400 });
+    if (!m.dq && mark == null) return NextResponse.json({ error: 'Each athlete needs a mark or a DQ.', reason: 'mark_missing' }, { status: 400 });
+    parsed.push({ entryId: m.entryId, mark: m.dq ? null : mark, ...(m.wind !== undefined ? { wind: m.wind } : {}), dq: !!m.dq });
+  }
+  const schema = getStatSchema(comp.sport_key);
+  if (schema) {
+    for (const p of parsed) {
+      if (p.mark == null) continue;
+      const checked = validateStatsAgainstSchema({ [def.key]: p.mark }, schema);
+      if (!checked.ok) return NextResponse.json({ error: checked.error, reason: 'bad_mark' }, { status: 400 });
+    }
+  }
+  const { data: entries } = await admin.from('competition_entries').select('id, profile_id, status').eq('competition_id', comp.id).in('id', parsed.map(p => p.entryId));
+  const entryBy = new Map(((entries ?? []) as Array<{ id: string; profile_id: string | null; status: string }>).map(e => [e.id, e]));
+  for (const p of parsed) {
+    const e = entryBy.get(p.entryId);
+    if (!e || e.status !== 'approved' || !e.profile_id) return NextResponse.json({ error: 'A mark names an athlete who is not entered in this meet.', reason: 'entry_not_entered' }, { status: 400 });
+  }
+
+  // Participants ensured (a meet event has no draw — the marks ARE the field).
+  const { data: existing } = await admin.from('contest_participants').select('id, entry_id').eq('contest_id', input.contestId);
+  const participantBy = new Map(((existing ?? []) as Array<{ id: string; entry_id: string }>).map(p => [p.entry_id, p.id]));
+  const missing = parsed.filter(p => !participantBy.has(p.entryId));
+  if (missing.length > 0) {
+    const { data: inserted, error: pError } = await admin.from('contest_participants').insert(missing.map(p => ({ contest_id: input.contestId, entry_id: p.entryId, side: null }))).select('id, entry_id');
+    if (pError) {
+      console.error(`${TAG} meet participants insert error:`, pError);
+      return NextResponse.json({ error: 'Failed to add the athletes to the event' }, { status: 500 });
+    }
+    for (const p of (inserted ?? []) as Array<{ id: string; entry_id: string }>) participantBy.set(p.entry_id, p.id);
+  }
+  const { error } = await admin.from('contest_results').upsert(
+    parsed.map(p => ({
+      contest_id: input.contestId,
+      participant_id: participantBy.get(p.entryId)!,
+      score: p.mark,
+      payload: { mark: p.mark, unit: def.unit, event_key: def.key, ...(p.wind !== undefined ? { wind: p.wind } : {}), ...(p.dq ? { dq: true } : {}) },
+      provenance: stampProvenance('owner'),
+      entered_by: enteredBy,
+    })),
+    { onConflict: 'participant_id' }
+  );
+  if (error) {
+    console.error(`${TAG} meet results upsert error:`, error);
+    return NextResponse.json({ error: 'Failed to save the marks' }, { status: 500 });
+  }
+  // The athlete's record: one stat line per athlete per event (a DQ writes none and clears a stale one), then the performance row. Best-effort.
+  const lines = parsed.filter(p => p.mark != null).map(p => ({ contest_id: input.contestId, team_id: null, profile_id: entryBy.get(p.entryId)!.profile_id as string, stats: { [def.key]: p.mark as number }, provenance: stampProvenance('owner'), entered_by: enteredBy }));
+  const dqProfiles = parsed.filter(p => p.mark == null).map(p => entryBy.get(p.entryId)!.profile_id as string);
+  if (dqProfiles.length > 0) await admin.from('contest_stat_lines').delete().eq('contest_id', input.contestId).in('profile_id', dqProfiles);
+  if (lines.length > 0) {
+    const { data: written, error: lineError } = await admin.from('contest_stat_lines').upsert(lines, { onConflict: 'contest_id,profile_id' }).select('id, contest_id, profile_id, stats, provenance, entered_by, created_at');
+    if (lineError) console.warn(`${TAG} meet stat lines upsert failed:`, lineError.message);
+    const perf = ((written ?? []) as unknown[]).map(row => fromContestStatLine(row as ContestStatLineOrigin, comp.sport_key, (contestRow.scheduled_at as string | null) ?? null)).filter((r): r is PerformanceRow => r !== null);
+    if (perf.length > 0) await upsertPerformances(admin, perf);
+  }
+  if (contestRow.status !== 'completed') await admin.from('contests').update({ status: 'completed' }).eq('id', input.contestId);
+  await recomputeStandingsBestEffort(admin, comp.id);
+  await revalidateOrgSiteForCompetition(admin, comp.id);
+  const placed = meetIndividualLeaders({ id: input.contestId, status: 'completed', direction: def.direction, results: parsed }, def.unit, id => id);
+  return NextResponse.json({ ok: true, contestId: input.contestId, eventKey: def.key, placed });
 }

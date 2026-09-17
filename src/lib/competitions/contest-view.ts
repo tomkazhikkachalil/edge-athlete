@@ -43,6 +43,7 @@ import { SPORT_REGISTRY, type SportKey } from '@/lib/sports/SportRegistry';
 import { deriveContestOutcome, type ContestOutcome } from './contest-outcome';
 import { findPublishedSite } from '@/lib/org-sites/revalidate';
 import { orgSitePath } from '@/lib/org-sites/urls';
+import { meetEventRuleFor } from './meet';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- the authz.ts Admin alias; schema-agnostic
 type Admin = SupabaseClient<any, 'public', any>;
@@ -238,6 +239,8 @@ export function projectContestView(raw: RawContestRecord): ContestView {
     stage: raw.contest.stage,
     slot: raw.contest.slot,
     roundName: raw.contest.roundName,
+    // Track 2 PR 7: a meet event's rule by the contest's round label (unscored when the label is off the vocabulary).
+    meetEvent: raw.competition.format === 'meet' ? meetEventRuleFor(raw.competition.sportKey, raw.contest.round) : null,
     participants: entrants.map(e => ({
       participantId: e.participantId,
       entryId: e.entryId,
