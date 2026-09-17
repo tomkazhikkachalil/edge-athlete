@@ -33,7 +33,8 @@ import { canTransition, eventStatusAfterRound, nextStartableRound, ROUND_REFUSAL
 import { announcePostRow, groupPostRow, participantRows, scorecardRow } from './mint';
 import { activeRounds, buildMintPlan, type MintGroup, type MintPlayer } from './rounds';
 import { notifyLive, notifyMatchClosed, notifyResults } from './notify';
-import { syncContestStatus, syncSportEventContest } from './contest-sync-server';
+import { syncContestStatus, syncMatchContests, syncSportEventContest } from './contest-sync-server';
+import { linkMatchesToContests } from './contest-link-server';
 import { ROUND_COLUMNS } from './rounds-server';
 import { cutDecided } from './cut';
 import { readFormatConfig, readMatchConfig } from './format-config';
@@ -293,6 +294,8 @@ export async function applyRoundTransition(admin: Admin, req: RoundTransitionReq
     }
     // Phase 3: one match row per group (idempotent; a bracket bye decided at mint).
     if (match && !(await mintMatches(admin, round.id, groups, match, new Date().toISOString()))) return { ok: false, status: 500, reason: 'mint_failed', error: ROUND_REFUSAL_COPY.round_not_minted };
+    // Track 2 PR 11 (220): a bracket contest run as this match takes the minted match's id (the round link cleared).
+    if (match) await linkMatchesToContests(admin, round.id);
   }
 
   const verdict = validateRoundTransition(req.to, factsFor(roundMinted(round)));
@@ -340,6 +343,7 @@ export async function applyRoundTransition(admin: Admin, req: RoundTransitionReq
       if (match) {
         await closeMatchesOnCompletion(admin, matches, now);
         await notifyMatchClosed(admin, event, round.id, matches, req.actorProfileId); // 213; best-effort, 23514-tolerant
+        await syncMatchContests(admin, event, round, matches, req.actorProfileId); // track 2 PR 11: the org's bracket result
       } else await syncSportEventContest(admin, event, round, req.actorProfileId);
     } else if (isStatShape(shape)) {
       // Phase 4: a stat round's results — one stat-line post + performance row per fielded player, the round's post flips to the results. Idempotent, best-effort, awaited.

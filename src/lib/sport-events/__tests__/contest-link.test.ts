@@ -24,7 +24,7 @@ describe('linkRefusal — which competitions may count an event', () => {
     expect(linkRefusal(club, comp({ sport_key: 'ice_hockey' }))).toBe('not_golf_leaderboard');
     expect(linkRefusal(club, comp({ entrant_type: 'team' }))).toBe('not_athletes');
     expect(linkRefusal(club, comp({ status: 'completed' }))).toBe('competition_closed');
-    for (const key of ['no_org', 'not_stroke_play', 'not_found', 'other_org', 'not_golf_leaderboard', 'not_athletes', 'competition_closed', 'event_over', 'results_exist', 'shape_mismatch', 'not_a_game', 'not_two_sided', 'already_linked', 'contest_over', 'sport_unsupported'] as const) expect(LINK_REFUSAL_COPY[key]).toBeTruthy();
+    for (const key of ['no_org', 'not_stroke_play', 'not_found', 'other_org', 'not_golf_leaderboard', 'not_athletes', 'competition_closed', 'event_over', 'results_exist', 'shape_mismatch', 'not_a_game', 'not_two_sided', 'already_linked', 'contest_over', 'sport_unsupported', 'side_size'] as const) expect(LINK_REFUSAL_COPY[key]).toBeTruthy();
   });
 });
 

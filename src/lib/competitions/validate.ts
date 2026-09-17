@@ -273,6 +273,9 @@ export const ContestRunAsEventSchema = z.object({
   scheduledOn: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'scheduledOn must be a date (YYYY-MM-DD)'),
   startsAt: z.string().datetime({ offset: true }).optional(),
   place: boundedText(200).optional(),
+  /** PR 11: a golf bracket match — its course and gross / net. */
+  courseId: uuid.optional(),
+  format: z.enum(['match_gross', 'match_net']).optional(),
   selfEntry: z.boolean().default(true),
   visibility: z.enum(['public', 'private']).default('public'),
 });

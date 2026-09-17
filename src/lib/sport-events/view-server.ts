@@ -10,7 +10,7 @@ import { ROUND_COLUMNS } from './rounds-server';
 import type { SportEventGroupMemberRow, SportEventGroupRow, SportEventParticipantRow, SportEventRoundRow } from './types';
 import { projectEvent, projectParticipant, projectViewer, roundCounts, visibleParticipants, type CountsTowardView, type GroupView, type HostOrgView, type ProfileForView, type RoundView, type SportEventViewPayload } from './view';
 import { eventOrg } from './contest-link';
-import { readCountsToward } from './contest-link-server';
+import { readCountsTowardAll } from './contest-link-server';
 import { readRoster } from './join-server';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -56,7 +56,7 @@ export async function fetchSportEventView(admin: Admin, eventId: string, viewerI
   const org = eventOrg(event);
   const [orgRes, countsToward] = await Promise.all([
     org ? admin.from(org.side === 'club' ? 'clubs' : 'leagues').select('id, name').eq('id', org.id).maybeSingle() : Promise.resolve({ data: null }),
-    org && roundIds.length > 0 ? readCountsToward(admin, roundIds) : Promise.resolve(null),
+    org && roundIds.length > 0 ? readCountsTowardAll(admin, roundIds) : Promise.resolve(null),
   ]);
   const host_org: HostOrgView | null = org && orgRes.data ? { side: org.side, id: org.id, name: (orgRes.data as { name: string }).name } : null;
   let counts_toward: CountsTowardView | null = null;

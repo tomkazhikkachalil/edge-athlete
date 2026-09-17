@@ -17,7 +17,8 @@ import { revalidateOrgSiteForCompetition } from '@/lib/org-sites/revalidate';
 import { golfOverlayFromResult, type ContestResultOrigin } from '@/lib/performance/map';
 import { syncGolfRoundPerformance } from '@/lib/performance/write-server';
 import { eventOrg, eventShape } from './contest-link';
-import { ensureContestParticipants, readCountsToward, readRoundSides, syncSideMembers } from './contest-link-server';
+import { ensureContestParticipants, readCountsToward, readMatchLinks, readRoundSides, syncSideMembers } from './contest-link-server';
+import type { RoundMatch } from './match-server';
 import { readResultLines } from './stat-results-server';
 import { scoreOf } from './stats-server';
 import { getStatSchema } from '@/lib/sports/stat-schemas';
@@ -200,6 +201,69 @@ export async function syncGameContest(admin: Admin, event: SportEventRow, round:
     return report;
   } catch (e) {
     console.error(`${TAG} game sync failed (continuing):`, e);
+    return null;
+  }
+}
+
+/** A MATCH round completed (track 2 PR 11, 220): every closed match with a linked contest becomes the bracket's result — the winner 1, the
+ *  loser 0, `payload.match {result, decidedBy}` + `sportEvent {eventId, roundId, matchId}`, the org's provenance — the sides matched to home /
+ *  away by the players (side 1 = home when nothing says otherwise), then the bracket advances by slot and the golf-sync order runs. A pre-220
+ *  database falls back to the round link (one match). Best-effort. */
+export async function syncMatchContests(admin: Admin, event: SportEventRow, round: SportEventRoundRow, matches: RoundMatch[], actorProfileId: string): Promise<ContestSyncReport | null> {
+  try {
+    const org = eventOrg(event);
+    if (!org || matches.length === 0) return null;
+    const byMatch = await readMatchLinks(admin, [round.id]);
+    if (byMatch.size === 0 && matches.length === 1) {
+      const links = await readCountsToward(admin, [round.id]);
+      const l = links?.get(round.id);
+      if (l) byMatch.set(matches[0].id, { contestId: l.contestId, competitionId: l.competitionId, competitionName: l.competitionName, matchId: matches[0].id, roundId: round.id });
+    }
+    if (byMatch.size === 0) return null;
+    const report: ContestSyncReport = { contestId: [...byMatch.values()][0].contestId, synced: 0, skipped: [] };
+    const provenance = provenanceForOrg(org);
+    const competitionIds = new Set<string>();
+    for (const m of matches) {
+      const link = byMatch.get(m.id);
+      if (!link) continue;
+      const winnerSide = m.state.winnerSide ?? m.stored.winner_side;
+      if (!winnerSide) { report.skipped.push({ profileId: '', reason: `match ${m.group.sequence} undecided` }); continue; }
+      const { data: parts } = await admin.from('contest_participants').select('id, side, entry:entry_id (id, profile_id)').eq('contest_id', link.contestId);
+      type Part = { id: string; side: 'home' | 'away' | null; entry: { id: string; profile_id: string | null } | Array<{ id: string; profile_id: string | null }> | null };
+      const rows = (parts ?? []) as Part[];
+      const home = rows.find(p => p.side === 'home');
+      const away = rows.find(p => p.side === 'away');
+      if (!home || !away) { report.skipped.push({ profileId: '', reason: `match ${m.group.sequence}: the contest has no two sides` }); continue; }
+      // Which contest side is match side 1: the entry whose athlete (or whose members) plays on it; else side 1 = home.
+      const entryProfile = (p: Part) => { const e = Array.isArray(p.entry) ? p.entry[0] : p.entry; return e?.profile_id ?? null; };
+      const memberIds = async (p: Part) => { const e = Array.isArray(p.entry) ? p.entry[0] : p.entry; if (!e) return []; if (e.profile_id) return [e.profile_id]; const { data } = await admin.from('competition_entry_members').select('profile_id').eq('entry_id', e.id); return ((data ?? []) as Array<{ profile_id: string }>).map(r => r.profile_id); };
+      const side1Profiles = new Set(m.sides[0].members.map(x => x.profile_id));
+      const awayIds = entryProfile(away) ? [entryProfile(away) as string] : await memberIds(away);
+      const side1IsAway = awayIds.length > 0 && awayIds.every(id => side1Profiles.has(id));
+      const side1Part = side1IsAway ? away : home;
+      const side2Part = side1IsAway ? home : away;
+      const result = m.stored.result ?? m.state.result;
+      const decidedBy = m.stored.decided_by ?? m.state.decidedBy;
+      const payload = (side: 1 | 2) => ({ match: { result, decidedBy, side, won: winnerSide === side }, sportEvent: { eventId: event.id, roundId: round.id, matchId: m.id } });
+      const { error } = await admin.from('contest_results').upsert([
+        { contest_id: link.contestId, participant_id: side1Part.id, score: winnerSide === 1 ? 1 : 0, payload: payload(1), provenance, entered_by: actorProfileId },
+        { contest_id: link.contestId, participant_id: side2Part.id, score: winnerSide === 2 ? 1 : 0, payload: payload(2), provenance, entered_by: actorProfileId },
+      ], { onConflict: 'participant_id' });
+      if (error) { console.error(`${TAG} match results upsert failed:`, error); continue; }
+      await admin.from('contests').update({ status: 'completed' }).eq('id', link.contestId);
+      report.synced += 1;
+      competitionIds.add(link.competitionId);
+      await stampContestAttachments(admin, link.contestId);
+    }
+    for (const competitionId of competitionIds) {
+      const { advanceBracket } = await import('@/lib/orgs/competition-server');
+      await advanceBracket(admin, competitionId);
+      await recomputeStandingsBestEffort(admin, competitionId);
+      await revalidateOrgSiteForCompetition(admin, competitionId);
+    }
+    return report;
+  } catch (e) {
+    console.error(`${TAG} match sync failed (continuing):`, e);
     return null;
   }
 }

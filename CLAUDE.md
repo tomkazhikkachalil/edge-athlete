@@ -965,6 +965,40 @@ const { canView } = await response.json();
    meet — track 2), pools, relays, the per-photo guardian bell, realtime
    as a wake-up, the venue timezone for a team round's start.
 
+21. **The org formats and the events meet on ONE contest through TWO
+   doors (Competition formats program, track 2, Sep 16 2026, #806–#816,
+   migs 218 · 219 · 220)** — the sport PROFILE decides format × entrant
+   (`src/lib/sports/competition-profiles.ts`, pure data — never on
+   `SportAdapter`; `FORMATS_LIVE` gates creation); stages are two columns
+   on `contests` (218 `stage` / `slot`; slot k of stage n+1 is fed by 2k−1
+   and 2k of stage n — BY SLOT, never by id; a meet's session / order use
+   the pair); a knockout tie carries its decision IN the result
+   (`payload.advance` — no `decided_by` column, so `deriveContestOutcome`
+   stays the one ranking rule); a meet is ONE competition whose events are
+   contests (the mark is the result; the team score rolls up per
+   AFFILIATION — 219 `affiliation_team_id` — whose rows are TEAM entries
+   minted at recompute; one `contest_stat_lines` row per athlete per event
+   → the performance row); an ad-hoc side (219: `name`, `source_ref`,
+   `competition_entry_members`) is the shape an org's default team shadows
+   later; ONE naming rule at every reader (`entryDisplayName`). The
+   BRIDGE: `eventShape` × `competitionAcceptsShape` is the shape table (a
+   stroke round → a golf leaderboard; a GAME → a fixture of named sides in
+   its sport; a session → nothing; a match round → a golf bracket from the
+   console door only); a contest mirrors a ROUND (211) or a MATCH (220),
+   never both; the event → competition door mints the fixture between the
+   event's ad-hoc sides (`source_ref sport_event_side:<event>:<side>`); the
+   contest → event door (`POST …/contests/[contestId]/event`) mints a
+   one-round game or match-play event hosted for the org with the sides
+   pre-filled from the entries and the link stamped through the ONE writer;
+   completion branches on the shape (`syncGameContest` — the live score,
+   the lines as the org's stat lines, the performance row STAYS the
+   event's `post:` origin; `syncMatchContests` — winner 1 / loser 0,
+   `payload.match`, the bracket advanced by slot); the hand writers refuse
+   a linked contest (`from_event`). `docs/EVENTS.md` "Competition formats
+   — the bridge" and the masterplan §3.3 table are the reference; read
+   DEVLOG Sep 16 2026 track 2 PR 1–11 first. Parked: pools, relays, a whole
+   bracketed match event linking to an org bracket in one act.
+
 
 ---
 

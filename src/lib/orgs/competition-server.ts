@@ -62,6 +62,7 @@ import type { PerformanceRow } from '@/lib/performance/types';
 import { upsertPerformances } from '@/lib/performance/write-server';
 import { getStatSchema } from '@/lib/sports/stat-schemas';
 import { validateStatsAgainstSchema } from '@/lib/sports/stat-line-validate';
+import { readSportEventMatchLink } from '@/lib/sport-events/contest-link-server';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- matches the authz.ts Admin alias; schema-agnostic helper
 type Admin = SupabaseClient<any, 'public', any>;
@@ -786,6 +787,19 @@ export async function competitionDetailGET(
       for (const r of (linkRows ?? []) as Array<{ id: string; sport_event_round_id: string; round: { sport_event_id: string } | Array<{ sport_event_id: string }> | null }>) {
         const rr = Array.isArray(r.round) ? r.round[0] : r.round;
         if (rr) eventLinks.set(r.id, { event_id: rr.sport_event_id, round_id: r.sport_event_round_id });
+      }
+    }
+    // Track 2 PR 11 (220): a contest played as a MATCH — through the match's round (a pre-220 database reads none).
+    const { data: matchRows, error: matchError } = await admin
+      .from('contests')
+      .select('id, match:sport_event_match_id (sport_event_round_id, round:sport_event_round_id (sport_event_id))')
+      .eq('competition_id', competitionId)
+      .not('sport_event_match_id', 'is', null);
+    if (!matchError) {
+      for (const r of (matchRows ?? []) as Array<{ id: string; match: { sport_event_round_id: string; round: { sport_event_id: string } | Array<{ sport_event_id: string }> | null } | Array<{ sport_event_round_id: string; round: { sport_event_id: string } | Array<{ sport_event_id: string }> | null }> | null }>) {
+        const mm = Array.isArray(r.match) ? r.match[0] : r.match;
+        const rr = mm ? (Array.isArray(mm.round) ? mm.round[0] : mm.round) : null;
+        if (mm && rr) eventLinks.set(r.id, { event_id: rr.sport_event_id, round_id: mm.sport_event_round_id });
       }
     }
   }
@@ -1554,7 +1568,7 @@ export async function resultsUpsertPOST(
     return NextResponse.json({ error: 'This game was canceled' }, { status: 400 });
   }
   // Track 2 PR 10: a contest played as an EVENT takes its result from the event, never by hand (the golf-sync guard's twin).
-  if (contestRow.sport_event_round_id) {
+  if (contestRow.sport_event_round_id || (await readSportEventMatchLink(admin, input.contestId))) {
     return NextResponse.json({ error: 'This game runs as an event — its result comes from the event when the round completes.', reason: 'from_event' }, { status: 409 });
   }
 

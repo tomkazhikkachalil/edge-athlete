@@ -6,21 +6,21 @@
 > Recruiting programs #661–#669, the Data foundation and provenance rounds
 > #709–#731, the Events program #732–#748, Events phase 2 — tournaments —
 > #750–#762, Events phase 2b — the integrations — #763–#773, Events
-> phase 3 — match play and brackets — #775–#790, and Events phase 4 — every
-> sport live, open joining, recorders, media — #792–#803)** — migration head
-> 216 (`216_sport_event_media.sql`, with 214 and 215 — the phase 4 chain is
-> OPEN, unmerged, one linear chain; Tom merges in order, runs 214 / 215 /
-> 216 after their DDL PRs, `npm run check:schema` gates each first reader,
-> and every self-skipping spec runs locally before its reader merges);
-> `main` deployed through #791 and every merged PR prod-probed (the probe
-> waits for the deploy by itself; "NNN ran" means `npm run check:schema` is
-> OK — it asks the schema question BOTH ways). **The Live Events → Competition
-> Formats program is open**: track 1 (Events phase 4) is fully built; track
-> 2 (competition formats: bracket · meet · ad-hoc teams · the event bridge,
-> migs 218–220) starts once track 1 is merged and prod-proven — the plan is
-> `~/.claude/plans/let-s-start-phase-2-transient-fountain.md`. If the "Where the project
-> actually is" section drifts stale, ask Claude to re-align it against
-> DEVLOG.md and session memory.
+> phase 3 — match play and brackets — #775–#790, Events phase 4 — every
+> sport live, open joining, recorders, media — #792–#805 (merged, migrations
+> 214–216 ran, prod-proven), and Competition formats — track 2: profiles,
+> stages, the bracket, ad-hoc sides, the meet, the two-door bridge —
+> #806–#816)** — migration head 220 (`220_contests_sport_event_match.sql`,
+> with 218 and 219 — the track 2 chain is OPEN, unmerged, one linear chain;
+> Tom merges in order, runs 218 / 219 / 220 after their DDL PRs, `npm run
+> check:schema` gates each first reader, and every self-skipping spec runs
+> locally before its reader merges); `main` deployed through #805 and every
+> merged PR prod-probed (the probe waits for the deploy by itself; "NNN ran"
+> means `npm run check:schema` is OK — it asks the schema question BOTH
+> ways). The plan is `~/.claude/plans/let-s-start-phase-2-transient-fountain.md`;
+> CLAUDE.md conventions 20 and 21 and `docs/EVENTS.md` are the references.
+> If the "Where the project actually is" section drifts stale, ask Claude to
+> re-align it against DEVLOG.md and session memory.
 
 ## Context & Vision
 

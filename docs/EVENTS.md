@@ -595,6 +595,28 @@ gallery on the event page.
 **Parked, named:** `track_field` events (a meet is its home — track 2), pools / pool play → knockout, relays, a supervised player's per-photo guardian bell, realtime broadcast as a wake-up for the stat poll, the venue-timezone class for a team round's start (the organizer's clock today), Stableford, an org-side default-team roster pre-filling an event's sides (the ad-hoc shape is built for it).
 
 
+## Competition formats — the bridge (track 2, Sep 16 2026 — #806–#816, migrations 218 · 219 · 220)
+
+Plan: `~/.claude/plans/let-s-start-phase-2-transient-fountain.md` (track 2).
+The org side's four formats (fixture · leaderboard · bracket · meet) and the
+event world meet on ONE contest through TWO doors. The rules, each pure and
+pinned (`src/lib/sport-events/contest-link.ts`, `src/lib/competitions/`):
+
+- **The sport profile decides format × entrant** (`src/lib/sports/competition-profiles.ts`, pure data — never `SportAdapter`): the scoring defaults read it, `FORMATS_LIVE` gates creation, the organizer names an entrant kind only when the profile offers more than one; `track_field` offers the meet with the `TRACK_EVENTS` vocabulary.
+- **Stages are two columns on `contests`** (218: `stage`, `slot`; `round` stays the label): slot k of stage n+1 is fed by slots 2k−1 and 2k of stage n — BY SLOT, never by id (the same rule the events bracket runs on). A meet uses the pair too (stage = session, slot = order).
+- **A bracket**: seeds (the FULL order), a generator (dry-run first; byes never contests; `results_exist` refuses a regenerate), advancement by slot after every result, NO `decided_by` column — a knockout tie carries its decision IN the result (`payload.advance`), so `deriveContestOutcome` stays the one ranking rule; the standings are the progression.
+- **A meet**: ONE competition whose EVENTS are contests; a mark is the result (`score` in the event's direction, `payload {mark, unit, event_key, wind?, dq?}`); the team score is a roll-up per AFFILIATION (`competition_entries.affiliation_team_id`, snapshotted at entry from the team-scope roster, organizer-editable) whose rows are TEAM entries minted at recompute; one `contest_stat_lines` row per athlete per event → the performance row.
+- **Ad-hoc sides** (219): an entry with `name`, `source_ref` and `competition_entry_members` — the shape an org's default team shadows later (`SET team_id` promotes it; the name stays the label, the members "who played"). ONE naming rule at every reader (`entryDisplayName`).
+- **The shape table** (`eventShape` → stroke · match · game · session; `competitionAcceptsShape`): a stroke round counts toward a golf leaderboard of athletes (2b); a GAME toward a fixture of named sides in the same sport; a session toward nothing; a match round reaches a golf bracket from the CONSOLE side.
+- **Door 1 — event → competition** (`PUT [id]/contest`, the create body's `competition_id`): a game mints ONE fixture contest per round between the event's two AD-HOC side entries (`source_ref sport_event_side:<event>:<side>`; a standing side of the same NAME is reused; members = who played, from the groups' sent sides).
+- **Door 2 — contest → event** (`POST …/competitions/[id]/contests/[contestId]/event`): a two-sided fixture in a stat-line sport → a one-round GAME event; a golf bracket contest → a single MATCH-PLAY round (athletes → singles, ad-hoc pairs → four-ball; gross or net; a catalog course or off catalog). Hosted for the org by the manager (a non-playing organizer), every side member accepted and playing, ONE group with the sides SENT, published at once; `contests.sport_event_round_id` stamped through the one writer. Refusals named.
+- **The links** (211 + 220): a contest mirrors a ROUND (`sport_event_round_id`, one contest per round) or a MATCH (`sport_event_match_id`, one contest per match) — never both (220's CHECK). A match's contest takes the minted match at go-live (the round link cleared); "counts toward" reads either link.
+- **Completion**: `syncSportEventContest` branches on the shape — stroke → the 2b path; game → `syncGameContest` (the LIVE score as the two results, the players' event lines as the org's `contest_stat_lines` — the performance row STAYS the event's `post:` origin, never a second origin per game — the sides' members re-synced, the team-score stat vs the score reported); match → `syncMatchContests` (the winner 1, the loser 0, `payload.match`, the sides matched by the players, the bracket advanced by slot). Then the golf-sync order: status → standings → site → attachments.
+- **The guards**: `resultsUpsertPOST` and `statLinesUpsertPOST` answer 409 `from_event` on a linked contest (a round's or a match's).
+
+**Parked, named:** pools / pool play → knockout ("Seed from standings"), relays, a whole bracketed match event linking to an org bracket in one act (stage n ↔ round n, slot k ↔ match k needs the intent kept before go-live — a `sport_events.competition_id` column, a later migration), an org's default-team roster pre-filling an event's sides (the ad-hoc shape is built for it), the meet's per-session calendar publication.
+
+
 ## Phase 3 status
 
 Complete (Sep 16 2026): the chain #775 → #786 (migrations 212 · 213) and
