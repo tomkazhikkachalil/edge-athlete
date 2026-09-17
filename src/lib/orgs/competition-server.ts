@@ -1653,14 +1653,14 @@ export async function resultsUpsertPOST(
 async function athleteAffiliationTeamId(admin: Admin, orgCol: 'league_id' | 'club_id', orgId: string, profileId: string): Promise<string | null> {
   const { data } = await admin
     .from('memberships')
-    .select('scope_id, created_at')
+    .select('scope_id, joined_at')
     .eq(orgCol, orgId)
     .eq('profile_id', profileId)
     .eq('kind', 'roster')
     .eq('scope_type', 'team')
     .in('status', ['active', 'placed'])
     .not('scope_id', 'is', null)
-    .order('created_at', { ascending: false })
+    .order('joined_at', { ascending: false }) // memberships carry joined_at (140), never created_at — the meet API probe found the silent 42703
     .limit(1)
     .maybeSingle();
   return (data?.scope_id as string | null) ?? null;

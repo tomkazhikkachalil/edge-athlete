@@ -37,7 +37,7 @@ test('meet API: affiliations, events minted, marks with a DQ, the event outcome,
     const roster = (profileId: string) => ({ league_id: leagueId, profile_id: profileId, kind: 'roster', role: 'member', status: 'active', scope_type: 'org', scope_id: null });
     const onTeam = (profileId: string, teamId: string) => ({ league_id: leagueId, profile_id: profileId, kind: 'roster', role: 'member', status: 'active', scope_type: 'team', scope_id: teamId });
     const { error: memberError } = await admin.from('memberships').insert([
-      { league_id: leagueId, profile_id: owner.id, role: 'owner' },
+      { league_id: leagueId, profile_id: owner.id, kind: 'follow', role: 'owner', status: 'active', scope_type: 'org', scope_id: null },
       roster(athleteA.id), roster(athleteC.id), roster(athleteD.id),
       onTeam(athleteA.id, red), onTeam(athleteC.id, blue),
     ]);

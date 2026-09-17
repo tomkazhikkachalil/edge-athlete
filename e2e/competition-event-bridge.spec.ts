@@ -34,7 +34,7 @@ test('the game bridge: a contest runs as an event, completion writes the fixture
   let eventId2: string | null = null;
   try {
     await admin.from('memberships').insert([
-      { league_id: leagueId, profile_id: s.userA.id, role: 'owner' },
+      { league_id: leagueId, profile_id: s.userA.id, kind: 'follow', role: 'owner', status: 'active', scope_type: 'org', scope_id: null },
       ...[s.userB.id, userC.id, userD.id].map(profile_id => ({ league_id: leagueId, profile_id, kind: 'roster', role: 'member', status: 'active', scope_type: 'org', scope_id: null })),
     ]);
     const { data: season } = await admin.from('seasons').insert({ league_id: leagueId, label: '2026-27' }).select().single();
@@ -83,7 +83,7 @@ test('the game bridge: a contest runs as an event, completion writes the fixture
     // The hand writers are refused while linked.
     let d = await detail();
     const homePart = d.contests.find(c => c.id === contestId)!.participants.find(p => p.side === 'home')!;
-    const byHand = await s.apiA.post(`${base}/results`, { data: { contestId, results: [{ participantId: homePart.id, score: 1 }] } });
+    const byHand = await s.apiA.post(`${base}/${compId}/results`, { data: { contestId, results: [{ participantId: homePart.id, score: 1 }] } });
     expect(byHand.status()).toBe(409);
     expect(((await byHand.json()) as { reason?: string }).reason).toBe('from_event');
     const linesByHand = await s.apiA.post(`${base}/${compId}/stat-lines`, { data: { contestId, lines: [{ profileId: s.userB.id, stats: { goals: 9 } }] } });

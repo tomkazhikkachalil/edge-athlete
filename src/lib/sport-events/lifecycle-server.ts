@@ -349,6 +349,8 @@ export async function applyRoundTransition(admin: Admin, req: RoundTransitionReq
       // Phase 4: a stat round's results — one stat-line post + performance row per fielded player, the round's post flips to the results. Idempotent, best-effort, awaited.
       await mirrorStatRound(admin, event, round);
       await mirrorEventMedia(admin, event, round);
+      // Track 2 PR 10: a GAME round writes the org's fixture from the live score — after the mirror, on every completion (the game bridge's probe found this branch missing it).
+      await syncSportEventContest(admin, event, round, req.actorProfileId);
     }
   }
 

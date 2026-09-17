@@ -30,7 +30,7 @@ test('meet surfaces: add an event → enter marks → the placed line and the te
       { league_id: leagueId, profile_id: profileId, kind: 'roster', role: 'member', status: 'active', scope_type: 'org', scope_id: null },
       { league_id: leagueId, profile_id: profileId, kind: 'roster', role: 'member', status: 'active', scope_type: 'team', scope_id: teamId },
     ];
-    await admin.from('memberships').insert([{ league_id: leagueId, profile_id: owner.id, role: 'owner' }, ...roster(athleteA.id, red), ...roster(athleteC.id, blue)]);
+    await admin.from('memberships').insert([{ league_id: leagueId, profile_id: owner.id, kind: 'follow', role: 'owner', status: 'active', scope_type: 'org', scope_id: null }, ...roster(athleteA.id, red), ...roster(athleteC.id, blue)]);
     const { data: season } = await admin.from('seasons').insert({ league_id: leagueId, label: '2026' }).select().single();
     const { data: comp } = await admin.from('competitions').insert({ league_id: leagueId, season_id: season!.id, sport_key: 'track_field', name: 'Spring Meet', format: 'meet', entrant_type: 'athlete', status: 'active', visibility: 'public' }).select().single();
     const competitionId = comp!.id as string;

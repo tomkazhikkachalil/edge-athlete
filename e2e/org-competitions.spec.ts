@@ -57,13 +57,10 @@ test('org console: owner creates a competition + entries; member locked out; 375
       await page.getByRole('button', { name: 'Entries (0)' }).click();
       const entrySelect = page.getByLabel('Enter a team in House League');
       await entrySelect.selectOption({ label: `Blazers ${stamp}` });
-      await expect(
-        page.getByText(`Blazers ${stamp}`, { exact: true }).nth(0)
-      ).toBeVisible({ timeout: 15_000 });
+      // The entry row's Remove button — a team name also sits in the Hierarchy section's collapsed list earlier in the DOM, so a bare text match lands on a hidden span.
+      await expect(page.getByRole('button', { name: `Remove Blazers ${stamp}` })).toBeVisible({ timeout: 15_000 });
       await entrySelect.selectOption({ label: `Comets ${stamp}` });
-      await expect(page.getByText(`Comets ${stamp}`, { exact: true }).nth(0)).toBeVisible({
-        timeout: 15_000,
-      });
+      await expect(page.getByRole('button', { name: `Remove Comets ${stamp}` })).toBeVisible({ timeout: 15_000 });
 
       // Activate.
       await page.getByRole('button', { name: 'Activate' }).click();
