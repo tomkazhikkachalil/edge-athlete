@@ -15,7 +15,7 @@ const profile = (over: Partial<RawProfile> & { id: string }): RawProfile => ({
 const base = (over: Partial<RawContestRecord> = {}): RawContestRecord => ({
   contest: {
     id: 'c1', status: 'completed', round: 'Week 1', scheduledAt: '2026-09-10T18:00:00Z', timezone: 'America/Toronto',
-    holes: null, playFrom: null, playTo: null, eventId: null, venueName: 'Rink', facilityName: null, courseName: null,
+    holes: null, playFrom: null, playTo: null, eventId: null, stage: null, slot: null, roundName: null, venueName: 'Rink', facilityName: null, courseName: null,
   },
   competition: {
     id: 'comp', name: 'House League', format: 'fixture', entrantType: 'team', sportKey: 'ice_hockey', sportName: 'Ice Hockey',

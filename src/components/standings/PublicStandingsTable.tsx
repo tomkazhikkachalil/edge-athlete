@@ -1,4 +1,5 @@
 import type { PublicCompetitionStandings } from '@/lib/competitions/public-standings';
+import BracketBlock from './BracketBlock';
 import GolfWeeks from './GolfWeeks';
 import PointsRaceTable from './PointsRaceTable';
 import SeasonSummaryCard from './SeasonSummaryCard';
@@ -93,6 +94,7 @@ export default function PublicStandingsTable({
       </div>
       )}
       {competition.golf && <GolfWeeks golf={competition.golf} competitionId={competition.id} basePath={basePath} />}
+      {competition.bracket && <BracketBlock bracket={competition.bracket} basePath={basePath} />}
       {competition.race && <PointsRaceTable race={competition.race} competitionId={competition.id} basePath={basePath} />}
       {/* Phase 6 R4: a disputed result must never read as settled —
           shared markup, so console twins and the public site all carry

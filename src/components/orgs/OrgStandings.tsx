@@ -1,5 +1,7 @@
 'use client';
 
+import BracketBlock from '@/components/standings/BracketBlock';
+import type { PublicBracketBlock } from '@/lib/competitions/public-standings';
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import GolfWeeks from '@/components/standings/GolfWeeks';
@@ -37,6 +39,8 @@ interface CompetitionStandings {
   golf?: PublicGolfBlock;
   race?: PointsRace;
   seasonSummary?: SeasonSummary;
+  /** Track 2 PR 4: the bracket drawn from the contests. */
+  bracket?: PublicBracketBlock;
 }
 
 interface OrgStandingsProps {
@@ -142,6 +146,7 @@ export default function OrgStandings({ side, orgId, scope = 'public', bare = fal
             )}
             {comp.seasonSummary && <SeasonSummaryCard summary={comp.seasonSummary} />}
             {comp.golf && <GolfWeeks golf={comp.golf} competitionId={comp.id} />}
+            {comp.bracket && <BracketBlock bracket={comp.bracket} />}
             {comp.race && <PointsRaceTable race={comp.race} competitionId={comp.id} />}
           </div>
         ))}

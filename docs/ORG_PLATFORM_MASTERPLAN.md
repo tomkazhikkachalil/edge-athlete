@@ -119,6 +119,18 @@ stat_line           contest_id, athlete_id, team_id, payload
 standing            competition_id, entrant_ref, derived (materialized)
 ```
 
+**Status (Competition formats program, track 2 — Sep 16 2026):** the four
+formats are being taken live in the app on one PR chain, each format its own
+round (the plan: `~/.claude/plans/let-s-start-phase-2-transient-fountain.md`,
+"Track 2"). What has landed:
+
+| PR | what |
+|---|---|
+| 1 | `src/lib/sports/competition-profiles.ts` — the ONE owner of format × entrant × rule per sport (pure data; the scoring defaults read it; `FORMATS_LIVE` gates creation; an optional `entrantType` the profile must offer) |
+| 2 | migration 218 — `contests.stage` / `slot` (both null or both ≥ 1), the partial UNIQUE per competition × stage × slot, the seeded-entries index; the twin. Alone; no reader |
+| 3 | the bracket engine (the first 218 reader): `bracket-draw.ts` (the classic seed order, byes never contests, advancement by slot, the progression standings), the `bracket` outcome (a tie's decision rides `payload.advance`), the standings branch, `seedsPUT` + `bracketGeneratePOST` (dry-run first; `results_exist`) + `advanceBracket`, the result rules (`slot_unfilled`, `tie_needs_decision`), `stage` / `slot` on the console and the contest place; bracket creatable |
+| 4 | the bracket's surfaces (zero DDL): `BracketColumnsView` (shared with the events bracket), the console's seeding panel + Preview → Generate + the drawn bracket + the tied result's Advances / Advance by, the org console's Bracket option, the contest place's decision line, the public `bracket` block on the standings (SSR pages, the org-site module, the in-app standings) |
+
 One competition model covers both contexts:
 
 - **House league:** competition owned by KMHA, entrants are KMHA teams from

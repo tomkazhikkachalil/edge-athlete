@@ -1,3 +1,4 @@
+import { defaultRuleFor, resolveCompetitionProfile } from '@/lib/sports/competition-profiles';
 // ── Competition scoring — the PURE rules (phase 2 R3) ───────────────────────
 // The golf formats.ts charter: "nothing here touches storage" — a
 // competition's scoring_rule only changes how standings are computed and
@@ -29,6 +30,7 @@ export interface FixtureScoringRule {
   key: string;
   kind: 'fixture';
   /** Points for a win / tie / loss. */
+
   win: number;
   tie: number;
   loss: number;
@@ -74,20 +76,14 @@ export const FIXTURE_RULES: Record<string, FixtureScoringRule> = {
 /** Per-sport default rule when competitions.scoring_rule is NULL. Sports
  *  without an entry take the hockey table — a points table is never a
  *  crash. */
-const SPORT_DEFAULT_FIXTURE_RULE: Record<string, string> = {
-  ice_hockey: 'points_2_1_0',
-  soccer: 'points_3_1_0',
-  basketball: 'points_2_1_0',
-  volleyball: 'points_3_1_0',
-  baseball: 'points_2_1_0',
-};
+// The per-sport default lives on the sport's competition profile (track 2 PR 1) — one owner.
 
 export function resolveFixtureRule(
   sportKey: string,
   scoringRule: string | null
 ): FixtureScoringRule {
   if (scoringRule && FIXTURE_RULES[scoringRule]) return FIXTURE_RULES[scoringRule];
-  return FIXTURE_RULES[SPORT_DEFAULT_FIXTURE_RULE[sportKey] ?? 'points_2_1_0'];
+  return FIXTURE_RULES[defaultRuleFor(resolveCompetitionProfile(sportKey), 'fixture') ?? 'points_2_1_0'] ?? FIXTURE_RULES.points_2_1_0;
 }
 
 export interface FixtureContestInput {
@@ -262,16 +258,12 @@ export const LEADERBOARD_RULES: Record<string, LeaderboardScoringRule> = {
 /** The rules a golf leaderboard may pick from in the console (G1). */
 export const GOLF_LEADERBOARD_RULES = ['golf_gross', 'golf_net', 'stroke_total', 'golf_points'] as const;
 
-const SPORT_DEFAULT_LEADERBOARD_RULE: Record<string, string> = {
-  golf: 'stroke_total',
-};
-
 export function resolveLeaderboardRule(
   sportKey: string,
   scoringRule: string | null
 ): LeaderboardScoringRule {
   if (scoringRule && LEADERBOARD_RULES[scoringRule]) return LEADERBOARD_RULES[scoringRule];
-  return LEADERBOARD_RULES[SPORT_DEFAULT_LEADERBOARD_RULE[sportKey] ?? 'points_total'];
+  return LEADERBOARD_RULES[defaultRuleFor(resolveCompetitionProfile(sportKey), 'leaderboard') ?? 'points_total'] ?? LEADERBOARD_RULES.points_total;
 }
 
 export interface LeaderboardContestInput {

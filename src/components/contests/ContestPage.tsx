@@ -1,3 +1,4 @@
+import { ADVANCE_LABEL } from '@/lib/competitions/contest-outcome';
 import Link from 'next/link';
 import type { ContestAccess, ContestView } from '@/lib/competitions/contest-view';
 import {
@@ -108,7 +109,7 @@ export default function ContestPage({ view, access, links, postsSlot }: Props) {
           {competition.seasonLabel && (
             <span className="px-2 py-0.5 rounded-md border border-border text-secondary">{competition.seasonLabel}</span>
           )}
-          {contest.round && outcome.kind === 'fixture' && (
+          {contest.round && (outcome.kind === 'fixture' || outcome.kind === 'bracket') && (
             <span className="px-2 py-0.5 rounded-md border border-border text-secondary">{contest.round}</span>
           )}
         </div>
@@ -149,7 +150,7 @@ export default function ContestPage({ view, access, links, postsSlot }: Props) {
       </header>
 
       <section id="result" aria-label={outcome.kind === 'leaderboard' ? 'Leaderboard' : 'Result'} className="bg-surface rounded-lg border border-border p-4 sm:p-6 scroll-mt-4">
-        {outcome.kind === 'fixture' && (
+        {(outcome.kind === 'fixture' || outcome.kind === 'bracket') && (
           <div>
             <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3">
               {[outcome.home, outcome.away].map((s, i) => {
@@ -170,11 +171,11 @@ export default function ContestPage({ view, access, links, postsSlot }: Props) {
                 );
               }).flatMap((node, i) => (i === 0 ? [node, <span key="vs" className="text-sm text-muted">vs</span>] : [node]))}
             </div>
-            <p className="mt-3 text-sm text-tertiary">
+            <p className="mt-3 text-sm text-tertiary" data-contest-outcome-line="">
               {outcome.complete
                 ? outcome.tie
                   ? 'Final · tie'
-                  : `Final · ${outcome.scoreline}`
+                  : `Final · ${outcome.scoreline}${outcome.kind === 'bracket' && outcome.advancedBy ? ` · ${ADVANCE_LABEL[outcome.advancedBy]}` : ''}`
                 : outcome.scoreline
                   ? `${outcome.scoreline} · ${contestStatusLabel(contest.status)}`
                   : 'No score yet'}
