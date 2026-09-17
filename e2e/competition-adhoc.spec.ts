@@ -18,7 +18,7 @@ test('ad-hoc sides: named entries from the console, a game between them, the nam
   const admin = adminClient();
   const probe = await admin.from('competition_entries').select('name').limit(1);
   test.skip(!!probe.error, 'competition_entries.name missing — run migration 219');
-  const api = await apiAs('state-b.json');
+  const api = await apiAs('state.json'); // the owner's (A's) API session — the same person the page runs as
   const stamp = Date.now();
   const { data: league, error } = await admin.from('leagues').insert({ name: `QA AdHoc League ${stamp}`, sport_key: 'ice_hockey', owner_profile_id: owner.id, visibility: 'public' }).select().single();
   expect(error, error?.message).toBeNull();
