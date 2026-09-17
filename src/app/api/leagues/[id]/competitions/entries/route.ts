@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth, getSupabaseAdmin } from '@/lib/auth-server';
 import { enforceRateLimit } from '@/lib/rate-limit';
 import { parseBody } from '@/lib/validation';
-import { EntryAddSchema, EntryDecideSchema } from '@/lib/competitions/validate';
-import { entryAddPOST, entryDecidePATCH, entryDELETE, requireCompetitionManager } from '@/lib/orgs/competition-server';
+import { EntryAddSchema, EntryPatchSchema } from '@/lib/competitions/validate';
+import { entryAddPOST, entryAffiliationPATCH, entryDecidePATCH, entryDELETE, requireCompetitionManager } from '@/lib/orgs/competition-server';
 import { UUID_RE } from '@/lib/golf/course-catalog';
 
 // ── /api/leagues/[id]/competitions/entries — manager entry CRUD (phase 2) ───
@@ -54,9 +54,11 @@ export async function PATCH(
     const gate = await requireCompetitionManager(admin, user, 'league', id);
     if (!gate.ok) return gate.response;
 
-    const parsed = await parseBody(request, EntryDecideSchema);
+    // Track 2 PR 7: the decision on a pending entry, or a meet athlete affiliation.
+    const parsed = await parseBody(request, EntryPatchSchema);
     if (!parsed.success) return parsed.response;
-    return await entryDecidePATCH(admin, parsed.data, { side: 'league', orgId: id }, user.id);
+    if ('decision' in parsed.data) return await entryDecidePATCH(admin, parsed.data, { side: 'league', orgId: id }, user.id);
+    return await entryAffiliationPATCH(admin, parsed.data, { side: 'league', orgId: id });
   } catch (error) {
     if (error instanceof Response) return error;
     console.error('[COMPETITIONS] league entries PATCH error:', error);

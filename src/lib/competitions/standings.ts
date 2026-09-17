@@ -19,6 +19,8 @@ import {
   type FixtureContestInput,
   type LeaderboardContestInput,
 } from './scoring';
+import { computeMeetStandings, meetEventFor, parseMeetConfig, type MeetAthleteEntry, type MeetContestInput, type MeetTeamEntry } from './meet';
+import { resolveCompetitionProfile } from '@/lib/sports/competition-profiles';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- matches the authz.ts Admin alias; schema-agnostic helper
 type Admin = SupabaseClient<any, 'public', any>;
@@ -65,8 +67,8 @@ export async function recomputeStandings(
       .eq('id', competitionId)
       .maybeSingle();
     if (!comp) return null;
-    // Fixture + leaderboard + bracket (track 2 PR 3) are the live engines; meet defers to PR 7.
-    if (comp.format !== 'fixture' && comp.format !== 'leaderboard' && comp.format !== 'bracket') return null;
+    // Fixture + leaderboard + bracket (track 2 PR 3) + meet (PR 7) are the live engines.
+    if (comp.format !== 'fixture' && comp.format !== 'leaderboard' && comp.format !== 'bracket' && comp.format !== 'meet') return null;
 
     const { data: entries } = await admin
       .from('competition_entries')
@@ -112,7 +114,15 @@ export async function recomputeStandings(
       });
     }
     let rows;
-    if (comp.format === 'bracket') {
+    if (comp.format === 'meet') {
+      // Track 2 PR 7: the team score is a roll-up per AFFILIATION; the rows are TEAM entries on the same competition
+      // (`ensureMeetTeamEntries` mints one per distinct affiliation BEFORE the compute — trap 4: the prune keeps only rows returned).
+      // A pre-219 database (42703 on `affiliation_team_id`) → skipped, never a throw.
+      const meet = await readMeetRows(admin, competitionId, comp.sport_key as string);
+      if (!meet) return null;
+      const teamEntries = await ensureMeetTeamEntries(admin, competitionId, meet.teamEntries, meet.athletes);
+      rows = computeMeetStandings(teamEntries, meet.athletes, meet.contests, parseMeetConfig(comp.config));
+    } else if (comp.format === 'bracket') {
       // The progression over the staged contests (218). A pre-218 database (42703) → skipped, never a throw.
       const staged = await readBracketRows(admin, competitionId, comp.sport_key as string, comp.scoring_rule as string | null);
       if (!staged) return null;
@@ -205,6 +215,57 @@ export async function readBracketRows(admin: Admin, competitionId: string, sport
     const away = parts.find(p => p.side === 'away')?.entry_id ?? null;
     return { id: c.id as string, stage: c.stage as number, slot: c.slot as number, status: c.status as string, home, away, winnerEntryId: outcome.kind === 'bracket' ? outcome.winnerEntryId : null, hasResult: parts.some(p => resultBy.has(p.id)), scoreline: outcome.kind === 'bracket' ? outcome.scoreline : null };
   });
+}
+
+/** A meet's rows as the pure engine reads them: the approved athlete entries with their affiliation, the team entries, and each
+ *  event contest's marks (`score` = the mark in the event's direction; `payload.dq` unranked). A contest whose round label is off the
+ *  sport's vocabulary scores nobody. Null on a pre-219 database. */
+export async function readMeetRows(admin: Admin, competitionId: string, sportKey: string): Promise<{ athletes: MeetAthleteEntry[]; teamEntries: MeetTeamEntry[]; contests: MeetContestInput[] } | null> {
+  const { data: entries, error } = await admin.from('competition_entries').select('id, status, team_id, profile_id, affiliation_team_id').eq('competition_id', competitionId);
+  if (error) {
+    if (error.code !== '42703') console.warn(`${TAG} meet entries read failed:`, error.message);
+    return null;
+  }
+  const approved = (entries ?? []).filter(e => e.status === 'approved');
+  const athletes: MeetAthleteEntry[] = approved.filter(e => e.profile_id).map(e => ({ id: e.id as string, affiliationTeamId: (e.affiliation_team_id as string | null) ?? null }));
+  const teamEntries: MeetTeamEntry[] = approved.filter(e => e.team_id).map(e => ({ id: e.id as string, teamId: e.team_id as string }));
+  const events = resolveCompetitionProfile(sportKey).meetEvents ?? [];
+  const { data: contests } = await admin.from('contests').select('id, status, round').eq('competition_id', competitionId).limit(1000);
+  const ids = (contests ?? []).map(c => c.id as string);
+  const participants = await chunkedIn<{ id: string; contest_id: string; entry_id: string }>(admin, 'contest_participants', 'id, contest_id, entry_id', 'contest_id', ids);
+  const results = await chunkedIn<{ participant_id: string; score: number | null; payload: Record<string, unknown> | null }>(admin, 'contest_results', 'participant_id, score, payload', 'contest_id', ids);
+  const resultBy = new Map(results.map(r => [r.participant_id, r]));
+  const out: MeetContestInput[] = [];
+  for (const c of contests ?? []) {
+    const ev = meetEventFor(events, { round: (c.round as string | null) ?? null });
+    if (!ev) continue;
+    out.push({
+      id: c.id as string,
+      status: c.status as string,
+      direction: ev.direction,
+      results: participants.filter(p => p.contest_id === c.id).map(p => {
+        const r = resultBy.get(p.id);
+        const score = r?.score == null ? null : Number(r.score);
+        return { entryId: p.entry_id, mark: Number.isFinite(score as number) ? score : null, dq: r?.payload?.dq === true };
+      }),
+    });
+  }
+  return { athletes, teamEntries, contests: out };
+}
+
+/** One TEAM entry per distinct affiliation (the roll-up rows; `competition_standings.entry_id` keeps its FK). Idempotent on 219's partial unique. */
+export async function ensureMeetTeamEntries(admin: Admin, competitionId: string, existing: MeetTeamEntry[], athletes: MeetAthleteEntry[]): Promise<MeetTeamEntry[]> {
+  const have = new Set(existing.map(t => t.teamId));
+  const missing = [...new Set(athletes.map(a => a.affiliationTeamId).filter((id): id is string => !!id && !have.has(id)))];
+  if (missing.length === 0) return existing;
+  const { data: inserted, error } = await admin.from('competition_entries').insert(missing.map(team_id => ({ competition_id: competitionId, team_id, status: 'approved' }))).select('id, team_id');
+  if (error) {
+    // A concurrent recompute minted it first (23505): re-read; anything else is logged and the compute goes on with what exists.
+    if (error.code !== '23505') console.warn(`${TAG} meet team entries insert failed:`, error.message);
+    const { data: again } = await admin.from('competition_entries').select('id, team_id').eq('competition_id', competitionId).in('team_id', missing);
+    return [...existing, ...((again ?? []) as Array<{ id: string; team_id: string }>).map(r => ({ id: r.id, teamId: r.team_id }))];
+  }
+  return [...existing, ...((inserted ?? []) as Array<{ id: string; team_id: string }>).map(r => ({ id: r.id, teamId: r.team_id }))];
 }
 
 /** The hook-site wrapper: never throws, never fails the caller. */
