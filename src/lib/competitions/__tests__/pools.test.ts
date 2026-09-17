@@ -43,3 +43,60 @@ describe('groupRowsByPool — the renderers', () => {
     expect(groupRowsByPool(rows, true).map(g => [g.pool, g.rows.length])).toEqual([['A', 1], ['B', 1], [null, 1]]);
   });
 });
+
+import { crossPoolSeeds, POOL_SEED_REFUSAL_COPY, poolGamePlan, poolSeedRefusal, roundRobinPairings } from '../pools';
+
+describe('roundRobinPairings — the circle method', () => {
+  it('four entries: three rounds of two games, every pair once, home and away balanced', () => {
+    const games = roundRobinPairings(['a', 'b', 'c', 'd'], 1);
+    expect(games).toHaveLength(6);
+    expect(new Set(games.map(g => [g.home, g.away].sort().join(':'))).size).toBe(6);
+    expect(Math.max(...games.map(g => g.round))).toBe(3);
+    for (const id of ['a', 'b', 'c', 'd']) {
+      const home = games.filter(g => g.home === id).length;
+      expect(Math.abs(home - (3 - home))).toBeLessThanOrEqual(1);
+    }
+  });
+  it('five entries sit one out per round; two legs mirror every game; fewer than two is nothing', () => {
+    const five = roundRobinPairings(['a', 'b', 'c', 'd', 'e'], 1);
+    expect(five).toHaveLength(10);
+    expect(Math.max(...five.map(g => g.round))).toBe(5);
+    const two = roundRobinPairings(['a', 'b', 'c', 'd'], 2);
+    expect(two).toHaveLength(12);
+    expect(two.filter(g => g.home === 'a' && g.away === 'b').length + two.filter(g => g.home === 'b' && g.away === 'a').length).toBe(2);
+    expect(roundRobinPairings(['a'], 1)).toEqual([]);
+  });
+});
+
+describe('poolGamePlan — per pool, minus what exists', () => {
+  const pools = [{ pool: 'A' as const, entryIds: ['a1', 'a2', 'a3'] }, { pool: 'B' as const, entryIds: ['b1', 'b2'] }];
+  it('one leg dedupes the unordered pair; two legs the ordered pair', () => {
+    const one = poolGamePlan(pools, 1, new Set(['a2:a1']));
+    expect(one.report).toEqual({ pools: [{ pool: 'A', entries: 3, games: 2, skipped: 1 }, { pool: 'B', entries: 2, games: 1, skipped: 0 }], games: 3, skipped: 1 });
+    expect(one.games[0].label).toMatch(/^Pool A · Round \d$/);
+    const two = poolGamePlan(pools, 2, new Set(['b1:b2']));
+    expect(two.report.pools[1]).toEqual({ pool: 'B', entries: 2, games: 1, skipped: 1 });
+  });
+});
+
+describe('crossPoolSeeds + poolSeedRefusal', () => {
+  it('seeds cross the pools: A1, B1, A2, B2; a short pool contributes what it has', () => {
+    expect(crossPoolSeeds([{ pool: 'A', entryIds: ['a1', 'a2', 'a3'] }, { pool: 'B', entryIds: ['b1'] }], 2)).toEqual(['a1', 'b1', 'a2']);
+  });
+  it('names every refusal, and every refusal has copy', () => {
+    const src = { format: 'fixture', sport_key: 'ice_hockey', entrant_type: 'team' };
+    const tgt = { format: 'bracket', sport_key: 'ice_hockey', entrant_type: 'team', status: 'active' };
+    const ok = { pools: 2, drawn: false, seeds: 4 };
+    expect(poolSeedRefusal(src, tgt, ok)).toBeNull();
+    expect(poolSeedRefusal({ ...src, format: 'bracket' }, tgt, ok)).toBe('not_fixture');
+    expect(poolSeedRefusal(src, tgt, { ...ok, pools: 0 })).toBe('no_pools');
+    expect(poolSeedRefusal(src, { ...tgt, format: 'fixture' }, ok)).toBe('target_not_bracket');
+    expect(poolSeedRefusal(src, { ...tgt, status: 'completed' }, ok)).toBe('target_closed');
+    expect(poolSeedRefusal(src, tgt, { ...ok, drawn: true })).toBe('target_drawn');
+    expect(poolSeedRefusal(src, { ...tgt, sport_key: 'soccer' }, ok)).toBe('sport_mismatch');
+    expect(poolSeedRefusal(src, { ...tgt, entrant_type: 'athlete' }, ok)).toBe('entrant_mismatch');
+    expect(poolSeedRefusal(src, tgt, { ...ok, seeds: 1 })).toBe('not_enough');
+    expect(poolSeedRefusal(src, tgt, { ...ok, seeds: 65 })).toBe('too_many');
+    for (const k of Object.keys(POOL_SEED_REFUSAL_COPY)) expect(POOL_SEED_REFUSAL_COPY[k as keyof typeof POOL_SEED_REFUSAL_COPY]).toBeTruthy();
+  });
+});
