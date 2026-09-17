@@ -22,9 +22,9 @@ export const SPORT_EVENT_JOIN_MODES = ['invite', 'request', 'open'] as const;
 export type SportEventJoinMode = (typeof SPORT_EVENT_JOIN_MODES)[number];
 
 /** Phase 3 (212): match play joins stroke play; the CHECK `sport_events_format_check` carries the four. */
-export const SPORT_EVENT_FORMATS = ['stroke_gross', 'stroke_net', 'match_gross', 'match_net'] as const;
-/** Leftovers (221): Stableford joins — the parsers name the two values only after the CHECK widened (`SPORT_EVENT_FORMATS` flips in the reader PR); the engine knows them now. */
+/** Leftovers (221 RAN): the six formats — Stableford in both flavours joined the parsers' list in PR 10, after the CHECK widened. */
 export const SPORT_EVENT_FORMATS_ALL = ['stroke_gross', 'stroke_net', 'match_gross', 'match_net', 'stableford_gross', 'stableford_net'] as const;
+export const SPORT_EVENT_FORMATS = SPORT_EVENT_FORMATS_ALL;
 export type SportEventFormat = (typeof SPORT_EVENT_FORMATS_ALL)[number];
 export const isMatchFormat = (format: string | null | undefined): boolean => format === 'match_gross' || format === 'match_net';
 export const isStablefordFormat = (format: string | null | undefined): boolean => format === 'stableford_gross' || format === 'stableford_net';

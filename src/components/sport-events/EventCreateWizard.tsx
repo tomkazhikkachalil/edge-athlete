@@ -6,7 +6,7 @@ import ConfirmModal from '@/components/ConfirmModal';
 import { useDirtyClose } from '@/hooks/useDirtyClose';
 import { useAuth } from '@/lib/auth';
 import { COPY } from '@/lib/copy';
-import { SPORT_EVENT_SPORTS_ALL, type SportEventSport } from '@/lib/sport-events/types';
+import { SPORT_EVENT_SPORTS_ALL, type SportEventSport, isStablefordFormat } from '@/lib/sport-events/types';
 import { formatDateOnly, formatLabel, holesLabel, joinLine, MATCH_SIDES_LABEL, roundsSummary, VISIBILITY_LABEL } from '@/lib/sport-events/format';
 import { isMatchFormat, MATCH_SIDES } from '@/lib/sport-events/types';
 import { MAX_ROUNDS } from '@/lib/sport-events/rounds';
@@ -266,7 +266,10 @@ export default function EventCreateWizard() {
             { value: 'stroke_net', label: 'Stroke play · Net', hint: 'Each player\'s Edge Athlete index is frozen when they accept; you can set one by hand.' },
             { value: 'match_gross', label: 'Match play · Gross', hint: 'Two sides a group; a hole won, lost or halved. You set every draw.' },
             { value: 'match_net', label: 'Match play · Net', hint: 'Strokes given by the difference in playing handicaps, on the stroke index.' },
+            { value: 'stableford_gross', label: 'Stableford · Gross', hint: 'Points per hole — 2 for par, more for better, none for worse than a bogey. Most points wins.' },
+            { value: 'stableford_net', label: 'Stableford · Net', hint: 'Points on the net score — handicap strokes given on the stroke index. Most points wins.' },
           ]} />
+          {isStablefordFormat(s.format) && <p className="text-xs text-muted" data-wizard-stableford="">Stableford ranks by points; the cut is the top N only. A Stableford event never counts toward an org competition — the org’s leaderboards count strokes.</p>}
           {isMatchFormat(s.format) && (
             <div className="space-y-3" data-wizard-match="">
               <Choice name="Sides" value={s.match.sides} onChange={v => set('match', { ...s.match, sides: v })} options={MATCH_SIDES.map(k => ({
