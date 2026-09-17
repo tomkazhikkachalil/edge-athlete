@@ -37,6 +37,7 @@ import SiteVisitorsCard from '@/components/orgs/SiteVisitorsCard';
 import HierarchySection from '@/components/orgs/console/HierarchySection';
 import { openPreview } from '@/components/site-builder/openPreview';
 import WelcomeDesignPick from '@/components/orgs/WelcomeDesignPick';
+import { POOL_LETTERS } from '@/lib/competitions/pools';
 
 // ── The org-manager console (phase 1, round 1) ──────────────────────────────
 // The guardian-console shape (AppHeader — a recurring signed-in
@@ -86,6 +87,8 @@ interface CompetitionEntryRow {
   profile_id: string | null;
   status: string;
   entrant_name: string;
+  /** Leftovers PR 1: the pool letter on a fixture entry. */
+  pool?: string | null;
 }
 
 /** Phase 7 C5: the console's sections, in the order the org's sport wants
@@ -2292,6 +2295,25 @@ export default function OrgConsolePage() {
                           {/* min-w-0 + truncate: a long name must shrink or the
                               un-wrappable pill overflows 375px (R4's catch). */}
                           <span className="min-w-0 truncate">{entry.entrant_name}</span>
+                          {comp.format === 'fixture' && entry.status === 'approved' && (
+                            <select
+                              value={entry.pool ?? ''}
+                              onChange={e =>
+                                void act(
+                                  `/api/${plural}/${orgId}/competitions/entries`,
+                                  { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ entryId: entry.id, pool: e.target.value || null }) },
+                                  'Pool saved',
+                                  'Failed to save the pool'
+                                )
+                              }
+                              aria-label={`Pool for ${entry.entrant_name}`}
+                              data-entry-pool={entry.id}
+                              className="px-1 py-0 text-xs border border-border-strong rounded outline-none bg-surface"
+                            >
+                              <option value="">No pool</option>
+                              {POOL_LETTERS.map(p => <option key={p} value={p}>Pool {p}</option>)}
+                            </select>
+                          )}
                           {entry.status === 'pending' && (
                             <>
                               <span className="text-amber-600">pending</span>

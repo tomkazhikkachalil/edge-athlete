@@ -30,6 +30,7 @@ import {
   type GolfResultRaw,
   type PublicGolfBlock,
 } from './golf-weeks';
+import { poolLetter } from './pools';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- matches the authz.ts Admin alias; schema-agnostic helper
 type Admin = SupabaseClient<any, 'public', any>;
@@ -81,6 +82,8 @@ export interface PublicCompetitionStandings {
   bracket?: PublicBracketBlock;
   /** Track 2 PR 8: the meet's events with their winners — PRESENT ONLY on a meet competition with events (218 + 219). */
   meet?: PublicMeetBlock;
+  /** Leftovers PR 1: the pool letters present — PRESENT ONLY when a fixture's rows carry `stats.pool` (the golf-block rule); the tables group by it. */
+  pools?: string[];
 }
 
 export interface PublicBracketBlock {
@@ -314,6 +317,11 @@ export async function fetchPublicStandings(
     return { meet: { events } };
   }
 
+  function poolsFor(competitionId: string): { pools?: string[] } {
+    const letters = [...new Set((rowsByCompetition.get(competitionId) ?? []).map(r => poolLetter(r.stats.pool)).filter((p): p is NonNullable<typeof p> => p !== null))].sort();
+    return letters.length > 0 ? { pools: letters } : {};
+  }
+
   function bracketBlockFor(competitionId: string): { bracket?: PublicBracketBlock } {
     const rows = bracketRows.get(competitionId);
     if (!rows) return {};
@@ -379,6 +387,7 @@ export async function fetchPublicStandings(
       ...golfBlockFor(c.id, c.scoring_rule as string | null),
       ...bracketBlockFor(c.id),
       ...meetBlockFor(c.id),
+      ...poolsFor(c.id),
       ...raceFor(c.id, c.scoring_rule as string | null),
       ...seasonFor(c.id, c.scoring_rule as string | null),
     })),

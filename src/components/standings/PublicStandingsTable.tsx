@@ -5,6 +5,7 @@ import GolfWeeks from './GolfWeeks';
 import PointsRaceTable from './PointsRaceTable';
 import SeasonSummaryCard from './SeasonSummaryCard';
 import { playerHref } from '@/lib/org-sites/player-links';
+import { groupRowsByPool } from '@/lib/competitions/pools';
 
 // One competition's standings card — the SSR markup shared by the
 // league/club standings pages and the public org-site standings module.
@@ -37,8 +38,11 @@ export default function PublicStandingsTable({
       {/* W1: a fresh golf league has an open window before anyone has a
           standings row (standings count completed rounds only) — the
           table is skipped, the week below still renders. */}
-      {competition.rows.length > 0 && (
-      <div className="mt-3 overflow-x-auto">
+      {/* Leftovers PR 1: a pooled fixture renders one table per pool (the caption names it), the unpooled rows last. */}
+      {competition.rows.length > 0 && groupRowsByPool(competition.rows, !!competition.pools).map(group => (
+      <div key={group.pool ?? 'all'} className="mt-3 overflow-x-auto" {...(group.pool ? { 'data-standings-pool': group.pool } : {})}>
+        {group.pool && <p className="text-xs font-semibold text-secondary mb-1">Pool {group.pool}</p>}
+        {!group.pool && competition.pools && <p className="text-xs font-semibold text-secondary mb-1">Unpooled</p>}
         <table className="w-full text-sm">
           <thead>
             <tr className="text-left text-xs text-muted">
@@ -62,7 +66,7 @@ export default function PublicStandingsTable({
             </tr>
           </thead>
           <tbody>
-            {competition.rows.map(row => (
+            {group.rows.map(row => (
               <tr
                 key={`${competition.id}-${row.rank}-${row.entrant_name}`}
                 className="border-t border-border-subtle"
@@ -93,7 +97,7 @@ export default function PublicStandingsTable({
           </tbody>
         </table>
       </div>
-      )}
+      ))}
       {competition.golf && <GolfWeeks golf={competition.golf} competitionId={competition.id} basePath={basePath} />}
       {competition.bracket && <BracketBlock bracket={competition.bracket} basePath={basePath} />}
       {competition.meet && <MeetWinners meet={competition.meet} basePath={basePath} />}

@@ -42,6 +42,7 @@ import {
   type EntryAffiliationInput,
   type MeetEventsGenerateInput,
   type MeetResultsUpsertInput,
+  type EntryPoolInput,
 } from '@/lib/competitions/validate';
 import { generateRoundWindows } from '@/lib/competitions/golf-season';
 import {
@@ -63,6 +64,7 @@ import { upsertPerformances } from '@/lib/performance/write-server';
 import { getStatSchema } from '@/lib/sports/stat-schemas';
 import { validateStatsAgainstSchema } from '@/lib/sports/stat-line-validate';
 import { readSportEventMatchLink } from '@/lib/sport-events/contest-link-server';
+import { poolsOf } from '@/lib/competitions/pools';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- matches the authz.ts Admin alias; schema-agnostic helper
 type Admin = SupabaseClient<any, 'public', any>;
@@ -871,6 +873,8 @@ export async function competitionDetailGET(
   return NextResponse.json({
     competition: full,
     entries: (entries ?? []).map(e => ({ ...e, entrant_name: entryName.get(e.id) })),
+    // Leftovers PR 1: the pools present among the approved entries (letter order) — the console groups the table by them.
+    pools: poolsOf(((entries ?? []) as Array<{ id: string; pool: string | null; status: string }>)),
     contests: (contests ?? []).map(c => ({
       ...c,
       participants: participantsByContest.get(c.id) ?? [],
@@ -1698,6 +1702,30 @@ export async function entryAffiliationPATCH(admin: Admin, input: EntryAffiliatio
   await recomputeStandingsBestEffort(admin, compRow.id);
   await revalidateOrgSiteForCompetition(admin, compRow.id);
   return NextResponse.json({ ok: true, entryId: input.entryId, affiliationTeamId: input.affiliationTeamId });
+}
+
+/** PATCH a fixture entry's POOL letter (null clears) — the standings regroup by it. */
+export async function entryPoolPATCH(admin: Admin, input: EntryPoolInput, scope: CompetitionScope | null): Promise<NextResponse> {
+  const { data: row } = await admin
+    .from('competition_entries')
+    .select('id, competition:competition_id (id, league_id, club_id, format)')
+    .eq('id', input.entryId)
+    .maybeSingle();
+  type CompLite = { id: string; league_id: string | null; club_id: string | null; format: string };
+  const comp = row?.competition as CompLite | CompLite[] | null | undefined;
+  const compRow = Array.isArray(comp) ? comp[0] : comp;
+  if (!row || !compRow || (scope && compRow[orgColumn(scope.side)] !== scope.orgId)) {
+    return NextResponse.json({ error: 'Entry not found' }, { status: 404 });
+  }
+  if (compRow.format !== 'fixture') return NextResponse.json({ error: 'Pools belong to a fixture competition.', reason: 'not_fixture' }, { status: 400 });
+  const { error } = await admin.from('competition_entries').update({ pool: input.pool }).eq('id', input.entryId);
+  if (error) {
+    console.error(`${TAG} entry pool error:`, error);
+    return NextResponse.json({ error: 'Failed to save the pool' }, { status: 500 });
+  }
+  await recomputeStandingsBestEffort(admin, compRow.id);
+  await revalidateOrgSiteForCompetition(admin, compRow.id);
+  return NextResponse.json({ ok: true, entryId: input.entryId, pool: input.pool });
 }
 
 async function pinMeetCompetition(admin: Admin, competitionId: string, scope: CompetitionScope | null): Promise<{ ok: true; comp: { id: string; sport_key: string; status: string } } | { ok: false; response: NextResponse }> {
