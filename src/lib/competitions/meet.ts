@@ -93,6 +93,11 @@ export interface MeetContestInput {
   status: string;
   direction: 'asc' | 'desc';
   results: MeetResultInput[];
+  /** The readers' extras (PR 8): the event's label, its unit and its place in the programme. */
+  round?: string | null;
+  unit?: 's' | 'm';
+  stage?: number | null;
+  slot?: number | null;
 }
 
 export interface MeetAthleteEntry {

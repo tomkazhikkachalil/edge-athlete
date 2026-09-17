@@ -66,6 +66,16 @@ export const CompetitionCreateSchema = z
             anyCourse: z.boolean().optional(),
           })
           .optional(),
+        // Track 2 PR 8: the meet's points per place (1st first, non-increasing, ≤ 16); absent = 10-8-6-5-4-3-2-1.
+        meet: z
+          .object({
+            points: z
+              .array(z.number().finite().min(0))
+              .min(1)
+              .max(16)
+              .refine(pts => pts.every((v, i) => i === 0 || v <= pts[i - 1]), { message: 'Points must not increase down the places' }),
+          })
+          .optional(),
       })
       .optional(),
   });

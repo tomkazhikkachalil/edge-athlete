@@ -230,7 +230,7 @@ export async function readMeetRows(admin: Admin, competitionId: string, sportKey
   const athletes: MeetAthleteEntry[] = approved.filter(e => e.profile_id).map(e => ({ id: e.id as string, affiliationTeamId: (e.affiliation_team_id as string | null) ?? null }));
   const teamEntries: MeetTeamEntry[] = approved.filter(e => e.team_id).map(e => ({ id: e.id as string, teamId: e.team_id as string }));
   const events = resolveCompetitionProfile(sportKey).meetEvents ?? [];
-  const { data: contests } = await admin.from('contests').select('id, status, round').eq('competition_id', competitionId).limit(1000);
+  const { data: contests } = await admin.from('contests').select('id, status, round, stage, slot').eq('competition_id', competitionId).order('stage', { ascending: true, nullsFirst: false }).order('slot', { ascending: true }).limit(1000);
   const ids = (contests ?? []).map(c => c.id as string);
   const participants = await chunkedIn<{ id: string; contest_id: string; entry_id: string }>(admin, 'contest_participants', 'id, contest_id, entry_id', 'contest_id', ids);
   const results = await chunkedIn<{ participant_id: string; score: number | null; payload: Record<string, unknown> | null }>(admin, 'contest_results', 'participant_id, score, payload', 'contest_id', ids);
@@ -243,6 +243,10 @@ export async function readMeetRows(admin: Admin, competitionId: string, sportKey
       id: c.id as string,
       status: c.status as string,
       direction: ev.direction,
+      round: ev.label,
+      unit: ev.unit,
+      stage: (c.stage as number | null) ?? null,
+      slot: (c.slot as number | null) ?? null,
       results: participants.filter(p => p.contest_id === c.id).map(p => {
         const r = resultBy.get(p.id);
         const score = r?.score == null ? null : Number(r.score);
