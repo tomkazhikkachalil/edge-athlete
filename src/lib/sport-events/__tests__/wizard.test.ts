@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { addWizardRound, emptyRoundDraft, emptyWizardState, isWizardDirty, removeWizardRound, updateWizardRound, validateWizardRounds, validateWizardStep, withVisibility, wizardCourseFrom, wizardToCreateBody, type RoundDraft, type WizardState } from '../wizard';
+import { addWizardRound, emptyRoundDraft, emptyWizardState, isWizardDirty, removeWizardRound, updateWizardRound, validateWizardRounds, validateWizardStep, withVisibility, wizardCourseFrom, wizardToCreateBody, type RoundDraft, type WizardState, withSideTeam, withSport } from '../wizard';
 
 const round1: RoundDraft = { scheduled_on: '2030-06-01', name: '', course: { id: null, name: 'Eagle Creek', tees: [], holesCount: null }, tee: '', holes: 9, starting_hole: 10, place: '', starts_at: '' };
 const filled = (): WizardState => ({ ...emptyWizardState(), name: 'Spring Open', rounds: [round1], format: 'stroke_net', capacity: '8' });
@@ -69,5 +69,24 @@ describe('the wizard rules', () => {
   it('a catalog course brings its tees from the ratings, else the yardages', () => {
     expect(wizardCourseFrom({ id: 'c', name: 'Eagle', courseRating: { Blue: 71.5, White: 69.9 }, slopeRating: { Blue: 128 }, holesCount: 18 })).toEqual({ id: 'c', name: 'Eagle', tees: ['Blue', 'White'], holesCount: 18 });
     expect(wizardCourseFrom({ id: 'c', name: 'Nine', holes: [{ number: 1, par: 4, yardage: { red: 300 }, handicap: 1 }] })).toEqual({ id: 'c', name: 'Nine', tees: ['red'], holesCount: 1 });
+  });
+});
+
+describe('side teams (leftovers PR 5)', () => {
+  it('a pick fills the name, both or neither validates, the body carries the ids', () => {
+    let s = withSport(emptyWizardState(), 'ice_hockey');
+    s = { ...s, name: 'Game', rounds: [{ ...s.rounds[0], scheduled_on: '2030-06-01', course: null, name: '', tee: '', place: 'Rink' } as typeof s.rounds[0]] };
+    s = withSideTeam(s, 0, { id: '11111111-1111-4111-8111-111111111111', name: 'Reds' });
+    expect(s.side_names[0]).toBe('Reds');
+    expect(validateWizardStep('format', s)).toBe('Pick both teams, or neither.');
+    s = withSideTeam(s, 1, { id: '11111111-1111-4111-8111-111111111111', name: 'Reds' });
+    expect(validateWizardStep('format', s)).toBe('Pick two different teams.');
+    s = withSideTeam(s, 1, { id: '22222222-2222-4222-8222-222222222222', name: 'Blues' });
+    expect(validateWizardStep('format', s)).toBeNull();
+    const body = wizardToCreateBody(s, { publish: true, profileId: null }) as { format_config?: { game?: { side_names: string[]; side_team_ids?: string[] } } };
+    expect(body.format_config?.game).toEqual({ side_names: ['Reds', 'Blues'], side_team_ids: ['11111111-1111-4111-8111-111111111111', '22222222-2222-4222-8222-222222222222'] });
+    expect(isWizardDirty(withSideTeam(emptyWizardState(), 0, { id: 'x', name: 'X' }))).toBe(true);
+    s = withSideTeam(s, 1, null);
+    expect([s.side_teams[1], s.side_names[1]]).toEqual([null, 'Blues']);
   });
 });

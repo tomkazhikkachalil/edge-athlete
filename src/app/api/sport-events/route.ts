@@ -17,6 +17,7 @@ import type { SportEventParticipantRow, SportEventRow, SportEventRoundRow } from
 import { isDateOnly, parseCreateBody, parseListScope } from '@/lib/sport-events/validate';
 import { projectEvent } from '@/lib/sport-events/view';
 import { fetchSportEventView } from '@/lib/sport-events/view-server';
+import { prefillSidesFromTeams } from '@/lib/sport-events/side-prefill-server';
 
 /**
  * /api/sport-events (Events program, PR 4).
@@ -61,6 +62,23 @@ export async function POST(request: NextRequest) {
       // Track 2 PR 10: the shape table needs the sport and the shape (a game → a fixture of named sides; without them a game read as a stroke round).
       const refusal = linkRefusal({ club_id: input.club_id, league_id: input.league_id, status: 'draft', format: input.format, sport_key: input.sport_key, shape: input.shape }, competition);
       if (refusal) return NextResponse.json({ error: LINK_REFUSAL_COPY[refusal], reason: refusal }, { status: 400 });
+    }
+    // Leftovers PR 5: two of the org's teams pre-fill a game's sides — the names default to the teams' (filled BEFORE the strict parse), the rosters land after the host row.
+    let sideTeams: Array<{ id: string; name: string }> | null = null;
+    const rawGame = (input.format_config as { game?: { side_team_ids?: unknown; side_names?: unknown } } | undefined)?.game;
+    if (rawGame && Array.isArray(rawGame.side_team_ids)) {
+      if (!input.club_id && !input.league_id) return NextResponse.json({ error: 'format_config.game.side_team_ids needs an organization' }, { status: 400 });
+      const ids = rawGame.side_team_ids.filter((v): v is string => typeof v === 'string');
+      const { data: teamRows } = ids.length > 0 ? await admin.from('teams').select('id, name, display_name, status, league_id, club_id').in('id', ids) : { data: [] };
+      const teams = ids.map(id => ((teamRows ?? []) as Array<{ id: string; name: string; display_name: string | null; status: string; league_id: string | null; club_id: string | null }>).find(t => t.id === id));
+      if (ids.length !== 2 || teams.some(t => !t || t.status === 'archived' || (input.club_id ? t.club_id !== input.club_id : t.league_id !== input.league_id))) {
+        return NextResponse.json({ error: 'format_config.game.side_team_ids must name two active teams of the organization' }, { status: 400 });
+      }
+      sideTeams = teams.map(t => ({ id: t!.id, name: ((t!.display_name || t!.name) as string).slice(0, 40) }));
+      if (rawGame.side_names === undefined) {
+        const [a, b] = sideTeams.map(t => t.name);
+        rawGame.side_names = a.toLowerCase() === b.toLowerCase() ? [a, `${b} (2)`.slice(0, 40)] : [a, b];
+      }
     }
     // Phase 3: the format options at creation (the match shape) — the same strict parser as the PATCH, against THIS body's format and rounds.
     let formatConfig: Record<string, unknown> | null = null;
@@ -129,6 +147,16 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Could not create the event' }, { status: 500 });
     }
     if (input.host_plays) await snapshotAtAccept(admin, host as SportEventParticipantRow);
+
+    // Leftovers PR 5: the two teams' rosters become the sides (accepted + playing; one group per round with the sides sent). Best-effort — the event exists either way.
+    if (sideTeams) {
+      const org = { col: input.club_id ? ('club_id' as const) : ('league_id' as const), id: (input.club_id ?? input.league_id) as string };
+      const { teamRosterMembers } = await import('@/lib/sport-events/side-prefill-server');
+      const [home, away] = await Promise.all([teamRosterMembers(admin, org, sideTeams[0].id), teamRosterMembers(admin, org, sideTeams[1].id)]);
+      const { data: roundIds } = await admin.from('sport_event_rounds').select('id, starts_at').eq('sport_event_id', row.id).order('sequence', { ascending: true });
+      const prefill = await prefillSidesFromTeams(admin, { eventId: row.id, hostProfileId: actor.profileId, rounds: (roundIds ?? []) as Array<{ id: string; starts_at: string | null }>, sides: [home, away], groupName: 'The game' });
+      if ('error' in prefill) console.error('[api/sport-events] side prefill failed:', prefill.error);
+    }
 
     // Phase 2b: one contest per round on the chosen competition (best-effort — the
     // organizer can pick it again from the event page; a pre-211 database skips).

@@ -95,7 +95,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     if (patch.format_config !== undefined) {
       const { data: roundRows } = await admin.from('sport_event_rounds').select(ROUND_COLUMNS).eq('sport_event_id', id);
       const rounds = activeRounds((roundRows ?? []) as SportEventRoundRow[]);
-      const fc = parseFormatConfig(patch.format_config, { roundCount: rounds.length, format: nextFormat, shape: shapeOf(read.event) });
+      const fc = parseFormatConfig(patch.format_config, { roundCount: rounds.length, format: nextFormat, shape: shapeOf(read.event), allowSideTeams: false });
       if (!fc.ok) return NextResponse.json({ error: fc.error }, { status: 400 });
       if (fc.value.cut && !cutEditable(fc.value.cut, rounds)) return NextResponse.json({ error: 'That cut falls after a round that has already completed.', reason: 'cut_already_passed' }, { status: 409 });
       // Phase 3: the match SHAPE is fixed once the event is live (the draw depends on it); the allowance may still change.
