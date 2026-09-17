@@ -1,5 +1,9 @@
 # Development Log
 
+## September 17, 2026 — Events + formats leftovers, probe fix: the round-zone spec compares the start as an INSTANT (spec only)
+
+**What:** the prod probe of `sport-events-create` (the round-zone test) found PostgREST rendering the round's `starts_at` as `2030-06-02T05:00:00+00:00`, not the `.000Z` the spec compared as a string; the instant, the zone, the venue-time line and the .ics were right. The spec compares `Date.parse` of both. Re-probed green on prod on both mobile engines before this PR opened (the prod probe runs the local spec file).
+
 ## September 17, 2026 — Events + formats leftovers, probe fix: the bracket-linked event's view lists its stamped contests PER MATCH (zero DDL)
 
 **What:** the prod probe of `sport-events-bracket-contest` found the view's `counts_toward.contests` carrying ONE contest for round 1 after go-live stamped TWO. `readCountsTowardAll` folds match links one per ROUND (the 2b shape: one contest per round) and the view took that branch before the bracket branch. Now an event with `competition_id` (the bracket path) answers first, listing every stamped match (`readMatchLinks`, keyed by match); the 2b branch is unchanged for everything else. The stamps themselves, the `from_event` refusal and the rest of the door were right.
