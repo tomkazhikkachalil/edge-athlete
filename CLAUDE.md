@@ -999,6 +999,31 @@ const { canView } = await response.json();
    DEVLOG Sep 16 2026 track 2 PR 1–11 first. Parked: pools, relays, a whole
    bracketed match event linking to an org bracket in one act.
 
+22. **Seven leftovers, one migration (Events + formats leftovers, Sep 17
+   2026, #820–#831, mig 221)** — pools are a letter on the ENTRY ranked
+   WITHIN the pool (`src/lib/competitions/pools.ts`; `stats.pool` the
+   1-based index; a cross-pool game counts in neither table; the round-robin
+   generated PER POOL, dry-run first; "Seed from standings" crosses the top
+   n of each pool onto an undrawn bracket through the ONE seeds writer);
+   relays live in `RELAY_EVENTS`, never `TRACK_EVENTS` (a relay mark is
+   never a stat line); a meet session is ONE `events` row shared by its
+   contests (the mirror's shared-event rule: life or death only); an org's
+   teams pre-fill a game's sides at creation (`side-prefill-server.ts`);
+   Stableford in both flavours ranks by points through ONE `rankingKeys`
+   (the cut's line is the MIN on a descending format, `to_par` refused;
+   never an org competition — `points_format`); a BRACKETED match event
+   counts toward a golf bracket in one act — the intent on
+   `sport_events.competition_id` (221), each round's matches stamped onto
+   the bracket's slots at go-live (`slotForMatch`: stage n ↔ round n, slot k
+   ↔ match k — the ONE place; a disagreeing draw REPORTED, never a gate); a
+   team round's start is read on the ROUND's zone
+   (`sport_event_rounds.timezone`, `calendar/time-zones.ts` the one
+   validator, `startTimeLine` prints the venue time beside the viewer's only
+   when the clocks differ; the .ics on UTC instants). `docs/EVENTS.md`
+   "Events + formats leftovers" is the reference; read DEVLOG Sep 17 2026
+   leftovers PR 1–12 first. Parked (Tom): the per-photo guardian bell,
+   realtime as a wake-up.
+
 
 ---
 

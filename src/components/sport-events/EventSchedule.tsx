@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import type { SportEventViewPayload } from '@/lib/sport-events/view';
-import { formatDateOnly, formatTeeTime, holesLabel, ROUND_STATUS_LABEL } from '@/lib/sport-events/format';
+import { formatDateOnly, formatTeeTime, holesLabel, ROUND_STATUS_LABEL, startTimeLine } from '@/lib/sport-events/format';
 import { ROUND_ACTION_LABEL, roundActionsFor, type RoundAction } from '@/lib/sport-events/page-rules';
 import { activeRounds, MAX_ROUNDS } from '@/lib/sport-events/rounds';
 
@@ -55,7 +55,7 @@ export default function EventSchedule({ view, busy = false, onRoundAction, onAdd
                 </div>
                 {view.event.shape === 'round'
                   ? <p className="text-sm text-secondary">{round.course_name}{round.tee ? ` · ${round.tee} tees` : ''} · {holesLabel(round.holes, round.starting_hole)}</p>
-                  : <p className="text-sm text-secondary" data-event-place-line="">{round.course_name}{round.starts_at ? ` · ${formatTeeTime(round.starts_at)}` : ''}</p>}
+                  : <p className="text-sm text-secondary" data-event-place-line="">{round.course_name}{round.starts_at ? ` · ${startTimeLine(round.starts_at, round.timezone)}` : ''}</p>}
                 {(round.course_rating !== null || round.slope_rating !== null) && (
                   <p className="text-xs text-muted">{round.course_rating !== null ? `Rating ${round.course_rating}` : ''}{round.course_rating !== null && round.slope_rating !== null ? ' · ' : ''}{round.slope_rating !== null ? `Slope ${round.slope_rating}` : ''}</p>
                 )}

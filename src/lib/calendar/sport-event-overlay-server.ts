@@ -41,7 +41,7 @@ export async function fetchSportEventOverlay(admin: Admin, viewerId: string, fro
   const [{ data: roundRows }, { data: countRows }] = await Promise.all([
     admin
       .from('sport_event_rounds')
-      .select('id, sport_event_id, sequence, scheduled_on, status, holes, course_name, name')
+      .select('id, sport_event_id, sequence, scheduled_on, status, holes, course_name, name, starts_at, timezone')
       .in('sport_event_id', eventIds)
       .in('status', ['scheduled', 'live'])
       .gte('scheduled_on', utcDay(fromMs))
@@ -50,7 +50,7 @@ export async function fetchSportEventOverlay(admin: Admin, viewerId: string, fro
       .limit(SPORT_EVENT_OVERLAY_CAP),
     admin.from('sport_event_rounds').select('sport_event_id').in('sport_event_id', eventIds).neq('status', 'cancelled'),
   ]);
-  const rounds = (roundRows ?? []) as Array<{ id: string; sport_event_id: string; sequence: number; scheduled_on: string; status: 'scheduled' | 'live'; holes: number; course_name: string; name: string | null }>;
+  const rounds = (roundRows ?? []) as Array<{ id: string; sport_event_id: string; sequence: number; scheduled_on: string; status: 'scheduled' | 'live'; holes: number; course_name: string; name: string | null; starts_at: string | null; timezone: string | null }>;
   if (rounds.length === 0) return [];
   const roundCount = new Map<string, number>();
   for (const r of (countRows ?? []) as Array<{ sport_event_id: string }>) roundCount.set(r.sport_event_id, (roundCount.get(r.sport_event_id) ?? 0) + 1);

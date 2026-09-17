@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import type { SportEventViewPayload } from '@/lib/sport-events/view';
-import { formatDateOnly, formatLabel, formatTeeTime, holesLabel, joinLine, roundsSummary, VISIBILITY_LABEL } from '@/lib/sport-events/format';
+import { formatDateOnly, formatLabel, holesLabel, joinLine, roundsSummary, startTimeLine, VISIBILITY_LABEL } from '@/lib/sport-events/format';
 import { cutLabel } from '@/lib/sport-events/format-config';
 import { activeRounds, currentRound } from '@/lib/sport-events/rounds';
 import { isMatchFormat } from '@/lib/sport-events/types';
@@ -56,7 +56,7 @@ export default function EventOverview({ view, onRotateLink, busy, onOpenFormat, 
         {event.shape === 'round' && round && <Row label={many ? `Round ${round.sequence}` : 'Course'}>{round.course_name}{round.tee ? ` · ${round.tee} tees` : ''}{many ? ` · ${holesLabel(round.holes, round.starting_hole)}` : ''}</Row>}
         {event.shape === 'round' && !many && round && <Row label="Holes">{holesLabel(round.holes, round.starting_hole)}</Row>}
         {/* Phase 4: a team event — its kind, the place and start, the sides; the golf format is hidden (golf vocabulary). */}
-        {event.shape !== 'round' && round && <Row label={many ? `Round ${round.sequence}` : 'Where'}><span data-event-place-line="">{round.course_name}{round.starts_at ? ` · ${formatTeeTime(round.starts_at)}` : ''}</span></Row>}
+        {event.shape !== 'round' && round && <Row label={many ? `Round ${round.sequence}` : 'Where'}><span data-event-place-line="">{round.course_name}{round.starts_at ? ` · ${startTimeLine(round.starts_at, round.timezone)}` : ''}</span></Row>}
         {event.shape !== 'round' && <Row label="Kind"><span data-event-kind-line="">{event.shape === 'game' ? 'A game' : 'A session'}</span></Row>}
         {event.game && <Row label="Sides"><span data-event-sides-line="">{event.game.side_names[0]} vs {event.game.side_names[1]}</span></Row>}
         {event.shape === 'round' && <Row label="Format"><span data-event-format-line="">{formatLabel(event.format, event.match)}</span></Row>}

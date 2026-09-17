@@ -28,7 +28,7 @@ export async function sendRoundReminders(admin: Admin, tomorrowKey: string): Pro
   const out: ReminderRun = { day: tomorrowKey, rounds: 0, sent: 0, skipped: null };
   const { data: roundRows, error } = await admin
     .from('sport_event_rounds')
-    .select('id, sequence, scheduled_on, course_name, name, sport_event_id, event:sport_event_id!inner (id, name, status)')
+    .select('id, sequence, scheduled_on, course_name, name, starts_at, timezone, sport_event_id, event:sport_event_id!inner (id, name, status)')
     .eq('scheduled_on', tomorrowKey)
     .eq('status', 'scheduled')
     .in('event.status', ['open', 'live'])

@@ -50,7 +50,7 @@ export interface EventView {
     shape?: 'round' | 'game' | 'session';
     game?: { side_names: [string, string] } | null;
   };
-  rounds: Array<{ id: string; sequence: number; scheduled_on: string; course_name: string; holes: number; starting_hole: number; status: string; group_post_id: string | null; name?: string | null; starts_at?: string | null; side1_score?: number | null; side2_score?: number | null; period?: number | null; score_version?: number }>;
+  rounds: Array<{ id: string; sequence: number; scheduled_on: string; course_name: string; holes: number; starting_hole: number; status: string; group_post_id: string | null; name?: string | null; starts_at?: string | null; timezone?: string | null; side1_score?: number | null; side2_score?: number | null; period?: number | null; score_version?: number }>;
   participants: Array<{ id: string; profile_id: string; status: string; role: string; playing: boolean; waitlist_position: number | null; handicap_index: number | null; recorder?: boolean }>;
   groups: Array<{ id: string; sport_event_round_id: string; sequence: number; name?: string | null; starting_hole?: number; members: Array<{ participant_id: string; position: number; side?: 1 | 2 | null }> }>;
   counts: { playing: number; followers: number; waitlisted: number };
