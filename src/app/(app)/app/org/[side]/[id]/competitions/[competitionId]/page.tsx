@@ -22,6 +22,7 @@ import SeasonSummaryCard from '@/components/standings/SeasonSummaryCard';
 import { formatMark, meetEntryAdmitted, meetEventFor, placeEvent } from '@/lib/competitions/meet';
 import { resolveCompetitionProfile } from '@/lib/sports/competition-profiles';
 import { groupRowsByPool, type PoolGroup } from '@/lib/competitions/pools';
+import { listTimeZones, viewerTimeZone } from '@/lib/calendar/venue-time';
 
 // ── The competition detail console (phase 2 R2) ─────────────────────────────
 // The org-console template one level deeper: schedule (contests) + score
@@ -228,6 +229,9 @@ export default function CompetitionDetailPage() {
   const [meetSession, setMeetSession] = useState('1');
   const [meetBusy, setMeetBusy] = useState(false);
   const [marksContestId, setMarksContestId] = useState<string | null>(null);
+  // Leftovers PR 4: one calendar event per meet session.
+  const [sessionForm, setSessionForm] = useState<Record<number, { start: string; end: string; zone: string; venueId: string }>>({});
+  const [sessionBusy, setSessionBusy] = useState<number | null>(null);
   const [markValues, setMarkValues] = useState<Record<string, string>>({});
   const [dqValues, setDqValues] = useState<Record<string, boolean>>({});
   // Track 2 PR 10: the contest → event door.
@@ -778,6 +782,25 @@ export default function CompetitionDetailPage() {
     const ok = await act(`${base}/meet/results`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ contestId: contest.id, marks }) }, 'Marks saved', 'Failed to save the marks');
     if (ok) setMarksContestId(null);
   };
+  // Leftovers PR 4: the sessions (the distinct stages) and their calendar state.
+  const meetSessions = [...new Set(contests.map(c => c.stage).filter((s): s is number => typeof s === 'number'))].sort((a, b) => a - b);
+  const sessionState = (n: number) => {
+    const rows = contests.filter(c => c.stage === n);
+    const onCalendar = rows.length > 0 && rows.every(c => c.event_id);
+    return { onCalendar, start: rows.find(c => c.scheduled_at)?.scheduled_at ?? null };
+  };
+  const sessionField = (n: number) => sessionForm[n] ?? { start: '', end: '', zone: viewerTimeZone(), venueId: '' };
+  const publishSession = async (n: number) => {
+    const f = sessionField(n);
+    if (!f.start) { showError('Session', 'Pick the session start'); return; }
+    setSessionBusy(n);
+    try {
+      await act(`${base}/meet/sessions/publish`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ competitionId, session: n, startsAt: new Date(f.start).toISOString(), ...(f.end ? { endsAt: new Date(f.end).toISOString() } : {}), timezone: f.zone, ...(f.venueId ? { venueId: f.venueId } : {}) }) }, `Session ${n} is on the calendar`, 'Could not publish the session');
+    } finally {
+      setSessionBusy(null);
+    }
+  };
+
   const meetResultsLine = (contest: ContestRow): string | null => {
     const def = meetEventFor(meetEvents, { round: contest.round });
     if (!def) return null;
@@ -1346,6 +1369,46 @@ export default function CompetitionDetailPage() {
                   </div>
                 </>
               )}
+              {meetSessions.length > 0 && (
+                <div className="mt-3 border-t border-border-subtle pt-2 space-y-2" data-meet-sessions="">
+                  <p className="text-xs text-muted">Each session is ONE calendar event; every event in it shares the start and the place.</p>
+                  {meetSessions.map(n => {
+                    const st = sessionState(n);
+                    const f = sessionField(n);
+                    return (
+                      <div key={n} className="flex flex-wrap items-end gap-2" data-meet-session={n}>
+                        <span className="text-sm font-medium text-primary">Session {n}{st.onCalendar && st.start ? ` · on the calendar · ${new Date(st.start).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}` : ''}</span>
+                        <label className="text-xs text-secondary">
+                          Start
+                          <input type="datetime-local" value={f.start} onChange={e => setSessionForm(prev => ({ ...prev, [n]: { ...f, start: e.target.value } }))} aria-label={`Session ${n} start`} className="mt-0.5 block px-2 py-1.5 border border-border-strong rounded-md outline-none text-sm" />
+                        </label>
+                        <label className="text-xs text-secondary">
+                          End
+                          <input type="datetime-local" value={f.end} onChange={e => setSessionForm(prev => ({ ...prev, [n]: { ...f, end: e.target.value } }))} aria-label={`Session ${n} end`} className="mt-0.5 block px-2 py-1.5 border border-border-strong rounded-md outline-none text-sm" />
+                        </label>
+                        <label className="text-xs text-secondary">
+                          Zone
+                          <select value={f.zone} onChange={e => setSessionForm(prev => ({ ...prev, [n]: { ...f, zone: e.target.value } }))} aria-label={`Session ${n} time zone`} className="mt-0.5 block max-w-[10rem] px-2 py-1.5 border border-border-strong rounded-md outline-none text-sm">
+                            {listTimeZones(f.zone).map(z => <option key={z} value={z}>{z}</option>)}
+                          </select>
+                        </label>
+                        {venues.length > 0 && (
+                          <label className="text-xs text-secondary">
+                            Venue
+                            <select value={f.venueId} onChange={e => setSessionForm(prev => ({ ...prev, [n]: { ...f, venueId: e.target.value } }))} aria-label={`Session ${n} venue`} className="mt-0.5 block max-w-[10rem] px-2 py-1.5 border border-border-strong rounded-md outline-none text-sm">
+                              <option value="">No venue</option>
+                              {venues.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
+                            </select>
+                          </label>
+                        )}
+                        <button type="button" disabled={sessionBusy === n} onClick={() => void publishSession(n)} className="px-3 py-1.5 text-sm min-h-[36px] rounded-lg border border-border-strong text-secondary hover:bg-surface-sunken transition-colors disabled:opacity-50" data-session-publish={n}>
+                          {st.onCalendar ? 'Move the session' : `Publish session ${n}`}
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           )}
 
@@ -1824,7 +1887,7 @@ export default function CompetitionDetailPage() {
                           }
                           return null;
                         })()}
-                        {!contest.event_id && (contest.scheduled_at || (contest.play_from && contest.play_to)) && contest.status === 'scheduled' && (
+                        {!contest.event_id && competition.format !== 'meet' && (contest.scheduled_at || (contest.play_from && contest.play_to)) && contest.status === 'scheduled' && (
                           <button
                             type="button"
                             onClick={() => void publishContest(contest.id)}

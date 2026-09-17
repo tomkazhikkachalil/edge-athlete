@@ -23,6 +23,15 @@
 // honour), title "{round} — {competition}", description "Play any day
 // Sep 15 – 21 · 9 holes at {course}". A window move re-derives the
 // bounds from the event's own stored zone.
+//
+// Leftovers PR 4: a MEET SESSION publishes as ONE event shared by every
+// contest of the session (`contests.event_id` is a plain FK — many rows,
+// one event). THE SHARED-EVENT RULE: an event referenced by more than one
+// contest is a session's — `mirrorContestChange` applies only
+// `sharedMirrorAction` (cancel when every contest is out, reactivate
+// otherwise) and never rewrites its clock (the session publish is the one
+// door for that); `mirrorContestDelete` deletes it only when no other
+// contest still references it.
 
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { zonedWallClockToUtc } from '@/lib/calendar/recurrence';
@@ -35,6 +44,27 @@ const TAG = '[CONTEST MIRROR]';
 
 /** Default game length when the org hasn't said otherwise. */
 const DEFAULT_GAME_MINUTES = 120;
+/** Leftovers PR 4: a meet session's default length. */
+export const DEFAULT_SESSION_MINUTES = 180;
+
+export const sessionEventTitle = (competitionName: string, session: number): string => `${competitionName} — Session ${session}`.slice(0, 120);
+
+/** The session's bounds: the given end, else the default length after the start. */
+export function sessionBounds(startsAt: string, endsAt?: string | null): { startsAt: string; endsAt: string } {
+  const start = new Date(startsAt);
+  const end = endsAt ? new Date(endsAt) : new Date(start.getTime() + DEFAULT_SESSION_MINUTES * 60_000);
+  return { startsAt: start.toISOString(), endsAt: end.toISOString() };
+}
+
+/** "Session 1 · 100m, 200m, 4×100m relay". */
+export function sessionDescription(session: number, eventLabels: ReadonlyArray<string>): string {
+  return [`Session ${session}`, eventLabels.length > 0 ? eventLabels.join(', ') : null].filter(Boolean).join(' · ').slice(0, 2000);
+}
+
+/** A shared event follows its contests only in life or death: cancelled when EVERY contest is canceled / postponed, active otherwise — never a time change. */
+export function sharedMirrorAction(siblings: ReadonlyArray<{ status: string }>): 'cancel' | 'reactivate' {
+  return siblings.length > 0 && siblings.every(s => s.status === 'canceled' || s.status === 'postponed') ? 'cancel' : 'reactivate';
+}
 
 interface ContestForMirror {
   id: string;
@@ -225,6 +255,84 @@ export async function publishContestToCalendar(
   return { eventId: event.id };
 }
 
+export interface SessionPublishInput {
+  competition: { id: string; name: string; league_id: string | null; club_id: string | null; division_id: string | null };
+  session: number;
+  contests: Array<{ id: string; event_id: string | null }>;
+  eventLabels: string[];
+  startsAt: string;
+  endsAt?: string | null;
+  timezone: string;
+  venueId?: string | null;
+}
+
+/** Mint (or move) the ONE calendar event of a meet session and stamp it on every contest of the session (their `scheduled_at` = the
+ *  start, their venue the session's). Idempotent: the session's contests already sharing an event → that event's clock moves; a session
+ *  whose contests were published on their own (several event ids) → `session_split`. */
+export async function publishSessionToCalendar(admin: Admin, input: SessionPublishInput, organizerId: string): Promise<{ eventId: string; created: boolean } | { error: string; reason: string }> {
+  const eventIds = [...new Set(input.contests.map(c => c.event_id).filter((id): id is string => !!id))];
+  if (eventIds.length > 1) return { error: 'Some of this session’s events were published on their own — remove those calendar entries first.', reason: 'session_split' };
+  const bounds = sessionBounds(input.startsAt, input.endsAt);
+  let location: string | null = null;
+  if (input.venueId) {
+    const { data: venue } = await admin.from('venues').select('name').eq('id', input.venueId).maybeSingle();
+    location = (venue?.name as string | undefined) ?? null;
+  }
+  const description = sessionDescription(input.session, input.eventLabels);
+  const stamp = async (eventId: string) => {
+    const { error } = await admin
+      .from('contests')
+      .update({ event_id: eventId, scheduled_at: bounds.startsAt, ...(input.venueId !== undefined ? { venue_id: input.venueId } : {}) })
+      .in('id', input.contests.map(c => c.id));
+    return error ?? null;
+  };
+  if (eventIds.length === 1) {
+    const { error } = await admin
+      .from('events')
+      .update({ starts_at: bounds.startsAt, ends_at: bounds.endsAt, timezone: input.timezone, description, status: 'active', cancelled_at: null, ...(input.venueId !== undefined ? { venue_id: input.venueId, location } : {}) })
+      .eq('id', eventIds[0]);
+    if (error) { console.error(`${TAG} session event move failed:`, error); return { error: 'Failed to move the session', reason: 'move' }; }
+    const stampError = await stamp(eventIds[0]);
+    if (stampError) console.warn(`${TAG} session stamp failed (continuing):`, stampError.message);
+    return { eventId: eventIds[0], created: false };
+  }
+  const { data: event, error } = await admin
+    .from('events')
+    .insert({
+      organizer_id: organizerId,
+      title: sessionEventTitle(input.competition.name, input.session),
+      description,
+      location,
+      starts_at: bounds.startsAt,
+      ends_at: bounds.endsAt,
+      all_day: false,
+      timezone: input.timezone,
+      category: 'game',
+      division_id: input.competition.division_id,
+      league_id: input.competition.division_id ? null : input.competition.league_id,
+      club_id: input.competition.division_id ? null : input.competition.club_id,
+      venue_id: input.venueId ?? null,
+      facility_id: null,
+    })
+    .select('id')
+    .single();
+  if (error || !event) { console.error(`${TAG} session event insert failed:`, error); return { error: 'Failed to publish the session', reason: 'insert' }; }
+  const stampError = await stamp(event.id as string);
+  if (stampError) {
+    await admin.from('events').delete().eq('id', event.id);
+    console.error(`${TAG} session link failed:`, stampError);
+    return { error: 'Failed to publish the session', reason: 'link' };
+  }
+  return { eventId: event.id as string, created: true };
+}
+
+/** How many contests reference an event (a session's event is shared). */
+async function contestsOnEvent(admin: Admin, eventId: string): Promise<Array<{ status: string }>> {
+  // No `.limit()` here: the mirror's unit fake chains select → eq only; a session holds at most a few dozen contests.
+  const { data } = await admin.from('contests').select('status').eq('event_id', eventId);
+  return (Array.isArray(data) ? data : []) as Array<{ status: string }>;
+}
+
 /** One-way sync after a contest write — BEST-EFFORT: never throws, never
  *  fails the caller. Reschedule moves the event; a window move (S4)
  *  re-derives the all-day bounds in the event's own zone; cancel/postpone
@@ -242,6 +350,13 @@ export async function mirrorContestChange(
 ): Promise<void> {
   if (!contest.event_id) return;
   try {
+    // The shared-event rule: a session's event (referenced by several contests) follows only life or death, never one contest's clock.
+    const siblings = await contestsOnEvent(admin, contest.event_id);
+    if (siblings.length > 1) {
+      const action = sharedMirrorAction(siblings);
+      await admin.from('events').update(action === 'cancel' ? { status: 'cancelled', cancelled_at: new Date().toISOString() } : { status: 'active', cancelled_at: null }).eq('id', contest.event_id);
+      return;
+    }
     if (contest.status === 'canceled' || contest.status === 'postponed') {
       await admin
         .from('events')
@@ -276,6 +391,8 @@ export async function mirrorContestChange(
 export async function mirrorContestDelete(admin: Admin, eventId: string | null): Promise<void> {
   if (!eventId) return;
   try {
+    // A session's event outlives one of its contests (the callers delete the mirror BEFORE the row — one reference is the row itself).
+    if ((await contestsOnEvent(admin, eventId)).length > 1) return;
     await admin.from('events').delete().eq('id', eventId);
   } catch (e) {
     console.warn(`${TAG} event delete failed (continuing):`, e);

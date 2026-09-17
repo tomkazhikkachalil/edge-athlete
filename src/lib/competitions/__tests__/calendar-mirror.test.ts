@@ -180,7 +180,7 @@ describe('mirrorContestChange', () => {
       status: 'canceled',
       scheduled_at: null,
     });
-    expect((cancel.calls[0].payload as { status: string }).status).toBe('cancelled');
+    expect((cancel.calls.find(c => c.table === 'events' && c.op === 'update')!.payload as { status: string }).status).toBe('cancelled');
 
     const move = mockAdmin({ events: { data: null } });
     await mirrorContestChange(move.admin, {
@@ -188,7 +188,7 @@ describe('mirrorContestChange', () => {
       status: 'scheduled',
       scheduled_at: '2026-09-06T18:00:00Z',
     });
-    const payload = move.calls[0].payload as Record<string, unknown>;
+    const payload = move.calls.find(c => c.table === 'events' && c.op === 'update')!.payload as Record<string, unknown>;
     expect(payload.status).toBe('active');
     expect(payload.starts_at).toBe('2026-09-06T18:00:00.000Z');
   });
@@ -270,5 +270,22 @@ describe('phase 6e S4 — a play-window round publishes as an all-day, multi-day
     expect(update.starts_at).toBe('2026-09-22T04:00:00.000Z');
     expect(update.ends_at).toBe('2026-09-29T04:00:00.000Z');
     expect(update.status).toBe('active');
+  });
+});
+
+import { DEFAULT_SESSION_MINUTES, sessionBounds, sessionDescription, sessionEventTitle, sharedMirrorAction } from '../calendar-mirror';
+
+describe('meet sessions (leftovers PR 4) — the one event of a session', () => {
+  it('titles, bounds and the description', () => {
+    expect(sessionEventTitle('Spring Meet', 2)).toBe('Spring Meet — Session 2');
+    expect(sessionBounds('2030-06-01T16:00:00.000Z')).toEqual({ startsAt: '2030-06-01T16:00:00.000Z', endsAt: new Date(Date.parse('2030-06-01T16:00:00.000Z') + DEFAULT_SESSION_MINUTES * 60_000).toISOString() });
+    expect(sessionBounds('2030-06-01T16:00:00.000Z', '2030-06-01T21:30:00.000Z').endsAt).toBe('2030-06-01T21:30:00.000Z');
+    expect(sessionDescription(1, ['100m', '4×100m relay'])).toBe('Session 1 · 100m, 4×100m relay');
+    expect(sessionDescription(3, [])).toBe('Session 3');
+  });
+  it('a shared event dies only when every contest is out', () => {
+    expect(sharedMirrorAction([{ status: 'canceled' }, { status: 'completed' }])).toBe('reactivate');
+    expect(sharedMirrorAction([{ status: 'canceled' }, { status: 'postponed' }])).toBe('cancel');
+    expect(sharedMirrorAction([])).toBe('reactivate');
   });
 });
