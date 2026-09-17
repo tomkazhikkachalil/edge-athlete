@@ -218,6 +218,12 @@ export default function CompetitionDetailPage() {
   const [marksContestId, setMarksContestId] = useState<string | null>(null);
   const [markValues, setMarkValues] = useState<Record<string, string>>({});
   const [dqValues, setDqValues] = useState<Record<string, boolean>>({});
+  // Track 2 PR 10: the contest → event door.
+  const [runEventContestId, setRunEventContestId] = useState<string | null>(null);
+  const [runEventDate, setRunEventDate] = useState('');
+  const [runEventTime, setRunEventTime] = useState('');
+  const [runEventPlace, setRunEventPlace] = useState('');
+  const [runEventBusy, setRunEventBusy] = useState(false);
   // Player stats: one expander at a time (the scoreContestId pattern).
   const [statsContestId, setStatsContestId] = useState<string | null>(null);
   // Game media: same pattern (phase 4 R3).
@@ -727,6 +733,28 @@ export default function CompetitionDetailPage() {
     if (placed.length === 0) return null;
     const nameOf = (id: string) => contest.participants.find(p => p.entry_id === id)?.entrant_name ?? 'Athlete';
     return placed.map(p => (p.dq ? `${nameOf(p.entryId)} DQ` : `${p.place ?? '–'}. ${nameOf(p.entryId)} ${p.mark == null ? '' : formatMark(p.mark, def.unit)}`.trim())).join(' · ');
+  };
+
+  // Track 2 PR 10: run a two-sided game as a live event — the sides pre-filled from the entries' members.
+  const canRunAsEvent = (contest: ContestRow) => competition?.format === 'fixture' && competition.sport_key !== 'golf' && !contest.sport_event && contest.status === 'scheduled' && contest.participants.some(p => p.side === 'home') && contest.participants.some(p => p.side === 'away');
+  const openRunEvent = (contest: ContestRow) => {
+    if (runEventContestId === contest.id) { setRunEventContestId(null); return; }
+    const when = contest.scheduled_at ? new Date(contest.scheduled_at) : null;
+    setRunEventDate(when ? `${when.getFullYear()}-${String(when.getMonth() + 1).padStart(2, '0')}-${String(when.getDate()).padStart(2, '0')}` : new Date().toISOString().slice(0, 10));
+    setRunEventTime(when ? `${String(when.getHours()).padStart(2, '0')}:${String(when.getMinutes()).padStart(2, '0')}` : '');
+    setRunEventPlace(contest.venue_id ? (venues.find(v => v.id === contest.venue_id)?.name ?? '') : '');
+    setRunEventContestId(contest.id);
+  };
+  const runAsEvent = async (contest: ContestRow) => {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(runEventDate)) { showError('Competition', 'Pick the date'); return; }
+    setRunEventBusy(true);
+    try {
+      const startsAt = runEventTime ? new Date(`${runEventDate}T${runEventTime}:00`).toISOString() : undefined;
+      const ok = await act(`${base}/contests/${contest.id}/event`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ competitionId, contestId: contest.id, scheduledOn: runEventDate, ...(startsAt ? { startsAt } : {}), ...(runEventPlace.trim() ? { place: runEventPlace.trim() } : {}) }) }, 'The game runs as an event', 'Could not create the event');
+      if (ok) setRunEventContestId(null);
+    } finally {
+      setRunEventBusy(false);
+    }
   };
 
   const bySide = (contest: ContestRow) => {
@@ -1560,12 +1588,17 @@ export default function CompetitionDetailPage() {
                       <div className="flex flex-wrap gap-2 min-w-0">
                         {contest.sport_event && (
                           <Link
-                            href={`/events/${contest.sport_event.event_id}?tab=leaderboard&round=${contest.sport_event.round_id}`}
+                            href={`/events/${contest.sport_event.event_id}?tab=${competition.sport_key === 'golf' ? 'leaderboard' : 'stats'}&round=${contest.sport_event.round_id}`}
                             className="px-2 py-1 text-xs rounded-md border border-border-strong text-brand-fg hover:bg-surface-sunken transition-colors inline-flex items-center"
                             data-contest-from-event=""
                           >
                             From event →
                           </Link>
+                        )}
+                        {canRunAsEvent(contest) && (
+                          <button type="button" onClick={() => openRunEvent(contest)} className="px-2 py-1 text-xs rounded-md border border-border-strong text-secondary hover:bg-surface-sunken transition-colors" data-contest-run-event={contest.id}>
+                            {runEventContestId === contest.id ? 'Close' : 'Run as event'}
+                          </button>
                         )}
                         {contest.status !== 'canceled' && competition.format === 'meet' && (
                           <button type="button" onClick={() => openMarks(contest)} className="px-2 py-1 text-xs rounded-md border border-border-strong text-secondary hover:bg-surface-sunken transition-colors" data-meet-enter={contest.id}>
@@ -1859,6 +1892,26 @@ export default function CompetitionDetailPage() {
                       </div>
                     )}
 
+                    {runEventContestId === contest.id && (
+                      <div className="mt-2 flex flex-wrap items-end gap-2 border-t border-border-subtle pt-2" data-run-event-form={contest.id}>
+                        <p className="w-full text-xs text-muted">A live game event hosted for the org: the two sides come from the entries, the score and the players&apos; stats are kept live, and the result lands here when the round completes.</p>
+                        <label className="text-xs text-secondary">
+                          Date
+                          <input type="date" value={runEventDate} onChange={e => setRunEventDate(e.target.value)} aria-label="Event date" className="mt-0.5 block px-2 py-1.5 border border-border-strong rounded-md outline-none text-sm" />
+                        </label>
+                        <label className="text-xs text-secondary">
+                          Start
+                          <input type="time" value={runEventTime} onChange={e => setRunEventTime(e.target.value)} aria-label="Event start" className="mt-0.5 block px-2 py-1.5 border border-border-strong rounded-md outline-none text-sm" />
+                        </label>
+                        <label className="text-xs text-secondary">
+                          Place
+                          <input type="text" value={runEventPlace} maxLength={200} onChange={e => setRunEventPlace(e.target.value)} placeholder="The rink, the field…" aria-label="Event place" className="mt-0.5 block w-40 px-2 py-1.5 border border-border-strong rounded-md outline-none text-sm" />
+                        </label>
+                        <button type="button" disabled={runEventBusy} onClick={() => void runAsEvent(contest)} className="px-3 py-1.5 text-sm min-h-[36px] rounded-lg bg-brand text-white font-medium hover:bg-brand-hover transition-colors disabled:opacity-50" data-run-event-submit="">
+                          Create the event
+                        </button>
+                      </div>
+                    )}
                     {marksContestId === contest.id && (
                       <div className="mt-2 border-t border-border-subtle pt-2" data-meet-marks={contest.id}>
                         {meetAthletes.length === 0 ? (

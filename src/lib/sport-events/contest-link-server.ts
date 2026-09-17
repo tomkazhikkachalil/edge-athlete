@@ -19,7 +19,11 @@
  */
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { mirrorContestDelete } from '@/lib/competitions/calendar-mirror';
-import { contestRowFor, type CompetitionForLink } from './contest-link';
+import { contestRowFor, eventShape, gameContestRowFor, type CompetitionForLink } from './contest-link';
+import { readFormatConfig, readGameConfig } from './format-config';
+import { sideNamesOf } from './game';
+import { readRoundGroups } from './match-server';
+import { shapeOf } from './types';
 import type { SportEventRoundRow, SportEventRow } from './types';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -100,6 +104,8 @@ export interface MintOutcome {
 }
 
 export async function mintContestsForEvent(admin: Admin, event: SportEventRow, rounds: SportEventRoundRow[], competitionId: string): Promise<MintOutcome> {
+  // Track 2 PR 10: a GAME mints one fixture contest per round between the event's two ad-hoc sides.
+  if (eventShape(event) === 'game') return mintGameContests(admin, event, rounds, competitionId);
   const active = rounds.filter(r => r.status !== 'cancelled').sort((a, b) => a.sequence - b.sequence);
   const existing = await readCountsToward(admin, active.map(r => r.id));
   if (existing === null) return { ok: false, contests: new Map(), reason: 'needs_migration' };
@@ -157,4 +163,110 @@ export async function unlinkContestsForEvent(admin: Admin, roundIds: string[]): 
   for (const r of (rows ?? []) as Array<{ id: string; event_id: string | null }>) await mirrorContestDelete(admin, r.event_id);
   await admin.from('contests').delete().in('id', contestIds);
   return { ok: true, removed: contestIds.length };
+}
+
+// ── The game bridge (track 2 PR 10) ──────────────────────────────────────────
+
+const sideRef = (eventId: string, side: 1 | 2) => `sport_event_side:${eventId}:${side}`;
+
+/** An ad-hoc side's members = who played: replaced wholesale (a reused named side takes this game's players). */
+export async function syncSideMembers(admin: Admin, entryId: string, profileIds: string[]): Promise<void> {
+  const want = [...new Set(profileIds)];
+  const { data: have } = await admin.from('competition_entry_members').select('profile_id').eq('entry_id', entryId);
+  const present = new Set(((have ?? []) as Array<{ profile_id: string }>).map(m => m.profile_id));
+  const gone = [...present].filter(p => !want.includes(p));
+  if (gone.length > 0) await admin.from('competition_entry_members').delete().eq('entry_id', entryId).in('profile_id', gone);
+  const missing = want.filter(p => !present.has(p));
+  if (missing.length > 0) {
+    const { error } = await admin.from('competition_entry_members').insert(missing.map((profile_id, i) => ({ entry_id: entryId, profile_id, position: present.size + i + 1 })));
+    if (error) console.error('[contest-link] side members insert failed:', error);
+  }
+}
+
+/** The event's two sides as AD-HOC entries on the competition (219): found by `source_ref`, else by the side's NAME among the ad-hoc entries (an org's standing side is reused — the shape a default team shadows), else minted. Null pre-219. */
+export async function ensureSideEntries(admin: Admin, competitionId: string, eventId: string, sideNames: [string, string], members: [string[], string[]]): Promise<[string, string] | null> {
+  const out: string[] = [];
+  for (const side of [1, 2] as const) {
+    const name = sideNames[side - 1].trim().slice(0, 80) || `Side ${side}`;
+    const ref = sideRef(eventId, side);
+    const { data: byRef, error } = await admin.from('competition_entries').select('id').eq('competition_id', competitionId).eq('source_ref', ref).maybeSingle();
+    if (error) {
+      if (missingColumn(error)) return null;
+      console.error('[contest-link] side entry read failed:', error);
+      return null;
+    }
+    let id = (byRef as { id: string } | null)?.id ?? null;
+    if (!id) {
+      const { data: byName } = await admin.from('competition_entries').select('id').eq('competition_id', competitionId).is('team_id', null).is('profile_id', null).ilike('name', name).limit(1).maybeSingle();
+      id = (byName as { id: string } | null)?.id ?? null;
+    }
+    if (!id) {
+      const { data: created, error: insertError } = await admin.from('competition_entries').insert({ competition_id: competitionId, team_id: null, profile_id: null, name, source_ref: ref, status: 'approved' }).select('id').single();
+      if (insertError || !created) {
+        if (insertError?.code === '23505') {
+          const { data: again } = await admin.from('competition_entries').select('id').eq('competition_id', competitionId).is('team_id', null).is('profile_id', null).ilike('name', name).limit(1).maybeSingle();
+          id = (again as { id: string } | null)?.id ?? null;
+        }
+        if (!id) { console.error('[contest-link] side entry insert failed:', insertError); return null; }
+      } else id = (created as { id: string }).id;
+    }
+    await syncSideMembers(admin, id, members[side - 1]);
+    out.push(id);
+  }
+  return [out[0], out[1]];
+}
+
+/** The players on each side of a round — the group members' SENT sides, as profile ids. */
+export async function readRoundSides(admin: Admin, eventId: string, roundId: string): Promise<[string[], string[]]> {
+  const [groups, { data: parts }] = await Promise.all([readRoundGroups(admin, roundId), admin.from('sport_event_participants').select('id, profile_id, status').eq('sport_event_id', eventId)]);
+  const profileOf = new Map(((parts ?? []) as Array<{ id: string; profile_id: string; status: string }>).filter(p => p.status === 'accepted').map(p => [p.id, p.profile_id]));
+  const sides: [string[], string[]] = [[], []];
+  for (const g of groups) for (const m of g.members) {
+    const profile = profileOf.get(m.participant_id);
+    if (profile && (m.side === 1 || m.side === 2)) sides[m.side - 1].push(profile);
+  }
+  return sides;
+}
+
+/** One FIXTURE contest per non-cancelled round of a GAME event, home = side 1, away = side 2 (the ad-hoc entries above). Idempotent on the round UNIQUE. */
+export async function mintGameContests(admin: Admin, event: SportEventRow, rounds: SportEventRoundRow[], competitionId: string): Promise<MintOutcome> {
+  const active = rounds.filter(r => r.status !== 'cancelled').sort((a, b) => a.sequence - b.sequence);
+  const existing = await readCountsToward(admin, active.map(r => r.id));
+  if (existing === null) return { ok: false, contests: new Map(), reason: 'needs_migration' };
+  const contests = new Map<string, string>([...existing.entries()].map(([rid, c]) => [rid, c.contestId]));
+  const shape = shapeOf(event);
+  const sideNames = sideNamesOf(readGameConfig(readFormatConfig(event.format_config, Math.max(1, rounds.length), event.format, shape), shape));
+  for (const round of active) {
+    if (contests.has(round.id)) continue;
+    const members = await readRoundSides(admin, event.id, round.id);
+    const entries = await ensureSideEntries(admin, competitionId, event.id, sideNames, members);
+    if (!entries) return { ok: false, contests, reason: 'needs_migration' };
+    const { data: contest, error } = await admin.from('contests').insert(gameContestRowFor(round, competitionId)).select('id').single();
+    if (error || !contest) {
+      if (missingColumn(error)) return { ok: false, contests, reason: 'needs_migration' };
+      if (error?.code === '23505') {
+        const again = await readCountsToward(admin, [round.id]);
+        const c = again?.get(round.id);
+        if (c) { contests.set(round.id, c.contestId); continue; }
+      }
+      console.error('[contest-link] game contest insert failed:', error);
+      return { ok: false, contests, reason: 'insert' };
+    }
+    const contestId = (contest as { id: string }).id;
+    const { error: pError } = await admin.from('contest_participants').insert([{ contest_id: contestId, entry_id: entries[0], side: 'home' }, { contest_id: contestId, entry_id: entries[1], side: 'away' }]);
+    if (pError) console.error('[contest-link] game participants insert failed:', pError);
+    contests.set(round.id, contestId);
+  }
+  return { ok: true, contests };
+}
+
+/** The contest → event door stamps the link (the ONE writer of `sport_event_round_id`): only an unlinked contest takes it. */
+export async function linkContestToRound(admin: Admin, contestId: string, roundId: string): Promise<'ok' | 'already_linked' | 'needs_migration'> {
+  const { data, error } = await admin.from('contests').update({ sport_event_round_id: roundId }).eq('id', contestId).is('sport_event_round_id', null).select('id');
+  if (error) {
+    if (missingColumn(error)) return 'needs_migration';
+    console.error('[contest-link] link stamp failed:', error);
+    return 'needs_migration';
+  }
+  return (data ?? []).length === 1 ? 'ok' : 'already_linked';
 }

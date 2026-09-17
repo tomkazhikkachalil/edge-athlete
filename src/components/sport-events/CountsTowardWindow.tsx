@@ -35,7 +35,8 @@ export default function CountsTowardWindow({ view, onClose, onSave }: Props) {
         const res = await fetch(`/api/${org.side}s/${org.id}/competitions`, { cache: 'no-store' });
         if (!res.ok) { if (!cancelled) setOptions([]); return; }
         const data = (await res.json()) as { competitions?: Array<CompetitionForLink & Record<string, unknown>> };
-        const ev = { club_id: org.side === 'club' ? org.id : null, league_id: org.side === 'league' ? org.id : null };
+        // Track 2 PR 10: the event's sport and shape pick the competitions (a game → a fixture of named sides in its sport).
+        const ev = { club_id: org.side === 'club' ? org.id : null, league_id: org.side === 'league' ? org.id : null, sport_key: view.event.sport_key, shape: view.event.shape, format: view.event.format };
         const list = (data.competitions ?? []).map(c => ({ ...c, club_id: ev.club_id, league_id: ev.league_id })).filter(c => eligibleCompetition(ev, c));
         if (!cancelled) setOptions(list);
       } catch {
@@ -43,7 +44,7 @@ export default function CountsTowardWindow({ view, onClose, onSave }: Props) {
       }
     })();
     return () => { cancelled = true; };
-  }, [org]);
+  }, [org, view.event.sport_key, view.event.shape, view.event.format]);
 
   const save = async () => {
     setBusy(true);
@@ -66,7 +67,7 @@ export default function CountsTowardWindow({ view, onClose, onSave }: Props) {
               <option value="">None — just an event</option>
               {options.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
-            {options.length === 0 && <p className="text-xs text-muted">No golf leaderboard competition on {org.name} yet — a manager creates one in the console.</p>}
+            {options.length === 0 && <p className="text-xs text-muted">{view.event.shape === 'game' ? `No fixture of named sides in this sport on ${org.name} yet — a manager creates one in the console.` : `No golf leaderboard competition on ${org.name} yet — a manager creates one in the console.`}</p>}
           </label>
         )}
         <p className="text-xs text-muted">One contest per round is created on the competition; the org&apos;s results are written from the leaderboard when a round completes. The link can change until play begins.</p>

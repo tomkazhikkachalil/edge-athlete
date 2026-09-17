@@ -266,6 +266,18 @@ export const EntryAffiliationSchema = z.object({
 export type EntryAffiliationInput = z.infer<typeof EntryAffiliationSchema>;
 export const EntryPatchSchema = z.union([EntryDecideSchema, EntryAffiliationSchema]);
 
+/** Track 2 PR 10: run a two-sided contest as a one-round game EVENT of the competition's sport, hosted for the org. */
+export const ContestRunAsEventSchema = z.object({
+  competitionId: uuid,
+  contestId: uuid,
+  scheduledOn: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'scheduledOn must be a date (YYYY-MM-DD)'),
+  startsAt: z.string().datetime({ offset: true }).optional(),
+  place: boundedText(200).optional(),
+  selfEntry: z.boolean().default(true),
+  visibility: z.enum(['public', 'private']).default('public'),
+});
+export type ContestRunAsEventInput = z.infer<typeof ContestRunAsEventSchema>;
+
 /** Track 2 PR 7: mint one contest per chosen meet event (the sport profile's vocabulary), in one session. */
 export const MeetEventsGenerateSchema = z.object({
   competitionId: uuid,
