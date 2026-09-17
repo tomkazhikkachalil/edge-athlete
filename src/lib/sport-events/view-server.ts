@@ -10,7 +10,7 @@ import { ROUND_COLUMNS } from './rounds-server';
 import type { SportEventGroupMemberRow, SportEventGroupRow, SportEventParticipantRow, SportEventRoundRow } from './types';
 import { projectEvent, projectParticipant, projectViewer, roundCounts, visibleParticipants, type CountsTowardView, type GroupView, type HostOrgView, type ProfileForView, type RoundView, type SportEventViewPayload } from './view';
 import { eventOrg } from './contest-link';
-import { readCountsTowardAll } from './contest-link-server';
+import { readCountsTowardAll, readEventCompetition, readMatchLinks } from './contest-link-server';
 import { readRoster } from './join-server';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -54,15 +54,21 @@ export async function fetchSportEventView(admin: Admin, eventId: string, viewerI
 
   // Phase 2b: the host org by name and what the event counts toward (tolerant pre-211).
   const org = eventOrg(event);
-  const [orgRes, countsToward] = await Promise.all([
+  const [orgRes, countsToward, bracketComp, matchLinks] = await Promise.all([
     org ? admin.from(org.side === 'club' ? 'clubs' : 'leagues').select('id, name').eq('id', org.id).maybeSingle() : Promise.resolve({ data: null }),
     org && roundIds.length > 0 ? readCountsTowardAll(admin, roundIds) : Promise.resolve(null),
+    // Leftovers PR 11 (221): a bracketed match event's bracket — the intent before go-live, the stamped matches after.
+    org && event.competition_id ? readEventCompetition(admin, event) : Promise.resolve(null),
+    org && event.competition_id && roundIds.length > 0 ? readMatchLinks(admin, roundIds) : Promise.resolve(null),
   ]);
   const host_org: HostOrgView | null = org && orgRes.data ? { side: org.side, id: org.id, name: (orgRes.data as { name: string }).name } : null;
   let counts_toward: CountsTowardView | null = null;
   if (countsToward && countsToward.size > 0) {
     const first = [...countsToward.values()][0];
     counts_toward = { competition_id: first.competitionId, competition_name: first.competitionName, contests: [...countsToward.entries()].map(([round_id, c]) => ({ round_id, contest_id: c.contestId })) };
+  } else if (bracketComp) {
+    const stamped = matchLinks ? [...matchLinks.values()].filter(l => l.competitionId === bracketComp.id) : [];
+    counts_toward = { competition_id: bracketComp.id, competition_name: bracketComp.name, contests: stamped.map(l => ({ round_id: l.roundId, contest_id: l.contestId })) };
   }
 
   const members = (membersRes.data ?? []) as SportEventGroupMemberRow[];

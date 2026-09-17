@@ -54,6 +54,8 @@ export interface EventView {
   participants: Array<{ id: string; profile_id: string; status: string; role: string; playing: boolean; waitlist_position: number | null; handicap_index: number | null; recorder?: boolean }>;
   groups: Array<{ id: string; sport_event_round_id: string; sequence: number; name?: string | null; starting_hole?: number; members: Array<{ participant_id: string; position: number; side?: 1 | 2 | null }> }>;
   counts: { playing: number; followers: number; waitlisted: number };
+  /** Phase 2b / leftovers PR 11: what the event counts toward (a bracketed match event's bracket before go-live carries no contests yet). */
+  counts_toward?: { competition_id: string; competition_name: string; contests: Array<{ round_id: string; contest_id: string }> } | null;
   viewer: { role: string | null; can_manage: boolean; participant_id: string | null; participant_status: string | null; playing?: boolean; recorder?: boolean };
 }
 
