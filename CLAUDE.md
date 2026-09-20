@@ -1032,6 +1032,39 @@ const { canView } = await response.json();
    leftovers PR 1–12 first. Parked (Tom): the per-photo guardian bell,
    realtime as a wake-up.
 
+23. **Support is ONE ticket table behind three doors; type is a field
+   (Support & Reporting program, Spec 1, Sep 20 2026, #836–#841, mig 222
+   the ONLY DDL)** — Tom's Game Plan: help requests, reports and
+   suggestions are rows of `tickets` (`number` a bigint IDENTITY from 1000,
+   rendered `EA-1000` — the chain's first identity column; the uuid stays the
+   URL id because numbers are guessable); `ticket_events` is APPEND-ONLY (one
+   row per statement — a batch would share `created_at`); `platform_admins`
+   holds `owner | moderator` (the env allowlist keeps meaning OWNER;
+   `requireModerator(request, { intent })` admits a moderator to `work_queue`
+   only; `delete_ticket` / `manage_roles` are owner-only; `/api/admin/me`
+   answers `{ admin, role }` and `admin` still means owner). Posture A on all
+   three — the projection IS the access rule: `src/lib/tickets/visibility.ts`'s
+   USER projection never carries the assignee, the reported user, the
+   snapshot or the email (pinned), and a stranger's ticket is a 404, never a
+   403. `src/lib/tickets/server.ts` is the ONE writer. Severity is set at
+   submit (`severity.ts`: report critical on minor_safety / self_harm / a
+   supervised target, high on harassment · hate · sexual · impersonation;
+   help medium; suggestion low) and the response targets are GUIDANCE
+   (overdue marker; nothing escalates). Transitions are pure
+   (`transitions.ts`): a user reply answers waiting_on_user, appeals resolved
+   ONCE (`appeal_used_at`), never touches closed; a reopen clears the
+   resolution code (the CHECK). **Strikes are DERIVED** — a closed report
+   ticket resolved warning · suspension · ban against `target_profile_id` —
+   never a table. A supervised submitter's ticket mails the guardians
+   (`mail.ts`, the digest's query) and the guardian sees it under My
+   requests; a Critical ticket bells every owner / moderator
+   (`ticket_critical`, in `URGENT_TYPES` — the ten-minute email is the
+   "notified now" channel; no SMS exists). Two years after close the daily
+   cron ANONYMIZES (never deletes). `docs/SUPPORT.md` is the reference; read
+   DEVLOG Sep 20 2026 Spec 1 PR 1–5 first. Specs 2–4 (reporting from the
+   three-dot menus + enforcement, the Help Center, suggestions) are outlined
+   there; the schema already carries their columns.
+
 
 ---
 

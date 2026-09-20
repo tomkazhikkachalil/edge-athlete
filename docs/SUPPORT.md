@@ -4,8 +4,9 @@ The reference for the in-app support system: one company-owned ticket table
 behind three front doors (Help Center, Report, Suggest). Tom's design doc
 ("Edge Athlete Support and Reporting Game Plan", Sep 17 2026) is the source;
 this file records what was built and the rules a change must keep. Program
-state: **Spec 1 (the backend) in progress — migration 222 landed.** Specs 2–4
-are outlined at the end.
+state: **Spec 1 COMPLETE + PROD-PROVEN (Sep 20 2026, #836–#841, migration
+222)** — the backend, the admin console and the user's front door; every spec
+green on prod on both mobile engines. Specs 2–4 are outlined at the end.
 
 ## The one rule
 
@@ -66,12 +67,30 @@ the history, the emails, retention — is written once and applies to all three.
   user projection never carries the assignee, internal notes, the target's
   profile id or a report's snapshot.
 
+## Surfaces (Spec 1)
+
+| Surface | Where | What |
+| --- | --- | --- |
+| The queue | `/dashboard/tickets` (owner or moderator) | Open tickets critical-first then oldest; open / overdue / critical / reports counts; status pills, type + severity selects, search by `EA-####` or subject; an Overdue badge; one column at every width. |
+| The ticket | `/dashboard/tickets/[id]` | Severity, assignee (the roles table + allowlisted owners), the suggestion tag; Take into review · Resolve… (a code + the plain-words note the user reads, behind `ConfirmModal`) · Close · Reopen; the request + the content snapshot; the reporter / reported-user cards (masked names, account age, filed / against, the DERIVED strike count); reply (bell + email) and internal note; the history with notes marked. |
+| The door | The dashboard's Support queue tile; the header's "Support queue" (owner or moderator; "Admin dashboard" stays owner-only). | |
+| The front door | `/settings?tab=support` | Submit a request (a Help ticket → the number + the response target); My requests (own + supervised athletes'), a row expanding INLINE to the thread and the reply box (appeal wording on resolved); `?ticket=<id>` — the bells' link — expands that row. Spec 3 grows this into `/help`. |
+
 ## Files
 
 - `database/migrations/222_tickets.sql` (+ `database/tests/diagnostics/verify-222-tickets.sql`)
-- `src/lib/tickets/` — types · number · severity · transitions · events · visibility · server · mail (Spec 1, PRs 2–3)
-- `src/app/api/tickets/*`, `src/app/api/admin/tickets/*`, `src/app/api/admin/roles` (PR 3)
-- `src/app/(app)/dashboard/tickets/*` (PR 4); `src/components/settings/SupportSettings.tsx` (PR 5)
+- `src/lib/tickets/` — types · number · severity · transitions · events · visibility (pure, pinned) · server (the ONE writer) · mail (the recipients)
+- `src/app/api/tickets/{route,[id]/route,[id]/reply/route}.ts`; `src/app/api/admin/tickets/{route,stats/route,[id]/route,[id]/notes/route,[id]/reply/route}.ts`; `src/app/api/admin/roles/route.ts`; `/api/admin/me` answers `{ admin, role }`
+- `src/app/(app)/dashboard/tickets/{page,[id]/page}.tsx`; `src/components/admin/SupportQueueTile.tsx`; `src/components/tickets/ticket-ui.tsx` (chips, `ago`, event wording); `src/components/settings/SupportSettings.tsx`
+- e2e: `tickets.spec.ts` (the API flow), `tickets-admin-ui.spec.ts`, `tickets-user-ui.spec.ts` — all `@mobile`; bravo becomes a moderator through the service key so the queue is CI-testable without `E2E_ADMIN_EMAIL`
+
+## Traps (Spec 1)
+
+- A shell heredoc that creates a file is not verified until `ls` says so — `/api/tickets/route.ts` shipped missing (#838) because a zsh-globbed `[id]` broke the `&&` chain; a spec that self-skips pre-migration has NOT run (#839).
+- History rows are appended one per statement: rows of one batch share `created_at`, and the history is read by it.
+- A reopen must clear `resolution_code` — the CHECK allows a code only on resolved / closed.
+- `LargerWindow` must hold no dirty input — the user's thread + reply box expand inline.
+- `set-state-in-effect` shapes every loader: define it inside the effect, publish it on a ref (the consent page's shape).
 
 ## Specs 2–4 (not built; the schema already carries their columns)
 
