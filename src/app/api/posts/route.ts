@@ -7,7 +7,7 @@ import { getEnabledSports } from '@/lib/sports/SportRegistry';
 import { validateStatLine } from '@/lib/sports/stat-line-validate';
 import { fromStatLinePost } from '@/lib/performance/map';
 import { upsertPerformances } from '@/lib/performance/write-server';
-import { requireAuth, getSupabaseAdmin } from '@/lib/auth-server';
+import { requireAuth, getSupabaseAdmin, requireActiveWriter } from '@/lib/auth-server';
 import { GROUP_SCORECARD_SELECT, transformGroupPostToScorecard } from '@/lib/golf/scorecard-transform';
 import { isActiveParticipant, effectiveRoundStatus } from '@/lib/golf/round-status';
 import { canPin, MAX_PINNED_POSTS } from '@/lib/posts/pinning';
@@ -20,6 +20,7 @@ import { fetchGolfRoundById, fetchGolfRoundsByIds } from '@/lib/golf/post-read';
 import { enforceRateLimit } from '@/lib/rate-limit';
 import { isOrgLensVisible, parseOrgParam } from '@/lib/affiliations/org-peers';
 import { toProxyUrl } from '@/lib/media/proxy-url';
+import { hiddenAuthorsFor } from '@/lib/mutes';
 
 // Interface for tagged profiles
 interface TaggedProfile {
@@ -97,7 +98,7 @@ export async function POST(request: NextRequest) {
   try {
     const supabase = getSupabaseAdmin();
     // Require authentication
-    const user = await requireAuth(request);
+    const user = await requireActiveWriter(request);
     const limited = await enforceRateLimit(request, 'post-create', { userId: user.id });
     if (limited) return limited;
 
@@ -1187,6 +1188,10 @@ export async function GET(request: NextRequest) {
     }
 
     // Get follow relationships for current user (if authenticated).
+    // Spec 2 (mig 223): the viewer's mutes + blocks in both directions — the
+    // feed READ never filtered blocks before; one helper now hides both.
+    const hiddenAuthors = await hiddenAuthorsFor(supabase, currentUserId);
+
     // The following lens already fetched exactly this set — reuse it.
     let followingIds: Set<string> = new Set();
     if (followScope) {
@@ -1223,6 +1228,7 @@ export async function GET(request: NextRequest) {
     // Filter posts based on privacy rules
     const visiblePosts = rawPage.filter(post => {
       if (!post.profiles) return false;
+      if (hiddenAuthors.has(post.profile_id) && currentUserId !== post.profile_id) return false;
 
       const postOwner = post.profiles;
       const isOwnPost = currentUserId === post.profile_id;
@@ -1678,7 +1684,7 @@ export async function PUT(request: NextRequest) {
   try {
     const supabase = getSupabaseAdmin();
     // Require authentication
-    const user = await requireAuth(request);
+    const user = await requireActiveWriter(request);
 
     const body = await request.json();
     const {

@@ -11,6 +11,7 @@ import { runDeletionPurge } from '@/lib/account-park';
 import { runAnalyticsPrune } from '@/lib/org-sites/analytics-server';
 import { runFormSubmissionPurge } from '@/lib/org-sites/forms-server';
 import { runTicketAnonymize } from '@/lib/tickets/server';
+import { runModerationLift } from '@/lib/moderation/server';
 import { runPendingNudge } from '@/lib/guardian-nudge';
 import { runRiskSweep } from '@/lib/risk-sweep';
 import { FEATURE_FLAGS } from '@/lib/features';
@@ -156,6 +157,15 @@ export async function GET(request: NextRequest) {
   } catch (e) {
     console.error('[DAILY] ticket anonymize phase failed:', e);
     summary.tickets = { ok: false };
+  }
+
+  // Support & Reporting, Spec 2 (mig 223): expired suspensions lift — the
+  // column back to active and the auth ban cleared. Pre-223 a benign no-op.
+  try {
+    summary.moderation = await runModerationLift(admin);
+  } catch (e) {
+    console.error('[DAILY] moderation lift phase failed:', e);
+    summary.moderation = { ok: false };
   }
 
   // 6. 48h approval nudge (Wave 2, mig 129): "nudge, never auto-publish".

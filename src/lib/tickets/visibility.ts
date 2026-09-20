@@ -113,3 +113,63 @@ export function projectTicketForAdmin(t: TicketRow, now: Date = new Date()): Adm
     responseTarget: SLA_TARGETS[t.severity].label,
   };
 }
+
+// ── The reported user's view (Spec 2) ───────────────────────────────────────
+//
+// Once a decision was made AGAINST someone, they may read the outcome and
+// appeal once — and nothing else: never the reporter, the description, the
+// snapshot, the reason's details, the assignee or the internal notes. The
+// thread they see is their own replies and support's replies AFTER the
+// decision. Reports are anonymous to the reported user (the doc).
+
+export interface SubjectTicketView {
+  id: string;
+  number: string;
+  /** Always 'notice' — the front end renders it under "About your account". */
+  role: 'subject';
+  type: 'report';
+  status: TicketRow['status'];
+  resolution_code: TicketRow['resolution_code'];
+  resolution_note: string | null;
+  canReply: boolean;
+  replyIsAppeal: boolean;
+  resolved_at: string | null;
+  updated_at: string;
+}
+
+export function projectTicketForSubject(t: TicketRow): SubjectTicketView {
+  const closed = t.status === 'closed';
+  const appealUsed = t.appeal_used_at !== null;
+  return {
+    id: t.id,
+    number: formatTicketNumber(t.number),
+    role: 'subject',
+    type: 'report',
+    status: t.status,
+    resolution_code: t.resolution_code,
+    resolution_note: t.resolution_note,
+    canReply: !closed && !(t.status === 'resolved' && appealUsed),
+    replyIsAppeal: t.status === 'resolved' && !appealUsed,
+    resolved_at: t.resolved_at,
+    updated_at: t.updated_at,
+  };
+}
+
+const SUBJECT_EVENT_KINDS: ReadonlySet<TicketEventKind> = new Set(['reply_to_user', 'user_reply', 'status_changed', 'reopened']);
+
+/** The subject's thread: their own replies, and support's replies + status changes after the decision. */
+export function subjectVisibleEvents(events: TicketEventRow[], viewerProfileIds: ReadonlySet<string>, decidedAt: string | null): UserEventView[] {
+  const cutoff = decidedAt ? Date.parse(decidedAt) : Number.POSITIVE_INFINITY;
+  return events
+    .filter(e => e.visible_to_user && SUBJECT_EVENT_KINDS.has(e.kind))
+    .filter(e => (e.actor_profile_id !== null && viewerProfileIds.has(e.actor_profile_id)) || Date.parse(e.created_at) >= cutoff)
+    .map(e => ({
+      id: e.id,
+      kind: e.kind,
+      by: e.actor_profile_id === null ? 'system' : viewerProfileIds.has(e.actor_profile_id) ? 'you' : 'support',
+      old_value: e.old_value,
+      new_value: e.new_value,
+      body: e.body,
+      created_at: e.created_at,
+    }));
+}

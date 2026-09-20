@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { UUID_RE } from '@/lib/uuid';
-import { requireAuth, getSupabaseAdmin } from '@/lib/auth-server';
+import { requireAuth, getSupabaseAdmin, requireActiveWriter } from '@/lib/auth-server';
 import type { Conversation } from '@/types/messages';
 import { enforceRateLimit } from '@/lib/rate-limit';
 import { toProxyUrl } from '@/lib/media/proxy-url';
@@ -88,7 +88,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const supabase = getSupabaseAdmin();
-    const user = await requireAuth(request);
+    const user = await requireActiveWriter(request);
     const limited = await enforceRateLimit(request, 'conversation-create', { userId: user.id });
     if (limited) return limited;
 

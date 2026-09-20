@@ -859,6 +859,24 @@ This email was sent from your website's contact form.
     return this.deliver('ticket-resolved', { from: fromAddress(), to, ...mail });
   }
 
+  /** Spec 2: the reported user's notice (a warning, a suspension, a ban, a removal) — plain words, never who reported. */
+  async sendModerationNotice(data: { to: string; title: string; message: string; ticketId: string }): Promise<boolean> {
+    const link = `${APP_URL}/settings?tab=support&ticket=${data.ticketId}`;
+    return this.deliver('moderation-notice', {
+      from: fromAddress(),
+      to: data.to,
+      subject: data.title,
+      text: `${data.message}\n\nReply from the app: ${link}`,
+      html: `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        ${logoHeader(APP_URL)}
+        <h2 style="color: #6d28d9;">${escapeHtml(data.title)}</h2>
+        <p style="color: #333; white-space: pre-wrap;">${escapeHtml(data.message)}</p>
+        <p><a href="${escapeHtml(link)}" style="color: #6d28d9;">Reply from the app</a></p>
+      </div>`,
+    });
+  }
+
   async testConnection(): Promise<boolean> {
     try {
       await this.transporter.verify();

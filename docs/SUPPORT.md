@@ -92,7 +92,40 @@ the history, the emails, retention — is written once and applies to all three.
 - `LargerWindow` must hold no dirty input — the user's thread + reply box expand inline.
 - `set-state-in-effect` shapes every loader: define it inside the effect, publish it on a ref (the consent page's shape).
 
-## Specs 2–4 (not built; the schema already carries their columns)
+## Spec 2 — Reporting and enforcement (migration 223)
+
+Tom's rules (Sep 20 2026): **a single report acts on the INTERACTION, not the
+account** — a reported post / comment is hidden, a reported DM thread is
+frozen (no one sends, everyone reads); **the account is limited only on repeat
+incidents** (two or more other report tickets in 90 days at intake) or by an
+admin; **the resolution code IS the action**; **the reported user gets a
+restricted view** for the one appeal; **reports are anonymous** to the
+reported user — a report closed with no action is never announced.
+
+| Thing | Where | Rule |
+| --- | --- | --- |
+| Hidden content | `posts.status` / `post_comments.status` = `hidden` (+ `hidden_at`, `hidden_ticket_id`) | A STATUS: every published-only reader (the RLS policy, the feed, the comments read, the media RPCs, the 095 count + notify triggers) hides it with no new code; the author keeps their own view. Never deleted — evidence. `unhide` restores `published`. |
+| Frozen thread | `conversations.frozen_at` (+ `frozen_ticket_id`) | The DM send route answers 403 `conversation_frozen`; reading stays open. Distinct from the first-contact hold (131). |
+| The account | `profiles.moderation_state` (`active · limited · suspended · banned`) + `moderation_until` + `moderation_ticket_id` | `effectiveState` (an expired suspension reads as active; the daily cron lifts it). `suspended` / `banned` ALSO set Supabase Auth `ban_duration` (login refused); `lift` clears it. |
+| The write gate | `requireActiveWriter(request)` / `activeWriterRefusal(userId)` in `auth-server.ts` | TARGETED: the list below, never a blanket. A refused write answers 403 `{ code: 'account_limited', state }`. Reads stay open; the ticket routes stay open (a limited user must still reach support). Pinned by `src/lib/__tests__/write-gate.test.ts`. |
+| Mute | `user_mutes` (posture A); `/api/mutes` | Silent, one-directional: `hiddenAuthorsFor` (mutes ∪ blocks in both directions) filters the feed, the comments read and the bell. |
+| The snapshot | `tickets.content_snapshot`, written by `snapshot-server.ts resolveTarget` | A projection of the existing reader's shape (never an email or supervision state; names through `publicDisplayName`; a DM thread keeps its `deleted_at` redaction; the last 20 messages). A target the reporter cannot see is a 404. |
+| The merge | `merged_into_id` + `report_count` | A report on the same item with an OPEN ticket in 7 days creates its row merged into it (the reporter keeps their My requests entry); the open ticket's count bumps; three or more on a High item hide it. |
+| Intake (Critical) | `moderation/server.ts applyIntake` | Post / comment → hidden; conversation / message → frozen; the account → `limited` only on repeat incidents. |
+| Actions | `POST /api/admin/tickets/[id]/actions { hide · unhide · freeze · unfreeze · limit · lift }` | Before a decision; each stamps the ticket and appends `action_taken`. |
+| Resolution | `applyResolutionAction` on `PATCH … status: resolved` | `no_action` / `declined` restore what intake did; `content_removed` hides; `warning` notices; `suspension` = 7 days + auth ban; `ban` permanent. The reported user's bell is `moderation_notice` (+ their guardians' copy + the email). |
+| The appeal | `projectTicketForSubject` / `subjectVisibleEvents` | The reported user reads the number, the outcome and a thread of their replies + support's after the decision — never the reporter, the description or the snapshot. One appeal. |
+
+**THE list — the write routes the gate covers** (`src/app/api/…`):
+`posts/route.ts` (POST, PUT) · `comments/route.ts` (POST) · `messages/route.ts` (POST) ·
+`messages/[conversationId]/messages/route.ts` (POST) · `group-posts/route.ts` (POST) ·
+`follow/route.ts` (POST) · `tags/route.ts` (POST) · `upload/route.ts` · `upload/post-media/route.ts` ·
+`upload/avatar/route.ts` · `upload/cover/route.ts` · `upload/equipment/route.ts` (POST) ·
+`profile/route.ts` (PUT) · `sport-events/route.ts` (POST) · `sport-events/[id]/participants/join/route.ts` (POST) ·
+`clubs/requests/route.ts` (POST) · `leagues/requests/route.ts` (POST).
+Adding a route is a deliberate decision: extend the test's list and this one together.
+
+## Specs 3–4 (not built; the schema already carries their columns)
 
 - **Spec 2 — Reporting**: Report from the three-dot menu on posts, comments,
   profiles and DM threads; the one reason list; the content snapshot; Block

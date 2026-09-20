@@ -57,7 +57,9 @@ export type GuardianNotificationType =
   // Support & Reporting, Spec 1 (mig 222): a supervised athlete's ticket —
   // opened, answered, resolved — copied to the guardians (the parent is the
   // one with the email; My requests shows it to them too).
-  | 'ticket_update';
+  | 'ticket_update'
+  // Spec 2 (mig 223): a decision against a supervised athlete — the guardians hear.
+  | 'moderation_notice';
 
 export interface GuardianNotification {
   type: GuardianNotificationType;

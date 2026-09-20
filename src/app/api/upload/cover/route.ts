@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { requireAuth, getSupabaseAdmin } from '@/lib/auth-server';
+import { getSupabaseAdmin, requireActiveWriter } from '@/lib/auth-server';
 import { ALLOWED_IMAGE_MIME } from '@/lib/media/validation';
 import { enforceRateLimit } from '@/lib/rate-limit';
 
@@ -17,7 +17,7 @@ const MAX_COVER_BYTES = 10 * 1024 * 1024;
 
 export async function POST(request: NextRequest) {
   try {
-    const user = await requireAuth(request);
+    const user = await requireActiveWriter(request);
     const limited = await enforceRateLimit(request, 'upload', { userId: user.id });
     if (limited) return limited;
 
