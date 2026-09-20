@@ -1,0 +1,90 @@
+# Support & Reporting — the ticket backend
+
+The reference for the in-app support system: one company-owned ticket table
+behind three front doors (Help Center, Report, Suggest). Tom's design doc
+("Edge Athlete Support and Reporting Game Plan", Sep 17 2026) is the source;
+this file records what was built and the rules a change must keep. Program
+state: **Spec 1 (the backend) in progress — migration 222 landed.** Specs 2–4
+are outlined at the end.
+
+## The one rule
+
+**Type is a field, not a separate system.** Help requests, reports and
+suggestions are rows of `tickets`. Everything that works a ticket — the queue,
+the history, the emails, retention — is written once and applies to all three.
+
+## Entities (migration 222)
+
+| Thing | Where | Rule |
+| --- | --- | --- |
+| Ticket | `tickets` | One row per help request / report / suggestion. `type ∈ help · report · suggestion`; `subtype` only on a report (`post · comment · profile · dm · incident`); `reason` is the report reason / help category / suggestion area — one column, validated per type in the app. |
+| Ticket number | `tickets.number` (bigint IDENTITY from 1000) | Rendered `EA-1000` by `src/lib/tickets/number.ts`. The uuid stays the primary key and the URL id — numbers are guessable. The first identity column in the chain. |
+| Severity | `tickets.severity` | Set automatically at submit from type + reason (+ whether the target is a minor) by `src/lib/tickets/severity.ts`; an admin may change it. Drives queue order and the response target. |
+| Status | `tickets.status` | `new → in_review → waiting_on_user → resolved → closed`. Transitions are pinned in `src/lib/tickets/transitions.ts`. |
+| History | `ticket_events` | APPEND-ONLY. Every status / severity / assignee change, note, reply, merge, action, email and the anonymize stamp. `visible_to_user` decides what "My requests" shows; internal notes never leave the console. |
+| The reported thing | `target_type` + `target_id` (no FK) + `content_snapshot` | The content may be edited or deleted after the report; the snapshot is the record. `target_profile_id` is the reported user (prior tickets, strikes, dedup). |
+| Admin roles | `platform_admins` | `owner · moderator`. The env allowlist (`OWNER_EMAILS` + `ADMIN_EMAILS`) keeps meaning OWNER; a moderator row admits the support queue only. Only an owner writes this table — enforced in the API. |
+| Bells | `ticket_update` · `ticket_critical` | The submitter's bell on a visible change; every owner / moderator's bell on a Critical ticket (also mailed by the urgent-email sweep within ten minutes). |
+
+## Decisions (Tom, Sep 17–20 2026)
+
+- **Auto-hide + limit on Critical**: the reported item is hidden and the
+  reported account goes read-only until an admin acts (Spec 2).
+- **No inbound email parsing in v1**: replies to `support@` are pasted onto the
+  ticket from the console; the in-app reply under My requests is the primary
+  path.
+- **Strike ladder as written**: first confirmed violation = warning, second =
+  7-day suspension, third = ban; Critical skips to suspension or ban.
+  **Strikes are DERIVED** — a closed report ticket resolved `warning ·
+  suspension · ban` against `target_profile_id` — never a second table.
+- **Response targets are guidance**: Critical 1 h · High same business day ·
+  Medium 2 business days · Low weekly (`SLA_HOURS`); the queue marks overdue;
+  nothing escalates automatically; the created email quotes the target.
+- **A minor's ticket goes to the parent**: `reporter_email` is NULL for a
+  supervised reporter (the synthetic address never renders); the mailer
+  resolves the guardians' emails at send time (the digest's query); the
+  guardian sees the ticket under My requests through `profile_access`.
+- **Reports are anonymous to the reported user.** The reported user is told
+  what happened and why, never who reported them, and may appeal once
+  (`appeal_used_at`).
+- **Retention**: two years after close the daily cron ANONYMIZES a ticket
+  (reporter, email, description, snapshot and event bodies nulled; number,
+  type, reason, severity, resolution and timestamps kept for audit).
+- **Critical notification "now"** is the fastest channel that exists: the
+  bell + the ten-minute urgent email. There is no SMS or push in the codebase;
+  `src/lib/notify/dispatch-core.ts` is built for an SMS adapter if wanted.
+
+## Gates
+
+- User routes (`/api/tickets/*`): `requireAuth`; a supervised profile may file;
+  a guardian reads their supervised athletes' tickets.
+- Admin routes (`/api/admin/tickets/*`): `requireModerator(request, { intent })`
+  — `work_queue` admits owner and moderator; `delete_ticket` and
+  `manage_roles` are owner-only.
+- Posture A on all three tables: the service role is the only reader and
+  writer; every read is projected (`src/lib/tickets/visibility.ts`) — the
+  user projection never carries the assignee, internal notes, the target's
+  profile id or a report's snapshot.
+
+## Files
+
+- `database/migrations/222_tickets.sql` (+ `database/tests/diagnostics/verify-222-tickets.sql`)
+- `src/lib/tickets/` — types · number · severity · transitions · events · visibility · server · mail (Spec 1, PRs 2–3)
+- `src/app/api/tickets/*`, `src/app/api/admin/tickets/*`, `src/app/api/admin/roles` (PR 3)
+- `src/app/(app)/dashboard/tickets/*` (PR 4); `src/components/settings/SupportSettings.tsx` (PR 5)
+
+## Specs 2–4 (not built; the schema already carries their columns)
+
+- **Spec 2 — Reporting**: Report from the three-dot menu on posts, comments,
+  profiles and DM threads; the one reason list; the content snapshot; Block
+  and Mute offered after a report; auto-severity with the minor rule; the
+  7-day merge (`report_count`); auto-hide + read-only on Critical
+  (`profiles.moderation_state`, `posts.hidden_at` — mig 223); the one-click
+  actions and the ladder from derived strikes; the self-harm resources message.
+- **Spec 3 — Help Center** (`/help`): videos, articles (`help_articles`, mig 224),
+  Submit a request (moves from Settings; a guest form fills `guest_email`),
+  Contact, My requests; `/contact` creates a Help ticket; the screenshot upload
+  (`attachment_url` — registered in `URL_SOURCE_COLUMNS` in the same PR).
+- **Spec 4 — Suggestions + polish**: the Suggest form (Low severity;
+  `suggestion_tag` at the weekly review; duplicates merged), the stats panel,
+  the paste-a-reply affordance, an SMS adapter if ten minutes is too slow.

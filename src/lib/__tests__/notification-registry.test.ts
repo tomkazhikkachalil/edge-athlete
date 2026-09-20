@@ -142,6 +142,9 @@ describe('tab buckets (behavior frozen from the pre-registry literal arrays)', (
       'sport_event_request_decision',
       'sport_event_results',
       'tag_alert',
+      // Support & Reporting, Spec 1 (mig 222): the ticket bells.
+      'ticket_critical',
+      'ticket_update',
     ]);
   });
 });
