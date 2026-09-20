@@ -119,6 +119,10 @@ export default function AppHeader({ onCreatePost, onEditProfile }: AppHeaderProp
   // Asked lazily when a menu opens, once per signed-in user; a non-admin
   // (403) simply never sees the entry.
   const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
+  // Support & Reporting (Spec 1): `admin` = OWNER (the dashboard); a
+  // moderator answers 200 with admin:false and role:'moderator' — the
+  // support queue entry shows for either role, the dashboard for owners.
+  const [supportRole, setSupportRole] = useState<'owner' | 'moderator' | null>(null);
   useEffect(() => {
     if (!user?.id || isAdmin !== null) return;
     if (!isProfileDropdownOpen && !isMobileMenuOpen) return;
@@ -126,10 +130,10 @@ export default function AppHeader({ onCreatePost, onEditProfile }: AppHeaderProp
     (async () => {
       try {
         const res = await fetch('/api/admin/me', { cache: 'no-store' });
-        // `admin` = OWNER (the dashboard); a moderator answers 200 with
-        // admin:false (Support & Reporting, Spec 1) and gets no entry here.
         const body = res.ok ? await res.json().catch(() => null) : null;
-        if (!cancelled) setIsAdmin(body?.admin === true);
+        if (cancelled) return;
+        setIsAdmin(body?.admin === true);
+        setSupportRole(body?.role === 'owner' || body?.role === 'moderator' ? body.role : null);
       } catch {
         if (!cancelled) setIsAdmin(false);
       }
@@ -655,19 +659,34 @@ export default function AppHeader({ onCreatePost, onEditProfile }: AppHeaderProp
                         </div>
                       )}
 
-                      {isAdmin && (
+                      {(isAdmin || supportRole) && (
                         <div className="py-1 border-b border-border-subtle">
-                          <button
-                            onClick={() => {
-                              router.push('/dashboard');
-                              setIsProfileDropdownOpen(false);
-                            }}
-                            className="w-full text-left px-4 py-2 text-sm text-secondary hover:bg-surface-muted flex items-center gap-3"
-                            data-admin-dashboard-link=""
-                          >
-                            <i className="fas fa-shield-halved w-4"></i>
-                            <span>Admin dashboard</span>
-                          </button>
+                          {isAdmin && (
+                            <button
+                              onClick={() => {
+                                router.push('/dashboard');
+                                setIsProfileDropdownOpen(false);
+                              }}
+                              className="w-full text-left px-4 py-2 text-sm text-secondary hover:bg-surface-muted flex items-center gap-3"
+                              data-admin-dashboard-link=""
+                            >
+                              <i className="fas fa-shield-halved w-4"></i>
+                              <span>Admin dashboard</span>
+                            </button>
+                          )}
+                          {supportRole && (
+                            <button
+                              onClick={() => {
+                                router.push('/dashboard/tickets');
+                                setIsProfileDropdownOpen(false);
+                              }}
+                              className="w-full text-left px-4 py-2 text-sm text-secondary hover:bg-surface-muted flex items-center gap-3"
+                              data-support-queue-link=""
+                            >
+                              <i className="fas fa-life-ring w-4"></i>
+                              <span>Support queue</span>
+                            </button>
+                          )}
                         </div>
                       )}
 
@@ -956,19 +975,34 @@ export default function AppHeader({ onCreatePost, onEditProfile }: AppHeaderProp
               </div>
             )}
 
-            {isAdmin && (
+            {(isAdmin || supportRole) && (
               <div className="pt-2 mt-2 border-t border-border">
-                <button
-                  onClick={() => {
-                    router.push('/dashboard');
-                    setIsMobileMenuOpen(false);
-                  }}
-                  className="flex items-center gap-3 w-full px-4 py-3 text-left text-secondary hover:bg-surface-muted rounded-lg transition-colors"
-                  data-admin-dashboard-link=""
-                >
-                  <i className="fas fa-shield-halved w-5 text-center shrink-0"></i>
-                  <span className="font-medium flex-1 min-w-0 truncate">Admin dashboard</span>
-                </button>
+                {isAdmin && (
+                  <button
+                    onClick={() => {
+                      router.push('/dashboard');
+                      setIsMobileMenuOpen(false);
+                    }}
+                    className="flex items-center gap-3 w-full px-4 py-3 text-left text-secondary hover:bg-surface-muted rounded-lg transition-colors"
+                    data-admin-dashboard-link=""
+                  >
+                    <i className="fas fa-shield-halved w-5 text-center shrink-0"></i>
+                    <span className="font-medium flex-1 min-w-0 truncate">Admin dashboard</span>
+                  </button>
+                )}
+                {supportRole && (
+                  <button
+                    onClick={() => {
+                      router.push('/dashboard/tickets');
+                      setIsMobileMenuOpen(false);
+                    }}
+                    className="flex items-center gap-3 w-full px-4 py-3 text-left text-secondary hover:bg-surface-muted rounded-lg transition-colors"
+                    data-support-queue-link=""
+                  >
+                    <i className="fas fa-life-ring w-5 text-center shrink-0"></i>
+                    <span className="font-medium flex-1 min-w-0 truncate">Support queue</span>
+                  </button>
+                )}
               </div>
             )}
 
