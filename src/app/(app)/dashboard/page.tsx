@@ -15,17 +15,6 @@ import SupportQueueTile from '@/components/admin/SupportQueueTile';
 // Admin console (replaces the orphaned legacy dashboard page — its buttons
 // had no onClick handlers). Access = ADMIN_EMAILS allowlist, enforced
 // server-side; this page just renders the 403 as "not authorized".
-interface ReportRow {
-  id: string;
-  reason: string;
-  details: string | null;
-  status: string;
-  created_at: string;
-  message: { id: string; content: string | null; type: string; deleted_at: string | null } | null;
-  reporter: { id: string; first_name: string | null; last_name: string | null; full_name: string | null; handle: string | null } | null;
-  reported: { id: string; first_name: string | null; last_name: string | null; full_name: string | null; handle: string | null } | null;
-}
-
 interface UserRow {
   id: string;
   email: string | null;
@@ -39,21 +28,15 @@ interface UserRow {
   onboarded_at: string | null;
 }
 
-const STATUS_FILTERS = ['open', 'reviewing', 'resolved', 'dismissed', 'all'] as const;
-type StatusFilter = typeof STATUS_FILTERS[number];
-
 const name = (p: { first_name: string | null; last_name: string | null; full_name: string | null } | null) =>
   p ? formatDisplayName(p.first_name, null, p.last_name, p.full_name) : 'Unknown';
 
 export default function AdminDashboardPage() {
   const router = useRouter();
   const { user, loading: authLoading } = useAuth();
-  const { showSuccess, showError } = useToast();
+  const { showError } = useToast();
 
   const [authorized, setAuthorized] = useState<boolean | null>(null);
-  const [reports, setReports] = useState<ReportRow[]>([]);
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>('open');
-  const [reportsLoading, setReportsLoading] = useState(false);
 
   const [userQuery, setUserQuery] = useState('');
   const [users, setUsers] = useState<UserRow[]>([]);
@@ -81,32 +64,26 @@ export default function AdminDashboardPage() {
 
   // Inlined cancellable IIFE; the guard also stops a slow response for a
   // previous status filter from overwriting a newer one.
+  // The gate probe: `/api/admin/me` (owner = admin:true). The old probe was
+  // the message-reports read; that panel left with Spec 2 (reports are
+  // tickets now — the Support queue tile is the door).
   useEffect(() => {
     if (!user?.id) return;
     let cancelled = false;
     (async () => {
-      setReportsLoading(true);
       try {
-        const response = await fetch(`/api/admin/reports?status=${statusFilter}`);
-        if (response.status === 403) {
-          if (!cancelled) setAuthorized(false);
-          return;
-        }
-        if (!cancelled) setAuthorized(true);
-        if (response.ok) {
-          const data = await response.json();
-          if (!cancelled) setReports(data.reports);
-        }
+        const response = await fetch('/api/admin/me', { cache: 'no-store' });
+        const body = response.ok ? await response.json().catch(() => null) : null;
+        if (!cancelled) setAuthorized(body?.admin === true);
       } catch (e) {
-        console.error('Failed to load reports:', e);
-      } finally {
-        if (!cancelled) setReportsLoading(false);
+        console.error('Failed to probe admin access:', e);
+        if (!cancelled) setAuthorized(false);
       }
     })();
     return () => {
       cancelled = true;
     };
-  }, [user?.id, statusFilter]);
+  }, [user?.id]);
 
   // Clearing is synchronisation (render phase); the debounced fetch stays here.
   // Phase 6 R1: load the flagged-slug review list once authorized
@@ -168,29 +145,6 @@ export default function AdminDashboardPage() {
     }, SUGGEST_DEBOUNCE_MS);
     return () => clearTimeout(timer);
   }, [userQuery, authorized]);
-
-  const updateReport = async (reportId: string, status: string) => {
-    try {
-      const response = await fetch('/api/admin/reports', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ reportId, status }),
-      });
-      if (!response.ok) {
-        showError('Update failed', 'Could not update the report.');
-        return;
-      }
-      showSuccess('Report updated', `Marked as ${status}.`);
-      if (statusFilter === 'all') {
-        setReports(prev => prev.map(r => (r.id === reportId ? { ...r, status } : r)));
-      } else {
-        setReports(prev => prev.filter(r => r.id !== reportId));
-      }
-    } catch (e) {
-      console.error('Failed to update report:', e);
-      showError('Update failed', 'Could not update the report.');
-    }
-  };
 
   if (authLoading || !user || authorized === null) {
     return (
@@ -297,93 +251,6 @@ export default function AdminDashboardPage() {
             </p>
             <p className="text-xs text-muted mt-1">Seasons, divisions, and teams.</p>
           </button>
-        </section>
-
-        {/* Message reports queue */}
-        <section className="bg-surface rounded-lg shadow-sm border border-border p-4 sm:p-6">
-          <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
-            <h2 className="text-lg font-semibold text-primary">Message reports</h2>
-            <div className="flex flex-wrap gap-2">
-              {STATUS_FILTERS.map(f => (
-                <button
-                  key={f}
-                  onClick={() => setStatusFilter(f)}
-                  className={`px-3 py-1.5 min-h-[40px] rounded-md text-xs font-medium capitalize transition-colors ${
-                    statusFilter === f ? 'bg-brand text-white' : 'bg-surface-sunken text-secondary hover:bg-gray-200 dark:hover:bg-stone-800'
-                  }`}
-                >
-                  {f}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {reportsLoading ? (
-            <p className="text-sm text-muted py-6 text-center">Loading reports…</p>
-          ) : reports.length === 0 ? (
-            <p className="text-sm text-muted py-6 text-center">
-              No {statusFilter === 'all' ? '' : statusFilter} reports. 🎉
-            </p>
-          ) : (
-            <div className="space-y-3">
-              {reports.map(report => (
-                <div key={report.id} className="border border-border rounded-lg p-4">
-                  <div className="flex flex-wrap items-center gap-2 mb-2">
-                    <span className="px-2 py-0.5 bg-red-50 dark:bg-red-950/40 text-red-700 dark:text-red-300 text-xs font-semibold rounded-full uppercase">
-                      {report.reason}
-                    </span>
-                    <span className="px-2 py-0.5 bg-surface-sunken text-tertiary text-xs rounded-full capitalize">
-                      {report.status}
-                    </span>
-                    <span className="text-xs text-faint">
-                      {new Date(report.created_at).toLocaleString()}
-                    </span>
-                  </div>
-                  <p className="text-sm text-secondary mb-1">
-                    <span className="font-medium">{name(report.reporter)}</span>
-                    {' reported '}
-                    <span className="font-medium">{name(report.reported)}</span>
-                  </p>
-                  {report.message?.content && (
-                    <blockquote className="text-sm text-tertiary bg-surface-muted border-l-2 border-border-strong pl-3 py-1.5 my-2 break-words">
-                      {report.message.content}
-                    </blockquote>
-                  )}
-                  {report.details && (
-                    <p className="text-xs text-muted mb-2 break-words">Reporter notes: {report.details}</p>
-                  )}
-                  <div className="flex flex-wrap gap-2 mt-3">
-                    {report.reported && (
-                      <button
-                        onClick={() => router.push(`/athlete/${report.reported!.id}`)}
-                        className="px-3 py-1.5 min-h-[40px] text-xs font-medium bg-surface-sunken text-secondary rounded-md hover:bg-gray-200 dark:hover:bg-stone-800"
-                      >
-                        View profile
-                      </button>
-                    )}
-                    {report.status !== 'reviewing' && (
-                      <button onClick={() => updateReport(report.id, 'reviewing')}
-                        className="px-3 py-1.5 min-h-[40px] text-xs font-medium bg-yellow-50 dark:bg-yellow-950/40 text-yellow-700 dark:text-yellow-300 rounded-md hover:bg-yellow-100 dark:hover:bg-yellow-950/60">
-                        Mark reviewing
-                      </button>
-                    )}
-                    {report.status !== 'resolved' && (
-                      <button onClick={() => updateReport(report.id, 'resolved')}
-                        className="px-3 py-1.5 min-h-[40px] text-xs font-medium bg-green-50 dark:bg-green-950/40 text-green-700 dark:text-green-300 rounded-md hover:bg-green-100 dark:hover:bg-green-950/60">
-                        Resolve
-                      </button>
-                    )}
-                    {report.status !== 'dismissed' && (
-                      <button onClick={() => updateReport(report.id, 'dismissed')}
-                        className="px-3 py-1.5 min-h-[40px] text-xs font-medium bg-surface-muted text-tertiary rounded-md hover:bg-surface-sunken">
-                        Dismiss
-                      </button>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
         </section>
 
         {/* Phase 6 R1: flagged site addresses (anti-squatting review). */}

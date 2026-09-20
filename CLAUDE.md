@@ -1061,9 +1061,31 @@ const { canView } = await response.json();
    (`ticket_critical`, in `URGENT_TYPES` — the ten-minute email is the
    "notified now" channel; no SMS exists). Two years after close the daily
    cron ANONYMIZES (never deletes). `docs/SUPPORT.md` is the reference; read
-   DEVLOG Sep 20 2026 Spec 1 PR 1–5 first. Specs 2–4 (reporting from the
-   three-dot menus + enforcement, the Help Center, suggestions) are outlined
-   there; the schema already carries their columns.
+   DEVLOG Sep 20 2026 Spec 1 PR 1–5 first. **Spec 2 (Reporting, #843–#847,
+   mig 223):** a report is filed FROM the thing through ONE sheet
+   (`ReportSheet`, opened from the house `ActionMenu` on every non-owner post,
+   non-own comment, both profile routes and the DM thread menu; Block + Mute
+   offered after; 9-8-8 on self-harm); the snapshot is server-side and
+   access-checked (`snapshot-server.ts` — a target the reporter cannot see is
+   a 404); duplicates MERGE (`merged_into_id`, the reporter keeps their entry;
+   3+ on High hides). **Tom's rule: a Critical report acts on the
+   INTERACTION** (a post / comment → `status = 'hidden'`, a STATUS so every
+   published-only reader hides it; a DM thread → `conversations.frozen_at`),
+   **and the account is limited only on repeat incidents** (2+ other reports
+   in 90 days — ANY severity) or by an admin. `profiles.moderation_state`
+   (`active · limited · suspended · banned`) is enforced by `requireActiveWriter`
+   on THE list of 17 content + contact routes (pinned by
+   `src/lib/__tests__/write-gate.test.ts` — never a blanket; the ticket
+   routes stay open) and, for suspended / banned, by Supabase Auth's
+   `ban_duration` (a suspended session answers 401 at `getUser`). The
+   resolution code IS the action (`moderation/state.ts actionForResolution`);
+   the reported user gets a `moderation_notice` and a RESTRICTED view
+   (`projectTicketForSubject` — never the reporter, the description or the
+   snapshot) for the one appeal; a report closed with no action is never
+   announced. Mutes (`user_mutes`) and blocks both filter the feed, the
+   comments and the bell through `mutes.ts hiddenAuthorsFor`. Specs 3–4 (the
+   Help Center, suggestions) are outlined in `docs/SUPPORT.md`; the schema
+   already carries their columns.
 
 
 ---
