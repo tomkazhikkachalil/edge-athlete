@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { adminClient, loadQaUser, resetRateBucket } from './helpers/qa-user';
+import { settleBody } from './helpers/isr';
 
 // Support & Reporting, Spec 3 PR 3 — the Help Center in a real browser at
 // 390×844. Seeded articles (the service key): a signed-OUT visitor reads
@@ -32,6 +33,9 @@ test('help center UI: videos, search, an article, the guest request, the signed-
       ])
       .select('id');
     for (const r of seeded ?? []) ids.push(r.id as string);
+
+    // The list is CDN-cached (s-maxage=60): wait until the public API carries the seeded rows before opening the page.
+    await settleBody(ctxOut.request, '/api/help/articles', `qa-text-${rand}`, true, 30);
 
     // Signed out.
     const page = await ctxOut.newPage();

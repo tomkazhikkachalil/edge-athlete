@@ -4,7 +4,9 @@
 
 **What:** with 224 live, `help-api` and `help-ui` ran for the first time (they self-skipped before) and found three things in THEMSELVES, none in the code: a PostgREST batch insert sends `null` for a key one row omits (the draft row's `sort_order` — every column is spelled out now); the mobile project's `use.storageState` signs EVERY context in — `browser.newContext()` AND the `request` fixture — so the "signed-out visitor" was alpha (the guest form never rendered; `/contact` filed under the session): an explicit empty `storageState: { cookies: [], origins: [] }` is the signed-out visitor. Both specs green locally on the live table; the prod probe follows the deploy.
 
-**Lesson (for the e2e helpers file, next time one is touched):** a spec that needs a signed-out actor must say so — the project default is signed in.
+**The prod probe then found two more, one of them code:** Vercel CONSUMES `s-maxage` and answers `cache-control: public` (the spec asserted the directive — it asserts `public` now), and the CDN-cached list hid a freshly seeded row for the whole TTL. The TTL drops from 300 s to **60 s** (an article edit shows within a minute — the only app-code change) and both specs settle the public API with the ISR helpers (`settleBody` / `settleStatus`, 30 attempts) before reading it — the same discipline the org-site specs use.
+
+**Lesson (for the e2e helpers file, next time one is touched):** a spec that needs a signed-out actor must say so — the project default is signed in; and a spec that reads a CDN-cached route settles it first.
 
 ## September 20, 2026 — Support & Reporting program, Spec 3 PR 3: the Help Center — `/help`, the article page, the owner's editor, the doors (zero DDL; merges after #849)
 

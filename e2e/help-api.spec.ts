@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { adminClient, adminEmailForE2E, apiAs, createQaUser, deleteQaUser, loadQaUser, mintStorageState, readErrorBody, resetRateBucket } from './helpers/qa-user';
+import { settleBody, settleStatus } from './helpers/isr';
 
 // Support & Reporting, Spec 3 (mig 224) — the Help Center's backend over
 // the API. The PUBLIC article read (drafts never show; a slug read carries
@@ -45,11 +46,14 @@ test('help center API: public articles, the guest request, /contact, the screens
     expect(seedError).toBeNull();
     for (const r of seeded ?? []) articleIds.push(r.id as string);
 
-    // The public list: published only, the video id resolved, the excerpt.
+    // The public list: published only, the video id resolved, the excerpt. The
+    // list is CDN-cached (s-maxage=60 — Vercel consumes the directive and answers
+    // `public`), so on prod the seeded row settles in within a minute.
     let res = await request.get('/api/help/articles');
     expect(res.status(), await readErrorBody(res)).toBe(200);
-    expect(res.headers()['cache-control']).toContain('s-maxage');
-    const list = (await res.json()) as { supported: boolean; articles: Array<{ slug: string; videoId: string | null; excerpt: string }> };
+    expect(res.headers()['cache-control']).toContain('public');
+    const listBody = await settleBody(request, '/api/help/articles', `qa-posting-a-round-${rand}`, true, 30);
+    const list = JSON.parse(listBody) as { supported: boolean; articles: Array<{ slug: string; videoId: string | null; excerpt: string }> };
     expect(list.supported).toBe(true);
     const mine = list.articles.find(a => a.slug === `qa-posting-a-round-${rand}`)!;
     expect(mine).toBeTruthy();
@@ -57,8 +61,8 @@ test('help center API: public articles, the guest request, /contact, the screens
     expect(mine.excerpt).toBe('Open the composer.');
     expect(list.articles.some(a => a.slug === `qa-draft-${rand}`)).toBe(false);
     // One article: the body; a draft is a 404.
+    await settleStatus(request, `/api/help/articles/qa-posting-a-round-${rand}`, 200, 30);
     res = await request.get(`/api/help/articles/qa-posting-a-round-${rand}`);
-    expect(res.status()).toBe(200);
     expect((await res.json()).article.body).toContain('Pick the course');
     expect((await request.get(`/api/help/articles/qa-draft-${rand}`)).status()).toBe(404);
     expect((await request.get('/api/help/articles/Not%20A%20Slug')).status()).toBe(404);
