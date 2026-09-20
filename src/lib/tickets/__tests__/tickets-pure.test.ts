@@ -251,7 +251,7 @@ describe('projectTicketForUser', () => {
     expect(Object.keys(view).sort()).toEqual(
       [
         'id', 'number', 'type', 'subtype', 'reason', 'severity', 'status', 'subject', 'description',
-        'canReply', 'replyIsAppeal', 'resolution_code', 'resolution_note', 'responseTarget',
+        'canReply', 'replyIsAppeal', 'resolution_code', 'resolution_note', 'responseTarget', 'attachment',
         'created_at', 'updated_at', 'resolved_at',
       ].sort()
     );

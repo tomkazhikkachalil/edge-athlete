@@ -33,6 +33,12 @@ import {
 } from './types';
 import { projectTicketForAdmin, projectTicketForUser, projectTicketForSubject, subjectVisibleEvents, userVisibleEvents, type AdminTicketView, type SubjectTicketView, type UserEventView, type UserTicketView } from './visibility';
 import { PILE_ON_HIDE_COUNT } from '@/lib/moderation/state';
+import { toProxyUrl } from '@/lib/media/proxy-url';
+
+/** Spec 3: the screenshot through the media proxy's `ticket` entity. */
+function withAttachment<T extends { id: string; attachment: string | null }>(view: T, storedUrl: string | null): T {
+  return { ...view, attachment: storedUrl ? toProxyUrl(storedUrl, { type: 'ticket', id: view.id }) : null };
+}
 
 type Admin = ReturnType<typeof getSupabaseAdmin>;
 
@@ -105,7 +111,11 @@ export interface CreateTicketInput {
   subject?: string | null;
   description: string;
   contact_ok?: boolean;
-  submitter: Submitter;
+  /** The signed-in submitter — or null for the Help Center's guest form (then `guestEmail` is required). */
+  submitter: Submitter | null;
+  guestEmail?: string | null;
+  /** Spec 3: the screenshot's stored URL (the route asserted the prefix). */
+  attachmentUrl?: string | null;
   /** A targeted report (Spec 2): the resolved thing; an incident report carries none. */
   target?: { type: TicketRow['target_type']; id: string | null; profileId: string | null; isMinor: boolean; snapshot: Record<string, unknown> | null; conversationId?: string | null } | null;
 }
@@ -139,13 +149,15 @@ export async function createTicket(admin: Admin, input: CreateTicketInput): Prom
     severity,
     subject: input.subject ?? null,
     description: input.description,
-    reporter_profile_id: input.submitter.id,
-    reporter_email: input.submitter.email,
+    reporter_profile_id: input.submitter?.id ?? null,
+    reporter_email: input.submitter?.email ?? null,
+    guest_email: input.submitter ? null : (input.guestEmail ?? null),
     target_type: input.target?.type ?? null,
     target_id: input.target?.id ?? null,
     target_profile_id: input.target?.profileId ?? null,
     content_snapshot: input.target?.snapshot ?? null,
     contact_ok: input.contact_ok ?? true,
+    attachment_url: input.attachmentUrl ?? null,
   };
   // Spec 2: a duplicate report on the same item within 7 days MERGES — the
   // new row keeps the reporter's own My requests entry (merged_into_id), the
@@ -164,13 +176,13 @@ export async function createTicket(admin: Admin, input: CreateTicketInput): Prom
   const ticket = { id: data.id as string, number: Number(data.number), severity: openTicket ? openTicket.severity : severity, mergedInto: openTicket?.id ?? null };
 
   await appendEvents(admin, [
-    { ticket_id: ticket.id, actor_profile_id: input.submitter.id, kind: 'created', old_value: null, new_value: input.type, body: null, visible_to_user: true },
+    { ticket_id: ticket.id, actor_profile_id: input.submitter?.id ?? null, kind: 'created', old_value: null, new_value: input.type, body: null, visible_to_user: true },
   ]);
 
   if (openTicket) {
     const count = openTicket.report_count + 1;
     await admin.from('tickets').update({ report_count: count }).eq('id', openTicket.id);
-    await appendEvents(admin, [{ ticket_id: openTicket.id, actor_profile_id: input.submitter.id, kind: 'merged', old_value: String(openTicket.report_count), new_value: String(count), body: input.description, visible_to_user: false }]);
+    await appendEvents(admin, [{ ticket_id: openTicket.id, actor_profile_id: input.submitter?.id ?? null, kind: 'merged', old_value: String(openTicket.report_count), new_value: String(count), body: input.description, visible_to_user: false }]);
     // The doc's pile-on rule: three or more reports on a High item hide it before review.
     if (openTicket.severity === 'high' && count >= PILE_ON_HIDE_COUNT && input.target?.id && (input.target.type === 'post' || input.target.type === 'comment')) {
       const { hideContent } = await import('@/lib/moderation/server');
@@ -184,12 +196,12 @@ export async function createTicket(admin: Admin, input: CreateTicketInput): Prom
   // account is limited only on repeat incidents (Tom's rule).
   if (input.type === 'report' && input.target?.id && input.target.type) {
     const { applyIntake } = await import('@/lib/moderation/server');
-    await applyIntake(admin, { id: ticket.id, severity }, { type: input.target.type, id: input.target.id, profileId: input.target.profileId, conversationId: input.target.conversationId ?? null }, input.submitter.id);
+    await applyIntake(admin, { id: ticket.id, severity }, { type: input.target.type, id: input.target.id, profileId: input.target.profileId, conversationId: input.target.conversationId ?? null }, input.submitter?.id ?? null);
   }
 
   // Bells + mail, best-effort, after the write.
   if (severity === 'critical') await bellAdminsCritical(admin, ticket.id, ticket.number, input.type, input.reason);
-  if (input.submitter.supervised) {
+  if (input.submitter?.supervised) {
     await notifyGuardians(admin, input.submitter.id, {
       type: 'ticket_update',
       title: `${input.submitter.firstName || 'Your athlete'} opened a support request (${formatTicketNumber(ticket.number)})`,
@@ -220,7 +232,7 @@ export async function readMyTickets(admin: Admin, scope: Set<string>): Promise<S
     console.error(`${TAG} my-tickets read failed:`, error.message);
     throw new Error('Could not load your requests');
   }
-  return { supported: true, items: ((data ?? []) as TicketRow[]).map(projectTicketForUser) };
+  return { supported: true, items: ((data ?? []) as TicketRow[]).map(r => withAttachment(projectTicketForUser(r), r.attachment_url)) };
 }
 
 export async function readTicketForUser(
@@ -237,7 +249,7 @@ export async function readTicketForUser(
   if (!t) return null;
   if (t.reporter_profile_id && scope.has(t.reporter_profile_id)) {
     const events = await readEvents(admin, ticketId);
-    return { ticket: projectTicketForUser(t), events: userVisibleEvents(events, scope) };
+    return { ticket: withAttachment(projectTicketForUser(t), t.attachment_url), events: userVisibleEvents(events, scope) };
   }
   // Spec 2: the REPORTED user reads a restricted view once a decision was made
   // against them (the appeal) — never the reporter, the description or the snapshot.
@@ -411,7 +423,7 @@ export async function readTicketForAdmin(admin: Admin, ticketId: string, now = n
   const actorIds = [...new Set(events.map(e => e.actor_profile_id).filter((id): id is string => !!id))];
   const [names, enforcement] = await Promise.all([displayNames(admin, actorIds), readEnforcement(admin, t)]);
   return {
-    ticket: projectTicketForAdmin(t, now),
+    ticket: withAttachment(projectTicketForAdmin(t, now), t.attachment_url),
     events: events.map(e => ({ ...e, actorName: e.actor_profile_id ? (names.get(e.actor_profile_id) ?? null) : null })),
     reporter,
     target,

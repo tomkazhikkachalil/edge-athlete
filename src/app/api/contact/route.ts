@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
-import { emailService } from '@/lib/email-service';
 import { enforceRateLimit } from '@/lib/rate-limit';
-import { getSupabaseAdmin } from '@/lib/auth-server';
+import { getServerAuth, getSupabaseAdmin } from '@/lib/auth-server';
 import { parseBody, emailString, boundedText } from '@/lib/validation';
+import { createTicket, readSubmitter, TicketsNotLive } from '@/lib/tickets/server';
+import { formatTicketNumber } from '@/lib/tickets/number';
 
 const ContactSchema = z.object({
   name: boundedText(100),
@@ -12,56 +13,38 @@ const ContactSchema = z.object({
 });
 
 /**
- * Contact form API endpoint
- * 
- * Simple endpoint for students to build contact forms.
- * No auth required, just basic rate limiting.
+ * POST /api/contact — since Spec 3 a thin ADAPTER over the ticket system:
+ * a contact-form message is a Help ticket (`other`), filed by the session
+ * when there is one and as a GUEST (`guest_email`) when there is not. The
+ * 096 `contact_messages` table stops growing; its rows stay. No auth
+ * required; the `contact` IP bucket stands. The visitor's name rides the
+ * subject so the console shows who wrote.
  */
 export async function POST(request: NextRequest) {
+  const headers = { 'Cache-Control': 'private, no-store' } as const;
   try {
     const limited = await enforceRateLimit(request, 'contact');
     if (limited) return limited;
-
-    // Parse + validate request body (zod)
     const parsed = await parseBody(request, ContactSchema);
     if (!parsed.success) return parsed.response;
     const { name, email, message } = parsed.data;
 
-    // Persist FIRST (096) — the row is the source of truth. The email is
-    // best-effort on top: a broken mail pipe must never eat a support
-    // message from exactly the people an email outage locks out.
     const admin = getSupabaseAdmin();
-    const { data: saved, error: insertError } = await admin
-      .from('contact_messages')
-      .insert({ name, email, message })
-      .select('id')
-      .single();
-    if (insertError || !saved) {
-      console.error('Contact form persist error:', insertError);
-      return NextResponse.json(
-        { error: 'Failed to send message. Please try again later.' },
-        { status: 500 }
-      );
-    }
-
-    if (process.env.SMTP_USER && process.env.SMTP_PASS) {
-      const delivered = await emailService.sendContactEmail({ name, email, message });
-      if (delivered) {
-        await admin.from('contact_messages').update({ delivered: true }).eq('id', saved.id);
-      }
-    }
-
-    return NextResponse.json({
-      message: 'Message sent successfully! We\'ll get back to you soon.',
-      success: true,
+    const { user } = await getServerAuth(request);
+    const submitter = user ? await readSubmitter(admin, user.id) : null;
+    const ticket = await createTicket(admin, {
+      type: 'help',
+      reason: 'other',
+      subject: `Contact form — ${name}`,
+      description: message,
+      submitter,
+      guestEmail: submitter ? null : email,
     });
-
+    return NextResponse.json({ success: true, number: formatTicketNumber(ticket.number), message: 'Thanks — we got your message and will reply by email.' }, { status: 201, headers });
   } catch (error) {
+    if (error instanceof Response) return error;
+    if (error instanceof TicketsNotLive) return NextResponse.json({ error: error.message }, { status: 503, headers });
     console.error('Contact form error:', error);
-    
-    return NextResponse.json(
-      { error: 'Failed to send message. Please try again later.' },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: 'Could not send your message. Please try again.' }, { status: 500, headers });
   }
 }
