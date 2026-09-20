@@ -11,7 +11,7 @@ import { adminClient, adminEmailForE2E, apiAs, createQaUser, deleteQaUser, loadQ
 // another's, served back through the media proxy to the submitter and to a
 // moderator, 404 to a stranger). Self-skips pre-224. @mobile.
 
-test('help center API: public articles, the guest request, /contact, the screenshot attachment @mobile', async ({ request, browser }) => {
+test('help center API: public articles, the guest request, /contact, the screenshot attachment @mobile', async ({ browser }) => {
   test.setTimeout(180_000);
   const admin = adminClient();
   const alpha = loadQaUser('user.json');
@@ -20,6 +20,8 @@ test('help center API: public articles, the guest request, /contact, the screens
   const probe = await admin.from('help_articles').select('id').limit(1);
   test.skip(!!probe.error, `help_articles missing — run migration 224 (${probe.error?.message})`);
 
+  // The project's `use.storageState` signs the `request` fixture in — an EMPTY state is the signed-out visitor.
+  const request = (await browser.newContext({ storageState: { cookies: [], origins: [] } })).request;
   const alphaApi = await apiAs('state.json');
   const bravoApi = await apiAs('state-b.json');
   const deltaApi = await apiAs('state-d.json');
@@ -36,7 +38,8 @@ test('help center API: public articles, the guest request, /contact, the screens
       .from('help_articles')
       .insert([
         { slug: `qa-posting-a-round-${rand}`, title: 'Posting a round (QA)', body: 'Open the composer.\n\n- Pick the course\n- Enter your scores\n\nSee https://edgeathlete.ca/help.', topic: 'posting_media', video_url: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ', sort_order: 1, published: true },
-        { slug: `qa-draft-${rand}`, title: 'A draft (QA)', body: 'Not yet.', topic: 'other', published: false },
+        // A batch insert sends null for a missing key (PostgREST), so every column is spelled out.
+        { slug: `qa-draft-${rand}`, title: 'A draft (QA)', body: 'Not yet.', topic: 'other', video_url: null, sort_order: 2, published: false },
       ])
       .select('id, slug');
     expect(seedError).toBeNull();
