@@ -208,11 +208,11 @@ export async function createTicket(admin: Admin, input: CreateTicketInput): Prom
 export type SupportedList<T> = { supported: true; items: T[] } | { supported: false; items: [] };
 
 export async function readMyTickets(admin: Admin, scope: Set<string>): Promise<SupportedList<UserTicketView>> {
+  // A MERGED report stays in its reporter's list (the queue is what hides duplicates).
   const { data, error } = await admin
     .from('tickets')
     .select(TICKET_COLUMNS)
     .in('reporter_profile_id', [...scope])
-    .is('merged_into_id', null)
     .order('created_at', { ascending: false })
     .limit(100);
   if (error) {
