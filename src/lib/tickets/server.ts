@@ -374,12 +374,24 @@ export interface PersonContext {
   strikes: number;
 }
 
+export interface EnforcementState {
+  /** For a post / comment target: is it hidden right now? null = not a content target. */
+  contentHidden: boolean | null;
+  /** For a conversation / message target: is the thread frozen? null = not a thread target. */
+  conversationFrozen: boolean | null;
+  /** The reported user's current state; null = no user. */
+  subjectState: 'active' | 'limited' | 'suspended' | 'banned' | null;
+  subjectUntil: string | null;
+}
+
 export interface AdminTicketDetail {
   ticket: AdminTicketView;
   events: Array<TicketEventRow & { actorName: string | null }>;
   reporter: PersonContext | null;
   target: PersonContext | null;
   assignees: Array<{ profile_id: string; role: string; name: string }>;
+  /** Spec 2: what the actions may change, as it stands now. */
+  enforcement: EnforcementState;
 }
 
 export async function readTicketForAdmin(admin: Admin, ticketId: string, now = new Date()): Promise<AdminTicketDetail | null> {
@@ -397,14 +409,38 @@ export async function readTicketForAdmin(admin: Admin, ticketId: string, now = n
     readAssignees(admin),
   ]);
   const actorIds = [...new Set(events.map(e => e.actor_profile_id).filter((id): id is string => !!id))];
-  const names = await displayNames(admin, actorIds);
+  const [names, enforcement] = await Promise.all([displayNames(admin, actorIds), readEnforcement(admin, t)]);
   return {
     ticket: projectTicketForAdmin(t, now),
     events: events.map(e => ({ ...e, actorName: e.actor_profile_id ? (names.get(e.actor_profile_id) ?? null) : null })),
     reporter,
     target,
     assignees,
+    enforcement,
   };
+}
+
+async function readEnforcement(admin: Admin, t: TicketRow): Promise<EnforcementState> {
+  const out: EnforcementState = { contentHidden: null, conversationFrozen: null, subjectState: null, subjectUntil: null };
+  if (t.type !== 'report') return out;
+  if ((t.target_type === 'post' || t.target_type === 'comment') && t.target_id) {
+    const { data } = await admin.from(t.target_type === 'post' ? 'posts' : 'post_comments').select('status').eq('id', t.target_id).maybeSingle();
+    out.contentHidden = data ? data.status === 'hidden' : null;
+  }
+  const conversationId = t.target_type === 'conversation' ? t.target_id : t.target_type === 'message' ? ((t.content_snapshot?.conversation_id as string | undefined) ?? null) : null;
+  if (conversationId) {
+    const { data } = await admin.from('conversations').select('frozen_at').eq('id', conversationId).maybeSingle();
+    out.conversationFrozen = data ? !!data.frozen_at : null;
+  }
+  if (t.target_profile_id) {
+    const { data } = await admin.from('profiles').select('moderation_state, moderation_until').eq('id', t.target_profile_id).maybeSingle();
+    if (data) {
+      const { effectiveState } = await import('@/lib/moderation/state');
+      out.subjectState = effectiveState(data);
+      out.subjectUntil = data.moderation_until ?? null;
+    }
+  }
+  return out;
 }
 
 async function personContext(admin: Admin, profileId: string): Promise<PersonContext | null> {

@@ -126,6 +126,20 @@ export const COPY = {
   },
 
   // Error Messages
+  // Support & Reporting, Spec 2: the words the report sheet speaks.
+  SUPPORT: {
+    REPORT_TITLE: 'Report',
+    REPORT_INTRO: 'Reports are reviewed by the Edge Athlete team. The person you report is never told who reported them.',
+    REPORT_DONE_TITLE: 'Report sent',
+    REPORT_DONE_BODY: 'Thanks — our team will review it. You can follow it under Settings → Support.',
+    BLOCK_OFFER: 'Block',
+    BLOCK_HINT: 'They can no longer follow, message or tag you. Immediate.',
+    MUTE_OFFER: 'Mute',
+    MUTE_HINT: 'Their posts and comments leave your view. They are not told.',
+    // Tom to confirm the resource (Sep 20 2026): 9-8-8 is Canada's national suicide crisis line.
+    CRISIS_TITLE: 'If someone is in danger right now',
+    CRISIS_BODY: 'Call or text 9-8-8 (Talk Suicide Canada) — free, confidential, 24/7. Outside Canada, contact your local emergency number.',
+  },
   ERRORS: {
     PROFILE_NOT_FOUND: 'Profile not found',
     ACTIVITY_NOT_FOUND: 'Activity not found',

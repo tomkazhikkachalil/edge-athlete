@@ -19,6 +19,7 @@ import type { Message, Conversation, AggregatedReaction } from '@/types/messages
 import { requestDockConversation } from '@/lib/chat-dock-open';
 import { useToast } from '@/components/Toast';
 import ConfirmModal from '@/components/ConfirmModal';
+import ReportSheet from '@/components/tickets/ReportSheet';
 
 interface Props {
   conversationId: string;
@@ -575,6 +576,7 @@ export default function ChatWindow({ conversationId, onBack }: Props) {
 
   const isAdmin = conversation?.my_participant?.role === 'admin';
   const isMuted = conversation?.my_participant?.is_muted ?? false;
+  const [reportThreadOpen, setReportThreadOpen] = useState(false);
   const isDM = conversation?.type === 'direct';
   const otherParticipant = isDM
     ? conversation?.participants.find(p => p.profile_id !== currentUserId)
@@ -786,6 +788,15 @@ export default function ChatWindow({ conversationId, onBack }: Props) {
                   </button>
                 )}
 
+                {/* Spec 2: report the thread — the last 20 messages travel with the ticket. */}
+                <button
+                  onClick={() => { setShowMenu(false); setReportThreadOpen(true); }}
+                  className="w-full text-left px-4 py-2.5 text-sm text-secondary hover:bg-surface-muted flex items-center gap-3"
+                  data-thread-report=""
+                >
+                  <i className="fas fa-flag w-4 text-center"></i>
+                  Report conversation
+                </button>
                 {isDM && (
                   <button
                     onClick={() => setConfirmAction('block')}
@@ -914,6 +925,14 @@ export default function ChatWindow({ conversationId, onBack }: Props) {
           title="React with a GIF"
           onGifSelect={handleGifReactSelect}
           onClose={() => setGifReactingMessageId(null)}
+        />
+      )}
+
+      {/* Spec 2: the report sheet portals itself (z-[60]). */}
+      {reportThreadOpen && (
+        <ReportSheet
+          target={{ type: 'conversation', id: conversationId, profileId: otherParticipant?.profile_id ?? null, noun: 'conversation' }}
+          onClose={() => setReportThreadOpen(false)}
         />
       )}
 

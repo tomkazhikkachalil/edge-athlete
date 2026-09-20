@@ -8,6 +8,8 @@ import ConfirmModal from '@/components/ConfirmModal';
 import { useDirtyClose } from '@/hooks/useDirtyClose';
 import { COPY } from '@/lib/copy';
 import { SeverityChip, StatusChip, TypeChip, ago, eventLine, reasonLabel, resolutionLabel } from '@/components/tickets/ticket-ui';
+import SnapshotView from '@/components/tickets/SnapshotView';
+import { ladderSuggestion } from '@/lib/moderation/state';
 import {
   RESOLUTION_CODES,
   RESOLUTION_CODE_LABELS,
@@ -94,6 +96,7 @@ export default function SupportTicketPage() {
   };
 
   const patch = (body: Record<string, unknown>) => call(`/api/admin/tickets/${id}`, 'PATCH', body);
+  const act = (action: string) => call(`/api/admin/tickets/${id}/actions`, 'POST', { action });
 
   const sendReply = async () => {
     if (!reply.trim()) return;
@@ -244,15 +247,62 @@ export default function SupportTicketPage() {
               )}
             </section>
 
+            {/* Spec 2: the one-click actions before a decision (each stamps the ticket). */}
+            {t.type === 'report' && (
+              <section className="ea-surface rounded-lg p-4 mb-4" aria-label="Enforcement" data-ticket-enforcement="">
+                <h2 className="text-sm font-semibold text-primary mb-2">Right now</h2>
+                <div className="flex flex-wrap gap-2 items-center text-sm">
+                  {detail.enforcement.contentHidden !== null && (
+                    <>
+                      <span className="text-secondary">{detail.enforcement.contentHidden ? 'Content hidden' : 'Content visible'}</span>
+                      <button type="button" disabled={busy} onClick={() => act(detail.enforcement.contentHidden ? 'unhide' : 'hide')} className="px-3 py-1.5 min-h-[36px] rounded-lg border border-border bg-surface text-xs font-semibold text-primary ea-interactive" data-ticket-action={detail.enforcement.contentHidden ? 'unhide' : 'hide'}>
+                        {detail.enforcement.contentHidden ? 'Unhide' : 'Hide'}
+                      </button>
+                    </>
+                  )}
+                  {detail.enforcement.conversationFrozen !== null && (
+                    <>
+                      <span className="text-secondary">{detail.enforcement.conversationFrozen ? 'Thread frozen' : 'Thread open'}</span>
+                      <button type="button" disabled={busy} onClick={() => act(detail.enforcement.conversationFrozen ? 'unfreeze' : 'freeze')} className="px-3 py-1.5 min-h-[36px] rounded-lg border border-border bg-surface text-xs font-semibold text-primary ea-interactive" data-ticket-action={detail.enforcement.conversationFrozen ? 'unfreeze' : 'freeze'}>
+                        {detail.enforcement.conversationFrozen ? 'Unfreeze' : 'Freeze'}
+                      </button>
+                    </>
+                  )}
+                  {detail.enforcement.subjectState !== null && (
+                    <>
+                      <span className="text-secondary">
+                        Account {detail.enforcement.subjectState}
+                        {detail.enforcement.subjectUntil ? ` until ${new Date(detail.enforcement.subjectUntil).toLocaleDateString()}` : ''}
+                      </span>
+                      {detail.enforcement.subjectState === 'active' ? (
+                        <button type="button" disabled={busy} onClick={() => act('limit')} className="px-3 py-1.5 min-h-[36px] rounded-lg border border-border bg-surface text-xs font-semibold text-primary ea-interactive" data-ticket-action="limit">
+                          Limit (read-only)
+                        </button>
+                      ) : (
+                        <button type="button" disabled={busy} onClick={() => act('lift')} className="px-3 py-1.5 min-h-[36px] rounded-lg border border-border bg-surface text-xs font-semibold text-primary ea-interactive" data-ticket-action="lift">
+                          Lift
+                        </button>
+                      )}
+                    </>
+                  )}
+                </div>
+                {detail.target && (
+                  <p className="text-xs text-muted mt-2" data-ticket-ladder="">
+                    Prior strikes: {detail.target.strikes} — the ladder suggests <strong>{ladderSuggestion(detail.target.strikes)}</strong> for a confirmed violation. Critical cases may skip ahead. The resolution code you pick is the action.
+                  </p>
+                )}
+              </section>
+            )}
+
             {/* The request */}
             <section className="ea-surface rounded-lg p-4 mb-4">
               <h2 className="text-sm font-semibold text-primary mb-2">The request</h2>
               {t.description ? <p className="text-sm text-primary whitespace-pre-wrap">{t.description}</p> : <p className="text-sm text-muted">No description.</p>}
               {t.content_snapshot && (
-                <details className="mt-3">
-                  <summary className="text-xs text-muted cursor-pointer">Content snapshot (at report time)</summary>
-                  <pre className="mt-2 text-xs bg-surface-muted rounded-lg p-3 overflow-x-auto">{JSON.stringify(t.content_snapshot, null, 2)}</pre>
-                </details>
+                <div className="mt-3 border-t border-border pt-3" data-ticket-snapshot="">
+                  <p className="text-xs text-muted mb-2">The reported content, as it was at report time</p>
+                  <SnapshotView snapshot={t.content_snapshot} targetId={t.target_id} />
+                </div>
               )}
             </section>
 

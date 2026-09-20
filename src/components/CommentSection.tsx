@@ -6,6 +6,8 @@ import { Comment } from '@/lib/supabase';
 import { useAuth } from '@/lib/auth';
 import { formatDisplayName, getInitials } from '@/lib/formatters';
 import ConfirmModal from '@/components/ConfirmModal';
+import ActionMenu from '@/components/ActionMenu';
+import ReportSheet from '@/components/tickets/ReportSheet';
 import EmojiPickerButton from '@/components/EmojiPickerButton';
 import GifPickerModal from '@/components/GifPickerModal';
 import {
@@ -481,6 +483,8 @@ export default function CommentSection({
   };
 
   const isPostOwner = user?.id === postOwnerId;
+  const [reportCommentId, setReportCommentId] = useState<string | null>(null);
+  const [reportTargetProfileId, setReportTargetProfileId] = useState<string | null>(null);
 
   // Render a single comment at a visual depth (0 root, 1 reply, 2 = the
   // flattened cap — see src/lib/comment-thread.ts for the policy).
@@ -559,6 +563,15 @@ export default function CommentSection({
                   >
                     <i className="fas fa-trash" />
                   </button>
+                )}
+                {/* Spec 2: a comment that is not yours (nor a managed athlete's) can be reported. */}
+                {user && user.id !== comment.profile_id && !managedProfiles.some(mp => mp.id === comment.profile_id) && (
+                  <ActionMenu
+                    ariaLabel="Comment options"
+                    triggerTestAttr="comment-menu"
+                    triggerClassName="-m-3"
+                    items={[{ key: 'report', label: 'Report comment', icon: 'fa-flag', onSelect: () => { setReportTargetProfileId(comment.profile_id); setReportCommentId(comment.id); } }]}
+                  />
                 )}
               </div>
             </div>
@@ -1074,6 +1087,12 @@ export default function CommentSection({
         </div>
       )}
 
+      {reportCommentId && (
+        <ReportSheet
+          target={{ type: 'comment', id: reportCommentId, profileId: reportTargetProfileId, noun: 'comment' }}
+          onClose={() => setReportCommentId(null)}
+        />
+      )}
       <ConfirmModal
         isOpen={confirmDeleteCommentId !== null}
         title="Delete this comment?"

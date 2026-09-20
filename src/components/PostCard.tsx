@@ -31,6 +31,8 @@ import { useAuth } from '@/lib/auth';
 import WorkoutPostCard from './workouts/WorkoutPostCard';
 import { getHandle } from '@/lib/profile-display';
 import PostOwnerMenu from '@/components/PostOwnerMenu';
+import ActionMenu from '@/components/ActionMenu';
+import ReportSheet from '@/components/tickets/ReportSheet';
 import type { CompleteGolfScorecard } from '@/types/group-posts';
 import type { GolfRound } from '@/types/golf';
 
@@ -418,6 +420,7 @@ function PostCard({
   };
 
   const isOwner = currentUserId === post.profile.id;
+  const [reportOpen, setReportOpen] = useState(false);
 
   const nextMedia = () => {
     if (post.media.length > 1) {
@@ -456,6 +459,13 @@ function PostCard({
         <div className="px-4 py-2 bg-amber-50 dark:bg-amber-950/40 border-b border-amber-200 dark:border-amber-900 text-xs font-medium text-amber-800 dark:text-amber-200 flex items-center gap-2">
           <i className="fas fa-hourglass-half" aria-hidden="true"></i>
           Waiting for a guardian&apos;s OK — not visible to anyone else yet.
+        </div>
+      )}
+      {/* Spec 2 (223): hidden by moderation — the author still sees it, with the reason it is gone for everyone else. */}
+      {post.status === 'hidden' && (
+        <div className="px-4 py-2 bg-surface-sunken border-b border-border text-xs font-medium text-tertiary flex items-center gap-2" data-post-hidden="">
+          <i className="fas fa-eye-slash" aria-hidden="true"></i>
+          Hidden while a report is reviewed — not visible to anyone else. Check Settings → Support.
         </div>
       )}
       {post.status === 'rejected' && (
@@ -636,8 +646,25 @@ function PostCard({
               onDelete={onDelete ? handleDeleteClick : undefined}
             />
           )}
+          {/* Spec 2: every signed-in NON-owner gets a menu — Report opens the
+              one report sheet (Block + Mute are offered there after). */}
+          {!isOwner && currentUserId && (
+            <ActionMenu
+              ariaLabel="More options"
+              triggerTestAttr="post-viewer-menu"
+              items={[
+                { key: 'report', label: 'Report post', icon: 'fa-flag', onSelect: () => setReportOpen(true) },
+              ]}
+            />
+          )}
         </div>
       </div>
+      {reportOpen && (
+        <ReportSheet
+          target={{ type: 'post', id: post.id, profileId: post.profile.id, noun: 'post' }}
+          onClose={() => setReportOpen(false)}
+        />
+      )}
 
       {/* Pin error (e.g. featured-posts cap reached) */}
       {pinError && (

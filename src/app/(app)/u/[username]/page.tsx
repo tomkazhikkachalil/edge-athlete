@@ -5,6 +5,8 @@ import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/lib/auth';
 import AppHeader from '@/components/AppHeader';
+import ActionMenu from '@/components/ActionMenu';
+import ReportSheet from '@/components/tickets/ReportSheet';
 import LazyImage from '@/components/LazyImage';
 import SportSkillStrip from '@/components/SportSkillStrip';
 import RecruitingCard from '@/components/recruiting/RecruitingCard';
@@ -116,6 +118,7 @@ export default function PublicProfilePage() {
   const params = useParams();
   const router = useRouter();
   const { user } = useAuth();
+  const [reportOpen, setReportOpen] = useState(false);
   // getProfileUrl links as /u/@handle, and useParams delivers the segment
   // PERCENT-ENCODED ('%40handle'). Passing that straight to the API
   // double-encoded it (handle=%2540…) and every @-prefixed profile link
@@ -322,8 +325,21 @@ export default function PublicProfilePage() {
             {/* Name and Handle */}
             <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
               <div>
-                <h1 className="text-2xl font-bold text-primary break-words">{displayName}</h1>
+                <div className="flex items-start justify-between gap-2">
+                  <h1 className="text-2xl font-bold text-primary break-words">{displayName}</h1>
+                  {/* Spec 2 (route parity with /athlete): report this profile. */}
+                  {user && user.id !== profile.id && (
+                    <ActionMenu
+                      ariaLabel="Profile options"
+                      triggerTestAttr="profile-menu"
+                      items={[{ key: 'report', label: 'Report profile', icon: 'fa-flag', onSelect: () => setReportOpen(true) }]}
+                    />
+                  )}
+                </div>
                 <p className="text-muted">@{profile.handle}</p>
+                {reportOpen && (
+                  <ReportSheet target={{ type: 'profile', id: profile.id, profileId: profile.id, noun: 'profile' }} onClose={() => setReportOpen(false)} />
+                )}
 
                 {/* Bio */}
                 {profile.bio && (

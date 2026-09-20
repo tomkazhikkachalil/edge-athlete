@@ -8,6 +8,7 @@ import { GlobalToasts } from "@/components/Toast";
 import ActingAsBanner from "@/components/ActingAsBanner";
 import TransferBanner from "@/components/TransferBanner";
 import DeletionScheduledBanner from "@/components/DeletionScheduledBanner";
+import ModerationBanner from "@/components/ModerationBanner";
 import ChatDock from "@/components/chat-dock/ChatDock";
 import TabBar from '@/components/TabBar';
 import ThemeApplier from "@/components/ThemeApplier";
@@ -118,6 +119,7 @@ export default async function RootLayout({
               <ActingAsBanner />
               <TransferBanner />
               <DeletionScheduledBanner />
+              <ModerationBanner />
               {children}
               {/* The phone tab bar (below lg) — the first app-wide chrome;
                   mounted once so it never remounts on navigation. */}
