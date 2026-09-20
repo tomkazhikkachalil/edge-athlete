@@ -23,12 +23,13 @@ const API_ROOT = join(process.cwd(), 'src/app/api');
 const GATE_RE =
   // requireScout (Recruiting skeleton R3) wraps requireAuth + the scout-account decider.
   // openMatchWrite (Events phase 3, PR 6) wraps getServerAuth + resolveActor + the event gate + the match membership for the three match writes.
-  /\b(requireAuth|getServerAuth|requireAdmin|requireProfileRole|requireGuardianAccount|resolveActingProfile|getProfileRole|mayManagePostMedia|requireScout|openMatchWrite|CRON_SECRET|auth\.getUser)\b/;
+  // requireModerator (Support & Reporting, Spec 1) wraps requireAuth + the platform role (owner | moderator) with an intent.
+  /\b(requireAuth|getServerAuth|requireAdmin|requireModerator|requireProfileRole|requireGuardianAccount|resolveActingProfile|getProfileRole|mayManagePostMedia|requireScout|openMatchWrite|CRON_SECRET|auth\.getUser)\b/;
 
 /** Gates that scope access to a PROFILE (not just "some session exists").
  *  requireAdmin qualifies: admin surfaces act cross-profile by design. */
 const PROFILE_GATE_RE =
-  /\b(requireProfileRole|resolveActingProfile|getProfileRole|mayManagePostMedia|canViewProfile|requireAdmin)\b/;
+  /\b(requireProfileRole|resolveActingProfile|getProfileRole|mayManagePostMedia|canViewProfile|requireAdmin|requireModerator)\b/;
 
 /**
  * Routes that are deliberately public — no cookie auth at all. Each entry

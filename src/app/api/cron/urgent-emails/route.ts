@@ -12,7 +12,10 @@ import {
 
 export const maxDuration = 60;
 
-const URGENT_TYPES = ['safety_alert', 'consent_result'];
+// + ticket_critical (Support & Reporting, Spec 1 — mig 222): a Critical
+// ticket bells every owner / moderator, and this sweep is the "notified now"
+// channel until an SMS adapter exists.
+const URGENT_TYPES = ['safety_alert', 'consent_result', 'ticket_critical'];
 const LOOKBACK_MS = 24 * 3_600_000;
 
 // ── GET /api/cron/urgent-emails ──────────────────────────────────────────────
