@@ -4,9 +4,11 @@ The reference for the in-app support system: one company-owned ticket table
 behind three front doors (Help Center, Report, Suggest). Tom's design doc
 ("Edge Athlete Support and Reporting Game Plan", Sep 17 2026) is the source;
 this file records what was built and the rules a change must keep. Program
-state: **Spec 1 COMPLETE + PROD-PROVEN (Sep 20 2026, #836–#841, migration
-222)** — the backend, the admin console and the user's front door; every spec
-green on prod on both mobile engines. Specs 2–4 are outlined at the end.
+state: **Specs 1 and 2 COMPLETE + PROD-PROVEN (Sep 20 2026; Spec 1 #836–#842,
+migration 222; Spec 2 #843–#847, migration 223)** — the backend, the admin
+console, the user's front door, and reporting from the content with
+enforcement; every spec green on prod on both mobile engines. Specs 3–4 are
+outlined at the end.
 
 ## The one rule
 
@@ -84,8 +86,11 @@ the history, the emails, retention — is written once and applies to all three.
 - `src/app/(app)/dashboard/tickets/{page,[id]/page}.tsx`; `src/components/admin/SupportQueueTile.tsx`; `src/components/tickets/ticket-ui.tsx` (chips, `ago`, event wording); `src/components/settings/SupportSettings.tsx`
 - e2e: `tickets.spec.ts` (the API flow), `tickets-admin-ui.spec.ts`, `tickets-user-ui.spec.ts` — all `@mobile`; bravo becomes a moderator through the service key so the queue is CI-testable without `E2E_ADMIN_EMAIL`
 
-## Traps (Spec 1)
+## Traps
 
+- The repeat-incident rule counts EVERY report, not only Critical ones (a probe found it inside the Critical branch); a merged duplicate stays in its reporter's My requests (the queue hides it, nothing else).
+- A suspended session answers 401 (the auth ban at `getUser`) before the app gate's 403 — either is a refusal.
+- A `useState` after an early return crashes the page ("Rendered more hooks") — hooks sit with the other hooks.
 - A shell heredoc that creates a file is not verified until `ls` says so — `/api/tickets/route.ts` shipped missing (#838) because a zsh-globbed `[id]` broke the `&&` chain; a spec that self-skips pre-migration has NOT run (#839).
 - History rows are appended one per statement: rows of one batch share `created_at`, and the history is read by it.
 - A reopen must clear `resolution_code` — the CHECK allows a code only on resolved / closed.
@@ -115,6 +120,17 @@ reported user — a report closed with no action is never announced.
 | Actions | `POST /api/admin/tickets/[id]/actions { hide · unhide · freeze · unfreeze · limit · lift }` | Before a decision; each stamps the ticket and appends `action_taken`. |
 | Resolution | `applyResolutionAction` on `PATCH … status: resolved` | `no_action` / `declined` restore what intake did; `content_removed` hides; `warning` notices; `suspension` = 7 days + auth ban; `ban` permanent. The reported user's bell is `moderation_notice` (+ their guardians' copy + the email). |
 | The appeal | `projectTicketForSubject` / `subjectVisibleEvents` | The reported user reads the number, the outcome and a thread of their replies + support's after the decision — never the reporter, the description or the snapshot. One appeal. |
+
+### Surfaces (Spec 2)
+
+| Surface | Where | What |
+| --- | --- | --- |
+| The "…" menu | `src/components/ActionMenu.tsx` | The house menu (portal, `placeMenu`, dismissal; rows as data). `PostOwnerMenu` keeps the owner's rows; every signed-in NON-owner gets one on a post card; a non-own comment; both profile routes (`/athlete/[id]`, `/u/[username]`); "Report conversation" in the DM thread menu. |
+| The report sheet | `src/components/tickets/ReportSheet.tsx` | ONE sheet: the doc's reasons with hints, optional details, submit → the number → **Block** + **Mute** (immediate); the 9-8-8 crisis resources on `self_harm` (`COPY.SUPPORT`). Dirty text guarded on close. |
+| The banner | `src/components/ModerationBanner.tsx` (root layout) | Limited / suspended (until …) / banned, "See why" → the notice. The author of a hidden post sees a badge on their own card. |
+| The admin ticket | `/dashboard/tickets/[id]` | `SnapshotView` per kind (post with proxied thumbnails, comment, profile, DM thread with redaction + the focused message); the "Right now" strip (Hide / Unhide · Freeze / Unfreeze · Limit / Lift over the live `enforcement` state); the ladder hint. |
+| About your account | `/settings?tab=support` | The decisions made about this account — the restricted view + the one appeal. |
+| Legacy | `/api/admin/reports`, `message_reports` | Read-only history of the 019 rows (owner-only). The writer files tickets; the dashboard panel is gone. |
 
 **THE list — the write routes the gate covers** (`src/app/api/…`):
 `posts/route.ts` (POST, PUT) · `comments/route.ts` (POST) · `messages/route.ts` (POST) ·
