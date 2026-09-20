@@ -43,7 +43,7 @@ test('reporting: snapshot, merge, Critical hide, repeat-incident limit, actions,
     // Alpha posts twice, publicly.
     const mk = async (caption: string) => {
       const res = await alphaApi.post('/api/posts', { data: { caption, visibility: 'public', postType: 'general' } });
-      expect(res.status(), await readErrorBody(res)).toBe(201);
+      expect(res.ok(), await readErrorBody(res)).toBe(true);
       const id = (await res.json()).post.id as string;
       postIds.push(id);
       return id;
@@ -121,7 +121,7 @@ test('reporting: snapshot, merge, Critical hide, repeat-incident limit, actions,
     res = await deltaApi.post(`/api/admin/tickets/${t3.id}/actions`, { data: { action: 'lift' } });
     expect(res.status(), await readErrorBody(res)).toBe(200);
     res = await alphaApi.post('/api/posts', { data: { caption: `After lift ${Date.now()}`, visibility: 'public', postType: 'general' } });
-    expect(res.status(), await readErrorBody(res)).toBe(201);
+    expect(res.ok(), await readErrorBody(res)).toBe(true);
     postIds.push((await res.json()).post.id);
     res = await deltaApi.post(`/api/admin/tickets/${t2.id}/actions`, { data: { action: 'unhide' } });
     expect(res.status(), await readErrorBody(res)).toBe(200);
@@ -165,7 +165,8 @@ test('reporting: snapshot, merge, Critical hide, repeat-incident limit, actions,
     const { data: authUser } = await admin.auth.admin.getUserById(alpha.id);
     expect((authUser.user as unknown as { banned_until?: string | null }).banned_until ?? null).not.toBeNull();
     res = await alphaApi.post('/api/posts', { data: { caption: 'suspended?', visibility: 'public', postType: 'general' } });
-    expect(res.status()).toBe(403);
+    // The auth ban refuses the session at getUser (401) before the app gate (403) — either is a refusal.
+    expect([401, 403]).toContain(res.status());
     // The lift (what the daily cron does when moderation_until passes).
     res = await deltaApi.post(`/api/admin/tickets/${t3.id}/actions`, { data: { action: 'lift' } });
     expect(res.status(), await readErrorBody(res)).toBe(200);

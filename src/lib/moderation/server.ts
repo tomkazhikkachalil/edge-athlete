@@ -189,14 +189,15 @@ export interface IntakeTarget {
   conversationId?: string | null;
 }
 
-/** What a CRITICAL report does at submit: act on the interaction; limit the account only on repeat incidents. */
+/** What a report does at submit: a CRITICAL one acts on the interaction (hide / freeze); ANY report counts toward the repeat-incident rule, which alone limits the account. */
 export async function applyIntake(admin: Admin, ticket: { id: string; severity: string }, target: IntakeTarget, reporterId: string): Promise<{ hidden: boolean; frozen: boolean; limited: boolean }> {
   const out = { hidden: false, frozen: false, limited: false };
-  if (ticket.severity !== 'critical') return out;
-  if (target.type === 'post') out.hidden = await hideContent(admin, 'post', target.id, ticket.id, reporterId);
-  else if (target.type === 'comment') out.hidden = await hideContent(admin, 'comment', target.id, ticket.id, reporterId);
-  else if (target.type === 'conversation') out.frozen = await freezeConversation(admin, target.id, ticket.id, reporterId);
-  else if (target.type === 'message' && target.conversationId) out.frozen = await freezeConversation(admin, target.conversationId, ticket.id, reporterId);
+  if (ticket.severity === 'critical') {
+    if (target.type === 'post') out.hidden = await hideContent(admin, 'post', target.id, ticket.id, reporterId);
+    else if (target.type === 'comment') out.hidden = await hideContent(admin, 'comment', target.id, ticket.id, reporterId);
+    else if (target.type === 'conversation') out.frozen = await freezeConversation(admin, target.id, ticket.id, reporterId);
+    else if (target.type === 'message' && target.conversationId) out.frozen = await freezeConversation(admin, target.conversationId, ticket.id, reporterId);
+  }
   if (target.profileId) {
     const others = await repeatIncidents(admin, target.profileId, ticket.id);
     if (shouldLimitAtIntake(others)) {
