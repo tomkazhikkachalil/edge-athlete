@@ -139,6 +139,11 @@ export const COPY = {
     // Tom to confirm the resource (Sep 20 2026): 9-8-8 is Canada's national suicide crisis line.
     CRISIS_TITLE: 'If someone is in danger right now',
     CRISIS_BODY: 'Call or text 9-8-8 (Talk Suicide Canada) — free, confidential, 24/7. Outside Canada, contact your local emergency number.',
+    // The Help Center's Contact card (Spec 3). Tom to confirm the details to show (name + email; phone was an open question).
+    CONTACT_NAME: 'Tom Kazhikkachalil',
+    CONTACT_ROLE: 'Founder, Edge Athlete',
+    CONTACT_EMAIL: 'support@edgeathlete.ca',
+    CONTACT_NOTE: 'The fastest way to reach us is a request above — it gets a ticket number and a reply here and by email. Email is the fallback.',
   },
   ERRORS: {
     PROFILE_NOT_FOUND: 'Profile not found',

@@ -63,7 +63,8 @@ export default function ContactPage() {
           ) : (
             <>
               <p className="text-sm text-tertiary mb-6">
-                Questions, feedback, or something broken? Tell us and we&apos;ll reply by email.
+                Questions, feedback, or something broken? Tell us and we&apos;ll reply by email — your message becomes a support ticket.{' '}
+                <Link href="/help" className="text-brand-fg hover:underline">The Help Center</Link> has how-to videos and articles if you would rather look first.
               </p>
 
               {error && (

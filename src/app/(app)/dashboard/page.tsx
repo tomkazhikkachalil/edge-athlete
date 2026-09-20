@@ -187,6 +187,18 @@ export default function AdminDashboardPage() {
           <SupportQueueTile />
           <button
             type="button"
+            onClick={() => router.push('/dashboard/help')}
+            className="bg-surface rounded-lg shadow-sm border border-border p-4 text-left hover:border-violet-300 transition"
+            data-help-articles-tile=""
+          >
+            <p className="text-sm font-semibold text-primary">
+              <i className="fas fa-book-open text-brand-fg mr-2"></i>
+              Help articles
+            </p>
+            <p className="text-xs text-muted mt-1">What the Help Center shows — articles and how-to videos.</p>
+          </button>
+          <button
+            type="button"
             onClick={() => router.push('/dashboard/consent')}
             className="bg-surface rounded-lg shadow-sm border border-border p-4 text-left hover:border-violet-300 transition"
           >
