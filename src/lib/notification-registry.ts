@@ -126,6 +126,11 @@ export const NOTIFICATION_TYPE_META = {
   sport_event_reminder: { tab: null, icon: 'fa-bell' },
   // Phase 3 (mig 213): one type, three copies by metadata.kind (set · won · lost).
   sport_event_match: { tab: null, icon: 'fa-flag-checkered' },
+  // Support & Reporting, Spec 1 (mig 222): the submitter's bell on a visible
+  // ticket change, and every owner / moderator's bell on a Critical ticket
+  // (the urgent-email sweep mails the latter within ten minutes).
+  ticket_update: { tab: null, icon: 'fa-life-ring' },
+  ticket_critical: { tab: null, icon: 'fa-triangle-exclamation' },
 } as const satisfies Record<string, NotificationTypeMeta>;
 
 /** Types a viewer answers from the bell (accept / decline through POST /api/notifications/[id]/action). */
