@@ -10,6 +10,7 @@ import { runSportEventReminders } from '@/lib/sport-events/reminders-server';
 import { runDeletionPurge } from '@/lib/account-park';
 import { runAnalyticsPrune } from '@/lib/org-sites/analytics-server';
 import { runFormSubmissionPurge } from '@/lib/org-sites/forms-server';
+import { runTicketAnonymize } from '@/lib/tickets/server';
 import { runPendingNudge } from '@/lib/guardian-nudge';
 import { runRiskSweep } from '@/lib/risk-sweep';
 import { FEATURE_FLAGS } from '@/lib/features';
@@ -145,6 +146,16 @@ export async function GET(request: NextRequest) {
   } catch (e) {
     console.error('[DAILY] form submission purge phase failed:', e);
     summary.formSubmissions = { ok: false };
+  }
+
+  // Support & Reporting, Spec 1 (Sep 20 2026, mig 222): tickets closed more
+  // than two years ago are ANONYMIZED (personal columns nulled, the audit
+  // columns kept) — never deleted. Pre-222 the phase is a benign no-op.
+  try {
+    summary.tickets = await runTicketAnonymize(admin);
+  } catch (e) {
+    console.error('[DAILY] ticket anonymize phase failed:', e);
+    summary.tickets = { ok: false };
   }
 
   // 6. 48h approval nudge (Wave 2, mig 129): "nudge, never auto-publish".

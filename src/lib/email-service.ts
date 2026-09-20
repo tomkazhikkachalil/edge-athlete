@@ -1,6 +1,27 @@
 import nodemailer from 'nodemailer';
 import * as Sentry from '@sentry/nextjs';
 
+/** What the ticket mails read — a projection, never the whole row (src/lib/tickets/types.ts TicketRow satisfies it). */
+export interface TicketMailShape {
+  id: string;
+  number: number;
+  type: string;
+  status: string;
+  severity: 'low' | 'medium' | 'high' | 'critical';
+  subject: string | null;
+  description: string | null;
+  resolution_code: string | null;
+  resolution_note: string | null;
+}
+
+/** The response targets in the created email — the same words as src/lib/tickets/severity.ts SLA_TARGETS. */
+const TICKET_TARGET_WORDS: Record<TicketMailShape['severity'], string> = {
+  critical: 'within 1 hour',
+  high: 'the same business day',
+  medium: 'within 2 business days',
+  low: 'in the weekly review',
+};
+
 // Email clients need absolute image URLs — no relative paths.
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://edge-athlete.vercel.app';
 
@@ -765,6 +786,79 @@ This email was sent from your website's contact form.
   /**
    * Test email connection
    */
+  // ── Support & Reporting (Spec 1): the three ticket emails ────────────────
+  // Every subject carries the ticket number (`EA-1042`) — the one thing a
+  // user quotes back. From `EMAIL_FROM` (support@ once the domain verifies).
+  // The recipient is resolved by src/lib/tickets/mail.ts (a supervised
+  // submitter's guardians); the caller is SMTP-guarded; best-effort.
+
+  private ticketShell(ticket: TicketMailShape, heading: string, lead: string, extraHtml: string, extraText: string): { subject: string; html: string; text: string } {
+    const number = `EA-${ticket.number}`;
+    const subjectLine = ticket.subject ? ` — ${ticket.subject}` : '';
+    const link = `${APP_URL}/settings?tab=support&ticket=${ticket.id}`;
+    return {
+      subject: `[${number}] ${heading}${subjectLine}`,
+      text: `${heading}\n\n${lead}\n\n${extraText}\n\nTicket ${number}\nFollow it here: ${link}\n\nReply to this email or from My requests in the app.`,
+      html: `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        ${logoHeader(APP_URL)}
+        <h2 style="color: #6d28d9;">${escapeHtml(heading)}</h2>
+        <p style="color: #555;">${escapeHtml(lead)}</p>
+        ${extraHtml}
+        <div style="background: #f9f9f9; padding: 16px; border-radius: 8px; margin: 20px 0;">
+          <p style="margin: 0;"><strong>Ticket:</strong> ${escapeHtml(number)}</p>
+          ${ticket.subject ? `<p style="margin: 8px 0 0;"><strong>Subject:</strong> ${escapeHtml(ticket.subject)}</p>` : ''}
+        </div>
+        <p><a href="${escapeHtml(link)}" style="color: #6d28d9;">Follow it under My requests</a></p>
+        <p style="color: #888; font-size: 12px;">Reply to this email or from My requests in the app.</p>
+      </div>`,
+    };
+  }
+
+  async sendTicketCreated(data: { to: string; ticket: TicketMailShape }): Promise<boolean> {
+    const { to, ticket } = data;
+    const kind = ticket.type === 'report' ? 'report' : ticket.type === 'suggestion' ? 'suggestion' : 'request';
+    const target = TICKET_TARGET_WORDS[ticket.severity];
+    const mail = this.ticketShell(
+      ticket,
+      `We received your ${kind}`,
+      `Thanks — it is in our queue. You can expect a first response ${target}.`,
+      ticket.description ? `<div style="border: 1px solid #eee; padding: 16px; border-radius: 8px; white-space: pre-wrap;">${escapeHtml(ticket.description)}</div>` : '',
+      ticket.description ? `What you wrote:\n${ticket.description}` : ''
+    );
+    return this.deliver('ticket-created', { from: fromAddress(), to, ...mail });
+  }
+
+  async sendTicketWaitingOnUser(data: { to: string; ticket: TicketMailShape; reply: string | null }): Promise<boolean> {
+    const { to, ticket, reply } = data;
+    const mail = this.ticketShell(
+      ticket,
+      'Support replied — we need something from you',
+      'Read the reply below and answer from My requests, or reply to this email.',
+      reply ? `<div style="border: 1px solid #eee; padding: 16px; border-radius: 8px; white-space: pre-wrap;">${escapeHtml(reply)}</div>` : '',
+      reply ? `Their reply:\n${reply}` : ''
+    );
+    return this.deliver('ticket-waiting', { from: fromAddress(), to, ...mail });
+  }
+
+  async sendTicketResolved(data: { to: string; ticket: TicketMailShape }): Promise<boolean> {
+    const { to, ticket } = data;
+    const shipped = ticket.resolution_code === 'feature_shipped';
+    const heading = shipped ? 'Your idea is live' : ticket.status === 'closed' ? 'Your request was closed' : 'Your request was resolved';
+    const lead = shipped
+      ? 'The feature you suggested has shipped. Thank you for the idea.'
+      : 'Here is what we decided. If you disagree, reply once from My requests and we will take another look.';
+    const note = ticket.resolution_note;
+    const mail = this.ticketShell(
+      ticket,
+      heading,
+      lead,
+      note ? `<div style="border: 1px solid #eee; padding: 16px; border-radius: 8px; white-space: pre-wrap;">${escapeHtml(note)}</div>` : '',
+      note ? `The outcome:\n${note}` : ''
+    );
+    return this.deliver('ticket-resolved', { from: fromAddress(), to, ...mail });
+  }
+
   async testConnection(): Promise<boolean> {
     try {
       await this.transporter.verify();
