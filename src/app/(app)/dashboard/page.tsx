@@ -10,6 +10,7 @@ import { SUGGEST_DEBOUNCE_MS } from '@/lib/search/typeahead';
 import type { SiteMetrics } from '@/lib/site-builder/metrics-rollup';
 import type { SweepSummary } from '@/lib/storage-sweep-server';
 import PerformanceBackfillPanel from '@/components/admin/PerformanceBackfillPanel';
+import SupportQueueTile from '@/components/admin/SupportQueueTile';
 
 // Admin console (replaces the orphaned legacy dashboard page — its buttons
 // had no onClick handlers). Access = ADMIN_EMAILS allowlist, enforced
@@ -229,6 +230,7 @@ export default function AdminDashboardPage() {
 
         {/* Queues — dedicated admin pages */}
         <section className="grid sm:grid-cols-2 gap-4">
+          <SupportQueueTile />
           <button
             type="button"
             onClick={() => router.push('/dashboard/consent')}
