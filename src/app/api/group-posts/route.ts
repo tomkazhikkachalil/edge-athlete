@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { isUuid } from '@/lib/uuid';
-import { getSupabaseAdmin, getServerAuth } from '@/lib/auth-server';
+import { getSupabaseAdmin, getServerAuth, activeWriterRefusal } from '@/lib/auth-server';
 import { notifyGroupInvites } from '@/lib/golf/group-notifications';
 import { initialRoundStatus } from '@/lib/golf/round-status';
 import { parseComposition } from '@/lib/golf/course-sections';
@@ -108,6 +108,8 @@ export async function POST(request: NextRequest) {
   if (authError || !user) {
     return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
   }
+  const refusal = await activeWriterRefusal(user.id);
+  if (refusal) return refusal;
 
   try {
     // Creates a post + fans out to N participants — bucketed like posts.

@@ -31,7 +31,9 @@ describe('the org-creation routes call the gate', () => {
   for (const rel of routes) {
     it(`${rel} gates on requireOrgCreator after requireAuth`, () => {
       const source = readFileSync(join(process.cwd(), rel), 'utf8');
-      const auth = source.indexOf('await requireAuth(');
+      // Since Spec 2 the creation POST authenticates through requireActiveWriter
+      // (requireAuth + the moderation write gate) — either spelling is the first gate.
+      const auth = source.search(/await require(ActiveWriter|Auth)\(/);
       const gate = source.indexOf('await requireOrgCreator(');
       expect(auth).toBeGreaterThan(-1);
       expect(gate).toBeGreaterThan(auth);

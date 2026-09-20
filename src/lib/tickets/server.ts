@@ -31,7 +31,8 @@ import {
   type TicketSubtype,
   type TicketType,
 } from './types';
-import { projectTicketForAdmin, projectTicketForUser, userVisibleEvents, type AdminTicketView, type UserEventView, type UserTicketView } from './visibility';
+import { projectTicketForAdmin, projectTicketForUser, projectTicketForSubject, subjectVisibleEvents, userVisibleEvents, type AdminTicketView, type SubjectTicketView, type UserEventView, type UserTicketView } from './visibility';
+import { PILE_ON_HIDE_COUNT } from '@/lib/moderation/state';
 
 type Admin = ReturnType<typeof getSupabaseAdmin>;
 
@@ -105,11 +106,31 @@ export interface CreateTicketInput {
   description: string;
   contact_ok?: boolean;
   submitter: Submitter;
-  /** Spec 2 fills these; Spec 1's incident report carries none. */
-  target?: { type: TicketRow['target_type']; id: string | null; profileId: string | null; isMinor: boolean; snapshot: Record<string, unknown> | null } | null;
+  /** A targeted report (Spec 2): the resolved thing; an incident report carries none. */
+  target?: { type: TicketRow['target_type']; id: string | null; profileId: string | null; isMinor: boolean; snapshot: Record<string, unknown> | null; conversationId?: string | null } | null;
 }
 
-export async function createTicket(admin: Admin, input: CreateTicketInput): Promise<{ id: string; number: number; severity: TicketSeverity }> {
+export const MERGE_WINDOW_DAYS = 7;
+
+/** An OPEN, unmerged report on the same item within the window — the row a duplicate merges into. */
+async function findOpenTicketFor(admin: Admin, targetType: string, targetId: string, now = new Date()): Promise<{ id: string; number: number; severity: TicketSeverity; report_count: number } | null> {
+  const since = new Date(now.getTime() - MERGE_WINDOW_DAYS * 86_400_000).toISOString();
+  const { data } = await admin
+    .from('tickets')
+    .select('id, number, severity, report_count')
+    .eq('type', 'report')
+    .eq('target_type', targetType)
+    .eq('target_id', targetId)
+    .is('merged_into_id', null)
+    .in('status', ['new', 'in_review', 'waiting_on_user'])
+    .gte('created_at', since)
+    .order('created_at', { ascending: true })
+    .limit(1)
+    .maybeSingle();
+  return (data as { id: string; number: number; severity: TicketSeverity; report_count: number } | null) ?? null;
+}
+
+export async function createTicket(admin: Admin, input: CreateTicketInput): Promise<{ id: string; number: number; severity: TicketSeverity; mergedInto: string | null }> {
   const severity = severityFor({ type: input.type, reason: input.reason, targetIsMinor: input.target?.isMinor ?? false });
   const row = {
     type: input.type,
@@ -126,17 +147,45 @@ export async function createTicket(admin: Admin, input: CreateTicketInput): Prom
     content_snapshot: input.target?.snapshot ?? null,
     contact_ok: input.contact_ok ?? true,
   };
-  const { data, error } = await admin.from('tickets').insert(row).select('id, number').single();
+  // Spec 2: a duplicate report on the same item within 7 days MERGES — the
+  // new row keeps the reporter's own My requests entry (merged_into_id), the
+  // open ticket carries the count and a `merged` event, the queue lists one.
+  const openTicket = input.type === 'report' && input.target?.id && input.target.type
+    ? await findOpenTicketFor(admin, input.target.type, input.target.id)
+    : null;
+  const insertRow = openTicket ? { ...row, merged_into_id: openTicket.id, severity: openTicket.severity } : row;
+
+  const { data, error } = await admin.from('tickets').insert(insertRow).select('id, number').single();
   if (error || !data) {
     if (isNotLive(error)) throw new TicketsNotLive();
     console.error(`${TAG} insert failed:`, error?.message);
     throw new Error('Could not create the ticket');
   }
-  const ticket = { id: data.id as string, number: Number(data.number), severity };
+  const ticket = { id: data.id as string, number: Number(data.number), severity: openTicket ? openTicket.severity : severity, mergedInto: openTicket?.id ?? null };
 
   await appendEvents(admin, [
     { ticket_id: ticket.id, actor_profile_id: input.submitter.id, kind: 'created', old_value: null, new_value: input.type, body: null, visible_to_user: true },
   ]);
+
+  if (openTicket) {
+    const count = openTicket.report_count + 1;
+    await admin.from('tickets').update({ report_count: count }).eq('id', openTicket.id);
+    await appendEvents(admin, [{ ticket_id: openTicket.id, actor_profile_id: input.submitter.id, kind: 'merged', old_value: String(openTicket.report_count), new_value: String(count), body: input.description, visible_to_user: false }]);
+    // The doc's pile-on rule: three or more reports on a High item hide it before review.
+    if (openTicket.severity === 'high' && count >= PILE_ON_HIDE_COUNT && input.target?.id && (input.target.type === 'post' || input.target.type === 'comment')) {
+      const { hideContent } = await import('@/lib/moderation/server');
+      await hideContent(admin, input.target.type, input.target.id, openTicket.id, null);
+    }
+    await sendTicketMail(admin, ticket.id, 'created');
+    return ticket;
+  }
+
+  // Spec 2: a Critical report acts on the interaction at intake (hide / freeze); the
+  // account is limited only on repeat incidents (Tom's rule).
+  if (input.type === 'report' && input.target?.id && input.target.type) {
+    const { applyIntake } = await import('@/lib/moderation/server');
+    await applyIntake(admin, { id: ticket.id, severity }, { type: input.target.type, id: input.target.id, profileId: input.target.profileId, conversationId: input.target.conversationId ?? null }, input.submitter.id);
+  }
 
   // Bells + mail, best-effort, after the write.
   if (severity === 'critical') await bellAdminsCritical(admin, ticket.id, ticket.number, input.type, input.reason);
@@ -178,16 +227,42 @@ export async function readTicketForUser(
   admin: Admin,
   ticketId: string,
   scope: Set<string>
-): Promise<{ ticket: UserTicketView; events: UserEventView[] } | null> {
+): Promise<{ ticket: UserTicketView | SubjectTicketView; events: UserEventView[] } | null> {
   const { data, error } = await admin.from('tickets').select(TICKET_COLUMNS).eq('id', ticketId).maybeSingle();
   if (error) {
     if (isNotLive(error)) return null;
     throw new Error('Could not load the request');
   }
   const t = data as TicketRow | null;
-  if (!t || !t.reporter_profile_id || !scope.has(t.reporter_profile_id)) return null;
-  const events = await readEvents(admin, ticketId);
-  return { ticket: projectTicketForUser(t), events: userVisibleEvents(events, scope) };
+  if (!t) return null;
+  if (t.reporter_profile_id && scope.has(t.reporter_profile_id)) {
+    const events = await readEvents(admin, ticketId);
+    return { ticket: projectTicketForUser(t), events: userVisibleEvents(events, scope) };
+  }
+  // Spec 2: the REPORTED user reads a restricted view once a decision was made
+  // against them (the appeal) — never the reporter, the description or the snapshot.
+  if (t.target_profile_id && scope.has(t.target_profile_id) && t.resolution_code && t.resolution_code !== 'no_action' && t.resolution_code !== 'declined') {
+    const events = await readEvents(admin, ticketId);
+    return { ticket: projectTicketForSubject(t), events: subjectVisibleEvents(events, scope, t.resolved_at) };
+  }
+  return null;
+}
+
+/** Tickets where the viewer is the SUBJECT of a decision (for "About your account"). */
+export async function readTicketsAboutMe(admin: Admin, scope: Set<string>): Promise<SupportedList<SubjectTicketView>> {
+  const { data, error } = await admin
+    .from('tickets')
+    .select(TICKET_COLUMNS)
+    .in('target_profile_id', [...scope])
+    .in('resolution_code', ['content_removed', 'warning', 'suspension', 'ban'])
+    .order('resolved_at', { ascending: false })
+    .limit(50);
+  if (error) {
+    if (isNotLive(error)) return { supported: false, items: [] };
+    console.error(`${TAG} about-me read failed:`, error.message);
+    throw new Error('Could not load your notices');
+  }
+  return { supported: true, items: ((data ?? []) as TicketRow[]).map(projectTicketForSubject) };
 }
 
 export type UserReplyOutcome =
@@ -195,13 +270,15 @@ export type UserReplyOutcome =
   | { ok: false; status: 404 | 409; error: string };
 
 export async function appendUserReply(admin: Admin, ticketId: string, actorId: string, scope: Set<string>, body: string): Promise<UserReplyOutcome> {
-  const { data, error } = await admin.from('tickets').select('id, status, appeal_used_at, reporter_profile_id, number').eq('id', ticketId).maybeSingle();
+  const { data, error } = await admin.from('tickets').select('id, status, appeal_used_at, reporter_profile_id, number, target_profile_id, resolution_code').eq('id', ticketId).maybeSingle();
   if (error) {
     if (isNotLive(error)) throw new TicketsNotLive();
     throw new Error('Could not load the request');
   }
-  const t = data as Pick<TicketRow, 'id' | 'status' | 'appeal_used_at' | 'reporter_profile_id' | 'number'> | null;
-  if (!t || !t.reporter_profile_id || !scope.has(t.reporter_profile_id)) return { ok: false, status: 404, error: 'Not found' };
+  const t = data as Pick<TicketRow, 'id' | 'status' | 'appeal_used_at' | 'reporter_profile_id' | 'number' | 'target_profile_id' | 'resolution_code'> | null;
+  const isReporter = !!t?.reporter_profile_id && scope.has(t.reporter_profile_id);
+  const isSubject = !!t?.target_profile_id && scope.has(t.target_profile_id) && !!t.resolution_code && t.resolution_code !== 'no_action' && t.resolution_code !== 'declined';
+  if (!t || (!isReporter && !isSubject)) return { ok: false, status: 404, error: 'Not found' };
 
   const next = transitionForUserReply(t);
   if (!next.ok) return { ok: false, status: 409, error: USER_REPLY_REFUSALS[next.reason] };
@@ -425,6 +502,11 @@ export async function applyAdminPatch(admin: Admin, ticketId: string, actorId: s
 
   const after = updated as TicketRow;
   const statusChanged = patch.status !== undefined && patch.status !== before.status;
+  if (statusChanged && after.status === 'resolved' && after.type === 'report') {
+    // Spec 2: the resolution code IS the action; the reported user is told in plain words.
+    const { applyResolutionAction } = await import('@/lib/moderation/server');
+    await applyResolutionAction(admin, after, actorId, now);
+  }
   if (statusChanged) {
     if (after.status === 'resolved' || after.status === 'closed') {
       await bellSubmitter(admin, after, `${formatTicketNumber(after.number)} was ${after.status}`, after.resolution_note ?? 'Open it under My requests to read the outcome.');

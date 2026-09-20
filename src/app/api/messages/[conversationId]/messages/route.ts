@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { UUID_RE } from '@/lib/uuid';
-import { requireAuth, getSupabaseAdmin } from '@/lib/auth-server';
+import { getSupabaseAdmin, requireActiveWriter } from '@/lib/auth-server';
 import { extractHandles } from '@/lib/mentions';
 import { notifyChatMentions } from '@/lib/mentions/notify';
 import { enforceRateLimit } from '@/lib/rate-limit';
@@ -14,7 +14,7 @@ export async function POST(
 ) {
   try {
     const supabase = getSupabaseAdmin();
-    const user = await requireAuth(request);
+    const user = await requireActiveWriter(request);
     const limited = await enforceRateLimit(request, 'message-send', { userId: user.id });
     if (limited) return limited;
 
@@ -52,6 +52,13 @@ export async function POST(
 
     if (!myParticipant) {
       return NextResponse.json({ error: 'Conversation not found' }, { status: 404 });
+    }
+
+    // Spec 2 (mig 223): a thread frozen by a Critical report takes no new
+    // messages from either side until the review; reading stays open.
+    const { conversationFrozen } = await import('@/lib/moderation/server');
+    if (await conversationFrozen(getSupabaseAdmin(), conversationId)) {
+      return NextResponse.json({ error: 'This conversation is paused while a report is reviewed.', code: 'conversation_frozen' }, { status: 403 });
     }
 
     // Round I + Wave 3: EVERY direct send touching a supervised profile is

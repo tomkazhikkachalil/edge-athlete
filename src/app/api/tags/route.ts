@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { filterBlockedBidirectional } from '@/lib/blocks';
 import { isUuid } from '@/lib/uuid';
-import { getSupabaseAdmin, requireAuth, getServerClient } from '@/lib/auth-server';
+import { getSupabaseAdmin, requireAuth, getServerClient, activeWriterRefusal } from '@/lib/auth-server';
 import { canViewProfile } from '@/lib/privacy';
 
 /**
@@ -16,6 +16,8 @@ export async function POST(request: NextRequest) {
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
+    const refusal = await activeWriterRefusal(user.id);
+    if (refusal) return refusal;
 
     const supabase = getSupabaseAdmin();
     const body = await request.json();

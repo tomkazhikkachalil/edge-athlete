@@ -2,9 +2,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { getSupabaseAdmin, requireAuth } from '@/lib/auth-server';
 import { enforceRateLimit } from '@/lib/rate-limit';
-import { boundedText, optionalText, parseBody } from '@/lib/validation';
-import { createTicket, readMyTickets, readSubmitter, readerScope, TicketsNotLive } from '@/lib/tickets/server';
-import { TICKET_LIMITS, TICKET_TYPES, isReasonForType } from '@/lib/tickets/types';
+import { boundedText, optionalText, parseBody, uuid } from '@/lib/validation';
+import { createTicket, readMyTickets, readSubmitter, readTicketsAboutMe, readerScope, TicketsNotLive, type CreateTicketInput } from '@/lib/tickets/server';
+import { resolveTarget } from '@/lib/tickets/snapshot-server';
+import { TICKET_LIMITS, TICKET_TARGET_TYPES, TICKET_TYPES, isReasonForType, type TicketSubtype, type TicketTargetType } from '@/lib/tickets/types';
 import { formatTicketNumber } from '@/lib/tickets/number';
 
 /**
@@ -28,10 +29,17 @@ const CreateBody = z
     type: z.enum(TICKET_TYPES),
     reason: boundedText(64),
     subject: optionalText(TICKET_LIMITS.subject),
-    description: boundedText(TICKET_LIMITS.description),
+    // A targeted report needs no words (the snapshot is the evidence); everything else does.
+    description: optionalText(TICKET_LIMITS.description),
     contact_ok: z.boolean().optional(),
+    // Spec 2: a report filed FROM the thing — the server resolves and snapshots it.
+    target: z.object({ type: z.enum(TICKET_TARGET_TYPES), id: uuid }).optional(),
   })
-  .refine(b => isReasonForType(b.type, b.reason), { path: ['reason'], message: 'Pick a reason from the list.' });
+  .refine(b => isReasonForType(b.type, b.reason), { path: ['reason'], message: 'Pick a reason from the list.' })
+  .refine(b => b.type === 'report' || !b.target, { path: ['target'], message: 'Only a report names a target.' })
+  .refine(b => !!b.target || !!b.description, { path: ['description'], message: 'Tell us what happened.' });
+
+const SUBTYPE_FOR_TARGET: Record<TicketTargetType, TicketSubtype> = { post: 'post', comment: 'comment', profile: 'profile', conversation: 'dm', message: 'dm' };
 
 export async function POST(request: NextRequest) {
   try {
@@ -44,16 +52,24 @@ export async function POST(request: NextRequest) {
 
     const admin = getSupabaseAdmin();
     const submitter = await readSubmitter(admin, user.id);
+    let target: CreateTicketInput['target'] = null;
+    if (body.target) {
+      const resolved = await resolveTarget(admin, user.id, body.target);
+      // Not visible to the reporter (or their own content): a 404, never a 403.
+      if (!resolved) return NextResponse.json({ error: 'Not found' }, { status: 404, headers: NO_STORE });
+      target = { type: resolved.type, id: resolved.id, profileId: resolved.profileId, isMinor: resolved.isMinor, snapshot: resolved.snapshot, conversationId: resolved.conversationId };
+    }
     const ticket = await createTicket(admin, {
       type: body.type,
-      subtype: body.type === 'report' ? 'incident' : null,
+      subtype: body.type === 'report' ? (target ? SUBTYPE_FOR_TARGET[target.type as TicketTargetType] : 'incident') : null,
       reason: body.reason,
       subject: body.subject ?? null,
-      description: body.description,
+      description: body.description ?? '',
       contact_ok: body.contact_ok,
       submitter,
+      target,
     });
-    return NextResponse.json({ id: ticket.id, number: formatTicketNumber(ticket.number), severity: ticket.severity }, { status: 201, headers: NO_STORE });
+    return NextResponse.json({ id: ticket.id, number: formatTicketNumber(ticket.number), severity: ticket.severity, merged: ticket.mergedInto !== null }, { status: 201, headers: NO_STORE });
   } catch (error) {
     if (error instanceof Response) return error;
     if (error instanceof TicketsNotLive) return NextResponse.json({ error: error.message }, { status: 503, headers: NO_STORE });
@@ -67,8 +83,8 @@ export async function GET(request: NextRequest) {
     const user = await requireAuth(request);
     const admin = getSupabaseAdmin();
     const scope = await readerScope(admin, user.id);
-    const result = await readMyTickets(admin, scope);
-    return NextResponse.json({ supported: result.supported, tickets: result.items }, { headers: NO_STORE });
+    const [result, about] = await Promise.all([readMyTickets(admin, scope), readTicketsAboutMe(admin, scope)]);
+    return NextResponse.json({ supported: result.supported, tickets: result.items, aboutMe: about.items }, { headers: NO_STORE });
   } catch (error) {
     if (error instanceof Response) return error;
     console.error('[GET /api/tickets]', error);

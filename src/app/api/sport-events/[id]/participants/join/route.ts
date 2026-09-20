@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { UUID_RE } from '@/lib/uuid';
-import { getServerAuth, getSupabaseAdmin } from '@/lib/auth-server';
+import { getServerAuth, getSupabaseAdmin, activeWriterRefusal } from '@/lib/auth-server';
 import { filterBlockedBidirectional } from '@/lib/blocks';
 import { enforceRateLimit } from '@/lib/rate-limit';
 import { readSportEventAccess } from '@/lib/sport-events/access-server';
@@ -20,6 +20,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   try {
     const { user, error: authError } = await getServerAuth(request);
     if (authError || !user) return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
+    const refusal = await activeWriterRefusal(user.id);
+    if (refusal) return refusal;
     const limited = await enforceRateLimit(request, 'sport-event-join', { userId: user.id });
     if (limited) return limited;
     const actor = await resolveActor(user.id, bodyProfileId(await readJson(request)));

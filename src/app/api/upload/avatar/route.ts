@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { requireAuth, getSupabaseAdmin } from '@/lib/auth-server';
+import { getSupabaseAdmin, requireActiveWriter } from '@/lib/auth-server';
 import { enforceRateLimit } from '@/lib/rate-limit';
 
 // Server is the security boundary: explicit allowlist (no SVG — it can carry
@@ -17,7 +17,7 @@ export async function POST(request: NextRequest) {
     // Auth required — the avatar is always written to the session user's
     // profile, never a body-supplied userId (that let anyone overwrite any
     // user's avatar).
-    const user = await requireAuth(request);
+    const user = await requireActiveWriter(request);
     const limited = await enforceRateLimit(request, 'upload', { userId: user.id });
     if (limited) return limited;
 

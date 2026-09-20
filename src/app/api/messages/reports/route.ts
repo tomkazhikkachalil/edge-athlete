@@ -1,151 +1,72 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { z } from 'zod';
 import { requireAuth, getSupabaseAdmin } from '@/lib/auth-server';
 import { enforceRateLimit } from '@/lib/rate-limit';
+import { optionalText, parseBody, uuid } from '@/lib/validation';
+import { createTicket, readSubmitter, TicketsNotLive } from '@/lib/tickets/server';
+import { resolveTarget } from '@/lib/tickets/snapshot-server';
+import { formatTicketNumber } from '@/lib/tickets/number';
+import { REPORT_REASONS, TICKET_LIMITS, type ReportReason } from '@/lib/tickets/types';
 
-const VALID_REASONS = new Set(['spam', 'harassment', 'hateful', 'sexual', 'violence', 'other']);
-const MAX_DETAILS_LEN = 1000;
+/**
+ * POST /api/messages/reports — since Spec 2 a thin ADAPTER over the ticket
+ * system: a DM report is a `report` ticket with a `message` or `profile`
+ * target (the snapshot, the merge, the Critical intake, the guardian bell
+ * for a supervised reporter all live in createTicket). The 019 table
+ * `message_reports` stops growing; its 27 rows stay readable by the old
+ * admin panel until it is removed.
+ *
+ * The old reasons (spam · harassment · hateful · sexual · violence · other)
+ * map onto the one report list; the new sheet sends the new keys directly.
+ */
+const LEGACY_REASONS: Record<string, ReportReason> = {
+  spam: 'spam_scam',
+  harassment: 'harassment_bullying',
+  hateful: 'hate_discrimination',
+  sexual: 'sexual_content',
+  violence: 'harassment_bullying',
+  other: 'other',
+};
 
-// ── POST /api/messages/reports ──────────────────────────────────────────────
-// File a report against a message and/or profile.
-// Body: { reason, details?, messageId?, conversationId?, reportedProfileId? }
-//
-// If messageId is supplied we resolve conversationId + reportedProfileId from
-// the message itself (defensive — clients shouldn't be trusted to provide
-// the correct reported profile for a message). reportedProfileId is otherwise
-// required for profile-level reports.
+const Body = z
+  .object({
+    reason: z.string().trim().min(1).max(64),
+    details: optionalText(TICKET_LIMITS.description),
+    messageId: uuid.optional(),
+    reportedProfileId: uuid.optional(),
+  })
+  .refine(b => !!b.messageId || !!b.reportedProfileId, { path: ['messageId'], message: 'messageId or reportedProfileId is required' });
+
 export async function POST(request: NextRequest) {
+  const headers = { 'Cache-Control': 'private, no-store' } as const;
   try {
-    const supabase = getSupabaseAdmin();
     const user = await requireAuth(request);
     const limited = await enforceRateLimit(request, 'message-report', { userId: user.id });
     if (limited) return limited;
+    const parsed = await parseBody(request, Body);
+    if (!parsed.success) return parsed.response;
+    const { reason: rawReason, details, messageId, reportedProfileId } = parsed.data;
+    const reason = (REPORT_REASONS as readonly string[]).includes(rawReason) ? (rawReason as ReportReason) : LEGACY_REASONS[rawReason];
+    if (!reason) return NextResponse.json({ error: 'Invalid reason' }, { status: 400, headers });
 
-    const body = await request.json();
-    const { reason, details, messageId, reportedProfileId } = body as {
-      reason?: string;
-      details?: string;
-      messageId?: string;
-      reportedProfileId?: string;
-    };
+    const admin = getSupabaseAdmin();
+    const target = await resolveTarget(admin, user.id, messageId ? { type: 'message', id: messageId } : { type: 'profile', id: reportedProfileId! });
+    if (!target) return NextResponse.json({ error: messageId ? 'Message not found' : 'Profile not found' }, { status: 404, headers });
 
-    if (!reason || !VALID_REASONS.has(reason)) {
-      return NextResponse.json({ error: 'Invalid reason' }, { status: 400 });
-    }
-
-    const trimmedDetails = typeof details === 'string' ? details.trim() : '';
-    if (trimmedDetails.length > MAX_DETAILS_LEN) {
-      return NextResponse.json({ error: 'Details too long' }, { status: 400 });
-    }
-
-    let conversationId: string | null = null;
-    let reportedProfile: string | null = null;
-    let resolvedMessageId: string | null = null;
-
-    if (messageId) {
-      const { data: message } = await supabase
-        .from('messages')
-        .select('id, sender_id, conversation_id')
-        .eq('id', messageId)
-        .maybeSingle();
-
-      if (!message) {
-        return NextResponse.json({ error: 'Message not found' }, { status: 404 });
-      }
-
-      // Caller must be an active participant of that conversation.
-      const { data: participant } = await supabase
-        .from('conversation_participants')
-        .select('id')
-        .eq('conversation_id', message.conversation_id)
-        .eq('profile_id', user.id)
-        .is('left_at', null)
-        .is('held_at', null)
-        .maybeSingle();
-
-      if (!participant) {
-        return NextResponse.json({ error: 'Cannot report this message' }, { status: 403 });
-      }
-
-      if (message.sender_id === user.id) {
-        return NextResponse.json({ error: 'Cannot report own message' }, { status: 400 });
-      }
-
-      resolvedMessageId = message.id;
-      conversationId = message.conversation_id;
-      reportedProfile = message.sender_id;
-    } else if (reportedProfileId) {
-      if (reportedProfileId === user.id) {
-        return NextResponse.json({ error: 'Cannot report yourself' }, { status: 400 });
-      }
-      // Verify the profile exists; cheap sanity check.
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('id')
-        .eq('id', reportedProfileId)
-        .maybeSingle();
-      if (!profile) {
-        return NextResponse.json({ error: 'Profile not found' }, { status: 404 });
-      }
-      reportedProfile = profile.id;
-    } else {
-      return NextResponse.json({ error: 'messageId or reportedProfileId is required' }, { status: 400 });
-    }
-
-    const { data: inserted, error: insertError } = await supabase
-      .from('message_reports')
-      .insert({
-        message_id: resolvedMessageId,
-        conversation_id: conversationId,
-        reported_profile_id: reportedProfile,
-        reporter_id: user.id,
-        reason,
-        details: trimmedDetails || null,
-      })
-      .select('id')
-      .single();
-
-    if (insertError || !inserted) {
-      console.error('POST /api/messages/reports insert error:', insertError);
-      return NextResponse.json({ error: 'Failed to file report' }, { status: 500 });
-    }
-
-    // Round I: a supervised child filing a report is exactly the moment a
-    // guardian wants to know about. The bell carries the REASON only — never
-    // message content (the no-conversation-visibility line stays bright);
-    // admins triage the report itself. Best-effort.
-    const { data: reporter } = await supabase
-      .from('profiles')
-      .select('supervision_state, first_name')
-      .eq('id', user.id)
-      .maybeSingle();
-    if (reporter?.supervision_state === 'supervised') {
-      const { notifyGuardians } = await import('@/lib/guardian-notify');
-      await notifyGuardians(supabase, user.id, {
-        type: 'safety_alert',
-        title: `${reporter.first_name || 'Your athlete'} reported someone`,
-        message: `Reason: ${reason}. Our team will review it — you may also want to check in with them.`,
-        actionUrl: `/app/guardian/athlete/${user.id}`,
-        actorId: user.id,
-        metadata: { report_id: inserted.id, reason },
-      }, user.id);
-      // Wave 7 (mig 137): also file a risk_signals row so the event shows
-      // in the hub's signals list, not just the bell. window_start = the
-      // report's own moment (each report is its own row); best-effort.
-      const nowIso = new Date().toISOString();
-      const { error: signalError } = await supabase.from('risk_signals').insert({
-        profile_id: user.id,
-        kind: 'report_filed',
-        window_start: nowIso,
-        window_end: nowIso,
-        magnitude: { report_id: inserted.id },
-      });
-      if (signalError) console.error('[REPORTS] risk_signals insert failed:', signalError);
-    }
-
-    return NextResponse.json({ id: inserted.id });
+    const submitter = await readSubmitter(admin, user.id);
+    const ticket = await createTicket(admin, {
+      type: 'report',
+      subtype: messageId ? 'dm' : 'profile',
+      reason,
+      description: details ?? '',
+      submitter,
+      target: { type: target.type, id: target.id, profileId: target.profileId, isMinor: target.isMinor, snapshot: target.snapshot, conversationId: target.conversationId },
+    });
+    return NextResponse.json({ id: ticket.id, number: formatTicketNumber(ticket.number), severity: ticket.severity }, { status: 201, headers });
   } catch (error) {
     if (error instanceof Response) return error;
+    if (error instanceof TicketsNotLive) return NextResponse.json({ error: error.message }, { status: 503, headers });
     console.error('POST /api/messages/reports error:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    return NextResponse.json({ error: 'Failed to file report' }, { status: 500, headers });
   }
 }

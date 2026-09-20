@@ -290,3 +290,37 @@ export async function requireModerator(request: NextRequest, opts: { intent: Mod
     { status: 403, headers: { 'Content-Type': 'application/json' } }
   );
 }
+
+// ── The write gate (Support & Reporting, Spec 2 — migration 223) ───────────
+//
+// A limited / suspended / banned account may READ everything and may reply
+// to support; it may not create content or contact people. The gate is
+// TARGETED — THE list of content + contact write routes in docs/SUPPORT.md
+// calls it right after its own auth — never a blanket on every write. Pre-223
+// (no column) every account reads as active.
+
+/** A ready 403 when the account may not write right now; null when it may. */
+export async function activeWriterRefusal(userId: string): Promise<Response | null> {
+  const { effectiveState, writeRefusalMessage } = await import('./moderation/state');
+  const admin = getSupabaseAdmin();
+  const { data, error } = await admin.from('profiles').select('moderation_state, moderation_until').eq('id', userId).maybeSingle();
+  if (error) {
+    // 42703 = pre-223; anything else fails OPEN with a log (a read blip must not lock out the app).
+    if (error.code !== '42703') console.error('[activeWriterRefusal] read failed:', error.message);
+    return null;
+  }
+  const state = effectiveState(data);
+  if (state === 'active') return null;
+  return new Response(
+    JSON.stringify({ error: writeRefusalMessage(state, data?.moderation_until), code: 'account_limited', state }),
+    { status: 403, headers: { 'Content-Type': 'application/json' } }
+  );
+}
+
+/** requireAuth + the write gate; throws the 403 like the other gates (the caller `return`s a caught Response). */
+export async function requireActiveWriter(request: NextRequest) {
+  const user = await requireAuth(request);
+  const refusal = await activeWriterRefusal(user.id);
+  if (refusal) throw refusal;
+  return user;
+}

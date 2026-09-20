@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth, getSupabaseAdmin } from '@/lib/auth-server';
+import { hiddenAuthorsFor } from '@/lib/mutes';
 
 export async function GET(request: NextRequest) {
   try {
@@ -65,9 +66,16 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Failed to fetch notifications' }, { status: 500 });
     }
 
+    // Spec 2 (mig 223): a muted or blocked person's activity leaves the bell.
+    const hiddenActors = await hiddenAuthorsFor(supabaseAdmin, user.id);
+    const visible = (notifications || []).filter(n => {
+      const actor = n.actor as { id?: string } | { id?: string }[] | null;
+      const actorId = Array.isArray(actor) ? actor[0]?.id : actor?.id;
+      return !actorId || !hiddenActors.has(actorId);
+    });
     // Check if there are more results
     const hasMore = notifications && notifications.length > limit;
-    const results = hasMore ? notifications.slice(0, limit) : notifications || [];
+    const results = hasMore ? visible.slice(0, limit) : visible;
 
     // Get unread count
     const { count: unreadCount } = await supabaseAdmin

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { isUuid } from '@/lib/uuid';
-import { requireAuth, requireProfileRole, getSupabaseAdmin } from '@/lib/auth-server';
+import { requireAuth, requireProfileRole, getSupabaseAdmin, requireActiveWriter } from '@/lib/auth-server';
 import { canViewProfile } from '@/lib/privacy';
 import {
   IDENTITY_FIELDS,
@@ -121,7 +121,7 @@ export async function PUT(request: NextRequest) {
   try {
     const supabaseAdmin = getSupabaseAdmin();
     // Auth required — only the owner may update their profile.
-    const user = await requireAuth(request);
+    const user = await requireActiveWriter(request);
 
     const body = await request.json();
     

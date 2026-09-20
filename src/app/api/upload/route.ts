@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getSupabaseAdmin, requireAuth } from '@/lib/auth-server';
+import { getSupabaseAdmin, requireActiveWriter } from '@/lib/auth-server';
 import { enforceRateLimit } from '@/lib/rate-limit';
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
@@ -20,7 +20,7 @@ const ALLOWED_VIDEO_TYPES: Record<string, string> = {
 export async function POST(request: NextRequest) {
   try {
     // Auth required — anonymous uploads were a storage/cost abuse vector.
-    const user = await requireAuth(request);
+    const user = await requireActiveWriter(request);
     const limited = await enforceRateLimit(request, 'upload', { userId: user.id });
     if (limited) return limited;
 

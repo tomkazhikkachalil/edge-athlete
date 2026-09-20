@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { requireAuth, getSupabaseAdmin, getProfileRole } from '@/lib/auth-server';
+import { requireAuth, getSupabaseAdmin, getProfileRole, requireActiveWriter } from '@/lib/auth-server';
 import { resolveActingProfile } from '@/lib/guardian-gate';
 import { enforceRateLimit } from '@/lib/rate-limit';
 import { isUuid } from '@/lib/uuid';
@@ -15,7 +15,7 @@ export async function POST(request: NextRequest) {
   try {
     const supabase = getSupabaseAdmin();
     // Require authentication
-    const user = await requireAuth(request);
+    const user = await requireActiveWriter(request);
     const limited = await enforceRateLimit(request, 'upload', { userId: user.id });
     if (limited) return limited;
 

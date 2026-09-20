@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerAuth, getSupabaseAdmin } from '@/lib/auth-server';
+import { getServerAuth, getSupabaseAdmin, activeWriterRefusal } from '@/lib/auth-server';
 import { enforceRateLimit } from '@/lib/rate-limit';
 import { requireOrgManager } from '@/lib/orgs/structure-server';
 import { LINK_REFUSAL_COPY, linkRefusal, type CompetitionForLink, eventShape } from '@/lib/sport-events/contest-link';
@@ -38,6 +38,8 @@ export async function POST(request: NextRequest) {
   try {
     const { user, error: authError } = await getServerAuth(request);
     if (authError || !user) return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
+    const refusal = await activeWriterRefusal(user.id);
+    if (refusal) return refusal;
     const limited = await enforceRateLimit(request, 'sport-event', { userId: user.id });
     if (limited) return limited;
 

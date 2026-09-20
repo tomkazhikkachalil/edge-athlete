@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { requireAuth, getSupabaseAdmin } from '@/lib/auth-server';
+import { requireAuth, getSupabaseAdmin, requireActiveWriter } from '@/lib/auth-server';
 import { enforceRateLimit } from '@/lib/rate-limit';
 import { parseBody } from '@/lib/validation';
 import { placeToClubColumns, isMissingTableError } from '@/lib/clubs/validate';
@@ -18,7 +18,7 @@ import { notifyAdminsOfListingRequest } from '@/lib/orgs/listing-notify';
 /** POST — submit a request. */
 export async function POST(request: NextRequest) {
   try {
-    const user = await requireAuth(request);
+    const user = await requireActiveWriter(request);
     // Onboarding v2 R0: a supervised athlete never mints an org owner —
     // the guardian starts it from their own account.
     const refused = await requireOrgCreator(getSupabaseAdmin(), user.id);

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { UUID_RE } from '@/lib/uuid';
-import { getSupabaseAdmin, getServerAuth } from '@/lib/auth-server';
+import { getSupabaseAdmin, getServerAuth, activeWriterRefusal } from '@/lib/auth-server';
+import { hiddenAuthorsFor } from '@/lib/mutes';
 import { extractHandles } from '@/lib/mentions';
 import { formatDisplayName } from '@/lib/formatters';
 import { notifyCommentMentions } from '@/lib/mentions/notify';
@@ -131,11 +132,15 @@ export async function GET(request: NextRequest) {
     commentsQuery = viewer
       ? commentsQuery.or(`status.eq.published,profile_id.eq.${viewer.id}`)  // hardening-ok: session UUID
       : commentsQuery.eq('status', 'published');
-    const { data: comments, error } = await commentsQuery
-      .order('is_pinned', { ascending: false, nullsFirst: false })
-      .order('likes_count', { ascending: false })
-      .order('created_at', { ascending: true })
-      .range(offset, offset + limit); // limit+1 rows to compute hasMore
+    const [{ data: rawComments, error }, hiddenAuthors] = await Promise.all([
+      commentsQuery
+        .order('is_pinned', { ascending: false, nullsFirst: false })
+        .order('likes_count', { ascending: false })
+        .order('created_at', { ascending: true })
+        .range(offset, offset + limit), // limit+1 rows to compute hasMore
+      hiddenAuthorsFor(getSupabaseAdmin(), viewer?.id ?? null), // Spec 2: the viewer's mutes + blocks
+    ]);
+    const comments = viewer && rawComments ? rawComments.filter(c => !hiddenAuthors.has(c.profile_id as string) || c.profile_id === viewer.id) : rawComments;
 
     if (error) {
       console.error('Error fetching comments:', error);
@@ -207,6 +212,8 @@ export async function POST(request: NextRequest) {
         { status: 401 }
       );
     }
+    const refusal = await activeWriterRefusal(user.id);
+    if (refusal) return refusal;
 
     const limited = await enforceRateLimit(request, 'comment-create', { userId: user.id });
     if (limited) return limited;

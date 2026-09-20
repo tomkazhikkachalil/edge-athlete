@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getSupabaseAdmin, requireAuth, requireProfileRole } from '@/lib/auth-server';
+import { getSupabaseAdmin, requireProfileRole, requireActiveWriter } from '@/lib/auth-server';
 import { enforceRateLimit } from '@/lib/rate-limit';
 import { isUuid } from '@/lib/uuid';
 import { filterBlockedBidirectional } from '@/lib/blocks';
@@ -8,7 +8,7 @@ export async function POST(request: NextRequest) {
   try {
     // The follower is ALWAYS the session user — never trust a body-supplied
     // followerId (that let anyone forge follows/unfollows as any user).
-    const user = await requireAuth(request);
+    const user = await requireActiveWriter(request);
     const limited = await enforceRateLimit(request, 'follow', { userId: user.id });
     if (limited) return limited;
 
