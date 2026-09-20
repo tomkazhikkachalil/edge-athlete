@@ -10,15 +10,16 @@ import PrivacySettings from '@/components/settings/PrivacySettings';
 import MessagingSettings from '@/components/settings/MessagingSettings';
 import NotificationSettings from '@/components/settings/NotificationSettings';
 import SecuritySettings from '@/components/settings/SecuritySettings';
+import SupportSettings from '@/components/settings/SupportSettings';
 import AppearanceSettings from '@/components/settings/AppearanceSettings';
 import WorkoutRoutinesSettings from '@/components/settings/WorkoutRoutinesSettings';
 
 // 1091-line modal — only loaded on demand
 const EditProfileTabs = dynamic(() => import('@/components/EditProfileTabs'), { ssr: false });
 
-type SettingsTab = 'account' | 'privacy' | 'appearance' | 'routines' | 'messaging' | 'notifications' | 'security';
+type SettingsTab = 'account' | 'privacy' | 'appearance' | 'routines' | 'messaging' | 'notifications' | 'security' | 'support';
 
-const SETTINGS_TABS: SettingsTab[] = ['account', 'privacy', 'appearance', 'routines', 'messaging', 'notifications', 'security'];
+const SETTINGS_TABS: SettingsTab[] = ['account', 'privacy', 'appearance', 'routines', 'messaging', 'notifications', 'security', 'support'];
 
 // useSearchParams must live under Suspense (house rule) — this tiny reader
 // honours ?tab=<id> so other surfaces can deep-link to a section (the chat
@@ -117,6 +118,8 @@ export default function SettingsPage() {
     { id: 'messaging', label: 'Messaging', icon: 'fa-comment-alt' },
     { id: 'notifications', label: 'Notifications', icon: 'fa-bell' },
     { id: 'security', label: 'Security', icon: 'fa-lock' },
+    // Support & Reporting, Spec 1: the minimal front door (Spec 3 = /help).
+    { id: 'support', label: 'Support', icon: 'fa-life-ring' },
   ];
 
   return (
@@ -191,6 +194,7 @@ export default function SettingsPage() {
             {activeTab === 'messaging' && <MessagingSettings />}
             {activeTab === 'notifications' && <NotificationSettings />}
             {activeTab === 'security' && <SecuritySettings />}
+            {activeTab === 'support' && <SupportSettings />}
           </div>
         </div>
       </div>
