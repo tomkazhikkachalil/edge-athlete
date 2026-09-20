@@ -321,6 +321,20 @@ async function authorizeSportEventMedia(admin: SupabaseClient, mediaId: string, 
   return access ? { allow: true, isPublic: false } : DENY;
 }
 
+/**
+ * Support & Reporting, Spec 3: a ticket's screenshot follows the ticket's
+ * reader scope — the submitter, or a guardian of a supervised submitter.
+ * A moderator's view comes from the proxy's override, not from here.
+ */
+async function authorizeTicketAttachment(admin: SupabaseClient, ticketId: string, viewerId: string | null): Promise<MediaAuthResult> {
+  if (!viewerId) return DENY;
+  const { data: t } = await admin.from('tickets').select('reporter_profile_id').eq('id', ticketId).maybeSingle();
+  if (!t?.reporter_profile_id) return DENY;
+  if (t.reporter_profile_id === viewerId) return { allow: true, isPublic: false };
+  const { data: guardian } = await admin.from('profile_access').select('id').eq('user_id', viewerId).eq('profile_id', t.reporter_profile_id).eq('role', 'guardian').maybeSingle();
+  return guardian ? { allow: true, isPublic: false } : DENY;
+}
+
 export async function authorizeMedia(
   admin: SupabaseClient,
   payload: MediaTokenPayload,
@@ -347,6 +361,8 @@ export async function authorizeMedia(
       return authorizeContestMedia(admin, payload.id, viewerId);
     case 'sport_event':
       return authorizeSportEventMedia(admin, payload.id, viewerId);
+    case 'ticket':
+      return authorizeTicketAttachment(admin, payload.id, viewerId);
     default:
       return DENY;
   }

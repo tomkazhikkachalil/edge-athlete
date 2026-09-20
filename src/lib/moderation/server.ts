@@ -190,7 +190,7 @@ export interface IntakeTarget {
 }
 
 /** What a report does at submit: a CRITICAL one acts on the interaction (hide / freeze); ANY report counts toward the repeat-incident rule, which alone limits the account. */
-export async function applyIntake(admin: Admin, ticket: { id: string; severity: string }, target: IntakeTarget, reporterId: string): Promise<{ hidden: boolean; frozen: boolean; limited: boolean }> {
+export async function applyIntake(admin: Admin, ticket: { id: string; severity: string }, target: IntakeTarget, reporterId: string | null): Promise<{ hidden: boolean; frozen: boolean; limited: boolean }> {
   const out = { hidden: false, frozen: false, limited: false };
   if (ticket.severity === 'critical') {
     if (target.type === 'post') out.hidden = await hideContent(admin, 'post', target.id, ticket.id, reporterId);

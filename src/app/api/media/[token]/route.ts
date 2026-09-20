@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerAuth, getSupabaseAdmin, isAdminEmail } from '@/lib/auth-server';
+import { getServerAuth, getSupabaseAdmin, platformRoleFor } from '@/lib/auth-server';
 import { enforceRateLimit } from '@/lib/rate-limit';
 import { verifyMediaToken } from '@/lib/media/token';
 import { authorizeMedia } from '@/lib/media/authorize';
@@ -37,7 +37,8 @@ export async function GET(
     const admin = getSupabaseAdmin();
     // Moderator override: admins view reported content (admin/reports). A
     // legitimate, narrow access class; private cache so it's never shared.
-    const isModerator = isAdminEmail(user?.email, process.env.ADMIN_EMAILS);
+    // Since Spec 1 a moderator is a platform ROLE (owner by the allowlist, or a platform_admins row).
+    const isModerator = user ? (await platformRoleFor(user)) !== null : false;
     const auth = isModerator
       ? { allow: true, isPublic: false }
       : await authorizeMedia(admin, payload, viewerId);

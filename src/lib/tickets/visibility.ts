@@ -45,6 +45,8 @@ export interface UserTicketView {
   resolution_code: TicketRow['resolution_code'];
   resolution_note: string | null;
   responseTarget: string;
+  /** Spec 3: the screenshot, as a PROXIED url the server fills in (null when none). */
+  attachment: string | null;
   created_at: string;
   updated_at: string;
   resolved_at: string | null;
@@ -79,6 +81,7 @@ export function projectTicketForUser(t: TicketRow): UserTicketView {
     resolution_code: t.resolution_code,
     resolution_note: t.resolution_note,
     responseTarget: SLA_TARGETS[t.severity].label,
+    attachment: null,
     created_at: t.created_at,
     updated_at: t.updated_at,
     resolved_at: t.resolved_at,
@@ -103,6 +106,8 @@ export interface AdminTicketView extends TicketRow {
   numberLabel: string;
   overdue: boolean;
   responseTarget: string;
+  /** Spec 3: the screenshot as a proxied url (the server fills it in). */
+  attachment: string | null;
 }
 
 export function projectTicketForAdmin(t: TicketRow, now: Date = new Date()): AdminTicketView {
@@ -111,6 +116,7 @@ export function projectTicketForAdmin(t: TicketRow, now: Date = new Date()): Adm
     numberLabel: formatTicketNumber(t.number),
     overdue: isOverdue(t, now),
     responseTarget: SLA_TARGETS[t.severity].label,
+    attachment: null,
   };
 }
 

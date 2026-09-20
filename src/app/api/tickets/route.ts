@@ -7,6 +7,7 @@ import { createTicket, readMyTickets, readSubmitter, readTicketsAboutMe, readerS
 import { resolveTarget } from '@/lib/tickets/snapshot-server';
 import { TICKET_LIMITS, TICKET_TARGET_TYPES, TICKET_TYPES, isReasonForType, type TicketSubtype, type TicketTargetType } from '@/lib/tickets/types';
 import { formatTicketNumber } from '@/lib/tickets/number';
+import { parsePublicUrl } from '@/lib/media/proxy-url';
 
 /**
  * /api/tickets — a user's own tickets (Support & Reporting, Spec 1).
@@ -34,6 +35,8 @@ const CreateBody = z
     contact_ok: z.boolean().optional(),
     // Spec 2: a report filed FROM the thing — the server resolves and snapshots it.
     target: z.object({ type: z.enum(TICKET_TARGET_TYPES), id: uuid }).optional(),
+    // Spec 3: a screenshot from POST /api/tickets/attachment — re-asserted below to be THIS user's.
+    attachment_url: optionalText(600),
   })
   .refine(b => isReasonForType(b.type, b.reason), { path: ['reason'], message: 'Pick a reason from the list.' })
   .refine(b => b.type === 'report' || !b.target, { path: ['target'], message: 'Only a report names a target.' })
@@ -52,6 +55,14 @@ export async function POST(request: NextRequest) {
 
     const admin = getSupabaseAdmin();
     const submitter = await readSubmitter(admin, user.id);
+    let attachmentUrl: string | null = null;
+    if (body.attachment_url) {
+      const parsed = parsePublicUrl(body.attachment_url);
+      if (!parsed || parsed.bucket !== 'uploads' || !parsed.key.startsWith(`${user.id}/tickets/`)) {
+        return NextResponse.json({ error: 'That screenshot is not yours to attach.' }, { status: 400, headers: NO_STORE });
+      }
+      attachmentUrl = body.attachment_url;
+    }
     let target: CreateTicketInput['target'] = null;
     if (body.target) {
       const resolved = await resolveTarget(admin, user.id, body.target);
@@ -68,6 +79,7 @@ export async function POST(request: NextRequest) {
       contact_ok: body.contact_ok,
       submitter,
       target,
+      attachmentUrl,
     });
     return NextResponse.json({ id: ticket.id, number: formatTicketNumber(ticket.number), severity: ticket.severity, merged: ticket.mergedInto !== null }, { status: 201, headers: NO_STORE });
   } catch (error) {

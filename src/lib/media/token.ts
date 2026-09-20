@@ -28,7 +28,9 @@ export type MediaEntityType =
   // Phase 4: org contest media — the governing id is the contest_media row.
   | 'contest_media'
   // Events phase 4 (216): event media — the governing id is the sport_event_media row; the event's gate decides.
-  | 'sport_event';
+  | 'sport_event'
+  // Support & Reporting, Spec 3: a support request's screenshot — the governing id is the ticket; the submitter, their guardians and a moderator may view.
+  | 'ticket';
 
 export interface MediaTokenPayload {
   /** Secret/format version. */
