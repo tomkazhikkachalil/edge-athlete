@@ -241,3 +241,52 @@ export async function requireAdmin(request: NextRequest) {
 
   return user;
 }
+// ── Platform roles (Support & Reporting, Spec 1 — migration 222) ────────────
+//
+// `platform_admins` holds owner | moderator rows. The env allowlist above
+// keeps meaning OWNER (nothing existing changes — requireAdmin stays the
+// gate for every pre-222 admin route); a moderator row admits the support
+// queue and nothing else. Only an owner writes the table (the roles route
+// passes intent 'manage_roles'). Pre-222 the read answers 42P01 and the
+// role is whatever the allowlist says — the table is additive.
+
+export type PlatformRole = 'owner' | 'moderator';
+
+/** What a moderator may do; anything not listed is owner-only. */
+export type ModeratorIntent = 'work_queue' | 'delete_ticket' | 'manage_roles';
+const MODERATOR_INTENTS: ReadonlySet<ModeratorIntent> = new Set(['work_queue']);
+
+/** The caller's platform role: the allowlist decides owner; the table decides moderator; else null. */
+export async function platformRoleFor(user: { id: string; email?: string | null }): Promise<PlatformRole | null> {
+  if (isAdminEmail(user.email, process.env.ADMIN_EMAILS)) return 'owner';
+  const admin = getSupabaseAdmin();
+  const { data, error } = await admin
+    .from('platform_admins')
+    .select('role')
+    .eq('profile_id', user.id)
+    .maybeSingle();
+  if (error) {
+    // 42P01 = the table is not live yet (222 not run): the allowlist alone decides.
+    if (error.code !== '42P01') console.error('[platformRoleFor] read failed:', error.message);
+    return null;
+  }
+  const role = data?.role;
+  return role === 'owner' || role === 'moderator' ? role : null;
+}
+
+/**
+ * The support-queue gate: an owner for every intent, a moderator for the
+ * ones MODERATOR_INTENTS lists. Throws the same 401 / 403 Responses the
+ * other gates do; the caller `return`s a caught Response, never rethrows.
+ */
+export async function requireModerator(request: NextRequest, opts: { intent: ModeratorIntent }) {
+  const user = await requireAuth(request);
+  const role = await platformRoleFor(user);
+  if (role === 'owner' || (role === 'moderator' && MODERATOR_INTENTS.has(opts.intent))) {
+    return { user, role };
+  }
+  throw new Response(
+    JSON.stringify({ error: role === 'moderator' ? 'Owner access required' : 'Admin access required' }),
+    { status: 403, headers: { 'Content-Type': 'application/json' } }
+  );
+}

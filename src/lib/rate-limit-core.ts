@@ -78,6 +78,9 @@ export const RATE_LIMITS = {
   'message-send': { max: 120, windowSeconds: 600, keyBy: 'user' },
   'message-report': { max: 10, windowSeconds: 3600, keyBy: 'user' },
   'guardian-escalate': { max: 10, windowSeconds: 3600, keyBy: 'user' },
+  // Support & Reporting (Spec 1): filing a ticket and replying on one.
+  'ticket-create': { max: 10, windowSeconds: 3600, keyBy: 'user' },
+  'ticket-reply': { max: 30, windowSeconds: 3600, keyBy: 'user' },
   // Athlete creation only. Household block-adds and apply-to-all used to
   // share this 5/day bucket (Wave 4/5), which meant a parent doing a normal
   // setup evening — add two kids, apply defaults, block one account — could

@@ -126,7 +126,10 @@ export default function AppHeader({ onCreatePost, onEditProfile }: AppHeaderProp
     (async () => {
       try {
         const res = await fetch('/api/admin/me', { cache: 'no-store' });
-        if (!cancelled) setIsAdmin(res.ok);
+        // `admin` = OWNER (the dashboard); a moderator answers 200 with
+        // admin:false (Support & Reporting, Spec 1) and gets no entry here.
+        const body = res.ok ? await res.json().catch(() => null) : null;
+        if (!cancelled) setIsAdmin(body?.admin === true);
       } catch {
         if (!cancelled) setIsAdmin(false);
       }
