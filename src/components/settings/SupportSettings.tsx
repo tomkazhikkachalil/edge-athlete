@@ -37,13 +37,16 @@ function MyRequestsWithParam({ listKey }: { listKey: number }) {
 
 // ── Submit a request ────────────────────────────────────────────────────────
 
-function SubmitRequest({ onCreated }: { onCreated: () => void }) {
+export function SubmitRequest({ onCreated }: { onCreated: () => void }) {
   const [category, setCategory] = useState<HelpCategory>('account');
   const [subject, setSubject] = useState('');
   const [description, setDescription] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState<{ number: string; target: string } | null>(null);
+  // Spec 3: an optional screenshot — uploaded on send under the user's own
+  // tickets/ prefix, then attached; the server re-asserts the prefix.
+  const [shot, setShot] = useState<File | null>(null);
 
   useEffect(() => {
     if (!done) return;
@@ -56,16 +59,26 @@ function SubmitRequest({ onCreated }: { onCreated: () => void }) {
     setBusy(true);
     setError(null);
     try {
+      let attachment_url: string | undefined;
+      if (shot) {
+        const form = new FormData();
+        form.append('file', shot);
+        const up = await fetch('/api/tickets/attachment', { method: 'POST', body: form });
+        const upData = await up.json().catch(() => ({}));
+        if (!up.ok) { setError(typeof upData.error === 'string' ? upData.error : 'Could not upload the screenshot.'); return; }
+        attachment_url = upData.url;
+      }
       const res = await fetch('/api/tickets', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ type: 'help', reason: category, subject: subject.trim() || undefined, description: description.trim() }),
+        body: JSON.stringify({ type: 'help', reason: category, subject: subject.trim() || undefined, description: description.trim(), attachment_url }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) { setError(typeof data.error === 'string' ? data.error : 'Could not send your request. Try again.'); return; }
       setDone({ number: data.number, target: data.severity === 'critical' ? 'within 1 hour' : 'within 2 business days' });
       setSubject('');
       setDescription('');
+      setShot(null);
       onCreated();
     } catch {
       setError('Could not send your request. Try again.');
@@ -102,6 +115,16 @@ function SubmitRequest({ onCreated }: { onCreated: () => void }) {
           What happened?
           <textarea value={description} onChange={e => setDescription(e.target.value)} maxLength={TICKET_LIMITS.description} rows={4} required className="mt-1 block w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-primary" />
         </label>
+        <label className="text-sm text-secondary">
+          Screenshot <span className="text-muted">(optional, up to 5 MB)</span>
+          <input
+            type="file"
+            accept="image/png,image/jpeg,image/webp,image/gif"
+            onChange={e => setShot(e.target.files?.[0] ?? null)}
+            className="mt-1 block w-full text-sm text-secondary file:mr-3 file:rounded-lg file:border file:border-border file:bg-surface file:px-3 file:py-2 file:text-sm file:text-primary"
+            data-support-screenshot=""
+          />
+        </label>
         {error && <p role="alert" className="text-sm text-red-700 dark:text-red-300">{error}</p>}
         <div>
           <button type="submit" disabled={busy} className="px-4 py-2 min-h-[44px] rounded-lg bg-brand text-white text-sm font-semibold hover:bg-brand-hover transition disabled:opacity-50" data-support-submit="">
@@ -115,7 +138,7 @@ function SubmitRequest({ onCreated }: { onCreated: () => void }) {
 
 // ── My requests ─────────────────────────────────────────────────────────────
 
-function MyRequests({ listKey, openId }: { listKey: number; openId: string | null }) {
+export function MyRequests({ listKey, openId }: { listKey: number; openId: string | null }) {
   const [state, setState] = useState<'loading' | 'ready' | 'unsupported' | 'error'>('loading');
   const [tickets, setTickets] = useState<UserTicketView[]>([]);
   // Spec 2: decisions made ABOUT this account (the restricted appeal view).
@@ -255,6 +278,12 @@ function RequestThread({ id, onChanged }: { id: string; onChanged: () => void })
   return (
     <div className="border-t border-border px-4 py-3 space-y-3" data-request-thread="">
       {'description' in t && t.description && <p className="text-sm text-primary whitespace-pre-wrap">{t.description}</p>}
+      {'attachment' in t && t.attachment && (
+        <a href={t.attachment} target="_blank" rel="noreferrer" className="inline-block" data-request-attachment="">
+          {/* eslint-disable-next-line @next/next/no-img-element -- a proxied private screenshot; not an optimizer candidate */}
+          <img src={t.attachment} alt="Your screenshot" className="max-h-40 rounded-lg border border-border" />
+        </a>
+      )}
       {(t.status === 'resolved' || t.status === 'closed') && (
         <p className="text-sm text-secondary rounded-lg bg-surface-muted px-3 py-2">
           <strong>{resolutionLabel(t.resolution_code) || 'Resolved'}</strong>

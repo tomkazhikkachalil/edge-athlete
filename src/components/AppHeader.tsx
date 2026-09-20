@@ -725,6 +725,18 @@ export default function AppHeader({ onCreatePost, onEditProfile }: AppHeaderProp
                           <i className="fas fa-cog w-4"></i>
                           <span>Settings</span>
                         </button>
+                        {/* Support & Reporting, Spec 3: the Help Center is a profile-menu door (the doc). */}
+                        <button
+                          onClick={() => {
+                            router.push('/help');
+                            setIsProfileDropdownOpen(false);
+                          }}
+                          className="w-full text-left px-4 py-2 text-sm text-secondary hover:bg-surface-muted flex items-center gap-3"
+                          data-help-center-link=""
+                        >
+                          <i className="fas fa-life-ring w-4"></i>
+                          <span>Help Center</span>
+                        </button>
                         {/* Quick theme flip. Deliberately does NOT close the
                             dropdown: the visible flip is the feedback. In
                             Scheduled mode this writes the until-next-
@@ -1061,6 +1073,17 @@ export default function AppHeader({ onCreatePost, onEditProfile }: AppHeaderProp
               <i className="fas fa-cog w-5 text-center"></i>
               <span className="font-medium">Settings</span>
             </button>
+            <button
+              onClick={() => {
+                router.push('/help');
+                setIsMobileMenuOpen(false);
+              }}
+              className="flex items-center gap-3 w-full px-4 py-3 text-left text-secondary hover:bg-brand-soft hover:text-brand-fg rounded-lg transition-colors"
+              data-help-center-link=""
+            >
+              <i className="fas fa-life-ring w-5 text-center"></i>
+              <span className="font-medium">Help Center</span>
+            </button>
 
             {/* The theme flip, mirroring the desktop dropdown. It shipped ONLY
                 there at first, and that dropdown is `hidden lg:block` — so
@@ -1106,6 +1129,7 @@ export default function AppHeader({ onCreatePost, onEditProfile }: AppHeaderProp
               <span className="text-gray-300">·</span>
               <Link href="/privacy" className="text-muted hover:text-secondary min-h-[44px] inline-flex items-center px-2">Privacy</Link>
               <span className="text-gray-300">·</span>
+              <Link href="/help" className="text-muted hover:text-secondary min-h-[44px] inline-flex items-center px-2">Help</Link>
               <Link href="/contact" className="text-muted hover:text-secondary min-h-[44px] inline-flex items-center px-2">Contact</Link>
             </div>
             <p className="text-xs text-muted text-center">
