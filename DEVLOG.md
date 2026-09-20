@@ -1,5 +1,15 @@
 # Development Log
 
+## September 20, 2026 — Support & Reporting program, Spec 2 PR 1: migration 223 — moderation (merges ALONE; Tom runs it in the SQL editor)
+
+**What:** Spec 2 (Reporting) opened with a proposal (`~/.claude/plans/edge-athlete-support-spec2.md`); Tom's answers: enforcement = a targeted `requireActiveWriter` gate on THE list of content + contact write routes plus a Supabase Auth ban for suspended / banned; the reported user gets a RESTRICTED view for the one appeal (never the reporter, the description or the snapshot); and — revising the earlier "hide + limit" — **a Critical report acts on the INTERACTION, not the account**: a post / comment is hidden, a DM thread is FROZEN (no one sends, everyone reads), and the account is limited only on repeat incidents (two or more other reports in 90 days) or by an admin.
+
+**This PR (the only DDL of Spec 2):** `223_moderation.sql` — `profiles.moderation_state` (`active | limited | suspended | banned`, DEFAULT active — no existing row changes) + `moderation_until` + `moderation_ticket_id`; `posts.status` / `post_comments.status` widen to `hidden` (a STATUS, so every published-only reader — the RLS policy, the feed, the comments read, the media RPCs, the 095 count + notify triggers — hides it with no new code; the author keeps their own view) + `hidden_at` / `hidden_ticket_id`; `conversations.frozen_at` / `frozen_ticket_id` (distinct from the first-contact hold); `user_mutes` (posture A; the pair UNIQUE; not-self CHECK); `notifications_type_check` re-ADDed with `moderation_notice`. Same PR: the registry entry (system tab, fa-gavel), the `Profile` type's three columns and `'hidden'` in the post status union. The twin `verify-223-moderation.sql` (12 checks) includes "every existing profile is active".
+
+**Readers audited before widening the status:** the four `status !== 'published'` sites hide non-published from NON-owners (exactly right for hidden); the guardian queue names `pending_approval` / `changes_requested` explicitly, so a hidden post never lands there.
+
+**Verification:** `npm run verify` green (the parity test reads 223); `check:schema` reports the table + 9 columns as CHAIN-ONLY — the "run it" signal — and every live object owned.
+
 ## September 20, 2026 — Support & Reporting program, Spec 1 PR 6: the docs close — Spec 1 COMPLETE + PROD-PROVEN (zero DDL)
 
 **What:** Spec 1 of Tom's Game Plan is done: the backend (#836 migration 222 · #837 the pure library + platform roles · #838 the routes, emails, bells, retention · #839 the probe fix), the admin console (#840) and the user's front door (#841). After #840 + #841 deployed, the three specs — `tickets.spec.ts` (the API flow), `tickets-admin-ui.spec.ts`, `tickets-user-ui.spec.ts` — ran on prod on both mobile engines: 6 / 6 green. `check:schema` OK at 119 / 119 tables after 222 ran. This PR closes the docs: `docs/SUPPORT.md` (state, the surfaces table, the files, the Spec 1 traps), CLAUDE.md convention 23 (the one-table rule, the roles, the projection-as-access-rule, derived strikes, the guardian routing, the anonymize rule), and this entry.

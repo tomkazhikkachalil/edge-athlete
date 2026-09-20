@@ -81,6 +81,8 @@ describe('tab buckets (behavior frozen from the pre-registry literal arrays)', (
       'event_invite',
       'event_response',
       'event_update',
+      // Support & Reporting, Spec 2 (mig 223): the reported user's notice.
+      'moderation_notice',
       'post_approval_result',
       'post_pending_approval',
       'safety_alert',

@@ -119,6 +119,11 @@ export interface Profile {
   // Guardian-profiles: 'supervised' while a guardian manages the account,
   // 'self' after the transfer of control completes.
   supervision_state?: 'self' | 'supervised' | string;
+  // Support & Reporting, Spec 2 (mig 223): the enforcement state — absent
+  // pre-223 (a select('*') simply lacks it), so readers treat undefined as active.
+  moderation_state?: 'active' | 'limited' | 'suspended' | 'banned' | string;
+  moderation_until?: string | null;
+  moderation_ticket_id?: string | null;
   /** Recruiting skeleton (182): the one recruiting gate + the self-declared academics. */
   recruiting_status?: 'closed' | 'open' | 'committed' | string;
   recruiting_profile?: { gpa?: number | null; academic_notes?: string | null; target_level?: string | null } | null;
@@ -195,7 +200,7 @@ export interface Comment {
   is_pinned?: boolean;
   /** Moderation lifecycle (095/129). Non-published rows are only ever
    *  returned to their author (supervised-child moderation). */
-  status?: 'published' | 'pending_approval' | 'rejected' | 'changes_requested';
+  status?: 'published' | 'pending_approval' | 'rejected' | 'changes_requested' | 'hidden';
   /** Guardian send-back note (129) — only non-null while changes_requested. */
   review_note?: string | null;
   /** Profile ids @mentioned in content, resolved server-side (migration 073). */
