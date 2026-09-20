@@ -53,7 +53,11 @@ export type GuardianNotificationType =
   // Events program (mig 205): a supervised athlete was invited to an event /
   // an event they played has results — the guardian sees the copy.
   | 'sport_event_invite'
-  | 'sport_event_results';
+  | 'sport_event_results'
+  // Support & Reporting, Spec 1 (mig 222): a supervised athlete's ticket —
+  // opened, answered, resolved — copied to the guardians (the parent is the
+  // one with the email; My requests shows it to them too).
+  | 'ticket_update';
 
 export interface GuardianNotification {
   type: GuardianNotificationType;
