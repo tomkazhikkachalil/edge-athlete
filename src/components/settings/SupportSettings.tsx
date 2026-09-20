@@ -4,7 +4,7 @@ import { Suspense, useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { SeverityChip, StatusChip, TypeChip, ago, reasonLabel, resolutionLabel } from '@/components/tickets/ticket-ui';
 import { HELP_CATEGORIES, HELP_CATEGORY_LABELS, TICKET_LIMITS, type HelpCategory } from '@/lib/tickets/types';
-import type { UserEventView, UserTicketView } from '@/lib/tickets/visibility';
+import type { SubjectTicketView, UserEventView, UserTicketView } from '@/lib/tickets/visibility';
 
 /**
  * Settings → Support (Support & Reporting, Spec 1 — the minimal front door;
@@ -118,6 +118,8 @@ function SubmitRequest({ onCreated }: { onCreated: () => void }) {
 function MyRequests({ listKey, openId }: { listKey: number; openId: string | null }) {
   const [state, setState] = useState<'loading' | 'ready' | 'unsupported' | 'error'>('loading');
   const [tickets, setTickets] = useState<UserTicketView[]>([]);
+  // Spec 2: decisions made ABOUT this account (the restricted appeal view).
+  const [aboutMe, setAboutMe] = useState<SubjectTicketView[]>([]);
   const [expanded, setExpanded] = useState<string | null>(openId);
   // A reply changes the row's status chip — the thread bumps this to refetch the list.
   const [refresh, setRefresh] = useState(0);
@@ -128,9 +130,10 @@ function MyRequests({ listKey, openId }: { listKey: number; openId: string | nul
       try {
         const res = await fetch('/api/tickets', { cache: 'no-store' });
         if (!res.ok) { if (!cancelled) setState('error'); return; }
-        const data = (await res.json()) as { supported: boolean; tickets: UserTicketView[] };
+        const data = (await res.json()) as { supported: boolean; tickets: UserTicketView[]; aboutMe?: SubjectTicketView[] };
         if (cancelled) return;
         setTickets(data.tickets);
+        setAboutMe(data.aboutMe ?? []);
         setState(data.supported ? 'ready' : 'unsupported');
       } catch {
         if (!cancelled) setState('error');
@@ -146,7 +149,28 @@ function MyRequests({ listKey, openId }: { listKey: number; openId: string | nul
       {state === 'loading' && <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand my-6"></div>}
       {state === 'unsupported' && <p className="text-sm text-muted">Support requests are not available yet.</p>}
       {state === 'error' && <p role="alert" className="text-sm text-muted">Couldn&apos;t load your requests.</p>}
-      {state === 'ready' && tickets.length === 0 && <p className="text-sm text-muted">No requests yet.</p>}
+      {state === 'ready' && tickets.length === 0 && aboutMe.length === 0 && <p className="text-sm text-muted">No requests yet.</p>}
+      {state === 'ready' && aboutMe.length > 0 && (
+        <div className="mb-6" data-about-my-account="">
+          <h3 className="text-sm font-semibold text-primary mb-1">About your account</h3>
+          <p className="text-xs text-muted mb-2">A decision was made after a report. You can reply once if you disagree. Who reported is never shown.</p>
+          <ul className="space-y-2">
+            {aboutMe.map(t => (
+              <li key={t.id} className="ea-surface rounded-lg border-l-4 border-amber-400" data-my-request={t.id}>
+                <button type="button" onClick={() => setExpanded(expanded === t.id ? null : t.id)} aria-expanded={expanded === t.id} className="w-full text-left p-4 ea-interactive rounded-lg">
+                  <div className="flex flex-wrap items-center gap-2 mb-1">
+                    <span className="font-mono text-xs text-muted">{t.number}</span>
+                    <StatusChip status={t.status} />
+                  </div>
+                  <p className="text-sm font-semibold text-primary">{resolutionLabel(t.resolution_code) || 'Decision'}</p>
+                  <p className="text-xs text-muted mt-1">{ago(t.updated_at)}</p>
+                </button>
+                {expanded === t.id && <RequestThread id={t.id} onChanged={() => setRefresh(k => k + 1)} />}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
       {state === 'ready' && tickets.length > 0 && (
         <ul className="space-y-2" data-my-requests="">
           {tickets.map(t => (
@@ -176,7 +200,7 @@ function MyRequests({ listKey, openId }: { listKey: number; openId: string | nul
 }
 
 function RequestThread({ id, onChanged }: { id: string; onChanged: () => void }) {
-  const [detail, setDetail] = useState<{ ticket: UserTicketView; events: UserEventView[] } | null>(null);
+  const [detail, setDetail] = useState<{ ticket: UserTicketView | SubjectTicketView; events: UserEventView[] } | null>(null);
   const [state, setState] = useState<'loading' | 'ready' | 'error'>('loading');
   const [reply, setReply] = useState('');
   const [busy, setBusy] = useState(false);
@@ -230,7 +254,7 @@ function RequestThread({ id, onChanged }: { id: string; onChanged: () => void })
 
   return (
     <div className="border-t border-border px-4 py-3 space-y-3" data-request-thread="">
-      {t.description && <p className="text-sm text-primary whitespace-pre-wrap">{t.description}</p>}
+      {'description' in t && t.description && <p className="text-sm text-primary whitespace-pre-wrap">{t.description}</p>}
       {(t.status === 'resolved' || t.status === 'closed') && (
         <p className="text-sm text-secondary rounded-lg bg-surface-muted px-3 py-2">
           <strong>{resolutionLabel(t.resolution_code) || 'Resolved'}</strong>

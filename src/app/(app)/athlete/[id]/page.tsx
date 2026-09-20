@@ -8,6 +8,8 @@ import { coverProxyUrl } from '@/lib/media/cover-url';
 import LazyImage from '@/components/LazyImage';
 import AppHeader from '@/components/AppHeader';
 import FollowButton from '@/components/FollowButton';
+import ActionMenu from '@/components/ActionMenu';
+import ReportSheet from '@/components/tickets/ReportSheet';
 import PrivateProfileView from '@/components/PrivateProfileView';
 import ProfileMediaTabs from '@/components/ProfileMediaTabs';
 import FeaturedPosts from '@/components/FeaturedPosts';
@@ -76,6 +78,8 @@ export default function AthleteProfilePage() {
   // Followers Modal state
   const [isFollowersModalOpen, setIsFollowersModalOpen] = useState(false);
   const [followersModalTab, setFollowersModalTab] = useState<'followers' | 'following'>('followers');
+  // Spec 2: the report sheet (declared with the other hooks — above the early returns).
+  const [reportOpen, setReportOpen] = useState(false);
 
 
   // Note: seasonHighlights and performances are fetched but not currently displayed
@@ -318,7 +322,18 @@ export default function AthleteProfilePage() {
                   onFollowChange={handleFollowChange}
                   size="md"
                 />
+                {/* Spec 2: report this profile (Block + Mute are offered after). */}
+                {user && (
+                  <ActionMenu
+                    ariaLabel="Profile options"
+                    triggerTestAttr="profile-menu"
+                    items={[{ key: 'report', label: 'Report profile', icon: 'fa-flag', onSelect: () => setReportOpen(true) }]}
+                  />
+                )}
               </div>
+            )}
+            {reportOpen && (
+              <ReportSheet target={{ type: 'profile', id: athleteId, profileId: athleteId, noun: 'profile' }} onClose={() => setReportOpen(false)} />
             )}
           </div>
         </div>
