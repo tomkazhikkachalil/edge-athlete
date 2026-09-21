@@ -9,3 +9,10 @@ tables, 107 functions, 172 public + 7 storage policies, 106 triggers, 4
 buckets, 100 reserved handles). Regenerate after any migration; the header
 names the head it embodies. pg_cron jobs are NOT in it (cron.job is not
 readable by the service role) — recreate the two from 059 and 135 by hand.
+
+**Proven Sep 21 2026:** built the staging project (`EdgeAthlete-BackUp`,
+blank) in one run; re-runnable (ran twice); `check:schema` against it —
+every facet OK + `Ledger OK`; `schema_dump()` on staging equals prod's on
+every structural section (774 constraints, 526 indexes, 106 triggers, 179
+policies, 4 buckets, 100 seed rows). Runner: `node scripts/staging-sql.mjs
+<file>` (the management API; refuses the prod ref).

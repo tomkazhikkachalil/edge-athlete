@@ -89,7 +89,7 @@ describe('buildRebuildSql', () => {
       'ADD CONSTRAINT legacy_ticket_id_fkey FOREIGN KEY',
       'CREATE INDEX IF NOT EXISTS idx_tickets_subject_lower',
       'CREATE OR REPLACE VIEW public.open_tickets AS',
-      'CREATE OR REPLACE FUNCTION public.ticket_count()',
+      '-- ── Functions, pass 2',
       'CREATE TRIGGER touch_tickets',
       'ALTER TABLE public.tickets ENABLE ROW LEVEL SECURITY;',
       'CREATE POLICY tickets_read_own ON public.tickets',
@@ -114,9 +114,22 @@ describe('buildRebuildSql', () => {
     expect(sql).toContain('SET check_function_bodies = off;');
   });
 
+  it('attempts every function BEFORE the tables (pass 1, failures silenced) and again after the views', () => {
+    const pass1 = sql.indexOf('DO $pass1$ BEGIN\nCREATE OR REPLACE FUNCTION public.ticket_count()');
+    const tables = sql.indexOf('CREATE TABLE IF NOT EXISTS public.tickets (');
+    const pass2 = sql.indexOf('CREATE OR REPLACE FUNCTION public.ticket_count()', tables);
+    expect(pass1).toBeGreaterThan(-1);
+    expect(pass1).toBeLessThan(tables);
+    expect(pass2).toBeGreaterThan(sql.indexOf('CREATE OR REPLACE VIEW public.open_tickets AS'));
+    expect(sql).toContain('EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2');
+  });
+
   it('writes every column form', () => {
     expect(sql).toContain('  id uuid DEFAULT gen_random_uuid() NOT NULL');
-    expect(sql).toContain('  number bigint GENERATED ALWAYS AS IDENTITY NOT NULL');
+    expect(sql).toContain('  number bigint GENERATED ALWAYS AS IDENTITY (START WITH 1000) NOT NULL');
+    expect(sql).toContain('ALTER TABLE public.tickets ALTER COLUMN number SET START WITH 1000;');
+    // A float-rounded bigint max (JSON) never becomes an out-of-range MAXVALUE.
+    expect(sql).toContain('CREATE SEQUENCE IF NOT EXISTS public.legacy_id_seq AS bigint START WITH 1 INCREMENT BY 1 MINVALUE 1 NO MAXVALUE;');
     expect(sql).toContain('  subject_lower text GENERATED ALWAYS AS (lower(subject)) STORED');
     expect(sql).toContain("  mood mood DEFAULT 'ok'::mood");
     expect(sql).toContain("  applied_by text DEFAULT 'sql-editor'::text NOT NULL");
@@ -171,5 +184,23 @@ describe('the small emitters', () => {
   });
   it('policies default to ALL / public when the dump is sparse', () => {
     expect(emitPolicies([{ table: 't', name: 'p' }])).toContain('FOR ALL\n  TO public;');
+  });
+});
+
+describe('aclGrantees (the proacl → grantees rule)', () => {
+  it('null = defaults (nothing emitted); "" is PUBLIC; the owner is not a grant', async () => {
+    const { aclGrantees, emitFunctionGrants } = await import('../../../scripts/rebuild-baseline-core.mjs');
+    expect(aclGrantees(null)).toBeNull();
+    expect(aclGrantees(['=X/postgres', 'postgres=X/postgres', 'anon=X/postgres'])).toEqual(['PUBLIC', 'anon']);
+    expect(aclGrantees(['postgres=X/postgres', 'service_role=X/postgres'])).toEqual(['service_role']);
+    const sql = emitFunctionGrants([
+      { name: 'a', identity_args: '', kind: 'f', acl: null, owner: 'postgres' },
+      { name: 'b', identity_args: 'uuid', kind: 'f', acl: ['=X/postgres', 'postgres=X/postgres', 'authenticated=X/postgres'], owner: 'postgres' },
+      { name: 'c', identity_args: '', kind: 'f', acl: ['postgres=X/postgres'], owner: 'postgres' },
+    ]);
+    expect(sql).toContain('-- public.a(): default privileges (PUBLIC)');
+    expect(sql).toContain('GRANT EXECUTE ON FUNCTION public.b(uuid) TO PUBLIC, authenticated;');
+    expect(sql).toContain('REVOKE EXECUTE ON FUNCTION public.c() FROM PUBLIC, anon, authenticated, service_role;');
+    expect(sql).not.toContain('GRANT EXECUTE ON FUNCTION public.c()');
   });
 });

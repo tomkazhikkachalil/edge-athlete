@@ -57,6 +57,14 @@
  *    084, 108, 127) and leaves 052's array-driven CREATE POLICY loops
  *    honestly unresolved (`names: []`) for the baseline to make literal.
  */
+
+/**
+ * Functions Supabase itself provisions in `public` on newer projects (the
+ * `ensure_rls` event trigger that auto-enables RLS on new tables — seen on
+ * the staging project, Sep 21 2026; absent on prod, created Sep 2025). Not
+ * ours, not in the chain, never drift.
+ */
+const PLATFORM_FUNCTIONS = new Set(['rls_auto_enable']);
 import { createHash } from 'node:crypto';
 import { closingQuote, ident } from './schema-inventory-core.mjs';
 
@@ -706,7 +714,7 @@ export function liveFromCatalog(json) {
     qual: p.qual ?? null,
     withCheck: p.with_check ?? null,
   }));
-  const functions = (json.functions ?? []).map(fn => {
+  const functions = (json.functions ?? []).filter(fn => !PLATFORM_FUNCTIONS.has(fn.name)).map(fn => {
     const types = String(fn.arg_types ?? '').split(',').map(s => s.trim()).filter(Boolean).map(normalizeType);
     const cfg = (fn.config ?? []).find(c => /^search_path=/i.test(c));
     return {

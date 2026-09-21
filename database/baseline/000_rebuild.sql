@@ -1,7 +1,7 @@
 -- ============================================================================
 -- 000_rebuild — a blank Supabase project → this schema (GENERATED, do not edit)
 -- ============================================================================
--- Generated 2026-09-21T22:53:07.104251+00:00 from server 17.4 by
+-- Generated 2026-09-21T23:41:16.812017+00:00 from server 17.4 by
 -- `npm run build:baseline` (scripts/build-rebuild-baseline.mjs) over
 -- public.schema_dump() (migration 227). Ledger head at generation: 227.
 --
@@ -35,6 +35,3912 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp" WITH SCHEMA extensions;
 
 -- ── Sequences ─────────────────────────────────────────────────────────────────
 
+
+-- ── Functions, pass 1 (107; failures silenced, pass 2 is authoritative) ───────
+DO $pass1$ BEGIN
+CREATE OR REPLACE FUNCTION public.auto_update_display_name()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SET search_path TO ''
+AS $function$
+BEGIN
+  -- Auto-generate display name from first/last name if empty
+  IF NEW.first_name IS NOT NULL AND NEW.last_name IS NOT NULL THEN
+    IF NEW.full_name IS NULL OR NEW.full_name = '' THEN
+      NEW.full_name := NEW.first_name || ' ' || NEW.last_name;
+    END IF;
+  END IF;
+  RETURN NEW;
+END;
+$function$;
+EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
+END $pass1$;
+DO $pass1$ BEGIN
+CREATE OR REPLACE FUNCTION public.backfill_places_from_text(p_table regclass)
+ RETURNS integer
+ LANGUAGE plpgsql
+ SET search_path TO 'public', 'extensions'
+AS $function$
+DECLARE n int;
+BEGIN
+  EXECUTE format($f$
+    WITH parsed AS (
+      SELECT t.id,
+             public.search_normalize(btrim(split_part(t.location, ',', 1))) AS p1,
+             public.search_normalize(btrim(split_part(t.location, ',', 2))) AS p2
+      FROM %1$s t
+      WHERE t.location IS NOT NULL AND btrim(t.location) <> ''
+        AND (t.location_source IS NULL OR t.location_source <> 'user')
+    ),
+    cand AS (
+      SELECT pr.id AS entity_id, pl.id AS place_id, pr.p2,
+             (pr.p2 <> '' AND (
+                public.search_normalize(pl.region) = pr.p2 OR public.search_normalize(pl.region_code) = pr.p2 OR
+                public.search_normalize(pl.country) = pr.p2 OR public.search_normalize(pl.country_code) = pr.p2)) AS p2_match,
+             count(*) OVER (PARTITION BY pr.id) AS n_cand,
+             row_number() OVER (PARTITION BY pr.id ORDER BY
+               (pr.p2 <> '' AND (
+                public.search_normalize(pl.region) = pr.p2 OR public.search_normalize(pl.region_code) = pr.p2 OR
+                public.search_normalize(pl.country) = pr.p2 OR public.search_normalize(pl.country_code) = pr.p2)) DESC,
+               pl.population DESC NULLS LAST) AS rn
+      FROM parsed pr
+      JOIN LATERAL (
+        SELECT pl.* FROM places pl
+        WHERE public.search_normalize(pl.name) = pr.p1 OR public.search_normalize(pl.ascii_name) = pr.p1
+        UNION
+        SELECT pl.* FROM places pl
+        JOIN place_aliases a ON a.geonames_id = pl.geonames_id
+        WHERE a.alias_norm = pr.p1
+      ) pl ON pr.p1 <> ''
+    ),
+    chosen AS (
+      SELECT c.entity_id, c.place_id FROM cand c
+      WHERE c.rn = 1 AND ((c.p2 <> '' AND c.p2_match) OR (c.p2 = '' AND c.n_cand = 1))
+    )
+    UPDATE %1$s t SET
+      place_id = ch.place_id,
+      city = f.city, region = f.region, region_code = f.region_code,
+      country = f.country, country_code = f.country_code, lat = f.lat, lng = f.lng,
+      location_source = 'backfill'
+    FROM chosen ch, LATERAL public.place_fields(ch.place_id) f
+    WHERE t.id = ch.entity_id AND t.place_id IS DISTINCT FROM ch.place_id
+  $f$, p_table);
+  GET DIAGNOSTICS n = ROW_COUNT;
+  RETURN n;
+END;
+$function$;
+EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
+END $pass1$;
+DO $pass1$ BEGIN
+CREATE OR REPLACE FUNCTION public.bump_hole_score_version()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SET search_path TO ''
+AS $function$
+BEGIN
+  IF (NEW.strokes, NEW.putts, NEW.fairway_hit, NEW.green_in_regulation, NEW.penalties)
+     IS DISTINCT FROM
+     (OLD.strokes, OLD.putts, OLD.fairway_hit, OLD.green_in_regulation, OLD.penalties) THEN
+    NEW.version = OLD.version + 1;
+  ELSE
+    NEW.version = OLD.version;
+  END IF;
+  RETURN NEW;
+END;
+$function$;
+EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
+END $pass1$;
+DO $pass1$ BEGIN
+CREATE OR REPLACE FUNCTION public.bump_site_hit(p_site uuid, p_day date, p_path text, p_hash text)
+ RETURNS void
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+DECLARE
+  v_new integer := 0;
+BEGIN
+  IF p_hash IS NOT NULL AND p_hash <> '' THEN
+    INSERT INTO org_site_hit_marks (site_id, day, visitor_hash)
+    VALUES (p_site, p_day, p_hash)
+    ON CONFLICT DO NOTHING;
+    IF FOUND THEN v_new := 1; END IF;
+  END IF;
+  INSERT INTO org_site_stats_daily (site_id, day, path, views, visitors)
+  VALUES (p_site, p_day, p_path, 1, v_new)
+  ON CONFLICT (site_id, day, path) DO UPDATE
+    SET views = org_site_stats_daily.views + 1,
+        visitors = org_site_stats_daily.visitors + EXCLUDED.visitors;
+END;
+$function$;
+EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
+END $pass1$;
+DO $pass1$ BEGIN
+CREATE OR REPLACE FUNCTION public.calculate_golf_participant_totals()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SET search_path TO ''
+AS $function$
+DECLARE
+  v_golf_participant_id UUID;
+  v_total_score INTEGER;
+  v_holes_completed INTEGER;
+  v_played_par INTEGER;
+  v_to_par INTEGER;
+BEGIN
+  IF TG_OP = 'DELETE' THEN
+    v_golf_participant_id := OLD.golf_participant_id;
+  ELSE
+    v_golf_participant_id := NEW.golf_participant_id;
+  END IF;
+
+  SELECT
+    COALESCE(SUM(strokes), 0),
+    COUNT(*)
+  INTO v_total_score, v_holes_completed
+  FROM public.golf_hole_scores
+  WHERE golf_participant_id = v_golf_participant_id;
+
+  -- Real par for the PLAYED holes, from the round's hole_data; NULL when the
+  -- round has no hole_data (legacy) → fall back to the old holes*4 estimate.
+  SELECT SUM((elem->>'par')::int)
+  INTO v_played_par
+  FROM public.golf_participant_scores gps
+  JOIN public.group_post_participants gpp ON gpp.id = gps.participant_id
+  JOIN public.golf_scorecard_data gsd ON gsd.group_post_id = gpp.group_post_id
+  CROSS JOIN LATERAL jsonb_array_elements(gsd.hole_data) elem
+  WHERE gps.id = v_golf_participant_id
+    AND gsd.hole_data IS NOT NULL
+    AND (elem->>'hole')::int IN (
+      SELECT hole_number FROM public.golf_hole_scores
+      WHERE golf_participant_id = v_golf_participant_id
+    );
+
+  IF v_holes_completed > 0 THEN
+    v_to_par := v_total_score - COALESCE(v_played_par, v_holes_completed * 4);
+  ELSE
+    v_to_par := NULL;
+  END IF;
+
+  UPDATE public.golf_participant_scores
+  SET
+    total_score = v_total_score,
+    to_par = v_to_par,
+    holes_completed = v_holes_completed,
+    updated_at = NOW()
+  WHERE id = v_golf_participant_id;
+
+  UPDATE public.group_post_participants
+  SET
+    data_contributed = (v_holes_completed > 0),
+    last_contribution = CASE WHEN v_holes_completed > 0 THEN NOW() ELSE last_contribution END,
+    updated_at = NOW()
+  WHERE id = (
+    SELECT participant_id FROM public.golf_participant_scores WHERE id = v_golf_participant_id
+  );
+
+  RETURN COALESCE(NEW, OLD);
+END;
+$function$;
+EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
+END $pass1$;
+DO $pass1$ BEGIN
+CREATE OR REPLACE FUNCTION public.calculate_round_stats(round_uuid uuid)
+ RETURNS void
+ LANGUAGE plpgsql
+ SET search_path TO ''
+AS $function$
+DECLARE
+    total_strokes INTEGER;
+    total_putts_calc INTEGER;
+    total_par INTEGER;
+    fir_count INTEGER;
+    fir_eligible INTEGER;
+    gir_count INTEGER;
+    total_holes INTEGER;
+BEGIN
+    -- Get basic stats from holes
+    SELECT
+        COALESCE(SUM(strokes), 0),
+        COALESCE(SUM(putts), 0),
+        COALESCE(SUM(par), 0),
+        COUNT(*) FILTER (WHERE fairway_hit = true),
+        COUNT(*) FILTER (WHERE par > 3),
+        COUNT(*) FILTER (WHERE green_in_regulation = true),
+        COUNT(*)
+    INTO total_strokes, total_putts_calc, total_par, fir_count, fir_eligible, gir_count, total_holes
+    FROM public.golf_holes
+    WHERE round_id = round_uuid;
+
+    -- Update round with calculated stats
+    UPDATE public.golf_rounds
+    SET
+        gross_score = CASE WHEN total_strokes > 0 THEN total_strokes ELSE gross_score END,
+        par = CASE WHEN total_par > 0 THEN total_par ELSE par END,
+        total_putts = CASE WHEN total_putts_calc > 0 THEN total_putts_calc ELSE total_putts END,
+        fir_percentage = CASE WHEN fir_eligible > 0 THEN ROUND((fir_count::decimal / fir_eligible) * 100, 1) ELSE fir_percentage END,
+        gir_percentage = CASE WHEN total_holes > 0 THEN ROUND((gir_count::decimal / total_holes) * 100, 1) ELSE gir_percentage END,
+        is_complete = (total_holes >= holes),
+        updated_at = now()
+    WHERE id = round_uuid;
+END;
+$function$;
+EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
+END $pass1$;
+DO $pass1$ BEGIN
+CREATE OR REPLACE FUNCTION public.can_view_group_post(gp_id uuid)
+ RETURNS boolean
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO ''
+AS $function$
+  SELECT EXISTS (
+    SELECT 1 FROM public.group_posts
+    WHERE id = gp_id AND (visibility = 'public' OR creator_id = auth.uid())
+  ) OR EXISTS (
+    SELECT 1 FROM public.group_post_participants
+    WHERE group_post_id = gp_id AND profile_id = auth.uid()
+  );
+$function$;
+EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
+END $pass1$;
+DO $pass1$ BEGIN
+CREATE OR REPLACE FUNCTION public.can_view_profile(target_profile_id uuid, viewer_id uuid)
+ RETURNS boolean
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO ''
+AS $function$
+DECLARE
+  profile_vis TEXT;
+  is_following BOOLEAN;
+BEGIN
+  SELECT visibility INTO profile_vis
+  FROM public.profiles
+  WHERE id = target_profile_id;
+
+  -- Own profile
+  IF target_profile_id = viewer_id THEN
+    RETURN TRUE;
+  END IF;
+
+  -- Guardian / supervised / viewer access rows (guardian-profiles feature)
+  IF viewer_id IS NOT NULL AND EXISTS (
+    SELECT 1 FROM public.profile_access
+    WHERE profile_id = target_profile_id AND user_id = viewer_id
+  ) THEN
+    RETURN TRUE;
+  END IF;
+
+  -- Public profile
+  IF profile_vis = 'public' THEN
+    RETURN TRUE;
+  END IF;
+
+  -- Private profile - check if following
+  SELECT EXISTS (
+    SELECT 1 FROM public.follows
+    WHERE follower_id = viewer_id
+      AND following_id = target_profile_id
+      AND status = 'accepted'
+  ) INTO is_following;
+
+  RETURN is_following;
+END;
+$function$;
+EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
+END $pass1$;
+DO $pass1$ BEGIN
+CREATE OR REPLACE FUNCTION public.check_handle_availability(input_handle text, current_profile_id uuid DEFAULT NULL::uuid)
+ RETURNS TABLE(available boolean, reason text, suggestions text[])
+ LANGUAGE plpgsql
+ STABLE
+ SET search_path TO ''
+AS $function$
+DECLARE
+  clean_handle TEXT;
+  is_valid BOOLEAN;
+  existing_profile UUID;
+  is_reserved BOOLEAN;
+BEGIN
+  -- Clean the handle
+  clean_handle := LOWER(TRIM(input_handle));
+
+  -- Check if valid format (inline validation)
+  is_valid := (
+    LENGTH(clean_handle) >= 3 AND
+    LENGTH(clean_handle) <= 20 AND
+    clean_handle ~ '^[a-z0-9][a-z0-9._]*[a-z0-9]$' AND
+    NOT clean_handle ~ '[._]{2,}'
+  );
+
+  IF NOT is_valid THEN
+    RETURN QUERY SELECT
+      FALSE,
+      'Invalid format. Use 3-20 characters: letters, numbers, dots, underscores.',
+      ARRAY[]::TEXT[];
+    RETURN;
+  END IF;
+
+  -- Check if reserved
+  SELECT EXISTS (
+    SELECT 1 FROM public.reserved_handles
+    WHERE LOWER(handle) = clean_handle
+  ) INTO is_reserved;
+
+  IF is_reserved THEN
+    RETURN QUERY SELECT
+      FALSE,
+      'This handle is reserved.',
+      ARRAY[clean_handle || '1', clean_handle || '_', clean_handle || '2']::TEXT[];
+    RETURN;
+  END IF;
+
+  -- Check if already taken
+  SELECT id INTO existing_profile
+  FROM public.profiles
+  WHERE LOWER(handle) = clean_handle
+    AND (current_profile_id IS NULL OR id != current_profile_id)
+  LIMIT 1;
+
+  IF existing_profile IS NOT NULL THEN
+    -- Generate suggestions
+    RETURN QUERY SELECT
+      FALSE,
+      'This handle is already taken.',
+      ARRAY[
+        clean_handle || '1',
+        clean_handle || '_',
+        clean_handle || '2',
+        clean_handle || '.' || SUBSTRING(MD5(RANDOM()::TEXT), 1, 3)
+      ]::TEXT[];
+    RETURN;
+  END IF;
+
+  -- Available!
+  RETURN QUERY SELECT
+    TRUE,
+    'Handle is available!',
+    ARRAY[]::TEXT[];
+END;
+$function$;
+EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
+END $pass1$;
+DO $pass1$ BEGIN
+CREATE OR REPLACE FUNCTION public.cleanup_old_notifications()
+ RETURNS integer
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO ''
+AS $function$
+DECLARE
+  v_deleted_count INTEGER;
+BEGIN
+  -- SCHEMA-QUALIFIED notifications table
+  DELETE FROM public.notifications
+  WHERE is_read = true AND read_at < NOW() - INTERVAL '90 days';
+  GET DIAGNOSTICS v_deleted_count = ROW_COUNT;
+  RETURN v_deleted_count;
+END;
+$function$;
+EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
+END $pass1$;
+DO $pass1$ BEGIN
+CREATE OR REPLACE FUNCTION public.clubs_search_vector_update()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public', 'extensions'
+AS $function$
+BEGIN
+  NEW.search_vector :=
+    setweight(to_tsvector('simple', public.search_normalize(NEW.name)), 'A') ||
+    setweight(to_tsvector('simple', public.search_normalize(NEW.description)), 'B') ||
+    setweight(to_tsvector('simple', public.search_normalize(
+      concat_ws(' ', NEW.city, NEW.region, NEW.region_code, NEW.country, NEW.country_code, NEW.location))), 'C') ||
+    setweight(to_tsvector('simple', public.search_normalize(public.place_context(NEW.place_id))), 'D');
+  RETURN NEW;
+END;
+$function$;
+EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
+END $pass1$;
+DO $pass1$ BEGIN
+CREATE OR REPLACE FUNCTION public.consent_records_forbid_mutation()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO ''
+AS $function$
+BEGIN
+  IF TG_OP = 'UPDATE'
+     -- each FK: unchanged, or transitioning to NULL
+     AND (NEW.profile_id IS NOT DISTINCT FROM OLD.profile_id
+          OR (NEW.profile_id IS NULL AND OLD.profile_id IS NOT NULL))
+     AND (NEW.guardian_user_id IS NOT DISTINCT FROM OLD.guardian_user_id
+          OR (NEW.guardian_user_id IS NULL AND OLD.guardian_user_id IS NOT NULL))
+     -- at least one FK actually changing (no-op updates stay forbidden)
+     AND (NEW.profile_id IS DISTINCT FROM OLD.profile_id
+          OR NEW.guardian_user_id IS DISTINCT FROM OLD.guardian_user_id)
+     -- everything else identical
+     AND (to_jsonb(NEW) - 'profile_id' - 'guardian_user_id')
+         = (to_jsonb(OLD) - 'profile_id' - 'guardian_user_id')
+  THEN
+    RETURN NEW;
+  END IF;
+  RAISE EXCEPTION 'rows in consent_records are append-only';
+END; $function$;
+EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
+END $pass1$;
+DO $pass1$ BEGIN
+CREATE OR REPLACE FUNCTION public.create_managed_profile(p_profile jsonb, p_guardian uuid)
+ RETURNS uuid
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO ''
+AS $function$
+DECLARE
+  new_id uuid;
+BEGIN
+  IF (
+    SELECT count(*) FROM public.profile_access
+    WHERE user_id = p_guardian AND role = 'guardian'
+  ) >= 10 THEN
+    RAISE EXCEPTION 'guardian % manages too many profiles', p_guardian;
+  END IF;
+
+  INSERT INTO public.profiles
+  SELECT * FROM jsonb_populate_record(NULL::public.profiles, p_profile)
+  RETURNING id INTO new_id;
+
+  INSERT INTO public.profile_access (user_id, profile_id, role, granted_by)
+  VALUES (p_guardian, new_id, 'guardian', p_guardian);
+
+  INSERT INTO public.profile_access_audit (profile_id, user_id, action, new_role, actor_id)
+  VALUES (new_id, p_guardian, 'granted', 'guardian', p_guardian);
+
+  RETURN new_id;
+END;
+$function$;
+EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
+END $pass1$;
+DO $pass1$ BEGIN
+CREATE OR REPLACE FUNCTION public.create_notification(p_user_id uuid, p_type text, p_actor_id uuid, p_title text, p_message text DEFAULT NULL::text, p_action_url text DEFAULT NULL::text, p_post_id uuid DEFAULT NULL::uuid, p_comment_id uuid DEFAULT NULL::uuid, p_follow_id uuid DEFAULT NULL::uuid, p_metadata jsonb DEFAULT NULL::jsonb)
+ RETURNS uuid
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO ''
+AS $function$
+DECLARE
+  v_notification_id UUID;
+  v_preferences RECORD;
+BEGIN
+  -- Don't notify self
+  IF p_actor_id = p_user_id THEN RETURN NULL; END IF;
+
+  -- Get or create preferences (SCHEMA-QUALIFIED)
+  SELECT * INTO v_preferences
+  FROM public.notification_preferences
+  WHERE user_id = p_user_id;
+
+  IF v_preferences IS NULL THEN
+    INSERT INTO public.notification_preferences (user_id)
+    VALUES (p_user_id)
+    RETURNING * INTO v_preferences;
+  END IF;
+
+  -- Check if notification type is enabled
+  IF (
+    (p_type = 'follow_request' AND v_preferences.follow_requests_enabled) OR
+    (p_type = 'follow_accepted' AND v_preferences.follow_accepted_enabled) OR
+    (p_type = 'new_follower' AND v_preferences.new_followers_enabled) OR
+    (p_type = 'like' AND v_preferences.likes_enabled) OR
+    (p_type = 'comment' AND v_preferences.comments_enabled) OR
+    (p_type = 'mention' AND v_preferences.mentions_enabled) OR
+    (p_type = 'tag' AND v_preferences.tags_enabled) OR
+    (p_type = 'achievement' AND v_preferences.achievements_enabled) OR
+    (p_type = 'system_announcement' AND v_preferences.system_announcements_enabled) OR
+    (p_type = 'club_update' AND v_preferences.club_updates_enabled)
+  ) THEN
+    INSERT INTO public.notifications (
+      user_id, type, actor_id, title, message, action_url,
+      post_id, comment_id, follow_id, metadata
+    ) VALUES (
+      p_user_id, p_type, p_actor_id, p_title, p_message, p_action_url,
+      p_post_id, p_comment_id, p_follow_id, p_metadata
+    )
+    RETURNING id INTO v_notification_id;
+    RETURN v_notification_id;
+  END IF;
+
+  RETURN NULL;
+END;
+$function$;
+EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
+END $pass1$;
+DO $pass1$ BEGIN
+CREATE OR REPLACE FUNCTION public.create_profile_with_owner(p_profile jsonb)
+ RETURNS uuid
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO ''
+AS $function$
+DECLARE
+  new_id uuid;
+BEGIN
+  INSERT INTO public.profiles
+  SELECT * FROM jsonb_populate_record(NULL::public.profiles, p_profile)
+  RETURNING id INTO new_id;
+
+  INSERT INTO public.profile_access (user_id, profile_id, role, granted_by)
+  VALUES (new_id, new_id, 'owner', new_id);
+
+  RETURN new_id;
+END;
+$function$;
+EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
+END $pass1$;
+DO $pass1$ BEGIN
+CREATE OR REPLACE FUNCTION public.create_stub_profile(p_id uuid, p_email text, p_first_name text, p_last_name text, p_created_by uuid)
+ RETURNS uuid
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO ''
+AS $function$
+DECLARE
+  v_full text := trim(p_first_name || ' ' || coalesce(p_last_name, ''));
+BEGIN
+  INSERT INTO public.profiles
+    (id, email, first_name, last_name, full_name, display_name,
+     user_type, visibility, supervision_state)
+  VALUES
+    (p_id, p_email, p_first_name, NULLIF(p_last_name, ''), v_full, v_full,
+     'athlete', 'private', 'supervised');
+
+  -- 048: a supervised SELF row is legal (user_id = profile_id) and takes
+  -- the one-self-role slot. The adult claim FLIPS it to owner; the
+  -- guardian claim DELETES it (after the guardian row exists) so the
+  -- credentials_gap queue item surfaces.
+  INSERT INTO public.profile_access (user_id, profile_id, role, granted_by)
+  VALUES (p_id, p_id, 'supervised', p_created_by);
+
+  INSERT INTO public.profile_access_audit (profile_id, user_id, action, new_role, actor_id)
+  VALUES (p_id, p_id, 'granted', 'supervised', p_created_by);
+
+  RETURN p_id;
+END; $function$;
+EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
+END $pass1$;
+DO $pass1$ BEGIN
+CREATE OR REPLACE FUNCTION public.decrement_comment_likes_count()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SET search_path TO ''
+AS $function$
+BEGIN
+  UPDATE public.post_comments
+  SET likes_count = GREATEST(0, likes_count - 1)
+  WHERE id = OLD.comment_id;
+  RETURN OLD;
+END;
+$function$;
+EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
+END $pass1$;
+DO $pass1$ BEGIN
+CREATE OR REPLACE FUNCTION public.decrement_post_save_count()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SET search_path TO ''
+AS $function$
+BEGIN
+  UPDATE public.posts
+  SET saves_count = GREATEST(0, saves_count - 1)
+  WHERE id = OLD.post_id;
+  RETURN OLD;
+END;
+$function$;
+EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
+END $pass1$;
+DO $pass1$ BEGIN
+CREATE OR REPLACE FUNCTION public.enforce_guardian_cap()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO ''
+AS $function$
+BEGIN
+  IF NEW.role = 'guardian' AND (
+    SELECT count(*) FROM public.profile_access
+    WHERE profile_id = NEW.profile_id AND role = 'guardian'
+  ) > 2 THEN
+    RAISE EXCEPTION 'profile % already has the maximum of 2 guardians', NEW.profile_id;
+  END IF;
+  RETURN NULL;
+END;
+$function$;
+EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
+END $pass1$;
+DO $pass1$ BEGIN
+CREATE OR REPLACE FUNCTION public.enforce_last_guardian()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO ''
+AS $function$
+BEGIN
+  -- Only departures from the guardian role matter.
+  IF OLD.role <> 'guardian' THEN
+    RETURN NULL;
+  END IF;
+  IF TG_OP = 'UPDATE' AND NEW.role = 'guardian' THEN
+    RETURN NULL;
+  END IF;
+
+  -- Cascade tolerance: either side's profiles row already gone = a cascade
+  -- in flight; the app layer owns those flows.
+  IF NOT EXISTS (SELECT 1 FROM public.profiles WHERE id = OLD.profile_id)
+     OR NOT EXISTS (SELECT 1 FROM public.profiles WHERE id = OLD.user_id) THEN
+    RETURN NULL;
+  END IF;
+
+  -- Only supervised, un-parked children are protected.
+  IF NOT EXISTS (
+    SELECT 1 FROM public.profiles
+    WHERE id = OLD.profile_id
+      AND supervision_state = 'supervised'
+      AND deletion_requested_at IS NULL
+  ) THEN
+    RETURN NULL;
+  END IF;
+
+  -- The transfer executor's flip_access→finalize window.
+  IF EXISTS (
+    SELECT 1 FROM public.profile_transfers
+    WHERE profile_id = OLD.profile_id AND state = 'executing'
+  ) THEN
+    RETURN NULL;
+  END IF;
+
+  -- Deferred AFTER trigger: the count reflects the transaction's final state.
+  IF NOT EXISTS (
+    SELECT 1 FROM public.profile_access
+    WHERE profile_id = OLD.profile_id AND role = 'guardian'
+  ) THEN
+    RAISE EXCEPTION
+      'profile % must keep at least one guardian while supervised (last-guardian backstop, migration 136)',
+      OLD.profile_id;
+  END IF;
+
+  RETURN NULL;
+END;
+$function$;
+EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
+END $pass1$;
+DO $pass1$ BEGIN
+CREATE OR REPLACE FUNCTION public.enforce_profile_has_access()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO ''
+AS $function$
+DECLARE
+  affected UUID;
+BEGIN
+  affected := COALESCE(OLD.profile_id, NEW.profile_id);
+  IF EXISTS (SELECT 1 FROM public.profiles WHERE id = affected)
+     AND NOT EXISTS (SELECT 1 FROM public.profile_access WHERE profile_id = affected) THEN
+    RAISE EXCEPTION 'profile % cannot be left with zero access rows', affected;
+  END IF;
+  RETURN NULL;
+END;
+$function$;
+EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
+END $pass1$;
+DO $pass1$ BEGIN
+CREATE OR REPLACE FUNCTION public.forbid_mutation()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO ''
+AS $function$
+BEGIN
+  RAISE EXCEPTION 'rows in % are append-only', TG_TABLE_NAME;
+END;
+$function$;
+EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
+END $pass1$;
+DO $pass1$ BEGIN
+CREATE OR REPLACE FUNCTION public.generate_connection_suggestions(p_user_profile_id uuid, p_suggestion_limit integer DEFAULT 10)
+ RETURNS TABLE(suggested_id uuid, suggested_name text, suggested_avatar text, suggested_sport text, suggested_school text, suggested_location text, similarity_score integer, reason text)
+ LANGUAGE plpgsql
+ STABLE
+ SET search_path TO 'public'
+AS $function$
+DECLARE
+  v_user_sport TEXT;
+  v_user_school TEXT;
+  v_user_location TEXT;
+BEGIN
+  -- First, get the requesting user's profile data
+  SELECT
+    sport,
+    school,
+    location
+  INTO
+    v_user_sport,
+    v_user_school,
+    v_user_location
+  FROM public.profiles
+  WHERE id = p_user_profile_id;
+
+  -- Return suggested profiles
+  RETURN QUERY
+  SELECT
+    p.id AS suggested_id,
+    COALESCE(
+      p.full_name,
+      NULLIF(TRIM(CONCAT(COALESCE(p.first_name, ''), ' ', COALESCE(p.last_name, ''))), '')
+    ) AS suggested_name,
+    p.avatar_url AS suggested_avatar,
+    p.sport AS suggested_sport,
+    p.school AS suggested_school,
+    p.location AS suggested_location,
+    -- Calculate similarity score
+    (
+      CASE WHEN p.sport IS NOT NULL AND p.sport = v_user_sport THEN 30 ELSE 0 END +
+      CASE WHEN p.school IS NOT NULL AND p.school = v_user_school THEN 20 ELSE 0 END +
+      CASE WHEN p.location IS NOT NULL AND p.location = v_user_location THEN 10 ELSE 0 END +
+      -- Bonus points for common connections (capped at 25 points)
+      LEAST(
+        COALESCE((
+          SELECT COUNT(*)::INTEGER * 5
+          FROM public.follows f1
+          INNER JOIN public.follows f2 ON f1.following_id = f2.following_id
+          WHERE f1.follower_id = p_user_profile_id
+            AND f2.follower_id = p.id
+            AND f1.status = 'accepted'
+            AND f2.status = 'accepted'
+        ), 0),
+        25
+      )
+    )::INTEGER AS similarity_score,
+    -- Generate human-readable reason
+    CASE
+      WHEN p.sport IS NOT NULL AND p.sport = v_user_sport THEN
+        CONCAT('Also plays ', p.sport)
+      WHEN p.school IS NOT NULL AND p.school = v_user_school THEN
+        CONCAT('Also attends ', p.school)
+      WHEN p.location IS NOT NULL AND p.location = v_user_location THEN
+        CONCAT('Also from ', p.location)
+      WHEN EXISTS (
+        SELECT 1 FROM public.follows f1
+        INNER JOIN public.follows f2 ON f1.following_id = f2.following_id
+        WHERE f1.follower_id = p_user_profile_id
+          AND f2.follower_id = p.id
+          AND f1.status = 'accepted'
+          AND f2.status = 'accepted'
+        LIMIT 1
+      ) THEN
+        'Has mutual connections'
+      ELSE
+        'Suggested for you'
+    END AS reason
+  FROM public.profiles p
+  WHERE p.id != p_user_profile_id
+    -- Only public profiles
+    AND p.visibility = 'public'
+    -- Exclude profiles already being followed or with pending requests
+    AND NOT EXISTS (
+      SELECT 1 FROM public.follows f
+      WHERE f.follower_id = p_user_profile_id
+        AND f.following_id = p.id
+    )
+    -- Exclude previously dismissed suggestions
+    AND NOT EXISTS (
+      SELECT 1 FROM public.connection_suggestions cs
+      WHERE cs.profile_id = p_user_profile_id
+        AND cs.suggested_profile_id = p.id
+        AND cs.dismissed = true
+    )
+  ORDER BY similarity_score DESC, p.created_at DESC
+  LIMIT p_suggestion_limit;
+END;
+$function$;
+EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
+END $pass1$;
+DO $pass1$ BEGIN
+CREATE OR REPLACE FUNCTION public.get_actor_display_name(p_profile_id uuid)
+ RETURNS text
+ LANGUAGE plpgsql
+ STABLE SECURITY DEFINER
+ SET search_path TO ''
+AS $function$
+DECLARE
+  v_name TEXT;
+BEGIN
+  SELECT COALESCE(
+    NULLIF(TRIM(COALESCE(first_name, '') || ' ' || COALESCE(last_name, '')), ''),
+    full_name,
+    'Someone'
+  )
+  INTO v_name
+  FROM public.profiles
+  WHERE id = p_profile_id;
+
+  RETURN COALESCE(v_name, 'Someone');
+END;
+$function$;
+EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
+END $pass1$;
+DO $pass1$ BEGIN
+CREATE OR REPLACE FUNCTION public.get_conversation_list(p_user_id uuid, p_limit integer DEFAULT NULL::integer, p_before timestamp with time zone DEFAULT NULL::timestamp with time zone)
+ RETURNS jsonb
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO ''
+AS $function$
+  WITH my_convs AS (
+    SELECT cp.conversation_id, cp.last_read_at, cp.joined_at
+    FROM public.conversation_participants cp
+    WHERE cp.profile_id = p_user_id
+      AND cp.left_at IS NULL
+      AND cp.held_at IS NULL            -- 131: held children see nothing
+  )
+  SELECT COALESCE(jsonb_agg(sub.conv_json ORDER BY sub.updated_at DESC), '[]'::jsonb)
+  FROM (
+    SELECT
+      c.updated_at,
+      jsonb_build_object(
+        'id', c.id,
+        'type', c.type,
+        'name', c.name,
+        'avatar_url', c.avatar_url,
+        'created_by', c.created_by,
+        'created_at', c.created_at,
+        'updated_at', c.updated_at,
+        -- All active participants (for avatars/names; the client derives the
+        -- "other" participant of a DM from this). held_at exposed (131) so
+        -- the SENDER can render the "waiting for approval" chip.
+        'participants', COALESCE((
+          SELECT jsonb_agg(jsonb_build_object(
+            'id', pp.id,
+            'conversation_id', pp.conversation_id,
+            'profile_id', pp.profile_id,
+            'role', pp.role,
+            'last_read_at', pp.last_read_at,
+            'is_muted', pp.is_muted,
+            'joined_at', pp.joined_at,
+            'left_at', pp.left_at,
+            'held_at', pp.held_at,
+            'profile', jsonb_build_object(
+              'id', pr.id,
+              'first_name', pr.first_name,
+              'last_name', pr.last_name,
+              'full_name', pr.full_name,
+              'avatar_url', pr.avatar_url,
+              'handle', pr.handle
+            )
+          ))
+          FROM public.conversation_participants pp
+          JOIN public.profiles pr ON pr.id = pp.profile_id
+          WHERE pp.conversation_id = c.id
+            AND pp.left_at IS NULL
+        ), '[]'::jsonb),
+        -- Latest non-deleted message, with its sender's profile.
+        'last_message', (
+          SELECT jsonb_build_object(
+            'id', m.id,
+            'conversation_id', m.conversation_id,
+            'sender_id', m.sender_id,
+            'type', m.type,
+            'content', m.content,
+            'media_url', m.media_url,
+            'media_type', m.media_type,
+            'shared_post_id', m.shared_post_id,
+            'shared_profile_id', m.shared_profile_id,
+            'deleted_at', m.deleted_at,
+            'created_at', m.created_at,
+            'updated_at', m.updated_at,
+            'sender', jsonb_build_object(
+              'id', sp.id,
+              'first_name', sp.first_name,
+              'last_name', sp.last_name,
+              'full_name', sp.full_name,
+              'avatar_url', sp.avatar_url,
+              'handle', sp.handle
+            )
+          )
+          FROM public.messages m
+          JOIN public.profiles sp ON sp.id = m.sender_id
+          WHERE m.conversation_id = c.id
+            AND m.deleted_at IS NULL
+          ORDER BY m.created_at DESC
+          LIMIT 1
+        ),
+        -- Messages from OTHERS after the unread floor (later of last_read_at
+        -- and joined_at). GREATEST ignores NULLs → null last_read_at = joined_at.
+        'unread_count', (
+          SELECT count(*)
+          FROM public.messages um
+          WHERE um.conversation_id = c.id
+            AND um.sender_id <> p_user_id
+            AND um.deleted_at IS NULL
+            AND (
+              GREATEST(mc.last_read_at, mc.joined_at) IS NULL
+              OR um.created_at > GREATEST(mc.last_read_at, mc.joined_at)
+            )
+        ),
+        'my_participant', jsonb_build_object(
+          'id', myp.id,
+          'conversation_id', myp.conversation_id,
+          'profile_id', myp.profile_id,
+          'role', myp.role,
+          'last_read_at', myp.last_read_at,
+          'is_muted', myp.is_muted,
+          'joined_at', myp.joined_at,
+          'left_at', myp.left_at,
+          'held_at', myp.held_at,
+          'profile', jsonb_build_object(
+            'id', mypr.id,
+            'first_name', mypr.first_name,
+            'last_name', mypr.last_name,
+            'full_name', mypr.full_name,
+            'avatar_url', mypr.avatar_url,
+            'handle', mypr.handle
+          )
+        )
+      ) AS conv_json
+    FROM my_convs mc
+    JOIN public.conversations c ON c.id = mc.conversation_id
+    JOIN public.conversation_participants myp
+      ON myp.conversation_id = c.id
+     AND myp.profile_id = p_user_id
+     AND myp.left_at IS NULL
+     AND myp.held_at IS NULL            -- 131 (mirror of my_convs)
+    JOIN public.profiles mypr ON mypr.id = p_user_id
+    WHERE (p_before IS NULL OR c.updated_at < p_before)
+    ORDER BY c.updated_at DESC
+    LIMIT p_limit
+  ) sub;
+$function$;
+EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
+END $pass1$;
+DO $pass1$ BEGIN
+CREATE OR REPLACE FUNCTION public.get_golf_round_years(p_profile_id uuid)
+ RETURNS integer[]
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO ''
+AS $function$
+  SELECT COALESCE(array_agg(y ORDER BY y DESC), '{}')
+  FROM (
+    SELECT DISTINCT (substring(r.date::text, 1, 4))::int AS y
+    FROM public.golf_rounds r
+    WHERE r.profile_id = p_profile_id
+      AND r.date IS NOT NULL
+  ) t;
+$function$;
+EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
+END $pass1$;
+DO $pass1$ BEGIN
+CREATE OR REPLACE FUNCTION public.get_golf_scorecard(p_group_post_id uuid)
+ RETURNS json
+ LANGUAGE plpgsql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+DECLARE
+  v_result JSON;
+BEGIN
+  SELECT json_build_object(
+    'golf_data', (
+      SELECT row_to_json(gd)
+      FROM (
+        SELECT
+          course_name,
+          round_type,
+          holes_played,
+          tee_color,
+          slope_rating,
+          course_rating,
+          weather_conditions,
+          temperature,
+          wind_speed
+        FROM public.golf_scorecard_data
+        WHERE group_post_id = p_group_post_id
+      ) gd
+    ),
+    'participant_scores', (
+      SELECT json_agg(
+        json_build_object(
+          'participant_id', gpp.id,
+          'profile_id', gpp.profile_id,
+          'profile', (
+            SELECT row_to_json(p)
+            FROM (
+              SELECT id, full_name, first_name, last_name, avatar_url
+              FROM public.profiles
+              WHERE id = gpp.profile_id
+            ) p
+          ),
+          'status', gpp.status,
+          'total_score', gps.total_score,
+          'to_par', gps.to_par,
+          'holes_completed', gps.holes_completed,
+          'scores_confirmed', gps.scores_confirmed,
+          'hole_scores', (
+            -- ORDER BY lives INSIDE the aggregate; see the header note. At
+            -- query level (as 004 had it) this raises 42803.
+            SELECT json_object_agg(
+              ghs.hole_number,
+              json_build_object(
+                'strokes', ghs.strokes,
+                'putts', ghs.putts,
+                'fairway_hit', ghs.fairway_hit,
+                'green_in_regulation', ghs.green_in_regulation
+              )
+              ORDER BY ghs.hole_number
+            )
+            FROM public.golf_hole_scores ghs
+            WHERE ghs.golf_participant_id = gps.id
+          )
+        )
+        ORDER BY gpp.created_at
+      )
+      FROM public.group_post_participants gpp
+      LEFT JOIN public.golf_participant_scores gps ON gps.participant_id = gpp.id
+      WHERE gpp.group_post_id = p_group_post_id
+    )
+  ) INTO v_result;
+
+  RETURN v_result;
+END;
+$function$;
+EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
+END $pass1$;
+DO $pass1$ BEGIN
+CREATE OR REPLACE FUNCTION public.get_group_post_details(p_group_post_id uuid)
+ RETURNS json
+ LANGUAGE plpgsql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+DECLARE
+  v_result JSON;
+BEGIN
+  SELECT json_build_object(
+    'group_post', (
+      SELECT row_to_json(gp)
+      FROM (
+        SELECT
+          id,
+          creator_id,
+          type,
+          title,
+          description,
+          date,
+          location,
+          visibility,
+          status,
+          post_id,
+          created_at,
+          updated_at
+        FROM public.group_posts
+        WHERE id = p_group_post_id
+      ) gp
+    ),
+    'participants', (
+      SELECT json_agg(
+        json_build_object(
+          'id', gpp.id,
+          'profile_id', gpp.profile_id,
+          'profile', (
+            SELECT row_to_json(p)
+            FROM (
+              SELECT id, full_name, first_name, last_name, avatar_url, sport, school
+              FROM public.profiles
+              WHERE id = gpp.profile_id
+            ) p
+          ),
+          'status', gpp.status,
+          'role', gpp.role,
+          'attested_at', gpp.attested_at,
+          'data_contributed', gpp.data_contributed,
+          'last_contribution', gpp.last_contribution
+        )
+        ORDER BY gpp.created_at
+      )
+      FROM public.group_post_participants gpp
+      WHERE gpp.group_post_id = p_group_post_id
+    ),
+    'media', (
+      SELECT json_agg(
+        json_build_object(
+          'id', gpm.id,
+          'media_url', gpm.media_url,
+          'media_type', gpm.media_type,
+          'caption', gpm.caption,
+          'uploaded_by', gpm.uploaded_by,
+          'created_at', gpm.created_at
+        )
+        ORDER BY gpm.position, gpm.created_at
+      )
+      FROM public.group_post_media gpm
+      WHERE gpm.group_post_id = p_group_post_id
+    )
+  ) INTO v_result;
+
+  RETURN v_result;
+END;
+$function$;
+EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
+END $pass1$;
+DO $pass1$ BEGIN
+CREATE OR REPLACE FUNCTION public.get_pending_requests_count(target_profile_id uuid)
+ RETURNS integer
+ LANGUAGE plpgsql
+ STABLE
+ SET search_path TO ''
+AS $function$
+DECLARE
+  v_count INTEGER;
+BEGIN
+  SELECT COUNT(*)
+  INTO v_count
+  FROM public.follows
+  WHERE following_id = target_profile_id
+  AND status = 'pending';
+
+  RETURN v_count;
+END;
+$function$;
+EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
+END $pass1$;
+DO $pass1$ BEGIN
+CREATE OR REPLACE FUNCTION public.get_profile_all_media(target_profile_id uuid, viewer_id uuid DEFAULT NULL::uuid, media_limit integer DEFAULT 20, media_offset integer DEFAULT 0, filter_sport_keys text[] DEFAULT NULL::text[], filter_years integer[] DEFAULT NULL::integer[])
+ RETURNS TABLE(id uuid, caption text, sport_key text, stats_data jsonb, round_id uuid, visibility text, created_at timestamp with time zone, profile_id uuid, profile_first_name text, profile_last_name text, profile_full_name text, profile_avatar_url text, media_count bigint, likes_count integer, comments_count integer, saves_count integer, tags text[], hashtags text[], is_own_post boolean, is_tagged boolean)
+ LANGUAGE plpgsql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+BEGIN
+  RETURN QUERY
+  SELECT * FROM (
+    SELECT DISTINCT ON (p.id)
+      p.id, p.caption, p.sport_key, p.stats_data, p.round_id, p.visibility,
+      p.created_at, p.profile_id,
+      prof.first_name AS profile_first_name, prof.last_name AS profile_last_name,
+      prof.full_name AS profile_full_name, prof.avatar_url AS profile_avatar_url,
+      (SELECT COUNT(*) FROM post_media WHERE post_media.post_id = p.id) AS media_count,
+      p.likes_count, p.comments_count, COALESCE(p.saves_count, 0) AS saves_count,
+      p.tags, p.hashtags,
+      (p.profile_id = target_profile_id) AS is_own_post,
+      (p.tags @> ARRAY[target_profile_id::TEXT]) AS is_tagged
+    FROM posts p
+    INNER JOIN profiles prof ON p.profile_id = prof.id
+    WHERE (
+      p.profile_id = target_profile_id
+      OR p.tags @> ARRAY[target_profile_id::TEXT]
+    )
+    -- 074: MEDIA inverse predicate — statements moved to
+    -- get_profile_statements_media; together they partition the old set.
+    AND (
+      (p.stats_data IS NOT NULL AND p.stats_data != '{}'::jsonb)
+      OR p.round_id IS NOT NULL
+      OR p.group_post_id IS NOT NULL
+      OR EXISTS (SELECT 1 FROM post_media pm WHERE pm.post_id = p.id)
+    )
+    AND (
+      p.visibility = 'public'
+      OR (viewer_id IS NOT NULL AND p.profile_id = viewer_id)
+      OR (viewer_id IS NOT NULL AND viewer_id = target_profile_id)
+      OR (
+        viewer_id IS NOT NULL
+        AND p.visibility = 'private'
+        AND EXISTS (
+          SELECT 1 FROM follows f
+          WHERE f.follower_id = viewer_id
+          AND f.following_id = p.profile_id
+          AND f.status = 'accepted'
+        )
+      )
+    )
+    -- Post-OWNER visibility (mirrors 066's get_profile_tagged_media)
+    AND (
+      prof.visibility = 'public'
+      OR (viewer_id IS NOT NULL AND (
+        viewer_id = p.profile_id
+        OR viewer_id = target_profile_id
+        OR EXISTS (
+          SELECT 1 FROM follows f2
+          WHERE f2.follower_id = viewer_id
+          AND f2.following_id = p.profile_id
+          AND f2.status = 'accepted'
+        )
+      ))
+    )
+    AND (p.status = 'published'
+         OR (viewer_id IS NOT NULL AND viewer_id = p.profile_id))
+    AND (filter_sport_keys IS NULL OR p.sport_key = ANY(filter_sport_keys))
+    AND (filter_years IS NULL OR EXTRACT(YEAR FROM p.created_at)::INT = ANY(filter_years))
+    ORDER BY p.id, p.created_at DESC
+  ) AS unique_posts
+  ORDER BY created_at DESC
+  LIMIT media_limit
+  OFFSET media_offset;
+END;
+$function$;
+EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
+END $pass1$;
+DO $pass1$ BEGIN
+CREATE OR REPLACE FUNCTION public.get_profile_media_counts(target_profile_id uuid, viewer_id uuid DEFAULT NULL::uuid)
+ RETURNS TABLE(all_media_count bigint, stats_media_count bigint, tagged_media_count bigint, statements_count bigint)
+ LANGUAGE plpgsql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+BEGIN
+  RETURN QUERY
+  SELECT
+    (
+      SELECT COUNT(DISTINCT p.id)
+      FROM public.posts p
+      WHERE (
+        p.profile_id = target_profile_id
+        OR p.tags @> ARRAY[target_profile_id::TEXT]
+      )
+      -- 074: MEDIA inverse predicate — must match get_profile_all_media
+      -- above, or the badge and the grid disagree (the 068 drift).
+      AND (
+        (p.stats_data IS NOT NULL AND p.stats_data != '{}'::jsonb)
+        OR p.round_id IS NOT NULL
+        OR p.group_post_id IS NOT NULL
+        OR EXISTS (SELECT 1 FROM public.post_media pm WHERE pm.post_id = p.id)
+      )
+      AND (
+        p.visibility = 'public'
+        OR (viewer_id IS NOT NULL AND p.profile_id = viewer_id)
+        OR (viewer_id IS NOT NULL AND viewer_id = target_profile_id)
+        OR (
+          viewer_id IS NOT NULL
+          AND p.visibility = 'private'
+          AND EXISTS (
+            SELECT 1 FROM public.follows f
+            WHERE f.follower_id = viewer_id
+            AND f.following_id = p.profile_id
+            AND f.status = 'accepted'
+          )
+        )
+      )
+      -- Post-owner visibility (mirrors the tagged subquery below)
+      AND (
+        EXISTS (
+          SELECT 1 FROM public.profiles pr
+          WHERE pr.id = p.profile_id AND pr.visibility = 'public'
+        )
+        OR (viewer_id IS NOT NULL AND (
+          viewer_id = p.profile_id
+          OR viewer_id = target_profile_id
+          OR EXISTS (
+            SELECT 1 FROM public.follows f2
+            WHERE f2.follower_id = viewer_id
+            AND f2.following_id = p.profile_id
+            AND f2.status = 'accepted'
+          )
+        ))
+      )
+      AND (p.status = 'published'
+           OR (viewer_id IS NOT NULL AND viewer_id = p.profile_id))
+    ) AS all_media_count,
+    (
+      SELECT COUNT(DISTINCT p.id)
+      FROM public.posts p
+      WHERE (
+        p.profile_id = target_profile_id
+        OR p.tags @> ARRAY[target_profile_id::TEXT]
+      )
+      AND (
+        (p.stats_data IS NOT NULL AND p.stats_data != '{}'::jsonb)
+        OR p.round_id IS NOT NULL
+        -- 070: must match get_profile_stats_media, or the badge and the
+        -- grid disagree — the exact drift 068 was written to fix.
+        OR p.group_post_id IS NOT NULL
+      )
+      AND (
+        p.visibility = 'public'
+        OR (viewer_id IS NOT NULL AND p.profile_id = viewer_id)
+        OR (viewer_id IS NOT NULL AND viewer_id = target_profile_id)
+        OR (
+          viewer_id IS NOT NULL
+          AND p.visibility = 'private'
+          AND EXISTS (
+            SELECT 1 FROM public.follows f
+            WHERE f.follower_id = viewer_id
+            AND f.following_id = p.profile_id
+            AND f.status = 'accepted'
+          )
+        )
+      )
+      -- Post-owner visibility (mirrors the tagged subquery below)
+      AND (
+        EXISTS (
+          SELECT 1 FROM public.profiles pr
+          WHERE pr.id = p.profile_id AND pr.visibility = 'public'
+        )
+        OR (viewer_id IS NOT NULL AND (
+          viewer_id = p.profile_id
+          OR viewer_id = target_profile_id
+          OR EXISTS (
+            SELECT 1 FROM public.follows f2
+            WHERE f2.follower_id = viewer_id
+            AND f2.following_id = p.profile_id
+            AND f2.status = 'accepted'
+          )
+        ))
+      )
+      AND (p.status = 'published'
+           OR (viewer_id IS NOT NULL AND viewer_id = p.profile_id))
+    ) AS stats_media_count,
+    (
+      SELECT COUNT(DISTINCT p.id)
+      FROM public.posts p
+      WHERE p.tags @> ARRAY[target_profile_id::TEXT]
+      AND p.profile_id != target_profile_id
+      AND (
+        p.visibility = 'public'
+        OR (viewer_id IS NOT NULL AND p.profile_id = viewer_id)
+        OR (viewer_id IS NOT NULL AND viewer_id = target_profile_id)
+        OR (
+          viewer_id IS NOT NULL
+          AND p.visibility = 'private'
+          AND EXISTS (
+            SELECT 1 FROM public.follows f
+            WHERE f.follower_id = viewer_id
+            AND f.following_id = p.profile_id
+            AND f.status = 'accepted'
+          )
+        )
+      )
+      -- Post-owner visibility (mirrors get_profile_tagged_media)
+      AND (
+        EXISTS (
+          SELECT 1 FROM public.profiles pr
+          WHERE pr.id = p.profile_id AND pr.visibility = 'public'
+        )
+        OR (viewer_id IS NOT NULL AND (
+          viewer_id = p.profile_id
+          OR viewer_id = target_profile_id
+          OR EXISTS (
+            SELECT 1 FROM public.follows f2
+            WHERE f2.follower_id = viewer_id
+            AND f2.following_id = p.profile_id
+            AND f2.status = 'accepted'
+          )
+        ))
+      )
+      AND (p.status = 'published'
+           OR (viewer_id IS NOT NULL AND viewer_id = p.profile_id))
+    ) AS tagged_media_count,
+    (
+      SELECT COUNT(DISTINCT p.id)
+      FROM public.posts p
+      WHERE (
+        p.profile_id = target_profile_id
+        OR p.tags @> ARRAY[target_profile_id::TEXT]
+      )
+      -- 074: STATEMENT predicate — must match get_profile_statements_media
+      -- above (born together, drift never).
+      AND (p.stats_data IS NULL OR p.stats_data = '{}'::jsonb)
+      AND p.round_id IS NULL
+      AND p.group_post_id IS NULL
+      AND NOT EXISTS (SELECT 1 FROM public.post_media pm WHERE pm.post_id = p.id)
+      AND (
+        p.visibility = 'public'
+        OR (viewer_id IS NOT NULL AND p.profile_id = viewer_id)
+        OR (viewer_id IS NOT NULL AND viewer_id = target_profile_id)
+        OR (
+          viewer_id IS NOT NULL
+          AND p.visibility = 'private'
+          AND EXISTS (
+            SELECT 1 FROM public.follows f
+            WHERE f.follower_id = viewer_id
+            AND f.following_id = p.profile_id
+            AND f.status = 'accepted'
+          )
+        )
+      )
+      -- Post-owner visibility (mirrors the tagged subquery above)
+      AND (
+        EXISTS (
+          SELECT 1 FROM public.profiles pr
+          WHERE pr.id = p.profile_id AND pr.visibility = 'public'
+        )
+        OR (viewer_id IS NOT NULL AND (
+          viewer_id = p.profile_id
+          OR viewer_id = target_profile_id
+          OR EXISTS (
+            SELECT 1 FROM public.follows f2
+            WHERE f2.follower_id = viewer_id
+            AND f2.following_id = p.profile_id
+            AND f2.status = 'accepted'
+          )
+        ))
+      )
+      AND (p.status = 'published'
+           OR (viewer_id IS NOT NULL AND viewer_id = p.profile_id))
+    ) AS statements_count;
+END;
+$function$;
+EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
+END $pass1$;
+DO $pass1$ BEGIN
+CREATE OR REPLACE FUNCTION public.get_profile_post_sport_keys(p_profile_id uuid)
+ RETURNS text[]
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO ''
+AS $function$
+  SELECT COALESCE(array_agg(DISTINCT p.sport_key), '{}')
+  FROM public.posts p
+  WHERE p.profile_id = p_profile_id
+    AND p.sport_key IS NOT NULL;
+$function$;
+EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
+END $pass1$;
+DO $pass1$ BEGIN
+CREATE OR REPLACE FUNCTION public.get_profile_statements_media(target_profile_id uuid, viewer_id uuid DEFAULT NULL::uuid, media_limit integer DEFAULT 20, media_offset integer DEFAULT 0, filter_sport_keys text[] DEFAULT NULL::text[], filter_years integer[] DEFAULT NULL::integer[])
+ RETURNS TABLE(id uuid, caption text, sport_key text, stats_data jsonb, round_id uuid, visibility text, created_at timestamp with time zone, profile_id uuid, profile_first_name text, profile_last_name text, profile_full_name text, profile_avatar_url text, media_count bigint, likes_count integer, comments_count integer, saves_count integer, tags text[], hashtags text[], is_own_post boolean, is_tagged boolean)
+ LANGUAGE plpgsql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+BEGIN
+  RETURN QUERY
+  SELECT * FROM (
+    SELECT DISTINCT ON (p.id)
+      p.id, p.caption, p.sport_key, p.stats_data, p.round_id, p.visibility,
+      p.created_at, p.profile_id,
+      prof.first_name AS profile_first_name, prof.last_name AS profile_last_name,
+      prof.full_name AS profile_full_name, prof.avatar_url AS profile_avatar_url,
+      (SELECT COUNT(*) FROM post_media WHERE post_media.post_id = p.id) AS media_count,
+      p.likes_count, p.comments_count, COALESCE(p.saves_count, 0) AS saves_count,
+      p.tags, p.hashtags,
+      (p.profile_id = target_profile_id) AS is_own_post,
+      (p.tags @> ARRAY[target_profile_id::TEXT]) AS is_tagged
+    FROM posts p
+    INNER JOIN profiles prof ON p.profile_id = prof.id
+    WHERE (
+      p.profile_id = target_profile_id
+      OR p.tags @> ARRAY[target_profile_id::TEXT]
+    )
+    -- 074: STATEMENT predicate — text-only posts only
+    AND (p.stats_data IS NULL OR p.stats_data = '{}'::jsonb)
+    AND p.round_id IS NULL
+    AND p.group_post_id IS NULL
+    AND NOT EXISTS (SELECT 1 FROM post_media pm WHERE pm.post_id = p.id)
+    AND (
+      p.visibility = 'public'
+      OR (viewer_id IS NOT NULL AND p.profile_id = viewer_id)
+      OR (viewer_id IS NOT NULL AND viewer_id = target_profile_id)
+      OR (
+        viewer_id IS NOT NULL
+        AND p.visibility = 'private'
+        AND EXISTS (
+          SELECT 1 FROM follows f
+          WHERE f.follower_id = viewer_id
+          AND f.following_id = p.profile_id
+          AND f.status = 'accepted'
+        )
+      )
+    )
+    -- Post-OWNER visibility (mirrors 066's get_profile_tagged_media)
+    AND (
+      prof.visibility = 'public'
+      OR (viewer_id IS NOT NULL AND (
+        viewer_id = p.profile_id
+        OR viewer_id = target_profile_id
+        OR EXISTS (
+          SELECT 1 FROM follows f2
+          WHERE f2.follower_id = viewer_id
+          AND f2.following_id = p.profile_id
+          AND f2.status = 'accepted'
+        )
+      ))
+    )
+    AND (p.status = 'published'
+         OR (viewer_id IS NOT NULL AND viewer_id = p.profile_id))
+    AND (filter_sport_keys IS NULL OR p.sport_key = ANY(filter_sport_keys))
+    AND (filter_years IS NULL OR EXTRACT(YEAR FROM p.created_at)::INT = ANY(filter_years))
+    ORDER BY p.id, p.created_at DESC
+  ) AS unique_posts
+  ORDER BY created_at DESC
+  LIMIT media_limit
+  OFFSET media_offset;
+END;
+$function$;
+EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
+END $pass1$;
+DO $pass1$ BEGIN
+CREATE OR REPLACE FUNCTION public.get_profile_stats_media(target_profile_id uuid, viewer_id uuid DEFAULT NULL::uuid, media_limit integer DEFAULT 20, media_offset integer DEFAULT 0, filter_sport_keys text[] DEFAULT NULL::text[], filter_years integer[] DEFAULT NULL::integer[])
+ RETURNS TABLE(id uuid, caption text, sport_key text, stats_data jsonb, round_id uuid, visibility text, created_at timestamp with time zone, profile_id uuid, profile_first_name text, profile_last_name text, profile_full_name text, profile_avatar_url text, media_count bigint, likes_count integer, comments_count integer, saves_count integer, tags text[], hashtags text[], is_own_post boolean, is_tagged boolean)
+ LANGUAGE plpgsql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+BEGIN
+  RETURN QUERY
+  SELECT * FROM (
+    SELECT DISTINCT ON (p.id)
+      p.id, p.caption, p.sport_key, p.stats_data, p.round_id, p.visibility,
+      p.created_at, p.profile_id,
+      prof.first_name AS profile_first_name, prof.last_name AS profile_last_name,
+      prof.full_name AS profile_full_name, prof.avatar_url AS profile_avatar_url,
+      (SELECT COUNT(*) FROM post_media WHERE post_media.post_id = p.id) AS media_count,
+      p.likes_count, p.comments_count, COALESCE(p.saves_count, 0) AS saves_count,
+      p.tags, p.hashtags,
+      (p.profile_id = target_profile_id) AS is_own_post,
+      (p.tags @> ARRAY[target_profile_id::TEXT]) AS is_tagged
+    FROM posts p
+    INNER JOIN profiles prof ON p.profile_id = prof.id
+    WHERE (
+      (p.profile_id = target_profile_id OR p.tags @> ARRAY[target_profile_id::TEXT])
+      AND (
+        (p.stats_data IS NOT NULL AND p.stats_data != '{}'::jsonb)
+        OR p.round_id IS NOT NULL
+        -- 070: shared (multi-player) rounds carry neither stats_data nor
+        -- round_id; their scores live in golf_scorecard_data.
+        OR p.group_post_id IS NOT NULL
+      )
+    )
+    AND (
+      p.visibility = 'public'
+      OR (viewer_id IS NOT NULL AND p.profile_id = viewer_id)
+      OR (viewer_id IS NOT NULL AND viewer_id = target_profile_id)
+      OR (
+        viewer_id IS NOT NULL
+        AND p.visibility = 'private'
+        AND EXISTS (
+          SELECT 1 FROM follows f
+          WHERE f.follower_id = viewer_id
+          AND f.following_id = p.profile_id
+          AND f.status = 'accepted'
+        )
+      )
+    )
+    -- Post-OWNER visibility (mirrors 066's get_profile_tagged_media)
+    AND (
+      prof.visibility = 'public'
+      OR (viewer_id IS NOT NULL AND (
+        viewer_id = p.profile_id
+        OR viewer_id = target_profile_id
+        OR EXISTS (
+          SELECT 1 FROM follows f2
+          WHERE f2.follower_id = viewer_id
+          AND f2.following_id = p.profile_id
+          AND f2.status = 'accepted'
+        )
+      ))
+    )
+    AND (p.status = 'published'
+         OR (viewer_id IS NOT NULL AND viewer_id = p.profile_id))
+    AND (filter_sport_keys IS NULL OR p.sport_key = ANY(filter_sport_keys))
+    AND (filter_years IS NULL OR EXTRACT(YEAR FROM p.created_at)::INT = ANY(filter_years))
+    ORDER BY p.id, p.created_at DESC
+  ) AS unique_posts
+  ORDER BY created_at DESC
+  LIMIT media_limit
+  OFFSET media_offset;
+END;
+$function$;
+EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
+END $pass1$;
+DO $pass1$ BEGIN
+CREATE OR REPLACE FUNCTION public.get_profile_tagged_media(target_profile_id uuid, viewer_id uuid DEFAULT NULL::uuid, media_limit integer DEFAULT 20, media_offset integer DEFAULT 0, filter_sport_keys text[] DEFAULT NULL::text[], filter_years integer[] DEFAULT NULL::integer[])
+ RETURNS TABLE(id uuid, caption text, sport_key text, stats_data jsonb, round_id uuid, visibility text, created_at timestamp with time zone, profile_id uuid, profile_first_name text, profile_last_name text, profile_full_name text, profile_avatar_url text, media_count bigint, likes_count integer, comments_count integer, saves_count integer, tags text[], hashtags text[], is_own_post boolean, is_tagged boolean)
+ LANGUAGE plpgsql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+BEGIN
+  RETURN QUERY
+  SELECT * FROM (
+    SELECT DISTINCT ON (p.id)
+      p.id, p.caption, p.sport_key, p.stats_data, p.round_id, p.visibility,
+      p.created_at, p.profile_id,
+      prof.first_name AS profile_first_name, prof.last_name AS profile_last_name,
+      prof.full_name AS profile_full_name, prof.avatar_url AS profile_avatar_url,
+      (SELECT COUNT(*) FROM post_media WHERE post_media.post_id = p.id) AS media_count,
+      p.likes_count, p.comments_count, COALESCE(p.saves_count, 0) AS saves_count,
+      p.tags, p.hashtags,
+      (p.profile_id = target_profile_id) AS is_own_post,
+      (p.tags @> ARRAY[target_profile_id::TEXT]) AS is_tagged
+    FROM posts p
+    INNER JOIN profiles prof ON p.profile_id = prof.id
+    WHERE (
+      p.tags @> ARRAY[target_profile_id::TEXT]
+      AND p.profile_id != target_profile_id
+    )
+    -- Post-level visibility (unchanged from 051)
+    AND (
+      p.visibility = 'public'
+      OR (viewer_id IS NOT NULL AND p.profile_id = viewer_id)
+      OR (viewer_id IS NOT NULL AND viewer_id = target_profile_id)
+      OR (
+        viewer_id IS NOT NULL
+        AND p.visibility = 'private'
+        AND EXISTS (
+          SELECT 1 FROM follows f
+          WHERE f.follower_id = viewer_id
+          AND f.following_id = p.profile_id
+          AND f.status = 'accepted'
+        )
+      )
+    )
+    -- Post-OWNER visibility (the 021 hardening, finally): a private author's
+    -- posts are shown only to the author, the tagged athlete, or the
+    -- author's accepted followers.
+    AND (
+      prof.visibility = 'public'
+      OR (viewer_id IS NOT NULL AND (
+        viewer_id = p.profile_id
+        OR viewer_id = target_profile_id
+        OR EXISTS (
+          SELECT 1 FROM follows f2
+          WHERE f2.follower_id = viewer_id
+          AND f2.following_id = p.profile_id
+          AND f2.status = 'accepted'
+        )
+      ))
+    )
+    AND (p.status = 'published'
+         OR (viewer_id IS NOT NULL AND viewer_id = p.profile_id))
+    AND (filter_sport_keys IS NULL OR p.sport_key = ANY(filter_sport_keys))
+    AND (filter_years IS NULL OR EXTRACT(YEAR FROM p.created_at)::INT = ANY(filter_years))
+    ORDER BY p.id, p.created_at DESC
+  ) AS unique_posts
+  ORDER BY created_at DESC
+  LIMIT media_limit
+  OFFSET media_offset;
+END;
+$function$;
+EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
+END $pass1$;
+DO $pass1$ BEGIN
+CREATE OR REPLACE FUNCTION public.get_profile_tagged_summary(target_profile_id uuid, viewer_id uuid DEFAULT NULL::uuid)
+ RETURNS TABLE(times_tagged bigint, tagger_count bigint, sport_keys text[], years integer[])
+ LANGUAGE plpgsql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+BEGIN
+  RETURN QUERY
+  SELECT
+    COUNT(DISTINCT p.id) AS times_tagged,
+    COUNT(DISTINCT p.profile_id) AS tagger_count,
+    COALESCE(array_agg(DISTINCT p.sport_key) FILTER (WHERE p.sport_key IS NOT NULL), '{}') AS sport_keys,
+    COALESCE(array_agg(DISTINCT EXTRACT(YEAR FROM p.created_at)::INT) FILTER (WHERE p.id IS NOT NULL), '{}') AS years
+  FROM posts p
+  INNER JOIN profiles prof ON p.profile_id = prof.id
+  WHERE (
+    p.tags @> ARRAY[target_profile_id::TEXT]
+    AND p.profile_id != target_profile_id
+  )
+  AND (
+    p.visibility = 'public'
+    OR (viewer_id IS NOT NULL AND p.profile_id = viewer_id)
+    OR (viewer_id IS NOT NULL AND viewer_id = target_profile_id)
+    OR (
+      viewer_id IS NOT NULL
+      AND p.visibility = 'private'
+      AND EXISTS (
+        SELECT 1 FROM follows f
+        WHERE f.follower_id = viewer_id
+        AND f.following_id = p.profile_id
+        AND f.status = 'accepted'
+      )
+    )
+  )
+  AND (
+    prof.visibility = 'public'
+    OR (viewer_id IS NOT NULL AND (
+      viewer_id = p.profile_id
+      OR viewer_id = target_profile_id
+      OR EXISTS (
+        SELECT 1 FROM follows f2
+        WHERE f2.follower_id = viewer_id
+        AND f2.following_id = p.profile_id
+        AND f2.status = 'accepted'
+      )
+    ))
+  )
+  AND (p.status = 'published'
+       OR (viewer_id IS NOT NULL AND viewer_id = p.profile_id));
+END;
+$function$;
+EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
+END $pass1$;
+DO $pass1$ BEGIN
+CREATE OR REPLACE FUNCTION public.get_tagged_posts(target_profile_id uuid, current_user_id uuid DEFAULT NULL::uuid, page_limit integer DEFAULT 20, page_offset integer DEFAULT 0)
+ RETURNS TABLE(post_id uuid, tag_id uuid, tag_created_at timestamp with time zone)
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+BEGIN
+  RETURN QUERY
+  SELECT
+    pt.post_id,
+    pt.id as tag_id,
+    pt.created_at as tag_created_at
+  FROM post_tags pt
+  INNER JOIN posts p ON p.id = pt.post_id
+  WHERE pt.tagged_profile_id = target_profile_id
+    AND pt.status = 'active'
+    AND (
+      -- Show if post is public
+      p.visibility = 'public'
+      -- Or if current user is the tagged person
+      OR current_user_id = target_profile_id
+      -- Or if current user is the post owner
+      OR current_user_id = p.profile_id
+    )
+  ORDER BY pt.created_at DESC
+  LIMIT page_limit
+  OFFSET page_offset;
+END;
+$function$;
+EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
+END $pass1$;
+DO $pass1$ BEGIN
+CREATE OR REPLACE FUNCTION public.get_unread_message_count(p_user_id uuid)
+ RETURNS bigint
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO ''
+AS $function$
+  SELECT count(*)
+  FROM public.conversation_participants cp
+  JOIN public.messages m
+    ON m.conversation_id = cp.conversation_id
+  WHERE cp.profile_id = p_user_id
+    AND cp.left_at IS NULL
+    AND cp.held_at IS NULL              -- 131
+    AND m.sender_id <> p_user_id
+    AND m.deleted_at IS NULL
+    AND m.created_at > GREATEST(
+      COALESCE(cp.last_read_at, cp.joined_at, '-infinity'::timestamptz),
+      COALESCE(cp.joined_at, '-infinity'::timestamptz)
+    );
+$function$;
+EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
+END $pass1$;
+DO $pass1$ BEGIN
+CREATE OR REPLACE FUNCTION public.get_unread_notification_count(user_id uuid)
+ RETURNS integer
+ LANGUAGE plpgsql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+DECLARE
+  v_count integer;
+BEGIN
+  -- The parameter is named `user_id` and so is the column, so the parameter
+  -- MUST be qualified with the function name — otherwise `user_id = user_id`
+  -- compares the column to itself and every row matches.
+  SELECT COUNT(*)::integer
+    INTO v_count
+    FROM public.notifications n
+   WHERE n.user_id = get_unread_notification_count.user_id
+     AND n.is_read = FALSE;
+
+  RETURN COALESCE(v_count, 0);
+END;
+$function$;
+EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
+END $pass1$;
+DO $pass1$ BEGIN
+CREATE OR REPLACE FUNCTION public.golf_course_location_facets(p_country_code text DEFAULT NULL::text)
+ RETURNS TABLE(country text, country_code text, region text, region_code text, n bigint)
+ LANGUAGE sql
+ STABLE
+ SET search_path TO 'public'
+AS $function$
+  SELECT
+    min(c.country) AS country,
+    c.country_code,
+    CASE WHEN p_country_code IS NULL THEN NULL ELSE min(c.region) END AS region,
+    CASE WHEN p_country_code IS NULL THEN NULL ELSE c.region_code END AS region_code,
+    count(*) AS n
+  FROM golf_courses c
+  WHERE c.country_code IS NOT NULL
+    AND (p_country_code IS NULL OR (c.country_code = upper(p_country_code) AND c.region_code IS NOT NULL))
+  GROUP BY c.country_code, CASE WHEN p_country_code IS NULL THEN NULL ELSE c.region_code END
+  ORDER BY n DESC, 1, 3
+$function$;
+EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
+END $pass1$;
+DO $pass1$ BEGIN
+CREATE OR REPLACE FUNCTION public.golf_courses_search_vector_update()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public', 'extensions'
+AS $function$
+BEGIN
+  NEW.search_vector :=
+    setweight(to_tsvector('simple', public.search_normalize(NEW.name)), 'A') ||
+    setweight(to_tsvector('simple', public.search_normalize(NEW.club_name)), 'B') ||
+    setweight(to_tsvector('simple', public.search_normalize(NEW.city)), 'C') ||
+    setweight(to_tsvector('simple', public.search_normalize(
+      concat_ws(' ', NEW.region, NEW.region_code, NEW.country, NEW.country_code,
+                public.place_context(NEW.place_id)))), 'D');
+  RETURN NEW;
+END;
+$function$;
+EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
+END $pass1$;
+DO $pass1$ BEGIN
+CREATE OR REPLACE FUNCTION public.grant_guardian_access(p_profile uuid, p_new_guardian uuid, p_actor uuid)
+ RETURNS void
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO ''
+AS $function$
+BEGIN
+  IF (
+    SELECT count(*) FROM public.profile_access
+    WHERE profile_id = p_profile AND role = 'guardian'
+  ) >= 2 THEN
+    RAISE EXCEPTION 'profile % already has the maximum of 2 guardians', p_profile;
+  END IF;
+
+  INSERT INTO public.profile_access (user_id, profile_id, role, granted_by)
+  VALUES (p_new_guardian, p_profile, 'guardian', p_actor)
+  ON CONFLICT (user_id, profile_id) DO NOTHING;
+
+  INSERT INTO public.profile_access_audit (profile_id, user_id, action, new_role, actor_id)
+  VALUES (p_profile, p_new_guardian, 'granted', 'guardian', p_actor);
+END;
+$function$;
+EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
+END $pass1$;
+DO $pass1$ BEGIN
+CREATE OR REPLACE FUNCTION public.handle_new_user()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO ''
+AS $function$
+BEGIN
+  INSERT INTO public.profiles (id, email, full_name)
+  VALUES (
+    NEW.id,
+    NEW.email,
+    COALESCE(NEW.raw_user_meta_data->>'full_name', NEW.email)
+  )
+  ON CONFLICT (id) DO NOTHING;
+  RETURN NEW;
+END;
+$function$;
+EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
+END $pass1$;
+DO $pass1$ BEGIN
+CREATE OR REPLACE FUNCTION public.handle_updated_at()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SET search_path TO ''
+AS $function$
+BEGIN
+  NEW.updated_at = timezone('utc'::text, now());
+  RETURN NEW;
+END;
+$function$;
+EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
+END $pass1$;
+DO $pass1$ BEGIN
+CREATE OR REPLACE FUNCTION public.has_profile_access(p_profile_id uuid, p_roles text[])
+ RETURNS boolean
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO ''
+AS $function$
+  SELECT EXISTS (
+    SELECT 1 FROM public.profile_access
+    WHERE profile_id = p_profile_id
+      AND user_id = (select auth.uid())
+      AND role = ANY (p_roles)
+  );
+$function$;
+EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
+END $pass1$;
+DO $pass1$ BEGIN
+CREATE OR REPLACE FUNCTION public.haversine_km(lat1 double precision, lng1 double precision, lat2 double precision, lng2 double precision)
+ RETURNS double precision
+ LANGUAGE sql
+ IMMUTABLE PARALLEL SAFE
+AS $function$
+  SELECT 2 * 6371 * asin(sqrt(
+    power(sin(radians(lat2 - lat1) / 2), 2) +
+    cos(radians(lat1)) * cos(radians(lat2)) * power(sin(radians(lng2 - lng1) / 2), 2)
+  ))
+$function$;
+EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
+END $pass1$;
+DO $pass1$ BEGIN
+CREATE OR REPLACE FUNCTION public.hole_score_group_post(gps_id uuid)
+ RETURNS uuid
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO ''
+AS $function$
+  SELECT gpp.group_post_id
+  FROM public.golf_participant_scores gps
+  JOIN public.group_post_participants gpp ON gpp.id = gps.participant_id
+  WHERE gps.id = gps_id;
+$function$;
+EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
+END $pass1$;
+DO $pass1$ BEGIN
+CREATE OR REPLACE FUNCTION public.increment_comment_likes_count()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SET search_path TO ''
+AS $function$
+BEGIN
+  UPDATE public.post_comments
+  SET likes_count = likes_count + 1
+  WHERE id = NEW.comment_id;
+  RETURN NEW;
+END;
+$function$;
+EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
+END $pass1$;
+DO $pass1$ BEGIN
+CREATE OR REPLACE FUNCTION public.increment_post_save_count()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SET search_path TO ''
+AS $function$
+BEGIN
+  UPDATE public.posts
+  SET saves_count = saves_count + 1
+  WHERE id = NEW.post_id;
+  RETURN NEW;
+END;
+$function$;
+EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
+END $pass1$;
+DO $pass1$ BEGIN
+CREATE OR REPLACE FUNCTION public.is_conversation_participant(conv_id uuid, user_id uuid)
+ RETURNS boolean
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  SELECT EXISTS (
+    SELECT 1 FROM conversation_participants
+    WHERE conversation_id = conv_id
+      AND profile_id = user_id
+      AND left_at IS NULL
+      AND held_at IS NULL
+  );
+$function$;
+EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
+END $pass1$;
+DO $pass1$ BEGIN
+CREATE OR REPLACE FUNCTION public.is_group_post_creator(gp_id uuid)
+ RETURNS boolean
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO ''
+AS $function$
+  SELECT EXISTS (
+    SELECT 1 FROM public.group_posts
+    WHERE id = gp_id AND creator_id = auth.uid()
+  );
+$function$;
+EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
+END $pass1$;
+DO $pass1$ BEGIN
+CREATE OR REPLACE FUNCTION public.is_group_post_organizer(gp_id uuid)
+ RETURNS boolean
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO ''
+AS $function$
+  SELECT EXISTS (
+    SELECT 1 FROM public.group_post_participants
+    WHERE group_post_id = gp_id AND profile_id = auth.uid()
+      AND role IN ('creator', 'organizer')
+  );
+$function$;
+EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
+END $pass1$;
+DO $pass1$ BEGIN
+CREATE OR REPLACE FUNCTION public.is_group_post_participant(gp_id uuid)
+ RETURNS boolean
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO ''
+AS $function$
+  SELECT EXISTS (
+    SELECT 1 FROM public.group_post_participants
+    WHERE group_post_id = gp_id AND profile_id = auth.uid()
+  );
+$function$;
+EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
+END $pass1$;
+DO $pass1$ BEGIN
+CREATE OR REPLACE FUNCTION public.is_valid_handle(input_handle text)
+ RETURNS boolean
+ LANGUAGE plpgsql
+ IMMUTABLE
+ SET search_path TO ''
+AS $function$
+DECLARE
+  clean_handle TEXT;
+BEGIN
+  -- Trim and lowercase
+  clean_handle := LOWER(TRIM(input_handle));
+
+  -- Check length (3-20 characters)
+  IF LENGTH(clean_handle) < 3 OR LENGTH(clean_handle) > 20 THEN
+    RETURN FALSE;
+  END IF;
+
+  -- Check format: letters, numbers, dots, underscores only
+  -- Must start with letter or number
+  IF NOT clean_handle ~ '^[a-z0-9][a-z0-9._]*[a-z0-9]$' THEN
+    RETURN FALSE;
+  END IF;
+
+  -- No consecutive dots or underscores
+  IF clean_handle ~ '[._]{2,}' THEN
+    RETURN FALSE;
+  END IF;
+
+  RETURN TRUE;
+END;
+$function$;
+EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
+END $pass1$;
+DO $pass1$ BEGIN
+CREATE OR REPLACE FUNCTION public.leagues_search_vector_update()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public', 'extensions'
+AS $function$
+BEGIN
+  NEW.search_vector :=
+    setweight(to_tsvector('simple', public.search_normalize(NEW.name)), 'A') ||
+    setweight(to_tsvector('simple', public.search_normalize(NEW.description)), 'B') ||
+    setweight(to_tsvector('simple', public.search_normalize(
+      concat_ws(' ', NEW.city, NEW.sport_key))), 'C') ||
+    setweight(to_tsvector('simple', public.search_normalize(
+      concat_ws(' ', NEW.region, NEW.region_code, NEW.country, NEW.country_code))), 'D') ||
+    setweight(to_tsvector('simple', public.search_normalize(
+      public.place_context(NEW.place_id))), 'D');
+  RETURN NEW;
+END;
+$function$;
+EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
+END $pass1$;
+DO $pass1$ BEGIN
+CREATE OR REPLACE FUNCTION public.notify_comment_like()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO ''
+AS $function$
+      DECLARE
+        v_actor_name TEXT;
+        v_comment_author UUID;
+      BEGIN
+        -- SCHEMA-QUALIFIED post_comments table
+        SELECT profile_id INTO v_comment_author FROM public.post_comments WHERE id = NEW.comment_id;
+        IF v_comment_author = NEW.profile_id THEN RETURN NEW; END IF;
+
+        -- SCHEMA-QUALIFIED profiles table
+        SELECT COALESCE(first_name || ' ' || last_name, full_name, 'Someone')
+        INTO v_actor_name FROM public.profiles WHERE id = NEW.profile_id;
+
+        -- SCHEMA-QUALIFIED function call
+        PERFORM public.create_notification(
+          p_user_id := v_comment_author,
+          p_type := 'like',
+          p_actor_id := NEW.profile_id,
+          p_title := v_actor_name || ' liked your comment',
+          p_action_url := '/feed?comment=' || NEW.comment_id,
+          p_comment_id := NEW.comment_id,
+          p_metadata := jsonb_build_object('comment_id', NEW.comment_id)
+        );
+        RETURN NEW;
+      END;
+      $function$;
+EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
+END $pass1$;
+DO $pass1$ BEGIN
+CREATE OR REPLACE FUNCTION public.notify_follow_accepted()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO ''
+AS $function$
+DECLARE
+  v_actor_name TEXT;
+BEGIN
+  IF OLD.status = 'pending' AND NEW.status = 'accepted' THEN
+    v_actor_name := public.get_actor_display_name(NEW.following_id);
+
+    PERFORM public.create_notification(
+      p_user_id := NEW.follower_id,
+      p_type := 'follow_accepted',
+      p_actor_id := NEW.following_id,
+      p_title := v_actor_name || ' accepted your follow request',
+      p_action_url := '/athlete/' || NEW.following_id,
+      p_follow_id := NEW.id,
+      p_metadata := jsonb_build_object('follow_id', NEW.id)
+    );
+  END IF;
+  RETURN NEW;
+END;
+$function$;
+EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
+END $pass1$;
+DO $pass1$ BEGIN
+CREATE OR REPLACE FUNCTION public.notify_follow_declined()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO ''
+AS $function$
+BEGIN
+  -- Update the follow_request notification status when request is deleted
+  IF OLD.status = 'pending' THEN
+    UPDATE public.notifications
+    SET action_status = 'declined',
+        action_taken_at = NOW()
+    WHERE follow_id = OLD.id
+      AND type = 'follow_request';
+  END IF;
+  RETURN OLD;
+END;
+$function$;
+EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
+END $pass1$;
+DO $pass1$ BEGIN
+CREATE OR REPLACE FUNCTION public.notify_follow_request()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO ''
+AS $function$
+DECLARE
+  v_actor_name TEXT;
+BEGIN
+  IF NEW.status = 'pending' THEN
+    v_actor_name := public.get_actor_display_name(NEW.follower_id);
+
+    PERFORM public.create_notification(
+      p_user_id := NEW.following_id,
+      p_type := 'follow_request',
+      p_actor_id := NEW.follower_id,
+      p_title := v_actor_name || ' sent you a follow request',
+      p_message := NEW.message,
+      p_action_url := '/app/followers?tab=requests',
+      p_follow_id := NEW.id,
+      p_metadata := jsonb_build_object('follow_id', NEW.id, 'action_status', 'pending')
+    );
+  END IF;
+  RETURN NEW;
+END;
+$function$;
+EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
+END $pass1$;
+DO $pass1$ BEGIN
+CREATE OR REPLACE FUNCTION public.notify_new_follower()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO ''
+AS $function$
+DECLARE
+  v_actor_name TEXT;
+BEGIN
+  IF NEW.status = 'accepted' THEN
+    v_actor_name := public.get_actor_display_name(NEW.follower_id);
+
+    PERFORM public.create_notification(
+      p_user_id := NEW.following_id,
+      p_type := 'new_follower',
+      p_actor_id := NEW.follower_id,
+      p_title := v_actor_name || ' started following you',
+      p_action_url := '/athlete/' || NEW.follower_id,
+      p_follow_id := NEW.id,
+      p_metadata := jsonb_build_object('follow_id', NEW.id)
+    );
+  END IF;
+  RETURN NEW;
+END;
+$function$;
+EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
+END $pass1$;
+DO $pass1$ BEGIN
+CREATE OR REPLACE FUNCTION public.notify_post_comment()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO ''
+AS $function$
+DECLARE
+  v_post_owner UUID;
+  v_actor_name TEXT;
+BEGIN
+  -- Held/rejected comments are invisible: no notification until approval
+  -- (the app sends it when a guardian approves).
+  IF NEW.status <> 'published' THEN
+    RETURN NEW;
+  END IF;
+
+  SELECT profile_id INTO v_post_owner FROM public.posts WHERE id = NEW.post_id;
+  IF v_post_owner IS NULL OR v_post_owner = NEW.profile_id THEN
+    RETURN NEW;
+  END IF;
+
+  v_actor_name := public.get_actor_display_name(NEW.profile_id);
+
+  PERFORM public.create_notification(
+    p_user_id := v_post_owner,
+    p_type := 'comment',
+    p_actor_id := NEW.profile_id,
+    p_title := v_actor_name || ' commented on your post',
+    p_action_url := '/feed',
+    p_post_id := NEW.post_id,
+    p_comment_id := NEW.id,
+    p_metadata := jsonb_build_object('post_id', NEW.post_id, 'comment_id', NEW.id)
+  );
+  RETURN NEW;
+END;
+$function$;
+EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
+END $pass1$;
+DO $pass1$ BEGIN
+CREATE OR REPLACE FUNCTION public.notify_post_like()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO ''
+AS $function$
+    DECLARE
+      v_post_owner UUID;
+      v_actor_name TEXT;
+    BEGIN
+      SELECT profile_id INTO v_post_owner FROM public.posts WHERE id = NEW.post_id;
+      IF v_post_owner IS NULL OR v_post_owner = NEW.profile_id THEN
+        RETURN NEW;
+      END IF;
+
+      v_actor_name := public.get_actor_display_name(NEW.profile_id);
+
+      PERFORM public.create_notification(
+        p_user_id := v_post_owner,
+        p_type := 'like',
+        p_actor_id := NEW.profile_id,
+        p_title := v_actor_name || ' liked your post',
+        p_action_url := '/feed',
+        p_post_id := NEW.post_id,
+        p_metadata := jsonb_build_object('post_id', NEW.post_id)
+      );
+      RETURN NEW;
+    END;
+    $function$;
+EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
+END $pass1$;
+DO $pass1$ BEGIN
+CREATE OR REPLACE FUNCTION public.notify_profile_tagged()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO ''
+AS $function$
+DECLARE
+  v_actor_name TEXT;
+BEGIN
+  -- Don't notify if tagging yourself (create_notification also guards this)
+  IF NEW.tagged_profile_id = NEW.created_by_profile_id THEN
+    RETURN NEW;
+  END IF;
+
+  -- Actor display name, same convention as migration 014
+  SELECT COALESCE(first_name || ' ' || last_name, full_name, 'Someone')
+  INTO v_actor_name
+  FROM public.profiles
+  WHERE id = NEW.created_by_profile_id;
+
+  PERFORM public.create_notification(
+    p_user_id   := NEW.tagged_profile_id,
+    p_type      := 'tag',
+    p_actor_id  := NEW.created_by_profile_id,
+    p_title     := v_actor_name || ' tagged you in a post',
+    p_action_url := '/feed?post=' || NEW.post_id,
+    p_post_id   := NEW.post_id,
+    p_metadata  := jsonb_build_object('tag_id', NEW.id, 'media_id', NEW.media_id)
+  );
+
+  RETURN NEW;
+END;
+$function$;
+EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
+END $pass1$;
+DO $pass1$ BEGIN
+CREATE OR REPLACE FUNCTION public.participant_group_post(p_id uuid)
+ RETURNS uuid
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO ''
+AS $function$
+  SELECT group_post_id FROM public.group_post_participants WHERE id = p_id;
+$function$;
+EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
+END $pass1$;
+DO $pass1$ BEGIN
+CREATE OR REPLACE FUNCTION public.place_context(p_place_id uuid)
+ RETURNS text
+ LANGUAGE sql
+ STABLE
+ SET search_path TO 'public'
+AS $function$
+  SELECT concat_ws(' ', p.admin2, p.metro) FROM places p WHERE p.id = p_place_id
+$function$;
+EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
+END $pass1$;
+DO $pass1$ BEGIN
+CREATE OR REPLACE FUNCTION public.place_fields(p_place_id uuid)
+ RETURNS TABLE(city text, region text, region_code text, country text, country_code text, lat double precision, lng double precision)
+ LANGUAGE sql
+ STABLE
+ SET search_path TO 'public'
+AS $function$
+  SELECT p.name, p.region, p.region_code, p.country, p.country_code, p.lat, p.lng
+  FROM places p WHERE p.id = p_place_id
+$function$;
+EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
+END $pass1$;
+DO $pass1$ BEGIN
+CREATE OR REPLACE FUNCTION public.places_search_vector_update()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public', 'extensions'
+AS $function$
+BEGIN
+  NEW.search_vector :=
+    setweight(to_tsvector('simple', public.search_normalize(NEW.name)), 'A') ||
+    setweight(to_tsvector('simple', public.search_normalize(NEW.ascii_name)), 'A') ||
+    setweight(to_tsvector('simple', public.search_normalize(concat_ws(' ', NEW.region, NEW.region_code))), 'C') ||
+    setweight(to_tsvector('simple', public.search_normalize(concat_ws(' ', NEW.country, NEW.country_code))), 'D');
+  RETURN NEW;
+END;
+$function$;
+EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
+END $pass1$;
+DO $pass1$ BEGIN
+CREATE OR REPLACE FUNCTION public.posts_search_vector_update()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SET search_path TO ''
+AS $function$
+BEGIN
+  NEW.search_vector := setweight(to_tsvector('english', COALESCE(NEW.caption, '')), 'A') ||
+    setweight(to_tsvector('english', COALESCE(array_to_string(NEW.tags, ' '), '')), 'B') ||
+    setweight(to_tsvector('english', COALESCE(array_to_string(NEW.hashtags, ' '), '')), 'B');
+  RETURN NEW;
+END; $function$;
+EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
+END $pass1$;
+DO $pass1$ BEGIN
+CREATE OR REPLACE FUNCTION public.profiles_search_vector_update()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public', 'extensions'
+AS $function$
+BEGIN
+  NEW.search_vector :=
+    setweight(to_tsvector('simple', public.search_normalize(NEW.first_name)), 'A') ||
+    setweight(to_tsvector('simple', public.search_normalize(NEW.last_name)),  'A') ||
+    setweight(to_tsvector('simple', public.search_normalize(NEW.full_name)),  'A') ||
+    setweight(to_tsvector('simple', public.search_normalize(NEW.handle)),     'B') ||
+    setweight(to_tsvector('simple', public.search_normalize(
+      concat_ws(' ', NEW.city, NEW.region, NEW.region_code, NEW.country, NEW.country_code, NEW.location))), 'C') ||
+    setweight(to_tsvector('simple', public.search_normalize(public.place_context(NEW.place_id))), 'D');
+  RETURN NEW;
+END;
+$function$;
+EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
+END $pass1$;
+DO $pass1$ BEGIN
+CREATE OR REPLACE FUNCTION public.provenance_inventory()
+ RETURNS jsonb
+ LANGUAGE sql
+ STABLE
+ SET search_path TO 'pg_catalog', 'public'
+AS $function$
+  SELECT jsonb_build_object(
+    'meta', jsonb_build_object(
+      'version', 1,
+      'generated_at', now(),
+      'role', current_user,
+      'server_version', current_setting('server_version')
+    ),
+    'rls', (
+      SELECT COALESCE(jsonb_agg(jsonb_build_object(
+               'table', c.relname,
+               'enabled', c.relrowsecurity,
+               'forced', c.relforcerowsecurity
+             ) ORDER BY c.relname), '[]'::jsonb)
+      FROM pg_class c
+      JOIN pg_namespace n ON n.oid = c.relnamespace
+      WHERE n.nspname = 'public' AND c.relkind IN ('r', 'p')
+    ),
+    'policies', (
+      SELECT COALESCE(jsonb_agg(jsonb_build_object(
+               'table', p.tablename,
+               'name', p.policyname,
+               'permissive', p.permissive,
+               'roles', to_jsonb(p.roles),
+               'cmd', p.cmd,
+               'qual', p.qual,
+               'with_check', p.with_check
+             ) ORDER BY p.tablename, p.policyname), '[]'::jsonb)
+      FROM pg_policies p
+      WHERE p.schemaname = 'public'
+    ),
+    'functions', (
+      SELECT COALESCE(jsonb_agg(jsonb_build_object(
+               'name', p.proname,
+               'identity_args', pg_get_function_identity_arguments(p.oid),
+               'arg_types', oidvectortypes(p.proargtypes),
+               'returns', pg_get_function_result(p.oid),
+               'kind', p.prokind,
+               'language', l.lanname,
+               'volatility', p.provolatile,
+               'secdef', p.prosecdef,
+               'config', to_jsonb(p.proconfig),
+               'body_md5', md5(p.prosrc),
+               'body_md5_norm', md5(btrim(
+                 regexp_replace(
+                   regexp_replace(p.prosrc, E'\r\n', E'\n', 'g'),
+                   E'[ \t]+\n', E'\n', 'g'),
+                 E' \t\n')),
+               'body_bytes', length(p.prosrc),
+               'definition', pg_get_functiondef(p.oid),
+               'acl', to_jsonb(p.proacl),
+               'owner', pg_get_userbyid(p.proowner)
+             ) ORDER BY p.proname, oidvectortypes(p.proargtypes)), '[]'::jsonb)
+      FROM pg_proc p
+      JOIN pg_namespace n ON n.oid = p.pronamespace
+      JOIN pg_language  l ON l.oid = p.prolang
+      WHERE n.nspname = 'public'
+        AND p.prokind IN ('f', 'p')
+        AND NOT EXISTS (
+          SELECT 1 FROM pg_depend d
+          WHERE d.classid = 'pg_proc'::regclass
+            AND d.objid = p.oid
+            AND d.deptype = 'e'
+        )
+    ),
+    'triggers', (
+      SELECT COALESCE(jsonb_agg(jsonb_build_object(
+               'table', c.relname,
+               'name', t.tgname,
+               'enabled', t.tgenabled,
+               'definition', pg_get_triggerdef(t.oid)
+             ) ORDER BY c.relname, t.tgname), '[]'::jsonb)
+      FROM pg_trigger t
+      JOIN pg_class c     ON c.oid = t.tgrelid
+      JOIN pg_namespace n ON n.oid = c.relnamespace
+      WHERE n.nspname = 'public' AND NOT t.tgisinternal
+    )
+  );
+$function$;
+EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
+END $pass1$;
+DO $pass1$ BEGIN
+CREATE OR REPLACE FUNCTION public.rate_limit_hit(p_key text, p_max integer, p_window_seconds integer)
+ RETURNS TABLE(allowed boolean, retry_after_seconds integer)
+ LANGUAGE plpgsql
+ SET search_path TO 'public'
+AS $function$
+DECLARE
+  v_count integer;
+  v_window_start timestamptz;
+BEGIN
+  -- Opportunistic GC on ~1% of calls: rows are one per active key, so the
+  -- table stays at hundreds of rows and this needs no cron. 2 days is
+  -- comfortably past the longest window (1 day), so it only touches cold
+  -- rows and never contends with a hot key's row lock.
+  IF random() < 0.01 THEN
+    DELETE FROM public.rate_limits WHERE window_start < now() - interval '2 days';
+  END IF;
+
+  -- One atomic upsert: concurrent callers serialize on the row lock, so no
+  -- lost increments and no double window-reset. While blocked, count keeps
+  -- climbing but window_start does NOT move — the window still expires on
+  -- schedule (no punishment-extension).
+  INSERT INTO public.rate_limits AS rl (key, window_start, count)
+  VALUES (p_key, now(), 1)
+  ON CONFLICT (key) DO UPDATE SET
+    count = CASE
+      WHEN rl.window_start <= now() - make_interval(secs => p_window_seconds)
+      THEN 1 ELSE rl.count + 1 END,
+    window_start = CASE
+      WHEN rl.window_start <= now() - make_interval(secs => p_window_seconds)
+      THEN now() ELSE rl.window_start END
+  RETURNING rl.count, rl.window_start INTO v_count, v_window_start;
+
+  allowed := v_count <= p_max;
+  retry_after_seconds := CASE WHEN v_count <= p_max THEN 0
+    ELSE GREATEST(1, CEIL(EXTRACT(EPOCH FROM
+      (v_window_start + make_interval(secs => p_window_seconds) - now())))::integer)
+  END;
+  RETURN NEXT;
+END;
+$function$;
+EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
+END $pass1$;
+DO $pass1$ BEGIN
+CREATE OR REPLACE FUNCTION public.resolve_org_site_domain(p_slug text)
+ RETURNS text
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  SELECT custom_domain
+  FROM org_sites
+  WHERE subdomain = lower(p_slug)
+    AND domain_active_at IS NOT NULL
+    AND published_at IS NOT NULL
+  LIMIT 1
+$function$;
+EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
+END $pass1$;
+DO $pass1$ BEGIN
+CREATE OR REPLACE FUNCTION public.resolve_org_site_host(p_host text)
+ RETURNS TABLE(slug text, active boolean)
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  SELECT subdomain, domain_active_at IS NOT NULL
+  FROM org_sites
+  WHERE custom_domain = lower(p_host)
+    AND domain_verified_at IS NOT NULL
+    AND published_at IS NOT NULL
+  LIMIT 1
+$function$;
+EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
+END $pass1$;
+DO $pass1$ BEGIN
+CREATE OR REPLACE FUNCTION public.schema_dump()
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ STABLE
+ SET search_path TO 'pg_catalog', 'public'
+AS $function$
+DECLARE
+  v_buckets jsonb;
+  v_cron    jsonb;
+  v_seed    jsonb;
+  v_ledger  jsonb;
+BEGIN
+  BEGIN
+    SELECT COALESCE(jsonb_agg(jsonb_build_object(
+             'id', b.id, 'name', b.name, 'public', b.public,
+             'file_size_limit', b.file_size_limit, 'allowed_mime_types', to_jsonb(b.allowed_mime_types)
+           ) ORDER BY b.id), '[]'::jsonb)
+      INTO v_buckets
+      FROM storage.buckets b;
+  EXCEPTION WHEN OTHERS THEN
+    v_buckets := NULL;
+  END;
+
+  -- The cron commands carry a live bearer token (059 / 135 were run with
+  -- CRON_SECRET pasted in): REDACTED here, so the secret never leaves the
+  -- database — the rebuild carries the placeholder the files carry.
+  BEGIN
+    SELECT COALESCE(jsonb_agg(jsonb_build_object(
+             'name', j.jobname, 'schedule', j.schedule, 'active', j.active,
+             'command', regexp_replace(j.command, 'Bearer [^''"\s]+', 'Bearer __CRON_SECRET__', 'g')
+           ) ORDER BY j.jobname), '[]'::jsonb)
+      INTO v_cron
+      FROM cron.job j;
+  EXCEPTION WHEN OTHERS THEN
+    v_cron := NULL;
+  END;
+
+  -- Reference rows the app cannot run without. ONE table today:
+  -- reserved_handles (the root-segment + system-path seed, 006 onward).
+  -- `sports` is empty on prod (the registry lives in code); the golf
+  -- catalog is DATA (28k courses), copied separately, never a baseline.
+  BEGIN
+    SELECT jsonb_build_object(
+             'reserved_handles', (SELECT COALESCE(jsonb_agg(to_jsonb(r) ORDER BY r.handle), '[]'::jsonb) FROM public.reserved_handles r)
+           )
+      INTO v_seed;
+  EXCEPTION WHEN OTHERS THEN
+    v_seed := NULL;
+  END;
+
+  BEGIN
+    SELECT jsonb_build_object('head', max(m.number), 'rows', count(*))
+      INTO v_ledger
+      FROM public.schema_migrations m;
+  EXCEPTION WHEN OTHERS THEN
+    v_ledger := NULL;
+  END;
+
+  RETURN jsonb_build_object(
+    'meta', jsonb_build_object(
+      'version', 1,
+      'generated_at', now(),
+      'role', current_user,
+      'server_version', current_setting('server_version'),
+      'ledger', v_ledger
+    ),
+    'extensions', (
+      SELECT COALESCE(jsonb_agg(jsonb_build_object('name', e.extname, 'schema', n.nspname, 'version', e.extversion) ORDER BY e.extname), '[]'::jsonb)
+      FROM pg_extension e JOIN pg_namespace n ON n.oid = e.extnamespace
+      WHERE e.extname <> 'plpgsql'
+    ),
+    'types', (
+      SELECT COALESCE(jsonb_agg(jsonb_build_object(
+               'name', t.typname,
+               'labels', (SELECT jsonb_agg(l.enumlabel ORDER BY l.enumsortorder) FROM pg_enum l WHERE l.enumtypid = t.oid)
+             ) ORDER BY t.typname), '[]'::jsonb)
+      FROM pg_type t JOIN pg_namespace n ON n.oid = t.typnamespace
+      WHERE n.nspname = 'public' AND t.typtype = 'e'
+    ),
+    'sequences', (
+      SELECT COALESCE(jsonb_agg(jsonb_build_object(
+               'name', s.sequencename, 'data_type', s.data_type::text,
+               'start', s.start_value, 'increment', s.increment_by, 'min', s.min_value, 'max', s.max_value, 'cycle', s.cycle,
+               'owned_by', (
+                 SELECT c.relname || '.' || a.attname
+                 FROM pg_depend d
+                 JOIN pg_class c ON c.oid = d.refobjid
+                 JOIN pg_attribute a ON a.attrelid = d.refobjid AND a.attnum = d.refobjsubid
+                 WHERE d.classid = 'pg_class'::regclass AND d.objid = (quote_ident(s.schemaname) || '.' || quote_ident(s.sequencename))::regclass
+                   AND d.refclassid = 'pg_class'::regclass AND d.deptype IN ('a', 'i')
+                 LIMIT 1
+               ),
+               'identity', EXISTS (
+                 SELECT 1 FROM pg_depend d
+                 WHERE d.classid = 'pg_class'::regclass AND d.objid = (quote_ident(s.schemaname) || '.' || quote_ident(s.sequencename))::regclass
+                   AND d.deptype = 'i'
+               ),
+               'grants', jsonb_build_object(
+                 'anon', has_sequence_privilege('anon', quote_ident(s.schemaname) || '.' || quote_ident(s.sequencename), 'USAGE'),
+                 'authenticated', has_sequence_privilege('authenticated', quote_ident(s.schemaname) || '.' || quote_ident(s.sequencename), 'USAGE'),
+                 'service_role', has_sequence_privilege('service_role', quote_ident(s.schemaname) || '.' || quote_ident(s.sequencename), 'USAGE')
+               )
+             ) ORDER BY s.sequencename), '[]'::jsonb)
+      FROM pg_sequences s
+      WHERE s.schemaname = 'public'
+    ),
+    'tables', (
+      SELECT COALESCE(jsonb_agg(jsonb_build_object(
+               'name', c.relname,
+               'kind', c.relkind,
+               'rls', c.relrowsecurity,
+               'rls_forced', c.relforcerowsecurity,
+               'comment', obj_description(c.oid, 'pg_class'),
+               'columns', (
+                 SELECT jsonb_agg(jsonb_build_object(
+                          'name', a.attname,
+                          'type', format_type(a.atttypid, a.atttypmod),
+                          'not_null', a.attnotnull,
+                          'default', pg_get_expr(d.adbin, d.adrelid),
+                          'identity', a.attidentity,
+                          'generated', a.attgenerated,
+                          'comment', col_description(c.oid, a.attnum)
+                        ) ORDER BY a.attnum)
+                 FROM pg_attribute a
+                 LEFT JOIN pg_attrdef d ON d.adrelid = a.attrelid AND d.adnum = a.attnum
+                 WHERE a.attrelid = c.oid AND a.attnum > 0 AND NOT a.attisdropped
+               ),
+               'grants', (
+                 SELECT COALESCE(jsonb_object_agg(g.grantee, g.privs), '{}'::jsonb)
+                 FROM (
+                   SELECT r.grantee, jsonb_agg(r.privilege_type ORDER BY r.privilege_type) AS privs
+                   FROM information_schema.role_table_grants r
+                   WHERE r.table_schema = 'public' AND r.table_name = c.relname
+                     AND r.grantee IN ('anon', 'authenticated', 'service_role')
+                   GROUP BY r.grantee
+                 ) g
+               )
+             ) ORDER BY c.relname), '[]'::jsonb)
+      FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+      WHERE n.nspname = 'public' AND c.relkind IN ('r', 'p')
+    ),
+    'constraints', (
+      SELECT COALESCE(jsonb_agg(jsonb_build_object(
+               'table', c.relname, 'name', k.conname, 'type', k.contype,
+               'definition', pg_get_constraintdef(k.oid),
+               'index', (SELECT i.relname FROM pg_class i WHERE i.oid = k.conindid AND k.conindid <> 0)
+             ) ORDER BY c.relname, k.contype, k.conname), '[]'::jsonb)
+      FROM pg_constraint k
+      JOIN pg_class c ON c.oid = k.conrelid
+      JOIN pg_namespace n ON n.oid = c.relnamespace
+      WHERE n.nspname = 'public' AND c.relkind IN ('r', 'p')
+    ),
+    'indexes', (
+      SELECT COALESCE(jsonb_agg(jsonb_build_object(
+               'table', i.tablename, 'name', i.indexname, 'definition', i.indexdef,
+               'constraint', EXISTS (
+                 SELECT 1 FROM pg_constraint k WHERE k.conindid = (quote_ident(i.schemaname) || '.' || quote_ident(i.indexname))::regclass
+               )
+             ) ORDER BY i.tablename, i.indexname), '[]'::jsonb)
+      FROM pg_indexes i
+      WHERE i.schemaname = 'public'
+    ),
+    'views', (
+      SELECT COALESCE(jsonb_agg(jsonb_build_object(
+               'name', c.relname, 'materialized', c.relkind = 'm',
+               'definition', pg_get_viewdef(c.oid, true),
+               'grants', (
+                 SELECT COALESCE(jsonb_object_agg(g.grantee, g.privs), '{}'::jsonb)
+                 FROM (
+                   SELECT r.grantee, jsonb_agg(r.privilege_type ORDER BY r.privilege_type) AS privs
+                   FROM information_schema.role_table_grants r
+                   WHERE r.table_schema = 'public' AND r.table_name = c.relname
+                     AND r.grantee IN ('anon', 'authenticated', 'service_role')
+                   GROUP BY r.grantee
+                 ) g
+               )
+             ) ORDER BY c.relname), '[]'::jsonb)
+      FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+      WHERE n.nspname = 'public' AND c.relkind IN ('v', 'm')
+    ),
+    'functions', (
+      SELECT COALESCE(jsonb_agg(jsonb_build_object(
+               'name', p.proname,
+               'identity_args', pg_get_function_identity_arguments(p.oid),
+               'kind', p.prokind,
+               'language', l.lanname,
+               'definition', pg_get_functiondef(p.oid),
+               'grants', jsonb_build_object(
+                 'anon', has_function_privilege('anon', p.oid, 'EXECUTE'),
+                 'authenticated', has_function_privilege('authenticated', p.oid, 'EXECUTE'),
+                 'service_role', has_function_privilege('service_role', p.oid, 'EXECUTE')
+               ),
+               'comment', obj_description(p.oid, 'pg_proc')
+             ) ORDER BY p.proname, oidvectortypes(p.proargtypes)), '[]'::jsonb)
+      FROM pg_proc p
+      JOIN pg_namespace n ON n.oid = p.pronamespace
+      JOIN pg_language  l ON l.oid = p.prolang
+      WHERE n.nspname = 'public'
+        AND p.prokind IN ('f', 'p')
+        AND NOT EXISTS (SELECT 1 FROM pg_depend d WHERE d.classid = 'pg_proc'::regclass AND d.objid = p.oid AND d.deptype = 'e')
+    ),
+    'triggers', (
+      SELECT COALESCE(jsonb_agg(jsonb_build_object(
+               'schema', n.nspname, 'table', c.relname, 'name', t.tgname,
+               'enabled', t.tgenabled, 'definition', pg_get_triggerdef(t.oid)
+             ) ORDER BY n.nspname, c.relname, t.tgname), '[]'::jsonb)
+      FROM pg_trigger t
+      JOIN pg_class c     ON c.oid = t.tgrelid
+      JOIN pg_namespace n ON n.oid = c.relnamespace
+      WHERE NOT t.tgisinternal
+        AND (n.nspname = 'public' OR (n.nspname = 'auth' AND c.relname = 'users'))
+    ),
+    'policies', (
+      SELECT COALESCE(jsonb_agg(jsonb_build_object(
+               'schema', p.schemaname, 'table', p.tablename, 'name', p.policyname,
+               'permissive', p.permissive, 'roles', to_jsonb(p.roles), 'cmd', p.cmd,
+               'qual', p.qual, 'with_check', p.with_check
+             ) ORDER BY p.schemaname, p.tablename, p.policyname), '[]'::jsonb)
+      FROM pg_policies p
+      WHERE p.schemaname = 'public' OR (p.schemaname = 'storage' AND p.tablename = 'objects')
+    ),
+    'publications', (
+      SELECT COALESCE(jsonb_agg(jsonb_build_object('publication', pt.pubname, 'table', pt.tablename) ORDER BY pt.pubname, pt.tablename), '[]'::jsonb)
+      FROM pg_publication_tables pt
+      WHERE pt.schemaname = 'public'
+    ),
+    'storage_buckets', v_buckets,
+    'cron_jobs', v_cron,
+    'seed_rows', v_seed
+  );
+END;
+$function$;
+EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
+END $pass1$;
+DO $pass1$ BEGIN
+CREATE OR REPLACE FUNCTION public.search_all(q text, p_types text[] DEFAULT NULL::text[], max_per_type integer DEFAULT 20, visible_ids uuid[] DEFAULT '{}'::uuid[], include_public boolean DEFAULT true, p_country_code text DEFAULT NULL::text, p_region_code text DEFAULT NULL::text, p_near_lat double precision DEFAULT NULL::double precision, p_near_lng double precision DEFAULT NULL::double precision, p_radius_km double precision DEFAULT NULL::double precision)
+ RETURNS TABLE(entity_type text, entity_id uuid, title text, subtitle text, sport_key text, city text, region text, region_code text, country text, country_code text, place_id uuid, lat double precision, lng double precision, distance_km double precision, match_rank integer)
+ LANGUAGE plpgsql
+ STABLE
+ SET search_path TO 'public', 'extensions'
+AS $function$
+DECLARE
+  qn       text    := public.search_normalize(q);
+  tsq      tsquery := public.search_prefix_tsquery(q);
+  per      int     := GREATEST(COALESCE(max_per_type, 20), 1);
+  near     boolean := p_near_lat IS NOT NULL AND p_near_lng IS NOT NULL;
+  radius   float8  := COALESCE(p_radius_km, 50);
+  filtered boolean;
+  dlat     float8;
+  dlng     float8;
+BEGIN
+  filtered := p_country_code IS NOT NULL OR p_region_code IS NOT NULL OR near;
+  -- An empty query is a filtered browse or nothing (search_people precedent).
+  IF qn = '' AND NOT filtered THEN RETURN; END IF;
+  dlat := radius / 111.0;
+  dlng := radius / (111.0 * GREATEST(cos(radians(COALESCE(p_near_lat, 0))), 0.1));
+  RETURN QUERY
+  WITH base AS (
+    SELECT d.*,
+      CASE WHEN near THEN public.haversine_km(p_near_lat, p_near_lng, d.lat, d.lng) END AS dist
+    FROM search_documents d
+    WHERE (p_types IS NULL OR d.entity_type = ANY(p_types))
+      -- Privacy: public docs pass (athletes only when include_public);
+      -- everything else needs the owner in the caller's audience.
+      AND ( (d.visibility = 'public' AND (d.entity_type <> 'athlete' OR include_public))
+            OR (d.owner_id IS NOT NULL AND d.owner_id = ANY(visible_ids)) )
+      AND (p_country_code IS NULL OR d.country_code = upper(p_country_code))
+      AND (p_region_code IS NULL OR d.region_code = upper(p_region_code))
+      AND (NOT near OR (d.lat BETWEEN p_near_lat - dlat AND p_near_lat + dlat
+                    AND d.lng BETWEEN p_near_lng - dlng AND p_near_lng + dlng))
+  ),
+  matched AS (
+    SELECT b.*,
+      CASE
+        WHEN qn = '' THEN 3
+        WHEN public.search_normalize(b.title) = qn THEN 0
+        WHEN public.search_normalize(b.title) LIKE qn || '%' THEN 1
+        WHEN tsq IS NOT NULL AND to_tsvector('simple', public.search_normalize(b.title)) @@ tsq THEN 2
+        WHEN tsq IS NOT NULL AND b.search_vector @@ tsq THEN 3
+        ELSE 4
+      END AS tier,
+      CASE WHEN tsq IS NOT NULL
+           THEN public.search_token_hits(to_tsvector('simple', public.search_normalize(b.title)), q)
+           ELSE 0 END AS name_hits,
+      CASE WHEN tsq IS NOT NULL THEN public.search_token_rank(b.search_vector, q) ELSE 0 END AS score
+    FROM base b
+    WHERE qn = ''
+       OR (tsq IS NOT NULL AND b.search_vector @@ tsq)
+       OR (length(qn) >= 2 AND (
+            b.title ILIKE '%' || qn || '%' OR b.subtitle ILIKE '%' || qn || '%'
+         OR b.city ILIKE '%' || qn || '%' OR b.region ILIKE '%' || qn || '%'
+         OR b.country ILIKE '%' || qn || '%'))
+  ),
+  ranked AS (
+    SELECT m.*, ROW_NUMBER() OVER (
+      PARTITION BY m.entity_type
+      ORDER BY
+        m.tier,
+        CASE WHEN near AND qn = '' THEN m.dist END ASC NULLS LAST,
+        m.name_hits DESC,
+        m.rich DESC,
+        m.recency DESC NULLS LAST,
+        m.score DESC,
+        m.dist ASC NULLS LAST,
+        m.title
+    ) AS rn
+    FROM matched m
+  )
+  SELECT r.entity_type, r.entity_id, r.title, r.subtitle, r.sport_key,
+    r.city, r.region, r.region_code, r.country, r.country_code,
+    r.place_id, r.lat, r.lng, r.dist, r.tier
+  FROM ranked r
+  WHERE r.rn <= per
+  ORDER BY
+    r.tier,
+    CASE WHEN near AND qn = '' THEN r.dist END ASC NULLS LAST,
+    r.name_hits DESC,
+    r.rich DESC,
+    r.recency DESC NULLS LAST,
+    r.score DESC,
+    r.dist ASC NULLS LAST,
+    r.title;
+END;
+$function$;
+EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
+END $pass1$;
+DO $pass1$ BEGIN
+CREATE OR REPLACE FUNCTION public.search_all_facets(q text, p_types text[] DEFAULT NULL::text[], visible_ids uuid[] DEFAULT '{}'::uuid[], include_public boolean DEFAULT true, p_country_code text DEFAULT NULL::text, p_region_code text DEFAULT NULL::text)
+ RETURNS TABLE(facet text, code text, label text, n bigint)
+ LANGUAGE plpgsql
+ STABLE
+ SET search_path TO 'public', 'extensions'
+AS $function$
+DECLARE
+  qn  text    := public.search_normalize(q);
+  tsq tsquery := public.search_prefix_tsquery(q);
+BEGIN
+  RETURN QUERY
+  WITH matched AS (
+    SELECT d.*
+    FROM search_documents d
+    WHERE (p_types IS NULL OR d.entity_type = ANY(p_types))
+      AND ( (d.visibility = 'public' AND (d.entity_type <> 'athlete' OR include_public))
+            OR (d.owner_id IS NOT NULL AND d.owner_id = ANY(visible_ids)) )
+      AND (p_country_code IS NULL OR d.country_code = upper(p_country_code))
+      AND (p_region_code IS NULL OR d.region_code = upper(p_region_code))
+      AND (qn = ''
+        OR (tsq IS NOT NULL AND d.search_vector @@ tsq)
+        OR (length(qn) >= 2 AND (
+             d.title ILIKE '%' || qn || '%' OR d.subtitle ILIKE '%' || qn || '%'
+          OR d.city ILIKE '%' || qn || '%' OR d.region ILIKE '%' || qn || '%'
+          OR d.country ILIKE '%' || qn || '%')))
+  ),
+  grouped AS (
+    SELECT
+      CASE
+        WHEN GROUPING(m.entity_type) = 0 THEN 'type'
+        WHEN GROUPING(m.sport_key) = 0 THEN 'sport'
+        WHEN GROUPING(m.region_code) = 0 THEN 'region'
+        ELSE 'country'
+      END AS g_facet,
+      CASE
+        WHEN GROUPING(m.entity_type) = 0 THEN m.entity_type
+        WHEN GROUPING(m.sport_key) = 0 THEN m.sport_key
+        WHEN GROUPING(m.region_code) = 0 THEN m.region_code
+        ELSE m.country_code
+      END AS g_code,
+      CASE
+        WHEN GROUPING(m.entity_type) = 0 THEN m.entity_type
+        WHEN GROUPING(m.sport_key) = 0 THEN m.sport_key
+        WHEN GROUPING(m.region_code) = 0 THEN min(m.region)
+        ELSE min(m.country)
+      END AS g_label,
+      count(*) AS g_n
+    FROM matched m
+    GROUP BY GROUPING SETS ((m.entity_type), (m.sport_key), (m.country_code, m.region_code), (m.country_code))
+  ),
+  ranked AS (
+    SELECT g.g_facet, g.g_code, g.g_label, g.g_n,
+      ROW_NUMBER() OVER (PARTITION BY g.g_facet ORDER BY g.g_n DESC, g.g_code) AS rn
+    FROM grouped g
+    WHERE g.g_code IS NOT NULL
+  )
+  SELECT r.g_facet, r.g_code, r.g_label, r.g_n
+  FROM ranked r
+  WHERE r.rn <= 100
+  ORDER BY
+    CASE r.g_facet WHEN 'type' THEN 0 WHEN 'sport' THEN 1 WHEN 'country' THEN 2 ELSE 3 END,
+    r.g_n DESC,
+    r.g_code;
+END;
+$function$;
+EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
+END $pass1$;
+DO $pass1$ BEGIN
+CREATE OR REPLACE FUNCTION public.search_by_handle(search_term text, max_results integer DEFAULT 10)
+ RETURNS TABLE(profile_id uuid, handle text, first_name text, last_name text, avatar_url text, sport text, school text, match_type text)
+ LANGUAGE plpgsql
+ STABLE
+ SET search_path TO ''
+AS $function$
+DECLARE
+  clean_term TEXT;
+BEGIN
+  -- Remove @ if present and clean
+  clean_term := LOWER(TRIM(LEADING '@' FROM TRIM(search_term)));
+
+  RETURN QUERY
+  SELECT
+    p.id,
+    p.handle,
+    p.first_name,
+    p.last_name,
+    p.avatar_url,
+    p.sport,
+    p.school,
+    CASE
+      WHEN LOWER(p.handle) = clean_term THEN 'exact'
+      WHEN LOWER(p.handle) LIKE clean_term || '%' THEN 'prefix'
+      ELSE 'partial'
+    END AS match_type
+  FROM public.profiles p
+  WHERE p.handle IS NOT NULL
+    AND LOWER(p.handle) LIKE '%' || clean_term || '%'
+  ORDER BY
+    -- Exact matches first
+    CASE WHEN LOWER(p.handle) = clean_term THEN 0 ELSE 1 END,
+    -- Then prefix matches
+    CASE WHEN LOWER(p.handle) LIKE clean_term || '%' THEN 0 ELSE 1 END,
+    -- Then by length (shorter handles rank higher)
+    LENGTH(p.handle),
+    -- Finally alphabetically
+    p.handle
+  LIMIT max_results;
+END;
+$function$;
+EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
+END $pass1$;
+DO $pass1$ BEGIN
+CREATE OR REPLACE FUNCTION public.search_clubs(q text, max_results integer DEFAULT 20, p_country_code text DEFAULT NULL::text, p_region_code text DEFAULT NULL::text, p_near_lat double precision DEFAULT NULL::double precision, p_near_lng double precision DEFAULT NULL::double precision, p_radius_km double precision DEFAULT NULL::double precision)
+ RETURNS TABLE(id uuid, name text, description text, location text, city text, region text, region_code text, country text, country_code text, lat double precision, lng double precision, distance_km double precision, match_rank integer)
+ LANGUAGE plpgsql
+ STABLE
+ SET search_path TO 'public', 'extensions'
+AS $function$
+DECLARE
+  qn     text    := public.search_normalize(q);
+  tsq    tsquery := public.search_prefix_tsquery(q);
+  lim    int     := GREATEST(COALESCE(max_results, 20), 1);
+  near   boolean := p_near_lat IS NOT NULL AND p_near_lng IS NOT NULL;
+  radius float8  := COALESCE(p_radius_km, 50);
+  dlat   float8;
+  dlng   float8;
+BEGIN
+  dlat := radius / 111.0;
+  dlng := radius / (111.0 * GREATEST(cos(radians(COALESCE(p_near_lat, 0))), 0.1));
+  RETURN QUERY
+  SELECT c.id, c.name, c.description, c.location,
+    c.city, c.region, c.region_code, c.country, c.country_code, c.lat, c.lng,
+    CASE WHEN near THEN public.haversine_km(p_near_lat, p_near_lng, c.lat, c.lng) END AS distance_km,
+    CASE
+      WHEN qn = '' THEN 3
+      WHEN public.search_normalize(c.name) = qn THEN 0
+      WHEN public.search_normalize(c.name) LIKE qn || '%' THEN 1
+      WHEN tsq IS NOT NULL AND to_tsvector('simple', public.search_normalize(c.name)) @@ tsq THEN 2
+      ELSE 3
+    END AS match_rank
+  FROM clubs c
+  WHERE (p_country_code IS NULL OR c.country_code = upper(p_country_code))
+    AND (p_region_code IS NULL OR c.region_code = upper(p_region_code))
+    AND (NOT near OR (c.lat BETWEEN p_near_lat - dlat AND p_near_lat + dlat
+                  AND c.lng BETWEEN p_near_lng - dlng AND p_near_lng + dlng))
+    AND (qn = '' OR (tsq IS NOT NULL AND c.search_vector @@ tsq)
+         OR (length(qn) >= 2 AND (c.name ILIKE '%' || qn || '%' OR c.location ILIKE '%' || qn || '%')))
+  ORDER BY 13,
+    CASE WHEN near AND qn = '' THEN public.haversine_km(p_near_lat, p_near_lng, c.lat, c.lng) END ASC NULLS LAST,
+    CASE WHEN tsq IS NOT NULL THEN public.search_token_hits(to_tsvector('simple', public.search_normalize(c.name)), q) ELSE 0 END DESC,
+    c.name
+  LIMIT lim;
+END;
+$function$;
+EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
+END $pass1$;
+DO $pass1$ BEGIN
+CREATE OR REPLACE FUNCTION public.search_doc_sync_athlete()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public', 'extensions'
+AS $function$
+DECLARE
+  t text := COALESCE(NULLIF(btrim(COALESCE(NEW.full_name, '')), ''), NEW.handle);
+BEGIN
+  IF t IS NULL THEN
+    DELETE FROM search_documents sd WHERE sd.entity_type = 'athlete' AND sd.entity_id = NEW.id;
+    RETURN NULL;
+  END IF;
+  INSERT INTO search_documents (entity_type, entity_id, title, subtitle, sport_key,
+    owner_id, visibility, place_id, city, region, region_code, country, country_code,
+    lat, lng, rich, recency, search_vector)
+  VALUES ('athlete', NEW.id, t, NEW.handle, NULL,
+    NEW.id, COALESCE(NEW.visibility, 'public'), NEW.place_id, NEW.city, NEW.region, NEW.region_code,
+    NEW.country, NEW.country_code, NEW.lat, NEW.lng,
+    (NEW.handle IS NOT NULL AND NEW.avatar_url IS NOT NULL),
+    NEW.updated_at, COALESCE(NEW.search_vector, ''::tsvector))
+  ON CONFLICT (entity_type, entity_id) DO UPDATE SET
+    title = EXCLUDED.title, subtitle = EXCLUDED.subtitle, sport_key = EXCLUDED.sport_key,
+    owner_id = EXCLUDED.owner_id, visibility = EXCLUDED.visibility, place_id = EXCLUDED.place_id,
+    city = EXCLUDED.city, region = EXCLUDED.region, region_code = EXCLUDED.region_code,
+    country = EXCLUDED.country, country_code = EXCLUDED.country_code,
+    lat = EXCLUDED.lat, lng = EXCLUDED.lng, rich = EXCLUDED.rich, recency = EXCLUDED.recency,
+    search_vector = EXCLUDED.search_vector, updated_at = timezone('utc', now());
+  RETURN NULL;
+END;
+$function$;
+EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
+END $pass1$;
+DO $pass1$ BEGIN
+CREATE OR REPLACE FUNCTION public.search_doc_sync_club()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public', 'extensions'
+AS $function$
+BEGIN
+  INSERT INTO search_documents (entity_type, entity_id, title, subtitle, sport_key,
+    owner_id, visibility, place_id, city, region, region_code, country, country_code,
+    lat, lng, rich, recency, search_vector)
+  VALUES ('club', NEW.id, NEW.name, left(NEW.description, 140), NULL,
+    NULL, 'public', NEW.place_id, NEW.city, NEW.region, NEW.region_code, NEW.country, NEW.country_code,
+    NEW.lat, NEW.lng, (NEW.description IS NOT NULL), NEW.updated_at,
+    COALESCE(NEW.search_vector, ''::tsvector))
+  ON CONFLICT (entity_type, entity_id) DO UPDATE SET
+    title = EXCLUDED.title, subtitle = EXCLUDED.subtitle, sport_key = EXCLUDED.sport_key,
+    owner_id = EXCLUDED.owner_id, visibility = EXCLUDED.visibility, place_id = EXCLUDED.place_id,
+    city = EXCLUDED.city, region = EXCLUDED.region, region_code = EXCLUDED.region_code,
+    country = EXCLUDED.country, country_code = EXCLUDED.country_code,
+    lat = EXCLUDED.lat, lng = EXCLUDED.lng, rich = EXCLUDED.rich, recency = EXCLUDED.recency,
+    search_vector = EXCLUDED.search_vector, updated_at = timezone('utc', now());
+  RETURN NULL;
+END;
+$function$;
+EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
+END $pass1$;
+DO $pass1$ BEGIN
+CREATE OR REPLACE FUNCTION public.search_doc_sync_course()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public', 'extensions'
+AS $function$
+BEGIN
+  INSERT INTO search_documents (entity_type, entity_id, title, subtitle, sport_key,
+    owner_id, visibility, place_id, city, region, region_code, country, country_code,
+    lat, lng, rich, recency, search_vector)
+  VALUES ('course', NEW.id, NEW.name, NEW.club_name, 'golf',
+    NULL, 'public', NEW.place_id, NEW.city, NEW.region, NEW.region_code, NEW.country, NEW.country_code,
+    NEW.lat, NEW.lng,
+    (NEW.hole_data IS NOT NULL OR NEW.course_rating <> '{}'::jsonb),
+    NEW.hydrated_at, COALESCE(NEW.search_vector, ''::tsvector))
+  ON CONFLICT (entity_type, entity_id) DO UPDATE SET
+    title = EXCLUDED.title, subtitle = EXCLUDED.subtitle, sport_key = EXCLUDED.sport_key,
+    owner_id = EXCLUDED.owner_id, visibility = EXCLUDED.visibility, place_id = EXCLUDED.place_id,
+    city = EXCLUDED.city, region = EXCLUDED.region, region_code = EXCLUDED.region_code,
+    country = EXCLUDED.country, country_code = EXCLUDED.country_code,
+    lat = EXCLUDED.lat, lng = EXCLUDED.lng, rich = EXCLUDED.rich, recency = EXCLUDED.recency,
+    search_vector = EXCLUDED.search_vector, updated_at = timezone('utc', now());
+  RETURN NULL;
+END;
+$function$;
+EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
+END $pass1$;
+DO $pass1$ BEGIN
+CREATE OR REPLACE FUNCTION public.search_doc_sync_league()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public', 'extensions'
+AS $function$
+BEGIN
+  INSERT INTO search_documents (entity_type, entity_id, title, subtitle, sport_key,
+    owner_id, visibility, place_id, city, region, region_code, country, country_code,
+    lat, lng, rich, recency, search_vector)
+  VALUES ('league', NEW.id, NEW.name, left(NEW.description, 140), NEW.sport_key,
+    NULL, 'public', NEW.place_id, NEW.city, NEW.region, NEW.region_code, NEW.country, NEW.country_code,
+    NEW.lat, NEW.lng, (NEW.description IS NOT NULL), NEW.updated_at,
+    COALESCE(NEW.search_vector, ''::tsvector))
+  ON CONFLICT (entity_type, entity_id) DO UPDATE SET
+    title = EXCLUDED.title, subtitle = EXCLUDED.subtitle, sport_key = EXCLUDED.sport_key,
+    owner_id = EXCLUDED.owner_id, visibility = EXCLUDED.visibility, place_id = EXCLUDED.place_id,
+    city = EXCLUDED.city, region = EXCLUDED.region, region_code = EXCLUDED.region_code,
+    country = EXCLUDED.country, country_code = EXCLUDED.country_code,
+    lat = EXCLUDED.lat, lng = EXCLUDED.lng, rich = EXCLUDED.rich, recency = EXCLUDED.recency,
+    search_vector = EXCLUDED.search_vector, updated_at = timezone('utc', now());
+  RETURN NULL;
+END;
+$function$;
+EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
+END $pass1$;
+DO $pass1$ BEGIN
+CREATE OR REPLACE FUNCTION public.search_doc_sync_post()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public', 'extensions'
+AS $function$
+DECLARE
+  t text;
+  author text;
+BEGIN
+  IF NEW.visibility = 'public' AND NEW.status = 'published' THEN
+    t := left(btrim(COALESCE(NEW.caption, '')), 140);
+    IF t = '' THEN
+      t := left(btrim(array_to_string(COALESCE(NEW.hashtags, '{}'), ' ')), 140);
+    END IF;
+    IF t = '' THEN
+      -- Nothing searchable: no caption, no hashtags.
+      DELETE FROM search_documents sd WHERE sd.entity_type = 'post' AND sd.entity_id = NEW.id;
+      RETURN NULL;
+    END IF;
+    SELECT p.full_name INTO author FROM profiles p WHERE p.id = NEW.profile_id;
+    INSERT INTO search_documents (entity_type, entity_id, title, subtitle, sport_key,
+      owner_id, visibility, place_id, city, region, region_code, country, country_code,
+      lat, lng, rich, recency, search_vector)
+    VALUES ('post', NEW.id, t, author, NEW.sport_key,
+      NEW.profile_id, 'public', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
+      false, NEW.created_at,
+      setweight(to_tsvector('simple', public.search_normalize(NEW.caption)), 'A') ||
+      setweight(to_tsvector('simple', public.search_normalize(array_to_string(COALESCE(NEW.hashtags, '{}'), ' '))), 'B') ||
+      setweight(to_tsvector('simple', public.search_normalize(NEW.sport_key)), 'C'))
+    ON CONFLICT (entity_type, entity_id) DO UPDATE SET
+      title = EXCLUDED.title, subtitle = EXCLUDED.subtitle, sport_key = EXCLUDED.sport_key,
+      owner_id = EXCLUDED.owner_id, visibility = EXCLUDED.visibility,
+      rich = EXCLUDED.rich, recency = EXCLUDED.recency,
+      search_vector = EXCLUDED.search_vector, updated_at = timezone('utc', now());
+  ELSE
+    DELETE FROM search_documents sd WHERE sd.entity_type = 'post' AND sd.entity_id = NEW.id;
+  END IF;
+  RETURN NULL;
+END;
+$function$;
+EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
+END $pass1$;
+DO $pass1$ BEGIN
+CREATE OR REPLACE FUNCTION public.search_document_delete()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public', 'extensions'
+AS $function$
+BEGIN
+  DELETE FROM search_documents sd
+  WHERE sd.entity_type = TG_ARGV[0] AND sd.entity_id = OLD.id;
+  RETURN NULL;
+END;
+$function$;
+EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
+END $pass1$;
+DO $pass1$ BEGIN
+CREATE OR REPLACE FUNCTION public.search_golf_courses(q text, max_results integer DEFAULT 20, p_country_code text DEFAULT NULL::text, p_region_code text DEFAULT NULL::text, p_near_lat double precision DEFAULT NULL::double precision, p_near_lng double precision DEFAULT NULL::double precision, p_radius_km double precision DEFAULT NULL::double precision)
+ RETURNS TABLE(id uuid, external_source text, external_id text, name text, club_name text, city text, region text, country text, total_par integer, holes_count integer, hole_data jsonb, course_rating jsonb, slope_rating jsonb, lat double precision, lng double precision, description text, description_attribution text, architect text, year_built integer, course_type text, website text, phone text, hydrated_at timestamp with time zone, place_id uuid, country_code text, region_code text, location_source text, distance_km double precision, match_rank integer)
+ LANGUAGE plpgsql
+ STABLE
+ SET search_path TO 'public', 'extensions'
+AS $function$
+DECLARE
+  qn     text    := public.search_normalize(q);
+  tsq    tsquery := public.search_prefix_tsquery(q);
+  lim    int     := GREATEST(COALESCE(max_results, 20), 1);
+  near   boolean := p_near_lat IS NOT NULL AND p_near_lng IS NOT NULL;
+  radius float8  := COALESCE(p_radius_km, 50);
+  dlat   float8;
+  dlng   float8;
+BEGIN
+  dlat := radius / 111.0;
+  dlng := radius / (111.0 * GREATEST(cos(radians(COALESCE(p_near_lat, 0))), 0.1));
+  RETURN QUERY
+  WITH base AS (
+    SELECT c.*,
+      CASE WHEN near THEN public.haversine_km(p_near_lat, p_near_lng, c.lat, c.lng) END AS dist
+    FROM golf_courses c
+    WHERE (p_country_code IS NULL OR c.country_code = upper(p_country_code))
+      AND (p_region_code IS NULL OR c.region_code = upper(p_region_code))
+      AND (NOT near OR (c.lat BETWEEN p_near_lat - dlat AND p_near_lat + dlat
+                    AND c.lng BETWEEN p_near_lng - dlng AND p_near_lng + dlng))
+  ),
+  matched AS (
+    SELECT b.*,
+      CASE
+        WHEN qn = '' THEN 3
+        WHEN public.search_normalize(b.name) = qn THEN 0
+        WHEN public.search_normalize(b.name) LIKE qn || '%' THEN 1
+        WHEN tsq IS NOT NULL AND to_tsvector('simple', public.search_normalize(b.name)) @@ tsq THEN 2
+        WHEN tsq IS NOT NULL AND b.search_vector @@ tsq THEN 3
+        ELSE 4
+      END AS tier,
+      CASE WHEN tsq IS NOT NULL
+           THEN public.search_token_hits(to_tsvector('simple', public.search_normalize(b.name)), q)
+           ELSE 0 END AS name_hits,
+      CASE WHEN tsq IS NOT NULL THEN public.search_token_rank(b.search_vector, q) ELSE 0 END AS score
+    FROM base b
+    WHERE qn = ''
+       OR (tsq IS NOT NULL AND b.search_vector @@ tsq)
+       OR (length(qn) >= 2 AND (
+            b.name ILIKE '%' || qn || '%' OR b.club_name ILIKE '%' || qn || '%'
+         OR b.city ILIKE '%' || qn || '%' OR b.region ILIKE '%' || qn || '%'
+         OR b.country ILIKE '%' || qn || '%'))
+  )
+  SELECT m.id, m.external_source, m.external_id, m.name, m.club_name,
+    m.city, m.region, m.country, m.total_par, m.holes_count,
+    m.hole_data, m.course_rating, m.slope_rating,
+    m.lat, m.lng, m.description, m.description_attribution,
+    m.architect, m.year_built, m.course_type, m.website, m.phone,
+    m.hydrated_at, m.place_id, m.country_code, m.region_code,
+    m.location_source, m.dist, m.tier
+  FROM matched m
+  ORDER BY
+    m.tier,
+    CASE WHEN near AND qn = '' THEN m.dist END ASC NULLS LAST,
+    -- More of the query in the NAME wins, whatever sits next to what.
+    m.name_hits DESC,
+    (m.hole_data IS NOT NULL OR m.course_rating <> '{}'::jsonb) DESC,
+    (m.city IS NOT NULL) DESC,
+    m.hydrated_at DESC NULLS LAST,
+    m.score DESC,
+    m.dist ASC NULLS LAST,
+    m.name
+  LIMIT lim;
+END;
+$function$;
+EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
+END $pass1$;
+DO $pass1$ BEGIN
+CREATE OR REPLACE FUNCTION public.search_normalize(t text)
+ RETURNS text
+ LANGUAGE sql
+ IMMUTABLE PARALLEL SAFE
+ SET search_path TO 'public', 'extensions'
+AS $function$ SELECT lower(unaccent(coalesce(t, ''))) $function$;
+EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
+END $pass1$;
+DO $pass1$ BEGIN
+CREATE OR REPLACE FUNCTION public.search_people(search_term text, visible_ids uuid[] DEFAULT '{}'::uuid[], include_public boolean DEFAULT true, max_results integer DEFAULT 20, require_handle boolean DEFAULT false, exclude_id uuid DEFAULT NULL::uuid, p_country_code text DEFAULT NULL::text, p_region_code text DEFAULT NULL::text, p_near_lat double precision DEFAULT NULL::double precision, p_near_lng double precision DEFAULT NULL::double precision, p_radius_km double precision DEFAULT NULL::double precision)
+ RETURNS TABLE(id uuid, handle text, first_name text, middle_name text, last_name text, full_name text, avatar_url text, location text, sport text, school text, visibility text, city text, region text, region_code text, country text, country_code text, distance_km double precision, match_rank integer)
+ LANGUAGE plpgsql
+ STABLE
+ SET search_path TO 'public', 'extensions'
+AS $function$
+DECLARE
+  q        TEXT;
+  q_c      TEXT;
+  v_lo     TEXT;
+  v_hi     TEXT;
+  esc      TEXT;
+  infix    TEXT;
+  wordpre  TEXT;
+  is_short BOOLEAN;
+  tsq      TSQUERY;
+  near     BOOLEAN := p_near_lat IS NOT NULL AND p_near_lng IS NOT NULL;
+  radius   FLOAT8  := COALESCE(p_radius_km, 50);
+  filtered BOOLEAN := p_country_code IS NOT NULL OR p_region_code IS NOT NULL
+                      OR (p_near_lat IS NOT NULL AND p_near_lng IS NOT NULL);
+  dlat     FLOAT8;
+  dlng     FLOAT8;
+BEGIN
+  q := lower(btrim(ltrim(btrim(COALESCE(search_term, '')), '@')));
+  -- An empty query is allowed ONLY as a filtered browse (Explore: "athletes
+  -- in Ontario"); unfiltered it returns nothing, as in 087.
+  IF q = '' AND NOT filtered THEN
+    RETURN;
+  END IF;
+
+  q_c  := q COLLATE "C";
+  v_lo := q_c;
+  v_hi := (q || chr(1114111)) COLLATE "C";
+  esc     := replace(replace(replace(q, '\', '\\'), '%', '\%'), '_', '\_');
+  infix   := '%' || esc || '%';
+  wordpre := '% ' || esc || '%';
+  is_short := length(q) < 3;
+  tsq  := public.search_prefix_tsquery(q);
+  dlat := radius / 111.0;
+  dlng := radius / (111.0 * GREATEST(cos(radians(COALESCE(p_near_lat, 0))), 0.1));
+
+  RETURN QUERY
+  SELECT
+    p.id, p.handle, p.first_name, p.middle_name, p.last_name, p.full_name,
+    p.avatar_url, p.location, p.sport, p.school, p.visibility,
+    p.city, p.region, p.region_code, p.country, p.country_code,
+    CASE WHEN near THEN public.haversine_km(p_near_lat, p_near_lng, p.lat, p.lng) END AS distance_km,
+    (CASE
+       WHEN q = ''                                                    THEN 5
+       WHEN (lower(p.handle) COLLATE "C") = q_c                       THEN 0
+       WHEN (lower(p.handle) COLLATE "C") >= v_lo
+        AND (lower(p.handle) COLLATE "C") <  v_hi                     THEN 1
+       WHEN ((lower(p.first_name) COLLATE "C") >= v_lo AND (lower(p.first_name) COLLATE "C") < v_hi)
+         OR ((lower(p.last_name)  COLLATE "C") >= v_lo AND (lower(p.last_name)  COLLATE "C") < v_hi)
+         OR ((lower(p.full_name)  COLLATE "C") >= v_lo AND (lower(p.full_name)  COLLATE "C") < v_hi)
+                                                                      THEN 2
+       WHEN lower(p.full_name)  LIKE wordpre
+         OR lower(p.last_name)  LIKE wordpre
+         OR lower(p.first_name) LIKE wordpre                          THEN 3
+       WHEN NOT is_short AND (
+            lower(p.handle)     LIKE infix OR lower(p.first_name) LIKE infix OR
+            lower(p.last_name)  LIKE infix OR lower(p.full_name)  LIKE infix) THEN 4
+       -- Location tier: every token of the query matches somewhere in the
+       -- profile's vector (city, region, country, free-text location, or a
+       -- name token mixed in: "sarah ottawa"). Always below name tiers.
+       ELSE 5
+     END)::INT AS match_rank
+  FROM public.profiles p
+  WHERE
+    ((include_public AND p.visibility = 'public') OR p.id = ANY(visible_ids))
+    AND (NOT require_handle OR p.handle IS NOT NULL)
+    AND (exclude_id IS NULL OR p.id <> exclude_id)
+    AND (p_country_code IS NULL OR p.country_code = upper(p_country_code))
+    AND (p_region_code IS NULL OR p.region_code = upper(p_region_code))
+    AND (NOT near OR (p.lat BETWEEN p_near_lat - dlat AND p_near_lat + dlat
+                  AND p.lng BETWEEN p_near_lng - dlng AND p_near_lng + dlng))
+    AND (
+      q = '' OR
+      ((lower(p.handle)     COLLATE "C") >= v_lo AND (lower(p.handle)     COLLATE "C") < v_hi) OR
+      ((lower(p.first_name) COLLATE "C") >= v_lo AND (lower(p.first_name) COLLATE "C") < v_hi) OR
+      ((lower(p.last_name)  COLLATE "C") >= v_lo AND (lower(p.last_name)  COLLATE "C") < v_hi) OR
+      ((lower(p.full_name)  COLLATE "C") >= v_lo AND (lower(p.full_name)  COLLATE "C") < v_hi) OR
+      (NOT is_short AND (
+        lower(p.handle)     LIKE infix OR
+        lower(p.first_name) LIKE infix OR
+        lower(p.last_name)  LIKE infix OR
+        lower(p.full_name)  LIKE infix
+      )) OR
+      (tsq IS NOT NULL AND p.search_vector @@ tsq)
+    )
+  ORDER BY
+    match_rank,
+    CASE WHEN near AND q = '' THEN public.haversine_km(p_near_lat, p_near_lng, p.lat, p.lng) END ASC NULLS LAST,
+    length(COALESCE(p.full_name, p.handle, '')),
+    COALESCE(p.full_name, p.handle, ''),
+    p.id
+  LIMIT GREATEST(COALESCE(max_results, 20), 1);
+END;
+$function$;
+EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
+END $pass1$;
+DO $pass1$ BEGIN
+CREATE OR REPLACE FUNCTION public.search_places(q text, max_results integer DEFAULT 10, p_country_code text DEFAULT NULL::text)
+ RETURNS TABLE(id uuid, name text, region text, region_code text, country text, country_code text, lat double precision, lng double precision, population integer, match_rank integer)
+ LANGUAGE plpgsql
+ STABLE
+ SET search_path TO 'public', 'extensions'
+AS $function$
+DECLARE
+  qn  text := public.search_normalize(q);
+  tsq tsquery := public.search_prefix_tsquery(q);
+  lim int := GREATEST(COALESCE(max_results, 10), 1);
+BEGIN
+  IF tsq IS NULL THEN RETURN; END IF;
+  RETURN QUERY
+  SELECT p.id, p.name, p.region, p.region_code, p.country, p.country_code, p.lat, p.lng, p.population,
+    CASE WHEN public.search_normalize(p.name) = qn THEN 0
+         WHEN public.search_normalize(p.name) LIKE qn || '%' THEN 1
+         WHEN EXISTS (SELECT 1 FROM place_aliases a WHERE a.geonames_id = p.geonames_id AND a.alias_norm LIKE qn || '%') THEN 2
+         ELSE 3 END AS match_rank
+  FROM places p
+  WHERE (p.search_vector @@ tsq
+         OR EXISTS (SELECT 1 FROM place_aliases a WHERE a.geonames_id = p.geonames_id AND a.alias_norm LIKE qn || '%'))
+    AND (p_country_code IS NULL OR p.country_code = upper(p_country_code))
+  ORDER BY 10, p.population DESC NULLS LAST, p.name
+  LIMIT lim;
+END;
+$function$;
+EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
+END $pass1$;
+DO $pass1$ BEGIN
+CREATE OR REPLACE FUNCTION public.search_posts(search_query text, max_results integer DEFAULT 15)
+ RETURNS TABLE(id uuid, caption text, sport_key text, created_at timestamp with time zone, profile_id uuid, rank real)
+ LANGUAGE plpgsql
+ STABLE
+ SET search_path TO ''
+AS $function$
+BEGIN
+  RETURN QUERY SELECT
+    po.id, po.caption, po.sport_key, po.created_at, po.profile_id,
+    ts_rank(po.search_vector, websearch_to_tsquery('english', search_query)) AS rank
+  FROM public.posts po
+  WHERE po.visibility = 'public'
+  AND po.status = 'published'
+  AND po.search_vector @@ websearch_to_tsquery('english', search_query)
+  ORDER BY rank DESC, po.created_at DESC
+  LIMIT max_results;
+END;
+$function$;
+EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
+END $pass1$;
+DO $pass1$ BEGIN
+CREATE OR REPLACE FUNCTION public.search_prefix_tsquery(q text)
+ RETURNS tsquery
+ LANGUAGE sql
+ IMMUTABLE PARALLEL SAFE
+ SET search_path TO 'public', 'extensions'
+AS $function$
+  SELECT CASE
+    WHEN cardinality(toks) = 0 THEN NULL
+    ELSE to_tsquery('simple', array_to_string(ARRAY(SELECT t || ':*' FROM unnest(toks) AS t), ' & '))
+  END
+  FROM (
+    SELECT array_remove(regexp_split_to_array(public.search_normalize(q), '[^[:alnum:]]+'), '') AS toks
+  ) s
+$function$;
+EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
+END $pass1$;
+DO $pass1$ BEGIN
+CREATE OR REPLACE FUNCTION public.search_profiles(search_query text, max_results integer DEFAULT 20)
+ RETURNS TABLE(id uuid, full_name text, first_name text, middle_name text, last_name text, avatar_url text, location text, sport text, school text, visibility text, rank real)
+ LANGUAGE plpgsql
+ STABLE
+ SET search_path TO ''
+AS $function$
+BEGIN
+  RETURN QUERY SELECT
+    p.id,
+    p.full_name,
+    p.first_name,
+    p.middle_name,
+    p.last_name,
+    p.avatar_url,
+    p.location,
+    p.sport,
+    p.school,
+    p.visibility,
+    ts_rank(p.search_vector, websearch_to_tsquery('english', search_query)) AS rank
+  FROM public.profiles p
+  WHERE p.search_vector @@ websearch_to_tsquery('english', search_query)
+  ORDER BY rank DESC, p.full_name ASC NULLS LAST
+  LIMIT max_results;
+END;
+$function$;
+EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
+END $pass1$;
+DO $pass1$ BEGIN
+CREATE OR REPLACE FUNCTION public.search_query_tokens(q text)
+ RETURNS text[]
+ LANGUAGE sql
+ IMMUTABLE PARALLEL SAFE
+ SET search_path TO 'public', 'extensions'
+AS $function$
+  SELECT array_remove(regexp_split_to_array(public.search_normalize(q), '[^[:alnum:]]+'), '')
+$function$;
+EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
+END $pass1$;
+DO $pass1$ BEGIN
+CREATE OR REPLACE FUNCTION public.search_token_hits(vec tsvector, q text)
+ RETURNS integer
+ LANGUAGE sql
+ IMMUTABLE PARALLEL SAFE
+ SET search_path TO 'public', 'extensions'
+AS $function$
+  SELECT count(*)::int
+  FROM unnest(public.search_query_tokens(q)) AS t
+  WHERE vec @@ to_tsquery('simple', t || ':*')
+$function$;
+EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
+END $pass1$;
+DO $pass1$ BEGIN
+CREATE OR REPLACE FUNCTION public.search_token_rank(vec tsvector, q text)
+ RETURNS real
+ LANGUAGE sql
+ IMMUTABLE PARALLEL SAFE
+ SET search_path TO 'public', 'extensions'
+AS $function$
+  SELECT COALESCE(sum(ts_rank(vec, to_tsquery('simple', t || ':*'))), 0)::real
+  FROM unnest(public.search_query_tokens(q)) AS t
+$function$;
+EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
+END $pass1$;
+DO $pass1$ BEGIN
+CREATE OR REPLACE FUNCTION public.split_full_name()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SET search_path TO ''
+AS $function$
+BEGIN
+  -- Only process if full_name changed and is not null
+  IF NEW.full_name IS NOT NULL AND NEW.full_name != '' THEN
+    -- If first_name is empty, extract it from full_name
+    IF NEW.first_name IS NULL OR NEW.first_name = '' THEN
+      NEW.first_name := SPLIT_PART(TRIM(NEW.full_name), ' ', 1);
+    END IF;
+
+    -- If last_name is empty, extract it from full_name
+    IF NEW.last_name IS NULL OR NEW.last_name = '' THEN
+      -- Check if there are multiple words in full_name
+      IF ARRAY_LENGTH(STRING_TO_ARRAY(TRIM(NEW.full_name), ' '), 1) > 1 THEN
+        NEW.last_name := TRIM(SUBSTRING(
+          TRIM(NEW.full_name)
+          FROM POSITION(' ' IN TRIM(NEW.full_name)) + 1
+        ));
+      END IF;
+    END IF;
+  END IF;
+
+  RETURN NEW;
+END;
+$function$;
+EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
+END $pass1$;
+DO $pass1$ BEGIN
+CREATE OR REPLACE FUNCTION public.sync_privacy_settings()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SET search_path TO ''
+AS $function$
+BEGIN
+  -- When visibility changes, update or create privacy_settings
+  INSERT INTO public.privacy_settings (profile_id, profile_visibility)
+  VALUES (NEW.id, NEW.visibility)
+  ON CONFLICT (profile_id)
+  DO UPDATE SET
+    profile_visibility = NEW.visibility,
+    updated_at = NOW();
+
+  RETURN NEW;
+END;
+$function$;
+EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
+END $pass1$;
+DO $pass1$ BEGIN
+CREATE OR REPLACE FUNCTION public.update_connection_suggestions_updated_at()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SET search_path TO 'public'
+AS $function$
+BEGIN
+  NEW.updated_at := NOW();
+  RETURN NEW;
+END;
+$function$;
+EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
+END $pass1$;
+DO $pass1$ BEGIN
+CREATE OR REPLACE FUNCTION public.update_conversation_on_message()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+BEGIN
+  UPDATE conversations SET updated_at = NEW.created_at WHERE id = NEW.conversation_id;
+  RETURN NEW;
+END;
+$function$;
+EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
+END $pass1$;
+DO $pass1$ BEGIN
+CREATE OR REPLACE FUNCTION public.update_equipment_updated_at()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SET search_path TO 'public'
+AS $function$
+BEGIN
+  NEW.updated_at = NOW();
+  RETURN NEW;
+END;
+$function$;
+EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
+END $pass1$;
+DO $pass1$ BEGIN
+CREATE OR REPLACE FUNCTION public.update_follows_updated_at()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SET search_path TO ''
+AS $function$
+BEGIN
+  NEW.updated_at := NOW();
+  RETURN NEW;
+END;
+$function$;
+EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
+END $pass1$;
+DO $pass1$ BEGIN
+CREATE OR REPLACE FUNCTION public.update_group_post_timestamp()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SET search_path TO ''
+AS $function$
+BEGIN
+  NEW.updated_at = NOW();
+  RETURN NEW;
+END;
+$function$;
+EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
+END $pass1$;
+DO $pass1$ BEGIN
+CREATE OR REPLACE FUNCTION public.update_post_comments_count()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO ''
+AS $function$
+DECLARE
+  target_post_id UUID;
+BEGIN
+  IF TG_OP = 'DELETE' THEN
+    target_post_id := OLD.post_id;
+  ELSE
+    target_post_id := NEW.post_id;
+  END IF;
+
+  UPDATE public.posts
+  SET comments_count = (
+    SELECT COUNT(*) FROM public.post_comments
+    WHERE post_id = target_post_id AND status = 'published'
+  )
+  WHERE id = target_post_id;
+
+  IF TG_OP = 'DELETE' THEN
+    RETURN OLD;
+  ELSE
+    RETURN NEW;
+  END IF;
+END;
+$function$;
+EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
+END $pass1$;
+DO $pass1$ BEGIN
+CREATE OR REPLACE FUNCTION public.update_post_likes_count()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO ''
+AS $function$
+DECLARE
+  target_post_id UUID;
+BEGIN
+  IF TG_OP = 'DELETE' THEN
+    target_post_id := OLD.post_id;
+  ELSE
+    target_post_id := NEW.post_id;
+  END IF;
+
+  UPDATE public.posts
+  SET likes_count = (
+    SELECT COUNT(*) FROM public.post_likes WHERE post_id = target_post_id
+  )
+  WHERE id = target_post_id;
+
+  IF TG_OP = 'DELETE' THEN
+    RETURN OLD;
+  ELSE
+    RETURN NEW;
+  END IF;
+END;
+$function$;
+EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
+END $pass1$;
+DO $pass1$ BEGIN
+CREATE OR REPLACE FUNCTION public.update_post_reposts_count()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO ''
+AS $function$
+DECLARE
+  old_target UUID;
+  new_target UUID;
+BEGIN
+  IF TG_OP = 'INSERT' THEN
+    new_target := NEW.shared_post_id;
+  ELSIF TG_OP = 'DELETE' THEN
+    old_target := OLD.shared_post_id;
+  ELSE -- UPDATE OF shared_post_id
+    IF OLD.shared_post_id IS DISTINCT FROM NEW.shared_post_id THEN
+      old_target := OLD.shared_post_id;
+      new_target := NEW.shared_post_id;
+    END IF;
+  END IF;
+
+  IF old_target IS NOT NULL THEN
+    UPDATE public.posts
+    SET reposts_count = (
+      SELECT COUNT(*) FROM public.posts WHERE shared_post_id = old_target
+    )
+    WHERE id = old_target;
+  END IF;
+
+  IF new_target IS NOT NULL THEN
+    UPDATE public.posts
+    SET reposts_count = (
+      SELECT COUNT(*) FROM public.posts WHERE shared_post_id = new_target
+    )
+    WHERE id = new_target;
+  END IF;
+
+  IF TG_OP = 'DELETE' THEN
+    RETURN OLD;
+  ELSE
+    RETURN NEW;
+  END IF;
+END;
+$function$;
+EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
+END $pass1$;
+DO $pass1$ BEGIN
+CREATE OR REPLACE FUNCTION public.update_post_tags_updated_at()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SET search_path TO ''
+AS $function$
+BEGIN
+  -- Unconditional stamp, as migration 008 intended. Do NOT reintroduce a
+  -- column guard here: this function is attached to post_tags, and guarding on
+  -- a column that table does not have is the entire bug being fixed.
+  NEW.updated_at := timezone('utc'::text, now());
+  RETURN NEW;
+END;
+$function$;
+EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
+END $pass1$;
+DO $pass1$ BEGIN
+CREATE OR REPLACE FUNCTION public.update_updated_at_column()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SET search_path TO ''
+AS $function$
+BEGIN
+  NEW.updated_at := NOW();
+  RETURN NEW;
+END;
+$function$;
+EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
+END $pass1$;
+DO $pass1$ BEGIN
+CREATE OR REPLACE FUNCTION public.update_user_handle(p_profile_id uuid, p_new_handle text)
+ RETURNS TABLE(success boolean, message text, new_handle text)
+ LANGUAGE plpgsql
+ SET search_path TO ''
+AS $function$
+DECLARE
+  current_handle TEXT;
+  profile_exists BOOLEAN;
+  clean_new_handle TEXT;
+  last_change TIMESTAMP WITH TIME ZONE;
+  change_count INT;
+  availability_result RECORD;
+  jwt_role TEXT;
+BEGIN
+  SELECT TRUE, handle, handle_updated_at, handle_change_count
+  INTO profile_exists, current_handle, last_change, change_count
+  FROM public.profiles
+  WHERE id = p_profile_id;
+
+  IF profile_exists IS NOT TRUE THEN
+    RETURN QUERY SELECT FALSE, 'Profile not found', NULL::TEXT;
+    RETURN;
+  END IF;
+
+  clean_new_handle := LOWER(TRIM(p_new_handle));
+
+  IF current_handle IS NULL THEN
+    jwt_role := COALESCE(
+      current_setting('request.jwt.claims', true)::jsonb->>'role', '');
+    IF NOT (jwt_role = 'service_role'
+            OR p_profile_id = auth.uid()
+            OR public.has_profile_access(p_profile_id, ARRAY['owner','guardian'])) THEN
+      RETURN QUERY SELECT FALSE, 'Not permitted to set this handle', NULL::TEXT;
+      RETURN;
+    END IF;
+    SELECT * INTO availability_result
+    FROM public.check_handle_availability(clean_new_handle, p_profile_id);
+    IF NOT availability_result.available THEN
+      RETURN QUERY SELECT FALSE, availability_result.reason, NULL::TEXT;
+      RETURN;
+    END IF;
+    UPDATE public.profiles
+    SET handle = p_new_handle, handle_updated_at = NOW(),
+        handle_change_count = COALESCE(change_count, 0)
+    WHERE id = p_profile_id;
+    RETURN QUERY SELECT TRUE, 'Handle set successfully!', p_new_handle;
+    RETURN;
+  END IF;
+
+  IF LOWER(current_handle) = clean_new_handle THEN
+    UPDATE public.profiles SET handle = p_new_handle WHERE id = p_profile_id;
+    RETURN QUERY SELECT TRUE, 'Handle casing updated', p_new_handle;
+    RETURN;
+  END IF;
+
+  IF last_change IS NOT NULL AND last_change > NOW() - INTERVAL '7 days' THEN
+    RETURN QUERY SELECT
+      FALSE,
+      'You can only change your handle once per week. Next available: ' ||
+        TO_CHAR(last_change + INTERVAL '7 days', 'Mon DD, YYYY'),
+      NULL::TEXT;
+    RETURN;
+  END IF;
+
+  SELECT * INTO availability_result
+  FROM public.check_handle_availability(clean_new_handle, p_profile_id);
+  IF NOT availability_result.available THEN
+    RETURN QUERY SELECT FALSE, availability_result.reason, NULL::TEXT;
+    RETURN;
+  END IF;
+
+  INSERT INTO public.handle_history (profile_id, old_handle, new_handle)
+  VALUES (p_profile_id, current_handle, clean_new_handle);
+
+  UPDATE public.profiles
+  SET handle = p_new_handle,
+      handle_updated_at = NOW(),
+      handle_change_count = COALESCE(change_count, 0) + 1
+  WHERE id = p_profile_id;
+
+  RETURN QUERY SELECT
+    TRUE,
+    'Handle updated successfully! Old @mentions will redirect for 30 days.',
+    p_new_handle;
+END;
+$function$;
+EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
+END $pass1$;
 
 -- ── Tables (122) ──────────────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS public.approved_contacts (
@@ -1708,7 +5614,7 @@ CREATE TABLE IF NOT EXISTS public.ticket_events (
 
 CREATE TABLE IF NOT EXISTS public.tickets (
   id uuid DEFAULT gen_random_uuid() NOT NULL,
-  number bigint GENERATED ALWAYS AS IDENTITY NOT NULL,
+  number bigint GENERATED ALWAYS AS IDENTITY (START WITH 1000) NOT NULL,
   type text NOT NULL,
   subtype text,
   reason text NOT NULL,
@@ -1856,6 +5762,9 @@ CREATE TABLE IF NOT EXISTS public.workout_sets (
 
 -- ── Sequence owners ───────────────────────────────────────────────────────────
 
+
+-- ── Identity starts (for a table that already existed) ────────────────────────
+ALTER TABLE public.tickets ALTER COLUMN number SET START WITH 1000;
 
 -- ── Primary keys, unique, check, exclusion ────────────────────────────────────
 DO $$ BEGIN
@@ -6057,7 +9966,7 @@ CREATE INDEX IF NOT EXISTS idx_workout_sets_profile ON public.workout_sets USING
 -- ── Views ─────────────────────────────────────────────────────────────────────
 
 
--- ── Functions (107) ───────────────────────────────────────────────────────────
+-- ── Functions, pass 2 (107) ───────────────────────────────────────────────────
 CREATE OR REPLACE FUNCTION public.auto_update_display_name()
  RETURNS trigger
  LANGUAGE plpgsql
@@ -11537,7 +15446,7 @@ GRANT USAGE ON SEQUENCE public.tickets_number_seq TO anon, authenticated, servic
 
 -- ── Function grants ───────────────────────────────────────────────────────────
 REVOKE EXECUTE ON FUNCTION public.auto_update_display_name() FROM PUBLIC, anon, authenticated, service_role;
-GRANT EXECUTE ON FUNCTION public.auto_update_display_name() TO anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.auto_update_display_name() TO PUBLIC, anon, authenticated, service_role;
 REVOKE EXECUTE ON FUNCTION public.backfill_places_from_text(p_table regclass) FROM PUBLIC, anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.backfill_places_from_text(p_table regclass) TO service_role;
 REVOKE EXECUTE ON FUNCTION public.bump_hole_score_version() FROM PUBLIC, anon, authenticated, service_role;
@@ -11545,7 +15454,7 @@ GRANT EXECUTE ON FUNCTION public.bump_hole_score_version() TO service_role;
 REVOKE EXECUTE ON FUNCTION public.bump_site_hit(p_site uuid, p_day date, p_path text, p_hash text) FROM PUBLIC, anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.bump_site_hit(p_site uuid, p_day date, p_path text, p_hash text) TO service_role;
 REVOKE EXECUTE ON FUNCTION public.calculate_golf_participant_totals() FROM PUBLIC, anon, authenticated, service_role;
-GRANT EXECUTE ON FUNCTION public.calculate_golf_participant_totals() TO anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.calculate_golf_participant_totals() TO PUBLIC, anon, authenticated, service_role;
 REVOKE EXECUTE ON FUNCTION public.calculate_round_stats(round_uuid uuid) FROM PUBLIC, anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.calculate_round_stats(round_uuid uuid) TO service_role;
 REVOKE EXECUTE ON FUNCTION public.can_view_group_post(gp_id uuid) FROM PUBLIC, anon, authenticated, service_role;
@@ -11569,9 +15478,9 @@ GRANT EXECUTE ON FUNCTION public.create_profile_with_owner(p_profile jsonb) TO s
 REVOKE EXECUTE ON FUNCTION public.create_stub_profile(p_id uuid, p_email text, p_first_name text, p_last_name text, p_created_by uuid) FROM PUBLIC, anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.create_stub_profile(p_id uuid, p_email text, p_first_name text, p_last_name text, p_created_by uuid) TO service_role;
 REVOKE EXECUTE ON FUNCTION public.decrement_comment_likes_count() FROM PUBLIC, anon, authenticated, service_role;
-GRANT EXECUTE ON FUNCTION public.decrement_comment_likes_count() TO anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.decrement_comment_likes_count() TO PUBLIC, anon, authenticated, service_role;
 REVOKE EXECUTE ON FUNCTION public.decrement_post_save_count() FROM PUBLIC, anon, authenticated, service_role;
-GRANT EXECUTE ON FUNCTION public.decrement_post_save_count() TO anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.decrement_post_save_count() TO PUBLIC, anon, authenticated, service_role;
 REVOKE EXECUTE ON FUNCTION public.enforce_guardian_cap() FROM PUBLIC, anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.enforce_guardian_cap() TO service_role;
 REVOKE EXECUTE ON FUNCTION public.enforce_last_guardian() FROM PUBLIC, anon, authenticated, service_role;
@@ -11627,15 +15536,15 @@ GRANT EXECUTE ON FUNCTION public.handle_updated_at() TO service_role;
 REVOKE EXECUTE ON FUNCTION public.has_profile_access(p_profile_id uuid, p_roles text[]) FROM PUBLIC, anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.has_profile_access(p_profile_id uuid, p_roles text[]) TO anon, authenticated, service_role;
 REVOKE EXECUTE ON FUNCTION public.haversine_km(lat1 double precision, lng1 double precision, lat2 double precision, lng2 double precision) FROM PUBLIC, anon, authenticated, service_role;
-GRANT EXECUTE ON FUNCTION public.haversine_km(lat1 double precision, lng1 double precision, lat2 double precision, lng2 double precision) TO anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.haversine_km(lat1 double precision, lng1 double precision, lat2 double precision, lng2 double precision) TO PUBLIC, anon, authenticated, service_role;
 REVOKE EXECUTE ON FUNCTION public.hole_score_group_post(gps_id uuid) FROM PUBLIC, anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.hole_score_group_post(gps_id uuid) TO anon, authenticated, service_role;
 REVOKE EXECUTE ON FUNCTION public.increment_comment_likes_count() FROM PUBLIC, anon, authenticated, service_role;
-GRANT EXECUTE ON FUNCTION public.increment_comment_likes_count() TO anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.increment_comment_likes_count() TO PUBLIC, anon, authenticated, service_role;
 REVOKE EXECUTE ON FUNCTION public.increment_post_save_count() FROM PUBLIC, anon, authenticated, service_role;
-GRANT EXECUTE ON FUNCTION public.increment_post_save_count() TO anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.increment_post_save_count() TO PUBLIC, anon, authenticated, service_role;
 REVOKE EXECUTE ON FUNCTION public.is_conversation_participant(conv_id uuid, user_id uuid) FROM PUBLIC, anon, authenticated, service_role;
-GRANT EXECUTE ON FUNCTION public.is_conversation_participant(conv_id uuid, user_id uuid) TO anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.is_conversation_participant(conv_id uuid, user_id uuid) TO PUBLIC, anon, authenticated, service_role;
 REVOKE EXECUTE ON FUNCTION public.is_group_post_creator(gp_id uuid) FROM PUBLIC, anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.is_group_post_creator(gp_id uuid) TO anon, authenticated, service_role;
 REVOKE EXECUTE ON FUNCTION public.is_group_post_organizer(gp_id uuid) FROM PUBLIC, anon, authenticated, service_role;
@@ -11643,7 +15552,7 @@ GRANT EXECUTE ON FUNCTION public.is_group_post_organizer(gp_id uuid) TO anon, au
 REVOKE EXECUTE ON FUNCTION public.is_group_post_participant(gp_id uuid) FROM PUBLIC, anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.is_group_post_participant(gp_id uuid) TO anon, authenticated, service_role;
 REVOKE EXECUTE ON FUNCTION public.is_valid_handle(input_handle text) FROM PUBLIC, anon, authenticated, service_role;
-GRANT EXECUTE ON FUNCTION public.is_valid_handle(input_handle text) TO anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.is_valid_handle(input_handle text) TO PUBLIC, anon, authenticated, service_role;
 REVOKE EXECUTE ON FUNCTION public.leagues_search_vector_update() FROM PUBLIC, anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.leagues_search_vector_update() TO service_role;
 REVOKE EXECUTE ON FUNCTION public.notify_comment_like() FROM PUBLIC, anon, authenticated, service_role;
@@ -11665,13 +15574,13 @@ GRANT EXECUTE ON FUNCTION public.notify_profile_tagged() TO service_role;
 REVOKE EXECUTE ON FUNCTION public.participant_group_post(p_id uuid) FROM PUBLIC, anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.participant_group_post(p_id uuid) TO anon, authenticated, service_role;
 REVOKE EXECUTE ON FUNCTION public.place_context(p_place_id uuid) FROM PUBLIC, anon, authenticated, service_role;
-GRANT EXECUTE ON FUNCTION public.place_context(p_place_id uuid) TO anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.place_context(p_place_id uuid) TO PUBLIC, anon, authenticated, service_role;
 REVOKE EXECUTE ON FUNCTION public.place_fields(p_place_id uuid) FROM PUBLIC, anon, authenticated, service_role;
-GRANT EXECUTE ON FUNCTION public.place_fields(p_place_id uuid) TO anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.place_fields(p_place_id uuid) TO PUBLIC, anon, authenticated, service_role;
 REVOKE EXECUTE ON FUNCTION public.places_search_vector_update() FROM PUBLIC, anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.places_search_vector_update() TO service_role;
 REVOKE EXECUTE ON FUNCTION public.posts_search_vector_update() FROM PUBLIC, anon, authenticated, service_role;
-GRANT EXECUTE ON FUNCTION public.posts_search_vector_update() TO anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.posts_search_vector_update() TO PUBLIC, anon, authenticated, service_role;
 REVOKE EXECUTE ON FUNCTION public.profiles_search_vector_update() FROM PUBLIC, anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.profiles_search_vector_update() TO service_role;
 REVOKE EXECUTE ON FUNCTION public.provenance_inventory() FROM PUBLIC, anon, authenticated, service_role;
@@ -11707,7 +15616,7 @@ GRANT EXECUTE ON FUNCTION public.search_document_delete() TO service_role;
 REVOKE EXECUTE ON FUNCTION public.search_golf_courses(q text, max_results integer, p_country_code text, p_region_code text, p_near_lat double precision, p_near_lng double precision, p_radius_km double precision) FROM PUBLIC, anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.search_golf_courses(q text, max_results integer, p_country_code text, p_region_code text, p_near_lat double precision, p_near_lng double precision, p_radius_km double precision) TO service_role;
 REVOKE EXECUTE ON FUNCTION public.search_normalize(t text) FROM PUBLIC, anon, authenticated, service_role;
-GRANT EXECUTE ON FUNCTION public.search_normalize(t text) TO anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.search_normalize(t text) TO PUBLIC, anon, authenticated, service_role;
 REVOKE EXECUTE ON FUNCTION public.search_people(search_term text, visible_ids uuid[], include_public boolean, max_results integer, require_handle boolean, exclude_id uuid, p_country_code text, p_region_code text, p_near_lat double precision, p_near_lng double precision, p_radius_km double precision) FROM PUBLIC, anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.search_people(search_term text, visible_ids uuid[], include_public boolean, max_results integer, require_handle boolean, exclude_id uuid, p_country_code text, p_region_code text, p_near_lat double precision, p_near_lng double precision, p_radius_km double precision) TO service_role;
 REVOKE EXECUTE ON FUNCTION public.search_places(q text, max_results integer, p_country_code text) FROM PUBLIC, anon, authenticated, service_role;
@@ -11715,29 +15624,29 @@ GRANT EXECUTE ON FUNCTION public.search_places(q text, max_results integer, p_co
 REVOKE EXECUTE ON FUNCTION public.search_posts(search_query text, max_results integer) FROM PUBLIC, anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.search_posts(search_query text, max_results integer) TO service_role;
 REVOKE EXECUTE ON FUNCTION public.search_prefix_tsquery(q text) FROM PUBLIC, anon, authenticated, service_role;
-GRANT EXECUTE ON FUNCTION public.search_prefix_tsquery(q text) TO anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.search_prefix_tsquery(q text) TO PUBLIC, anon, authenticated, service_role;
 REVOKE EXECUTE ON FUNCTION public.search_profiles(search_query text, max_results integer) FROM PUBLIC, anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.search_profiles(search_query text, max_results integer) TO service_role;
 REVOKE EXECUTE ON FUNCTION public.search_query_tokens(q text) FROM PUBLIC, anon, authenticated, service_role;
-GRANT EXECUTE ON FUNCTION public.search_query_tokens(q text) TO anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.search_query_tokens(q text) TO PUBLIC, anon, authenticated, service_role;
 REVOKE EXECUTE ON FUNCTION public.search_token_hits(vec tsvector, q text) FROM PUBLIC, anon, authenticated, service_role;
-GRANT EXECUTE ON FUNCTION public.search_token_hits(vec tsvector, q text) TO anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.search_token_hits(vec tsvector, q text) TO PUBLIC, anon, authenticated, service_role;
 REVOKE EXECUTE ON FUNCTION public.search_token_rank(vec tsvector, q text) FROM PUBLIC, anon, authenticated, service_role;
-GRANT EXECUTE ON FUNCTION public.search_token_rank(vec tsvector, q text) TO anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.search_token_rank(vec tsvector, q text) TO PUBLIC, anon, authenticated, service_role;
 REVOKE EXECUTE ON FUNCTION public.split_full_name() FROM PUBLIC, anon, authenticated, service_role;
-GRANT EXECUTE ON FUNCTION public.split_full_name() TO anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.split_full_name() TO PUBLIC, anon, authenticated, service_role;
 REVOKE EXECUTE ON FUNCTION public.sync_privacy_settings() FROM PUBLIC, anon, authenticated, service_role;
-GRANT EXECUTE ON FUNCTION public.sync_privacy_settings() TO anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.sync_privacy_settings() TO PUBLIC, anon, authenticated, service_role;
 REVOKE EXECUTE ON FUNCTION public.update_connection_suggestions_updated_at() FROM PUBLIC, anon, authenticated, service_role;
-GRANT EXECUTE ON FUNCTION public.update_connection_suggestions_updated_at() TO anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.update_connection_suggestions_updated_at() TO PUBLIC, anon, authenticated, service_role;
 REVOKE EXECUTE ON FUNCTION public.update_conversation_on_message() FROM PUBLIC, anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.update_conversation_on_message() TO service_role;
 REVOKE EXECUTE ON FUNCTION public.update_equipment_updated_at() FROM PUBLIC, anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.update_equipment_updated_at() TO service_role;
 REVOKE EXECUTE ON FUNCTION public.update_follows_updated_at() FROM PUBLIC, anon, authenticated, service_role;
-GRANT EXECUTE ON FUNCTION public.update_follows_updated_at() TO anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.update_follows_updated_at() TO PUBLIC, anon, authenticated, service_role;
 REVOKE EXECUTE ON FUNCTION public.update_group_post_timestamp() FROM PUBLIC, anon, authenticated, service_role;
-GRANT EXECUTE ON FUNCTION public.update_group_post_timestamp() TO anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.update_group_post_timestamp() TO PUBLIC, anon, authenticated, service_role;
 REVOKE EXECUTE ON FUNCTION public.update_post_comments_count() FROM PUBLIC, anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.update_post_comments_count() TO service_role;
 REVOKE EXECUTE ON FUNCTION public.update_post_likes_count() FROM PUBLIC, anon, authenticated, service_role;
@@ -11745,9 +15654,9 @@ GRANT EXECUTE ON FUNCTION public.update_post_likes_count() TO service_role;
 REVOKE EXECUTE ON FUNCTION public.update_post_reposts_count() FROM PUBLIC, anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.update_post_reposts_count() TO service_role;
 REVOKE EXECUTE ON FUNCTION public.update_post_tags_updated_at() FROM PUBLIC, anon, authenticated, service_role;
-GRANT EXECUTE ON FUNCTION public.update_post_tags_updated_at() TO anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.update_post_tags_updated_at() TO PUBLIC, anon, authenticated, service_role;
 REVOKE EXECUTE ON FUNCTION public.update_updated_at_column() FROM PUBLIC, anon, authenticated, service_role;
-GRANT EXECUTE ON FUNCTION public.update_updated_at_column() TO anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.update_updated_at_column() TO PUBLIC, anon, authenticated, service_role;
 REVOKE EXECUTE ON FUNCTION public.update_user_handle(p_profile_id uuid, p_new_handle text) FROM PUBLIC, anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.update_user_handle(p_profile_id uuid, p_new_handle text) TO service_role;
 
@@ -12326,7 +16235,9 @@ NOTIFY pgrst, 'reload schema';
 -- Expected: 000 REBUILT | 122 | 107 | 172 | 227
 SELECT '000 REBUILT' AS result,
        (SELECT count(*) FROM pg_tables WHERE schemaname = 'public') AS tables_expect_122,
-       (SELECT count(*) FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace WHERE n.nspname = 'public' AND p.prokind IN ('f', 'p')) AS functions_expect_107,
+       (SELECT count(*) FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace WHERE n.nspname = 'public' AND p.prokind IN ('f', 'p')
+          AND NOT EXISTS (SELECT 1 FROM pg_depend d WHERE d.classid = 'pg_proc'::regclass AND d.objid = p.oid AND d.deptype = 'e')
+          AND p.proname <> 'rls_auto_enable') AS functions_expect_107,
        (SELECT count(*) FROM pg_policies WHERE schemaname = 'public') AS policies_expect_172,
        (SELECT max(number) FROM public.schema_migrations) AS ledger_head_expect_227;
 
