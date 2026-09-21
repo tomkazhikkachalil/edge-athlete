@@ -1096,7 +1096,15 @@ const { canView } = await response.json();
    create, registered in `URL_SOURCE_COLUMNS`, served through the proxy's
    `ticket` entity; NOT behind the write gate). e2e: the project's
    `storageState` signs EVERY context in — a signed-out actor is an explicit
-   empty `storageState`. Spec 4 (suggestions) is outlined in `docs/SUPPORT.md`.
+   empty `storageState`. **Spec 4 (suggestions + polish, #853–#854, zero DDL):**
+   Suggest a feature on `/help` files a `suggestion` at LOW (`contact_ok`
+   governs follow-up mail only); an admin MERGES duplicates by number
+   (`POST /api/admin/tickets/[id]/merge` — the duplicate closes as "Merged
+   into", keeps its reporter's entry, the target carries `report_count`);
+   `feature_shipped` bells + mails the merged duplicates' reporters too; the
+   pasted reply (`POST …/paste-reply`) is how an emailed reply reaches the
+   ticket (no inbound parsing, by decision). **The program is COMPLETE**
+   (Sep 20 2026); `docs/SUPPORT.md` is the reference for every spec.
 
 
 ---

@@ -4,11 +4,13 @@ The reference for the in-app support system: one company-owned ticket table
 behind three front doors (Help Center, Report, Suggest). Tom's design doc
 ("Edge Athlete Support and Reporting Game Plan", Sep 17 2026) is the source;
 this file records what was built and the rules a change must keep. Program
-state: **Specs 1–3 COMPLETE + PROD-PROVEN (Sep 20 2026; Spec 1 #836–#842,
+state: **THE PROGRAM IS COMPLETE + PROD-PROVEN (Sep 20 2026; Spec 1 #836–#842,
 migration 222; Spec 2 #843–#847, migration 223; Spec 3 #848–#852, migration
-224)** — the backend, the admin console, the user's front door, reporting from
-the content with enforcement, and the Help Center; every spec green on prod on
-both mobile engines. Spec 4 is outlined at the end.
+224; Spec 4 #853–#854, zero DDL)** — the backend, the admin console, the
+user's front door, reporting from the content with enforcement, the Help
+Center, and suggestions; every spec green on prod on both mobile engines.
+What stays Tom's: the five videos, the contact details, the crisis line, and
+the Resend DNS records that turn every ticket email from guarded to sent.
 
 ## The one rule
 
@@ -163,7 +165,22 @@ there).
 | Contact | `COPY.SUPPORT.CONTACT_*` | Tom's name + support@edgeathlete.ca; no phone until told. |
 | The doors | Profile dropdown + drawer "Help Center"; footer "Help"; `/contact` points at it. | |
 
-## Spec 4 (not built; the schema already carries its columns)
+## Spec 4 — suggestions and the polish (zero DDL)
+
+| Thing | Where | Rule |
+| --- | --- | --- |
+| Suggest a feature | `src/components/help/SuggestForm.tsx` on `/help` (signed in) | Area from the fixed list, a one-line title, a description, "OK to contact me" → a `suggestion` ticket at LOW (the weekly review). `contact_ok` governs FOLLOW-UP mail only (`sendTicketMail` skips the waiting / resolved mails for a suggestion with it off) — never ticket status mail. |
+| The weekly review | `suggestion_tag` (planned · maybe · declined) — a select on the admin ticket | Guidance, not a workflow. |
+| Merge duplicates | `POST /api/admin/tickets/[id]/merge { into: 'EA-1042' }` (`mergeTicket`) + the box on the ticket | Same type only; the duplicate CLOSES as "Merged into EA-…" and keeps its reporter's My requests entry; the target carries `report_count`; the queue lists one; a self-merge or a merge into a merged row is a 409. (Spec 2's report merge at INTAKE is the automatic twin.) |
+| Feature shipped | `PATCH … status: resolved, resolution_code: feature_shipped` | The reporter's bell + mail ("your idea is live") AND the merged duplicates' reporters' — their rows are marked shipped too. |
+| The pasted reply | `POST /api/admin/tickets/[id]/paste-reply` (`pasteUserReply`) + the box on the ticket | Decided: no inbound parsing in v1. The emailed text lands as the USER's reply (actor null, `old_value 'pasted'`) with the same status effect as an in-app reply; an internal note names who pasted. |
+| The stats | `/dashboard/tickets` (from `GET /api/admin/tickets/stats`) | Resolved in 90 days, the median hours to resolve, open by type. |
+
+## Parked (the doc's own list, still open)
+
+- Inbound email parsing (Resend inbound + the `EA-####` subject) — when the paste box becomes a chore.
+- An SMS adapter for "Tom notified now" (`src/lib/notify/dispatch-core.ts` is ready for one) — if ten minutes is too slow.
+- The five videos, the contact details, the crisis line — Tom's content.
 
 - **Spec 2 — Reporting**: Report from the three-dot menu on posts, comments,
   profiles and DM threads; the one reason list; the content snapshot; Block
@@ -171,6 +188,3 @@ there).
   7-day merge (`report_count`); auto-hide + read-only on Critical
   (`profiles.moderation_state`, `posts.hidden_at` — mig 223); the one-click
   actions and the ladder from derived strikes; the self-harm resources message.
-- **Spec 4 — Suggestions + polish**: the Suggest form (Low severity;
-  `suggestion_tag` at the weekly review; duplicates merged), the stats panel,
-  the paste-a-reply affordance, an SMS adapter if ten minutes is too slow.
