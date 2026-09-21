@@ -130,6 +130,27 @@ Tom-controlled subdomain of `edgeathlete.ca` (TXT + CNAME at GoDaddy).
 Rollback = unset the flag + build; claimed domains simply stop routing
 (the apex address always works).
 
+## 5b. Vercel Skew Protection — one toggle (Round 1 PR 8, Sep 21 2026)
+
+Every deploy replaces every hashed chunk. A phone with the app open
+across a deploy fails its next lazy import (`ChunkLoadError` / "Importing
+a module script failed") and used to land on "Something went wrong" with a
+"Try again" that could not help. The app now recognises that error and
+reloads once (`src/lib/version-skew.ts`, the `(app)` error boundary) —
+that is the floor. The real fix is Vercel's, and it is a setting, not code
+(Next ≥ 14.1.4 needs no `next.config` change; projects created after
+Nov 19 2024 have it on by default — this one predates that):
+
+1. Project → **Settings → Environment Variables → "Automatically expose
+   System Environment Variables"** must be on.
+2. **Settings → Advanced → Skew Protection** → enable; leave Maximum Age
+   at the default (1 day).
+3. **Redeploy** the latest production deployment.
+
+Pro / Enterprise only. On Hobby the toggle is absent and the reload-once
+floor is what runs. Verify: Monitoring → `requests` filtered
+`skew_protection = 'active'` after the next deploy.
+
 ## 5. (Optional decision) Custom domain — currently NOT pointed at Vercel
 
 Sep 1 note: §5a (above, on purpose — the platform env comes first) makes
