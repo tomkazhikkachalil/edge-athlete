@@ -1171,6 +1171,9 @@ addition below as a promise to keep it true.
 - `docs/HARDENING.md` — the security & efficiency **stage gate**: re-run before
   each stage. Pairs with `scripts/hardening-guardrails.sh` (the `guardrails` CI
   job) and carries the Tier-2 backlog from the Aug 2026 pre-scale audit.
+- `docs/RUNBOOK_BACKUP.md` — backup & restore: what Supabase's tiers give,
+  the two decisions Tom owes (tier, Storage), RPO/RTO, the restore steps, the
+  quarterly drill into staging (Round 1 PR 9, Sep 2026).
 - `docs/MEDIA_PRIVACY_FLIP.md` — the owner-run runbook for the final step of the
   media-proxy arc: flipping the `uploads` bucket to private. Verify with
   `npm run verify:media-privacy` (`scripts/verify-media-privacy.mjs`).
