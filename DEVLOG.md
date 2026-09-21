@@ -1,5 +1,13 @@
 # Development Log
 
+## September 20, 2026 — Support & Reporting program, Spec 3 PR 4: the docs close — Spec 3 COMPLETE + PROD-PROVEN (zero DDL)
+
+**What:** after #851 deployed (the 60 s TTL), `help-api.spec.ts` and `help-ui.spec.ts` ran on prod on both mobile engines: 4 / 4 green. The Help Center is done: `/help` public with click-to-play videos, searchable articles by topic, the article page, Submit a request (with a screenshot, or the guest form), My requests, Contact; the owner's editor at `/dashboard/help`; `/contact` as a ticket; the doors. This PR closes the docs (`docs/SUPPORT.md` Spec 3 table + three e2e traps, CLAUDE.md convention 23's Spec 3 paragraph).
+
+**Still Tom's:** the five videos (the section says "being recorded" until an article carries a link), the contact details (no phone until told), a nod on 9-8-8.
+
+**Next:** Spec 4 — the Suggest form (Low; `suggestion_tag` at the weekly review; duplicates merged with `report_count`), the stats panel (the admin already has `/api/admin/tickets/stats`), the "paste a reply" affordance (decided: no inbound parsing). Zero DDL: 222 carries every column.
+
 ## September 20, 2026 — Support & Reporting, Spec 3 probe fix: the Help Center specs' first real run (spec only)
 
 **What:** with 224 live, `help-api` and `help-ui` ran for the first time (they self-skipped before) and found three things in THEMSELVES, none in the code: a PostgREST batch insert sends `null` for a key one row omits (the draft row's `sort_order` — every column is spelled out now); the mobile project's `use.storageState` signs EVERY context in — `browser.newContext()` AND the `request` fixture — so the "signed-out visitor" was alpha (the guest form never rendered; `/contact` filed under the session): an explicit empty `storageState: { cookies: [], origins: [] }` is the signed-out visitor. Both specs green locally on the live table; the prod probe follows the deploy.

@@ -1083,9 +1083,20 @@ const { canView } = await response.json();
    (`projectTicketForSubject` — never the reporter, the description or the
    snapshot) for the one appeal; a report closed with no action is never
    announced. Mutes (`user_mutes`) and blocks both filter the feed, the
-   comments and the bell through `mutes.ts hiddenAuthorsFor`. Specs 3–4 (the
-   Help Center, suggestions) are outlined in `docs/SUPPORT.md`; the schema
-   already carries their columns.
+   comments and the bell through `mutes.ts hiddenAuthorsFor`. **Spec 3 (the
+   Help Center, #848–#852, mig 224):** `/help` is PUBLIC — `help_articles` is
+   ONE table for articles and how-to videos (a video = a YouTube `video_url`,
+   validated through the site builder's `parseEmbedUrl`; the body is PLAIN
+   TEXT rendered as blocks, never HTML); the public read is CDN-cached 60 s
+   (Vercel consumes `s-maxage` — a spec settles it first); the owner edits at
+   `/dashboard/help`; a signed-out visitor files through `POST /api/tickets/
+   guest` (honeypot + the `contact` IP bucket; `guest_email` is the
+   recipient); `/contact` files a Help ticket; a screenshot rides `POST
+   /api/tickets/attachment` under the user's `tickets/` prefix (re-asserted on
+   create, registered in `URL_SOURCE_COLUMNS`, served through the proxy's
+   `ticket` entity; NOT behind the write gate). e2e: the project's
+   `storageState` signs EVERY context in — a signed-out actor is an explicit
+   empty `storageState`. Spec 4 (suggestions) is outlined in `docs/SUPPORT.md`.
 
 
 ---
