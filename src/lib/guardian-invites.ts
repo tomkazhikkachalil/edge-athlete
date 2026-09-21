@@ -80,7 +80,37 @@ export interface RedeemedInvite {
   profile_id: string | null;
   created_by: string | null;
   grant_role: InviteGrantRole;
+  /** When the invite was minted (Round 1 PR 1: the claimant's account must predate it). */
+  created_at?: string;
 }
+
+/**
+ * Round 1 PR 1 (Tom, Sep 20 2026): a GUARDIAN invite may be claimed only by
+ * an account that existed BEFORE the invite was minted. The parked screen
+ * shows the minor the bearer link (email is a convenience — Tom's Aug rule),
+ * and consent auto-approves, so without this a 13-year-old could open their
+ * own link, create a "parent" account and approve themselves. A parent who
+ * signs up AFTER the invite is refused with the way forward: contact
+ * support, who re-mints from /dashboard/guardians — a human in the loop for
+ * the edge case, never a self-service re-mint (that would reopen the hole).
+ * Applies to the guardian types only; an athlete's own activation and a
+ * transfer's contact check are not guardian grants. Pure; pinned by test.
+ */
+export function guardianAccountPredatesInvite(
+  inviteType: InviteType,
+  accountCreatedAt: string | null | undefined,
+  inviteCreatedAt: string | null | undefined
+): boolean {
+  if (inviteType !== 'guardian_for_pending' && inviteType !== 'guardian_additional') return true;
+  const account = accountCreatedAt ? Date.parse(accountCreatedAt) : NaN;
+  const invite = inviteCreatedAt ? Date.parse(inviteCreatedAt) : NaN;
+  // An unreadable timestamp fails CLOSED — the gate is a child-safety rule.
+  if (!Number.isFinite(account) || !Number.isFinite(invite)) return false;
+  return account < invite;
+}
+
+export const GUARDIAN_PREDATES_REFUSAL =
+  'This link was created before your account existed, so it cannot be used to become a guardian. A parent needs an account first: contact support from the Help Center and we will issue a fresh link.';
 
 /**
  * Atomic single-use redemption: the UPDATE's WHERE clause is the whole
@@ -117,7 +147,7 @@ export async function peekGuardianInvite(
 ): Promise<RedeemedInvite | null> {
   const { data, error } = await admin
     .from('guardian_invites')
-    .select('id, invite_type, invited_email, pending_profile_id, profile_id, created_by, grant_role')
+    .select('id, invite_type, invited_email, pending_profile_id, profile_id, created_by, grant_role, created_at')
     .eq('token_hash', hashInviteToken(rawToken))
     .is('consumed_at', null)
     .gt('expires_at', new Date().toISOString())

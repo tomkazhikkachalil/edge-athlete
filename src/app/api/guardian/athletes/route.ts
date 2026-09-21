@@ -255,6 +255,12 @@ export async function POST(request: NextRequest) {
         // which bypass column defaults — and this column is NOT NULL (095).
         comment_moderation: presets.comment_moderation,
         supervision_state: 'supervised',
+        // 223 added moderation_state NOT NULL DEFAULT 'active' — the row-type
+        // insert (jsonb_populate_record) sends explicit NULLs, so the default
+        // never applies (the 175/179/182/223 class, pinned by
+        // src/lib/__tests__/profiles-not-null-insert.test.ts). Supplied here;
+        // 225 also drops the NOT NULL.
+        moderation_state: 'active',
         dob_locked: true,
         jurisdiction,
         minor_threshold_age: getMinorThreshold(jurisdiction),

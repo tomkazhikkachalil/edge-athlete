@@ -149,9 +149,12 @@ export async function POST(request: NextRequest) {
         // The invite URL is ALWAYS returned for the parked screen to show —
         // Tom's explicit call (Aug 2026): email is a convenience, the link is
         // the reliable channel (the same rule the admin re-mint and
-        // co-guardian invites already follow). The token is bearer, but the
-        // hard gate stays consent review of the uploaded signed form — a
-        // link in the athlete's hands doesn't bypass it.
+        // co-guardian invites already follow). The token is bearer; the gate
+        // that keeps a link in the athlete's hands from approving themselves
+        // is at the CLAIM (Round 1 PR 1, Sep 2026): a guardian invite is
+        // claimable only by an account OLDER than the invite
+        // (`guardianAccountPredatesInvite`) — consent auto-approves since
+        // Wave 6, so the claim is the gate, not a review.
         return NextResponse.json({
           parked: true,
           guardianEmailSent,

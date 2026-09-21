@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import * as Sentry from '@sentry/nextjs';
 import { requireAuth, getSupabaseAdmin } from '@/lib/auth-server';
-import { peekGuardianInvite, redeemGuardianInvite } from '@/lib/guardian-invites';
+import { GUARDIAN_PREDATES_REFUSAL, guardianAccountPredatesInvite, peekGuardianInvite, redeemGuardianInvite } from '@/lib/guardian-invites';
 import { FEATURE_FLAGS } from '@/lib/features';
 import { enforceRateLimit } from '@/lib/rate-limit';
 
@@ -44,6 +44,13 @@ export async function POST(
         { error: 'This invite link is no longer valid. Ask your athlete to send a new request.' },
         { status: 410 }
       );
+    }
+
+    // Round 1 PR 1: a guardian invite is claimable only by an account older
+    // than the invite — the self-approval path (the minor opens their own
+    // link and mints a "parent") closes here, at the grant, before consent.
+    if (!guardianAccountPredatesInvite(peeked.invite_type, user.created_at, peeked.created_at)) {
+      return NextResponse.json({ error: GUARDIAN_PREDATES_REFUSAL, code: 'guardian_account_too_new' }, { status: 403 });
     }
 
     if (peeked.invite_type === 'guardian_additional' && peeked.profile_id) {
