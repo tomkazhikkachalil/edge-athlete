@@ -280,6 +280,18 @@ Ranked, with the source finding. Fix deliberately; each is its own change.
 - **Staging environment** (a second Supabase project + preview Vercel env) — the
   prerequisite for real synthetic load testing. Until it exists, scale review is
   analytical only (this runbook), never load tests against prod data.
+- **Observability (Round 1, Sep 21 2026, #858–#861) — DONE:** every API
+  route's catch-and-500 reaches Sentry through `reportRouteError`
+  (`src/lib/observability/report.ts`, `area:api`); the daily cron reports
+  any failed phase (`area:cron`); the media proxy times out its upstream
+  fetch at 15 s and records a storage 5xx; `/api/health` is an index probe,
+  not a `COUNT(*)`; the rate limiter's fail-open reports every 10 min per
+  instance; a chunk-load error after a deploy reloads once
+  (`src/lib/version-skew.ts`). **Vercel Skew Protection is Pro-only** and
+  this project is on Hobby (the 2-cron limit below), so the reload-once
+  floor is what runs until the plan changes (`LAUNCH_RUNBOOK.md` §5b).
+- **Backups:** `docs/RUNBOOK_BACKUP.md` (Sep 21 2026) — the tier and the
+  Storage decision are Tom's; the restore drill runs when staging exists.
 - Vercel WAF rule for search GETs (DEVLOG #183, still owed).
 - Resend DNS/SPF/DKIM/DMARC — every app email 550s today (`LAUNCH_RUNBOOK.md`).
 - ~~`reminders` cron "unscheduled"~~ — **stale note, corrected Aug 2026:** it
@@ -291,6 +303,17 @@ Ranked, with the source finding. Fix deliberately; each is its own change.
 ---
 
 ## Change log
+- **Sep 21 2026 (Round 1 safety + ops, #855–#862, mig 225)** — the Sep 19
+  assessment's first round, PROD-PROVEN (26/26 across three engines,
+  `check:schema` OK on 225): the guardian claim gate (the account must
+  predate the invite) + the mig-223 `create_managed_profile` regression
+  (adding a supervised athlete had failed since Sep 20 — the `profiles`
+  NOT NULL class, now pinned by `profiles-not-null-insert.test.ts`);
+  transfers + deletion check every write; 225's SET NULL attribution FKs
+  (deletion no longer 23503s for anyone whose org recorded a stat line);
+  the observability items above; the e2e teardown leak (all four QA users;
+  the sweep paginates — 56 stale users drained on the first run). Route
+  count unchanged (no new routes).
 - **Sep 8 2026 (Org Pages R4, #610)** — two routes added
   (`/api/{leagues,clubs}/[id]/gallery`, the in-app Photos bubble; anonymous-
   tolerant for a public org, members-only for a private one, `private,
