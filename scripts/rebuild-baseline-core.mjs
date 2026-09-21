@@ -265,15 +265,16 @@ SET check_function_bodies = off;
   const hasLedger = tables.some(t => t.name === 'schema_migrations');
   parts.push(section('The ledger: every chain file this rebuild embodies') + (hasLedger ? emitLedgerSeed(opts.chainFiles ?? [], head) : '-- (the source had no schema_migrations table — run 226 there and regenerate)'));
   parts.push(section('pg_cron jobs (review, then run by hand)') + emitCronJobs(dump.cron_jobs, opts.sourceHost));
+  const publicPolicies = (dump.policies ?? []).filter(p => (p.schema ?? 'public') === 'public').length;
   parts.push(`
 NOTIFY pgrst, 'reload schema';
 
 -- ── Result (ONE row) ─────────────────────────────────────────────────────────
--- Expected: 000 REBUILT | ${tables.length} | ${functions.length} | ${(dump.policies ?? []).length} | ${head ?? 'null'}
+-- Expected: 000 REBUILT | ${tables.length} | ${functions.length} | ${publicPolicies} | ${head ?? 'null'}
 SELECT '000 REBUILT' AS result,
        (SELECT count(*) FROM pg_tables WHERE schemaname = 'public') AS tables_expect_${tables.length},
        (SELECT count(*) FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace WHERE n.nspname = 'public' AND p.prokind IN ('f', 'p')) AS functions_expect_${functions.length},
-       (SELECT count(*) FROM pg_policies WHERE schemaname = 'public') AS policies_expect_${(dump.policies ?? []).filter(p => (p.schema ?? 'public') === 'public').length},
+       (SELECT count(*) FROM pg_policies WHERE schemaname = 'public') AS policies_expect_${publicPolicies},
        (SELECT max(number) FROM public.schema_migrations) AS ledger_head_expect_${head ?? 'null'};
 `);
   return parts.join('\n') + '\n';
