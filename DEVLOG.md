@@ -1,5 +1,13 @@
 # Development Log
 
+## September 21, 2026 — Round 1 PR 2: transfers and deletion check every write (zero DDL; migration 225 rides its own PR)
+
+**What:** the two engines the assessment flagged as "could lose user data / permanent authorization leak" now check every write. `src/lib/transfers.ts executeTransfer`: the activation-invite insert, the guardian delete / demote, the `supervision_state = 'self'` flip and the completion write each throw on error BEFORE the journal marks the step done (a discarded error used to leave the former guardian with `role='guardian'` on an adult's profile, or the athlete `supervised` forever, while the transfer read `completed` and the retry skipped the step); the journal write itself is loud; the access-audit row stays best-effort (a log, never the reason a flip fails). `src/lib/account-deletion.ts hardDeleteAccount`: the fourteen pre-deletes go through one `mustDelete` that throws — a failure ABORTS before the profile row goes, with the account intact and nothing irrecoverable done; `warnings[]` (storage, the owner-cache recompute) reach Sentry instead of a return value nobody read.
+
+**Migration 225** (its own PR, merges alone): the three attribution FKs with no `ON DELETE` (`contest_stat_lines.entered_by`, `contest_media.uploaded_by`, `contest_media_tags.tagged_by`) become nullable + `SET NULL` — deletion stops hard-failing 23503 for anyone whose org recorded a stat line or a contest photo; and `profiles.moderation_state` drops its NOT NULL as 184 did (the row-type insert lesson, belt to PR 1's braces).
+
+**Verification:** `npm run verify` green; `guardian-console.spec.ts` (incl. its child deletion) + `transfer-ceremony.spec.ts` green locally on the checked engines (24 tests) — stacked on #855 so the managed-athlete creation works. Prod probe after the merges.
+
 ## September 21, 2026 — Round 1 PR 1: the guardian claim gate — and a regression from 223 caught on the way (zero DDL)
 
 **The plan:** the Sep 19 assessment's rounds, approved Sep 20 (`~/.claude/plans/let-s-go-ahead-and-linear-stallman.md`): safety + operability first, then a second environment, then the scale cliffs (+ the performance readers), then non-golf parity, then the organizations unification. Round 1 starts here.

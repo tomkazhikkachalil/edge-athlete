@@ -150,9 +150,13 @@ export async function executeTransfer(
   const steps: string[] = [...(transfer.executed_steps ?? [])];
   const journal = async (step: string) => {
     steps.push(step);
-    await admin.from('profile_transfers')
+    // Round 1 PR 2: a journal write that fails is loud — a silent one would
+    // re-run the step on retry (mostly harmless by design) but hide a dying
+    // database behind a "completed" transfer.
+    const { error } = await admin.from('profile_transfers')
       .update({ executed_steps: steps })
       .eq('id', transfer.id);
+    if (error) throw new Error(`journal ${step}: ${error.message}`);
   };
   const done = (s: string) => steps.includes(s);
 
@@ -183,13 +187,16 @@ export async function executeTransfer(
       });
       if (error) throw new Error(`rotate: ${error.message}`);
       const raw = randomBytes(32).toString('base64url');
-      await admin.from('guardian_invites').insert({
+      const { error: inviteError } = await admin.from('guardian_invites').insert({
         token_hash: createHash('sha256').update(raw).digest('hex'),
         invite_type: 'athlete_activation',
         invited_email: transfer.athlete_contact_email!.toLowerCase(),
         profile_id: transfer.profile_id,
         expires_at: new Date(Date.now() + 7 * 86_400_000).toISOString(),
       });
+      // Round 1 PR 2: no activation token means the new adult can never sign
+      // in — that is a failed step, not a warning.
+      if (inviteError) throw new Error(`activation invite: ${inviteError.message}`);
       // Email the activation link (best-effort; the token row is the source
       // of truth, and /forgot-password on the new email always works). A
       // crash before the journal below re-runs this step: a second valid
@@ -225,18 +232,16 @@ export async function executeTransfer(
         .eq('profile_id', transfer.profile_id)
         .eq('role', 'supervised');
       if (ownerError) throw new Error(`flip owner: ${ownerError.message}`);
-      if (transfer.guardian_post_role === 'removed') {
-        await admin.from('profile_access')
-          .delete()
-          .eq('profile_id', transfer.profile_id)
-          .eq('role', 'guardian');
-      } else {
-        await admin.from('profile_access')
-          .update({ role: 'viewer' })
-          .eq('profile_id', transfer.profile_id)
-          .eq('role', 'guardian');
-      }
-      await admin.from('profile_access_audit').insert({
+      // Round 1 PR 2: every write in this step is checked BEFORE the journal
+      // marks it done — a discarded error here used to leave the former
+      // guardian with `role='guardian'` on an adult's profile forever (the
+      // retry skipped the step). The audit row is best-effort (a log), never
+      // the reason an access flip fails.
+      const guardianWrite = transfer.guardian_post_role === 'removed'
+        ? await admin.from('profile_access').delete().eq('profile_id', transfer.profile_id).eq('role', 'guardian')
+        : await admin.from('profile_access').update({ role: 'viewer' }).eq('profile_id', transfer.profile_id).eq('role', 'guardian');
+      if (guardianWrite.error) throw new Error(`flip guardians: ${guardianWrite.error.message}`);
+      const { error: auditError } = await admin.from('profile_access_audit').insert({
         profile_id: transfer.profile_id,
         user_id: transfer.profile_id,
         action: 'role_changed',
@@ -244,22 +249,27 @@ export async function executeTransfer(
         new_role: 'owner',
         actor_id: transfer.profile_id,
       });
+      if (auditError) console.error('[transfers] access audit insert failed (continuing):', auditError.message);
       await journal('flip_access');
     }
     // 5. Finalize.
     if (!done('finalize')) {
-      await admin.from('profiles')
+      // Round 1 PR 2: an unchecked write here left the athlete `supervised`
+      // forever while the transfer read `completed`.
+      const { error: stateError } = await admin.from('profiles')
         .update({ supervision_state: 'self' })
         .eq('id', transfer.profile_id);
+      if (stateError) throw new Error(`finalize supervision_state: ${stateError.message}`);
       // Digest routing ends with supervision: the guardian opted the child's
       // digest ON at creation (they were the recipient); the new adult owner
       // starts at the platform default (opt-in, false) — best-effort.
       await admin.from('notification_preferences')
         .update({ email_enabled: false })
         .eq('user_id', transfer.profile_id);
-      await admin.from('profile_transfers')
+      const { error: completeError } = await admin.from('profile_transfers')
         .update({ state: 'completed', completed_at: new Date().toISOString(), executed_steps: steps })
         .eq('id', transfer.id);
+      if (completeError) throw new Error(`finalize completion: ${completeError.message}`);
       await journal('finalize');
     }
     return { ok: true };
