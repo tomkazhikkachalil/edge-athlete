@@ -10,6 +10,7 @@
 // consent_records rows SET NULL their profile FK by design).
 
 import type { SupabaseClient } from '@supabase/supabase-js';
+import * as Sentry from '@sentry/nextjs';
 import { collectSetMediaPaths } from './storage-sweep';
 
 /**
@@ -116,24 +117,32 @@ export async function hardDeleteAccount(
   }
 
   // 3. Delete data in dependency order (admin client bypasses RLS).
+  // Round 1 PR 2: every delete is CHECKED and a failure ABORTS before the
+  // profile row goes — nothing irrecoverable has happened yet, the account
+  // is intact, the caller retries. A discarded error here used to report a
+  // partial deletion as success.
+  const mustDelete = async (table: string, column: string) => {
+    const { error } = await admin.from(table).delete().eq(column, userId);
+    if (error) throw new Error(`Failed to delete ${table} (${column}): ${error.message}`);
+  };
   // Engagement data first.
-  await admin.from('comment_likes').delete().eq('profile_id', userId);
-  await admin.from('post_likes').delete().eq('profile_id', userId);
-  await admin.from('saved_posts').delete().eq('profile_id', userId);
-  await admin.from('post_comments').delete().eq('profile_id', userId);
+  await mustDelete('comment_likes', 'profile_id');
+  await mustDelete('post_likes', 'profile_id');
+  await mustDelete('saved_posts', 'profile_id');
+  await mustDelete('post_comments', 'profile_id');
   // Notifications (recipient and actor).
-  await admin.from('notifications').delete().eq('user_id', userId);
-  await admin.from('notifications').delete().eq('actor_id', userId);
-  await admin.from('notification_preferences').delete().eq('user_id', userId);
+  await mustDelete('notifications', 'user_id');
+  await mustDelete('notifications', 'actor_id');
+  await mustDelete('notification_preferences', 'user_id');
   // Follow relationships (both directions).
-  await admin.from('follows').delete().eq('follower_id', userId);
-  await admin.from('follows').delete().eq('following_id', userId);
+  await mustDelete('follows', 'follower_id');
+  await mustDelete('follows', 'following_id');
   // Sport data (golf_holes has no profile_id — cascades from golf_rounds).
-  await admin.from('golf_rounds').delete().eq('profile_id', userId);
-  await admin.from('season_highlights').delete().eq('profile_id', userId);
-  await admin.from('performances').delete().eq('profile_id', userId);
+  await mustDelete('golf_rounds', 'profile_id');
+  await mustDelete('season_highlights', 'profile_id');
+  await mustDelete('performances', 'profile_id');
   // athlete_badges: dropped by migration 199 (Sep 2026) — nothing to delete.
-  await admin.from('sport_settings').delete().eq('profile_id', userId);
+  await mustDelete('sport_settings', 'profile_id');
   // Org membership rows CASCADE from profiles (140) and the club/league
   // request tables likewise. Ownership (0.8): move the primary-owner cache
   // to a surviving co-owner BEFORE the rows cascade — best-effort; when the
@@ -159,10 +168,10 @@ export async function hardDeleteAccount(
   }
   // Group rounds: participant rows key on profile_id; created rounds'
   // participants/scorecards cascade.
-  await admin.from('group_post_participants').delete().eq('profile_id', userId);
-  await admin.from('group_posts').delete().eq('creator_id', userId);
+  await mustDelete('group_post_participants', 'profile_id');
+  await mustDelete('group_posts', 'creator_id');
   // Posts (post_media, likes and comments cascade via post_id).
-  await admin.from('posts').delete().eq('profile_id', userId);
+  await mustDelete('posts', 'profile_id');
 
   // Profile row — guardian tables (profile_access, guardian_invites,
   // profile_transfers) cascade from here; consent_records SET NULL.
@@ -194,5 +203,10 @@ export async function hardDeleteAccount(
     throw new Error(`Failed to delete authentication user: ${authError.message}`);
   }
 
+  // Round 1 PR 2: the warnings were returned and read by nobody — a deletion
+  // that left storage or an owner cache behind now shows up in Sentry.
+  if (warnings.length > 0) {
+    Sentry.captureMessage('account deletion completed with warnings', { level: 'warning', extra: { userId, warnings } });
+  }
   return { warnings };
 }
