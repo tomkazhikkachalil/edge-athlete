@@ -277,9 +277,13 @@ Ranked, with the source finding. Fix deliberately; each is its own change.
   6 routes + `src/lib/privacy.ts` on the lazy `getSupabaseAdmin()` factory.
 
 **Infra / ops (prerequisites & already-owed)**
-- **Staging environment** (a second Supabase project + preview Vercel env) — the
-  prerequisite for real synthetic load testing. Until it exists, scale review is
-  analytical only (this runbook), never load tests against prod data.
+- ~~**Staging environment**~~ — **DONE (Round 2, Sep 21 2026, #864–#868):** a
+  second Supabase project built from `database/baseline/000_rebuild.sql`
+  (generated from the live schema — the chain does not replay) and proven
+  identical to prod; `.env.local` = staging, `.env.prod` = production; the
+  e2e suite refuses prod without a flag; the migration ledger (226) says
+  what each environment is at. Vercel Preview + Development → staging (the
+  dashboard step in `LAUNCH_RUNBOOK.md` §6). Load tests now have a home.
 - **Observability (Round 1, Sep 21 2026, #858–#861) — DONE:** every API
   route's catch-and-500 reaches Sentry through `reportRouteError`
   (`src/lib/observability/report.ts`, `area:api`); the daily cron reports

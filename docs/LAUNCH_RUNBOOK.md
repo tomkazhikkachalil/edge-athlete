@@ -151,6 +151,33 @@ Pro / Enterprise only. On Hobby the toggle is absent and the reload-once
 floor is what runs. Verify: Monitoring → `requests` filtered
 `skew_protection = 'active'` after the next deploy.
 
+## 6. Vercel environments → staging (Round 2, Sep 21 2026) — three clicks
+
+Preview and Development deployments must read the STAGING Supabase
+project; only Production reads prod. The values are in `.env.staging` /
+`.env.local` on Tom's machine (the dashboard is the sanctioned writer —
+the assistant's secret-store writes are blocked by policy, on purpose).
+
+1. Vercel → edge-athlete → **Settings → Environment Variables**. For each
+   of `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`,
+   `SUPABASE_SERVICE_ROLE_KEY`: edit the existing entry → untick
+   **Preview** and **Development**, keep **Production** → Save.
+2. Add each of the three again with the STAGING value (from `.env.local`),
+   ticking **Preview** and **Development** only. Mark the service key
+   Sensitive.
+3. Add `MEDIA_PROXY_SECRET` and `ANALYTICS_SALT` for Preview + Development
+   with any fresh random string (they exist for Production only today;
+   previews need their own, never prod's).
+4. GitHub → repo → **Settings → Secrets and variables → Actions**: replace
+   the three Supabase secrets with STAGING's values (the smoke job refuses
+   prod by design once #868 is in).
+5. Then merge the PR that turns previews on (`vercel.json`
+   `git.deploymentEnabled` for `feat/**` and `fix/**`) — NOT before: a
+   preview built with prod's keys would run the app against prod.
+
+Verify: open any preview → sign up → the user appears in the STAGING
+project's Authentication list, not prod's.
+
 ## 5. (Optional decision) Custom domain — currently NOT pointed at Vercel
 
 Sep 1 note: §5a (above, on purpose — the platform env comes first) makes

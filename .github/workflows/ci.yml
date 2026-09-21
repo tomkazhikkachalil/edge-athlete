@@ -60,10 +60,12 @@ jobs:
       - name: Hardening guardrails
         run: bash scripts/hardening-guardrails.sh
 
-  # Playwright smoke suite against the real Supabase project (no staging
-  # exists): global setup creates a disposable private-visibility edgeqa-*
-  # user, teardown always deletes it, and a 24h sweep drains orphans from
-  # killed runs. Skips green until the three secrets are configured in the
+  # Playwright smoke suite against the STAGING Supabase project (Round 2,
+  # Sep 21 2026 — the three secrets below must be STAGING's; the suite
+  # refuses the production project without E2E_ALLOW_PROD=1, so prod
+  # secrets here fail the job by design): global setup creates disposable
+  # edgeqa-* users, teardown always deletes them, and a 24h sweep drains
+  # orphans from killed runs. Skips green until the three secrets are configured in the
   # repo settings (job-level `if:` cannot read the secrets context, hence
   # the gate step).
   smoke:

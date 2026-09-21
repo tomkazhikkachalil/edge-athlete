@@ -33,7 +33,8 @@
  * every live object is owned or documented.
  *
  * LOCAL / DEV ONLY: it needs SUPABASE_SERVICE_ROLE_KEY (from the
- * environment or .env.local, the verify-media-privacy recipe) — it is not
+ * environment, or .env.local — STAGING since Round 2; `TARGET_ENV=prod`
+ * reads .env.prod — see scripts/env-file.mjs) — it is not
  * part of `npm run verify` and never runs in CI.
  *
  *   npm run check:schema
@@ -43,6 +44,7 @@
  *   node scripts/schema-inventory.mjs --json              # the raw result
  */
 import { existsSync, readFileSync, readdirSync, writeFileSync } from 'fs';
+import { TARGET_ENV, loadEnvFile } from './env-file.mjs';
 import { join } from 'path';
 import { diffCatalog, formatCatalogReport, liveFromCatalog, parseCatalogChain } from './schema-inventory-catalog.mjs';
 import { diff, formatReport, liveFromOpenApi, parseChain } from './schema-inventory-core.mjs';
@@ -66,17 +68,8 @@ if (facet && !['tables', 'policies', 'functions', 'triggers', 'grants', 'ledger'
   process.exit(2);
 }
 
-for (const key of ['NEXT_PUBLIC_SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY']) {
-  if (process.env[key]) continue;
-  try {
-    for (const line of readFileSync('.env.local', 'utf8').split('\n')) {
-      const m = /^\s*([A-Z0-9_]+)\s*=\s*(.*)\s*$/.exec(line);
-      if (m && m[1] === key) process.env[key] = m[2].trim().replace(/^["']|["']$/g, '');
-    }
-  } catch {
-    /* no .env.local */
-  }
-}
+const envFile = loadEnvFile(['NEXT_PUBLIC_SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY']);
+console.error(`check:schema: target ${TARGET_ENV}${envFile ? ` (${envFile})` : ' (environment only)'}`);
 
 function credentials() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;

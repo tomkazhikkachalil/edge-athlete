@@ -20,6 +20,7 @@
  *   node scripts/build-rebuild-baseline.mjs --out /tmp/x.sql
  */
 import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'fs';
+import { TARGET_ENV, loadEnvFile } from './env-file.mjs';
 import { dirname } from 'path';
 import { buildRebuildSql } from './rebuild-baseline-core.mjs';
 import { diff, liveFromOpenApi, parseChain } from './schema-inventory-core.mjs';
@@ -33,17 +34,8 @@ const offline = flag('--offline');
 const out = flag('--out') ?? 'database/baseline/000_rebuild.sql';
 const migrationsDir = 'database/migrations';
 
-for (const key of ['NEXT_PUBLIC_SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY']) {
-  if (process.env[key]) continue;
-  try {
-    for (const line of readFileSync('.env.local', 'utf8').split('\n')) {
-      const m = /^\s*([A-Z0-9_]+)\s*=\s*(.*)\s*$/.exec(line);
-      if (m && m[1] === key) process.env[key] = m[2].trim().replace(/^["']|["']$/g, '');
-    }
-  } catch {
-    /* no .env.local */
-  }
-}
+const envFile = loadEnvFile(['NEXT_PUBLIC_SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY']);
+console.error(`build:baseline: target ${TARGET_ENV}${envFile ? ` (${envFile})` : ' (environment only)'}`);
 
 function credentials() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;

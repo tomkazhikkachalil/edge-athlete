@@ -20,18 +20,24 @@ const ENV_KEYS = [
   'SUPABASE_SERVICE_ROLE_KEY',
 ] as const;
 
-/** Load .env.local into process.env for keys not already set (CI sets them). */
 /**
- * Which deployment the suite drives. Defaults to the local dev/prod server;
- * set E2E_BASE_URL to smoke a real deployment, e.g.
- *   E2E_BASE_URL=https://edge-athlete.vercel.app npm run test:e2e
+ * Which deployment the suite drives. Defaults to the local server; set
+ * E2E_BASE_URL to smoke a real deployment.
  *
- * NOTE this changes only WHICH SERVER handles the requests. The suite has
- * always run against the real Supabase project (there is no staging), so the
- * data side is identical either way — same tables, same disposable users,
- * same teardown.
+ * TWO ENVIRONMENTS since Round 2 (Sep 21 2026). The data side comes from
+ * the env file: `.env.local` is STAGING (the default — `npm run dev`, local
+ * e2e, previews); `E2E_TARGET=prod` reads `.env.prod`. Production — the
+ * prod Supabase project OR the prod app URL — is REFUSED unless
+ * `E2E_ALLOW_PROD=1` is set too; `npm run test:e2e:prod` sets all three.
+ * The refusal is the guard against a probe that silently mints QA users
+ * on prod because a shell had the wrong file loaded.
  */
 export const E2E_BASE_URL = (process.env.E2E_BASE_URL ?? 'http://localhost:3000').replace(/\/$/, '');
+export const E2E_TARGET: 'prod' | 'local' = process.env.E2E_TARGET === 'prod' ? 'prod' : 'local';
+const ENV_FILE = E2E_TARGET === 'prod' ? '.env.prod' : '.env.local';
+/** The production project's ref and host — the two things the suite refuses without E2E_ALLOW_PROD=1. */
+export const PROD_SUPABASE_REF = 'htwhmdoiszhhmwuflgci';
+export const PROD_APP_HOST = 'edge-athlete.vercel.app';
 
 /** Cookie scope for the target — localhost is http, a deployment is https. */
 export function baseUrlCookieScope(): { domain: string; secure: boolean } {
@@ -40,15 +46,31 @@ export function baseUrlCookieScope(): { domain: string; secure: boolean } {
 }
 
 export function loadEnv(): void {
-  const envPath = join(process.cwd(), '.env.local');
-  if (!existsSync(envPath)) return;
-  for (const line of readFileSync(envPath, 'utf8').split('\n')) {
-    const m = line.match(/^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)\s*$/);
-    if (!m) continue;
-    const [, key, raw] = m;
-    if (process.env[key] !== undefined) continue;
-    process.env[key] = raw.replace(/^["']|["']$/g, '');
+  const envPath = join(process.cwd(), ENV_FILE);
+  if (existsSync(envPath)) {
+    for (const line of readFileSync(envPath, 'utf8').split('\n')) {
+      const m = line.match(/^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)\s*$/);
+      if (!m) continue;
+      const [, key, raw] = m;
+      if (process.env[key] !== undefined) continue;
+      process.env[key] = raw.replace(/^["']|["']$/g, '');
+    }
   }
+  refuseProdUnlessAllowed(process.env.NEXT_PUBLIC_SUPABASE_URL, E2E_BASE_URL, process.env.E2E_ALLOW_PROD);
+}
+
+/** Pure: throws when either side is production and the flag is absent. */
+export function refuseProdUnlessAllowed(supabaseUrl: string | undefined, baseUrl: string, allow: string | undefined): void {
+  if (allow === '1') return;
+  const ref = /https?:\/\/([a-z0-9]+)\.supabase\.(?:co|in)/.exec(supabaseUrl ?? '')?.[1];
+  if (ref === PROD_SUPABASE_REF) throw new Error(`REFUSED: ${ENV_FILE} points at the PRODUCTION Supabase project. The suite runs on staging; a prod probe is \`npm run test:e2e:prod\` (E2E_TARGET=prod E2E_ALLOW_PROD=1).`);
+  let host = '';
+  try {
+    host = new URL(baseUrl).hostname;
+  } catch {
+    /* refused below only by ref */
+  }
+  if (host === PROD_APP_HOST) throw new Error(`REFUSED: E2E_BASE_URL is the PRODUCTION app. A prod probe is \`npm run test:e2e:prod\` (E2E_TARGET=prod E2E_ALLOW_PROD=1).`);
 }
 
 export function requireEnv(): { url: string; anonKey: string; serviceKey: string } {

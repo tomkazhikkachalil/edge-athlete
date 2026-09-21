@@ -18,6 +18,24 @@
 
 ## 🚀 Quick Start - Local Development
 
+### Environments — TWO Supabase projects since Round 2 (Sep 21 2026)
+
+| File | Project | Who reads it |
+| --- | --- | --- |
+| `.env.local` | **STAGING** (`EdgeAthlete-BackUp`, us-west-2) — disposable | `npm run dev`, the e2e suite, `check:schema`, Vercel **Preview + Development** |
+| `.env.prod` | **PRODUCTION** (`edge-athlete`, ca-central-1) | only `TARGET_ENV=prod` / `E2E_TARGET=prod`: `build:baseline`, `check:schema:prod`, `migrate:mark:prod`, `test:e2e:prod`; Vercel **Production** |
+| `.env.staging` | the Supabase access token + staging ref | `scripts/staging-sql.mjs` (the management API; refuses the prod ref) |
+
+All three are gitignored (`.env.*`). **The e2e suite refuses production**
+(the prod project's ref or the prod app host) unless `E2E_ALLOW_PROD=1` —
+`npm run test:e2e:prod` is the one sanctioned prod probe. Staging was built
+from `database/baseline/000_rebuild.sql` and is proven identical to prod
+(`database/MIGRATIONS.md` → "To build an environment"); every new migration
+runs on BOTH (the ledger records each). Production's runner stays the SQL
+editor; staging's is `node scripts/staging-sql.mjs <file>`. No pg_cron jobs
+on staging, by decision. A `NEXT_PUBLIC_*` value is inlined at BUILD time —
+after switching `.env.local`, `npm run build` again before `npm run start`.
+
 ### Environment Variables
 **Required** - Create `.env.local` with:
 ```bash
