@@ -2,6 +2,7 @@
 
 import { useEffect } from 'react';
 import * as Sentry from '@sentry/nextjs';
+import { isChunkLoadError, shouldReloadForSkew, SKEW_RELOAD_KEY } from '@/lib/version-skew';
 
 export default function Error({
   error,
@@ -10,12 +11,49 @@ export default function Error({
   error: Error & { digest?: string };
   reset: () => void;
 }) {
+  // Version skew (Round 1 PR 8): a deploy replaced the chunk this tab
+  // asked for. "Try again" cannot help; a reload fetches the new build.
+  // Reload ONCE per minute (sessionStorage remembers), then show the screen
+  // with a Reload button — never a loop on a genuinely broken deploy.
+  const skew = isChunkLoadError(error);
+
   useEffect(() => {
     console.error('Route error:', error);
+    if (skew) {
+      let last: string | null = null;
+      try { last = sessionStorage.getItem(SKEW_RELOAD_KEY); } catch { /* private mode: reload once anyway */ }
+      if (shouldReloadForSkew(last, Date.now())) {
+        try { sessionStorage.setItem(SKEW_RELOAD_KEY, String(Date.now())); } catch { /* same */ }
+        window.location.reload();
+        return;
+      }
+      Sentry.captureMessage('version skew: chunk load failed after a reload', { level: 'warning', tags: { area: 'skew' }, extra: { message: error.message } });
+      return;
+    }
     // Error boundaries swallow the error before Sentry's global handler
     // sees it — report explicitly (no-op without a DSN).
     Sentry.captureException(error);
-  }, [error]);
+  }, [error, skew]);
+
+  if (skew) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-canvas p-4" data-skew-screen="">
+        <div className="max-w-md w-full bg-surface rounded-2xl shadow-lg p-8 text-center">
+          <h1 className="text-2xl font-bold text-primary mb-2">A new version is available</h1>
+          <p className="text-tertiary mb-6">
+            Edge Athlete was updated while this page was open. Reload to pick up the new version.
+          </p>
+          <button
+            type="button"
+            onClick={() => window.location.reload()}
+            className="px-6 py-3 min-h-[44px] bg-brand text-white rounded-lg font-semibold hover:bg-brand-hover transition-colors"
+          >
+            Reload
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-canvas p-4">

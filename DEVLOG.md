@@ -1,5 +1,12 @@
 # Development Log
 
+## September 21, 2026 — Round 1 (safety + ops) PR 8: version skew — the chunk-load error reloads once, and the Vercel toggle is Tom's (zero DDL)
+
+**What:** every deploy replaces every hashed chunk; a tab opened before it fails its next lazy import — `ChunkLoadError` (Chrome), "Importing a module script failed" (Safari, i.e. every iPhone), "Failed to fetch dynamically imported module" (Firefox) — and landed on "Something went wrong" with a "Try again" that could not help (the chunk is gone). **This PR:** `src/lib/version-skew.ts` — `isChunkLoadError` (the three engines' messages + the name; pinned) and `shouldReloadForSkew` (once per 60 s, remembered in `sessionStorage`; a second failure in a row is SHOWN, never looped — a broken deploy must not spin the tab); the `(app)` error boundary recognises it, reloads once, and otherwise renders "A new version is available" with a Reload button (`data-skew-screen`; the second-failure case reports to Sentry as `area: 'skew'`). Everything else about the boundary is unchanged.
+
+**What was NOT done, and why:** the plan said `next.config.ts deploymentId` + `vercel.json`. Vercel's docs (read Sep 21): on Next ≥ 14.1.4 built by Vercel, Skew Protection needs **no** config — it is a project setting (Settings → Advanced, Pro / Enterprise; on by default only for projects created after Nov 19 2024). So no config change; `docs/LAUNCH_RUNBOOK.md` §5b carries the three clicks. Until Tom flips it (or if the plan is Hobby), the reload-once floor is what runs.
+
+**Verification:** `npm run verify` green (3576 tests). The skew screen is the existing error card's layout (max-w-md, 16 px gutter) — the same phone-width behaviour by construction; a chunk failure cannot be staged in a test without faking a deploy, so the browser check is the next real deploy with a tab left open.
 ## September 21, 2026 — Round 1 (safety + ops) PRs 6 + 7: `/api/health` stops counting the table; the rate limiter reports its fail-open on a cadence (zero DDL)
 
 **PR 6 — `/api/health`.** The monitor's ping ran `count: 'exact'` on `profiles` — an exact `COUNT(*)` over the whole table every minute, for a number the response never carried (a full scan at scale). Now a HEAD for one primary-key row (`select('id', { head: true }).limit(1)`): an index probe, the cheapest round-trip PostgREST offers without DDL — a real `SELECT 1` would need an RPC, not worth a migration. The response shape is unchanged; the e2e deploy gate reads `commit` only.
