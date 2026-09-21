@@ -1,5 +1,12 @@
 # Development Log
 
+## September 21, 2026 — Round 1 (safety + ops) PRs 6 + 7: `/api/health` stops counting the table; the rate limiter reports its fail-open on a cadence (zero DDL)
+
+**PR 6 — `/api/health`.** The monitor's ping ran `count: 'exact'` on `profiles` — an exact `COUNT(*)` over the whole table every minute, for a number the response never carried (a full scan at scale). Now a HEAD for one primary-key row (`select('id', { head: true }).limit(1)`): an index probe, the cheapest round-trip PostgREST offers without DDL — a real `SELECT 1` would need an RPC, not worth a migration. The response shape is unchanged; the e2e deploy gate reads `commit` only.
+
+**PR 7 — the limiter's fail-open.** `enforceRateLimit` fails open when the `rate_limit_hit` RPC errors (availability over strictness) and told Sentry ONCE per cold start — a warm Fluid instance could run every action unlimited for hours after its one warning. Now `shouldReportFailOpen(now)` (pure over two module counters, pinned by `rate-limit-fail-open.test.ts`): one report per `FAIL_OPEN_REPORT_MS` (10 min) per instance, carrying `unlimited_since_last_report` and the RPC's error message. The console line stays per occurrence.
+
+**Verification:** `npm run verify` green (3575 tests). Post-deploy: `GET /api/health` answers 200 with `database: 'ok'` and the commit.
 ## September 21, 2026 — Round 1 (safety + ops) PR 5: the e2e teardown leak — all four QA users deleted, the sweep paginates (spec infra only; zero DDL)
 
 **What:** the assessment counted ~179 `edgeqa-*` profiles on prod. Two causes, both in `e2e/`: `global-teardown.ts` deleted users A and B only — C and D (minted for the events program since Sep 16) leaked on EVERY run — and `sweepStaleQaUsers` read page 1 of 200 of the auth listing, so once the leak outgrew a page the older orphans sat behind it forever. **This PR:** the teardown deletes D, C, B, A (reverse of minting; every deletion attempted even when one throws); the sweep reads every page (`listStaleQaUsers`, 1000 a page, bounded at 20 pages) and logs what it found and what it drained.

@@ -9,10 +9,14 @@ export async function GET() {
   const startedAt = Date.now();
   try {
     const supabase = getSupabaseAdmin();
-    // Cheapest possible round-trip: head-count a tiny always-present table
+    // The cheapest round-trip PostgREST offers without DDL: a HEAD for one
+    // primary-key row — an index probe, no count. This used to be
+    // `count: 'exact'`, an exact COUNT(*) over the whole table on EVERY
+    // monitor ping (a full scan at scale, for a number nobody read):
+    // Round 1 PR 6. `SELECT 1` proper would need an RPC — not worth DDL.
     const { error } = await supabase
       .from('profiles')
-      .select('id', { count: 'exact', head: true })
+      .select('id', { head: true })
       .limit(1);
 
     if (error) {
