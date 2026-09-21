@@ -1,5 +1,17 @@
 # Development Log
 
+## September 21, 2026 — Round 1 (safety + ops): the close — every PR merged, 225 ran, PROD-PROVEN (docs only)
+
+**What:** the Sep 19 assessment's first round is done in a day: #855 (the guardian claim gate + the mig-223 regression fix), #856 (transfers + deletion check their writes), #857 (mig 225 — ran, `225 APPLIED | 3 | 3 | 1`), #858 (Sentry on the 500 path, 391 files), #859 (the e2e leak), #860 (health + the rate limiter's cadence), #861 (version skew), #862 (the backup runbook). **The probe** on the deployed head `9ac75bc1`: `guardian-claim-gate` (mobile + WebKit-mobile), `guardian-console` (20 tests), `transfer-ceremony` — **26 / 26 green**; `check:schema` OK against 225; `/api/health` 200 on the merged commit. The fixed sweep's first run: `56 stale QA user(s) to delete` → `deleted 56 / 56`; the teardown deleted all four run users; 22 `edgeqa-*` remain, every one minted today (inside the 24 h line — the next probe takes them).
+
+**The merge-order lesson:** every PR of a round adds its DEVLOG entry at the top of the file, so after the first merge every other PR conflicts (#857 went `dirty` the moment #855 / #856 landed). The fix that worked: rebase the rest into a CHAIN (each PR's base = the previous branch; GitHub retargets to `main` as each merges) so Tom merges top-to-bottom with no conflicts. Do this up front next round — stack from the start when a round is more than two PRs.
+
+**Two facts learned on the way, recorded where they belong:** Vercel Skew Protection is Pro-only and this project is on Hobby (HARDENING.md's 2-cron limit), so the reload-once floor is what runs; and the assessment's "~179 leaked QA profiles" were 78 by the time PR 5 was built, all under a day old — the count in an assessment is a snapshot, re-read before building for it.
+
+**This PR:** `docs/HARDENING.md` (the ops backlog's observability + backups items, the change log), this entry.
+
+**Tom's clicks still owed:** the Resend DNS records (every app email 550s — and #858 now makes each failure a Sentry event, so the noise is visible until DNS is done); the backup runbook's §1 table + decisions A and B. **Next: Round 2** — a staging Supabase project + the rebuildable chain (the plan file, `~/.claude/plans/let-s-go-ahead-and-linear-stallman.md`); item 1 is Tom creating the project (~10 min).
+
 ## September 21, 2026 — Round 1 (safety + ops) PR 9: the backup & restore runbook (docs only)
 
 **What:** `docs/RUNBOOK_BACKUP.md` — the assessment found nothing in the repo saying whether production can be restored, from what, to when, or how long it takes. The page states what Supabase's tiers give (read Sep 21: Free = no backups; Pro = 7 daily; PITR an add-on needing the Small compute, ~2 min RPO; **backups never include Storage objects**), the two decisions Tom owes (the tier — Pro daily is the recommended floor now that real athletes' rounds live here, PITR at the first real season; Storage — accept the risk or a nightly bucket mirror as a cron phase), the RPO / RTO table those decisions fix, the restore steps in order (stop the cause first; choose the point in writing; restore OVERWRITES prod; verify with `/api/health` + `check:schema`; re-trigger the idempotent cron; what must be re-entered by hand), the restore-to-a-new-project flow (= Round 2's staging), the quarterly drill, and the `pg_dump` stopgap if the answer is Free. Indexed in CLAUDE.md's docs list.
