@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { adminClient, loadQaUser, resetRateBucket } from './helpers/qa-user';
+import { settleBody } from './helpers/isr';
 
 // Support & Reporting, Spec 3 PR 3 — the Help Center in a real browser at
 // 390×844. Seeded articles (the service key): a signed-OUT visitor reads
@@ -20,17 +21,21 @@ test('help center UI: videos, search, an article, the guest request, the signed-
   const rand = Math.random().toString(36).slice(2, 8);
   const ids: string[] = [];
   const ticketIds: string[] = [];
-  const ctxOut = await browser.newContext();
+  // The project's `use.storageState` signs every context in — an EMPTY state is the signed-out visitor.
+  const ctxOut = await browser.newContext({ storageState: { cookies: [], origins: [] } });
   const ctxA = await browser.newContext({ storageState: 'e2e/.auth/state.json' });
   try {
     const { data: seeded } = await admin
       .from('help_articles')
       .insert([
         { slug: `qa-video-${rand}`, title: `Posting a round (QA ${rand})`, body: 'Open the composer and pick the course.\n\n- Enter your scores\n- Tap Post\n\nMore at https://edgeathlete.ca/help.', topic: 'posting_media', video_url: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ', sort_order: 1, published: true },
-        { slug: `qa-text-${rand}`, title: `Changing your handle (QA ${rand})`, body: 'Settings, then Account.', topic: 'account', sort_order: 2, published: true },
+        { slug: `qa-text-${rand}`, title: `Changing your handle (QA ${rand})`, body: 'Settings, then Account.', topic: 'account', video_url: null, sort_order: 2, published: true },
       ])
       .select('id');
     for (const r of seeded ?? []) ids.push(r.id as string);
+
+    // The list is CDN-cached (s-maxage=60): wait until the public API carries the seeded rows before opening the page.
+    await settleBody(ctxOut.request, '/api/help/articles', `qa-text-${rand}`, true, 30);
 
     // Signed out.
     const page = await ctxOut.newPage();

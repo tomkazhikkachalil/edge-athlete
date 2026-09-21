@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { adminClient, adminEmailForE2E, apiAs, createQaUser, deleteQaUser, loadQaUser, mintStorageState, readErrorBody, resetRateBucket } from './helpers/qa-user';
+import { settleBody, settleStatus } from './helpers/isr';
 
 // Support & Reporting, Spec 3 (mig 224) — the Help Center's backend over
 // the API. The PUBLIC article read (drafts never show; a slug read carries
@@ -11,7 +12,7 @@ import { adminClient, adminEmailForE2E, apiAs, createQaUser, deleteQaUser, loadQ
 // another's, served back through the media proxy to the submitter and to a
 // moderator, 404 to a stranger). Self-skips pre-224. @mobile.
 
-test('help center API: public articles, the guest request, /contact, the screenshot attachment @mobile', async ({ request, browser }) => {
+test('help center API: public articles, the guest request, /contact, the screenshot attachment @mobile', async ({ browser }) => {
   test.setTimeout(180_000);
   const admin = adminClient();
   const alpha = loadQaUser('user.json');
@@ -20,6 +21,8 @@ test('help center API: public articles, the guest request, /contact, the screens
   const probe = await admin.from('help_articles').select('id').limit(1);
   test.skip(!!probe.error, `help_articles missing — run migration 224 (${probe.error?.message})`);
 
+  // The project's `use.storageState` signs the `request` fixture in — an EMPTY state is the signed-out visitor.
+  const request = (await browser.newContext({ storageState: { cookies: [], origins: [] } })).request;
   const alphaApi = await apiAs('state.json');
   const bravoApi = await apiAs('state-b.json');
   const deltaApi = await apiAs('state-d.json');
@@ -36,17 +39,21 @@ test('help center API: public articles, the guest request, /contact, the screens
       .from('help_articles')
       .insert([
         { slug: `qa-posting-a-round-${rand}`, title: 'Posting a round (QA)', body: 'Open the composer.\n\n- Pick the course\n- Enter your scores\n\nSee https://edgeathlete.ca/help.', topic: 'posting_media', video_url: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ', sort_order: 1, published: true },
-        { slug: `qa-draft-${rand}`, title: 'A draft (QA)', body: 'Not yet.', topic: 'other', published: false },
+        // A batch insert sends null for a missing key (PostgREST), so every column is spelled out.
+        { slug: `qa-draft-${rand}`, title: 'A draft (QA)', body: 'Not yet.', topic: 'other', video_url: null, sort_order: 2, published: false },
       ])
       .select('id, slug');
     expect(seedError).toBeNull();
     for (const r of seeded ?? []) articleIds.push(r.id as string);
 
-    // The public list: published only, the video id resolved, the excerpt.
+    // The public list: published only, the video id resolved, the excerpt. The
+    // list is CDN-cached (s-maxage=60 — Vercel consumes the directive and answers
+    // `public`), so on prod the seeded row settles in within a minute.
     let res = await request.get('/api/help/articles');
     expect(res.status(), await readErrorBody(res)).toBe(200);
-    expect(res.headers()['cache-control']).toContain('s-maxage');
-    const list = (await res.json()) as { supported: boolean; articles: Array<{ slug: string; videoId: string | null; excerpt: string }> };
+    expect(res.headers()['cache-control']).toContain('public');
+    const listBody = await settleBody(request, '/api/help/articles', `qa-posting-a-round-${rand}`, true, 30);
+    const list = JSON.parse(listBody) as { supported: boolean; articles: Array<{ slug: string; videoId: string | null; excerpt: string }> };
     expect(list.supported).toBe(true);
     const mine = list.articles.find(a => a.slug === `qa-posting-a-round-${rand}`)!;
     expect(mine).toBeTruthy();
@@ -54,8 +61,8 @@ test('help center API: public articles, the guest request, /contact, the screens
     expect(mine.excerpt).toBe('Open the composer.');
     expect(list.articles.some(a => a.slug === `qa-draft-${rand}`)).toBe(false);
     // One article: the body; a draft is a 404.
+    await settleStatus(request, `/api/help/articles/qa-posting-a-round-${rand}`, 200, 30);
     res = await request.get(`/api/help/articles/qa-posting-a-round-${rand}`);
-    expect(res.status()).toBe(200);
     expect((await res.json()).article.body).toContain('Pick the course');
     expect((await request.get(`/api/help/articles/qa-draft-${rand}`)).status()).toBe(404);
     expect((await request.get('/api/help/articles/Not%20A%20Slug')).status()).toBe(404);
