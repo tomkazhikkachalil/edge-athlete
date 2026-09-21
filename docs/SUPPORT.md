@@ -4,11 +4,11 @@ The reference for the in-app support system: one company-owned ticket table
 behind three front doors (Help Center, Report, Suggest). Tom's design doc
 ("Edge Athlete Support and Reporting Game Plan", Sep 17 2026) is the source;
 this file records what was built and the rules a change must keep. Program
-state: **Specs 1 and 2 COMPLETE + PROD-PROVEN (Sep 20 2026; Spec 1 #836–#842,
-migration 222; Spec 2 #843–#847, migration 223)** — the backend, the admin
-console, the user's front door, and reporting from the content with
-enforcement; every spec green on prod on both mobile engines. Specs 3–4 are
-outlined at the end.
+state: **Specs 1–3 COMPLETE + PROD-PROVEN (Sep 20 2026; Spec 1 #836–#842,
+migration 222; Spec 2 #843–#847, migration 223; Spec 3 #848–#852, migration
+224)** — the backend, the admin console, the user's front door, reporting from
+the content with enforcement, and the Help Center; every spec green on prod on
+both mobile engines. Spec 4 is outlined at the end.
 
 ## The one rule
 
@@ -88,6 +88,9 @@ the history, the emails, retention — is written once and applies to all three.
 
 ## Traps
 
+- The Playwright project's `use.storageState` signs EVERY context in — `browser.newContext()` and the `request` fixture. A signed-out actor is an explicit empty `storageState: { cookies: [], origins: [] }`.
+- A PostgREST batch insert sends `null` for a key one row omits (a NOT NULL with a DEFAULT still fails) — spell out every column.
+- Vercel consumes `s-maxage` (answers `public`); a spec that reads a CDN-cached route settles it first.
 - The repeat-incident rule counts EVERY report, not only Critical ones (a probe found it inside the Critical branch); a merged duplicate stays in its reporter's My requests (the queue hides it, nothing else).
 - A suspended session answers 401 (the auth ban at `getUser`) before the app gate's 403 — either is a refusal.
 - A `useState` after an early return crashes the page ("Rendered more hooks") — hooks sit with the other hooks.
@@ -141,7 +144,26 @@ reported user — a report closed with no action is never announced.
 `clubs/requests/route.ts` (POST) · `leagues/requests/route.ts` (POST).
 Adding a route is a deliberate decision: extend the test's list and this one together.
 
-## Specs 3–4 (not built; the schema already carries their columns)
+## Spec 3 — the Help Center (migration 224)
+
+The doc's four parts, top to bottom, at `/help` — PUBLIC (a signed-out visitor
+reads everything and files through the guest form). Settings → Support keeps
+hosting the same request + My requests components (the bells' deep link lands
+there).
+
+| Thing | Where | Rule |
+| --- | --- | --- |
+| Articles + videos | `help_articles` (224; posture A) | ONE table: a video is an article with a `video_url`. Topic from the fixed list (`src/lib/help/types.ts HELP_TOPICS`, pinned against the CHECK); `slug` derived from the title (`slugify`) unless given; `published` gates the public read; the body is PLAIN TEXT rendered as blocks (`src/lib/help/body.ts` — blank line = paragraph, `- ` = bullet, `## ` = heading, bare URLs link; never HTML). |
+| The public read | `GET /api/help/articles` + `/[slug]` | Viewer-independent, CDN-cached `s-maxage=60` (Vercel consumes the directive and answers `cache-control: public`; an edit shows within a minute); drafts 404. A spec that reads it SETTLES it first (`e2e/helpers/isr.ts`). |
+| The owner's editor | `/dashboard/help` → `/api/admin/help/articles` (owner-only) | List with Draft / Published; one form; a video link must parse as YouTube through the site builder's `parseEmbedUrl` — never an arbitrary iframe source. |
+| Click-to-play | `src/components/help/HelpVideo.tsx` | The YouTube thumbnail first; the `youtube-nocookie.com` player (in the CSP's `frame-src`) mounts only on tap. |
+| The guest request | `POST /api/tickets/guest` | No session; email required; a honeypot (`website`) answers `EA-0000` and stores nothing; the `contact` IP bucket; Help only. `createTicket` takes a null submitter + `guestEmail` (the mails go there). |
+| `/contact` | `POST /api/contact` | An adapter: a Help ticket (`other`, the visitor's name in the subject) — by the session or as a guest. The 096 `contact_messages` table stops growing. |
+| The screenshot | `POST /api/tickets/attachment` → `tickets.attachment_url` | An image ≤ 5 MB under `uploads/{userId}/tickets/`; `POST /api/tickets` re-asserts the prefix; the column is registered in `URL_SOURCE_COLUMNS` (the sweep rule); served through the media proxy's `ticket` entity (the submitter, their guardians) or the moderator override (now the platform ROLE, not only the allowlisted owner). NOT behind the write gate: a limited account must still show support what it sees. |
+| Contact | `COPY.SUPPORT.CONTACT_*` | Tom's name + support@edgeathlete.ca; no phone until told. |
+| The doors | Profile dropdown + drawer "Help Center"; footer "Help"; `/contact` points at it. | |
+
+## Spec 4 (not built; the schema already carries its columns)
 
 - **Spec 2 — Reporting**: Report from the three-dot menu on posts, comments,
   profiles and DM threads; the one reason list; the content snapshot; Block
@@ -149,10 +171,6 @@ Adding a route is a deliberate decision: extend the test's list and this one tog
   7-day merge (`report_count`); auto-hide + read-only on Critical
   (`profiles.moderation_state`, `posts.hidden_at` — mig 223); the one-click
   actions and the ladder from derived strikes; the self-harm resources message.
-- **Spec 3 — Help Center** (`/help`): videos, articles (`help_articles`, mig 224),
-  Submit a request (moves from Settings; a guest form fills `guest_email`),
-  Contact, My requests; `/contact` creates a Help ticket; the screenshot upload
-  (`attachment_url` — registered in `URL_SOURCE_COLUMNS` in the same PR).
 - **Spec 4 — Suggestions + polish**: the Suggest form (Low severity;
   `suggestion_tag` at the weekly review; duplicates merged), the stats panel,
   the paste-a-reply affordance, an SMS adapter if ten minutes is too slow.
