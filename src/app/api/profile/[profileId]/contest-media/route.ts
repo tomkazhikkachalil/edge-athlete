@@ -4,6 +4,7 @@ import { getSupabaseAdmin, getServerAuth, getProfileRole } from '@/lib/auth-serv
 import { canViewProfile } from '@/lib/privacy';
 import { isMissingTableError } from '@/lib/competitions/validate';
 import { contestMediaProxyPath } from '@/lib/orgs/contest-media-server';
+import { reportRouteError } from '@/lib/observability/report';
 
 // ── /api/profile/[profileId]/contest-media (phase 4 R3) ─────────────────────
 // The athlete side of contest media: everything this profile is ACTIVELY
@@ -52,7 +53,7 @@ export async function GET(
       .limit(100);
     if (error) {
       if (isMissingTableError(error.code)) return NextResponse.json({ items: [] });
-      console.error('[CONTEST MEDIA] profile list error:', error);
+      reportRouteError('[CONTEST MEDIA] profile list error:', error);
       return NextResponse.json({ error: 'Failed to load media' }, { status: 500 });
     }
     const mediaIds = (tagRows ?? []).map(t => t.media_id as string);
@@ -112,7 +113,7 @@ export async function GET(
     return NextResponse.json({ items });
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[CONTEST MEDIA] profile GET error:', error);
+    reportRouteError('[CONTEST MEDIA] profile GET error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
@@ -150,13 +151,13 @@ export async function DELETE(
       if (isMissingTableError(error.code)) {
         return NextResponse.json({ error: 'Not found' }, { status: 404 });
       }
-      console.error('[CONTEST MEDIA] profile untag error:', error);
+      reportRouteError('[CONTEST MEDIA] profile untag error:', error);
       return NextResponse.json({ error: 'Failed to untag' }, { status: 500 });
     }
     return NextResponse.json({ success: true });
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[CONTEST MEDIA] profile DELETE error:', error);
+    reportRouteError('[CONTEST MEDIA] profile DELETE error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

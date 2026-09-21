@@ -4,6 +4,7 @@ import { enforceRateLimit } from '@/lib/rate-limit';
 import { requireCompetitionManager } from '@/lib/orgs/competition-server';
 import { contestMediaTagDELETE, contestMediaTagPOST } from '@/lib/orgs/contest-media-server';
 import { UUID_RE } from '@/lib/golf/course-catalog';
+import { reportRouteError } from '@/lib/observability/report';
 
 // ── /api/leagues/[id]/competitions/[competitionId]/media/tags (phase 4 R3) ──
 // Roster-scoped attribution on contest media: POST {mediaId, profileIds}
@@ -57,7 +58,7 @@ export async function POST(
     );
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[CONTEST MEDIA] league tags POST error:', error);
+    reportRouteError('[CONTEST MEDIA] league tags POST error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
@@ -81,7 +82,7 @@ export async function DELETE(
     });
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[CONTEST MEDIA] league tags DELETE error:', error);
+    reportRouteError('[CONTEST MEDIA] league tags DELETE error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

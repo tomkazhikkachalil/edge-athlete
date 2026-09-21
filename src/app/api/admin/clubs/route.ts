@@ -4,6 +4,7 @@ import { parseBody } from '@/lib/validation';
 import { ClubCreateSchema, placeToClubColumns, isMissingTableError } from '@/lib/clubs/validate';
 import { createClubWithOwner } from '@/lib/clubs/create';
 import { memberCountsByOrg } from '@/lib/orgs/members';
+import { reportRouteError } from '@/lib/observability/report';
 
 // ── /api/admin/clubs — direct admin club creation + console list ─────────────
 // Mirror of /api/admin/leagues (117): clubs are born from this route or from
@@ -43,7 +44,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ club: result.club });
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[ADMIN CLUBS] POST error:', error);
+    reportRouteError('[ADMIN CLUBS] POST error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
@@ -61,7 +62,7 @@ export async function GET(request: NextRequest) {
       .limit(100);
     if (error) {
       if (isMissingTableError(error.code)) return NextResponse.json({ clubs: [] });
-      console.error('[ADMIN CLUBS] list error:', error);
+      reportRouteError('[ADMIN CLUBS] list error:', error);
       return NextResponse.json({ error: 'Failed to list clubs' }, { status: 500 });
     }
 
@@ -86,7 +87,7 @@ export async function GET(request: NextRequest) {
     });
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[ADMIN CLUBS] GET error:', error);
+    reportRouteError('[ADMIN CLUBS] GET error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth, getSupabaseAdmin } from '@/lib/auth-server';
 import { disputePATCH, type DisputeAction } from '@/lib/orgs/dispute-server';
 import { UUID_RE } from '@/lib/golf/course-catalog';
+import { reportRouteError } from '@/lib/observability/report';
 
 // ── /api/clubs/[id]/competitions/[competitionId]/results/dispute ────────────
 // The league twin's mirror — see leagues/.../results/dispute/route.ts.
@@ -28,7 +29,7 @@ export async function PATCH(
     });
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[DISPUTE] club PATCH error:', error);
+    reportRouteError('[DISPUTE] club PATCH error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

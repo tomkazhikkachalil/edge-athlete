@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerAuth, getSupabaseAdmin } from '@/lib/auth-server';
+import { reportRouteError } from '@/lib/observability/report';
 
 /**
  * GET /api/profile/getting-started
@@ -48,7 +49,7 @@ export async function GET(request: NextRequest) {
     );
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('getting-started GET error:', error);
+    reportRouteError('getting-started GET error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

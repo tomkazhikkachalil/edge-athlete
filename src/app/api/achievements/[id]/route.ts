@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { isUuid } from '@/lib/uuid';
 import { requireAuth, getSupabaseAdmin } from '@/lib/auth-server';
 import { validateAchievementInput } from '@/lib/achievements';
+import { reportRouteError } from '@/lib/observability/report';
 
 /**
  * PATCH /api/achievements/[id]
@@ -51,14 +52,14 @@ export async function PATCH(
       .single();
 
     if (updateError) {
-      console.error('Error updating achievement:', updateError);
+      reportRouteError('Error updating achievement:', updateError);
       return NextResponse.json({ error: 'Failed to update achievement' }, { status: 500 });
     }
 
     return NextResponse.json({ achievement: updated });
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('PATCH /api/achievements/[id] error:', error);
+    reportRouteError('PATCH /api/achievements/[id] error:', error);
     return NextResponse.json({ error: 'Failed to update achievement' }, { status: 500 });
   }
 }
@@ -99,14 +100,14 @@ export async function DELETE(
       .eq('id', id);
 
     if (deleteError) {
-      console.error('Error deleting achievement:', deleteError);
+      reportRouteError('Error deleting achievement:', deleteError);
       return NextResponse.json({ error: 'Failed to delete achievement' }, { status: 500 });
     }
 
     return NextResponse.json({ success: true });
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('DELETE /api/achievements/[id] error:', error);
+    reportRouteError('DELETE /api/achievements/[id] error:', error);
     return NextResponse.json({ error: 'Failed to delete achievement' }, { status: 500 });
   }
 }

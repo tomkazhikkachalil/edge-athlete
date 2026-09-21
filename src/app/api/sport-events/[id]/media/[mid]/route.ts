@@ -6,6 +6,7 @@ import { readSportEventAccess } from '@/lib/sport-events/access-server';
 import { resolveActor } from '@/lib/sport-events/actor-server';
 import { mediaRight } from '@/lib/sport-events/media';
 import { readEventMedia } from '@/lib/sport-events/media-server';
+import { reportRouteError } from '@/lib/observability/report';
 
 const NOT_FOUND = () => NextResponse.json({ error: 'Event not found' }, { status: 404 });
 
@@ -30,13 +31,13 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
     if (!right.allowed) return NextResponse.json({ error: right.error }, { status: right.status });
     const { error } = await admin.from('sport_event_media').delete().eq('id', mid);
     if (error) {
-      console.error('[api/sport-events/media] delete failed:', error);
+      reportRouteError('[api/sport-events/media] delete failed:', error);
       return NextResponse.json({ error: 'Could not remove it' }, { status: 500 });
     }
     const media = await readEventMedia(admin, read.event, { profileId: actor.profileId, canManage: read.access.canManage });
     return NextResponse.json({ media }, { headers: { 'Cache-Control': 'private, no-store' } });
   } catch (error) {
-    console.error('[api/sport-events/media] DELETE error:', error);
+    reportRouteError('[api/sport-events/media] DELETE error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

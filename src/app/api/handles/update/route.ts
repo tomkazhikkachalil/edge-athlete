@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin, getServerAuth } from '@/lib/auth-server';
+import { reportRouteError } from '@/lib/observability/report';
 
 export async function POST(request: NextRequest) {
   try {
@@ -78,7 +79,7 @@ export async function POST(request: NextRequest) {
       });
 
     if (error) {
-      console.error('Error updating handle:', error);
+      reportRouteError('Error updating handle:', error);
       return NextResponse.json(
         { error: 'Failed to update handle' },
         { status: 500 }
@@ -130,7 +131,7 @@ export async function POST(request: NextRequest) {
     });
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('Error in POST /api/handles/update:', error);
+    reportRouteError('Error in POST /api/handles/update:', error);
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }

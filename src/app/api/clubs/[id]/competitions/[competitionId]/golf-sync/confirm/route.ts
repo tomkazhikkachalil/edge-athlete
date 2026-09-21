@@ -4,6 +4,7 @@ import { enforceRateLimit } from '@/lib/rate-limit';
 import { confirmGolfContest } from '@/lib/competitions/golf-league-server';
 import { requireCompetitionManager } from '@/lib/orgs/competition-server';
 import { UUID_RE } from '@/lib/golf/course-catalog';
+import { reportRouteError } from '@/lib/observability/report';
 
 // ── /api/clubs/[id]/competitions/[competitionId]/golf-sync/confirm (G2) ──
 // "Confirm rounds": self_reported → league_verified (confirmed_by = the
@@ -41,7 +42,7 @@ export async function POST(
     return await confirmGolfContest(admin, body.contestId, user.id);
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[GOLF LEAGUE] club confirm error:', error);
+    reportRouteError('[GOLF LEAGUE] club confirm error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

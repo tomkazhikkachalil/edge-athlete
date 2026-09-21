@@ -8,6 +8,7 @@ import { parseStatWrite, statSchemaFor } from '@/lib/sport-events/stats';
 import { statEntryRight } from '@/lib/sport-events/stats-authz';
 import { readStatLine, writeStatLine } from '@/lib/sport-events/stats-server';
 import { shapeOf } from '@/lib/sport-events/types';
+import { reportRouteError } from '@/lib/observability/report';
 
 const NOT_FOUND = () => NextResponse.json({ error: 'Event not found' }, { status: 404 });
 
@@ -61,7 +62,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     }
     return NextResponse.json({ line: written.line, via: right.via }, { headers: { 'Cache-Control': 'private, no-store' } });
   } catch (error) {
-    console.error('[api/sport-events/stats/line] PUT error:', error);
+    reportRouteError('[api/sport-events/stats/line] PUT error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

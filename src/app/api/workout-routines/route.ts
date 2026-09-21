@@ -7,6 +7,7 @@ import {
   validateRoutinePayload,
   type ServerRoutineRow,
 } from '@/lib/workouts/routines';
+import { reportRouteError } from '@/lib/observability/report';
 
 /**
  * Saved workout routines (presets). Owner-only in both directions — routines
@@ -30,7 +31,7 @@ export async function GET(request: NextRequest) {
       .order('updated_at', { ascending: false });
 
     if (error) {
-      console.error('Error fetching routines:', error);
+      reportRouteError('Error fetching routines:', error);
       return NextResponse.json({ error: 'Failed to fetch routines' }, { status: 500 });
     }
 
@@ -39,7 +40,7 @@ export async function GET(request: NextRequest) {
     });
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('GET /api/workout-routines error:', error);
+    reportRouteError('GET /api/workout-routines error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
@@ -79,7 +80,7 @@ export async function POST(request: NextRequest) {
           { status: 409 }
         );
       }
-      console.error('Error creating routine:', routineError);
+      reportRouteError('Error creating routine:', routineError);
       return NextResponse.json({ error: 'Failed to save routine' }, { status: 500 });
     }
 
@@ -98,7 +99,7 @@ export async function POST(request: NextRequest) {
 
     if (exercisesError) {
       // Compensating delete — nothing half-saved (cascade removes children)
-      console.error('Routine creation failed at exercises:', exercisesError);
+      reportRouteError('Routine creation failed at exercises:', exercisesError);
       await supabase.from('workout_routines').delete().eq('id', routine.id);
       return NextResponse.json(
         { error: 'Nothing was saved — please try again.' },
@@ -118,7 +119,7 @@ export async function POST(request: NextRequest) {
     );
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('POST /api/workout-routines error:', error);
+    reportRouteError('POST /api/workout-routines error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { isUuid } from '@/lib/uuid';
 import { requireAuth, getSupabaseAdmin, getProfileRole } from '@/lib/auth-server';
 import { buildSportSkillCards } from '@/lib/sports/server';
+import { reportRouteError } from '@/lib/observability/report';
 
 /**
  * GET /api/profile/[profileId]/skill-cards
@@ -82,7 +83,7 @@ export async function GET(
     );
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('Skill cards GET error:', error);
+    reportRouteError('Skill cards GET error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

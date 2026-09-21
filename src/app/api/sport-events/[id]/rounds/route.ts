@@ -11,6 +11,7 @@ import type { SportEventRoundRow } from '@/lib/sport-events/types';
 import { parseRoundInput } from '@/lib/sport-events/validate';
 import { fetchSportEventView } from '@/lib/sport-events/view-server';
 import type { SportEventSport } from '@/lib/sport-events/types';
+import { reportRouteError } from '@/lib/observability/report';
 
 /**
  * POST — add a round (Events program, phase 2). Organizers, while the
@@ -51,12 +52,12 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     if (!inserted) return NextResponse.json({ error: 'Could not add the round' }, { status: 500 });
     if (read.event.status !== 'draft') {
       const postId = await mintAnnouncePost(admin, read.event, { id: inserted.id, course_name: snapshot.course_name, scheduled_on: snapshot.scheduled_on });
-      if (!postId) console.error('[api/sport-events/rounds] announce post for the added round failed');
+      if (!postId) reportRouteError('[api/sport-events/rounds] announce post for the added round failed');
     }
     const view = await fetchSportEventView(admin, id, actor.profileId, null);
     return NextResponse.json(view, { status: 201, headers: { 'Cache-Control': 'private, no-store' } });
   } catch (error) {
-    console.error('[api/sport-events/rounds] POST error:', error);
+    reportRouteError('[api/sport-events/rounds] POST error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { isUuid } from '@/lib/uuid';
 import { requireAuth, getSupabaseAdmin } from '@/lib/auth-server';
 import { isValidReminderMinutes } from '@/lib/calendar/reminders';
+import { reportRouteError } from '@/lib/observability/report';
 
 // ── POST /api/calendar/events/[id]/reminder ───────────────────────────────────
 // Per-event, per-guest reminder lead (presets only; 0 = off). Changing the
@@ -48,13 +49,13 @@ export async function POST(
       .select('id, reminder_minutes')
       .single();
     if (error || !updated) {
-      console.error('[CALENDAR] reminder update failed:', error);
+      reportRouteError('[CALENDAR] reminder update failed:', error);
       return NextResponse.json({ error: 'Could not save your reminder. Please try again.' }, { status: 500 });
     }
     return NextResponse.json({ guest: updated });
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[CALENDAR] reminder error:', error);
+    reportRouteError('[CALENDAR] reminder error:', error);
     return NextResponse.json({ error: 'An unexpected error occurred' }, { status: 500 });
   }
 }

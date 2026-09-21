@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth, getSupabaseAdmin } from '@/lib/auth-server';
 import { capabilitiesGET } from '@/lib/orgs/capabilities-server';
 import { UUID_RE } from '@/lib/golf/course-catalog';
+import { reportRouteError } from '@/lib/observability/report';
 
 // ── /api/leagues/[id]/capabilities — the viewer's console capabilities ────
 // Thin league twin; the shape lives in orgs/capabilities-server.ts.
@@ -16,7 +17,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     return await capabilitiesGET(getSupabaseAdmin(), 'league', id, user.id);
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[LEAGUE CAPABILITIES] GET error:', error);
+    reportRouteError('[LEAGUE CAPABILITIES] GET error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

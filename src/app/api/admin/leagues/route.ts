@@ -6,6 +6,7 @@ import { createLeagueWithOwner } from '@/lib/leagues/create';
 import { memberCountsByOrg } from '@/lib/orgs/members';
 import { isSportEnabled } from '@/lib/features';
 import type { SportKey } from '@/lib/sports/SportRegistry';
+import { reportRouteError } from '@/lib/observability/report';
 
 // ── /api/admin/leagues — direct admin league creation ───────────────────────
 // The dashboard picks a name, sport, place and an owner profile. Since 116
@@ -51,7 +52,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ league: result.league });
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[ADMIN LEAGUES] POST error:', error);
+    reportRouteError('[ADMIN LEAGUES] POST error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
@@ -70,7 +71,7 @@ export async function GET(request: NextRequest) {
     if (error) {
       // Pre-113 database: an empty console, not a broken one.
       if (isMissingTableError(error.code)) return NextResponse.json({ leagues: [] });
-      console.error('[ADMIN LEAGUES] list error:', error);
+      reportRouteError('[ADMIN LEAGUES] list error:', error);
       return NextResponse.json({ error: 'Failed to list leagues' }, { status: 500 });
     }
 
@@ -95,7 +96,7 @@ export async function GET(request: NextRequest) {
     });
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[ADMIN LEAGUES] GET error:', error);
+    reportRouteError('[ADMIN LEAGUES] GET error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

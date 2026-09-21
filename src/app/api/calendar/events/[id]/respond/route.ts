@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { isUuid } from '@/lib/uuid';
 import { requireAuth, getSupabaseAdmin, getProfileRole } from '@/lib/auth-server';
 import { notifyEventResponse } from '@/lib/calendar/notifications';
+import { reportRouteError } from '@/lib/observability/report';
 
 // ── POST /api/calendar/events/[id]/respond ────────────────────────────────────
 // Accept / decline / maybe. Responses are changeable any number of times
@@ -140,7 +141,7 @@ export async function POST(
           .select('id, status, responded_at, event_id'));
       }
       if (writeError || !rows?.length) {
-        console.error('[CALENDAR] member respond failed:', writeError);
+        reportRouteError('[CALENDAR] member respond failed:', writeError);
         return NextResponse.json({ error: 'Could not save your response. Please try again.' }, { status: 500 });
       }
 
@@ -193,7 +194,7 @@ export async function POST(
         .neq('role', 'organizer')
         .select('id, status, responded_at, event_id');
       if (error || !rows?.length) {
-        console.error('[CALENDAR] series respond failed:', error);
+        reportRouteError('[CALENDAR] series respond failed:', error);
         return NextResponse.json({ error: 'Could not save your response. Please try again.' }, { status: 500 });
       }
       updatedCount = rows.length;
@@ -206,7 +207,7 @@ export async function POST(
         .select('id, status, responded_at')
         .single();
       if (error || !row) {
-        console.error('[CALENDAR] respond failed:', error);
+        reportRouteError('[CALENDAR] respond failed:', error);
         return NextResponse.json({ error: 'Could not save your response. Please try again.' }, { status: 500 });
       }
       updated = row;
@@ -228,7 +229,7 @@ export async function POST(
     return NextResponse.json({ guest: updated, updated_count: updatedCount });
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[CALENDAR] respond error:', error);
+    reportRouteError('[CALENDAR] respond error:', error);
     return NextResponse.json({ error: 'An unexpected error occurred' }, { status: 500 });
   }
 }

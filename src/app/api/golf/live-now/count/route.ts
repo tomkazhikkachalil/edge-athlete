@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin, requireAuth } from '@/lib/auth-server';
 import { isActiveParticipant, countLiveVisibleRounds } from '@/lib/golf/round-status';
+import { reportRouteError } from '@/lib/observability/report';
 
 /**
  * GET /api/golf/live-now/count
@@ -32,7 +33,7 @@ export async function GET(request: NextRequest) {
       .limit(100);
 
     if (participantsError) {
-      console.error('live-now/count: participants fetch failed:', participantsError);
+      reportRouteError('live-now/count: participants fetch failed:', participantsError);
       return NextResponse.json({ error: 'Failed to load live rounds' }, { status: 500 });
     }
 
@@ -68,7 +69,7 @@ export async function GET(request: NextRequest) {
     ]);
 
     if (publicRes.error || viewerRes.error) {
-      console.error('live-now/count: rounds fetch failed:', publicRes.error || viewerRes.error);
+      reportRouteError('live-now/count: rounds fetch failed:', publicRes.error || viewerRes.error);
       return NextResponse.json({ error: 'Failed to load live rounds' }, { status: 500 });
     }
 
@@ -98,7 +99,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ count });
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('live-now/count: unexpected error:', error);
+    reportRouteError('live-now/count: unexpected error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

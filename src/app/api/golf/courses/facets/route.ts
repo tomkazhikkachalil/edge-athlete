@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/auth-server';
 import { enforceRateLimit } from '@/lib/rate-limit';
 import { courseLocationFacets } from '@/lib/golf/course-catalog';
+import { reportRouteError } from '@/lib/observability/report';
 
 // ── GET /api/golf/courses/facets?country=CA ─────────────────────────────────
 // The Explore page's Country → Region dropdowns, with counts. No `country`
@@ -22,7 +23,7 @@ export async function GET(request: NextRequest) {
       headers: { 'Cache-Control': 'public, s-maxage=3600, stale-while-revalidate=86400' },
     });
   } catch (error) {
-    console.error('Course facets error:', error);
+    reportRouteError('Course facets error:', error);
     return NextResponse.json({ error: 'Failed to load facets' }, { status: 500 });
   }
 }

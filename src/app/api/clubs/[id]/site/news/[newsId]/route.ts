@@ -6,6 +6,7 @@ import { NewsPatchSchema } from '@/lib/org-sites/validate';
 import { newsDELETE, newsGET, newsPATCH } from '@/lib/org-sites/news-server';
 import { requireOrgManager } from '@/lib/orgs/structure-server';
 import { UUID_RE } from '@/lib/golf/course-catalog';
+import { reportRouteError } from '@/lib/observability/report';
 
 // ── /api/clubs/[id]/site/news/[newsId] — one news post (phase 3 R3) ──────────
 
@@ -25,7 +26,7 @@ export async function GET(
     return await newsGET(admin, 'club', id, newsId);
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[ORG SITE NEWS] club page GET error:', error);
+    reportRouteError('[ORG SITE NEWS] club page GET error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
@@ -51,7 +52,7 @@ export async function PATCH(
     return await newsPATCH(admin, 'club', id, newsId, parsed.data);
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[ORG SITE NEWS] club page PATCH error:', error);
+    reportRouteError('[ORG SITE NEWS] club page PATCH error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
@@ -74,7 +75,7 @@ export async function DELETE(
     return await newsDELETE(admin, 'club', id, newsId);
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[ORG SITE NEWS] club page DELETE error:', error);
+    reportRouteError('[ORG SITE NEWS] club page DELETE error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

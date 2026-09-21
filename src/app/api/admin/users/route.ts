@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin, requireAdmin } from '@/lib/auth-server';
+import { reportRouteError } from '@/lib/observability/report';
 
 // Sanitize input for a PostgREST .or()/.ilike() filter: STRIP structural
 // delimiters (comma, parens, double-quote) so a value can't break out and
@@ -38,14 +39,14 @@ export async function GET(request: NextRequest) {
       .limit(20);
 
     if (error) {
-      console.error('GET /api/admin/users error:', error);
+      reportRouteError('GET /api/admin/users error:', error);
       return NextResponse.json({ error: 'Failed to search users' }, { status: 500 });
     }
 
     return NextResponse.json({ users: users || [] });
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('GET /api/admin/users error:', error);
+    reportRouteError('GET /api/admin/users error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

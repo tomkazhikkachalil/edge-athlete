@@ -21,6 +21,7 @@ import { enforceRateLimit } from '@/lib/rate-limit';
 import { isOrgLensVisible, parseOrgParam } from '@/lib/affiliations/org-peers';
 import { toProxyUrl } from '@/lib/media/proxy-url';
 import { hiddenAuthorsFor } from '@/lib/mutes';
+import { reportRouteError } from '@/lib/observability/report';
 
 // Interface for tagged profiles
 interface TaggedProfile {
@@ -385,7 +386,7 @@ export async function POST(request: NextRequest) {
     }
 
     if (postError) {
-      console.error('[POST] Post creation error:', postError);
+      reportRouteError('[POST] Post creation error:', postError);
       return NextResponse.json({ error: 'Failed to create post' }, { status: 500 });
     }
 
@@ -451,7 +452,7 @@ export async function POST(request: NextRequest) {
         .insert(mediaRecords);
 
       if (mediaError) {
-        console.error('Media creation error:', mediaError);
+        reportRouteError('Media creation error:', mediaError);
         // Don't fail the entire request, but log the error
       }
     }
@@ -470,7 +471,7 @@ export async function POST(request: NextRequest) {
         .insert(tagRecords);
 
       if (tagError) {
-        console.error('Tag creation error during post creation:', tagError);
+        reportRouteError('Tag creation error during post creation:', tagError);
         // Don't fail the post creation if tags fail
       }
     }
@@ -514,7 +515,7 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (fetchError) {
-      console.error('[POST] Error fetching complete post:', fetchError);
+      reportRouteError('[POST] Error fetching complete post:', fetchError);
       // Return the basic post if fetch fails, but this shouldn't happen
       return NextResponse.json({
         success: true,
@@ -525,7 +526,7 @@ export async function POST(request: NextRequest) {
 
     // Verify profile data was fetched successfully
     if (!completePost.profiles) {
-      console.error('[POST] Post created but profile data missing for post:', post.id);
+      reportRouteError('[POST] Post created but profile data missing for post:', post.id);
       // Return basic post data without transformation
       return NextResponse.json({
         success: true,
@@ -628,7 +629,7 @@ export async function POST(request: NextRequest) {
     });
 
   } catch (error) {
-    console.error('Post creation error:', error);
+    reportRouteError('Post creation error:', error);
 
     if (error instanceof Response) {
       return error;
@@ -758,7 +759,7 @@ export async function GET(request: NextRequest) {
       // maybeSingle() returns null (not an error) for a missing row, so a
       // bogus/deleted postId correctly yields 404 instead of a 500.
       if (error) {
-        console.error('Post fetch error:', error);
+        reportRouteError('Post fetch error:', error);
         return NextResponse.json({ error: 'Failed to fetch post' }, { status: 500 });
       }
 
@@ -838,7 +839,7 @@ export async function GET(request: NextRequest) {
 
       // Check if profile data exists (critical for transformation)
       if (!post.profiles) {
-        console.error('[GET] Post found but profile data missing:', postId);
+        reportRouteError('[GET] Post found but profile data missing:', postId);
         return NextResponse.json({
           error: 'Post profile data not found',
           details: 'The profile associated with this post no longer exists'
@@ -861,7 +862,7 @@ export async function GET(request: NextRequest) {
           .eq('id', post.group_post_id)
           .maybeSingle();
         if (groupError) {
-          console.error('[GET] Error fetching group scorecard (single):', groupError);
+          reportRouteError('[GET] Error fetching group scorecard (single):', groupError);
         } else {
           groupScorecard = transformGroupPostToScorecard(groupData);
         }
@@ -1183,7 +1184,7 @@ export async function GET(request: NextRequest) {
       if (contestFilter && error.code === '42703') {
         return NextResponse.json({ posts: [], hasMore: false, nextCursor: null });
       }
-      console.error('Posts fetch error:', error);
+      reportRouteError('Posts fetch error:', error);
       return NextResponse.json({ error: 'Failed to fetch posts' }, { status: 500 });
     }
 
@@ -1328,28 +1329,28 @@ export async function GET(request: NextRequest) {
         ? getSupabaseAdmin().from('sport_event_rounds').select(SPORT_EVENT_ROUND_LABEL_SELECT).in('id', sportEventRoundIds)
         : Promise.resolve({ data: [], error: null }),
     ]);
-    if (sportEventRoundsResult.error) console.error('[GET] Error fetching sport event labels:', sportEventRoundsResult.error);
+    if (sportEventRoundsResult.error) reportRouteError('[GET] Error fetching sport event labels:', sportEventRoundsResult.error);
     const sportEventByRound = sportEventLabelsByRound(sportEventRoundsResult.data ?? []);
     // Phase 2: one grouped read for "Round n of m" — behind the same branch as the labels.
     const sportEventIds = sportEventIdsOf(sportEventByRound);
     if (sportEventIds.length > 0) {
       const { data: roundCounts, error: countsError } = await getSupabaseAdmin().from('sport_event_rounds').select('sport_event_id').in('sport_event_id', sportEventIds).neq('status', 'cancelled');
-      if (countsError) console.error('[GET] Error fetching sport event round counts:', countsError);
+      if (countsError) reportRouteError('[GET] Error fetching sport event round counts:', countsError);
       applyRoundCounts(sportEventByRound, (roundCounts ?? []) as Array<{ sport_event_id: string }>);
       // Phase 3: a completed match round's results ride the label — behind the same branch (one matches read per such round on the page).
       await applyMatchResults(getSupabaseAdmin(), sportEventByRound);
     }
-    if (contestsResult.error) console.error('[GET] Error fetching contest labels:', contestsResult.error);
+    if (contestsResult.error) reportRouteError('[GET] Error fetching contest labels:', contestsResult.error);
     const contestById = new Map<string, { id: string; round: string | null; competition_name: string }>();
     for (const c of (contestsResult.data ?? []) as { id: string; round: string | null; competition: { name: string } | { name: string }[] | null }[]) {
       const comp = Array.isArray(c.competition) ? c.competition[0] : c.competition;
       contestById.set(c.id, { id: c.id, round: c.round, competition_name: comp?.name ?? 'Competition' });
     }
 
-    if (roundsResult.error) console.error('[GET] Error fetching golf rounds:', roundsResult.error);
-    if (groupsResult.error) console.error('[GET] Error fetching group scorecards:', groupsResult.error);
-    if (tagProfilesResult.error) console.error('[GET] Error fetching tagged profiles:', tagProfilesResult.error);
-    if (sharedResult.error) console.error('[GET] Error fetching shared originals:', sharedResult.error);
+    if (roundsResult.error) reportRouteError('[GET] Error fetching golf rounds:', roundsResult.error);
+    if (groupsResult.error) reportRouteError('[GET] Error fetching group scorecards:', groupsResult.error);
+    if (tagProfilesResult.error) reportRouteError('[GET] Error fetching tagged profiles:', tagProfilesResult.error);
+    if (sharedResult.error) reportRouteError('[GET] Error fetching shared originals:', sharedResult.error);
 
     // Quoted originals, gated PER VIEWER with the followingIds set already in
     // scope — no extra follow queries.
@@ -1485,7 +1486,7 @@ export async function GET(request: NextRequest) {
     }, orgFilterHeaders ? { headers: orgFilterHeaders } : undefined);
 
   } catch (error) {
-    console.error('Posts fetch error:', error);
+    reportRouteError('Posts fetch error:', error);
     return NextResponse.json({ error: 'Failed to fetch posts' }, { status: 500 });
   }
 }
@@ -1531,7 +1532,7 @@ export async function PATCH(request: NextRequest) {
       .maybeSingle();
 
     if (fetchError) {
-      console.error('[PATCH] Post fetch error:', fetchError);
+      reportRouteError('[PATCH] Post fetch error:', fetchError);
       return NextResponse.json({ error: 'Failed to update post' }, { status: 500 });
     }
     if (!post) {
@@ -1645,7 +1646,7 @@ export async function PATCH(request: NextRequest) {
         .eq('profile_id', user.id)
         .eq('is_pinned', true);
       if (countError) {
-        console.error('[PATCH] Pin count error:', countError);
+        reportRouteError('[PATCH] Pin count error:', countError);
         return NextResponse.json({ error: 'Failed to update post' }, { status: 500 });
       }
       if (!canPin(count ?? 0)) {
@@ -1666,13 +1667,13 @@ export async function PATCH(request: NextRequest) {
       .eq('id', postId);
 
     if (updateError) {
-      console.error('[PATCH] Pin update error:', updateError);
+      reportRouteError('[PATCH] Pin update error:', updateError);
       return NextResponse.json({ error: 'Failed to update post' }, { status: 500 });
     }
 
     return NextResponse.json({ success: true, action, is_pinned: action === 'pin' });
   } catch (error) {
-    console.error('Post pin error:', error);
+    reportRouteError('Post pin error:', error);
     if (error instanceof Response) {
       return error;
     }
@@ -1760,7 +1761,7 @@ export async function PUT(request: NextRequest) {
       .single();
 
     if (updateError) {
-      console.error('[PUT] Post update error:', updateError);
+      reportRouteError('[PUT] Post update error:', updateError);
       return NextResponse.json({ error: 'Failed to update post' }, { status: 500 });
     }
 
@@ -1803,7 +1804,7 @@ export async function PUT(request: NextRequest) {
         }
       } catch (tagSyncError) {
         // Non-fatal: posts.tags (the read store) is already updated above.
-        console.error('[PUT] post_tags reconciliation failed:', tagSyncError);
+        reportRouteError('[PUT] post_tags reconciliation failed:', tagSyncError);
       }
     }
 
@@ -1815,7 +1816,7 @@ export async function PUT(request: NextRequest) {
     });
 
   } catch (error) {
-    console.error('Post update error:', error);
+    reportRouteError('Post update error:', error);
 
     if (error instanceof Response) {
       return error;
@@ -1885,7 +1886,7 @@ export async function DELETE(request: NextRequest) {
     return NextResponse.json({ success: true, message: 'Post deleted successfully' });
 
   } catch (error) {
-    console.error('Post deletion error:', error);
+    reportRouteError('Post deletion error:', error);
 
     if (error instanceof Response) {
       return error;

@@ -6,6 +6,7 @@ import { PagePatchSchema } from '@/lib/org-sites/validate';
 import { pageDELETE, pageGET, pagePATCH } from '@/lib/org-sites/pages-server';
 import { requireOrgManager } from '@/lib/orgs/structure-server';
 import { UUID_RE } from '@/lib/golf/course-catalog';
+import { reportRouteError } from '@/lib/observability/report';
 
 // ── /api/leagues/[id]/site/pages/[pageId] — one page (phase 3 R3) ──────────
 
@@ -25,7 +26,7 @@ export async function GET(
     return await pageGET(admin, 'league', id, pageId);
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[ORG SITE PAGES] league page GET error:', error);
+    reportRouteError('[ORG SITE PAGES] league page GET error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
@@ -51,7 +52,7 @@ export async function PATCH(
     return await pagePATCH(admin, 'league', id, pageId, parsed.data, user.id);
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[ORG SITE PAGES] league page PATCH error:', error);
+    reportRouteError('[ORG SITE PAGES] league page PATCH error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
@@ -74,7 +75,7 @@ export async function DELETE(
     return await pageDELETE(admin, 'league', id, pageId, user.id);
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[ORG SITE PAGES] league page DELETE error:', error);
+    reportRouteError('[ORG SITE PAGES] league page DELETE error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

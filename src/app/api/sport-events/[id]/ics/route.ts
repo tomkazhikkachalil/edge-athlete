@@ -6,6 +6,7 @@ import { readSportEventAccess } from '@/lib/sport-events/access-server';
 import { icsFilename, sportEventIcs } from '@/lib/sport-events/ics';
 import { ROUND_COLUMNS } from '@/lib/sport-events/rounds-server';
 import type { SportEventRoundRow } from '@/lib/sport-events/types';
+import { reportRouteError } from '@/lib/observability/report';
 
 const NOT_FOUND = () => NextResponse.json({ error: 'Event not found' }, { status: 404, headers: { 'Cache-Control': 'no-store' } });
 
@@ -40,7 +41,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       },
     });
   } catch (error) {
-    console.error('[api/sport-events/[id]/ics] GET error:', error);
+    reportRouteError('[api/sport-events/[id]/ics] GET error:', error);
     return NextResponse.json({ error: 'Could not build the calendar file' }, { status: 500 });
   }
 }

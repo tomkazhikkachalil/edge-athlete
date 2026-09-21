@@ -3,6 +3,7 @@ import { requireAuth, getSupabaseAdmin, getProfileRole } from '@/lib/auth-server
 import { FEATURE_FLAGS } from '@/lib/features';
 import { UUID_RE } from '@/lib/uuid';
 import { contactState, earliestIso, volumeBand } from '@/lib/contact-roster';
+import { reportRouteError } from '@/lib/observability/report';
 
 // ── /api/guardian/athletes/[profileId]/contacts ──────────────────────────────
 // The guardian's contact ledger for one child (Wave 3, mig 131). POST decides
@@ -172,7 +173,7 @@ export async function GET(
     return NextResponse.json({ contacts });
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[GUARDIAN] contacts roster error:', error);
+    reportRouteError('[GUARDIAN] contacts roster error:', error);
     return NextResponse.json({ error: 'Could not load contacts' }, { status: 500 });
   }
 }
@@ -219,7 +220,7 @@ export async function POST(
       { onConflict: 'child_profile_id,contact_profile_id' }
     );
     if (ledgerError) {
-      console.error('[GUARDIAN] contact decision ledger error:', ledgerError);
+      reportRouteError('[GUARDIAN] contact decision ledger error:', ledgerError);
       return NextResponse.json({ error: 'Could not record the decision' }, { status: 500 });
     }
 
@@ -247,7 +248,7 @@ export async function POST(
     return NextResponse.json({ ok: true, status: decision === 'approve' ? 'approved' : 'denied' });
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[GUARDIAN] contact decision error:', error);
+    reportRouteError('[GUARDIAN] contact decision error:', error);
     return NextResponse.json({ error: 'Could not record the decision' }, { status: 500 });
   }
 }

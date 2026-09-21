@@ -4,6 +4,7 @@ import { enforceRateLimit } from '@/lib/rate-limit';
 import { widgetDataGET } from '@/lib/org-sites/canvas-server';
 import { requireOrgManager } from '@/lib/orgs/structure-server';
 import { UUID_RE } from '@/lib/golf/course-catalog';
+import { reportRouteError } from '@/lib/observability/report';
 
 // ── /api/leagues/[id]/site/widget-data?keys=a,b — the picker's live tiles
 // (Site Builder P3-D): the home data for widgets not yet on the layout,
@@ -28,7 +29,7 @@ export async function GET(
     return await widgetDataGET(admin, 'league', id, request.nextUrl.searchParams.get('keys'));
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[ORG SITE WIDGET DATA] league GET error:', error);
+    reportRouteError('[ORG SITE WIDGET DATA] league GET error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

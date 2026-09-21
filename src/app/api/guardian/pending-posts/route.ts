@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth, getSupabaseAdmin } from '@/lib/auth-server';
 import { toProxyUrl } from '@/lib/media/proxy-url';
 import { FEATURE_FLAGS } from '@/lib/features';
+import { reportRouteError } from '@/lib/observability/report';
 
 // ── /api/guardian/pending-posts ──────────────────────────────────────────────
 // The guardian approval queue: every pending_approval post across ALL of the
@@ -94,7 +95,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ posts: proxiedPosts });
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[GUARDIAN] pending-posts error:', error);
+    reportRouteError('[GUARDIAN] pending-posts error:', error);
     return NextResponse.json({ error: 'Could not load pending posts' }, { status: 500 });
   }
 }

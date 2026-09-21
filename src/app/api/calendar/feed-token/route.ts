@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth, getSupabaseAdmin } from '@/lib/auth-server';
 import { generateFeedToken, hashFeedToken } from '@/lib/calendar/feed-server';
+import { reportRouteError } from '@/lib/observability/report';
 
 // ── /api/calendar/feed-token ──────────────────────────────────────────────────
 // GET  → whether the caller has a feed link (never the raw token — it is
@@ -45,7 +46,7 @@ export async function GET(request: NextRequest) {
     });
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[CALENDAR] feed-token status error:', error);
+    reportRouteError('[CALENDAR] feed-token status error:', error);
     return NextResponse.json({ error: 'Could not load your sync settings' }, { status: 500 });
   }
 }
@@ -74,7 +75,7 @@ export async function POST(request: NextRequest) {
       { onConflict: 'profile_id' }
     );
     if (error) {
-      console.error('[CALENDAR] feed-token upsert failed:', error);
+      reportRouteError('[CALENDAR] feed-token upsert failed:', error);
       return NextResponse.json({ error: 'Could not create your link. Please try again.' }, { status: 500 });
     }
 
@@ -86,7 +87,7 @@ export async function POST(request: NextRequest) {
     });
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[CALENDAR] feed-token create error:', error);
+    reportRouteError('[CALENDAR] feed-token create error:', error);
     return NextResponse.json({ error: 'An unexpected error occurred' }, { status: 500 });
   }
 }

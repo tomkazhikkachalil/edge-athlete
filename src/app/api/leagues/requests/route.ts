@@ -9,6 +9,7 @@ import type { SportKey } from '@/lib/sports/SportRegistry';
 import { provisionPendingOrg } from '@/lib/orgs/pending-org';
 import { requireOrgCreator } from '@/lib/orgs/org-creator-gate';
 import { notifyAdminsOfListingRequest } from '@/lib/orgs/listing-notify';
+import { reportRouteError } from '@/lib/observability/report';
 
 // ── /api/leagues/requests — self-service "Start a league" (116) ─────────────
 // The org-signup flow: any signed-in user submits a request; admins decide
@@ -92,7 +93,7 @@ export async function POST(request: NextRequest) {
         // that distinct from a real not-found in the logs.
         return NextResponse.json({ error: 'League requests are not available yet' }, { status: 503 });
       }
-      console.error('[LEAGUE REQUESTS] insert error:', error);
+      reportRouteError('[LEAGUE REQUESTS] insert error:', error);
       return NextResponse.json({ error: 'Failed to submit request' }, { status: 500 });
     }
 
@@ -109,7 +110,7 @@ export async function POST(request: NextRequest) {
     });
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[LEAGUE REQUESTS] POST error:', error);
+    reportRouteError('[LEAGUE REQUESTS] POST error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
@@ -128,13 +129,13 @@ export async function GET(request: NextRequest) {
       .limit(20);
     if (error) {
       if (isMissingTableError(error.code)) return NextResponse.json({ requests: [] });
-      console.error('[LEAGUE REQUESTS] list error:', error);
+      reportRouteError('[LEAGUE REQUESTS] list error:', error);
       return NextResponse.json({ error: 'Failed to load requests' }, { status: 500 });
     }
     return NextResponse.json({ requests: data ?? [] });
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[LEAGUE REQUESTS] GET error:', error);
+    reportRouteError('[LEAGUE REQUESTS] GET error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

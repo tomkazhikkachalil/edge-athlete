@@ -3,6 +3,7 @@ import { isUuid } from '@/lib/uuid';
 import { requireAuth, getSupabaseAdmin } from '@/lib/auth-server';
 import { toProxyUrl } from '@/lib/media/proxy-url';
 import { mayManagePostMedia } from './authz';
+import { reportRouteError } from '@/lib/observability/report';
 
 // ── GET /api/posts/[id]/media ─────────────────────────────────────────────────
 // The EDIT surface's media list — includes source_url + edit_recipe (120),
@@ -50,7 +51,7 @@ export async function GET(
     return NextResponse.json({ media: proxied });
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[POST MEDIA] list error:', error);
+    reportRouteError('[POST MEDIA] list error:', error);
     return NextResponse.json({ error: 'Could not load media' }, { status: 500 });
   }
 }

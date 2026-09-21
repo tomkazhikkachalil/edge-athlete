@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth, getSupabaseAdmin } from '@/lib/auth-server';
 import { disputePATCH, type DisputeAction } from '@/lib/orgs/dispute-server';
 import { UUID_RE } from '@/lib/golf/course-catalog';
+import { reportRouteError } from '@/lib/observability/report';
 
 // ── /api/leagues/[id]/competitions/[competitionId]/results/dispute ─────────
 // Phase 6 R4 (mig 168). raise/withdraw = a manager of any org with
@@ -30,7 +31,7 @@ export async function PATCH(
     });
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[DISPUTE] league PATCH error:', error);
+    reportRouteError('[DISPUTE] league PATCH error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

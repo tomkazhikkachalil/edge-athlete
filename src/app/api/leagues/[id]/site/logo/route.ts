@@ -4,6 +4,7 @@ import { enforceRateLimit } from '@/lib/rate-limit';
 import { siteLogoDELETE, siteLogoPOST } from '@/lib/org-sites/logo-server';
 import { requireOrgManager } from '@/lib/orgs/structure-server';
 import { UUID_RE } from '@/lib/golf/course-catalog';
+import { reportRouteError } from '@/lib/observability/report';
 
 // ── /api/leagues/[id]/site/logo — org site logo (phase 3 R3) ───────────────
 // manage_org gates it; the shared core clones the cover-upload recipe.
@@ -32,7 +33,7 @@ export async function POST(
     return await siteLogoPOST(admin, 'league', id, file);
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[ORG SITE LOGO] league POST error:', error);
+    reportRouteError('[ORG SITE LOGO] league POST error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
@@ -55,7 +56,7 @@ export async function DELETE(
     return await siteLogoDELETE(admin, 'league', id);
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[ORG SITE LOGO] league DELETE error:', error);
+    reportRouteError('[ORG SITE LOGO] league DELETE error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

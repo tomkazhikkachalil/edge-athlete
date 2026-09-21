@@ -4,6 +4,7 @@ import { parseBody } from '@/lib/validation';
 import { EntryAddSchema, EntryDecideSchema } from '@/lib/competitions/validate';
 import { entryAddPOST, entryDecidePATCH, entryDELETE } from '@/lib/orgs/competition-server';
 import { UUID_RE } from '@/lib/golf/course-catalog';
+import { reportRouteError } from '@/lib/observability/report';
 
 // ── /api/admin/competitions/entries — thin wrapper over competition-server ──
 
@@ -15,7 +16,7 @@ export async function POST(request: NextRequest) {
     return await entryAddPOST(getSupabaseAdmin(), parsed.data, null, user.id);
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[ADMIN COMPETITIONS] entries POST error:', error);
+    reportRouteError('[ADMIN COMPETITIONS] entries POST error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
@@ -28,7 +29,7 @@ export async function PATCH(request: NextRequest) {
     return await entryDecidePATCH(getSupabaseAdmin(), parsed.data, null, user.id);
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[ADMIN COMPETITIONS] entries PATCH error:', error);
+    reportRouteError('[ADMIN COMPETITIONS] entries PATCH error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
@@ -44,7 +45,7 @@ export async function DELETE(request: NextRequest) {
     return await entryDELETE(getSupabaseAdmin(), id, null);
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[ADMIN COMPETITIONS] entries DELETE error:', error);
+    reportRouteError('[ADMIN COMPETITIONS] entries DELETE error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

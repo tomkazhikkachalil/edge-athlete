@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth, getSupabaseAdmin } from '@/lib/auth-server';
+import { reportRouteError } from '@/lib/observability/report';
 
 export async function GET(request: NextRequest) {
   try {
@@ -13,7 +14,7 @@ export async function GET(request: NextRequest) {
       .eq('is_read', false);
 
     if (error) {
-      console.error('[NOTIFICATIONS API] Error getting unread count:', error);
+      reportRouteError('[NOTIFICATIONS API] Error getting unread count:', error);
       return NextResponse.json({ error: 'Failed to get unread count' }, { status: 500 });
     }
 
@@ -21,7 +22,7 @@ export async function GET(request: NextRequest) {
 
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[NOTIFICATIONS API] Error:', error);
+    reportRouteError('[NOTIFICATIONS API] Error:', error);
     return NextResponse.json(
       { error: 'Failed to get unread count' },
       { status: 500 }

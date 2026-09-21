@@ -4,6 +4,7 @@ import { requireAuth, getSupabaseAdmin, requireActiveWriter } from '@/lib/auth-s
 import type { Conversation } from '@/types/messages';
 import { enforceRateLimit } from '@/lib/rate-limit';
 import { toProxyUrl } from '@/lib/media/proxy-url';
+import { reportRouteError } from '@/lib/observability/report';
 
 // ── GET /api/messages ─────────────────────────────────────────────────────────
 // List all active conversations for the current user, ordered by updated_at DESC.
@@ -46,7 +47,7 @@ export async function GET(request: NextRequest) {
       legacyUnpaginated = true;
     }
     if (error) {
-      console.error('GET /api/messages rpc error:', error);
+      reportRouteError('GET /api/messages rpc error:', error);
       return NextResponse.json({ error: 'Failed to load conversations' }, { status: 500 });
     }
 
@@ -78,7 +79,7 @@ export async function GET(request: NextRequest) {
     });
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('GET /api/messages error:', error);
+    reportRouteError('GET /api/messages error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
@@ -258,7 +259,7 @@ export async function POST(request: NextRequest) {
         .single();
 
       if (convError || !conv) {
-        console.error('POST /api/messages create DM error:', convError);
+        reportRouteError('POST /api/messages create DM error:', convError);
         return NextResponse.json({ error: 'Failed to create conversation' }, { status: 500 });
       }
 
@@ -278,7 +279,7 @@ export async function POST(request: NextRequest) {
         ]);
 
       if (partError) {
-        console.error('POST /api/messages add participants error:', partError);
+        reportRouteError('POST /api/messages add participants error:', partError);
         await supabase.from('conversations').delete().eq('id', conv.id);
         return NextResponse.json({ error: 'Failed to create conversation' }, { status: 500 });
       }
@@ -358,7 +359,7 @@ export async function POST(request: NextRequest) {
         .single();
 
       if (convError || !conv) {
-        console.error('POST /api/messages create group error:', convError);
+        reportRouteError('POST /api/messages create group error:', convError);
         return NextResponse.json({ error: 'Failed to create group' }, { status: 500 });
       }
 
@@ -372,7 +373,7 @@ export async function POST(request: NextRequest) {
         .insert(participants);
 
       if (partError) {
-        console.error('POST /api/messages add group participants error:', partError);
+        reportRouteError('POST /api/messages add group participants error:', partError);
         await supabase.from('conversations').delete().eq('id', conv.id);
         return NextResponse.json({ error: 'Failed to create group' }, { status: 500 });
       }
@@ -383,7 +384,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Invalid conversation type' }, { status: 400 });
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('POST /api/messages error:', error);
+    reportRouteError('POST /api/messages error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

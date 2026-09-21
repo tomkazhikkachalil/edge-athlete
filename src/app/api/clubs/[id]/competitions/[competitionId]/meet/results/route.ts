@@ -5,6 +5,7 @@ import { parseBody } from '@/lib/validation';
 import { MeetResultsUpsertSchema } from '@/lib/competitions/validate';
 import { meetResultsUpsertPOST, requireCompetitionManager } from '@/lib/orgs/competition-server';
 import { UUID_RE } from '@/lib/golf/course-catalog';
+import { reportRouteError } from '@/lib/observability/report';
 
 // ── /api/clubs/[id]/competitions/[competitionId]/meet/results (track 2 PR 7) ──
 // The marks of one event: results + the stat lines + performances; the contest completes; the team score recomputes.
@@ -31,7 +32,7 @@ export async function POST(
     return await meetResultsUpsertPOST(admin, parsed.data, { side: 'club', orgId: id }, user.id);
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[COMPETITIONS] club meet results POST error:', error);
+    reportRouteError('[COMPETITIONS] club meet results POST error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerAuth } from '@/lib/auth-server';
+import { reportRouteError } from '@/lib/observability/report';
 
 export async function GET(request: NextRequest) {
   try {
@@ -26,7 +27,7 @@ export async function GET(request: NextRequest) {
     });
 
   } catch (error) {
-    console.error('Session check error:', error);
+    reportRouteError('Session check error:', error);
     return NextResponse.json({
       error: 'Failed to check session',
       needsReauth: true // Default to requiring re-auth on error for safety

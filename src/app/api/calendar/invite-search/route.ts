@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/auth-server';
 import { searchPeople, accessibleProfileIds } from '@/lib/search/people-server';
+import { reportRouteError } from '@/lib/observability/report';
 
 // ── GET /api/calendar/invite-search?q= ────────────────────────────────────────
 // Guest-picker search: public profiles PLUS anyone with an accepted follow
@@ -33,7 +34,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ profiles });
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[CALENDAR] invite-search error:', error);
+    reportRouteError('[CALENDAR] invite-search error:', error);
     return NextResponse.json({ error: 'Search failed' }, { status: 500 });
   }
 }

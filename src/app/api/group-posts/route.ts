@@ -7,6 +7,7 @@ import { parseComposition } from '@/lib/golf/course-sections';
 import { filterBlockedBidirectional } from '@/lib/blocks';
 import { enforceRateLimit } from '@/lib/rate-limit';
 import { GROUP_TYPE_TO_SPORT, GROUP_POST_TYPES, type GroupPostType } from '@/types/group-posts';
+import { reportRouteError } from '@/lib/observability/report';
 
 /**
  * GET /api/group-posts
@@ -73,7 +74,7 @@ export async function GET(request: NextRequest) {
     const { data: groupPosts, error: fetchError } = await query;
 
     if (fetchError) {
-      console.error('Error fetching group posts:', fetchError);
+      reportRouteError('Error fetching group posts:', fetchError);
       return NextResponse.json({ error: 'Failed to fetch group posts' }, { status: 500 });
     }
 
@@ -85,7 +86,7 @@ export async function GET(request: NextRequest) {
         : null,
     });
   } catch (error) {
-    console.error('Unexpected error in GET /api/group-posts:', error);
+    reportRouteError('Unexpected error in GET /api/group-posts:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
@@ -250,7 +251,7 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (createError) {
-      console.error('Error creating group post:', createError);
+      reportRouteError('Error creating group post:', createError);
       return NextResponse.json({ error: 'Failed to create group post' }, { status: 500 });
     }
 
@@ -261,7 +262,7 @@ export async function POST(request: NextRequest) {
     // return a real error instead of leaving a half-created, unreachable
     // round behind.
     const abortCreation = async (step: string, err: unknown) => {
-      console.error(`Group post creation failed at ${step}:`, err);
+      reportRouteError(`Group post creation failed at ${step}:`, err);
       // posts.group_post_id is ON DELETE SET NULL (unlike participants /
       // golf_data, which CASCADE) — if the feed-post insert committed but its
       // response was lost, deleting group_posts alone would strand a
@@ -272,7 +273,7 @@ export async function POST(request: NextRequest) {
         .delete()
         .eq('group_post_id', groupPost.id);
       if (postCleanupError) {
-        console.error('Feed-post cleanup after failed creation also failed:', postCleanupError);
+        reportRouteError('Feed-post cleanup after failed creation also failed:', postCleanupError);
       }
       const { error: cleanupError } = await db
         .from('group_posts')
@@ -280,7 +281,7 @@ export async function POST(request: NextRequest) {
         .eq('id', groupPost.id);
       if (cleanupError) {
         // Worst case: orphan remains; migration 033's diagnostic query finds these.
-        console.error('Cleanup after failed creation also failed:', cleanupError);
+        reportRouteError('Cleanup after failed creation also failed:', cleanupError);
       }
       return NextResponse.json(
         { error: `Failed to create the round (${step}). Nothing was saved — please try again.` },
@@ -446,13 +447,13 @@ export async function POST(request: NextRequest) {
       // One retry: this is a single-row update by primary key, so the realistic
       // failure is a transient connection blip rather than anything a second
       // attempt would repeat.
-      console.error('Failed to backfill group_posts.post_id, retrying:', linkError);
+      reportRouteError('Failed to backfill group_posts.post_id, retrying:', linkError);
       ({ error: linkError } = await db
         .from('group_posts')
         .update({ post_id: feedPost.id })
         .eq('id', groupPost.id));
       if (linkError) {
-        console.error('Backfill of group_posts.post_id failed twice:', linkError);
+        reportRouteError('Backfill of group_posts.post_id failed twice:', linkError);
       }
     }
 
@@ -510,7 +511,7 @@ export async function POST(request: NextRequest) {
       // Not fatal — the round and its feed post both exist, and `groupPost`
       // below is a real row. But it used to be discarded entirely, which made
       // a degraded response indistinguishable from a healthy one.
-      console.error('Failed to re-fetch the created group post:', completeError);
+      reportRouteError('Failed to re-fetch the created group post:', completeError);
     }
 
     // post_id is stamped from the value this request already knows rather than
@@ -523,7 +524,7 @@ export async function POST(request: NextRequest) {
       message: 'Group post created successfully',
     }, { status: 201 });
   } catch (error) {
-    console.error('Unexpected error in POST /api/group-posts:', error);
+    reportRouteError('Unexpected error in POST /api/group-posts:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

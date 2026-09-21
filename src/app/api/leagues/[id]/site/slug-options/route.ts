@@ -3,6 +3,7 @@ import { requireAuth, getSupabaseAdmin } from '@/lib/auth-server';
 import { slugOptionsGET } from '@/lib/org-sites/server';
 import { requireOrgManager } from '@/lib/orgs/structure-server';
 import { UUID_RE } from '@/lib/golf/course-catalog';
+import { reportRouteError } from '@/lib/observability/report';
 
 // ── /api/leagues/[id]/site/slug-options (phase 6 R1) ────────────────────────
 // The slug engine: identity-composed suggestions (+availability) and a
@@ -26,7 +27,7 @@ export async function GET(
     return await slugOptionsGET(admin, 'league', id, candidate);
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[ORG SITES] league slug-options error:', error);
+    reportRouteError('[ORG SITES] league slug-options error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

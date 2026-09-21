@@ -6,6 +6,7 @@ import { readSportEventAccess } from '@/lib/sport-events/access-server';
 import { bodyProfileId, readJson, resolveActor } from '@/lib/sport-events/actor-server';
 import { mediaRight, parseMediaBody } from '@/lib/sport-events/media';
 import { MEDIA_COLUMNS, readEventMedia } from '@/lib/sport-events/media-server';
+import { reportRouteError } from '@/lib/observability/report';
 
 const NOT_FOUND = () => NextResponse.json({ error: 'Event not found' }, { status: 404, headers: { 'Cache-Control': 'no-store' } });
 
@@ -42,7 +43,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     const canAdd = mediaRight('add', { viewerId, eventStatus: read.event.status, eventRole: read.access.role, participantStatus: read.access.participantStatus, canManage: read.access.canManage }).allowed;
     return NextResponse.json({ media, can_add: canAdd }, { headers: { 'Cache-Control': 'private, no-store' } });
   } catch (error) {
-    console.error('[api/sport-events/media] GET error:', error);
+    reportRouteError('[api/sport-events/media] GET error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
@@ -86,13 +87,13 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       .select(MEDIA_COLUMNS)
       .single();
     if (error || !inserted) {
-      console.error('[api/sport-events/media] insert failed:', error);
+      reportRouteError('[api/sport-events/media] insert failed:', error);
       return NextResponse.json({ error: 'Could not add the photo' }, { status: 500 });
     }
     const media = await readEventMedia(admin, read.event, { profileId: actor.profileId, canManage: read.access.canManage });
     return NextResponse.json({ media, added: (inserted as { id: string }).id }, { status: 201, headers: { 'Cache-Control': 'private, no-store' } });
   } catch (error) {
-    console.error('[api/sport-events/media] POST error:', error);
+    reportRouteError('[api/sport-events/media] POST error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

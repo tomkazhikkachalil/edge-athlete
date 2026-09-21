@@ -4,6 +4,7 @@ import { requireAuth, getSupabaseAdmin } from '@/lib/auth-server';
 import { GUARDIAN_PREDATES_REFUSAL, guardianAccountPredatesInvite, peekGuardianInvite, redeemGuardianInvite } from '@/lib/guardian-invites';
 import { FEATURE_FLAGS } from '@/lib/features';
 import { enforceRateLimit } from '@/lib/rate-limit';
+import { reportRouteError } from '@/lib/observability/report';
 
 // ── POST /api/invites/[token]/claim ───────────────────────────────────────────
 // A logged-in guardian claims a guardian invite. Peek-then-typed-redeem:
@@ -212,7 +213,7 @@ export async function POST(
     });
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[INVITES] claim error:', error);
+    reportRouteError('[INVITES] claim error:', error);
     Sentry.captureException(error, { tags: { area: 'invite-claim' } });
     return NextResponse.json({ error: 'An unexpected error occurred' }, { status: 500 });
   }

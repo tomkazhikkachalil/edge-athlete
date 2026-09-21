@@ -7,6 +7,7 @@ import { formatDisplayName } from '@/lib/formatters';
 import { notifyCommentMentions } from '@/lib/mentions/notify';
 import { canViewProfile } from '@/lib/privacy';
 import { enforceRateLimit } from '@/lib/rate-limit';
+import { reportRouteError } from '@/lib/observability/report';
 
 // Resolve @mentions SERVER-SIDE from the text (unforgeable — the client sends
 // nothing extra). Taggable by the author = public OR someone the author
@@ -143,7 +144,7 @@ export async function GET(request: NextRequest) {
     const comments = viewer && rawComments ? rawComments.filter(c => !hiddenAuthors.has(c.profile_id as string) || c.profile_id === viewer.id) : rawComments;
 
     if (error) {
-      console.error('Error fetching comments:', error);
+      reportRouteError('Error fetching comments:', error);
       return NextResponse.json(
         { error: 'Failed to fetch comments' },
         { status: 500 }
@@ -177,7 +178,7 @@ export async function GET(request: NextRequest) {
       mentionProfiles
     });
   } catch (error) {
-    console.error('Error in GET /api/comments:', error);
+    reportRouteError('Error in GET /api/comments:', error);
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }
@@ -355,7 +356,7 @@ export async function POST(request: NextRequest) {
     }
 
     if (commentError) {
-      console.error('Error creating comment:', commentError);
+      reportRouteError('Error creating comment:', commentError);
       return NextResponse.json(
         { error: 'Failed to create comment' },
         { status: 500 }
@@ -424,7 +425,7 @@ export async function POST(request: NextRequest) {
       { status: 201 }
     );
   } catch (error) {
-    console.error('Error in POST /api/comments:', error);
+    reportRouteError('Error in POST /api/comments:', error);
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }
@@ -495,7 +496,7 @@ export async function DELETE(request: NextRequest) {
     }
 
     if (deleteError) {
-      console.error('Error deleting comment:', deleteError);
+      reportRouteError('Error deleting comment:', deleteError);
       return NextResponse.json(
         { error: 'Failed to delete comment' },
         { status: 500 }
@@ -518,7 +519,7 @@ export async function DELETE(request: NextRequest) {
 
     return NextResponse.json({ success: true, commentsCount });
   } catch (error) {
-    console.error('Error in DELETE /api/comments:', error);
+    reportRouteError('Error in DELETE /api/comments:', error);
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }
@@ -749,7 +750,7 @@ export async function PATCH(request: NextRequest) {
         .eq('post_id', postId);
 
       if (pinError) {
-        console.error('Error pinning comment:', pinError);
+        reportRouteError('Error pinning comment:', pinError);
         return NextResponse.json({ error: 'Failed to pin comment' }, { status: 500 });
       }
     } else {
@@ -763,14 +764,14 @@ export async function PATCH(request: NextRequest) {
         .eq('post_id', postId);
 
       if (unpinError) {
-        console.error('Error unpinning comment:', unpinError);
+        reportRouteError('Error unpinning comment:', unpinError);
         return NextResponse.json({ error: 'Failed to unpin comment' }, { status: 500 });
       }
     }
 
     return NextResponse.json({ success: true, action });
   } catch (error) {
-    console.error('Error in PATCH /api/comments:', error);
+    reportRouteError('Error in PATCH /api/comments:', error);
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }

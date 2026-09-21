@@ -3,6 +3,7 @@ import { affiliationGET, affiliationPOST, affiliationAccept, affiliationDELETE }
 import { parseBody } from '@/lib/validation';
 import { AffiliationClubTargetSchema, AffiliationAcceptClubSchema } from '@/lib/affiliations/validate';
 import { UUID_RE } from '@/lib/golf/course-catalog';
+import { reportRouteError } from '@/lib/observability/report';
 
 // ── /api/leagues/[id]/clubs — the league side of affiliations (118) ─────────
 // Thin wrapper: ALL logic, including the AUTHORIZATION MATRIX, lives in
@@ -17,7 +18,7 @@ export async function GET(
     return await affiliationGET(request, 'league', id);
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[LEAGUE CLUBS] GET error:', error);
+    reportRouteError('[LEAGUE CLUBS] GET error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
@@ -33,7 +34,7 @@ export async function POST(
     return await affiliationPOST(request, 'league', id, parsed.data.clubId, parsed.data.affiliationType);
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[LEAGUE CLUBS] POST error:', error);
+    reportRouteError('[LEAGUE CLUBS] POST error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
@@ -49,7 +50,7 @@ export async function PATCH(
     return await affiliationAccept(request, 'league', id, parsed.data.clubId);
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[LEAGUE CLUBS] PATCH error:', error);
+    reportRouteError('[LEAGUE CLUBS] PATCH error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
@@ -68,7 +69,7 @@ export async function DELETE(
     return await affiliationDELETE(request, 'league', id, clubId);
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[LEAGUE CLUBS] DELETE error:', error);
+    reportRouteError('[LEAGUE CLUBS] DELETE error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

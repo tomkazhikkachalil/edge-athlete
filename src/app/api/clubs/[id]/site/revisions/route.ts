@@ -6,6 +6,7 @@ import { RevisionActionSchema } from '@/lib/org-sites/validate';
 import { revisionsGET, revisionsPOST } from '@/lib/org-sites/revisions-server';
 import { requireOrgManager } from '@/lib/orgs/structure-server';
 import { UUID_RE } from '@/lib/golf/course-catalog';
+import { reportRouteError } from '@/lib/observability/report';
 
 // ── /api/clubs/[id]/site/revisions — draft / publish / history (Site Builder
 // phase 2, mig 180). GET lists the revisions + the draft's state; POST is one
@@ -31,7 +32,7 @@ export async function GET(
     return await revisionsGET(admin, 'club', id);
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[ORG SITE REVISIONS] club GET error:', error);
+    reportRouteError('[ORG SITE REVISIONS] club GET error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
@@ -56,7 +57,7 @@ export async function POST(
     return await revisionsPOST(admin, 'club', id, user.id, parsed.data);
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[ORG SITE REVISIONS] club POST error:', error);
+    reportRouteError('[ORG SITE REVISIONS] club POST error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { getSupabaseAdmin, requireModerator } from '@/lib/auth-server';
 import { parseBody, uuid } from '@/lib/validation';
 import { PLATFORM_ROLES } from '@/lib/tickets/types';
+import { reportRouteError } from '@/lib/observability/report';
 
 /**
  * /api/admin/roles — the platform admin roles (Support & Reporting, Spec 1;
@@ -41,7 +42,7 @@ export async function GET(request: NextRequest) {
       .order('created_at', { ascending: true });
     if (error) {
       if (error.code === '42P01') return notLive();
-      console.error('[admin/roles GET]', error.message);
+      reportRouteError('[admin/roles GET]', error.message);
       return NextResponse.json({ error: 'Could not load roles' }, { status: 500, headers: NO_STORE });
     }
     const roles = (data ?? []).map(r => {
@@ -58,7 +59,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ roles }, { headers: NO_STORE });
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[admin/roles GET]', error);
+    reportRouteError('[admin/roles GET]', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500, headers: NO_STORE });
   }
 }
@@ -79,13 +80,13 @@ export async function POST(request: NextRequest) {
       .upsert({ profile_id, role, granted_by: user.id }, { onConflict: 'profile_id' });
     if (error) {
       if (error.code === '42P01') return notLive();
-      console.error('[admin/roles POST]', error.message);
+      reportRouteError('[admin/roles POST]', error.message);
       return NextResponse.json({ error: 'Could not save the role' }, { status: 500, headers: NO_STORE });
     }
     return NextResponse.json({ ok: true, profile_id, role }, { headers: NO_STORE });
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[admin/roles POST]', error);
+    reportRouteError('[admin/roles POST]', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500, headers: NO_STORE });
   }
 }
@@ -100,13 +101,13 @@ export async function DELETE(request: NextRequest) {
     const { error } = await admin.from('platform_admins').delete().eq('profile_id', parsed.data.profile_id);
     if (error) {
       if (error.code === '42P01') return notLive();
-      console.error('[admin/roles DELETE]', error.message);
+      reportRouteError('[admin/roles DELETE]', error.message);
       return NextResponse.json({ error: 'Could not remove the role' }, { status: 500, headers: NO_STORE });
     }
     return NextResponse.json({ ok: true }, { headers: NO_STORE });
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[admin/roles DELETE]', error);
+    reportRouteError('[admin/roles DELETE]', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500, headers: NO_STORE });
   }
 }

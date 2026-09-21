@@ -8,6 +8,7 @@ import {
   requireRegistrar,
 } from '@/lib/orgs/registration-server';
 import { UUID_RE } from '@/lib/golf/course-catalog';
+import { reportRouteError } from '@/lib/observability/report';
 
 // ── /api/clubs/[id]/registrations/[registrationId] (phase 5 R2) ───────────
 // PATCH transitions: evaluate/place/release are registrar acts (the core
@@ -49,7 +50,7 @@ export async function PATCH(
     );
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[REGISTRATION] club transition error:', error);
+    reportRouteError('[REGISTRATION] club transition error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

@@ -5,6 +5,7 @@ import { parseBody } from '@/lib/validation';
 import { PoolsGenerateSchema } from '@/lib/competitions/validate';
 import { poolsGeneratePOST, requireCompetitionManager } from '@/lib/orgs/competition-server';
 import { UUID_RE } from '@/lib/golf/course-catalog';
+import { reportRouteError } from '@/lib/observability/report';
 
 // ── /api/leagues/[id]/competitions/[competitionId]/pools/generate (leftovers PR 2) ──
 // The round-robin per pool — dry-run by default; the pairs already played are skipped.
@@ -34,7 +35,7 @@ export async function POST(
     return await poolsGeneratePOST(admin, parsed.data, { side: 'league', orgId: id });
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[COMPETITIONS] league pools generate POST error:', error);
+    reportRouteError('[COMPETITIONS] league pools generate POST error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

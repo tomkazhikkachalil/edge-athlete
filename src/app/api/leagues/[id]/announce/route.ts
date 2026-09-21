@@ -6,6 +6,7 @@ import { requireOrgManager } from '@/lib/orgs/structure-server';
 import { OrgAnnounceSchema } from '@/lib/orgs/announce';
 import { orgAnnouncePOST } from '@/lib/orgs/announce-server';
 import { UUID_RE } from '@/lib/golf/course-catalog';
+import { reportRouteError } from '@/lib/observability/report';
 
 // ── /api/leagues/[id]/announce (phase 6e S6) — announce to members ────────────
 // A manager's notice bells every member (guardians of supervised members
@@ -32,7 +33,7 @@ export async function POST(
     return await orgAnnouncePOST(admin, 'league', id, parsed.data, user.id);
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[ANNOUNCE] league POST error:', error);
+    reportRouteError('[ANNOUNCE] league POST error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerAuth, getSupabaseAdmin } from '@/lib/auth-server';
 import { parseVitalsPrivacy } from '@/lib/vitals-privacy';
+import { reportRouteError } from '@/lib/observability/report';
 
 /**
  * PATCH /api/settings/vitals-privacy — save the caller's OWN vitals
@@ -32,13 +33,13 @@ export async function PATCH(request: NextRequest) {
       .eq('id', user.id);
 
     if (error) {
-      console.error('Vitals privacy update error:', error);
+      reportRouteError('Vitals privacy update error:', error);
       return NextResponse.json({ error: 'Failed to save settings' }, { status: 500 });
     }
 
     return NextResponse.json({ vitalsPrivacy: privacy });
   } catch (error) {
-    console.error('Vitals privacy PATCH error:', error);
+    reportRouteError('Vitals privacy PATCH error:', error);
     return NextResponse.json({ error: 'Failed to save settings' }, { status: 500 });
   }
 }

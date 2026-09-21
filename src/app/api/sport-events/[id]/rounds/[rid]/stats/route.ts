@@ -7,6 +7,7 @@ import { resolveActor } from '@/lib/sport-events/actor-server';
 import { ROUND_COLUMNS } from '@/lib/sport-events/rounds-server';
 import { readRoundStats } from '@/lib/sport-events/stats-server';
 import type { SportEventRoundRow } from '@/lib/sport-events/types';
+import { reportRouteError } from '@/lib/observability/report';
 
 const NOT_FOUND = () => NextResponse.json({ error: 'Event not found' }, { status: 404, headers: { 'Cache-Control': 'no-store' } });
 
@@ -43,7 +44,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     // vercel.json — a cached anonymous copy was served to signed-in readers for 10 s (prod probe, Sep 16 2026).
     return NextResponse.json(payload, { headers: { 'Cache-Control': 'private, max-age=5' } });
   } catch (error) {
-    console.error('[api/sport-events/stats] GET error:', error);
+    reportRouteError('[api/sport-events/stats] GET error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

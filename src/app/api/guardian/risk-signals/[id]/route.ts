@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth, getSupabaseAdmin, getProfileRole } from '@/lib/auth-server';
 import { FEATURE_FLAGS } from '@/lib/features';
+import { reportRouteError } from '@/lib/observability/report';
 
 // ── PATCH /api/guardian/risk-signals/[id] ────────────────────────────────────
 // Acknowledge one risk signal (Wave 7, mig 137): stamps acknowledged_at/by so
@@ -53,7 +54,7 @@ export async function PATCH(
     return NextResponse.json({ ok: true });
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[GUARDIAN] risk-signal ack error:', error);
+    reportRouteError('[GUARDIAN] risk-signal ack error:', error);
     return NextResponse.json({ error: 'Could not acknowledge the signal' }, { status: 500 });
   }
 }

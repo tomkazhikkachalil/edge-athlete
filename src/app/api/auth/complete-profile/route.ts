@@ -13,6 +13,7 @@ import {
 } from '@/lib/config/minors-config';
 import { createGuardianInvite } from '@/lib/guardian-invites';
 import { emailService } from '@/lib/email-service';
+import { reportRouteError } from '@/lib/observability/report';
 
 // ── POST /api/auth/complete-profile ───────────────────────────────────────────
 // Creates the profiles row for a first-time OAuth user. The handle MUST be
@@ -212,7 +213,7 @@ export async function POST(request: NextRequest) {
     });
 
     if (insertError) {
-      console.error('[OAUTH-PROFILE] insert failed:', insertError);
+      reportRouteError('[OAUTH-PROFILE] insert failed:', insertError);
       Sentry.captureException(
         new Error(`oauth complete-profile: insert failed: ${insertError.message}`),
         { extra: { code: insertError.code, details: insertError.details, userId: user.id } } // hardening-ok: Sentry extra, never a response body
@@ -230,7 +231,7 @@ export async function POST(request: NextRequest) {
         { onConflict: 'user_id,profile_id' }
       );
     if (accessError) {
-      console.error('[OAUTH-PROFILE] owner access row failed:', accessError);
+      reportRouteError('[OAUTH-PROFILE] owner access row failed:', accessError);
       Sentry.captureException(
         new Error(`complete-profile: owner profile_access insert failed: ${accessError.message}`),
         { extra: { userId: user.id } }
@@ -240,7 +241,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ ok: true }, { status: 201 });
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[OAUTH-PROFILE] error:', error);
+    reportRouteError('[OAUTH-PROFILE] error:', error);
     Sentry.captureException(error, { tags: { area: 'oauth-complete-profile' } });
     return NextResponse.json({ error: 'An unexpected error occurred' }, { status: 500 });
   }

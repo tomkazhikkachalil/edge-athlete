@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin, requireActiveWriter } from '@/lib/auth-server';
 import { enforceRateLimit } from '@/lib/rate-limit';
+import { reportRouteError } from '@/lib/observability/report';
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
 // Extensions derived from the validated MIME type — never from the client
@@ -71,7 +72,7 @@ export async function POST(request: NextRequest) {
       });
 
     if (uploadError) {
-      console.error('Upload error:', uploadError);
+      reportRouteError('Upload error:', uploadError);
       return NextResponse.json({ error: 'Failed to upload file' }, { status: 500 });
     }
     
@@ -91,7 +92,7 @@ export async function POST(request: NextRequest) {
     
   } catch (err) {
     if (err instanceof Response) return err;
-    console.error('Upload processing error:', err);
+    reportRouteError('Upload processing error:', err);
     return NextResponse.json({ error: 'Failed to process upload' }, { status: 500 });
   }
 }

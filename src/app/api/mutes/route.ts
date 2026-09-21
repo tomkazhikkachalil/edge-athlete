@@ -4,6 +4,7 @@ import { getSupabaseAdmin, requireAuth } from '@/lib/auth-server';
 import { enforceRateLimit } from '@/lib/rate-limit';
 import { parseBody, uuid } from '@/lib/validation';
 import { applyMute, listMutes, removeMute } from '@/lib/mutes';
+import { reportRouteError } from '@/lib/observability/report';
 
 /**
  * /api/mutes — the user-level mute (Support & Reporting, Spec 2; mig 223).
@@ -22,7 +23,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(await listMutes(getSupabaseAdmin(), user.id), { headers: NO_STORE });
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[GET /api/mutes]', error);
+    reportRouteError('[GET /api/mutes]', error);
     return NextResponse.json({ error: 'Could not load mutes' }, { status: 500, headers: NO_STORE });
   }
 }
@@ -41,7 +42,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ ok: true }, { headers: NO_STORE });
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[POST /api/mutes]', error);
+    reportRouteError('[POST /api/mutes]', error);
     return NextResponse.json({ error: 'Could not mute' }, { status: 500, headers: NO_STORE });
   }
 }
@@ -56,7 +57,7 @@ export async function DELETE(request: NextRequest) {
     return NextResponse.json({ ok: true }, { headers: NO_STORE });
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[DELETE /api/mutes]', error);
+    reportRouteError('[DELETE /api/mutes]', error);
     return NextResponse.json({ error: 'Could not unmute' }, { status: 500, headers: NO_STORE });
   }
 }

@@ -4,6 +4,7 @@ import { requireAuth, getSupabaseAdmin } from '@/lib/auth-server';
 import { enforceRateLimit } from '@/lib/rate-limit';
 import { formatDisplayName } from '@/lib/formatters';
 import { carpoolAccess } from '@/lib/calendar/carpool';
+import { reportRouteError } from '@/lib/observability/report';
 
 // ── /api/calendar/events/[id]/carpool ────────────────────────────────────────
 // Carpool coordination (Wave 9, mig 139). Offers/claims live in their own
@@ -65,7 +66,7 @@ export async function GET(
     });
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[CARPOOL] list error:', error);
+    reportRouteError('[CARPOOL] list error:', error);
     return NextResponse.json({ error: 'Could not load carpools' }, { status: 500 });
   }
 }
@@ -139,13 +140,13 @@ export async function POST(
         }
       }
     } catch (notifyError) {
-      console.error('[CARPOOL] offer fan-out failed:', notifyError);
+      reportRouteError('[CARPOOL] offer fan-out failed:', notifyError);
     }
 
     return NextResponse.json({ ok: true, id: offer?.id }, { status: 201 });
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[CARPOOL] offer error:', error);
+    reportRouteError('[CARPOOL] offer error:', error);
     return NextResponse.json({ error: 'Could not offer seats' }, { status: 500 });
   }
 }
@@ -187,12 +188,12 @@ export async function DELETE(
         });
       }
     } catch (notifyError) {
-      console.error('[CARPOOL] cancel fan-out failed:', notifyError);
+      reportRouteError('[CARPOOL] cancel fan-out failed:', notifyError);
     }
     return NextResponse.json({ ok: true });
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[CARPOOL] delete error:', error);
+    reportRouteError('[CARPOOL] delete error:', error);
     return NextResponse.json({ error: 'Could not remove the offer' }, { status: 500 });
   }
 }

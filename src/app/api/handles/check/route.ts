@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin, requireAuth } from '@/lib/auth-server';
 import { enforceRateLimit } from '@/lib/rate-limit';
+import { reportRouteError } from '@/lib/observability/report';
 
 export async function GET(request: NextRequest) {
   try {
@@ -37,7 +38,7 @@ export async function GET(request: NextRequest) {
       });
 
     if (error) {
-      console.error('Error checking handle availability:', error);
+      reportRouteError('Error checking handle availability:', error);
       return NextResponse.json(
         { error: 'Failed to check handle availability' },
         { status: 500 }
@@ -62,7 +63,7 @@ export async function GET(request: NextRequest) {
       suggestions: result.suggestions || []
     });
   } catch (error) {
-    console.error('Error in GET /api/handles/check:', error);
+    reportRouteError('Error in GET /api/handles/check:', error);
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }

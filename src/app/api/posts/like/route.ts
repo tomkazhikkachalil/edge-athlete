@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { isUuid } from '@/lib/uuid';
 import { getSupabaseAdmin, requireAuth } from '@/lib/auth-server';
 import { enforceRateLimit } from '@/lib/rate-limit';
+import { reportRouteError } from '@/lib/observability/report';
 
 export async function POST(request: NextRequest) {
   try {
@@ -64,7 +65,7 @@ export async function POST(request: NextRequest) {
 
     if (checkError && checkError.code !== 'PGRST116') {
       // PGRST116 means no rows found, which is expected if not liked yet
-      console.error('Error checking like status:', checkError);
+      reportRouteError('Error checking like status:', checkError);
       return NextResponse.json({ error: 'Failed to check like status' }, { status: 500 });
     }
 
@@ -77,7 +78,7 @@ export async function POST(request: NextRequest) {
         .eq('profile_id', profileId);
 
       if (deleteError) {
-        console.error('Error unliking post:', deleteError);
+        reportRouteError('Error unliking post:', deleteError);
         return NextResponse.json({ error: 'Failed to unlike post' }, { status: 500 });
       }
 
@@ -105,7 +106,7 @@ export async function POST(request: NextRequest) {
         });
 
       if (insertError) {
-        console.error('Error liking post:', insertError);
+        reportRouteError('Error liking post:', insertError);
 
         // Handle unique constraint violation (23505 is PostgreSQL's duplicate key error)
         if (insertError.code === '23505' || insertError.message?.includes('duplicate')) {
@@ -143,7 +144,7 @@ export async function POST(request: NextRequest) {
 
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('Error processing like request:', error);
+    reportRouteError('Error processing like request:', error);
     return NextResponse.json({ error: 'Failed to process like request' }, { status: 500 });
   }
 }

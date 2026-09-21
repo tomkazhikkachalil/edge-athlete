@@ -16,6 +16,7 @@ import { hasEventScope, resolveEventScope } from '@/lib/calendar/event-scope';
 import { checkSupervisedInviteGate } from '@/lib/calendar/supervised-invites';
 import { buildRoutineSnapshot, resolveEventRoutine } from '@/lib/calendar/event-routine';
 import type { ServerRoutineRow } from '@/lib/workouts/routines';
+import { reportRouteError } from '@/lib/observability/report';
 
 // ── /api/calendar/events/[id] ─────────────────────────────────────────────────
 // GET   → full detail (event + guest list + series rule when recurring).
@@ -146,7 +147,7 @@ export async function GET(
     });
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[CALENDAR] detail error:', error);
+    reportRouteError('[CALENDAR] detail error:', error);
     return NextResponse.json({ error: 'Could not load the event' }, { status: 500 });
   }
 }
@@ -182,7 +183,7 @@ export async function PATCH(
           .update({ status: 'active', cancelled_at: null })
           .eq('id', event.id);
         if (restoreError) {
-          console.error('[CALENDAR] restore failed:', restoreError);
+          reportRouteError('[CALENDAR] restore failed:', restoreError);
           return NextResponse.json(
             { error: 'Could not restore the event. Please try again.' },
             { status: 500 }
@@ -406,7 +407,7 @@ export async function PATCH(
           .update({ ...baseFields, ...times })
           .eq('id', target.id);
         if (error) {
-          console.error('[CALENDAR] scoped time update failed:', error);
+          reportRouteError('[CALENDAR] scoped time update failed:', error);
           return NextResponse.json({ error: 'Could not save the event. Please try again.' }, { status: 500 });
         }
       }
@@ -426,7 +427,7 @@ export async function PATCH(
         .update(payload)
         .in('id', fieldTargets.map(t => t.id));
       if (error) {
-        console.error('[CALENDAR] event update failed:', error);
+        reportRouteError('[CALENDAR] event update failed:', error);
         return NextResponse.json({ error: 'Could not save the event. Please try again.' }, { status: 500 });
       }
     }
@@ -444,7 +445,7 @@ export async function PATCH(
         del = del.in('invited_email', removedEmails);
       }
       const { error } = await del;
-      if (error) console.error('[CALENDAR] guest removal failed:', error);
+      if (error) reportRouteError('[CALENDAR] guest removal failed:', error);
     }
     if (addProfileIds.length > 0 || addEmails.length > 0) {
       // Idempotent adds: skip occurrences where the identity already exists.
@@ -466,7 +467,7 @@ export async function PATCH(
       if (rows.length > 0) {
         const { error } = await admin.from('event_guests').insert(rows);
         if (error) {
-          console.error('[CALENDAR] guest add failed:', error);
+          reportRouteError('[CALENDAR] guest add failed:', error);
           return NextResponse.json({ error: 'The event was saved but some guests could not be added.' }, { status: 500 });
         }
       }
@@ -506,7 +507,7 @@ export async function PATCH(
             description: validated.event.description,
           }, appUrl);
         } catch (e) {
-          console.error('[CALENDAR] invite email failed:', e);
+          reportRouteError('[CALENDAR] invite email failed:', e);
         }
       }
     }
@@ -515,7 +516,7 @@ export async function PATCH(
     return NextResponse.json({ event: await fullDetail(admin, fresh!) });
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[CALENDAR] update error:', error);
+    reportRouteError('[CALENDAR] update error:', error);
     Sentry.captureException(error, { tags: { area: 'calendar' } });
     return NextResponse.json({ error: 'An unexpected error occurred' }, { status: 500 });
   }
@@ -564,7 +565,7 @@ export async function DELETE(
       .update({ status: 'cancelled', cancelled_at: new Date().toISOString() })
       .in('id', cancelIds);
     if (cancelError) {
-      console.error('[CALENDAR] cancel failed:', cancelError);
+      reportRouteError('[CALENDAR] cancel failed:', cancelError);
       return NextResponse.json({ error: 'Could not cancel the event. Please try again.' }, { status: 500 });
     }
 
@@ -587,7 +588,7 @@ export async function DELETE(
         .from('event_series')
         .update({ ends: 'until', until_at: untilAt })
         .eq('id', event.series_id);
-      if (error) console.error('[CALENDAR] series stop failed:', error);
+      if (error) reportRouteError('[CALENDAR] series stop failed:', error);
     }
 
     // ── Fan-out: ONE notification per distinct non-declined registered guest,
@@ -651,7 +652,7 @@ export async function DELETE(
         try {
           await emailService.sendEventCancelled(email, { organizerName, title: event.title, whenText }, appUrl);
         } catch (e) {
-          console.error('[CALENDAR] cancel email failed:', e);
+          reportRouteError('[CALENDAR] cancel email failed:', e);
         }
       }
     }
@@ -663,7 +664,7 @@ export async function DELETE(
     });
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[CALENDAR] cancel error:', error);
+    reportRouteError('[CALENDAR] cancel error:', error);
     Sentry.captureException(error, { tags: { area: 'calendar' } });
     return NextResponse.json({ error: 'An unexpected error occurred' }, { status: 500 });
   }

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerClient, getSupabaseAdmin } from '@/lib/auth-server';
 import { enforceRateLimit } from '@/lib/rate-limit';
 import { MIN_PASSWORD_LENGTH } from '@/lib/supervised-credentials';
+import { reportRouteError } from '@/lib/observability/report';
 
 // ── POST /api/auth/change-password ────────────────────────────────────────────
 // Round I: password changes move server-side (SecuritySettings used to call
@@ -56,7 +57,7 @@ export async function POST(request: NextRequest) {
       password: newPassword,
     });
     if (updateError) {
-      console.error('[CHANGE-PASSWORD] update failed:', updateError);
+      reportRouteError('[CHANGE-PASSWORD] update failed:', updateError);
       return NextResponse.json({ error: 'Could not update your password.' }, { status: 500 });
     }
 
@@ -80,7 +81,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: true });
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[CHANGE-PASSWORD] error:', error);
+    reportRouteError('[CHANGE-PASSWORD] error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

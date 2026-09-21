@@ -4,6 +4,7 @@ import { getServerAuth, getSupabaseAdmin } from '@/lib/auth-server';
 import { toProxyUrl } from '@/lib/media/proxy-url';
 import { deleteRoundCascade } from '@/lib/golf/round-delete-server';
 import { mirrorCompletedRound, mirrorRoundMedia } from '@/lib/golf/round-mirror';
+import { reportRouteError } from '@/lib/observability/report';
 
 /**
  * GET /api/group-posts/[id]
@@ -80,7 +81,7 @@ export async function GET(
       if (fetchError.code === 'PGRST116') {
         return NextResponse.json({ error: 'Group post not found' }, { status: 404 });
       }
-      console.error('Error fetching group post:', fetchError);
+      reportRouteError('Error fetching group post:', fetchError);
       return NextResponse.json({ error: 'Failed to fetch group post' }, { status: 500 });
     }
 
@@ -95,7 +96,7 @@ export async function GET(
     }
     return NextResponse.json({ group_post: groupPost });
   } catch (error) {
-    console.error('Unexpected error in GET /api/group-posts/[id]:', error);
+    reportRouteError('Unexpected error in GET /api/group-posts/[id]:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
@@ -199,7 +200,7 @@ export async function PATCH(
       .single();
 
     if (updateError) {
-      console.error('Error updating group post:', updateError);
+      reportRouteError('Error updating group post:', updateError);
       return NextResponse.json({ error: 'Failed to update group post' }, { status: 500 });
     }
 
@@ -220,7 +221,7 @@ export async function PATCH(
           .update({ created_at: new Date().toISOString() })
           .eq('group_post_id', id);
         if (bumpError) {
-          console.error('End Round: post timestamp bump failed:', bumpError);
+          reportRouteError('End Round: post timestamp bump failed:', bumpError);
         }
       }
     }
@@ -230,7 +231,7 @@ export async function PATCH(
       message: 'Group post updated successfully',
     });
   } catch (error) {
-    console.error('Unexpected error in PATCH /api/group-posts/[id]:', error);
+    reportRouteError('Unexpected error in PATCH /api/group-posts/[id]:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
@@ -275,7 +276,7 @@ export async function DELETE(
         return NextResponse.json({ error: result.message }, { status: 500 }); // hardening-ok: crafted strings, see round-delete-server.ts
     }
   } catch (error) {
-    console.error('Unexpected error in DELETE /api/group-posts/[id]:', error);
+    reportRouteError('Unexpected error in DELETE /api/group-posts/[id]:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

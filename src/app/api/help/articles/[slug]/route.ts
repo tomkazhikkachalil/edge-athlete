@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/auth-server';
 import { readPublishedBySlug } from '@/lib/help/server';
+import { reportRouteError } from '@/lib/observability/report';
 
 /** GET /api/help/articles/[slug] — one published article with its body. PUBLIC, CDN-cached; a draft or an unknown slug is a 404. */
 export async function GET(_request: NextRequest, { params }: { params: Promise<{ slug: string }> }) {
@@ -11,7 +12,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
     if (!article) return NextResponse.json({ error: 'Not found' }, { status: 404, headers: { 'Cache-Control': 'public, s-maxage=60' } });
     return NextResponse.json({ article }, { headers: { 'Cache-Control': 'public, s-maxage=60, stale-while-revalidate=300' } });
   } catch (error) {
-    console.error('[GET /api/help/articles/[slug]]', error);
+    reportRouteError('[GET /api/help/articles/[slug]]', error);
     return NextResponse.json({ error: 'Could not load the article' }, { status: 500, headers: { 'Cache-Control': 'no-store' } });
   }
 }

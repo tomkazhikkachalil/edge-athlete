@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin, getSupabaseAdmin } from '@/lib/auth-server';
 import { parseBody } from '@/lib/validation';
 import { VenueCreateSchema, placeToVenueColumns, isMissingTableError } from '@/lib/venues/validate';
+import { reportRouteError } from '@/lib/observability/report';
 
 // ── /api/admin/venues — venue + facility curation (0.4, admin-only v1) ──────
 // Orphan venues are the v1 create shape (Tom, Aug 30): the owning-org pair
@@ -38,7 +39,7 @@ export async function POST(request: NextRequest) {
       .select()
       .single();
     if (error || !venue) {
-      console.error('[ADMIN VENUES] insert error:', error);
+      reportRouteError('[ADMIN VENUES] insert error:', error);
       return NextResponse.json({ error: 'Failed to create venue' }, { status: 500 });
     }
 
@@ -50,7 +51,7 @@ export async function POST(request: NextRequest) {
         .select();
       if (facilityError) {
         // No PostgREST transaction: keep the venue, report the partial state.
-        console.error('[ADMIN VENUES] facilities insert error:', facilityError);
+        reportRouteError('[ADMIN VENUES] facilities insert error:', facilityError);
         return NextResponse.json(
           { error: 'Venue created but facilities failed — add them individually' },
           { status: 500 }
@@ -62,7 +63,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ venue: { ...venue, facilities: facilityRows } });
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[ADMIN VENUES] POST error:', error);
+    reportRouteError('[ADMIN VENUES] POST error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
@@ -81,7 +82,7 @@ export async function GET(request: NextRequest) {
     if (error) {
       // Pre-141 database: an empty console, not a broken one.
       if (isMissingTableError(error.code)) return NextResponse.json({ venues: [] });
-      console.error('[ADMIN VENUES] list error:', error);
+      reportRouteError('[ADMIN VENUES] list error:', error);
       return NextResponse.json({ error: 'Failed to list venues' }, { status: 500 });
     }
 
@@ -114,7 +115,7 @@ export async function GET(request: NextRequest) {
     });
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[ADMIN VENUES] GET error:', error);
+    reportRouteError('[ADMIN VENUES] GET error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

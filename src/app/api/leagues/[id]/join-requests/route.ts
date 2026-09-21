@@ -5,6 +5,7 @@ import { LeagueJoinDecisionSchema } from '@/lib/leagues/validate';
 import { capabilityAllows, getOrgAndCapabilities } from '@/lib/orgs/authz';
 import { decideJoinRequest, listJoinRequests } from '@/lib/orgs/join-requests-server';
 import { UUID_RE } from '@/lib/golf/course-catalog';
+import { reportRouteError } from '@/lib/observability/report';
 
 // ── /api/leagues/[id]/join-requests — the approval queue (program 11 L1) ───
 // The league twin of /api/clubs/[id]/join-requests: GET the queue; PATCH
@@ -32,7 +33,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     return await listJoinRequests(g.admin, 'league', g.league.id);
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[LEAGUE JOIN REQUESTS] GET error:', error);
+    reportRouteError('[LEAGUE JOIN REQUESTS] GET error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
@@ -46,7 +47,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     return await decideJoinRequest(g.admin, 'league', g.league, parsed.data.requestId, parsed.data.decision);
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[LEAGUE JOIN REQUESTS] PATCH error:', error);
+    reportRouteError('[LEAGUE JOIN REQUESTS] PATCH error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

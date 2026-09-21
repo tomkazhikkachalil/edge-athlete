@@ -4,6 +4,7 @@ import { parseBody } from '@/lib/validation';
 import { ContestCreateSchema, ContestPatchSchema } from '@/lib/competitions/validate';
 import { contestCreatePOST, contestDELETE, contestPATCH } from '@/lib/orgs/competition-server';
 import { UUID_RE } from '@/lib/golf/course-catalog';
+import { reportRouteError } from '@/lib/observability/report';
 
 // ── /api/admin/competitions/contests — thin wrappers, scope null ────────────
 
@@ -15,7 +16,7 @@ export async function POST(request: NextRequest) {
     return await contestCreatePOST(getSupabaseAdmin(), parsed.data, null);
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[ADMIN COMPETITIONS] contests POST error:', error);
+    reportRouteError('[ADMIN COMPETITIONS] contests POST error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
@@ -28,7 +29,7 @@ export async function PATCH(request: NextRequest) {
     return await contestPATCH(getSupabaseAdmin(), parsed.data, null);
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[ADMIN COMPETITIONS] contests PATCH error:', error);
+    reportRouteError('[ADMIN COMPETITIONS] contests PATCH error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
@@ -44,7 +45,7 @@ export async function DELETE(request: NextRequest) {
     return await contestDELETE(getSupabaseAdmin(), id, null);
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[ADMIN COMPETITIONS] contests DELETE error:', error);
+    reportRouteError('[ADMIN COMPETITIONS] contests DELETE error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

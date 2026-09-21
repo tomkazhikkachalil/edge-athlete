@@ -3,6 +3,7 @@ import { getServerAuth, getSupabaseAdmin } from '@/lib/auth-server';
 import { enforceRateLimit } from '@/lib/rate-limit';
 import { orgGalleryGET } from '@/lib/org-sites/app-gallery-server';
 import { UUID_RE } from '@/lib/golf/course-catalog';
+import { reportRouteError } from '@/lib/observability/report';
 
 // ── /api/clubs/[id]/gallery — the in-app Photos bubble (Org Pages R4) ──
 // Anonymous-tolerant for a public org (the public site shows the same
@@ -24,7 +25,7 @@ export async function GET(
     return await orgGalleryGET(getSupabaseAdmin(), 'club', id, user?.id ?? null);
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[ORG GALLERY] GET error:', error);
+    reportRouteError('[ORG GALLERY] GET error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

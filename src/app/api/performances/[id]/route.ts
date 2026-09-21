@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { isUuid } from '@/lib/uuid';
 import { requireAuth, getSupabaseAdmin } from '@/lib/auth-server';
+import { reportRouteError } from '@/lib/observability/report';
 
 export async function DELETE(
   request: NextRequest,
@@ -42,7 +43,7 @@ export async function DELETE(
       .eq('profile_id', user.id);
 
     if (error) {
-      console.error('Performance delete error:', error);
+      reportRouteError('Performance delete error:', error);
       return NextResponse.json({ error: 'Failed to delete performance' }, { status: 500 });
     }
 
@@ -53,7 +54,7 @@ export async function DELETE(
 
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('Performance delete error:', error);
+    reportRouteError('Performance delete error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

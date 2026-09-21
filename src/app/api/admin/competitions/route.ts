@@ -11,6 +11,7 @@ import {
 import { isSportEnabled } from '@/lib/features';
 import type { SportKey } from '@/lib/sports/SportRegistry';
 import { UUID_RE } from '@/lib/golf/course-catalog';
+import { reportRouteError } from '@/lib/observability/report';
 
 // ── /api/admin/competitions — thin wrappers over competition-server ─────────
 // (Sport gate stays in the route — the 113 convention; validate.ts is
@@ -29,7 +30,7 @@ export async function GET(request: NextRequest) {
     return await competitionsAggregateGET(getSupabaseAdmin(), { side, orgId });
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[ADMIN COMPETITIONS] GET error:', error);
+    reportRouteError('[ADMIN COMPETITIONS] GET error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
@@ -46,7 +47,7 @@ export async function POST(request: NextRequest) {
     return await competitionCreatePOST(getSupabaseAdmin(), { side, orgId }, parsed.data);
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[ADMIN COMPETITIONS] POST error:', error);
+    reportRouteError('[ADMIN COMPETITIONS] POST error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
@@ -59,7 +60,7 @@ export async function PATCH(request: NextRequest) {
     return await competitionPATCH(getSupabaseAdmin(), parsed.data, null);
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[ADMIN COMPETITIONS] PATCH error:', error);
+    reportRouteError('[ADMIN COMPETITIONS] PATCH error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
@@ -75,7 +76,7 @@ export async function DELETE(request: NextRequest) {
     return await competitionDELETE(getSupabaseAdmin(), id, null);
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[ADMIN COMPETITIONS] DELETE error:', error);
+    reportRouteError('[ADMIN COMPETITIONS] DELETE error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

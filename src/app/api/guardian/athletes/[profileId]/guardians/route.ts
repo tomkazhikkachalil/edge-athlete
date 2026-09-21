@@ -5,6 +5,7 @@ import { FEATURE_FLAGS } from '@/lib/features';
 import { createGuardianInvite } from '@/lib/guardian-invites';
 import { emailService } from '@/lib/email-service';
 import { enforceRateLimit } from '@/lib/rate-limit';
+import { reportRouteError } from '@/lib/observability/report';
 
 // ── /api/guardian/athletes/[profileId]/guardians ──────────────────────────────
 // The co-guardian lifecycle, guardian-facing (previously admin-only): list
@@ -91,7 +92,7 @@ export async function GET(
     });
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[CO-GUARDIANS] list error:', error);
+    reportRouteError('[CO-GUARDIANS] list error:', error);
     return NextResponse.json({ error: 'Could not load guardians' }, { status: 500 });
   }
 }
@@ -162,7 +163,7 @@ export async function POST(
     return NextResponse.json({ ok: true, inviteUrl, emailSent, role: grantRole });
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[CO-GUARDIANS] invite error:', error);
+    reportRouteError('[CO-GUARDIANS] invite error:', error);
     Sentry.captureException(error, { tags: { area: 'co-guardians' } });
     return NextResponse.json({ error: 'An unexpected error occurred' }, { status: 500 });
   }
@@ -232,7 +233,7 @@ export async function DELETE(
       actor_id: user.id,
     });
     if (auditError) {
-      console.error('[CO-GUARDIANS] revoke audit insert failed:', auditError);
+      reportRouteError('[CO-GUARDIANS] revoke audit insert failed:', auditError);
     }
 
     const { error: deleteError, count } = await admin
@@ -242,14 +243,14 @@ export async function DELETE(
       .eq('user_id', guardianUserId)
       .eq('role', target.role);
     if (deleteError || !count) {
-      console.error('[CO-GUARDIANS] revoke delete failed:', deleteError);
+      reportRouteError('[CO-GUARDIANS] revoke delete failed:', deleteError);
       return NextResponse.json({ error: 'Could not remove the guardian. Please try again.' }, { status: 500 });
     }
 
     return NextResponse.json({ ok: true });
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[CO-GUARDIANS] revoke error:', error);
+    reportRouteError('[CO-GUARDIANS] revoke error:', error);
     Sentry.captureException(error, { tags: { area: 'co-guardians' } });
     return NextResponse.json({ error: 'An unexpected error occurred' }, { status: 500 });
   }

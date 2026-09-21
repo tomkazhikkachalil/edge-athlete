@@ -4,6 +4,7 @@ import { FEATURE_FLAGS } from '@/lib/features';
 import { UUID_RE } from '@/lib/uuid';
 import { agePresetChanges, parseHouseholdPolicy } from '@/lib/household-policy';
 import { applySafetyPatch, type SafetyPatch } from '@/lib/safety-settings';
+import { reportRouteError } from '@/lib/observability/report';
 
 // ── POST /api/guardian/age-preset ────────────────────────────────────────────
 // The guardian's decision on an age-crossing prompt (Wave 4, mig 133).
@@ -101,7 +102,7 @@ export async function POST(request: NextRequest) {
     });
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[GUARDIAN] age-preset decision error:', error);
+    reportRouteError('[GUARDIAN] age-preset decision error:', error);
     return NextResponse.json({ error: 'Could not record the decision' }, { status: 500 });
   }
 }

@@ -4,6 +4,7 @@ import { requireAuth, getSupabaseAdmin } from '@/lib/auth-server';
 import { aspectHidden } from '@/lib/vitals-privacy';
 import { fetchVitalsPrivacy } from '@/lib/vitals-privacy-server';
 import { toProxyUrl } from '@/lib/media/proxy-url';
+import { reportRouteError } from '@/lib/observability/report';
 
 const SESSION_SELECT = `
   *,
@@ -106,7 +107,7 @@ export async function GET(
     return NextResponse.json({ session });
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('GET /api/workouts/[id] error:', error);
+    reportRouteError('GET /api/workouts/[id] error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
@@ -199,14 +200,14 @@ export async function PATCH(
       .single();
 
     if (updateError) {
-      console.error('Error updating workout:', updateError);
+      reportRouteError('Error updating workout:', updateError);
       return NextResponse.json({ error: 'Failed to update workout' }, { status: 500 });
     }
 
     return NextResponse.json({ session: updated });
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('PATCH /api/workouts/[id] error:', error);
+    reportRouteError('PATCH /api/workouts/[id] error:', error);
     return NextResponse.json({ error: 'Failed to update workout' }, { status: 500 });
   }
 }
@@ -246,14 +247,14 @@ export async function DELETE(
       .eq('id', id);
 
     if (deleteError) {
-      console.error('Error deleting workout:', deleteError);
+      reportRouteError('Error deleting workout:', deleteError);
       return NextResponse.json({ error: 'Failed to delete workout' }, { status: 500 });
     }
 
     return NextResponse.json({ success: true });
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('DELETE /api/workouts/[id] error:', error);
+    reportRouteError('DELETE /api/workouts/[id] error:', error);
     return NextResponse.json({ error: 'Failed to delete workout' }, { status: 500 });
   }
 }

@@ -4,6 +4,7 @@ import { statsGET } from '@/lib/org-sites/analytics-server';
 import { statsRange } from '@/lib/org-sites/analytics-rollup';
 import { requireOrgManager } from '@/lib/orgs/structure-server';
 import { UUID_RE } from '@/lib/golf/course-catalog';
+import { reportRouteError } from '@/lib/observability/report';
 
 // ── /api/leagues/[id]/site/stats?days=7|30|90 — the site's visitors (program 2, E2)
 // manage_site gates it (the same as the editor).
@@ -19,7 +20,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     return await statsGET(admin, 'league', id, statsRange(request.nextUrl.searchParams.get('days')));
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[SITE ANALYTICS] league GET error:', error);
+    reportRouteError('[SITE ANALYTICS] league GET error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

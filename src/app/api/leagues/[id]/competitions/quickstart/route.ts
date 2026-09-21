@@ -6,6 +6,7 @@ import { GolfQuickstartSchema } from '@/lib/competitions/validate';
 import { requireCompetitionManager } from '@/lib/orgs/competition-server';
 import { golfQuickstartPOST } from '@/lib/orgs/golf-quickstart-server';
 import { UUID_RE } from '@/lib/golf/course-catalog';
+import { reportRouteError } from '@/lib/observability/report';
 
 // ── /api/leagues/[id]/competitions/quickstart (Onboarding v2 R4) ────────────
 // "Start our season": one POST composes the implicit season, a golf
@@ -36,7 +37,7 @@ export async function POST(
     return await golfQuickstartPOST(admin, user, { side: 'league', orgId: id }, parsed.data);
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[COMPETITIONS] league quickstart POST error:', error);
+    reportRouteError('[COMPETITIONS] league quickstart POST error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

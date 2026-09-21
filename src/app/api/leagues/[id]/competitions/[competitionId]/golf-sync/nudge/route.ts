@@ -4,6 +4,7 @@ import { enforceRateLimit } from '@/lib/rate-limit';
 import { nudgeGolfContest } from '@/lib/competitions/golf-league-server';
 import { requireCompetitionManager } from '@/lib/orgs/competition-server';
 import { UUID_RE } from '@/lib/golf/course-catalog';
+import { reportRouteError } from '@/lib/observability/report';
 
 // ── /api/leagues/[id]/competitions/[competitionId]/golf-sync/nudge (phase 8 P5) ──
 // "Send a reminder": one bell to every entrant with no round on file for
@@ -42,7 +43,7 @@ export async function POST(
     return await nudgeGolfContest(admin, body.contestId);
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[GOLF LEAGUE] league nudge error:', error);
+    reportRouteError('[GOLF LEAGUE] league nudge error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

@@ -5,6 +5,7 @@ import { enforceRateLimit } from '@/lib/rate-limit';
 import { readSportEventAccess } from '@/lib/sport-events/access-server';
 import { bodyProfileId, readJson, resolveActor } from '@/lib/sport-events/actor-server';
 import { mintLinkToken } from '@/lib/sport-events/link-token';
+import { reportRouteError } from '@/lib/observability/report';
 
 /** POST — rotate a link event's token (the host only). Every old link stops working. */
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -25,12 +26,12 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const link_token = mintLinkToken();
     const { error } = await admin.from('sport_events').update({ link_token }).eq('id', id);
     if (error) {
-      console.error('[api/sport-events/link-token] rotate failed:', error);
+      reportRouteError('[api/sport-events/link-token] rotate failed:', error);
       return NextResponse.json({ error: 'Could not rotate the link' }, { status: 500 });
     }
     return NextResponse.json({ link_token }, { headers: { 'Cache-Control': 'private, no-store' } });
   } catch (error) {
-    console.error('[api/sport-events/link-token] POST error:', error);
+    reportRouteError('[api/sport-events/link-token] POST error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

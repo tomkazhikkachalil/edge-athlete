@@ -3,6 +3,7 @@ import { getServerClient, getSupabaseAdmin } from '@/lib/auth-server';
 import { parkAccount, PARK_WINDOW_DAYS } from '@/lib/account-park';
 import { formatDisplayName } from '@/lib/formatters';
 import { enforceRateLimit } from '@/lib/rate-limit';
+import { reportRouteError } from '@/lib/observability/report';
 
 export async function DELETE(request: NextRequest) {
   try {
@@ -42,7 +43,7 @@ export async function DELETE(request: NextRequest) {
     });
 
     if (signInError) {
-      console.error('Password verification failed:', signInError);
+      reportRouteError('Password verification failed:', signInError);
       return NextResponse.json({ error: 'Invalid password' }, { status: 401 });
     }
 
@@ -124,7 +125,7 @@ export async function DELETE(request: NextRequest) {
           .from('profile_access_audit')
           .insert(audit);
         if (auditError) {
-          console.error('[Account Deletion] guardian audit insert failed:', auditError);
+          reportRouteError('[Account Deletion] guardian audit insert failed:', auditError);
         }
       }
     }
@@ -137,7 +138,7 @@ export async function DELETE(request: NextRequest) {
     try {
       await parkAccount(supabaseAdmin, userId, userId);
     } catch (dbError) {
-      console.error('[Account Deletion] park error:', dbError);
+      reportRouteError('[Account Deletion] park error:', dbError);
       return NextResponse.json({ error: 'Failed to delete account data' }, { status: 500 });
     }
 
@@ -150,7 +151,7 @@ export async function DELETE(request: NextRequest) {
     });
 
   } catch (error) {
-    console.error('[Account Deletion] Unexpected error:', error);
+    reportRouteError('[Account Deletion] Unexpected error:', error);
     return NextResponse.json({ error: 'Internal server error during account deletion' }, { status: 500 });
   }
 }

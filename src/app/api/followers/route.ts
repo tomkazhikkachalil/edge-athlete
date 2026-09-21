@@ -3,6 +3,7 @@ import { requireAuth, requireProfileRole, getSupabaseAdmin } from '@/lib/auth-se
 import { isUuid } from '@/lib/uuid';
 import { canViewProfile } from '@/lib/privacy';
 import { notifyGuardians, notifyUser, profileFirstName } from '@/lib/guardian-notify';
+import { reportRouteError } from '@/lib/observability/report';
 
 export async function GET(request: NextRequest) {
 
@@ -69,7 +70,7 @@ export async function GET(request: NextRequest) {
         .range(offset, offset + limit - 1);
 
       if (error) {
-        console.error('[FOLLOWERS API] Error fetching followers:', error);
+        reportRouteError('[FOLLOWERS API] Error fetching followers:', error);
         return NextResponse.json({ error: 'Failed to fetch followers' }, { status: 500 });
       }
 
@@ -115,7 +116,7 @@ export async function GET(request: NextRequest) {
         .range(offset, offset + limit - 1);
 
       if (error) {
-        console.error('[FOLLOWERS API] Error fetching following:', error);
+        reportRouteError('[FOLLOWERS API] Error fetching following:', error);
         return NextResponse.json({ error: 'Failed to fetch following' }, { status: 500 });
       }
 
@@ -142,7 +143,7 @@ export async function GET(request: NextRequest) {
         .order('created_at', { ascending: false });
 
       if (followError) {
-        console.error('[FOLLOWERS API] Error fetching follow requests:', followError);
+        reportRouteError('[FOLLOWERS API] Error fetching follow requests:', followError);
         return NextResponse.json({ error: 'Failed to fetch follow requests' }, { status: 500 });
       }
 
@@ -160,7 +161,7 @@ export async function GET(request: NextRequest) {
         .in('id', followerIds);
 
       if (profileError) {
-        console.error('[FOLLOWERS API] Error fetching profiles:', profileError);
+        reportRouteError('[FOLLOWERS API] Error fetching profiles:', profileError);
         return NextResponse.json({ error: 'Failed to fetch follow requests' }, { status: 500 });
       }
 
@@ -189,7 +190,7 @@ export async function GET(request: NextRequest) {
 
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[FOLLOWERS API] Catch error:', error);
+    reportRouteError('[FOLLOWERS API] Catch error:', error);
     return NextResponse.json({ error: 'Failed to fetch followers' }, { status: 500 });
   }
 }
@@ -243,7 +244,7 @@ export async function POST(request: NextRequest) {
         .select('follower_id');
 
       if (error) {
-        console.error('[FOLLOWERS API] Error accepting follow request:', error);
+        reportRouteError('[FOLLOWERS API] Error accepting follow request:', error);
         return NextResponse.json({ error: 'Failed to accept follow request' }, { status: 500 });
       }
 
@@ -297,7 +298,7 @@ export async function POST(request: NextRequest) {
         .select(); // Return deleted rows for verification
 
       if (error) {
-        console.error('[FOLLOWERS API] Error deleting follow request:', error);
+        reportRouteError('[FOLLOWERS API] Error deleting follow request:', error);
         return NextResponse.json({ error: 'Failed to reject follow request' }, { status: 500 });
       }
 
@@ -319,7 +320,7 @@ export async function POST(request: NextRequest) {
 
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('Follow action error:', error);
+    reportRouteError('Follow action error:', error);
     return NextResponse.json({ error: 'Failed to process follow action' }, { status: 500 });
   }
 }

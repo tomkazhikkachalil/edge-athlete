@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth, getSupabaseAdmin } from '@/lib/auth-server';
 import { hiddenAuthorsFor } from '@/lib/mutes';
+import { reportRouteError } from '@/lib/observability/report';
 
 export async function GET(request: NextRequest) {
   try {
@@ -62,7 +63,7 @@ export async function GET(request: NextRequest) {
     const { data: notifications, error } = await query;
 
     if (error) {
-      console.error('[NOTIFICATIONS API] Error fetching notifications:', error);
+      reportRouteError('[NOTIFICATIONS API] Error fetching notifications:', error);
       return NextResponse.json({ error: 'Failed to fetch notifications' }, { status: 500 });
     }
 
@@ -98,7 +99,7 @@ export async function GET(request: NextRequest) {
 
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[NOTIFICATIONS API] Error:', error);
+    reportRouteError('[NOTIFICATIONS API] Error:', error);
     return NextResponse.json(
       { error: 'Failed to fetch notifications' },
       { status: 500 }
@@ -121,7 +122,7 @@ export async function DELETE(request: NextRequest) {
         .eq('user_id', user.id);
 
       if (error) {
-        console.error('[NOTIFICATIONS API] Error clearing all:', error);
+        reportRouteError('[NOTIFICATIONS API] Error clearing all:', error);
         return NextResponse.json({ error: 'Failed to delete notifications' }, { status: 500 });
       }
 
@@ -135,7 +136,7 @@ export async function DELETE(request: NextRequest) {
 
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[NOTIFICATIONS API] Error:', error);
+    reportRouteError('[NOTIFICATIONS API] Error:', error);
     return NextResponse.json(
       { error: 'Failed to delete notifications' },
       { status: 500 }

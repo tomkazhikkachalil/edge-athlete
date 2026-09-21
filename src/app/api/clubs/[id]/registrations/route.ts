@@ -10,6 +10,7 @@ import {
   requireRegistrar,
 } from '@/lib/orgs/registration-server';
 import { UUID_RE } from '@/lib/golf/course-catalog';
+import { reportRouteError } from '@/lib/observability/report';
 
 // ── /api/clubs/[id]/registrations (phase 5 R2) ────────────────────────────
 // POST = the family submit (flag-gated SURFACE; every safety check in the
@@ -51,7 +52,7 @@ export async function POST(
     );
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[REGISTRATION] club POST error:', error);
+    reportRouteError('[REGISTRATION] club POST error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
@@ -78,7 +79,7 @@ export async function GET(
     );
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[REGISTRATION] club GET error:', error);
+    reportRouteError('[REGISTRATION] club GET error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

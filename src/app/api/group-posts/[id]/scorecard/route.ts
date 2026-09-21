@@ -4,6 +4,7 @@ import { UUID_RE } from '@/lib/uuid';
 import { getServerAuth, getSupabaseAdmin } from '@/lib/auth-server';
 import { GROUP_SCORECARD_SELECT, transformGroupPostToScorecard } from '@/lib/golf/scorecard-transform';
 import { canViewSharedRound } from '@/lib/golf/round-access';
+import { reportRouteError } from '@/lib/observability/report';
 
 /**
  * GET /api/group-posts/[id]/scorecard
@@ -85,7 +86,7 @@ export async function GET(
     const sport_event = roundId ? await readScorecardEventContext(getSupabaseAdmin(), roundId, viewerId) : null;
     return NextResponse.json({ scorecard: { ...scorecard, sport_event } });
   } catch (e) {
-    console.error('Unexpected error in GET /api/group-posts/[id]/scorecard:', e);
+    reportRouteError('Unexpected error in GET /api/group-posts/[id]/scorecard:', e);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

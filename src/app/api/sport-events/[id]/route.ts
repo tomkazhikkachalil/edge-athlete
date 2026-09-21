@@ -16,6 +16,7 @@ import { parseEventPatch } from '@/lib/sport-events/validate';
 import { fetchSportEventView } from '@/lib/sport-events/view-server';
 import { eventShape } from '@/lib/sport-events/contest-link';
 import { readCountsTowardAll } from '@/lib/sport-events/contest-link-server';
+import { reportRouteError } from '@/lib/observability/report';
 
 const NOT_FOUND = () => NextResponse.json({ error: 'Event not found' }, { status: 404, headers: { 'Cache-Control': 'no-store' } });
 
@@ -61,7 +62,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     if (!view) return NOT_FOUND();
     return NextResponse.json(view, { headers: { 'Cache-Control': 'private, no-store' } });
   } catch (error) {
-    console.error('[api/sport-events/[id]] GET error:', error);
+    reportRouteError('[api/sport-events/[id]] GET error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
@@ -133,7 +134,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
     const { data: updated, error: updateError } = await admin.from('sport_events').update(update).eq('id', id).select(EVENT_COLUMNS).single();
     if (updateError || !updated) {
-      console.error('[api/sport-events/[id]] update failed:', updateError);
+      reportRouteError('[api/sport-events/[id]] update failed:', updateError);
       return NextResponse.json({ error: 'Could not update the event' }, { status: 500 });
     }
     const row = updated as SportEventRow;
@@ -144,7 +145,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     const view = await fetchSportEventView(admin, id, actor.profileId, null);
     return NextResponse.json({ ...view, promoted }, { headers: { 'Cache-Control': 'private, no-store' } });
   } catch (error) {
-    console.error('[api/sport-events/[id]] PATCH error:', error);
+    reportRouteError('[api/sport-events/[id]] PATCH error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
@@ -165,12 +166,12 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
     if (!['draft', 'cancelled', 'completed'].includes(read.event.status)) return NextResponse.json({ error: 'Cancel the event before deleting it.' }, { status: 409 });
     const { error: deleteError } = await admin.from('sport_events').delete().eq('id', id);
     if (deleteError) {
-      console.error('[api/sport-events/[id]] delete failed:', deleteError);
+      reportRouteError('[api/sport-events/[id]] delete failed:', deleteError);
       return NextResponse.json({ error: 'Could not delete the event' }, { status: 500 });
     }
     return NextResponse.json({ deleted: true }, { headers: { 'Cache-Control': 'no-store' } });
   } catch (error) {
-    console.error('[api/sport-events/[id]] DELETE error:', error);
+    reportRouteError('[api/sport-events/[id]] DELETE error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

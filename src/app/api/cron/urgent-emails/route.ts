@@ -9,6 +9,7 @@ import {
   type UrgentRecipientInfo,
   type UrgentRow,
 } from '@/lib/urgent-email';
+import { reportRouteError } from '@/lib/observability/report';
 
 export const maxDuration = 60;
 
@@ -101,7 +102,7 @@ export async function GET(request: NextRequest) {
         .update({ emailed_at: new Date().toISOString() })
         .in('id', batch.items.map(i => i.id));
       if (stampError) {
-        console.error('[URGENT] stamp failed — batch skipped:', stampError);
+        reportRouteError('[URGENT] stamp failed — batch skipped:', stampError);
         continue;
       }
       const results = await dispatch({
@@ -129,7 +130,7 @@ export async function GET(request: NextRequest) {
     }
     return NextResponse.json({ ok: true, sent, considered: rows.length, skipped });
   } catch (error) {
-    console.error('[URGENT] sweep failed:', error);
+    reportRouteError('[URGENT] sweep failed:', error);
     return NextResponse.json({ ok: false }, { status: 500 });
   }
 }

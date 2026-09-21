@@ -5,6 +5,7 @@ import { createGuardianInvite } from '@/lib/guardian-invites';
 import { getConsentState } from '@/lib/consent';
 import { hardDeleteAccount } from '@/lib/account-deletion';
 import { emailService } from '@/lib/email-service';
+import { reportRouteError } from '@/lib/observability/report';
 
 // ── /api/admin/guardian-support ───────────────────────────────────────────────
 // Support tooling for orphaned supervised profiles (supervised, but zero
@@ -92,7 +93,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ orphans, parked });
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[ADMIN] guardian-support list error:', error);
+    reportRouteError('[ADMIN] guardian-support list error:', error);
     return NextResponse.json({ error: 'Could not load orphaned profiles' }, { status: 500 });
   }
 }
@@ -249,7 +250,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Unknown action' }, { status: 400 });
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[ADMIN] guardian-support action error:', error);
+    reportRouteError('[ADMIN] guardian-support action error:', error);
     Sentry.captureException(error, { tags: { area: 'guardian-support' } });
     return NextResponse.json({ error: 'An unexpected error occurred' }, { status: 500 });
   }

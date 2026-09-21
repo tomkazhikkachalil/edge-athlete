@@ -3,6 +3,7 @@ import { UUID_RE } from '@/lib/uuid';
 import { getServerAuth, getSupabaseAdmin } from '@/lib/auth-server';
 import { enforceRateLimit } from '@/lib/rate-limit';
 import { fetchContestView, publicContestPath } from '@/lib/competitions/contest-view';
+import { reportRouteError } from '@/lib/observability/report';
 
 /**
  * GET /api/contests/[contestId] — the contest view for the in-app place
@@ -33,7 +34,7 @@ export async function GET(
       headers: { 'Cache-Control': result.access === 'member' ? 'private, no-store' : 'no-store' },
     });
   } catch (error) {
-    console.error('[api/contests] GET error:', error);
+    reportRouteError('[api/contests] GET error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin, requireAuth } from '@/lib/auth-server';
 import { GROUP_SCORECARD_SELECT, transformGroupPostToScorecard } from '@/lib/golf/scorecard-transform';
 import { isRoundLive, isActiveParticipant } from '@/lib/golf/round-status';
+import { reportRouteError } from '@/lib/observability/report';
 
 /**
  * GET /api/golf/live-now
@@ -37,7 +38,7 @@ export async function GET(request: NextRequest) {
       .limit(100);
 
     if (participantsError) {
-      console.error('live-now: participants fetch failed:', participantsError);
+      reportRouteError('live-now: participants fetch failed:', participantsError);
       return NextResponse.json({ error: 'Failed to load live rounds' }, { status: 500 });
     }
 
@@ -72,7 +73,7 @@ export async function GET(request: NextRequest) {
     ]);
 
     if (publicRes.error || followedRes.error) {
-      console.error('live-now: rounds fetch failed:', publicRes.error || followedRes.error);
+      reportRouteError('live-now: rounds fetch failed:', publicRes.error || followedRes.error);
       return NextResponse.json({ error: 'Failed to load live rounds' }, { status: 500 });
     }
 
@@ -126,7 +127,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ rounds });
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('live-now: unexpected error:', error);
+    reportRouteError('live-now: unexpected error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

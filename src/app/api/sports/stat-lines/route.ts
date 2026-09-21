@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin, requireAuth } from '@/lib/auth-server';
 import { getStatSchema, isStatLineData, formatResult, computeProfileTile, type StatLineData } from '@/lib/sports/stat-schemas';
 import { fetchOfficialStatLines } from '@/lib/sports/server/official-stats';
+import { reportRouteError } from '@/lib/observability/report';
 
 /**
  * GET /api/sports/stat-lines?profileId=...&sport=ice_hockey
@@ -90,7 +91,7 @@ export async function GET(request: NextRequest) {
     const { data: posts, error } = await query;
 
     if (error) {
-      console.error('[stat-lines] query error:', error);
+      reportRouteError('[stat-lines] query error:', error);
       return NextResponse.json({ error: 'Failed to fetch stat lines' }, { status: 500 });
     }
 
@@ -187,7 +188,7 @@ export async function GET(request: NextRequest) {
       official,
     });
   } catch (e) {
-    console.error('[stat-lines] unexpected error:', e);
+    reportRouteError('[stat-lines] unexpected error:', e);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

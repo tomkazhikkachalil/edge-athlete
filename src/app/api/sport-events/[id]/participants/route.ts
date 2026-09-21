@@ -11,6 +11,7 @@ import { readRoster, toSnapshot } from '@/lib/sport-events/join-server';
 import { notifyInvites } from '@/lib/sport-events/notify';
 import type { SportEventParticipantRow } from '@/lib/sport-events/types';
 import { parseInviteBody } from '@/lib/sport-events/validate';
+import { reportRouteError } from '@/lib/observability/report';
 
 /**
  * POST — invite players by profile id and / or handle (organizers, draft /
@@ -79,7 +80,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         ? await admin.from('sport_event_participants').insert({ sport_event_id: id, profile_id: pid, ...patch }).select(PARTICIPANT_COLUMNS).single()
         : await admin.from('sport_event_participants').update({ ...patch, responded_at: null, accepted_at: null, updated_at: now }).eq('id', (row as SportEventParticipantRow).id).select(PARTICIPANT_COLUMNS).single();
       if (result.error) {
-        console.error('[api/sport-events/participants] invite write failed:', result.error);
+        reportRouteError('[api/sport-events/participants] invite write failed:', result.error);
         continue;
       }
       invited.push(pid);
@@ -88,7 +89,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     await notifyInvites({ admin, eventId: id, eventName: read.event.name, actorProfileId: actor.profileId }, invited);
     return NextResponse.json({ invited, skipped }, { headers: { 'Cache-Control': 'private, no-store' } });
   } catch (error) {
-    console.error('[api/sport-events/participants] POST error:', error);
+    reportRouteError('[api/sport-events/participants] POST error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

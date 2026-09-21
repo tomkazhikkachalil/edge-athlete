@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { isUuid } from '@/lib/uuid';
 import { requireAuth, getSupabaseAdmin } from '@/lib/auth-server';
+import { reportRouteError } from '@/lib/observability/report';
 
 // ── PATCH /api/messages/[conversationId]/read ─────────────────────────────────
 // Mark conversation as read by updating last_read_at on the participant row.
@@ -25,14 +26,14 @@ export async function PATCH(
       .is('held_at', null);
 
     if (error) {
-      console.error('PATCH /api/messages/[id]/read error:', error);
+      reportRouteError('PATCH /api/messages/[id]/read error:', error);
       return NextResponse.json({ error: 'Failed to mark as read' }, { status: 500 });
     }
 
     return NextResponse.json({ success: true });
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('PATCH /api/messages/[id]/read error:', error);
+    reportRouteError('PATCH /api/messages/[id]/read error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth, getSupabaseAdmin } from '@/lib/auth-server';
+import { reportRouteError } from '@/lib/observability/report';
 
 export async function GET(request: NextRequest) {
   try {
@@ -53,7 +54,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ count: data ?? 0 });
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('GET /api/messages/unread-count error:', error);
+    reportRouteError('GET /api/messages/unread-count error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

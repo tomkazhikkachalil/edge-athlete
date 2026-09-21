@@ -5,6 +5,7 @@ import { parseBody } from '@/lib/validation';
 import { ContestPublishSeasonSchema } from '@/lib/competitions/validate';
 import { contestPublishSeasonPOST, requireCompetitionManager } from '@/lib/orgs/competition-server';
 import { UUID_RE } from '@/lib/golf/course-catalog';
+import { reportRouteError } from '@/lib/observability/report';
 
 // ── .../contests/publish-season (phase 6e S4) — every unpublished round ────
 // A golf league's season lands on members' calendars as all-day play
@@ -35,7 +36,7 @@ export async function POST(
     return await contestPublishSeasonPOST(admin, competitionId, { side: 'league', orgId: id }, user.id, parsed.data.timezone);
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[COMPETITIONS] league publish-season POST error:', error);
+    reportRouteError('[COMPETITIONS] league publish-season POST error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

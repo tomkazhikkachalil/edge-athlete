@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { extraHoleRefusal } from '@/lib/sport-events/match';
 import { writeMatch } from '@/lib/sport-events/match-server';
 import { answerMatch, openMatchWrite, refuse } from '@/lib/sport-events/match-write-server';
+import { reportRouteError } from '@/lib/observability/report';
 
 /**
  * POST {n, hole_number?, strokes: {participantId: n | null}, version} — a
@@ -36,7 +37,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     if (outcome === 'error') return NextResponse.json({ error: 'Could not save the extra hole' }, { status: 500 });
     return answerMatch(opened.ctx);
   } catch (error) {
-    console.error('[api/sport-events/matches/extra-hole] POST error:', error);
+    reportRouteError('[api/sport-events/matches/extra-hole] POST error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

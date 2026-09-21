@@ -5,6 +5,7 @@ import { isValidSegment, segmentSchemaFor } from '@/lib/sports/segment-schemas';
 import { resolveSportKey } from '@/lib/sports/resolve-sport-key';
 import { GROUP_TYPE_TO_SPORT, type GroupPostType } from '@/types/group-posts';
 import type { SportKey } from '@/lib/sports';
+import { reportRouteError } from '@/lib/observability/report';
 
 /**
  * PATCH  /api/group-posts/[id]/media/[mediaId]  — reassign / highlight / caption
@@ -124,7 +125,7 @@ export async function PATCH(
       .maybeSingle();
 
     if (error) {
-      console.error('group media update failed:', error);
+      reportRouteError('group media update failed:', error);
       return NextResponse.json({ error: 'Could not update this media' }, { status: 403 });
     }
     if (!data) {
@@ -143,13 +144,13 @@ export async function PATCH(
         .eq('group_post_id', groupPostId)
         .neq('id', mediaId)
         .eq('is_highlight', true);
-      if (clearError) console.error('clearing previous highlight failed:', clearError);
+      if (clearError) reportRouteError('clearing previous highlight failed:', clearError);
     }
 
     // No media URL in the response (metadata-only select), so nothing to proxy.
     return NextResponse.json({ media: data });
   } catch (error) {
-    console.error('Unexpected error in PATCH /api/group-posts/[id]/media/[mediaId]:', error);
+    reportRouteError('Unexpected error in PATCH /api/group-posts/[id]/media/[mediaId]:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
@@ -187,7 +188,7 @@ export async function DELETE(
       .eq('group_post_id', groupPostId);
 
     if (error) {
-      console.error('group media delete failed:', error);
+      reportRouteError('group media delete failed:', error);
       return NextResponse.json({ error: 'Could not remove this media' }, { status: 403 });
     }
     if (!count) {
@@ -209,7 +210,7 @@ export async function DELETE(
           .delete()
           .eq('post_id', post.id)
           .eq('media_url', existing.media_url);
-        if (mirrorError) console.error('removing mirrored post_media failed:', mirrorError);
+        if (mirrorError) reportRouteError('removing mirrored post_media failed:', mirrorError);
       }
     }
 
@@ -218,7 +219,7 @@ export async function DELETE(
     // that another post may still reference.
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error('Unexpected error in DELETE /api/group-posts/[id]/media/[mediaId]:', error);
+    reportRouteError('Unexpected error in DELETE /api/group-posts/[id]/media/[mediaId]:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

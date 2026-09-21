@@ -4,6 +4,7 @@ import { enforceRateLimit } from '@/lib/rate-limit';
 import { golfSyncPOST } from '@/lib/competitions/golf-league-server';
 import { requireCompetitionManager } from '@/lib/orgs/competition-server';
 import { UUID_RE } from '@/lib/golf/course-catalog';
+import { reportRouteError } from '@/lib/observability/report';
 
 // ── /api/leagues/[id]/competitions/[competitionId]/golf-sync (phase 6c G2) ──
 // "Sync rounds": fill one league round (body { contestId }) or every
@@ -38,7 +39,7 @@ export async function POST(
     return await golfSyncPOST(admin, competitionId, contestId);
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[GOLF LEAGUE] league sync error:', error);
+    reportRouteError('[GOLF LEAGUE] league sync error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

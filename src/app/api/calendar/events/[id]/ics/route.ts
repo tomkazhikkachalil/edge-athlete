@@ -5,6 +5,7 @@ import { loadEventForViewer } from '@/lib/calendar/detail-server';
 import { buildVEvent, buildCalendar } from '@/lib/calendar/ics';
 import { describeRecurrence } from '@/lib/calendar/recurrence';
 import { resolveEventRoutine } from '@/lib/calendar/event-routine';
+import { reportRouteError } from '@/lib/observability/report';
 
 // ── GET /api/calendar/events/[id]/ics ─────────────────────────────────────────
 // "Add to calendar": downloads this event (this occurrence only, for
@@ -71,7 +72,7 @@ export async function GET(
     });
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[CALENDAR] ics error:', error);
+    reportRouteError('[CALENDAR] ics error:', error);
     return NextResponse.json({ error: 'Could not build the calendar file' }, { status: 500 });
   }
 }

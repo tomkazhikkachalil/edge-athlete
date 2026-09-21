@@ -14,6 +14,7 @@ import { hasEventScope, resolveEventScope } from '@/lib/calendar/event-scope';
 import { enforceRateLimit } from '@/lib/rate-limit';
 import { checkSupervisedInviteGate } from '@/lib/calendar/supervised-invites';
 import type { ServerRoutineRow } from '@/lib/workouts/routines';
+import { reportRouteError } from '@/lib/observability/report';
 
 // ── /api/calendar/events ──────────────────────────────────────────────────────
 // GET ?from=&to= → the caller's calendar for a visible range: their guest
@@ -93,7 +94,7 @@ export async function GET(request: NextRequest) {
         fields: EVENT_FIELDS,
       });
     } catch (e) {
-      console.error('[CALENDAR] org merge failed:', e);
+      reportRouteError('[CALENDAR] org merge failed:', e);
     }
 
     // Completed-activity overlay (read-time, self-scoped, in-app only —
@@ -103,7 +104,7 @@ export async function GET(request: NextRequest) {
     try {
       overlay = await fetchActivityOverlay(admin, readAs, fromMs, toMs);
     } catch (e) {
-      console.error('[CALENDAR] activity overlay failed:', e);
+      reportRouteError('[CALENDAR] activity overlay failed:', e);
     }
 
     // Sport events (phase 2b): the reader's upcoming and live event rounds,
@@ -113,13 +114,13 @@ export async function GET(request: NextRequest) {
     try {
       sportEvents = await fetchSportEventOverlay(admin, readAs, fromMs, toMs);
     } catch (e) {
-      console.error('[CALENDAR] sport event overlay failed:', e);
+      reportRouteError('[CALENDAR] sport event overlay failed:', e);
     }
 
     return NextResponse.json({ events: [...events, ...orgEvents, ...overlay, ...sportEvents] });
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[CALENDAR] list error:', error);
+    reportRouteError('[CALENDAR] list error:', error);
     return NextResponse.json({ error: 'Could not load your calendar' }, { status: 500 });
   }
 }
@@ -254,7 +255,7 @@ export async function POST(request: NextRequest) {
         .select('id')
         .single();
       if (seriesError || !series) {
-        console.error('[CALENDAR] series insert failed:', seriesError);
+        reportRouteError('[CALENDAR] series insert failed:', seriesError);
         return NextResponse.json({ error: 'Could not create the event. Please try again.' }, { status: 500 });
       }
 
@@ -292,7 +293,7 @@ export async function POST(request: NextRequest) {
       } catch (e) {
         // Compensating delete — cascade wipes every occurrence + guest row.
         await admin.from('event_series').delete().eq('id', series.id);
-        console.error('[CALENDAR] series materialization failed:', e);
+        reportRouteError('[CALENDAR] series materialization failed:', e);
         Sentry.captureException(e, { tags: { area: 'calendar' } });
         return NextResponse.json({ error: 'Nothing was saved — please try again.' }, { status: 500 });
       }
@@ -351,7 +352,7 @@ export async function POST(request: NextRequest) {
               recurrenceText,
             }, appUrl);
           } catch (e) {
-            console.error('[CALENDAR] invite email failed:', e);
+            reportRouteError('[CALENDAR] invite email failed:', e);
           }
         }
       }
@@ -368,7 +369,7 @@ export async function POST(request: NextRequest) {
       .select(EVENT_FIELDS)
       .single();
     if (eventError || !event) {
-      console.error('[CALENDAR] event insert failed:', eventError);
+      reportRouteError('[CALENDAR] event insert failed:', eventError);
       return NextResponse.json({ error: 'Could not create the event. Please try again.' }, { status: 500 });
     }
 
@@ -387,7 +388,7 @@ export async function POST(request: NextRequest) {
     if (guestError) {
       // Compensating delete — no silent partial state (workouts precedent).
       await admin.from('events').delete().eq('id', event.id);
-      console.error('[CALENDAR] guest insert failed:', guestError);
+      reportRouteError('[CALENDAR] guest insert failed:', guestError);
       Sentry.captureException(new Error(`calendar: guest insert failed: ${guestError.message}`));
       return NextResponse.json({ error: 'Nothing was saved — please try again.' }, { status: 500 });
     }
@@ -424,7 +425,7 @@ export async function POST(request: NextRequest) {
             description: event.description,
           }, appUrl);
         } catch (e) {
-          console.error('[CALENDAR] invite email failed:', e);
+          reportRouteError('[CALENDAR] invite email failed:', e);
         }
       }
     }
@@ -432,7 +433,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ event }, { status: 201 });
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[CALENDAR] create error:', error);
+    reportRouteError('[CALENDAR] create error:', error);
     Sentry.captureException(error, { tags: { area: 'calendar' } });
     return NextResponse.json({ error: 'An unexpected error occurred' }, { status: 500 });
   }

@@ -3,6 +3,7 @@ import { isUuid } from '@/lib/uuid';
 import { getSupabaseAdmin } from '@/lib/auth-server';
 import { enforceRateLimit } from '@/lib/rate-limit';
 import { ORG_LOGO_PREFIX } from '@/lib/org-sites/logo-server';
+import { reportRouteError } from '@/lib/observability/report';
 
 /**
  * GET /api/media/org-logo/[siteId] — public org-site logo streamer.
@@ -75,7 +76,7 @@ export async function GET(
     return new NextResponse(upstream.body, { status: upstream.status, headers });
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[org-logo-proxy] error:', error);
+    reportRouteError('[org-logo-proxy] error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

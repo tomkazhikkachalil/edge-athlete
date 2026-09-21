@@ -10,6 +10,7 @@ import { readFormatConfig, readMatchConfig } from '@/lib/sport-events/format-con
 import { linkMatchEventToBracket, mintContestsForEvent, readCompetitionForLink, unlinkContestsForEvent } from '@/lib/sport-events/contest-link-server';
 import { ROUND_COLUMNS } from '@/lib/sport-events/rounds-server';
 import type { SportEventRoundRow } from '@/lib/sport-events/types';
+import { reportRouteError } from '@/lib/observability/report';
 
 const NOT_FOUND = () => NextResponse.json({ error: 'Event not found' }, { status: 404, headers: { 'Cache-Control': 'no-store' } });
 
@@ -85,7 +86,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       },
     });
   } catch (error) {
-    console.error('[api/sport-events/[id]/contest] PUT error:', error);
+    reportRouteError('[api/sport-events/[id]/contest] PUT error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

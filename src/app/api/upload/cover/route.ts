@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin, requireActiveWriter } from '@/lib/auth-server';
 import { ALLOWED_IMAGE_MIME } from '@/lib/media/validation';
 import { enforceRateLimit } from '@/lib/rate-limit';
+import { reportRouteError } from '@/lib/observability/report';
 
 /**
  * POST /api/upload/cover — profile cover/banner image.
@@ -52,7 +53,7 @@ export async function POST(request: NextRequest) {
       .from('uploads')
       .upload(filePath, file, { cacheControl: '3600', upsert: false });
     if (uploadError) {
-      console.error('Cover upload error:', uploadError);
+      reportRouteError('Cover upload error:', uploadError);
       return NextResponse.json({ error: 'Failed to upload cover image' }, { status: 500 });
     }
 
@@ -70,7 +71,7 @@ export async function POST(request: NextRequest) {
     if (updateError) {
       // Roll the orphan back — the profile still points at the old cover
       await supabase.storage.from('uploads').remove([filePath]);
-      console.error('Cover profile update error:', updateError);
+      reportRouteError('Cover profile update error:', updateError);
       return NextResponse.json({ error: 'Failed to save cover image' }, { status: 500 });
     }
 
@@ -89,7 +90,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: true, cover_url: coverUrl });
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('Cover upload error:', error);
+    reportRouteError('Cover upload error:', error);
     return NextResponse.json({ error: 'Failed to upload cover image' }, { status: 500 });
   }
 }

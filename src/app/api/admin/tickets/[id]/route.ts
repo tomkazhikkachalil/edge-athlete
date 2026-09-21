@@ -5,6 +5,7 @@ import { getSupabaseAdmin, requireModerator } from '@/lib/auth-server';
 import { optionalText, parseBody, uuid } from '@/lib/validation';
 import { applyAdminPatch, deleteTicket, readTicketForAdmin, TicketsNotLive } from '@/lib/tickets/server';
 import { RESOLUTION_CODES, SUGGESTION_TAGS, TICKET_LIMITS, TICKET_SEVERITIES, TICKET_STATUSES } from '@/lib/tickets/types';
+import { reportRouteError } from '@/lib/observability/report';
 
 /**
  * /api/admin/tickets/[id] (Support & Reporting, Spec 1)
@@ -41,7 +42,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     return NextResponse.json(detail, { headers: NO_STORE });
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[GET /api/admin/tickets/[id]]', error);
+    reportRouteError('[GET /api/admin/tickets/[id]]', error);
     return NextResponse.json({ error: 'Could not load the ticket' }, { status: 500, headers: NO_STORE });
   }
 }
@@ -65,7 +66,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   } catch (error) {
     if (error instanceof Response) return error;
     if (error instanceof TicketsNotLive) return NextResponse.json({ error: error.message }, { status: 503, headers: NO_STORE });
-    console.error('[PATCH /api/admin/tickets/[id]]', error);
+    reportRouteError('[PATCH /api/admin/tickets/[id]]', error);
     return NextResponse.json({ error: 'Could not update the ticket' }, { status: 500, headers: NO_STORE });
   }
 }
@@ -81,7 +82,7 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
   } catch (error) {
     if (error instanceof Response) return error;
     if (error instanceof TicketsNotLive) return NextResponse.json({ error: error.message }, { status: 503, headers: NO_STORE });
-    console.error('[DELETE /api/admin/tickets/[id]]', error);
+    reportRouteError('[DELETE /api/admin/tickets/[id]]', error);
     return NextResponse.json({ error: 'Could not delete the ticket' }, { status: 500, headers: NO_STORE });
   }
 }

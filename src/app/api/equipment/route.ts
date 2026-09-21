@@ -7,6 +7,7 @@ import { isValidDateString, isNotFutureDate } from '@/lib/date-validation';
 import { getEquipmentSportOptions } from '@/lib/equipment-config';
 import { EQUIPMENT_FIELD_CAPS } from '@/lib/equipment-validation';
 import { sanitizeEquipmentPrefs } from '@/lib/equipment-prefs';
+import { reportRouteError } from '@/lib/observability/report';
 
 // GET - Fetch equipment for a profile
 export async function GET(request: NextRequest) {
@@ -42,7 +43,7 @@ export async function GET(request: NextRequest) {
       .order('created_at', { ascending: false });
 
     if (error) {
-      console.error('Error fetching equipment:', error);
+      reportRouteError('Error fetching equipment:', error);
       return NextResponse.json({ error: 'Failed to fetch equipment' }, { status: 500 });
     }
 
@@ -71,7 +72,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ equipment: proxiedRows, prefs });
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('Equipment GET error:', error);
+    reportRouteError('Equipment GET error:', error);
     return NextResponse.json({ error: 'Failed to fetch equipment' }, { status: 500 });
   }
 }
@@ -191,13 +192,13 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (error) {
-      console.error('Error creating equipment:', error);
+      reportRouteError('Error creating equipment:', error);
       return NextResponse.json({ error: 'Failed to add equipment' }, { status: 500 });
     }
 
     return NextResponse.json({ equipment }, { status: 201 });
   } catch (error) {
-    console.error('Equipment POST error:', error);
+    reportRouteError('Equipment POST error:', error);
 
     if (error instanceof Response) {
       return error;

@@ -6,6 +6,7 @@ import { RolloverSchema } from '@/lib/structure/validate';
 import { requireOrgManager } from '@/lib/orgs/structure-server';
 import { seasonRolloverPOST } from '@/lib/orgs/rollover-server';
 import { UUID_RE } from '@/lib/golf/course-catalog';
+import { reportRouteError } from '@/lib/observability/report';
 
 // ── /api/clubs/[id]/structure/rollover (phase 5.5) ────────────────────────
 // The one-button clone-forward: new season + cloned divisions/programs +
@@ -33,7 +34,7 @@ export async function POST(
     return await seasonRolloverPOST(admin, 'club', id, parsed.data, user.id);
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[ROLLOVER] club POST error:', error);
+    reportRouteError('[ROLLOVER] club POST error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

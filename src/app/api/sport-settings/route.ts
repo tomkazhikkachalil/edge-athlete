@@ -11,6 +11,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerAuth } from '@/lib/auth-server';
+import { reportRouteError } from '@/lib/observability/report';
 
 /**
  * GET /api/sport-settings?sport=golf
@@ -39,7 +40,7 @@ export async function GET(request: NextRequest) {
         .eq('profile_id', user.id);
 
       if (listError) {
-        console.error('Error listing sport settings:', listError);
+        reportRouteError('Error listing sport settings:', listError);
         return NextResponse.json(
           { error: 'Failed to fetch sport settings' },
           { status: 500 }
@@ -60,7 +61,7 @@ export async function GET(request: NextRequest) {
       .maybeSingle(); // Returns null if not found (not an error)
 
     if (error) {
-      console.error('Error fetching sport settings:', error);
+      reportRouteError('Error fetching sport settings:', error);
       return NextResponse.json(
         { error: 'Failed to fetch sport settings' },
         { status: 500 }
@@ -75,7 +76,7 @@ export async function GET(request: NextRequest) {
     });
 
   } catch (error) {
-    console.error('Sport settings GET error:', error);
+    reportRouteError('Sport settings GET error:', error);
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }
@@ -137,7 +138,7 @@ export async function PUT(request: NextRequest) {
       .single();
 
     if (error) {
-      console.error('Error upserting sport settings:', error);
+      reportRouteError('Error upserting sport settings:', error);
       return NextResponse.json(
         { error: 'Failed to save sport settings' },
         { status: 500 }
@@ -150,7 +151,7 @@ export async function PUT(request: NextRequest) {
     });
 
   } catch (error) {
-    console.error('Sport settings PUT error:', error);
+    reportRouteError('Sport settings PUT error:', error);
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }
@@ -191,7 +192,7 @@ export async function DELETE(request: NextRequest) {
       .eq('sport_key', sportKey);
 
     if (error) {
-      console.error('Error deleting sport settings:', error);
+      reportRouteError('Error deleting sport settings:', error);
       return NextResponse.json(
         { error: 'Failed to delete sport settings' },
         { status: 500 }
@@ -204,7 +205,7 @@ export async function DELETE(request: NextRequest) {
     });
 
   } catch (error) {
-    console.error('Sport settings DELETE error:', error);
+    reportRouteError('Sport settings DELETE error:', error);
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }

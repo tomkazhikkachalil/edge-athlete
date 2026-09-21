@@ -5,6 +5,7 @@ import { getServerAuth, getSupabaseAdmin } from '@/lib/auth-server';
 import { parseBody, emailString, boundedText } from '@/lib/validation';
 import { createTicket, readSubmitter, TicketsNotLive } from '@/lib/tickets/server';
 import { formatTicketNumber } from '@/lib/tickets/number';
+import { reportRouteError } from '@/lib/observability/report';
 
 const ContactSchema = z.object({
   name: boundedText(100),
@@ -44,7 +45,7 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     if (error instanceof Response) return error;
     if (error instanceof TicketsNotLive) return NextResponse.json({ error: error.message }, { status: 503, headers });
-    console.error('Contact form error:', error);
+    reportRouteError('Contact form error:', error);
     return NextResponse.json({ error: 'Could not send your message. Please try again.' }, { status: 500, headers });
   }
 }

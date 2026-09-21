@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin, requireAuth } from '@/lib/auth-server';
 import { enforceRateLimit } from '@/lib/rate-limit';
+import { reportRouteError } from '@/lib/observability/report';
 
 /**
  * POST /api/tickets/attachment — a screenshot for a support request
@@ -35,14 +36,14 @@ export async function POST(request: NextRequest) {
     const admin = getSupabaseAdmin();
     const { error } = await admin.storage.from('uploads').upload(path, Buffer.from(await file.arrayBuffer()), { contentType: file.type, cacheControl: '3600', upsert: false });
     if (error) {
-      console.error('[POST /api/tickets/attachment] upload failed:', error.message);
+      reportRouteError('[POST /api/tickets/attachment] upload failed:', error.message);
       return NextResponse.json({ error: 'Could not upload the screenshot' }, { status: 500, headers });
     }
     const { data: { publicUrl } } = admin.storage.from('uploads').getPublicUrl(path);
     return NextResponse.json({ url: publicUrl, path }, { status: 201, headers });
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[POST /api/tickets/attachment]', error);
+    reportRouteError('[POST /api/tickets/attachment]', error);
     return NextResponse.json({ error: 'Could not upload the screenshot' }, { status: 500, headers });
   }
 }

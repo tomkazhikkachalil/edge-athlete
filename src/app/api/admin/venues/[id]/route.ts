@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin, getSupabaseAdmin } from '@/lib/auth-server';
 import { UUID_RE } from '@/lib/golf/course-catalog';
+import { reportRouteError } from '@/lib/observability/report';
 
 // ── /api/admin/venues/[id] — delete only v1 (edits = delete + recreate at
 // admin scale; a PATCH arrives with phase 1's org dashboard if needed). ─────
@@ -24,7 +25,7 @@ export async function DELETE(
       .eq('id', id)
       .select('id');
     if (error) {
-      console.error('[ADMIN VENUES] delete error:', error);
+      reportRouteError('[ADMIN VENUES] delete error:', error);
       return NextResponse.json({ error: 'Failed to delete venue' }, { status: 500 });
     }
     if (!deleted || deleted.length === 0) {
@@ -33,7 +34,7 @@ export async function DELETE(
     return NextResponse.json({ action: 'deleted' });
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[ADMIN VENUES] DELETE error:', error);
+    reportRouteError('[ADMIN VENUES] DELETE error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

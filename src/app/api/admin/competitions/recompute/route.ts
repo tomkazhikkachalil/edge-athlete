@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin, getSupabaseAdmin } from '@/lib/auth-server';
 import { recomputeStandings } from '@/lib/competitions/standings';
 import { UUID_RE } from '@/lib/golf/course-catalog';
+import { reportRouteError } from '@/lib/observability/report';
 
 // ── /api/admin/competitions/recompute?id= — the standings repair lever ──────
 // The hook sites are best-effort by design; this heals any drift on
@@ -22,7 +23,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ ok: true, rows });
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[ADMIN COMPETITIONS] recompute error:', error);
+    reportRouteError('[ADMIN COMPETITIONS] recompute error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

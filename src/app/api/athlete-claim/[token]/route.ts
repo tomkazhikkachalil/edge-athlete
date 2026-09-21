@@ -9,6 +9,7 @@ import {
   restoreAthleteClaimInvite,
 } from '@/lib/athlete-claim';
 import { makeSyntheticEmail } from '@/lib/config/minors-config';
+import { reportRouteError } from '@/lib/observability/report';
 
 // ── /api/athlete-claim/[token] — stub-athlete handover (phase 1 R3) ─────────
 // GET = unauthenticated peek (uniform {valid:false} 404s; never the email).
@@ -46,7 +47,7 @@ export async function GET(
     });
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[ATHLETE CLAIM] peek error:', error);
+    reportRouteError('[ATHLETE CLAIM] peek error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
@@ -117,7 +118,7 @@ export async function POST(
             { status: 409 }
           );
         }
-        console.error('[ATHLETE CLAIM] email set failed:', emailError);
+        reportRouteError('[ATHLETE CLAIM] email set failed:', emailError);
         return NextResponse.json({ error: 'Could not complete the claim' }, { status: 500 });
       }
       await admin.from('profiles').update({ email }).eq('id', profileId);
@@ -129,7 +130,7 @@ export async function POST(
         password,
       });
       if (passwordError) {
-        console.error('[ATHLETE CLAIM] password set failed:', passwordError);
+        reportRouteError('[ATHLETE CLAIM] password set failed:', passwordError);
         return NextResponse.json(
           { error: 'Your email is set but the password failed — use "Forgot password" to finish.' },
           { status: 500 }
@@ -187,7 +188,7 @@ export async function POST(
         });
         signedIn = !signInError;
       } catch (e) {
-        console.error('[ATHLETE CLAIM] sign-in failed:', e);
+        reportRouteError('[ATHLETE CLAIM] sign-in failed:', e);
       }
 
       return NextResponse.json({ ok: true, mode: 'self', profileId, signedIn });
@@ -239,7 +240,7 @@ export async function POST(
         p_actor: user.id,
       });
       if (grantError) {
-        console.error('[ATHLETE CLAIM] guardian grant failed:', grantError);
+        reportRouteError('[ATHLETE CLAIM] guardian grant failed:', grantError);
         await restoreAthleteClaimInvite(admin, token);
         return NextResponse.json({ error: 'Could not complete the claim' }, { status: 500 });
       }
@@ -281,7 +282,7 @@ export async function POST(
     return NextResponse.json({ error: 'Unknown claim mode' }, { status: 400 });
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[ATHLETE CLAIM] POST error:', error);
+    reportRouteError('[ATHLETE CLAIM] POST error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { isUuid } from '@/lib/uuid';
 import { requireAuth, getSupabaseAdmin, getProfileRole } from '@/lib/auth-server';
 import { validateAchievementInput } from '@/lib/achievements';
+import { reportRouteError } from '@/lib/observability/report';
 
 /**
  * GET /api/achievements?profileId=xxx
@@ -74,13 +75,13 @@ export async function GET(request: NextRequest) {
       .order('created_at', { ascending: false });
 
     if (error) {
-      console.error('Error fetching achievements:', error);
+      reportRouteError('Error fetching achievements:', error);
       return NextResponse.json({ error: 'Failed to fetch achievements' }, { status: 500 });
     }
 
     return NextResponse.json({ achievements: achievements || [] });
   } catch (error) {
-    console.error('GET /api/achievements error:', error);
+    reportRouteError('GET /api/achievements error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
@@ -108,14 +109,14 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (error) {
-      console.error('Error inserting achievement:', error);
+      reportRouteError('Error inserting achievement:', error);
       return NextResponse.json({ error: 'Failed to save achievement' }, { status: 500 });
     }
 
     return NextResponse.json({ achievement: data }, { status: 201 });
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('POST /api/achievements error:', error);
+    reportRouteError('POST /api/achievements error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

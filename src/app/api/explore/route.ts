@@ -4,6 +4,7 @@ import { getSportDefinition, SPORT_REGISTRY, type SportKey } from '@/lib/sports/
 import { searchPeople } from '@/lib/search/people-server';
 import { hasLocationFilter, readLocationParams } from '@/lib/geo/params';
 import { enforceRateLimit } from '@/lib/rate-limit';
+import { reportRouteError } from '@/lib/observability/report';
 
 /**
  * GET /api/explore?sport=<sport_key>&limit=24
@@ -95,10 +96,10 @@ export async function GET(request: NextRequest) {
     const [athletesResult, postsResult] = await Promise.all([athletesPromise, postQuery]);
 
     if (athletesResult.error) {
-      console.error('[explore] athletes query error:', athletesResult.error);
+      reportRouteError('[explore] athletes query error:', athletesResult.error);
     }
     if (postsResult.error) {
-      console.error('[explore] posts query error:', postsResult.error);
+      reportRouteError('[explore] posts query error:', postsResult.error);
     }
 
     // Exclude posts whose author profile is private (post visibility is
@@ -118,7 +119,7 @@ export async function GET(request: NextRequest) {
       headers: { 'Cache-Control': 'public, s-maxage=30, stale-while-revalidate=120' },
     });
   } catch (e) {
-    console.error('[explore] unexpected error:', e);
+    reportRouteError('[explore] unexpected error:', e);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

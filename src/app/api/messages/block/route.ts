@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { UUID_RE } from '@/lib/uuid';
 import { requireAuth, requireProfileRole, getSupabaseAdmin } from '@/lib/auth-server';
+import { reportRouteError } from '@/lib/observability/report';
 
 // Round I: every method takes an optional targetProfileId — a guardian
 // managing their supervised athlete's block list. The role matrix gates it
@@ -50,13 +51,13 @@ export async function GET(request: NextRequest) {
       .order('created_at', { ascending: false });
 
     if (error) {
-      console.error('GET /api/messages/block error:', error);
+      reportRouteError('GET /api/messages/block error:', error);
       return NextResponse.json({ error: 'Could not load blocked users' }, { status: 500 });
     }
     return NextResponse.json({ blocks: data ?? [] });
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('GET /api/messages/block error:', error);
+    reportRouteError('GET /api/messages/block error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
@@ -89,7 +90,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: true });
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('POST /api/messages/block error:', error);
+    reportRouteError('POST /api/messages/block error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
@@ -121,7 +122,7 @@ export async function DELETE(request: NextRequest) {
     return NextResponse.json({ success: true });
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('DELETE /api/messages/block error:', error);
+    reportRouteError('DELETE /api/messages/block error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

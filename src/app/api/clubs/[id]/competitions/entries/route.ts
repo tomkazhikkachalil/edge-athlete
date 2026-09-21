@@ -5,6 +5,7 @@ import { parseBody } from '@/lib/validation';
 import { EntryAddSchema, EntryPatchSchema } from '@/lib/competitions/validate';
 import { entryAddPOST, entryAffiliationPATCH, entryDecidePATCH, entryDELETE, entryPoolPATCH, requireCompetitionManager } from '@/lib/orgs/competition-server';
 import { UUID_RE } from '@/lib/golf/course-catalog';
+import { reportRouteError } from '@/lib/observability/report';
 
 // ── /api/clubs/[id]/competitions/entries — manager entry CRUD (phase 2) ───
 // Thin wrapper; the competition-ownership pin (scoped: a foreign org's
@@ -32,7 +33,7 @@ export async function POST(
     return await entryAddPOST(admin, parsed.data, { side: 'club', orgId: id }, user.id);
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[COMPETITIONS] club entries POST error:', error);
+    reportRouteError('[COMPETITIONS] club entries POST error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
@@ -62,7 +63,7 @@ export async function PATCH(
     return await entryAffiliationPATCH(admin, parsed.data, { side: 'club', orgId: id });
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[COMPETITIONS] club entries PATCH error:', error);
+    reportRouteError('[COMPETITIONS] club entries PATCH error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
@@ -88,7 +89,7 @@ export async function DELETE(
     return await entryDELETE(admin, entryId, { side: 'club', orgId: id });
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[COMPETITIONS] club entries DELETE error:', error);
+    reportRouteError('[COMPETITIONS] club entries DELETE error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

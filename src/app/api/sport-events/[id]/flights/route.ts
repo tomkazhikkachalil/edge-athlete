@@ -6,6 +6,7 @@ import { readSportEventAccess } from '@/lib/sport-events/access-server';
 import { bodyProfileId, readJson, resolveActor } from '@/lib/sport-events/actor-server';
 import { parseFlightsPlan } from '@/lib/sport-events/flights';
 import { fetchSportEventView } from '@/lib/sport-events/view-server';
+import { reportRouteError } from '@/lib/observability/report';
 
 /**
  * PUT {assignments: [{participant_id, flight | null}]} — the organizer's
@@ -40,14 +41,14 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     for (const a of plan.value) {
       const { error } = await admin.from('sport_event_participants').update({ flight: a.flight }).eq('id', a.participant_id).eq('sport_event_id', id);
       if (error) {
-        console.error('[api/sport-events/flights] update failed:', error);
+        reportRouteError('[api/sport-events/flights] update failed:', error);
         return NextResponse.json({ error: 'Could not save the flights' }, { status: 500 });
       }
     }
     const view = await fetchSportEventView(admin, id, actor.profileId, null);
     return NextResponse.json(view, { headers: { 'Cache-Control': 'private, no-store' } });
   } catch (error) {
-    console.error('[api/sport-events/flights] PUT error:', error);
+    reportRouteError('[api/sport-events/flights] PUT error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

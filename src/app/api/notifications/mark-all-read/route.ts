@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth, getSupabaseAdmin } from '@/lib/auth-server';
+import { reportRouteError } from '@/lib/observability/report';
 
 export async function PATCH(request: NextRequest) {
   try {
@@ -17,7 +18,7 @@ export async function PATCH(request: NextRequest) {
       .eq('is_read', false); // Only update unread notifications
 
     if (error) {
-      console.error('[NOTIFICATIONS API] Error marking all as read:', error);
+      reportRouteError('[NOTIFICATIONS API] Error marking all as read:', error);
       return NextResponse.json({ error: 'Failed to mark all as read' }, { status: 500 });
     }
 
@@ -28,7 +29,7 @@ export async function PATCH(request: NextRequest) {
 
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[NOTIFICATIONS API] Error:', error);
+    reportRouteError('[NOTIFICATIONS API] Error:', error);
     return NextResponse.json(
       { error: 'Failed to mark all as read' },
       { status: 500 }

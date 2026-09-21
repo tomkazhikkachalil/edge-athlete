@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin, requireAuth } from '@/lib/auth-server';
 import { UUID_RE } from '@/lib/golf/course-catalog';
+import { reportRouteError } from '@/lib/observability/report';
 
 export async function GET(request: NextRequest) {
   try {
@@ -47,11 +48,11 @@ export async function GET(request: NextRequest) {
     ]);
 
     if (followersError) {
-      console.error('Followers error:', followersError);
+      reportRouteError('Followers error:', followersError);
       return NextResponse.json({ error: 'Failed to get followers' }, { status: 500 });
     }
     if (followingError) {
-      console.error('Following error:', followingError);
+      reportRouteError('Following error:', followingError);
       return NextResponse.json({ error: 'Failed to get following' }, { status: 500 });
     }
 
@@ -76,7 +77,7 @@ export async function GET(request: NextRequest) {
         .maybeSingle();
 
       if (statusError) {
-        console.error('Follow status error:', statusError);
+        reportRouteError('Follow status error:', statusError);
       } else if (follow) {
         isFollowing = true;
         followStatus = follow.status;
@@ -94,7 +95,7 @@ export async function GET(request: NextRequest) {
     });
     
   } catch (error) {
-    console.error('Follow stats API error:', error);
+    reportRouteError('Follow stats API error:', error);
     return NextResponse.json({ error: 'Failed to get follow stats' }, { status: 500 });
   }
 }

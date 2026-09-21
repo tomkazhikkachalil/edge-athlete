@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth, getSupabaseAdmin } from '@/lib/auth-server';
 import { requireOrgManager, structureAggregateGET } from '@/lib/orgs/structure-server';
 import { UUID_RE } from '@/lib/golf/course-catalog';
+import { reportRouteError } from '@/lib/observability/report';
 
 // ── /api/leagues/[id]/structure — the org-manager aggregate (phase 1) ──────
 // Thin wrapper; the query + gate live in orgs/structure-server.ts.
@@ -23,7 +24,7 @@ export async function GET(
     return await structureAggregateGET(admin, { side: 'league', orgId: id }, { includeCounts: true });
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[ORG STRUCTURE] GET error:', error);
+    reportRouteError('[ORG STRUCTURE] GET error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/auth-server';
 import { standingsMineGET } from '@/lib/orgs/mine-server';
+import { reportRouteError } from '@/lib/observability/report';
 
 // ── /api/leagues/[id]/standings/mine — the MEMBERS' standings read (program 11 L2) ─────
 // A private league's public standings are the public-only state; members read the
@@ -13,7 +14,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     return await standingsMineGET(user, 'league', params);
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[LEAGUES STANDINGS MINE] GET error:', error);
+    reportRouteError('[LEAGUES STANDINGS MINE] GET error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

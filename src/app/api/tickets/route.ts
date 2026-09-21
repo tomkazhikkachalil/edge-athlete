@@ -8,6 +8,7 @@ import { resolveTarget } from '@/lib/tickets/snapshot-server';
 import { TICKET_LIMITS, TICKET_TARGET_TYPES, TICKET_TYPES, isReasonForType, type TicketSubtype, type TicketTargetType } from '@/lib/tickets/types';
 import { formatTicketNumber } from '@/lib/tickets/number';
 import { parsePublicUrl } from '@/lib/media/proxy-url';
+import { reportRouteError } from '@/lib/observability/report';
 
 /**
  * /api/tickets — a user's own tickets (Support & Reporting, Spec 1).
@@ -85,7 +86,7 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     if (error instanceof Response) return error;
     if (error instanceof TicketsNotLive) return NextResponse.json({ error: error.message }, { status: 503, headers: NO_STORE });
-    console.error('[POST /api/tickets]', error);
+    reportRouteError('[POST /api/tickets]', error);
     return NextResponse.json({ error: 'Could not send your request. Please try again.' }, { status: 500, headers: NO_STORE });
   }
 }
@@ -99,7 +100,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ supported: result.supported, tickets: result.items, aboutMe: about.items }, { headers: NO_STORE });
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[GET /api/tickets]', error);
+    reportRouteError('[GET /api/tickets]', error);
     return NextResponse.json({ error: 'Could not load your requests' }, { status: 500, headers: NO_STORE });
   }
 }

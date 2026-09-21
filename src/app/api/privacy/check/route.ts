@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { isUuid } from '@/lib/uuid';
 import { getServerAuth } from '@/lib/auth-server';
 import { canViewProfile } from '@/lib/privacy';
+import { reportRouteError } from '@/lib/observability/report';
 
 export async function GET(request: NextRequest) {
   try {
@@ -22,7 +23,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(privacyCheck);
 
   } catch (error) {
-    console.error('Privacy check error:', error);
+    reportRouteError('Privacy check error:', error);
     return NextResponse.json({
       error: 'Privacy check failed',
       canView: false,

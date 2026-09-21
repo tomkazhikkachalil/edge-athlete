@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { requireAuth, getSupabaseAdmin } from '@/lib/auth-server';
 import { parseBody } from '@/lib/validation';
+import { reportRouteError } from '@/lib/observability/report';
 
 export async function GET(request: NextRequest) {
   try {
@@ -15,7 +16,7 @@ export async function GET(request: NextRequest) {
       .maybeSingle();
 
     if (error) {
-      console.error('[NOTIFICATIONS API] Error fetching preferences:', error);
+      reportRouteError('[NOTIFICATIONS API] Error fetching preferences:', error);
       return NextResponse.json({ error: 'Failed to fetch preferences' }, { status: 500 });
     }
 
@@ -38,7 +39,7 @@ export async function GET(request: NextRequest) {
             .maybeSingle();
           if (existing) return NextResponse.json({ preferences: existing });
         }
-        console.error('[NOTIFICATIONS API] Error creating preferences:', createError);
+        reportRouteError('[NOTIFICATIONS API] Error creating preferences:', createError);
         return NextResponse.json({ error: 'Failed to fetch preferences' }, { status: 500 });
       }
 
@@ -49,7 +50,7 @@ export async function GET(request: NextRequest) {
 
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[NOTIFICATIONS API] Error:', error);
+    reportRouteError('[NOTIFICATIONS API] Error:', error);
     return NextResponse.json(
       { error: 'Failed to fetch preferences' },
       { status: 500 }
@@ -134,7 +135,7 @@ export async function PATCH(request: NextRequest) {
       .single();
 
     if (error) {
-      console.error('[NOTIFICATIONS API] Error updating preferences:', error);
+      reportRouteError('[NOTIFICATIONS API] Error updating preferences:', error);
       return NextResponse.json({ error: 'Failed to update preferences' }, { status: 500 });
     }
 
@@ -145,7 +146,7 @@ export async function PATCH(request: NextRequest) {
 
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[NOTIFICATIONS API] Error:', error);
+    reportRouteError('[NOTIFICATIONS API] Error:', error);
     return NextResponse.json(
       { error: 'Failed to update preferences' },
       { status: 500 }

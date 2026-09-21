@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { isUuid } from '@/lib/uuid';
 import { requireAuth, getSupabaseAdmin } from '@/lib/auth-server';
 import { validateEntriesPayload } from '@/lib/workouts/entries';
+import { reportRouteError } from '@/lib/observability/report';
 
 /**
  * PUT /api/workouts/[id]/entries — owner only.
@@ -64,7 +65,7 @@ export async function PUT(
       .delete()
       .eq('session_id', id);
     if (deleteError) {
-      console.error('Entries replace: delete failed:', deleteError);
+      reportRouteError('Entries replace: delete failed:', deleteError);
       return NextResponse.json({ error: 'Failed to save workout entries' }, { status: 500 });
     }
 
@@ -85,7 +86,7 @@ export async function PUT(
         .select('id, position');
 
       if (exercisesError || !exerciseRows) {
-        console.error('Entries replace: exercise insert failed:', exercisesError);
+        reportRouteError('Entries replace: exercise insert failed:', exercisesError);
         return NextResponse.json({ error: 'Failed to save workout entries' }, { status: 500 });
       }
 
@@ -113,7 +114,7 @@ export async function PUT(
           ({ error: setsError } = await supabase.from('workout_sets').insert(setRows));
         }
         if (setsError) {
-          console.error('Entries replace: set insert failed twice:', setsError);
+          reportRouteError('Entries replace: set insert failed twice:', setsError);
           return NextResponse.json({ error: 'Failed to save workout entries' }, { status: 500 });
         }
       }
@@ -127,7 +128,7 @@ export async function PUT(
     return NextResponse.json({ ok: true, savedAt });
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('PUT /api/workouts/[id]/entries error:', error);
+    reportRouteError('PUT /api/workouts/[id]/entries error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

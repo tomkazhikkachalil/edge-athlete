@@ -12,6 +12,7 @@ import {
   type RoutinePlan,
 } from '@/lib/calendar/event-routine';
 import { effectiveSessionStatus, staleFinalizeFields } from '@/lib/workouts/status';
+import { reportRouteError } from '@/lib/observability/report';
 
 /**
  * Edge Vitals workout sessions.
@@ -236,7 +237,7 @@ export async function GET(request: NextRequest) {
     const { data: sessions, error } = await query;
 
     if (error) {
-      console.error('Error fetching workouts:', error);
+      reportRouteError('Error fetching workouts:', error);
       return NextResponse.json({ error: 'Failed to fetch workouts' }, { status: 500 });
     }
 
@@ -258,7 +259,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ sessions: sessions || [] });
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('GET /api/workouts error:', error);
+    reportRouteError('GET /api/workouts error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
@@ -395,7 +396,7 @@ export async function POST(request: NextRequest) {
         .single();
 
       if (error) {
-        console.error('Error starting workout:', error);
+        reportRouteError('Error starting workout:', error);
         return NextResponse.json({ error: 'Failed to start workout' }, { status: 500 });
       }
 
@@ -404,7 +405,7 @@ export async function POST(request: NextRequest) {
         const seeded = routineToEntries(plan.exercises);
         const result = await insertSessionEntries(supabase, session.id, user.id, seeded);
         if (!result.ok) {
-          console.error(`Routine start failed at ${result.step}:`, result.error);
+          reportRouteError(`Routine start failed at ${result.step}:`, result.error);
           await supabase.from('workout_sessions').delete().eq('id', session.id);
           return NextResponse.json(
             { error: 'Nothing was saved — please try again.' },
@@ -464,14 +465,14 @@ export async function POST(request: NextRequest) {
         .single();
 
       if (sessionError || !session) {
-        console.error('Error creating manual workout:', sessionError);
+        reportRouteError('Error creating manual workout:', sessionError);
         return NextResponse.json({ error: 'Failed to save workout' }, { status: 500 });
       }
 
       // Children — compensating delete on failure (session cascade removes all)
       const result = await insertSessionEntries(supabase, session.id, user.id, validated.exercises);
       if (!result.ok) {
-        console.error(`Manual workout creation failed at ${result.step}:`, result.error);
+        reportRouteError(`Manual workout creation failed at ${result.step}:`, result.error);
         await supabase.from('workout_sessions').delete().eq('id', session.id);
         return NextResponse.json(
           { error: 'Nothing was saved — please try again.' },
@@ -491,7 +492,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Unknown mode' }, { status: 400 });
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('POST /api/workouts error:', error);
+    reportRouteError('POST /api/workouts error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

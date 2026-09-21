@@ -6,6 +6,7 @@ import { divisionCreatePOST, divisionDELETE } from '@/lib/orgs/structure-server'
 import { isSportEnabled } from '@/lib/features';
 import type { SportKey } from '@/lib/sports/SportRegistry';
 import { UUID_RE } from '@/lib/golf/course-catalog';
+import { reportRouteError } from '@/lib/observability/report';
 
 // ── /api/admin/structure/divisions — thin wrapper over structure-server ─────
 // The division.org == season.org rule lives in the shared lib, once.
@@ -24,7 +25,7 @@ export async function POST(request: NextRequest) {
     return await divisionCreatePOST(getSupabaseAdmin(), parsed.data, null);
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[ADMIN STRUCTURE] divisions POST error:', error);
+    reportRouteError('[ADMIN STRUCTURE] divisions POST error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
@@ -41,7 +42,7 @@ export async function DELETE(request: NextRequest) {
     return await divisionDELETE(getSupabaseAdmin(), id, null);
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[ADMIN STRUCTURE] divisions DELETE error:', error);
+    reportRouteError('[ADMIN STRUCTURE] divisions DELETE error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

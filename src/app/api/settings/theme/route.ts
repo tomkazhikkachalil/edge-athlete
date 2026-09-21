@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerAuth, getSupabaseAdmin } from '@/lib/auth-server';
 import { sanitizeThemePrefs } from '@/lib/theme-prefs';
+import { reportRouteError } from '@/lib/observability/report';
 
 /**
  * PATCH /api/settings/theme — save the caller's OWN theme preference
@@ -31,13 +32,13 @@ export async function PATCH(request: NextRequest) {
       .eq('id', user.id);
 
     if (error) {
-      console.error('Theme prefs update error:', error);
+      reportRouteError('Theme prefs update error:', error);
       return NextResponse.json({ error: 'Failed to save settings' }, { status: 500 });
     }
 
     return NextResponse.json({ prefs });
   } catch (error) {
-    console.error('Theme prefs PATCH error:', error);
+    reportRouteError('Theme prefs PATCH error:', error);
     return NextResponse.json({ error: 'Failed to save settings' }, { status: 500 });
   }
 }

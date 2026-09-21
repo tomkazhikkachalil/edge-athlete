@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/auth-server';
 import { enforceRateLimit } from '@/lib/rate-limit';
+import { reportRouteError } from '@/lib/observability/report';
 
 const GIPHY_BASE = 'https://api.giphy.com/v1/gifs';
 const LIMIT = 20;
@@ -49,7 +50,7 @@ export async function GET(request: NextRequest) {
     });
 
     if (!res.ok) {
-      console.error('Giphy API error:', res.status, await res.text());
+      reportRouteError('Giphy API error:', res.status, await res.text());
       return NextResponse.json({ error: 'Failed to fetch GIFs' }, { status: 502 });
     }
 
@@ -67,7 +68,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ gifs });
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('GET /api/gifs/search error:', error);
+    reportRouteError('GET /api/gifs/search error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

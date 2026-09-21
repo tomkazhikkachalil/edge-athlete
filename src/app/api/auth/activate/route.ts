@@ -6,6 +6,7 @@ import { getSupabaseAdmin } from '@/lib/auth-server';
 import { FEATURE_FLAGS } from '@/lib/features';
 import { redeemGuardianInvite } from '@/lib/guardian-invites';
 import { enforceRateLimit } from '@/lib/rate-limit';
+import { reportRouteError } from '@/lib/observability/report';
 
 // ── POST /api/auth/activate ───────────────────────────────────────────────────
 // Post-transfer account activation: the new owner consumes their single-use
@@ -103,7 +104,7 @@ export async function POST(request: NextRequest) {
       signedIn: !signInError,
     });
   } catch (error) {
-    console.error('[ACTIVATE] error:', error);
+    reportRouteError('[ACTIVATE] error:', error);
     Sentry.captureException(error, { tags: { area: 'transfers' } });
     return NextResponse.json({ error: 'An unexpected error occurred' }, { status: 500 });
   }

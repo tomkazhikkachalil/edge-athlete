@@ -3,6 +3,7 @@ import { isUuid } from '@/lib/uuid';
 import { requireAuth, getSupabaseAdmin } from '@/lib/auth-server';
 import { isValidDateString, isNotFutureDate } from '@/lib/date-validation';
 import { validateEquipmentPatch } from '@/lib/equipment-validation';
+import { reportRouteError } from '@/lib/observability/report';
 
 // PATCH - Update equipment. Status and the user-editable dates were always
 // PATCHable; the item fields (brand/model/category/sport/specs/image/notes)
@@ -116,13 +117,13 @@ export async function PATCH(
       .single();
 
     if (updateError) {
-      console.error('Error updating equipment:', updateError);
+      reportRouteError('Error updating equipment:', updateError);
       return NextResponse.json({ error: 'Failed to update equipment' }, { status: 500 });
     }
 
     return NextResponse.json({ equipment: updated });
   } catch (error) {
-    console.error('Equipment PATCH error:', error);
+    reportRouteError('Equipment PATCH error:', error);
 
     if (error instanceof Response) {
       return error;
@@ -167,13 +168,13 @@ export async function DELETE(
       .eq('id', id);
 
     if (deleteError) {
-      console.error('Error deleting equipment:', deleteError);
+      reportRouteError('Error deleting equipment:', deleteError);
       return NextResponse.json({ error: 'Failed to delete equipment' }, { status: 500 });
     }
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error('Equipment DELETE error:', error);
+    reportRouteError('Equipment DELETE error:', error);
 
     if (error instanceof Response) {
       return error;

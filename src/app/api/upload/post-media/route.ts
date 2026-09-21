@@ -4,6 +4,7 @@ import { resolveActingProfile } from '@/lib/guardian-gate';
 import { enforceRateLimit } from '@/lib/rate-limit';
 import { isUuid } from '@/lib/uuid';
 import { scrubVideoMetadata, SCRUBBABLE_VIDEO } from '@/lib/media/video-scrub-server';
+import { reportRouteError } from '@/lib/observability/report';
 
 // Capture v2 (Sep 2026): MP4/MOV metadata (GPS ©xyz, udta) is scrubbed HERE,
 // before the storage write, instead of on the phone — a 50MB stream-copy
@@ -97,7 +98,7 @@ export async function POST(request: NextRequest) {
       });
 
     if (uploadError) {
-      console.error('Upload error:', uploadError);
+      reportRouteError('Upload error:', uploadError);
       return NextResponse.json({ error: 'Failed to upload file' }, { status: 500 });
     }
 
@@ -118,7 +119,7 @@ export async function POST(request: NextRequest) {
     });
 
   } catch (error) {
-    console.error('File upload error:', error);
+    reportRouteError('File upload error:', error);
 
     if (error instanceof Response) {
       return error;
@@ -161,7 +162,7 @@ export async function DELETE(request: NextRequest) {
       .remove([filePath.replace(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/uploads/`, '')]);
 
     if (deleteError) {
-      console.error('Delete error:', deleteError);
+      reportRouteError('Delete error:', deleteError);
       return NextResponse.json({ error: 'Failed to delete file' }, { status: 500 });
     }
 
@@ -172,7 +173,7 @@ export async function DELETE(request: NextRequest) {
 
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('File delete error:', error);
+    reportRouteError('File delete error:', error);
     return NextResponse.json({ error: 'Failed to delete file' }, { status: 500 });
   }
 }

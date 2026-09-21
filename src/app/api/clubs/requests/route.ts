@@ -9,6 +9,7 @@ import type { SportKey } from '@/lib/sports/SportRegistry';
 import { provisionPendingOrg } from '@/lib/orgs/pending-org';
 import { requireOrgCreator } from '@/lib/orgs/org-creator-gate';
 import { notifyAdminsOfListingRequest } from '@/lib/orgs/listing-notify';
+import { reportRouteError } from '@/lib/observability/report';
 
 // ── /api/clubs/requests — self-service "Start a club" (117) ─────────────────
 // Mirror of /api/leagues/requests, minus sport (clubs are multi-sport by
@@ -91,7 +92,7 @@ export async function POST(request: NextRequest) {
       if (isMissingTableError(error?.code)) {
         return NextResponse.json({ error: 'Club requests are not available yet' }, { status: 503 });
       }
-      console.error('[CLUB REQUESTS] insert error:', error);
+      reportRouteError('[CLUB REQUESTS] insert error:', error);
       return NextResponse.json({ error: 'Failed to submit request' }, { status: 500 });
     }
 
@@ -108,7 +109,7 @@ export async function POST(request: NextRequest) {
     });
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[CLUB REQUESTS] POST error:', error);
+    reportRouteError('[CLUB REQUESTS] POST error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
@@ -126,13 +127,13 @@ export async function GET(request: NextRequest) {
       .limit(20);
     if (error) {
       if (isMissingTableError(error.code)) return NextResponse.json({ requests: [] });
-      console.error('[CLUB REQUESTS] list error:', error);
+      reportRouteError('[CLUB REQUESTS] list error:', error);
       return NextResponse.json({ error: 'Failed to load requests' }, { status: 500 });
     }
     return NextResponse.json({ requests: data ?? [] });
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[CLUB REQUESTS] GET error:', error);
+    reportRouteError('[CLUB REQUESTS] GET error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

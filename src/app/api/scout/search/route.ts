@@ -4,6 +4,7 @@ import { enforceRateLimit } from '@/lib/rate-limit';
 import { requireScout } from '@/lib/recruiting/scout-access';
 import { parseRecruitingSearchParams } from '@/lib/recruiting/search';
 import { searchRecruitableAthletes } from '@/lib/recruiting/search-server';
+import { reportRouteError } from '@/lib/observability/report';
 
 // ── GET /api/scout/search (Recruiting skeleton R4) ────────────────────────
 // Scout-only (requireScout): the recruitable athletes narrowed by ?q=
@@ -26,7 +27,7 @@ export async function GET(request: NextRequest) {
     const result = await searchRecruitableAthletes(getSupabaseAdmin(), params);
     return NextResponse.json({ ...result, params }, { headers: { 'Cache-Control': 'private, no-store' } });
   } catch (error) {
-    console.error('[scout/search] GET error:', error);
+    reportRouteError('[scout/search] GET error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

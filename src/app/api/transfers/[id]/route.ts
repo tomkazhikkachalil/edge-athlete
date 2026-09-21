@@ -13,6 +13,7 @@ import {
 } from '@/lib/transfers';
 import { emailService } from '@/lib/email-service';
 import { notifyGuardians, notifyUser, profileFirstName } from '@/lib/guardian-notify';
+import { reportRouteError } from '@/lib/observability/report';
 
 // ── POST /api/transfers/[id] — state transitions ──────────────────────────────
 // { action: 'submit_contact' | 'verify_contact' | 'confirm' | 'cancel', ... }
@@ -178,7 +179,7 @@ export async function POST(
     return NextResponse.json({ error: 'Unknown action' }, { status: 400 });
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[TRANSFERS] action error:', error);
+    reportRouteError('[TRANSFERS] action error:', error);
     Sentry.captureException(error, { tags: { area: 'transfers' } });
     return NextResponse.json({ error: 'An unexpected error occurred' }, { status: 500 });
   }

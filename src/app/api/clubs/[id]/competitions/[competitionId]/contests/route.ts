@@ -10,6 +10,7 @@ import {
   requireCompetitionManager,
 } from '@/lib/orgs/competition-server';
 import { UUID_RE } from '@/lib/golf/course-catalog';
+import { reportRouteError } from '@/lib/observability/report';
 
 // ── /api/clubs/[id]/competitions/[competitionId]/contests (phase 2 R2) ────
 // Thin wrapper; ownership + fixture rules in orgs/competition-server.ts.
@@ -39,7 +40,7 @@ export async function POST(
     return await contestCreatePOST(admin, parsed.data, { side: 'club', orgId: id });
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[COMPETITIONS] club contests POST error:', error);
+    reportRouteError('[COMPETITIONS] club contests POST error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
@@ -65,7 +66,7 @@ export async function PATCH(
     return await contestPATCH(admin, parsed.data, { side: 'club', orgId: id });
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[COMPETITIONS] club contests PATCH error:', error);
+    reportRouteError('[COMPETITIONS] club contests PATCH error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
@@ -91,7 +92,7 @@ export async function DELETE(
     return await contestDELETE(admin, contestId, { side: 'club', orgId: id });
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[COMPETITIONS] club contests DELETE error:', error);
+    reportRouteError('[COMPETITIONS] club contests DELETE error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

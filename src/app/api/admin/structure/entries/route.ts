@@ -4,6 +4,7 @@ import { parseBody } from '@/lib/validation';
 import { EntryCreateSchema } from '@/lib/structure/validate';
 import { entryCreatePOST, entryDELETE } from '@/lib/orgs/structure-server';
 import { UUID_RE } from '@/lib/golf/course-catalog';
+import { reportRouteError } from '@/lib/observability/report';
 
 // ── /api/admin/structure/entries — thin wrapper over structure-server ───────
 // The team.org == division.org rule (+ archived-team refusal) lives in the
@@ -17,7 +18,7 @@ export async function POST(request: NextRequest) {
     return await entryCreatePOST(getSupabaseAdmin(), parsed.data, null);
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[ADMIN STRUCTURE] entries POST error:', error);
+    reportRouteError('[ADMIN STRUCTURE] entries POST error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
@@ -34,7 +35,7 @@ export async function DELETE(request: NextRequest) {
     return await entryDELETE(getSupabaseAdmin(), id, null);
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[ADMIN STRUCTURE] entries DELETE error:', error);
+    reportRouteError('[ADMIN STRUCTURE] entries DELETE error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

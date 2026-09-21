@@ -3,6 +3,7 @@ import { isUuid } from '@/lib/uuid';
 import { getSupabaseAdmin } from '@/lib/auth-server';
 import { enforceRateLimit } from '@/lib/rate-limit';
 import { evaluateMemberPhotos } from '@/lib/org-sites/member-photo-gate';
+import { reportRouteError } from '@/lib/observability/report';
 
 /**
  * GET /api/media/org-gallery/[siteId]/[mediaId] — the PUBLIC streamer for
@@ -63,7 +64,7 @@ export async function GET(
     return new NextResponse(upstream.body, { status: upstream.status, headers });
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[org-gallery-proxy] error:', error);
+    reportRouteError('[org-gallery-proxy] error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

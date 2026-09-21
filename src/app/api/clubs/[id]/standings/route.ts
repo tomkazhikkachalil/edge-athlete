@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/auth-server';
 import { fetchPublicStandings } from '@/lib/competitions/public-standings';
 import { UUID_RE } from '@/lib/golf/course-catalog';
+import { reportRouteError } from '@/lib/observability/report';
 
 // ── /api/clubs/[id]/standings — the PUBLIC standings read (R3 spike) ──────
 // The #303 recipe: viewer-independent (only visibility='public'
@@ -30,7 +31,7 @@ export async function GET(
     });
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[STANDINGS] club GET error:', error);
+    reportRouteError('[STANDINGS] club GET error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

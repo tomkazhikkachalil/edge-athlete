@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/auth-server';
 import { searchPeople, accessibleProfileIds } from '@/lib/search/people-server';
+import { reportRouteError } from '@/lib/observability/report';
 
 // ── GET /api/mentions/search?q= ───────────────────────────────────────────────
 // The @mention typeahead source for COMMENTS: public profiles PLUS the
@@ -37,7 +38,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ profiles });
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[MENTIONS] search error:', error);
+    reportRouteError('[MENTIONS] search error:', error);
     return NextResponse.json({ error: 'Search failed' }, { status: 500 });
   }
 }

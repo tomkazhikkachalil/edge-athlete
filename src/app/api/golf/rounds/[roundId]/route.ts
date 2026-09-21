@@ -4,6 +4,7 @@ import { getSupabaseAdmin, requireAuth } from '@/lib/auth-server';
 import { canViewProfile } from '@/lib/privacy';
 import { naturalKey } from '@/lib/performance/types';
 import { deletePerformancesByKeys, syncGolfRoundPerformance } from '@/lib/performance/write-server';
+import { reportRouteError } from '@/lib/observability/report';
 
 // ── GET /api/golf/rounds/[roundId] ────────────────────────────────────────────
 // Round + hole-by-hole data. Visible to the owner, or to viewers permitted to
@@ -41,7 +42,7 @@ export async function GET(
       .maybeSingle();
 
     if (error) {
-      console.error('GET /api/golf/rounds/[id] error:', error);
+      reportRouteError('GET /api/golf/rounds/[id] error:', error);
       return NextResponse.json({ error: 'Failed to load round' }, { status: 500 });
     }
     if (!round) {
@@ -64,7 +65,7 @@ export async function GET(
     return NextResponse.json({ round, isOwner });
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('GET /api/golf/rounds/[id] error:', error);
+    reportRouteError('GET /api/golf/rounds/[id] error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
@@ -139,7 +140,7 @@ export async function PATCH(
         .update(ratingPatch)
         .eq('id', roundId);
       if (ratingError) {
-        console.error('PATCH /api/golf/rounds/[id] rating update error:', ratingError);
+        reportRouteError('PATCH /api/golf/rounds/[id] rating update error:', ratingError);
         return NextResponse.json({ error: 'Failed to save course rating' }, { status: 500 });
       }
       // Mirror safety: mirrorCompletedRound re-runs on late score edits and
@@ -153,7 +154,7 @@ export async function PATCH(
           .update(ratingPatch)
           .eq('group_post_id', round.group_post_id);
         if (scError) {
-          console.error('PATCH /api/golf/rounds/[id] scorecard rating update error:', scError);
+          reportRouteError('PATCH /api/golf/rounds/[id] scorecard rating update error:', scError);
           return NextResponse.json({ error: 'Failed to save course rating' }, { status: 500 });
         }
       }
@@ -220,14 +221,14 @@ export async function PATCH(
       .upsert(records, { onConflict: 'round_id,hole_number' });
 
     if (upsertError) {
-      console.error('PATCH /api/golf/rounds/[id] upsert error:', upsertError);
+      reportRouteError('PATCH /api/golf/rounds/[id] upsert error:', upsertError);
       return NextResponse.json({ error: 'Failed to save hole scores' }, { status: 500 });
     }
 
     // Recalculate cached round stats
     const { error: statsError } = await supabase.rpc('calculate_round_stats', { round_uuid: roundId });
     if (statsError) {
-      console.error('PATCH /api/golf/rounds/[id] stats recalc error:', statsError);
+      reportRouteError('PATCH /api/golf/rounds/[id] stats recalc error:', statsError);
       // Holes saved; stats stale until next recalc — report but don't fail the save
     }
     // Data foundation F4: the edited round's performance row, from the
@@ -261,7 +262,7 @@ export async function PATCH(
     return NextResponse.json({ round: updated, statsRecalculated: !statsError });
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('PATCH /api/golf/rounds/[id] error:', error);
+    reportRouteError('PATCH /api/golf/rounds/[id] error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
@@ -301,7 +302,7 @@ export async function DELETE(
       .eq('id', roundId);
 
     if (deleteError) {
-      console.error('DELETE /api/golf/rounds/[id] error:', deleteError);
+      reportRouteError('DELETE /api/golf/rounds/[id] error:', deleteError);
       return NextResponse.json({ error: 'Failed to delete round' }, { status: 500 });
     }
     // Data foundation F4: the round's performance row dies with it.
@@ -310,7 +311,7 @@ export async function DELETE(
     return NextResponse.json({ success: true });
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('DELETE /api/golf/rounds/[id] error:', error);
+    reportRouteError('DELETE /api/golf/rounds/[id] error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

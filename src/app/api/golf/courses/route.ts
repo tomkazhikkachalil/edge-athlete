@@ -17,6 +17,7 @@ import {
 } from '@/lib/golf/course-catalog';
 import { getCourseHoleGeometry } from '@/lib/golf/hole-geometry';
 import { orgSitePath } from '@/lib/org-sites/urls';
+import { reportRouteError } from '@/lib/observability/report';
 
 // ── GET /api/golf/courses ────────────────────────────────────────────────────
 // The course picker's data source, over the golf_courses catalog (migration
@@ -153,7 +154,7 @@ export async function GET(request: NextRequest) {
         }
       }
     } catch (clubJoinError) {
-      console.error('Club-field merge failed (non-fatal):', clubJoinError);
+      reportRouteError('Club-field merge failed (non-fatal):', clubJoinError);
     }
 
     // ── "Courses you've played" layer ────────────────────────────────────
@@ -212,7 +213,7 @@ export async function GET(request: NextRequest) {
         historyCourses = [...own, ...platform].slice(0, 5);
       }
     } catch (historyError) {
-      console.error('Course history layer failed (non-fatal):', historyError);
+      reportRouteError('Course history layer failed (non-fatal):', historyError);
     }
 
     // Enrich history rows from the catalog row they shadow: history DEDUPES
@@ -307,7 +308,7 @@ export async function GET(request: NextRequest) {
     // return, not throw: a thrown Response becomes a 500 at the handler
     // boundary in this Next version (the working convention across the API).
     if (error instanceof Response) return error;
-    console.error('Golf courses API error:', error);
+    reportRouteError('Golf courses API error:', error);
     return NextResponse.json({ error: 'Failed to search courses' }, { status: 500 });
   }
 }

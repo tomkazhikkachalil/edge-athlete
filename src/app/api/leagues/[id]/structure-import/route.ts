@@ -4,6 +4,7 @@ import { enforceRateLimit } from '@/lib/rate-limit';
 import { structureImportPOST } from '@/lib/orgs/structure-import';
 import { requireOrgManager } from '@/lib/orgs/structure-server';
 import { UUID_RE } from '@/lib/golf/course-catalog';
+import { reportRouteError } from '@/lib/observability/report';
 
 // ── /api/leagues/[id]/structure-import (phase 6 R5) ─────────────────────────
 // Divisions + teams + entries by CSV paste, dry-run-first, idempotent by
@@ -43,7 +44,7 @@ export async function POST(
     });
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[STRUCTURE-IMPORT] league POST error:', error);
+    reportRouteError('[STRUCTURE-IMPORT] league POST error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

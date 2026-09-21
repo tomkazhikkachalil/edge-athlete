@@ -3,6 +3,7 @@ import { getSupabaseAdmin, requireAdmin } from '@/lib/auth-server';
 import { parseBody } from '@/lib/validation';
 import { createArticle, HelpNotLive, readAllForAdmin } from '@/lib/help/server';
 import { ArticleBody } from '@/lib/help/schema';
+import { reportRouteError } from '@/lib/observability/report';
 
 /**
  * /api/admin/help/articles — the owner's article list and creation
@@ -18,7 +19,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(await readAllForAdmin(getSupabaseAdmin()), { headers: NO_STORE });
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[GET /api/admin/help/articles]', error);
+    reportRouteError('[GET /api/admin/help/articles]', error);
     return NextResponse.json({ error: 'Could not load the articles' }, { status: 500, headers: NO_STORE });
   }
 }
@@ -35,7 +36,7 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     if (error instanceof Response) return error;
     if (error instanceof HelpNotLive) return NextResponse.json({ error: error.message }, { status: 503, headers: NO_STORE });
-    console.error('[POST /api/admin/help/articles]', error);
+    reportRouteError('[POST /api/admin/help/articles]', error);
     return NextResponse.json({ error: 'Could not create the article' }, { status: 500, headers: NO_STORE });
   }
 }
