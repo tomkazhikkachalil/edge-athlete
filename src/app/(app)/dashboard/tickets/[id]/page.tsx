@@ -46,6 +46,9 @@ export default function SupportTicketPage() {
   const [resolutionCode, setResolutionCode] = useState<ResolutionCode | ''>('');
   const [resolutionNote, setResolutionNote] = useState('');
   const [confirmResolve, setConfirmResolve] = useState(false);
+  // Spec 4: merge a duplicate by number; paste the user's emailed reply.
+  const [mergeInto, setMergeInto] = useState('');
+  const [pasted, setPasted] = useState('');
 
   const loadRef = useRef<() => Promise<void>>(async () => {});
   useEffect(() => {
@@ -72,7 +75,7 @@ export default function SupportTicketPage() {
     return () => { cancelled = true; };
   }, [user, loading, router, id]);
 
-  const isDirty = useCallback(() => reply.trim().length > 0 || note.trim().length > 0 || resolutionNote.trim().length > 0, [reply, note, resolutionNote]);
+  const isDirty = useCallback(() => reply.trim().length > 0 || note.trim().length > 0 || resolutionNote.trim().length > 0 || pasted.trim().length > 0, [reply, note, resolutionNote, pasted]);
   const { requestClose, confirmOpen, confirmDiscard, cancelDiscard } = useDirtyClose(isDirty, () => router.push('/dashboard/tickets'));
 
   const call = async (path: string, method: 'PATCH' | 'POST', body: Record<string, unknown>): Promise<boolean> => {
@@ -105,6 +108,14 @@ export default function SupportTicketPage() {
   const addNote = async () => {
     if (!note.trim()) return;
     if (await call(`/api/admin/tickets/${id}/notes`, 'POST', { body: note.trim() })) setNote('');
+  };
+  const merge = async () => {
+    if (!mergeInto.trim()) return;
+    if (await call(`/api/admin/tickets/${id}/merge`, 'POST', { into: mergeInto.trim() })) setMergeInto('');
+  };
+  const paste = async () => {
+    if (!pasted.trim()) return;
+    if (await call(`/api/admin/tickets/${id}/paste-reply`, 'POST', { body: pasted.trim() })) setPasted('');
   };
   const resolve = async () => {
     setConfirmResolve(false);
@@ -337,7 +348,36 @@ export default function SupportTicketPage() {
                     Add note
                   </button>
                 </div>
+                {/* Spec 4 (decided: no inbound parsing): the user's emailed reply, pasted by hand. */}
+                <label className="text-xs text-muted border-t border-border pt-3">
+                  Paste the user&apos;s email reply (lands as their reply, with the same status effect)
+                  <textarea value={pasted} onChange={e => setPasted(e.target.value)} maxLength={TICKET_LIMITS.reply} rows={2} className="mt-1 block w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-primary" data-ticket-paste-box="" />
+                </label>
+                <div>
+                  <button type="button" disabled={busy || !pasted.trim()} onClick={paste} className="px-3 py-2 min-h-[40px] rounded-lg border border-border bg-surface text-sm font-semibold text-primary ea-interactive disabled:opacity-50" data-ticket-paste="">
+                    Add as their reply
+                  </button>
+                </div>
               </section>
+            )}
+
+            {/* Spec 4: merge a duplicate into another ticket of the same type. */}
+            {!t.merged_into_id && (
+              <section className="ea-surface rounded-lg p-4 mb-4" aria-label="Merge">
+                <h2 className="text-sm font-semibold text-primary mb-1">Duplicate of another ticket?</h2>
+                <p className="text-xs text-muted mb-2">Merge this one into it — the other ticket keeps the count{t.report_count > 1 ? ` (this one already carries ${t.report_count})` : ''}; this reporter still sees theirs.</p>
+                <div className="flex flex-wrap gap-2">
+                  <input value={mergeInto} onChange={e => setMergeInto(e.target.value)} placeholder="EA-1042" className="min-h-[40px] w-32 rounded-lg border border-border bg-surface px-3 text-sm text-primary font-mono" data-ticket-merge-into="" />
+                  <button type="button" disabled={busy || !mergeInto.trim()} onClick={merge} className="px-3 py-2 min-h-[40px] rounded-lg border border-border bg-surface text-sm font-semibold text-primary ea-interactive disabled:opacity-50" data-ticket-merge="">
+                    Merge into it
+                  </button>
+                </div>
+              </section>
+            )}
+            {t.merged_into_id && (
+              <p className="text-sm text-secondary mb-4" data-ticket-merged="">
+                Merged into <a href={`/dashboard/tickets/${t.merged_into_id}`} className="text-brand-fg hover:underline">another ticket</a>.
+              </p>
             )}
 
             {/* History */}
