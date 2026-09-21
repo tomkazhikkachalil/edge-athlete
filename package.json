@@ -19,7 +19,8 @@
     "verify": "npm run typecheck && npm run lint && npm run test && npm run build && npm run check:syntax",
     "verify:media-privacy": "node scripts/verify-media-privacy.mjs",
     "check:schema": "node scripts/schema-inventory.mjs",
-    "migrate:mark": "node scripts/migrate-mark.mjs"
+    "migrate:mark": "node scripts/migrate-mark.mjs",
+    "build:baseline": "node scripts/build-rebuild-baseline.mjs"
   },
   "browserslist": [
     "iOS >= 15",

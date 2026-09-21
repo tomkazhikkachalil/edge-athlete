@@ -315,6 +315,52 @@ answer:
 (the objects are live) AND the ledger (the file is recorded). Both must
 agree; the diagnostics twin stays the grid for the human eye.
 
+## To build an environment (Round 2, Sep 21 2026) — the chain does NOT replay
+
+**Never run 001..N on a blank project.** `node scripts/chain-replay-scan.mjs`
+proves it: `posts`, `post_media`, `follows` and `athlete_equipment` are
+altered or referenced from 002–044 but created only by the Sep 14 baselines
+190–191 (which recorded pre-chain tables verbatim), and 003 `RAISE
+EXCEPTION`s if `follows` is missing — the replay stops at 002. The chain is
+HISTORY (what changed, why, in order); it is not a build script.
+
+A new environment is built from the LIVE schema instead:
+
+1. **Generate** (from a machine with prod's service key):
+   `npm run build:baseline` calls `public.schema_dump()` (migration 227,
+   service-role only — extensions, enum types, sequences, every table
+   with its columns, constraints, indexes, views, functions, triggers
+   incl. `auth.users`', policies incl. `storage.objects`', grants for the
+   three API roles, storage buckets, the realtime publication, the
+   reference rows, the ledger head), saves the jsonb under
+   `database/provenance/dumps/<date>-schema.json` and writes
+   **`database/baseline/000_rebuild.sql`** in dependency order, every
+   statement guarded. It then re-parses that file against PostgREST's
+   live inventory: a table or column the generator dropped fails the
+   build. Commit the regenerated file with the migration that changed
+   the schema (or after a batch — the file's header names the ledger
+   head it embodies).
+2. **Run** `000_rebuild.sql` WHOLE in the new project's SQL editor. It
+   ends in one result row (`000 REBUILT | tables | functions | policies |
+   head`) and seeds the ledger with every chain file up to that head as
+   `rebuild-000`.
+3. **Prove it:** point `.env.local` at the new project; `npm run
+   check:schema` must report 0 drift on every facet AND `Ledger OK`. That
+   is the only proof the environment is built — never the result row.
+4. **By hand, after:** the pg_cron jobs (commented at the end of the file
+   — they need the NEW app URL and `CRON_SECRET`; the dump redacts the
+   token in the database, so a secret never enters the repo); storage
+   OBJECTS and the golf catalog (28k courses — data, not schema; copy
+   with a one-off script when the environment needs it); auth users.
+5. **From then on** the environment moves with the chain: run each new
+   `NNN_*.sql` as it merges (the ledger records it), and `check:schema`
+   against that environment stays the proof.
+
+`scripts/rebuild-baseline-core.mjs` is pure and pinned by
+`rebuild-baseline.test.ts` (the order, the column forms, the guards, the
+parser reading it back); `scripts/chain-replay-scan.mjs` is the read-only
+report of why this section exists.
+
 ## ⚠️ Everything else is historical — do NOT run it
 
 These directories are **reference only**. Running any script in them against a
