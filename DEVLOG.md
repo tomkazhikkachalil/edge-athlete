@@ -1,5 +1,13 @@
 # Development Log
 
+## September 21, 2026 — Round 2 PR 3: the first generated rebuild — `database/baseline/000_rebuild.sql` from prod at ledger head 227 (zero DDL; the generator's first real run)
+
+**What:** 226 and 227 ran on prod (`226 APPLIED | 225 | 226`; `227 APPLIED | true | false | 122 | 227`; `check:schema` → `Ledger OK`). `npm run build:baseline` over the live `schema_dump()`: **122 tables, 107 functions, 172 public + 7 `storage.objects` policies, 106 triggers, 4 buckets, 5 realtime tables, 100 reserved handles, one identity sequence, no enum types, no views** — 678 KB, self-check OK (every live table and column is in the file). The dump is `database/provenance/dumps/2026-09-21-schema.json` (evidence; token-free — the twin's "no bearer token" row and a grep both say so). Two facts the first run recorded: `cron.job` is NOT readable by the service role (the section says so; the two jobs come from 059 / 135 by hand with the new URL + secret), and prod has **no trigger on `auth.users`** — 001's `on_auth_user_created` is gone (profiles are minted by the app), which the dump reflects rather than the chain's story. A header-comment mismatch (the expected policies count named all 179 where the column counts the 172 public ones) fixed in the core.
+
+**What this proves and what it does not:** the file is complete against the live inventory and is readable by the provenance parser — that is the self-check. Whether it BUILDS a blank project is staging's question (Round 2 item 1, Tom's click): 680 KB in the SQL editor, function bodies whose SQL-language dependencies resolve, extensions the dashboard may need to enable first. The first run there will find the list; the generator is where the fixes go, never the file.
+
+**Verification:** `npm run verify` green (3603).
+
 ## September 21, 2026 — Round 2 PR 2: the rebuildable chain — the chain does NOT replay, so the rebuild is generated from the live schema (migration 227; merges ALONE, after 226)
 
 **The finding first:** `node scripts/chain-replay-scan.mjs` (new, read-only) asks whether 001..N would run on a blank database. It would not: `posts`, `post_media`, `follows` and `athlete_equipment` are altered or referenced from 002–044 but created only by the Sep 14 baselines 190–191 (which recorded pre-chain tables verbatim), and 003 `RAISE EXCEPTION`s when `follows` is missing — the replay stops at 002. The chain is history, not a build script; Tom's Vercel stays Hobby and a free-tier staging Supabase project has no backup-restore, so "build a second environment" has exactly one honest path: **generate it from the live schema.**
