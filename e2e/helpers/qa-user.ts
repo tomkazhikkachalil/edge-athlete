@@ -440,17 +440,44 @@ export async function sweepStaleQaUsers(): Promise<void> {
   try {
     const admin = adminClient();
     const cutoff = Date.now() - 24 * 60 * 60 * 1000;
-    const { data } = await admin.auth.admin.listUsers({ page: 1, perPage: 200 });
-    for (const u of data?.users ?? []) {
-      if (!u.email?.startsWith('edgeqa-')) continue;
-      if (new Date(u.created_at).getTime() > cutoff) continue;
-      await deleteQaUser(u.id).catch(err =>
+    const stale = await listStaleQaUsers(admin, cutoff);
+    if (stale.length) console.log(`[e2e sweep] ${stale.length} stale QA user(s) to delete`);
+    let deleted = 0;
+    for (const u of stale) {
+      await deleteQaUser(u.id).then(() => { deleted++; }).catch(err =>
         console.warn(`[e2e sweep] could not delete stale ${u.email}:`, err.message)
       );
     }
+    if (stale.length) console.log(`[e2e sweep] deleted ${deleted} / ${stale.length}`);
   } catch (err) {
     console.warn('[e2e sweep] skipped:', (err as Error).message);
   }
+}
+
+/**
+ * Every edgeqa-* auth user created before `cutoff`, across EVERY page of
+ * the auth listing. The sweep used to read page 1 of 200: once the leak
+ * outgrew a page, the older orphans sat behind it forever (Round 1 PR 5).
+ * Bounded at 20 pages × 1000 — a listing that long is its own emergency.
+ */
+export async function listStaleQaUsers(
+  admin: ReturnType<typeof adminClient>,
+  cutoff: number
+): Promise<Array<{ id: string; email: string; created_at: string }>> {
+  const stale: Array<{ id: string; email: string; created_at: string }> = [];
+  const perPage = 1000;
+  for (let page = 1; page <= 20; page++) {
+    const { data, error } = await admin.auth.admin.listUsers({ page, perPage });
+    if (error) throw new Error(`listUsers(page ${page}) failed: ${error.message}`);
+    const users = data?.users ?? [];
+    for (const u of users) {
+      if (!u.email?.startsWith('edgeqa-')) continue;
+      if (new Date(u.created_at).getTime() > cutoff) continue;
+      stale.push({ id: u.id, email: u.email, created_at: u.created_at });
+    }
+    if (users.length < perPage) break;
+  }
+  return stale;
 }
 
 /** Read a persisted QA user from e2e/.auth (written by global setup). */
