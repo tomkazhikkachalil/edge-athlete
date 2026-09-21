@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth, getSupabaseAdmin } from '@/lib/auth-server';
 import { registrationsExportGET, requireRegistrar } from '@/lib/orgs/registration-server';
 import { UUID_RE } from '@/lib/golf/course-catalog';
+import { reportRouteError } from '@/lib/observability/report';
 
 // ── /api/clubs/[id]/registrations/export — the league twin's mirror ─────────
 // See leagues/[id]/registrations/export/route.ts: registrar CSV download,
@@ -29,7 +30,7 @@ export async function GET(
     );
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[REGISTRATION] club export error:', error);
+    reportRouteError('[REGISTRATION] club export error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

@@ -5,6 +5,7 @@ import { extractHandles } from '@/lib/mentions';
 import { notifyChatMentions } from '@/lib/mentions/notify';
 import { enforceRateLimit } from '@/lib/rate-limit';
 import { toProxyUrl } from '@/lib/media/proxy-url';
+import { reportRouteError } from '@/lib/observability/report';
 
 // ── POST /api/messages/[conversationId]/messages ──────────────────────────────
 // Send a message. Media must be pre-uploaded via /api/upload/post-media.
@@ -217,7 +218,7 @@ export async function POST(
       .single();
 
     if (msgError || !message) {
-      console.error('POST /api/messages/[id]/messages insert error:', msgError);
+      reportRouteError('POST /api/messages/[id]/messages insert error:', msgError);
       return NextResponse.json({ error: 'Failed to send message' }, { status: 500 });
     }
 
@@ -333,7 +334,7 @@ export async function POST(
     return NextResponse.json({ message: responseMessage }, { status: 201 });
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('POST /api/messages/[id]/messages error:', error);
+    reportRouteError('POST /api/messages/[id]/messages error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

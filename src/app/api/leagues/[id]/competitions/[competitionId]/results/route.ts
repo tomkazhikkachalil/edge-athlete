@@ -5,6 +5,7 @@ import { parseBody } from '@/lib/validation';
 import { ResultUpsertSchema } from '@/lib/competitions/validate';
 import { requireCompetitionManager, resultsUpsertPOST } from '@/lib/orgs/competition-server';
 import { UUID_RE } from '@/lib/golf/course-catalog';
+import { reportRouteError } from '@/lib/observability/report';
 
 // ── /api/leagues/[id]/competitions/[competitionId]/results (phase 2 R2) ─────
 // Batch result entry for one contest. Provenance is stamped server-side
@@ -33,7 +34,7 @@ export async function POST(
     return await resultsUpsertPOST(admin, parsed.data, { side: 'league', orgId: id }, user.id);
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[COMPETITIONS] league results POST error:', error);
+    reportRouteError('[COMPETITIONS] league results POST error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

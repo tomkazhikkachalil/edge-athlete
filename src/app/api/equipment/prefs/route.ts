@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerAuth, getSupabaseAdmin } from '@/lib/auth-server';
 import { sanitizeEquipmentPrefs } from '@/lib/equipment-prefs';
+import { reportRouteError } from '@/lib/observability/report';
 
 /**
  * PATCH /api/equipment/prefs — save the caller's OWN equipment display
@@ -28,13 +29,13 @@ export async function PATCH(request: NextRequest) {
       .eq('id', user.id);
 
     if (error) {
-      console.error('Equipment prefs update error:', error);
+      reportRouteError('Equipment prefs update error:', error);
       return NextResponse.json({ error: 'Failed to save settings' }, { status: 500 });
     }
 
     return NextResponse.json({ prefs });
   } catch (error) {
-    console.error('Equipment prefs PATCH error:', error);
+    reportRouteError('Equipment prefs PATCH error:', error);
     return NextResponse.json({ error: 'Failed to save settings' }, { status: 500 });
   }
 }

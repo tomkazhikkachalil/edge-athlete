@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getProfileRole, getSupabaseAdmin, requireAuth } from '@/lib/auth-server';
 import { getProfileOrganizations } from '@/lib/affiliations/server';
 import { UUID_RE } from '@/lib/golf/course-catalog';
+import { reportRouteError } from '@/lib/observability/report';
 
 /**
  * GET /api/profile/[profileId]/organizations
@@ -66,7 +67,7 @@ export async function GET(
     const organizations = await getProfileOrganizations(supabase, profileId, { viewerId, isSelfOrGuardian });
     return NextResponse.json({ organizations });
   } catch (e) {
-    console.error('[organizations] error:', e);
+    reportRouteError('[organizations] error:', e);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

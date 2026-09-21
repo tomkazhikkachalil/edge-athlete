@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireGuardianAccount, getSupabaseAdmin } from '@/lib/auth-server';
 import { FEATURE_FLAGS } from '@/lib/features';
 import { toProxyUrl } from '@/lib/media/proxy-url';
+import { reportRouteError } from '@/lib/observability/report';
 
 // ── GET /api/guardian/archive ────────────────────────────────────────────────
 // The household archive (Wave 9): every post across the caller's household,
@@ -83,7 +84,7 @@ export async function GET(request: NextRequest) {
     });
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[GUARDIAN] archive error:', error);
+    reportRouteError('[GUARDIAN] archive error:', error);
     return NextResponse.json({ error: 'Could not load the archive' }, { status: 500 });
   }
 }

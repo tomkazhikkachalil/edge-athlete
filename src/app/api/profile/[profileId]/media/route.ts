@@ -6,6 +6,7 @@ import { canViewProfile } from '@/lib/privacy';
 import { participantOrder } from '@/lib/golf/scorecard-transform';
 import { canViewSharedPost } from '@/lib/reposts';
 import { toProxyUrl } from '@/lib/media/proxy-url';
+import { reportRouteError } from '@/lib/observability/report';
 
 interface MediaItem {
   id: string;
@@ -193,14 +194,14 @@ export async function GET(
     const { data: mediaItems, error: mediaError } = await supabaseAdmin.rpc(functionName, rpcParams);
 
     if (mediaError) {
-      console.error(`Error fetching ${tab} media:`, mediaError);
-      console.error('Function called:', functionName);
-      console.error('Filter params present:', {
+      reportRouteError(`Error fetching ${tab} media:`, mediaError);
+      reportRouteError('Function called:', functionName);
+      reportRouteError('Filter params present:', {
         sportKeys: !!rpcParams.filter_sport_keys,
         years: !!rpcParams.filter_years,
       });
       if (rpcParams.filter_sport_keys || rpcParams.filter_years) {
-        console.error('Hint: ensure migration 018_profile_media_sport_year_filters.sql is applied in Supabase.');
+        reportRouteError('Hint: ensure migration 018_profile_media_sport_year_filters.sql is applied in Supabase.');
       }
       return NextResponse.json({ error: 'Failed to fetch media' }, { status: 500 });
     }
@@ -335,7 +336,7 @@ export async function GET(
           .in('id', roundIds);
 
         if (roundsError) {
-          console.error('[PROFILE MEDIA API] Error fetching golf rounds:', roundsError);
+          reportRouteError('[PROFILE MEDIA API] Error fetching golf rounds:', roundsError);
         } else {
         }
 
@@ -362,7 +363,7 @@ export async function GET(
           .not('group_post_id', 'is', null);
 
         if (linkError) {
-          console.error('[PROFILE MEDIA API] Error fetching group post links:', linkError);
+          reportRouteError('[PROFILE MEDIA API] Error fetching group post links:', linkError);
         } else if (groupLinks && groupLinks.length > 0) {
           const groupPostIds = [...new Set(groupLinks.map(l => l.group_post_id as string))];
           const { data: groupRows, error: groupError } = await supabaseAdmin
@@ -383,7 +384,7 @@ export async function GET(
             .in('id', groupPostIds);
 
           if (groupError) {
-            console.error('[PROFILE MEDIA API] Error fetching shared rounds:', groupError);
+            reportRouteError('[PROFILE MEDIA API] Error fetching shared rounds:', groupError);
           } else {
             const byGroupId = new Map<string, TileScorecard>();
             for (const row of groupRows || []) {
@@ -431,7 +432,7 @@ export async function GET(
           .not('shared_post_id', 'is', null);
 
         if (repostLinkError) {
-          console.error('[PROFILE MEDIA API] Error fetching repost links:', repostLinkError);
+          reportRouteError('[PROFILE MEDIA API] Error fetching repost links:', repostLinkError);
         } else if (repostLinks && repostLinks.length > 0) {
           for (const link of repostLinks) {
             repostLinkByPostId.set(link.id as string, link.shared_post_id as string);
@@ -447,7 +448,7 @@ export async function GET(
             .in('id', originalIds);
 
           if (origError) {
-            console.error('[PROFILE MEDIA API] Error fetching repost originals:', origError);
+            reportRouteError('[PROFILE MEDIA API] Error fetching repost originals:', origError);
           } else if (originals && originals.length > 0) {
             // One follows query for the viewer against all original owners.
             const ownerIds = [...new Set(originals.map(o => o.profile_id as string))];
@@ -514,7 +515,7 @@ export async function GET(
     });
 
   } catch (error) {
-    console.error('Error in profile media API:', error);
+    reportRouteError('Error in profile media API:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
@@ -575,7 +576,7 @@ export async function POST(
       // migration 022 not yet applied — the RPC referenced posts.game_id which
       // migration 020 dropped), return zero badge counts with 200 instead of a
       // 500. Tab badges show nothing; media itself still loads via the GET RPCs.
-      console.error('media counts RPC failed (returning zero counts):', countError.message);
+      reportRouteError('media counts RPC failed (returning zero counts):', countError.message);
       return NextResponse.json({ all: 0, stats: 0, tagged: 0, statements: 0, achievements: 0, degraded: true });
     }
 
@@ -620,7 +621,7 @@ export async function POST(
     });
 
   } catch (error) {
-    console.error('Error in profile media counts API:', error);
+    reportRouteError('Error in profile media counts API:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

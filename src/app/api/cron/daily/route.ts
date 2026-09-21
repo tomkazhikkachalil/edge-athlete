@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import * as Sentry from '@sentry/nextjs';
 import { getSupabaseAdmin } from '@/lib/auth-server';
 import { runNotificationDigest } from '@/lib/digest-server';
 import { runTransferSweep } from '@/lib/transfers';
@@ -15,6 +16,7 @@ import { runModerationLift } from '@/lib/moderation/server';
 import { runPendingNudge } from '@/lib/guardian-nudge';
 import { runRiskSweep } from '@/lib/risk-sweep';
 import { FEATURE_FLAGS } from '@/lib/features';
+import { reportRouteError } from '@/lib/observability/report';
 
 export const maxDuration = 60;
 
@@ -57,7 +59,7 @@ export async function GET(request: NextRequest) {
   try {
     summary.digest = await runNotificationDigest(admin, appUrl);
   } catch (e) {
-    console.error('[DAILY] digest phase failed:', e);
+    reportRouteError('[DAILY] digest phase failed:', e);
     summary.digest = { ok: false };
   }
   try {
@@ -65,13 +67,13 @@ export async function GET(request: NextRequest) {
       ? await runTransferSweep(admin, appUrl)
       : { skipped: 'flag off' };
   } catch (e) {
-    console.error('[DAILY] transfer phase failed:', e);
+    reportRouteError('[DAILY] transfer phase failed:', e);
     summary.transfers = { ok: false };
   }
   try {
     summary.recurrence = await extendRecurringSeries(admin);
   } catch (e) {
-    console.error('[DAILY] recurrence phase failed:', e);
+    reportRouteError('[DAILY] recurrence phase failed:', e);
     summary.recurrence = { ok: false };
   }
   // Idempotent reminder safety net: the SAME strict sweep pg_cron runs
@@ -80,14 +82,14 @@ export async function GET(request: NextRequest) {
   try {
     summary.reminders = await runReminderSweep(admin);
   } catch (e) {
-    console.error('[DAILY] reminders phase failed:', e);
+    reportRouteError('[DAILY] reminders phase failed:', e);
     summary.reminders = { ok: false };
   }
 
   try {
     summary.rounds = await runRoundSweep(admin);
   } catch (e) {
-    console.error('[DAILY] round sweep phase failed:', e);
+    reportRouteError('[DAILY] round sweep phase failed:', e);
     summary.rounds = { ok: false };
   }
 
@@ -97,7 +99,7 @@ export async function GET(request: NextRequest) {
   try {
     summary.golfLeague = await runGolfLeagueSync(admin);
   } catch (e) {
-    console.error('[DAILY] golf league phase failed:', e);
+    reportRouteError('[DAILY] golf league phase failed:', e);
     summary.golfLeague = { ok: false };
   }
 
@@ -107,7 +109,7 @@ export async function GET(request: NextRequest) {
   try {
     summary.golfReminders = await runGolfWindowReminders(admin);
   } catch (e) {
-    console.error('[DAILY] golf reminders phase failed:', e);
+    reportRouteError('[DAILY] golf reminders phase failed:', e);
     summary.golfReminders = { ok: false };
   }
 
@@ -117,7 +119,7 @@ export async function GET(request: NextRequest) {
   try {
     summary.sportEventReminders = await runSportEventReminders(admin);
   } catch (e) {
-    console.error('[DAILY] sport event reminders phase failed:', e);
+    reportRouteError('[DAILY] sport event reminders phase failed:', e);
     summary.sportEventReminders = { ok: false };
   }
 
@@ -127,7 +129,7 @@ export async function GET(request: NextRequest) {
   try {
     summary.deletionPurge = await runDeletionPurge(admin);
   } catch (e) {
-    console.error('[DAILY] deletion purge phase failed:', e);
+    reportRouteError('[DAILY] deletion purge phase failed:', e);
     summary.deletionPurge = { ok: false };
   }
 
@@ -136,7 +138,7 @@ export async function GET(request: NextRequest) {
   try {
     summary.analytics = await runAnalyticsPrune(admin);
   } catch (e) {
-    console.error('[DAILY] analytics prune phase failed:', e);
+    reportRouteError('[DAILY] analytics prune phase failed:', e);
     summary.analytics = { ok: false };
   }
 
@@ -145,7 +147,7 @@ export async function GET(request: NextRequest) {
   try {
     summary.formSubmissions = await runFormSubmissionPurge(admin);
   } catch (e) {
-    console.error('[DAILY] form submission purge phase failed:', e);
+    reportRouteError('[DAILY] form submission purge phase failed:', e);
     summary.formSubmissions = { ok: false };
   }
 
@@ -155,7 +157,7 @@ export async function GET(request: NextRequest) {
   try {
     summary.tickets = await runTicketAnonymize(admin);
   } catch (e) {
-    console.error('[DAILY] ticket anonymize phase failed:', e);
+    reportRouteError('[DAILY] ticket anonymize phase failed:', e);
     summary.tickets = { ok: false };
   }
 
@@ -164,7 +166,7 @@ export async function GET(request: NextRequest) {
   try {
     summary.moderation = await runModerationLift(admin);
   } catch (e) {
-    console.error('[DAILY] moderation lift phase failed:', e);
+    reportRouteError('[DAILY] moderation lift phase failed:', e);
     summary.moderation = { ok: false };
   }
 
@@ -174,7 +176,7 @@ export async function GET(request: NextRequest) {
       ? await runPendingNudge(admin)
       : { skipped: 'flag off' };
   } catch (e) {
-    console.error('[DAILY] pending nudge phase failed:', e);
+    reportRouteError('[DAILY] pending nudge phase failed:', e);
     summary.pendingNudge = { ok: false };
   }
 
@@ -185,10 +187,17 @@ export async function GET(request: NextRequest) {
       ? await runRiskSweep(admin)
       : { skipped: 'flag off' };
   } catch (e) {
-    console.error('[DAILY] risk sweep phase failed:', e);
+    reportRouteError('[DAILY] risk sweep phase failed:', e);
     summary.riskSweep = { ok: false };
   }
 
   console.log('[DAILY]', JSON.stringify(summary));
+  // Round 1 PR 4: a phase that failed used to be a log line nobody read —
+  // the deletion purge sitting ninth in a 60 s function could fail for a
+  // month unseen. One Sentry message per run naming the failed phases.
+  const failed = Object.entries(summary).filter(([, v]) => v && typeof v === 'object' && (v as { ok?: boolean }).ok === false).map(([k]) => k);
+  if (failed.length > 0) {
+    Sentry.captureMessage(`daily cron: ${failed.length} phase(s) failed: ${failed.join(', ')}`, { level: 'error', tags: { area: 'cron' }, extra: { summary } });
+  }
   return NextResponse.json(summary);
 }

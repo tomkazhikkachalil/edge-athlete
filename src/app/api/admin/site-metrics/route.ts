@@ -3,6 +3,7 @@ import { requireAdmin, getSupabaseAdmin } from '@/lib/auth-server';
 import { rollupSiteMetrics, type MetricsRevisionRow, type MetricsSiteRow } from '@/lib/site-builder/metrics-rollup';
 import { isMissingTableError } from '@/lib/org-sites/validate';
 import { platformVisitsLast30 } from '@/lib/org-sites/analytics-server';
+import { reportRouteError } from '@/lib/observability/report';
 
 // 42703 = a pointer column missing (pre-180); PGRST204 = PostgREST's schema-cache twin.
 const isMissingColumnError = (code: string | undefined) => code === '42703' || code === 'PGRST204';
@@ -35,7 +36,7 @@ export async function GET(request: NextRequest) {
         if (isMissingTableError(res.error.code) || isMissingColumnError(res.error.code)) {
           return NextResponse.json({ supported: false }, { headers: { 'Cache-Control': 'no-store' } });
         }
-        console.error('[SITE-METRICS] read error:', res.error);
+        reportRouteError('[SITE-METRICS] read error:', res.error);
         return NextResponse.json({ error: 'Failed to load site metrics' }, { status: 500 });
       }
     }
@@ -48,7 +49,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ supported: true, metrics, visits }, { headers: { 'Cache-Control': 'no-store' } });
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[SITE-METRICS] error:', error);
+    reportRouteError('[SITE-METRICS] error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

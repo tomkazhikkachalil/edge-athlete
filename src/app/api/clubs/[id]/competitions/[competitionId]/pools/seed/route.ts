@@ -5,6 +5,7 @@ import { parseBody } from '@/lib/validation';
 import { PoolsSeedSchema } from '@/lib/competitions/validate';
 import { poolsSeedPOST, requireCompetitionManager } from '@/lib/orgs/competition-server';
 import { UUID_RE } from '@/lib/golf/course-catalog';
+import { reportRouteError } from '@/lib/observability/report';
 
 // ── /api/clubs/[id]/competitions/[competitionId]/pools/seed (leftovers PR 2) ──
 // Seed a bracket competition from the pools' tables — the top n of each pool, crossed.
@@ -34,7 +35,7 @@ export async function POST(
     return await poolsSeedPOST(admin, parsed.data, { side: 'club', orgId: id });
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[COMPETITIONS] club pools seed POST error:', error);
+    reportRouteError('[COMPETITIONS] club pools seed POST error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

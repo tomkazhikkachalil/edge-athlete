@@ -5,6 +5,7 @@ import { parseBody } from '@/lib/validation';
 import { GolfSeasonGenerateSchema } from '@/lib/competitions/validate';
 import { golfSeasonGeneratePOST, requireCompetitionManager } from '@/lib/orgs/competition-server';
 import { UUID_RE } from '@/lib/golf/course-catalog';
+import { reportRouteError } from '@/lib/observability/report';
 
 // ── /api/leagues/[id]/competitions/[competitionId]/golf-season (phase 6d W3) ──
 // "Generate rounds": N weekly play windows from one declaration, dry-run
@@ -36,7 +37,7 @@ export async function POST(
     return await golfSeasonGeneratePOST(admin, parsed.data, { side: 'league', orgId: id }, user.id);
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[COMPETITIONS] league golf-season POST error:', error);
+    reportRouteError('[COMPETITIONS] league golf-season POST error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

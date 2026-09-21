@@ -4,6 +4,7 @@ import { enforceRateLimit } from '@/lib/rate-limit';
 import { canvasGET } from '@/lib/org-sites/canvas-server';
 import { requireOrgManager } from '@/lib/orgs/structure-server';
 import { UUID_RE } from '@/lib/golf/course-catalog';
+import { reportRouteError } from '@/lib/observability/report';
 
 // ── /api/leagues/[id]/site/canvas — the editor's one read (Site Builder P3-B):
 // the DRAFT view of the site, the layout it edits, the draft's rev, and the
@@ -29,7 +30,7 @@ export async function GET(
     return await canvasGET(admin, 'league', id);
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[ORG SITE CANVAS] league GET error:', error);
+    reportRouteError('[ORG SITE CANVAS] league GET error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

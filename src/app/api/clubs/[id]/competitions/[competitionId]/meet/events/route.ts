@@ -5,6 +5,7 @@ import { parseBody } from '@/lib/validation';
 import { MeetEventsGenerateSchema } from '@/lib/competitions/validate';
 import { meetEventsGeneratePOST, requireCompetitionManager } from '@/lib/orgs/competition-server';
 import { UUID_RE } from '@/lib/golf/course-catalog';
+import { reportRouteError } from '@/lib/observability/report';
 
 // ── /api/clubs/[id]/competitions/[competitionId]/meet/events (track 2 PR 7) ──
 // Mint one contest per chosen meet event (the sport profile vocabulary), in one session; never published.
@@ -34,7 +35,7 @@ export async function POST(
     return await meetEventsGeneratePOST(admin, parsed.data, { side: 'club', orgId: id });
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[COMPETITIONS] club meet events POST error:', error);
+    reportRouteError('[COMPETITIONS] club meet events POST error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

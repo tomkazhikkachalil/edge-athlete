@@ -5,6 +5,7 @@ import { getSupabaseAdmin, requireModerator } from '@/lib/auth-server';
 import { boundedText, parseBody } from '@/lib/validation';
 import { appendAdminNote, TicketsNotLive } from '@/lib/tickets/server';
 import { TICKET_LIMITS } from '@/lib/tickets/types';
+import { reportRouteError } from '@/lib/observability/report';
 
 /** POST /api/admin/tickets/[id]/notes { body } — an INTERNAL note: on the history, never shown to the user. Counts as the first response. */
 const Body = z.object({ body: boundedText(TICKET_LIMITS.note) });
@@ -23,7 +24,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   } catch (error) {
     if (error instanceof Response) return error;
     if (error instanceof TicketsNotLive) return NextResponse.json({ error: error.message }, { status: 503, headers });
-    console.error('[POST /api/admin/tickets/[id]/notes]', error);
+    reportRouteError('[POST /api/admin/tickets/[id]/notes]', error);
     return NextResponse.json({ error: 'Could not add the note' }, { status: 500, headers });
   }
 }

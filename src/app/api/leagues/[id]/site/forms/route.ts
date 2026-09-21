@@ -6,6 +6,7 @@ import { FormsPatchSchema } from '@/lib/org-sites/forms';
 import { formsGET, formsPATCH } from '@/lib/org-sites/forms-server';
 import { requireOrgManager } from '@/lib/orgs/structure-server';
 import { UUID_RE } from '@/lib/golf/course-catalog';
+import { reportRouteError } from '@/lib/observability/report';
 
 // ── /api/leagues/[id]/site/forms — the site's inbox (program 2, D2) ────────
 // manage_site gates it (the same as the pages); writes ride the
@@ -23,7 +24,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     return await formsGET(admin, 'league', id, state);
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[SITE FORMS INBOX] league GET error:', error);
+    reportRouteError('[SITE FORMS INBOX] league GET error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
@@ -43,7 +44,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     return await formsPATCH(admin, 'league', id, parsed.data);
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[SITE FORMS INBOX] league PATCH error:', error);
+    reportRouteError('[SITE FORMS INBOX] league PATCH error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

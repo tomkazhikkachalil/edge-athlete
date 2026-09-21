@@ -6,6 +6,7 @@ import { mirrorRoundMedia } from '@/lib/golf/round-mirror';
 import { isValidSegment, segmentSchemaFor } from '@/lib/sports/segment-schemas';
 import { resolveSportKey } from '@/lib/sports/resolve-sport-key';
 import { GROUP_TYPE_TO_SPORT, type GroupPostType } from '@/types/group-posts';
+import { reportRouteError } from '@/lib/observability/report';
 
 /**
  * POST /api/group-posts/[id]/media
@@ -116,7 +117,7 @@ export async function POST(
 
     if (error) {
       // RLS denial surfaces here for non-participants
-      console.error('group media insert failed:', error);
+      reportRouteError('group media insert failed:', error);
       return NextResponse.json({ error: 'Could not attach media to this round' }, { status: 403 });
     }
 
@@ -137,7 +138,7 @@ export async function POST(
     };
     return NextResponse.json({ media }, { status: 201 });
   } catch (error) {
-    console.error('Unexpected error in POST /api/group-posts/[id]/media:', error);
+    reportRouteError('Unexpected error in POST /api/group-posts/[id]/media:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

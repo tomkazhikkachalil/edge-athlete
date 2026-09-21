@@ -7,6 +7,7 @@ import { getMemberRole, insertOwnerRow, joinOrg, leaveOrg, removeMember, setMemb
 import { parseBody } from '@/lib/validation';
 import { UUID_RE } from '@/lib/golf/course-catalog';
 import { readClubAccess } from '@/lib/orgs/access';
+import { reportRouteError } from '@/lib/observability/report';
 
 // ── /api/clubs/[id]/members — open join/leave + roles + removal ─────────────
 // Mirror of /api/leagues/[id]/members: actor is ALWAYS the session user,
@@ -38,7 +39,7 @@ export async function POST(
       if (isMissingTableError(clubError.code)) {
         return NextResponse.json({ error: 'Club not found' }, { status: 404 });
       }
-      console.error('[CLUB MEMBERS] club fetch error:', clubError);
+      reportRouteError('[CLUB MEMBERS] club fetch error:', clubError);
       return NextResponse.json({ error: 'Failed to load club' }, { status: 500 });
     }
     if (!club) {
@@ -51,7 +52,7 @@ export async function POST(
       user.id
     );
     if (checkError) {
-      console.error('[CLUB MEMBERS] membership check error:', checkError);
+      reportRouteError('[CLUB MEMBERS] membership check error:', checkError);
       return NextResponse.json({ error: 'Failed to check membership' }, { status: 500 });
     }
 
@@ -61,7 +62,7 @@ export async function POST(
       }
       const { error: deleteError } = await leaveOrg(supabase, { side: 'club', orgId: id }, user.id);
       if (deleteError) {
-        console.error('[CLUB MEMBERS] leave error:', deleteError);
+        reportRouteError('[CLUB MEMBERS] leave error:', deleteError);
         return NextResponse.json({ error: 'Failed to leave club' }, { status: 500 });
       }
       return NextResponse.json({ action: 'left' });
@@ -94,7 +95,7 @@ export async function POST(
         ? await insertOwnerRow(supabase, { side: 'club', orgId: id }, user.id)
         : await joinOrg(supabase, { side: 'club', orgId: id }, user.id);
     if (insertError) {
-      console.error('[CLUB MEMBERS] join error:', insertError);
+      reportRouteError('[CLUB MEMBERS] join error:', insertError);
       return NextResponse.json({ error: 'Failed to join club' }, { status: 500 });
     }
 
@@ -116,7 +117,7 @@ export async function POST(
     return NextResponse.json({ action: 'joined', ...(roster ? { roster } : {}) });
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[CLUB MEMBERS] POST error:', error);
+    reportRouteError('[CLUB MEMBERS] POST error:', error);
     return NextResponse.json({ error: 'Failed to process membership' }, { status: 500 });
   }
 }
@@ -142,7 +143,7 @@ export async function PATCH(
     const supabase = getSupabaseAdmin();
     const loaded = await getOrgAndRole(supabase, 'club', id, user.id);
     if (loaded.status === 'error') {
-      console.error('[CLUB MEMBERS] club fetch error:', loaded.error);
+      reportRouteError('[CLUB MEMBERS] club fetch error:', loaded.error);
       return NextResponse.json({ error: 'Failed to load club' }, { status: 500 });
     }
     if (loaded.status === 'not_found') {
@@ -170,7 +171,7 @@ export async function PATCH(
 
     const { error: updateError } = await setMemberRole(supabase, { side: 'club', orgId: id }, profileId, role);
     if (updateError) {
-      console.error('[CLUB MEMBERS] role update error:', updateError);
+      reportRouteError('[CLUB MEMBERS] role update error:', updateError);
       return NextResponse.json({ error: 'Failed to change role' }, { status: 500 });
     }
 
@@ -185,7 +186,7 @@ export async function PATCH(
     return NextResponse.json({ action: 'role_changed', role });
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[CLUB MEMBERS] PATCH error:', error);
+    reportRouteError('[CLUB MEMBERS] PATCH error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
@@ -210,7 +211,7 @@ export async function DELETE(
     const supabase = getSupabaseAdmin();
     const loaded = await getOrgAndCapabilities(supabase, 'club', id, user.id);
     if (loaded.status === 'error') {
-      console.error('[CLUB MEMBERS] club fetch error:', loaded.error);
+      reportRouteError('[CLUB MEMBERS] club fetch error:', loaded.error);
       return NextResponse.json({ error: 'Failed to load club' }, { status: 500 });
     }
     if (loaded.status === 'not_found') {
@@ -230,14 +231,14 @@ export async function DELETE(
 
     const { error: deleteError } = await removeMember(supabase, { side: 'club', orgId: id }, profileId);
     if (deleteError) {
-      console.error('[CLUB MEMBERS] remove error:', deleteError);
+      reportRouteError('[CLUB MEMBERS] remove error:', deleteError);
       return NextResponse.json({ error: 'Failed to remove member' }, { status: 500 });
     }
 
     return NextResponse.json({ action: 'removed' });
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[CLUB MEMBERS] DELETE error:', error);
+    reportRouteError('[CLUB MEMBERS] DELETE error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

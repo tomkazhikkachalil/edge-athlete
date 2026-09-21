@@ -4,6 +4,7 @@ import { requireAuth, getSupabaseAdmin, getProfileRole } from '@/lib/auth-server
 import { FEATURE_FLAGS } from '@/lib/features';
 import { getConsentState, parseConsentMethod, CONSENT_POLICY_VERSION } from '@/lib/consent';
 import { getClientIp } from '@/lib/rate-limit';
+import { reportRouteError } from '@/lib/observability/report';
 
 // ── /api/guardian/athletes/[profileId]/consent ────────────────────────────────
 // Parental consent submission. GUARDIAN-ONLY — consent is a guardian act;
@@ -167,7 +168,7 @@ export async function POST(
     return NextResponse.json({ ok: true, state: 'approved' }, { status: 201 });
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[CONSENT] error:', error);
+    reportRouteError('[CONSENT] error:', error);
     Sentry.captureException(error, { tags: { area: 'consent' } });
     return NextResponse.json({ error: 'An unexpected error occurred' }, { status: 500 });
   }

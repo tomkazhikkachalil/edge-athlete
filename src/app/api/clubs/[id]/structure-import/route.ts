@@ -4,6 +4,7 @@ import { enforceRateLimit } from '@/lib/rate-limit';
 import { structureImportPOST } from '@/lib/orgs/structure-import';
 import { requireOrgManager } from '@/lib/orgs/structure-server';
 import { UUID_RE } from '@/lib/golf/course-catalog';
+import { reportRouteError } from '@/lib/observability/report';
 
 // ── /api/clubs/[id]/structure-import — the league twin's mirror ─────────────
 // See leagues/[id]/structure-import/route.ts.
@@ -42,7 +43,7 @@ export async function POST(
     });
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[STRUCTURE-IMPORT] club POST error:', error);
+    reportRouteError('[STRUCTURE-IMPORT] club POST error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

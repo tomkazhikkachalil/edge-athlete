@@ -10,6 +10,7 @@ import {
 } from '@/lib/orgs/staff-invites';
 import { notifyStaffAccepted } from '@/lib/orgs/staff-notify';
 import { describeGrant } from '@/lib/orgs/staff-validate';
+import { reportRouteError } from '@/lib/observability/report';
 
 // ── /api/org-invite/[token] — accept a staff invite (org staff program) ─────
 // GET = unauthenticated peek (uniform {valid:false} 404s keep token guessing
@@ -37,7 +38,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     });
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[ORG INVITE] peek error:', error);
+    reportRouteError('[ORG INVITE] peek error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
@@ -94,7 +95,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     return NextResponse.json({ ok: true, side: peeked.side, orgId: peeked.orgId, orgName: peeked.orgName, summary: describeGrant(peeked.grant) });
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[ORG INVITE] POST error:', error);
+    reportRouteError('[ORG INVITE] POST error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

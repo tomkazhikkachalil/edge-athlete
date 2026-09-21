@@ -3,6 +3,7 @@ import * as Sentry from '@sentry/nextjs';
 import { requireAdmin, getSupabaseAdmin } from '@/lib/auth-server';
 import { stateFromAction } from '@/lib/consent';
 import { getClientIp } from '@/lib/rate-limit';
+import { reportRouteError } from '@/lib/observability/report';
 
 // ── /api/admin/consent-reviews ────────────────────────────────────────────────
 // Admin consent surface. Since Wave 6 consent AUTO-approves at submission
@@ -78,7 +79,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ pending: items, autoApproved: autoItems });
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[CONSENT-REVIEW] list error:', error);
+    reportRouteError('[CONSENT-REVIEW] list error:', error);
     return NextResponse.json({ error: 'Could not load review queue' }, { status: 500 });
   }
 }
@@ -146,7 +147,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ ok: true, state: stateFromAction(decision) });
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[CONSENT-REVIEW] decision error:', error);
+    reportRouteError('[CONSENT-REVIEW] decision error:', error);
     Sentry.captureException(error, { tags: { area: 'consent-review' } });
     return NextResponse.json({ error: 'Could not record the decision' }, { status: 500 });
   }

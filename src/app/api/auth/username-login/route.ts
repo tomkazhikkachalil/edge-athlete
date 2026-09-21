@@ -4,6 +4,7 @@ import { createServerClient } from '@supabase/ssr';
 import { getSupabaseAdmin } from '@/lib/auth-server';
 import { isPinShaped, derivePinPassword } from '@/lib/supervised-credentials';
 import { enforceRateLimit } from '@/lib/rate-limit';
+import { reportRouteError } from '@/lib/observability/report';
 
 // ── POST /api/auth/username-login ─────────────────────────────────────────────
 // Supervised-minor sign-in: username (= handle) + password-or-PIN. The route
@@ -76,7 +77,7 @@ export async function POST(request: NextRequest) {
     }
     return invalid();
   } catch (error) {
-    console.error('[USERNAME-LOGIN] error:', error);
+    reportRouteError('[USERNAME-LOGIN] error:', error);
     return NextResponse.json({ error: 'An unexpected error occurred' }, { status: 500 });
   }
 }

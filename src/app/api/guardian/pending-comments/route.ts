@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth, getSupabaseAdmin } from '@/lib/auth-server';
 import { FEATURE_FLAGS } from '@/lib/features';
+import { reportRouteError } from '@/lib/observability/report';
 
 // ── /api/guardian/pending-comments ───────────────────────────────────────────
 // The comment half of the approval queue (095): every pending_approval
@@ -60,7 +61,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ comments: comments ?? [] });
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[GUARDIAN] pending-comments error:', error);
+    reportRouteError('[GUARDIAN] pending-comments error:', error);
     return NextResponse.json({ error: 'Could not load pending comments' }, { status: 500 });
   }
 }

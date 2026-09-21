@@ -4,6 +4,7 @@ import { enforceRateLimit } from '@/lib/rate-limit';
 import { hasLocationFilter, readLocationParams } from '@/lib/geo/params';
 import { searchAllFacets } from '@/lib/search/all-server';
 import { groupFacetRows, typesForRequest, type GroupedFacets } from '@/lib/search/all';
+import { reportRouteError } from '@/lib/observability/report';
 
 // ── GET /api/search/facets — counts for the ⌘K filter panel ─────────────────
 // search_all_facets (112) over the same matched set /api/search would return:
@@ -56,7 +57,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ facets: groupFacetRows(rows) });
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[SEARCH FACETS] error:', error);
+    reportRouteError('[SEARCH FACETS] error:', error);
     return NextResponse.json({ error: 'Facets failed' }, { status: 500 });
   }
 }

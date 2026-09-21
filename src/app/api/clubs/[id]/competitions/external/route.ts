@@ -4,6 +4,7 @@ import { enforceRateLimit } from '@/lib/rate-limit';
 import { requireCompetitionManager } from '@/lib/orgs/competition-server';
 import { externalCompetitionsGET } from '@/lib/orgs/stat-lines-server';
 import { UUID_RE } from '@/lib/golf/course-catalog';
+import { reportRouteError } from '@/lib/observability/report';
 
 // ── /api/clubs/[id]/competitions/external (phase 4 R1) ──────────────────────
 // Competitions this club's teams hold APPROVED entries in but the club
@@ -28,7 +29,7 @@ export async function GET(
     return await externalCompetitionsGET(admin, id);
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[STAT LINES] external competitions GET error:', error);
+    reportRouteError('[STAT LINES] external competitions GET error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

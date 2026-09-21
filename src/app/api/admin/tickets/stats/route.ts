@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin, requireModerator } from '@/lib/auth-server';
 import { readStats } from '@/lib/tickets/server';
+import { reportRouteError } from '@/lib/observability/report';
 
 /** GET /api/admin/tickets/stats — open by type / severity, overdue, resolved in the last 90 days and the median hours to resolve. */
 export async function GET(request: NextRequest) {
@@ -10,7 +11,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(await readStats(getSupabaseAdmin()), { headers });
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[GET /api/admin/tickets/stats]', error);
+    reportRouteError('[GET /api/admin/tickets/stats]', error);
     return NextResponse.json({ error: 'Could not load the stats' }, { status: 500, headers });
   }
 }

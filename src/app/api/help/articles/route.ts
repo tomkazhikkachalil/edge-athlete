@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/auth-server';
 import { readPublished } from '@/lib/help/server';
+import { reportRouteError } from '@/lib/observability/report';
 
 /**
  * GET /api/help/articles — the Help Center's published articles (Support &
@@ -13,7 +14,7 @@ export async function GET() {
     const result = await readPublished(getSupabaseAdmin());
     return NextResponse.json(result, { headers: { 'Cache-Control': 'public, s-maxage=60, stale-while-revalidate=300' } });
   } catch (error) {
-    console.error('[GET /api/help/articles]', error);
+    reportRouteError('[GET /api/help/articles]', error);
     return NextResponse.json({ error: 'Could not load the articles' }, { status: 500, headers: { 'Cache-Control': 'no-store' } });
   }
 }

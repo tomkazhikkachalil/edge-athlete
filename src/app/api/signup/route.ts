@@ -14,6 +14,7 @@ import { createGuardianInvite } from '@/lib/guardian-invites';
 import { emailService } from '@/lib/email-service';
 import { enforceRateLimit } from '@/lib/rate-limit';
 import { resolveSignupActorRole, resolveSignupUserType } from '@/lib/signup-user-type';
+import { reportRouteError } from '@/lib/observability/report';
 
 export async function POST(request: NextRequest) {
   try {
@@ -179,7 +180,7 @@ export async function POST(request: NextRequest) {
 
 
       if (checkError && checkError.code !== 'PGRST116') {
-        console.error('Database check error:', checkError);
+        reportRouteError('Database check error:', checkError);
         return NextResponse.json(
           { error: 'Database error occurred' },
           { status: 500 }
@@ -217,7 +218,7 @@ export async function POST(request: NextRequest) {
     
 
     if (error) {
-      console.error('[SIGNUP] Supabase auth signup error:', error);
+      reportRouteError('[SIGNUP] Supabase auth signup error:', error);
       
       // Handle various Supabase duplicate email errors
       if (error.message.includes('already registered') || 
@@ -275,7 +276,7 @@ export async function POST(request: NextRequest) {
       const client = supabaseAdmin;
 
       if (!client) {
-        console.error('[SIGNUP] No Supabase client available!');
+        reportRouteError('[SIGNUP] No Supabase client available!');
         return NextResponse.json(
           { error: 'Server configuration error: Database client not initialized' },
           { status: 500 }
@@ -330,7 +331,7 @@ export async function POST(request: NextRequest) {
         });
 
       if (profileError) {
-        console.error('[SIGNUP] Error updating profile:', profileError);
+        reportRouteError('[SIGNUP] Error updating profile:', profileError);
         Sentry.captureException(
           new Error(`signup: profile upsert failed: ${profileError.message}`),
           {
@@ -349,7 +350,7 @@ export async function POST(request: NextRequest) {
         if (supabaseAdmin) {
           const { error: rollbackError } = await supabaseAdmin.auth.admin.deleteUser(data.user.id);
           if (rollbackError) {
-            console.error('[SIGNUP] rollback failed — orphaned auth user', data.user.id, rollbackError);
+            reportRouteError('[SIGNUP] rollback failed — orphaned auth user', data.user.id, rollbackError);
             Sentry.captureException(
               new Error(`signup: auth-user rollback failed: ${rollbackError.message}`),
               { extra: { userId: data.user.id } }
@@ -376,7 +377,7 @@ export async function POST(request: NextRequest) {
             { onConflict: 'user_id,profile_id' }
           );
         if (accessError) {
-          console.error('[SIGNUP] owner access row failed:', accessError);
+          reportRouteError('[SIGNUP] owner access row failed:', accessError);
           Sentry.captureException(
             new Error(`signup: owner profile_access insert failed: ${accessError.message}`),
             { extra: { userId: data.user.id } }
@@ -393,7 +394,7 @@ export async function POST(request: NextRequest) {
     );
 
   } catch (error: unknown) {
-    console.error('Signup API error:', error);
+    reportRouteError('Signup API error:', error);
     Sentry.captureException(error, { tags: { area: 'signup' } });
 
     if (error instanceof Error && (error.message?.includes('already registered') || 

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { isUuid } from '@/lib/uuid';
 import { requireAuth, getSupabaseAdmin } from '@/lib/auth-server';
 import { toProxyUrl } from '@/lib/media/proxy-url';
+import { reportRouteError } from '@/lib/observability/report';
 
 // ── GET /api/messages/[conversationId] ───────────────────────────────────────
 // Returns conversation details + cursor-paginated messages (50/page, newest first).
@@ -120,7 +121,7 @@ export async function GET(
     const { data: rawMessages, error: msgError } = await msgQuery;
 
     if (msgError) {
-      console.error('GET /api/messages/[id] messages error:', msgError);
+      reportRouteError('GET /api/messages/[id] messages error:', msgError);
       return NextResponse.json({ error: 'Failed to load messages' }, { status: 500 });
     }
 
@@ -439,7 +440,7 @@ export async function GET(
     });
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('GET /api/messages/[id] error:', error);
+    reportRouteError('GET /api/messages/[id] error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
@@ -510,7 +511,7 @@ export async function PATCH(
     return NextResponse.json({ success: true });
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('PATCH /api/messages/[id] error:', error);
+    reportRouteError('PATCH /api/messages/[id] error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

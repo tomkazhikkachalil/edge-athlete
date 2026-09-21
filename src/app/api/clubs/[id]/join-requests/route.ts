@@ -5,6 +5,7 @@ import { ClubJoinDecisionSchema } from '@/lib/clubs/validate';
 import { capabilityAllows, getOrgAndCapabilities } from '@/lib/orgs/authz';
 import { decideJoinRequest, listJoinRequests } from '@/lib/orgs/join-requests-server';
 import { UUID_RE } from '@/lib/golf/course-catalog';
+import { reportRouteError } from '@/lib/observability/report';
 
 // ── /api/clubs/[id]/join-requests — the approval queue (phase 9 V2) ────────
 // GET the queue; PATCH {requestId, decision} approves (the existing join)
@@ -31,7 +32,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     return await listJoinRequests(g.admin, 'club', g.club.id);
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[CLUB JOIN REQUESTS] GET error:', error);
+    reportRouteError('[CLUB JOIN REQUESTS] GET error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
@@ -45,7 +46,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     return await decideJoinRequest(g.admin, 'club', g.club, parsed.data.requestId, parsed.data.decision);
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[CLUB JOIN REQUESTS] PATCH error:', error);
+    reportRouteError('[CLUB JOIN REQUESTS] PATCH error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { concessionRefusal } from '@/lib/sport-events/match';
 import { writeMatch } from '@/lib/sport-events/match-server';
 import { answerMatch, openMatchWrite, refuse } from '@/lib/sport-events/match-write-server';
+import { reportRouteError } from '@/lib/observability/report';
 
 /**
  * POST {hole: n | null, side: 1 | 2, version} — a side GIVES a hole (the
@@ -32,7 +33,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     if (outcome === 'error') return NextResponse.json({ error: 'Could not save the concession' }, { status: 500 });
     return answerMatch(opened.ctx);
   } catch (error) {
-    console.error('[api/sport-events/matches/concede] POST error:', error);
+    reportRouteError('[api/sport-events/matches/concede] POST error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

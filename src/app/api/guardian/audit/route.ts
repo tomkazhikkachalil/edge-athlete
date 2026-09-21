@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth, getSupabaseAdmin } from '@/lib/auth-server';
 import { FEATURE_FLAGS } from '@/lib/features';
 import { formatDisplayName } from '@/lib/formatters';
+import { reportRouteError } from '@/lib/observability/report';
 
 // ── GET /api/guardian/audit ──────────────────────────────────────────────────
 // The FIRST reader of safety_settings_audit (091 anticipated exactly this:
@@ -70,7 +71,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ events });
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[GUARDIAN] audit feed error:', error);
+    reportRouteError('[GUARDIAN] audit feed error:', error);
     return NextResponse.json({ error: 'Could not load the safety log' }, { status: 500 });
   }
 }

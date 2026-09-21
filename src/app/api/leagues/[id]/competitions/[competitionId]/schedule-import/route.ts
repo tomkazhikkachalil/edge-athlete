@@ -4,6 +4,7 @@ import { enforceRateLimit } from '@/lib/rate-limit';
 import { scheduleIcsImportPOST, scheduleImportPOST } from '@/lib/orgs/schedule-import';
 import { requireCompetitionManager } from '@/lib/orgs/competition-server';
 import { UUID_RE } from '@/lib/golf/course-catalog';
+import { reportRouteError } from '@/lib/observability/report';
 
 // ── /api/leagues/[id]/competitions/[competitionId]/schedule-import ────────────
 // Phase 6 R6: schedule + historical results by CSV paste (dry-run
@@ -59,7 +60,7 @@ export async function POST(
       : await scheduleImportPOST(admin, competition, user.id, { csv: csv as string, ...opts }, scope);
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[SCHEDULE-IMPORT] league POST error:', error);
+    reportRouteError('[SCHEDULE-IMPORT] league POST error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

@@ -6,6 +6,7 @@ import { requireOrgManager } from '@/lib/orgs/structure-server';
 import { domainDELETE, domainGET, domainPOST } from '@/lib/org-sites/domain-server';
 import { DomainClaimSchema } from '@/lib/org-sites/validate';
 import { UUID_RE } from '@/lib/golf/course-catalog';
+import { reportRouteError } from '@/lib/observability/report';
 
 // ── /api/clubs/[id]/site/domain — the custom-domain claim (phase 6b C1) ────
 // Manager-gated; GET = status + DNS instructions, POST = claim/replace,
@@ -34,7 +35,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     return await domainGET(g.admin, 'club', g.id);
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[ORG DOMAINS] GET error:', error);
+    reportRouteError('[ORG DOMAINS] GET error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
@@ -48,7 +49,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     return await domainPOST(g.admin, 'club', g.id, parsed.data);
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[ORG DOMAINS] POST error:', error);
+    reportRouteError('[ORG DOMAINS] POST error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
@@ -60,7 +61,7 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
     return await domainDELETE(g.admin, 'club', g.id);
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[ORG DOMAINS] DELETE error:', error);
+    reportRouteError('[ORG DOMAINS] DELETE error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

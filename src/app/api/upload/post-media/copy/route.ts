@@ -3,6 +3,7 @@ import { requireAuth, getSupabaseAdmin } from '@/lib/auth-server';
 import { resolveActingProfile } from '@/lib/guardian-gate';
 import { enforceRateLimit } from '@/lib/rate-limit';
 import { isUuid } from '@/lib/uuid';
+import { reportRouteError } from '@/lib/observability/report';
 
 // ── POST /api/upload/post-media/copy ─────────────────────────────────────────
 // The batch upload's multi-assign (Wave 5 "household media library"): one
@@ -72,7 +73,7 @@ export async function POST(request: NextRequest) {
     const destPath = `posts/${targetGate.actorId}/${crypto.randomUUID()}.${ext}`;
     const { error: copyError } = await supabase.storage.from('uploads').copy(sourcePath, destPath);
     if (copyError) {
-      console.error('[media-copy] storage copy failed:', copyError);
+      reportRouteError('[media-copy] storage copy failed:', copyError);
       return NextResponse.json({ error: 'Could not copy the media' }, { status: 500 });
     }
     const { data: urlData } = supabase.storage.from('uploads').getPublicUrl(destPath);
@@ -86,7 +87,7 @@ export async function POST(request: NextRequest) {
     });
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[media-copy] error:', error);
+    reportRouteError('[media-copy] error:', error);
     return NextResponse.json({ error: 'Could not copy the media' }, { status: 500 });
   }
 }

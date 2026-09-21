@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth, getSupabaseAdmin } from '@/lib/auth-server';
 import { competitionDetailGET, requireCompetitionManager } from '@/lib/orgs/competition-server';
 import { UUID_RE } from '@/lib/golf/course-catalog';
+import { reportRouteError } from '@/lib/observability/report';
 
 // ── /api/leagues/[id]/competitions/[competitionId] — the detail aggregate ───
 // Manager-gated; entries + contests + participants + results in one read
@@ -24,7 +25,7 @@ export async function GET(
     return await competitionDetailGET(admin, competitionId, { side: 'league', orgId: id });
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[COMPETITIONS] league detail GET error:', error);
+    reportRouteError('[COMPETITIONS] league detail GET error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

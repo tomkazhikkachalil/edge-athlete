@@ -4,6 +4,7 @@ import { getSupabaseAdmin, requireAuth } from '@/lib/auth-server';
 import { canViewProfile } from '@/lib/privacy';
 
 import { aggregateGolfHighlights, type CompletedRoundLike } from '@/lib/golf/stats-aggregate';
+import { reportRouteError } from '@/lib/observability/report';
 
 export async function GET(request: NextRequest) {
   try {
@@ -75,7 +76,7 @@ export async function GET(request: NextRequest) {
     const { data: rounds, error: roundsError } = await roundsQuery;
 
     if (roundsError) {
-      console.error('Error fetching golf rounds:', roundsError);
+      reportRouteError('Error fetching golf rounds:', roundsError);
       return NextResponse.json({ error: 'Failed to fetch golf data' }, { status: 500 });
     }
 
@@ -86,7 +87,7 @@ export async function GET(request: NextRequest) {
     const { data: yearsData, error: yearsError } = await supabase.rpc('get_golf_round_years', {
       p_profile_id: profileId,
     });
-    if (yearsError) console.error('[golf/stats] get_golf_round_years failed:', yearsError);
+    if (yearsError) reportRouteError('[golf/stats] get_golf_round_years failed:', yearsError);
     const years = (yearsData as number[] | null) ?? [];
 
     const scopedRounds = rounds || [];
@@ -141,7 +142,7 @@ export async function GET(request: NextRequest) {
 
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('Golf stats API error:', error);
+    reportRouteError('Golf stats API error:', error);
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }

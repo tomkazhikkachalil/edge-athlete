@@ -5,6 +5,7 @@ import { parseBody } from '@/lib/validation';
 import { MeetSessionPublishSchema } from '@/lib/competitions/validate';
 import { meetSessionPublishPOST, requireCompetitionManager } from '@/lib/orgs/competition-server';
 import { UUID_RE } from '@/lib/golf/course-catalog';
+import { reportRouteError } from '@/lib/observability/report';
 
 // ── /api/leagues/[id]/competitions/[competitionId]/meet/sessions/publish (leftovers PR 4) ──
 // ONE calendar event for a meet session; every contest of the session shares it; a re-publish moves it.
@@ -31,7 +32,7 @@ export async function POST(
     return await meetSessionPublishPOST(admin, parsed.data, { side: 'league', orgId: id }, user.id);
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[COMPETITIONS] league meet session publish POST error:', error);
+    reportRouteError('[COMPETITIONS] league meet session publish POST error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

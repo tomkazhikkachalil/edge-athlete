@@ -8,6 +8,7 @@ import { fetchBreakdown } from '@/lib/sport-events/breakdown-server';
 import { ROUND_COLUMNS } from '@/lib/sport-events/rounds-server';
 import { isMatchFormat, type SportEventRoundRow } from '@/lib/sport-events/types';
 import { MATCH_REFUSAL_COPY } from '@/lib/sport-events/match';
+import { reportRouteError } from '@/lib/observability/report';
 
 const NOT_FOUND = () => NextResponse.json({ error: 'Event not found' }, { status: 404, headers: { 'Cache-Control': 'no-store' } });
 
@@ -48,7 +49,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     const cache = viewerId ? 'private, max-age=5' : 'public, max-age=5, s-maxage=10';
     return NextResponse.json(data, { headers: { 'Cache-Control': cache } });
   } catch (error) {
-    console.error('[api/sport-events/breakdown] GET error:', error);
+    reportRouteError('[api/sport-events/breakdown] GET error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

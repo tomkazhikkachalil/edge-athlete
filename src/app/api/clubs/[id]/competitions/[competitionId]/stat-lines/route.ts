@@ -10,6 +10,7 @@ import {
   statLinesUpsertPOST,
 } from '@/lib/orgs/stat-lines-server';
 import { UUID_RE } from '@/lib/golf/course-catalog';
+import { reportRouteError } from '@/lib/observability/report';
 
 // ── /api/clubs/[id]/competitions/[competitionId]/stat-lines (phase 4 R1) ──
 // Per-athlete stats on a fixture contest. The gate proves the caller
@@ -48,7 +49,7 @@ export async function GET(
     });
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[STAT LINES] club GET error:', error);
+    reportRouteError('[STAT LINES] club GET error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
@@ -70,7 +71,7 @@ export async function POST(
     );
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[STAT LINES] club POST error:', error);
+    reportRouteError('[STAT LINES] club POST error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
@@ -89,7 +90,7 @@ export async function DELETE(
     return await statLineDELETE(ctx.admin, lineId, { side: 'club', orgId: ctx.id });
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[STAT LINES] club DELETE error:', error);
+    reportRouteError('[STAT LINES] club DELETE error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

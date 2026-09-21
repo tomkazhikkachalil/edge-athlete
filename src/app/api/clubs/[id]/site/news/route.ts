@@ -6,6 +6,7 @@ import { NewsCreateSchema } from '@/lib/org-sites/validate';
 import { newsCreatePOST, newsListGET } from '@/lib/org-sites/news-server';
 import { requireOrgManager } from '@/lib/orgs/structure-server';
 import { UUID_RE } from '@/lib/golf/course-catalog';
+import { reportRouteError } from '@/lib/observability/report';
 
 // ── /api/clubs/[id]/site/news — news list + create (phase 3 R3) ─────────
 // manage_org gates it; writes ride the org-site-pages bucket (editor
@@ -27,7 +28,7 @@ export async function GET(
     return await newsListGET(admin, 'club', id);
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[ORG SITE NEWS] club GET error:', error);
+    reportRouteError('[ORG SITE NEWS] club GET error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
@@ -53,7 +54,7 @@ export async function POST(
     return await newsCreatePOST(admin, 'club', id, parsed.data);
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[ORG SITE NEWS] club POST error:', error);
+    reportRouteError('[ORG SITE NEWS] club POST error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

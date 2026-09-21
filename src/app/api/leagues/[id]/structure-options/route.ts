@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth, getSupabaseAdmin } from '@/lib/auth-server';
 import { structureOptionsGET } from '@/lib/orgs/structure-options';
 import { UUID_RE } from '@/lib/golf/course-catalog';
+import { reportRouteError } from '@/lib/observability/report';
 
 // ── /api/leagues/[id]/structure-options — the event form's sub-org picker ───
 // Thin wrapper (0.9); the gate + payload live in orgs/structure-options.ts.
@@ -19,7 +20,7 @@ export async function GET(
     return await structureOptionsGET(getSupabaseAdmin(), user, 'league', id);
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[STRUCTURE OPTIONS] GET error:', error);
+    reportRouteError('[STRUCTURE OPTIONS] GET error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

@@ -6,6 +6,7 @@ import {
   parentDELETE,
 } from '@/lib/affiliations/parents-server';
 import { AffiliationTypeSchema, type AffiliationType } from '@/lib/affiliations/validate';
+import { reportRouteError } from '@/lib/observability/report';
 
 // ── /api/leagues/[id]/parents (phase 6 R3, mig 167) ─────────────────────────
 // League↔league affiliations — [id] is the league whose console the
@@ -22,7 +23,7 @@ export async function GET(
     return await parentsGET(request, id);
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[PARENTS] GET error:', error);
+    reportRouteError('[PARENTS] GET error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
@@ -45,7 +46,7 @@ export async function POST(
     return await parentPOST(request, id, other, affType, direction);
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[PARENTS] POST error:', error);
+    reportRouteError('[PARENTS] POST error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
@@ -61,7 +62,7 @@ export async function PATCH(
     return await parentAccept(request, id, other);
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[PARENTS] PATCH error:', error);
+    reportRouteError('[PARENTS] PATCH error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
@@ -76,7 +77,7 @@ export async function DELETE(
     return await parentDELETE(request, id, other);
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[PARENTS] DELETE error:', error);
+    reportRouteError('[PARENTS] DELETE error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

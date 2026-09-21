@@ -6,6 +6,7 @@ import { readSportEventAccess } from '@/lib/sport-events/access-server';
 import { bodyProfileId, readJson, resolveActor } from '@/lib/sport-events/actor-server';
 import { applyJoin } from '@/lib/sport-events/join-server';
 import type { JoinAction } from '@/lib/sport-events/join';
+import { reportRouteError } from '@/lib/observability/report';
 
 /** POST / DELETE ?token= — follow / unfollow an event you can see. A follower never takes a seat. */
 async function handle(request: NextRequest, id: string, action: JoinAction) {
@@ -25,7 +26,7 @@ async function handle(request: NextRequest, id: string, action: JoinAction) {
     if (!outcome.ok) return NextResponse.json({ error: outcome.error }, { status: outcome.status });
     return NextResponse.json({ following: action === 'follow', participant: outcome.participant }, { headers: { 'Cache-Control': 'private, no-store' } });
   } catch (error) {
-    console.error('[api/sport-events/follow] error:', error);
+    reportRouteError('[api/sport-events/follow] error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

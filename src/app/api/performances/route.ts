@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth, getSupabaseAdmin } from '@/lib/auth-server';
+import { reportRouteError } from '@/lib/observability/report';
 
 export async function POST(request: NextRequest) {
   try {
@@ -58,7 +59,7 @@ export async function POST(request: NextRequest) {
     }
 
     if (error) {
-      console.error('Performance save error:', error);
+      reportRouteError('Performance save error:', error);
       return NextResponse.json({ error: 'Failed to save performance' }, { status: 500 });
     }
 
@@ -70,7 +71,7 @@ export async function POST(request: NextRequest) {
 
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('Performance save error:', error);
+    reportRouteError('Performance save error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

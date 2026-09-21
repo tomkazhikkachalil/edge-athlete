@@ -7,6 +7,7 @@ import { requireOrgManager, seasonCreatePOST, seasonDELETE } from '@/lib/orgs/st
 import { isSportEnabled } from '@/lib/features';
 import type { SportKey } from '@/lib/sports/SportRegistry';
 import { UUID_RE } from '@/lib/golf/course-catalog';
+import { reportRouteError } from '@/lib/observability/report';
 
 // ── /api/leagues/[id]/structure/seasons — manager season CRUD (phase 1) ────
 // Thin wrapper; gate + rules in orgs/structure-server.ts. The body/URL
@@ -43,7 +44,7 @@ export async function POST(
     return await seasonCreatePOST(admin, { side: 'league', orgId: id }, parsed.data);
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[ORG STRUCTURE] seasons POST error:', error);
+    reportRouteError('[ORG STRUCTURE] seasons POST error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
@@ -69,7 +70,7 @@ export async function DELETE(
     return await seasonDELETE(admin, seasonId, { side: 'league', orgId: id });
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[ORG STRUCTURE] seasons DELETE error:', error);
+    reportRouteError('[ORG STRUCTURE] seasons DELETE error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

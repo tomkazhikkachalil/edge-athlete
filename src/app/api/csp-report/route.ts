@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server';
 import { enforceRateLimit } from '@/lib/rate-limit';
+import { reportRouteError } from '@/lib/observability/report';
 
 /**
  * POST /api/csp-report — CSP violation sink (hardening round).
@@ -34,7 +35,7 @@ export async function POST(request: NextRequest) {
         });
       }
     } catch { /* keep the raw slice */ }
-    console.error('[csp-report]', summary);
+    reportRouteError('[csp-report]', summary);
   } catch { /* a failed report must never surface */ }
   return new Response(null, { status: 204 });
 }

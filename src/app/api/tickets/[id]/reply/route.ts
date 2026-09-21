@@ -6,6 +6,7 @@ import { enforceRateLimit } from '@/lib/rate-limit';
 import { boundedText, parseBody } from '@/lib/validation';
 import { appendUserReply, readerScope, TicketsNotLive } from '@/lib/tickets/server';
 import { TICKET_LIMITS } from '@/lib/tickets/types';
+import { reportRouteError } from '@/lib/observability/report';
 
 /**
  * POST /api/tickets/[id]/reply { body } — the user's side of the thread.
@@ -34,7 +35,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   } catch (error) {
     if (error instanceof Response) return error;
     if (error instanceof TicketsNotLive) return NextResponse.json({ error: error.message }, { status: 503, headers });
-    console.error('[POST /api/tickets/[id]/reply]', error);
+    reportRouteError('[POST /api/tickets/[id]/reply]', error);
     return NextResponse.json({ error: 'Could not send your reply' }, { status: 500, headers });
   }
 }

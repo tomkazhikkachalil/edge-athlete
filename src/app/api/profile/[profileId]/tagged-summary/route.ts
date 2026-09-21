@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { isUuid } from '@/lib/uuid';
 import { getServerAuth, getSupabaseAdmin } from '@/lib/auth-server';
 import { canViewProfile } from '@/lib/privacy';
+import { reportRouteError } from '@/lib/observability/report';
 
 /**
  * All-time Tagged-tab summary: hero-tile numbers plus the REAL sport/year
@@ -52,7 +53,7 @@ export async function GET(
     if (error) {
       // Same graceful degradation as the counts endpoint: pre-066 the RPC
       // doesn't exist; zeros keep the tab rendering (hero shows 0s).
-      console.error('tagged summary RPC failed (returning zeros):', error.message);
+      reportRouteError('tagged summary RPC failed (returning zeros):', error.message);
       return NextResponse.json({ timesTagged: 0, taggerCount: 0, sportKeys: [], years: [], degraded: true });
     }
 
@@ -64,7 +65,7 @@ export async function GET(
       years: (row?.years ?? []).slice().sort((a: number, b: number) => b - a),
     });
   } catch (error) {
-    console.error('Error in tagged summary API:', error);
+    reportRouteError('Error in tagged summary API:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

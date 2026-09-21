@@ -4,6 +4,7 @@ import { getSupabaseAdmin } from '@/lib/auth-server';
 import { enforceRateLimit } from '@/lib/rate-limit';
 import { requireScout } from '@/lib/recruiting/scout-access';
 import { addToShortlist, listShortlist } from '@/lib/recruiting/shortlist-server';
+import { reportRouteError } from '@/lib/observability/report';
 
 // ── /api/scout/shortlist (Recruiting skeleton R3) ─────────────────────────
 // GET: the scout's shortlist (athlete summaries + notes). POST { athleteId }:
@@ -25,7 +26,7 @@ export async function GET(request: NextRequest) {
     const result = await listShortlist(getSupabaseAdmin(), scout.id);
     return NextResponse.json(result, { headers: NO_STORE });
   } catch (error) {
-    console.error('[scout/shortlist] GET error:', error);
+    reportRouteError('[scout/shortlist] GET error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
@@ -48,7 +49,7 @@ export async function POST(request: NextRequest) {
     if (!outcome.ok) return NextResponse.json({ error: outcome.error }, { status: outcome.status });
     return NextResponse.json({ ok: true, ...outcome.value }, { headers: NO_STORE });
   } catch (error) {
-    console.error('[scout/shortlist] POST error:', error);
+    reportRouteError('[scout/shortlist] POST error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

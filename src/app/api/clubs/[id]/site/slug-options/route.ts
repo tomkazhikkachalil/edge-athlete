@@ -3,6 +3,7 @@ import { requireAuth, getSupabaseAdmin } from '@/lib/auth-server';
 import { slugOptionsGET } from '@/lib/org-sites/server';
 import { requireOrgManager } from '@/lib/orgs/structure-server';
 import { UUID_RE } from '@/lib/golf/course-catalog';
+import { reportRouteError } from '@/lib/observability/report';
 
 // ── /api/clubs/[id]/site/slug-options — the league twin's mirror ────────────
 // See leagues/[id]/site/slug-options/route.ts.
@@ -24,7 +25,7 @@ export async function GET(
     return await slugOptionsGET(admin, 'club', id, candidate);
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[ORG SITES] club slug-options error:', error);
+    reportRouteError('[ORG SITES] club slug-options error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth, getSupabaseAdmin } from '@/lib/auth-server';
 import { FEATURE_FLAGS } from '@/lib/features';
+import { reportRouteError } from '@/lib/observability/report';
 
 // ── GET /api/profile/guardians ────────────────────────────────────────────────
 // The custody link, legible from the ATHLETE's end: who manages this profile.
@@ -41,7 +42,7 @@ export async function GET(request: NextRequest) {
     });
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[GUARDIANS] list error:', error);
+    reportRouteError('[GUARDIANS] list error:', error);
     return NextResponse.json({ error: 'Could not load guardians' }, { status: 500 });
   }
 }

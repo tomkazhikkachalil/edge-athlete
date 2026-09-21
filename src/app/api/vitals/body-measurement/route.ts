@@ -13,6 +13,7 @@ import {
   WEIGHT_LBS_MAX,
   type WeightUnit,
 } from '@/lib/body-measurement';
+import { reportRouteError } from '@/lib/observability/report';
 
 /**
  * POST /api/vitals/body-measurement — the Vitals-tab quick update for height
@@ -165,7 +166,7 @@ export async function POST(request: NextRequest) {
       .select();
 
     if (insertError || !inserted) {
-      console.error('Body measurement insert error:', insertError);
+      reportRouteError('Body measurement insert error:', insertError);
       return NextResponse.json({ error: 'Failed to save measurement' }, { status: 500 });
     }
 
@@ -178,7 +179,7 @@ export async function POST(request: NextRequest) {
       if (updateError) {
         // Compensate: without this, the timeline and Current Vitals disagree
         // with no in-app way to correct it (athlete_vitals is append-only).
-        console.error('Body measurement profile sync error:', updateError);
+        reportRouteError('Body measurement profile sync error:', updateError);
         await admin
           .from('athlete_vitals')
           .delete()
@@ -192,7 +193,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ entries: inserted, profileUpdated });
   } catch (error) {
-    console.error('Body measurement POST error:', error);
+    reportRouteError('Body measurement POST error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

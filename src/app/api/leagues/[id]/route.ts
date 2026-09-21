@@ -18,6 +18,7 @@ import { buildAppComposition } from '@/lib/site-builder/app-composition';
 import { orgSitePath } from '@/lib/org-sites/urls';
 import { readOrgAccess } from '@/lib/orgs/access';
 import { viewerJoinRequest } from '@/lib/orgs/join-requests-server';
+import { reportRouteError } from '@/lib/observability/report';
 
 // ── /api/leagues/[id] — the public league read + owner/manager edit ──────────
 // The GET needs no viewer gate — optional auth only resolves the viewer's
@@ -51,7 +52,7 @@ export async function GET(
       if (isMissingTableError(error.code)) {
         return NextResponse.json({ error: 'League not found' }, { status: 404 });
       }
-      console.error('[LEAGUES] fetch error:', error);
+      reportRouteError('[LEAGUES] fetch error:', error);
       return NextResponse.json({ error: 'Failed to load league' }, { status: 500 });
     }
     if (!league) {
@@ -132,7 +133,7 @@ export async function GET(
     });
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[LEAGUES] GET error:', error);
+    reportRouteError('[LEAGUES] GET error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
@@ -154,7 +155,7 @@ export async function PATCH(
 
     const loaded = await getOrgAndRole(supabase, 'league', id, user.id);
     if (loaded.status === 'error') {
-      console.error('[LEAGUES] PATCH fetch error:', loaded.error);
+      reportRouteError('[LEAGUES] PATCH fetch error:', loaded.error);
       return NextResponse.json({ error: 'Failed to load league' }, { status: 500 });
     }
     if (loaded.status === 'not_found') {
@@ -196,7 +197,7 @@ export async function PATCH(
         if (updateError?.code === 'PGRST204' && /visibility|join_policy/.test(updateError.message ?? '')) {
           return NextResponse.json({ error: 'Membership settings are not available yet' }, { status: 503 });
         }
-        console.error('[LEAGUES] update error:', updateError);
+        reportRouteError('[LEAGUES] update error:', updateError);
         return NextResponse.json({ error: 'Failed to update league' }, { status: 500 });
       }
       updated = row as Record<string, unknown>;
@@ -220,7 +221,7 @@ export async function PATCH(
     });
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[LEAGUES] PATCH error:', error);
+    reportRouteError('[LEAGUES] PATCH error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

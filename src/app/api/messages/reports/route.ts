@@ -7,6 +7,7 @@ import { createTicket, readSubmitter, TicketsNotLive } from '@/lib/tickets/serve
 import { resolveTarget } from '@/lib/tickets/snapshot-server';
 import { formatTicketNumber } from '@/lib/tickets/number';
 import { REPORT_REASONS, TICKET_LIMITS, type ReportReason } from '@/lib/tickets/types';
+import { reportRouteError } from '@/lib/observability/report';
 
 /**
  * POST /api/messages/reports — since Spec 2 a thin ADAPTER over the ticket
@@ -66,7 +67,7 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     if (error instanceof Response) return error;
     if (error instanceof TicketsNotLive) return NextResponse.json({ error: error.message }, { status: 503, headers });
-    console.error('POST /api/messages/reports error:', error);
+    reportRouteError('POST /api/messages/reports error:', error);
     return NextResponse.json({ error: 'Failed to file report' }, { status: 500, headers });
   }
 }

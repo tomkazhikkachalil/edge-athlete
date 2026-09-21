@@ -9,6 +9,7 @@ import {
   contestMediaUploadPOST,
 } from '@/lib/orgs/contest-media-server';
 import { UUID_RE } from '@/lib/golf/course-catalog';
+import { reportRouteError } from '@/lib/observability/report';
 
 // ── /api/clubs/[id]/competitions/[competitionId]/media (phase 4 R3) ───────
 // The contest media library. The gate proves the caller manages THIS
@@ -47,7 +48,7 @@ export async function GET(
     return await contestMediaGET(ctx.admin, contestId, { side: 'club', orgId: ctx.id });
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[CONTEST MEDIA] club GET error:', error);
+    reportRouteError('[CONTEST MEDIA] club GET error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
@@ -79,7 +80,7 @@ export async function POST(
     );
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[CONTEST MEDIA] club POST error:', error);
+    reportRouteError('[CONTEST MEDIA] club POST error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
@@ -103,7 +104,7 @@ export async function PATCH(
     });
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[CONTEST MEDIA] club PATCH error:', error);
+    reportRouteError('[CONTEST MEDIA] club PATCH error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
@@ -127,7 +128,7 @@ export async function DELETE(
     );
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[CONTEST MEDIA] club DELETE error:', error);
+    reportRouteError('[CONTEST MEDIA] club DELETE error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

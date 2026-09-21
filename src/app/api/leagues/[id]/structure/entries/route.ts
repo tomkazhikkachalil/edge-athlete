@@ -5,6 +5,7 @@ import { parseBody } from '@/lib/validation';
 import { EntryCreateSchema } from '@/lib/structure/validate';
 import { requireOrgManager, entryCreatePOST, entryDELETE } from '@/lib/orgs/structure-server';
 import { UUID_RE } from '@/lib/golf/course-catalog';
+import { reportRouteError } from '@/lib/observability/report';
 
 // ── /api/leagues/[id]/structure/entries — manager placements (phase 1) ─────
 // Scoped: foreign teams/divisions answer 404; the cross-org and
@@ -35,7 +36,7 @@ export async function POST(
     return await entryCreatePOST(admin, parsed.data, { side: 'league', orgId: id });
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[ORG STRUCTURE] entries POST error:', error);
+    reportRouteError('[ORG STRUCTURE] entries POST error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
@@ -70,7 +71,7 @@ export async function DELETE(
     return await entryDELETE(admin, entryId, { side: 'league', orgId: id });
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[ORG STRUCTURE] entries DELETE error:', error);
+    reportRouteError('[ORG STRUCTURE] entries DELETE error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

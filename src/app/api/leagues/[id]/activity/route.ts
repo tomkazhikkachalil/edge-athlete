@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { orgActivityGET } from '@/lib/affiliations/activity-server';
+import { reportRouteError } from '@/lib/observability/report';
 
 // The league's public recent-activity excerpt feed (connections PR D).
 export async function GET(
@@ -11,7 +12,7 @@ export async function GET(
     return await orgActivityGET(request, 'league', id);
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[LEAGUE ACTIVITY] GET error:', error);
+    reportRouteError('[LEAGUE ACTIVITY] GET error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

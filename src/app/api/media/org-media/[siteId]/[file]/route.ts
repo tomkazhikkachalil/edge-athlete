@@ -4,6 +4,7 @@ import { getSupabaseAdmin } from '@/lib/auth-server';
 import { enforceRateLimit } from '@/lib/rate-limit';
 import { ORG_MEDIA_FILE_RE } from '@/lib/org-sites/validate';
 import { ORG_MEDIA_PREFIX } from '@/lib/org-sites/pages-server';
+import { reportRouteError } from '@/lib/observability/report';
 
 /**
  * GET /api/media/org-media/[siteId]/[file] — public page-image streamer.
@@ -64,7 +65,7 @@ export async function GET(
     return new NextResponse(upstream.body, { status: upstream.status, headers });
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[org-media-proxy] error:', error);
+    reportRouteError('[org-media-proxy] error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

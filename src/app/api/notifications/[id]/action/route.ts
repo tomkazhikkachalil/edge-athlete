@@ -4,6 +4,7 @@ import { requireAuth, getSupabaseAdmin } from '@/lib/auth-server';
 import { ACTIONABLE_TYPES } from '@/lib/notification-registry';
 import { readSportEventAccess } from '@/lib/sport-events/access-server';
 import { applyJoin } from '@/lib/sport-events/join-server';
+import { reportRouteError } from '@/lib/observability/report';
 
 export async function POST(
   request: NextRequest,
@@ -34,7 +35,7 @@ export async function POST(
       .single();
 
     if (notifError || !notification) {
-      console.error('[NOTIFICATION ACTION] Error fetching notification:', notifError);
+      reportRouteError('[NOTIFICATION ACTION] Error fetching notification:', notifError);
       return NextResponse.json(
         { error: 'Notification not found' },
         { status: 404 }
@@ -86,7 +87,7 @@ export async function POST(
       if (!outcome.ok) return NextResponse.json({ error: outcome.error }, { status: outcome.status });
       const action_status = action === 'accept' ? 'accepted' : 'declined';
       const { error: stampError } = await supabaseAdmin.from('notifications').update({ action_status, is_read: true }).eq('id', id);
-      if (stampError) console.error('[NOTIFICATION ACTION] stamp failed:', stampError);
+      if (stampError) reportRouteError('[NOTIFICATION ACTION] stamp failed:', stampError);
       return NextResponse.json({ success: true, action_status });
     }
 
@@ -109,7 +110,7 @@ export async function POST(
         .eq('status', 'pending');
 
       if (followError) {
-        console.error('[NOTIFICATION ACTION] Error accepting follow:', followError);
+        reportRouteError('[NOTIFICATION ACTION] Error accepting follow:', followError);
         return NextResponse.json(
           { error: 'Failed to accept follow request' },
           { status: 500 }
@@ -133,7 +134,7 @@ export async function POST(
         .eq('status', 'pending');
 
       if (deleteError) {
-        console.error('[NOTIFICATION ACTION] Error declining follow:', deleteError);
+        reportRouteError('[NOTIFICATION ACTION] Error declining follow:', deleteError);
         return NextResponse.json(
           { error: 'Failed to decline follow request' },
           { status: 500 }
@@ -155,7 +156,7 @@ export async function POST(
 
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[NOTIFICATION ACTION] Error:', error);
+    reportRouteError('[NOTIFICATION ACTION] Error:', error);
     return NextResponse.json(
       { error: 'Failed to process action' },
       { status: 500 }

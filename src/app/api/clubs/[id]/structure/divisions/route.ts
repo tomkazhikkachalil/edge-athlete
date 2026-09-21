@@ -7,6 +7,7 @@ import { requireOrgManager, divisionCreatePOST, divisionDELETE } from '@/lib/org
 import { isSportEnabled } from '@/lib/features';
 import type { SportKey } from '@/lib/sports/SportRegistry';
 import { UUID_RE } from '@/lib/golf/course-catalog';
+import { reportRouteError } from '@/lib/observability/report';
 
 // ── /api/clubs/[id]/structure/divisions — manager division CRUD ──────────
 // The scope pins the season lookup: a foreign org's season answers 404.
@@ -38,7 +39,7 @@ export async function POST(
     return await divisionCreatePOST(admin, parsed.data, { side: 'club', orgId: id });
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[ORG STRUCTURE] divisions POST error:', error);
+    reportRouteError('[ORG STRUCTURE] divisions POST error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
@@ -67,7 +68,7 @@ export async function DELETE(
     return await divisionDELETE(admin, divisionId, { side: 'club', orgId: id });
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[ORG STRUCTURE] divisions DELETE error:', error);
+    reportRouteError('[ORG STRUCTURE] divisions DELETE error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

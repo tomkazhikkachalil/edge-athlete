@@ -8,6 +8,7 @@ import { searchAll } from '@/lib/search/all-server';
 import { ALL_QUOTAS, FACET_WIDEN_LIMIT, TYPED_QUOTAS, groupByType, orderByIds, typesForRequest } from '@/lib/search/all';
 import { enforceRateLimit } from '@/lib/rate-limit';
 import { filterListedRows, listingSelectLadder } from '@/lib/orgs/listing';
+import { reportRouteError } from '@/lib/observability/report';
 
 // Onboarding v2 R1 (179): an org surfaces in search only when LISTED
 // (listing_status; pre-179 derives from approved_at). Was: phase 7 C4 —
@@ -28,7 +29,7 @@ async function listedOnly<T extends Record<string, unknown>>(
     const res = await run(sel);
     if (res.error?.code === '42703' && i < ladder.length - 1) continue;
     if (res.error) {
-      console.error('[SEARCH] org read error:', res.error);
+      reportRouteError('[SEARCH] org read error:', res.error);
       return [];
     }
     return filterListedRows((res.data ?? []) as T[]);
@@ -274,7 +275,7 @@ export async function GET(request: NextRequest) {
       try {
         results.courses = await searchCatalog(supabase, query ?? '', type === 'courses' ? 15 : 5, location);
       } catch (courseError) {
-        console.error('[SEARCH] Courses error:', courseError);
+        reportRouteError('[SEARCH] Courses error:', courseError);
       }
     }
 
@@ -332,7 +333,7 @@ export async function GET(request: NextRequest) {
           // path below finds it. Previously only a thrown error got here,
           // which is why those queries returned nothing forever.
           if (postsError || !postsBasic || postsBasic.length === 0) {
-            if (postsError) console.error('[SEARCH] Posts full-text error:', postsError);
+            if (postsError) reportRouteError('[SEARCH] Posts full-text error:', postsError);
             throw postsError ?? new Error('no full-text post matches');
           }
 
@@ -440,7 +441,7 @@ export async function GET(request: NextRequest) {
         if (!postsError && posts) {
           results.posts = posts;
         } else if (postsError) {
-          console.error('[SEARCH] Posts ILIKE error:', postsError);
+          reportRouteError('[SEARCH] Posts ILIKE error:', postsError);
         }
       }
     }
@@ -462,7 +463,7 @@ export async function GET(request: NextRequest) {
           // Same stop-word/partial-word trap as posts: empty falls through to
           // the substring path rather than being reported as "no clubs".
           if (clubsError || !clubs || clubs.length === 0) {
-            if (clubsError) console.error('[SEARCH] Clubs full-text error:', clubsError);
+            if (clubsError) reportRouteError('[SEARCH] Clubs full-text error:', clubsError);
             throw clubsError ?? new Error('no full-text club matches');
           }
           results.clubs = clubs;
@@ -485,7 +486,7 @@ export async function GET(request: NextRequest) {
         if (!clubsError && clubs) {
           results.clubs = clubs;
         } else if (clubsError) {
-          console.error('[SEARCH] Clubs ILIKE error:', clubsError);
+          reportRouteError('[SEARCH] Clubs ILIKE error:', clubsError);
         }
       }
     }
@@ -549,7 +550,7 @@ export async function GET(request: NextRequest) {
 
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('Search error:', error);
+    reportRouteError('Search error:', error);
     return NextResponse.json({ error: 'Search failed' }, { status: 500 });
   }
 }

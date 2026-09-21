@@ -5,6 +5,7 @@ import { parseBody } from '@/lib/validation';
 import { SeedsPutSchema } from '@/lib/competitions/validate';
 import { seedsPUT, requireCompetitionManager } from '@/lib/orgs/competition-server';
 import { UUID_RE } from '@/lib/golf/course-catalog';
+import { reportRouteError } from '@/lib/observability/report';
 
 // ── /api/leagues/[id]/competitions/[competitionId]/seeds (track 2 PR 3) ──
 // The FULL seeded order for a bracket competition — refused once the bracket is drawn.
@@ -34,7 +35,7 @@ export async function PUT(
     return await seedsPUT(admin, parsed.data, { side: 'league', orgId: id });
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[COMPETITIONS] league seeds PUT error:', error);
+    reportRouteError('[COMPETITIONS] league seeds PUT error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

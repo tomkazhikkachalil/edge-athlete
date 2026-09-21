@@ -18,6 +18,7 @@ import { isDateOnly, parseCreateBody, parseListScope } from '@/lib/sport-events/
 import { projectEvent } from '@/lib/sport-events/view';
 import { fetchSportEventView } from '@/lib/sport-events/view-server';
 import { prefillSidesFromTeams } from '@/lib/sport-events/side-prefill-server';
+import { reportRouteError } from '@/lib/observability/report';
 
 /**
  * /api/sport-events (Events program, PR 4).
@@ -127,14 +128,14 @@ export async function POST(request: NextRequest) {
       .select(EVENT_COLUMNS)
       .single();
     if (insertError || !event) {
-      console.error('[api/sport-events] insert failed:', insertError);
+      reportRouteError('[api/sport-events] insert failed:', insertError);
       return NextResponse.json({ error: 'Could not create the event' }, { status: 500 });
     }
     const row = event as SportEventRow;
 
     const { error: roundError } = await admin.from('sport_event_rounds').insert(rounds.map((r, i) => ({ sport_event_id: row.id, sequence: i + 1, ...r })));
     if (roundError) {
-      console.error('[api/sport-events] round insert failed:', roundError);
+      reportRouteError('[api/sport-events] round insert failed:', roundError);
       await admin.from('sport_events').delete().eq('id', row.id);
       return NextResponse.json({ error: 'Could not create the round' }, { status: 500 });
     }
@@ -145,7 +146,7 @@ export async function POST(request: NextRequest) {
       .select(PARTICIPANT_COLUMNS)
       .single();
     if (hostError || !host) {
-      console.error('[api/sport-events] host row insert failed:', hostError);
+      reportRouteError('[api/sport-events] host row insert failed:', hostError);
       await admin.from('sport_events').delete().eq('id', row.id);
       return NextResponse.json({ error: 'Could not create the event' }, { status: 500 });
     }
@@ -158,7 +159,7 @@ export async function POST(request: NextRequest) {
       const [home, away] = await Promise.all([teamRosterMembers(admin, org, sideTeams[0].id), teamRosterMembers(admin, org, sideTeams[1].id)]);
       const { data: roundIds } = await admin.from('sport_event_rounds').select('id, starts_at').eq('sport_event_id', row.id).order('sequence', { ascending: true });
       const prefill = await prefillSidesFromTeams(admin, { eventId: row.id, hostProfileId: actor.profileId, rounds: (roundIds ?? []) as Array<{ id: string; starts_at: string | null }>, sides: [home, away], groupName: 'The game' });
-      if ('error' in prefill) console.error('[api/sport-events] side prefill failed:', prefill.error);
+      if ('error' in prefill) reportRouteError('[api/sport-events] side prefill failed:', prefill.error);
     }
 
     // Phase 2b: one contest per round on the chosen competition (best-effort — the
@@ -168,22 +169,22 @@ export async function POST(request: NextRequest) {
       if (eventShape(row) === 'match') {
         // Leftovers PR 7: the intent on the event; the stamps come at go-live.
         const linked = await linkMatchEventToBracket(admin, row, (roundRows ?? []) as SportEventRoundRow[], competition.id);
-        if (!linked.ok) console.error('[api/sport-events] bracket link skipped:', linked.reason);
+        if (!linked.ok) reportRouteError('[api/sport-events] bracket link skipped:', linked.reason);
       } else {
         const minted = await mintContestsForEvent(admin, row, (roundRows ?? []) as SportEventRoundRow[], competition.id);
-        if (!minted.ok) console.error('[api/sport-events] counts-toward mint skipped:', minted.reason);
+        if (!minted.ok) reportRouteError('[api/sport-events] counts-toward mint skipped:', minted.reason);
       }
     }
 
     if (input.publish) {
       const opened = await applyTransition(admin, { eventId: row.id, to: 'open', actorProfileId: actor.profileId });
-      if (!opened.ok) console.error('[api/sport-events] publish on create failed:', opened.reason, opened.error);
+      if (!opened.ok) reportRouteError('[api/sport-events] publish on create failed:', opened.reason, opened.error);
     }
 
     const view = await fetchSportEventView(admin, row.id, actor.profileId, null);
     return NextResponse.json(view, { status: 201, headers: { 'Cache-Control': 'private, no-store' } });
   } catch (error) {
-    console.error('[api/sport-events] POST error:', error);
+    reportRouteError('[api/sport-events] POST error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
@@ -206,7 +207,7 @@ export async function GET(request: NextRequest) {
       .eq('profile_id', actor.profileId)
       .not('status', 'in', '(declined,removed)');
     if (rowsError) {
-      console.error('[api/sport-events] roster read failed:', rowsError);
+      reportRouteError('[api/sport-events] roster read failed:', rowsError);
       return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
     }
     const rowByEvent = new Map<string, SportEventParticipantRow>();
@@ -218,7 +219,7 @@ export async function GET(request: NextRequest) {
 
     const { data: events, error: eventsError } = await admin.from('sport_events').select(EVENT_COLUMNS).in('id', [...ids]);
     if (eventsError) {
-      console.error('[api/sport-events] list read failed:', eventsError);
+      reportRouteError('[api/sport-events] list read failed:', eventsError);
       return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
     }
 
@@ -263,7 +264,7 @@ export async function GET(request: NextRequest) {
     });
     return NextResponse.json({ events: out.slice(0, 100), scope }, { headers: { 'Cache-Control': 'private, no-store' } });
   } catch (error) {
-    console.error('[api/sport-events] GET error:', error);
+    reportRouteError('[api/sport-events] GET error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

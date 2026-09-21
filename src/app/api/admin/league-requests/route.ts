@@ -6,6 +6,7 @@ import { createLeagueWithOwner } from '@/lib/leagues/create';
 import { revalidateTag } from 'next/cache';
 import { revalidateOrgSiteForOrg } from '@/lib/org-sites/revalidate';
 import { draftPreviewUrls } from '@/lib/orgs/pending-org';
+import { reportRouteError } from '@/lib/observability/report';
 
 // ── /api/admin/league-requests — the decision queue (116) ────────────────────
 // Approval creates the league through the SAME createLeagueWithOwner path
@@ -26,7 +27,7 @@ export async function GET(request: NextRequest) {
       .order('created_at', { ascending: true });
     if (error) {
       if (isMissingTableError(error.code)) return NextResponse.json({ requests: [] });
-      console.error('[ADMIN LEAGUE REQUESTS] list error:', error);
+      reportRouteError('[ADMIN LEAGUE REQUESTS] list error:', error);
       return NextResponse.json({ error: 'Failed to load requests' }, { status: 500 });
     }
 
@@ -57,7 +58,7 @@ export async function GET(request: NextRequest) {
     });
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[ADMIN LEAGUE REQUESTS] GET error:', error);
+    reportRouteError('[ADMIN LEAGUE REQUESTS] GET error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
@@ -83,7 +84,7 @@ export async function PATCH(request: NextRequest) {
       if (isMissingTableError(fetchError.code)) {
         return NextResponse.json({ error: 'Request not found' }, { status: 404 });
       }
-      console.error('[ADMIN LEAGUE REQUESTS] fetch error:', fetchError);
+      reportRouteError('[ADMIN LEAGUE REQUESTS] fetch error:', fetchError);
       return NextResponse.json({ error: 'Failed to load request' }, { status: 500 });
     }
     if (!row) {
@@ -144,7 +145,7 @@ export async function PATCH(request: NextRequest) {
       if (plan) {
         const replayed = await replayStructure(supabase, { side: 'league', orgId: created.league.id }, plan);
         if (!replayed.ok) {
-          console.error('[ADMIN LEAGUE REQUESTS] structure replay failed at', replayed.step, replayed.status);
+          reportRouteError('[ADMIN LEAGUE REQUESTS] structure replay failed at', replayed.step, replayed.status);
           if (!adopted) await supabase.from('leagues').delete().eq('id', created.league.id);
           return NextResponse.json(
             { error: 'Failed to build the league structure — the request is still pending; try approving again' },
@@ -167,7 +168,7 @@ export async function PATCH(request: NextRequest) {
           ({ error: stampError } = await supabase.from('leagues').update({ approved_at: decidedAt }).eq('id', adopted.id));
         }
         if (stampError) {
-          console.error('[ADMIN LEAGUE REQUESTS] approve stamp error:', stampError);
+          reportRouteError('[ADMIN LEAGUE REQUESTS] approve stamp error:', stampError);
           return NextResponse.json({ error: 'Failed to approve the league — try again' }, { status: 500 });
         }
       }
@@ -183,7 +184,7 @@ export async function PATCH(request: NextRequest) {
         .eq('status', 'pending')
         .select();
       if (claimError || !claimed || claimed.length === 0) {
-        if (claimError) console.error('[ADMIN LEAGUE REQUESTS] claim error:', claimError);
+        if (claimError) reportRouteError('[ADMIN LEAGUE REQUESTS] claim error:', claimError);
         if (!adopted) await supabase.from('leagues').delete().eq('id', created.league.id);
         return NextResponse.json({ error: 'Request was decided by someone else' }, { status: 409 });
       }
@@ -241,7 +242,7 @@ export async function PATCH(request: NextRequest) {
       .eq('status', 'pending')
       .select();
     if (claimError || !claimed || claimed.length === 0) {
-      if (claimError) console.error('[ADMIN LEAGUE REQUESTS] decline error:', claimError);
+      if (claimError) reportRouteError('[ADMIN LEAGUE REQUESTS] decline error:', claimError);
       return NextResponse.json({ error: 'Request was decided by someone else' }, { status: 409 });
     }
 
@@ -254,7 +255,7 @@ export async function PATCH(request: NextRequest) {
         .update({ listing_status: 'unlisted' })
         .eq('id', row.created_league_id);
       if (unlistError && !(unlistError.code === 'PGRST204' && /listing_status/.test(unlistError.message ?? ''))) {
-        console.error('[ADMIN LEAGUE REQUESTS] unlist error:', unlistError);
+        reportRouteError('[ADMIN LEAGUE REQUESTS] unlist error:', unlistError);
       }
       await revalidateOrgSiteForOrg(supabase, 'league', row.created_league_id);
       revalidateTag('org-sitemap', { expire: 0 });
@@ -273,7 +274,7 @@ export async function PATCH(request: NextRequest) {
     return NextResponse.json({ ok: true });
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[ADMIN LEAGUE REQUESTS] PATCH error:', error);
+    reportRouteError('[ADMIN LEAGUE REQUESTS] PATCH error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

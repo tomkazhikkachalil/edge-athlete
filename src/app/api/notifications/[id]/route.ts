@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { isUuid } from '@/lib/uuid';
 import { requireAuth, getSupabaseAdmin } from '@/lib/auth-server';
+import { reportRouteError } from '@/lib/observability/report';
 
 export async function PATCH(
   request: NextRequest,
@@ -33,7 +34,7 @@ export async function PATCH(
       .eq('user_id', user.id); // Ensure user owns this notification
 
     if (error) {
-      console.error('[NOTIFICATIONS API] Error updating notification:', error);
+      reportRouteError('[NOTIFICATIONS API] Error updating notification:', error);
       return NextResponse.json({ error: 'Failed to update notification' }, { status: 500 });
     }
 
@@ -41,7 +42,7 @@ export async function PATCH(
 
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[NOTIFICATIONS API] Error:', error);
+    reportRouteError('[NOTIFICATIONS API] Error:', error);
     return NextResponse.json(
       { error: 'Failed to update notification' },
       { status: 500 }
@@ -68,7 +69,7 @@ export async function DELETE(
       .eq('user_id', user.id); // Ensure user owns this notification
 
     if (error) {
-      console.error('[NOTIFICATIONS API] Error deleting notification:', error);
+      reportRouteError('[NOTIFICATIONS API] Error deleting notification:', error);
       return NextResponse.json({ error: 'Failed to delete notification' }, { status: 500 });
     }
 
@@ -76,7 +77,7 @@ export async function DELETE(
 
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[NOTIFICATIONS API] Error:', error);
+    reportRouteError('[NOTIFICATIONS API] Error:', error);
     return NextResponse.json(
       { error: 'Failed to delete notification' },
       { status: 500 }

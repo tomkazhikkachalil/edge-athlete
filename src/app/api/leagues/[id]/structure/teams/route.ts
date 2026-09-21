@@ -6,6 +6,7 @@ import { TeamCreateSchema, TeamPatchSchema } from '@/lib/structure/validate';
 import { requireOrgManager, teamCreatePOST, teamPATCH } from '@/lib/orgs/structure-server';
 import { UUID_RE } from '@/lib/golf/course-catalog';
 import { divisionIdsForTeam } from '@/lib/orgs/scoped-members';
+import { reportRouteError } from '@/lib/observability/report';
 
 // ── /api/leagues/[id]/structure/teams — manager team CRUD (phase 1) ────────
 // NO manager DELETE on purpose: archive is the manager affordance; teams
@@ -36,7 +37,7 @@ export async function POST(
     return await teamCreatePOST(admin, { side: 'league', orgId: id }, parsed.data);
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[ORG STRUCTURE] teams POST error:', error);
+    reportRouteError('[ORG STRUCTURE] teams POST error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
@@ -67,7 +68,7 @@ export async function PATCH(
     return await teamPATCH(admin, parsed.data, { side: 'league', orgId: id });
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[ORG STRUCTURE] teams PATCH error:', error);
+    reportRouteError('[ORG STRUCTURE] teams PATCH error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

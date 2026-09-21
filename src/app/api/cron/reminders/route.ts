@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/auth-server';
 import { runReminderSweep } from '@/lib/calendar/reminders-server';
+import { reportRouteError } from '@/lib/observability/report';
 
 export const maxDuration = 60;
 
@@ -21,7 +22,7 @@ export async function GET(request: NextRequest) {
     if (summary.due > 0) console.log('[REMINDERS]', JSON.stringify(summary));
     return NextResponse.json({ ok: true, ...summary });
   } catch (error) {
-    console.error('[REMINDERS] sweep failed:', error);
+    reportRouteError('[REMINDERS] sweep failed:', error);
     return NextResponse.json({ ok: false }, { status: 500 });
   }
 }

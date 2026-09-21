@@ -6,6 +6,7 @@ import { requireOrgManager } from '@/lib/orgs/structure-server';
 import { orgVenuesGET, orgVenueCreatePOST } from '@/lib/venues/org-venues-server';
 import { OrgVenueCreateSchema } from '@/lib/venues/validate';
 import { UUID_RE } from '@/lib/golf/course-catalog';
+import { reportRouteError } from '@/lib/observability/report';
 
 // ── /api/clubs/[id]/venues — the org's venues + golf links (phase 6b A1) ──
 // GET is anonymous-tolerant (the public club page's Courses section reads
@@ -25,7 +26,7 @@ export async function GET(
     return await orgVenuesGET(getSupabaseAdmin(), { side: 'club', orgId: id });
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[ORG VENUES] GET error:', error);
+    reportRouteError('[ORG VENUES] GET error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
@@ -50,7 +51,7 @@ export async function POST(
     return await orgVenueCreatePOST(admin, { side: 'club', orgId: id }, parsed.data);
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[ORG VENUES] POST error:', error);
+    reportRouteError('[ORG VENUES] POST error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

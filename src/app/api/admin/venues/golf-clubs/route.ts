@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin, getSupabaseAdmin } from '@/lib/auth-server';
 import { isMissingTableError } from '@/lib/venues/validate';
+import { reportRouteError } from '@/lib/observability/report';
 
 // ── /api/admin/venues/golf-clubs?q= — the console's link typeahead over the
 // golf reference catalog (125). Admin-gated: it's a curation surface, and
@@ -21,13 +22,13 @@ export async function GET(request: NextRequest) {
       .limit(6);
     if (error) {
       if (isMissingTableError(error.code)) return NextResponse.json({ golfClubs: [] });
-      console.error('[ADMIN VENUES] golf club search error:', error);
+      reportRouteError('[ADMIN VENUES] golf club search error:', error);
       return NextResponse.json({ error: 'Search failed' }, { status: 500 });
     }
     return NextResponse.json({ golfClubs: data ?? [] });
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[ADMIN VENUES] golf-clubs GET error:', error);
+    reportRouteError('[ADMIN VENUES] golf-clubs GET error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

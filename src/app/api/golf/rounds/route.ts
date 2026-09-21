@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { UUID_RE } from '@/lib/uuid';
 import { getSupabaseAdmin, requireAuth } from '@/lib/auth-server';
 import { canViewProfile } from '@/lib/privacy';
+import { reportRouteError } from '@/lib/observability/report';
 
 // Sanitize input for a PostgREST .or()/.ilike() filter: STRIP the structural
 // delimiters (comma, parens, double-quote) so a value can't break out and
@@ -71,7 +72,7 @@ export async function GET(request: NextRequest) {
       .range(offset, offset + limit - 1);
 
     if (error) {
-      console.error('GET /api/golf/rounds error:', error);
+      reportRouteError('GET /api/golf/rounds error:', error);
       return NextResponse.json({ error: 'Failed to load rounds' }, { status: 500 });
     }
 
@@ -84,7 +85,7 @@ export async function GET(request: NextRequest) {
     });
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('GET /api/golf/rounds error:', error);
+    reportRouteError('GET /api/golf/rounds error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

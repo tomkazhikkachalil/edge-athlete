@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerAuth } from '@/lib/auth-server';
 import { isActiveParticipant } from '@/lib/golf/round-status';
 import { pickLiveRound, type LiveRoundRow } from '@/lib/golf/live-round';
+import { reportRouteError } from '@/lib/observability/report';
 
 /**
  * GET /api/golf/live-round
@@ -47,7 +48,7 @@ export async function GET(request: NextRequest) {
       .limit(25);
 
     if (fetchError) {
-      console.error('live-round: fetch failed:', fetchError);
+      reportRouteError('live-round: fetch failed:', fetchError);
       return NextResponse.json({ error: 'Failed to check live rounds' }, { status: 500 });
     }
 
@@ -116,7 +117,7 @@ export async function GET(request: NextRequest) {
       },
     });
   } catch (error) {
-    console.error('Unexpected error in GET /api/golf/live-round:', error);
+    reportRouteError('Unexpected error in GET /api/golf/live-round:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

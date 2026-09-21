@@ -4,6 +4,7 @@ import { FEATURE_FLAGS } from '@/lib/features';
 import { enforceRateLimit } from '@/lib/rate-limit';
 import { ageBand, effectivePresets, parseHouseholdPolicy } from '@/lib/household-policy';
 import { applySafetyPatch } from '@/lib/safety-settings';
+import { reportRouteError } from '@/lib/observability/report';
 
 // ── POST /api/guardian/household/apply ───────────────────────────────────────
 // Apply the caller's household defaults to their athletes (Wave 4). LOOPS
@@ -71,7 +72,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ results });
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[GUARDIAN] household apply error:', error);
+    reportRouteError('[GUARDIAN] household apply error:', error);
     return NextResponse.json({ error: 'Could not apply household defaults' }, { status: 500 });
   }
 }

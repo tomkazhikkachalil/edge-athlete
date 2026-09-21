@@ -14,6 +14,7 @@ import { validateSupervisedHandle } from '@/lib/supervised-credentials';
 import { buildAthleteSummaries } from '@/lib/guardian-rollup';
 import { ACTIVE_TRANSFER_STATES } from '@/lib/transfers';
 import { enforceRateLimit } from '@/lib/rate-limit';
+import { reportRouteError } from '@/lib/observability/report';
 
 // ── /api/guardian/athletes ────────────────────────────────────────────────────
 // Step B: a guardian creates (and lists) managed athlete profiles.
@@ -137,7 +138,7 @@ export async function GET(request: NextRequest) {
     });
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[GUARDIAN] list athletes error:', error);
+    reportRouteError('[GUARDIAN] list athletes error:', error);
     return NextResponse.json({ error: 'Could not load athletes' }, { status: 500 });
   }
 }
@@ -299,7 +300,7 @@ export async function POST(request: NextRequest) {
         { onConflict: 'user_id', ignoreDuplicates: true }
       );
     if (prefsError) {
-      console.error('[GUARDIAN] notification prefs seed failed:', prefsError);
+      reportRouteError('[GUARDIAN] notification prefs seed failed:', prefsError);
     }
 
     // Creating an athlete IS a parent's onboarding (097 funnel): stamp the
@@ -325,7 +326,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ ok: true, profileId }, { status: 201 });
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[GUARDIAN] create athlete error:', error);
+    reportRouteError('[GUARDIAN] create athlete error:', error);
     Sentry.captureException(error, { tags: { area: 'guardian-athletes' } });
     return NextResponse.json({ error: 'An unexpected error occurred' }, { status: 500 });
   }

@@ -8,6 +8,7 @@ import { applyRoundTransition } from '@/lib/sport-events/lifecycle-server';
 import type { SportEventRoundStatus } from '@/lib/sport-events/types';
 import { isDateOnly } from '@/lib/sport-events/validate';
 import { fetchSportEventView } from '@/lib/sport-events/view-server';
+import { reportRouteError } from '@/lib/observability/report';
 
 const ROUND_TARGETS = ['live', 'completed', 'cancelled'] as const;
 
@@ -47,7 +48,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const view = await fetchSportEventView(admin, id, actor.profileId, null);
     return NextResponse.json(view, { headers: { 'Cache-Control': 'private, no-store' } });
   } catch (error) {
-    console.error('[api/sport-events/rounds/transition] POST error:', error);
+    reportRouteError('[api/sport-events/rounds/transition] POST error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

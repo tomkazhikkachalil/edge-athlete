@@ -3,6 +3,7 @@ import { getSupabaseAdmin, requireProfileRole, requireActiveWriter } from '@/lib
 import { enforceRateLimit } from '@/lib/rate-limit';
 import { isUuid } from '@/lib/uuid';
 import { filterBlockedBidirectional } from '@/lib/blocks';
+import { reportRouteError } from '@/lib/observability/report';
 
 export async function POST(request: NextRequest) {
   try {
@@ -42,7 +43,7 @@ export async function POST(request: NextRequest) {
         .eq('following_id', removeFrom);
 
       if (removeError) {
-        console.error('[FOLLOW API] Remove fan error:', removeError);
+        reportRouteError('[FOLLOW API] Remove fan error:', removeError);
         return NextResponse.json({ error: 'Failed to remove fan' }, { status: 500 });
       }
       return NextResponse.json({ action: 'removed_fan', message: 'Fan removed successfully' });
@@ -69,7 +70,7 @@ export async function POST(request: NextRequest) {
       .maybeSingle(); // Use maybeSingle instead of single to avoid error when not found
 
     if (checkError) {
-      console.error('[FOLLOW API] Check follow error:', checkError);
+      reportRouteError('[FOLLOW API] Check follow error:', checkError);
       return NextResponse.json({ error: 'Failed to check follow status' }, { status: 500 });
     }
 
@@ -83,7 +84,7 @@ export async function POST(request: NextRequest) {
         .eq('following_id', followingId);
 
       if (deleteError) {
-        console.error('Unfollow error:', deleteError);
+        reportRouteError('Unfollow error:', deleteError);
         return NextResponse.json({ error: 'Failed to unfollow user' }, { status: 500 });
       }
 
@@ -101,7 +102,7 @@ export async function POST(request: NextRequest) {
         .maybeSingle();
 
       if (profileError) {
-        console.error('[FOLLOW API] Profile fetch error:', profileError);
+        reportRouteError('[FOLLOW API] Profile fetch error:', profileError);
       }
       if (!targetProfile) {
         return NextResponse.json({ error: 'Profile not found' }, { status: 404 });
@@ -135,13 +136,13 @@ export async function POST(request: NextRequest) {
         .single();
 
       if (insertError) {
-        console.error('[FOLLOW API] Insert error:', insertError);
-        console.error('[FOLLOW API] Insert error details:', JSON.stringify(insertError, null, 2));
+        reportRouteError('[FOLLOW API] Insert error:', insertError);
+        reportRouteError('[FOLLOW API] Insert error details:', JSON.stringify(insertError, null, 2));
         return NextResponse.json({ error: 'Failed to follow user' }, { status: 500 });
       }
 
       if (!insertedFollow) {
-        console.error('[FOLLOW API] Insert succeeded but no data returned');
+        reportRouteError('[FOLLOW API] Insert succeeded but no data returned');
         // Still return success since the insert worked
       }
 
@@ -173,7 +174,7 @@ export async function POST(request: NextRequest) {
 
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('Follow API error:', error);
+    reportRouteError('Follow API error:', error);
     return NextResponse.json({ error: 'Failed to process follow request' }, { status: 500 });
   }
 }

@@ -6,6 +6,7 @@ import { boundedText, emailString, optionalText, parseBody } from '@/lib/validat
 import { createTicket, TicketsNotLive } from '@/lib/tickets/server';
 import { formatTicketNumber } from '@/lib/tickets/number';
 import { HELP_CATEGORIES, TICKET_LIMITS } from '@/lib/tickets/types';
+import { reportRouteError } from '@/lib/observability/report';
 
 /**
  * POST /api/tickets/guest — the Help Center's SIGNED-OUT request (Support &
@@ -51,7 +52,7 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     if (error instanceof Response) return error;
     if (error instanceof TicketsNotLive) return NextResponse.json({ error: error.message }, { status: 503, headers: NO_STORE });
-    console.error('[POST /api/tickets/guest]', error);
+    reportRouteError('[POST /api/tickets/guest]', error);
     return NextResponse.json({ error: 'Could not send your request. Please try again.' }, { status: 500, headers: NO_STORE });
   }
 }

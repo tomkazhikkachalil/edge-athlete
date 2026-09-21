@@ -3,6 +3,7 @@ import { requireAuth, getSupabaseAdmin } from '@/lib/auth-server';
 import { getOrgAndRole } from '@/lib/orgs/authz';
 import { orgAnnouncementsGET } from '@/lib/orgs/announce-archive-server';
 import { UUID_RE } from '@/lib/golf/course-catalog';
+import { reportRouteError } from '@/lib/observability/report';
 
 // ── /api/clubs/[id]/announcements — the MEMBERS' archive (N3, program 10)
 // Every announcement the org ever sent (the notification rows grouped
@@ -23,7 +24,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     return await orgAnnouncementsGET(admin, 'club', id);
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[ANNOUNCE] club archive GET error:', error);
+    reportRouteError('[ANNOUNCE] club archive GET error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

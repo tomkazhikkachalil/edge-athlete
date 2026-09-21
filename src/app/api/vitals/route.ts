@@ -4,6 +4,7 @@ import { requireAuth, getSupabaseAdmin, getProfileRole } from '@/lib/auth-server
 import { filterVitalsRows, aspectHidden } from '@/lib/vitals-privacy';
 import { fetchVitalsPrivacy } from '@/lib/vitals-privacy-server';
 import { toProxyUrl } from '@/lib/media/proxy-url';
+import { reportRouteError } from '@/lib/observability/report';
 
 /**
  * GET /api/vitals?profileId=xxx
@@ -103,7 +104,7 @@ export async function GET(request: NextRequest) {
       .limit(2000);
 
     if (vitalsError) {
-      console.error('Error fetching vitals:', vitalsError);
+      reportRouteError('Error fetching vitals:', vitalsError);
       return NextResponse.json({ error: 'Failed to fetch vitals' }, { status: 500 });
     }
 
@@ -155,7 +156,7 @@ export async function GET(request: NextRequest) {
     const { data: trainingPostsRaw, error: postsError } = await trainingQuery;
 
     if (postsError) {
-      console.error('Error fetching training posts:', postsError);
+      reportRouteError('Error fetching training posts:', postsError);
       // Non-fatal: return vitals even if posts fail
     }
 
@@ -198,7 +199,7 @@ export async function GET(request: NextRequest) {
       ...(isOwner ? { vitalsPrivacy: privacy } : {}),
     });
   } catch (error) {
-    console.error('GET /api/vitals error:', error);
+    reportRouteError('GET /api/vitals error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
@@ -262,14 +263,14 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (error) {
-      console.error('Error inserting vital:', error);
+      reportRouteError('Error inserting vital:', error);
       return NextResponse.json({ error: 'Failed to save vital entry' }, { status: 500 });
     }
 
     return NextResponse.json({ vital: data }, { status: 201 });
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('POST /api/vitals error:', error);
+    reportRouteError('POST /api/vitals error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { UUID_RE } from '@/lib/uuid';
 import { getSupabaseAdmin, requireAuth } from '@/lib/auth-server';
 import { readTicketForUser, readerScope } from '@/lib/tickets/server';
+import { reportRouteError } from '@/lib/observability/report';
 
 /** GET /api/tickets/[id] — one of my (or my supervised athlete's) tickets with its visible thread. Any other ticket is a 404, never a 403. */
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -17,7 +18,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     return NextResponse.json(result, { headers });
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[GET /api/tickets/[id]]', error);
+    reportRouteError('[GET /api/tickets/[id]]', error);
     return NextResponse.json({ error: 'Could not load the request' }, { status: 500, headers });
   }
 }

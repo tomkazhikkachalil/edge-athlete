@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth, getSupabaseAdmin } from '@/lib/auth-server';
 import { offeringsGET } from '@/lib/orgs/registration-server';
 import { UUID_RE } from '@/lib/golf/course-catalog';
+import { reportRouteError } from '@/lib/observability/report';
 
 // ── /api/clubs/[id]/offerings (phase 5 R2) ────────────────────────────────
 // What can be registered for right now — seasons, divisions, programs
@@ -22,7 +23,7 @@ export async function GET(
     return await offeringsGET(getSupabaseAdmin(), 'club', id);
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[REGISTRATION] club offerings GET error:', error);
+    reportRouteError('[REGISTRATION] club offerings GET error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

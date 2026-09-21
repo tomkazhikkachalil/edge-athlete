@@ -3,6 +3,7 @@ import { getServerAuth, getSupabaseAdmin, platformRoleFor } from '@/lib/auth-ser
 import { enforceRateLimit } from '@/lib/rate-limit';
 import { verifyMediaToken } from '@/lib/media/token';
 import { authorizeMedia } from '@/lib/media/authorize';
+import { reportRouteError } from '@/lib/observability/report';
 
 /**
  * GET /api/media/[token] — the authenticated media proxy.
@@ -16,6 +17,8 @@ import { authorizeMedia } from '@/lib/media/authorize';
  * 404 (not 403) for a bad/forged token or an unauthorized private object, so
  * the endpoint never confirms whether a key exists.
  */
+const UPSTREAM_TIMEOUT_MS = 15_000;
+
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ token: string }> }
@@ -61,8 +64,18 @@ export async function GET(
       headers: range ? { Range: range } : {},
       // Bytes only; no cookies to the storage host.
       cache: 'no-store',
+      // A hung storage host used to hold the function (and the viewer) for
+      // the full function timeout. Server-side, so the browser floor is not
+      // in play; feature-detected anyway (Round 1 PR 4).
+      signal: typeof AbortSignal.timeout === 'function' ? AbortSignal.timeout(UPSTREAM_TIMEOUT_MS) : undefined,
     });
     if (!upstream.ok && upstream.status !== 206) {
+      // A storage 5xx was a silent 404 — every broken image looked like a
+      // missing one. Still a 404 to the viewer (nothing to retry from the
+      // client), but recorded, so an outage is visible.
+      if (upstream.status >= 500) {
+        reportRouteError('[media-proxy] storage answered', upstream.status, { bucket: payload.b, entity: payload.t });
+      }
       return NextResponse.json({ error: 'Not found' }, { status: 404 });
     }
 
@@ -87,7 +100,7 @@ export async function GET(
     return new NextResponse(upstream.body, { status: upstream.status, headers });
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[media-proxy] error:', error);
+    reportRouteError('[media-proxy] error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

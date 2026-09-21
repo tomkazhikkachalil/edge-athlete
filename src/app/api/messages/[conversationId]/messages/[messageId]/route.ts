@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { isUuid } from '@/lib/uuid';
 import { requireAuth, getSupabaseAdmin } from '@/lib/auth-server';
+import { reportRouteError } from '@/lib/observability/report';
 
 const EDIT_WINDOW_MS = 15 * 60 * 1000; // 15 minutes
 
@@ -83,14 +84,14 @@ export async function PATCH(
       .single();
 
     if (updateError || !updated) {
-      console.error('PATCH /api/messages/[conversationId]/messages/[messageId] error:', updateError);
+      reportRouteError('PATCH /api/messages/[conversationId]/messages/[messageId] error:', updateError);
       return NextResponse.json({ error: 'Failed to edit message' }, { status: 500 });
     }
 
     return NextResponse.json({ message: updated });
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('PATCH /api/messages/[conversationId]/messages/[messageId] error:', error);
+    reportRouteError('PATCH /api/messages/[conversationId]/messages/[messageId] error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
@@ -131,14 +132,14 @@ export async function DELETE(
       .eq('id', messageId);
 
     if (error) {
-      console.error('DELETE /api/messages/[conversationId]/messages/[messageId] error:', error);
+      reportRouteError('DELETE /api/messages/[conversationId]/messages/[messageId] error:', error);
       return NextResponse.json({ error: 'Failed to delete message' }, { status: 500 });
     }
 
     return NextResponse.json({ success: true });
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('DELETE /api/messages/[conversationId]/messages/[messageId] error:', error);
+    reportRouteError('DELETE /api/messages/[conversationId]/messages/[messageId] error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

@@ -9,6 +9,7 @@ import {
   MESSAGING_VALUES,
   VISIBILITY_VALUES,
 } from '@/lib/profile-privacy';
+import { reportRouteError } from '@/lib/observability/report';
 
 // ── PATCH /api/guardian/athletes/[profileId] ──────────────────────────────────
 // Family console: a guardian adjusts a managed athlete's safety posture.
@@ -88,7 +89,7 @@ export async function PATCH(
     return NextResponse.json({ ok: true });
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[GUARDIAN] patch athlete error:', error);
+    reportRouteError('[GUARDIAN] patch athlete error:', error);
     Sentry.captureException(error, { tags: { area: 'guardian-athletes' } });
     return NextResponse.json({ error: 'An unexpected error occurred' }, { status: 500 });
   }
@@ -168,7 +169,7 @@ export async function DELETE(
         user_agent: request.headers.get('user-agent'),
       });
       if (consentError) {
-        console.error('[GUARDIAN] withdrawn consent insert failed:', consentError);
+        reportRouteError('[GUARDIAN] withdrawn consent insert failed:', consentError);
         Sentry.captureException(new Error(`guardian delete: withdrawn row failed: ${consentError.message}`));
       }
     }
@@ -189,7 +190,7 @@ export async function DELETE(
         }))
       );
       if (auditError) {
-        console.error('[GUARDIAN] delete audit insert failed:', auditError);
+        reportRouteError('[GUARDIAN] delete audit insert failed:', auditError);
       }
     }
 
@@ -201,7 +202,7 @@ export async function DELETE(
     return NextResponse.json({ ok: true, parkWindowDays: PARK_WINDOW_DAYS });
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[GUARDIAN] delete athlete error:', error);
+    reportRouteError('[GUARDIAN] delete athlete error:', error);
     Sentry.captureException(error, { tags: { area: 'guardian-athletes' } });
     return NextResponse.json({ error: 'Could not delete the profile. Please try again.' }, { status: 500 });
   }

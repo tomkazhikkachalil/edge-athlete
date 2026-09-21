@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth, getSupabaseAdmin, getProfileRole } from '@/lib/auth-server';
 import { restoreAccount } from '@/lib/account-park';
 import { getClientIp } from '@/lib/rate-limit';
+import { reportRouteError } from '@/lib/observability/report';
 
 /**
  * POST /api/account/restore — cancel a pending (parked) deletion.
@@ -73,7 +74,7 @@ export async function POST(request: NextRequest) {
         if (consentError) {
           // Best-effort: the restore itself stands; consent can be re-signed
           // from the console's consent page.
-          console.error('[RESTORE] granted consent insert failed:', consentError);
+          reportRouteError('[RESTORE] granted consent insert failed:', consentError);
         }
       }
     }
@@ -81,7 +82,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ ok: true });
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[RESTORE] error:', error);
+    reportRouteError('[RESTORE] error:', error);
     return NextResponse.json({ error: 'Could not restore the account' }, { status: 500 });
   }
 }

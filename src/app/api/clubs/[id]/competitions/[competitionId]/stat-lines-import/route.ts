@@ -5,6 +5,7 @@ import { statLinesImportPOST } from '@/lib/orgs/stat-lines-import';
 import { requireCompetitionManager } from '@/lib/orgs/competition-server';
 import type { CompRow } from '@/lib/orgs/stat-lines-server';
 import { UUID_RE } from '@/lib/golf/course-catalog';
+import { reportRouteError } from '@/lib/observability/report';
 
 // ── /api/clubs/[id]/competitions/[competitionId]/stat-lines-import (6c I2) ──
 // Per-athlete stat lines by CSV paste (dry-run default). Owner authority
@@ -56,7 +57,7 @@ export async function POST(
     );
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[STAT-LINES-IMPORT] club POST error:', error);
+    reportRouteError('[STAT-LINES-IMPORT] club POST error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

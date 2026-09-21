@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { isUuid } from '@/lib/uuid';
 import { getServerAuth } from '@/lib/auth-server';
+import { reportRouteError } from '@/lib/observability/report';
 
 export async function POST(request: NextRequest) {
   try {
@@ -27,7 +28,7 @@ export async function POST(request: NextRequest) {
       .maybeSingle();
 
     if (checkError) {
-      console.error('Error checking save status:', checkError);
+      reportRouteError('Error checking save status:', checkError);
       return NextResponse.json({ error: 'Failed to check save status' }, { status: 500 });
     }
 
@@ -40,7 +41,7 @@ export async function POST(request: NextRequest) {
         .eq('profile_id', user.id);
 
       if (deleteError) {
-        console.error('Error unsaving post:', deleteError);
+        reportRouteError('Error unsaving post:', deleteError);
         return NextResponse.json({ error: 'Failed to unsave post' }, { status: 500 });
       }
 
@@ -67,7 +68,7 @@ export async function POST(request: NextRequest) {
         });
 
       if (insertError) {
-        console.error('Error saving post:', insertError);
+        reportRouteError('Error saving post:', insertError);
 
         // Handle unique constraint violation (duplicate save)
         if (insertError.code === '23505' || insertError.message?.includes('duplicate')) {
@@ -104,7 +105,7 @@ export async function POST(request: NextRequest) {
     }
 
   } catch (error) {
-    console.error('Error processing save request:', error);
+    reportRouteError('Error processing save request:', error);
     return NextResponse.json({ error: 'Failed to process save request' }, { status: 500 });
   }
 }

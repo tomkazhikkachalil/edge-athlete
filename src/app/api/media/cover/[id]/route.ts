@@ -3,6 +3,7 @@ import { isUuid } from '@/lib/uuid';
 import { getSupabaseAdmin } from '@/lib/auth-server';
 import { enforceRateLimit } from '@/lib/rate-limit';
 import { parsePublicUrl } from '@/lib/media/proxy-url';
+import { reportRouteError } from '@/lib/observability/report';
 
 /**
  * GET /api/media/cover/[id] — public cover-photo streamer.
@@ -81,7 +82,7 @@ export async function GET(
     return new NextResponse(upstream.body, { status: upstream.status, headers });
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[cover-proxy] error:', error);
+    reportRouteError('[cover-proxy] error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

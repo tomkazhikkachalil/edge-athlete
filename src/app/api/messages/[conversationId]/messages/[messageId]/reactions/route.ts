@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { isUuid } from '@/lib/uuid';
 import { requireAuth, getSupabaseAdmin } from '@/lib/auth-server';
+import { reportRouteError } from '@/lib/observability/report';
 
 // ── POST /api/messages/[conversationId]/messages/[messageId]/reactions ────────
 // Toggle an emoji reaction on a message.
@@ -82,7 +83,7 @@ export async function POST(
         if (insertError.code === '23505') {
           // Already exists — treat as no-op, will return fresh aggregation below
         } else {
-          console.error('Error inserting reaction:', insertError);
+          reportRouteError('Error inserting reaction:', insertError);
           return NextResponse.json({ error: 'Failed to add reaction' }, { status: 500 });
         }
       }
@@ -146,7 +147,7 @@ export async function POST(
     return NextResponse.json({ reactions });
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('POST /api/messages/.../reactions error:', error);
+    reportRouteError('POST /api/messages/.../reactions error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

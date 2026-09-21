@@ -3,6 +3,7 @@ import { isUuid } from '@/lib/uuid';
 import { requireAuth, getSupabaseAdmin, getProfileRole } from '@/lib/auth-server';
 import { getSportSettingsDisplay, type SettingsDisplayItem } from '@/lib/sports/settings-schemas';
 import type { SportKey } from '@/lib/sports';
+import { reportRouteError } from '@/lib/observability/report';
 
 /**
  * GET /api/profile/[profileId]/sport-settings
@@ -91,7 +92,7 @@ export async function GET(
       .eq('profile_id', profileId);
 
     if (error) {
-      console.error('Error fetching sport settings:', error);
+      reportRouteError('Error fetching sport settings:', error);
       return NextResponse.json({ error: 'Failed to fetch sport settings' }, { status: 500 });
     }
 
@@ -111,7 +112,7 @@ export async function GET(
     return NextResponse.json({ sportSettings });
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('Sport settings GET error:', error);
+    reportRouteError('Sport settings GET error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

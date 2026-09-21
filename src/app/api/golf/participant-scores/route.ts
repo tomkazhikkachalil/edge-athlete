@@ -7,6 +7,7 @@ import { advanceRoundStatus } from '@/lib/golf/round-status';
 import { mirrorCompletedRound, mirrorRoundMedia } from '@/lib/golf/round-mirror';
 import { holeNumberInRange } from '@/lib/sport-events/scoring-authz';
 import { reopenIfNeeded, resolveScoringRight } from '@/lib/sport-events/scoring-authz-server';
+import { reportRouteError } from '@/lib/observability/report';
 
 /**
  * POST /api/golf/participant-scores — the bulk creator-entered path. Body
@@ -161,7 +162,7 @@ export async function POST(request: NextRequest) {
           golfParticipantId = created.id;
         }
         if (!golfParticipantId) {
-          console.error('[PARTICIPANT SCORES] score record failed:', scoreError);
+          reportRouteError('[PARTICIPANT SCORES] score record failed:', scoreError);
           failures.push({ participant_id, error: scoreError?.message || 'Could not create score record' });
           continue;
         }
@@ -248,7 +249,7 @@ export async function POST(request: NextRequest) {
     });
 
   } catch (e) {
-    console.error('POST /api/golf/participant-scores error:', e);
+    reportRouteError('POST /api/golf/participant-scores error:', e);
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }

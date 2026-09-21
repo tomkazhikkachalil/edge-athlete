@@ -3,6 +3,7 @@ import { isUuid } from '@/lib/uuid';
 import { requireAuth, getSupabaseAdmin } from '@/lib/auth-server';
 import { enforceRateLimit } from '@/lib/rate-limit';
 import { carpoolAccess } from '@/lib/calendar/carpool';
+import { reportRouteError } from '@/lib/observability/report';
 
 // ── /api/calendar/events/[id]/carpool/claim ──────────────────────────────────
 // Claim / release seats on an offer (Wave 9, mig 139). Rider = the CALLER,
@@ -71,13 +72,13 @@ export async function POST(
         metadata: { event_id: id, offer_id: offerId },
       });
     } catch (notifyError) {
-      console.error('[CARPOOL] claim notify failed:', notifyError);
+      reportRouteError('[CARPOOL] claim notify failed:', notifyError);
     }
 
     return NextResponse.json({ ok: true }, { status: 201 });
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[CARPOOL] claim error:', error);
+    reportRouteError('[CARPOOL] claim error:', error);
     return NextResponse.json({ error: 'Could not claim seats' }, { status: 500 });
   }
 }
@@ -123,12 +124,12 @@ export async function DELETE(
         });
       }
     } catch (notifyError) {
-      console.error('[CARPOOL] release notify failed:', notifyError);
+      reportRouteError('[CARPOOL] release notify failed:', notifyError);
     }
     return NextResponse.json({ ok: true });
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[CARPOOL] release error:', error);
+    reportRouteError('[CARPOOL] release error:', error);
     return NextResponse.json({ error: 'Could not release the claim' }, { status: 500 });
   }
 }

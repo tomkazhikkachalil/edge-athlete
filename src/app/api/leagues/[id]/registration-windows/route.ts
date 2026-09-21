@@ -10,6 +10,7 @@ import {
   windowsGET,
 } from '@/lib/orgs/registration-server';
 import { UUID_RE } from '@/lib/golf/course-catalog';
+import { reportRouteError } from '@/lib/observability/report';
 
 // ── /api/leagues/[id]/registration-windows (phase 5 R2) ─────────────────────
 // Open/close registration — registrar-gated. Opening/closing purges the
@@ -39,7 +40,7 @@ export async function GET(
     return await windowsGET(ctx.admin, 'league', ctx.id);
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[REGISTRATION] league windows GET error:', error);
+    reportRouteError('[REGISTRATION] league windows GET error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
@@ -56,7 +57,7 @@ export async function POST(
     return await windowCreatePOST(ctx.admin, 'league', ctx.id, parsed.data, ctx.user.id);
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[REGISTRATION] league windows POST error:', error);
+    reportRouteError('[REGISTRATION] league windows POST error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
@@ -75,7 +76,7 @@ export async function DELETE(
     return await windowDELETE(ctx.admin, 'league', ctx.id, windowId);
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[REGISTRATION] league windows DELETE error:', error);
+    reportRouteError('[REGISTRATION] league windows DELETE error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

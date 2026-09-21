@@ -19,6 +19,7 @@ import { readSiteBrandRow } from '@/lib/org-sites/revalidate';
 import { buildOrgBrand } from '@/lib/org-sites/brand';
 import { buildAppComposition } from '@/lib/site-builder/app-composition';
 import { orgSitePath } from '@/lib/org-sites/urls';
+import { reportRouteError } from '@/lib/observability/report';
 
 // ── /api/clubs/[id] — the public club read + owner/manager edit ─────────────
 // Mirror of /api/leagues/[id], minus the sport COLUMN (117 decision:
@@ -52,7 +53,7 @@ export async function GET(
       if (isMissingTableError(error.code)) {
         return NextResponse.json({ error: 'Club not found' }, { status: 404 });
       }
-      console.error('[CLUBS] fetch error:', error);
+      reportRouteError('[CLUBS] fetch error:', error);
       return NextResponse.json({ error: 'Failed to load club' }, { status: 500 });
     }
     if (!club) {
@@ -129,7 +130,7 @@ export async function GET(
     });
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[CLUBS] GET error:', error);
+    reportRouteError('[CLUBS] GET error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
@@ -149,7 +150,7 @@ export async function PATCH(
 
     const loaded = await getOrgAndRole(supabase, 'club', id, user.id);
     if (loaded.status === 'error') {
-      console.error('[CLUBS] PATCH fetch error:', loaded.error);
+      reportRouteError('[CLUBS] PATCH fetch error:', loaded.error);
       return NextResponse.json({ error: 'Failed to load club' }, { status: 500 });
     }
     if (loaded.status === 'not_found') {
@@ -190,7 +191,7 @@ export async function PATCH(
         if (updateError?.code === 'PGRST204' && /visibility|join_policy/.test(updateError.message ?? '')) {
           return NextResponse.json({ error: 'Membership settings are not available yet' }, { status: 503 });
         }
-        console.error('[CLUBS] update error:', updateError);
+        reportRouteError('[CLUBS] update error:', updateError);
         return NextResponse.json({ error: 'Failed to update club' }, { status: 500 });
       }
       updated = row as Record<string, unknown>;
@@ -214,7 +215,7 @@ export async function PATCH(
     });
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[CLUBS] PATCH error:', error);
+    reportRouteError('[CLUBS] PATCH error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

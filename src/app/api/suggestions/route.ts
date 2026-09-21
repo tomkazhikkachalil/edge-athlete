@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { filterBlockedBidirectional } from '@/lib/blocks';
 import { isUuid } from '@/lib/uuid';
 import { getSupabaseAdmin, requireAuth } from '@/lib/auth-server';
+import { reportRouteError } from '@/lib/observability/report';
 
 // Type for suggestions returned by the RPC function
 interface ConnectionSuggestion {
@@ -46,7 +47,7 @@ export async function GET(request: NextRequest) {
 
     if (rpcError) {
       // The PostgrestError object carries code/message/details/hint whole.
-      console.error('RPC generate_connection_suggestions error:', rpcError);
+      reportRouteError('RPC generate_connection_suggestions error:', rpcError);
 
       // Fallback: Get profiles that user doesn't follow
       // First get who the user already follows
@@ -73,7 +74,7 @@ export async function GET(request: NextRequest) {
       const { data: fallbackSuggestions, error: fallbackError } = await query;
 
       if (fallbackError) {
-        console.error('Fallback suggestions error:', fallbackError);
+        reportRouteError('Fallback suggestions error:', fallbackError);
         return NextResponse.json({ suggestions: [] });
       }
 
@@ -109,7 +110,7 @@ export async function GET(request: NextRequest) {
 
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('Suggestions fetch error:', error);
+    reportRouteError('Suggestions fetch error:', error);
     return NextResponse.json(
       { error: 'Failed to fetch suggestions' },
       { status: 500 }
@@ -172,7 +173,7 @@ export async function POST(request: NextRequest) {
 
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('Suggestion action error:', error);
+    reportRouteError('Suggestion action error:', error);
     return NextResponse.json(
       { error: 'Failed to process suggestion action' },
       { status: 500 }

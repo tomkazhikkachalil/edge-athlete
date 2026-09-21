@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { UUID_RE } from '@/lib/uuid';
 import { getSupabaseAdmin, requireAdmin } from '@/lib/auth-server';
 import { toProxyUrl } from '@/lib/media/proxy-url';
+import { reportRouteError } from '@/lib/observability/report';
 
 const VALID_STATUSES = ['open', 'reviewing', 'resolved', 'dismissed'];
 // ── GET /api/admin/reports ────────────────────────────────────────────────────
@@ -36,7 +37,7 @@ export async function GET(request: NextRequest) {
 
     const { data: reports, error } = await query;
     if (error) {
-      console.error('GET /api/admin/reports error:', error);
+      reportRouteError('GET /api/admin/reports error:', error);
       return NextResponse.json({ error: 'Failed to load reports' }, { status: 500 });
     }
 
@@ -52,7 +53,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ reports: proxiedReports });
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('GET /api/admin/reports error:', error);
+    reportRouteError('GET /api/admin/reports error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
@@ -79,7 +80,7 @@ export async function PATCH(request: NextRequest) {
       .eq('id', reportId);
 
     if (error) {
-      console.error('PATCH /api/admin/reports error:', error);
+      reportRouteError('PATCH /api/admin/reports error:', error);
       return NextResponse.json({ error: 'Failed to update report' }, { status: 500 });
     }
     if (!count) {
@@ -89,7 +90,7 @@ export async function PATCH(request: NextRequest) {
     return NextResponse.json({ success: true });
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('PATCH /api/admin/reports error:', error);
+    reportRouteError('PATCH /api/admin/reports error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

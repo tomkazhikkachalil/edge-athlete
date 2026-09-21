@@ -4,6 +4,7 @@ import { parseBody } from '@/lib/validation';
 import { TeamCreateSchema, TeamPatchSchema } from '@/lib/structure/validate';
 import { teamCreatePOST, teamDELETE, teamPATCH } from '@/lib/orgs/structure-server';
 import { UUID_RE } from '@/lib/golf/course-catalog';
+import { reportRouteError } from '@/lib/observability/report';
 
 // ── /api/admin/structure/teams — thin wrapper over structure-server ─────────
 // Teams PERSIST: the console's remove is PATCH status='archived'; DELETE
@@ -18,7 +19,7 @@ export async function POST(request: NextRequest) {
     return await teamCreatePOST(getSupabaseAdmin(), { side, orgId }, parsed.data);
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[ADMIN STRUCTURE] teams POST error:', error);
+    reportRouteError('[ADMIN STRUCTURE] teams POST error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
@@ -32,7 +33,7 @@ export async function PATCH(request: NextRequest) {
     return await teamPATCH(getSupabaseAdmin(), parsed.data, null);
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[ADMIN STRUCTURE] teams PATCH error:', error);
+    reportRouteError('[ADMIN STRUCTURE] teams PATCH error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
@@ -49,7 +50,7 @@ export async function DELETE(request: NextRequest) {
     return await teamDELETE(getSupabaseAdmin(), id, null);
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[ADMIN STRUCTURE] teams DELETE error:', error);
+    reportRouteError('[ADMIN STRUCTURE] teams DELETE error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

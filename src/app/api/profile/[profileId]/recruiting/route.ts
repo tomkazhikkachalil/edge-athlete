@@ -14,6 +14,7 @@ import {
 } from '@/lib/recruiting/profile';
 import { RecruitingPatchSchema, parseRecruitingProfile, recruitingPatchToUpdate } from '@/lib/recruiting/schema';
 import { shortlistedByCount } from '@/lib/recruiting/shortlist-server';
+import { reportRouteError } from '@/lib/observability/report';
 
 // ── /api/profile/[profileId]/recruiting (Recruiting skeleton R1) ─────────
 // THE recruiting read + write. GET is optional-auth: the owner and their
@@ -70,7 +71,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       return NextResponse.json({ supported: false, status: 'closed', statusLabel: RECRUITING_STATUS_LABEL.closed, canEdit: false } satisfies RecruitingRead, { headers: NO_STORE });
     }
     if (error) {
-      console.error('[recruiting] GET read error:', error);
+      reportRouteError('[recruiting] GET read error:', error);
       return NextResponse.json({ error: 'Failed to load recruiting profile' }, { status: 500 });
     }
     const row = data as unknown as Row | null;
@@ -106,7 +107,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     };
     return NextResponse.json(body, { headers: NO_STORE });
   } catch (error) {
-    console.error('[recruiting] GET error:', error);
+    reportRouteError('[recruiting] GET error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
@@ -145,7 +146,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     const update = recruitingPatchToUpdate(parsed.data, parseRecruitingProfile(row.recruiting_profile));
     const { error: writeErr } = await admin.from('profiles').update(update).eq('id', profileId);
     if (writeErr) {
-      console.error('[recruiting] PATCH write error:', writeErr);
+      reportRouteError('[recruiting] PATCH write error:', writeErr);
       return NextResponse.json({ error: 'Failed to update recruiting profile' }, { status: 500 });
     }
 
@@ -174,7 +175,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       profile: update.recruiting_profile ?? parseRecruitingProfile(row.recruiting_profile),
     }, { headers: NO_STORE });
   } catch (error) {
-    console.error('[recruiting] PATCH error:', error);
+    reportRouteError('[recruiting] PATCH error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { isUuid } from '@/lib/uuid';
 import { getSupabaseAdmin, getServerAuth } from '@/lib/auth-server';
 import { notifyAttestation, groupPostActionUrl } from '@/lib/golf/group-notifications';
+import { reportRouteError } from '@/lib/observability/report';
 
 /**
  * POST /api/group-posts/[id]/attest
@@ -85,7 +86,7 @@ export async function POST(
       .single();
 
     if (updateError) {
-      console.error('Error updating participant status:', updateError);
+      reportRouteError('Error updating participant status:', updateError);
       return NextResponse.json({ error: 'Failed to update attestation status' }, { status: 500 });
     }
 
@@ -138,7 +139,7 @@ export async function POST(
       message: `Participation status updated to ${status}`,
     });
   } catch (error) {
-    console.error('Unexpected error in POST /api/group-posts/[id]/attest:', error);
+    reportRouteError('Unexpected error in POST /api/group-posts/[id]/attest:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
@@ -192,7 +193,7 @@ export async function GET(
 
     return NextResponse.json({ participant });
   } catch (error) {
-    console.error('Unexpected error in GET /api/group-posts/[id]/attest:', error);
+    reportRouteError('Unexpected error in GET /api/group-posts/[id]/attest:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

@@ -9,6 +9,7 @@ import { orderedPages } from '@/lib/site-builder/pages';
 import { siteBasePath } from '@/lib/org-sites/urls';
 import { emailService } from '@/lib/email-service';
 import { UUID_RE } from '@/lib/golf/course-catalog';
+import { reportRouteError } from '@/lib/observability/report';
 
 // ── POST /api/public/site-forms/[siteId]/[widgetId] — a visitor's form ──────
 // Program 2, D (Sep 11 2026). No session (the public site is anonymous);
@@ -107,7 +108,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     .select('id')
     .single();
   if (error || !inserted) {
-    console.error(`${TAG} insert error:`, error);
+    reportRouteError(`${TAG} insert error:`, error);
     return to('error');
   }
 
@@ -138,7 +139,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         metadata: { org: `${side}:${orgId}`, submission_id: inserted.id, form_kind: kind },
       }));
       const { error: notifyError } = await admin.from('notifications').insert(rows);
-      if (notifyError) console.error(`${TAG} notify error:`, notifyError);
+      if (notifyError) reportRouteError(`${TAG} notify error:`, notifyError);
     }
     if (ownerId && process.env.SMTP_USER && process.env.SMTP_PASS) {
       const { data: owner } = await admin.from('profiles').select('email').eq('id', ownerId).maybeSingle();
@@ -146,7 +147,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       if (ownerEmail) await emailService.sendSiteFormEmail({ to: ownerEmail, orgName, kind, fields, consoleUrl: `/app/org/${side}/${orgId}#inbox` });
     }
   } catch (e) {
-    console.error(`${TAG} notify failed:`, e);
+    reportRouteError(`${TAG} notify failed:`, e);
   }
   return to('sent');
 }

@@ -6,6 +6,7 @@ import { ContestRunAsEventSchema } from '@/lib/competitions/validate';
 import { requireCompetitionManager } from '@/lib/orgs/competition-server';
 import { contestRunAsEventPOST } from '@/lib/sport-events/contest-door-server';
 import { UUID_RE } from '@/lib/golf/course-catalog';
+import { reportRouteError } from '@/lib/observability/report';
 
 // ── /api/clubs/[id]/competitions/[competitionId]/contests/[contestId]/event (track 2 PR 10) ──
 // Run a two-sided contest as a one-round game EVENT hosted for the org: the sides pre-filled from the entries, the link stamped.
@@ -35,7 +36,7 @@ export async function POST(
     return await contestRunAsEventPOST(admin, parsed.data, { side: 'club', orgId: id }, user.id);
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[COMPETITIONS] club contest run-as-event POST error:', error);
+    reportRouteError('[COMPETITIONS] club contest run-as-event POST error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

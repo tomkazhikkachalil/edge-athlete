@@ -4,6 +4,7 @@ import { getSupabaseAdmin, requireAdmin } from '@/lib/auth-server';
 import { parseBody } from '@/lib/validation';
 import { deleteArticle, HelpNotLive, updateArticle } from '@/lib/help/server';
 import { ArticleBody } from '@/lib/help/schema';
+import { reportRouteError } from '@/lib/observability/report';
 
 /** PATCH / DELETE /api/admin/help/articles/[id] — owner-only. A PATCH is partial; a slug change is allowed (the old URL 404s). */
 const NO_STORE = { 'Cache-Control': 'private, no-store' } as const;
@@ -21,7 +22,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   } catch (error) {
     if (error instanceof Response) return error;
     if (error instanceof HelpNotLive) return NextResponse.json({ error: error.message }, { status: 503, headers: NO_STORE });
-    console.error('[PATCH /api/admin/help/articles/[id]]', error);
+    reportRouteError('[PATCH /api/admin/help/articles/[id]]', error);
     return NextResponse.json({ error: 'Could not update the article' }, { status: 500, headers: NO_STORE });
   }
 }
@@ -37,7 +38,7 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
   } catch (error) {
     if (error instanceof Response) return error;
     if (error instanceof HelpNotLive) return NextResponse.json({ error: error.message }, { status: 503, headers: NO_STORE });
-    console.error('[DELETE /api/admin/help/articles/[id]]', error);
+    reportRouteError('[DELETE /api/admin/help/articles/[id]]', error);
     return NextResponse.json({ error: 'Could not delete the article' }, { status: 500, headers: NO_STORE });
   }
 }

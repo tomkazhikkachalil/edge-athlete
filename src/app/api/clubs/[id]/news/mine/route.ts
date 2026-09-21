@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/auth-server';
 import { newsMineGET } from '@/lib/orgs/mine-server';
+import { reportRouteError } from '@/lib/observability/report';
 
 // ── /api/clubs/[id]/news/mine — the MEMBERS' news read (phase 9 V4/V5) ─────
 // A private club's public news is the public-only state; members read the
@@ -13,7 +14,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     return await newsMineGET(user, 'club', params);
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[CLUBS NEWS MINE] GET error:', error);
+    reportRouteError('[CLUBS NEWS MINE] GET error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

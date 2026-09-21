@@ -4,6 +4,7 @@ import { enforceRateLimit } from '@/lib/rate-limit';
 import { seasonAnnounceGET, seasonAnnouncePOST } from '@/lib/competitions/golf-season-wrap-server';
 import { requireCompetitionManager } from '@/lib/orgs/competition-server';
 import { UUID_RE } from '@/lib/golf/course-catalog';
+import { reportRouteError } from '@/lib/observability/report';
 
 // ── /api/clubs/[id]/competitions/[competitionId]/season-announce (P6) ──
 // GET: the season summary + whether it was announced. POST: announce it
@@ -32,7 +33,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     return await seasonAnnounceGET(g.admin, 'club', g.id, g.competitionId);
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[SEASON WRAP] club GET error:', error);
+    reportRouteError('[SEASON WRAP] club GET error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
@@ -47,7 +48,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     return await seasonAnnouncePOST(g.admin, 'club', g.id, g.competitionId, g.user.id);
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[SEASON WRAP] club POST error:', error);
+    reportRouteError('[SEASON WRAP] club POST error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

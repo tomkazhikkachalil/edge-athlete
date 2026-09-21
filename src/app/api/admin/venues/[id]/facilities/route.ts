@@ -3,6 +3,7 @@ import { requireAdmin, getSupabaseAdmin } from '@/lib/auth-server';
 import { parseBody } from '@/lib/validation';
 import { FacilityCreateSchema } from '@/lib/venues/validate';
 import { UUID_RE } from '@/lib/golf/course-catalog';
+import { reportRouteError } from '@/lib/observability/report';
 
 // ── /api/admin/venues/[id]/facilities — the "forgot a court" routes ─────────
 
@@ -33,13 +34,13 @@ export async function POST(
       .select()
       .single();
     if (error || !facility) {
-      console.error('[ADMIN VENUES] facility insert error:', error);
+      reportRouteError('[ADMIN VENUES] facility insert error:', error);
       return NextResponse.json({ error: 'Failed to add facility' }, { status: 500 });
     }
     return NextResponse.json({ facility });
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[ADMIN VENUES] facilities POST error:', error);
+    reportRouteError('[ADMIN VENUES] facilities POST error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
@@ -66,7 +67,7 @@ export async function DELETE(
       .eq('venue_id', id)
       .select('id');
     if (error) {
-      console.error('[ADMIN VENUES] facility delete error:', error);
+      reportRouteError('[ADMIN VENUES] facility delete error:', error);
       return NextResponse.json({ error: 'Failed to remove facility' }, { status: 500 });
     }
     if (!deleted || deleted.length === 0) {
@@ -75,7 +76,7 @@ export async function DELETE(
     return NextResponse.json({ action: 'deleted' });
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[ADMIN VENUES] facilities DELETE error:', error);
+    reportRouteError('[ADMIN VENUES] facilities DELETE error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

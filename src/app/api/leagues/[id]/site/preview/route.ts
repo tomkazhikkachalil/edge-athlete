@@ -4,6 +4,7 @@ import { enforceRateLimit } from '@/lib/rate-limit';
 import { signPreviewToken } from '@/lib/org-sites/preview-token';
 import { requireOrgManager } from '@/lib/orgs/structure-server';
 import { UUID_RE } from '@/lib/golf/course-catalog';
+import { reportRouteError } from '@/lib/observability/report';
 
 // ── /api/leagues/[id]/site/preview — mint a draft-preview link ─────────────
 // manage_site gates the mint (B5: the header said manage_org); the signed short-lived token then carries
@@ -37,7 +38,7 @@ export async function POST(
     return NextResponse.json({ url: `/org/${site.subdomain}/preview/${token}` });
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[ORG SITE PREVIEW] league POST error:', error);
+    reportRouteError('[ORG SITE PREVIEW] league POST error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

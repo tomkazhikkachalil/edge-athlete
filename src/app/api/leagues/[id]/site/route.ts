@@ -6,6 +6,7 @@ import { SitePatchSchema } from '@/lib/org-sites/validate';
 import { siteCreatePOST, siteGET, sitePATCH } from '@/lib/org-sites/server';
 import { requireOrgManager } from '@/lib/orgs/structure-server';
 import { UUID_RE } from '@/lib/golf/course-catalog';
+import { reportRouteError } from '@/lib/observability/report';
 
 // ── /api/leagues/[id]/site — the console's site CRUD (phase 3 R1) ──────────
 // manage_site gates site editing; publish/unpublish (the site's existence) stay manage_org.
@@ -28,7 +29,7 @@ export async function GET(
     return await siteGET(admin, 'league', id);
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[ORG SITES] league GET error:', error);
+    reportRouteError('[ORG SITES] league GET error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
@@ -55,7 +56,7 @@ export async function POST(
     return await siteCreatePOST(admin, 'league', id, gate.org.name, requested);
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[ORG SITES] league POST error:', error);
+    reportRouteError('[ORG SITES] league POST error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
@@ -86,7 +87,7 @@ export async function PATCH(
     return await sitePATCH(admin, 'league', id, parsed.data, user.id);
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[ORG SITES] league PATCH error:', error);
+    reportRouteError('[ORG SITES] league PATCH error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

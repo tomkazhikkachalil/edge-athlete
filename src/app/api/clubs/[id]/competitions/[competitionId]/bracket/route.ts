@@ -5,6 +5,7 @@ import { parseBody } from '@/lib/validation';
 import { BracketGenerateSchema } from '@/lib/competitions/validate';
 import { bracketGeneratePOST, requireCompetitionManager } from '@/lib/orgs/competition-server';
 import { UUID_RE } from '@/lib/golf/course-catalog';
+import { reportRouteError } from '@/lib/observability/report';
 
 // ── /api/clubs/[id]/competitions/[competitionId]/bracket (track 2 PR 3) ──
 // Generate the bracket from the seeded order — dry-run by default; a draw with results is never replaced.
@@ -34,7 +35,7 @@ export async function POST(
     return await bracketGeneratePOST(admin, parsed.data, { side: 'club', orgId: id });
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[COMPETITIONS] club bracket POST error:', error);
+    reportRouteError('[COMPETITIONS] club bracket POST error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

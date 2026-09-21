@@ -10,6 +10,7 @@ import type { SportEventRoundRow } from '@/lib/sport-events/types';
 import { parseRoundInput } from '@/lib/sport-events/validate';
 import { fetchSportEventView } from '@/lib/sport-events/view-server';
 import type { SportEventSport } from '@/lib/sport-events/types';
+import { reportRouteError } from '@/lib/observability/report';
 
 const NOT_FOUND = () => NextResponse.json({ error: 'Event not found' }, { status: 404 });
 
@@ -49,14 +50,14 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     if (!snapshot) return NextResponse.json({ error: 'Course not found' }, { status: 400 });
     const { error } = await admin.from('sport_event_rounds').update(snapshot).eq('id', rid);
     if (error) {
-      console.error('[api/sport-events/rounds] update failed:', error);
+      reportRouteError('[api/sport-events/rounds] update failed:', error);
       return NextResponse.json({ error: 'Could not update the round' }, { status: 500 });
     }
     await writeStartsOn(admin, id);
     const view = await fetchSportEventView(admin, id, actor.profileId, null);
     return NextResponse.json(view, { headers: { 'Cache-Control': 'private, no-store' } });
   } catch (error) {
-    console.error('[api/sport-events/rounds] PUT error:', error);
+    reportRouteError('[api/sport-events/rounds] PUT error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
@@ -95,7 +96,7 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
     const view = await fetchSportEventView(admin, id, actor.profileId, null);
     return NextResponse.json(view, { headers: { 'Cache-Control': 'private, no-store' } });
   } catch (error) {
-    console.error('[api/sport-events/rounds] DELETE error:', error);
+    reportRouteError('[api/sport-events/rounds] DELETE error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

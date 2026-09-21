@@ -4,6 +4,7 @@ import { enforceRateLimit } from '@/lib/rate-limit';
 import { draftLayoutPUT } from '@/lib/org-sites/canvas-server';
 import { requireOrgManager } from '@/lib/orgs/structure-server';
 import { UUID_RE } from '@/lib/golf/course-catalog';
+import { reportRouteError } from '@/lib/observability/report';
 
 // ── /api/clubs/[id]/site/draft — the editor's save (Site Builder P3-B):
 // PUT { layout, baseRev? } validates the envelope + geometry and writes the
@@ -30,7 +31,7 @@ export async function PUT(
     return await draftLayoutPUT(admin, 'club', id, user.id, body);
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[ORG SITE DRAFT] club PUT error:', error);
+    reportRouteError('[ORG SITE DRAFT] club PUT error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

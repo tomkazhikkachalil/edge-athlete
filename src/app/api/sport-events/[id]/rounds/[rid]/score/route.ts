@@ -9,6 +9,7 @@ import { ROUND_COLUMNS } from '@/lib/sport-events/rounds-server';
 import { scoreWriteRight } from '@/lib/sport-events/stats-authz';
 import { scoreOf, writeGameScore } from '@/lib/sport-events/stats-server';
 import { shapeOf, type SportEventRoundRow } from '@/lib/sport-events/types';
+import { reportRouteError } from '@/lib/observability/report';
 
 const NOT_FOUND = () => NextResponse.json({ error: 'Event not found' }, { status: 404 });
 
@@ -58,7 +59,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     }
     return NextResponse.json({ score: { ...score, version: expected_version + 1 }, via: right.via }, { headers: { 'Cache-Control': 'private, no-store' } });
   } catch (error) {
-    console.error('[api/sport-events/score] PUT error:', error);
+    reportRouteError('[api/sport-events/score] PUT error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

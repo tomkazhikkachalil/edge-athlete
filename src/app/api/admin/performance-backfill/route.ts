@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin, getSupabaseAdmin } from '@/lib/auth-server';
 import { decodeCursor, isBackfillSource } from '@/lib/performance/backfill';
 import { runPerformanceBackfill } from '@/lib/performance/backfill-server';
+import { reportRouteError } from '@/lib/observability/report';
 
 // Ten pages of five hundred origin rows, each mapped and upserted.
 export const maxDuration = 60;
@@ -47,7 +48,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(result.summary);
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[performance-backfill] error:', error);
+    reportRouteError('[performance-backfill] error:', error);
     return NextResponse.json({ error: 'Performance backfill failed' }, { status: 500 });
   }
 }

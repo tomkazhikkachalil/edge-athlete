@@ -6,6 +6,7 @@ import { isStatementPost } from '@/lib/statements';
 import { toProxyUrl } from '@/lib/media/proxy-url';
 import { fetchVitalsPrivacy } from '@/lib/vitals-privacy-server';
 import { aspectHidden } from '@/lib/vitals-privacy';
+import { reportRouteError } from '@/lib/observability/report';
 
 export async function GET(request: NextRequest) {
   try {
@@ -59,7 +60,7 @@ export async function GET(request: NextRequest) {
       if (profileError.code === 'PGRST116') {
         return NextResponse.json({ error: 'Profile not found' }, { status: 404 });
       }
-      console.error('Profile fetch error:', profileError);
+      reportRouteError('Profile fetch error:', profileError);
       return NextResponse.json({ error: 'Failed to fetch profile' }, { status: 500 });
     }
 
@@ -261,7 +262,7 @@ export async function GET(request: NextRequest) {
     });
 
   } catch (error) {
-    console.error('Public profile API error:', error);
+    reportRouteError('Public profile API error:', error);
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }

@@ -7,6 +7,7 @@ import {
   validateRoutinePayload,
   type ServerRoutineRow,
 } from '@/lib/workouts/routines';
+import { reportRouteError } from '@/lib/observability/report';
 
 /**
  * PATCH  /api/workout-routines/[id] — owner only. { name?, exercises? }.
@@ -74,7 +75,7 @@ export async function PATCH(
             { status: 409 }
           );
         }
-        console.error('Error renaming routine:', nameError);
+        reportRouteError('Error renaming routine:', nameError);
         return NextResponse.json({ error: 'Failed to save routine' }, { status: 500 });
       }
     }
@@ -85,7 +86,7 @@ export async function PATCH(
         .delete()
         .eq('routine_id', id);
       if (deleteError) {
-        console.error('Routine replace: delete failed:', deleteError);
+        reportRouteError('Routine replace: delete failed:', deleteError);
         return NextResponse.json({ error: 'Failed to save routine' }, { status: 500 });
       }
 
@@ -117,7 +118,7 @@ export async function PATCH(
         ));
       }
       if (insertError) {
-        console.error('Routine replace: insert failed twice:', insertError);
+        reportRouteError('Routine replace: insert failed twice:', insertError);
         return NextResponse.json({ error: 'Failed to save routine' }, { status: 500 });
       }
 
@@ -141,7 +142,7 @@ export async function PATCH(
     });
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('PATCH /api/workout-routines/[id] error:', error);
+    reportRouteError('PATCH /api/workout-routines/[id] error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
@@ -176,14 +177,14 @@ export async function DELETE(
       .delete()
       .eq('id', id);
     if (deleteError) {
-      console.error('Error deleting routine:', deleteError);
+      reportRouteError('Error deleting routine:', deleteError);
       return NextResponse.json({ error: 'Failed to delete routine' }, { status: 500 });
     }
 
     return NextResponse.json({ ok: true });
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('DELETE /api/workout-routines/[id] error:', error);
+    reportRouteError('DELETE /api/workout-routines/[id] error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

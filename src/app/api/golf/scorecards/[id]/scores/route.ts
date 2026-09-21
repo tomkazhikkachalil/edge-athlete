@@ -9,6 +9,7 @@ import { advanceRoundStatus } from '@/lib/golf/round-status';
 import { mirrorCompletedRound, mirrorRoundMedia } from '@/lib/golf/round-mirror';
 import { holeNumberInRange } from '@/lib/sport-events/scoring-authz';
 import { reopenIfNeeded, resolveScoringRight } from '@/lib/sport-events/scoring-authz-server';
+import { reportRouteError } from '@/lib/observability/report';
 
 /**
  * POST /api/golf/scorecards/[id]/scores
@@ -121,12 +122,12 @@ export async function POST(
           .eq('participant_id', participant_id)
           .single();
         if (racedError || !raced) {
-          console.error('Error resolving raced golf participant scores:', racedError);
+          reportRouteError('Error resolving raced golf participant scores:', racedError);
           return NextResponse.json({ error: 'Failed to create golf participant scores' }, { status: 500 });
         }
         golf_participant_id = raced.id;
       } else if (insertError || !newGolfParticipant) {
-        console.error('Error creating golf participant scores:', insertError);
+        reportRouteError('Error creating golf participant scores:', insertError);
         return NextResponse.json({ error: 'Failed to create golf participant scores' }, { status: 500 });
       } else {
         golf_participant_id = newGolfParticipant.id;
@@ -134,7 +135,7 @@ export async function POST(
     } else if (golfParticipantScore) {
       golf_participant_id = golfParticipantScore.id;
     } else {
-      console.error('Error fetching golf participant scores:', participantScoreError);
+      reportRouteError('Error fetching golf participant scores:', participantScoreError);
       return NextResponse.json({ error: 'Failed to fetch golf participant scores' }, { status: 500 });
     }
 
@@ -228,7 +229,7 @@ export async function POST(
       .single();
 
     if (fetchError) {
-      console.error('Error fetching updated scores:', fetchError);
+      reportRouteError('Error fetching updated scores:', fetchError);
     }
 
     // Notify the creator (+ leaderboard-final fan-out when everyone has
@@ -288,7 +289,7 @@ export async function POST(
       // match — user-facing copy, not DB internals.
       return NextResponse.json({ error: error.message }, { status: 400 }); // hardening-ok
     }
-    console.error('Unexpected error in POST /api/golf/scorecards/[id]/scores:', error);
+    reportRouteError('Unexpected error in POST /api/golf/scorecards/[id]/scores:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
@@ -356,13 +357,13 @@ export async function GET(
           { status: 404 }
         );
       }
-      console.error('Error fetching golf scores:', fetchError);
+      reportRouteError('Error fetching golf scores:', fetchError);
       return NextResponse.json({ error: 'Failed to fetch golf scores' }, { status: 500 });
     }
 
     return NextResponse.json({ golf_scores: golfScores });
   } catch (error) {
-    console.error('Unexpected error in GET /api/golf/scorecards/[id]/scores:', error);
+    reportRouteError('Unexpected error in GET /api/golf/scorecards/[id]/scores:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
@@ -419,7 +420,7 @@ export async function PATCH(
       .single();
 
     if (updateError) {
-      console.error('Error updating scores confirmation:', updateError);
+      reportRouteError('Error updating scores confirmation:', updateError);
       return NextResponse.json({ error: 'Failed to update scores confirmation' }, { status: 500 });
     }
 
@@ -428,7 +429,7 @@ export async function PATCH(
       message: 'Scores confirmation updated successfully',
     });
   } catch (error) {
-    console.error('Unexpected error in PATCH /api/golf/scorecards/[id]/scores:', error);
+    reportRouteError('Unexpected error in PATCH /api/golf/scorecards/[id]/scores:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

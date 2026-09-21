@@ -3,6 +3,7 @@ import { UUID_RE } from '@/lib/uuid';
 import { getSupabaseAdmin, requireAuth } from '@/lib/auth-server';
 import { canViewProfile } from '@/lib/privacy';
 import { fetchHandicapComputation } from '@/lib/golf/handicap-server';
+import { reportRouteError } from '@/lib/observability/report';
 
 interface TrendPoint {
   round_id: string;
@@ -92,7 +93,7 @@ export async function GET(request: NextRequest) {
       .limit(limit);
 
     if (error) {
-      console.error('GET /api/golf/trends error:', error);
+      reportRouteError('GET /api/golf/trends error:', error);
       return NextResponse.json({ error: 'Failed to load trends' }, { status: 500 });
     }
 
@@ -151,7 +152,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ series, summary, handicapSeries, isOwner: profileId === currentUserId });
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('GET /api/golf/trends error:', error);
+    reportRouteError('GET /api/golf/trends error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

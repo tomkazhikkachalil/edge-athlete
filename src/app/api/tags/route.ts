@@ -3,6 +3,7 @@ import { filterBlockedBidirectional } from '@/lib/blocks';
 import { isUuid } from '@/lib/uuid';
 import { getSupabaseAdmin, requireAuth, getServerClient, activeWriterRefusal } from '@/lib/auth-server';
 import { canViewProfile } from '@/lib/privacy';
+import { reportRouteError } from '@/lib/observability/report';
 
 /**
  * POST /api/tags
@@ -114,7 +115,7 @@ export async function POST(request: NextRequest) {
       .select();
 
     if (tagError) {
-      console.error('Tag creation error:', tagError);
+      reportRouteError('Tag creation error:', tagError);
       return NextResponse.json({ error: 'Failed to create tags' }, { status: 500 });
     }
 
@@ -147,7 +148,7 @@ export async function POST(request: NextRequest) {
       tags: createdTags
     });
   } catch (error) {
-    console.error('Error creating tags:', error);
+    reportRouteError('Error creating tags:', error);
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }
@@ -256,7 +257,7 @@ export async function GET(request: NextRequest) {
     const { data: tags, error } = await query.order('created_at', { ascending: false });
 
     if (error) {
-      console.error('Error fetching tags:', error);
+      reportRouteError('Error fetching tags:', error);
       return NextResponse.json(
         { error: 'Failed to fetch tags' },
         { status: 500 }
@@ -270,7 +271,7 @@ export async function GET(request: NextRequest) {
     // Response at the handler boundary becomes a 500 in this Next version;
     // `return error` is the working codebase convention (93 routes use it).
     if (error instanceof Response) return error;
-    console.error('Error fetching tags:', error);
+    reportRouteError('Error fetching tags:', error);
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }
@@ -297,7 +298,7 @@ async function stripFromPostTags(
     .update({ tags: post.tags.filter((t: string) => t !== profileId) })
     .eq('id', postId);
   if (error) {
-    console.error(`stripFromPostTags(${postId}, ${profileId}) failed:`, error.message);
+    reportRouteError(`stripFromPostTags(${postId}, ${profileId}) failed:`, error.message);
   }
 }
 
@@ -358,7 +359,7 @@ export async function DELETE(request: NextRequest) {
           status: 'removed',
         }, { onConflict: 'post_id,tagged_profile_id' });
       if (markerError) {
-        console.error('untag marker upsert failed:', markerError.message);
+        reportRouteError('untag marker upsert failed:', markerError.message);
       }
 
       await stripFromPostTags(supabase, postId, user.id);
@@ -433,7 +434,7 @@ export async function DELETE(request: NextRequest) {
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error('Error deleting tag:', error);
+    reportRouteError('Error deleting tag:', error);
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }

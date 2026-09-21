@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerAuth } from '@/lib/auth-server';
+import { reportRouteError } from '@/lib/observability/report';
 
 /**
  * POST /api/golf/scorecards
@@ -127,7 +128,7 @@ export async function POST(request: NextRequest) {
           { status: 409 }
         );
       }
-      console.error('Error creating golf scorecard data:', insertError);
+      reportRouteError('Error creating golf scorecard data:', insertError);
       return NextResponse.json({ error: 'Failed to create golf scorecard data' }, { status: 500 });
     }
 
@@ -136,7 +137,7 @@ export async function POST(request: NextRequest) {
       message: 'Golf scorecard data created successfully',
     }, { status: 201 });
   } catch (error) {
-    console.error('Unexpected error in POST /api/golf/scorecards:', error);
+    reportRouteError('Unexpected error in POST /api/golf/scorecards:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
@@ -174,13 +175,13 @@ export async function GET(request: NextRequest) {
       if (fetchError.code === 'PGRST116') {
         return NextResponse.json({ error: 'Golf scorecard data not found' }, { status: 404 });
       }
-      console.error('Error fetching golf scorecard data:', fetchError);
+      reportRouteError('Error fetching golf scorecard data:', fetchError);
       return NextResponse.json({ error: 'Failed to fetch golf scorecard data' }, { status: 500 });
     }
 
     return NextResponse.json({ golf_data: golfData });
   } catch (error) {
-    console.error('Unexpected error in GET /api/golf/scorecards:', error);
+    reportRouteError('Unexpected error in GET /api/golf/scorecards:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

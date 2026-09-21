@@ -5,6 +5,7 @@ import { parseBody } from '@/lib/validation';
 import { RosterAcceptSchema } from '@/lib/clubs/validate';
 import { rosterConsentPatch, rosterDelete, rosterPatch, rosterPost, rosterSelfPost } from '@/lib/orgs/roster-server';
 import { UUID_RE } from '@/lib/golf/course-catalog';
+import { reportRouteError } from '@/lib/observability/report';
 
 // ── /api/clubs/[id]/roster — offers, accepts, declines (0.3) ──────────────
 // Thin wrapper; the authorization matrix lives in orgs/roster-server.ts.
@@ -39,7 +40,7 @@ export async function POST(
     return await rosterPost(getSupabaseAdmin(), user, 'club', id, profileId);
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[ROSTER] POST error:', error);
+    reportRouteError('[ROSTER] POST error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
@@ -86,7 +87,7 @@ export async function PATCH(
     );
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[ROSTER] PATCH error:', error);
+    reportRouteError('[ROSTER] PATCH error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
@@ -121,7 +122,7 @@ export async function DELETE(
     return await rosterDelete(getSupabaseAdmin(), user, 'club', id, profileId, guardianActing);
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[ROSTER] DELETE error:', error);
+    reportRouteError('[ROSTER] DELETE error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

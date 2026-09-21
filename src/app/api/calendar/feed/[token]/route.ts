@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/auth-server';
 import { hashFeedToken, buildFeedIcs } from '@/lib/calendar/feed-server';
+import { reportRouteError } from '@/lib/observability/report';
 
 // ── GET /api/calendar/feed/[token] ────────────────────────────────────────────
 // The subscribe feed. NO cookie auth — Google/Outlook poll this URL on
@@ -48,7 +49,7 @@ export async function GET(
       },
     });
   } catch (error) {
-    console.error('[CALENDAR] feed error:', error);
+    reportRouteError('[CALENDAR] feed error:', error);
     return NextResponse.json({ error: 'Could not build the feed' }, { status: 500 });
   }
 }

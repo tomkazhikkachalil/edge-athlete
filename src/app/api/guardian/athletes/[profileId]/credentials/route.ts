@@ -8,6 +8,7 @@ import {
   derivePinPassword,
   MIN_PASSWORD_LENGTH,
 } from '@/lib/supervised-credentials';
+import { reportRouteError } from '@/lib/observability/report';
 
 // ── POST /api/guardian/athletes/[profileId]/credentials ───────────────────────
 // Guardian issues (or resets) the child's login: username = the child's
@@ -92,7 +93,7 @@ export async function POST(
     return NextResponse.json({ ok: true, username: child.handle, mode });
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[CREDENTIALS] error:', error);
+    reportRouteError('[CREDENTIALS] error:', error);
     Sentry.captureException(error, { tags: { area: 'supervised-credentials' } });
     return NextResponse.json({ error: 'An unexpected error occurred' }, { status: 500 });
   }

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerAuth, getSupabaseAdmin } from '@/lib/auth-server';
 import { enforceRateLimit } from '@/lib/rate-limit';
 import { readLiveEvents } from '@/lib/sport-events/live-now-server';
+import { reportRouteError } from '@/lib/observability/report';
 
 /**
  * GET /api/sport-events/live-now[?count=1] — the live EVENTS (any sport) a
@@ -24,7 +25,7 @@ export async function GET(request: NextRequest) {
     const countOnly = new URL(request.url).searchParams.get('count') === '1';
     return NextResponse.json(countOnly ? { count: events.length } : { events }, { headers: { 'Cache-Control': cache } });
   } catch (error) {
-    console.error('[api/sport-events/live-now] GET error:', error);
+    reportRouteError('[api/sport-events/live-now] GET error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

@@ -6,6 +6,7 @@ import { requireOrgManager } from '@/lib/orgs/structure-server';
 import { orgVenuePATCH, orgVenueDELETE } from '@/lib/venues/org-venues-server';
 import { OrgVenuePatchSchema } from '@/lib/venues/validate';
 import { UUID_RE } from '@/lib/golf/course-catalog';
+import { reportRouteError } from '@/lib/observability/report';
 
 // ── /api/leagues/[id]/venues/[venueId] — edit / link / delete (phase 6b A1) ──
 // Manager-gated twins; the org-column filter inside the core is what keeps
@@ -37,7 +38,7 @@ export async function PATCH(
     return await orgVenuePATCH(g.admin, { side: 'league', orgId: g.id }, g.venueId, parsed.data);
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[ORG VENUES] PATCH error:', error);
+    reportRouteError('[ORG VENUES] PATCH error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
@@ -52,7 +53,7 @@ export async function DELETE(
     return await orgVenueDELETE(g.admin, { side: 'league', orgId: g.id }, g.venueId);
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[ORG VENUES] DELETE error:', error);
+    reportRouteError('[ORG VENUES] DELETE error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

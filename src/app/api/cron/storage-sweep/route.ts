@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/auth-server';
 import { runStorageSweep } from '@/lib/storage-sweep-server';
+import { reportRouteError } from '@/lib/observability/report';
 
 // Full-bucket walk + full-table reference scan can exceed the default limit.
 export const maxDuration = 60;
@@ -35,7 +36,7 @@ export async function GET(request: NextRequest) {
     console.log('[SWEEP-CRON]', JSON.stringify(summary));
     return NextResponse.json({ ok: true, ...summary });
   } catch (error) {
-    console.error('[SWEEP-CRON] error:', error);
+    reportRouteError('[SWEEP-CRON] error:', error);
     return NextResponse.json({ error: 'Storage sweep failed' }, { status: 500 });
   }
 }

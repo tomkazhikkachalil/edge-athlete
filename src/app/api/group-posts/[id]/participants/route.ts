@@ -4,6 +4,7 @@ import { getServerAuth, getSupabaseAdmin } from '@/lib/auth-server';
 import { syncMirrorPostTags } from '@/lib/group-posts/mirror-tags';
 import { filterBlockedBidirectional } from '@/lib/blocks';
 import { enforceRateLimit } from '@/lib/rate-limit';
+import { reportRouteError } from '@/lib/observability/report';
 
 /**
  * GET /api/group-posts/[id]/participants
@@ -45,13 +46,13 @@ export async function GET(
       .order('created_at', { ascending: true });
 
     if (fetchError) {
-      console.error('Error fetching participants:', fetchError);
+      reportRouteError('Error fetching participants:', fetchError);
       return NextResponse.json({ error: 'Failed to fetch participants' }, { status: 500 });
     }
 
     return NextResponse.json({ participants: participants || [] });
   } catch (error) {
-    console.error('Unexpected error in GET /api/group-posts/[id]/participants:', error);
+    reportRouteError('Unexpected error in GET /api/group-posts/[id]/participants:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
@@ -190,7 +191,7 @@ export async function POST(
           { status: 409 }
         );
       }
-      console.error('Error adding participants:', insertError);
+      reportRouteError('Error adding participants:', insertError);
       return NextResponse.json({ error: 'Failed to add participants' }, { status: 500 });
     }
 
@@ -204,7 +205,7 @@ export async function POST(
       message: 'Participants added successfully',
     }, { status: 201 });
   } catch (error) {
-    console.error('Unexpected error in POST /api/group-posts/[id]/participants:', error);
+    reportRouteError('Unexpected error in POST /api/group-posts/[id]/participants:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
@@ -289,7 +290,7 @@ export async function DELETE(
       .eq('profile_id', participant_id);
 
     if (deleteError) {
-      console.error('Error removing participant:', deleteError);
+      reportRouteError('Error removing participant:', deleteError);
       return NextResponse.json({ error: 'Failed to remove participant' }, { status: 500 });
     }
 
@@ -300,7 +301,7 @@ export async function DELETE(
       message: 'Participant removed successfully',
     });
   } catch (error) {
-    console.error('Unexpected error in DELETE /api/group-posts/[id]/participants:', error);
+    reportRouteError('Unexpected error in DELETE /api/group-posts/[id]/participants:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

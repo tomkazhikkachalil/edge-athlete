@@ -14,6 +14,7 @@ import {
   type RawInviteRow,
   type RosterRow,
 } from '@/lib/guardian-queue';
+import { reportRouteError } from '@/lib/observability/report';
 
 // ── /api/guardian/queue ──────────────────────────────────────────────────────
 // The unified guardian action queue (Family Console Wave 2): every item that
@@ -254,7 +255,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ items });
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[GUARDIAN] queue error:', error);
+    reportRouteError('[GUARDIAN] queue error:', error);
     return NextResponse.json({ error: 'Could not load the action queue' }, { status: 500 });
   }
 }

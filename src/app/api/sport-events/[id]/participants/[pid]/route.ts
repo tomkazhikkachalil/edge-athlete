@@ -12,6 +12,7 @@ import type { JoinAction } from '@/lib/sport-events/join';
 import type { SportEventParticipantRow } from '@/lib/sport-events/types';
 import { applyProfileOptOut } from '@/lib/sport-events/results-server';
 import { parseParticipantPatch } from '@/lib/sport-events/validate';
+import { reportRouteError } from '@/lib/observability/report';
 
 const NOT_FOUND = () => NextResponse.json({ error: 'Event not found' }, { status: 404 });
 const ROW_ACTIONS: ReadonlySet<string> = new Set(['accept', 'decline', 'withdraw', 'approve', 'reject', 'remove', 'promote']);
@@ -59,7 +60,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     if (!outcome.ok) return NextResponse.json({ error: outcome.error }, { status: outcome.status });
     return NextResponse.json({ participant: outcome.participant, promoted: outcome.promoted }, { headers: { 'Cache-Control': 'private, no-store' } });
   } catch (error) {
-    console.error('[api/sport-events/participants/[pid]] POST error:', error);
+    reportRouteError('[api/sport-events/participants/[pid]] POST error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
@@ -143,7 +144,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
     const { data: updated, error } = await admin.from('sport_event_participants').update(update).eq('id', pid).select(PARTICIPANT_COLUMNS).single();
     if (error || !updated) {
-      console.error('[api/sport-events/participants/[pid]] update failed:', error);
+      reportRouteError('[api/sport-events/participants/[pid]] update failed:', error);
       return NextResponse.json({ error: 'Could not update the participant' }, { status: 500 });
     }
     const promoted = seatFreed ? await applyCapacityChange(admin, read.event, read.event.capacity, actor.profileId) : [];
@@ -155,7 +156,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     }
     return NextResponse.json({ participant: updated, promoted }, { headers: { 'Cache-Control': 'private, no-store' } });
   } catch (error) {
-    console.error('[api/sport-events/participants/[pid]] PATCH error:', error);
+    reportRouteError('[api/sport-events/participants/[pid]] PATCH error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

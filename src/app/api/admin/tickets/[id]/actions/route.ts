@@ -5,6 +5,7 @@ import { getSupabaseAdmin, requireModerator } from '@/lib/auth-server';
 import { parseBody } from '@/lib/validation';
 import { freezeConversation, hideContent, setModerationState, unfreezeConversation, unhideContent } from '@/lib/moderation/server';
 import type { TicketRow } from '@/lib/tickets/types';
+import { reportRouteError } from '@/lib/observability/report';
 
 /**
  * POST /api/admin/tickets/[id]/actions { action } — the one-click actions
@@ -56,7 +57,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     return NextResponse.json({ ok: true, action }, { headers: NO_STORE });
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[POST /api/admin/tickets/[id]/actions]', error);
+    reportRouteError('[POST /api/admin/tickets/[id]/actions]', error);
     return NextResponse.json({ error: 'Could not apply the action' }, { status: 500, headers: NO_STORE });
   }
 }

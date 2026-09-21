@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/auth-server';
 import { runNotificationDigest } from '@/lib/digest-server';
+import { reportRouteError } from '@/lib/observability/report';
 
 // ── GET /api/cron/notification-digest ─────────────────────────────────────────
 // Emails opted-in users (notification_preferences.email_enabled) a digest of
@@ -35,7 +36,7 @@ export async function GET(request: NextRequest) {
     }
     return NextResponse.json(result);
   } catch (error) {
-    console.error('[DIGEST] cron error:', error);
+    reportRouteError('[DIGEST] cron error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

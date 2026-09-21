@@ -7,6 +7,7 @@ import { programCreatePOST, programDELETE, requireOrgManager } from '@/lib/orgs/
 import { isSportEnabled } from '@/lib/features';
 import type { SportKey } from '@/lib/sports/SportRegistry';
 import { UUID_RE } from '@/lib/golf/course-catalog';
+import { reportRouteError } from '@/lib/observability/report';
 
 // ── /api/clubs/[id]/structure/programs — manager program CRUD (phase 5) ───
 // Thin wrapper; the seasons-route pattern. Programs are divisions'
@@ -36,7 +37,7 @@ export async function POST(
     return await programCreatePOST(admin, parsed.data, { side: 'club', orgId: id });
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[STRUCTURE] club programs POST error:', error);
+    reportRouteError('[STRUCTURE] club programs POST error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
@@ -62,7 +63,7 @@ export async function DELETE(
     return await programDELETE(admin, programId, { side: 'club', orgId: id });
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[STRUCTURE] club programs DELETE error:', error);
+    reportRouteError('[STRUCTURE] club programs DELETE error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

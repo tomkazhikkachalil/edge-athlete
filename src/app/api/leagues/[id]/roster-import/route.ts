@@ -6,6 +6,7 @@ import { RosterImportSchema } from '@/lib/leagues/validate';
 import { requireOrgManager } from '@/lib/orgs/structure-server';
 import { importRoster, parseRosterImport, remintAthleteClaim } from '@/lib/orgs/roster-import';
 import { UUID_RE } from '@/lib/golf/course-catalog';
+import { reportRouteError } from '@/lib/observability/report';
 
 // ── /api/leagues/[id]/roster-import — paste-import stubs / re-mint (R3) ────
 // Thin twin; the mint orchestration + sub-org membership writers live in
@@ -77,7 +78,7 @@ export async function POST(
     return NextResponse.json({ ok: true, report: result.report, lineErrors: errors });
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[ROSTER IMPORT] POST error:', error);
+    reportRouteError('[ROSTER IMPORT] POST error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

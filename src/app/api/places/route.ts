@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/auth-server';
 import { enforceRateLimit } from '@/lib/rate-limit';
 import { formatPlace } from '@/lib/geo/regions';
+import { reportRouteError } from '@/lib/observability/report';
 
 // ── GET /api/places?q=ott&country=CA ────────────────────────────────────────
 // Place autocomplete over the GeoNames-seeded `places` table (migration 104)
@@ -38,7 +39,7 @@ export async function GET(request: NextRequest) {
     });
     if (error) {
       const code = (error as { code?: string }).code;
-      if (code !== '42883' && code !== 'PGRST202') console.error('[places] search_places failed:', error.message);
+      if (code !== '42883' && code !== 'PGRST202') reportRouteError('[places] search_places failed:', error.message);
       return NextResponse.json({ places: [] });
     }
     const places: PlaceSuggestion[] = ((data ?? []) as {
@@ -57,7 +58,7 @@ export async function GET(request: NextRequest) {
     }));
     return NextResponse.json({ places });
   } catch (error) {
-    console.error('[places] error:', error);
+    reportRouteError('[places] error:', error);
     return NextResponse.json({ places: [] });
   }
 }

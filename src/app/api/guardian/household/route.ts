@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireGuardianAccount, getSupabaseAdmin } from '@/lib/auth-server';
 import { FEATURE_FLAGS } from '@/lib/features';
 import { parseHouseholdPolicy } from '@/lib/household-policy';
+import { reportRouteError } from '@/lib/observability/report';
 
 // ── /api/guardian/household ──────────────────────────────────────────────────
 // The guardian's household safety defaults (Wave 4, mig 132) — the
@@ -26,7 +27,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ policy: parseHouseholdPolicy(data?.household_policy) });
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[GUARDIAN] household policy GET error:', error);
+    reportRouteError('[GUARDIAN] household policy GET error:', error);
     return NextResponse.json({ error: 'Could not load household defaults' }, { status: 500 });
   }
 }
@@ -49,13 +50,13 @@ export async function PATCH(request: NextRequest) {
       .update({ household_policy: policy })
       .eq('id', user.id);
     if (error) {
-      console.error('[GUARDIAN] household policy update error:', error);
+      reportRouteError('[GUARDIAN] household policy update error:', error);
       return NextResponse.json({ error: 'Could not save household defaults' }, { status: 500 });
     }
     return NextResponse.json({ policy });
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[GUARDIAN] household policy PATCH error:', error);
+    reportRouteError('[GUARDIAN] household policy PATCH error:', error);
     return NextResponse.json({ error: 'Could not save household defaults' }, { status: 500 });
   }
 }

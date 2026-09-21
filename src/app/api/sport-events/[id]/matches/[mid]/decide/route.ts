@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { writeMatch } from '@/lib/sport-events/match-server';
 import { answerMatch, openMatchWrite, refuse } from '@/lib/sport-events/match-write-server';
+import { reportRouteError } from '@/lib/observability/report';
 
 /**
  * POST {winner_side: 1 | 2 | null, version} — the organizer decides an
@@ -32,7 +33,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     if (outcome === 'error') return NextResponse.json({ error: 'Could not save the decision' }, { status: 500 });
     return answerMatch(opened.ctx);
   } catch (error) {
-    console.error('[api/sport-events/matches/decide] POST error:', error);
+    reportRouteError('[api/sport-events/matches/decide] POST error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

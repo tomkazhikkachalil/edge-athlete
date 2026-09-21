@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { isUuid } from '@/lib/uuid';
 import { requireAuth, getSupabaseAdmin } from '@/lib/auth-server';
+import { reportRouteError } from '@/lib/observability/report';
 
 // ── POST /api/messages/[conversationId]/participants ──────────────────────────
 // Add participants to a group conversation. Admin only.
@@ -81,14 +82,14 @@ export async function POST(
       .upsert(newParticipants, { onConflict: 'conversation_id,profile_id' });
 
     if (error) {
-      console.error('POST /api/messages/[id]/participants error:', error);
+      reportRouteError('POST /api/messages/[id]/participants error:', error);
       return NextResponse.json({ error: 'Failed to add participants' }, { status: 500 });
     }
 
     return NextResponse.json({ success: true, added: newParticipants.length });
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('POST /api/messages/[id]/participants error:', error);
+    reportRouteError('POST /api/messages/[id]/participants error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

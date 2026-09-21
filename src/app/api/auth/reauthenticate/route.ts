@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerClient } from '@/lib/auth-server';
 import { enforceRateLimit } from '@/lib/rate-limit';
+import { reportRouteError } from '@/lib/observability/report';
 
 export async function POST(request: NextRequest) {
   try {
@@ -38,7 +39,7 @@ export async function POST(request: NextRequest) {
     });
 
     if (signInError) {
-      console.error('Re-authentication failed:', signInError);
+      reportRouteError('Re-authentication failed:', signInError);
       return NextResponse.json({ error: 'Invalid password' }, { status: 401 });
     }
 
@@ -49,7 +50,7 @@ export async function POST(request: NextRequest) {
     });
 
   } catch (error) {
-    console.error('Re-authentication error:', error);
+    reportRouteError('Re-authentication error:', error);
     return NextResponse.json({
       error: 'Failed to re-authenticate'
     }, { status: 500 });

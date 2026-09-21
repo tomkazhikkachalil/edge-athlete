@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth, getSupabaseAdmin } from '@/lib/auth-server';
 import { registrationsExportGET, requireRegistrar } from '@/lib/orgs/registration-server';
 import { UUID_RE } from '@/lib/golf/course-catalog';
+import { reportRouteError } from '@/lib/observability/report';
 
 // ── /api/leagues/[id]/registrations/export (PR #492) ────────────────────────
 // The registrar CSV download — the ICS attachment-download model. Same
@@ -31,7 +32,7 @@ export async function GET(
     );
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[REGISTRATION] league export error:', error);
+    reportRouteError('[REGISTRATION] league export error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

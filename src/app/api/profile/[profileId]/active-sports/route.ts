@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { isUuid } from '@/lib/uuid';
 import { getSupabaseAdmin } from '@/lib/auth-server';
 import { computeActiveSports } from '@/lib/sports/active-sports';
+import { reportRouteError } from '@/lib/observability/report';
 
 /**
  * GET /api/profile/[profileId]/active-sports
@@ -44,7 +45,7 @@ export async function GET(
 
     // Loud, not silent: a missing RPC (deploy before migration 126) would
     // otherwise quietly drop every posted sport from the answer.
-    if (rpcError) console.error('[active-sports] get_profile_post_sport_keys failed:', rpcError);
+    if (rpcError) reportRouteError('[active-sports] get_profile_post_sport_keys failed:', rpcError);
 
     const ordered = computeActiveSports({
       declaredSport: profile?.sport ?? null,
@@ -54,7 +55,7 @@ export async function GET(
 
     return NextResponse.json({ sportKeys: ordered });
   } catch (e) {
-    console.error('[active-sports] error:', e);
+    reportRouteError('[active-sports] error:', e);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

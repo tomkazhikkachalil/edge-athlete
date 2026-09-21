@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth, getSupabaseAdmin } from '@/lib/auth-server';
 import { golfMineGET } from '@/lib/competitions/golf-league-mine';
 import { UUID_RE } from '@/lib/golf/course-catalog';
+import { reportRouteError } from '@/lib/observability/report';
 
 // ── /api/leagues/[id]/golf/mine (phase 6d W2) ─────────────────────────────────
 // "Your week": the caller's own entries in this league's golf leaderboards —
@@ -23,7 +24,7 @@ export async function GET(
     return await golfMineGET(getSupabaseAdmin(), 'league', id, user.id);
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[GOLF LEAGUE] league mine error:', error);
+    reportRouteError('[GOLF LEAGUE] league mine error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin, requireActiveWriter } from '@/lib/auth-server';
 import { enforceRateLimit } from '@/lib/rate-limit';
+import { reportRouteError } from '@/lib/observability/report';
 
 // Server is the security boundary: explicit allowlist (no SVG — it can carry
 // scripts and this URL is rendered across the app), extensions derived from
@@ -42,20 +43,20 @@ export async function POST(request: NextRequest) {
     const userId = gate.actorId;
 
     if (!file) {
-      console.error('Avatar API: No file provided');
+      reportRouteError('Avatar API: No file provided');
       return NextResponse.json({ error: 'No file provided' }, { status: 400 });
     }
 
     // Validate file type against the allowlist
     const fileExt = ALLOWED_IMAGE_TYPES[file.type];
     if (!fileExt) {
-      console.error('Avatar API: Invalid file type:', file.type);
+      reportRouteError('Avatar API: Invalid file type:', file.type);
       return NextResponse.json({ error: 'File must be a JPEG, PNG, WebP, or GIF image' }, { status: 400 });
     }
 
     // Validate file size (5MB max)
     if (file.size > 5 * 1024 * 1024) {
-      console.error('Avatar API: File too large:', file.size, 'bytes');
+      reportRouteError('Avatar API: File too large:', file.size, 'bytes');
       return NextResponse.json({ error: 'File size must be less than 5MB' }, { status: 400 });
     }
 
@@ -100,7 +101,7 @@ export async function POST(request: NextRequest) {
     }
 
     if (!successBucket) {
-      console.error('Avatar API: All buckets failed, last error:', uploadError);
+      reportRouteError('Avatar API: All buckets failed, last error:', uploadError);
       return NextResponse.json({ error: 'Avatar upload failed' }, { status: 500 });
     }
 
@@ -110,7 +111,7 @@ export async function POST(request: NextRequest) {
       .getPublicUrl(filePath);
 
     if (!publicUrl?.publicUrl) {
-      console.error('Avatar API: Failed to get public URL');
+      reportRouteError('Avatar API: Failed to get public URL');
       return NextResponse.json({ error: 'Failed to get public URL' }, { status: 500 });
     }
 
@@ -123,7 +124,7 @@ export async function POST(request: NextRequest) {
       .eq('id', userId);
 
     if (updateError) {
-      console.error('Avatar API: Profile update error:', updateError);
+      reportRouteError('Avatar API: Profile update error:', updateError);
       // Best effort: remove the just-uploaded file so it doesn't orphan
       await supabaseAdmin.storage.from(successBucket).remove([filePath]);
       return NextResponse.json({ error: 'Failed to update profile with new avatar' }, { status: 500 });
@@ -155,8 +156,8 @@ export async function POST(request: NextRequest) {
 
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('Avatar API: Unexpected error:', error);
-    console.error('Avatar API: Error details:', error instanceof Error ? error.stack : error);
+    reportRouteError('Avatar API: Unexpected error:', error);
+    reportRouteError('Avatar API: Error details:', error instanceof Error ? error.stack : error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

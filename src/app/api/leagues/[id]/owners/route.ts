@@ -3,6 +3,7 @@ import { requireAuth, getSupabaseAdmin } from '@/lib/auth-server';
 import { enforceRateLimit } from '@/lib/rate-limit';
 import { promoteToOwner, stepDownAsOwner } from '@/lib/orgs/owners';
 import { UUID_RE } from '@/lib/golf/course-catalog';
+import { reportRouteError } from '@/lib/observability/report';
 
 // ── /api/leagues/[id]/owners — co-owner minting + self step-down (0.8) ──────
 // Thin wrapper; the matrix lives in orgs/owners.ts. Transfer = promote,
@@ -31,7 +32,7 @@ export async function POST(
     return await promoteToOwner(getSupabaseAdmin(), user, 'league', id, profileId);
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[ORG OWNERS] POST error:', error);
+    reportRouteError('[ORG OWNERS] POST error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
@@ -63,7 +64,7 @@ export async function DELETE(
     return await stepDownAsOwner(getSupabaseAdmin(), user, 'league', id);
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[ORG OWNERS] DELETE error:', error);
+    reportRouteError('[ORG OWNERS] DELETE error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

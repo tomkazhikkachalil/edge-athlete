@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth, getSupabaseAdmin } from '@/lib/auth-server';
 import { enforceRateLimit } from '@/lib/rate-limit';
+import { reportRouteError } from '@/lib/observability/report';
 
 // ── POST /api/messages/[conversationId]/escalate ─────────────────────────────
 // "Show this to my guardian" (Wave 3): a supervised child flags a
@@ -72,7 +73,7 @@ export async function POST(
     return NextResponse.json({ ok: true });
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[MESSAGES] escalate error:', error);
+    reportRouteError('[MESSAGES] escalate error:', error);
     return NextResponse.json({ error: 'Could not notify your guardian' }, { status: 500 });
   }
 }

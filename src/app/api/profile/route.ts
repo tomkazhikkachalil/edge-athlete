@@ -8,6 +8,7 @@ import {
   describeIdentityFields,
 } from '@/lib/profile-identity';
 import { notifyGuardians } from '@/lib/guardian-notify';
+import { reportRouteError } from '@/lib/observability/report';
 
 // Fields stripped for any viewer who is NOT the profile owner: contact
 // details plus PII the UI never shows to other users (signup birthday,
@@ -49,7 +50,7 @@ export async function GET(request: NextRequest) {
       .single();
 
     if (profileError) {
-      console.error('Profile error:', profileError);
+      reportRouteError('Profile error:', profileError);
       if (profileError.code === 'PGRST116') {
         return NextResponse.json({ error: 'Profile not found' }, { status: 404 });
       }
@@ -64,7 +65,7 @@ export async function GET(request: NextRequest) {
       .order('season', { ascending: false });
 
     if (highlightsError && highlightsError.code !== 'PGRST116') {
-      console.error('Season highlights error:', highlightsError);
+      reportRouteError('Season highlights error:', highlightsError);
     }
 
     // Fetch performances
@@ -75,7 +76,7 @@ export async function GET(request: NextRequest) {
       .order('date', { ascending: false });
 
     if (performancesError && performancesError.code !== 'PGRST116') {
-      console.error('Performances error:', performancesError);
+      reportRouteError('Performances error:', performancesError);
     }
 
     // Privacy-shape the profile server-side (the browser must never receive
@@ -112,7 +113,7 @@ export async function GET(request: NextRequest) {
 
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('API error:', error);
+    reportRouteError('API error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
@@ -127,7 +128,7 @@ export async function PUT(request: NextRequest) {
     
     // Validate required fields
     if (!body.profileData) {
-      console.error('Profile API: Missing required fields');
+      reportRouteError('Profile API: Missing required fields');
       return NextResponse.json({ error: 'Profile data is required' }, { status: 400 });
     }
 
@@ -277,8 +278,8 @@ export async function PUT(request: NextRequest) {
       .single();
 
     if (error) {
-      console.error('Profile API: Database error:', error);
-      console.error('Profile API: Error details:', JSON.stringify(error, null, 2));
+      reportRouteError('Profile API: Database error:', error);
+      reportRouteError('Profile API: Error details:', JSON.stringify(error, null, 2));
       return NextResponse.json({ error: 'Failed to update profile' }, { status: 500 });
     }
 
@@ -311,8 +312,8 @@ export async function PUT(request: NextRequest) {
 
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('Profile API: Unexpected error:', error);
-    console.error('Profile API: Error stack:', error instanceof Error ? error.stack : 'No stack trace');
+    reportRouteError('Profile API: Unexpected error:', error);
+    reportRouteError('Profile API: Error stack:', error instanceof Error ? error.stack : 'No stack trace');
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

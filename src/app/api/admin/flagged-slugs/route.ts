@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin, getSupabaseAdmin } from '@/lib/auth-server';
 import { judgeSlug } from '@/lib/org-sites/slug-policy';
 import { isMissingTableError } from '@/lib/org-sites/validate';
+import { reportRouteError } from '@/lib/observability/report';
 
 // ── /api/admin/flagged-slugs (phase 6 R1) ───────────────────────────────────
 // The anti-squatting review list, COMPUTED — no storage. Every org-site
@@ -20,7 +21,7 @@ export async function GET(request: NextRequest) {
       .limit(500);
     if (error) {
       if (isMissingTableError(error.code)) return NextResponse.json({ flagged: [] });
-      console.error('[FLAGGED-SLUGS] sites read error:', error);
+      reportRouteError('[FLAGGED-SLUGS] sites read error:', error);
       return NextResponse.json({ error: 'Failed to load sites' }, { status: 500 });
     }
 
@@ -63,7 +64,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ flagged });
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[FLAGGED-SLUGS] error:', error);
+    reportRouteError('[FLAGGED-SLUGS] error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

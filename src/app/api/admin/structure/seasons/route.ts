@@ -6,6 +6,7 @@ import { seasonCreatePOST, seasonDELETE } from '@/lib/orgs/structure-server';
 import { isSportEnabled } from '@/lib/features';
 import type { SportKey } from '@/lib/sports/SportRegistry';
 import { UUID_RE } from '@/lib/golf/course-catalog';
+import { reportRouteError } from '@/lib/observability/report';
 
 // ── /api/admin/structure/seasons — thin wrapper over structure-server ───────
 // (Sport gate stays in the route — the 113 convention; validate.ts is
@@ -23,7 +24,7 @@ export async function POST(request: NextRequest) {
     return await seasonCreatePOST(getSupabaseAdmin(), { side, orgId }, parsed.data);
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[ADMIN STRUCTURE] seasons POST error:', error);
+    reportRouteError('[ADMIN STRUCTURE] seasons POST error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
@@ -40,7 +41,7 @@ export async function DELETE(request: NextRequest) {
     return await seasonDELETE(getSupabaseAdmin(), id, null);
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[ADMIN STRUCTURE] seasons DELETE error:', error);
+    reportRouteError('[ADMIN STRUCTURE] seasons DELETE error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

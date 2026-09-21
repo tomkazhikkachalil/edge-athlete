@@ -4,6 +4,7 @@ import { requireAuth, getSupabaseAdmin } from '@/lib/auth-server';
 import { toProxyUrl } from '@/lib/media/proxy-url';
 import { recipeEnvelope, parseRecipeEnvelope } from '@/lib/media/recipes';
 import { mayManagePostMedia } from '../authz';
+import { reportRouteError } from '@/lib/observability/report';
 
 // ── PATCH /api/posts/[id]/media/[mediaId] ─────────────────────────────────────
 // Re-edit after publish (non-destructive round, migration 120): replace the
@@ -84,7 +85,7 @@ export async function PATCH(
       .select('id, media_url, media_type, thumbnail_url, display_order, source_url, edit_recipe')
       .single();
     if (error || !updated) {
-      console.error('[POST MEDIA] update failed:', error);
+      reportRouteError('[POST MEDIA] update failed:', error);
       return NextResponse.json({ error: 'Could not update the media' }, { status: 500 });
     }
 
@@ -114,7 +115,7 @@ export async function PATCH(
               metadata: { post_id: post.id },
             });
           } catch (e) {
-            console.error('[POST MEDIA] guardian notify failed:', e);
+            reportRouteError('[POST MEDIA] guardian notify failed:', e);
           }
         }
       }
@@ -129,7 +130,7 @@ export async function PATCH(
     return NextResponse.json({ media: proxiedUpdated, pending_approval: statusChanged });
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[POST MEDIA] update error:', error);
+    reportRouteError('[POST MEDIA] update error:', error);
     return NextResponse.json({ error: 'Could not update the media' }, { status: 500 });
   }
 }

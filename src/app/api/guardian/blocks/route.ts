@@ -4,6 +4,7 @@ import { FEATURE_FLAGS } from '@/lib/features';
 import { enforceRateLimit } from '@/lib/rate-limit';
 import { UUID_RE } from '@/lib/uuid';
 import { applyBlock, removeBlock } from '@/lib/blocks';
+import { reportRouteError } from '@/lib/observability/report';
 
 // ── /api/guardian/blocks ─────────────────────────────────────────────────────
 // Household-level blocking (Wave 4): one action blocks a person for the
@@ -57,7 +58,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ blocks });
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[GUARDIAN] household blocks GET error:', error);
+    reportRouteError('[GUARDIAN] household blocks GET error:', error);
     return NextResponse.json({ error: 'Could not load the household block list' }, { status: 500 });
   }
 }
@@ -91,7 +92,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ ok: true, appliedTo });
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[GUARDIAN] household blocks POST error:', error);
+    reportRouteError('[GUARDIAN] household blocks POST error:', error);
     return NextResponse.json({ error: 'Could not block for the household' }, { status: 500 });
   }
 }
@@ -114,7 +115,7 @@ export async function DELETE(request: NextRequest) {
     return NextResponse.json({ ok: true });
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[GUARDIAN] household blocks DELETE error:', error);
+    reportRouteError('[GUARDIAN] household blocks DELETE error:', error);
     return NextResponse.json({ error: 'Could not unblock for the household' }, { status: 500 });
   }
 }

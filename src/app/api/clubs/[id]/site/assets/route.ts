@@ -4,6 +4,7 @@ import { enforceRateLimit } from '@/lib/rate-limit';
 import { siteAssetDELETE, siteAssetPOST } from '@/lib/org-sites/pages-server';
 import { requireOrgManager } from '@/lib/orgs/structure-server';
 import { UUID_RE } from '@/lib/golf/course-catalog';
+import { reportRouteError } from '@/lib/observability/report';
 
 // ── /api/clubs/[id]/site/assets — page-image upload (phase 3 R3) ─────────
 // manage_site gates it (B5: the header said manage_org); the shared 'upload' bucket meters it (pooled with
@@ -36,7 +37,7 @@ export async function POST(
     return await siteAssetPOST(admin, 'club', id, file, document ? 'document' : 'image');
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[ORG SITE PAGES] club asset POST error:', error);
+    reportRouteError('[ORG SITE PAGES] club asset POST error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
@@ -57,7 +58,7 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
     return await siteAssetDELETE(admin, 'club', id, body.path);
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[ORG SITE ASSETS] club DELETE error:', error);
+    reportRouteError('[ORG SITE ASSETS] club DELETE error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

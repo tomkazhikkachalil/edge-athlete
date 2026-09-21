@@ -5,6 +5,7 @@ import { requireAuth, getSupabaseAdmin, getProfileRole } from '@/lib/auth-server
 import { FEATURE_FLAGS } from '@/lib/features';
 import { ACTIVE_TRANSFER_STATES } from '@/lib/transfers';
 import { notifyGuardians, profileFirstName } from '@/lib/guardian-notify';
+import { reportRouteError } from '@/lib/observability/report';
 
 // ── /api/transfers ────────────────────────────────────────────────────────────
 // GET ?profileId= → the active transfer (guardian/supervised/owner view).
@@ -137,7 +138,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ transfer: created }, { status: 201 });
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[TRANSFERS] create error:', error);
+    reportRouteError('[TRANSFERS] create error:', error);
     Sentry.captureException(error, { tags: { area: 'transfers' } });
     return NextResponse.json({ error: 'Could not start the transfer' }, { status: 500 });
   }

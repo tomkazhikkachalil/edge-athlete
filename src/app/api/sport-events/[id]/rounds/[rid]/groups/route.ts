@@ -12,6 +12,7 @@ import { notifyMatchSet } from '@/lib/sport-events/notify';
 import type { DrawGroupForBells } from '@/lib/sport-events/match-bells';
 import { fetchSportEventView } from '@/lib/sport-events/view-server';
 import { shapeOf } from '@/lib/sport-events/types';
+import { reportRouteError } from '@/lib/observability/report';
 
 /**
  * PUT {groups: [{name?, tee_time?, starting_hole?, members: [participantId | {participant_id, side}]}]}
@@ -53,19 +54,19 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     const previous: RoundGroup[] = match ? await readRoundGroups(admin, rid) : [];
     const { error: clearError } = await admin.from('sport_event_groups').delete().eq('sport_event_round_id', rid);
     if (clearError) {
-      console.error('[api/sport-events/groups] clear failed:', clearError);
+      reportRouteError('[api/sport-events/groups] clear failed:', clearError);
       return NextResponse.json({ error: 'Could not save the groups' }, { status: 500 });
     }
     for (const g of plan.value) {
       const { data: inserted, error } = await admin.from('sport_event_groups').insert({ sport_event_round_id: rid, sequence: g.sequence, name: g.name, tee_time: g.tee_time, starting_hole: g.starting_hole }).select('id').single();
       if (error || !inserted) {
-        console.error('[api/sport-events/groups] group insert failed:', error);
+        reportRouteError('[api/sport-events/groups] group insert failed:', error);
         return NextResponse.json({ error: 'Could not save the groups' }, { status: 500 });
       }
       if (g.members.length > 0) {
         const { error: memberError } = await admin.from('sport_event_group_members').insert(g.members.map(m => ({ group_id: inserted.id, sport_event_round_id: rid, participant_id: m.participant_id, position: m.position, side: m.side })));
         if (memberError) {
-          console.error('[api/sport-events/groups] member insert failed:', memberError);
+          reportRouteError('[api/sport-events/groups] member insert failed:', memberError);
           return NextResponse.json({ error: 'Could not save the groups' }, { status: 500 });
         }
       }
@@ -80,7 +81,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     const view = await fetchSportEventView(admin, id, actor.profileId, null);
     return NextResponse.json(view, { headers: { 'Cache-Control': 'private, no-store' } });
   } catch (error) {
-    console.error('[api/sport-events/groups] PUT error:', error);
+    reportRouteError('[api/sport-events/groups] PUT error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

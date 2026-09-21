@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin, requireModerator } from '@/lib/auth-server';
 import { readQueue, type QueueFilters } from '@/lib/tickets/server';
 import { TICKET_SEVERITIES, TICKET_STATUSES, TICKET_TYPES } from '@/lib/tickets/types';
+import { reportRouteError } from '@/lib/observability/report';
 
 /**
  * GET /api/admin/tickets?status=open|all|<status>&type=&severity=&q= — the
@@ -30,7 +31,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(result, { headers });
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[GET /api/admin/tickets]', error);
+    reportRouteError('[GET /api/admin/tickets]', error);
     return NextResponse.json({ error: 'Could not load the queue' }, { status: 500, headers });
   }
 }

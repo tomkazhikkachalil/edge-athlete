@@ -3,6 +3,7 @@ import { isUuid } from '@/lib/uuid';
 import { getSupabaseAdmin } from '@/lib/auth-server';
 import { enforceRateLimit } from '@/lib/rate-limit';
 import { evaluatePublicContestMedia } from '@/lib/orgs/gallery-gate';
+import { reportRouteError } from '@/lib/observability/report';
 
 /**
  * GET /api/media/contest-media/[mediaId] — the PUBLIC gallery streamer
@@ -66,7 +67,7 @@ export async function GET(
     return new NextResponse(upstream.body, { status: upstream.status, headers });
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[contest-media-proxy] error:', error);
+    reportRouteError('[contest-media-proxy] error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

@@ -3,6 +3,7 @@ import { isUuid } from '@/lib/uuid';
 import { getSupabaseAdmin, requireAuth } from '@/lib/auth-server';
 import { toProxyUrl } from '@/lib/media/proxy-url';
 import { canViewProfile } from '@/lib/privacy';
+import { reportRouteError } from '@/lib/observability/report';
 
 export async function GET(
   request: NextRequest,
@@ -115,7 +116,7 @@ export async function GET(
     return NextResponse.json({ post });
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('Error fetching post:', error);
+    reportRouteError('Error fetching post:', error);
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }

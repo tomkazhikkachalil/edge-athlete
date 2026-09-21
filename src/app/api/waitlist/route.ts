@@ -4,6 +4,7 @@ import { getSupabaseAdmin } from '@/lib/auth-server';
 import { emailService } from '@/lib/email-service';
 import { parseBody, emailString } from '@/lib/validation';
 import { enforceRateLimit } from '@/lib/rate-limit';
+import { reportRouteError } from '@/lib/observability/report';
 
 // Landing-page values ('Club', 'League'…) arrive mixed-case → normalize.
 const WaitlistSchema = z.object({
@@ -31,7 +32,7 @@ export async function POST(request: NextRequest) {
       .insert({ email: normalizedEmail, user_type: normalizedType });
 
     if (insertError && insertError.code !== '23505') {
-      console.error('Waitlist insert error:', insertError);
+      reportRouteError('Waitlist insert error:', insertError);
       return NextResponse.json(
         { error: 'Could not join the waitlist right now. Please try again.' },
         { status: 500 }
@@ -46,7 +47,7 @@ export async function POST(request: NextRequest) {
       try {
         await emailService.sendWaitlistNotification(normalizedEmail, normalizedType);
       } catch (emailError) {
-        console.error('Waitlist notification email failed (non-fatal):', emailError);
+        reportRouteError('Waitlist notification email failed (non-fatal):', emailError);
       }
     }
 
@@ -59,7 +60,7 @@ export async function POST(request: NextRequest) {
       { status: 201 }
     );
   } catch (error: unknown) {
-    console.error('Waitlist API error:', error);
+    reportRouteError('Waitlist API error:', error);
     return NextResponse.json(
       { error: 'An unexpected error occurred' },
       { status: 500 }

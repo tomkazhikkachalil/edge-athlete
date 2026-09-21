@@ -4,6 +4,7 @@ import { enforceRateLimit } from '@/lib/rate-limit';
 import { requireOrgManager } from '@/lib/orgs/structure-server';
 import { domainVerifyPOST } from '@/lib/org-sites/domain-server';
 import { UUID_RE } from '@/lib/golf/course-catalog';
+import { reportRouteError } from '@/lib/observability/report';
 
 // ── /api/clubs/[id]/site/domain/verify (phase 6b C1) — manager-gated, the
 // org-domain bucket (a DNS lookup and/or a Vercel call per attempt).
@@ -23,7 +24,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     return await domainVerifyPOST(admin, 'club', id);
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[ORG DOMAINS] verify error:', error);
+    reportRouteError('[ORG DOMAINS] verify error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

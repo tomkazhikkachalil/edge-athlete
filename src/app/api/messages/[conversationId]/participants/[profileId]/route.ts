@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { isUuid } from '@/lib/uuid';
 import { requireAuth, getSupabaseAdmin } from '@/lib/auth-server';
+import { reportRouteError } from '@/lib/observability/report';
 
 // ── DELETE /api/messages/[conversationId]/participants/[profileId] ────────────
 // Leave conversation (profileId === self) or remove member (admin only).
@@ -48,14 +49,14 @@ export async function DELETE(
       .is('left_at', null);
 
     if (error) {
-      console.error('DELETE /api/messages/[id]/participants/[pid] error:', error);
+      reportRouteError('DELETE /api/messages/[id]/participants/[pid] error:', error);
       return NextResponse.json({ error: 'Failed to remove participant' }, { status: 500 });
     }
 
     return NextResponse.json({ success: true });
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('DELETE /api/messages/[id]/participants/[pid] error:', error);
+    reportRouteError('DELETE /api/messages/[id]/participants/[pid] error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

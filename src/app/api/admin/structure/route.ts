@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin, getSupabaseAdmin } from '@/lib/auth-server';
 import { structureAggregateGET } from '@/lib/orgs/structure-server';
 import { UUID_RE } from '@/lib/golf/course-catalog';
+import { reportRouteError } from '@/lib/observability/report';
 
 // ── /api/admin/structure?side=&orgId= — the admin console's aggregate ───────
 // Thin wrapper since round 1 of phase 1; the query lives in
@@ -19,7 +20,7 @@ export async function GET(request: NextRequest) {
     return await structureAggregateGET(getSupabaseAdmin(), { side, orgId });
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('[ADMIN STRUCTURE] GET error:', error);
+    reportRouteError('[ADMIN STRUCTURE] GET error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

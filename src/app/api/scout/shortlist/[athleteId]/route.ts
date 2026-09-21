@@ -4,6 +4,7 @@ import { getSupabaseAdmin } from '@/lib/auth-server';
 import { enforceRateLimit } from '@/lib/rate-limit';
 import { requireScout } from '@/lib/recruiting/scout-access';
 import { readShortlistEntry, removeFromShortlist, updateShortlistNote } from '@/lib/recruiting/shortlist-server';
+import { reportRouteError } from '@/lib/observability/report';
 
 // ── /api/scout/shortlist/[athleteId] (Recruiting skeleton R3) ─────────────
 // GET: is this athlete on MY shortlist (+ my note) — the button's state.
@@ -28,7 +29,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     if (scout instanceof Response) return scout;
     return NextResponse.json(await readShortlistEntry(getSupabaseAdmin(), scout.id, athleteId), { headers: NO_STORE });
   } catch (error) {
-    console.error('[scout/shortlist/id] GET error:', error);
+    reportRouteError('[scout/shortlist/id] GET error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
@@ -45,7 +46,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     if (!outcome.ok) return NextResponse.json({ error: outcome.error }, { status: outcome.status });
     return NextResponse.json({ ok: true, ...outcome.value }, { headers: NO_STORE });
   } catch (error) {
-    console.error('[scout/shortlist/id] PATCH error:', error);
+    reportRouteError('[scout/shortlist/id] PATCH error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
@@ -61,7 +62,7 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
     if (!outcome.ok) return NextResponse.json({ error: outcome.error }, { status: outcome.status });
     return NextResponse.json({ ok: true }, { headers: NO_STORE });
   } catch (error) {
-    console.error('[scout/shortlist/id] DELETE error:', error);
+    reportRouteError('[scout/shortlist/id] DELETE error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

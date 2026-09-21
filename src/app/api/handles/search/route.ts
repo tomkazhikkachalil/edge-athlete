@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin, requireAuth } from '@/lib/auth-server';
+import { reportRouteError } from '@/lib/observability/report';
 
 export async function GET(request: NextRequest) {
   try {
@@ -32,7 +33,7 @@ export async function GET(request: NextRequest) {
       });
 
     if (error) {
-      console.error('Error searching handles:', error);
+      reportRouteError('Error searching handles:', error);
       return NextResponse.json(
         { error: 'Failed to search handles' },
         { status: 500 }
@@ -83,7 +84,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(results);
   } catch (error) {
     if (error instanceof Response) return error;
-    console.error('Error in GET /api/handles/search:', error);
+    reportRouteError('Error in GET /api/handles/search:', error);
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }
