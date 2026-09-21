@@ -555,6 +555,15 @@ export async function applyAdminPatch(admin: Admin, ticketId: string, actorId: s
     const { applyResolutionAction } = await import('@/lib/moderation/server');
     await applyResolutionAction(admin, after, actorId, now);
   }
+  if (statusChanged && after.status === 'resolved' && after.type === 'suggestion' && after.resolution_code === 'feature_shipped') {
+    // Spec 4: the reporters of MERGED duplicates hear "your idea is live" too.
+    const { data: dups } = await admin.from('tickets').select('id').eq('merged_into_id', after.id);
+    for (const d of dups ?? []) {
+      await admin.from('tickets').update({ resolution_code: 'feature_shipped', resolution_note: after.resolution_note, status: 'closed' }).eq('id', d.id);
+      await bellSubmitterById(admin, d.id, `${formatTicketNumber(after.number)}: your idea is live`, after.resolution_note ?? 'The feature you suggested has shipped.');
+      await sendTicketMail(admin, d.id, 'resolved');
+    }
+  }
   if (statusChanged) {
     if (after.status === 'resolved' || after.status === 'closed') {
       await bellSubmitter(admin, after, `${formatTicketNumber(after.number)} was ${after.status}`, after.resolution_note ?? 'Open it under My requests to read the outcome.');
@@ -602,6 +611,63 @@ export async function replyToUser(admin: Admin, ticketId: string, actorId: strin
   await bellSubmitter(admin, t, `Support replied on ${formatTicketNumber(t.number)}`, body.length > 140 ? `${body.slice(0, 137)}…` : body);
   await sendTicketMail(admin, ticketId, 'waiting', body);
   return { ok: true, status };
+}
+
+/** Spec 4: an admin merges a duplicate INTO another ticket by number — the duplicate keeps its reporter's My requests entry, the target carries the count. */
+export async function mergeTicket(admin: Admin, ticketId: string, intoNumber: number, actorId: string): Promise<{ ok: true; into: string } | { ok: false; status: 404 | 409; error: string }> {
+  const [{ data: dup }, { data: into }] = await Promise.all([
+    admin.from('tickets').select('id, type, number, status, merged_into_id, description').eq('id', ticketId).maybeSingle(),
+    admin.from('tickets').select('id, type, number, status, merged_into_id, report_count').eq('number', intoNumber).maybeSingle(),
+  ]);
+  if (!dup) return { ok: false, status: 404, error: 'Not found' };
+  if (!into) return { ok: false, status: 404, error: `No ticket ${formatTicketNumber(intoNumber)}.` };
+  if (into.id === dup.id) return { ok: false, status: 409, error: 'A ticket cannot merge into itself.' };
+  if (into.merged_into_id) return { ok: false, status: 409, error: 'That ticket is itself merged — merge into its target.' };
+  if (dup.merged_into_id) return { ok: false, status: 409, error: 'This ticket is already merged.' };
+  if (into.type !== dup.type) return { ok: false, status: 409, error: 'Only tickets of the same type merge.' };
+  const { error } = await admin.from('tickets').update({ merged_into_id: into.id, status: 'closed', closed_at: new Date().toISOString(), resolution_code: 'declined', resolution_note: `Merged into ${formatTicketNumber(into.number)}.` }).eq('id', dup.id);
+  if (error) {
+    if (isNotLive(error)) throw new TicketsNotLive();
+    throw new Error('Could not merge');
+  }
+  const count = (into.report_count ?? 1) + 1;
+  await admin.from('tickets').update({ report_count: count }).eq('id', into.id);
+  await appendEvents(admin, [
+    { ticket_id: dup.id, actor_profile_id: actorId, kind: 'merged', old_value: null, new_value: into.id, body: `Merged into ${formatTicketNumber(into.number)}`, visible_to_user: true },
+    { ticket_id: into.id, actor_profile_id: actorId, kind: 'merged', old_value: String(count - 1), new_value: String(count), body: dup.description ?? null, visible_to_user: false },
+  ]);
+  return { ok: true, into: into.id };
+}
+
+/** Spec 4 (decided: no inbound parsing): an admin pastes the user's EMAILED reply onto the ticket — it lands as the user's own reply (actor null = system-entered), with the same status effect as an in-app reply. */
+export async function pasteUserReply(admin: Admin, ticketId: string, actorId: string, body: string): Promise<{ ok: true; status: TicketStatus } | { ok: false; status: 404 | 409; error: string }> {
+  const { data, error } = await admin.from('tickets').select('id, status, appeal_used_at').eq('id', ticketId).maybeSingle();
+  if (error) {
+    if (isNotLive(error)) throw new TicketsNotLive();
+    throw new Error('Could not load the ticket');
+  }
+  const t = data as Pick<TicketRow, 'id' | 'status' | 'appeal_used_at'> | null;
+  if (!t) return { ok: false, status: 404, error: 'Not found' };
+  const next = transitionForUserReply(t);
+  if (!next.ok) return { ok: false, status: 409, error: USER_REPLY_REFUSALS[next.reason] };
+  const events: TicketEventInput[] = [{ ticket_id: ticketId, actor_profile_id: null, kind: 'user_reply', old_value: 'pasted', new_value: null, body, visible_to_user: true }];
+  const patch: Record<string, unknown> = {};
+  if (next.next !== t.status) {
+    patch.status = next.next;
+    events.unshift({ ticket_id: ticketId, actor_profile_id: actorId, kind: next.reopened ? 'reopened' : 'status_changed', old_value: t.status, new_value: next.next, body: null, visible_to_user: true });
+  }
+  if (next.appeal) {
+    patch.appeal_used_at = new Date().toISOString();
+    patch.resolved_at = null;
+    patch.resolution_code = null;
+  }
+  if (Object.keys(patch).length > 0) {
+    const { error: updateError } = await admin.from('tickets').update(patch).eq('id', ticketId).eq('status', t.status);
+    if (updateError) throw new Error('Could not update the ticket');
+  }
+  await appendEvents(admin, events);
+  await appendEvents(admin, [noteEvent(ticketId, actorId, 'Pasted the user\'s email reply above.')]);
+  return { ok: true, status: next.next };
 }
 
 export async function deleteTicket(admin: Admin, ticketId: string): Promise<boolean> {
@@ -705,6 +771,12 @@ async function appendEvents(admin: Admin, events: TicketEventInput[]): Promise<v
   }
 }
 
+/** The submitter's bell by ticket id (a merged duplicate's own reporter). */
+async function bellSubmitterById(admin: Admin, ticketId: string, title: string, message: string): Promise<void> {
+  const { data } = await admin.from('tickets').select('id, reporter_profile_id, type').eq('id', ticketId).maybeSingle();
+  if (data) await bellSubmitter(admin, data as Pick<TicketRow, 'id' | 'reporter_profile_id' | 'type'>, title, message);
+}
+
 /** The submitter's bell (and their guardians' when supervised). */
 async function bellSubmitter(admin: Admin, t: Pick<TicketRow, 'id' | 'reporter_profile_id' | 'type'>, title: string, message: string): Promise<void> {
   if (!t.reporter_profile_id) return;
@@ -768,6 +840,8 @@ async function sendTicketMail(admin: Admin, ticketId: string, kind: MailKind, re
     const { data } = await admin.from('tickets').select(TICKET_COLUMNS).eq('id', ticketId).maybeSingle();
     const t = data as TicketRow | null;
     if (!t) return;
+    // Spec 4 (the doc): a user may turn off SUGGESTION follow-up mail — never ticket status mail.
+    if (t.type === 'suggestion' && !t.contact_ok && kind !== 'created') return;
     const { recipientsFor } = await import('./mail');
     const recipients = await recipientsFor(admin, t);
     for (const to of recipients) {

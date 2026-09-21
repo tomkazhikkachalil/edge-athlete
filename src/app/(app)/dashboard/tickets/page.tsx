@@ -7,7 +7,7 @@ import AppHeader from '@/components/AppHeader';
 import { SeverityChip, StatusChip, TypeChip, ago, reasonLabel } from '@/components/tickets/ticket-ui';
 import { TICKET_SEVERITIES, TICKET_TYPES, type TicketSeverity, type TicketType } from '@/lib/tickets/types';
 import type { AdminTicketView } from '@/lib/tickets/visibility';
-import type { QueueCounts } from '@/lib/tickets/server';
+import type { QueueCounts, TicketStats } from '@/lib/tickets/server';
 
 // The support queue (Support & Reporting, Spec 1): open tickets sorted
 // severity first, then age, with an overdue marker and the open counts.
@@ -29,6 +29,8 @@ export default function SupportQueuePage() {
   const [state, setState] = useState<'loading' | 'ready' | 'forbidden' | 'error' | 'unsupported'>('loading');
   const [tickets, setTickets] = useState<AdminTicketView[]>([]);
   const [counts, setCounts] = useState<QueueCounts | null>(null);
+  // Spec 4: the simple stats the doc asked for (resolved in 90 days, the median time to resolve).
+  const [stats, setStats] = useState<TicketStats | null>(null);
   const [status, setStatus] = useState<StatusFilter>('open');
   const [type, setType] = useState<TicketType | ''>('');
   const [severity, setSeverity] = useState<TicketSeverity | ''>('');
@@ -58,6 +60,7 @@ export default function SupportQueuePage() {
         setTickets(data.tickets);
         setCounts(data.counts);
         setState(data.supported ? 'ready' : 'unsupported');
+        fetch('/api/admin/tickets/stats', { cache: 'no-store' }).then(r => (r.ok ? r.json() : null)).then(s => { if (!cancelled && s) setStats(s as TicketStats); }).catch(() => null);
       } catch {
         if (!cancelled) setState('error');
       }
@@ -87,6 +90,11 @@ export default function SupportQueuePage() {
             <Stat label="Critical" value={counts.openBySeverity.critical} tone={counts.openBySeverity.critical > 0 ? 'danger' : undefined} />
             <Stat label="Reports" value={counts.openByType.report} />
           </section>
+        )}
+        {stats && stats.supported && (
+          <p className="text-xs text-muted -mt-4 mb-6" data-ticket-stats="">
+            Last 90 days: {stats.resolvedLast90d} resolved{stats.medianHoursToResolve !== null ? ` · median ${stats.medianHoursToResolve} h to resolve` : ''}. Open by type: help {stats.counts.openByType.help} · report {stats.counts.openByType.report} · suggestion {stats.counts.openByType.suggestion}.
+          </p>
         )}
 
         <div className="flex flex-wrap items-center gap-2 mb-4">

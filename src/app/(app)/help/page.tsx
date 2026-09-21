@@ -6,6 +6,7 @@ import { useAuth } from '@/lib/auth';
 import AppHeader from '@/components/AppHeader';
 import HelpVideo from '@/components/help/HelpVideo';
 import GuestRequestForm from '@/components/help/GuestRequestForm';
+import SuggestForm from '@/components/help/SuggestForm';
 import { SubmitRequest, MyRequests } from '@/components/settings/SupportSettings';
 import { COPY } from '@/lib/copy';
 import { HELP_TOPICS, HELP_TOPIC_LABELS, type HelpTopic, type PublicHelpArticle } from '@/lib/help/types';
@@ -19,7 +20,7 @@ import { HELP_TOPICS, HELP_TOPIC_LABELS, type HelpTopic, type PublicHelpArticle 
 // request (the bells' link points at Settings → Support, which hosts the
 // same components; both work).
 
-type Section = 'videos' | 'articles' | 'request' | 'contact' | 'mine';
+type Section = 'videos' | 'articles' | 'request' | 'suggest' | 'contact' | 'mine';
 
 export default function HelpCenterPage() {
   const { user, initialAuthCheckComplete } = useAuth();
@@ -62,7 +63,7 @@ export default function HelpCenterPage() {
     { id: 'videos', label: 'How-to videos' },
     { id: 'articles', label: 'Articles' },
     { id: 'request', label: 'Submit a request' },
-    ...(user ? [{ id: 'mine' as const, label: 'My requests' }] : []),
+    ...(user ? [{ id: 'suggest' as const, label: 'Suggest a feature' }, { id: 'mine' as const, label: 'My requests' }] : []),
     { id: 'contact', label: 'Contact' },
   ];
 
@@ -149,6 +150,13 @@ export default function HelpCenterPage() {
             </>
           )}
         </section>
+
+        {/* Spec 4: Suggest a feature (signed in — the email is the account's) */}
+        {user && (
+          <section id="suggest" className="mb-10 scroll-mt-24">
+            <SuggestForm onCreated={() => setListKey(k => k + 1)} />
+          </section>
+        )}
 
         {/* 4. My requests (signed in) */}
         {user && (
