@@ -21,6 +21,13 @@
  *    (`schema-inventory-catalog.mjs`). Until 195 has run, the RPC
  *    answers PGRST202 and these facets are SKIPPED with a notice — never an
  *    error.
+ *  • THE LEDGER (migration 226, Round 2 — Sep 21 2026) — `schema_migrations`
+ *    holds one row per numbered file that has run in THIS database (each
+ *    file inserts its own row); every chain number must be in the ledger
+ *    (NOT RUN, by name) and every ledger number must be a file (LEDGER-ONLY
+ *    = a file the repo lacks). The pure comparison is `diffLedger` in
+ *    `schema-inventory-ledger.mjs` (unit-tested). Until 226 has run the
+ *    table answers PGRST205 and the facet is SKIPPED with a notice.
  * Both diff against database/provenance/allowlist.json (`kind` = column |
  * policy | function). Exit 1 on drift or a stale allowlist entry; 0 when
  * every live object is owned or documented.
@@ -32,13 +39,14 @@
  *   npm run check:schema
  *   npm run check:schema -- --save-catalog          # also writes database/provenance/dumps/<date>-catalog.json
  *   node scripts/schema-inventory.mjs --offline openapi.json --catalog dumps/2026-09-15-catalog.json
- *   node scripts/schema-inventory.mjs --facet policies   # tables | policies | functions | triggers | grants
+ *   node scripts/schema-inventory.mjs --facet policies   # tables | policies | functions | triggers | grants | ledger
  *   node scripts/schema-inventory.mjs --json              # the raw result
  */
 import { existsSync, readFileSync, readdirSync, writeFileSync } from 'fs';
 import { join } from 'path';
 import { diffCatalog, formatCatalogReport, liveFromCatalog, parseCatalogChain } from './schema-inventory-catalog.mjs';
 import { diff, formatReport, liveFromOpenApi, parseChain } from './schema-inventory-core.mjs';
+import { diffLedger, formatLedgerReport } from './schema-inventory-ledger.mjs';
 
 const args = process.argv.slice(2);
 const flag = name => {
@@ -53,8 +61,8 @@ const asJson = args.includes('--json');
 const migrationsDir = flag('--migrations') ?? 'database/migrations';
 const allowlistPath = flag('--allowlist') ?? 'database/provenance/allowlist.json';
 
-if (facet && !['tables', 'policies', 'functions', 'triggers', 'grants'].includes(String(facet))) {
-  console.error('schema-inventory: --facet takes tables | policies | functions | triggers | grants');
+if (facet && !['tables', 'policies', 'functions', 'triggers', 'grants', 'ledger'].includes(String(facet))) {
+  console.error('schema-inventory: --facet takes tables | policies | functions | triggers | grants | ledger');
   process.exit(2);
 }
 
@@ -119,6 +127,29 @@ async function loadCatalog() {
     process.exit(2);
   }
   return { raw: await res.json(), notice: null };
+}
+
+/** The ledger (migration 226). `null` = not live yet (PGRST205 before 226 runs). */
+async function loadLedger() {
+  if (offline) return { rows: null, notice: 'offline — the ledger facet is skipped' };
+  const { base, key } = credentials();
+  const res = await fetch(`${base}/rest/v1/schema_migrations?select=number,name,applied_at,applied_by&order=number.asc&limit=10000`, {
+    headers: { apikey: key, Authorization: `Bearer ${key}`, Accept: 'application/json' },
+  });
+  if (res.status === 404 || res.status === 406) {
+    let code = null;
+    try {
+      code = (await res.json()).code ?? null;
+    } catch {
+      /* not json */
+    }
+    if (code === 'PGRST205' || code === '42P01' || code === null) return { rows: null, notice: 'schema_migrations not found — run migration 226; the ledger facet is skipped' };
+  }
+  if (!res.ok) {
+    console.error(`schema-inventory: schema_migrations answered ${res.status}`);
+    process.exit(2);
+  }
+  return { rows: await res.json(), notice: null };
 }
 
 function loadChain() {
@@ -190,10 +221,18 @@ if (wantCatalog) {
   }
 }
 
-const ok = (tablesResult ? tablesResult.ok : true) && (catalogResult ? catalogResult.ok : true);
+let ledgerResult = null;
+let ledgerNotice = null;
+if (!facet || facet === 'ledger') {
+  const { rows, notice } = await loadLedger();
+  ledgerNotice = notice;
+  if (rows) ledgerResult = diffLedger(chainFiles.map(f => f.name), rows);
+}
+
+const ok = (tablesResult ? tablesResult.ok : true) && (catalogResult ? catalogResult.ok : true) && (ledgerResult ? ledgerResult.ok : true);
 
 if (asJson) {
-  console.log(JSON.stringify({ ...(tablesResult ?? {}), rpcs: live?.rpcs ?? [], catalog: catalogResult, catalogNotice, ok }, null, 2));
+  console.log(JSON.stringify({ ...(tablesResult ?? {}), rpcs: live?.rpcs ?? [], catalog: catalogResult, catalogNotice, ledger: ledgerResult, ledgerNotice, ok }, null, 2));
 } else {
   const out = [];
   if (tablesResult) {
@@ -202,6 +241,8 @@ if (asJson) {
   }
   if (catalogNotice) out.push(`\nschema-inventory: ${catalogNotice}`);
   if (catalogResult) out.push('\n' + formatCatalogReport(catalogResult));
+  if (ledgerNotice) out.push(`\nschema-inventory: ${ledgerNotice}`);
+  if (ledgerResult) out.push('\n' + formatLedgerReport(ledgerResult));
   console.log(out.join('\n'));
 }
 process.exit(ok ? 0 : 1);

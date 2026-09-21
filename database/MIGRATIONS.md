@@ -78,8 +78,12 @@ version, missing prerequisite). It is wrong for a post-change check.
 
 1. Add `NNN_short_name.sql` to `database/migrations/` with a header block:
    what/why, a **pre-flight** query section, and an **order-of-operations** note
-   if code must ship before or after it.
-2. Run it in the Supabase SQL editor.
+   if code must ship before or after it — and, from 227 on, **the ledger
+   footer** before the result row (a unit test refuses a file without it):
+   ```sql
+   INSERT INTO public.schema_migrations (number, name) VALUES (NNN, 'NNN_short_name.sql') ON CONFLICT (number) DO NOTHING;
+   ```
+2. Run it in the Supabase SQL editor (the file records itself in the ledger).
 3. Verify against the live DB (the established pattern: query via PostgREST with
    the service-role key; for DDL that drops columns, scan `pg_proc` for function
    bodies referencing the dropped object — Postgres does **not** block
@@ -282,6 +286,34 @@ brackets) is 212 (the format vocabulary, `side`, `sport_event_matches`) and
 213 (the match bell). Events phase 4 (every sport live, open joining, recorders,
 media) is 214 (open joining + recorders), 215 (team rounds + live stat lines) and
 216 (event media).
+
+## The ledger — which files have run HERE (migration 226, Sep 21 2026)
+
+`check:schema`'s reverse question sees tables, columns, policies,
+functions, triggers and grants — not an index, a CHECK, a default, a
+backfill or a seed row, so a migration made only of those could be skipped
+unseen; and a second environment (staging, Round 2 of the Sep 19
+assessment) had no way to say "I am at 224". `public.schema_migrations`
+(`number`, `name`, `applied_at`, `applied_by`; service-role only) is the
+answer:
+
+- **From 227 on every migration ends with the one-line footer above** —
+  the file records itself; the SQL editor stays the runner; nobody types a
+  number. 226 seeded 001–225 as `backfill-226` (the true dates are in
+  `DEVLOG.md`, never recorded in the database). The chain has **no 217**
+  (skipped, unrecorded — 226's header); `migration-ledger.test.ts` pins
+  the numbering as contiguous with that one gap.
+- **`npm run check:schema` compares the ledger to the chain** — `NOT RUN
+  here` names the files to run, top to bottom; `LEDGER-ONLY` is a row with
+  no file in the repo. A wrong head fails the command like any drift.
+  Before 226 has run the facet is skipped with a notice.
+- **`npm run migrate:mark <n>`** (and `-- --unmark`) is the correction path
+  only: a file that ran before its footer existed, or a row removed by
+  hand. It never runs the migration.
+
+"NNN ran" therefore has two proofs from 226 on: the reverse question
+(the objects are live) AND the ledger (the file is recorded). Both must
+agree; the diagnostics twin stays the grid for the human eye.
 
 ## ⚠️ Everything else is historical — do NOT run it
 
