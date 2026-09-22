@@ -2,9 +2,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth, getSupabaseAdmin } from '@/lib/auth-server';
 import { enforceRateLimit } from '@/lib/rate-limit';
 import { parseBody } from '@/lib/validation';
-import { GolfQuickstartSchema } from '@/lib/competitions/validate';
+import { GolfQuickstartSchema, SeasonQuickstartSchema } from '@/lib/competitions/validate';
 import { requireCompetitionManager } from '@/lib/orgs/competition-server';
 import { golfQuickstartPOST } from '@/lib/orgs/golf-quickstart-server';
+import { seasonQuickstartPOST } from '@/lib/orgs/season-quickstart-server';
 import { UUID_RE } from '@/lib/golf/course-catalog';
 import { reportRouteError } from '@/lib/observability/report';
 
@@ -32,6 +33,15 @@ export async function POST(
     const gate = await requireCompetitionManager(admin, user, 'league', id);
     if (!gate.ok) return gate.response;
 
+    // Round 4: `{ sport: '<team sport>' }` starts a team sport's season
+    // (season + league table + every team entered); no `sport` (or golf)
+    // stays the golf one-tap with its own body.
+    const raw = await request.clone().json().catch(() => null) as { sport?: unknown } | null;
+    if (raw && typeof raw.sport === 'string' && raw.sport !== 'golf') {
+      const parsedSeason = SeasonQuickstartSchema.safeParse(raw);
+      if (!parsedSeason.success) return NextResponse.json({ error: 'Invalid sport' }, { status: 400 });
+      return await seasonQuickstartPOST(admin, user.id, { side: 'league', orgId: id }, parsedSeason.data.sport);
+    }
     const parsed = await parseBody(request, GolfQuickstartSchema);
     if (!parsed.success) return parsed.response;
     return await golfQuickstartPOST(admin, user, { side: 'league', orgId: id }, parsed.data);
