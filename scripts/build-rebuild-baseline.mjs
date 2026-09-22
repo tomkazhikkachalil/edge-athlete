@@ -16,7 +16,7 @@
  * LOCAL only (the service key, like check:schema). Never in CI.
  *
  *   npm run build:baseline
- *   node scripts/build-rebuild-baseline.mjs --offline dumps/2026-09-21-schema.json   # no network; the self-check is skipped
+ *   node scripts/build-rebuild-baseline.mjs --offline dumps/2026-09-21-schema.json --catalog dumps/2026-09-21-catalog.json   # no network; the self-check is skipped
  *   node scripts/build-rebuild-baseline.mjs --out /tmp/x.sql
  */
 import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'fs';
@@ -89,11 +89,45 @@ async function fetchLive() {
   return liveFromOpenApi(await res.json());
 }
 
-const dump = offline ? JSON.parse(readFileSync(String(offline), 'utf8')) : await fetchDump();
+async function fetchCatalog() {
+  const { base, key } = credentials();
+  const res = await fetch(`${base}/rest/v1/rpc/provenance_inventory`, {
+    method: 'POST',
+    headers: { apikey: key, Authorization: `Bearer ${key}`, 'Content-Type': 'application/json', Accept: 'application/json' },
+    body: '{}',
+  });
+  if (!res.ok) {
+    console.error(`build-baseline: provenance_inventory answered ${res.status} — function grants fall back to the three roles' answers`);
+    return null;
+  }
+  return res.json();
+}
+
+/** 195's catalog carries proacl + owner per function; the dump does not. Merge by name(identity args). */
+function mergeAcl(dump, catalog) {
+  if (!catalog?.functions) return dump;
+  const byKey = new Map(catalog.functions.map(f => [`${f.name}(${f.identity_args ?? ''})`, f]));
+  let merged = 0;
+  for (const f of dump.functions ?? []) {
+    const c = byKey.get(`${f.name}(${f.identity_args ?? ''})`);
+    if (!c) continue;
+    f.acl = c.acl ?? null;
+    f.owner = c.owner ?? 'postgres';
+    merged++;
+  }
+  console.error(`build-baseline: proacl merged for ${merged} / ${dump.functions?.length ?? 0} functions`);
+  return dump;
+}
+
+const catalogPath = flag('--catalog');
+const dump = offline
+  ? mergeAcl(JSON.parse(readFileSync(String(offline), 'utf8')), catalogPath ? JSON.parse(readFileSync(String(catalogPath), 'utf8')) : null)
+  : mergeAcl(await fetchDump(), await fetchCatalog());
 
 if (!offline) {
-  let target = `database/provenance/dumps/${new Date().toISOString().slice(0, 10)}-schema.json`;
-  for (let n = 2; existsSync(target); n++) target = target.replace(/(?:-\d+)?-schema\.json$/, `-${n}-schema.json`);
+  const stem = `database/provenance/dumps/${new Date().toISOString().slice(0, 10)}`;
+  let target = `${stem}-schema.json`;
+  for (let n = 2; existsSync(target); n++) target = `${stem}-${n}-schema.json`;
   writeFileSync(target, JSON.stringify(dump, null, 1) + '\n');
   console.error(`build-baseline: dump saved to ${target}`);
 }

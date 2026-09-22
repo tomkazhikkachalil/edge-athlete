@@ -347,14 +347,22 @@ A new environment is built from the LIVE schema instead:
 3. **Prove it:** point `.env.local` at the new project; `npm run
    check:schema` must report 0 drift on every facet AND `Ledger OK`. That
    is the only proof the environment is built — never the result row.
-4. **By hand, after:** the pg_cron jobs (commented at the end of the file
-   — they need the NEW app URL and `CRON_SECRET`; the dump redacts the
-   token in the database, so a secret never enters the repo); storage
+4. **By hand, after:** the pg_cron jobs (not in the file — `cron.job` is not
+   readable by the service role; 059 and 135 are the two
+   — they need the NEW app URL and `CRON_SECRET`; staging has NONE by
+   decision: previews have no stable URL); storage
    OBJECTS and the golf catalog (28k courses — data, not schema; copy
    with a one-off script when the environment needs it); auth users.
 5. **From then on** the environment moves with the chain: run each new
    `NNN_*.sql` as it merges (the ledger records it), and `check:schema`
    against that environment stays the proof.
+
+**The runner for a non-production project** is `node scripts/staging-sql.mjs
+<file | -e "sql">`: Supabase's management API with a personal access token
+(`SUPABASE_ACCESS_TOKEN` + `STAGING_PROJECT_REF` in `.env.staging`,
+gitignored). It refuses the prod ref. Production's runner stays the SQL
+editor. **Proven Sep 21 2026** on the staging project: one run, ~5 s,
+re-runnable, `check:schema` clean, `schema_dump()` identical to prod's.
 
 `scripts/rebuild-baseline-core.mjs` is pure and pinned by
 `rebuild-baseline.test.ts` (the order, the column forms, the guards, the
