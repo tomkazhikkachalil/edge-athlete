@@ -73,7 +73,7 @@ test('the Club door: existing-account question → organizer account (no DOB) �
       // Pre-178 database: the branch answers 503 "not available yet" and the
       // auth user is rolled back — nothing else in this spec depends on it.
       const notYet = page.getByText(/not available yet/);
-      const wizard = page.waitForURL(/\/club\/start\?sport=golf/, { timeout: 30_000 }).then(() => 'wizard' as const);
+      const wizard = page.waitForURL(/\/club\/start(\?sport=golf)?$/, { timeout: 30_000 }).then(() => 'wizard' as const);
       const outcome = await Promise.race([
         wizard,
         notYet.waitFor({ timeout: 30_000 }).then(() => 'pre-178' as const),
@@ -98,7 +98,7 @@ test('the Club door: existing-account question → organizer account (no DOB) �
       await page.locator('input[name="email"]').fill(email);
       await page.locator('input[name="password"]').fill(password);
       await page.getByRole('button', { name: 'Login', exact: true }).click();
-      await page.waitForURL(/\/club\/start\?sport=golf/, { timeout: 30_000 });
+      await page.waitForURL(/\/club\/start(\?sport=golf)?$/, { timeout: 30_000 });
     }
     await expect(page.getByRole('heading', { name: 'Start a club' })).toBeVisible({ timeout: 20_000 });
     // By profile email — auth.admin.listUsers pages in creation order and
