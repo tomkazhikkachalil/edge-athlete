@@ -47,6 +47,9 @@ test('performance rollups: one stat line → one event, tiles and bests; a stran
 
     // The Stats tab on the owner's page.
     await page.goto(`/athlete/${alpha.id}?tab=stats&sport=ice_hockey`);
+    // The sport layer opens on a summary; the breakdown (and the rollups at
+    // its top) is behind "Full breakdown".
+    await page.getByRole('button', { name: 'Full breakdown' }).click();
     const section = page.locator('[data-rollups]');
     await expect(section).toBeVisible({ timeout: 20_000 });
     await expect(section.locator('[data-rollups-tile="Goals"]')).toContainText('2');
