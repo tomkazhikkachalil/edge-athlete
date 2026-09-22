@@ -1,5 +1,15 @@
 # Development Log
 
+## September 22, 2026 — Round 3 (the scale cliffs) PR 1: measure first — the staging seed and the route harness, and the BEFORE numbers (zero DDL)
+
+**What:** Round 3 promises a before/after number per cliff, so the first PR is the instrument. `scripts/staging-seed.mjs` (refuses prod; idempotent; `--wipe`) puts on staging what a 1k-user platform has for one popular athlete: a SUBJECT (`seedsubject`) with **500 followers**, following 300, **2 000 posts** (5 % the subject's, a fifth carrying stat lines), **~5 000 notifications** (likes, comments, follows, and 500 org announcements with the `{ org, announcement, site_notice }` metadata the `.contains()` readers scan), **400 `athlete_performances`** across two sports and two seasons. Free-tier lessons in the script: statement timeouts on cold bursts (retry with a breath), a create that lands after its response is lost (find by email), 50-row follow batches (the follow triggers are heavy). `scripts/measure-routes.mjs` signs in as the subject and times eight hot routes (p50 / p95 / max, warm-ups discarded) against a local staging-backed server or a preview.
+
+**The BEFORE, DB-side (`EXPLAIN (ANALYZE, BUFFERS)` through `staging-sql`, the honest metric — the wall-clock harness is dominated by free-tier noise: an untouched route swung 0.7 s → 42 s between runs):**
+- followers `COUNT(*)` for the subject: index-only scan, 500 rows, **12 ms** — linear in followers.
+- the org-announcement `notifications.metadata @>` read (every ISR rebuild of an org site): **Seq Scan, 1 585 ms** over 5 000 rows — the assessment called it an unindexed scan; at 100k notifications it is seconds per rebuild.
+- the following feed's post walk: 238 ms (an index scan over posts in time order with a semi-join on follows — it scales with post volume, not followers; the RPC is PR 4).
+- the public profile's statements anti-join: 189 ms.
+
 ## September 22, 2026 — Round 2: the close — staging is a real second environment, proven end to end (zero DDL; the regenerated baseline at head 228)
 
 **What closed it:** Tom ran 228 on prod (`228 APPLIED | 2 | true | 228`); `npm run build:baseline` regenerated `database/baseline/000_rebuild.sql` from the v2 dump — the API roles' table grants are in it now (63 tables grant `authenticated`; the posture-A tables — `tickets`, `schema_migrations`, … — grant the service role only, exactly as prod) — and the replay on staging restored them in one run. Then the proof, on the staging-backed Vercel preview: **`auth-login` (the real UI login), `feed-post`, `profile-orgs` — 3 / 3 green**; `check:schema` against staging — every facet OK + `Ledger OK` at head 228; `schema_dump()` on staging identical to prod's on tables, constraints, indexes, triggers, policies, publications, buckets and function grants.
