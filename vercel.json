@@ -76,8 +76,8 @@
   "git": {
     "deploymentEnabled": {
       "main": true,
-      "feat/**": false,
-      "fix/**": false,
+      "feat/**": true,
+      "fix/**": true,
       "chore/**": false,
       "docs/**": false
     }
