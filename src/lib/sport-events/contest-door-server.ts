@@ -21,6 +21,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { NextResponse } from 'next/server';
 import { revalidateOrgSiteForCompetition } from '@/lib/org-sites/revalidate';
 import { publicDisplayName, type MaskableProfile } from '@/lib/orgs/public-names';
+import { orgIdOf } from '@/lib/orgs/org-ref';
 import { EVENT_COLUMNS } from './access-server';
 import { LINK_REFUSAL_COPY, type LinkRefusal } from './contest-link';
 import { linkContestToRound, readSportEventMatchLink } from './contest-link-server';
@@ -55,9 +56,9 @@ type SideEntry = { id: string; team_id: string | null; profile_id: string | null
 const refuse = (reason: LinkRefusal, status: number) => NextResponse.json({ error: LINK_REFUSAL_COPY[reason], reason }, { status });
 
 /** A side's players: an athlete entry's one profile, an ad-hoc entry's members, or a team's team-scope roster under the org. */
-async function sideMembers(admin: Admin, entry: SideEntry, org: { col: 'league_id' | 'club_id'; id: string }): Promise<string[]> {
+async function sideMembers(admin: Admin, entry: SideEntry, orgId: string): Promise<string[]> {
   if (entry.profile_id) return [entry.profile_id];
-  if (entry.team_id) return teamRosterMembers(admin, org, entry.team_id);
+  if (entry.team_id) return teamRosterMembers(admin, orgId, entry.team_id);
   const { data } = await admin.from('competition_entry_members').select('profile_id, position').eq('entry_id', entry.id).order('position', { ascending: true });
   return [...new Set(((data ?? []) as Array<{ profile_id: string }>).map(r => r.profile_id))];
 }
@@ -75,8 +76,7 @@ export async function contestRunAsEventPOST(admin: Admin, input: ContestRunAsEve
   type CompLite = { id: string; name: string; league_id: string | null; club_id: string | null; sport_key: string; format: string; entrant_type: string; status: string };
   const compRaw = contestRow?.competition as CompLite | CompLite[] | null | undefined;
   const comp = Array.isArray(compRaw) ? compRaw[0] : compRaw;
-  const orgCol = scope.side === 'league' ? 'league_id' : 'club_id';
-  if (!contestRow || !comp || comp.id !== input.competitionId || comp[orgCol] !== scope.orgId) return NextResponse.json({ error: 'Game not found' }, { status: 404 });
+  if (!contestRow || !comp || comp.id !== input.competitionId || orgIdOf(comp) !== scope.orgId) return NextResponse.json({ error: 'Game not found' }, { status: 404 });
   // The kind: a fixture of sides in a stat-line sport is a GAME; a golf bracket contest is a MATCH; anything else has no event.
   const kind: 'game' | 'match' | null =
     comp.format === 'fixture' && (comp.entrant_type === 'ad_hoc_team' || comp.entrant_type === 'team') && comp.sport_key !== 'golf' ? 'game'
@@ -97,8 +97,7 @@ export async function contestRunAsEventPOST(admin: Admin, input: ContestRunAsEve
   const home = sideOf('home');
   const away = sideOf('away');
   if (!home || !away || (parts ?? []).length !== 2) return refuse('not_two_sided', 400);
-  const org = { col: orgCol, id: scope.orgId } as const;
-  const [homeMembers, awayMembers] = await Promise.all([sideMembers(admin, home, org), sideMembers(admin, away, org)]);
+  const [homeMembers, awayMembers] = await Promise.all([sideMembers(admin, home, scope.orgId), sideMembers(admin, away, scope.orgId)]);
   const [homeOnly] = splitSides(homeMembers, awayMembers);
   // A match's sides: one a side (singles) or two (four-ball) — never uneven.
   let matchSides: 'singles' | 'fourball' | null = null;

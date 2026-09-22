@@ -11,6 +11,7 @@
 import type { PostgrestError, SupabaseClient } from '@supabase/supabase-js';
 import { generateInviteToken, hashInviteToken } from '@/lib/guardian-invites';
 import type { OrgSide } from './authz';
+import { ORG_TABLE, orgIdOf, orgKindOf, pairFor } from './org-ref';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- matches the authz.ts Admin alias; schema-agnostic helper
 type Admin = SupabaseClient<any, 'public', any>;
@@ -38,7 +39,7 @@ export async function createOrgClaimInvite(
     .from('org_claim_invites')
     .insert({
       token_hash: hashInviteToken(rawToken),
-      [input.side === 'league' ? 'league_id' : 'club_id']: input.orgId,
+      ...pairFor(input),
       invited_email: input.invitedEmail,
       created_by: input.createdBy,
       expires_at: expiresAt,
@@ -65,10 +66,10 @@ export async function peekOrgClaimInvite(
   if (!invite || invite.consumed_at || new Date(invite.expires_at as string) <= new Date()) {
     return null;
   }
-  const side: OrgSide = invite.league_id ? 'league' : 'club';
-  const orgId = (invite.league_id ?? invite.club_id) as string;
+  const side: OrgSide = orgKindOf(invite) ?? 'club';
+  const orgId = orgIdOf(invite) as string;
   const { data: org } = await admin
-    .from(side === 'league' ? 'leagues' : 'clubs')
+    .from(ORG_TABLE[side])
     .select('id, name, city, region, country, owner_profile_id' + (side === 'league' ? ', sport_key' : ''))
     .eq('id', orgId)
     .maybeSingle();
@@ -97,8 +98,8 @@ export async function redeemOrgClaimInvite(
   const row = data?.[0];
   if (!row) return null;
   return {
-    side: row.league_id ? 'league' : 'club',
-    orgId: (row.league_id ?? row.club_id) as string,
+    side: orgKindOf(row) ?? 'club',
+    orgId: orgIdOf(row) as string,
   };
 }
 

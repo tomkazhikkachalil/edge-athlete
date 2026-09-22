@@ -6,6 +6,7 @@ import { useDirtyClose } from '@/hooks/useDirtyClose';
 import { COPY } from '@/lib/copy';
 import { ORG_SECTIONS, type OrgSection } from '@/lib/orgs/authz';
 import { SECTION_LABELS } from '@/lib/orgs/staff-validate';
+import { ORG_ROUTE_FAMILY } from '@/lib/orgs/org-ref';
 
 // ── Invite someone to manage sections (org staff program, round 5) ───────────
 // Opened from any node of the Hierarchy section with that node as the
@@ -34,7 +35,7 @@ interface Props {
 }
 
 export default function StaffInviteModal({ side, orgId, seasons, scopeOptions, initialScope, onClose, onInvited }: Props) {
-  const plural = side === 'league' ? 'leagues' : 'clubs';
+  const plural = ORG_ROUTE_FAMILY[side];
   const [email, setEmail] = useState('');
   const [admin, setAdmin] = useState(false);
   const [sections, setSections] = useState<OrgSection[]>([]);

@@ -24,6 +24,7 @@ import {
   type OrgIntent,
   type OrgSide,
 } from './authz';
+import { ORG_ID, ORG_TABLE, orgIdOf, pairFor } from './org-ref';
 import { refreshLeagueSportCache } from './sports';
 import {
   isMissingTableError,
@@ -45,10 +46,6 @@ export interface StructureScope {
 }
 
 const TAG = '[ORG STRUCTURE]';
-
-function orgColumn(side: OrgSide): 'league_id' | 'club_id' {
-  return side === 'league' ? 'league_id' : 'club_id';
-}
 
 /** The manager gate for the twin routes (admin routes keep requireAdmin).
  *  Default intent 'manage_org' — owner | manager | admin, exactly the
@@ -100,12 +97,10 @@ export async function structureAggregateGET(
   scope: StructureScope,
   opts?: { includeCounts?: boolean }
 ): Promise<NextResponse> {
-  const col = orgColumn(scope.side);
-
   const { data: seasons, error } = await admin
     .from('seasons')
     .select('id, label, starts_on, ends_on, sport_key, created_at')
-    .eq(col, scope.orgId)
+    .eq(ORG_ID, scope.orgId)
     .order('created_at', { ascending: false });
   if (error) {
     if (isMissingTableError(error.code)) return NextResponse.json({ seasons: [], teams: [] });
@@ -129,7 +124,7 @@ export async function structureAggregateGET(
     admin
       .from('teams')
       .select('id, name, display_name, status, created_at')
-      .eq(col, scope.orgId)
+      .eq(ORG_ID, scope.orgId)
       .order('name', { ascending: true }),
   ]);
 
@@ -156,7 +151,7 @@ export async function structureAggregateGET(
       admin
         .from('memberships')
         .select('id', { count: 'exact', head: true })
-        .eq(col, scope.orgId)
+        .eq(ORG_ID, scope.orgId)
         .eq('scope_type', 'org')
         // Org staff program: admins count as managers on the checklist.
         .in('kind', ['follow', 'staff'])
@@ -164,7 +159,7 @@ export async function structureAggregateGET(
       admin
         .from('memberships')
         .select('id', { count: 'exact', head: true })
-        .eq(col, scope.orgId)
+        .eq(ORG_ID, scope.orgId)
         .eq('kind', 'roster')
         // Phase 5 R1 fix: org-scope pin (a placed athlete used to count
         // twice via their team row) + "on the roster" semantics under the
@@ -195,7 +190,7 @@ export async function seasonCreatePOST(
   input: SeasonCreateInput
 ): Promise<NextResponse> {
   const { data: org } = await admin
-    .from(scope.side === 'league' ? 'leagues' : 'clubs')
+    .from(ORG_TABLE[scope.side])
     .select('id')
     .eq('id', scope.orgId)
     .maybeSingle();
@@ -209,7 +204,7 @@ export async function seasonCreatePOST(
   const { data: season, error } = await admin
     .from('seasons')
     .insert({
-      [orgColumn(scope.side)]: scope.orgId,
+      ...pairFor(scope),
       label: input.label,
       starts_on: input.startsOn ?? null,
       ends_on: input.endsOn ?? null,
@@ -233,7 +228,7 @@ export async function seasonDELETE(
   scope: StructureScope | null
 ): Promise<NextResponse> {
   let query = admin.from('seasons').delete().eq('id', seasonId);
-  if (scope) query = query.eq(orgColumn(scope.side), scope.orgId);
+  if (scope) query = query.eq(ORG_ID, scope.orgId);
   const { data: deleted, error } = await query.select('id, league_id');
   if (error) {
     console.error(`${TAG} season delete error:`, error);
@@ -264,7 +259,7 @@ export async function divisionCreatePOST(
     .eq('id', input.seasonId)
     .maybeSingle();
   // A foreign org's season is indistinguishable from a missing one.
-  if (!season || (scope && season[orgColumn(scope.side)] !== scope.orgId)) {
+  if (!season || (scope && orgIdOf(season) !== scope.orgId)) {
     return NextResponse.json({ error: 'Season not found' }, { status: 404 });
   }
 
@@ -307,7 +302,7 @@ export async function divisionDELETE(
   scope: StructureScope | null
 ): Promise<NextResponse> {
   let query = admin.from('divisions').delete().eq('id', divisionId);
-  if (scope) query = query.eq(orgColumn(scope.side), scope.orgId);
+  if (scope) query = query.eq(ORG_ID, scope.orgId);
   const { data: deleted, error } = await query.select('id, league_id');
   if (error) {
     console.error(`${TAG} division delete error:`, error);
@@ -338,7 +333,7 @@ export async function programCreatePOST(
     .select('id, league_id, club_id')
     .eq('id', input.seasonId)
     .maybeSingle();
-  if (!season || (scope && season[orgColumn(scope.side)] !== scope.orgId)) {
+  if (!season || (scope && orgIdOf(season) !== scope.orgId)) {
     return NextResponse.json({ error: 'Season not found' }, { status: 404 });
   }
 
@@ -391,7 +386,7 @@ export async function programDELETE(
       | { league_id: string | null; club_id: string | null }
       | null
       | undefined;
-    if (!row || !season || season[orgColumn(scope.side)] !== scope.orgId) {
+    if (!row || !season || orgIdOf(season) !== scope.orgId) {
       return NextResponse.json({ error: 'Program not found' }, { status: 404 });
     }
   }
@@ -418,7 +413,7 @@ export async function teamCreatePOST(
   input: TeamCreateInput
 ): Promise<NextResponse> {
   const { data: org } = await admin
-    .from(scope.side === 'league' ? 'leagues' : 'clubs')
+    .from(ORG_TABLE[scope.side])
     .select('id')
     .eq('id', scope.orgId)
     .maybeSingle();
@@ -432,7 +427,7 @@ export async function teamCreatePOST(
   const { data: team, error } = await admin
     .from('teams')
     .insert({
-      [orgColumn(scope.side)]: scope.orgId,
+      ...pairFor(scope),
       name: input.name,
       display_name: input.displayName ?? null,
     })
@@ -454,7 +449,7 @@ export async function teamPATCH(
   scope: StructureScope | null
 ): Promise<NextResponse> {
   let query = admin.from('teams').update({ status: input.status }).eq('id', input.id);
-  if (scope) query = query.eq(orgColumn(scope.side), scope.orgId);
+  if (scope) query = query.eq(ORG_ID, scope.orgId);
   const { data: updated, error } = await query.select('id');
   if (error) {
     console.error(`${TAG} team patch error:`, error);
@@ -472,7 +467,7 @@ export async function teamDELETE(
   scope: StructureScope | null
 ): Promise<NextResponse> {
   let query = admin.from('teams').delete().eq('id', teamId);
-  if (scope) query = query.eq(orgColumn(scope.side), scope.orgId);
+  if (scope) query = query.eq(ORG_ID, scope.orgId);
   const { data: deleted, error } = await query.select('id');
   if (error) {
     console.error(`${TAG} team delete error:`, error);
@@ -497,11 +492,11 @@ export async function entryCreatePOST(
   ]);
   // Scoped: a foreign org's rows are indistinguishable from missing ones.
   const team =
-    teamRes.data && (!scope || teamRes.data[orgColumn(scope.side)] === scope.orgId)
+    teamRes.data && (!scope || orgIdOf(teamRes.data) === scope.orgId)
       ? teamRes.data
       : null;
   const division =
-    divisionRes.data && (!scope || divisionRes.data[orgColumn(scope.side)] === scope.orgId)
+    divisionRes.data && (!scope || orgIdOf(divisionRes.data) === scope.orgId)
       ? divisionRes.data
       : null;
   if (!team) return NextResponse.json({ error: 'Team not found' }, { status: 404 });
@@ -554,7 +549,7 @@ export async function entryDELETE(
       | null
       | undefined;
     const divisionRow = Array.isArray(division) ? division[0] : division;
-    if (!row || !divisionRow || divisionRow[orgColumn(scope.side)] !== scope.orgId) {
+    if (!row || !divisionRow || orgIdOf(divisionRow) !== scope.orgId) {
       return NextResponse.json({ error: 'Entry not found' }, { status: 404 });
     }
   }

@@ -7,6 +7,7 @@ import { loadSnapshotByRevisionId } from '@/lib/org-sites/revisions-server';
 import { parseStoredLayout } from '@/lib/site-builder/layout-schema';
 import { orderedPages } from '@/lib/site-builder/pages';
 import { siteBasePath } from '@/lib/org-sites/urls';
+import { ORG_ID, ORG_TABLE, orgIdOf, type OrgKind } from '@/lib/orgs/org-ref';
 import { emailService } from '@/lib/email-service';
 import { UUID_RE } from '@/lib/golf/course-catalog';
 import { reportRouteError } from '@/lib/observability/report';
@@ -116,12 +117,11 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   // when SMTP is configured. The notification carries a summary — never the
   // message body — and a door to the console's inbox.
   try {
-    const side = site.league_id ? 'league' : 'club';
-    const orgId = (site.league_id ?? site.club_id) as string;
-    const col = side === 'league' ? 'league_id' : 'club_id';
+    const side: OrgKind = site.league_id ? 'league' : 'club';
+    const orgId = orgIdOf(site) as string;
     const [{ data: org }, { data: members }] = await Promise.all([
-      admin.from(side === 'league' ? 'leagues' : 'clubs').select('id, name, owner_profile_id').eq('id', orgId).maybeSingle(),
-      admin.from('memberships').select('profile_id, role').eq(col, orgId).in('role', ['owner', 'manager', 'admin']),
+      admin.from(ORG_TABLE[side]).select('id, name, owner_profile_id').eq('id', orgId).maybeSingle(),
+      admin.from('memberships').select('profile_id, role').eq(ORG_ID, orgId).in('role', ['owner', 'manager', 'admin']),
     ]);
     const ownerId = (org as { owner_profile_id?: string | null } | null)?.owner_profile_id ?? null;
     const recipients = new Set<string>([...(ownerId ? [ownerId] : []), ...((members ?? []) as { profile_id: string }[]).map(m => m.profile_id)]);

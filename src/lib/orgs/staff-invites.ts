@@ -14,6 +14,7 @@
 import type { PostgrestError, SupabaseClient } from '@supabase/supabase-js';
 import { generateInviteToken, hashInviteToken } from '@/lib/guardian-invites';
 import type { OrgSection, OrgSide } from './authz';
+import { ORG_ID, ORG_TABLE, orgIdOf, orgKindOf, pairFor } from './org-ref';
 import { mergeSections, normalizeSections, type StaffGrantInput } from './staff-validate';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- matches the authz.ts Admin alias; schema-agnostic helper
@@ -21,10 +22,6 @@ type Admin = SupabaseClient<any, 'public', any>;
 
 export const STAFF_INVITE_EXPIRY_DAYS = 30;
 const TAG = '[ORG STAFF]';
-
-function orgColumn(side: OrgSide): 'league_id' | 'club_id' {
-  return side === 'league' ? 'league_id' : 'club_id';
-}
 
 export interface StaffGrant {
   role: 'admin' | 'staff';
@@ -55,7 +52,7 @@ export async function createStaffInvite(
     .from('org_staff_invites')
     .insert({
       token_hash: hashInviteToken(rawToken),
-      [orgColumn(input.side)]: input.orgId,
+      ...pairFor(input),
       invited_email: input.invitedEmail.toLowerCase(),
       role: input.grant.role,
       sections: input.grant.sections,
@@ -99,10 +96,10 @@ export async function peekStaffInvite(admin: Admin, rawToken: string): Promise<P
   if (!invite || invite.consumed_at || invite.revoked_at || new Date(invite.expires_at as string) <= new Date()) {
     return null;
   }
-  const side: OrgSide = invite.league_id ? 'league' : 'club';
-  const orgId = (invite.league_id ?? invite.club_id) as string;
+  const side: OrgSide = orgKindOf(invite) ?? 'club';
+  const orgId = orgIdOf(invite) as string;
   const { data: org } = await admin
-    .from(side === 'league' ? 'leagues' : 'clubs')
+    .from(ORG_TABLE[side])
     .select('id, name')
     .eq('id', orgId)
     .maybeSingle();
@@ -180,7 +177,7 @@ export async function listStaffInvites(admin: Admin, side: OrgSide, orgId: strin
   const { data, error } = await admin
     .from('org_staff_invites')
     .select('id, invited_email, role, sections, scope_type, scope_id, season_id, created_at, expires_at')
-    .eq(orgColumn(side), orgId)
+    .eq(ORG_ID, orgId)
     .is('consumed_at', null)
     .is('revoked_at', null)
     .gt('expires_at', new Date().toISOString())
@@ -206,7 +203,7 @@ export async function revokeStaffInvite(admin: Admin, side: OrgSide, orgId: stri
     .from('org_staff_invites')
     .update({ revoked_at: new Date().toISOString() })
     .eq('id', inviteId)
-    .eq(orgColumn(side), orgId)
+    .eq(ORG_ID, orgId)
     .is('consumed_at', null)
     .is('revoked_at', null)
     .select('id');
@@ -230,11 +227,10 @@ export async function grantStaffRow(
   admin: Admin,
   input: { side: OrgSide; orgId: string; profileId: string; grant: StaffGrant; grantedBy: string }
 ): Promise<GrantResult | null> {
-  const col = orgColumn(input.side);
   let q = admin
     .from('memberships')
     .select('id, role, sections')
-    .eq(col, input.orgId)
+    .eq(ORG_ID, input.orgId)
     .eq('profile_id', input.profileId)
     .eq('kind', 'staff')
     .eq('scope_type', input.grant.scopeType);
@@ -269,7 +265,7 @@ export async function grantStaffRow(
   const { data, error } = await admin
     .from('memberships')
     .insert({
-      [col]: input.orgId,
+      ...pairFor(input),
       profile_id: input.profileId,
       kind: 'staff',
       role: input.grant.role,
@@ -308,7 +304,7 @@ export async function writeStaffAudit(
   }
 ): Promise<void> {
   const { error } = await admin.from('org_staff_audit').insert({
-    [orgColumn(entry.side)]: entry.orgId,
+    ...pairFor(entry),
     profile_id: entry.profileId,
     actor_id: entry.actorId,
     action: entry.action,

@@ -5,6 +5,7 @@ import Link from 'next/link';
 import StaffInviteModal, { type InviteScopeOption } from './StaffInviteModal';
 import { buildHierarchy, defaultOpenSeasonId, type HierarchyPerson, type HierarchySeasonInput, type HierarchyTeamInput } from '@/lib/orgs/hierarchy';
 import { SECTION_LABELS } from '@/lib/orgs/staff-validate';
+import { ORG_ROUTE_FAMILY } from '@/lib/orgs/org-ref';
 
 // ── Hierarchy & people (org staff program, round 5) ─────────────────────────
 // The org as a tree — org → seasons → divisions → entered teams (+ teams
@@ -95,7 +96,7 @@ function InviteButton({ scope, isOwner, onOpen }: { scope: InviteScopeOption | n
 }
 
 export default function HierarchySection({ side, orgId, seasons, teams, isOwner, onError }: Props) {
-  const plural = side === 'league' ? 'leagues' : 'clubs';
+  const plural = ORG_ROUTE_FAMILY[side];
   const [people, setPeople] = useState<HierarchyPerson[]>([]);
   const [invites, setInvites] = useState<OpenInvite[]>([]);
   const [clubs, setClubs] = useState<AffiliatedClub[]>([]);

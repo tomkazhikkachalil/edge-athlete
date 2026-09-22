@@ -11,6 +11,7 @@ import { fetchActivityOverlay } from '@/lib/calendar/activity-overlay';
 import { fetchSportEventOverlay } from '@/lib/calendar/sport-event-overlay-server';
 import { fetchOrgEventsForViewer } from '@/lib/calendar/org-merge-server';
 import { hasEventScope, resolveEventScope } from '@/lib/calendar/event-scope';
+import { ORG_TABLE } from '@/lib/orgs/org-ref';
 import { enforceRateLimit } from '@/lib/rate-limit';
 import { checkSupervisedInviteGate } from '@/lib/calendar/supervised-invites';
 import type { ServerRoutineRow } from '@/lib/workouts/routines';
@@ -157,7 +158,7 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'Organization not found' }, { status: 404 });
       }
       const { data: org } = await admin0
-        .from(scope.side === 'league' ? 'leagues' : 'clubs')
+        .from(ORG_TABLE[scope.side])
         .select('id, owner_profile_id, name')
         .eq('id', scope.orgId)
         .maybeSingle();

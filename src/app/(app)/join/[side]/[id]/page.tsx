@@ -7,6 +7,7 @@ import { useAuth } from '@/lib/auth';
 import AppHeader from '@/components/AppHeader';
 import { useToast } from '@/components/Toast';
 import { UUID_RE } from '@/lib/golf/course-catalog';
+import { ORG_ROUTE_FAMILY, isOrgKind, type OrgKind } from '@/lib/orgs/org-ref';
 
 // ── /join/[side]/[id] — the join door (phase 9 V3; leagues in program 11) ───
 // Where an org's PUBLIC site sends a person who taps "Join". Signed-out →
@@ -17,8 +18,6 @@ import { UUID_RE } from '@/lib/golf/course-catalog';
 // ("a manager will approve it"). A member sees "You're in". `/join/club/
 // {id}` is the phase-9 URL published sites already link to — unchanged.
 // Check initialAuthCheckComplete before !user (the house rule).
-
-type Side = 'club' | 'league';
 
 interface OrgView {
   club?: { id: string; name: string; city: string | null; region: string | null };
@@ -33,9 +32,9 @@ interface OrgView {
 export default function JoinOrgPage() {
   const params = useParams();
   const rawSide = String(params.side ?? '');
-  const side: Side | null = rawSide === 'club' || rawSide === 'league' ? rawSide : null;
+  const side: OrgKind | null = isOrgKind(rawSide) ? rawSide : null;
   const orgId = String(params.id ?? '');
-  const plural = side === 'league' ? 'leagues' : 'clubs';
+  const plural = ORG_ROUTE_FAMILY[side ?? 'club'];
   const { user, profile, initialAuthCheckComplete } = useAuth();
   // R3: "Count my rounds in this club's leagues" — the roster opt-in rides
   // the join. Default on for adults; a supervised athlete's guardian is asked.

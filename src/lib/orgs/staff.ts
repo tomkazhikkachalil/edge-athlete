@@ -6,15 +6,12 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { OrgSide } from './authz';
+import { ORG_ID } from './org-ref';
 import { normalizeSections } from './staff-validate';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- matches the authz.ts Admin alias; schema-agnostic helper
 type Admin = SupabaseClient<any, 'public', any>;
 const TAG = '[ORG STAFF]';
-
-function orgColumn(side: OrgSide): 'league_id' | 'club_id' {
-  return side === 'league' ? 'league_id' : 'club_id';
-}
 
 export interface StaffPerson {
   rowId: string;
@@ -34,12 +31,11 @@ export interface StaffPerson {
 /** Everyone with authority in the org: ladder rows (owner/manager) and live
  *  staff rows. 42703-safe: a pre-178 database answers the ladder alone. */
 export async function listStaff(admin: Admin, side: OrgSide, orgId: string): Promise<StaffPerson[]> {
-  const col = orgColumn(side);
   let rows: Record<string, unknown>[] = [];
   const full = await admin
     .from('memberships')
     .select('id, profile_id, kind, role, sections, scope_type, scope_id, season_id, granted_at, expires_at')
-    .eq(col, orgId)
+    .eq(ORG_ID, orgId)
     .in('kind', ['follow', 'staff'])
     .in('role', ['owner', 'manager', 'admin', 'staff'])
     .limit(500);
@@ -47,7 +43,7 @@ export async function listStaff(admin: Admin, side: OrgSide, orgId: string): Pro
     const ladder = await admin
       .from('memberships')
       .select('id, profile_id, kind, role, scope_type, scope_id, season_id')
-      .eq(col, orgId)
+      .eq(ORG_ID, orgId)
       .eq('kind', 'follow')
       .in('role', ['owner', 'manager'])
       .limit(500);
@@ -103,7 +99,7 @@ export async function readStaffRow(
     .from('memberships')
     .select('id, profile_id, role, sections, scope_type, scope_id, season_id')
     .eq('id', rowId)
-    .eq(orgColumn(side), orgId)
+    .eq(ORG_ID, orgId)
     .eq('kind', 'staff')
     .maybeSingle();
   if (!data) return null;

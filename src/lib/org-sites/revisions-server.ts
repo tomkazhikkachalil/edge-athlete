@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { revalidateTag } from 'next/cache';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { isMissingTableError } from '@/lib/leagues/validate';
+import { ORG_ID, type OrgKind } from '@/lib/orgs/org-ref';
 import {
   applySiteAction,
   diffModuleRows,
@@ -48,7 +49,6 @@ import { parsePublishStats, publishStats, type PublishStats } from '@/lib/site-b
  */
 
 type Admin = SupabaseClient;
-type OrgSide = 'league' | 'club';
 const TAG = '[ORG SITE REVISIONS]';
 
 export type RevisionSupport = 'supported' | 'pre180';
@@ -101,7 +101,6 @@ export interface DraftSummary {
   hasUnpublishedChanges: boolean;
 }
 
-const orgColumn = (side: OrgSide) => (side === 'league' ? 'league_id' : 'club_id');
 const isPre180 = (error: { code?: string } | null | undefined): boolean =>
   error?.code === '42703' || error?.code === 'PGRST204' || isMissingTableError(error?.code);
 const PRE_180 = () =>
@@ -113,20 +112,20 @@ const REVISION_FIELDS = 'id, site_id, snapshot, rev, label, created_by, created_
 /** The site with its two pointers — or, pre-180, the site without them. */
 export async function loadSitePointers(
   admin: Admin,
-  side: OrgSide,
+  side: OrgKind,
   orgId: string
 ): Promise<{ site: SitePointers | null; support: RevisionSupport }> {
   const { data, error } = await admin
     .from('org_sites')
     .select('id, subdomain, published_at, created_at, draft_revision_id, published_revision_id')
-    .eq(orgColumn(side), orgId)
+    .eq(ORG_ID, orgId)
     .maybeSingle();
   if (!error) return { site: (data as SitePointers | null) ?? null, support: 'supported' };
   if (isPre180(error)) {
     const { data: base } = await admin
       .from('org_sites')
       .select('id, subdomain, published_at, created_at')
-      .eq(orgColumn(side), orgId)
+      .eq(ORG_ID, orgId)
       .maybeSingle();
     const row = base as { id: string; subdomain: string; published_at: string | null; created_at: string | null } | null;
     return {
@@ -430,7 +429,7 @@ export interface ApplyDraftResult {
  *  the live rows (today's behaviour, one code path) before. */
 export async function applyDraftAction(
   admin: Admin,
-  side: OrgSide,
+  side: OrgKind,
   orgId: string,
   userId: string | null,
   action: SnapshotAction,
@@ -489,7 +488,7 @@ export type WriteLayoutResult =
  *  the draft, on publish. */
 export async function writeDraftLayout(
   admin: Admin,
-  side: OrgSide,
+  side: OrgKind,
   orgId: string,
   userId: string | null,
   layout: unknown,
@@ -672,7 +671,7 @@ export async function labelRevision(admin: Admin, site: SitePointers, revisionId
 
 const REVISION_LIST_MAX = 50;
 
-export async function revisionsGET(admin: Admin, side: OrgSide, orgId: string): Promise<NextResponse> {
+export async function revisionsGET(admin: Admin, side: OrgKind, orgId: string): Promise<NextResponse> {
   const { site, support } = await loadSitePointers(admin, side, orgId);
   if (!site) return NextResponse.json({ error: 'Site not found' }, { status: 404 });
   if (support === 'pre180') {
@@ -722,7 +721,7 @@ export async function revisionsGET(admin: Admin, side: OrgSide, orgId: string): 
 
 export async function revisionsPOST(
   admin: Admin,
-  side: OrgSide,
+  side: OrgKind,
   orgId: string,
   userId: string,
   input: RevisionActionInput

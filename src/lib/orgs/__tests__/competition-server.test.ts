@@ -198,7 +198,7 @@ describe('competitionPATCH scope pinning', () => {
     expect(calls[0]).toMatchObject({
       table: 'competitions',
       op: 'update',
-      filters: { id: 'c1', league_id: 'org-1' },
+      filters: { id: 'c1', org_id: 'org-1' },
     });
   });
 });
@@ -274,7 +274,7 @@ describe('entryAddPOST', () => {
     expect(res.status).toBe(200);
     const rosterRead = rostered.calls.find(c => c.table === 'memberships');
     expect(rosterRead?.filters).toMatchObject({
-      league_id: 'org-1',
+      org_id: 'org-1',
       profile_id: 'p1',
       kind: 'roster',
       // Phase 5 R1 fix: org-scope pin + full-membership statuses.

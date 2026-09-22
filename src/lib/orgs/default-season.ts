@@ -9,6 +9,7 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { OrgSide } from './listing';
+import { ORG_ID, pairFor } from './org-ref';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- the notify.ts Admin alias; schema-agnostic
 type Admin = SupabaseClient<any, 'public', any>;
@@ -24,16 +25,15 @@ export async function ensureDefaultSeason(
   sportKey: string | null,
   today: Date = new Date()
 ): Promise<{ seasonId: string; label: string; created: boolean } | { error: string }> {
-  const col = scope.side === 'league' ? 'league_id' : 'club_id';
   const label = defaultSeasonLabel(today);
   const find = () =>
-    admin.from('seasons').select('id').eq(col, scope.orgId).eq('label', label).maybeSingle();
+    admin.from('seasons').select('id').eq(ORG_ID, scope.orgId).eq('label', label).maybeSingle();
   const existing = await find();
   if (existing.error) return { error: existing.error.message };
   if (existing.data) return { seasonId: existing.data.id as string, label, created: false };
   const { data: inserted, error } = await admin
     .from('seasons')
-    .insert({ [col]: scope.orgId, label, starts_on: null, ends_on: null, sport_key: sportKey })
+    .insert({ ...pairFor(scope), label, starts_on: null, ends_on: null, sport_key: sportKey })
     .select('id')
     .single();
   if (!error && inserted) return { seasonId: inserted.id as string, label, created: true };

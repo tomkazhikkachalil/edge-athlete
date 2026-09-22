@@ -14,6 +14,7 @@ import { FEATURE_FLAGS } from '@/lib/features';
 import { SPORT_REGISTRY } from '@/lib/sports/SportRegistry';
 import { courseDisplayName } from '@/lib/golf/tees';
 import { normalizeWebsiteInput } from '@/lib/orgs/wizard-validate';
+import { ORG_ROUTE_FAMILY, otherKind } from '@/lib/orgs/org-ref';
 import type { GolfCourse } from '@/types/golf';
 import { STRUCTURE_TEMPLATES, defaultSeasonLabel } from '@/lib/orgs/structure-templates';
 import {
@@ -307,7 +308,7 @@ export default function OrgStartWizard({
         ...(homeCourse ? { homeCourseId: homeCourse.id } : {}),
         ...(Object.keys(contact).length > 0 ? { contact } : {}),
       };
-      const response = await fetch(`/api/${side === 'league' ? 'leagues' : 'clubs'}/requests`, {
+      const response = await fetch(`/api/${ORG_ROUTE_FAMILY[side]}/requests`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -457,7 +458,7 @@ export default function OrgStartWizard({
                 <input type="radio" name="wiz-listing" value="pending" checked={listing === 'pending'} onChange={() => setListing('pending')} className="mt-1" />
                 <span className="text-sm text-primary">
                   In the directory
-                  <span className="block text-xs text-muted">Listed in /{side === 'league' ? 'leagues' : 'clubs'} and search once an Edge Athlete admin reviews it.</span>
+                  <span className="block text-xs text-muted">Listed in /{ORG_ROUTE_FAMILY[side]} and search once an Edge Athlete admin reviews it.</span>
                 </span>
               </label>
               <label className="flex items-start gap-2 py-1">
@@ -856,7 +857,7 @@ export default function OrgStartWizard({
             </p>
           </div>
           <ConnectionsPicker
-            searchType={side === 'league' ? 'clubs' : 'leagues'}
+            searchType={ORG_ROUTE_FAMILY[otherKind(side)]}
             stubNeedsSport={side === 'club'}
             existing={connections.existing}
             stubs={connections.stubs}

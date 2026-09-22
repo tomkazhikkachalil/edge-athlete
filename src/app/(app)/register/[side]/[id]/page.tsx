@@ -7,6 +7,7 @@ import { useAuth } from '@/lib/auth';
 import AppHeader from '@/components/AppHeader';
 import RegistrationWizard from '@/components/orgs/RegistrationWizard';
 import { FEATURE_FLAGS } from '@/lib/features';
+import { ORG_ROUTE_FAMILY, isOrgKind } from '@/lib/orgs/org-ref';
 
 // ── /register/[side]/[id] — the family registration wizard (phase 5 R3) ─────
 // Flag-gated SURFACE (the POST route 404s independently when off). A
@@ -17,8 +18,8 @@ export default function RegisterPage() {
   const params = useParams();
   const side = params.side as string;
   const orgId = params.id as string;
-  const validSide = side === 'league' || side === 'club';
-  const plural = side === 'league' ? 'leagues' : 'clubs';
+  const validSide = isOrgKind(side);
+  const plural = ORG_ROUTE_FAMILY[validSide ? side : 'club'];
 
   const { user, initialAuthCheckComplete } = useAuth();
   const [orgName, setOrgName] = useState<string | null>(null);

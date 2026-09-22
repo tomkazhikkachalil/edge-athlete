@@ -23,6 +23,7 @@ import { formatMark, meetEntryAdmitted, meetEventFor, placeEvent } from '@/lib/c
 import { resolveCompetitionProfile } from '@/lib/sports/competition-profiles';
 import { groupRowsByPool, type PoolGroup } from '@/lib/competitions/pools';
 import { listTimeZones, viewerTimeZone } from '@/lib/calendar/venue-time';
+import { ORG_ROUTE_FAMILY, isOrgKind } from '@/lib/orgs/org-ref';
 
 // ── The competition detail console (phase 2 R2) ─────────────────────────────
 // The org-console template one level deeper: schedule (contests) + score
@@ -128,8 +129,8 @@ export default function CompetitionDetailPage() {
   const side = params.side as string;
   const orgId = params.id as string;
   const competitionId = params.competitionId as string;
-  const validSide = side === 'league' || side === 'club';
-  const plural = side === 'league' ? 'leagues' : 'clubs';
+  const validSide = isOrgKind(side);
+  const plural = ORG_ROUTE_FAMILY[validSide ? side : 'club'];
 
   const { user, initialAuthCheckComplete } = useAuth();
   const { showSuccess, showError } = useToast();

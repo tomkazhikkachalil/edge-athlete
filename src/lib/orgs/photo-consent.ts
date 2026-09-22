@@ -10,6 +10,7 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { OrgSide } from './authz';
+import { ORG_ID } from './org-ref';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- matches the authz.ts Admin alias; schema-agnostic helper
 type Admin = SupabaseClient<any, 'public', any>;
@@ -17,10 +18,6 @@ type Admin = SupabaseClient<any, 'public', any>;
 /** Postgres 42703 = column does not exist — the pre-159 database. */
 function isMissingColumnError(code: string | null | undefined): boolean {
   return code === '42703';
-}
-
-function orgColumn(side: OrgSide): 'league_id' | 'club_id' {
-  return side === 'league' ? 'league_id' : 'club_id';
 }
 
 /**
@@ -56,7 +53,7 @@ export async function photoConsentByProfile(
     const { data, error } = await admin
       .from('memberships')
       .select('profile_id, photo_consent')
-      .eq(orgColumn(side), orgId)
+      .eq(ORG_ID, orgId)
       .eq('kind', 'roster')
       .eq('scope_type', 'org')
       .eq('status', 'active')
@@ -97,7 +94,7 @@ export async function setPhotoConsent(
       photo_consent_at: new Date().toISOString(),
       photo_consent_by: byUserId,
     })
-    .eq(orgColumn(side), orgId)
+    .eq(ORG_ID, orgId)
     .eq('profile_id', profileId)
     .eq('kind', kind)
     .eq('scope_type', 'org')
@@ -139,7 +136,7 @@ export async function roundPhotoConsentFor(
     const { data, error } = await admin
       .from('memberships')
       .select('photo_consent')
-      .eq(orgColumn(side), orgId)
+      .eq(ORG_ID, orgId)
       .eq('profile_id', profileId)
       .eq('kind', 'follow')
       .eq('scope_type', 'org')

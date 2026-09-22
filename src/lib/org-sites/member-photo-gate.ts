@@ -23,6 +23,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { parsePublicUrl } from '@/lib/media/proxy-url';
 import { isPublicProfile, publicDisplayName, type MaskableProfile } from '@/lib/orgs/public-names';
 import { readOrgAccess } from '@/lib/orgs/access';
+import { ORG_ID, orgIdOf, orgKindOf } from '@/lib/orgs/org-ref';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- matches the authz.ts Admin alias; schema-agnostic helper
 type Admin = SupabaseClient<any, 'public', any>;
@@ -103,12 +104,12 @@ export async function evaluateMemberPhotos(
       .eq('id', siteId)
       .maybeSingle();
     if (!site) return [];
-    const orgCol = site.club_id ? 'club_id' : 'league_id';
-    const orgId = (site.club_id ?? site.league_id) as string | null;
-    if (!orgId) return [];
+    const orgKind = orgKindOf(site);
+    const orgId = orgIdOf(site);
+    if (!orgId || !orgKind) return [];
     if (requireLive) {
       if (!site.published_at) return [];
-      if ((await readOrgAccess(admin, site.club_id ? 'club' : 'league', orgId)).visibility === 'private') return [];
+      if ((await readOrgAccess(admin, orgKind, orgId)).visibility === 'private') return [];
     }
 
     // (2) the picks.
@@ -164,7 +165,7 @@ export async function evaluateMemberPhotos(
     const { data: grants, error: grantsError } = await admin
       .from('memberships')
       .select('profile_id')
-      .eq(orgCol, orgId)
+      .eq(ORG_ID, orgId)
       .in('profile_id', [...publicAuthor.keys()])
       .eq('kind', 'follow')
       .eq('scope_type', 'org')

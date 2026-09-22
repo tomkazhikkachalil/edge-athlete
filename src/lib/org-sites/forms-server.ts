@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { OrgSide } from '@/lib/orgs/authz';
+import { ORG_ID } from '@/lib/orgs/org-ref';
 import { formPurgeCutoffs, type FormsPatchInput } from './forms';
 
 // ── The site's inbox — program 2, D2 (Sep 11 2026) ─────────────────────────
@@ -15,7 +16,7 @@ const FIELDS = 'id, kind, fields, page_path, created_at, read_at, archived_at';
 const LIST_MAX = 200;
 
 async function siteIdFor(admin: Admin, side: OrgSide, orgId: string): Promise<string | null> {
-  const { data } = await admin.from('org_sites').select('id').eq(side === 'league' ? 'league_id' : 'club_id', orgId).maybeSingle();
+  const { data } = await admin.from('org_sites').select('id').eq(ORG_ID, orgId).maybeSingle();
   return (data as { id: string } | null)?.id ?? null;
 }
 

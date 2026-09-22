@@ -18,6 +18,7 @@ import { generateRoundWindows, type SeasonRoundSpec } from '@/lib/competitions/g
 import type { GolfQuickstartInput } from '@/lib/competitions/validate';
 import { ensureDefaultSeason } from './default-season';
 import type { OrgSide } from './listing';
+import { ORG_ID } from './org-ref';
 import { rosterSelfPost } from './roster-server';
 import {
   competitionCreatePOST,
@@ -66,13 +67,11 @@ export async function golfQuickstartPOST(
   scope: { side: OrgSide; orgId: string },
   input: GolfQuickstartInput
 ): Promise<NextResponse> {
-  const orgCol = scope.side === 'league' ? 'league_id' : 'club_id';
-
   // Idempotent: a live golf leaderboard already exists → hand it back.
   const { data: existing } = await admin
     .from('competitions')
     .select('id, name, season_id, status')
-    .eq(orgCol, scope.orgId)
+    .eq(ORG_ID, scope.orgId)
     .eq('sport_key', 'golf')
     .eq('format', 'leaderboard')
     .in('status', ['draft', 'active'])
@@ -116,7 +115,7 @@ export async function golfQuickstartPOST(
   const { data: rosterRows } = await admin
     .from('memberships')
     .select('profile_id')
-    .eq(orgCol, scope.orgId)
+    .eq(ORG_ID, scope.orgId)
     .eq('kind', 'roster')
     .eq('scope_type', 'org')
     .in('status', ['active', 'placed'])

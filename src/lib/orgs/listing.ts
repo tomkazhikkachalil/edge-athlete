@@ -16,11 +16,14 @@
 // node-tested.
 
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { ORG_TABLE, type OrgKind } from './org-ref';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- the notify.ts Admin alias; schema-agnostic
 type Admin = SupabaseClient<any, 'public', any>;
 
-export type OrgSide = 'league' | 'club';
+/** The kind under its old name — every `from './listing'` importer keeps
+ *  resolving (authz.ts does the same). */
+export type OrgSide = OrgKind;
 export type ListingStatus = 'unlisted' | 'pending' | 'listed';
 
 export const LISTING_STATUSES: readonly ListingStatus[] = ['unlisted', 'pending', 'listed'];
@@ -72,7 +75,7 @@ export function isListed(state: Pick<ListingState, 'status'>): boolean {
 /** The live read. A 42703 on listing_status (pre-179) steps down to the
  *  approved_at read (pre-174 → not known). Any other error → not known. */
 export async function readListing(admin: Admin, side: OrgSide, orgId: string): Promise<ListingState> {
-  const table = side === 'league' ? 'leagues' : 'clubs';
+  const table = ORG_TABLE[side];
   const sportCol = side === 'league' ? '' : ', primary_sport';
   const first = await admin
     .from(table)
@@ -129,7 +132,7 @@ export function listingSelectLadder(cols: string): string[] {
 export async function readListingMap(admin: Admin, side: OrgSide, ids: readonly string[]): Promise<Map<string, ListingState>> {
   const out = new Map<string, ListingState>();
   if (ids.length === 0) return out;
-  const table = side === 'league' ? 'leagues' : 'clubs';
+  const table = ORG_TABLE[side];
   for (const sel of listingSelectLadder('id')) {
     const { data, error } = await admin.from(table).select(sel).in('id', [...ids]);
     if (error?.code === '42703') continue;

@@ -106,7 +106,7 @@ describe('single-write to memberships', () => {
     const { error } = await joinOrg(ok.admin, REF, 'me');
     expect(error).toBeNull();
     expect(ok.calls.map(c => c.table)).toEqual(['memberships']);
-    expect(ok.calls[0].payload).toEqual({ league_id: 'org-1', profile_id: 'me' });
+    expect(ok.calls[0].payload).toEqual({ league_id: 'org-1', club_id: null, profile_id: 'me' });
 
     const failure = { code: '23503' };
     const bad = mockAdmin({ memberships: { error: failure } });
@@ -117,7 +117,7 @@ describe('single-write to memberships', () => {
     const { admin, calls } = mockAdmin({});
     await insertOwnerRow(admin, CLUB_REF, 'owner-1');
     expect(calls.map(c => c.table)).toEqual(['memberships']);
-    expect(calls[0].payload).toEqual({ club_id: 'club-1', profile_id: 'owner-1', role: 'owner' });
+    expect(calls[0].payload).toEqual({ league_id: null, club_id: 'club-1', profile_id: 'owner-1', role: 'owner' });
   });
 });
 
@@ -128,7 +128,7 @@ describe('write filters keep legacy-shaped paths off future roster rows', () => 
     expect(calls).toHaveLength(2);
     expect(calls.every(c => c.table === 'memberships' && c.op === 'delete')).toBe(true);
     expect(calls[0].filters).toEqual({
-      league_id: 'org-1',
+      org_id: 'org-1',
       profile_id: 'me',
       kind: ['follow', 'roster'],
       scope_type: 'org',
@@ -136,7 +136,7 @@ describe('write filters keep legacy-shaped paths off future roster rows', () => 
     // The exit must also end TEAM placement (viewerScopeSet would strand
     // calendar placement otherwise) — org-pinned via the row's org pair.
     expect(calls[1].filters).toEqual({
-      league_id: 'org-1',
+      org_id: 'org-1',
       profile_id: 'me',
       kind: 'roster',
       scope_type: ['division', 'team'],
@@ -149,14 +149,14 @@ describe('write filters keep legacy-shaped paths off future roster rows', () => 
     await setMemberRole(admin, CLUB_REF, 'them', 'member');
     expect(calls.map(c => c.table)).toEqual(['memberships', 'memberships', 'memberships']);
     expect(calls[0].filters).toEqual({
-      club_id: 'club-1',
+      org_id: 'club-1',
       profile_id: 'them',
       kind: ['follow', 'roster'],
       scope_type: 'org',
     });
     // R3 widening: the sub-org roster cleanup rides the same exit.
     expect(calls[1].filters).toEqual({
-      club_id: 'club-1',
+      org_id: 'club-1',
       profile_id: 'them',
       kind: 'roster',
       scope_type: ['division', 'team'],
@@ -164,7 +164,7 @@ describe('write filters keep legacy-shaped paths off future roster rows', () => 
     expect(calls[2].op).toBe('update');
     expect(calls[2].payload).toEqual({ role: 'member' });
     expect(calls[2].filters).toEqual({
-      club_id: 'club-1',
+      org_id: 'club-1',
       profile_id: 'them',
       kind: 'follow',
       scope_type: 'org',
@@ -177,6 +177,7 @@ describe('write filters keep legacy-shaped paths off future roster rows', () => 
     expect(offer.calls[0].op).toBe('insert');
     expect(offer.calls[0].payload).toEqual({
       league_id: 'org-1',
+      club_id: null,
       profile_id: 'them',
       kind: 'roster',
       status: 'pending',
@@ -188,7 +189,7 @@ describe('write filters keep legacy-shaped paths off future roster rows', () => 
     expect(accept.calls[0].op).toBe('update');
     expect(accept.calls[0].payload).toEqual({ status: 'active' });
     expect(accept.calls[0].filters).toEqual({
-      league_id: 'org-1',
+      org_id: 'org-1',
       profile_id: 'me',
       kind: 'roster',
       status: 'pending',
@@ -203,7 +204,7 @@ describe('write filters keep legacy-shaped paths off future roster rows', () => 
     expect(delRes).toEqual({ deleted: true, error: null });
     expect(del.calls[0].op).toBe('delete');
     expect(del.calls[0].filters).toEqual({
-      club_id: 'club-1',
+      org_id: 'club-1',
       profile_id: 'them',
       kind: 'roster',
       scope_type: 'org',
@@ -220,7 +221,7 @@ describe('write filters keep legacy-shaped paths off future roster rows', () => 
     expect(promote.calls[0].op).toBe('update');
     expect(promote.calls[0].payload).toEqual({ role: 'owner' });
     expect(promote.calls[0].filters).toEqual({
-      league_id: 'org-1',
+      org_id: 'org-1',
       profile_id: 'them',
       kind: 'follow',
       scope_type: 'org',
@@ -232,7 +233,7 @@ describe('write filters keep legacy-shaped paths off future roster rows', () => 
     expect(d.updated).toBe(false); // guarded update raced away → caller 409s
     expect(demote.calls[0].payload).toEqual({ role: 'manager' });
     expect(demote.calls[0].filters).toEqual({
-      club_id: 'club-1',
+      org_id: 'club-1',
       profile_id: 'me',
       kind: 'follow',
       scope_type: 'org',
@@ -245,7 +246,7 @@ describe('write filters keep legacy-shaped paths off future roster rows', () => 
     const o = await ownerRows(owners.admin, REF);
     expect(o.rows).toHaveLength(1);
     expect(owners.calls[0].filters).toEqual({
-      league_id: 'org-1',
+      org_id: 'org-1',
       kind: 'follow',
       scope_type: 'org',
       role: 'owner',
@@ -356,15 +357,17 @@ describe('write filters keep legacy-shaped paths off future roster rows', () => 
     const counts = mockAdmin({
       memberships: {
         data: [
-          { league_id: 'l1', profile_id: 'p1' },
-          { league_id: 'l1', profile_id: 'p1' },
-          { league_id: 'l1', profile_id: 'p2' },
+          { org_id: 'l1', profile_id: 'p1' },
+          { org_id: 'l1', profile_id: 'p1' },
+          { org_id: 'l1', profile_id: 'p2' },
         ],
         error: null,
       },
     });
     const map = await memberCountsByOrg(counts.admin, 'league', ['l1']);
     expect(map.get('l1')).toBe(2);
+    // Round 5: the count reads (and keys on) the one org column.
+    expect(counts.calls[0].filters).toMatchObject({ org_id: ['l1'] });
 
     const prof = mockAdmin({
       memberships: {

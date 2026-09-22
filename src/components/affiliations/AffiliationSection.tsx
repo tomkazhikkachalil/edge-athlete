@@ -5,6 +5,7 @@ import Link from 'next/link';
 import ConfirmModal from '@/components/ConfirmModal';
 import { useToast } from '@/components/Toast';
 import { formatPlace } from '@/lib/geo/regions';
+import { ORG_ROUTE_FAMILY, otherKind } from '@/lib/orgs/org-ref';
 import { SPORT_REGISTRY } from '@/lib/sports/SportRegistry';
 import { SUGGEST_DEBOUNCE_MS } from '@/lib/search/typeahead';
 
@@ -51,7 +52,7 @@ interface AffiliationSectionProps {
 
 export default function AffiliationSection({ side, orgId, bare = false }: AffiliationSectionProps) {
   const { showSuccess, showError } = useToast();
-  const other = side === 'league' ? 'club' : 'league';
+  const other = otherKind(side);
   const base = side === 'league' ? `/api/leagues/${orgId}/clubs` : `/api/clubs/${orgId}/leagues`;
   const targetKey = side === 'league' ? 'clubId' : 'leagueId';
   const otherPath = (id: string) => (side === 'league' ? `/club/${id}` : `/league/${id}`);
@@ -87,7 +88,7 @@ export default function AffiliationSection({ side, orgId, bare = false }: Affili
     let cancelled = false;
     const timer = setTimeout(async () => {
       try {
-        const type = other === 'club' ? 'clubs' : 'leagues';
+        const type = ORG_ROUTE_FAMILY[other];
         const response = await fetch(`/api/search?q=${encodeURIComponent(q)}&type=${type}`);
         if (!response.ok || cancelled) return;
         const body = await response.json();

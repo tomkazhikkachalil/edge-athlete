@@ -16,6 +16,7 @@ import { emailService } from '@/lib/email-service';
 import { appBaseUrl } from '@/lib/org-sites/urls';
 import { requireOrgManager } from './structure-server';
 import type { OrgSide } from './authz';
+import { ORG_ID } from './org-ref';
 import { createStaffInvite, grantFromInput, listStaffInvites, revokeStaffInvite, writeStaffAudit } from './staff-invites';
 import { deleteStaffRow, listStaff, readStaffRow, updateStaffSections } from './staff';
 import { notifyStaffInvite, notifyStaffRevoked } from './staff-notify';
@@ -77,18 +78,16 @@ export async function staffInvitePOST(request: NextRequest, user: User, side: Or
     const grant = grantFromInput(parsed.data.grant);
     // The scope must belong to THIS org (never a foreign division/team).
     if (grant.scopeType !== 'org' && grant.scopeId) {
-      const col = side === 'league' ? 'league_id' : 'club_id';
       const { data } = await g.admin
         .from(grant.scopeType === 'division' ? 'divisions' : 'teams')
         .select('id')
         .eq('id', grant.scopeId)
-        .eq(col, g.org.id)
+        .eq(ORG_ID, g.org.id)
         .maybeSingle();
       if (!data) return NextResponse.json({ error: 'That division or team is not in this organization' }, { status: 400 });
     }
     if (grant.seasonId) {
-      const col = side === 'league' ? 'league_id' : 'club_id';
-      const { data } = await g.admin.from('seasons').select('id').eq('id', grant.seasonId).eq(col, g.org.id).maybeSingle();
+      const { data } = await g.admin.from('seasons').select('id').eq('id', grant.seasonId).eq(ORG_ID, g.org.id).maybeSingle();
       if (!data) return NextResponse.json({ error: 'That season is not in this organization' }, { status: 400 });
     }
     const created = await createStaffInvite(g.admin, {

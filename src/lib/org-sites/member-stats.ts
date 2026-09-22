@@ -12,6 +12,7 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { OrgSide } from '@/lib/orgs/authz';
+import { ORG_ID } from '@/lib/orgs/org-ref';
 import { isPublicProfile, publicDisplayName, publicHandle, type MaskableProfile } from '@/lib/orgs/public-names';
 import { isStubEmail } from '@/lib/config/stubs-config';
 import { chunk } from '@/lib/chunk';
@@ -47,7 +48,7 @@ export async function fetchPublicMemberStats(
     const { data: members } = await admin
       .from('memberships')
       .select('profile_id')
-      .eq(side === 'league' ? 'league_id' : 'club_id', orgId)
+      .eq(ORG_ID, orgId)
       .eq('scope_type', 'org')
       .eq('kind', 'follow')
       .limit(MEMBER_CAP);

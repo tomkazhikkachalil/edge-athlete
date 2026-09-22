@@ -22,6 +22,7 @@ import { parseCsv, checkHeaders } from './csv';
 import { wallClockInZone, zonedWallClockToUtc } from '@/lib/calendar/recurrence';
 import { parseIcs, summaryToMatchup } from '@/lib/calendar/ics-parse';
 import type { OrgSide } from '@/lib/orgs/authz';
+import { ORG_ID } from '@/lib/orgs/org-ref';
 import { recomputeStandingsBestEffort } from '@/lib/competitions/standings';
 import { revalidateOrgSiteForCompetition } from '@/lib/org-sites/revalidate';
 
@@ -188,7 +189,7 @@ export async function importScheduleRows(
     const { data: venues } = await admin
       .from('venues')
       .select('id, name')
-      .eq(scope.side === 'league' ? 'league_id' : 'club_id', scope.orgId)
+      .eq(ORG_ID, scope.orgId)
       .limit(500);
     for (const v of venues ?? []) {
       const key = (v.name as string).toLowerCase();

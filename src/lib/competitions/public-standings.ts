@@ -20,6 +20,7 @@ import { buildSeasonSummary, type SeasonSummary } from './golf-season-wrap';
 import { roundRuleFor } from './golf-league';
 import { readOrgAccess } from '@/lib/orgs/access';
 import type { OrgSide } from '@/lib/orgs/authz';
+import { ORG_ID, ORG_TABLE } from '@/lib/orgs/org-ref';
 import { resolveFixtureRule, resolveLeaderboardRule, type StandingsColumn } from './scoring';
 import { publicDisplayName, type MaskableProfile, publicHandle } from '@/lib/orgs/public-names';
 import {
@@ -113,10 +114,7 @@ export async function fetchPublicStandings(
     membersView?: boolean;
   } = {}
 ): Promise<PublicStandingsPayload | null> {
-  const orgTable = side === 'league' ? 'leagues' : 'clubs';
-  const orgColumn = side === 'league' ? 'league_id' : 'club_id';
-
-  const { data: org } = await admin.from(orgTable).select('id, name').eq('id', orgId).maybeSingle();
+  const { data: org } = await admin.from(ORG_TABLE[side]).select('id, name').eq('id', orgId).maybeSingle();
   if (!org) return null;
   // Onboarding v2 R1 (179): a pending listing no longer empties the
   // standings — the org is live by link; listing gates discoverability only.
@@ -129,7 +127,7 @@ export async function fetchPublicStandings(
   const { data: competitions, error } = await admin
     .from('competitions')
     .select('id, name, season_id, sport_key, format, scoring_rule, status, entrant_type')
-    .eq(orgColumn, orgId)
+    .eq(ORG_ID, orgId)
     .eq('visibility', 'public')
     .in('status', ['active', 'completed'])
     .order('created_at', { ascending: false })

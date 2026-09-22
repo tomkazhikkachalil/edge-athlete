@@ -25,12 +25,15 @@
 
 import type { PostgrestError, SupabaseClient } from '@supabase/supabase-js';
 import { isMissingTableError } from '@/lib/leagues/validate';
+import { ORG_ID, ORG_TABLE, type OrgKind } from './org-ref';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- matches the notify.ts Admin alias; schema-agnostic helper
 type Admin = SupabaseClient<any, 'public', any>;
 
 export type OrgRole = 'owner' | 'manager' | 'member';
-export type OrgSide = 'league' | 'club';
+/** The org's kind under its old name — `OrgKind` in `org-ref.ts` is the
+ *  one declaration (Round 5 B); this alias goes in step F. */
+export type OrgSide = OrgKind;
 
 const ROLE_RANK: Record<OrgRole, number> = { owner: 3, manager: 2, member: 1 };
 
@@ -65,11 +68,10 @@ export async function getOrgRole(
   orgId: string,
   profileId: string
 ): Promise<OrgRole | null> {
-  const idColumn = side === 'league' ? 'league_id' : 'club_id';
   const { data } = await admin
     .from('memberships')
     .select('role')
-    .eq(idColumn, orgId)
+    .eq(ORG_ID, orgId)
     .eq('profile_id', profileId)
     .eq('scope_type', 'org');
   return maxOrgRole((data ?? []).map(r => r.role as string));
@@ -280,11 +282,10 @@ export async function getOrgCapabilities(
   orgId: string,
   profileId: string
 ): Promise<OrgCapabilities> {
-  const idColumn = side === 'league' ? 'league_id' : 'club_id';
   const { data, error } = await admin
     .from('memberships')
     .select('role, kind, scope_type, scope_id, sections, expires_at')
-    .eq(idColumn, orgId)
+    .eq(ORG_ID, orgId)
     .eq('profile_id', profileId)
     .in('kind', ['follow', 'staff']);
   if (error) {
@@ -314,7 +315,7 @@ export async function getOrgAndRole(
   orgId: string,
   profileId: string
 ): Promise<OrgAndRole> {
-  const orgTable = side === 'league' ? 'leagues' : 'clubs';
+  const orgTable = ORG_TABLE[side];
 
   const { data: org, error } = await admin
     .from(orgTable)
@@ -348,7 +349,7 @@ export async function getOrgAndCapabilities(
   orgId: string,
   profileId: string
 ): Promise<OrgAndCapabilities> {
-  const orgTable = side === 'league' ? 'leagues' : 'clubs';
+  const orgTable = ORG_TABLE[side];
   const { data: org, error } = await admin
     .from(orgTable)
     .select('id, name, owner_profile_id')

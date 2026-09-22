@@ -70,14 +70,14 @@ describe('deriveOrgSports', () => {
     const { admin, calls } = mockAdmin({ divisions: { data: rows('ice_hockey', 'golf') } });
     const sports = await deriveOrgSports(admin, { side: 'league', orgId: 'org-1' }, 'golf');
     expect(sports).toEqual(['golf', 'ice_hockey']);
-    expect(calls[0]).toMatchObject({ table: 'divisions', filters: { league_id: 'org-1' } });
+    expect(calls[0]).toMatchObject({ table: 'divisions', filters: { org_id: 'org-1' } });
   });
 
-  it('club side: no cache, club_id filter', async () => {
+  it('club side: no cache, the same org_id filter', async () => {
     const { admin, calls } = mockAdmin({ divisions: { data: rows('soccer') } });
     const sports = await deriveOrgSports(admin, { side: 'club', orgId: 'org-2' }, null);
     expect(sports).toEqual(['soccer']);
-    expect(calls[0].filters).toEqual({ club_id: 'org-2' });
+    expect(calls[0].filters).toEqual({ org_id: 'org-2' });
   });
 
   it('missing divisions table (pre-145) degrades to the cache alone', async () => {

@@ -22,6 +22,7 @@ import { NextResponse } from 'next/server';
 import { revalidateTag } from 'next/cache';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { OrgSide } from '@/lib/orgs/authz';
+import { ORG_ID } from '@/lib/orgs/org-ref';
 import {
   WELL_KNOWN_PATH,
   dnsInstructions,
@@ -57,10 +58,6 @@ interface DomainSiteRow {
   domain_active_at: string | null;
 }
 
-function orgColumn(side: OrgSide): 'league_id' | 'club_id' {
-  return side === 'league' ? 'league_id' : 'club_id';
-}
-
 function isPre171(error: { code?: string } | null | undefined): boolean {
   return error?.code === '42703' || error?.code === 'PGRST204';
 }
@@ -76,7 +73,7 @@ async function loadSite(
   const { data, error } = await admin
     .from('org_sites')
     .select(DOMAIN_FIELDS)
-    .eq(orgColumn(side), orgId)
+    .eq(ORG_ID, orgId)
     .maybeSingle();
   if (error) {
     if (isPre171(error)) return { site: null, pre171: true };

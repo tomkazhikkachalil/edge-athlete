@@ -17,6 +17,7 @@
 import { NextResponse } from 'next/server';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { OrgSide } from '@/lib/orgs/authz';
+import { ORG_ID } from '@/lib/orgs/org-ref';
 import { ALLOWED_IMAGE_MIME } from '@/lib/media/validation';
 import { isValidPageSlug, PAGES_PER_SITE_MAX, type PageCreateInput, type PagePatchInput } from './validate';
 import { blocksFromPageLayout, orderedPages, pageLayoutFromBody, parsePageLayout, blankPageLayout, type SnapshotPage } from '@/lib/site-builder/pages';
@@ -29,15 +30,11 @@ const TAG = '[ORG SITE PAGES]';
 const MAX_ASSET_BYTES = 10 * 1024 * 1024;
 export const ORG_MEDIA_PREFIX = 'org-media/';
 
-function orgColumn(side: OrgSide): 'league_id' | 'club_id' {
-  return side === 'league' ? 'league_id' : 'club_id';
-}
-
 async function getSiteForOrg(admin: Admin, side: OrgSide, orgId: string) {
   const { data } = await admin
     .from('org_sites')
     .select('id, subdomain')
-    .eq(orgColumn(side), orgId)
+    .eq(ORG_ID, orgId)
     .maybeSingle();
   return data as { id: string; subdomain: string } | null;
 }

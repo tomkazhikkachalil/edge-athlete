@@ -9,6 +9,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { toProxyUrl } from '@/lib/media/proxy-url';
 import type { OrgSide } from '@/lib/orgs/authz';
+import { ORG_ID } from '@/lib/orgs/org-ref';
 import { isPublicProfile, publicDisplayName, type MaskableProfile } from '@/lib/orgs/public-names';
 import { readGalleryPicks } from './member-photo-gate';
 
@@ -37,7 +38,6 @@ export async function listMemberPhotoCandidates(
   orgId: string,
   siteId: string
 ): Promise<{ candidates: MemberPhotoCandidate[]; picks: number }> {
-  const orgCol = side === 'league' ? 'league_id' : 'club_id';
   const { data: mod } = await admin
     .from('org_site_modules')
     .select('config')
@@ -50,7 +50,7 @@ export async function listMemberPhotoCandidates(
   const { data: grants, error: grantsError } = await admin
     .from('memberships')
     .select('profile_id')
-    .eq(orgCol, orgId)
+    .eq(ORG_ID, orgId)
     .eq('kind', 'follow')
     .eq('scope_type', 'org')
     .eq('status', 'active')

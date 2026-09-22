@@ -9,6 +9,7 @@ import AppHeader from '@/components/AppHeader';
 import { useToast } from '@/components/Toast';
 import { orgMediaUrl } from '@/lib/media/org-site-media';
 import { validateFiles } from '@/lib/media/validation';
+import { ORG_ROUTE_FAMILY, isOrgKind } from '@/lib/orgs/org-ref';
 import {
   PAGE_BODY_MAX_BLOCKS,
   parsePageBody,
@@ -73,8 +74,8 @@ export default function SiteBlockEditor({ mode }: { mode: 'page' | 'news' }) {
   const side = params.side as string;
   const orgId = params.id as string;
   const pageId = (mode === 'page' ? params.pageId : params.newsId) as string;
-  const validSide = side === 'league' || side === 'club';
-  const plural = side === 'league' ? 'leagues' : 'clubs';
+  const validSide = isOrgKind(side);
+  const plural = ORG_ROUTE_FAMILY[validSide ? side : 'club'];
   const copy = MODE_COPY[mode];
 
   const { user, initialAuthCheckComplete } = useAuth();

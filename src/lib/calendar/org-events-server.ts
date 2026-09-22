@@ -16,6 +16,7 @@ import { getSupabaseAdmin } from '@/lib/auth-server';
 import { isMissingTableError } from '@/lib/leagues/validate';
 import { clampScheduleQuery, SCHEDULE_LIMIT_DEFAULT } from '@/lib/org-sites/validate';
 import { UUID_RE } from '@/lib/golf/course-catalog';
+import { ORG_ID } from '@/lib/orgs/org-ref';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- matches the authz.ts Admin alias; schema-agnostic helper
 type Admin = SupabaseClient<any, 'public', any>;
@@ -52,7 +53,6 @@ export async function fetchOrgEvents(
   orgId: string,
   opts: { limit?: number; rangeDays?: number } = {}
 ): Promise<OrgEvent[] | null> {
-  const column = side === 'league' ? 'league_id' : 'club_id';
   const limit = opts.limit ?? SCHEDULE_LIMIT_DEFAULT;
   const nowIso = new Date().toISOString();
   const endIso =
@@ -75,14 +75,14 @@ export async function fetchOrgEvents(
   // activity. Structure ids first (bounded: an org's own rows), then three
   // scope queries merged, resorted, and re-capped.
   const [divisionRows, teamRows] = await Promise.all([
-    admin.from('divisions').select('id').eq(column, orgId),
-    admin.from('teams').select('id').eq(column, orgId),
+    admin.from('divisions').select('id').eq(ORG_ID, orgId),
+    admin.from('teams').select('id').eq(ORG_ID, orgId),
   ]);
   const divisionIds = (divisionRows.data ?? []).map(r => r.id as string);
   const teamIds = (teamRows.data ?? []).map(r => r.id as string);
 
   const results = await Promise.all([
-    base().eq(column, orgId),
+    base().eq(ORG_ID, orgId),
     divisionIds.length > 0
       ? base().in('division_id', divisionIds)
       : Promise.resolve({ data: [], error: null }),

@@ -6,6 +6,7 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { OrgSide } from './authz';
+import { ORG_ID, PAIR_COLUMN } from './org-ref';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- matches the authz.ts Admin alias; schema-agnostic helper
 type Admin = SupabaseClient<any, 'public', any>;
@@ -32,7 +33,7 @@ export async function notifyStaffInvite(
     type: 'org_staff_invite',
     title: `${n.orgName} invited you to help run it — ${n.summary}`,
     action_url: n.inviteUrlPath,
-    metadata: { [n.side === 'league' ? 'league_id' : 'club_id']: n.orgId },
+    metadata: { [PAIR_COLUMN[n.side]]: n.orgId },
   });
   return true;
 }
@@ -42,11 +43,10 @@ export async function notifyStaffAccepted(
   admin: Admin,
   n: { side: OrgSide; orgId: string; orgName: string; personName: string; summary: string; exceptProfileId: string }
 ): Promise<void> {
-  const col = n.side === 'league' ? 'league_id' : 'club_id';
   const { data } = await admin
     .from('memberships')
     .select('profile_id')
-    .eq(col, n.orgId)
+    .eq(ORG_ID, n.orgId)
     .eq('scope_type', 'org')
     .eq('kind', 'follow')
     .eq('role', 'owner')
@@ -59,7 +59,7 @@ export async function notifyStaffAccepted(
         type: 'org_staff_accepted',
         title: `${n.personName} joined ${n.orgName}'s staff — ${n.summary}`,
         action_url: `/app/org/${n.side}/${n.orgId}`,
-        metadata: { [col]: n.orgId },
+        metadata: { [PAIR_COLUMN[n.side]]: n.orgId },
       })
     )
   );
@@ -74,6 +74,6 @@ export async function notifyStaffRevoked(
     type: 'org_staff_revoked',
     title: `Your staff access to ${n.orgName} was removed`,
     action_url: `/${n.side}/${n.orgId}`,
-    metadata: { [n.side === 'league' ? 'league_id' : 'club_id']: n.orgId },
+    metadata: { [PAIR_COLUMN[n.side]]: n.orgId },
   });
 }

@@ -18,7 +18,7 @@
 
 import type { PostgrestError, SupabaseClient } from '@supabase/supabase-js';
 import { isMissingTableError } from '@/lib/leagues/validate';
-import type { OrgRef } from './members';
+import { ORG_ID, type OrgRef } from './org-ref';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- matches the authz.ts Admin alias; schema-agnostic helper
 type Admin = SupabaseClient<any, 'public', any>;
@@ -54,7 +54,7 @@ async function divisionSportKeys(
   const { data, error } = await admin
     .from('divisions')
     .select('sport_key')
-    .eq(ref.side === 'league' ? 'league_id' : 'club_id', ref.orgId);
+    .eq(ORG_ID, ref.orgId);
   if (error) {
     // Pre-145 database: no divisions table means no derived sports, not a 500.
     if (isMissingTableError(error.code)) return { sportKeys: [], error: null };

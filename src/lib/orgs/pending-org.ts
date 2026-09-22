@@ -17,6 +17,7 @@ import { createLeagueWithOwner } from '@/lib/leagues/create';
 import { SiteDraftSchema } from './wizard-validate';
 import { siteDraftToContact } from './approval';
 import type { OrgSide } from './listing';
+import { ORG_ID, ORG_TABLE } from './org-ref';
 import { orgVenueCreatePOST } from '@/lib/venues/org-venues-server';
 import { siteCreatePOST } from '@/lib/org-sites/server';
 import { courseDisplayName } from '@/lib/golf/tees';
@@ -104,13 +105,13 @@ export async function provisionPendingOrg(
     // Pre-174 the column is absent and the org is LIVE (create.ts fell
     // back) — a live org must never be linked as "pending". Verify.
     const { data: check } = await admin
-      .from(side === 'league' ? 'leagues' : 'clubs')
+      .from(ORG_TABLE[side])
       .select('approved_at')
       .eq('id', orgId)
       .maybeSingle();
     if (!check || (check as { approved_at?: unknown }).approved_at !== null) {
       console.warn(`${TAG} no approval state (pre-174?) — rolling the provisioned ${side} back`);
-      await admin.from(side === 'league' ? 'leagues' : 'clubs').delete().eq('id', orgId);
+      await admin.from(ORG_TABLE[side]).delete().eq('id', orgId);
       return null;
     }
 
@@ -158,7 +159,7 @@ export async function provisionPendingOrg(
         await admin
           .from('org_sites')
           .update({ contact_config: contact })
-          .eq(side === 'league' ? 'league_id' : 'club_id', orgId);
+          .eq(ORG_ID, orgId);
       }
     }
     return { orgId, venueId, siteCreated };
@@ -179,12 +180,11 @@ export async function draftPreviewUrls(
   const out = new Map<string, string>();
   const ids = [...new Set(orgIds.filter((id): id is string => !!id))];
   if (ids.length === 0) return out;
-  const column = side === 'league' ? 'league_id' : 'club_id';
-  const { data, error } = await admin.from('org_sites').select(`id, subdomain, ${column}`).in(column, ids);
+  const { data, error } = await admin.from('org_sites').select(`id, subdomain, ${ORG_ID}`).in(ORG_ID, ids);
   if (error || !data) return out;
   for (const site of data as unknown as Array<Record<string, unknown>>) {
     try {
-      out.set(site[column] as string, `/org/${site.subdomain as string}/preview/${signPreviewToken(site.id as string)}`);
+      out.set(site[ORG_ID] as string, `/org/${site.subdomain as string}/preview/${signPreviewToken(site.id as string)}`);
     } catch {
       /* no preview secret configured */
     }
