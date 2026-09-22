@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { isUuid } from '@/lib/uuid';
-import { requireAuth, getSupabaseAdmin } from '@/lib/auth-server';
+import { requireAuth, getServerAuth, getSupabaseAdmin } from '@/lib/auth-server';
 import { canViewProfile } from '@/lib/privacy';
 import { toProxyUrl } from '@/lib/media/proxy-url';
 import { isValidDateString, isNotFutureDate } from '@/lib/date-validation';
@@ -15,7 +15,13 @@ export async function GET(request: NextRequest) {
     // The admin client bypasses RLS, so this route MUST enforce privacy
     // itself (the old "RLS will handle privacy" comment was false — a private
     // athlete's equipment was readable by anyone with their profileId).
-    const viewer = await requireAuth(request);
+    // Anonymous viewers are a supported state since Round 4 (the public
+    // /u/ profile shows equipment): a PUBLIC profile's gear is public, a
+    // private one's is the owner's-||-accepted-follower's — the same gate the
+    // tagged and media routes apply (canViewProfile alone refuses every
+    // anonymous viewer, so it is asked only for a private profile).
+    const { user: viewer } = await getServerAuth(request);
+    const viewerId = viewer?.id ?? null;
     const supabase = getSupabaseAdmin();
     const { searchParams } = new URL(request.url);
     const profileId = searchParams.get('profileId');
@@ -27,12 +33,16 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Profile ID is required' }, { status: 400 });
     }
 
-    if (viewer.id !== profileId) {
-      const { canView } = await canViewProfile(profileId, viewer.id);
-      if (!canView) {
-        // Not permitted to view this profile — return empty, not a 403, so the
-        // profile page renders cleanly for limited viewers.
-        return NextResponse.json({ equipment: [] });
+    if (viewerId !== profileId) {
+      const { data: targetProfile } = await supabase.from('profiles').select('visibility').eq('id', profileId).single();
+      if (!targetProfile) return NextResponse.json({ equipment: [] });
+      if (targetProfile.visibility !== 'public') {
+        const { canView } = await canViewProfile(profileId, viewerId);
+        if (!canView) {
+          // Not permitted to view this profile — return empty, not a 403, so the
+          // profile page renders cleanly for limited viewers.
+          return NextResponse.json({ equipment: [] });
+        }
       }
     }
 
@@ -60,7 +70,7 @@ export async function GET(request: NextRequest) {
     // never receives those rows at all. The owner always sees everything.
     const rows = equipment || [];
     const visibleRows =
-      viewer.id === profileId || !prefs.hiddenSports?.length
+      viewerId === profileId || !prefs.hiddenSports?.length
         ? rows
         : rows.filter(item => !prefs.hiddenSports!.includes(item.sport_key || 'general'));
 
