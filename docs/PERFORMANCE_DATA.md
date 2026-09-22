@@ -151,6 +151,26 @@ ignored. The form exposes "Active since" and "Verified only"
 (`minProvenance=club_recorded`); `minHeadline` stays API-only until a
 per-sport label exists.
 
+## The second reader — career and season rollups (Round 3, Sep 22 2026)
+
+`GET /api/performance/rollups?profileId&sport` is the ATHLETE-facing read:
+`src/lib/performance/rollups.ts` (pure) folds one profile × sport into the
+SPORT's seasons (`seasonKey`: hockey / basketball / volleyball run autumn
+to spring — `SEASON_START_MONTH`; the rest the calendar year), computes
+the schema's `profileTiles` per season and for the career (count / sum /
+avg / min, the stat-line route's computations), bests per metric with the
+date in the sport's direction, provenance counts per season, and the hero
+number over the last ten events for a trend. `rollups-server.ts` reads
+newest first, disputed rows out, capped at 2 000 (`truncated` says when);
+a non-owner's view re-checks every `post`-origin row against the post's
+visibility in ≤ 200-id chunks (the first reader's rule). The gate is the
+stat-lines route's (owner ‖ public ‖ accepted follower); the answer is
+`private, max-age=60` — viewer-dependent, never a shared cache.
+`SeasonRollups.tsx` renders it at the top of the stat-line Stats tab. The
+old card (`stat-line.ts buildStatsCard`) still reads the last 100 public
+posts of ONE source; retiring it for the rollups is the next step once
+the Stats tab has shown the rollups for a while.
+
 ## Files
 
 - `database/migrations/194_athlete_performances.sql` — the table + check grid
@@ -158,5 +178,6 @@ per-sport label exists.
 - `src/lib/performance/map.ts` — the pure mappers + `groupUniformRows`
 - `src/lib/performance/write-server.ts` — the one writer
 - `src/lib/performance/backfill.ts` / `backfill-server.ts` — the backfill's pure half and its I/O
+- `src/lib/performance/rollups.ts` / `rollups-server.ts` — the second reader (Round 3)
 - `src/app/api/admin/performance-backfill/route.ts` — the admin door
 - `src/lib/performance/__tests__/map.test.ts`, `backfill.test.ts` — the pinned invariants

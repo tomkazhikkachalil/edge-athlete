@@ -72,6 +72,16 @@ recurring anti-patterns:
   *I* like this" (batch a viewer-scoped query instead — the feed pattern).
 - **`.in(<ids>)`** built from an unbounded fetch → cap it, or use an RPC/join.
 - **polling** → pause on `document.hidden`; don't fire duplicate polls of one endpoint.
+- **denormalise what every view counts** → `profiles.followers_count` /
+  `following_count` are a TRIGGER on `follows` (229), like `posts.likes_count`;
+  a per-view `COUNT(*)` over a growth table is the smell.
+- **a JSONB `.contains()` needs a GIN** (`idx_notifications_metadata_gin`, 229 —
+  the org-announcement read was a 1.6 s seq scan at 5 k rows).
+- **a realtime channel on a platform-wide table** (the old feed subscription) →
+  a visible-tab poll with a `since` cursor.
+- **measure on staging first**: `scripts/staging-seed.mjs` + `EXPLAIN (ANALYZE,
+  BUFFERS)` through `scripts/staging-sql.mjs` — the wall-clock harness
+  (`scripts/measure-routes.mjs`) is a smoke check, the plan is the number.
 
 Hot surfaces to walk: feed load (`/api/posts`), profile load, vitals tab,
 messages/notifications providers (root-layout polls), search keystrokes, the
@@ -307,6 +317,16 @@ Ranked, with the source finding. Fix deliberately; each is its own change.
 ---
 
 ## Change log
+- **Sep 22 2026 (Round 3 — the scale cliffs, #873–#881, migs 229 + 230)** —
+  follower counts by trigger + the notifications.metadata GIN (229: the
+  org-announcement scan 1 585 ms → 29 ms; followers 12 ms → 0.17 ms on a
+  500-follower profile, constant); the hot paths read the columns;
+  getting-started asks existence; the rounds list counts once; the feed's
+  platform-wide realtime subscription → a visible-tab `?since=` poll;
+  hidden tabs stop polling (seven pollers), `useLiveNow` one timer;
+  `feed_following()` (230) replaces the 2 000-id IN list and the unbounded
+  privacy read; career / season rollups from `athlete_performances`. All
+  measured on the staging seed. Route count +1 (`/api/performance/rollups`).
 - **Sep 21 2026 (Round 1 safety + ops, #855–#862, mig 225)** — the Sep 19
   assessment's first round, PROD-PROVEN (26/26 across three engines,
   `check:schema` OK on 225): the guardian claim gate (the account must
