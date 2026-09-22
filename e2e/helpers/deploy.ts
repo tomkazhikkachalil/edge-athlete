@@ -47,7 +47,8 @@ export async function awaitDeployed(opts: { timeoutMs?: number; intervalMs?: num
         return;
       }
       lastSeen = commit;
-      if (commit === expected) {
+      // A short SHA (E2E_EXPECT_COMMIT=08585361) matches by prefix.
+      if (commit === expected || (expected.length >= 7 && commit.startsWith(expected))) {
         console.log(`[e2e] target is on ${commit.slice(0, 8)} — probing`);
         return;
       }
