@@ -15,6 +15,8 @@ import type { SportSkillCard } from '@/lib/sports/server/types';
 import AchievementPills from '@/components/achievements/AchievementPills';
 import OrgMembershipsStrip, { type OrgMembership } from '@/components/affiliations/OrgMembershipsStrip';
 import VitalsTab from '@/components/VitalsTab';
+import EquipmentSection from '@/components/EquipmentSection';
+import TaggedTab from '@/components/TaggedTab';
 import { topPills } from '@/lib/achievements/display';
 import {
   formatHeight,
@@ -114,6 +116,8 @@ interface ProfileData {
   skillCards?: SportSkillCard[];
 }
 
+type ProfileSection = 'overview' | 'stats' | 'vitals' | 'equipment' | 'tagged';
+
 export default function PublicProfilePage() {
   const params = useParams();
   const router = useRouter();
@@ -136,10 +140,10 @@ export default function PublicProfilePage() {
   // ?tab=vitals deep link read in the initializer (window-guarded): SSR
   // renders the loading spinner regardless of this state, so the
   // server/client initial DOM cannot diverge on it.
-  const [activeSection, setActiveSection] = useState<'overview' | 'stats' | 'vitals'>(() => {
+  const [activeSection, setActiveSection] = useState<ProfileSection>(() => {
     if (typeof window === 'undefined') return 'overview';
     const tab = new URLSearchParams(window.location.search).get('tab');
-    return tab === 'vitals' || tab === 'stats' ? tab : 'overview';
+    return tab === 'vitals' || tab === 'stats' || tab === 'equipment' || tab === 'tagged' ? tab : 'overview';
   });
   // ?sport= companion for ?tab=stats — the hub's sport layer (validated
   // against the athlete's active sports inside the hub).
@@ -149,7 +153,7 @@ export default function PublicProfilePage() {
       : null
   );
 
-  const switchSection = (section: 'overview' | 'stats' | 'vitals', sport?: string | null) => {
+  const switchSection = (section: ProfileSection, sport?: string | null) => {
     setActiveSection(section);
     if (section === 'stats') setStatsSport(sport ?? null);
     // Mirror into the URL (no navigation) so the state is shareable.
@@ -492,9 +496,11 @@ export default function PublicProfilePage() {
             Vitals mounts the redesigned dashboard (same component as the
             /athlete pages, privacy enforced server-side by /api/vitals).
             Styled to match ProfileMediaTabs' segmented control. */}
-        <div className="mt-4">
-          <nav className="inline-flex gap-2 p-1 bg-surface-sunken rounded-xl" aria-label="Profile sections">
-            {([['overview', 'Overview'], ['stats', 'Stats'], ['vitals', 'Vitals']] as const).map(([section, label]) => (
+        {/* Five sections scroll sideways on a phone — a tab off-screen behind
+            overflow-hidden is the Vitals lesson (CLAUDE.md). */}
+        <div className="mt-4 -mx-4 px-4 overflow-x-auto">
+          <nav className="inline-flex gap-2 p-1 bg-surface-sunken rounded-xl whitespace-nowrap" aria-label="Profile sections">
+            {([['overview', 'Overview'], ['stats', 'Stats'], ['vitals', 'Vitals'], ['equipment', 'Equipment'], ['tagged', 'Tagged']] as const).map(([section, label]) => (
               <button
                 key={section}
                 onClick={() => switchSection(section)}
@@ -510,6 +516,21 @@ export default function PublicProfilePage() {
             ))}
           </nav>
         </div>
+
+        {/* Equipment + Tagged (Round 4): the sections the signed-in /athlete
+            pages always had and the crawlable profile lacked — route parity
+            is mobile parity (phones arrive by /u/ links). Both components
+            admit anonymous viewers of a public profile. */}
+        {activeSection === 'equipment' && (
+          <div className="mt-4 bg-surface rounded-xl shadow-sm border border-border p-4 sm:p-6" data-u-equipment="">
+            <EquipmentSection profileId={profile.id} isOwnProfile={false} />
+          </div>
+        )}
+        {activeSection === 'tagged' && (
+          <div className="mt-4" data-u-tagged="">
+            <TaggedTab profileId={profile.id} currentUserId={user?.id} isOwnProfile={false} />
+          </div>
+        )}
 
         {activeSection === 'vitals' && (
           <div className="mt-4 bg-surface rounded-xl shadow-sm border border-border p-4 sm:p-6">

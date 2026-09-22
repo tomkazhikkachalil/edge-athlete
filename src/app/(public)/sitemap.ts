@@ -1,6 +1,7 @@
 import type { MetadataRoute } from 'next';
 import { getCachedSitemapSites } from '@/lib/org-sites/cached';
 import { appBaseUrl, orgSitePath } from '@/lib/org-sites/urls';
+import { readSitemapAthletes } from '@/lib/profiles/public-head';
 
 // ── /sitemap.xml (phase 3 R4) — every published org site ──────────────────
 // force-dynamic is LOAD-BEARING: without it the build statically
@@ -19,7 +20,14 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     // C2: sites live on their own domain get their own sitemap (served
     // through the middleware rewrite); cross-host URLs don't belong here.
     const sites = (await getCachedSitemapSites()).filter(site => !site.customDomain);
-    return [{ url: `${base}/clubs` }, { url: `${base}/leagues` }, ...sites.flatMap(site => [
+    // Round 4: the public athletes (visibility public, onboarded, a handle;
+    // newest-updated 5 000). A golf course had a sitemap line before a
+    // person did.
+    const athletes = await readSitemapAthletes();
+    return [{ url: `${base}/clubs` }, { url: `${base}/leagues` }, ...athletes.map(a => ({
+      url: `${base}/u/${encodeURIComponent(a.handle)}`,
+      ...(a.lastModified ? { lastModified: a.lastModified } : {}),
+    })), ...sites.flatMap(site => [
       {
         url: `${base}${orgSitePath(site.subdomain)}`,
         ...(site.lastModified ? { lastModified: site.lastModified } : {}),
