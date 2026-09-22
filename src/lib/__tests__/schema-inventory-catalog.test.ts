@@ -505,12 +505,7 @@ describe('the real chain', () => {
     const revokedBy199 = ['handle_updated_at()', 'update_post_reposts_count()', 'consent_records_forbid_mutation()', 'notify_post_comment()'];
     expect(r.grantDrift.map(g => g.key).filter(k => !revokedBy199.includes(k))).toEqual([]);
     expect(r.triggerDrift).toEqual([]);
-    // A trigger the chain added AFTER the saved catalog is not stale, it is
-    // newer: 229's follows_counts_sync (Round 3). Save a fresh catalog once
-    // 229 has run on prod (`npm run check:schema:prod -- --save-catalog`) and
-    // drop this entry.
-    const newerThanCatalog = ['follows|follows_counts_sync'];
-    expect(r.staleTriggerClaims.map(c => `${c.table}|${c.name}`).filter(k => !newerThanCatalog.includes(k))).toEqual([]);
+    expect(r.staleTriggerClaims).toEqual([]);
     expect(r.secdefPublic.map(s => s.key)).toContain('is_conversation_participant(uuid,uuid)');
   });
 });
