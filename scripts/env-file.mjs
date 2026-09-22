@@ -2,7 +2,7 @@
  * Which Supabase project a LOCAL script talks to (Round 2, Sep 21 2026 —
  * two environments exist now).
  *
- *   .env.local  — STAGING (EdgeAthlete-BackUp): `npm run dev`, the e2e
+ *   .env.local  — STAGING (EdgeAthlete-Staging): `npm run dev`, the e2e
  *                 suite, check:schema by default. Disposable.
  *   .env.prod   — PRODUCTION: only what must read prod — the rebuild
  *                 baseline (prod's schema IS the baseline), the prod probe,

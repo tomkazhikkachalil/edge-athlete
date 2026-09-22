@@ -689,6 +689,14 @@ export async function GET(request: NextRequest) {
     // how a new client opts into cursor mode from page one.
     const cursorParam = searchParams.get('cursor');
     const keysetMode = cursorParam !== null;
+    // ?since=<created_at>: strictly NEWER than a timestamp, newest first —
+    // the feed's "anything new since the top of my list?" poll (Round 3:
+    // it replaced a platform-wide realtime subscription on every public
+    // post insert). Never with a cursor.
+    const sinceParam = searchParams.get('since');
+    if (sinceParam !== null && (Number.isNaN(Date.parse(sinceParam)) || keysetMode)) {
+      return NextResponse.json({ error: 'Invalid since' }, { status: 400 });
+    }
     let cursor: { ts: string; id: string } | null = null;
     if (cursorParam) {
       const id = cursorParam.slice(-36);
@@ -1128,6 +1136,8 @@ export async function GET(request: NextRequest) {
         );
       }
       query = query.limit(limit + 1); // overfetch for hasMore
+    } else if (sinceParam !== null && !pinnedOnly) {
+      query = query.gt('created_at', sinceParam).limit(limit);
     } else {
       query = query.range(offset, offset + limit - 1);
     }

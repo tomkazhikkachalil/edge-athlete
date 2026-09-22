@@ -11,7 +11,6 @@ import YourOrgsCard from '@/components/affiliations/YourOrgsCard';
 import AppHeader from '@/components/AppHeader';
 import ConnectionSuggestions from '@/components/ConnectionSuggestions';
 import { useToast } from '@/components/Toast';
-import { getSupabaseBrowserClient } from '@/lib/supabase';
 import LazyImage from '@/components/LazyImage';
 import { getInitials, formatDisplayName } from '@/lib/formatters';
 import { resolveSportKey, isComposerSport } from '@/lib/sports/resolve-sport-key';
@@ -20,6 +19,10 @@ import { getEmptyStateMessage, getActivityEncouragement, COPY } from '@/lib/copy
 import LiveNowStrip from '@/components/LiveNowStrip';
 import SportQuickLinks from '@/components/SportQuickLinks';
 import GetStartedCard from '@/components/GetStartedCard';
+
+/** The feed's new-posts poll: once a minute while visible; at most once per 20 s on tab return. */
+const NEW_POSTS_POLL_MS = 60_000;
+const NEW_POSTS_MIN_GAP_MS = 20_000;
 import FeedCalendarWidget from '@/components/calendar/FeedCalendarWidget';
 
 // Heavy modals (~2100 / ~1090 / ~330 lines) — split into their own chunks,
@@ -72,17 +75,6 @@ interface Post {
   post_category?: string | null;
 }
 
-interface RealtimePostPayload {
-  new: {
-    id: string;
-    profile_id: string;
-    likes_count: number;
-    comments_count: number;
-    caption: string | null;
-    stats_data: Record<string, unknown> | null;
-  };
-}
-
 // ?post= reader for search-result deep links. Unlike ?create=1 this must be
 // REACTIVE: AdvancedSearchBar (inside AppHeader) pushes /feed?post=<id> while
 // the user is already ON /feed, which never remounts the page — a mount-only
@@ -101,6 +93,9 @@ export default function FeedPage() {
   const { user, profile, loading } = useAuth();
   const router = useRouter();
   const [posts, setPosts] = useState<Post[]>([]);
+  // The poll reads the newest post without re-subscribing on every render.
+  const postsRef = useRef<Post[]>([]);
+  postsRef.current = posts;
   const [feedLoading, setFeedLoading] = useState(true);
   const [isCreatePostModalOpen, setIsCreatePostModalOpen] = useState(false);
 
@@ -227,74 +222,51 @@ export default function FeedPage() {
     }
   };
 
-  // Real-time subscription for new posts
+  // New posts since the top of the list: a poll, not a subscription
+  // (Round 3, Sep 2026). The realtime channel this replaced fired for EVERY
+  // public post insert platform-wide into every open feed tab, then filtered
+  // client-side — a cost that grew with the whole platform's posting rate,
+  // not the viewer's. Now: while the tab is VISIBLE, every NEW_POSTS_POLL_MS
+  // (and on returning to the tab), ask the API for posts strictly newer
+  // than the newest one shown, in this lens's own scope — the server does
+  // the privacy gating and returns the feed's exact Post shape. The org
+  // lens has no live prepends (the next load has anything new).
   useEffect(() => {
     if (!user) return;
-
-    const supabase = getSupabaseBrowserClient();
-
-    // Scope realtime inserts to authors this user follows. Without this, the
-    // filter `visibility=eq.public` injects EVERY public post platform-wide
-    // into the feed. Loaded once at subscribe time; new follows show up after
-    // the next feed load, which is acceptable for a live-append nicety.
-    let followedIds = new Set<string>();
-    (async () => {
-      const { data } = await supabase
-        .from('follows')
-        .select('following_id')
-        .eq('follower_id', user.id)
-        .eq('status', 'accepted');
-      followedIds = new Set((data || []).map((r: { following_id: string }) => r.following_id));
-    })();
-
-    // Subscribe to INSERT events on posts table
-    const channel = supabase
-      .channel('feed-posts')
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'posts',
-          filter: `visibility=eq.public`
-        },
-        async (payload: RealtimePostPayload) => {
-          // Org lens: no live prepends — the follow-scoped stream is the
-          // wrong population, and the next load has anything new. The
-          // Following lens keeps them: this handler already prepends ONLY
-          // followed authors, which is exactly that lens's population.
-          if (feedScopeRef.current === 'orgs') return;
-          // Own posts are handled by handlePostCreated (with full data);
-          // skip here to avoid a duplicate. Others: only followed authors.
-          const authorId = payload.new.profile_id;
-          if (authorId === user.id) return;
-          if (!followedIds.has(authorId)) return;
-
-          // Fetch the complete post via the API's single-post branch — it
-          // does the server-side gated hydration (quoted repost originals,
-          // scorecards) the browser client can't replicate under RLS, and
-          // returns the feed's exact Post shape. A 404 (post the viewer
-          // can't see) simply skips the prepend.
-          try {
-            const res = await fetch(`/api/posts?postId=${payload.new.id}`);
-            if (!res.ok) return;
-            const data = await res.json();
-            const newPost = data.post as Post | undefined;
-            if (newPost) {
-              setPosts(prev => {
-                // Dedup guard — never render the same post id twice.
-                if (prev.some(p => p.id === newPost.id)) return prev;
-                return [newPost, ...prev];
-              });
-              showSuccess('New Post', 'A new post has been added to your feed');
-            }
-          } catch { /* realtime prepend is a nicety — the next load has it */ }
-        }
-      )
-      .subscribe();
-
+    let cancelled = false;
+    let lastPollAt = 0;
+    const poll = async () => {
+      if (cancelled || document.visibilityState !== 'visible') return;
+      if (feedScopeRef.current === 'orgs') return;
+      const top = postsRef.current[0];
+      if (!top) return; // an empty feed reloads through loadFeed
+      lastPollAt = Date.now();
+      const scopeParam = feedScopeRef.current === 'following' ? '&scope=following' : '';
+      try {
+        const res = await fetch(`/api/posts?limit=10&since=${encodeURIComponent(top.created_at)}${scopeParam}`);
+        if (!res.ok || cancelled) return;
+        const data = await res.json();
+        const fresh = (data.posts as Post[] | undefined) ?? [];
+        if (fresh.length === 0) return;
+        let added = 0;
+        setPosts(prev => {
+          const seen = new Set(prev.map(p => p.id));
+          const toAdd = fresh.filter(p => !seen.has(p.id));
+          added = toAdd.length;
+          return toAdd.length ? [...toAdd, ...prev] : prev;
+        });
+        if (added > 0) showSuccess('New posts', added === 1 ? 'A new post has been added to your feed' : `${added} new posts have been added to your feed`);
+      } catch { /* the poll is a nicety — the next load has it */ }
+    };
+    const timer = setInterval(poll, NEW_POSTS_POLL_MS);
+    const onVisible = () => {
+      if (document.visibilityState === 'visible' && Date.now() - lastPollAt > NEW_POSTS_MIN_GAP_MS) void poll();
+    };
+    document.addEventListener('visibilitychange', onVisible);
     return () => {
-      supabase.removeChannel(channel);
+      cancelled = true;
+      clearInterval(timer);
+      document.removeEventListener('visibilitychange', onVisible);
     };
   }, [user, showSuccess]);
 
