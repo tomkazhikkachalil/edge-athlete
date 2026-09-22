@@ -16,6 +16,7 @@
 
 **Also:** the staging project is renamed `EdgeAthlete-Staging` (it was created as "BackUp" in April, never used; Tom's Disk IO Budget warning tonight was Round 3's seed + measurement load on the free-tier instance — staging-only, self-healing). The `feed-since` spec ran into that IO exhaustion locally; it is proven on a preview once the budget refills.
 <<<<<<< HEAD
+<<<<<<< HEAD
 ## September 22, 2026 — Round 3 PR 3: the hot paths read the columns — public profile, follow stats, getting-started, the rounds list (zero DDL; after 229)
 
 **What:** `/api/public/profile` and `/api/follow/stats` read `followers_count` / `following_count` off the profile row (one PK read) instead of two `COUNT(*)` over every accepted edge per view; `/api/profile/getting-started` asks "has at least one?" with `LIMIT 1` reads and takes the following number from the column (four exact counts per app-shell load before); `/api/golf/rounds` pays its exact total on the first page only — later pages overfetch one row for `hasMore` and answer `total: null`, which the rounds page keeps from the first load (a `COUNT(*)` over every round on EVERY page before). Response shapes unchanged except that `total`.
@@ -39,6 +40,8 @@
 - the org-announcement `notifications.metadata @>` read (every ISR rebuild of an org site): **Seq Scan, 1 585 ms** over 5 000 rows — the assessment called it an unindexed scan; at 100k notifications it is seconds per rebuild.
 - the following feed's post walk: 238 ms (an index scan over posts in time order with a semi-join on follows — it scales with post volume, not followers; the RPC is PR 4).
 - the public profile's statements anti-join: 189 ms.
+=======
+>>>>>>> 0cfdc02a (perf(feed): the platform-wide realtime subscription becomes a visible-tab poll — /api/posts?since=; the staging project renamed (Round 3 PR 4; zero DDL))
 =======
 >>>>>>> 0cfdc02a (perf(feed): the platform-wide realtime subscription becomes a visible-tab poll — /api/posts?since=; the staging project renamed (Round 3 PR 4; zero DDL))
 
