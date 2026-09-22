@@ -10,6 +10,7 @@
 
 import { BaseSportAdapter, type HighlightTile, type ActivityRow, type ActivityResult } from '../SportAdapter';
 import type { SportKey } from '../SportRegistry';
+import { getStatSchema } from '../stat-schemas';
 
 interface StatLinesResponse {
   entryCount: number;
@@ -25,9 +26,25 @@ interface StatLinesResponse {
   years?: number[];
 }
 
+/** 'game' → 'games', 'match' → 'matches', 'race' → 'races'. */
+export const pluralNoun = (noun: string): string => (/(s|x|z|ch|sh)$/i.test(noun) ? `${noun}es` : `${noun}s`);
+
 export class StatLinePostAdapter extends BaseSportAdapter {
   constructor(sportKey: SportKey) {
     super(sportKey);
+  }
+
+  /**
+   * Round 4 (Sep 2026): every stat-line sport gets the golfer's two doors —
+   * the log (every game, official lines apart) and the trends (the rollups
+   * over athlete_performances). Golf keeps its own routes.
+   */
+  getNavLinks(): { href: string; label: string }[] {
+    const noun = getStatSchema(this.sportKey)?.activityNoun.toLowerCase() ?? 'game';
+    return [
+      { href: `/app/sport/${this.sportKey}/log`, label: `View all ${pluralNoun(noun)} →` },
+      { href: `/app/sport/${this.sportKey}/trends`, label: 'Trends →' },
+    ];
   }
 
   async getHighlights(profileId: string, season?: string): Promise<HighlightTile[]> {
