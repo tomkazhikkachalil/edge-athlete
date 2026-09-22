@@ -21,7 +21,7 @@ test('org site contest page: public twin renders + 404s + sitemap + in-app link 
   const seeded = await seedContestLeague();
   const { leagueId, stamp, publicContest, privateContest } = seeded;
   const ownerApi = await apiAs('state-b.json');
-  const anon = await browser.newContext({ storageState: { cookies: [], origins: [] } });
+  const anon = await browser.newContext({ storageState: 'e2e/.auth/anon.json' });
   try {
     // Listed, so the sitemap enumerates the site (pre-179 the column is absent and every org reads listed).
     await admin.from('leagues').update({ listing_status: 'listed' }).eq('id', leagueId);

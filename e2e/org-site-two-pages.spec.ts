@@ -120,7 +120,7 @@ test('two pages: side default orders, side labels, reset, and the club golf teas
     // Labels survive a reset; the order does not.
     expect(siteRow!.nav_config).toEqual([{ key: 'standings', label: 'Tables' }]);
 
-    const anonCtx = await browser.newContext({ storageState: { cookies: [], origins: [] } });
+    const anonCtx = await browser.newContext({ storageState: 'e2e/.auth/anon.json' });
     try {
       const pathFor = async (subdomain: string) => {
         const probe = await anonCtx.request.get(`/org/${subdomain}`, { maxRedirects: 0 });

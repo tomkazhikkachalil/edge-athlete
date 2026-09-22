@@ -9,7 +9,7 @@ import { adminClient, apiAs, createQaChild, deleteQaUser, guardianFlagOn, loadQa
 // card renders on /athlete/[id] for a viewer at phone width (@mobile).
 // Self-skips pre-182.
 
-const ANON = { cookies: [], origins: [] };
+const ANON = 'e2e/.auth/anon.json';
 
 test('recruiting opt-in: closed hides, open shows the card; owner + guardian write, stranger + supervised cannot @mobile', async ({ browser, request }) => {
   test.setTimeout(180_000);

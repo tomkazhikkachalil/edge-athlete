@@ -10,7 +10,7 @@ import { cardRowFor, cleanupEvent, createEvent, inviteAndAccept, openEventSessio
  * sheet — the masked name ("Edge B.": the QA users are private) with no
  * profile link. Signed in, A's sheet shows this event's line.
  */
-const ANON = { cookies: [], origins: [] };
+const ANON = 'e2e/.auth/anon.json';
 
 test('anonymous reading: the public round, the live page, "Log in to join", the player sheet @mobile', async ({ page, browser }) => {
   const s = await openEventSession();

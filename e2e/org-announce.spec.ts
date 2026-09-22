@@ -48,7 +48,7 @@ test('announce: members belled (not the sender), guardian copy, site notice, mem
 
   const ownerApi = await apiAs('state-b.json');
   const alphaApi = await apiAs('state.json');
-  const anonCtx = await browser.newContext({ storageState: { cookies: [], origins: [] } });
+  const anonCtx = await browser.newContext({ storageState: 'e2e/.auth/anon.json' });
   const announcementIds: string[] = [];
   try {
     // A published site so the notice can mirror.

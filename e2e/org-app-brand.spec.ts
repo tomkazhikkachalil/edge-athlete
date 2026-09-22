@@ -144,7 +144,7 @@ test('org page brand: a draft site\'s logo, hero photo and accent render in-app;
     await dumpHero(page, hero, 'owner');
 
     // A visitor sees the same brand and no draft pill.
-    const anon = await browser.newContext({ storageState: { cookies: [], origins: [] } });
+    const anon = await browser.newContext({ storageState: 'e2e/.auth/anon.json' });
     try {
       const anonPage = await anon.newPage();
       const anonHero = await expectBrand(anonPage, seeded.clubId, stamp);

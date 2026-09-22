@@ -1,5 +1,5 @@
 import { execSync } from 'child_process';
-import { E2E_BASE_URL } from './qa-user';
+import { E2E_BASE_URL, PROD_APP_HOST, bypassHeaders } from './qa-user';
 
 /**
  * Wait until the target deployment answers from the commit we expect
@@ -8,7 +8,8 @@ import { E2E_BASE_URL } from './qa-user';
  * minute each for a page that did not exist yet, and the deploy landed
  * mid-run. `/api/health` reports Vercel's build commit; this polls it
  * until it matches `E2E_EXPECT_COMMIT` (default: `origin/main`'s head
- * after a fetch) or the budget runs out. Localhost skips; a target
+ * after a fetch for production; the local HEAD for a preview) or the
+ * budget runs out. Localhost skips; a target
  * without a commit (the variable not exposed) warns and continues.
  */
 export async function awaitDeployed(opts: { timeoutMs?: number; intervalMs?: number } = {}): Promise<void> {
@@ -18,11 +19,18 @@ export async function awaitDeployed(opts: { timeoutMs?: number; intervalMs?: num
 
   let expected = process.env.E2E_EXPECT_COMMIT ?? '';
   if (!expected) {
+    // Production serves origin/main; a PREVIEW serves the pushed branch —
+    // expect HEAD there (Round 2, Sep 21 2026).
+    const isProd = new URL(E2E_BASE_URL).hostname === PROD_APP_HOST;
     try {
-      execSync('git fetch -q origin main', { stdio: 'ignore' });
-      expected = execSync('git rev-parse origin/main', { encoding: 'utf8' }).trim();
+      if (isProd) {
+        execSync('git fetch -q origin main', { stdio: 'ignore' });
+        expected = execSync('git rev-parse origin/main', { encoding: 'utf8' }).trim();
+      } else {
+        expected = execSync('git rev-parse HEAD', { encoding: 'utf8' }).trim();
+      }
     } catch {
-      console.warn('[e2e] could not read origin/main — probing whatever is deployed');
+      console.warn('[e2e] could not read the expected commit — probing whatever is deployed');
       return;
     }
   }
@@ -31,7 +39,7 @@ export async function awaitDeployed(opts: { timeoutMs?: number; intervalMs?: num
   let lastSeen: string | null = null;
   while (Date.now() - started < timeoutMs) {
     try {
-      const res = await fetch(`${E2E_BASE_URL}/api/health`, { cache: 'no-store' });
+      const res = await fetch(`${E2E_BASE_URL}/api/health`, { cache: 'no-store', headers: bypassHeaders() });
       const body = (await res.json().catch(() => ({}))) as { commit?: string | null };
       const commit = typeof body.commit === 'string' ? body.commit : null;
       if (commit === null) {

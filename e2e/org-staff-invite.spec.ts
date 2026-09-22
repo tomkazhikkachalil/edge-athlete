@@ -29,7 +29,7 @@ test('staff invite: owner mints → A accepts at 375px → scoped grant honoured
   const leagueId = league!.id as string;
   const ownerApi = await apiAs('state-b.json');
   const aApi = await apiAs('state.json');
-  const anon = await browser.newContext({ storageState: { cookies: [], origins: [] } });
+  const anon = await browser.newContext({ storageState: 'e2e/.auth/anon.json' });
   try {
     await admin.from('memberships').insert({ league_id: leagueId, profile_id: owner.id, kind: 'follow', role: 'owner', scope_type: 'org' });
     const seeded = await admin.from('seasons').insert({ league_id: leagueId, label: '2026' }).select('id').single();

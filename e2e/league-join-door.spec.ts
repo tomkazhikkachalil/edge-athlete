@@ -44,7 +44,7 @@ test('league join door: site CTA → account-first → sign in returns → reque
   ]);
 
   const ownerApi = await apiAs('state-b.json');
-  const anon = await browser.newContext({ storageState: { cookies: [], origins: [] }, viewport: { width: 375, height: 812 } });
+  const anon = await browser.newContext({ storageState: 'e2e/.auth/anon.json', viewport: { width: 375, height: 812 } });
   try {
     // The site carries the door.
     let res = await ownerApi.post(`/api/leagues/${leagueId}/site`);

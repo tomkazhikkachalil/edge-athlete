@@ -178,7 +178,7 @@ test('vanity 404: unknown root path renders the linked (public) not-found @mobil
   expect(res.status()).toBe(404);
 
   const anonCtx = await browser.newContext({
-    storageState: { cookies: [], origins: [] },
+    storageState: 'e2e/.auth/anon.json',
   });
   try {
     const page = await anonCtx.newPage();

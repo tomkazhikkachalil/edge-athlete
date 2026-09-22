@@ -142,7 +142,7 @@ test('@mobile org site sections: the phone editor lists the draft; Move down and
     const published = (await (await ownerApi.get(`/api/leagues/${leagueId}/site/canvas`)).json()) as Canvas;
     const moduleIds = reading(published).map(w => w.id);
     expect(published.layout.widgets.find(w => w.id === 'legacy:staff')!.w).toBe(6);
-    const anon = await browser.newContext({ storageState: { cookies: [], origins: [] } });
+    const anon = await browser.newContext({ storageState: 'e2e/.auth/anon.json' });
     try {
       // ISR settles on the STAFF tile carrying its new span (the style attribute
       // precedes the data attributes on the tile).

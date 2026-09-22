@@ -83,7 +83,7 @@ test('org-site register card: open window renders the CTA; closed hides it', asy
       expect(res.status(), await readErrorBody(res)).toBe(200);
 
       // Closed by default: the section says so, no CTA link.
-      const anonCtx = await browser.newContext({ storageState: { cookies: [], origins: [] } });
+      const anonCtx = await browser.newContext({ storageState: 'e2e/.auth/anon.json' });
       try {
         const page = await anonCtx.newPage();
         // P3-C: a closed registration is an EMPTY widget — it never renders

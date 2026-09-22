@@ -1,6 +1,6 @@
 import { mkdirSync, writeFileSync } from 'fs';
 import { join } from 'path';
-import { createQaUser, mintStorageState, sweepStaleQaUsers } from './helpers/qa-user';
+import { createQaUser, mintStorageState, previewStorageState, sweepStaleQaUsers } from './helpers/qa-user';
 import { awaitDeployed } from './helpers/deploy';
 
 // Four disposable users: A drives most specs (default storageState), B exists
@@ -20,6 +20,11 @@ export default async function globalSetup() {
   const userA = await createQaUser({
     displayName: 'Edge QA Alpha', firstName: 'Edge', lastName: 'Alpha',
   });
+  // The SIGNED-OUT state (Round 2, Sep 21 2026): empty off a preview; on a
+  // Vercel preview it carries the automation-bypass cookie, so a guest
+  // context still reaches the app. Every signed-out actor opens this file.
+  writeFileSync(join(authDir, 'anon.json'), JSON.stringify(await previewStorageState(), null, 2));
+
   const stateA = await mintStorageState(userA);
   writeFileSync(join(authDir, 'state.json'), JSON.stringify(stateA, null, 2));
   writeFileSync(join(authDir, 'user.json'), JSON.stringify(userA, null, 2));

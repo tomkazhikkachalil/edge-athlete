@@ -13,7 +13,7 @@ test('scout signup: the actor branch mints a scout, lands on /app/scout; athlete
   const admin = adminClient();
   // The door exists regardless of the database: Athlete sign-up → the role
   // chooser → "I'm a coach or scout" → the scout form (with the affiliation).
-  const doorCtx = await browser.newContext({ storageState: { cookies: [], origins: [] } });
+  const doorCtx = await browser.newContext({ storageState: 'e2e/.auth/anon.json' });
   try {
     const page = await doorCtx.newPage();
     await page.goto('/');

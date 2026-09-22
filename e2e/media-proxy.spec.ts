@@ -55,7 +55,7 @@ test('media proxy: post media authorized at the byte layer', async () => {
     // the global storageState (user A), so it is NOT anonymous.
     const anonCtx = await playwrightRequest.newContext({
       baseURL: base,
-      storageState: { cookies: [], origins: [] }, // force truly cookie-less
+      storageState: 'e2e/.auth/anon.json', // force truly cookie-less
     });
     try {
       // PUBLIC post media: 200 for owner, bystander, AND anonymous.

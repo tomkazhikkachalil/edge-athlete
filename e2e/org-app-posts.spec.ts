@@ -31,7 +31,7 @@ test('org posts wall: public media post → tile → detail; text-only + private
     { club_id: clubId, profile_id: alpha.id, role: 'member', kind: 'follow' },
   ]);
   const alphaApi = await apiAs('state.json');
-  const anon = await browser.newContext({ storageState: { cookies: [], origins: [] } });
+  const anon = await browser.newContext({ storageState: 'e2e/.auth/anon.json' });
   let alphaMedia: Awaited<ReturnType<typeof seedRoundPost>> | null = null;
   let ownerMedia: Awaited<ReturnType<typeof seedRoundPost>> | null = null;
   const textCaption = `Text only ${stamp}`;

@@ -70,7 +70,7 @@ test('season wrap: closed weeks → summary on site + console; announce once (be
 
   const ownerApi = await apiAs('state-b.json');
   const alphaApi = await apiAs('state.json');
-  const anon = await browser.newContext({ storageState: { cookies: [], origins: [] } });
+  const anon = await browser.newContext({ storageState: 'e2e/.auth/anon.json' });
   const base = `/api/clubs/${clubId}/competitions`;
   const announcementIds: string[] = [];
   try {

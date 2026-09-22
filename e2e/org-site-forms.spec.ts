@@ -60,7 +60,7 @@ test('org site forms: contact + interest widgets, the public POST, the honeypot,
     expect(res.status(), await readErrorBody(res)).toBe(200);
     await publishSite(ownerApi, 'league', leagueId, 'Forms');
 
-    const anon = await browser.newContext({ storageState: { cookies: [], origins: [] } });
+    const anon = await browser.newContext({ storageState: 'e2e/.auth/anon.json' });
     try {
       const pathFor = async (sub: string) => {
         const probe = await anon.request.get(`/org/${sub}`, { maxRedirects: 0 });

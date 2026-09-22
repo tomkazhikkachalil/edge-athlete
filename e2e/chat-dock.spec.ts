@@ -85,7 +85,7 @@ test('closing the pill leaves chats alone; minimized chat is a labeled pill', as
 
 test('fresh login restores a closed dock', async ({ browser }) => {
   const user = loadQaUser('user.json');
-  const ctx = await browser.newContext({ storageState: { cookies: [], origins: [] } });
+  const ctx = await browser.newContext({ storageState: 'e2e/.auth/anon.json' });
   try {
     const page = await ctx.newPage();
     await page.goto('/');

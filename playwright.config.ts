@@ -1,5 +1,5 @@
 import { defineConfig } from '@playwright/test';
-import { E2E_BASE_URL } from './e2e/helpers/qa-user';
+import { E2E_BASE_URL, bypassHeaders } from './e2e/helpers/qa-user';
 
 /**
  * Smoke suite — runs against a real Supabase backend (there is no staging
@@ -41,6 +41,8 @@ export default defineConfig({
     viewport: { width: 1280, height: 800 },
     trace: 'on-first-retry',
     storageState: 'e2e/.auth/state.json',
+    // A Vercel preview needs the automation-bypass header on every request.
+    extraHTTPHeaders: bypassHeaders(),
   },
   // Web & Mobile Ship Together (CLAUDE.md): specs tagged @mobile run at phone
   // width; everything else keeps the desktop viewport. grep/grepInvert are

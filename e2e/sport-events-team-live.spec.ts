@@ -86,7 +86,7 @@ test('the live stat screen: a player\'s own line, the outbox, the organizer\'s s
     await expect.poll(async () => ((await (await s.apiA.get(statsUrl)).json()) as StatsPayload).round.score, { timeout: 20_000 }).toMatchObject({ side1_score: 1, side2_score: 1, version: 2 });
 
     // A stranger watches: the board, no strip, no score chips.
-    const ctxAnon = await browser.newContext({ storageState: { cookies: [], origins: [] } });
+    const ctxAnon = await browser.newContext({ storageState: 'e2e/.auth/anon.json' });
     try {
       const anon = await ctxAnon.newPage();
       await anon.goto(liveUrl);

@@ -75,7 +75,7 @@ test('org site brand: tokens → document attrs + wordmark; favicon.svg; nav lab
     res = await ownerApi.patch(`/api/leagues/${leagueId}/site`, { data: { action: 'publish' } });
     expect(res.status(), await readErrorBody(res)).toBe(200);
 
-    const anonCtx = await browser.newContext({ storageState: { cookies: [], origins: [] } });
+    const anonCtx = await browser.newContext({ storageState: 'e2e/.auth/anon.json' });
     try {
       const canonicalProbe = await anonCtx.request.get(`/org/${subdomain}`, { maxRedirects: 0 });
       const sitePath = canonicalProbe.status() === 301 ? `/${subdomain}` : `/org/${subdomain}`;

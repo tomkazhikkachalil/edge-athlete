@@ -101,7 +101,7 @@ test('org site display: teams reordered by hand, tiles, no links; staff count â€
 
     // Published: the public page renders the tiles in the manager's order, without links.
     await publishSite(ownerApi, 'league', leagueId);
-    const anon = await browser.newContext({ storageState: { cookies: [], origins: [] } });
+    const anon = await browser.newContext({ storageState: 'e2e/.auth/anon.json' });
     try {
       const html = await settleBody(anon.request, `/org/${subdomain}`, 'data-variant="tiles"', true);
       const tiles = html.indexOf('data-variant="tiles"');

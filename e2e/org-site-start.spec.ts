@@ -118,7 +118,7 @@ test('org site: a gallery entry re-lays the draft — family, tokens, a welcome 
     const door = ownerOrg.composition?.widgets.find(w => w.id === emptyTile.id);
     expect(door, 'managers get the empty tile as a door').toBeDefined();
     expect(door!.tile).toBeUndefined();
-    const anonApi = await browser.newContext({ storageState: { cookies: [], origins: [] } });
+    const anonApi = await browser.newContext({ storageState: 'e2e/.auth/anon.json' });
     try {
       const anonOrg = (await (await anonApi.request.get(`/api/leagues/${leagueId}`)).json()) as { composition: { widgets: { id: string }[] } | null };
       expect(anonOrg.composition?.widgets.some(w => w.id === emptyTile.id) ?? false).toBe(false);
@@ -130,7 +130,7 @@ test('org site: a gallery entry re-lays the draft — family, tokens, a welcome 
     res = await ownerApi.patch(`/api/leagues/${leagueId}/site`, { data: { action: 'apply_gallery', entryId: 'team-scoreboard', mode: 'clean' } });
     expect(res.status(), await readErrorBody(res)).toBe(200);
     await publishSite(ownerApi, 'league', leagueId);
-    const anon = await browser.newContext({ storageState: { cookies: [], origins: [] } });
+    const anon = await browser.newContext({ storageState: 'e2e/.auth/anon.json' });
     try {
       let html = '';
       await expect
@@ -271,7 +271,7 @@ test('org site: a fresh site’s first editor visit opens the gallery — skip k
     } finally {
       await ownerCtx.close();
     }
-    const anon = await browser.newContext({ storageState: { cookies: [], origins: [] } });
+    const anon = await browser.newContext({ storageState: 'e2e/.auth/anon.json' });
     try {
       let html = '';
       await expect

@@ -5,7 +5,7 @@ import type { QaUser } from './helpers/qa-user';
 
 // Fresh context: this spec exercises the real login UI end-to-end (the other
 // specs start from the minted storageState for speed).
-test.use({ storageState: { cookies: [], origins: [] } });
+test.use({ storageState: 'e2e/.auth/anon.json' });
 
 test('UI login with email/password reaches the authenticated app', async ({ page }) => {
   const user: QaUser = JSON.parse(

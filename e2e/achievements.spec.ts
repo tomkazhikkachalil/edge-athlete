@@ -110,7 +110,7 @@ test('achievements: seed → hero → showcase → timeline → CRUD → visitor
   const { error: handleError } = await adminClient()
     .from('profiles').update({ handle }).eq('id', userA.id);
   expect(handleError).toBeNull();
-  const ctxAnon = await browser.newContext({ storageState: { cookies: [], origins: [] } });
+  const ctxAnon = await browser.newContext({ storageState: 'e2e/.auth/anon.json' });
   try {
     const pageU = await ctxAnon.newPage();
     await pageU.goto(`/u/${handle}`);

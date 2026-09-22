@@ -104,7 +104,7 @@ test('golf leaders: low gross 9/18, low net, most rounds, best week from results
   ]);
 
   const ownerApi = await apiAs('state-b.json');
-  const anonCtx = await browser.newContext({ storageState: { cookies: [], origins: [] } });
+  const anonCtx = await browser.newContext({ storageState: 'e2e/.auth/anon.json' });
   try {
     let res = await ownerApi.post(`/api/leagues/${leagueId}/site`);
     expect(res.status(), await readErrorBody(res)).toBe(200);

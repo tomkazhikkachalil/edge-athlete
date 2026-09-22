@@ -94,7 +94,7 @@ test('org site pages composed: layout renders publicly, header order and hide, p
 
     await publishSite(ownerApi, 'league', leagueId, 'Composed');
 
-    const anon = await browser.newContext({ storageState: { cookies: [], origins: [] } });
+    const anon = await browser.newContext({ storageState: 'e2e/.auth/anon.json' });
     try {
       const pathFor = async (sub: string) => {
         const probe = await anon.request.get(`/org/${sub}`, { maxRedirects: 0 });

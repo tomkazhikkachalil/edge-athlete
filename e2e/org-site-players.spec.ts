@@ -143,7 +143,7 @@ test('player pages: public member linked + paged; private member unlinked + 404;
   await seedRound('2026-08-27', 99, 'private');
 
   const ownerApi = await apiAs('state-b.json');
-  const anon = await browser.newContext({ storageState: { cookies: [], origins: [] } });
+  const anon = await browser.newContext({ storageState: 'e2e/.auth/anon.json' });
   const base = `/api/clubs/${clubId}/competitions`;
   try {
     // One completed week (everyone posts) + one open week (only the owner so far).

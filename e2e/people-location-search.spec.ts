@@ -68,7 +68,7 @@ test('people: the location filter alone (no text) is a filtered browse, distance
 
 test('explore: Near me lists the Ottawa QA athlete with a km chip', async ({ browser }) => {
   const ctx = await browser.newContext({
-    storageState: { cookies: [], origins: [] },
+    storageState: 'e2e/.auth/anon.json',
     geolocation: { latitude: OTTAWA.lat, longitude: OTTAWA.lng },
     permissions: ['geolocation'],
   });

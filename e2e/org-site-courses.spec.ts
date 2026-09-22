@@ -80,7 +80,7 @@ test('org site courses: link → enable → home + /courses + JSON-LD → Home o
     res = await ownerApi.patch(`/api/clubs/${clubId}/site`, { data: { action: 'publish' } });
     expect(res.status(), await readErrorBody(res)).toBe(200);
 
-    const anonCtx = await browser.newContext({ storageState: { cookies: [], origins: [] } });
+    const anonCtx = await browser.newContext({ storageState: 'e2e/.auth/anon.json' });
     try {
       // Canonical-aware: with both vanity flags on, /org/{slug} 301s.
       const canonicalProbe = await anonCtx.request.get(`/org/${subdomain}`, { maxRedirects: 0 });

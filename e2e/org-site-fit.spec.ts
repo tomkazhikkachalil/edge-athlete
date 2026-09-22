@@ -47,7 +47,7 @@ test('org site fit: an auto section grows to its content; a fixed one keeps its 
     res = await ownerApi.put(`/api/leagues/${leagueId}/site/draft`, { data: { layout: textAt({}) } });
     expect(res.status(), await readErrorBody(res)).toBe(200);
     await publishSite(ownerApi, 'league', leagueId);
-    const anon = await browser.newContext({ storageState: { cookies: [], origins: [] }, viewport: { width: 1280, height: 900 } });
+    const anon = await browser.newContext({ storageState: 'e2e/.auth/anon.json', viewport: { width: 1280, height: 900 } });
     try {
       await settleBody(anon.request, `/org/${subdomain}`, `Long read ${stamp}`, true);
       const page = await anon.newPage();
@@ -67,7 +67,7 @@ test('org site fit: an auto section grows to its content; a fixed one keeps its 
     res = await ownerApi.put(`/api/leagues/${leagueId}/site/draft`, { data: { layout: textAt({ height: 'tall' }) } });
     expect(res.status()).toBe(400);
     await publishSite(ownerApi, 'league', leagueId);
-    const desktop = await browser.newContext({ storageState: { cookies: [], origins: [] }, viewport: { width: 1280, height: 900 } });
+    const desktop = await browser.newContext({ storageState: 'e2e/.auth/anon.json', viewport: { width: 1280, height: 900 } });
     try {
       await settleBody(desktop.request, `/org/${subdomain}`, `data-widget-id="${id}" data-sb-fit="fixed"`, true);
       const page = await desktop.newPage();
@@ -81,7 +81,7 @@ test('org site fit: an auto section grows to its content; a fixed one keeps its 
     } finally {
       await desktop.close();
     }
-    const phone = await browser.newContext({ storageState: { cookies: [], origins: [] }, viewport: { width: 390, height: 844 } });
+    const phone = await browser.newContext({ storageState: 'e2e/.auth/anon.json', viewport: { width: 390, height: 844 } });
     try {
       const page = await phone.newPage();
       await page.goto(`/org/${subdomain}`);

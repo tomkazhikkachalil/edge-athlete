@@ -37,7 +37,7 @@ test('media proxy: equipment media is profile-scoped at the byte layer', async (
     };
 
     const base = E2E_BASE_URL;
-    const anon = await playwrightRequest.newContext({ baseURL: base, storageState: { cookies: [], origins: [] } });
+    const anon = await playwrightRequest.newContext({ baseURL: base, storageState: 'e2e/.auth/anon.json' });
     try {
       // Owner is private by default → owner sees proxied bytes, anon 404.
       const proxied = await readProxied(apiA);

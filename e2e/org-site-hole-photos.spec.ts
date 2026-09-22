@@ -50,7 +50,7 @@ test('hole photos: set hole 3 → drawn at hole 3 only; remove → gone; the cou
   await admin.from('venues').insert({ club_id: clubId, name: `QA Hole Venue ${stamp}`, golf_course_id: courseId });
 
   const ownerApi = await apiAs('state-b.json');
-  const anon = await browser.newContext({ storageState: { cookies: [], origins: [] } });
+  const anon = await browser.newContext({ storageState: 'e2e/.auth/anon.json' });
   const assets: string[] = [];
   try {
     let res = await ownerApi.post(`/api/clubs/${clubId}/site`);

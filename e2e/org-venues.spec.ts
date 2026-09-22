@@ -95,7 +95,7 @@ test('org venues: member 403 → owner create → link course → org page shows
     expect(linked.courses[0].totalPar).toBe(36);
 
     // Anonymous read: the public reference surface.
-    const anonCtx = await browser.newContext({ storageState: { cookies: [], origins: [] } });
+    const anonCtx = await browser.newContext({ storageState: 'e2e/.auth/anon.json' });
     try {
       const anon = await anonCtx.request.get(`/api/clubs/${clubId}/venues`);
       expect(anon.status()).toBe(200);

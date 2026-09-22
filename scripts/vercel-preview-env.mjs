@@ -14,8 +14,12 @@
  *   3. MEDIA_PROXY_SECRET and ANALYTICS_SALT get a fresh random value for
  *      Preview + Development when none exists there (prod's are never
  *      copied).
+ *   4. The Production-only feature FLAGS are mirrored to Preview +
+ *      Development so a preview is the same app as prod.
  * It refuses to run when .env.local points at the production project, and
- * never prints a value. Run it from the repo root; `--dry-run` only reports.
+ * never prints a value. Run it from the repo root; `--dry-run` only reports;
+ * `--flags-from <file>` supplies the Production flag values (from
+ * `vercel env pull <file> --environment=production`) for step 4.
  */
 import { readFileSync } from 'fs';
 import { randomBytes } from 'crypto';
@@ -23,6 +27,14 @@ import { homedir } from 'os';
 import { join } from 'path';
 
 const dry = process.argv.includes('--dry-run');
+const flagsFile = process.argv[process.argv.indexOf('--flags-from') + 1];
+const flagsFrom = {};
+if (process.argv.includes('--flags-from') && flagsFile) {
+  for (const line of readFileSync(flagsFile, 'utf8').split('\n')) {
+    const m = /^\s*([A-Z0-9_]+)\s*=\s*(.*)\s*$/.exec(line);
+    if (m) flagsFrom[m[1]] = m[2].trim().replace(/^["']|["']$/g, '');
+  }
+}
 const PROD_REF = 'htwhmdoiszhhmwuflgci';
 const env = {};
 for (const line of readFileSync('.env.local', 'utf8').split('\n')) {
@@ -83,9 +95,26 @@ for (const key of ['MEDIA_PROXY_SECRET', 'ANALYTICS_SALT']) {
   if (!dry) await api(`/v10/projects/${project.projectId}/env`, 'POST', { key, value: randomBytes(32).toString('hex'), type: 'sensitive', target: ['preview', 'development'] });
 }
 
+// Feature FLAGS that exist for Production only (a preview built without them
+// runs a different app — the guardian routes answered 404 on the first
+// preview probe). Mirrored to Preview + Development with the SAME value;
+// flags only, never a secret. A NEXT_PUBLIC_* flag is inlined at build time.
+const FLAGS = ['NEXT_PUBLIC_FEATURE_GUARDIAN_PROFILES', 'NEXT_PUBLIC_FEATURE_ROSTER_GUARDIAN_GATE', 'NEXT_PUBLIC_FEATURE_CHAT_DOCK', 'PUBLIC_ORG_SITES'];
+for (const key of FLAGS) {
+  const prod = envs.find(e => e.key === key && e.target.includes('production'));
+  if (!prod) { log(`${key}: no Production entry — skipped`); continue; }
+  if (envs.some(e => e.key === key && e.target.includes('preview'))) { log(`${key}: Preview entry already present`); continue; }
+  // The API does not decrypt an "encrypted" entry; `vercel env pull` does —
+  // the flag values come from a pulled Production env file (--flags-from).
+  const value = flagsFrom[key];
+  if (typeof value !== 'string') { log(`${key}: value not readable — pass --flags-from <file from \`vercel env pull --environment=production\`>`); continue; }
+  log(`${key}: mirroring the Production flag to Preview+Development`);
+  if (!dry) await api(`/v10/projects/${project.projectId}/env`, 'POST', { key, value, type: 'plain', target: ['preview', 'development'] });
+}
+
 const after = (await api(`/v9/projects/${project.projectId}/env`)).envs;
 console.log('\nResult:');
-for (const e of after.filter(e => Object.keys(wanted).includes(e.key) || ['MEDIA_PROXY_SECRET', 'ANALYTICS_SALT'].includes(e.key)).sort((a, b) => a.key.localeCompare(b.key))) {
+for (const e of after.filter(e => Object.keys(wanted).includes(e.key) || ['MEDIA_PROXY_SECRET', 'ANALYTICS_SALT', ...FLAGS].includes(e.key)).sort((a, b) => a.key.localeCompare(b.key))) {
   console.log(`  ${e.key.padEnd(30)} [${[...e.target].sort().join(', ')}]`);
 }
 console.log('\nNext: redeploy is NOT needed for previews (each new preview build reads the current values).');

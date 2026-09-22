@@ -37,7 +37,7 @@ test('org gallery: picked member photo → face, window, lightbox; revoke → go
   ]);
   const ownerApi = await apiAs('state-b.json');
   const alphaApi = await apiAs('state.json');
-  const anon = await browser.newContext({ storageState: { cookies: [], origins: [] } });
+  const anon = await browser.newContext({ storageState: 'e2e/.auth/anon.json' });
   let pub: Awaited<ReturnType<typeof seedRoundPost>> | null = null;
   try {
     let res = await ownerApi.post(`/api/clubs/${clubId}/site`);

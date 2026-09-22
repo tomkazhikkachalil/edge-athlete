@@ -65,7 +65,7 @@ test('season points: 78/82 → 100/75; a tie → 87.5 each; PTS on the public we
   const entryOf = new Map(entries!.map(e => [e.profile_id as string, e.id as string]));
 
   const ownerApi = await apiAs('state-b.json');
-  const anon = await browser.newContext({ storageState: { cookies: [], origins: [] } });
+  const anon = await browser.newContext({ storageState: 'e2e/.auth/anon.json' });
   const base = `/api/clubs/${clubId}/competitions`;
   try {
     // Two windowed rounds through the API (participants minted from the entries).

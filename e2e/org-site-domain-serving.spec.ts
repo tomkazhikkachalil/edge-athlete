@@ -56,7 +56,7 @@ test('org site domain serving: rewrite on the custom host, well-known, per-host 
       })
       .eq('id', site.id);
 
-    const anon = await browser.newContext({ storageState: { cookies: [], origins: [] } });
+    const anon = await browser.newContext({ storageState: 'e2e/.auth/anon.json' });
     try {
       // Does the target honour a custom Host at all (flag on + our header reaches it)?
       const wellKnown = await anon.request.get('/.well-known/edge-athlete', { headers: { host } });

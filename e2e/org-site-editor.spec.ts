@@ -73,7 +73,7 @@ test('org site editor: canvas → drag → autosave → undo → reload; phone n
     expect(res.status()).toBe(400);
     expect(JSON.stringify(await res.json())).toContain('week: not a site widget');
 
-    const anon = await browser.newContext({ storageState: { cookies: [], origins: [] } });
+    const anon = await browser.newContext({ storageState: 'e2e/.auth/anon.json' });
     const publicBefore = await (await anon.request.get(`/org/${subdomain}`)).text();
 
     const ownerCtx = await browser.newContext({ storageState: 'e2e/.auth/state-b.json', viewport: { width: 1280, height: 900 } });
@@ -791,7 +791,7 @@ test('org site editor: pages — New page…, words, switch and back, settings, 
     } finally {
       await ownerCtx.close();
     }
-    const anon = await browser.newContext({ storageState: { cookies: [], origins: [] } });
+    const anon = await browser.newContext({ storageState: 'e2e/.auth/anon.json' });
     try {
       const html = await settleBody(anon.request, `/org/${subdomain}/about-${stamp}`, `Page words ${stamp}`);
       expect(html).toContain(`About us ${stamp}`);

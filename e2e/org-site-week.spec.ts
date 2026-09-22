@@ -112,7 +112,7 @@ test('week hub: open window, posted count + points, on-course count (live entran
   await seedLiveRound(stranger.id, 0);
 
   const ownerApi = await apiAs('state-b.json');
-  const anon = await browser.newContext({ storageState: { cookies: [], origins: [] } });
+  const anon = await browser.newContext({ storageState: 'e2e/.auth/anon.json' });
   const base = `/api/clubs/${clubId}/competitions`;
   try {
     // An OPEN window around today; the owner has posted (a manual result).

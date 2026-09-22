@@ -22,7 +22,7 @@ test('the Club door: existing-account question â†’ organizer account (no DOB) â†
   const admin = adminClient();
   // The default storageState is SIGNED IN (the fake-anonymity trap) â€” the
   // door is a signed-out flow, so it runs in its own anonymous context.
-  const anon = await browser.newContext({ storageState: { cookies: [], origins: [] } });
+  const anon = await browser.newContext({ storageState: 'e2e/.auth/anon.json' });
   const page = await anon.newPage();
   const email = `edgeqa-door-${rand()}@example.com`;
   const password = `Qa!${rand()}${rand()}9`;
@@ -130,7 +130,7 @@ test('the Club door: existing-account question â†’ organizer account (no DOB) â†
 
     // A plain sign-in with ?next= (an existing user) lands in the wizard too.
     const userB = loadQaUser('user-b.json');
-    const ctx = await browser.newContext({ storageState: { cookies: [], origins: [] } });
+    const ctx = await browser.newContext({ storageState: 'e2e/.auth/anon.json' });
     try {
       const p2 = await ctx.newPage();
       await p2.goto('/?next=%2Fleague%2Fstart%3Fsport%3Dgolf');

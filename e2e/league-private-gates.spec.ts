@@ -72,7 +72,7 @@ test('private league: panels on the site, empty public standings, members read /
   const ownerApi = await apiAs('state-b.json');
   const alphaApi = await apiAs('state.json');
   const strangerApi = await request.newContext({ baseURL: E2E_BASE_URL, storageState: await mintStorageState(stranger) });
-  const anon = await browser.newContext({ storageState: { cookies: [], origins: [] } });
+  const anon = await browser.newContext({ storageState: 'e2e/.auth/anon.json' });
   const base = `/api/leagues/${leagueId}/competitions`;
   try {
     // One completed week — names would show on a public league.

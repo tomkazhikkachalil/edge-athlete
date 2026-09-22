@@ -91,7 +91,7 @@ test('course page: hole SVGs from OSM geometry, section label, phone, directions
   await admin.from('venues').insert({ club_id: clubId, name: `QA Venue ${stamp}`, golf_course_id: courseId });
 
   const ownerApi = await apiAs('state-b.json');
-  const anonCtx = await browser.newContext({ storageState: { cookies: [], origins: [] } });
+  const anonCtx = await browser.newContext({ storageState: 'e2e/.auth/anon.json' });
   try {
     let res = await ownerApi.post(`/api/clubs/${clubId}/site`);
     expect(res.status(), await readErrorBody(res)).toBe(200);

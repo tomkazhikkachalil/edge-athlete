@@ -37,7 +37,7 @@ test('news covers: list thumbnail + home teaser + og:image from the first image 
   const clubId = club!.id as string;
   await admin.from('memberships').insert([{ club_id: clubId, profile_id: owner.id, role: 'owner', kind: 'follow' }]);
   const ownerApi = await apiAs('state-b.json');
-  const anon = await browser.newContext({ storageState: { cookies: [], origins: [] } });
+  const anon = await browser.newContext({ storageState: 'e2e/.auth/anon.json' });
   let assetPath = '';
   try {
     let res = await ownerApi.post(`/api/clubs/${clubId}/site`);

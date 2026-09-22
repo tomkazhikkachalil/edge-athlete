@@ -26,7 +26,7 @@ test('org site revisions: draft → preview → publish → history → restore 
   expect(error, error?.message).toBeNull();
   const leagueId = league!.id as string;
   await admin.from('memberships').insert([{ league_id: leagueId, profile_id: owner.id, role: 'owner' }]);
-  const anon = await browser.newContext({ storageState: { cookies: [], origins: [] } });
+  const anon = await browser.newContext({ storageState: 'e2e/.auth/anon.json' });
 
   try {
     let res = await ownerApi.post(`/api/leagues/${leagueId}/site`);

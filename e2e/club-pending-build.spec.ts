@@ -42,7 +42,7 @@ test('live by link: provisioned pending → readable, joinable, publishable, NOT
   const clubName = `QA Link Golf Club ${stamp}`;
   const ownerApi = await apiAs('state-b.json');
   const joinerApi = await apiAs('state.json');
-  const anon = await browser.newContext({ storageState: { cookies: [], origins: [] } });
+  const anon = await browser.newContext({ storageState: 'e2e/.auth/anon.json' });
   const ownerCtx = await browser.newContext({ storageState: 'e2e/.auth/state-b.json', viewport: { width: 375, height: 812 } });
   let clubId: string | null = null;
   try {

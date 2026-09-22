@@ -58,7 +58,7 @@ test('org site news: grid + my own order + expands in place reach the published 
     expect(res.status()).toBe(400);
 
     await publishSite(ownerApi, 'league', leagueId);
-    const anon = await browser.newContext({ storageState: { cookies: [], origins: [] } });
+    const anon = await browser.newContext({ storageState: 'e2e/.auth/anon.json' });
     try {
       const html = await settleBody(anon.request, `/org/${subdomain}`, `data-news-inline="${a.slug}"`, true);
       const at = html.indexOf('data-home-news=');
@@ -82,7 +82,7 @@ test('org site news: grid + my own order + expands in place reach the published 
     res = await ownerApi.put(`/api/leagues/${leagueId}/site/draft`, { data: { layout: withDisplay({ variant: 'list', sort: 'pinned', click: 'detail' }) } });
     expect(res.status(), await readErrorBody(res)).toBe(200);
     await publishSite(ownerApi, 'league', leagueId);
-    const anon2 = await browser.newContext({ storageState: { cookies: [], origins: [] } });
+    const anon2 = await browser.newContext({ storageState: 'e2e/.auth/anon.json' });
     try {
       const home = await settleBody(anon2.request, `/org/${subdomain}`, `data-news-pinned="${a.slug}"`, true);
       const at = home.indexOf('data-home-news=');

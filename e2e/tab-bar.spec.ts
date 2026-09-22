@@ -60,7 +60,7 @@ test('tab bar: five places, the active one, tappable, hidden where a screen owns
     expect(paddingLive).toBe(0);
 
     // Signed out: no bar on a public page.
-    const anon = await browser.newContext({ storageState: { cookies: [], origins: [] } });
+    const anon = await browser.newContext({ storageState: 'e2e/.auth/anon.json' });
     try {
       const p2 = await anon.newPage();
       await p2.goto('/sports/explore');

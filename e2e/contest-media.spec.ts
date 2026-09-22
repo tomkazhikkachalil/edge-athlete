@@ -180,7 +180,7 @@ test('contest media: upload, roster tag, athlete surface, tombstone, proxy gate'
       expect(asAthlete.status(), 'tagged athlete sees the bytes').toBe(200);
       // The config sets a DEFAULT storageState (user A) — a bare
       // newContext() is silently signed in. Force truly anonymous.
-      const anonCtx = await browser.newContext({ storageState: { cookies: [], origins: [] } });
+      const anonCtx = await browser.newContext({ storageState: 'e2e/.auth/anon.json' });
       try {
         const anon = await anonCtx.request.get(mediaUrl!);
         expect(anon.status(), 'anonymous is refused').not.toBe(200);

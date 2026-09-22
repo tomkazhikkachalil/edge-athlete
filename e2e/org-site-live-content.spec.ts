@@ -93,7 +93,7 @@ test('org site live content: a typed email shows on the canvas before Save; the 
     }
 
     await publishSite(ownerApi, 'league', leagueId);
-    const anon = await browser.newContext({ storageState: { cookies: [], origins: [] } });
+    const anon = await browser.newContext({ storageState: 'e2e/.auth/anon.json' });
     try {
       const html = await settleBody(anon.request, `/org/${subdomain}`, email, true);
       expect(html.indexOf('data-contact-field="phone"')).toBeLessThan(html.indexOf('data-contact-field="email"'));
