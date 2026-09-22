@@ -992,6 +992,25 @@ export default function OrgConsolePage() {
     }
   };
 
+  // Round 4: the team sport's one tap — the season + the league table with
+  // every team entered. The schedule stays the manager's (Schedule section).
+  const startTeamSeason = async () => {
+    if (qsBusy || !orgSport) return;
+    setQsBusy(true);
+    try {
+      const ok = await act(
+        `/api/${plural}/${orgId}/competitions/quickstart`,
+        { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sport: orgSport }) },
+        'Your season is live — every team is in the table; add the fixtures under Schedule',
+        'Could not start the season',
+        'Competitions'
+      );
+      if (ok) window.location.hash = '#competitions';
+    } finally {
+      setQsBusy(false);
+    }
+  };
+
   const patchCompetition = (competitionId: string, patch: { status?: string; visibility?: string }) =>
     act(
       `/api/${plural}/${orgId}/competitions`,
@@ -2046,8 +2065,26 @@ export default function OrgConsolePage() {
               </button>
             </div>
           )}
+          {!golfFirst && !!orgSport && !competitions.some(c => c.sport_key === orgSport && c.format === 'fixture' && (c.status === 'draft' || c.status === 'active')) && (
+            <div className="mb-4 rounded-xl border border-brand bg-brand-soft p-4" data-quickstart="team">
+              <p className="font-medium text-primary">Start our season</p>
+              <p className="mt-0.5 text-sm text-secondary">
+                {teams.filter(tm => tm.status === 'active').length >= 2
+                  ? `One tap: this season's league table with all ${teams.filter(tm => tm.status === 'active').length} teams entered. Fixtures come after, under Schedule.`
+                  : 'Add at least two teams (Structure) and this becomes one tap: the season and its league table.'}
+              </p>
+              <button
+                type="button"
+                disabled={qsBusy || teams.filter(tm => tm.status === 'active').length < 2}
+                onClick={() => void startTeamSeason()}
+                className="mt-3 px-4 py-2 text-sm min-h-[44px] rounded-lg bg-brand text-white font-medium hover:bg-brand-hover transition-colors disabled:opacity-60"
+              >
+                {qsBusy ? 'Starting…' : 'Start our season'}
+              </button>
+            </div>
+          )}
           {seasons.length === 0 ? (
-            <p className="text-sm text-tertiary">{golfFirst ? 'Or create a season above and build a league by hand.' : 'Create a season first.'}</p>
+            <p className="text-sm text-tertiary">{golfFirst ? 'Or create a season above and build a league by hand.' : 'Or create a season above and a competition by hand.'}</p>
           ) : (
             <div className="flex flex-wrap gap-2 mb-4">
               <input

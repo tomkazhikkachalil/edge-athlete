@@ -363,6 +363,12 @@ export const EntryAddSchema = z
   });
 export type EntryAddInput = z.infer<typeof EntryAddSchema>;
 
+// Round 4: "Start our season" for a TEAM sport — the season + a fixture
+// competition + every team; the sport is the org's (validated by name).
+export const SeasonQuickstartSchema = z.object({
+  sport: z.string().regex(/^[a-z_]{2,32}$/),
+});
+
 // Onboarding v2 R4: "Start our season" — one POST composes season +
 // golf leaderboard + entries + activation + weekly windows.
 export const GolfQuickstartSchema = z.object({
