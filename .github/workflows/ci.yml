@@ -70,6 +70,14 @@ jobs:
   # the gate step).
   smoke:
     runs-on: ubuntu-latest
+    # ONE smoke run at a time across the whole repo: every run builds the app
+    # (the public pages prerender against the STAGING database) and drives
+    # the e2e suite against it, and six PRs re-running at once knocked the
+    # free-tier staging instance over on Sep 22 2026 (522s, then a drained
+    # Disk IO budget). Queued runs wait; none is cancelled.
+    concurrency:
+      group: smoke-staging
+      cancel-in-progress: false
     env:
       NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
       NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
