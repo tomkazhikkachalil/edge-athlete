@@ -28,6 +28,8 @@ export async function GET(request: NextRequest) {
       .select(`
         id,
         handle,
+        followers_count,
+        following_count,
         first_name,
         middle_name,
         last_name,
@@ -75,19 +77,9 @@ export async function GET(request: NextRequest) {
       }, { status: 403 });
     }
 
-    // Fetch follow stats for display
-    const [followersResult, followingResult] = await Promise.all([
-      supabase
-        .from('follows')
-        .select('id', { count: 'exact', head: true })
-        .eq('following_id', profile.id)
-        .eq('status', 'accepted'),
-      supabase
-        .from('follows')
-        .select('id', { count: 'exact', head: true })
-        .eq('follower_id', profile.id)
-        .eq('status', 'accepted')
-    ]);
+    // Follow stats: the trigger-maintained columns (229) — two COUNT(*)
+    // over every accepted edge per view used to sit here (Round 3).
+    const { followers_count: followersCountCol, following_count: followingCountCol, ...profileFields } = profile as typeof profile & { followers_count: number | null; following_count: number | null };
 
     // Fetch posts count — media-only since the statements split (074): the
     // headline number counts portfolio posts, matching the athlete pages'
@@ -236,10 +228,10 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({
       profile: {
-        ...profile,
+        ...profileFields,
         ...(bodyHidden ? { height_cm: null, weight_kg: null, weight_unit: null } : {}),
-        followersCount: followersResult.count || 0,
-        followingCount: followingResult.count || 0,
+        followersCount: followersCountCol ?? 0,
+        followingCount: followingCountCol ?? 0,
         postsCount: Math.max((postsCount || 0) - (statementsTotal || 0), 0)
       },
       recentPosts,

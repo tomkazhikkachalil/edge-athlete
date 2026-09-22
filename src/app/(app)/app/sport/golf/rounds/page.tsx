@@ -93,7 +93,8 @@ export default function GolfRoundsListPage() {
         const data = await response.json();
         if (seq !== requestSeqRef.current) return; // stale
         setRounds(data.rounds);
-        setTotal(data.total);
+        // Later pages answer total: null (the count is paid on the first page only).
+        if (typeof data.total === 'number') setTotal(data.total);
         setHasMore(data.hasMore);
         setNextOffset(data.nextOffset);
       } catch (e) {

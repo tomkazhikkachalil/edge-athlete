@@ -18,33 +18,33 @@ export async function GET(request: NextRequest) {
     }
 
     const admin = getSupabaseAdmin();
-    const [roundsRes, profileRes, followsRes, settingsRes] = await Promise.all([
+    const [roundsRes, profileRes, settingsRes] = await Promise.all([
+      // "Has at least one" — a LIMIT 1 read, never an exact count of
+      // everything (Round 3: four COUNT(*) per app-shell load before).
       admin
         .from('golf_rounds')
-        .select('id', { count: 'exact', head: true })
-        .eq('profile_id', user.id),
-      admin.from('profiles').select('avatar_url').eq('id', user.id).single(),
-      admin
-        .from('follows')
-        .select('id', { count: 'exact', head: true })
-        .eq('follower_id', user.id)
-        .eq('status', 'accepted'),
+        .select('id')
+        .eq('profile_id', user.id)
+        .limit(1),
+      // The checklist shows "2/3": the trigger-maintained column (229).
+      admin.from('profiles').select('avatar_url, following_count').eq('id', user.id).single(),
       admin
         .from('sport_settings')
-        .select('id', { count: 'exact', head: true })
+        .select('id')
         .eq('profile_id', user.id)
-        .not('settings->>competitive_level', 'is', null),
+        .not('settings->>competitive_level', 'is', null)
+        .limit(1),
     ]);
 
     return NextResponse.json(
       {
-        hasRound: (roundsRes.count ?? 0) > 0,
+        hasRound: (roundsRes.data?.length ?? 0) > 0,
         hasAvatar: !!profileRes.data?.avatar_url,
-        followingCount: followsRes.count ?? 0,
-        hasCompetitive: (settingsRes.count ?? 0) > 0,
+        followingCount: (profileRes.data as { following_count?: number | null } | null)?.following_count ?? 0,
+        hasCompetitive: (settingsRes.data?.length ?? 0) > 0,
       },
       // Deliberately uncacheable: "I did the step, why isn't it checked?"
-      // is worse than four cheap head-counts per feed load.
+      // is worse than three cheap reads per feed load.
       { headers: { 'Cache-Control': 'private, no-store' } }
     );
   } catch (error) {

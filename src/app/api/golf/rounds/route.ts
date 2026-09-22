@@ -44,13 +44,18 @@ export async function GET(request: NextRequest) {
     const yearFilter = parseInt(searchParams.get('year') || '', 10);
     const sort = searchParams.get('sort') === 'oldest' ? 'oldest' : 'newest';
 
+    // The exact total is paid ONCE, on the first page (the page shows "N
+    // rounds logged"); later pages overfetch one row for hasMore and answer
+    // total: null, which the page keeps from the first load (Round 3 — it
+    // was a COUNT(*) over every round of the athlete on EVERY page).
+    const firstPage = offset === 0;
     let query = supabase
       .from('golf_rounds')
       .select(
         `id, date, course, course_location, tee, holes, round_type, par,
          gross_score, total_putts, fir_percentage, gir_percentage,
          is_complete, created_at`,
-        { count: 'exact' }
+        firstPage ? { count: 'exact' } : {}
       )
       .eq('profile_id', profileId);
 
@@ -66,21 +71,23 @@ export async function GET(request: NextRequest) {
         .lte('date', `${yearFilter}-12-31`);
     }
 
-    const { data: rounds, count, error } = await query
+    const { data: rawRounds, count, error } = await query
       .order('date', { ascending: sort === 'oldest' })
       .order('created_at', { ascending: sort === 'oldest' })
-      .range(offset, offset + limit - 1);
+      .range(offset, offset + limit); // limit + 1: the extra row is hasMore
 
     if (error) {
       reportRouteError('GET /api/golf/rounds error:', error);
       return NextResponse.json({ error: 'Failed to load rounds' }, { status: 500 });
     }
+    const hasMore = (rawRounds?.length ?? 0) > limit;
+    const rounds = (rawRounds ?? []).slice(0, limit);
 
     return NextResponse.json({
-      rounds: rounds || [],
-      total: count ?? 0,
-      hasMore: offset + (rounds?.length || 0) < (count ?? 0),
-      nextOffset: offset + (rounds?.length || 0),
+      rounds,
+      total: firstPage ? (count ?? 0) : null,
+      hasMore,
+      nextOffset: offset + rounds.length,
       isOwner: profileId === user.id,
     });
   } catch (error) {
