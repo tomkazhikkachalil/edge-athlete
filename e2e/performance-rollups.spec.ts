@@ -15,7 +15,11 @@ test('performance rollups: one stat line → one event, tiles and bests; a stran
   let postId: string | null = null;
   try {
     const post = await alphaApi.post('/api/posts', {
-      data: { caption: `Rollups hockey ${Date.now()}`, visibility: 'private', postType: 'ice_hockey', stats_data: { type: 'stat_line', sport_key: 'ice_hockey', date: '2026-02-10', stats: { goals: 2, assists: 1, shots: 6 } } },
+      // PUBLIC: the Stats tab's sport cards are built from public posts (the
+      // owner's private lines reach the rollups API, not the card — a product
+      // gap recorded in the DEVLOG). The stranger check below is the PROFILE's
+      // privacy (the QA profiles are private).
+      data: { caption: `Rollups hockey ${Date.now()}`, visibility: 'public', postType: 'ice_hockey', stats_data: { type: 'stat_line', sport_key: 'ice_hockey', date: '2026-02-10', stats: { goals: 2, assists: 1, shots: 6 } } },
     });
     expect(post.ok(), await readErrorBody(post)).toBe(true);
     postId = (await post.json()).post.id as string;
