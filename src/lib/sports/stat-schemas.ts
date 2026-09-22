@@ -35,6 +35,9 @@ export interface StatFieldDef {
   shortLabel: string;   // "G" — used in compact chips/summaries
   min?: number;
   max?: number;
+  /** A fractional value (a race time 11.85, innings pitched 5.2): the composer
+   *  offers the decimal keypad and a 0.01 step (Round 4). Integers otherwise. */
+  decimal?: boolean;
 }
 
 /**
@@ -45,7 +48,8 @@ export type ProfileTileComputation =
   | { kind: 'count' }                          // number of entries (Games/Matches)
   | { kind: 'sum'; keys: string[] }            // total across entries (Goals, Points)
   | { kind: 'avg'; keys: string[]; decimals?: number }  // per-entry average (PPG, AVG)
-  | { kind: 'min'; keys: string[]; decimals?: number }; // best-is-lowest (race PBs)
+  | { kind: 'min'; keys: string[]; decimals?: number; format?: 'race_time' } // best-is-lowest (race PBs; times as m:ss.hh)
+  | { kind: 'ratio'; num: string[]; den: string[]; decimals?: number; format?: 'batting' }; // Σnum / Σden (AVG = H/AB — a ratio of two SUMS, never an average of per-game averages)
 
 export interface ProfileTileDef {
   label: string;                 // matches the registry metric label
@@ -167,12 +171,17 @@ export const STAT_SCHEMAS: Partial<Record<SportKey, SportStatSchema>> = {
       { key: 'hits', label: 'Hits', shortLabel: 'H', min: 0, max: 30 },
       { key: 'blocks', label: 'Blocked Shots', shortLabel: 'BLK', min: 0, max: 20 },
       { key: 'pim', label: 'Penalty Minutes', shortLabel: 'PIM', min: 0, max: 60 },
+      // The goalie's line (Round 4): saves and goals against — a save % is
+      // Σsaves / Σ(saves + goals against), a ratio of sums like batting AVG.
+      { key: 'saves', label: 'Saves', shortLabel: 'SV', min: 0, max: 80 },
+      { key: 'goals_against', label: 'Goals Against', shortLabel: 'GA', min: 0, max: 15 },
     ],
     profileTiles: [
       { label: 'Goals', compute: { kind: 'sum', keys: ['goals'] } },
       { label: 'Assists', compute: { kind: 'sum', keys: ['assists'] } },
       { label: 'Points', compute: { kind: 'sum', keys: ['goals', 'assists'] } },
       { label: 'Games', compute: { kind: 'count' } },
+      { label: 'SV%', compute: { kind: 'ratio', num: ['saves'], den: ['saves', 'goals_against'], decimals: 3, format: 'batting' } },
     ],
     headline: goalsAssistsHeadline(() => STAT_SCHEMAS.ice_hockey!),
     heroStat: { label: 'Points', compute: pointsFromGoalsAssists },
@@ -189,6 +198,9 @@ export const STAT_SCHEMAS: Partial<Record<SportKey, SportStatSchema>> = {
       { key: 'aces', label: 'Aces', shortLabel: 'ACE', min: 0, max: 20 },
       { key: 'blocks', label: 'Blocks', shortLabel: 'BLK', min: 0, max: 25 },
       { key: 'service_errors', label: 'Service Errors', shortLabel: 'SE', min: 0, max: 20 },
+      // Attacking (Round 4): hitting % = (kills − attack errors) / attempts.
+      { key: 'attack_attempts', label: 'Attack Attempts', shortLabel: 'ATT', min: 0, max: 80 },
+      { key: 'attack_errors', label: 'Attack Errors', shortLabel: 'AE', min: 0, max: 30 },
     ],
     profileTiles: [
       { label: 'Kills', compute: { kind: 'sum', keys: ['kills'] } },
@@ -214,12 +226,19 @@ export const STAT_SCHEMAS: Partial<Record<SportKey, SportStatSchema>> = {
       { key: 'steals', label: 'Steals', shortLabel: 'STL', min: 0, max: 15 },
       { key: 'blocks', label: 'Blocks', shortLabel: 'BLK', min: 0, max: 15 },
       { key: 'threes', label: '3-Pointers', shortLabel: '3PM', min: 0, max: 20 },
+      // Attempts (Round 4): FG% and FT% become ratios of sums.
+      { key: 'fga', label: 'FG Attempts', shortLabel: 'FGA', min: 0, max: 60 },
+      { key: 'fgm', label: 'FG Made', shortLabel: 'FGM', min: 0, max: 40 },
+      { key: 'fta', label: 'FT Attempts', shortLabel: 'FTA', min: 0, max: 40 },
+      { key: 'ftm', label: 'FT Made', shortLabel: 'FTM', min: 0, max: 40 },
+      { key: 'turnovers', label: 'Turnovers', shortLabel: 'TO', min: 0, max: 20 },
     ],
     profileTiles: [
       { label: 'PPG', compute: { kind: 'avg', keys: ['points'], decimals: 1 } },
       { label: 'RPG', compute: { kind: 'avg', keys: ['rebounds'], decimals: 1 } },
       { label: 'APG', compute: { kind: 'avg', keys: ['assists'], decimals: 1 } },
       { label: 'Games', compute: { kind: 'count' } },
+      { label: 'FG%', compute: { kind: 'ratio', num: ['fgm'], den: ['fga'], decimals: 3, format: 'batting' } },
     ],
     headline: stats => {
       const parts: string[] = [];
@@ -266,15 +285,21 @@ export const STAT_SCHEMAS: Partial<Record<SportKey, SportStatSchema>> = {
       { key: 'rbis', label: 'RBIs', shortLabel: 'RBI', min: 0, max: 12 },
       { key: 'home_runs', label: 'Home Runs', shortLabel: 'HR', min: 0, max: 5 },
       { key: 'stolen_bases', label: 'Stolen Bases', shortLabel: 'SB', min: 0, max: 6 },
+      // The pitcher's line (Round 4). Innings pitched is fractional by
+      // convention (5.2 = five and two thirds).
+      { key: 'innings_pitched', label: 'Innings Pitched', shortLabel: 'IP', min: 0, max: 12, decimal: true },
+      { key: 'strikeouts', label: 'Strikeouts', shortLabel: 'K', min: 0, max: 25 },
+      { key: 'earned_runs', label: 'Earned Runs', shortLabel: 'ER', min: 0, max: 15 },
     ],
     profileTiles: [
-      // Batting average = total hits / total at-bats (a ratio of two sums,
-      // not an avg-per-game — handled as its own tile below via 'avg' on a
-      // derived ratio is not expressible, so we sum both and the API divides).
+      // Batting average = Σhits / Σat-bats — a ratio of two sums, the `ratio`
+      // kind (Round 4; the comment promised it for a year and nothing divided).
+      { label: 'AVG', compute: { kind: 'ratio', num: ['hits'], den: ['at_bats'], decimals: 3, format: 'batting' } },
       { label: 'Hits', compute: { kind: 'sum', keys: ['hits'] } },
       { label: 'HR', compute: { kind: 'sum', keys: ['home_runs'] } },
       { label: 'RBI', compute: { kind: 'sum', keys: ['rbis'] } },
       { label: 'Games', compute: { kind: 'count' } },
+      { label: 'K', compute: { kind: 'sum', keys: ['strikeouts'] } },
     ],
     headline: stats => {
       const parts: string[] = [];
@@ -299,10 +324,12 @@ export const STAT_SCHEMAS: Partial<Record<SportKey, SportStatSchema>> = {
       shortLabel: e.label,
       min: 0,
       max: 3600,
+      decimal: true, // 11.85 — the decimal keypad on a phone (Round 4)
     })),
     profileTiles: [
-      { label: '100m PB', compute: { kind: 'min', keys: ['time_100m'] } },
-      { label: '200m PB', compute: { kind: 'min', keys: ['time_200m'] } },
+      // Every event's PB, as a time (m:ss.hh past a minute), then the count
+      // (Round 4: 400 / 800 / 1500 were missing and a PB read "245.30").
+      ...TRACK_EVENTS.map(e => ({ label: `${e.label} PB`, compute: { kind: 'min' as const, keys: [e.key], format: 'race_time' as const } })),
       { label: 'Races', compute: { kind: 'count' } },
     ],
     headline: stats => {
@@ -371,7 +398,26 @@ export const computeProfileTile = (
         }
       }
     }
-    return best === null ? '-' : best.toFixed(c.decimals ?? 2);
+    if (best === null) return '-';
+    return c.format === 'race_time' ? formatRaceTime(best) : best.toFixed(c.decimals ?? 2);
+  }
+
+  if (c.kind === 'ratio') {
+    let num = 0;
+    let den = 0;
+    for (const line of lines) {
+      for (const key of c.num) {
+        const v = line.stats[key];
+        if (typeof v === 'number' && Number.isFinite(v)) num += v;
+      }
+      for (const key of c.den) {
+        const v = line.stats[key];
+        if (typeof v === 'number' && Number.isFinite(v)) den += v;
+      }
+    }
+    if (den <= 0) return '-';
+    const r = (num / den).toFixed(c.decimals ?? 3);
+    return c.format === 'batting' ? r.replace(/^0\./, '.') : r; // .300, the batting convention
   }
 
   // avg: mean per entry across the summed keys

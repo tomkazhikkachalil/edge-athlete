@@ -147,7 +147,11 @@ export default function StatLineForm({ sportKey, value, onChange }: StatLineForm
             <input
               id={`${sportKey}-${field.key}`}
               type="number"
-              inputMode="numeric"
+              // A fractional stat (a race time, innings pitched) gets the
+              // decimal keypad and a 0.01 step; without `step` a browser
+              // treats 11.85 as invalid and iOS offers no "." key (Round 4).
+              inputMode={field.decimal ? 'decimal' : 'numeric'}
+              step={field.decimal ? 0.01 : 1}
               min={field.min ?? 0}
               max={field.max}
               placeholder="0"
