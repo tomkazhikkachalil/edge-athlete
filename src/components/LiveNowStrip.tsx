@@ -73,8 +73,12 @@ export default function LiveNowStrip({ variant = 'strip', showEmptyState = false
       } catch { /* strip is a nicety — never break the page */ }
     };
     run();
-    const interval = setInterval(run, REFRESH_MS);
+    // A hidden tab does not poll (Round 3); returning to it catches up.
+    const tick = () => { if (document.visibilityState === 'visible') run(); };
+    const interval = setInterval(tick, REFRESH_MS);
+    document.addEventListener('visibilitychange', tick);
     return () => {
+      document.removeEventListener('visibilitychange', tick);
       cancelled = true;
       clearInterval(interval);
     };

@@ -82,7 +82,7 @@ export default function TransferPage() {
   // and refresh on tab re-focus so "waiting" screens advance on their own.
   useEffect(() => {
     if (!transfer) return;
-    const interval = setInterval(load, 30_000);
+    const interval = setInterval(() => { if (!document.hidden) load(); }, 30_000); // hidden tabs do not poll (Round 3)
     const onVisible = () => { if (!document.hidden) load(); };
     document.addEventListener('visibilitychange', onVisible);
     return () => {
