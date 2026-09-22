@@ -493,7 +493,12 @@ describe('the real chain', () => {
     const dumps = join(process.cwd(), 'database', 'provenance', 'dumps');
     const saved = readdirSync(dumps).filter(n => /-catalog\.json$/.test(n)).sort().pop();
     if (!saved) return;
-    const live = liveFromCatalog(JSON.parse(readFileSync(join(dumps, saved), 'utf8')));
+    const rawCatalog = JSON.parse(readFileSync(join(dumps, saved), 'utf8'));
+    const live = liveFromCatalog(rawCatalog);
+    // A claim from a migration NEWER than the catalog's ledger head is not
+    // stale, it is pending (the catalog is one database at one head).
+    const catalogHead: number = Number(rawCatalog.meta?.ledgerHead ?? 0);
+    const newer = (at: string | undefined) => catalogHead > 0 && Number(String(at ?? '').slice(0, 3)) > catalogHead;
     expect(live.functions.length).toBeGreaterThan(50);
     expect(live.functions.some(f => f.name === 'unaccent')).toBe(false);
     const r = diffCatalog(live, chain);
@@ -503,9 +508,9 @@ describe('the real chain', () => {
     // The simulated grantee sets agree with proacl for every chain-defined function — except, while the
     // saved catalog predates a REVOKE the chain has made since (199's four trigger functions), those keys.
     const revokedBy199 = ['handle_updated_at()', 'update_post_reposts_count()', 'consent_records_forbid_mutation()', 'notify_post_comment()'];
-    expect(r.grantDrift.map(g => g.key).filter(k => !revokedBy199.includes(k))).toEqual([]);
+    expect(r.grantDrift.filter(g => !newer((g as { at?: string }).at)).map(g => g.key).filter(k => !revokedBy199.includes(k))).toEqual([]);
     expect(r.triggerDrift).toEqual([]);
-    expect(r.staleTriggerClaims).toEqual([]);
+    expect(r.staleTriggerClaims.filter(c => !newer(c.at))).toEqual([]);
     expect(r.secdefPublic.map(s => s.key)).toContain('is_conversation_participant(uuid,uuid)');
   });
 });
