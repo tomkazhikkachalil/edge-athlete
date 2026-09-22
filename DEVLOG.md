@@ -1,5 +1,13 @@
 # Development Log
 
+## September 22, 2026 — Round 3 PR 2: migration 229 — follower counts by trigger, the notifications.metadata GIN (merges ALONE)
+
+**What:** `profiles.followers_count` / `following_count` (NULLABLE, default 0 — never NOT NULL on `profiles`, the row-type insert rule) maintained by `follows_counts_sync`, an AFTER INSERT / UPDATE / DELETE trigger on `follows` that moves ±1 for an accepted edge (SECURITY DEFINER — the row it updates is the OTHER person's; `search_path = ''`; fully qualified), backfilled once from the live edges; and `idx_notifications_metadata_gin` (jsonb_path_ops — serves `@>` only, a third the size). Why a trigger and not the route: follows are written by the follow route, the followers route, the block flows and the deletion engine; a count kept by one drifts when another forgets. The twin's drift rows compare the columns to the live edges — a bypass shows there first.
+
+**AFTER on staging (the seed of PR 1):** followers for the subject **12 ms → 0.17 ms** (a PK read, constant at any follower count); the org-announcement `@>` read **1 585 ms → 29 ms** (bitmap index scan). The backfill: 0 drift over 501 profiles; the trigger exercised pending → accepted → delete against the truth. `229 APPLIED | 0 | 0 | true | 229` on staging.
+
+**The catalog test:** the saved provenance catalog predates 229's trigger, so `schema-inventory-catalog.test.ts` tolerates that one claim by name (like 199's revokes) until a fresh catalog is saved after prod runs it.
+
 ## September 22, 2026 — Round 3 (the scale cliffs) PR 1: measure first — the staging seed and the route harness, and the BEFORE numbers (zero DDL)
 
 **What:** Round 3 promises a before/after number per cliff, so the first PR is the instrument. `scripts/staging-seed.mjs` (refuses prod; idempotent; `--wipe`) puts on staging what a 1k-user platform has for one popular athlete: a SUBJECT (`seedsubject`) with **500 followers**, following 300, **2 000 posts** (5 % the subject's, a fifth carrying stat lines), **~5 000 notifications** (likes, comments, follows, and 500 org announcements with the `{ org, announcement, site_notice }` metadata the `.contains()` readers scan), **400 `athlete_performances`** across two sports and two seasons. Free-tier lessons in the script: statement timeouts on cold bursts (retry with a breath), a create that lands after its response is lost (find by email), 50-row follow batches (the follow triggers are heavy). `scripts/measure-routes.mjs` signs in as the subject and times eight hot routes (p50 / p95 / max, warm-ups discarded) against a local staging-backed server or a preview.
