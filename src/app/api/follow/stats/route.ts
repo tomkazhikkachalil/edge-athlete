@@ -29,41 +29,24 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid profileId' }, { status: 400 });
     }
     
-    // Counts via head:true — never fetch the rows. The old .select('id').length
-    // transferred the entire follow graph per profile view AND silently capped
-    // at PostgREST's 1000-row limit, so a >1000-follower account reported 1000
-    // forever. (public/profile/route.ts already does it this way.)
-    const [{ count: followersCountRaw, error: followersError },
-           { count: followingCountRaw, error: followingError }] = await Promise.all([
-      supabase
-        .from('follows')
-        .select('*', { count: 'exact', head: true })
-        .eq('following_id', profileId)
-        .eq('status', 'accepted'),
-      supabase
-        .from('follows')
-        .select('*', { count: 'exact', head: true })
-        .eq('follower_id', profileId)
-        .eq('status', 'accepted'),
-    ]);
-
-    if (followersError) {
-      reportRouteError('Followers error:', followersError);
-      return NextResponse.json({ error: 'Failed to get followers' }, { status: 500 });
-    }
-    if (followingError) {
-      reportRouteError('Following error:', followingError);
-      return NextResponse.json({ error: 'Failed to get following' }, { status: 500 });
-    }
-
-    // Target's privacy, so FollowButton can pick the right flow: public →
-    // one-click follow, private → the request modal. Not sensitive —
-    // /api/privacy/check and the public-profile API already reveal it.
-    const { data: targetProfile } = await supabase
+    // The counts are the trigger-maintained columns (229): one PK read
+    // instead of two COUNT(*) over every accepted edge (Round 3). Before
+    // that they were head:true counts; before THAT `.select('id').length`,
+    // which transferred the whole graph and capped at 1000 silently.
+    // Also the target's privacy, so FollowButton can pick the right flow:
+    // public → one-click follow, private → the request modal. Not
+    // sensitive — /api/privacy/check and the public-profile API reveal it.
+    const { data: targetProfile, error: targetError } = await supabase
       .from('profiles')
-      .select('visibility')
+      .select('visibility, followers_count, following_count')
       .eq('id', profileId)
       .maybeSingle();
+    if (targetError) {
+      reportRouteError('Follow stats target error:', targetError);
+      return NextResponse.json({ error: 'Failed to get follow stats' }, { status: 500 });
+    }
+    const followersCountRaw = (targetProfile as { followers_count?: number | null } | null)?.followers_count ?? 0;
+    const followingCountRaw = (targetProfile as { following_count?: number | null } | null)?.following_count ?? 0;
 
     // Check if current user follows this profile (any status)
     let isFollowing = false;

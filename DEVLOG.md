@@ -1,5 +1,11 @@
 # Development Log
 
+## September 22, 2026 — Round 3 PR 3: the hot paths read the columns — public profile, follow stats, getting-started, the rounds list (zero DDL; after 229)
+
+**What:** `/api/public/profile` and `/api/follow/stats` read `followers_count` / `following_count` off the profile row (one PK read) instead of two `COUNT(*)` over every accepted edge per view; `/api/profile/getting-started` asks "has at least one?" with `LIMIT 1` reads and takes the following number from the column (four exact counts per app-shell load before); `/api/golf/rounds` pays its exact total on the first page only — later pages overfetch one row for `hasMore` and answer `total: null`, which the rounds page keeps from the first load (a `COUNT(*)` over every round on EVERY page before). Response shapes unchanged except that `total`.
+
+**Order:** merges after 229 has run on prod — the routes select the columns by name.
+
 ## September 22, 2026 — Round 3 PR 2: migration 229 — follower counts by trigger, the notifications.metadata GIN (merges ALONE)
 
 **What:** `profiles.followers_count` / `following_count` (NULLABLE, default 0 — never NOT NULL on `profiles`, the row-type insert rule) maintained by `follows_counts_sync`, an AFTER INSERT / UPDATE / DELETE trigger on `follows` that moves ±1 for an accepted edge (SECURITY DEFINER — the row it updates is the OTHER person's; `search_path = ''`; fully qualified), backfilled once from the live edges; and `idx_notifications_metadata_gin` (jsonb_path_ops — serves `@>` only, a third the size). Why a trigger and not the route: follows are written by the follow route, the followers route, the block flows and the deletion engine; a count kept by one drifts when another forgets. The twin's drift rows compare the columns to the live edges — a bypass shows there first.
