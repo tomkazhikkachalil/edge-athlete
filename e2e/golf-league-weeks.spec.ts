@@ -166,7 +166,7 @@ test('golf league weeks: the open window, who posted, per-round results on every
   if (childId) roundIds.push(await insertRound(childId, today, [4, 4, 4, 4, 4, 4, 4, 4, 3]));
 
   const ownerApi = await apiAs('state-b.json');
-  const anonCtx = await browser.newContext({ storageState: { cookies: [], origins: [] } });
+  const anonCtx = await browser.newContext({ storageState: 'e2e/.auth/anon.json' });
   try {
     const base = `/api/clubs/${clubId}/competitions/${competitionId}`;
     type Week = {

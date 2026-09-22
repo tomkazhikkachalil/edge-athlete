@@ -83,7 +83,7 @@ test('event media: add, the public gallery + proxy, the remove rights, the tab, 
     } finally {
       await ctxB.close();
     }
-    const ctxAnon = await browser.newContext({ storageState: { cookies: [], origins: [] } });
+    const ctxAnon = await browser.newContext({ storageState: 'e2e/.auth/anon.json' });
     try {
       const anonPage = await ctxAnon.newPage();
       await anonPage.goto(`/events/${eventId}?tab=gallery`);

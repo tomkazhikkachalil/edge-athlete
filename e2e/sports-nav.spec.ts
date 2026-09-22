@@ -62,7 +62,7 @@ test('sports nav: redirect, subnav, drawer, events list, leaderboards @mobile', 
 test('sports nav: the header link lights on the section and on an event page; signed-out explore renders', async ({ page, browser }) => {
   await page.goto('/sports/events');
   await expect(page.getByRole('link', { name: 'Sports' })).toHaveAttribute('aria-current', 'page');
-  const anon = await browser.newContext({ storageState: { cookies: [], origins: [] } });
+  const anon = await browser.newContext({ storageState: 'e2e/.auth/anon.json' });
   try {
     const p = await anon.newPage();
     await p.goto('/sports/explore');

@@ -23,7 +23,7 @@ test('sport events API: create → invite → waitlist → promote → link → 
   const apiB = await apiAs('state-b.json');
   // The config's `use.storageState` reaches every context, the `request`
   // fixture AND a bare newContext — a real stranger needs an EMPTY state.
-  const anon = await pwRequest.newContext({ baseURL: E2E_BASE_URL, storageState: { cookies: [], origins: [] } });
+  const anon = await pwRequest.newContext({ baseURL: E2E_BASE_URL, storageState: 'e2e/.auth/anon.json' });
   let eventId: string | null = null;
   try {
     // Create: private, invite-only, capacity 1, the host plays → the one seat is taken.

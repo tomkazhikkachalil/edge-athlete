@@ -71,7 +71,7 @@ test('points race: weekly points → totals → ranks → movement; supervised e
   const entryOf = new Map(entries!.map(e => [e.profile_id as string, e.id as string]));
 
   const ownerApi = await apiAs('state-b.json');
-  const anon = await browser.newContext({ storageState: { cookies: [], origins: [] } });
+  const anon = await browser.newContext({ storageState: 'e2e/.auth/anon.json' });
   const base = `/api/clubs/${clubId}/competitions`;
   try {
     const weeks = [

@@ -122,7 +122,7 @@ test('course stats: two-key rule (public post + public profile), masked record, 
   if (childId) await seed(childId, [4, 4, 4, 4, 4, 4, 4, 4, 3], 'public'); // 35
 
   const ownerApi = await apiAs('state-b.json');
-  const anonCtx = await browser.newContext({ storageState: { cookies: [], origins: [] } });
+  const anonCtx = await browser.newContext({ storageState: 'e2e/.auth/anon.json' });
   try {
     let res = await ownerApi.post(`/api/clubs/${clubId}/site`);
     expect(res.status(), await readErrorBody(res)).toBe(200);

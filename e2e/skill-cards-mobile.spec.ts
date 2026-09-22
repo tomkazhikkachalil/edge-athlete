@@ -53,7 +53,7 @@ test.afterAll(async () => {
 test('@mobile /u/ shows the sports skill cards to an anonymous phone viewer', async ({ browser }) => {
   const context = await browser.newContext({
     viewport: { width: 390, height: 844 },
-    storageState: { cookies: [], origins: [] },
+    storageState: 'e2e/.auth/anon.json',
   });
   const page = await context.newPage();
   await page.goto(`/u/@${probeHandle()}`);

@@ -24,7 +24,7 @@ test('sport events API: leaderboard · results mirror · opt-out', async () => {
   const courseName = `QA Results Course ${stamp}`;
   const apiA = await apiAs('state.json');
   const apiB = await apiAs('state-b.json');
-  const anon = await pwRequest.newContext({ baseURL: E2E_BASE_URL, storageState: { cookies: [], origins: [] } });
+  const anon = await pwRequest.newContext({ baseURL: E2E_BASE_URL, storageState: 'e2e/.auth/anon.json' });
   let eventId: string | null = null;
   try {
     const created = await apiA.post('/api/sport-events', {

@@ -46,7 +46,7 @@ test('media proxy: message media is participant-scoped at the byte layer', async
     const base = E2E_BASE_URL;
     const anon = await playwrightRequest.newContext({
       baseURL: base,
-      storageState: { cookies: [], origins: [] },
+      storageState: 'e2e/.auth/anon.json',
     });
     try {
       // Both participants get the bytes; a non-participant (anon) does not.

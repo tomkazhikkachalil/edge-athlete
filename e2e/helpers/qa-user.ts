@@ -39,6 +39,28 @@ const ENV_FILE = E2E_TARGET === 'prod' ? '.env.prod' : '.env.local';
 export const PROD_SUPABASE_REF = 'htwhmdoiszhhmwuflgci';
 export const PROD_APP_HOST = 'edge-athlete.vercel.app';
 
+/**
+ * Vercel previews sit behind Vercel Authentication; the suite reaches them
+ * with the project's "Protection Bypass for Automation" secret (created
+ * Sep 21 2026, kept in .env.staging as VERCEL_AUTOMATION_BYPASS_SECRET).
+ * Sent as a header on EVERY request when E2E_BASE_URL is a preview — the
+ * Playwright config's extraHTTPHeaders and deploy.ts's raw fetch.
+ */
+export function bypassHeaders(): Record<string, string> {
+  if (!/\.vercel\.app$/.test(new URL(E2E_BASE_URL).hostname) || new URL(E2E_BASE_URL).hostname === PROD_APP_HOST) return {};
+  let secret = process.env.VERCEL_AUTOMATION_BYPASS_SECRET;
+  if (!secret) {
+    try {
+      secret = /^VERCEL_AUTOMATION_BYPASS_SECRET=(.+)$/m.exec(readFileSync(join(process.cwd(), '.env.staging'), 'utf8'))?.[1]?.trim();
+    } catch {
+      /* no .env.staging */
+    }
+  }
+  // ONLY the bypass header: `x-vercel-set-bypass-cookie` makes Vercel answer
+  // a self-redirect to plant the cookie, which a following fetch loops on.
+  return secret ? { 'x-vercel-protection-bypass': secret } : {};
+}
+
 /** Cookie scope for the target — localhost is http, a deployment is https. */
 export function baseUrlCookieScope(): { domain: string; secure: boolean } {
   const url = new URL(E2E_BASE_URL);
@@ -330,7 +352,36 @@ export async function mintStorageState(user: QaUser): Promise<{
       origins: [],
     };
   }
-  return { cookies: [cookie], origins: [] };
+  return { cookies: [cookie, ...(await previewBypassCookies())], origins: [] };
+}
+
+/**
+ * The Vercel automation-bypass COOKIE for a preview target, fetched once
+ * per process: `browser.newContext()` in a spec inherits no config header,
+ * so the cookie rides in every storage-state file instead (signed-in and
+ * the signed-out empty state alike — `previewStorageState()`). Empty off a
+ * preview.
+ */
+let bypassCookiePromise: Promise<Array<{ name: string; value: string; domain: string; path: string; expires: number; httpOnly: boolean; secure: boolean; sameSite: 'Lax' }>> | null = null;
+export function previewBypassCookies() {
+  if (!bypassCookiePromise) {
+    bypassCookiePromise = (async () => {
+      const headers = bypassHeaders();
+      if (!headers['x-vercel-protection-bypass']) return [];
+      const res = await fetch(`${E2E_BASE_URL}/api/health`, { headers: { ...headers, 'x-vercel-set-bypass-cookie': 'true' }, redirect: 'manual' });
+      const raw = res.headers.get('set-cookie') ?? '';
+      const m = /_vercel_jwt=([^;]+)/.exec(raw);
+      if (!m) throw new Error(`preview bypass: no _vercel_jwt cookie came back from ${E2E_BASE_URL} (HTTP ${res.status}) — is VERCEL_AUTOMATION_BYPASS_SECRET current?`);
+      const scope = baseUrlCookieScope();
+      return [{ name: '_vercel_jwt', value: m[1], domain: scope.domain, path: '/', expires: -1, httpOnly: true, secure: scope.secure, sameSite: 'Lax' as const }];
+    })();
+  }
+  return bypassCookiePromise;
+}
+
+/** A signed-out storage state that still passes the preview's protection. */
+export async function previewStorageState(): Promise<{ cookies: Awaited<ReturnType<typeof previewBypassCookies>>; origins: never[] }> {
+  return { cookies: await previewBypassCookies(), origins: [] };
 }
 
 /**
@@ -450,7 +501,9 @@ export async function deleteQaUser(userId: string): Promise<void> {
   }
 
   const { error } = await admin.auth.admin.deleteUser(userId);
-  if (error) throw new Error(`deleteUser(${userId}) failed: ${error.message}`);
+  // Already gone (a stale e2e/.auth file from a run whose setup aborted) is
+  // the state we want, not a failure.
+  if (error && !/not found/i.test(error.message)) throw new Error(`deleteUser(${userId}) failed: ${error.message}`);
 }
 
 /**
@@ -504,7 +557,7 @@ export async function listStaleQaUsers(
 
 /** Read a persisted QA user from e2e/.auth (written by global setup). */
 export type QaUserFile = 'user.json' | 'user-b.json' | 'user-c.json' | 'user-d.json';
-export type QaStateFile = 'state.json' | 'state-b.json' | 'state-c.json' | 'state-d.json';
+export type QaStateFile = 'state.json' | 'state-b.json' | 'state-c.json' | 'state-d.json' | 'anon.json';
 
 export function loadQaUser(file: QaUserFile): QaUser {
   return JSON.parse(readFileSync(join(process.cwd(), 'e2e', '.auth', file), 'utf8'));
@@ -522,6 +575,7 @@ export async function apiAs(
   return request.newContext({
     baseURL: E2E_BASE_URL,
     storageState: join(process.cwd(), 'e2e', '.auth', stateFile),
+    extraHTTPHeaders: bypassHeaders(),
   });
 }
 

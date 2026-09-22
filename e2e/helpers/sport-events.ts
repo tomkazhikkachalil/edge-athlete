@@ -92,7 +92,7 @@ export async function openEventSession(): Promise<EventSession> {
   const apiB = await apiAs('state-b.json');
   const apiC = four ? await apiAs('state-c.json') : null;
   const apiD = four ? await apiAs('state-d.json') : null;
-  const anon = await pwRequest.newContext({ baseURL: E2E_BASE_URL, storageState: { cookies: [], origins: [] } });
+  const anon = await pwRequest.newContext({ baseURL: E2E_BASE_URL, storageState: 'e2e/.auth/anon.json' });
   return {
     apiA,
     apiB,

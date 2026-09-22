@@ -5,7 +5,7 @@ import { test, expect } from '@playwright/test';
 // carries. @mobile: the rungs stack at phone width.
 
 test('help: /help/verified-stats renders the six rungs and the unconfirmed marker for a stranger @mobile', async ({ browser }) => {
-  const ctx = await browser.newContext({ storageState: { cookies: [], origins: [] } });
+  const ctx = await browser.newContext({ storageState: 'e2e/.auth/anon.json' });
   try {
     const page = await ctx.newPage();
     await page.goto('/help/verified-stats');

@@ -41,7 +41,7 @@ test('share card: hero photo drawn when set; plain gradient otherwise; both PNG 
   const heroClub = await make('Hero');
   const plainClub = await make('Plain');
   const ownerApi = await apiAs('state-b.json');
-  const anon = await browser.newContext({ storageState: { cookies: [], origins: [] } });
+  const anon = await browser.newContext({ storageState: 'e2e/.auth/anon.json' });
   let assetPath = '';
   try {
     const publish = async (clubId: string) => {

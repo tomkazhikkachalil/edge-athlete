@@ -11,7 +11,7 @@ import { seedContestLeague } from './helpers/contests';
 // completed contest. Tagged @mobile: the body stacks, the scoreline and
 // the way back are reachable at 390px.
 
-const ANON = { cookies: [], origins: [] };
+const ANON = 'e2e/.auth/anon.json';
 
 test('contest page (server path): a stranger reads a public contest — API 200 + scoreline in the HTML source; the private one and a bad id are 404s', async ({ request }) => {
   const admin = adminClient();

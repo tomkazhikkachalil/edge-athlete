@@ -97,7 +97,7 @@ test('org site: two standings bound to two competitions, a schedule bound to one
     expect(stored.layout.widgets.filter(w => w.key === 'standings').map(w => w.config.query?.competitionId).sort()).toEqual([div1!.id, div2!.id].sort());
 
     await publishSite(ownerApi, 'league', leagueId);
-    const anon = await browser.newContext({ storageState: { cookies: [], origins: [] } });
+    const anon = await browser.newContext({ storageState: 'e2e/.auth/anon.json' });
     try {
       let html = '';
       await expect

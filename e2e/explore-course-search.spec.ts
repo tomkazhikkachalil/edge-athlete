@@ -9,7 +9,7 @@ import { test, expect } from '@playwright/test';
  * Region facets, and Near me (emulated geolocation at downtown Ottawa).
  */
 
-test.use({ storageState: { cookies: [], origins: [] } });
+test.use({ storageState: 'e2e/.auth/anon.json' });
 
 async function openGolf(page: import('@playwright/test').Page) {
   await page.goto('/sports/explore');

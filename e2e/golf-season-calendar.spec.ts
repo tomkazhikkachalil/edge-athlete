@@ -105,7 +105,7 @@ test('season on the calendar: all-day windows on members’ calendars, /schedule
 
   const ownerApi = await apiAs('state-b.json');
   const alphaApi = await apiAs('state.json');
-  const anonCtx = await browser.newContext({ storageState: { cookies: [], origins: [] } });
+  const anonCtx = await browser.newContext({ storageState: 'e2e/.auth/anon.json' });
   try {
     const base = `/api/leagues/${leagueId}/competitions/${competitionId}`;
     // Generate 3 weeks, published to the calendar in Toronto time.

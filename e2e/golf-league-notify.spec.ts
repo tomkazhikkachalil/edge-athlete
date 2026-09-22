@@ -199,7 +199,7 @@ test('golf league bells: counted (once), confirmed (once, with rank), guardian c
     }
 
     // "Your week": anon 401; the owner sees their 41 posted; alpha sees the open window and no result.
-    const anonCtx = await browser.newContext({ storageState: { cookies: [], origins: [] } });
+    const anonCtx = await browser.newContext({ storageState: 'e2e/.auth/anon.json' });
     try {
       expect((await anonCtx.request.get(`/api/clubs/${clubId}/golf/mine`)).status()).toBe(401);
     } finally {

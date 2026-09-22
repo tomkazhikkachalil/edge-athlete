@@ -45,7 +45,7 @@ test.afterAll(async () => {
 test('@mobile anonymous /u/ deep link lands on the golf hub layer', async ({ browser }) => {
   const context = await browser.newContext({
     viewport: { width: 390, height: 844 },
-    storageState: { cookies: [], origins: [] },
+    storageState: 'e2e/.auth/anon.json',
   });
   const page = await context.newPage();
   await page.goto(`/u/@${probeHandle()}?tab=stats&sport=golf`);
@@ -64,7 +64,7 @@ test('@mobile anonymous /u/ deep link lands on the golf hub layer', async ({ bro
 test('@mobile /u/ Overview strip-tap opens the Stats section on that sport', async ({ browser }) => {
   const context = await browser.newContext({
     viewport: { width: 390, height: 844 },
-    storageState: { cookies: [], origins: [] },
+    storageState: 'e2e/.auth/anon.json',
   });
   const page = await context.newPage();
   await page.goto(`/u/@${probeHandle()}`);

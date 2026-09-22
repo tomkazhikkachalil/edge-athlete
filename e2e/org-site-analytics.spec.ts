@@ -33,7 +33,7 @@ test('org site analytics: the pixel counts views and daily visitors, honours opt
     const { error: probeError } = await admin.from('org_site_stats_daily').select('site_id').limit(1);
     test.skip(!!probeError, 'org_site_stats_daily missing — run migration 188');
 
-    const anon = await browser.newContext({ storageState: { cookies: [], origins: [] } });
+    const anon = await browser.newContext({ storageState: 'e2e/.auth/anon.json' });
     try {
       const pathFor = async (sub: string) => {
         const probe = await anon.request.get(`/org/${sub}`, { maxRedirects: 0 });

@@ -22,7 +22,7 @@ test('help center UI: videos, search, an article, the guest request, the signed-
   const ids: string[] = [];
   const ticketIds: string[] = [];
   // The project's `use.storageState` signs every context in — an EMPTY state is the signed-out visitor.
-  const ctxOut = await browser.newContext({ storageState: { cookies: [], origins: [] } });
+  const ctxOut = await browser.newContext({ storageState: 'e2e/.auth/anon.json' });
   const ctxA = await browser.newContext({ storageState: 'e2e/.auth/state.json' });
   try {
     const { data: seeded } = await admin

@@ -154,9 +154,12 @@ floor is what runs. Verify: Monitoring → `requests` filtered
 ## 6. Vercel environments → staging (Round 2, Sep 21 2026) — three clicks
 
 Preview and Development deployments must read the STAGING Supabase
-project; only Production reads prod. The values are in `.env.staging` /
-`.env.local` on Tom's machine (the dashboard is the sanctioned writer —
-the assistant's secret-store writes are blocked by policy, on purpose).
+project; only Production reads prod. **DONE Sep 21 2026** by
+`node scripts/vercel-preview-env.mjs` (idempotent: narrows the prod
+entries to Production, adds Preview + Development entries from
+`.env.local`, fresh random `MEDIA_PROXY_SECRET` / `ANALYTICS_SALT` for
+previews; `--dry-run` reports only; never prints a value). Re-run it after
+rotating a staging key. The manual steps below are the same change by hand.
 
 1. Vercel → edge-athlete → **Settings → Environment Variables**. For each
    of `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`,

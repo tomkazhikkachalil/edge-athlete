@@ -125,7 +125,7 @@ test('org site sample data: chips on empty sections, real content untouched, tog
 
     // Published: the public page carries the real sponsor and no sample.
     await publishSite(ownerApi, 'league', leagueId);
-    const anon = await browser.newContext({ storageState: { cookies: [], origins: [] } });
+    const anon = await browser.newContext({ storageState: 'e2e/.auth/anon.json' });
     try {
       const html = await settleBody(anon.request, `/org/${subdomain}`, 'Real Sponsor Ltd', true);
       expect(html).not.toContain(SENTINEL);

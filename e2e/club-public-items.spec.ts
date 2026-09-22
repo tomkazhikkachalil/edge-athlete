@@ -39,7 +39,7 @@ test('news audience: private site lists public posts only, members read both in 
 
   const ownerApi = await apiAs('state-b.json');
   const alphaApi = await apiAs('state.json');
-  const anon = await browser.newContext({ storageState: { cookies: [], origins: [] } });
+  const anon = await browser.newContext({ storageState: 'e2e/.auth/anon.json' });
   try {
     let res = await ownerApi.post(`/api/clubs/${clubId}/site`);
     expect(res.status(), await readErrorBody(res)).toBe(200);

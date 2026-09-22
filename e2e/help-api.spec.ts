@@ -22,7 +22,7 @@ test('help center API: public articles, the guest request, /contact, the screens
   test.skip(!!probe.error, `help_articles missing — run migration 224 (${probe.error?.message})`);
 
   // The project's `use.storageState` signs the `request` fixture in — an EMPTY state is the signed-out visitor.
-  const request = (await browser.newContext({ storageState: { cookies: [], origins: [] } })).request;
+  const request = (await browser.newContext({ storageState: 'e2e/.auth/anon.json' })).request;
   const alphaApi = await apiAs('state.json');
   const bravoApi = await apiAs('state-b.json');
   const deltaApi = await apiAs('state-d.json');

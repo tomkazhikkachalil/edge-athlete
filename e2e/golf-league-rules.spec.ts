@@ -174,7 +174,7 @@ test('golf league rules: net league → windowed 9-hole round → manual scores 
 
     // The public payload: ascending, Player header, RDS/NET/GRS, gross in
     // stats, the supervised child OMITTED (rank gap kept).
-    const anonCtx = await browser.newContext({ storageState: { cookies: [], origins: [] } });
+    const anonCtx = await browser.newContext({ storageState: 'e2e/.auth/anon.json' });
     try {
       let board: {
         direction: string;

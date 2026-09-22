@@ -94,7 +94,7 @@ test('org site sponsors: the panel edits the list with tiers and order, saves it
     }
 
     await publishSite(ownerApi, 'league', leagueId);
-    const anon = await browser.newContext({ storageState: { cookies: [], origins: [] } });
+    const anon = await browser.newContext({ storageState: 'e2e/.auth/anon.json' });
     try {
       const html = await settleBody(anon.request, `/org/${subdomain}`, 'data-sponsor-groups="3"', true);
       const at = html.indexOf('data-sponsor-groups="3"');

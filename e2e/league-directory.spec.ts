@@ -38,7 +38,7 @@ test('league directory: published public + private leagues by region, unpublishe
   const pendingId = await mk(`QA LDir Pending ${stamp}`, { approved_at: null });
 
   const ownerApi = await apiAs('state-b.json');
-  const anon = await browser.newContext({ storageState: { cookies: [], origins: [] }, viewport: { width: 375, height: 812 } });
+  const anon = await browser.newContext({ storageState: 'e2e/.auth/anon.json', viewport: { width: 375, height: 812 } });
   try {
     const publish = async (id: string, doPublish: boolean) => {
       let res = await ownerApi.post(`/api/leagues/${id}/site`);

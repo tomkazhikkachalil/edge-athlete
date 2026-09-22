@@ -9,7 +9,7 @@ import { apiAs, E2E_BASE_URL, loadQaUser, readErrorBody } from './helpers/qa-use
  * with a title for a signed-out reader. Tagged @mobile: every control is
  * reachable at 390px on Chromium and WebKit.
  */
-const ANON = { cookies: [], origins: [] };
+const ANON = 'e2e/.auth/anon.json';
 
 test('event page: invite → accept on the players tab, publish, the stranger screen, public SSR @mobile', async ({ page, browser, request }) => {
   const userB = loadQaUser('user-b.json');

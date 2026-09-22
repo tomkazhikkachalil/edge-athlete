@@ -97,7 +97,7 @@ test('org site display (content widgets): hero, text, image, form and contact ax
     }
 
     await publishSite(ownerApi, 'league', leagueId);
-    const anon = await browser.newContext({ storageState: { cookies: [], origins: [] } });
+    const anon = await browser.newContext({ storageState: 'e2e/.auth/anon.json' });
     try {
       const html = await settleBody(anon.request, `/org/${subdomain}`, 'Ping us', true);
       expect(html).toContain('data-hero-shape="bleed"');

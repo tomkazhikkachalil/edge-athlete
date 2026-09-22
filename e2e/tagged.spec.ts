@@ -106,7 +106,7 @@ test('tagged: tag → round auto-tag → hero → untag → privacy pins', async
     // rather than through apiAs, so it would otherwise still call the local
     // server while the rest of the suite smokes a deployment.
     baseURL: E2E_BASE_URL,
-    storageState: { cookies: [], origins: [] },
+    storageState: 'e2e/.auth/anon.json',
   });
   try {
     // The private author B's post must NOT be in A's tagged list for an

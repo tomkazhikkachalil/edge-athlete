@@ -281,7 +281,7 @@ test('golf league sync: card-counted 9s qualify, 18s and out-of-window rounds do
     expect(standings![1].points).toBe(45);
 
     // Public payload: asc, athlete, both named (no minors here).
-    const anonCtx = await browser.newContext({ storageState: { cookies: [], origins: [] } });
+    const anonCtx = await browser.newContext({ storageState: 'e2e/.auth/anon.json' });
     try {
       const apiRes = await anonCtx.request.get(`/api/clubs/${clubId}/standings?_cb=${Date.now()}`);
       const board = (await apiRes.json()).competitions.find((c: { id: string }) => c.id === competitionId);

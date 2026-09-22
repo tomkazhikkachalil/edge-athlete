@@ -32,7 +32,7 @@ test('club identity: hero photo + CTA + notice, contact card, JSON-LD; cross-sit
   await admin.from('memberships').insert({ club_id: clubId, profile_id: owner.id, role: 'owner' });
 
   const ownerApi = await apiAs('state-b.json');
-  const anonCtx = await browser.newContext({ storageState: { cookies: [], origins: [] } });
+  const anonCtx = await browser.newContext({ storageState: 'e2e/.auth/anon.json' });
   try {
     let res = await ownerApi.post(`/api/clubs/${clubId}/site`);
     expect(res.status(), await readErrorBody(res)).toBe(200);

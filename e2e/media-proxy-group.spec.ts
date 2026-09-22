@@ -53,7 +53,7 @@ test('media proxy: group/round media authorized at the byte layer', async () => 
 
     const base = E2E_BASE_URL;
     const anon = await playwrightRequest.newContext({
-      baseURL: base, storageState: { cookies: [], origins: [] },
+      baseURL: base, storageState: 'e2e/.auth/anon.json',
     });
     try {
       const privProxy = await seedRound('private');

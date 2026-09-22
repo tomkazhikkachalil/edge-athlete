@@ -5,7 +5,7 @@
  *
  * Reads SUPABASE_ACCESS_TOKEN and STAGING_PROJECT_REF from .env.staging
  * (gitignored). It refuses any ref that equals the prod URL's ref in
- * .env.local — staging is a throwaway; production's runner stays the SQL
+ * .env.prod (or the known prod ref) — staging is a throwaway; production's runner stays the SQL
  * editor, by Tom's rule. The whole file is sent as ONE query (one
  * transaction, like the editor); the last statement's rows are printed.
  * LOCAL only.
@@ -13,7 +13,10 @@
 import { readFileSync } from 'fs';
 
 const env = {};
-for (const file of ['.env.staging', '.env.local']) {
+// .env.prod names production (Round 2: .env.local is STAGING); the constant
+// is the fallback when .env.prod is absent.
+const PROD_REF_FALLBACK = 'htwhmdoiszhhmwuflgci';
+for (const file of ['.env.staging', '.env.prod']) {
   try {
     for (const line of readFileSync(file, 'utf8').split('\n')) {
       const m = /^\s*([A-Z0-9_]+)\s*=\s*(.*)\s*$/.exec(line);
@@ -25,7 +28,7 @@ for (const file of ['.env.staging', '.env.local']) {
 }
 const token = env.SUPABASE_ACCESS_TOKEN;
 const ref = env.STAGING_PROJECT_REF;
-const prodRef = /https:\/\/([a-z0-9]+)\.supabase\.co/.exec(env.NEXT_PUBLIC_SUPABASE_URL ?? '')?.[1];
+const prodRef = /https:\/\/([a-z0-9]+)\.supabase\.co/.exec(env.NEXT_PUBLIC_SUPABASE_URL ?? '')?.[1] ?? PROD_REF_FALLBACK;
 if (!token || !ref || ref.startsWith('PASTE')) {
   console.error('staging-sql: SUPABASE_ACCESS_TOKEN and STAGING_PROJECT_REF are required in .env.staging');
   process.exit(2);
