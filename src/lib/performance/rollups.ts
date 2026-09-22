@@ -97,7 +97,7 @@ function bests(schema: SportStatSchema, rows: Array<{ date: string; stats: Recor
   return out;
 }
 
-export function computeRollups(schema: SportStatSchema, rows: RollupRow[], opts: { truncated?: boolean } = {}): Rollups {
+export function computeRollups(schema: SportStatSchema, rows: RollupRow[], opts: { truncated?: boolean; trendLength?: number } = {}): Rollups {
   const clean = rows
     .map(r => ({ date: r.occurred_on.slice(0, 10), stats: numericMetrics(r.metrics), provenance: r.provenance }))
     .sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0)); // newest first
@@ -126,7 +126,7 @@ export function computeRollups(schema: SportStatSchema, rows: RollupRow[], opts:
     });
 
   const trend = clean
-    .slice(0, TREND_LENGTH)
+    .slice(0, Math.max(1, opts.trendLength ?? TREND_LENGTH))
     .reverse()
     .map(r => ({ date: r.date, value: schema.heroStat.compute(r.stats) }))
     .filter((p): p is { date: string; value: number } => typeof p.value === 'number' && Number.isFinite(p.value));

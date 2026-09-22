@@ -19,7 +19,7 @@ export async function readRollups(
   admin: SupabaseClient,
   profileId: string,
   sportKey: string,
-  opts: { viewerIsOwner: boolean }
+  opts: { viewerIsOwner: boolean; trendLength?: number }
 ): Promise<{ supported: boolean; rollups: Rollups | null }> {
   const schema = getStatSchema(sportKey);
   if (!schema) return { supported: true, rollups: null };
@@ -55,5 +55,5 @@ export async function readRollups(
     rows = rows.filter(r => r.source !== 'post' || visible.has(r.source_id));
   }
 
-  return { supported: true, rollups: computeRollups(schema, rows, { truncated }) };
+  return { supported: true, rollups: computeRollups(schema, rows, { truncated, trendLength: opts.trendLength }) };
 }
