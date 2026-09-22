@@ -30,6 +30,26 @@ let cachedAt = 0;
 let inFlight: Promise<number> | null = null;
 const subscribers = new Set<(count: number) => void>();
 
+let sharedTimer: ReturnType<typeof setInterval> | null = null;
+function startSharedTimer() {
+  if (sharedTimer) return;
+  sharedTimer = setInterval(() => {
+    if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return;
+    fetchLiveCount();
+  }, REFRESH_MS);
+  if (typeof document !== 'undefined') document.addEventListener('visibilitychange', onVisible);
+}
+function stopSharedTimerIfUnused() {
+  if (subscribers.size > 0 || !sharedTimer) return;
+  clearInterval(sharedTimer);
+  sharedTimer = null;
+  if (typeof document !== 'undefined') document.removeEventListener('visibilitychange', onVisible);
+}
+/** Back to the tab after a while: one catch-up fetch, only when the cache is stale. */
+function onVisible() {
+  if (document.visibilityState === 'visible' && Date.now() - cachedAt > STALE_MS) fetchLiveCount();
+}
+
 async function fetchLiveCount(): Promise<number> {
   // Coalesce: several components mounting at once must not each fire a request.
   if (inFlight) return inFlight;
@@ -80,10 +100,14 @@ export function useLiveNow(enabled: boolean = true): number {
       fetchLiveCount();
     }
 
-    const interval = setInterval(fetchLiveCount, REFRESH_MS);
+    // ONE module-level timer for every mount (the header AND the tab bar
+    // mount this on every page — two timers used to fire the pair of
+    // fetches twice a minute), and it skips hidden tabs: a backgrounded
+    // tab polled "who is live" all day (Round 3, Sep 2026).
+    startSharedTimer();
     return () => {
       subscribers.delete(setCount);
-      clearInterval(interval);
+      stopSharedTimerIfUnused();
     };
   }, [enabled]);
 

@@ -54,7 +54,7 @@ export default function EventGalleryTab({ view, api, version }: Props) {
     const run = () => { if (!cancelled) void load(); };
     run();
     if (!live) return () => { cancelled = true; };
-    const t = window.setInterval(run, LIVE_POLL_MS);
+    const t = window.setInterval(() => { if (document.visibilityState === 'visible') run(); }, LIVE_POLL_MS); // hidden tabs do not poll (Round 3)
     const onVisible = () => { if (document.visibilityState === 'visible') run(); };
     document.addEventListener('visibilitychange', onVisible);
     return () => { cancelled = true; window.clearInterval(t); document.removeEventListener('visibilitychange', onVisible); };

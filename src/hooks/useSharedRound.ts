@@ -208,8 +208,10 @@ export function useSharedRound({
   // switch the safety net fully off.
   useEffect(() => {
     if (!enabled) return;
+    // …but never from a hidden tab (Round 3): the visibility effect below
+    // refreshes once on return, which is what a backgrounded viewer needs.
     const interval = setInterval(
-      refresh,
+      () => { if (document.visibilityState === 'visible') refresh(); },
       connectionState === 'live' ? POLL_LIVE_MS : POLL_FALLBACK_MS
     );
     return () => clearInterval(interval);

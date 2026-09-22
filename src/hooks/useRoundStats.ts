@@ -35,7 +35,10 @@ export function useRoundStats(api: EventApi, roundId: string | null, live: boole
     let cancelled = false;
     const load = () => { if (!cancelled) void refresh(); };
     load();
-    const t = window.setInterval(load, live ? LIVE_POLL_MS : IDLE_POLL_MS);
+    // The 5 s live poll pauses while the tab is hidden (Round 3); the
+    // visibilitychange listener below loads once on return.
+    const tick = () => { if (document.visibilityState === 'visible') load(); };
+    const t = window.setInterval(tick, live ? LIVE_POLL_MS : IDLE_POLL_MS);
     const onVisible = () => { if (document.visibilityState === 'visible') load(); };
     document.addEventListener('visibilitychange', onVisible);
     return () => { cancelled = true; window.clearInterval(t); document.removeEventListener('visibilitychange', onVisible); };

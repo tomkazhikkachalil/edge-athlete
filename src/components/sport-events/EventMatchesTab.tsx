@@ -61,8 +61,11 @@ export default function EventMatchesTab({ view, api, version, selected, onSelect
       if (res.ok && res.data) { setData(res.data); setState('ready'); } else setState('error');
     };
     void load();
-    const tick = live ? window.setInterval(() => { void load(); }, 15_000) : null;
-    return () => { cancelled = true; if (tick !== null) window.clearInterval(tick); };
+    // Hidden tabs do not poll; a return to the tab loads once (Round 3).
+    const tick = live ? window.setInterval(() => { if (document.visibilityState === 'visible') void load(); }, 15_000) : null;
+    const onVisible = () => { if (live && document.visibilityState === 'visible') void load(); };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => { cancelled = true; if (tick !== null) window.clearInterval(tick); document.removeEventListener('visibilitychange', onVisible); };
   }, [api, bracket, roundId, version, live]);
 
   const switcher = <RoundSwitcher rounds={view.rounds} selected={selected} onChange={onSelect} includeBracket={offersBracket('matches', view.rounds, !!event.match?.bracket)} label="Matches round" />;
