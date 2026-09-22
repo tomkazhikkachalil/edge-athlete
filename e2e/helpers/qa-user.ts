@@ -26,7 +26,8 @@ const ENV_KEYS = [
  *
  * TWO ENVIRONMENTS since Round 2 (Sep 21 2026). The data side comes from
  * the env file: `.env.local` is STAGING (the default — `npm run dev`, local
- * e2e, previews); `E2E_TARGET=prod` reads `.env.prod`. Production — the
+ * e2e, previews); `E2E_TARGET=prod` reads `.env.prod` — which must carry
+ * prod's feature flags as well as its keys (`guardianFlagOn` reads them). Production — the
  * prod Supabase project OR the prod app URL — is REFUSED unless
  * `E2E_ALLOW_PROD=1` is set too; `npm run test:e2e:prod` sets all three.
  * The refusal is the guard against a probe that silently mints QA users

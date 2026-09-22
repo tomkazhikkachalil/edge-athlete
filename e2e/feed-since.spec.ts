@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { apiAs, loadQaUser, readErrorBody } from './helpers/qa-user';
+import { adminClient, apiAs, loadQaUser, readErrorBody } from './helpers/qa-user';
 
 // Round 3: the feed's "anything new since the top of my list?" poll —
 // `GET /api/posts?since=<created_at>` answers posts strictly newer than the
@@ -9,13 +9,16 @@ import { apiAs, loadQaUser, readErrorBody } from './helpers/qa-user';
 // not; a bad `since` and `since` with a cursor are 400s.
 
 test('feed: ?since= answers only posts newer than the timestamp, in the feed shape', async () => {
+  const alpha = loadQaUser('user.json');
   const bravo = loadQaUser('user-b.json');
   const alphaApi = await apiAs('state.json');
   const bravoApi = await apiAs('state-b.json');
   const createdIds: string[] = [];
   try {
-    // Alpha follows bravo (public QA users accept in one act; a pending row is fine for the "all" lens anyway).
-    await alphaApi.post('/api/follow', { data: { followingId: bravo.id } });
+    // Alpha follows bravo — ACCEPTED, written directly: the QA profiles are
+    // private, so the follow route would leave a PENDING request and the
+    // privacy filter would hide bravo's post (the first prod probe's lesson).
+    await adminClient().from('follows').upsert({ follower_id: alpha.id, following_id: bravo.id, status: 'accepted' }, { onConflict: 'follower_id,following_id' });
     const older = await bravoApi.post('/api/posts', { data: { caption: `since-spec older ${Date.now()}`, visibility: 'public' } });
     expect(older.ok(), await readErrorBody(older)).toBe(true);
     createdIds.push((await older.json()).post.id);

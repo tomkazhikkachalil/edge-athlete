@@ -1,5 +1,15 @@
 # Development Log
 
+## September 22, 2026 — Rounds 3 + 4 PROD-PROVEN; the probe's three lessons (spec + env only)
+
+**The probe on `e2085fd3` (every Round 3 and Round 4 PR merged, 229 + 230 run):** `auth-login`, `club-directory`, `feed-following`, `profile-orgs`, `tickets` (both mobile engines), `guardian-claim-gate`, `feed-since`, `performance-rollups` (both mobile engines), `club-signup-door` — **all green**; `check:schema:prod` every facet OK, `Ledger OK` at 230, the Sep 22 catalog saved (#889). Three first-run failures, each a lesson about the PROBE, none about the product:
+
+1. **`feed-since`**: the spec followed bravo through `/api/follow` — on a PRIVATE QA profile that leaves a *pending* request, and the privacy filter rightly hid bravo's post. The follow is written accepted through the admin client now, like `feed-following` always did.
+2. **`performance-rollups`**: a PRIVATE stat line reaches the rollups API for its owner but not the Stats tab's sport cards (built from public posts), so the sport layer never appeared; and the breakdown that hosts the rollups sits behind the layer's "Full breakdown" button. The spec posts a public line and opens the breakdown. **Recorded as a product gap:** the owner's own private lines do not count toward their sport card — the rollups reader shows them, the card does not (`buildStatsCard` reads public only).
+3. **`club-signup-door`**: hung 240 s on a field that does not exist — `guardianFlagOn()` read `NEXT_PUBLIC_FEATURE_GUARDIAN_PROFILES` from the target's env file, and `.env.prod` (Round 2's split) carried only the three Supabase keys, so the probe took the legacy signup path on prod. `.env.prod` now carries prod's feature flags (documented in `env-file.mjs` and the helper); the flag probes read the target's file by design.
+
+Also: the first full run took nine hours of wall-clock on a machine that slept mid-run and reported one WebKit `tickets` timeout — re-run alone, 18.6 s, green.
+
 ## September 22, 2026 — Round 4: non-golf parity — six PRs, zero DDL (built on the Round 3 stack)
 
 The Sep 19 assessment's fourth round: the hockey / basketball / soccer / baseball / volleyball / track athlete's product brought level with the golfer's where it was cheapest. The audit's finding that ordered the work: a non-golf athlete could NEVER complete the Get Started checklist (step 1 checked `golf_rounds` only), six sports had no quick links, no log page and no trends page, a track athlete could not type `11.85` on a phone, `at_bats` was collected for a year and a batting average promised in a comment that nothing computed, the crawlable `/u/[handle]` had no `<head>` and no athlete was in the sitemap, and `/clubs` said "Golf clubs" over a list that was already multi-sport.

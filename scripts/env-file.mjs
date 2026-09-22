@@ -7,6 +7,10 @@
  *   .env.prod   — PRODUCTION: only what must read prod — the rebuild
  *                 baseline (prod's schema IS the baseline), the prod probe,
  *                 `check:schema:prod`, `migrate:mark` after a prod run.
+ *                 It carries prod's FEATURE FLAGS too (NEXT_PUBLIC_FEATURE_*,
+ *                 PUBLIC_ORG_SITES …): the e2e flag probes
+ *                 (`guardianFlagOn`) read the target's file, and a probe
+ *                 that read no flag took the legacy path on prod (Sep 22).
  *
  * `TARGET_ENV=prod` selects `.env.prod`; anything else (or unset) selects
  * `.env.local`. Keys already in the environment win (CI sets them). Both
