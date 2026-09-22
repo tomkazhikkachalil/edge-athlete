@@ -1,5 +1,14 @@
 # Development Log
 
+## September 22, 2026 — Round 3 PR 4: the feed's platform-wide realtime subscription becomes a visible-tab poll; `?since=` on /api/posts (zero DDL)
+
+**What:** `feed/page.tsx` subscribed every open feed tab to `posts` INSERT with `visibility=eq.public` — EVERY public post platform-wide, delivered to every viewer, filtered client-side against a follows list loaded once — a cost that grew with the whole platform's posting rate, not the viewer's, then a `/api/posts?postId=` fetch per accepted event. Now: while the tab is VISIBLE, once a minute (and on returning to the tab, at most every 20 s), the page asks `GET /api/posts?limit=10&since=<the newest post's created_at>&scope=…` — the route's new `since` (strictly newer, newest first, never with a cursor; a bad value is a 400) — and prepends what comes back with the server's privacy gating and the feed's exact shape; the org lens keeps no live prepends (as before). `e2e/feed-since.spec.ts` covers the contract over the API.
+
+**Before / after in realtime terms:** before, N open feed tabs × the platform's public-post rate messages per minute through Supabase Realtime plus a fetch per followed-author post; after, zero realtime messages and one cheap indexed read per visible tab per minute (`idx_posts_created_at_id_desc`, `LIMIT 10`). The channel count in the Realtime dashboard is the number to watch on prod.
+
+**Left as is, with the reason:** `useSharedRound`'s `golf_participant_scores` `*` subscription with no filter — the table has no round column to filter on, and an `in.(participant ids)` filter would lose the "a participant joined mid-round" refresh the hook deliberately handles; a live round has few viewers, so its cost is the platform's score rate × those viewers. The polling hooks are PR 5's.
+
+**Also:** the staging project is renamed `EdgeAthlete-Staging` (it was created as "BackUp" in April, never used; Tom's Disk IO Budget warning tonight was Round 3's seed + measurement load on the free-tier instance — staging-only, self-healing). The `feed-since` spec ran into that IO exhaustion locally; it is proven on a preview once the budget refills.
 ## September 22, 2026 — Round 3 PR 3: the hot paths read the columns — public profile, follow stats, getting-started, the rounds list (zero DDL; after 229)
 
 **What:** `/api/public/profile` and `/api/follow/stats` read `followers_count` / `following_count` off the profile row (one PK read) instead of two `COUNT(*)` over every accepted edge per view; `/api/profile/getting-started` asks "has at least one?" with `LIMIT 1` reads and takes the following number from the column (four exact counts per app-shell load before); `/api/golf/rounds` pays its exact total on the first page only — later pages overfetch one row for `hasMore` and answer `total: null`, which the rounds page keeps from the first load (a `COUNT(*)` over every round on EVERY page before). Response shapes unchanged except that `total`.

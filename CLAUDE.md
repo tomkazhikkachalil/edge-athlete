@@ -22,7 +22,7 @@
 
 | File | Project | Who reads it |
 | --- | --- | --- |
-| `.env.local` | **STAGING** (`EdgeAthlete-BackUp`, us-west-2) — disposable | `npm run dev`, the e2e suite, `check:schema`, Vercel **Preview + Development** |
+| `.env.local` | **STAGING** (`EdgeAthlete-Staging`, us-west-2; was "BackUp" until renamed Sep 22) — disposable | `npm run dev`, the e2e suite, `check:schema`, Vercel **Preview + Development** |
 | `.env.prod` | **PRODUCTION** (`edge-athlete`, ca-central-1) | only `TARGET_ENV=prod` / `E2E_TARGET=prod`: `build:baseline`, `check:schema:prod`, `migrate:mark:prod`, `test:e2e:prod`; Vercel **Production** |
 | `.env.staging` | the Supabase access token + staging ref | `scripts/staging-sql.mjs` (the management API; refuses the prod ref) |
 

@@ -10,7 +10,7 @@ runbook. Regenerated Sep 22 2026 from prod at ledger head 228 (122 tables,
 names the head it embodies. pg_cron jobs are NOT in it (cron.job is not
 readable by the service role) — recreate the two from 059 and 135 by hand.
 
-**Proven Sep 21 2026:** built the staging project (`EdgeAthlete-BackUp`,
+**Proven Sep 21 2026:** built the staging project (`EdgeAthlete-Staging` — named "BackUp" until Sep 22 —
 blank) in one run; re-runnable (ran twice); `check:schema` against it —
 every facet OK + `Ledger OK`; `schema_dump()` on staging equals prod's on
 every structural section (774 constraints, 526 indexes, 106 triggers, 179
