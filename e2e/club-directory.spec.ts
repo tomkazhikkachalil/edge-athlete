@@ -82,7 +82,7 @@ test('club directory: published public + private clubs by region, unpublished/pe
     // 375px.
     const page = await anon.newPage();
     await page.goto('/clubs');
-    await expect(page.getByRole('heading', { name: 'Golf clubs', level: 1 })).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByRole('heading', { name: 'Clubs', level: 1 })).toBeVisible({ timeout: 20_000 });
     expect(await page.evaluate(() => document.documentElement.scrollWidth), 'directory: no horizontal overflow at 375px').toBeLessThanOrEqual(375);
     void draftSub;
   } finally {

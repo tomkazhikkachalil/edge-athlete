@@ -29,13 +29,15 @@ interface MyRequest {
 }
 
 export default function StartLeaguePage() {
-  const { user, loading: authLoading } = useAuth();
+  const { user, profile, loading: authLoading } = useAuth();
   const router = useRouter();
 
   const [requests, setRequests] = useState<MyRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [reloadKey, setReloadKey] = useState(0);
   // Phase 7 C2: `?sport=golf` (the login-page door) — read once, lazily.
+  // Round 4: absent, the wizard starts on the CREATOR's sport (the profile's),
+  // never on golf by default — a hockey coach opens a hockey club.
   // The wizard only mounts after auth + the requests fetch, so this never
   // reaches the server-rendered tree (no hydration mismatch).
   const [initialSport] = useState<string | null>(() =>
@@ -161,7 +163,7 @@ export default function StartLeaguePage() {
               </div>
             )}
 
-            <OrgStartWizard side="league" initialSport={initialSport} onSubmitted={orgId => {
+            <OrgStartWizard side="league" initialSport={initialSport ?? profile?.sport ?? null} onSubmitted={orgId => {
                 if (orgId) router.push(`/app/org/league/${orgId}?welcome=1`);
                 else setReloadKey(k => k + 1);
               }} />

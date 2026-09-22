@@ -13,8 +13,8 @@ import { SPORT_REGISTRY } from '@/lib/sports/SportRegistry';
 export const revalidate = 3600;
 
 export async function generateMetadata(): Promise<Metadata> {
-  const title = 'Golf clubs on Edge Athlete';
-  const description = 'Find a golf club near you — standings, leagues, the week’s play and how to join.';
+  const title = 'Clubs on Edge Athlete';
+  const description = 'Find a club near you — any sport — standings, leagues, the week’s play and how to join.';
   const canonical = `${appBaseUrl()}/clubs`;
   return {
     title,
@@ -40,9 +40,9 @@ export default async function ClubDirectoryPage() {
         <div className="max-w-4xl mx-auto px-4 py-4 flex flex-wrap items-center justify-between gap-2">
           <div className="min-w-0">
             <p className="text-xs text-muted">Edge Athlete</p>
-            <h1 className="text-xl sm:text-2xl font-bold text-primary">Golf clubs</h1>
+            <h1 className="text-xl sm:text-2xl font-bold text-primary">Clubs</h1>
           </div>
-          <a href={`${app}/club/start?sport=golf`} className="text-sm text-brand-fg font-medium shrink-0">
+          <a href={`${app}/club/start`} className="text-sm text-brand-fg font-medium shrink-0">
             Start a club →
           </a>
         </div>
@@ -82,7 +82,7 @@ export default async function ClubDirectoryPage() {
         )}
         <p className="text-xs text-muted">
           Run a club?{' '}
-          <a href={`${app}/club/start?sport=golf`} className="text-brand-fg font-medium">
+          <a href={`${app}/club/start`} className="text-brand-fg font-medium">
             Start yours on Edge Athlete →
           </a>
         </p>

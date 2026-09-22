@@ -36,7 +36,9 @@ type Step = 'entry' | 'organizer' | 'scout' | 'role' | 'dob' | 'details' | 'pare
 type Role = 'athlete' | 'parent';
 type OrgKind = 'club' | 'league';
 /** Phase 7 C1: the org door lands in the wizard with golf preselected. */
-const ORG_DEFAULT_SPORT = 'golf';
+// Round 4: no default sport on the door — the wizard starts on the creator's
+// profile sport when set and offers the picker otherwise.
+const ORG_START_QUERY = '';
 
 const inputClass =
   'w-full px-4 py-3 text-sm text-primary border border-border-strong rounded-md focus:outline-none focus:ring-1 focus:ring-violet-500';
@@ -63,7 +65,7 @@ export default function RegistrationSteps({
   // `ea:invite-return` to pick the club vs league door after the round-trip.
   const pickOrgKind = (kind: OrgKind) => {
     setOrgKind(kind);
-    try { window.sessionStorage.setItem('ea:invite-return', `/${kind}/start?sport=${ORG_DEFAULT_SPORT}`); } catch { /* ignore */ }
+    try { window.sessionStorage.setItem('ea:invite-return', `/${kind}/start${ORG_START_QUERY}`); } catch { /* ignore */ }
   };
   const [dob, setDob] = useState('');
   // Recruiting skeleton (mig 182): the scout's school / program.
@@ -301,7 +303,7 @@ export default function RegistrationSteps({
           } catch { /* the wizard works either way; `/` routes organizers by user_type */ }
           try { window.sessionStorage.removeItem('ea:invite-return'); } catch { /* ignore */ }
           // eslint-disable-next-line @next/next/no-location-assign-relative-destination -- a session was just created; the auth provider must boot fresh (house pattern)
-          window.location.href = `/${orgKind}/start?sport=${ORG_DEFAULT_SPORT}`;
+          window.location.href = `/${orgKind}/start${ORG_START_QUERY}`;
           return;
         }
       } catch { /* fall through to the manual sign-in screen */ }
