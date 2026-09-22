@@ -1060,20 +1060,38 @@ export async function GET(request: NextRequest) {
     // posts. Unlike orgs this lens is NOT public-only: an accepted follow of
     // a private profile SHOULD see that profile's posts here (the existing
     // per-post privacy filter below enforces exactly that rule).
-    let followingPeerIds: string[] = [];
+    // Round 3 (mig 230): the page's post ids come from feed_following() —
+    // the join in SQL — instead of a read of EVERY accepted follow (capped
+    // at 2 000, so a viewer following more saw a silently truncated feed)
+    // and a 2 001-id IN list. "Follows nobody" is a LIMIT 1 existence read.
+    let followPageIds: string[] | null = null;
     if (followScope) {
       if (!currentUserId) {
         return NextResponse.json({ posts: [], hasMore: false });
       }
-      const { data: followRows } = await supabase
+      const { data: anyFollow } = await supabase
         .from('follows')
-        .select('following_id')
+        .select('id')
         .eq('follower_id', currentUserId)
         .eq('status', 'accepted')
-        .limit(2000); // ORG_PEER_CAP parity; PostgREST would cap at 1000 silently
-      followingPeerIds = (followRows || []).map(r => r.following_id as string);
-      if (followingPeerIds.length === 0) {
+        .limit(1);
+      if (!anyFollow || anyFollow.length === 0) {
         return NextResponse.json({ posts: [], hasMore: false, noFollowing: true });
+      }
+      const { data: pageIds, error: pageError } = await supabase.rpc('feed_following', {
+        p_viewer: currentUserId,
+        p_limit: keysetMode && !pinnedOnly ? limit + 1 : limit,
+        p_cursor_ts: keysetMode && cursor ? cursor.ts : null,
+        p_cursor_id: keysetMode && cursor ? cursor.id : null,
+        p_offset: keysetMode ? 0 : offset,
+      });
+      if (pageError) {
+        reportRouteError('feed_following error:', pageError);
+        return NextResponse.json({ error: 'Failed to fetch posts' }, { status: 500 });
+      }
+      followPageIds = ((pageIds as unknown as string[] | null) ?? []);
+      if (followPageIds.length === 0) {
+        return NextResponse.json({ posts: [], hasMore: false, nextCursor: null });
       }
     }
 
@@ -1161,8 +1179,10 @@ export async function GET(request: NextRequest) {
     // your following feed). No SQL visibility restriction — the privacy
     // filter below grants private posts to accepted followers, which is the
     // point of following someone.
-    if (followScope) {
-      query = query.in('profile_id', [currentUserId!, ...followingPeerIds]);
+    if (followScope && followPageIds) {
+      // The RPC chose the page (order, cursor, offset); the select hydrates
+      // it — the keyset / range clauses above are harmless on ≤ limit+1 ids.
+      query = query.in('id', followPageIds);
     }
 
     // Approval queue: unpublished posts never reach list surfaces — EXCEPT
@@ -1203,17 +1223,23 @@ export async function GET(request: NextRequest) {
     // feed READ never filtered blocks before; one helper now hides both.
     const hiddenAuthors = await hiddenAuthorsFor(supabase, currentUserId);
 
-    // The following lens already fetched exactly this set — reuse it.
+    // The viewer's accepted follows AMONG THIS PAGE'S AUTHORS (and, below,
+    // the quoted originals' owners) — bounded by the page, never the whole
+    // graph (Round 3: this read had no limit, so PostgREST capped it at
+    // 1 000 silently and a viewer following more lost private posts from
+    // their oldest follows). In the following lens every author on the page
+    // is followed by construction (or is the viewer).
     let followingIds: Set<string> = new Set();
+    const pageAuthorIds = [...new Set((posts || []).map(p => p.profile_id as string))];
     if (followScope) {
-      followingIds = new Set(followingPeerIds);
-    } else if (currentUserId) {
+      followingIds = new Set(pageAuthorIds);
+    } else if (currentUserId && pageAuthorIds.length > 0) {
       const { data: following } = await supabase
         .from('follows')
         .select('following_id')
         .eq('follower_id', currentUserId)
-        .eq('status', 'accepted');
-
+        .eq('status', 'accepted')
+        .in('following_id', pageAuthorIds);
       if (following) {
         followingIds = new Set(following.map(f => f.following_id));
       }
@@ -1362,12 +1388,26 @@ export async function GET(request: NextRequest) {
     if (tagProfilesResult.error) reportRouteError('[GET] Error fetching tagged profiles:', tagProfilesResult.error);
     if (sharedResult.error) reportRouteError('[GET] Error fetching shared originals:', sharedResult.error);
 
-    // Quoted originals, gated PER VIEWER with the followingIds set already in
-    // scope — no extra follow queries.
+    // Quoted originals, gated PER VIEWER. The followingIds set is bounded to
+    // the page's authors (above); the originals' owners are one more
+    // bounded read here — a quoted private post shows when its owner is
+    // followed, exactly as before.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const sharedById = new Map<string, any>();
     for (const orig of sharedResult.data || []) {
       sharedById.set(orig.id, orig);
+    }
+    if (currentUserId && sharedById.size > 0) {
+      const ownerIds = [...new Set([...sharedById.values()].map(o => o?.profile_id as string | undefined).filter((id): id is string => !!id && !followingIds.has(id)))];
+      if (ownerIds.length > 0) {
+        const { data: ownerFollows } = await supabase
+          .from('follows')
+          .select('following_id')
+          .eq('follower_id', currentUserId)
+          .eq('status', 'accepted')
+          .in('following_id', ownerIds);
+        for (const f of ownerFollows || []) followingIds.add(f.following_id as string);
+      }
     }
 
     // Rounds arrive pre-sorted + keyed from post-read.ts
