@@ -10,7 +10,8 @@
  *   npm run migrate:mark 227
  *   npm run migrate:mark 227 -- --unmark    # remove the row (the file did NOT run)
  */
-import { readFileSync, readdirSync } from 'fs';
+import { readdirSync } from 'fs';
+import { ENV_FILE, TARGET_ENV, loadEnvFile } from './env-file.mjs';
 
 const args = process.argv.slice(2).filter(a => a !== '--');
 const unmark = args.includes('--unmark');
@@ -20,21 +21,12 @@ if (!Number.isInteger(number) || number < 1) {
   process.exit(2);
 }
 
-for (const key of ['NEXT_PUBLIC_SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY']) {
-  if (process.env[key]) continue;
-  try {
-    for (const line of readFileSync('.env.local', 'utf8').split('\n')) {
-      const m = /^\s*([A-Z0-9_]+)\s*=\s*(.*)\s*$/.exec(line);
-      if (m && m[1] === key) process.env[key] = m[2].trim().replace(/^["']|["']$/g, '');
-    }
-  } catch {
-    /* no .env.local */
-  }
-}
+const envFile = loadEnvFile(['NEXT_PUBLIC_SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY']);
+console.error(`migrate-mark: target ${TARGET_ENV}${envFile ? ` (${envFile})` : ' (environment only)'}`);
 const base = (process.env.NEXT_PUBLIC_SUPABASE_URL ?? '').replace(/\/$/, '');
 const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
 if (!base || !key) {
-  console.error('migrate-mark: NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are required (env or .env.local)');
+  console.error(`migrate-mark: NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are required (env or ${ENV_FILE})`);
   process.exit(2);
 }
 

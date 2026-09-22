@@ -119,6 +119,16 @@ Once a quarter, and once before the first org's first season:
 The first drill is Round 2 item 5 of the plan
 (`~/.claude/plans/let-s-go-ahead-and-linear-stallman.md`).
 
+## 5b. The drill, first result (Sep 21 2026)
+
+Not a backup restore — on a free-tier staging project there is none — but
+the rebuild that stands in for it: a blank project (`EdgeAthlete-BackUp`)
+to the full schema at ledger head 227 in **~5 s per run** (three runs while
+the generator was fixed; the checks — `check:schema`, the dump diff —
+another minute). What it does NOT restore: rows, storage objects, auth
+users. That is the shape of a real incident on the current tier: the
+schema is minutes; the DATA is Decision A.
+
 ## 6. If the answer to §1 is "Free"
 
 Until Decision A is made, the fallback is a manual logical dump — a
