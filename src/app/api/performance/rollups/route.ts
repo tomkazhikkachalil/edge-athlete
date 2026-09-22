@@ -46,7 +46,10 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    const { supported, rollups } = await readRollups(admin, profileId, sport, { viewerIsOwner: isOwner });
+    // ?trend=<n>: the trends page wants the whole series; the tab wants ten.
+    const trendParam = Number(searchParams.get('trend') ?? '');
+    const trendLength = Number.isInteger(trendParam) && trendParam > 0 ? Math.min(trendParam, 2000) : undefined;
+    const { supported, rollups } = await readRollups(admin, profileId, sport, { viewerIsOwner: isOwner, trendLength });
     return NextResponse.json({ supported, rollups }, { headers: { 'Cache-Control': 'private, max-age=60' } });
   } catch (error) {
     if (error instanceof Response) return error;

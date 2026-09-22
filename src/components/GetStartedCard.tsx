@@ -11,14 +11,18 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { firstActivityCopy } from '@/lib/sports/first-activity-copy';
 import { useAuth } from '@/lib/auth';
 
 /** Accounts older than this never see the card, even with unmet steps. */
 const NEW_ACCOUNT_WINDOW_DAYS = 14;
 const DISMISS_KEY = 'ea:get-started:dismissed:v1';
+
 const FOLLOW_TARGET = 3;
 
 interface ChecklistState {
+  /** A golf round OR a stat-line post (Round 4); `hasRound` is the pre-Round-4 name. */
+  hasActivity?: boolean;
   hasRound: boolean;
   hasAvatar: boolean;
   followingCount: number;
@@ -70,13 +74,16 @@ export default function GetStartedCard({ onLogRound }: { onLogRound: () => void 
   // Organizers (mig 178) run orgs, not rounds — the checklist is an athlete's.
   if (!user || dismissed || !state || profile?.user_type === 'organizer') return null;
 
+  // Step 1 speaks the athlete's sport (Round 4): a golfer logs a round, a
+  // hockey player a game, a runner a race — the composer is the same door.
+  const first = firstActivityCopy(profile?.sport);
   const steps = [
     {
       key: 'round',
-      done: state.hasRound,
-      label: 'Log your first round',
-      hint: 'Pick the course from search and your handicap starts immediately.',
-      action: <button type="button" onClick={onLogRound} className={ACTION_CLASS}>Log a round →</button>,
+      done: state.hasActivity ?? state.hasRound,
+      label: first.label,
+      hint: first.hint,
+      action: <button type="button" onClick={onLogRound} className={ACTION_CLASS}>{first.cta}</button>,
     },
     {
       key: 'avatar',
