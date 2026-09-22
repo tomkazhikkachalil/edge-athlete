@@ -189,6 +189,12 @@ if (wantCatalog) {
       if (saveCatalog === true) {
         for (let n = 2; existsSync(target); n++) target = target.replace(/(?:-\d+)?-catalog\.json$/, `-${n}-catalog.json`);
       }
+      // The catalog is a snapshot of ONE database at ONE ledger head; the
+      // test that diffs the chain against it ignores claims from migrations
+      // newer than that head (a trigger added by 231 is not stale against a
+      // catalog saved at 230 — it is newer).
+      const ledgerRows = await loadLedger().then(l => l.rows).catch(() => null);
+      if (ledgerRows) raw.meta = { ...(raw.meta ?? {}), ledgerHead: Math.max(0, ...ledgerRows.map(r => Number(r.number))) };
       const text = JSON.stringify(raw, null, 1) + '\n';
       writeFileSync(target, text);
       console.error(`schema-inventory: catalog saved to ${target} (${text.length} bytes; ${raw.policies?.length ?? 0} policies, ${raw.functions?.length ?? 0} functions, ${raw.triggers?.length ?? 0} triggers)`);
