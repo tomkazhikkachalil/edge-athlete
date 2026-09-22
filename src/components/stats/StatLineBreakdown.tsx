@@ -13,6 +13,7 @@ import Link from 'next/link';
 import { UNCONFIRMED_LABEL, UNCONFIRMED_TITLE } from '@/lib/sports/provenance-copy';
 import { useEffect, useRef, useState } from 'react';
 import { getStatSchema } from '@/lib/sports/stat-schemas';
+import SeasonRollups from './SeasonRollups';
 import type { SportKey } from '@/lib/sports/SportRegistry';
 
 interface StatLinesResponse {
@@ -117,6 +118,9 @@ export default function StatLineBreakdown({
 
   return (
     <div>
+      {/* Career + season rollups from athlete_performances (Round 3) — the
+          layer above the log; the log below stays the record. */}
+      <SeasonRollups profileId={profileId} sportKey={sportKey} heroLabel={schema.heroStat.label} />
       {/* Year select — the endpoint's real years, not a catalog. */}
       {data.years.length > 1 && (
         <div className="mb-4">

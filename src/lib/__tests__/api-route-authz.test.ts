@@ -120,6 +120,7 @@ const REVIEWED_SELF_SCOPED: Record<string, string> = {
   'profile/[profileId]/tagged-summary': 'privacy-filtered read (tagged round)',
   'settings/theme': 'writes session user only; accepts no target param',
   'settings/vitals-privacy': 'writes session user only; accepts no target param',
+  'performance/rollups': 'mirrors sports/stat-lines: owner || public profile || accepted follower, then post-origin rows re-checked for visibility (rollups-server)',
   'sports/stat-lines': 'reads public stat lines; visibility in query',
   suggestions: 'follow suggestions for the session user',
   'workout-routines': 'scoped to session user in query',
