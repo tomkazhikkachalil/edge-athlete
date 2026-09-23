@@ -10,8 +10,8 @@ import { buildRoutineSnapshot, type RoutinePlan } from '@/lib/calendar/event-rou
 import { fetchActivityOverlay } from '@/lib/calendar/activity-overlay';
 import { fetchSportEventOverlay } from '@/lib/calendar/sport-event-overlay-server';
 import { fetchOrgEventsForViewer } from '@/lib/calendar/org-merge-server';
-import { hasEventScope, resolveEventScope } from '@/lib/calendar/event-scope';
-import { ORG_TABLE } from '@/lib/orgs/org-ref';
+import { hasEventScope, publicEventRow, resolveEventScope } from '@/lib/calendar/event-scope';
+import { ORG_TABLE, type OrgKindRow } from '@/lib/orgs/org-ref';
 import { enforceRateLimit } from '@/lib/rate-limit';
 import { checkSupervisedInviteGate } from '@/lib/calendar/supervised-invites';
 import type { ServerRoutineRow } from '@/lib/workouts/routines';
@@ -29,7 +29,7 @@ import { reportRouteError } from '@/lib/observability/report';
 const MAX_RANGE_DAYS = 62;
 
 const EVENT_FIELDS =
-  'id, organizer_id, title, description, location, starts_at, ends_at, all_day, timezone, category, status, cancelled_at, series_id, series_override, routine_id, routine_snapshot, league_id, club_id, division_id, team_id, venue_id, facility_id';
+  'id, organizer_id, title, description, location, starts_at, ends_at, all_day, timezone, category, status, cancelled_at, series_id, series_override, routine_id, routine_snapshot, org_id, org:organizations(kind), division_id, team_id, venue_id, facility_id';
 
 export async function GET(request: NextRequest) {
   try {
@@ -77,9 +77,10 @@ export async function GET(request: NextRequest) {
     if (error) throw error;
 
     const events = (data ?? []).map(row => {
-      const event = row.events as unknown as Record<string, unknown>;
+      const event = row.events as unknown as Record<string, unknown> & OrgKindRow;
       return {
-        ...event,
+        // The client keeps reading league_id / club_id (derived from org_id + kind — Round 5 D0-b).
+        ...publicEventRow(event),
         my_status: row.status,
         is_organizer: row.role === 'organizer',
       };
@@ -118,7 +119,7 @@ export async function GET(request: NextRequest) {
       reportRouteError('[CALENDAR] sport event overlay failed:', e);
     }
 
-    return NextResponse.json({ events: [...events, ...orgEvents, ...overlay, ...sportEvents] });
+    return NextResponse.json({ events: [...events, ...orgEvents.map(publicEventRow), ...overlay, ...sportEvents] });
   } catch (error) {
     if (error instanceof Response) return error;
     reportRouteError('[CALENDAR] list error:', error);
@@ -280,8 +281,7 @@ export async function POST(request: NextRequest) {
             // without these a recurring scoped event's occurrences silently
             // lose their link (the single-event path spreads
             // validated.event).
-            league_id: validated.event.league_id ?? null,
-            club_id: validated.event.club_id ?? null,
+            org_id: validated.event.org_id ?? null,
             division_id: validated.event.division_id ?? null,
             team_id: validated.event.team_id ?? null,
           },

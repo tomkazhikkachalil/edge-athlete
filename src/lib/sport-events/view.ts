@@ -12,6 +12,7 @@ import type { FormatConfig, MatchConfig } from './types';
 import type { SportEventGroupMemberRow, SportEventGroupRow, SportEventParticipantRow, SportEventRoundRow, SportEventRow } from './types';
 import { shapeOf } from './types';
 import type { GameConfig, SportEventShape } from './types';
+import { pairFieldsOf } from '@/lib/orgs/org-ref';
 
 export type ProfileForView = MaskableProfile & { id: string; handle?: string | null; avatar_url?: string | null };
 
@@ -91,8 +92,8 @@ export function projectEvent(row: SportEventRow, access: SportEventAccess): Even
   return {
     id: row.id,
     host_profile_id: row.host_profile_id,
-    club_id: row.club_id,
-    league_id: row.league_id,
+    // The public contract keeps club_id / league_id — derived from the row's org_id + kind (Round 5 D0-b).
+    ...pairFieldsOf(row),
     sport_key: row.sport_key,
     name: row.name,
     description: row.description,

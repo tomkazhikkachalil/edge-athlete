@@ -28,12 +28,15 @@ function validEvent(overrides: Record<string, unknown> = {}) {
 
 describe('validateEventInput scope linkage (119/146)', () => {
   it('accepts each scope column alone and normalizes the rest to null', () => {
+    // Round 5 D0-b: the PUBLIC league_id / club_id both land in org_id; the
+    // sub-org scopes keep their columns. Exactly one of the three is set.
     for (const key of ['league_id', 'club_id', 'division_id', 'team_id'] as const) {
       const result = validateEventInput(validEvent({ [key]: SELF }));
       expect(result.ok).toBe(true);
       if (result.ok) {
-        expect(result.event[key]).toBe(SELF);
-        const others = (['league_id', 'club_id', 'division_id', 'team_id'] as const).filter(k => k !== key);
+        const stored = key === 'league_id' || key === 'club_id' ? 'org_id' : key;
+        expect(result.event[stored]).toBe(SELF);
+        const others = (['org_id', 'division_id', 'team_id'] as const).filter(k => k !== stored);
         for (const other of others) expect(result.event[other]).toBeNull();
       }
     }

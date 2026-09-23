@@ -12,10 +12,10 @@ import {
 } from '@/lib/calendar/notifications';
 import { formatEventWhen } from '@/lib/calendar/format-server';
 import { loadEventForViewer } from '@/lib/calendar/detail-server';
-import { hasEventScope, resolveEventScope } from '@/lib/calendar/event-scope';
+import { hasEventScope, publicEventRow, resolveEventScope } from '@/lib/calendar/event-scope';
 import { checkSupervisedInviteGate } from '@/lib/calendar/supervised-invites';
 import { buildRoutineSnapshot, resolveEventRoutine } from '@/lib/calendar/event-routine';
-import { ORG_TABLE } from '@/lib/orgs/org-ref';
+import { ORG_TABLE, type OrgKindRow, pairFieldsOf } from '@/lib/orgs/org-ref';
 import type { ServerRoutineRow } from '@/lib/workouts/routines';
 import { reportRouteError } from '@/lib/observability/report';
 
@@ -34,7 +34,7 @@ import { reportRouteError } from '@/lib/observability/report';
 //         bulk-cancel and stop generation (series ends flips to 'until').
 
 const EVENT_FIELDS =
-  'id, organizer_id, title, description, location, starts_at, ends_at, all_day, timezone, category, status, cancelled_at, series_id, series_override, routine_id, routine_snapshot, league_id, club_id, division_id, team_id, venue_id, facility_id';
+  'id, organizer_id, title, description, location, starts_at, ends_at, all_day, timezone, category, status, cancelled_at, series_id, series_override, routine_id, routine_snapshot, org_id, org:organizations(kind), division_id, team_id, venue_id, facility_id';
 const GUEST_FIELDS =
   'id, profile_id, invited_email, role, status, responded_at, reminder_minutes, profiles:profile_id (id, first_name, middle_name, last_name, full_name, avatar_url, handle)';
 const SERIES_FIELDS = 'id, freq, interval_n, byweekday, ends, until_at, count_n';
@@ -84,7 +84,7 @@ async function fullDetail(
   let orgName: string | null = null;
   const scope = await resolveEventScope(
     admin,
-    event as { league_id?: string | null; club_id?: string | null; division_id?: string | null; team_id?: string | null }
+    event as OrgKindRow & { division_id?: string | null; team_id?: string | null }
   );
   if (scope) {
     const { data: org } = await admin
@@ -107,9 +107,10 @@ async function fullDetail(
       .maybeSingle();
     if (!error && contestRow) contestId = contestRow.id as string;
   }
-  const { routine_snapshot: _snapshot, ...rest } = event as Record<string, unknown>;
+  const { routine_snapshot: _snapshot, ...rest } = event as Record<string, unknown> & OrgKindRow;
   void _snapshot;
-  return { ...rest, org_name: orgName, contest_id: contestId, guests: guests ?? [], series, routine };
+  // The client keeps reading league_id / club_id (derived from org_id + kind — Round 5 D0-b).
+  return { ...publicEventRow(rest), org_name: orgName, contest_id: contestId, guests: guests ?? [], series, routine };
 }
 
 /** Occurrence rows of a series at/after an anchor (or all of them). */
@@ -213,9 +214,11 @@ export async function PATCH(
       category: body.category ?? event.category,
       routine_id: body.routine_id !== undefined ? body.routine_id : event.routine_id,
       // Scope linkage (119/146): omission keeps the existing value;
-      // explicit null detaches.
-      league_id: body.league_id !== undefined ? body.league_id : event.league_id,
-      club_id: body.club_id !== undefined ? body.club_id : event.club_id,
+      // explicit null detaches. The row is org_id + kind; the body speaks
+      // the public league_id / club_id — merged in the public shape and
+      // re-parsed by validateEventInput (Round 5 D0-b).
+      league_id: body.league_id !== undefined ? body.league_id : pairFieldsOf(event).league_id,
+      club_id: body.club_id !== undefined ? body.club_id : pairFieldsOf(event).club_id,
       division_id: body.division_id !== undefined ? body.division_id : event.division_id,
       team_id: body.team_id !== undefined ? body.team_id : event.team_id,
     };
@@ -387,8 +390,8 @@ export async function PATCH(
       routine_snapshot: routineSnapshot,
       // Scope linkage (119/146) — hand-built list, so these must be
       // explicit or scope edits silently drop on update.
-      league_id: validated.event.league_id,
-      club_id: validated.event.club_id,
+      // (org_id since Round 5 D0-b — 234's trigger follows it, a null DETACHES.)
+      org_id: validated.event.org_id,
       division_id: validated.event.division_id,
       team_id: validated.event.team_id,
     };

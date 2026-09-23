@@ -3,6 +3,7 @@ import { requireAdmin, getSupabaseAdmin } from '@/lib/auth-server';
 import { parseBody } from '@/lib/validation';
 import { VenueCreateSchema, placeToVenueColumns, isMissingTableError } from '@/lib/venues/validate';
 import { reportRouteError } from '@/lib/observability/report';
+import { type OrgKindRow, publicOrgRow } from '@/lib/orgs/org-ref';
 
 // ── /api/admin/venues — venue + facility curation (0.4, admin-only v1) ──────
 // Orphan venues are the v1 create shape (Tom, Aug 30): the owning-org pair
@@ -36,7 +37,7 @@ export async function POST(request: NextRequest) {
         golf_club_id: golfClubId ?? null,
         ...placeToVenueColumns(place),
       })
-      .select()
+      .select('*, org:organizations(kind)')
       .single();
     if (error || !venue) {
       reportRouteError('[ADMIN VENUES] insert error:', error);
@@ -60,7 +61,7 @@ export async function POST(request: NextRequest) {
       facilityRows = created ?? [];
     }
 
-    return NextResponse.json({ venue: { ...venue, facilities: facilityRows } });
+    return NextResponse.json({ venue: { ...publicOrgRow(venue as OrgKindRow), facilities: facilityRows } });
   } catch (error) {
     if (error instanceof Response) return error;
     reportRouteError('[ADMIN VENUES] POST error:', error);
@@ -76,7 +77,7 @@ export async function GET(request: NextRequest) {
 
     const { data: venues, error } = await supabase
       .from('venues')
-      .select('id, name, league_id, club_id, golf_club_id, city, region, country, created_at')
+      .select('id, name, org_id, org:organizations(kind), golf_club_id, city, region, country, created_at')
       .order('created_at', { ascending: false })
       .limit(100);
     if (error) {
@@ -108,7 +109,8 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({
       venues: list.map(v => ({
-        ...v,
+        // The dashboard keeps reading league_id / club_id (derived — Round 5 D0-b).
+        ...publicOrgRow(v as OrgKindRow),
         facilities: facilitiesByVenue.get(v.id) ?? [],
         golfClubName: v.golf_club_id ? golfNames.get(v.golf_club_id) ?? null : null,
       })),

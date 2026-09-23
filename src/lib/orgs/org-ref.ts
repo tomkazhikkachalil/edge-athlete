@@ -115,6 +115,14 @@ export function pairFieldsOf(row: OrgKindRow): { league_id: string | null; club_
   return pairFieldsFor(orgRefOf(row));
 }
 
+/** A stored row as a CLIENT reads it: the embed stripped, the public
+ *  league_id / club_id derived from org_id + kind (Tom, Sep 22 2026: the
+ *  contract does not change). */
+export function publicOrgRow<T extends OrgKindRow>(row: T): Omit<T, 'org' | 'league_id' | 'club_id'> & { league_id: string | null; club_id: string | null } {
+  const { org: _org, league_id: _l, club_id: _c, ...rest } = row; // eslint-disable-line @typescript-eslint/no-unused-vars -- stripped on purpose
+  return { ...rest, ...pairFieldsFor(orgRefOf(row)) };
+}
+
 /** The pair column of a kind. For WRITES in the mirror window (the
  *  generated org_id follows), for the two side-specific tables
  *  (league_join_requests / club_join_requests) and for the notifications

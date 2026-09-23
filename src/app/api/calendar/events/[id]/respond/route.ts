@@ -70,7 +70,7 @@ export async function POST(
       // event). Everyone else keeps the 404 — never reveal existence.
       const { data: orgEvent } = await admin
         .from('events')
-        .select('id, organizer_id, title, status, series_id, league_id, club_id, division_id, team_id')
+        .select('id, organizer_id, title, status, series_id, org_id, org:organizations(kind), division_id, team_id')
         .eq('id', id)
         .maybeSingle();
       const { hasEventScope, resolveEventScope } = await import('@/lib/calendar/event-scope');

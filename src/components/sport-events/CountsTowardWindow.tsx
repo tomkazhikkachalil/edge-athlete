@@ -37,8 +37,9 @@ export default function CountsTowardWindow({ view, onClose, onSave }: Props) {
         if (!res.ok) { if (!cancelled) setOptions([]); return; }
         const data = (await res.json()) as { competitions?: Array<CompetitionForLink & Record<string, unknown>> };
         // Track 2 PR 10: the event's sport and shape pick the competitions (a game → a fixture of named sides in its sport).
-        const ev = { club_id: org.side === 'club' ? org.id : null, league_id: org.side === 'league' ? org.id : null, sport_key: view.event.sport_key, shape: view.event.shape, format: view.event.format, bracket: view.event.match?.bracket ?? false };
-        const list = (data.competitions ?? []).map(c => ({ ...c, club_id: ev.club_id, league_id: ev.league_id })).filter(c => eligibleCompetition(ev, c));
+        // The org's own competitions list carries no org column; the event's org is stamped on so the bridge's rule sees a match (Round 5 D0-b: org_id).
+        const ev = { org_id: org.id, sport_key: view.event.sport_key, shape: view.event.shape, format: view.event.format, bracket: view.event.match?.bracket ?? false };
+        const list = (data.competitions ?? []).map(c => ({ ...c, org_id: org.id, org: { kind: org.side } })).filter(c => eligibleCompetition(ev, c));
         if (!cancelled) setOptions(list);
       } catch {
         if (!cancelled) setOptions([]);

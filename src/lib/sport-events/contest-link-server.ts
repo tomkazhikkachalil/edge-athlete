@@ -25,6 +25,7 @@ import { sideNamesOf } from './game';
 import { fetchRoundMatches, readMatchRows, readRoundGroups } from './match-server';
 import { shapeOf } from './types';
 import type { SportEventRoundRow, SportEventRow } from './types';
+import { ORG_ID, orgIdOf } from '@/lib/orgs/org-ref';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Admin = SupabaseClient<any, 'public', any>;
@@ -66,7 +67,7 @@ export async function readSportEventRoundLink(admin: Admin, contestId: string): 
 }
 
 export async function readCompetitionForLink(admin: Admin, competitionId: string): Promise<CompetitionForLink | null> {
-  const { data } = await admin.from('competitions').select('id, name, club_id, league_id, sport_key, format, entrant_type, status').eq('id', competitionId).maybeSingle();
+  const { data } = await admin.from('competitions').select('id, name, org_id, org:organizations(kind), sport_key, format, entrant_type, status').eq('id', competitionId).maybeSingle();
   return (data as CompetitionForLink | null) ?? null;
 }
 
@@ -74,7 +75,7 @@ export async function readCompetitionForLink(admin: Admin, competitionId: string
 async function venueFor(admin: Admin, event: SportEventRow, courseId: string | null): Promise<string | null> {
   if (!courseId) return null;
   let q = admin.from('venues').select('id').eq('golf_course_id', courseId).limit(1);
-  q = event.club_id ? q.eq('club_id', event.club_id) : q.eq('league_id', event.league_id as string);
+  q = q.eq(ORG_ID, orgIdOf(event) as string);
   const { data } = await q.maybeSingle();
   return (data as { id: string } | null)?.id ?? null;
 }

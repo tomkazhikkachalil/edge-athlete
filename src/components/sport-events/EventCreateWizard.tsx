@@ -85,8 +85,8 @@ export default function EventCreateWizard() {
         const res = await fetch(`/api/${kind}s/${id}/competitions`, { cache: 'no-store' });
         if (res.ok) {
           const data = (await res.json()) as { competitions?: CompetitionForLink[] };
-          const ev = { club_id: kind === 'club' ? id : null, league_id: kind === 'league' ? id : null, sport_key: s.sport_key, shape: s.shape, format: s.format, bracket: s.match.bracket };
-          list = (data.competitions ?? []).map(c => ({ ...c, club_id: ev.club_id, league_id: ev.league_id })).filter(c => eligibleCompetition(ev, c));
+          const ev = { org_id: id, sport_key: s.sport_key, shape: s.shape, format: s.format, bracket: s.match.bracket };
+          list = (data.competitions ?? []).map(c => ({ ...c, org_id: id, org: { kind } })).filter(c => eligibleCompetition(ev, c));
         }
       } catch { /* no picker */ }
       if (!cancelled) setFetched({ key: pickKey, list });

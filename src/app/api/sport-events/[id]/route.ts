@@ -17,6 +17,7 @@ import { fetchSportEventView } from '@/lib/sport-events/view-server';
 import { eventShape } from '@/lib/sport-events/contest-link';
 import { readCountsTowardAll } from '@/lib/sport-events/contest-link-server';
 import { reportRouteError } from '@/lib/observability/report';
+import { orgRefFromBody, orgRefOf } from '@/lib/orgs/org-ref';
 
 const NOT_FOUND = () => NextResponse.json({ error: 'Event not found' }, { status: 404, headers: { 'Cache-Control': 'no-store' } });
 
@@ -118,17 +119,27 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       if (links && links.size > 0) return NextResponse.json({ error: 'Remove the competition link before changing the format.', reason: 'linked_competition' }, { status: 409 });
     }
 
-    const nextClub = patch.club_id !== undefined ? patch.club_id : read.event.club_id;
-    const nextLeague = patch.league_id !== undefined ? patch.league_id : read.event.league_id;
-    if (nextClub && nextLeague) return NextResponse.json({ error: 'An event belongs to a club or a league, not both' }, { status: 400 });
-    const orgChanged = (patch.club_id !== undefined && patch.club_id !== read.event.club_id) || (patch.league_id !== undefined && patch.league_id !== read.event.league_id);
-    if (orgChanged && (nextClub || nextLeague)) {
+    // The body speaks the public club_id / league_id; the row is org_id + kind
+    // (Round 5 D0-b). Omission keeps the current org; an explicit null DETACHES
+    // (234's trigger follows org_id).
+    const curRef = orgRefOf(read.event);
+    const nextPublic = {
+      league_id: patch.league_id !== undefined ? patch.league_id : (curRef?.side === 'league' ? curRef.orgId : null),
+      club_id: patch.club_id !== undefined ? patch.club_id : (curRef?.side === 'club' ? curRef.orgId : null),
+    };
+    const next = orgRefFromBody(nextPublic);
+    if (!next.ok) return NextResponse.json({ error: 'An event belongs to a club or a league, not both' }, { status: 400 });
+    const nextRef = next.ref;
+    const orgChanged = (nextRef?.orgId ?? null) !== (curRef?.orgId ?? null);
+    if (orgChanged && nextRef) {
       if (actor.actingAs) return NextResponse.json({ error: 'An organization event is hosted from your own account.' }, { status: 403 });
-      const gate = await requireOrgManager(admin, user, nextClub ? 'club' : 'league', (nextClub ?? nextLeague) as string, { intent: 'manage_competitions' });
+      const gate = await requireOrgManager(admin, user, nextRef.side, nextRef.orgId, { intent: 'manage_competitions' });
       if (!gate.ok) return gate.response;
     }
 
-    const update: Record<string, unknown> = { ...patch };
+    const { club_id: _publicClub, league_id: _publicLeague, ...patchColumns } = patch; // eslint-disable-line @typescript-eslint/no-unused-vars -- the public fields became org_id
+    const update: Record<string, unknown> = { ...patchColumns };
+    if (patch.club_id !== undefined || patch.league_id !== undefined) update.org_id = nextRef?.orgId ?? null;
     if (formatConfig !== null) update.format_config = formatConfig;
     if (patch.visibility === 'link' && !read.event.link_token) update.link_token = mintLinkToken();
 

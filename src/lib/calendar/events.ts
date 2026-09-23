@@ -9,6 +9,7 @@
 import { emailString } from '../validation';
 import { UUID_RE } from '@/lib/uuid';
 import { isValidTimeZone } from './time-zones';
+import { orgRefFromBody } from '@/lib/orgs/org-ref';
 
 export const EVENT_CATEGORIES = [
   'general', 'practice', 'game', 'tournament', 'training', 'social', 'other', 'workout',
@@ -33,11 +34,12 @@ export interface NormalizedEventInput {
   category: EventCategory;
   /** Attached workout routine (080). Ownership is checked in the route. */
   routine_id: string | null;
-  /** Scope linkage (119/146): at most ONE of these four, mirroring
-   *  events_one_scope_check. Owner/manager role on the OWNING org is
-   *  verified in the route (resolveEventScope + getOrgRole). */
-  league_id: string | null;
-  club_id: string | null;
+  /** Scope linkage (119/146): at most ONE of these three, mirroring
+   *  events_one_scope_check. The public body fields league_id / club_id are
+   *  parsed into `org_id` at this boundary (Round 5 D0-b); the kind is read
+   *  from organizations where it matters (resolveEventScope). Owner/manager
+   *  role on the OWNING org is verified in the route. */
+  org_id: string | null;
   division_id: string | null;
   team_id: string | null;
 }
@@ -128,25 +130,24 @@ export function validateEventInput(
     routine_id = body.routine_id;
   }
 
-  const orgId = (key: 'league_id' | 'club_id' | 'division_id' | 'team_id'): string | null | undefined => {
+  const scopeId = (key: 'division_id' | 'team_id'): string | null | undefined => {
     if (body[key] === undefined || body[key] === null) return null;
     if (typeof body[key] !== 'string' || !UUID_RE.test(body[key] as string)) return undefined;
     return body[key] as string;
   };
-  const league_id = orgId('league_id');
-  const club_id = orgId('club_id');
-  const division_id = orgId('division_id');
-  const team_id = orgId('team_id');
-  if (
-    league_id === undefined ||
-    club_id === undefined ||
-    division_id === undefined ||
-    team_id === undefined
-  ) {
+  // The PUBLIC org fields → one org_id (both set is refused below like any
+  // second scope; a bad uuid is the same error as before).
+  const orgRef = orgRefFromBody(body as { league_id?: unknown; club_id?: unknown });
+  if (!orgRef.ok && orgRef.error === 'invalid') return { ok: false, error: 'Invalid organization.' };
+  const division_id = scopeId('division_id');
+  const team_id = scopeId('team_id');
+  if (division_id === undefined || team_id === undefined) {
     return { ok: false, error: 'Invalid organization.' };
   }
-  // One SCOPE at most (146's num_nonnulls, mirrored).
-  if ([league_id, club_id, division_id, team_id].filter(Boolean).length > 1) {
+  // One SCOPE at most (146's num_nonnulls, mirrored) — a league AND a club
+  // counts as two.
+  const org_id = orgRef.ok ? (orgRef.ref?.orgId ?? null) : null;
+  if ((!orgRef.ok ? 2 : org_id ? 1 : 0) + [division_id, team_id].filter(Boolean).length > 1) {
     return { ok: false, error: 'An event can belong to one organization at most.' };
   }
 
@@ -162,8 +163,7 @@ export function validateEventInput(
       timezone,
       category: category as EventCategory,
       routine_id,
-      league_id,
-      club_id,
+      org_id,
       division_id,
       team_id,
     },

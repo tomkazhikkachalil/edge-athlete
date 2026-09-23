@@ -11,6 +11,8 @@
  * `group_posts.sport_event_round_id` (203). See docs/EVENTS.md.
  */
 
+import { type OrgKindEmbed } from '@/lib/orgs/org-ref';
+
 export const SPORT_EVENT_STATUSES = ['draft', 'open', 'live', 'completed', 'cancelled'] as const;
 export type SportEventStatus = (typeof SPORT_EVENT_STATUSES)[number];
 
@@ -118,8 +120,10 @@ export interface SportEventRow {
   id: string;
   host_profile_id: string;
   created_by_user_id: string | null;
-  club_id: string | null;
-  league_id: string | null;
+  /** The host org (Round 5 D0-b): org_id + the organizations embed; the
+   *  public club_id / league_id are derived in the view. */
+  org_id: string | null;
+  org?: OrgKindEmbed;
   sport_key: string;
   name: string;
   description: string | null;
