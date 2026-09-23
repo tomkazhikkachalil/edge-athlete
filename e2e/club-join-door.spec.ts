@@ -89,8 +89,10 @@ test('join door: site CTA → account-first → sign in returns → request to j
     await expect(page.locator('[data-join-state="open"]')).toBeVisible({ timeout: 20_000 });
     await page.getByRole('button', { name: `Join QA Open Door ${stamp}` }).click();
     await expect(page.locator('[data-join-state="member"]')).toBeVisible({ timeout: 20_000 });
-    const { data: rows } = await admin.from('memberships').select('role').eq('club_id', openClubId).eq('profile_id', alpha.id);
-    expect(rows?.map(r => r.role)).toEqual(['member']);
+    // Onboarding v2 R3 (Sep 8 2026): "count my rounds" rides the join, so an
+    // adult's join writes the FOLLOW row and a ROSTER row — both plain members.
+    const { data: rows } = await admin.from('memberships').select('role, kind').eq('org_id', openClubId).eq('profile_id', alpha.id).order('kind');
+    expect(rows?.map(r => [r.kind, r.role])).toEqual([['follow', 'member'], ['roster', 'member']]);
     await page.reload();
     await expect(page.locator('[data-join-state="member"]')).toBeVisible({ timeout: 20_000 });
   } finally {
