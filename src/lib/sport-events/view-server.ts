@@ -5,6 +5,7 @@
  * private leaves.
  */
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { ORG_TABLE } from '@/lib/orgs/org-ref';
 import { readSportEventAccess } from './access-server';
 import { ROUND_COLUMNS } from './rounds-server';
 import type { SportEventGroupMemberRow, SportEventGroupRow, SportEventParticipantRow, SportEventRoundRow } from './types';
@@ -55,7 +56,7 @@ export async function fetchSportEventView(admin: Admin, eventId: string, viewerI
   // Phase 2b: the host org by name and what the event counts toward (tolerant pre-211).
   const org = eventOrg(event);
   const [orgRes, countsToward, bracketComp, matchLinks] = await Promise.all([
-    org ? admin.from(org.side === 'club' ? 'clubs' : 'leagues').select('id, name').eq('id', org.id).maybeSingle() : Promise.resolve({ data: null }),
+    org ? admin.from(ORG_TABLE[org.side]).select('id, name').eq('id', org.id).maybeSingle() : Promise.resolve({ data: null }),
     org && roundIds.length > 0 ? readCountsTowardAll(admin, roundIds) : Promise.resolve(null),
     // Leftovers PR 11 (221): a bracketed match event's bracket — the intent before go-live, the stamped matches after.
     org && event.competition_id ? readEventCompetition(admin, event) : Promise.resolve(null),

@@ -7,6 +7,7 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { OrgSide } from './authz';
+import { ORG_TABLE } from './org-ref';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- the notify.ts Admin alias; schema-agnostic
 type Admin = SupabaseClient<any, 'public', any>;
@@ -41,7 +42,7 @@ export function accessFromRow(row: Record<string, unknown> | null | undefined): 
  *  database included) → open. */
 export async function readOrgAccess(admin: Admin, side: OrgSide, orgId: string): Promise<OrgAccess> {
   const { data, error } = await admin
-    .from(side === 'league' ? 'leagues' : 'clubs')
+    .from(ORG_TABLE[side])
     .select('id, visibility, join_policy')
     .eq('id', orgId)
     .maybeSingle();

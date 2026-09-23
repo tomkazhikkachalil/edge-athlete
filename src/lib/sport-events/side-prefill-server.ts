@@ -9,6 +9,7 @@
  * (`splitSides`); the host keeps their row (playing only as a member).
  */
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { ORG_ID } from '@/lib/orgs/org-ref';
 import { splitSides } from './game';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -16,14 +17,9 @@ type Admin = SupabaseClient<any, 'public', any>;
 
 const TAG = '[side-prefill]';
 
-export interface OrgRef {
-  col: 'league_id' | 'club_id';
-  id: string;
-}
-
 /** A team's roster under the org: the team-scope roster rows, active or placed. */
-export async function teamRosterMembers(admin: Admin, org: OrgRef, teamId: string): Promise<string[]> {
-  const { data } = await admin.from('memberships').select('profile_id').eq(org.col, org.id).eq('kind', 'roster').eq('scope_type', 'team').eq('scope_id', teamId).in('status', ['active', 'placed']);
+export async function teamRosterMembers(admin: Admin, orgId: string, teamId: string): Promise<string[]> {
+  const { data } = await admin.from('memberships').select('profile_id').eq(ORG_ID, orgId).eq('kind', 'roster').eq('scope_type', 'team').eq('scope_id', teamId).in('status', ['active', 'placed']);
   return [...new Set(((data ?? []) as Array<{ profile_id: string }>).map(r => r.profile_id))];
 }
 

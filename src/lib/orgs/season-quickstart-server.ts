@@ -20,6 +20,7 @@ import { resolveCompetitionProfile, defaultRuleFor } from '@/lib/sports/competit
 import { SPORT_REGISTRY, type SportKey } from '@/lib/sports/SportRegistry';
 import { ensureDefaultSeason } from './default-season';
 import type { OrgSide } from './listing';
+import { ORG_ID } from './org-ref';
 import { competitionCreatePOST, competitionPATCH, entryAddPOST } from './competition-server';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- the notify.ts Admin alias; schema-agnostic
@@ -42,7 +43,6 @@ export async function seasonQuickstartPOST(
   scope: { side: OrgSide; orgId: string },
   sportKey: string
 ): Promise<NextResponse> {
-  const orgCol = scope.side === 'league' ? 'league_id' : 'club_id';
   const profile = resolveCompetitionProfile(sportKey);
   if (!profile.formats.fixture) {
     return NextResponse.json({ error: 'This sport has no league-table season to start here.', reason: 'format_unsupported' }, { status: 400 });
@@ -52,7 +52,7 @@ export async function seasonQuickstartPOST(
   const { data: existing } = await admin
     .from('competitions')
     .select('id, name, season_id, status')
-    .eq(orgCol, scope.orgId)
+    .eq(ORG_ID, scope.orgId)
     .eq('sport_key', sportKey)
     .eq('format', 'fixture')
     .in('status', ['active', 'draft'])
@@ -63,7 +63,7 @@ export async function seasonQuickstartPOST(
     return NextResponse.json({ action: 'exists', competitionId: existing.id, seasonId: existing.season_id, name: existing.name });
   }
 
-  const { data: teams } = await admin.from('teams').select('id').eq(orgCol, scope.orgId).eq('status', 'active').limit(200);
+  const { data: teams } = await admin.from('teams').select('id').eq(ORG_ID, scope.orgId).eq('status', 'active').limit(200);
   const teamIds = ((teams ?? []) as Array<{ id: string }>).map(t => t.id);
   if (teamIds.length < 2) {
     return NextResponse.json({ error: 'Add at least two teams first — the season is a table of them.', reason: 'too_few_teams', teams: teamIds.length }, { status: 400 });

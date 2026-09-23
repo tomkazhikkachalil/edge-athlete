@@ -7,6 +7,7 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { OrgSide } from '@/lib/orgs/authz';
+import { ORG_ID } from '@/lib/orgs/org-ref';
 import { notifyGuardians } from '@/lib/guardian-notify';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- matches the authz.ts Admin alias; schema-agnostic helper
@@ -17,11 +18,10 @@ const TAG = '[REGISTRATION NOTIFY]';
 /** Owner|manager profile ids for one org (follow rows, org scope) — the
  *  registrar audience until dedicated Registrar roles exist. */
 async function orgManagerIds(admin: Admin, side: OrgSide, orgId: string): Promise<string[]> {
-  const col = side === 'league' ? 'league_id' : 'club_id';
   const { data } = await admin
     .from('memberships')
     .select('profile_id')
-    .eq(col, orgId)
+    .eq(ORG_ID, orgId)
     .eq('scope_type', 'org')
     // Org staff program: org-scope admins are managers for bells too.
     .in('kind', ['follow', 'staff'])

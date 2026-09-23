@@ -16,6 +16,7 @@ import { parsePageBody } from '@/lib/org-sites/validate';
 import { resolveNewsCover } from '@/lib/org-sites/news-cover';
 import { UUID_RE } from '@/lib/golf/course-catalog';
 import { getOrgAndRole, type OrgSide } from './authz';
+import { ORG_ID } from './org-ref';
 
 const PRIVATE = { 'Cache-Control': 'private, no-store' };
 
@@ -60,7 +61,7 @@ export async function newsMineGET(user: SessionUser, side: OrgSide, params: Prom
     const { data: site } = await admin
       .from('org_sites')
       .select('id, subdomain, published_at')
-      .eq(side === 'league' ? 'league_id' : 'club_id', id)
+      .eq(ORG_ID, id)
       .maybeSingle();
     if (!site) return NextResponse.json({ posts: [], site: null }, { headers: PRIVATE });
     const read = (fields: string) =>

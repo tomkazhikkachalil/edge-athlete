@@ -8,6 +8,7 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { OrgSide } from './listing';
+import { ORG_ROUTE_FAMILY, PAIR_COLUMN } from './org-ref';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- the notify.ts Admin alias; schema-agnostic
 type Admin = SupabaseClient<any, 'public', any>;
@@ -32,7 +33,7 @@ export async function notifyAdminsOfListingRequest(
     const { data: admins } = await admin.from('profiles').select('id').in('email', emails);
     const ids = ((admins ?? []) as { id: string }[]).map(a => a.id).filter(id => id !== n.requesterId);
     if (ids.length === 0) return;
-    const plural = n.side === 'league' ? 'leagues' : 'clubs';
+    const plural = ORG_ROUTE_FAMILY[n.side];
     const rows = ids.map(user_id => ({
       user_id,
       type: 'org_listing_request',
@@ -41,7 +42,7 @@ export async function notifyAdminsOfListingRequest(
       action_url: `/dashboard/${plural}`,
       actor_id: n.requesterId,
       is_read: false,
-      metadata: { [n.side === 'league' ? 'league_id' : 'club_id']: n.orgId },
+      metadata: { [PAIR_COLUMN[n.side]]: n.orgId },
     }));
     const { error } = await admin.from('notifications').insert(rows);
     if (error) console.error(`${TAG} insert failed:`, error);

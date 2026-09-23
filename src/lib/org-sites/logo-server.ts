@@ -11,6 +11,7 @@ import { revalidateTag } from 'next/cache';
 import { NextResponse } from 'next/server';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { OrgSide } from '@/lib/orgs/authz';
+import { ORG_ID } from '@/lib/orgs/org-ref';
 import { ALLOWED_IMAGE_MIME } from '@/lib/media/validation';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- matches the authz.ts Admin alias; schema-agnostic helper
@@ -20,15 +21,11 @@ const TAG = '[ORG SITE LOGO]';
 const MAX_LOGO_BYTES = 10 * 1024 * 1024;
 export const ORG_LOGO_PREFIX = 'org-logos/';
 
-function orgColumn(side: OrgSide): 'league_id' | 'club_id' {
-  return side === 'league' ? 'league_id' : 'club_id';
-}
-
 async function getSite(admin: Admin, side: OrgSide, orgId: string) {
   const { data } = await admin
     .from('org_sites')
     .select('id, subdomain, logo_path')
-    .eq(orgColumn(side), orgId)
+    .eq(ORG_ID, orgId)
     .maybeSingle();
   return data as { id: string; subdomain: string; logo_path: string | null } | null;
 }

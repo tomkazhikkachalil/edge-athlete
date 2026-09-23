@@ -15,6 +15,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import type { SiteBrandRow } from './brand';
 import { loadDraftSnapshotBySiteId, loadSnapshotByRevisionId } from './revisions-server';
 import type { OrgSide } from '@/lib/orgs/authz';
+import { ORG_ID, orgIdOf, orgKindOf } from '@/lib/orgs/org-ref';
 import type { SiteSnapshot } from '@/lib/site-builder/snapshot';
 import { parseStoredLayout } from '@/lib/site-builder/layout-schema';
 import type { SiteLayout } from '@/lib/site-builder/layout';
@@ -36,7 +37,7 @@ export async function findPublishedSite(
     const { data: site } = await admin
       .from('org_sites')
       .select('subdomain')
-      .eq(side === 'league' ? 'league_id' : 'club_id', orgId)
+      .eq(ORG_ID, orgId)
       .not('published_at', 'is', null)
       .maybeSingle();
     return site?.subdomain ? { subdomain: site.subdomain as string } : null;
@@ -86,11 +87,10 @@ export async function readSiteBrandRow(
   opts?: { layout?: boolean }
 ): Promise<SiteBrandRowWithLayout | null> {
   try {
-    const orgColumn = side === 'league' ? 'league_id' : 'club_id';
-    let { data, error } = await admin.from('org_sites').select(BRAND_COLUMNS_180).eq(orgColumn, orgId).maybeSingle();
+    let { data, error } = await admin.from('org_sites').select(BRAND_COLUMNS_180).eq(ORG_ID, orgId).maybeSingle();
     if (error?.code === '42703' || error?.code === 'PGRST204') {
       // Pre-180: no pointer columns — the six, no layout.
-      ({ data, error } = await admin.from('org_sites').select(BRAND_COLUMNS).eq(orgColumn, orgId).maybeSingle());
+      ({ data, error } = await admin.from('org_sites').select(BRAND_COLUMNS).eq(ORG_ID, orgId).maybeSingle());
     }
     if (error || !data?.id || !data.subdomain) return null;
     const row: SiteBrandRowWithLayout = {
@@ -154,8 +154,8 @@ export async function revalidateOrgSiteForCompetition(
       .eq('id', competitionId)
       .maybeSingle();
     if (!comp) return;
-    const side: OrgSide = comp.league_id ? 'league' : 'club';
-    const orgId = (comp.league_id ?? comp.club_id) as string | null;
+    const side: OrgSide = orgKindOf(comp) ?? 'club';
+    const orgId = orgIdOf(comp);
     if (orgId) await revalidateOrgSiteForOrg(admin, side, orgId);
     // Phase 6c G3: a league's boards also show on its affiliated clubs'
     // pages ("this week at the club") — purge those too, bounded.

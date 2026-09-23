@@ -13,22 +13,18 @@
 
 import type { PostgrestError, SupabaseClient } from '@supabase/supabase-js';
 import { maxOrgRole, type OrgRole, type OrgSide } from './authz';
+import { ORG_ID, PAIR_COLUMN, pairFor, type OrgRef } from './org-ref';
 import { isMissingTableError } from '@/lib/leagues/validate';
 import { isStubEmail } from '@/lib/config/stubs-config';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- matches the authz.ts Admin alias; schema-agnostic helper
 type Admin = SupabaseClient<any, 'public', any>;
 
-export interface OrgRef {
-  side: OrgSide;
-  orgId: string;
-}
+/** The org ref this module takes is THE `OrgRef` of org-ref.ts (Round 5);
+ *  re-exported so existing `from './members'` imports keep resolving. */
+export type { OrgRef };
 
 type WriteResult = { error: PostgrestError | null };
-
-function orgColumn(side: OrgSide): 'league_id' | 'club_id' {
-  return side === 'league' ? 'league_id' : 'club_id';
-}
 
 async function insertMembership(
   admin: Admin,
@@ -36,7 +32,7 @@ async function insertMembership(
   profileId: string,
   role?: 'owner'
 ): Promise<WriteResult> {
-  const row: Record<string, unknown> = { [orgColumn(ref.side)]: ref.orgId, profile_id: profileId };
+  const row: Record<string, unknown> = { ...pairFor(ref), profile_id: profileId };
   if (role) row.role = role;
   const { error } = await admin.from('memberships').insert(row);
   return { error };
@@ -65,7 +61,7 @@ export async function promoteFollowToOwner(
   const { data, error } = await admin
     .from('memberships')
     .update({ role: 'owner' })
-    .eq(orgColumn(ref.side), ref.orgId)
+    .eq(ORG_ID, ref.orgId)
     .eq('profile_id', profileId)
     .eq('kind', 'follow')
     .eq('scope_type', 'org')
@@ -86,7 +82,7 @@ export async function demoteOwnerToManager(
   const { data, error } = await admin
     .from('memberships')
     .update({ role: 'manager' })
-    .eq(orgColumn(ref.side), ref.orgId)
+    .eq(ORG_ID, ref.orgId)
     .eq('profile_id', profileId)
     .eq('kind', 'follow')
     .eq('scope_type', 'org')
@@ -107,7 +103,7 @@ export async function ownerRows(
   const { data, error } = await admin
     .from('memberships')
     .select('id, profile_id, joined_at')
-    .eq(orgColumn(ref.side), ref.orgId)
+    .eq(ORG_ID, ref.orgId)
     .eq('kind', 'follow')
     .eq('scope_type', 'org')
     .eq('role', 'owner')
@@ -125,7 +121,7 @@ async function deleteMembership(admin: Admin, ref: OrgRef, profileId: string): P
   const { error } = await admin
     .from('memberships')
     .delete()
-    .eq(orgColumn(ref.side), ref.orgId)
+    .eq(ORG_ID, ref.orgId)
     .eq('profile_id', profileId)
     .in('kind', ['follow', 'roster'])
     .eq('scope_type', 'org');
@@ -136,7 +132,7 @@ async function deleteMembership(admin: Admin, ref: OrgRef, profileId: string): P
   const { error: scopedError } = await admin
     .from('memberships')
     .delete()
-    .eq(orgColumn(ref.side), ref.orgId)
+    .eq(ORG_ID, ref.orgId)
     .eq('profile_id', profileId)
     .eq('kind', 'roster')
     .in('scope_type', ['division', 'team']);
@@ -219,7 +215,7 @@ export async function insertRosterOffer(
   profileId: string
 ): Promise<WriteResult> {
   const { error } = await admin.from('memberships').insert({
-    [orgColumn(ref.side)]: ref.orgId,
+    ...pairFor(ref),
     profile_id: profileId,
     kind: 'roster',
     status: 'pending',
@@ -237,7 +233,7 @@ export async function acceptRosterOffer(
   const { data, error } = await admin
     .from('memberships')
     .update({ status: 'active' })
-    .eq(orgColumn(ref.side), ref.orgId)
+    .eq(ORG_ID, ref.orgId)
     .eq('profile_id', profileId)
     .eq('kind', 'roster')
     .eq('status', 'pending')
@@ -259,7 +255,7 @@ export async function deleteRosterRow(
   const { data, error } = await admin
     .from('memberships')
     .delete()
-    .eq(orgColumn(ref.side), ref.orgId)
+    .eq(ORG_ID, ref.orgId)
     .eq('profile_id', profileId)
     .eq('kind', 'roster')
     .eq('scope_type', 'org')
@@ -284,7 +280,7 @@ export async function membershipEdges(
   const { data, error } = await admin
     .from('memberships')
     .select('role, kind, status, season_id')
-    .eq(orgColumn(ref.side), ref.orgId)
+    .eq(ORG_ID, ref.orgId)
     .eq('profile_id', profileId)
     .eq('scope_type', 'org');
   const rows = (data ?? []) as Array<{
@@ -358,7 +354,7 @@ export async function getMemberRole(
   const { data, error } = await admin
     .from('memberships')
     .select('role')
-    .eq(orgColumn(ref.side), ref.orgId)
+    .eq(ORG_ID, ref.orgId)
     .eq('profile_id', profileId)
     .eq('scope_type', 'org');
   return { role: maxOrgRole((data ?? []).map(r => r.role as string)), error };
@@ -424,7 +420,7 @@ export async function memberProfileIdsForOrgs(
   const { data, error } = await admin
     .from('memberships')
     .select('profile_id')
-    .in(orgColumn(side), orgIds)
+    .in(ORG_ID, orgIds)
     .eq('scope_type', 'org');
   if (error) {
     if (isMissingTableError(error.code)) return [];
@@ -443,7 +439,7 @@ export async function memberProfileIds(
   const { data, error } = await admin
     .from('memberships')
     .select('profile_id')
-    .eq(orgColumn(ref.side), ref.orgId)
+    .eq(ORG_ID, ref.orgId)
     .eq('scope_type', 'org');
   return { profileIds: [...new Set((data ?? []).map(r => r.profile_id as string))], error };
 }
@@ -459,7 +455,7 @@ export async function anyMembershipExists(
   const { data } = await admin
     .from('memberships')
     .select('profile_id')
-    .eq(orgColumn(ref.side), ref.orgId)
+    .eq(ORG_ID, ref.orgId)
     .eq('scope_type', 'org')
     .in('profile_id', profileIds)
     .limit(1)
@@ -474,7 +470,10 @@ export async function profileMembershipRows(
   side: OrgSide,
   profileId: string
 ): Promise<{ rows: Array<{ orgId: string; role: string }>; error: PostgrestError | null }> {
-  const col = orgColumn(side);
+  // The PAIR column on purpose (Round 5): this read has no org id to match
+  // — `IS NOT NULL` on the side's column IS the side filter, and org_id is
+  // never null, so ORG_ID would return both sides.
+  const col = PAIR_COLUMN[side];
   // Org staff program (178): staff rows ride along — a section manager's
   // org must reach their org lists (the header, the feed card, the profile
   // strip) or the console is unreachable. Ladder rows stay org-scope;
@@ -559,18 +558,17 @@ export async function orgMemberPreview(
   viewerRole: string | null;
   viewerRoster: RosterStatus | null;
 }> {
-  const col = orgColumn(ref.side);
   const [countRes, membersRes, rosterRes, viewerRes] = await Promise.all([
     admin
       .from('memberships')
       .select('profile_id', { count: 'exact', head: true })
-      .eq(col, ref.orgId)
+      .eq(ORG_ID, ref.orgId)
       .eq('kind', 'follow')
       .eq('scope_type', 'org'),
     admin
       .from('memberships')
       .select('profile_id, role, joined_at, profile:profile_id (id, handle, first_name, last_name, full_name, avatar_url, email)')
-      .eq(col, ref.orgId)
+      .eq(ORG_ID, ref.orgId)
       .eq('kind', 'follow')
       .eq('scope_type', 'org')
       .order('joined_at', { ascending: true })
@@ -578,14 +576,14 @@ export async function orgMemberPreview(
     admin
       .from('memberships')
       .select('profile_id, status, season_id')
-      .eq(col, ref.orgId)
+      .eq(ORG_ID, ref.orgId)
       .eq('kind', 'roster')
       .eq('scope_type', 'org'),
     viewerId
       ? admin
           .from('memberships')
           .select('role, kind, status, season_id')
-          .eq(col, ref.orgId)
+          .eq(ORG_ID, ref.orgId)
           .eq('profile_id', viewerId)
           .eq('scope_type', 'org')
       : Promise.resolve({ data: null }),
@@ -598,7 +596,7 @@ export async function orgMemberPreview(
   const consentRes = await admin
     .from('memberships')
     .select('profile_id, photo_consent, season_id')
-    .eq(col, ref.orgId)
+    .eq(ORG_ID, ref.orgId)
     .eq('kind', 'roster')
     .eq('scope_type', 'org')
     .in('status', ['active', 'registered', 'evaluating', 'placed']);
@@ -676,17 +674,16 @@ export async function memberCountsByOrg(
 ): Promise<Map<string, number>> {
   const counts = new Map<string, number>();
   if (orgIds.length === 0) return counts;
-  const col = orgColumn(side);
   const { data } = await admin
     .from('memberships')
-    .select(`${col}, profile_id`)
-    .in(col, orgIds)
+    .select(`${ORG_ID}, profile_id`)
+    .in(ORG_ID, orgIds)
     .eq('scope_type', 'org');
   // Distinct people per org — a dual-edge profile counts once.
   const seen = new Map<string, Set<string>>();
   for (const row of (data ?? []) as unknown as Array<Record<string, string>>) {
-    if (!seen.has(row[col])) seen.set(row[col], new Set());
-    seen.get(row[col])!.add(row.profile_id);
+    if (!seen.has(row[ORG_ID])) seen.set(row[ORG_ID], new Set());
+    seen.get(row[ORG_ID])!.add(row.profile_id);
   }
   for (const [orgId, profiles] of seen) counts.set(orgId, profiles.size);
   return counts;
@@ -702,7 +699,7 @@ export async function setMemberRole(
   const { error } = await admin
     .from('memberships')
     .update({ role })
-    .eq(orgColumn(ref.side), ref.orgId)
+    .eq(ORG_ID, ref.orgId)
     .eq('profile_id', profileId)
     .eq('kind', 'follow')
     .eq('scope_type', 'org');

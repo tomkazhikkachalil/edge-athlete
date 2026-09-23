@@ -12,6 +12,7 @@ import { randomUUID } from 'node:crypto';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { revalidateTag } from 'next/cache';
 import type { OrgSide } from './authz';
+import { ORG_ID, ORG_TABLE } from './org-ref';
 import { memberProfileIds } from './members';
 import { chunk } from '@/lib/chunk';
 import { notifyGuardians } from '@/lib/guardian-notify';
@@ -33,7 +34,7 @@ export async function orgAnnouncePOST(
   opts: { extraMetadata?: Record<string, string> } = {}
 ): Promise<NextResponse> {
   const { data: org } = await admin
-    .from(side === 'league' ? 'leagues' : 'clubs')
+    .from(ORG_TABLE[side])
     .select('id, name')
     .eq('id', orgId)
     .maybeSingle();
@@ -124,7 +125,7 @@ async function mirrorSiteNotice(admin: Admin, side: OrgSide, orgId: string, titl
     const { data: site } = await admin
       .from('org_sites')
       .select('id, subdomain, hero_config')
-      .eq(side === 'league' ? 'league_id' : 'club_id', orgId)
+      .eq(ORG_ID, orgId)
       .maybeSingle();
     if (!site) return false;
     const hero = parseHeroConfig(site.hero_config);

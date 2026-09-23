@@ -25,6 +25,7 @@ import {
 } from '@/lib/org-sites/validate';
 import { navEntries } from '@/lib/org-sites/nav';
 import { orgSitePath } from '@/lib/org-sites/urls';
+import { ORG_ROUTE_FAMILY, isOrgKind } from '@/lib/orgs/org-ref';
 import { SPORT_REGISTRY } from '@/lib/sports/SportRegistry';
 import OrgLogoUploader from '@/components/org/OrgLogoUploader';
 import PlacePicker, { type PlaceValue } from '@/components/PlacePicker';
@@ -156,8 +157,8 @@ export default function OrgConsolePage() {
   const params = useParams();
   const side = params.side as string;
   const orgId = params.id as string;
-  const validSide = side === 'league' || side === 'club';
-  const plural = side === 'league' ? 'leagues' : 'clubs';
+  const validSide = isOrgKind(side);
+  const plural = ORG_ROUTE_FAMILY[validSide ? side : 'club'];
 
   const { user, initialAuthCheckComplete } = useAuth();
   const { showSuccess, showError } = useToast();

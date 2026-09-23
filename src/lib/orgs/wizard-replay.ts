@@ -15,6 +15,7 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { OrgSide } from './authz';
+import { ORG_TABLE, otherKind } from './org-ref';
 import type { StructureScope } from './structure-server';
 import {
   divisionCreatePOST,
@@ -137,8 +138,8 @@ export async function replayConnections(
 ): Promise<{ connections: ConnectionReport[]; stubs: StubReport[] }> {
   const parsed = ConnectionsDraftSchema.safeParse(draft);
   if (!parsed.success) return { connections: [], stubs: [] };
-  const otherSide: OrgSide = scope.side === 'league' ? 'club' : 'league';
-  const otherTable = otherSide === 'league' ? 'leagues' : 'clubs';
+  const otherSide: OrgSide = otherKind(scope.side);
+  const otherTable = ORG_TABLE[otherSide];
   const connections: ConnectionReport[] = [];
   const stubs: StubReport[] = [];
 

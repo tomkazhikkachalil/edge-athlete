@@ -32,6 +32,7 @@ import {
 } from '@/lib/registration/validate';
 import { eligibilityWarnings, type EligibilityWarning } from './eligibility';
 import { capabilityAllows, getOrgAndCapabilities, getOrgAndRole, type OrgSide } from './authz';
+import { ORG_ID, ORG_TABLE, pairFor } from './org-ref';
 import { membershipEdges, type RosterEdge } from './members';
 import { canGrantPhotoConsent, setPhotoConsent } from './photo-consent';
 import { seasonArchivedMap } from './rollover-server';
@@ -44,10 +45,6 @@ import {
 type Admin = SupabaseClient<any, 'public', any>;
 
 const TAG = '[REGISTRATION]';
-
-function orgColumn(side: OrgSide): 'league_id' | 'club_id' {
-  return side === 'league' ? 'league_id' : 'club_id';
-}
 
 /** The registrar gate — requireCompetitionManager's shape on the
  *  'manage_registration' intent. */
@@ -127,7 +124,7 @@ async function loadSeasonForOrg(
     .from('seasons')
     .select('id, starts_on')
     .eq('id', seasonId)
-    .eq(orgColumn(side), orgId)
+    .eq(ORG_ID, orgId)
     .maybeSingle();
   return (data as { id: string; starts_on: string | null } | null) ?? null;
 }
@@ -189,7 +186,7 @@ export async function registrationCreatePOST(
   const { data: windowRows, error: windowsError } = await admin
     .from('registration_windows')
     .select('id, season_id, division_id, program_id, opens_at, closes_at, capacity')
-    .eq(orgColumn(side), orgId)
+    .eq(ORG_ID, orgId)
     .eq('season_id', input.seasonId);
   if (windowsError && !isMissingTableError(windowsError.code)) {
     console.error(`${TAG} windows read error:`, windowsError);
@@ -203,7 +200,7 @@ export async function registrationCreatePOST(
     const { count } = await admin
       .from('registrations')
       .select('id', { count: 'exact', head: true })
-      .eq(orgColumn(side), orgId)
+      .eq(ORG_ID, orgId)
       .eq('season_id', input.seasonId)
       .is('withdrawn_at', null);
     if ((count ?? 0) >= window.capacity) {
@@ -271,7 +268,7 @@ export async function registrationCreatePOST(
   // precedent; single-row inserts only — the homogeneous-keys rule).
   if (!followRole) {
     const { error: followError } = await admin.from('memberships').insert({
-      [orgColumn(side)]: orgId,
+      ...pairFor({ side, orgId }),
       profile_id: target,
     });
     if (followError && followError.code !== '23505') {
@@ -281,7 +278,7 @@ export async function registrationCreatePOST(
   }
 
   const { error: rosterError } = await admin.from('memberships').insert({
-    [orgColumn(side)]: orgId,
+    ...pairFor({ side, orgId }),
     profile_id: target,
     kind: 'roster',
     status: 'registered',
@@ -305,7 +302,7 @@ export async function registrationCreatePOST(
   const { data: registration, error: regError } = await admin
     .from('registrations')
     .insert({
-      [orgColumn(side)]: orgId,
+      ...pairFor({ side, orgId }),
       profile_id: target,
       season_id: input.seasonId,
       division_id: input.divisionId ?? null,
@@ -322,7 +319,7 @@ export async function registrationCreatePOST(
     await admin
       .from('memberships')
       .delete()
-      .eq(orgColumn(side), orgId)
+      .eq(ORG_ID, orgId)
       .eq('profile_id', target)
       .eq('kind', 'roster')
       .eq('scope_type', 'org')
@@ -414,7 +411,7 @@ async function loadRegistrarRows(
     .select(
       'id, profile_id, season_id, division_id, program_id, submitted_by, answers, eligibility, created_at, withdrawn_at, released_at, released_reason'
     )
-    .eq(orgColumn(side), orgId)
+    .eq(ORG_ID, orgId)
     .order('created_at', { ascending: false })
     .limit(500);
   if (seasonId) query = query.eq('season_id', seasonId);
@@ -443,7 +440,7 @@ async function loadRegistrarRows(
       ? admin
           .from('memberships')
           .select('profile_id, status, season_id')
-          .eq(orgColumn(side), orgId)
+          .eq(ORG_ID, orgId)
           .eq('kind', 'roster')
           .eq('scope_type', 'org')
           .in('profile_id', profileIds)
@@ -602,7 +599,7 @@ export async function registrationTransitionPATCH(
     .from('registrations')
     .select('id, profile_id, season_id, division_id, program_id, withdrawn_at')
     .eq('id', registrationId)
-    .eq(orgColumn(side), orgId)
+    .eq(ORG_ID, orgId)
     .maybeSingle();
   if (regError && isMissingTableError(regError.code)) {
     return NextResponse.json({ error: 'Not found' }, { status: 404 });
@@ -616,7 +613,7 @@ export async function registrationTransitionPATCH(
     admin
       .from('memberships')
       .select('id, status')
-      .eq(orgColumn(side), orgId)
+      .eq(ORG_ID, orgId)
       .eq('profile_id', reg.profile_id)
       .eq('kind', 'roster')
       .eq('scope_type', 'org')
@@ -675,7 +672,7 @@ export async function registrationTransitionPATCH(
       .from('teams')
       .select('id, status, name, display_name')
       .eq('id', input.teamId)
-      .eq(orgColumn(side), orgId)
+      .eq(ORG_ID, orgId)
       .maybeSingle();
     if (!team) return NextResponse.json({ error: 'Team not found' }, { status: 404 });
     if (team.status !== 'active') {
@@ -684,7 +681,7 @@ export async function registrationTransitionPATCH(
     // Two single-row writes (never a heterogeneous batch): the team-scope
     // roster row — THE attribution edge phases 2–4 read — then the flip.
     const { error: teamRowError } = await admin.from('memberships').insert({
-      [orgColumn(side)]: orgId,
+      ...pairFor({ side, orgId }),
       profile_id: reg.profile_id,
       kind: 'roster',
       status: 'active',
@@ -714,7 +711,7 @@ export async function registrationTransitionPATCH(
   await admin
     .from('memberships')
     .delete()
-    .eq(orgColumn(side), orgId)
+    .eq(ORG_ID, orgId)
     .eq('profile_id', reg.profile_id)
     .eq('kind', 'roster')
     .eq('scope_type', 'team')
@@ -747,7 +744,7 @@ async function notifyDecision(
   try {
     const [{ data: org }, { data: prof }] = await Promise.all([
       admin
-        .from(side === 'league' ? 'leagues' : 'clubs')
+        .from(ORG_TABLE[side])
         .select('name')
         .eq('id', orgId)
         .maybeSingle(),
@@ -778,7 +775,7 @@ export async function windowsGET(
   const { data, error } = await admin
     .from('registration_windows')
     .select('id, season_id, division_id, program_id, opens_at, closes_at, capacity')
-    .eq(orgColumn(side), orgId)
+    .eq(ORG_ID, orgId)
     .order('opens_at', { ascending: false })
     .limit(100);
   if (error) {
@@ -810,7 +807,7 @@ export async function windowCreatePOST(
   const { data: window, error } = await admin
     .from('registration_windows')
     .insert({
-      [orgColumn(side)]: orgId,
+      ...pairFor({ side, orgId }),
       season_id: input.seasonId,
       division_id: input.divisionId ?? null,
       program_id: input.programId ?? null,
@@ -852,7 +849,7 @@ export async function windowDELETE(
     .from('registration_windows')
     .delete()
     .eq('id', windowId)
-    .eq(orgColumn(side), orgId)
+    .eq(ORG_ID, orgId)
     .select('id');
   if (error) {
     if (isMissingTableError(error.code)) return NextResponse.json({ error: 'Not found' }, { status: 404 });
@@ -891,7 +888,7 @@ export async function viewerRegistrationSummary(
   const { data: windowRows, error: windowsError } = await admin
     .from('registration_windows')
     .select('id, season_id, division_id, program_id, opens_at, closes_at, capacity')
-    .eq(orgColumn(side), orgId)
+    .eq(ORG_ID, orgId)
     .limit(100);
   const windows = windowsError ? [] : ((windowRows ?? []) as WindowRow[]);
   const windowOpen = windows.some(w => isWindowOpen(w, nowIso));
@@ -900,7 +897,7 @@ export async function viewerRegistrationSummary(
   const { data: seasonRows } = await admin
     .from('memberships')
     .select('status, season_id, joined_at')
-    .eq(orgColumn(side), orgId)
+    .eq(ORG_ID, orgId)
     .eq('profile_id', viewerId)
     .eq('kind', 'roster')
     .eq('scope_type', 'org')
@@ -915,7 +912,7 @@ export async function viewerRegistrationSummary(
   const { data: reg } = await admin
     .from('registrations')
     .select('division_id, program_id')
-    .eq(orgColumn(side), orgId)
+    .eq(ORG_ID, orgId)
     .eq('profile_id', viewerId)
     .eq('season_id', row.season_id)
     .is('withdrawn_at', null)
@@ -927,7 +924,7 @@ export async function viewerRegistrationSummary(
     const { data: teamRow } = await admin
       .from('memberships')
       .select('scope_id')
-      .eq(orgColumn(side), orgId)
+      .eq(ORG_ID, orgId)
       .eq('profile_id', viewerId)
       .eq('kind', 'roster')
       .eq('scope_type', 'team')
@@ -969,7 +966,7 @@ export async function offeringsGET(
   const { data: seasons, error: seasonsError } = await admin
     .from('seasons')
     .select('id, label, starts_on, ends_on')
-    .eq(orgColumn(side), orgId)
+    .eq(ORG_ID, orgId)
     .order('starts_on', { ascending: false, nullsFirst: false })
     .limit(6);
   if (seasonsError || !seasons || seasons.length === 0) {
@@ -997,7 +994,7 @@ export async function offeringsGET(
     admin
       .from('registration_windows')
       .select('id, season_id, division_id, program_id, opens_at, closes_at, capacity')
-      .eq(orgColumn(side), orgId)
+      .eq(ORG_ID, orgId)
       .in('season_id', seasonIds)
       .limit(200),
   ]);

@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import { ORG_ROUTE_FAMILY } from '@/lib/orgs/org-ref';
 
 // The manager's candidate browser (M2, program 10): "Round photos from
 // members" — photos on PUBLIC golf round posts by members who opted in,
@@ -27,7 +28,7 @@ export default function MemberPhotoPicker({
   orgId: string;
   onError: (message: string) => void;
 }) {
-  const plural = side === 'league' ? 'leagues' : 'clubs';
+  const plural = ORG_ROUTE_FAMILY[side];
   const [items, setItems] = useState<Candidate[] | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
 

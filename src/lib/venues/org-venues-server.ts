@@ -19,6 +19,7 @@ import { parseCoursePhotos } from '@/lib/org-sites/validate';
 import { coursePhotoUrls, type AppCoursePhotos } from '@/lib/org-sites/course-photos';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { OrgSide } from '@/lib/orgs/authz';
+import { ORG_ID, pairFor } from '@/lib/orgs/org-ref';
 import { revalidateOrgSiteForOrg } from '@/lib/org-sites/revalidate';
 import {
   CATALOG_ROW_COLUMNS,
@@ -66,10 +67,6 @@ export interface OrgVenue {
   courses: GolfCourse[];
 }
 
-function orgColumn(side: OrgSide): 'league_id' | 'club_id' {
-  return side === 'league' ? 'league_id' : 'club_id';
-}
-
 const VENUE_FIELDS = 'id, name, city, region, country, golf_club_id, golf_course_id';
 /** Pre-169 select (no golf_course_id) — the 42703 retry. */
 const VENUE_FIELDS_PRE_169 = 'id, name, city, region, country, golf_club_id';
@@ -87,12 +84,11 @@ interface VenueRow {
 /** Venues for one org, with facilities and linked courses. Never throws;
  *  a missing table or column reads as an empty list. */
 export async function listOrgVenues(admin: Admin, scope: OrgVenueScope): Promise<OrgVenue[]> {
-  const col = orgColumn(scope.side);
   const selectVenues = (fields: string) =>
     admin
       .from('venues')
       .select(fields)
-      .eq(col, scope.orgId)
+      .eq(ORG_ID, scope.orgId)
       .order('name', { ascending: true })
       .limit(50);
   let res: { data: unknown[] | null; error: { code?: string; message?: string } | null } =
@@ -184,7 +180,7 @@ async function readCoursePhotos(admin: Admin, scope: OrgVenueScope): Promise<Rec
     const { data: site } = await admin
       .from('org_sites')
       .select('id')
-      .eq(scope.side === 'league' ? 'league_id' : 'club_id', scope.orgId)
+      .eq(ORG_ID, scope.orgId)
       .maybeSingle();
     if (!site?.id) return {};
     const { data: mod } = await admin
@@ -242,7 +238,7 @@ export async function orgVenueCreatePOST(
 
   const insert: Record<string, unknown> = {
     name: input.name,
-    [orgColumn(scope.side)]: scope.orgId,
+    ...pairFor(scope),
     ...placeToVenueColumns(input.place),
     golf_club_id: link.columns.golf_club_id,
   };
@@ -297,7 +293,7 @@ export async function orgVenuePATCH(
     .from('venues')
     .update(update)
     .eq('id', venueId)
-    .eq(orgColumn(scope.side), scope.orgId)
+    .eq(ORG_ID, scope.orgId)
     .select('id');
   if (error) {
     if (isPre169(error)) return PRE_169_RESPONSE();
@@ -323,7 +319,7 @@ export async function orgVenueDELETE(
     .from('venues')
     .delete()
     .eq('id', venueId)
-    .eq(orgColumn(scope.side), scope.orgId)
+    .eq(ORG_ID, scope.orgId)
     .select('id');
   if (error) {
     console.error(`${TAG} delete error:`, error);

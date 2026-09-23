@@ -18,6 +18,7 @@ import { isDateOnly, parseCreateBody, parseListScope } from '@/lib/sport-events/
 import { projectEvent } from '@/lib/sport-events/view';
 import { fetchSportEventView } from '@/lib/sport-events/view-server';
 import { prefillSidesFromTeams } from '@/lib/sport-events/side-prefill-server';
+import { orgIdOf } from '@/lib/orgs/org-ref';
 import { reportRouteError } from '@/lib/observability/report';
 
 /**
@@ -154,9 +155,9 @@ export async function POST(request: NextRequest) {
 
     // Leftovers PR 5: the two teams' rosters become the sides (accepted + playing; one group per round with the sides sent). Best-effort — the event exists either way.
     if (sideTeams) {
-      const org = { col: input.club_id ? ('club_id' as const) : ('league_id' as const), id: (input.club_id ?? input.league_id) as string };
+      const orgId = orgIdOf(input) as string;
       const { teamRosterMembers } = await import('@/lib/sport-events/side-prefill-server');
-      const [home, away] = await Promise.all([teamRosterMembers(admin, org, sideTeams[0].id), teamRosterMembers(admin, org, sideTeams[1].id)]);
+      const [home, away] = await Promise.all([teamRosterMembers(admin, orgId, sideTeams[0].id), teamRosterMembers(admin, orgId, sideTeams[1].id)]);
       const { data: roundIds } = await admin.from('sport_event_rounds').select('id, starts_at').eq('sport_event_id', row.id).order('sequence', { ascending: true });
       const prefill = await prefillSidesFromTeams(admin, { eventId: row.id, hostProfileId: actor.profileId, rounds: (roundIds ?? []) as Array<{ id: string; starts_at: string | null }>, sides: [home, away], groupName: 'The game' });
       if ('error' in prefill) reportRouteError('[api/sport-events] side prefill failed:', prefill.error);

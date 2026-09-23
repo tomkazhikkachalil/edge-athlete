@@ -11,6 +11,7 @@ import type { PostgrestError, SupabaseClient } from '@supabase/supabase-js';
 import { generateInviteToken, hashInviteToken } from '@/lib/guardian-invites';
 import { ATHLETE_CLAIM_EXPIRY_DAYS, isStubEmail } from '@/lib/config/stubs-config';
 import type { OrgSide } from '@/lib/orgs/authz';
+import { ORG_TABLE, orgRefOf } from '@/lib/orgs/org-ref';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- matches the authz.ts Admin alias; schema-agnostic helper
 type Admin = SupabaseClient<any, 'public', any>;
@@ -90,11 +91,12 @@ export async function peekAthleteClaimInvite(
   if (!selfRow || selfRow.role !== 'supervised') return null;
 
   let orgName: string | null = null;
-  if (invite.league_id || invite.club_id) {
+  const orgRef = orgRefOf(invite);
+  if (orgRef) {
     const { data: org } = await admin
-      .from(invite.league_id ? 'leagues' : 'clubs')
+      .from(ORG_TABLE[orgRef.side])
       .select('name')
-      .eq('id', (invite.league_id ?? invite.club_id) as string)
+      .eq('id', orgRef.orgId)
       .maybeSingle();
     orgName = (org?.name as string | null) ?? null;
   }

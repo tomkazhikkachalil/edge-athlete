@@ -10,6 +10,7 @@
 import { NextResponse } from 'next/server';
 import type { SupabaseClient, User } from '@supabase/supabase-js';
 import { capabilityAllows, getOrgAndCapabilities, type OrgSide } from './authz';
+import { ORG_ID } from './org-ref';
 import { isMissingTableError } from '@/lib/leagues/validate';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- matches the authz.ts Admin alias; schema-agnostic helper
@@ -41,14 +42,13 @@ export async function structureOptionsGET(
     return NextResponse.json({ error: 'Not authorized' }, { status: 403 });
   }
 
-  const orgColumn = side === 'league' ? 'league_id' : 'club_id';
   const [divisionsRes, teamsRes] = await Promise.all([
     admin
       .from('divisions')
       .select('id, name, season:season_id (label)')
-      .eq(orgColumn, orgId)
+      .eq(ORG_ID, orgId)
       .order('name'),
-    admin.from('teams').select('id, name').eq(orgColumn, orgId).eq('status', 'active').order('name'),
+    admin.from('teams').select('id, name').eq(ORG_ID, orgId).eq('status', 'active').order('name'),
   ]);
   for (const { error } of [divisionsRes, teamsRes]) {
     // Pre-145 database: no structure, an empty picker — never an error.

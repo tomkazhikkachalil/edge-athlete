@@ -10,6 +10,7 @@
 import { NextResponse } from 'next/server';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { OrgSide } from './authz';
+import { ORG_ID, PAIR_COLUMN } from './org-ref';
 import { joinOrg } from './members';
 import { joinRequestsTable } from './join-requests';
 
@@ -18,16 +19,12 @@ type Admin = SupabaseClient<any, 'public', any>;
 
 const TAG = '[ORG JOIN REQUESTS]';
 
-function orgColumn(side: OrgSide): 'league_id' | 'club_id' {
-  return side === 'league' ? 'league_id' : 'club_id';
-}
-
 /** Owners + managers of the org (follow rows). */
 export async function orgManagerIds(admin: Admin, side: OrgSide, orgId: string): Promise<string[]> {
   const { data } = await admin
     .from('memberships')
     .select('profile_id')
-    .eq(orgColumn(side), orgId)
+    .eq(ORG_ID, orgId)
     .eq('scope_type', 'org')
     .eq('kind', 'follow')
     .in('role', ['owner', 'manager'])
@@ -45,7 +42,7 @@ export async function viewerJoinRequest(
   const { data, error } = await admin
     .from(joinRequestsTable(side))
     .select('id')
-    .eq(orgColumn(side), orgId)
+    .eq(PAIR_COLUMN[side], orgId)
     .eq('profile_id', profileId)
     .maybeSingle();
   if (error || !data) return null;
@@ -84,7 +81,7 @@ export async function requestJoin(
   if (existing) return { requestId: existing.id, created: false };
   const { data, error } = await admin
     .from(joinRequestsTable(side))
-    .insert({ [orgColumn(side)]: org.id, profile_id: profileId })
+    .insert({ [PAIR_COLUMN[side]]: org.id, profile_id: profileId })
     .select('id')
     .single();
   if (error || !data) {
@@ -107,7 +104,7 @@ export async function cancelJoinRequest(admin: Admin, side: OrgSide, orgId: stri
   const { data } = await admin
     .from(joinRequestsTable(side))
     .delete()
-    .eq(orgColumn(side), orgId)
+    .eq(PAIR_COLUMN[side], orgId)
     .eq('profile_id', profileId)
     .select('id');
   return (data ?? []).length > 0;
@@ -127,7 +124,7 @@ export async function listJoinRequests(admin: Admin, side: OrgSide, orgId: strin
   const { data, error } = await admin
     .from(joinRequestsTable(side))
     .select('id, profile_id, message, created_at')
-    .eq(orgColumn(side), orgId)
+    .eq(PAIR_COLUMN[side], orgId)
     .order('created_at', { ascending: true })
     .limit(200);
   if (error) {
@@ -172,7 +169,7 @@ export async function decideJoinRequest(
     .from(joinRequestsTable(side))
     .delete()
     .eq('id', requestId)
-    .eq(orgColumn(side), org.id)
+    .eq(PAIR_COLUMN[side], org.id)
     .select('id, profile_id');
   if (error) {
     console.error(`${TAG} claim error:`, error);

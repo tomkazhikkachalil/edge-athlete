@@ -30,6 +30,7 @@ import { defaultEntrantFor, FORMAT_ENTRANT_REFUSAL_COPY, formatEntrantRefusal, r
 import { NextResponse } from 'next/server';
 import type { SupabaseClient, User } from '@supabase/supabase-js';
 import { type OrgSide, capabilityAllows, getOrgAndCapabilities } from './authz';
+import { ORG_ID, orgIdOf, orgRefOf } from './org-ref';
 import {
   isMissingTableError,
   type CompetitionCreateInput,
@@ -79,10 +80,6 @@ export interface CompetitionScope {
 
 const TAG = '[COMPETITIONS]';
 
-function orgColumn(side: OrgSide): 'league_id' | 'club_id' {
-  return side === 'league' ? 'league_id' : 'club_id';
-}
-
 /** The manager gate for the twin routes (admin routes keep requireAdmin).
  *  Same shape as requireOrgManager, on the 'manage_competitions' intent.
  *  Org staff program: a Competitions grant on the competition's division
@@ -118,7 +115,7 @@ export async function requireCompetitionManager(
       .from('competitions')
       .select('division_id')
       .eq('id', opts.competitionId)
-      .eq(side === 'league' ? 'league_id' : 'club_id', orgId)
+      .eq(ORG_ID, orgId)
       .maybeSingle();
     if (comp?.division_id) {
       allowed = capabilityAllows(loaded.caps, 'manage_competitions', { type: 'division', id: comp.division_id as string });
@@ -139,14 +136,12 @@ export async function competitionsAggregateGET(
   admin: Admin,
   scope: CompetitionScope
 ): Promise<NextResponse> {
-  const col = orgColumn(scope.side);
-
   const { data: competitions, error } = await admin
     .from('competitions')
     .select(
       'id, season_id, division_id, sport_key, name, format, entrant_type, scoring_rule, status, visibility, created_at'
     )
-    .eq(col, scope.orgId)
+    .eq(ORG_ID, scope.orgId)
     .order('created_at', { ascending: false })
     .limit(100);
   if (error) {
@@ -239,7 +234,7 @@ export async function competitionsAggregateGET(
   const { data: rosterRows } = await admin
     .from('memberships')
     .select('profile_id')
-    .eq(col, scope.orgId)
+    .eq(ORG_ID, scope.orgId)
     .eq('scope_type', 'org')
     .eq('kind', 'roster')
     .eq('status', 'active')
@@ -277,7 +272,7 @@ export async function competitionCreatePOST(
     .eq('id', input.seasonId)
     .maybeSingle();
   // A foreign org's season is indistinguishable from a missing one.
-  if (!season || season[orgColumn(scope.side)] !== scope.orgId) {
+  if (!season || orgIdOf(season) !== scope.orgId) {
     return NextResponse.json({ error: 'Season not found' }, { status: 404 });
   }
 
@@ -350,7 +345,7 @@ export async function competitionPATCH(
   if (input.status) patch.status = input.status;
   if (input.visibility) patch.visibility = input.visibility;
   let query = admin.from('competitions').update(patch).eq('id', input.id);
-  if (scope) query = query.eq(orgColumn(scope.side), scope.orgId);
+  if (scope) query = query.eq(ORG_ID, scope.orgId);
   const { data: updated, error } = await query.select('id');
   if (error) {
     console.error(`${TAG} patch error:`, error);
@@ -372,7 +367,7 @@ export async function competitionDELETE(
   scope: CompetitionScope | null
 ): Promise<NextResponse> {
   let query = admin.from('competitions').delete().eq('id', competitionId);
-  if (scope) query = query.eq(orgColumn(scope.side), scope.orgId);
+  if (scope) query = query.eq(ORG_ID, scope.orgId);
   // Org columns ride the returning select — the freshness hook needs them
   // after the row is gone.
   const { data: deleted, error } = await query.select('id, league_id, club_id');
@@ -383,9 +378,9 @@ export async function competitionDELETE(
   if (!deleted || deleted.length === 0) {
     return NextResponse.json({ error: 'Competition not found' }, { status: 404 });
   }
-  const delOrgId = (deleted[0].league_id ?? deleted[0].club_id) as string | null;
-  if (delOrgId) {
-    await revalidateOrgSiteForOrg(admin, deleted[0].league_id ? 'league' : 'club', delOrgId);
+  const delRef = orgRefOf(deleted[0]);
+  if (delRef) {
+    await revalidateOrgSiteForOrg(admin, delRef.side, delRef.orgId);
   }
   return NextResponse.json({ action: 'deleted' });
 }
@@ -404,7 +399,7 @@ export async function entryAddPOST(
     .eq('id', input.competitionId)
     .maybeSingle();
   const comp =
-    competition && (!scope || competition[orgColumn(scope.side)] === scope.orgId)
+    competition && (!scope || orgIdOf(competition) === scope.orgId)
       ? competition
       : null;
   if (!comp) return NextResponse.json({ error: 'Competition not found' }, { status: 404 });
@@ -490,7 +485,7 @@ export async function entryAddPOST(
     const { data: rosterRow } = await admin
       .from('memberships')
       .select('id')
-      .eq(comp.league_id ? 'league_id' : 'club_id', (comp.league_id ?? comp.club_id) as string)
+      .eq(ORG_ID, orgIdOf(comp) as string)
       .eq('profile_id', input.profileId)
       .eq('kind', 'roster')
       .eq('scope_type', 'org')
@@ -503,7 +498,7 @@ export async function entryAddPOST(
         { status: 400 }
       );
     }
-    if (comp.format === 'meet') affiliationTeamId = await athleteAffiliationTeamId(admin, comp.league_id ? 'league_id' : 'club_id', (comp.league_id ?? comp.club_id) as string, input.profileId);
+    if (comp.format === 'meet') affiliationTeamId = await athleteAffiliationTeamId(admin, orgIdOf(comp) as string, input.profileId);
   } else if (kind === 'ad_hoc_team') {
     // Track 2 PR 6 (219): an AD-HOC side — a name and members from the org's ROSTER (§8 invariant 3 holds: the
     // roster edge is the record edge). The shape an org's default team shadows later.
@@ -515,7 +510,7 @@ export async function entryAddPOST(
       ? await admin
           .from('memberships')
           .select('profile_id')
-          .eq(comp.league_id ? 'league_id' : 'club_id', (comp.league_id ?? comp.club_id) as string)
+          .eq(ORG_ID, orgIdOf(comp) as string)
           .eq('kind', 'roster')
           .eq('scope_type', 'org')
           .in('status', ['active', 'placed'])
@@ -525,7 +520,7 @@ export async function entryAddPOST(
     if (refusal) return NextResponse.json({ error: AD_HOC_REFUSAL_COPY[refusal], reason: refusal }, { status: 400 });
     // A relay team's affiliation: the ONE team every leg sits on (their team-scope roster rows); else unattached until the organizer sets it.
     if (comp.format === 'meet' && members.length > 0) {
-      const { data: teamRows } = await admin.from('memberships').select('profile_id, scope_id').eq(comp.league_id ? 'league_id' : 'club_id', (comp.league_id ?? comp.club_id) as string).eq('kind', 'roster').eq('scope_type', 'team').in('status', ['active', 'placed']).in('profile_id', members).not('scope_id', 'is', null);
+      const { data: teamRows } = await admin.from('memberships').select('profile_id, scope_id').eq(ORG_ID, orgIdOf(comp) as string).eq('kind', 'roster').eq('scope_type', 'team').in('status', ['active', 'placed']).in('profile_id', members).not('scope_id', 'is', null);
       const teamsOf = new Map<string, string[]>();
       for (const r of (teamRows ?? []) as Array<{ profile_id: string; scope_id: string }>) teamsOf.set(r.profile_id, [...(teamsOf.get(r.profile_id) ?? []), r.scope_id]);
       affiliationTeamId = commonTeam(members.map(m => teamsOf.get(m) ?? []));
@@ -602,7 +597,7 @@ export async function entryDecidePATCH(
     | null
     | undefined;
   const compRow = Array.isArray(comp) ? comp[0] : comp;
-  if (!row || !compRow || (scope && compRow[orgColumn(scope.side)] !== scope.orgId)) {
+  if (!row || !compRow || (scope && orgIdOf(compRow) !== scope.orgId)) {
     return NextResponse.json({ error: 'Entry not found' }, { status: 404 });
   }
   if (row.status !== 'pending') {
@@ -661,7 +656,7 @@ export async function entryDELETE(
       | null
       | undefined;
     const compRow = Array.isArray(comp) ? comp[0] : comp;
-    if (!row || !compRow || compRow[orgColumn(scope.side)] !== scope.orgId) {
+    if (!row || !compRow || orgIdOf(compRow) !== scope.orgId) {
       return NextResponse.json({ error: 'Entry not found' }, { status: 404 });
     }
   }
@@ -706,7 +701,7 @@ async function pinCompetition(
     .eq('id', competitionId)
     .maybeSingle();
   if (!data) return null;
-  if (scope && data[orgColumn(scope.side)] !== scope.orgId) return null;
+  if (scope && orgIdOf(data) !== scope.orgId) return null;
   return data;
 }
 
@@ -733,7 +728,7 @@ export async function competitionDetailGET(
   }
   const full = fullData as unknown as ({ [key: string]: unknown; format?: string; sport_key?: string; scoring_rule?: string | null } | null);
   if (!full) return NextResponse.json({ error: 'Competition not found' }, { status: 404 });
-  if (scope && full[orgColumn(scope.side)] !== scope.orgId) {
+  if (scope && orgIdOf(full as { league_id?: string | null; club_id?: string | null }) !== scope.orgId) {
     return NextResponse.json({ error: 'Competition not found' }, { status: 404 });
   }
 
@@ -905,7 +900,7 @@ export async function competitionDetailGET(
 
 async function pinBracketCompetition(admin: Admin, competitionId: string, scope: CompetitionScope | null): Promise<{ ok: true; comp: { id: string; format: string; sport_key: string; scoring_rule: string | null; status: string } } | { ok: false; response: NextResponse }> {
   const { data: comp } = await admin.from('competitions').select('id, league_id, club_id, format, sport_key, scoring_rule, status').eq('id', competitionId).maybeSingle();
-  if (!comp || (scope && comp[orgColumn(scope.side)] !== scope.orgId)) return { ok: false, response: NextResponse.json({ error: 'Competition not found' }, { status: 404 }) };
+  if (!comp || (scope && orgIdOf(comp) !== scope.orgId)) return { ok: false, response: NextResponse.json({ error: 'Competition not found' }, { status: 404 }) };
   if (comp.format !== 'bracket') return { ok: false, response: NextResponse.json({ error: 'This competition is not a bracket.', reason: 'not_bracket' }, { status: 400 }) };
   return { ok: true, comp: comp as { id: string; format: string; sport_key: string; scoring_rule: string | null; status: string } };
 }
@@ -1205,7 +1200,7 @@ export async function golfSeasonGeneratePOST(
       .from('venues')
       .select('id, golf_club_id, golf_course_id')
       .eq('id', input.venueId)
-      .eq(orgColumn(scope.side), scope.orgId)
+      .eq(ORG_ID, scope.orgId)
       .maybeSingle();
     const link = (found as VenueLink | null) ?? null;
     if (!link) return NextResponse.json({ error: 'That course is not one of this organization’s venues' }, { status: 400 });
@@ -1411,7 +1406,7 @@ export async function contestPATCH(
       | null
       | undefined;
     const compRow = Array.isArray(comp) ? comp[0] : comp;
-    if (!row || !compRow || compRow[orgColumn(scope.side)] !== scope.orgId) {
+    if (!row || !compRow || orgIdOf(compRow) !== scope.orgId) {
       return NextResponse.json({ error: 'Game not found' }, { status: 404 });
     }
   }
@@ -1487,7 +1482,7 @@ export async function contestDELETE(
       | null
       | undefined;
     const compRow = Array.isArray(comp) ? comp[0] : comp;
-    if (!row || !compRow || compRow[orgColumn(scope.side)] !== scope.orgId) {
+    if (!row || !compRow || orgIdOf(compRow) !== scope.orgId) {
       return NextResponse.json({ error: 'Game not found' }, { status: 404 });
     }
   }
@@ -1546,7 +1541,7 @@ export async function contestPublishPOST(
     | null
     | undefined;
   const compRow = Array.isArray(comp) ? comp[0] : comp;
-  if (!row || !compRow || (scope && compRow[orgColumn(scope.side)] !== scope.orgId)) {
+  if (!row || !compRow || (scope && orgIdOf(compRow) !== scope.orgId)) {
     return NextResponse.json({ error: 'Game not found' }, { status: 404 });
   }
   const published = await publishContestToCalendar(admin, row, compRow, organizerId, timezone);
@@ -1583,7 +1578,7 @@ export async function resultsUpsertPOST(
     | null
     | undefined;
   const compRow = Array.isArray(comp) ? comp[0] : comp;
-  if (!contestRow || !compRow || (scope && compRow[orgColumn(scope.side)] !== scope.orgId)) {
+  if (!contestRow || !compRow || (scope && orgIdOf(compRow) !== scope.orgId)) {
     return NextResponse.json({ error: 'Game not found' }, { status: 404 });
   }
   if (contestRow.status === 'canceled') {
@@ -1672,11 +1667,11 @@ export async function resultsUpsertPOST(
 // ── The meet (track 2 PR 7) ──────────────────────────────────────────────────
 
 /** The athlete's TEAM-scope roster row under this org (the newest active / placed one) — the affiliation a meet snapshots at entry. */
-async function athleteAffiliationTeamId(admin: Admin, orgCol: 'league_id' | 'club_id', orgId: string, profileId: string): Promise<string | null> {
+async function athleteAffiliationTeamId(admin: Admin, orgId: string, profileId: string): Promise<string | null> {
   const { data } = await admin
     .from('memberships')
     .select('scope_id, joined_at')
-    .eq(orgCol, orgId)
+    .eq(ORG_ID, orgId)
     .eq('profile_id', profileId)
     .eq('kind', 'roster')
     .eq('scope_type', 'team')
@@ -1698,7 +1693,7 @@ export async function entryAffiliationPATCH(admin: Admin, input: EntryAffiliatio
   type CompLite = { id: string; league_id: string | null; club_id: string | null; format: string };
   const comp = row?.competition as CompLite | CompLite[] | null | undefined;
   const compRow = Array.isArray(comp) ? comp[0] : comp;
-  if (!row || !compRow || (scope && compRow[orgColumn(scope.side)] !== scope.orgId)) {
+  if (!row || !compRow || (scope && orgIdOf(compRow) !== scope.orgId)) {
     return NextResponse.json({ error: 'Entry not found' }, { status: 404 });
   }
   // An athlete or a relay team carries an affiliation; the roll-up TEAM rows never (leftovers PR 3 admits the relay).
@@ -1708,7 +1703,7 @@ export async function entryAffiliationPATCH(admin: Admin, input: EntryAffiliatio
       .from('teams')
       .select('id')
       .eq('id', input.affiliationTeamId)
-      .eq(compRow.league_id ? 'league_id' : 'club_id', (compRow.league_id ?? compRow.club_id) as string)
+      .eq(ORG_ID, orgIdOf(compRow) as string)
       .maybeSingle();
     if (!team) return NextResponse.json({ error: 'Team not found' }, { status: 404 });
   }
@@ -1725,7 +1720,7 @@ export async function entryAffiliationPATCH(admin: Admin, input: EntryAffiliatio
 
 async function pinFixtureCompetition(admin: Admin, competitionId: string, scope: CompetitionScope | null): Promise<{ ok: true; comp: { id: string; name: string; format: string; sport_key: string; entrant_type: string; status: string; league_id: string | null; club_id: string | null } } | { ok: false; response: NextResponse }> {
   const { data: comp } = await admin.from('competitions').select('id, name, league_id, club_id, format, sport_key, entrant_type, status').eq('id', competitionId).maybeSingle();
-  if (!comp || (scope && comp[orgColumn(scope.side)] !== scope.orgId)) return { ok: false, response: NextResponse.json({ error: 'Competition not found' }, { status: 404 }) };
+  if (!comp || (scope && orgIdOf(comp) !== scope.orgId)) return { ok: false, response: NextResponse.json({ error: 'Competition not found' }, { status: 404 }) };
   if (comp.format !== 'fixture') return { ok: false, response: NextResponse.json({ error: POOL_SEED_REFUSAL_COPY.not_fixture, reason: 'not_fixture' }, { status: 400 }) };
   return { ok: true, comp: comp as { id: string; name: string; format: string; sport_key: string; entrant_type: string; status: string; league_id: string | null; club_id: string | null } };
 }
@@ -1837,7 +1832,7 @@ export async function entryPoolPATCH(admin: Admin, input: EntryPoolInput, scope:
   type CompLite = { id: string; league_id: string | null; club_id: string | null; format: string };
   const comp = row?.competition as CompLite | CompLite[] | null | undefined;
   const compRow = Array.isArray(comp) ? comp[0] : comp;
-  if (!row || !compRow || (scope && compRow[orgColumn(scope.side)] !== scope.orgId)) {
+  if (!row || !compRow || (scope && orgIdOf(compRow) !== scope.orgId)) {
     return NextResponse.json({ error: 'Entry not found' }, { status: 404 });
   }
   if (compRow.format !== 'fixture') return NextResponse.json({ error: 'Pools belong to a fixture competition.', reason: 'not_fixture' }, { status: 400 });
@@ -1854,7 +1849,7 @@ export async function entryPoolPATCH(admin: Admin, input: EntryPoolInput, scope:
 type MeetComp = { id: string; name: string; sport_key: string; status: string; league_id: string | null; club_id: string | null; division_id: string | null };
 async function pinMeetCompetition(admin: Admin, competitionId: string, scope: CompetitionScope | null): Promise<{ ok: true; comp: MeetComp } | { ok: false; response: NextResponse }> {
   const { data: comp } = await admin.from('competitions').select('id, name, league_id, club_id, division_id, format, sport_key, status').eq('id', competitionId).maybeSingle();
-  if (!comp || (scope && comp[orgColumn(scope.side)] !== scope.orgId)) return { ok: false, response: NextResponse.json({ error: 'Competition not found' }, { status: 404 }) };
+  if (!comp || (scope && orgIdOf(comp) !== scope.orgId)) return { ok: false, response: NextResponse.json({ error: 'Competition not found' }, { status: 404 }) };
   if (comp.format !== 'meet') return { ok: false, response: NextResponse.json({ error: 'This competition is not a meet.', reason: 'not_meet' }, { status: 400 }) };
   return { ok: true, comp: comp as MeetComp };
 }
@@ -1941,7 +1936,7 @@ export async function meetResultsUpsertPOST(admin: Admin, input: MeetResultsUpse
   type CompLite = { id: string; league_id: string | null; club_id: string | null; format: string; sport_key: string };
   const compRaw = contestRow?.competition as CompLite | CompLite[] | null | undefined;
   const comp = Array.isArray(compRaw) ? compRaw[0] : compRaw;
-  if (!contestRow || !comp || (scope && comp[orgColumn(scope.side)] !== scope.orgId)) return NextResponse.json({ error: 'Event not found' }, { status: 404 });
+  if (!contestRow || !comp || (scope && orgIdOf(comp) !== scope.orgId)) return NextResponse.json({ error: 'Event not found' }, { status: 404 });
   if (comp.format !== 'meet') return NextResponse.json({ error: 'This competition is not a meet.', reason: 'not_meet' }, { status: 400 });
   if (contestRow.status === 'canceled') return NextResponse.json({ error: 'This event was canceled' }, { status: 400 });
   const def = meetEventFor(resolveCompetitionProfile(comp.sport_key).meetEvents ?? [], { round: (contestRow.round as string | null) ?? null });

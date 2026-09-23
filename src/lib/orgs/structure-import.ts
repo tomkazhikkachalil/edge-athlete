@@ -14,6 +14,7 @@
 import { NextResponse } from 'next/server';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { OrgSide } from './authz';
+import { ORG_ID, pairFor } from './org-ref';
 import { parseCsv, checkHeaders } from './csv';
 import { seasonArchivedMap } from './rollover-server';
 
@@ -42,13 +43,11 @@ export async function structureImportPOST(
   orgSportKey: string | null,
   input: { seasonId: string; csv: string; dryRun: boolean }
 ): Promise<NextResponse> {
-  const col = side === 'league' ? 'league_id' : 'club_id';
-
   const { data: season } = await admin
     .from('seasons')
     .select('id, label')
     .eq('id', input.seasonId)
-    .eq(col, orgId)
+    .eq(ORG_ID, orgId)
     .maybeSingle();
   if (!season) return NextResponse.json({ error: 'Season not found' }, { status: 404 });
   const archived = await seasonArchivedMap(admin, [input.seasonId]);
@@ -69,7 +68,7 @@ export async function structureImportPOST(
   // Preload the existing landscape once (the dry-run answers from it).
   const [{ data: existingDivisions }, { data: existingTeams }] = await Promise.all([
     admin.from('divisions').select('id, name').eq('season_id', input.seasonId).limit(300),
-    admin.from('teams').select('id, name').eq(col, orgId).limit(500),
+    admin.from('teams').select('id, name').eq(ORG_ID, orgId).limit(500),
   ]);
   const divisionByName = new Map(
     (existingDivisions ?? []).map(d => [(d.name as string).toLowerCase(), d.id as string])
@@ -125,7 +124,7 @@ export async function structureImportPOST(
         .from('divisions')
         .upsert(
           {
-            [col]: orgId,
+            ...pairFor({ side, orgId }),
             season_id: input.seasonId,
             sport_key: raw.sport || orgSportKey || 'training',
             name: divisionName,
@@ -161,7 +160,7 @@ export async function structureImportPOST(
         // teams_org_name_uniq is NULLS NOT DISTINCT (league_id, club_id,
         // name) — the full column list works as the conflict target; the
         // absent org column stays NULL and matches.
-        .upsert({ [col]: orgId, name: teamName }, { onConflict: 'league_id,club_id,name' })
+        .upsert({ ...pairFor({ side, orgId }), name: teamName }, { onConflict: 'league_id,club_id,name' })
         .select('id')
         .single();
       if (error || !createdTeam) {

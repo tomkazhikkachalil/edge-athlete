@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { ORG_ROUTE_FAMILY } from '@/lib/orgs/org-ref';
 
 // The announcement archive for MEMBERS (N3, program 10): every notice the
 // org sent, newest first, from the session-gated /announcements read.
@@ -69,7 +70,7 @@ export default function OrgAnnouncementsCard({
   /** Org Pages R3: hosted in a LargerWindow — no card chrome of its own. */
   bare?: boolean;
 }) {
-  const items = useAnnouncements(side === 'club' ? 'clubs' : 'leagues', orgId, isMember);
+  const items = useAnnouncements(ORG_ROUTE_FAMILY[side], orgId, isMember);
   if (!isMember || !items || items.length === 0) return null;
   return (
     <section aria-label="Announcements" className={bare ? '' : 'bg-surface rounded-lg shadow-sm border border-border p-4 sm:p-6'} data-announcements={items.length}>

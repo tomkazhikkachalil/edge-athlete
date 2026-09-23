@@ -13,6 +13,7 @@ import SeasonSummaryCard from '@/components/standings/SeasonSummaryCard';
 import { playerHref } from '@/lib/org-sites/player-links';
 import type { PublicGolfBlock } from '@/lib/competitions/golf-weeks';
 import { groupRowsByPool } from '@/lib/competitions/pools';
+import { ORG_ROUTE_FAMILY } from '@/lib/orgs/org-ref';
 
 // The org page's standings section (phase 2 R3) — public competitions'
 // materialized tables. The OrgUpcomingEvents contract: additive, renders
@@ -65,7 +66,7 @@ export default function OrgStandings({ side, orgId, scope = 'public', bare = fal
     let cancelled = false;
     (async () => {
       try {
-        const plural = side === 'league' ? 'leagues' : 'clubs';
+        const plural = ORG_ROUTE_FAMILY[side];
         const base = scope === 'mine' ? `/api/${plural}/${orgId}/standings/mine` : `/api/${plural}/${orgId}/standings`;
         const response = await fetch(base);
         if (!response.ok || cancelled) return;

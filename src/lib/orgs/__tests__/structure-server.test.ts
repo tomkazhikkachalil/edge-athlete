@@ -117,7 +117,7 @@ describe('scope pinning — the security crux', () => {
     expect(calls[0]).toMatchObject({
       table: 'seasons',
       op: 'delete',
-      filters: { id: 'season-1', league_id: 'org-1' },
+      filters: { id: 'season-1', org_id: 'org-1' },
     });
   });
 
@@ -125,7 +125,7 @@ describe('scope pinning — the security crux', () => {
     const { admin, calls } = mockAdmin({ seasons: { data: [{ id: 's', league_id: null }] } });
     const res = await seasonDELETE(admin, 'season-1', null);
     expect(res.status).toBe(200);
-    expect('league_id' in calls[0].filters).toBe(false);
+    expect('org_id' in calls[0].filters).toBe(false);
   });
 
   it('divisionCreatePOST scoped 404s a foreign-org season', async () => {
@@ -143,11 +143,11 @@ describe('scope pinning — the security crux', () => {
   it('divisionDELETE + teamPATCH scoped pin the org column', async () => {
     const d = mockAdmin({ divisions: { data: [] } });
     expect((await divisionDELETE(d.admin, 'div-1', SCOPE)).status).toBe(404);
-    expect(d.calls[0].filters).toMatchObject({ id: 'div-1', league_id: 'org-1' });
+    expect(d.calls[0].filters).toMatchObject({ id: 'div-1', org_id: 'org-1' });
 
     const t = mockAdmin({ teams: { data: [] } });
     expect((await teamPATCH(t.admin, { id: 'team-1', status: 'archived' }, SCOPE)).status).toBe(404);
-    expect(t.calls[0].filters).toMatchObject({ id: 'team-1', league_id: 'org-1' });
+    expect(t.calls[0].filters).toMatchObject({ id: 'team-1', org_id: 'org-1' });
   });
 
   it('entryCreatePOST scoped 404s foreign rows; cross-org 400; archived 400', async () => {
@@ -213,14 +213,14 @@ describe('structureAggregateGET', () => {
     expect(body.counts).toEqual({ managers: 0, rosterAthletes: 0 });
     const membershipCalls = calls.filter(c => c.table === 'memberships');
     expect(membershipCalls[0].filters).toMatchObject({
-      league_id: 'org-1',
+      org_id: 'org-1',
       scope_type: 'org',
       // Org staff program (178): org-scope admins count as managers.
       kind: ['follow', 'staff'],
       role: ['owner', 'manager', 'admin'],
     });
     expect(membershipCalls[1].filters).toMatchObject({
-      league_id: 'org-1',
+      org_id: 'org-1',
       kind: 'roster',
       // Phase 5 R1 fix: org-scope pin + on-the-roster semantics.
       scope_type: 'org',

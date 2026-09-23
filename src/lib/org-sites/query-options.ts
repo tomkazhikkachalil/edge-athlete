@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { OrgSide } from '@/lib/orgs/authz';
+import { ORG_ID } from '@/lib/orgs/org-ref';
 import { fetchPublicVenues } from './public-data';
 
 /**
@@ -26,14 +27,13 @@ export interface CanvasOptions {
 export const EMPTY_OPTIONS: CanvasOptions = { competitions: [], venues: [] };
 
 export async function fetchCanvasOptions(admin: Admin, side: OrgSide, orgId: string): Promise<CanvasOptions> {
-  const orgColumn = side === 'league' ? 'league_id' : 'club_id';
   const [competitions, venues] = await Promise.all([
     (async () => {
       try {
         const { data, error } = await admin
           .from('competitions')
           .select('id, name, season_id, status')
-          .eq(orgColumn, orgId)
+          .eq(ORG_ID, orgId)
           .eq('visibility', 'public')
           .in('status', ['active', 'completed'])
           .order('created_at', { ascending: false })

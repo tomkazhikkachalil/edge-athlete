@@ -11,6 +11,7 @@ import { NextResponse } from 'next/server';
 import { roundRuleFor } from './golf-league';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { OrgSide } from '@/lib/orgs/authz';
+import { ORG_ID } from '@/lib/orgs/org-ref';
 import { selectCurrentWeek, sortWeeks, utcToday, weekState, type GolfWeekState } from './golf-weeks';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- matches the authz.ts Admin alias; schema-agnostic helper
@@ -57,14 +58,13 @@ export async function golfMineGET(
   orgId: string,
   userId: string
 ): Promise<NextResponse> {
-  const orgColumn = side === 'league' ? 'league_id' : 'club_id';
   const empty = NextResponse.json({ entries: [] as MyGolfEntry[] });
   empty.headers.set('Cache-Control', 'private, no-store');
 
   const { data: competitions, error } = await admin
     .from('competitions')
     .select('id, name, scoring_rule, config')
-    .eq(orgColumn, orgId)
+    .eq(ORG_ID, orgId)
     .eq('sport_key', 'golf')
     .eq('format', 'leaderboard')
     .eq('status', 'active')

@@ -17,6 +17,7 @@ import { isListed, listingFromRow } from '@/lib/orgs/listing';
 import { NextResponse } from 'next/server';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { OrgSide } from '@/lib/orgs/authz';
+import { ORG_ID, ORG_TABLE, orgIdOf, orgKindOf, pairFor } from '@/lib/orgs/org-ref';
 import {
   defaultModuleOrder,
   GOLF_TAGLINE,
@@ -42,10 +43,6 @@ import type { SiteLayout } from '@/lib/site-builder/layout';
 type Admin = SupabaseClient<any, 'public', any>;
 
 const TAG = '[ORG SITES]';
-
-function orgColumn(side: OrgSide): 'league_id' | 'club_id' {
-  return side === 'league' ? 'league_id' : 'club_id';
-}
 
 export interface SiteRow {
   id: string;
@@ -116,21 +113,21 @@ export async function siteGET(
   let { data, error } = await admin
     .from('org_sites')
     .select(SITE_FIELDS_180)
-    .eq(orgColumn(side), orgId)
+    .eq(ORG_ID, orgId)
     .maybeSingle();
   if (error?.code === '42703') {
     revisionsSupported = false;
     ({ data, error } = await admin
       .from('org_sites')
       .select(SITE_FIELDS)
-      .eq(orgColumn(side), orgId)
+      .eq(ORG_ID, orgId)
       .maybeSingle());
   }
   if (error?.code === '42703') {
     ({ data, error } = await admin
       .from('org_sites')
       .select(SITE_FIELDS_BASE)
-      .eq(orgColumn(side), orgId)
+      .eq(ORG_ID, orgId)
       .maybeSingle());
   }
   if (error && !isMissingTableError(error.code)) {
@@ -179,7 +176,7 @@ export async function siteGET(
 export async function loadOrgSport(admin: Admin, side: OrgSide, orgId: string): Promise<string | null> {
   const column = side === 'league' ? 'sport_key' : 'primary_sport';
   const { data, error } = await admin
-    .from(side === 'league' ? 'leagues' : 'clubs')
+    .from(ORG_TABLE[side])
     .select(column)
     .eq('id', orgId)
     .maybeSingle();
@@ -196,7 +193,7 @@ async function loadOrgIdentity(
   orgId: string
 ): Promise<OrgIdentity | null> {
   const { data } = await admin
-    .from(side === 'league' ? 'leagues' : 'clubs')
+    .from(ORG_TABLE[side])
     .select('name, sport_key, city, region')
     .eq('id', orgId)
     .maybeSingle();
@@ -220,7 +217,7 @@ export async function loadGalleryOrg(admin: Admin, side: OrgSide, orgId: string,
     const { data } = await admin
       .from('venues')
       .select('id, name, lat, lng')
-      .eq(orgColumn(side), orgId)
+      .eq(ORG_ID, orgId)
       .order('name', { ascending: true })
       .limit(50);
     venues = (data ?? []).map(v => ({
@@ -314,7 +311,7 @@ export async function siteCreatePOST(
   const { data: existing } = await admin
     .from('org_sites')
     .select('id')
-    .eq(orgColumn(side), orgId)
+    .eq(ORG_ID, orgId)
     .maybeSingle();
   if (existing) {
     return NextResponse.json({ error: 'This organization already has a site' }, { status: 409 });
@@ -356,7 +353,7 @@ export async function siteCreatePOST(
   const { data: site, error } = await admin
     .from('org_sites')
     .insert({
-      [orgColumn(side)]: orgId,
+      ...pairFor({ side, orgId }),
       subdomain,
       ...(sportKey === 'golf' ? { hero_config: { tagline: GOLF_TAGLINE } } : {}),
     })
@@ -426,7 +423,7 @@ export async function sitePATCH(
     const { data: current } = await admin
       .from('org_sites')
       .select('id, subdomain, published_at')
-      .eq(orgColumn(side), orgId)
+      .eq(ORG_ID, orgId)
       .maybeSingle();
     if (!current) return NextResponse.json({ error: 'Site not found' }, { status: 404 });
     // Onboarding v2 R1 (179): publishing no longer waits for approval — an
@@ -476,7 +473,7 @@ export async function sitePATCH(
   const { data: site } = await admin
     .from('org_sites')
     .select('id, subdomain')
-    .eq(orgColumn(side), orgId)
+    .eq(ORG_ID, orgId)
     .maybeSingle();
   if (!site) return NextResponse.json({ error: 'Site not found' }, { status: 404 });
   const ownPrefix = `org-media/${site.id}/`;
@@ -703,13 +700,13 @@ async function getSiteBySlugInternal(
     return null;
   }
 
-  const side: OrgSide = site.league_id ? 'league' : 'club';
-  const orgId = (site.league_id ?? site.club_id) as string;
+  const side: OrgSide = orgKindOf(site) ?? 'club';
+  const orgId = orgIdOf(site) as string;
   // R4 widens the org read for JSON-LD: geography both sides, sport_key
   // leagues only (clubs have no such column — mig 108/113); C3 adds the
   // club's primary_sport (174) with a 42703 retry for older databases.
   const readOrg = (fields: string) =>
-    admin.from(side === 'league' ? 'leagues' : 'clubs').select(fields).eq('id', orgId).maybeSingle();
+    admin.from(ORG_TABLE[side]).select(fields).eq('id', orgId).maybeSingle();
   const [orgRead, { data: modules }] = await Promise.all([
     readOrg(
       side === 'league'

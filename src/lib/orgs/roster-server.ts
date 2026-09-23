@@ -36,6 +36,7 @@ import { NextResponse } from 'next/server';
 import type { SupabaseClient, User } from '@supabase/supabase-js';
 import { revalidateOrgSiteForOrg } from '@/lib/org-sites/revalidate';
 import { capabilityAllows, getOrgAndCapabilities, getOrgAndRole, type OrgSide } from './authz';
+import { PAIR_COLUMN } from './org-ref';
 import {
   acceptRosterOffer,
   deleteRosterRow,
@@ -469,7 +470,7 @@ async function notifyGuardiansOfRoster(
         message: event === 'offer' ? 'You or your athlete can accept or decline.' : null,
         actionUrl: '/app/guardian',
         actorId,
-        metadata: { [side === 'league' ? 'league_id' : 'club_id']: orgId, roster: event },
+        metadata: { [PAIR_COLUMN[side]]: orgId, roster: event },
       },
       actorId
     );
@@ -498,7 +499,7 @@ async function notifyChildOfGuardianDecision(
       message: null,
       action_url: side === 'league' ? `/league/${orgId}` : `/club/${orgId}`,
       is_read: false,
-      metadata: { [side === 'league' ? 'league_id' : 'club_id']: orgId, roster: result },
+      metadata: { [PAIR_COLUMN[side]]: orgId, roster: result },
     });
     if (error) console.error('[ROSTER] child notify failed:', error);
   } catch (e) {

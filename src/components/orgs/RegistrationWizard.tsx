@@ -11,6 +11,7 @@ import {
   saveRegistrationDraft,
   type RegistrationDraft,
 } from '@/lib/registration/wizard-draft';
+import { ORG_ROUTE_FAMILY } from '@/lib/orgs/org-ref';
 
 // ── The family registration wizard (phase 5 R3) ─────────────────────────────
 // The OrgStartWizard machine: a named-union Step, all state hoisted here,
@@ -68,7 +69,7 @@ export default function RegistrationWizard({
 }) {
   const { user, profile } = useAuth();
   const { showError } = useToast();
-  const plural = side === 'league' ? 'leagues' : 'clubs';
+  const plural = ORG_ROUTE_FAMILY[side];
 
   const [step, setStep] = useState<Step>('who');
   const [children, setChildren] = useState<ChildRow[]>([]);

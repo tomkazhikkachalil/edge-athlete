@@ -11,6 +11,7 @@ import { revalidateTag } from 'next/cache';
 import { NextResponse } from 'next/server';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { OrgSide } from '@/lib/orgs/authz';
+import { ORG_ID } from '@/lib/orgs/org-ref';
 import {
   isMissingTableError,
   isValidPageSlug,
@@ -30,15 +31,11 @@ const NEWS_FIELDS = 'id, site_id, slug, title, body, published_at, created_at, u
 const NEWS_FIELDS_189 = `${NEWS_FIELDS}, pinned_at`;
 const PIN_NEEDS_189 = 'Pinning needs migration 189 — run it, then try again';
 
-function orgColumn(side: OrgSide): 'league_id' | 'club_id' {
-  return side === 'league' ? 'league_id' : 'club_id';
-}
-
 async function getSiteForOrg(admin: Admin, side: OrgSide, orgId: string) {
   const { data } = await admin
     .from('org_sites')
     .select('id, subdomain')
-    .eq(orgColumn(side), orgId)
+    .eq(ORG_ID, orgId)
     .maybeSingle();
   return data as { id: string; subdomain: string } | null;
 }

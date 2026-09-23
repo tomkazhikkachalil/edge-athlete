@@ -30,6 +30,7 @@ import type { GalleryOrg } from '@/lib/site-builder/gallery';
 import { isFreshSite } from '@/lib/site-builder/seeds';
 import { buildSiteChecklistSteps, siteChecklistInput } from '@/lib/site-builder/checklist';
 import type { ChecklistStep } from '@/lib/orgs/checklist';
+import { ORG_ROUTE_FAMILY, isOrgKind } from '@/lib/orgs/org-ref';
 import type { WidgetInstance } from '@/lib/site-builder/layout';
 import { useDraft, type SaveOutcome } from './useDraft';
 import { chipFor, publishBlocker } from '@/lib/site-builder/draft-state';
@@ -106,8 +107,8 @@ export default function SiteBuilder() {
   const params = useParams();
   const side = params.side as string;
   const orgId = params.id as string;
-  const validSide = side === 'league' || side === 'club';
-  const plural = side === 'league' ? 'leagues' : 'clubs';
+  const validSide = isOrgKind(side);
+  const plural = ORG_ROUTE_FAMILY[validSide ? side : 'club'];
   const consoleHref = `/app/org/${side}/${orgId}`;
 
   const { user, initialAuthCheckComplete } = useAuth();

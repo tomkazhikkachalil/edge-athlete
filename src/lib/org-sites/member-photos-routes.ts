@@ -14,6 +14,7 @@ import { z } from 'zod';
 import { getSupabaseAdmin } from '@/lib/auth-server';
 import { parseBody } from '@/lib/validation';
 import { getOrgAndRole, type OrgSide } from '@/lib/orgs/authz';
+import { ORG_ID } from '@/lib/orgs/org-ref';
 import { canGrantPhotoConsent, roundPhotoConsentFor, setRoundPhotoConsent } from '@/lib/orgs/photo-consent';
 import { requireOrgManager } from '@/lib/orgs/structure-server';
 import { revalidateOrgSiteForOrg } from './revalidate';
@@ -91,7 +92,7 @@ export async function photoCandidatesGET(user: SessionUser, side: OrgSide, param
     const { data: site } = await admin
       .from('org_sites')
       .select('id')
-      .eq(side === 'league' ? 'league_id' : 'club_id', id)
+      .eq(ORG_ID, id)
       .maybeSingle();
     if (!site) return NextResponse.json({ error: 'Site not found' }, { status: 404 });
     const out = await listMemberPhotoCandidates(admin, side, id, site.id as string);

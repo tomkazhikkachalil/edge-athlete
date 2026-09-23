@@ -68,6 +68,7 @@ import { randomBytes } from 'crypto';
 import { createAthleteClaimInvite } from '@/lib/athlete-claim';
 import { makeStubEmail, isStubEmail, STUB_EMAIL_DOMAIN } from '@/lib/config/stubs-config';
 import type { OrgSide } from './authz';
+import { ORG_ID, pairFor } from './org-ref';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- matches the authz.ts Admin alias; schema-agnostic helper
 type Admin = SupabaseClient<any, 'public', any>;
@@ -78,10 +79,6 @@ export interface ImportReportRow {
   claimUrl: string | null;
   emailSent: boolean;
   error?: string;
-}
-
-function orgColumn(side: OrgSide): 'league_id' | 'club_id' {
-  return side === 'league' ? 'league_id' : 'club_id';
 }
 
 /** Import a pasted roster into ONE team: per row, a stub profile (shadow
@@ -102,7 +99,6 @@ export async function importRoster(
     appUrl: string;
   }
 ): Promise<{ ok: true; report: ImportReportRow[] } | { ok: false; reason: 'team_not_found' }> {
-  const col = orgColumn(input.side);
   // Scope pin ONCE: the team must be this org's and active (a foreign or
   // archived team is indistinguishable from missing — structure-server
   // convention).
@@ -110,7 +106,7 @@ export async function importRoster(
     .from('teams')
     .select('id, name, status')
     .eq('id', input.teamId)
-    .eq(col, input.orgId)
+    .eq(ORG_ID, input.orgId)
     .maybeSingle();
   if (!team || team.status !== 'active') return { ok: false, reason: 'team_not_found' };
 
@@ -152,9 +148,9 @@ export async function importRoster(
       // THREE membership rows. PGRST102: batch inserts need HOMOGENEOUS
       // keys — every row carries the same key set with explicit values.
       const { error: memberError } = await admin.from('memberships').insert([
-        { [col]: input.orgId, profile_id: profileId, kind: 'follow', role: 'member', status: 'active', scope_type: 'org', scope_id: null },
-        { [col]: input.orgId, profile_id: profileId, kind: 'roster', role: 'member', status: 'active', scope_type: 'org', scope_id: null },
-        { [col]: input.orgId, profile_id: profileId, kind: 'roster', role: 'member', status: 'active', scope_type: 'team', scope_id: input.teamId },
+        { ...pairFor(input), profile_id: profileId, kind: 'follow', role: 'member', status: 'active', scope_type: 'org', scope_id: null },
+        { ...pairFor(input), profile_id: profileId, kind: 'roster', role: 'member', status: 'active', scope_type: 'org', scope_id: null },
+        { ...pairFor(input), profile_id: profileId, kind: 'roster', role: 'member', status: 'active', scope_type: 'team', scope_id: input.teamId },
       ]);
       if (memberError) {
         console.error('[ROSTER IMPORT] membership insert failed:', memberError);
@@ -200,12 +196,11 @@ export async function remintAthleteClaim(
   admin: Admin,
   input: { side: OrgSide; orgId: string; orgName: string; profileId: string; createdBy: string; appUrl: string }
 ): Promise<{ claimUrl: string; emailSent: boolean } | null> {
-  const col = orgColumn(input.side);
   const [{ data: rosterRow }, { data: profile }, { data: selfRow }] = await Promise.all([
     admin
       .from('memberships')
       .select('id')
-      .eq(col, input.orgId)
+      .eq(ORG_ID, input.orgId)
       .eq('profile_id', input.profileId)
       .eq('kind', 'roster')
       .limit(1)

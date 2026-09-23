@@ -19,6 +19,7 @@ import { publicSubpageKeys } from './private';
 import { parseGolfPointsConfig } from '@/lib/competitions/golf-points';
 import { roundRuleFor } from '@/lib/competitions/golf-league';
 import type { OrgSide } from '@/lib/orgs/authz';
+import { ORG_ID, ORG_TABLE, PAIR_COLUMN, orgIdOf } from '@/lib/orgs/org-ref';
 import { groupAnnouncements, type AnnouncementNotificationRow } from '@/lib/orgs/announce';
 import { publicDisplayName, type MaskableProfile, publicHandle } from '@/lib/orgs/public-names';
 import { listAffiliations } from '@/lib/affiliations/server';
@@ -38,10 +39,6 @@ import { LISTING_NOT_KNOWN, isListed, listingFromRow, readListingMap } from '@/l
 type Admin = SupabaseClient<any, 'public', any>;
 
 const TAG = '[ORG SITE DATA]';
-
-function orgColumn(side: OrgSide): 'league_id' | 'club_id' {
-  return side === 'league' ? 'league_id' : 'club_id';
-}
 
 /** True for "this module has nothing" errors; logs and returns true for
  *  real errors too — public modules degrade, they never 500. */
@@ -66,11 +63,10 @@ export async function fetchPublicTeams(
   side: OrgSide,
   orgId: string
 ): Promise<PublicTeam[]> {
-  const col = orgColumn(side);
   const { data: teams, error } = await admin
     .from('teams')
     .select('id, name, display_name')
-    .eq(col, orgId)
+    .eq(ORG_ID, orgId)
     .eq('status', 'active')
     .order('name', { ascending: true })
     .limit(200);
@@ -127,7 +123,7 @@ export async function fetchPublicStaff(
   const { data, error } = await admin
     .from('memberships')
     .select('role, profile:profile_id (first_name, last_name, full_name, visibility, email, supervision_state)')
-    .eq(orgColumn(side), orgId)
+    .eq(ORG_ID, orgId)
     .eq('kind', 'follow')
     .eq('scope_type', 'org')
     .eq('status', 'active')
@@ -167,7 +163,7 @@ export async function fetchPublicVenues(
   const { data: venues, error } = await admin
     .from('venues')
     .select('id, name, city, region, country')
-    .eq(orgColumn(side), orgId)
+    .eq(ORG_ID, orgId)
     .order('name', { ascending: true })
     .limit(50);
   if (degraded('venues', error) || !venues || venues.length === 0) return [];
@@ -273,12 +269,11 @@ export async function fetchPublicTeamPage(
   orgId: string,
   teamId: string
 ): Promise<PublicTeamPage | null> {
-  const col = orgColumn(side);
   const { data: team, error } = await admin
     .from('teams')
     .select('id, name, display_name')
     .eq('id', teamId)
-    .eq(col, orgId)
+    .eq(ORG_ID, orgId)
     .eq('status', 'active')
     .maybeSingle();
   if (degraded('team', error) || !team) return null;
@@ -288,7 +283,7 @@ export async function fetchPublicTeamPage(
     admin
       .from('memberships')
       .select('joined_at, profile:profile_id (first_name, last_name, full_name, visibility, email, supervision_state)')
-      .eq(col, orgId)
+      .eq(ORG_ID, orgId)
       .eq('kind', 'roster')
       .eq('status', 'active')
       .eq('scope_type', 'team')
@@ -899,13 +894,12 @@ export async function fetchPublicOpenWindows(
   side: OrgSide,
   orgId: string
 ): Promise<PublicOpenWindow[]> {
-  const col = orgColumn(side);
   const { data: rows, error } = await admin
     .from('registration_windows')
     .select(
       'opens_at, closes_at, season:season_id (label), division:division_id (name), program:program_id (name)'
     )
-    .eq(col, orgId)
+    .eq(ORG_ID, orgId)
     .order('opens_at', { ascending: false })
     .limit(50);
   if (degraded('open windows', error) || !rows) return [];
@@ -969,7 +963,7 @@ export async function fetchPublicGallery(
 
 async function fetchMemberGalleryItems(admin: Admin, side: OrgSide, orgId: string): Promise<PublicGalleryItem[]> {
   try {
-    const { data: site } = await admin.from('org_sites').select('id').eq(orgColumn(side), orgId).maybeSingle();
+    const { data: site } = await admin.from('org_sites').select('id').eq(ORG_ID, orgId).maybeSingle();
     if (!site) return [];
     const { data: mod } = await admin
       .from('org_site_modules')
@@ -1000,11 +994,10 @@ async function fetchMemberGalleryItems(admin: Admin, side: OrgSide, orgId: strin
 }
 
 async function fetchContestGalleryItems(admin: Admin, side: OrgSide, orgId: string): Promise<PublicGalleryItem[]> {
-  const col = orgColumn(side);
   const { data: comps, error: compsError } = await admin
     .from('competitions')
     .select('id')
-    .eq(col, orgId)
+    .eq(ORG_ID, orgId)
     .eq('visibility', 'public')
     .in('status', ['active', 'completed'])
     .limit(50);
@@ -1119,7 +1112,7 @@ export async function fetchPublicCourses(
   let res: { data: unknown[] | null; error: { code?: string } | null } = await admin
     .from('venues')
     .select('id, name, golf_club_id, golf_course_id')
-    .eq(orgColumn(side), orgId)
+    .eq(ORG_ID, orgId)
     .order('name', { ascending: true })
     .limit(50);
   // Pre-169 database: no golf_course_id column — fall back to the club link.
@@ -1127,7 +1120,7 @@ export async function fetchPublicCourses(
     res = await admin
       .from('venues')
       .select('id, name, golf_club_id')
-      .eq(orgColumn(side), orgId)
+      .eq(ORG_ID, orgId)
       .order('name', { ascending: true })
       .limit(50);
   }
@@ -1251,7 +1244,7 @@ export async function fetchPublicGolfRounds(
     const { data: competitions, error } = await admin
       .from('competitions')
       .select('id, name')
-      .eq(orgColumn(side), orgId)
+      .eq(ORG_ID, orgId)
       .eq('sport_key', 'golf')
       .eq('format', 'leaderboard')
       .eq('visibility', 'public')
@@ -1321,12 +1314,11 @@ export async function fetchPublicDivisions(
   side: OrgSide,
   orgId: string
 ): Promise<PublicDivision[]> {
-  const col = orgColumn(side);
   const today = new Date().toISOString().slice(0, 10);
   const { data: seasons, error } = await admin
     .from('seasons')
     .select('id, label, starts_on, ends_on')
-    .eq(col, orgId)
+    .eq(ORG_ID, orgId)
     .or(`ends_on.is.null,ends_on.gte.${today}`)
     .order('starts_on', { ascending: false, nullsFirst: false })
     .limit(3);
@@ -1519,11 +1511,10 @@ export async function fetchPublicStatLeaders(
   side: OrgSide,
   orgId: string
 ): Promise<PublicLeaderBoard[]> {
-  const col = orgColumn(side);
   const { data: comps, error } = await admin
     .from('competitions')
     .select('id, name, sport_key, format, scoring_rule, config')
-    .eq(col, orgId)
+    .eq(ORG_ID, orgId)
     .eq('visibility', 'public')
     .in('status', ['active', 'completed'])
     .order('created_at', { ascending: false })
@@ -1957,7 +1948,7 @@ export async function fetchPublicPlayerPage(
     // M2 — the member's picked round photos (the site gate, per item).
     let photos: PublicPlayerPhoto[] = [];
     try {
-      const { data: site } = await admin.from('org_sites').select('id').eq(orgColumn(side), orgId).maybeSingle();
+      const { data: site } = await admin.from('org_sites').select('id').eq(ORG_ID, orgId).maybeSingle();
       if (site) {
         const { data: mod } = await admin
           .from('org_site_modules')
@@ -2005,11 +1996,10 @@ export async function fetchPlayerHandlesForOrgs(
     for (const side of ['league', 'club'] as const) {
       const ids = orgs.filter(o => o.side === side).map(o => o.orgId);
       if (ids.length === 0) continue;
-      const column = side === 'league' ? 'league_id' : 'club_id';
       const { data: comps } = await admin
         .from('competitions')
-        .select(`id, ${column}`)
-        .in(column, ids)
+        .select(`id, ${ORG_ID}`)
+        .in(ORG_ID, ids)
         .eq('sport_key', 'golf')
         .eq('format', 'leaderboard')
         .eq('visibility', 'public')
@@ -2017,7 +2007,7 @@ export async function fetchPlayerHandlesForOrgs(
         .limit(2000);
       const compRows = (comps ?? []) as unknown as Record<string, unknown>[];
       if (compRows.length === 0) continue;
-      const orgByComp = new Map(compRows.map(c => [c.id as string, c[column] as string]));
+      const orgByComp = new Map(compRows.map(c => [c.id as string, orgIdOf(c) as string]));
       const { data: entries } = await admin
         .from('competition_entries')
         .select('competition_id, profile_id')
@@ -2266,8 +2256,10 @@ export interface DirectoryRegion {
 }
 
 export async function fetchPublicOrgDirectory(admin: Admin, side: OrgSide): Promise<DirectoryRegion[]> {
-  const col = orgColumn(side);
-  const table = side === 'league' ? 'leagues' : 'clubs';
+  // This read picks a SIDE's sites (the directory is per kind), so it keys
+  // on the pair column — the one org_sites read that needs the kind.
+  const col = PAIR_COLUMN[side];
+  const table = ORG_TABLE[side];
   const sportCol = side === 'league' ? 'sport_key' : 'primary_sport';
   try {
     const readSites = (fields: string) =>

@@ -21,15 +21,12 @@ import { NextResponse } from 'next/server';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { isMissingTableError, type RolloverInput } from '@/lib/structure/validate';
 import type { OrgSide } from './authz';
+import { ORG_ID, pairFor } from './org-ref';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- matches the authz.ts Admin alias; schema-agnostic helper
 type Admin = SupabaseClient<any, 'public', any>;
 
 const TAG = '[ROLLOVER]';
-
-function orgColumn(side: OrgSide): 'league_id' | 'club_id' {
-  return side === 'league' ? 'league_id' : 'club_id';
-}
 
 export interface NamedDivision {
   id: string;
@@ -84,13 +81,11 @@ export async function seasonRolloverPOST(
   /** The manager performing the rollover — the staff-expiry trail's actor. */
   actorId: string | null = null
 ): Promise<NextResponse> {
-  const col = orgColumn(side);
-
   const { data: oldSeason } = await admin
     .from('seasons')
     .select('id, label, sport_key')
     .eq('id', input.seasonId)
-    .eq(col, orgId)
+    .eq(ORG_ID, orgId)
     .maybeSingle();
   if (!oldSeason) return NextResponse.json({ error: 'Season not found' }, { status: 404 });
 
@@ -98,7 +93,7 @@ export async function seasonRolloverPOST(
   const { data: newSeason, error: seasonError } = await admin
     .from('seasons')
     .insert({
-      [col]: orgId,
+      ...pairFor({ side, orgId }),
       label: input.label,
       starts_on: input.startsOn ?? null,
       ends_on: input.endsOn ?? null,
@@ -138,7 +133,7 @@ export async function seasonRolloverPOST(
       .from('divisions')
       .insert(
         (oldDivisions ?? []).map(d => ({
-          [col]: orgId,
+          ...pairFor({ side, orgId }),
           season_id: newSeason.id,
           sport_key: d.sport_key,
           name: d.name,
@@ -259,12 +254,11 @@ export async function expireSeasonStaff(
   seasonId: string,
   actorId: string | null
 ): Promise<number> {
-  const col = orgColumn(side);
   const now = new Date().toISOString();
   const { data, error } = await admin
     .from('memberships')
     .update({ expires_at: now })
-    .eq(col, orgId)
+    .eq(ORG_ID, orgId)
     .eq('kind', 'staff')
     .eq('season_id', seasonId)
     .or(`expires_at.is.null,expires_at.gt.${now}`) // hardening-ok: server clock, no user input
@@ -277,7 +271,7 @@ export async function expireSeasonStaff(
   if (rows.length === 0) return 0;
   const { error: auditError } = await admin.from('org_staff_audit').insert(
     rows.map(r => ({
-      [col]: orgId,
+      ...pairFor({ side, orgId }),
       profile_id: r.profile_id,
       actor_id: actorId,
       action: 'expired',
