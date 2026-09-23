@@ -85,7 +85,19 @@ test('org console: owner builds structure via UI; member locked out; 375px', asy
       await page.setViewportSize({ width: 375, height: 812 });
       await expect(page.getByRole('button', { name: 'Add season' })).toBeVisible();
       const scrollWidth = await page.evaluate(() => document.documentElement.scrollWidth);
-      expect(scrollWidth, 'no horizontal overflow at 375px').toBeLessThanOrEqual(375);
+      // Name the culprits when it overflows — the widest boxes past the viewport.
+      const culprits = scrollWidth > 375
+        ? await page.evaluate(() =>
+            Array.from(document.querySelectorAll('body *'))
+              .map(el => ({ el, r: el.getBoundingClientRect() }))
+              .filter(({ r }) => r.right > 375 && r.width > 0)
+              .sort((a, b) => b.r.right - a.r.right)
+              .slice(0, 6)
+              .map(({ el, r }) => `${el.tagName.toLowerCase()}${el.id ? '#' + el.id : ''}.${String(el.className).split(' ').slice(0, 4).join('.')} right=${Math.round(r.right)}`)
+              .join(' | ')
+          )
+        : '';
+      expect(scrollWidth, `no horizontal overflow at 375px (${culprits})`).toBeLessThanOrEqual(375);
     } finally {
       await ctxOwner.close();
     }
