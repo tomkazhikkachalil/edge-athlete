@@ -8,7 +8,7 @@
  * a real column after step C), so:
  *
  *   READ an org's rows       →  .eq(ORG_ID, orgId)          — never the pair
- *   WRITE a row for an org   →  { ...pairFor(ref) }         — the pair, until step C
+ *   WRITE a row for an org   →  { ...pairFor(ref) }         — org_id since step C (233 fills the pair)
  *   TOUCH the org row itself →  .from(ORG_TABLE[kind])      — until step D (views)
  *   SPELL a URL family       →  ORG_ROUTE_FAMILY[kind]      — forever (URLs never change)
  *
@@ -70,13 +70,13 @@ export const ORG_ROUTE_FAMILY: Record<OrgKind, 'leagues' | 'clubs'> = {
   club: 'clubs',
 };
 
-/** The pair for a write: exactly one of the two set, the other null (the
- *  pairing CHECKs want exactly one). Spread it into the insert. */
-export function pairFor(ref: OrgRef): { league_id: string | null; club_id: string | null } {
-  return {
-    league_id: ref.side === 'league' ? ref.orgId : null,
-    club_id: ref.side === 'club' ? ref.orgId : null,
-  };
+/** The org for a write. Since 233 this is `org_id` alone: the row's
+ *  `org_pair_sync` trigger fills `league_id` / `club_id` from
+ *  `organizations.kind`, so the pairing CHECKs and every old reader stay
+ *  satisfied. (Before 233 it was the pair; the name stays because the
+ *  call sites did not change.) Spread it into the insert. */
+export function pairFor(ref: OrgRef): { org_id: string } {
+  return { org_id: ref.orgId };
 }
 
 /** The kind a row names through its pair — null when it names no org. */
