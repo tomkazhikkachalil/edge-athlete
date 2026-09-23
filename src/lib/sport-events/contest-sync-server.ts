@@ -27,6 +27,7 @@ import { resolveCompetitionProfile } from '@/lib/sports/competition-profiles';
 import { contestResultFor, contestRule, contestStatusFor, provenanceForOrg, type ContestResultRow } from './contest-sync';
 import { fetchRoundLeaderboard } from './leaderboard-server';
 import type { SportEventRoundRow, SportEventRow } from './types';
+import { type OrgKindEmbed } from '@/lib/orgs/org-ref';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Admin = SupabaseClient<any, 'public', any>;
@@ -53,9 +54,9 @@ export async function syncSportEventContest(admin: Admin, event: SportEventRow, 
     if (!link) return null;
     const report: ContestSyncReport = { contestId: link.contestId, synced: 0, skipped: [] };
 
-    const { data: comp } = await admin.from('competitions').select('id, name, scoring_rule, league_id, club_id').eq('id', link.competitionId).maybeSingle();
+    const { data: comp } = await admin.from('competitions').select('id, name, scoring_rule, org_id, org:organizations(kind)').eq('id', link.competitionId).maybeSingle();
     if (!comp) return report;
-    const competition = comp as { id: string; name: string | null; scoring_rule: string | null; league_id: string | null; club_id: string | null };
+    const competition = comp as unknown as { id: string; name: string | null; scoring_rule: string | null; org_id: string | null; org?: OrgKindEmbed };
     const board = await fetchRoundLeaderboard(admin, event, round);
     const scored = board.rows.filter(r => typeof r.gross === 'number');
     if (scored.length === 0) return report;
@@ -126,7 +127,7 @@ export async function syncSportEventContest(admin: Admin, event: SportEventRow, 
       if (o) await syncGolfRoundPerformance(admin, o.roundId, o.overlay);
     }
     if (counted.length > 0) {
-      const ctx = await loadGolfLeagueBellContext(admin, { competition: { id: competition.id, name: competition.name, league_id: competition.league_id, club_id: competition.club_id }, contest: { id: link.contestId, round: round.name ?? `Round ${round.sequence}` } });
+      const ctx = await loadGolfLeagueBellContext(admin, { competition: { id: competition.id, name: competition.name, org_id: competition.org_id, org: competition.org }, contest: { id: link.contestId, round: round.name ?? `Round ${round.sequence}` } });
       if (ctx) await notifyGolfRoundsCounted(admin, ctx, counted);
     }
     return report;

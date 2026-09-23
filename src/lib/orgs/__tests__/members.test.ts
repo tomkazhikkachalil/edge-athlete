@@ -371,17 +371,18 @@ describe('write filters keep legacy-shaped paths off future roster rows', () => 
     const prof = mockAdmin({
       memberships: {
         data: [
-          { league_id: 'l1', role: 'member' },
-          { league_id: 'l1', role: 'manager' },
+          { org_id: 'l1', org: { kind: 'league' }, role: 'member' },
+          { org_id: 'l1', org: { kind: 'league' }, role: 'manager' },
         ],
         error: null,
       },
     });
     const { rows } = await profileMembershipRows(prof.admin, 'league', 'me');
     expect(rows).toEqual([{ orgId: 'l1', role: 'manager' }]);
-    // The read never lets the OTHER side's NULL org id in (the strip bug):
-    // `league_id IS NOT NULL` rides every one-side read.
-    expect(prof.calls[0].filters).toMatchObject({ 'not:league_id': 'is:null' });
+    // The read never lets the OTHER side in (the strip bug): since Round 5 D0
+    // the INNER embed on organizations.kind is the side filter on every
+    // one-side read — `org_id` is never null, so nothing else can express it.
+    expect(prof.calls[0].filters).toMatchObject({ 'org.kind': 'league' });
   });
 
   it('orgMemberPreview filters kind per query and max-reduces the viewer', async () => {

@@ -70,7 +70,7 @@ async function loadContestWithComp(
   const { data: row } = await admin
     .from('contests')
     .select(
-      'id, status, competition:competition_id (id, name, sport_key, format, status, league_id, club_id)'
+      'id, status, competition:competition_id (id, name, sport_key, format, status, org_id, org:organizations(kind))'
     )
     .eq('id', contestId)
     .maybeSingle();

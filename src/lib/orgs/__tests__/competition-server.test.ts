@@ -115,7 +115,7 @@ describe('requireCompetitionManager', () => {
 describe('competitionCreatePOST', () => {
   it('404s a foreign-org season (scope is the security crux)', async () => {
     const { admin } = mockAdmin({
-      seasons: { data: { id: 's1', league_id: 'OTHER-org', club_id: null } },
+      seasons: { data: { id: 's1', org_id: 'OTHER-org', org: { kind: 'league' } } },
     });
     const res = await competitionCreatePOST(admin, SCOPE, {
       side: 'league',
@@ -131,7 +131,7 @@ describe('competitionCreatePOST', () => {
 
   it('404s a division outside the season', async () => {
     const { admin } = mockAdmin({
-      seasons: { data: { id: 's1', league_id: 'org-1', club_id: null } },
+      seasons: { data: { id: 's1', org_id: 'org-1', org: { kind: 'league' } } },
       divisions: { data: { id: 'd1', season_id: 'OTHER-season' } },
     });
     const res = await competitionCreatePOST(admin, SCOPE, {
@@ -149,7 +149,7 @@ describe('competitionCreatePOST', () => {
 
   it('inherits the org from the season and DERIVES entrant_type from format', async () => {
     const { admin, calls } = mockAdmin({
-      seasons: { data: { id: 's1', league_id: 'org-1', club_id: null } },
+      seasons: { data: { id: 's1', org_id: 'org-1', org: { kind: 'league' } } },
       competitions: { data: { id: 'c1' } },
     });
     const res = await competitionCreatePOST(admin, SCOPE, {
@@ -163,9 +163,9 @@ describe('competitionCreatePOST', () => {
     });
     expect(res.status).toBe(200);
     const insert = calls.find(c => c.table === 'competitions');
+    // Round 5 D0: the insert names the org ONCE (org_id); 233's trigger fills the pair.
     expect(insert?.payload).toMatchObject({
-      league_id: 'org-1',
-      club_id: null,
+      org_id: 'org-1',
       format: 'fixture',
       entrant_type: 'team',
       visibility: 'public',
@@ -174,7 +174,7 @@ describe('competitionCreatePOST', () => {
 
   it('23505 maps to 409', async () => {
     const { admin } = mockAdmin({
-      seasons: { data: { id: 's1', league_id: 'org-1', club_id: null } },
+      seasons: { data: { id: 's1', org_id: 'org-1', org: { kind: 'league' } } },
       competitions: { data: null, error: { code: '23505' } },
     });
     const res = await competitionCreatePOST(admin, SCOPE, {

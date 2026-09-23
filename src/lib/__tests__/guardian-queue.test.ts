@@ -385,10 +385,10 @@ describe('flattenInviteRows + calendar_invite items', () => {
       null,
       [],
       [
-        { id: 'r2', profile_id: 'a', league_id: null, club_id: 'club-1', joined_at: '2026-08-28T10:00:00Z', orgName: 'Eagle Creek' },
-        { id: 'r1', profile_id: 'a', league_id: 'lg-1', club_id: null, joined_at: '2026-08-27T09:00:00Z', orgName: 'Spring League' },
+        { id: 'r2', profile_id: 'a', org_id: 'club-1', org: { kind: 'club' }, joined_at: '2026-08-28T10:00:00Z', orgName: 'Eagle Creek' },
+        { id: 'r1', profile_id: 'a', org_id: 'lg-1', org: { kind: 'league' }, joined_at: '2026-08-27T09:00:00Z', orgName: 'Spring League' },
         // Unknown athlete rows are dropped, never crash the queue.
-        { id: 'rX', profile_id: 'ghost', league_id: 'lg-1', club_id: null, joined_at: '2026-08-27T09:00:00Z', orgName: 'Spring League' },
+        { id: 'rX', profile_id: 'ghost', org_id: 'lg-1', org: { kind: 'league' }, joined_at: '2026-08-27T09:00:00Z', orgName: 'Spring League' },
       ]
     );
     expect(items.map(i => i.kind)).toEqual(['follow_request', 'roster_invite', 'roster_invite']);

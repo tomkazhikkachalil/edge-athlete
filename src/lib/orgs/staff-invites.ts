@@ -90,7 +90,7 @@ export interface PeekedStaffInvite {
 export async function peekStaffInvite(admin: Admin, rawToken: string): Promise<PeekedStaffInvite | null> {
   const { data: invite } = await admin
     .from('org_staff_invites')
-    .select('id, league_id, club_id, invited_email, role, sections, scope_type, scope_id, season_id, expires_at, consumed_at, revoked_at')
+    .select('id, org_id, org:organizations(kind), invited_email, role, sections, scope_type, scope_id, season_id, expires_at, consumed_at, revoked_at')
     .eq('token_hash', hashInviteToken(rawToken))
     .maybeSingle();
   if (!invite || invite.consumed_at || invite.revoked_at || new Date(invite.expires_at as string) <= new Date()) {

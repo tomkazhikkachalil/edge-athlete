@@ -22,7 +22,7 @@ import { NextResponse } from 'next/server';
 import { revalidateTag } from 'next/cache';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { OrgSide } from '@/lib/orgs/authz';
-import { ORG_ID } from '@/lib/orgs/org-ref';
+import { ORG_ID, orgKindOf, type OrgKindRow } from '@/lib/orgs/org-ref';
 import {
   WELL_KNOWN_PATH,
   dnsInstructions,
@@ -429,7 +429,7 @@ export interface AdminDomainRow {
 export async function adminDomainsGET(admin: Admin): Promise<NextResponse> {
   const { data: sites, error } = await admin
     .from('org_sites')
-    .select(`${DOMAIN_FIELDS}, league_id, club_id`)
+    .select(`${DOMAIN_FIELDS}, org_id, org:organizations(kind)`)
     .not('custom_domain', 'is', null)
     .order('domain_requested_at', { ascending: false })
     .limit(200);
@@ -438,9 +438,9 @@ export async function adminDomainsGET(admin: Admin): Promise<NextResponse> {
     console.error(`${TAG} admin list error:`, error);
     return NextResponse.json({ error: 'Failed to list domains' }, { status: 500 });
   }
-  const rows = (sites ?? []) as unknown as (DomainSiteRow & { league_id: string | null; club_id: string | null })[];
-  const leagueIds = rows.map(r => r.league_id).filter((v): v is string => !!v);
-  const clubIds = rows.map(r => r.club_id).filter((v): v is string => !!v);
+  const rows = (sites ?? []) as unknown as (DomainSiteRow & OrgKindRow)[];
+  const leagueIds = rows.filter(r => orgKindOf(r) === 'league').map(r => r.org_id as string);
+  const clubIds = rows.filter(r => orgKindOf(r) === 'club').map(r => r.org_id as string);
   const [leagues, clubs] = await Promise.all([
     leagueIds.length ? admin.from('leagues').select('id, name').in('id', leagueIds) : Promise.resolve({ data: [] }),
     clubIds.length ? admin.from('clubs').select('id, name').in('id', clubIds) : Promise.resolve({ data: [] }),
@@ -449,11 +449,11 @@ export async function adminDomainsGET(admin: Admin): Promise<NextResponse> {
   const platformConfigured = !!vercelEnv();
   const domains: AdminDomainRow[] = rows.map(r => {
     const status = toStatus(r);
-    const side: OrgSide = r.league_id ? 'league' : 'club';
+    const side: OrgSide = orgKindOf(r) ?? 'club';
     return {
       siteId: r.id,
       slug: r.subdomain,
-      orgName: names.get((r.league_id ?? r.club_id) as string) ?? '?',
+      orgName: names.get(r.org_id as string) ?? '?',
       side,
       domain: r.custom_domain as string,
       state: status.state,
@@ -475,16 +475,16 @@ export async function adminDomainActionPOST(
 ): Promise<NextResponse> {
   const { data, error } = await admin
     .from('org_sites')
-    .select(`${DOMAIN_FIELDS}, league_id, club_id`)
+    .select(`${DOMAIN_FIELDS}, org_id, org:organizations(kind)`)
     .eq('id', input.siteId)
     .maybeSingle();
   if (error || !data) {
     if (isPre171(error)) return PRE_171();
     return NextResponse.json({ error: 'Site not found' }, { status: 404 });
   }
-  const row = data as unknown as DomainSiteRow & { league_id: string | null; club_id: string | null };
-  const side: OrgSide = row.league_id ? 'league' : 'club';
-  const orgId = (row.league_id ?? row.club_id) as string;
+  const row = data as unknown as DomainSiteRow & OrgKindRow;
+  const side: OrgSide = orgKindOf(row) ?? 'club';
+  const orgId = row.org_id as string;
   if (input.action === 'retry-attach') {
     if (!row.domain_verified_at) return NextResponse.json({ error: 'Not verified yet' }, { status: 409 });
     return await attachAndRespond(admin, row);

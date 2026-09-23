@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth, getSupabaseAdmin } from '@/lib/auth-server';
 import { enforceRateLimit } from '@/lib/rate-limit';
 import { seasonAnnounceGET, seasonAnnouncePOST } from '@/lib/competitions/golf-season-wrap-server';
-import { requireCompetitionManager } from '@/lib/orgs/competition-server';
+import { pinCompetitionToOrg, requireCompetitionManager } from '@/lib/orgs/competition-server';
 import { UUID_RE } from '@/lib/golf/course-catalog';
 import { reportRouteError } from '@/lib/observability/report';
 
@@ -19,8 +19,8 @@ async function gate(request: NextRequest, params: Promise<{ id: string; competit
   const admin = getSupabaseAdmin();
   const managerGate = await requireCompetitionManager(admin, user, 'league', id, { competitionId });
   if (!managerGate.ok) return { response: managerGate.response };
-  const { data: comp } = await admin.from('competitions').select('id, league_id').eq('id', competitionId).maybeSingle();
-  if (!comp || (comp as { league_id: string | null }).league_id !== id) {
+  const comp = await pinCompetitionToOrg(admin, { side: 'league', orgId: id }, competitionId);
+  if (!comp) {
     return { response: NextResponse.json({ error: 'Competition not found' }, { status: 404 }) };
   }
   return { user, admin, id, competitionId };

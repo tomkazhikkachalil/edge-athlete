@@ -5,6 +5,7 @@ import { scheduleIcsImportPOST, scheduleImportPOST } from '@/lib/orgs/schedule-i
 import { requireCompetitionManager } from '@/lib/orgs/competition-server';
 import { UUID_RE } from '@/lib/golf/course-catalog';
 import { reportRouteError } from '@/lib/observability/report';
+import { orgIdOf, orgKindOf } from '@/lib/orgs/org-ref';
 
 // ── /api/leagues/[id]/competitions/[competitionId]/schedule-import ────────────
 // Phase 6 R6: schedule + historical results by CSV paste (dry-run
@@ -30,10 +31,10 @@ export async function POST(
 
     const { data: comp } = await admin
       .from('competitions')
-      .select('id, format, status, league_id')
+      .select('id, format, status, org_id, org:organizations(kind)')
       .eq('id', competitionId)
       .maybeSingle();
-    if (!comp || comp.league_id !== id) {
+    if (!comp || orgIdOf(comp) !== id || orgKindOf(comp) !== 'league') {
       return NextResponse.json({ error: 'Competition not found' }, { status: 404 });
     }
 

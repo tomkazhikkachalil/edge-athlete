@@ -12,6 +12,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import * as Sentry from '@sentry/nextjs';
 import { collectSetMediaPaths } from './storage-sweep';
+import { orgRefOf } from './orgs/org-ref';
 
 /**
  * Parse any Supabase public-object URL into { bucket, path }. Returns null
@@ -152,14 +153,15 @@ export async function hardDeleteAccount(
     const { recomputePrimaryOwner } = await import('./orgs/owners');
     const { data: ownerMemberships } = await admin
       .from('memberships')
-      .select('league_id, club_id')
+      .select('org_id, org:organizations(kind)')
       .eq('profile_id', userId)
       .eq('role', 'owner')
       .eq('kind', 'follow')
       .eq('scope_type', 'org');
     for (const row of ownerMemberships ?? []) {
-      const side = row.league_id ? ('league' as const) : ('club' as const);
-      const orgId = (row.league_id ?? row.club_id) as string;
+      const ref = orgRefOf(row);
+      if (!ref) continue;
+      const { side, orgId } = ref;
       const { error } = await recomputePrimaryOwner(admin, { side, orgId }, { excludeProfileId: userId });
       if (error) warnings.push(`owner cache recompute (${side} ${orgId}): ${error.message}`);
     }

@@ -6,7 +6,7 @@ import { WEB_WIDGET_KEYS, WIDGETS } from '@/lib/site-builder/catalog';
 
 function site(side: 'league' | 'club', keys: string[], visibility: 'public' | 'private' = 'public'): PublicSite {
   return {
-    id: 'site', league_id: side === 'league' ? 'org' : null, club_id: side === 'club' ? 'org' : null,
+    id: 'site', org_id: 'org', org: { kind: side },
     subdomain: 'qa', template_id: 'classic', theme_token_set: {}, nav_config: [], logo_path: null,
     hero_config: {}, contact_config: {}, published_at: 'TS',
     orgName: 'QA', side, orgId: 'org', orgCity: null, orgRegion: null, orgCountry: null, orgSportKey: null,

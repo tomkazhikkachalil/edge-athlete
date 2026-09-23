@@ -51,6 +51,7 @@ import {
   type RoundRow,
   roundRuleFor,
 } from './golf-league';
+import { type OrgKindEmbed } from '@/lib/orgs/org-ref';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- matches the authz.ts Admin alias; schema-agnostic helper
 type Admin = SupabaseClient<any, 'public', any>;
@@ -90,8 +91,8 @@ interface CompetitionRow {
   status: string;
   scoring_rule: string | null;
   config: Record<string, unknown> | null;
-  league_id: string | null;
-  club_id: string | null;
+  org_id: string | null;
+  org?: OrgKindEmbed;
 }
 
 async function loadContest(
@@ -106,7 +107,7 @@ async function loadContest(
   if (error || !contest) return null;
   const { data: competition } = await admin
     .from('competitions')
-    .select('id, name, sport_key, format, status, scoring_rule, config, league_id, club_id')
+    .select('id, name, sport_key, format, status, scoring_rule, config, org_id, org:organizations(kind)')
     .eq('id', contest.competition_id)
     .maybeSingle();
   if (!competition) return null;

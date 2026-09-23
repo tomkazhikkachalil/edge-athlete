@@ -6,6 +6,7 @@ import { requireCompetitionManager } from '@/lib/orgs/competition-server';
 import type { CompRow } from '@/lib/orgs/stat-lines-server';
 import { UUID_RE } from '@/lib/golf/course-catalog';
 import { reportRouteError } from '@/lib/observability/report';
+import { orgIdOf, orgKindOf } from '@/lib/orgs/org-ref';
 
 // ── /api/clubs/[id]/competitions/[competitionId]/stat-lines-import (6c I2) ──
 // Per-athlete stat lines by CSV paste (dry-run default). Owner authority
@@ -30,10 +31,10 @@ export async function POST(
     if (!gate.ok) return gate.response;
     const { data: comp } = await admin
       .from('competitions')
-      .select('id, name, sport_key, format, status, league_id, club_id')
+      .select('id, name, sport_key, format, status, org_id, org:organizations(kind)')
       .eq('id', competitionId)
       .maybeSingle();
-    if (!comp || comp.club_id !== id) {
+    if (!comp || orgIdOf(comp) !== id || orgKindOf(comp) !== 'club') {
       return NextResponse.json({ error: 'Competition not found' }, { status: 404 });
     }
     const body = (await request.json().catch(() => ({}))) as {

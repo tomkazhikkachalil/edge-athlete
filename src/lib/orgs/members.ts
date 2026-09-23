@@ -13,7 +13,7 @@
 
 import type { PostgrestError, SupabaseClient } from '@supabase/supabase-js';
 import { maxOrgRole, type OrgRole, type OrgSide } from './authz';
-import { ORG_ID, PAIR_COLUMN, pairFor, type OrgRef } from './org-ref';
+import { ORG_ID, ORG_KIND_EMBED, ORG_KIND_EMBED_INNER, type OrgKindRow, type OrgRef, orgRefOf, pairFor } from './org-ref';
 import { isMissingTableError } from '@/lib/leagues/validate';
 import { isStubEmail } from '@/lib/config/stubs-config';
 
@@ -369,18 +369,14 @@ export async function memberOrgIds(
 ): Promise<{ leagueIds: string[]; clubIds: string[] }> {
   const { data, error } = await admin
     .from('memberships')
-    .select('league_id, club_id')
+    .select(`org_id, ${ORG_KIND_EMBED}`)
     .eq('profile_id', profileId)
     .eq('scope_type', 'org');
   if (error) {
     if (isMissingTableError(error.code)) return { leagueIds: [], clubIds: [] };
     throw error;
   }
-  const rows = (data ?? []) as Array<{ league_id: string | null; club_id: string | null }>;
-  return {
-    leagueIds: [...new Set(rows.map(r => r.league_id).filter((id): id is string => !!id))],
-    clubIds: [...new Set(rows.map(r => r.club_id).filter((id): id is string => !!id))],
-  };
+  return splitOrgIdsByKind((data ?? []) as OrgKindRow[]);
 }
 
 /** The 0.10 roster-only variant — the CALENDAR MERGE's placement read and
@@ -393,7 +389,7 @@ export async function rosterOrgIds(
 ): Promise<{ leagueIds: string[]; clubIds: string[] }> {
   const { data, error } = await admin
     .from('memberships')
-    .select('league_id, club_id')
+    .select(`org_id, ${ORG_KIND_EMBED}`)
     .eq('profile_id', profileId)
     .eq('scope_type', 'org')
     .eq('kind', 'roster')
@@ -402,11 +398,20 @@ export async function rosterOrgIds(
     if (isMissingTableError(error.code)) return { leagueIds: [], clubIds: [] };
     throw error;
   }
-  const rows = (data ?? []) as Array<{ league_id: string | null; club_id: string | null }>;
-  return {
-    leagueIds: [...new Set(rows.map(r => r.league_id).filter((id): id is string => !!id))],
-    clubIds: [...new Set(rows.map(r => r.club_id).filter((id): id is string => !!id))],
-  };
+  return splitOrgIdsByKind((data ?? []) as OrgKindRow[]);
+}
+
+/** {leagueIds, clubIds} from rows selected with ORG_KIND_EMBED — the shape
+ *  the org-list callers still take. */
+function splitOrgIdsByKind(rows: OrgKindRow[]): { leagueIds: string[]; clubIds: string[] } {
+  const leagueIds = new Set<string>();
+  const clubIds = new Set<string>();
+  for (const r of rows) {
+    const ref = orgRefOf(r);
+    if (!ref) continue;
+    (ref.side === 'league' ? leagueIds : clubIds).add(ref.orgId);
+  }
+  return { leagueIds: [...leagueIds], clubIds: [...clubIds] };
 }
 
 /** Member profile ids across a set of orgs on one side (peer fan-out).
@@ -470,10 +475,10 @@ export async function profileMembershipRows(
   side: OrgSide,
   profileId: string
 ): Promise<{ rows: Array<{ orgId: string; role: string }>; error: PostgrestError | null }> {
-  // The PAIR column on purpose (Round 5): this read has no org id to match
-  // — `IS NOT NULL` on the side's column IS the side filter, and org_id is
-  // never null, so ORG_ID would return both sides.
-  const col = PAIR_COLUMN[side];
+  // ONE KIND with no org id to match (Round 5 D0): the INNER embed on
+  // organizations.kind IS the side filter — `org_id` is never null, so
+  // `.eq(ORG_ID, …)` cannot express "one side", and a LEFT embed would only
+  // null the kind while every row of the other side still arrived.
   // Org staff program (178): staff rows ride along — a section manager's
   // org must reach their org lists (the header, the feed card, the profile
   // strip) or the console is unreachable. Ladder rows stay org-scope;
@@ -488,19 +493,19 @@ export async function profileMembershipRows(
   // Tom's own profile).
   const wide = await admin
     .from('memberships')
-    .select(`${col}, role, kind, scope_type, expires_at`)
+    .select(`org_id, role, kind, scope_type, expires_at, ${ORG_KIND_EMBED_INNER}`)
     .eq('profile_id', profileId)
-    .not(col, 'is', null)
+    .eq('org.kind', side)
     .in('kind', ['follow', 'roster', 'staff']);
   const { data, error } = wide.error
-    ? await admin.from('memberships').select(`${col}, role`).eq('profile_id', profileId).not(col, 'is', null).eq('scope_type', 'org')
+    ? await admin.from('memberships').select(`org_id, role, ${ORG_KIND_EMBED_INNER}`).eq('profile_id', profileId).eq('org.kind', side).eq('scope_type', 'org')
     : wide;
   const now = Date.now();
   // One entry per org: a dual-edge profile reduces to their max role; a
   // staff-only profile reads admin | staff.
   const byOrg = new Map<string, { ladder: string[]; admin: boolean; staff: boolean }>();
   for (const r of (data ?? []) as unknown as Array<Record<string, string | null>>) {
-    const orgId = r[col];
+    const orgId = r.org_id;
     if (!orgId) continue; // belt and braces beside the read's filter
     if (!byOrg.has(orgId)) byOrg.set(orgId, { ladder: [], admin: false, staff: false });
     const entry = byOrg.get(orgId)!;

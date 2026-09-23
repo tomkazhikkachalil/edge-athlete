@@ -5,6 +5,7 @@ import { fetchVitalsPrivacy } from '@/lib/vitals-privacy-server';
 import { aspectHidden } from '@/lib/vitals-privacy';
 import type { MediaTokenPayload } from './token';
 import { resolveSportEventAccess } from '@/lib/sport-events/access';
+import { ORG_ID, orgIdOf, type OrgKindEmbed, orgKindOf } from '@/lib/orgs/org-ref';
 
 /**
  * Server-side authorization for the media proxy. Given a verified token and
@@ -202,14 +203,14 @@ async function authorizeContestMedia(
   if (!viewerId) return DENY;
   const { data: media } = await admin
     .from('contest_media')
-    .select('contest_id, contest:contest_id (competition:competition_id (league_id, club_id))')
+    .select('contest_id, contest:contest_id (competition:competition_id (org_id, org:organizations(kind)))')
     .eq('id', mediaId)
     .maybeSingle();
   if (!media) return DENY;
   const contest = Array.isArray(media.contest) ? media.contest[0] : media.contest;
   const compRaw = contest?.competition;
   const comp = (Array.isArray(compRaw) ? compRaw[0] : compRaw) as
-    | { league_id: string | null; club_id: string | null }
+    | { org_id: string | null; org?: OrgKindEmbed }
     | null
     | undefined;
   if (!comp) return DENY;
@@ -239,20 +240,20 @@ async function authorizeContestMedia(
     if (entry?.team_id) teamIds.push(entry.team_id as string);
   }
   const { data: teamRows } = teamIds.length
-    ? await admin.from('teams').select('id, club_id').in('id', teamIds)
+    ? await admin.from('teams').select('id, org_id, org:organizations(kind)').in('id', teamIds)
     : { data: [] };
   const clubIds = new Set(
-    (teamRows ?? []).map(t => t.club_id as string | null).filter((v): v is string => !!v)
+    (teamRows ?? []).filter(t => orgKindOf(t) === 'club').map(t => t.org_id as string)
   );
-  if (comp.club_id) clubIds.add(comp.club_id);
+  if (orgKindOf(comp) === 'club') clubIds.add(orgIdOf(comp) as string);
 
   const managerChecks: PromiseLike<boolean>[] = [];
-  if (comp.league_id) {
+  if (orgKindOf(comp) === 'league') {
     managerChecks.push(
       admin
         .from('memberships')
         .select('id')
-        .eq('league_id', comp.league_id)
+        .eq(ORG_ID, orgIdOf(comp) as string)
         .eq('profile_id', viewerId)
         .eq('scope_type', 'org')
         .eq('status', 'active')
@@ -267,7 +268,7 @@ async function authorizeContestMedia(
       admin
         .from('memberships')
         .select('id')
-        .eq('club_id', clubId)
+        .eq(ORG_ID, clubId)
         .eq('profile_id', viewerId)
         .eq('scope_type', 'org')
         .eq('status', 'active')

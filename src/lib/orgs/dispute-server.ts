@@ -27,6 +27,7 @@ import { getOrgRole, isOwnerOrManager } from './authz';
 import { revalidateOrgSiteForCompetition } from '@/lib/org-sites/revalidate';
 import { golfOverlayFromResult, type ContestResultOrigin } from '@/lib/performance/map';
 import { syncGolfRoundPerformance } from '@/lib/performance/write-server';
+import { orgRefOf } from './org-ref';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- matches the authz.ts Admin alias
 type Admin = SupabaseClient<any, 'public', any>;
@@ -59,13 +60,12 @@ async function contestOrgs(
   if (!contest) return null;
   const { data: comp } = await admin
     .from('competitions')
-    .select('id, league_id, club_id')
+    .select('id, org_id, org:organizations(kind)')
     .eq('id', contest.competition_id)
     .maybeSingle();
   if (!comp) return null;
-  const owner: { side: OrgSide; orgId: string } = comp.league_id
-    ? { side: 'league', orgId: comp.league_id as string }
-    : { side: 'club', orgId: comp.club_id as string };
+  const owner: { side: OrgSide; orgId: string } | null = orgRefOf(comp);
+  if (!owner) return null;
 
   const { data: parts } = await admin
     .from('contest_participants')
@@ -78,12 +78,12 @@ async function contestOrgs(
     : { data: [] };
   const teamIds = [...new Set((entries ?? []).map(e => e.team_id).filter(Boolean))] as string[];
   const { data: teams } = teamIds.length
-    ? await admin.from('teams').select('id, club_id, league_id').in('id', teamIds)
+    ? await admin.from('teams').select('id, org_id, org:organizations(kind)').in('id', teamIds)
     : { data: [] };
   const participants: { side: OrgSide; orgId: string }[] = [];
   for (const t of teams ?? []) {
-    if (t.club_id) participants.push({ side: 'club', orgId: t.club_id as string });
-    if (t.league_id) participants.push({ side: 'league', orgId: t.league_id as string });
+    const teamRef = orgRefOf(t);
+    if (teamRef) participants.push(teamRef);
   }
   return { competitionId: comp.id as string, owner, participants };
 }

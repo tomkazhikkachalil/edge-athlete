@@ -5,6 +5,7 @@ import { nudgeGolfContest } from '@/lib/competitions/golf-league-server';
 import { requireCompetitionManager } from '@/lib/orgs/competition-server';
 import { UUID_RE } from '@/lib/golf/course-catalog';
 import { reportRouteError } from '@/lib/observability/report';
+import { type OrgKindRow, orgIdOf, orgKindOf } from '@/lib/orgs/org-ref';
 
 // ── /api/leagues/[id]/competitions/[competitionId]/golf-sync/nudge (phase 8 P5) ──
 // "Send a reminder": one bell to every entrant with no round on file for
@@ -32,12 +33,12 @@ export async function POST(
     }
     const { data: contest } = await admin
       .from('contests')
-      .select('id, competition:competition_id (id, league_id)')
+      .select('id, competition:competition_id (id, org_id, org:organizations(kind))')
       .eq('id', body.contestId)
       .maybeSingle();
-    const comp = contest?.competition as { id: string; league_id: string | null } | { id: string; league_id: string | null }[] | null | undefined;
+    const comp = contest?.competition as ({ id: string } & OrgKindRow) | ({ id: string } & OrgKindRow)[] | null | undefined;
     const compRow = Array.isArray(comp) ? comp[0] : comp;
-    if (!contest || !compRow || compRow.id !== competitionId || compRow.league_id !== id) {
+    if (!contest || !compRow || compRow.id !== competitionId || orgIdOf(compRow) !== id || orgKindOf(compRow) !== 'league') {
       return NextResponse.json({ error: 'Round not found' }, { status: 404 });
     }
     return await nudgeGolfContest(admin, body.contestId);

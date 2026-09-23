@@ -33,7 +33,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { isMissingTableError } from '@/lib/leagues/validate';
 import { readOrgAccess, type OrgAccess } from '@/lib/orgs/access';
 import { getOrgCapabilities, hasAnyCapability, type OrgSide } from '@/lib/orgs/authz';
-import { ORG_TABLE } from '@/lib/orgs/org-ref';
+import { ORG_TABLE, type OrgKindEmbed, orgKindOf, type OrgKindRow, orgRefOf } from '@/lib/orgs/org-ref';
 import { deriveDisplayTier, type ResultProvenance } from '@/lib/orgs/provenance';
 import { readSanctionedPairs } from '@/lib/orgs/sanction-reads';
 import { evaluatePublicContestMedia } from '@/lib/orgs/gallery-gate';
@@ -357,8 +357,8 @@ interface ContestRow {
 
 interface CompetitionRow {
   id: string;
-  league_id: string | null;
-  club_id: string | null;
+  org_id: string | null;
+  org?: OrgKindEmbed;
   season_id: string | null;
   sport_key: string;
   name: string;
@@ -370,7 +370,7 @@ interface CompetitionRow {
 }
 
 const CONTEST_FIELDS_BASE = 'id, competition_id, event_id, venue_id, facility_id, scheduled_at, round, status';
-const COMP_FIELDS = 'id, league_id, club_id, season_id, sport_key, name, format, entrant_type, scoring_rule, status, visibility';
+const COMP_FIELDS = 'id, org_id, org:organizations(kind), season_id, sport_key, name, format, entrant_type, scoring_rule, status, visibility';
 
 export async function fetchContestView(
   admin: Admin,
@@ -407,9 +407,10 @@ export async function fetchContestView(
       .maybeSingle();
     if (compError || !compData) return null;
     const comp = compData as unknown as CompetitionRow;
-    const side: OrgSide = comp.league_id ? 'league' : 'club';
-    const orgId = comp.league_id ?? comp.club_id;
-    if (!orgId) return null;
+    const compRef = orgRefOf(comp);
+    if (!compRef) return null;
+    const side: OrgSide = compRef.side;
+    const orgId = compRef.orgId;
 
     // Participants + entries first: access needs the entered teams.
     const { data: participantRows } = await admin
@@ -436,7 +437,7 @@ export async function fetchContestView(
 
     const teamIdsEntered = [...new Set([...entryById.values()].map(e => e.team_id).filter((v): v is string => !!v))];
     const access = await resolveContestAccess(admin, {
-      competition: { id: comp.id, visibility: comp.visibility, leagueId: comp.league_id, clubId: comp.club_id },
+      competition: { id: comp.id, visibility: comp.visibility, leagueId: side === 'league' ? orgId : null, clubId: side === 'club' ? orgId : null },
       orgAccess,
       viewerId: opts.viewerId,
       teamIds: teamIdsEntered,
@@ -492,7 +493,7 @@ export async function fetchContestView(
     ];
     const [teamsRes, profilesRes] = await Promise.all([
       teamIds.length
-        ? admin.from('teams').select('id, name, display_name, club_id').in('id', teamIds)
+        ? admin.from('teams').select('id, name, display_name, org_id, org:organizations(kind)').in('id', teamIds)
         : Promise.resolve({ data: [] as never[] }),
       profileIds.length
         ? admin
@@ -502,9 +503,9 @@ export async function fetchContestView(
         : Promise.resolve({ data: [] as never[] }),
     ]);
     const teamById = new Map(
-      ((teamsRes.data ?? []) as { id: string; name: string; display_name: string | null; club_id: string | null }[]).map(t => [
+      ((teamsRes.data ?? []) as ({ id: string; name: string; display_name: string | null } & OrgKindRow)[]).map(t => [
         t.id,
-        { name: t.display_name || t.name || 'Team', clubId: t.club_id },
+        { name: t.display_name || t.name || 'Team', clubId: orgKindOf(t) === 'club' ? (t.org_id as string) : null },
       ])
     );
     const profileById = new Map(
@@ -512,7 +513,7 @@ export async function fetchContestView(
     );
 
     const clubIds = [...new Set([...teamById.values()].map(t => t.clubId).filter((v): v is string => !!v))];
-    const sanctionedPairs = comp.league_id ? await readSanctionedPairs(admin, [comp.league_id], clubIds) : new Set<string>();
+    const sanctionedPairs = side === 'league' ? await readSanctionedPairs(admin, [orgId], clubIds) : new Set<string>();
 
     // Course name for a golf round (the mirror's convention).
     let courseName: string | null = null;
@@ -593,7 +594,7 @@ export async function fetchContestView(
         seasonLabel: ((seasonRes.data as { label?: string | null } | null)?.label ?? null) || null,
       },
       org: { side, id: orgId, name: (orgRow.data as { name: string }).name },
-      ownerLeagueId: comp.league_id,
+      ownerLeagueId: side === 'league' ? orgId : null,
       sanctionedPairs,
       entrants: participants.map(p => {
         const entry = entryById.get(p.entry_id);
