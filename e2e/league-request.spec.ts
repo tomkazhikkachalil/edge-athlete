@@ -26,6 +26,7 @@ test('league wizard: full drive → live + draft columns; duplicate 409', async 
 
     // Identity + capabilities (competitions pre-checked on the league side).
     await page.getByLabel('Name').fill(name);
+    await page.getByRole('button', { name: 'More details (optional)' }).click();
     await page.getByLabel('Description').fill('e2e wizard probe');
     // v2: the capability checkboxes render on the full path only; a league
     // starts with competitions on and teams off, asserted below.
