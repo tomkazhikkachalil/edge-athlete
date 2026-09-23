@@ -32,10 +32,10 @@ describe('org-ref — the one spelling of how an org is named (Round 5 B)', () =
     expect(ORG_ROUTE_FAMILY[kind]).toBe(`${kind}s`);
   });
 
-  it('reads through org_id, writes exactly one of the pair', () => {
+  it('reads AND writes through org_id (233 fills the pair)', () => {
     expect(ORG_ID).toBe('org_id');
-    expect(pairFor({ side: 'league', orgId: 'L' })).toEqual({ league_id: 'L', club_id: null });
-    expect(pairFor({ side: 'club', orgId: 'C' })).toEqual({ league_id: null, club_id: 'C' });
+    expect(pairFor({ side: 'league', orgId: 'L' })).toEqual({ org_id: 'L' });
+    expect(pairFor({ side: 'club', orgId: 'C' })).toEqual({ org_id: 'C' });
   });
 
   it('recovers the kind and the ref from a row, league first, null when neither', () => {

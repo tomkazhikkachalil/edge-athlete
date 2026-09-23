@@ -106,7 +106,7 @@ describe('single-write to memberships', () => {
     const { error } = await joinOrg(ok.admin, REF, 'me');
     expect(error).toBeNull();
     expect(ok.calls.map(c => c.table)).toEqual(['memberships']);
-    expect(ok.calls[0].payload).toEqual({ league_id: 'org-1', club_id: null, profile_id: 'me' });
+    expect(ok.calls[0].payload).toEqual({ org_id: 'org-1', profile_id: 'me' });
 
     const failure = { code: '23503' };
     const bad = mockAdmin({ memberships: { error: failure } });
@@ -117,7 +117,7 @@ describe('single-write to memberships', () => {
     const { admin, calls } = mockAdmin({});
     await insertOwnerRow(admin, CLUB_REF, 'owner-1');
     expect(calls.map(c => c.table)).toEqual(['memberships']);
-    expect(calls[0].payload).toEqual({ league_id: null, club_id: 'club-1', profile_id: 'owner-1', role: 'owner' });
+    expect(calls[0].payload).toEqual({ org_id: 'club-1', profile_id: 'owner-1', role: 'owner' });
   });
 });
 
@@ -176,8 +176,7 @@ describe('write filters keep legacy-shaped paths off future roster rows', () => 
     await insertRosterOffer(offer.admin, REF, 'them');
     expect(offer.calls[0].op).toBe('insert');
     expect(offer.calls[0].payload).toEqual({
-      league_id: 'org-1',
-      club_id: null,
+      org_id: 'org-1',
       profile_id: 'them',
       kind: 'roster',
       status: 'pending',

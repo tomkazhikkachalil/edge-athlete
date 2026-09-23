@@ -160,7 +160,7 @@ export async function structureImportPOST(
         // teams_org_name_uniq is NULLS NOT DISTINCT (league_id, club_id,
         // name) — the full column list works as the conflict target; the
         // absent org column stays NULL and matches.
-        .upsert({ ...pairFor({ side, orgId }), name: teamName }, { onConflict: 'league_id,club_id,name' })
+        .upsert({ ...pairFor({ side, orgId }), name: teamName }, { onConflict: 'org_id,name' })
         .select('id')
         .single();
       if (error || !createdTeam) {
