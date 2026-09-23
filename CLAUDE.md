@@ -1124,6 +1124,37 @@ const { canView } = await response.json();
    ticket (no inbound parsing, by decision). **The program is COMPLETE**
    (Sep 20 2026); `docs/SUPPORT.md` is the reference for every spec.
 
+24. **An org is named by `org_id` through ONE module (Round 5 steps A–C,
+   Sep 22 2026, #891–#896, migs 231–233)** — `public.organizations` (231)
+   is the org table: one row per league or club with the SAME id as the old
+   tables, `kind ∈ {league, club}` (the org's self-description and route
+   family — school later; Tom's decision) beside the capability columns
+   `operates_competitions` / `operates_teams`, which stay the behaviour
+   switches. Every table that names an org (fifteen: memberships,
+   competitions, seasons, divisions, teams, venues, events, sport_events,
+   registrations, registration_windows, org_sites, org_staff_invites,
+   org_staff_audit, org_claim_invites, athlete_claim_invites) carries a real
+   `org_id` (232 generated it, 233 made it the column, NOT NULL where the
+   pairing CHECK is `= 1`, the six uniques lead with it). `league_id` /
+   `club_id` STILL EXIST but are kept correct by `org_pair_sync()` from
+   `organizations.kind` — **never written by hand**, and `organizations` ↔
+   `leagues` / `clubs` are mirrored both ways by trigger (`pg_trigger_depth`
+   guarded). In code, `src/lib/orgs/org-ref.ts` (zero imports) is the one
+   spelling: READ with `.eq(ORG_ID, orgId)`; WRITE with `...pairFor(ref)`
+   (sends `org_id`); the org row through `ORG_TABLE[kind]`; a URL family
+   through `ORG_ROUTE_FAMILY[kind]` (URLs never changed — `/league/[id]`,
+   `/api/clubs/…` stay); `PAIR_COLUMN[kind]` ONLY for the two side-specific
+   tables (`league_join_requests` / `club_join_requests`), the notifications
+   `metadata` key, and a reader that lists ONE SIDE's rows (`IS NOT NULL` is
+   the side filter there — `profileMembershipRows`, the public directory);
+   a row's org through `orgIdOf(row)` / `orgKindOf(row)`. `OrgSide` is an
+   alias of `OrgKind` until step F. `org-ref.test.ts` sweeps `src/` for a
+   re-spelled ternary. **Step D (drop the pair, `leagues` / `clubs` as views,
+   `affiliation` + `org_requests` unified) is PARKED** — ~534 literal
+   references in 96 files; the alternative on the table is to stop at C,
+   since 233's trigger keeps the pair correct indefinitely. Staging is the
+   FREE tier: previews + CI smoke + local e2e together crash it (HARDENING).
+
 
 ---
 
