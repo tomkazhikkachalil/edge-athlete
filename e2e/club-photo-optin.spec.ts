@@ -1,6 +1,7 @@
 import { test, expect } from '@playwright/test';
 import { adminClient, apiAs, loadQaUser, readErrorBody, resetRateBucket } from './helpers/qa-user';
 import { cleanRoundPost, seedRoundPost } from './helpers/member-photos';
+import { publishSite } from './helpers/org-site';
 
 // M2 (program 10), part 1 — the member opts in, the manager curates.
 // "Share my round photos with this club" writes photo_consent on the
@@ -95,6 +96,10 @@ test('photo opt-in: follow-row consent, supervised 403, candidates = public post
       return snapshot.modules?.gallery?.config?.picks ?? [];
     };
     expect((await readDraftPicks()).map(p => [p.mediaId, p.postId, p.profileId])).toEqual([[pub.mediaId, pub.postId, alpha.id]]);
+    // `picked` is read from the PUBLISHED projection (the module row), so
+    // the draft is promoted first — the console's picker toggles optimistically
+    // and re-reads the same way.
+    await publishSite(ownerApi, 'club', clubId);
     res = await ownerApi.get(`/api/clubs/${clubId}/site/photo-candidates`);
     list = (await res.json()).candidates as Cand[];
     expect(list[0].picked).toBe(true);

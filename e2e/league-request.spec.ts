@@ -27,7 +27,8 @@ test('league wizard: full drive → live + draft columns; duplicate 409', async 
     // Identity + capabilities (competitions pre-checked on the league side).
     await page.getByLabel('Name').fill(name);
     await page.getByLabel('Description').fill('e2e wizard probe');
-    await page.getByText('We run teams', { exact: false }).click();
+    // v2: the capability checkboxes render on the full path only; a league
+    // starts with competitions on and teams off, asserted below.
     await page.getByRole('button', { name: 'Continue' }).click();
 
     // Sport → ice hockey (unlocks the template).
@@ -73,7 +74,7 @@ test('league wizard: full drive → live + draft columns; duplicate 409', async 
     const row = rows![0];
     expect(row.status).toBe('pending');
     expect(row.operates_competitions).toBe(true);
-    expect(row.operates_teams).toBe(true);
+    expect(row.operates_teams).toBe(false);
     const draft = row.structure_draft as { divisions: { sportKey: string }[]; teams: string[] };
     expect(draft.divisions).toHaveLength(before - 1);
     // The server re-stamps every division sport with the request sport.

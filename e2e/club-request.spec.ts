@@ -55,12 +55,16 @@ test('club wizard: two sport sections + sported stub league → live + draft tru
     // DB truth: two sports among divisions; the stub carries its sport.
     const { data: rows } = await admin
       .from('club_requests')
-      .select('status, operates_teams, structure_draft, connections_draft')
+      .select('status, operates_competitions, operates_teams, structure_draft, connections_draft')
       .eq('requester_profile_id', userB.id)
       .eq('name', name);
     expect(rows).toHaveLength(1);
     expect(rows![0].status).toBe('pending');
-    expect(rows![0].operates_teams).toBe(true);
+    // v2: /club/start starts as a golf club — competitions on, teams off — and
+    // the structure expander does not flip a capability (the identity step's
+    // checkboxes, shown on the full path only, do).
+    expect(rows![0].operates_competitions).toBe(true);
+    expect(rows![0].operates_teams).toBe(false);
     const draft = rows![0].structure_draft as { divisions: { sportKey: string }[] };
     const sports = new Set(draft.divisions.map(d => d.sportKey));
     expect(sports).toEqual(new Set(['ice_hockey', 'soccer']));
