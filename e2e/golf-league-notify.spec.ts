@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { openWindow } from './helpers/org-page';
 import {
   adminClient,
   apiAs,
@@ -184,7 +185,8 @@ test('golf league bells: counted (once), confirmed (once, with rank), guardian c
       const ownerOwn = counted.filter(n => n.user_id === owner.id && !(n.metadata as { profile_id?: string }).profile_id);
       expect(ownerOwn.length).toBe(1);
       expect(ownerOwn[0].title).toContain('Your 9-hole 41 counts for Week 2 in');
-      expect(ownerOwn[0].action_url).toBe(`/club/${clubId}`);
+      // Contest Place E3 (Sep 10 2026): a round's bell lands on the contest PLACE, not the org page.
+      expect(ownerOwn[0].action_url).toBe(`/event/${contestId}`);
       expect(counted.some(n => n.user_id === alpha.id)).toBe(false);
       if (childId) {
         expect(counted.filter(n => n.user_id === childId).length).toBe(1);
@@ -228,10 +230,12 @@ test('golf league bells: counted (once), confirmed (once, with rank), guardian c
         const page = await ctx.newPage();
         await page.setViewportSize({ width: 375, height: 812 });
         await page.goto(`/club/${clubId}`);
-        await expect(page.getByRole('heading', { name: 'Your week' })).toBeVisible({ timeout: 20_000 });
-        await expect(page.getByText(expectText).first()).toBeVisible();
+        // Org Pages (Sep 8-9 2026): "Your week" is a bubble — its window carries the heading and the strip.
+        const win = await openWindow(page, 'week');
+        await expect(win.getByRole('heading', { name: 'Your week' })).toBeVisible({ timeout: 20_000 });
+        await expect(win.getByText(expectText).first()).toBeVisible();
         if (expectText === 'Post a round') {
-          await expect(page.getByRole('link', { name: 'Post a round →' })).toHaveAttribute('href', '/app/sport/golf/rounds');
+          await expect(win.getByRole('link', { name: 'Post a round →' })).toHaveAttribute('href', '/app/sport/golf/rounds');
         }
         const scrollWidth = await page.evaluate(() => document.documentElement.scrollWidth);
         expect(scrollWidth, 'no horizontal overflow at 375px').toBeLessThanOrEqual(375);

@@ -122,9 +122,17 @@ export function emitIndexes(indexes) {
 }
 
 export function emitViews(views) {
-  return views.map(v => v.materialized
-    ? `CREATE MATERIALIZED VIEW IF NOT EXISTS public.${ident(v.name)} AS\n${v.definition.trim().replace(/;$/, '')};`
-    : `CREATE OR REPLACE VIEW public.${ident(v.name)} AS\n${v.definition.trim().replace(/;$/, '')};`).join('\n\n');
+  return views.map(v => {
+    const create = v.materialized
+      ? `CREATE MATERIALIZED VIEW IF NOT EXISTS public.${ident(v.name)} AS\n${v.definition.trim().replace(/;$/, '')};`
+      : `CREATE OR REPLACE VIEW public.${ident(v.name)} AS\n${v.definition.trim().replace(/;$/, '')};`;
+    // 234: a view's reloptions (`security_invoker=true`, `check_option=…`) —
+    // pg_get_viewdef never carries them, and a view rebuilt without them is a
+    // different view. An idempotent ALTER after the CREATE OR REPLACE.
+    const options = (v.options ?? []).filter(o => typeof o === 'string' && o.includes('='));
+    if (options.length === 0) return create;
+    return `${create}\nALTER ${v.materialized ? 'MATERIALIZED VIEW' : 'VIEW'} public.${ident(v.name)} SET (${options.map(o => o.replace('=', ' = ')).join(', ')});`;
+  }).join('\n\n');
 }
 
 export function emitFunctions(functions) {
