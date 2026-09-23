@@ -1,11 +1,5 @@
 import { test, expect } from '@playwright/test';
-import {
-  adminClient,
-  apiAs,
-  loadQaUser,
-  readErrorBody,
-  registrationFlagOnTarget,
-} from './helpers/qa-user';
+import { adminClient, apiAs, loadQaUser, readErrorBody, registrationFlagOnTarget, resetRateBucket } from './helpers/qa-user';
 
 // Season rollover (phase 5.5, mig 165): one button clones the structure
 // forward — new season, cloned divisions + programs, the SAME teams
@@ -18,6 +12,8 @@ test('season rollover: clone forward, archive the old, console controls; 375px',
   test.setTimeout(240_000);
   const owner = loadQaUser('user-b.json');
   const admin = adminClient();
+  // The windows POST shares the 'registration' bucket across the twins in one run.
+  await resetRateBucket(admin, 'registration', owner.id);
 
   const probe = await admin.from('seasons').select('archived_at').limit(1);
   test.skip(!!probe.error, `archived_at missing — run migration 165 (${probe.error?.message})`);

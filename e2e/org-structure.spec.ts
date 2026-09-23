@@ -57,7 +57,9 @@ test('org console: owner builds structure via UI; member locked out; 375px', asy
       await page.getByRole('button', { name: 'Divisions' }).click();
       await page.getByLabel('Division name').fill('U13 Boys A');
       await page.getByRole('button', { name: 'Add division' }).click();
-      await expect(page.getByText('U13 Boys A')).toBeVisible();
+      // The hierarchy renders the division twice (the <summary> "U13 Boys A · 0
+      // teams" and the row's own name) — exact keeps the locator strict-safe.
+      await expect(page.getByText('U13 Boys A', { exact: true }).first()).toBeVisible();
 
       // Team — scope to the Teams section (the name also appears as an
       // option in the entry select; the exact-match chip lesson).

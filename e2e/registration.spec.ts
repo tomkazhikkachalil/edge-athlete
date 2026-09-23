@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { adminClient, apiAs, loadQaUser, readErrorBody, registrationFlagOnTarget } from './helpers/qa-user';
+import { adminClient, apiAs, loadQaUser, readErrorBody, registrationFlagOnTarget, resetRateBucket } from './helpers/qa-user';
 
 /** True once mig 163 widened the notifications CHECK (probe by insert —
  *  the FK-vs-CHECK error-code trick can't work here since user_id must be
@@ -31,6 +31,8 @@ test('registration: window gate, submit, collisions, registrar transitions', asy
   const athlete = loadQaUser('user.json');
   const owner = loadQaUser('user-b.json');
   const admin = adminClient();
+  // The windows POST shares the 'registration' bucket across the twins in one run.
+  await resetRateBucket(admin, 'registration', owner.id);
 
   const probe = await admin.from('registrations').select('id').limit(1);
   test.skip(!!probe.error, `registrations missing — run migration 162 (${probe.error?.message})`);
