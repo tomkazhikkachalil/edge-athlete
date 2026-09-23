@@ -1543,7 +1543,8 @@ export default function OrgConsolePage() {
                           : ''}
                       </p>
                     </div>
-                    <div className="flex gap-2 shrink-0">
+                    {/* Four actions do not fit beside a 375px card — the group wraps (the probe's overflow check). */}
+                    <div className="flex flex-wrap gap-2">
                       <button
                         type="button"
                         onClick={() => setDivisionSeasonId(divisionSeasonId === season.id ? null : season.id)}

@@ -5,7 +5,7 @@ import { adminClient, loadQaUser } from './helpers/qa-user';
 // template buttons ARE the sport pickers (each adds a per-sport grid
 // section), and a stub-LEAGUE row carries an explicit sport (leagues'
 // sport_key is NOT NULL).
-test('club wizard: two sport sections + sported stub league → pending + draft truth', async ({
+test('club wizard: two sport sections + sported stub league → live + draft truth', async ({
   page,
 }) => {
   test.setTimeout(120_000);
@@ -24,9 +24,14 @@ test('club wizard: two sport sections + sported stub league → pending + draft 
       timeout: 15_000,
     });
 
-    // Identity (teams pre-checked on the club side).
+    // Identity (teams pre-checked on the club side). Onboarding v2 R2: the
+    // SMALL path lands on the review; "We run divisions or teams" expands
+    // to the full flow, where the structure and connections steps live.
     await pageB.getByLabel('Name').fill(name);
     await pageB.getByRole('button', { name: 'Continue' }).click();
+    await expect(pageB.getByText('Step 2 of 2')).toBeVisible();
+    await pageB.getByRole('button', { name: 'We run divisions or teams' }).click();
+    await expect(pageB.getByText('Step 2 of 4')).toBeVisible();
 
     // Structure: two sport sections via the template buttons.
     await pageB.getByRole('button', { name: '+ Ice hockey' }).click();
@@ -41,19 +46,25 @@ test('club wizard: two sport sections + sported stub league → pending + draft 
     await pageB.getByRole('button', { name: 'Add', exact: true }).click();
     await pageB.getByRole('button', { name: 'Continue' }).click();
 
-    // Review → submit → pinned banner.
+    // Review → submit → the org is LIVE and the wizard hands off into the console (v2 R2).
+    await expect(pageB.getByText('Step 4 of 4')).toBeVisible();
     await pageB.getByRole('button', { name: 'Submit request' }).click();
-    await expect(pageB.getByText(`${name} is waiting for review`)).toBeVisible({ timeout: 15_000 });
+    await expect(pageB).toHaveURL(/\/app\/org\/club\/[0-9a-f-]{36}\?welcome=1/, { timeout: 20_000 });
+    await expect(pageB.getByText('Your club is live.', { exact: true })).toBeVisible({ timeout: 20_000 });
 
     // DB truth: two sports among divisions; the stub carries its sport.
     const { data: rows } = await admin
       .from('club_requests')
-      .select('status, operates_teams, structure_draft, connections_draft')
+      .select('status, operates_competitions, operates_teams, structure_draft, connections_draft')
       .eq('requester_profile_id', userB.id)
       .eq('name', name);
     expect(rows).toHaveLength(1);
     expect(rows![0].status).toBe('pending');
-    expect(rows![0].operates_teams).toBe(true);
+    // v2: /club/start starts as a golf club — competitions on, teams off — and
+    // the structure expander does not flip a capability (the identity step's
+    // checkboxes, shown on the full path only, do).
+    expect(rows![0].operates_competitions).toBe(true);
+    expect(rows![0].operates_teams).toBe(false);
     const draft = rows![0].structure_draft as { divisions: { sportKey: string }[] };
     const sports = new Set(draft.divisions.map(d => d.sportKey));
     expect(sports).toEqual(new Set(['ice_hockey', 'soccer']));

@@ -18,7 +18,13 @@ export async function seedRoundPost(
 ): Promise<{ roundId: string; postId: string; mediaId: string; storageKey: string }> {
   const png = fs.readFileSync(path.join(__dirname, '..', 'fixtures', 'photo.png'));
   const storageKey = `posts/${userId}/qa-${opts.stamp}-${opts.visibility}-${Math.random().toString(36).slice(2, 7)}.png`;
-  const up = await admin.storage.from('uploads').upload(storageKey, png, { contentType: 'image/png', upsert: true });
+  // Storage answers "fetch failed" now and then on a cold socket (seen twice
+  // in one prod probe, Sep 22 2026) — three tries, a second apart.
+  let up = await admin.storage.from('uploads').upload(storageKey, png, { contentType: 'image/png', upsert: true });
+  for (let attempt = 1; up.error && attempt < 3; attempt++) {
+    await new Promise(r => setTimeout(r, 1000 * attempt));
+    up = await admin.storage.from('uploads').upload(storageKey, png, { contentType: 'image/png', upsert: true });
+  }
   if (up.error) throw new Error(`seed upload failed: ${up.error.message}`);
   const { data: round, error: roundError } = await admin
     .from('golf_rounds')

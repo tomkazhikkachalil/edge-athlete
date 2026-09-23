@@ -1,6 +1,7 @@
 import { test, expect } from '@playwright/test';
 import { adminClient, apiAs, loadQaUser, readErrorBody, resetRateBucket } from './helpers/qa-user';
 import { cleanRoundPost, seedRoundPost } from './helpers/member-photos';
+import { publishSite } from './helpers/org-site';
 
 // M2 (program 10), part 1 — the member opts in, the manager curates.
 // "Share my round photos with this club" writes photo_consent on the
@@ -87,16 +88,26 @@ test('photo opt-in: follow-row consent, supervised 403, candidates = public post
     expect(res.status()).toBe(400);
     res = await ownerApi.patch(`/api/clubs/${clubId}/site`, { data: { action: 'set_gallery_pick', mediaId: pub.mediaId } });
     expect(res.status(), await readErrorBody(res)).toBe(200);
-    const { data: mod } = await admin.from('org_site_modules').select('config').eq('site_id', site.id).eq('module_key', 'gallery').single();
-    const picks = (mod!.config as { picks: { mediaId: string; postId: string; profileId: string }[] }).picks;
-    expect(picks.map(p => [p.mediaId, p.postId, p.profileId])).toEqual([[pub.mediaId, pub.postId, alpha.id]]);
+    // Site Builder (Sep 9 2026): a pick lands in the DRAFT snapshot; the
+    // module row is the PUBLISHED projection and stays untouched until publish.
+    const readDraftPicks = async () => {
+      const { data: draft } = await admin.from('org_site_revisions').select('snapshot').eq('site_id', site.id).is('published_at', null).single();
+      const snapshot = draft!.snapshot as { modules?: Record<string, { config?: { picks?: { mediaId: string; postId: string; profileId: string }[] } }> };
+      return snapshot.modules?.gallery?.config?.picks ?? [];
+    };
+    expect((await readDraftPicks()).map(p => [p.mediaId, p.postId, p.profileId])).toEqual([[pub.mediaId, pub.postId, alpha.id]]);
+    // `picked` is read from the PUBLISHED projection (the module row), so
+    // the draft is promoted first — the console's picker toggles optimistically
+    // and re-reads the same way.
+    await publishSite(ownerApi, 'club', clubId);
     res = await ownerApi.get(`/api/clubs/${clubId}/site/photo-candidates`);
     list = (await res.json()).candidates as Cand[];
     expect(list[0].picked).toBe(true);
     res = await ownerApi.patch(`/api/clubs/${clubId}/site`, { data: { action: 'remove_gallery_pick', mediaId: pub.mediaId } });
     expect(res.status(), await readErrorBody(res)).toBe(200);
-    const { data: after } = await admin.from('org_site_modules').select('config').eq('site_id', site.id).eq('module_key', 'gallery').single();
-    expect((after!.config as { picks: unknown[] }).picks).toEqual([]);
+    expect(await readDraftPicks()).toEqual([]);
+    // …and promote the removal, or the console's picker (published projection) still reads "picked".
+    await publishSite(ownerApi, 'club', clubId);
 
     // The member's club page at 375px: the switch reads "on".
     const memberCtx = await browser.newContext({ storageState: 'e2e/.auth/state.json' });

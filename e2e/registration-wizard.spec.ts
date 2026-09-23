@@ -1,14 +1,5 @@
 import { test, expect } from '@playwright/test';
-import {
-  adminClient,
-  apiAs,
-  createQaChild,
-  deleteQaUser,
-  guardianFlagOn,
-  loadQaUser,
-  readErrorBody,
-  registrationFlagOnTarget,
-} from './helpers/qa-user';
+import { adminClient, apiAs, createQaChild, deleteQaUser, guardianFlagOn, loadQaUser, readErrorBody, registrationFlagOnTarget, resetRateBucket } from './helpers/qa-user';
 
 // The family wizard (phase 5 R3): a guardian registers a supervised child
 // end-to-end through the UI — who → offering → details (medical notes) →
@@ -23,6 +14,8 @@ test('registration wizard: guardian registers a child; org-page CTA; 375px', asy
   const guardian = loadQaUser('user.json');
   const owner = loadQaUser('user-b.json');
   const admin = adminClient();
+  // The windows POST shares the 'registration' bucket across the twins in one run.
+  await resetRateBucket(admin, 'registration', owner.id);
 
   const probe = await admin.from('registrations').select('id').limit(1);
   test.skip(!!probe.error, `registrations missing — run migration 162 (${probe.error?.message})`);

@@ -50,7 +50,9 @@ test('org site: create → publish → anon shell; unpublish → 404; member 403
       await page.getByRole('button', { name: 'Create your site' }).click();
       await expect(page.getByLabel('Site address')).toBeVisible({ timeout: 15_000 });
       await expect(page.getByLabel('Site address')).not.toHaveValue('', { timeout: 15_000 });
-      await page.getByRole('button', { name: 'Create', exact: true }).click();
+      // The header's Create sheet (Events program, Sep 16) also answers to
+      // "Create" — scope the click to the Website section's picker.
+      await page.getByLabel('Website').getByRole('button', { name: 'Create', exact: true }).click();
       await expect(page.getByText('offline — take it live when you’re ready')).toBeVisible({ timeout: 15_000 });
 
       const { data: siteRow } = await admin

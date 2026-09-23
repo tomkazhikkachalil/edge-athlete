@@ -7,7 +7,7 @@ import { adminClient, apiAs, loadQaUser, readErrorBody } from './helpers/qa-user
 // refetch (the pinned "is waiting for review" string) and one-pending is
 // still the 23505's job. The admin decision path stays a prod probe
 // (ADMIN_EMAILS is unmintable here).
-test('league wizard: full drive → pending banner + draft columns; duplicate 409', async ({
+test('league wizard: full drive → live + draft columns; duplicate 409', async ({
   page,
 }) => {
   test.setTimeout(120_000);
@@ -26,13 +26,21 @@ test('league wizard: full drive → pending banner + draft columns; duplicate 40
 
     // Identity + capabilities (competitions pre-checked on the league side).
     await page.getByLabel('Name').fill(name);
+    await page.getByRole('button', { name: 'More details (optional)' }).click();
     await page.getByLabel('Description').fill('e2e wizard probe');
-    await page.getByText('We run teams', { exact: false }).click();
+    // v2: the capability checkboxes render on the full path only; a league
+    // starts with competitions on and teams off, asserted below.
     await page.getByRole('button', { name: 'Continue' }).click();
 
     // Sport → ice hockey (unlocks the template).
     await page.getByLabel('Sport').selectOption('ice_hockey');
     await page.getByRole('button', { name: 'Continue' }).click();
+
+    // Onboarding v2 R2: the SMALL path lands on the review; "We run
+    // divisions or teams" expands to the full flow (structure, connections).
+    await expect(page.getByText('Step 3 of 3')).toBeVisible();
+    await page.getByRole('button', { name: 'We run divisions or teams' }).click();
+    await expect(page.getByText('Step 3 of 5')).toBeVisible();
 
     // Structure: template grid → prune one row → add a team.
     await page.getByRole('button', { name: /Start from the Ice Hockey template/i }).click();
@@ -51,10 +59,11 @@ test('league wizard: full drive → pending banner + draft columns; duplicate 40
     await expect(page.getByText('QA Stub Club')).toBeVisible();
     await page.getByRole('button', { name: 'Continue' }).click();
 
-    // Review → submit → the pinned server-truth banner.
+    // Review → submit → the org is LIVE and the wizard hands off into the console (v2 R2).
     await expect(page.getByText(`${before - 1} divisions · 1 team`)).toBeVisible();
     await page.getByRole('button', { name: 'Submit request' }).click();
-    await expect(page.getByText(`${name} is waiting for review`)).toBeVisible({ timeout: 15_000 });
+    await expect(page).toHaveURL(/\/app\/org\/league\/[0-9a-f-]{36}\?welcome=1/, { timeout: 20_000 });
+    await expect(page.getByText('Your league is live.', { exact: true })).toBeVisible({ timeout: 20_000 });
 
     // DB truth: all four wizard columns landed.
     const { data: rows } = await admin
@@ -66,7 +75,7 @@ test('league wizard: full drive → pending banner + draft columns; duplicate 40
     const row = rows![0];
     expect(row.status).toBe('pending');
     expect(row.operates_competitions).toBe(true);
-    expect(row.operates_teams).toBe(true);
+    expect(row.operates_teams).toBe(false);
     const draft = row.structure_draft as { divisions: { sportKey: string }[]; teams: string[] };
     expect(draft.divisions).toHaveLength(before - 1);
     // The server re-stamps every division sport with the request sport.
