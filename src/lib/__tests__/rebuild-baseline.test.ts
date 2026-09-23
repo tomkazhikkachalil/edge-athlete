@@ -49,7 +49,11 @@ const dump = {
     { table: 'tickets', name: 'tickets_pkey', definition: 'CREATE UNIQUE INDEX tickets_pkey ON public.tickets USING btree (id)', constraint: true },
     { table: 'tickets', name: 'idx_tickets_subject_lower', definition: 'CREATE INDEX idx_tickets_subject_lower ON public.tickets USING btree (subject_lower)', constraint: false },
   ],
-  views: [{ name: 'open_tickets', materialized: false, definition: ' SELECT tickets.id\n   FROM tickets;', grants: { authenticated: ['SELECT'] } }],
+  views: [
+    { name: 'open_tickets', materialized: false, definition: ' SELECT tickets.id\n   FROM tickets;', grants: { authenticated: ['SELECT'] } },
+    // 234: a security_invoker view — its reloptions ride the dump and come back as an ALTER.
+    { name: 'my_tickets', materialized: false, definition: ' SELECT tickets.id\n   FROM tickets\n  WHERE (tickets.subject IS NOT NULL);', options: ['security_invoker=true'], grants: { service_role: ['SELECT'] } },
+  ],
   functions: [
     { name: 'ticket_count', identity_args: '', kind: 'f', language: 'sql', definition: "CREATE OR REPLACE FUNCTION public.ticket_count()\n RETURNS bigint\n LANGUAGE sql\n STABLE\nAS $function$ select count(*) from public.tickets $function$\n", grants: { anon: false, authenticated: true, service_role: true }, comment: 'How many' },
     { name: 'touch', identity_args: '', kind: 'f', language: 'plpgsql', definition: 'CREATE OR REPLACE FUNCTION public.touch()\n RETURNS trigger\n LANGUAGE plpgsql\nAS $function$ begin new.subject := new.subject; return new; end $function$\n', grants: { anon: true, authenticated: true, service_role: true }, comment: null },
@@ -89,6 +93,8 @@ describe('buildRebuildSql', () => {
       'ADD CONSTRAINT legacy_ticket_id_fkey FOREIGN KEY',
       'CREATE INDEX IF NOT EXISTS idx_tickets_subject_lower',
       'CREATE OR REPLACE VIEW public.open_tickets AS',
+      'CREATE OR REPLACE VIEW public.my_tickets AS',
+      'ALTER VIEW public.my_tickets SET (security_invoker = true);',
       '-- ── Functions, pass 2',
       'CREATE TRIGGER touch_tickets',
       'ALTER TABLE public.tickets ENABLE ROW LEVEL SECURITY;',
