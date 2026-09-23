@@ -90,7 +90,7 @@ test('org console: owner builds structure via UI; member locked out; 375px', asy
         ? await page.evaluate(() =>
             Array.from(document.querySelectorAll('body *'))
               .map(el => ({ el, r: el.getBoundingClientRect() }))
-              .filter(({ r }) => r.right > 375 && r.width > 0)
+              .filter(({ el, r }) => r.right > 375 && r.width > 0 && getComputedStyle(el).position !== 'fixed' && !el.closest('[class*="fixed"]'))
               .sort((a, b) => b.r.right - a.r.right)
               .slice(0, 6)
               .map(({ el, r }) => `${el.tagName.toLowerCase()}${el.id ? '#' + el.id : ''}.${String(el.className).split(' ').slice(0, 4).join('.')} right=${Math.round(r.right)}`)

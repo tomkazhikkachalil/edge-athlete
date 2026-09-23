@@ -107,6 +107,8 @@ test('league photo opt-in: follow-row consent, supervised 403, candidates = publ
     res = await ownerApi.patch(`/api/leagues/${leagueId}/site`, { data: { action: 'remove_gallery_pick', mediaId: pub.mediaId } });
     expect(res.status(), await readErrorBody(res)).toBe(200);
     expect(await readDraftPicks()).toEqual([]);
+    // …and promote the removal, or the console's picker (published projection) still reads "picked".
+    await publishSite(ownerApi, 'league', leagueId);
 
     // The member's league page at 375px: the switch reads "on".
     const memberCtx = await browser.newContext({ storageState: 'e2e/.auth/state.json' });
