@@ -100,9 +100,12 @@ test('org-site register card: open window renders the CTA; closed hides it', asy
         expect(win.status(), await readErrorBody(win)).toBe(200);
         const windowId = ((await win.json()).window as { id: string }).id;
 
+        // P3-C made the old guard (the closed copy's ABSENCE) vacuous — the
+        // empty widget never rendered it — so settle on the window's season
+        // label PRESENCE: that is the purge landing on the anonymous copy.
         expect(
-          await settlePage(page, `/org/${subdomain}`, 'Registration is currently closed.', false),
-          'open-window content never settled past the stale POP copy'
+          await settlePage(page, `/org/${subdomain}`, '2026-27', true),
+          'open-window content never settled onto the anonymous ISR copy'
         ).toBe(true);
         await expect(section.getByText('2026-27')).toBeVisible({ timeout: 20_000 });
         const cta = section.getByRole('link', { name: 'Register' });
