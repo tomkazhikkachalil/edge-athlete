@@ -3,7 +3,7 @@ import { announcePostRow, groupPostRow, participantRows, postVisibilityFor, roun
 import type { SportEventRoundRow, SportEventRow } from '../types';
 
 const event: SportEventRow = {
-  id: 'e1', host_profile_id: 'host', created_by_user_id: 'guardian', club_id: null, league_id: null, sport_key: 'golf', name: 'Spring Open', description: 'Bring a friend', cover_path: null,
+  id: 'e1', host_profile_id: 'host', created_by_user_id: 'guardian', org_id: null, org: null, sport_key: 'golf', name: 'Spring Open', description: 'Bring a friend', cover_path: null,
   join_mode: 'invite', visibility: 'private', link_token: null, format: 'stroke_net', status: 'open', capacity: null, starts_on: '2026-10-03',
   opened_at: null, went_live_at: null, completed_at: null, cancelled_at: null, created_at: 'c', updated_at: 'u',
 };

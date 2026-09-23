@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { bracketShapeRefusal, competitionAcceptsShape, contestRowFor, eligibleCompetition, eventOrg, eventShape, gameContestRowFor, LINK_REFUSAL_COPY, linkRefusal, matchLinkPlan, sidesAgree, slotForMatch, type CompetitionForLink } from '../contest-link';
 
-const club = { club_id: 'c1', league_id: null, status: 'open' };
-const comp = (patch: Partial<CompetitionForLink> = {}): CompetitionForLink => ({ id: 'k1', name: 'Club Cup', club_id: 'c1', league_id: null, sport_key: 'golf', format: 'leaderboard', entrant_type: 'athlete', status: 'active', ...patch });
+const club = { org_id: 'c1', status: 'open' };
+const comp = (patch: Partial<CompetitionForLink> = {}): CompetitionForLink => ({ id: 'k1', name: 'Club Cup', org_id: 'c1', org: { kind: 'club' }, sport_key: 'golf', format: 'leaderboard', entrant_type: 'athlete', status: 'active', ...patch });
 
 describe('linkRefusal — which competitions may count an event', () => {
   it('admits a golf leaderboard of athletes on the event\'s own org while draft / open', () => {
@@ -11,7 +11,7 @@ describe('linkRefusal — which competitions may count an event', () => {
     expect(eligibleCompetition(club, comp())).toBe(true);
   });
   it('names every refusal, and every refusal has copy', () => {
-    expect(linkRefusal({ club_id: null, league_id: null, status: 'open' }, comp())).toBe('no_org');
+    expect(linkRefusal({ org_id: null, status: 'open' }, comp())).toBe('no_org');
     // Leftovers PR 7: a match event reaches a golf BRACKET; a leaderboard is not its home.
     expect(linkRefusal({ ...club, format: 'match_gross' }, comp())).toBe('not_golf_bracket');
     expect(linkRefusal({ ...club, format: 'match_net' }, comp())).toBe('not_golf_bracket');
@@ -19,8 +19,8 @@ describe('linkRefusal — which competitions may count an event', () => {
     expect(eligibleCompetition({ ...club, format: 'match_gross' }, comp())).toBe(false);
     expect(linkRefusal({ ...club, status: 'live' }, comp())).toBe('event_over');
     expect(linkRefusal(club, null)).toBe('not_found');
-    expect(linkRefusal(club, comp({ club_id: 'c2' }))).toBe('other_org');
-    expect(linkRefusal({ club_id: null, league_id: 'l1', status: 'open' }, comp({ club_id: null, league_id: 'l2' }))).toBe('other_org');
+    expect(linkRefusal(club, comp({ org_id: 'c2' }))).toBe('other_org');
+    expect(linkRefusal({ org_id: 'l1', status: 'open' }, comp({ org_id: 'l2', org: { kind: 'league' } }))).toBe('other_org');
     expect(linkRefusal(club, comp({ format: 'fixture' }))).toBe('not_golf_leaderboard');
     expect(linkRefusal(club, comp({ sport_key: 'ice_hockey' }))).toBe('not_golf_leaderboard');
     expect(linkRefusal(club, comp({ entrant_type: 'team' }))).toBe('not_athletes');
@@ -33,9 +33,10 @@ describe('contestRowFor + eventOrg', () => {
   it('mints a one-day window on the round\'s date with its holes, named "Round n" or by the round\'s own name', () => {
     expect(contestRowFor({ id: 'r2', sequence: 2, scheduled_on: '2030-06-02', holes: 18, name: null }, 'k1', 'v1')).toEqual({ competition_id: 'k1', sport_event_round_id: 'r2', round: 'Round 2', holes: 18, play_from: '2030-06-02', play_to: '2030-06-02', status: 'scheduled', venue_id: 'v1', scheduled_at: null });
     expect(contestRowFor({ id: 'r1', sequence: 1, scheduled_on: '2030-06-01', holes: 9, name: ' Saturday ' }, 'k1', null).round).toBe('Saturday');
-    expect(eventOrg({ club_id: 'c1', league_id: null })).toEqual({ side: 'club', id: 'c1' });
-    expect(eventOrg({ club_id: null, league_id: 'l1' })).toEqual({ side: 'league', id: 'l1' });
-    expect(eventOrg({ club_id: null, league_id: null })).toBeNull();
+    // Round 5 D0-b: the row carries org_id + the organizations embed; the kind comes from it.
+    expect(eventOrg({ org_id: 'c1', org: { kind: 'club' } })).toEqual({ side: 'club', id: 'c1' });
+    expect(eventOrg({ org_id: 'l1', org: { kind: 'league' } })).toEqual({ side: 'league', id: 'l1' });
+    expect(eventOrg({ org_id: null, org: null })).toBeNull();
   });
 });
 

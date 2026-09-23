@@ -7,7 +7,7 @@ import { loadSnapshotByRevisionId } from '@/lib/org-sites/revisions-server';
 import { parseStoredLayout } from '@/lib/site-builder/layout-schema';
 import { orderedPages } from '@/lib/site-builder/pages';
 import { siteBasePath } from '@/lib/org-sites/urls';
-import { ORG_ID, ORG_TABLE, orgIdOf, type OrgKind } from '@/lib/orgs/org-ref';
+import { ORG_ID, ORG_TABLE, orgIdOf, type OrgKind, type OrgKindEmbed, orgKindOf } from '@/lib/orgs/org-ref';
 import { emailService } from '@/lib/email-service';
 import { UUID_RE } from '@/lib/golf/course-catalog';
 import { reportRouteError } from '@/lib/observability/report';
@@ -27,8 +27,8 @@ const WIDGET_ID_RE = /^[A-Za-z0-9_:.-]{1,64}$/;
 
 interface SiteRow {
   id: string;
-  league_id: string | null;
-  club_id: string | null;
+  org_id: string | null;
+  org?: OrgKindEmbed;
   subdomain: string;
   custom_domain?: string | null;
   domain_active_at?: string | null;
@@ -37,10 +37,10 @@ interface SiteRow {
 }
 
 async function loadSite(admin: ReturnType<typeof getSupabaseAdmin>, siteId: string): Promise<SiteRow | null> {
-  const full = await admin.from('org_sites').select('id, league_id, club_id, subdomain, custom_domain, domain_active_at, published_at, published_revision_id').eq('id', siteId).maybeSingle();
+  const full = await admin.from('org_sites').select('id, org_id, org:organizations(kind), subdomain, custom_domain, domain_active_at, published_at, published_revision_id').eq('id', siteId).maybeSingle();
   if (!full.error) return (full.data as SiteRow | null) ?? null;
   if (full.error.code !== '42703') return null;
-  const base = await admin.from('org_sites').select('id, league_id, club_id, subdomain, published_at, published_revision_id').eq('id', siteId).maybeSingle();
+  const base = await admin.from('org_sites').select('id, org_id, org:organizations(kind), subdomain, published_at, published_revision_id').eq('id', siteId).maybeSingle();
   return (base.data as SiteRow | null) ?? null;
 }
 
@@ -117,7 +117,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   // when SMTP is configured. The notification carries a summary — never the
   // message body — and a door to the console's inbox.
   try {
-    const side: OrgKind = site.league_id ? 'league' : 'club';
+    const side: OrgKind = orgKindOf(site) ?? 'club';
     const orgId = orgIdOf(site) as string;
     const [{ data: org }, { data: members }] = await Promise.all([
       admin.from(ORG_TABLE[side]).select('id, name, owner_profile_id').eq('id', orgId).maybeSingle(),

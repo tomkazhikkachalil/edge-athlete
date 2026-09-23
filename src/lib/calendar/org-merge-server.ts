@@ -19,16 +19,15 @@ import { isMissingTableError } from '@/lib/leagues/validate';
 import { rosterOrgIds } from '@/lib/orgs/members';
 import { viewerScopeSet } from '@/lib/orgs/scoped-members';
 import { EVENT_FIELDS } from './detail-server';
+import { type OrgKindRow, orgIdOf } from '@/lib/orgs/org-ref';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Admin = SupabaseClient<any, 'public', any>;
 
 const ORG_EVENT_LIMIT = 500; // defensive cap per scope kind — FEED_LIMIT precedent
 
-export interface OrgEventRow {
+export interface OrgEventRow extends OrgKindRow {
   id: string;
-  league_id?: string | null;
-  club_id?: string | null;
   division_id?: string | null;
   team_id?: string | null;
   [key: string]: unknown;
@@ -58,8 +57,7 @@ export function mergeOrgEvents(
     if (ownGuestEventIds.has(event.id) || seen.has(event.id)) continue;
     seen.add(event.id);
     const scopeId = (event.division_id ?? event.team_id) as string | null;
-    const orgId =
-      (event.league_id ?? event.club_id) ?? (scopeId ? (scopeOrg.get(scopeId) ?? null) : null);
+    const orgId = orgIdOf(event) ?? (scopeId ? (scopeOrg.get(scopeId) ?? null) : null);
     merged.push({
       ...event,
       my_status: null,
@@ -120,7 +118,7 @@ export async function fetchOrgEventsForViewer(
   const fromIso = new Date(fromMs).toISOString();
   const toIso = new Date(toMs).toISOString();
   const eventsIn = (
-    column: 'league_id' | 'club_id' | 'division_id' | 'team_id',
+    column: 'org_id' | 'division_id' | 'team_id',
     scopeIds: string[]
   ) => {
     if (scopeIds.length === 0) return Promise.resolve({ data: [], error: null });
@@ -136,18 +134,18 @@ export async function fetchOrgEventsForViewer(
       : query.eq('status', 'active');
     return query;
   };
-  const [leagueRes, clubRes, divisionRes, teamRes] = await Promise.all([
-    eventsIn('league_id', leagueIds),
-    eventsIn('club_id', clubIds),
+  // One org read for both kinds (Round 5 D0-b): org_id names either.
+  const [orgRes, divisionRes, teamRes] = await Promise.all([
+    eventsIn('org_id', [...leagueIds, ...clubIds]),
     eventsIn('division_id', scopes.divisionIds),
     eventsIn('team_id', scopes.teamIds),
   ]);
-  for (const { error } of [leagueRes, clubRes, divisionRes, teamRes]) {
+  for (const { error } of [orgRes, divisionRes, teamRes]) {
     // 42703: pre-119/146 database without the scope columns — empty, never
     // an error.
     if (error && !isMissingTableError(error.code) && error.code !== '42703') throw error;
   }
-  const eventLists = [leagueRes, clubRes, divisionRes, teamRes].map(
+  const eventLists = [orgRes, divisionRes, teamRes].map(
     r => (r.data ?? []) as unknown as OrgEventRow[]
   );
   const candidateIds = [...new Set(eventLists.flat().map(e => e.id))];

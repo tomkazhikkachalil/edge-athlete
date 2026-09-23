@@ -21,12 +21,13 @@ import { getOrgRole } from '@/lib/orgs/authz';
 import { anyMembershipExists } from '@/lib/orgs/members';
 import { scopedMembershipExists } from '@/lib/orgs/scoped-members';
 import { resolveEventScope } from './event-scope';
+import { type OrgKindEmbed } from '@/lib/orgs/org-ref';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Admin = SupabaseClient<any, 'public', any>;
 
 export const EVENT_FIELDS =
-  'id, organizer_id, title, description, location, starts_at, ends_at, all_day, timezone, category, status, cancelled_at, series_id, series_override, routine_id, routine_snapshot, league_id, club_id, division_id, team_id, venue_id, facility_id';
+  'id, organizer_id, title, description, location, starts_at, ends_at, all_day, timezone, category, status, cancelled_at, series_id, series_override, routine_id, routine_snapshot, org_id, org:organizations(kind), division_id, team_id, venue_id, facility_id';
 
 export interface CalendarEventRow {
   id: string;
@@ -45,8 +46,8 @@ export interface CalendarEventRow {
   series_override: boolean;
   routine_id: string | null;
   routine_snapshot: unknown;
-  league_id?: string | null;
-  club_id?: string | null;
+  org_id?: string | null;
+  org?: OrgKindEmbed;
   division_id?: string | null;
   team_id?: string | null;
   venue_id?: string | null;

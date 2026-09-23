@@ -21,7 +21,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { NextResponse } from 'next/server';
 import { revalidateOrgSiteForCompetition } from '@/lib/org-sites/revalidate';
 import { publicDisplayName, type MaskableProfile } from '@/lib/orgs/public-names';
-import { orgIdOf } from '@/lib/orgs/org-ref';
+import { orgIdOf, type OrgKindEmbed } from '@/lib/orgs/org-ref';
 import { EVENT_COLUMNS } from './access-server';
 import { LINK_REFUSAL_COPY, type LinkRefusal } from './contest-link';
 import { linkContestToRound, readSportEventMatchLink } from './contest-link-server';
@@ -66,14 +66,14 @@ async function sideMembers(admin: Admin, entry: SideEntry, orgId: string): Promi
 export async function contestRunAsEventPOST(admin: Admin, input: ContestRunAsEventInput, scope: { side: 'club' | 'league'; orgId: string }, userId: string): Promise<NextResponse> {
   const { data: contestRow, error: readError } = await admin
     .from('contests')
-    .select('id, status, round, scheduled_at, sport_event_round_id, competition:competition_id (id, name, league_id, club_id, sport_key, format, entrant_type, status)')
+    .select('id, status, round, scheduled_at, sport_event_round_id, competition:competition_id (id, name, org_id, org:organizations(kind), sport_key, format, entrant_type, status)')
     .eq('id', input.contestId)
     .maybeSingle();
   if (readError) {
     if (readError.code === '42703') return NextResponse.json({ error: 'Running a game as an event needs migration 211.', reason: 'needs_migration' }, { status: 409 });
     return NextResponse.json({ error: 'Failed to read the game' }, { status: 500 });
   }
-  type CompLite = { id: string; name: string; league_id: string | null; club_id: string | null; sport_key: string; format: string; entrant_type: string; status: string };
+  type CompLite = { id: string; name: string; org_id: string | null; org?: OrgKindEmbed; sport_key: string; format: string; entrant_type: string; status: string };
   const compRaw = contestRow?.competition as CompLite | CompLite[] | null | undefined;
   const comp = Array.isArray(compRaw) ? compRaw[0] : compRaw;
   if (!contestRow || !comp || comp.id !== input.competitionId || orgIdOf(comp) !== scope.orgId) return NextResponse.json({ error: 'Game not found' }, { status: 404 });
@@ -129,8 +129,7 @@ export async function contestRunAsEventPOST(admin: Admin, input: ContestRunAsEve
     .insert({
       host_profile_id: userId,
       created_by_user_id: userId,
-      club_id: scope.side === 'club' ? scope.orgId : null,
-      league_id: scope.side === 'league' ? scope.orgId : null,
+      org_id: scope.orgId,
       sport_key: comp.sport_key,
       name: `${sideNames[0]} vs ${sideNames[1]}`.slice(0, 120),
       description: `${comp.name}${contestRow.round ? ` · ${contestRow.round}` : ''}`.slice(0, 2000),

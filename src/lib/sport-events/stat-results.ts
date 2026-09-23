@@ -16,6 +16,7 @@ import { resultFor, resultScore, type GameScore } from './game';
 import { postVisibilityFor } from './mint';
 import { heroValue, lineHeadline, type StatValues } from './stats';
 import type { SportEventRow, SportEventShape } from './types';
+import { type OrgKindRow, orgKindOf } from '@/lib/orgs/org-ref';
 
 export interface ResultLineInput {
   id: string;
@@ -113,8 +114,8 @@ export function resultsPostData(event: Pick<SportEventRow, 'id' | 'sport_key'>, 
 }
 
 /** The performance overlay of a mirrored line: an org-hosted event's recorder / organizer entry is the org's; a player's own (or an athlete-run event) is self-reported. */
-export function provenanceForLine(event: { club_id: string | null; league_id: string | null }, line: Pick<ResultLineInput, 'profile_id' | 'entered_by'>): ResultProvenance {
-  const org = event.league_id ? 'league' : event.club_id ? 'club' : null;
+export function provenanceForLine(event: OrgKindRow, line: Pick<ResultLineInput, 'profile_id' | 'entered_by'>): ResultProvenance {
+  const org = orgKindOf(event);
   if (!org) return 'self_reported';
   if (line.entered_by && line.entered_by !== line.profile_id) return org === 'league' ? 'league_verified' : 'club_recorded';
   return 'self_reported';

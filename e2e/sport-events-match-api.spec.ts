@@ -72,7 +72,8 @@ test('sport events API: match play — the vocabulary, the config refusals, side
     const { participantId: bStroke, hostRowId: aStroke } = await inviteAndAccept(s, strokeId);
     const refused = await s.apiA.put(`/api/sport-events/${strokeId}/rounds/${stroke.rounds[0].id}/groups`, { data: { groups: [{ members: [{ participant_id: aStroke, side: 1 }, { participant_id: bStroke, side: 2 }] }] } });
     expect(refused.status()).toBe(400);
-    expect((await refused.json()).error).toBe('Group 1: side is only set on a match-play event');
+    // Phase 4 PR 8 (Sep 16 2026): a GAME carries sides too — the copy names both.
+    expect((await refused.json()).error).toBe('Group 1: side is only set on a match-play event or a game');
     const plain = await setGroups(s.apiA, strokeId, stroke.rounds[0].id, [{ members: [aStroke, bStroke] }]);
     expect(plain.groups[0].members.map(m => m.side ?? null)).toEqual([null, null]);
 
@@ -87,7 +88,8 @@ test('sport events API: match play — the vocabulary, the config refusals, side
     const { data: league } = await admin.from('competitions').insert({ club_id: clubId, season_id: season!.id, sport_key: 'golf', name: `Match League ${s.stamp}`, format: 'leaderboard', entrant_type: 'athlete', scoring_rule: 'golf_net', status: 'active', visibility: 'public' }).select('id').single();
     const orgMatch = await s.apiA.post('/api/sport-events', { data: { name: `QA Match Org ${s.stamp}`, format: 'match_gross', club_id: clubId, competition_id: league!.id, round: { scheduled_on: '2030-06-01', course_name: 'QA Links' } } });
     expect(orgMatch.status()).toBe(400);
-    expect((await orgMatch.json()).reason).toBe('not_stroke_play');
+    // Leftovers PR 7 (Sep 17 2026): the bracket door — a match event answers not_golf_bracket unless the target IS a golf bracket.
+    expect((await orgMatch.json()).reason).toBe('not_golf_bracket');
   } finally {
     await cleanupEvent(s.apiA, eventId);
     await cleanupEvent(s.apiA, strokeId);

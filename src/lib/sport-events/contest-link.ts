@@ -13,11 +13,13 @@
  * — an org-side bracket is the masterplan's own program).
  */
 import { isMatchFormat, isStablefordFormat, shapeOf } from './types';
+import { type OrgKindEmbed, type OrgKindRow, orgRefOf } from '@/lib/orgs/org-ref';
 export interface CompetitionForLink {
   id: string;
   name: string;
-  club_id: string | null;
-  league_id: string | null;
+  /** The owning org (Round 5 D0-b): ids are unique across kinds, so the match is on org_id alone. */
+  org_id: string | null;
+  org?: OrgKindEmbed;
   sport_key: string;
   format: string;
   entrant_type: string;
@@ -74,12 +76,12 @@ export const LINK_REFUSAL_COPY: Readonly<Record<LinkRefusal, string>> = {
 };
 
 /** Why a competition cannot count this event, or null when it can. */
-export function linkRefusal(event: { club_id: string | null; league_id: string | null; status: string; format?: string | null; sport_key?: string; shape?: string | null; bracket?: boolean | null }, competition: CompetitionForLink | null): LinkRefusal | null {
-  if (!event.club_id && !event.league_id) return 'no_org';
+export function linkRefusal(event: { org_id: string | null; status: string; format?: string | null; sport_key?: string; shape?: string | null; bracket?: boolean | null }, competition: CompetitionForLink | null): LinkRefusal | null {
+  if (!event.org_id) return 'no_org';
   const shape = eventShape(event);
   if (event.status !== 'draft' && event.status !== 'open') return 'event_over';
   if (!competition) return 'not_found';
-  if ((event.club_id && competition.club_id !== event.club_id) || (event.league_id && competition.league_id !== event.league_id)) return 'other_org';
+  if (competition.org_id !== event.org_id) return 'other_org';
   const byShape = competitionAcceptsShape(competition, shape, event.sport_key ?? 'golf');
   if (byShape) return byShape;
   if (shape === 'match' && !event.bracket) return 'not_a_bracket';
@@ -87,7 +89,7 @@ export function linkRefusal(event: { club_id: string | null; league_id: string |
   return null;
 }
 
-export const eligibleCompetition = (event: { club_id: string | null; league_id: string | null; format?: string | null; sport_key?: string; shape?: string | null; bracket?: boolean | null }, c: CompetitionForLink): boolean => linkRefusal({ ...event, status: 'draft' }, c) === null;
+export const eligibleCompetition = (event: { org_id: string | null; format?: string | null; sport_key?: string; shape?: string | null; bracket?: boolean | null }, c: CompetitionForLink): boolean => linkRefusal({ ...event, status: 'draft' }, c) === null;
 
 export interface GameContestRowInput {
   competition_id: string;
@@ -131,10 +133,9 @@ export function contestRowFor(round: { id: string; sequence: number; scheduled_o
 }
 
 /** The org side + id an event is hosted for. */
-export function eventOrg(event: { club_id: string | null; league_id: string | null }): { side: 'club' | 'league'; id: string } | null {
-  if (event.club_id) return { side: 'club', id: event.club_id };
-  if (event.league_id) return { side: 'league', id: event.league_id };
-  return null;
+export function eventOrg(event: OrgKindRow): { side: 'club' | 'league'; id: string } | null {
+  const ref = orgRefOf(event);
+  return ref ? { side: ref.side, id: ref.orgId } : null;
 }
 
 // ── The bracket door (leftovers PR 7): a bracketed MATCH event ↔ an org golf bracket, in one act ──

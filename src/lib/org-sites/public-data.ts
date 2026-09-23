@@ -19,7 +19,7 @@ import { publicSubpageKeys } from './private';
 import { parseGolfPointsConfig } from '@/lib/competitions/golf-points';
 import { roundRuleFor } from '@/lib/competitions/golf-league';
 import type { OrgSide } from '@/lib/orgs/authz';
-import { ORG_ID, ORG_TABLE, PAIR_COLUMN, orgIdOf } from '@/lib/orgs/org-ref';
+import { ORG_ID, ORG_TABLE, orgIdOf, type OrgKindRow, type OrgRef, orgRefOf } from '@/lib/orgs/org-ref';
 import { groupAnnouncements, type AnnouncementNotificationRow } from '@/lib/orgs/announce';
 import { publicDisplayName, type MaskableProfile, publicHandle } from '@/lib/orgs/public-names';
 import { listAffiliations } from '@/lib/affiliations/server';
@@ -485,38 +485,39 @@ export async function fetchPublishedSitesForSitemap(
       .limit(500);
   // C2 widens the select; a pre-171 database retries without the columns.
   let { data: sites, error } = await readSites(
-    'id, subdomain, updated_at, league_id, club_id, custom_domain, domain_active_at'
+    'id, subdomain, updated_at, org_id, org:organizations(kind), custom_domain, domain_active_at'
   );
   if (error?.code === '42703') {
-    ({ data: sites, error } = await readSites('id, subdomain, updated_at, league_id, club_id'));
+    ({ data: sites, error } = await readSites('id, subdomain, updated_at, org_id, org:organizations(kind)'));
   }
   if (degraded('sitemap sites', error) || !sites || sites.length === 0) return [];
   // The dynamic select string defeats supabase-js's type parser; cast once.
-  const allSiteRows = sites as unknown as {
+  const allSiteRows = (sites as unknown as ({
     id: string;
     subdomain: string;
     updated_at: string | null;
-    league_id: string | null;
-    club_id: string | null;
     custom_domain?: string | null;
     domain_active_at?: string | null;
-  }[];
+  } & OrgKindRow)[]).map(s => ({ ...s, ref: orgRefOf(s) }));
   // R1 (179): only LISTED orgs are in the sitemap — an unlisted or pending
   // site is reachable by link, never enumerated (pre-179 derives; pre-174 listed).
   const [leagueListing, clubListing] = await Promise.all([
-    readListingMap(admin, 'league', allSiteRows.map(s => s.league_id).filter((id): id is string => !!id)),
-    readListingMap(admin, 'club', allSiteRows.map(s => s.club_id).filter((id): id is string => !!id)),
+    readListingMap(admin, 'league', allSiteRows.filter(s => s.ref?.side === 'league').map(s => s.ref!.orgId)),
+    readListingMap(admin, 'club', allSiteRows.filter(s => s.ref?.side === 'club').map(s => s.ref!.orgId)),
   ]);
   const siteRows = allSiteRows.filter(s => {
-    const state = s.league_id ? leagueListing.get(s.league_id) : s.club_id ? clubListing.get(s.club_id) : undefined;
+    const state = s.ref?.side === 'league' ? leagueListing.get(s.ref.orgId) : s.ref?.side === 'club' ? clubListing.get(s.ref.orgId) : undefined;
     return isListed(state ?? LISTING_NOT_KNOWN);
   });
   if (siteRows.length === 0) return [];
 
   const siteIds = siteRows.map(s => s.id);
-  const leagueIds = siteRows.map(s => s.league_id).filter(Boolean) as string[];
-  const clubIds = siteRows.map(s => s.club_id).filter(Boolean) as string[];
-  const [modulesRes, pagesRes, newsRes, leagueTeamsRes, clubTeamsRes] = await Promise.all([
+  const leagueIds = siteRows.filter(s => s.ref?.side === 'league').map(s => s.ref!.orgId);
+  const clubIds = siteRows.filter(s => s.ref?.side === 'club').map(s => s.ref!.orgId);
+  const orgIds = [...leagueIds, ...clubIds];
+  // Round 5 D0-b: one org-keyed batch per table (org_id names either kind; the key rebuilds from the embed).
+  const orgKeyOf = (row: OrgKindRow): string | null => { const r = orgRefOf(row); return r ? `${r.side}:${r.orgId}` : null; };
+  const [modulesRes, pagesRes, newsRes, teamsRes] = await Promise.all([
     admin
       .from('org_site_modules')
       .select('site_id, module_key')
@@ -536,23 +537,15 @@ export async function fetchPublishedSitesForSitemap(
       .in('site_id', siteIds)
       .not('published_at', 'is', null)
       .limit(5000),
-    // Teams key by ORG, not site — two by-side batches, bounded.
-    leagueIds.length
+    // Teams key by ORG, not site — one batch, bounded.
+    orgIds.length
       ? admin
           .from('teams')
-          .select('id, league_id')
-          .in('league_id', leagueIds)
+          .select('id, org_id, org:organizations(kind)')
+          .in(ORG_ID, orgIds)
           .eq('status', 'active')
           .limit(5000)
-      : Promise.resolve({ data: [] as { id: string; league_id: string }[] }),
-    clubIds.length
-      ? admin
-          .from('teams')
-          .select('id, club_id')
-          .in('club_id', clubIds)
-          .eq('status', 'active')
-          .limit(5000)
-      : Promise.resolve({ data: [] as { id: string; club_id: string }[] }),
+      : Promise.resolve({ data: [] as ({ id: string } & OrgKindRow)[] }),
   ]);
   const modulesBySite = new Map<string, string[]>();
   for (const m of modulesRes.data ?? []) {
@@ -571,13 +564,9 @@ export async function fetchPublishedSitesForSitemap(
   }
 
   const teamsByOrg = new Map<string, string[]>();
-  for (const t of leagueTeamsRes.data ?? []) {
-    const key = `league:${t.league_id}`;
-    if (!teamsByOrg.has(key)) teamsByOrg.set(key, []);
-    teamsByOrg.get(key)!.push(t.id as string);
-  }
-  for (const t of clubTeamsRes.data ?? []) {
-    const key = `club:${(t as { club_id: string }).club_id}`;
+  for (const t of (teamsRes.data ?? []) as ({ id: string } & OrgKindRow)[]) {
+    const key = orgKeyOf(t);
+    if (!key) continue;
     if (!teamsByOrg.has(key)) teamsByOrg.set(key, []);
     teamsByOrg.get(key)!.push(t.id as string);
   }
@@ -587,27 +576,13 @@ export async function fetchPublishedSitesForSitemap(
   // best-effort: a pre-169 database simply lists no course pages.
   const coursesByOrg = new Map<string, string[]>();
   try {
-    const [lv, cv] = await Promise.all([
-      leagueIds.length
-        ? admin.from('venues').select('league_id, golf_club_id, golf_course_id').in('league_id', leagueIds).limit(2000)
-        : Promise.resolve({ data: [] as Record<string, unknown>[], error: null }),
-      clubIds.length
-        ? admin.from('venues').select('club_id, golf_club_id, golf_course_id').in('club_id', clubIds).limit(2000)
-        : Promise.resolve({ data: [] as Record<string, unknown>[], error: null }),
-    ]);
+    const ov = orgIds.length
+      ? await admin.from('venues').select('org_id, org:organizations(kind), golf_club_id, golf_course_id').in(ORG_ID, orgIds).limit(2000)
+      : { data: [] as Record<string, unknown>[], error: null };
     type VenueLink = { key: string; golf_club_id: unknown; golf_course_id: unknown };
-    const venueRows: VenueLink[] = [
-      ...((lv.data ?? []) as Record<string, unknown>[]).map(v => ({
-        key: `league:${v.league_id}`,
-        golf_club_id: v.golf_club_id,
-        golf_course_id: v.golf_course_id,
-      })),
-      ...((cv.data ?? []) as Record<string, unknown>[]).map(v => ({
-        key: `club:${v.club_id}`,
-        golf_club_id: v.golf_club_id,
-        golf_course_id: v.golf_course_id,
-      })),
-    ];
+    const venueRows: VenueLink[] = ((ov.data ?? []) as (Record<string, unknown> & OrgKindRow)[])
+      .map(v => ({ key: orgKeyOf(v), golf_club_id: v.golf_club_id, golf_course_id: v.golf_course_id }))
+      .filter((v): v is VenueLink => !!v.key);
     const golfClubIds = [...new Set(venueRows.map(v => v.golf_club_id).filter((id): id is string => typeof id === 'string'))];
     const { data: sectionRows } = golfClubIds.length
       ? await admin.from('golf_courses').select('id, club_id').in('club_id', golfClubIds).limit(2000)
@@ -642,19 +617,16 @@ export async function fetchPublishedSitesForSitemap(
     for (const c of vis ?? []) if ((c as { visibility?: string }).visibility === 'private') privateOrgs.add(`${table}:${c.id as string}`);
   };
   await Promise.all([collectPrivate('clubs', clubIds), collectPrivate('leagues', leagueIds)]);
-  const visibilityOf = (r: { league_id: string | null; club_id: string | null }): 'public' | 'private' =>
-    (r.club_id && privateOrgs.has(`clubs:${r.club_id}`)) || (r.league_id && privateOrgs.has(`leagues:${r.league_id}`)) ? 'private' : 'public';
+  const visibilityOf = (r: { ref: OrgRef | null }): 'public' | 'private' =>
+    r.ref && privateOrgs.has(`${ORG_TABLE[r.ref.side]}:${r.ref.orgId}`) ? 'private' : 'public';
 
   // P2: public players per org (bounded; the standings module gates).
   const playersByOrg = await fetchPlayerHandlesForOrgs(
     admin,
     siteRows
       .filter(r => (modulesBySite.get(r.id) ?? []).includes('standings') && visibilityOf(r) === 'public')
-      .map(r =>
-        r.league_id
-          ? { key: `league:${r.league_id}`, side: 'league' as const, orgId: r.league_id }
-          : { key: `club:${r.club_id}`, side: 'club' as const, orgId: r.club_id as string }
-      )
+      .filter(r => !!r.ref)
+      .map(r => ({ key: `${r.ref!.side}:${r.ref!.orgId}`, side: r.ref!.side, orgId: r.ref!.orgId }))
   );
 
   // E4: contest pages per org — public competitions' contests, newest
@@ -663,17 +635,14 @@ export async function fetchPublishedSitesForSitemap(
     admin,
     siteRows
       .filter(r => (modulesBySite.get(r.id) ?? []).includes('schedule') && visibilityOf(r) === 'public')
-      .map(r =>
-        r.league_id
-          ? { key: `league:${r.league_id}`, side: 'league' as const, orgId: r.league_id }
-          : { key: `club:${r.club_id}`, side: 'club' as const, orgId: r.club_id as string }
-      )
+      .filter(r => !!r.ref)
+      .map(r => ({ key: `${r.ref!.side}:${r.ref!.orgId}`, side: r.ref!.side, orgId: r.ref!.orgId }))
   );
 
   return siteRows.map(s => {
     const visibility = visibilityOf(s);
     const moduleKeys = publicSubpageKeys(visibility, modulesBySite.get(s.id) ?? []);
-    const orgKey = s.league_id ? `league:${s.league_id}` : `club:${s.club_id}`;
+    const orgKey = s.ref ? `${s.ref.side}:${s.ref.orgId}` : '';
     return {
       subdomain: s.subdomain as string,
       customDomain:
@@ -704,17 +673,15 @@ async function fetchContestIdsForOrgs(
   try {
     const leagueIds = orgs.filter(o => o.side === 'league').map(o => o.orgId);
     const clubIds = orgs.filter(o => o.side === 'club').map(o => o.orgId);
-    const [lc, cc] = await Promise.all([
-      leagueIds.length
-        ? admin.from('competitions').select('id, league_id').in('league_id', leagueIds).eq('visibility', 'public').limit(2000)
-        : Promise.resolve({ data: [] as { id: string; league_id: string }[] }),
-      clubIds.length
-        ? admin.from('competitions').select('id, club_id').in('club_id', clubIds).eq('visibility', 'public').limit(2000)
-        : Promise.resolve({ data: [] as { id: string; club_id: string }[] }),
-    ]);
+    const allIds = [...leagueIds, ...clubIds];
+    const oc = allIds.length
+      ? await admin.from('competitions').select('id, org_id, org:organizations(kind)').in(ORG_ID, allIds).eq('visibility', 'public').limit(2000)
+      : { data: [] as ({ id: string } & OrgKindRow)[] };
     const orgByComp = new Map<string, string>();
-    for (const c of lc.data ?? []) orgByComp.set(c.id as string, `league:${c.league_id as string}`);
-    for (const c of cc.data ?? []) orgByComp.set(c.id as string, `club:${(c as { club_id: string }).club_id}`);
+    for (const c of (oc.data ?? []) as ({ id: string } & OrgKindRow)[]) {
+      const r = orgRefOf(c);
+      if (r) orgByComp.set(c.id as string, `${r.side}:${r.orgId}`);
+    }
     const compIds = [...orgByComp.keys()];
     if (compIds.length === 0) return out;
     const { data: contests } = await admin
@@ -2256,37 +2223,25 @@ export interface DirectoryRegion {
 }
 
 export async function fetchPublicOrgDirectory(admin: Admin, side: OrgSide): Promise<DirectoryRegion[]> {
-  // This read picks a SIDE's sites (the directory is per kind), so it keys
-  // on the pair column — the one org_sites read that needs the kind.
-  const col = PAIR_COLUMN[side];
-  const table = ORG_TABLE[side];
-  const sportCol = side === 'league' ? 'sport_key' : 'primary_sport';
+  // This read lists ONE KIND's orgs (the directory is per kind). Round 5
+  // D0-b INVERTS it: `organizations` filtered by kind — its own index — with
+  // the published site embedded through org_sites' one FK. `org_sites.org_id`
+  // is UNIQUE since 234, so PostgREST answers the embed as an OBJECT; an
+  // array is tolerated for a database that has not run 234 yet.
   try {
-    const readSites = (fields: string) =>
-      admin.from('org_sites').select(fields).not('published_at', 'is', null).not(col, 'is', null).limit(500);
-    let { data: sites, error } = await readSites(`subdomain, ${col}, custom_domain, domain_active_at`);
-    if (error?.code === '42703') ({ data: sites, error } = await readSites(`subdomain, ${col}`));
-    if (degraded('directory sites', error) || !sites || sites.length === 0) return [];
-    const siteRows = (sites as unknown as Record<string, unknown>[]).map(r => ({
-      subdomain: r.subdomain as string,
-      orgId: r[col] as string,
-      custom_domain: (r.custom_domain as string | null | undefined) ?? null,
-      domain_active_at: (r.domain_active_at as string | null | undefined) ?? null,
-    }));
-    const orgIds = [...new Set(siteRows.map(r => r.orgId))];
-    const readOrgs = (fields: string) => admin.from(table).select(fields).in('id', orgIds);
-    let { data: orgs, error: orgError } = await readOrgs(`id, name, city, region, country, ${sportCol}, visibility, listing_status, approved_at`);
-    // Pre-179 (no listing_status) → the 176/177 shape; pre-176/177 (no
-    // visibility) / pre-174 (no approved_at, no primary_sport): step down.
-    if (orgError?.code === '42703') ({ data: orgs, error: orgError } = await readOrgs(`id, name, city, region, country, ${sportCol}, visibility, approved_at`));
-    if (orgError?.code === '42703') ({ data: orgs, error: orgError } = await readOrgs(`id, name, city, region, country${side === 'league' ? ', sport_key' : ''}`));
-    if (degraded('directory orgs', orgError) || !orgs) return [];
-    const byId = new Map((orgs as unknown as Record<string, unknown>[]).map(c => [c.id as string, c]));
+    const { data: orgs, error } = await admin
+      .from('organizations')
+      .select('id, name, city, region, country, sport_key, visibility, listing_status, approved_at, org_sites!inner(subdomain, custom_domain, domain_active_at, published_at)')
+      .eq('kind', side)
+      .not('org_sites.published_at', 'is', null)
+      .limit(500);
+    if (degraded('directory orgs', error) || !orgs || orgs.length === 0) return [];
+    type SiteEmbed = { subdomain: string; custom_domain?: string | null; domain_active_at?: string | null; published_at?: string | null };
     const entries: DirectoryOrg[] = [];
-    for (const site of siteRows) {
-      const c = byId.get(site.orgId);
-      if (!c) continue;
-      // R1 (179): only LISTED orgs are in the directory; pre-174 reads listed.
+    for (const c of orgs as unknown as (Record<string, unknown> & { org_sites: SiteEmbed | SiteEmbed[] | null })[]) {
+      const site = Array.isArray(c.org_sites) ? c.org_sites.find(s => s.published_at) ?? c.org_sites[0] : c.org_sites;
+      if (!site) continue;
+      // R1 (179): only LISTED orgs are in the directory.
       if (!isListed(listingFromRow(c))) continue;
       entries.push({
         name: c.name as string,
@@ -2295,7 +2250,7 @@ export async function fetchPublicOrgDirectory(admin: Admin, side: OrgSide): Prom
         city: (c.city as string | null) ?? null,
         region: (c.region as string | null) ?? null,
         country: (c.country as string | null) ?? null,
-        sport: (c[sportCol] as string | null) ?? null,
+        sport: (c.sport_key as string | null) ?? null,
         visibility: c.visibility === 'private' ? 'private' : 'public',
       });
     }

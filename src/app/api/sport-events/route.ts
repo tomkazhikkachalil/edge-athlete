@@ -18,7 +18,7 @@ import { isDateOnly, parseCreateBody, parseListScope } from '@/lib/sport-events/
 import { projectEvent } from '@/lib/sport-events/view';
 import { fetchSportEventView } from '@/lib/sport-events/view-server';
 import { prefillSidesFromTeams } from '@/lib/sport-events/side-prefill-server';
-import { orgIdOf } from '@/lib/orgs/org-ref';
+import { orgIdOf, orgRefFromBody } from '@/lib/orgs/org-ref';
 import { reportRouteError } from '@/lib/observability/report';
 
 /**
@@ -53,10 +53,12 @@ export async function POST(request: NextRequest) {
     if (!actor.ok) return actor.response;
     const admin = getSupabaseAdmin();
 
-    if (input.club_id || input.league_id) {
+    // The public body fields → the host org (Round 5 D0-b; the parser refused both).
+    const hostOrg = orgRefFromBody(input);
+    const hostRef = hostOrg.ok ? hostOrg.ref : null;
+    if (hostRef) {
       if (actor.actingAs) return NextResponse.json({ error: 'An organization event is hosted from your own account.' }, { status: 403 });
-      const side = input.club_id ? 'club' : 'league';
-      const gate = await requireOrgManager(admin, user, side, (input.club_id ?? input.league_id) as string, { intent: 'manage_competitions' });
+      const gate = await requireOrgManager(admin, user, hostRef.side, hostRef.orgId, { intent: 'manage_competitions' });
       if (!gate.ok) return gate.response;
     }
     // Phase 2b: "Counts toward" — refused by name BEFORE any insert.
@@ -65,18 +67,18 @@ export async function POST(request: NextRequest) {
       competition = await readCompetitionForLink(admin, input.competition_id);
       // Track 2 PR 10: the shape table needs the sport and the shape (a game → a fixture of named sides; without them a game read as a stroke round).
       const rawBracket = (input.format_config as { match?: { bracket?: unknown } } | undefined)?.match?.bracket === true;
-      const refusal = linkRefusal({ club_id: input.club_id, league_id: input.league_id, status: 'draft', format: input.format, sport_key: input.sport_key, shape: input.shape, bracket: rawBracket }, competition);
+      const refusal = linkRefusal({ org_id: hostRef?.orgId ?? null, status: 'draft', format: input.format, sport_key: input.sport_key, shape: input.shape, bracket: rawBracket }, competition);
       if (refusal) return NextResponse.json({ error: LINK_REFUSAL_COPY[refusal], reason: refusal }, { status: 400 });
     }
     // Leftovers PR 5: two of the org's teams pre-fill a game's sides — the names default to the teams' (filled BEFORE the strict parse), the rosters land after the host row.
     let sideTeams: Array<{ id: string; name: string }> | null = null;
     const rawGame = (input.format_config as { game?: { side_team_ids?: unknown; side_names?: unknown } } | undefined)?.game;
     if (rawGame && Array.isArray(rawGame.side_team_ids)) {
-      if (!input.club_id && !input.league_id) return NextResponse.json({ error: 'format_config.game.side_team_ids needs an organization' }, { status: 400 });
+      if (!hostRef) return NextResponse.json({ error: 'format_config.game.side_team_ids needs an organization' }, { status: 400 });
       const ids = rawGame.side_team_ids.filter((v): v is string => typeof v === 'string');
-      const { data: teamRows } = ids.length > 0 ? await admin.from('teams').select('id, name, display_name, status, league_id, club_id').in('id', ids) : { data: [] };
-      const teams = ids.map(id => ((teamRows ?? []) as Array<{ id: string; name: string; display_name: string | null; status: string; league_id: string | null; club_id: string | null }>).find(t => t.id === id));
-      if (ids.length !== 2 || teams.some(t => !t || t.status === 'archived' || (input.club_id ? t.club_id !== input.club_id : t.league_id !== input.league_id))) {
+      const { data: teamRows } = ids.length > 0 ? await admin.from('teams').select('id, name, display_name, status, org_id').in('id', ids) : { data: [] };
+      const teams = ids.map(id => ((teamRows ?? []) as Array<{ id: string; name: string; display_name: string | null; status: string; org_id: string | null }>).find(t => t.id === id));
+      if (ids.length !== 2 || teams.some(t => !t || t.status === 'archived' || orgIdOf(t) !== hostRef.orgId)) {
         return NextResponse.json({ error: 'format_config.game.side_team_ids must name two active teams of the organization' }, { status: 400 });
       }
       sideTeams = teams.map(t => ({ id: t!.id, name: ((t!.display_name || t!.name) as string).slice(0, 40) }));
@@ -107,8 +109,7 @@ export async function POST(request: NextRequest) {
       .insert({
         host_profile_id: actor.profileId,
         created_by_user_id: user.id,
-        club_id: input.club_id,
-        league_id: input.league_id,
+        org_id: hostRef?.orgId ?? null,
         sport_key: input.sport_key,
         name: input.name,
         description: input.description,

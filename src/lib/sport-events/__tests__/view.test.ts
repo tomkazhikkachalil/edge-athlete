@@ -3,7 +3,7 @@ import { projectEvent, projectParticipant, projectViewer, roundCounts, visiblePa
 import type { SportEventParticipantRow, SportEventRow } from '../types';
 
 const event: SportEventRow = {
-  id: 'e1', host_profile_id: 'host', created_by_user_id: 'guardian-user', club_id: null, league_id: null, sport_key: 'golf', name: 'Open', description: null, cover_path: null,
+  id: 'e1', host_profile_id: 'host', created_by_user_id: 'guardian-user', org_id: null, org: null, sport_key: 'golf', name: 'Open', description: null, cover_path: null,
   join_mode: 'invite', visibility: 'link', link_token: 'secret', format: 'stroke_gross', status: 'open', capacity: null, starts_on: '2026-10-03',
   opened_at: null, went_live_at: null, completed_at: null, cancelled_at: null, created_at: 'c', updated_at: 'u',
 };
