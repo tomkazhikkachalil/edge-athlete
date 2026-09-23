@@ -98,12 +98,12 @@ describe('refreshLeagueSportCache', () => {
   it('cache no longer among division sports → most common wins', async () => {
     const { admin, calls } = mockAdmin({
       divisions: { data: rows('ice_hockey', 'ice_hockey', 'soccer') },
-      leagues: { data: { id: 'lg-1', sport_key: 'golf' } },
+      organizations: { data: { id: 'lg-1', sport_key: 'golf' } },
     });
     const { error } = await refreshLeagueSportCache(admin, 'lg-1');
     expect(error).toBeNull();
     const update = calls.find(c => c.op === 'update');
-    expect(update?.table).toBe('leagues');
+    expect(update?.table).toBe('organizations');
     expect(update?.payload).toEqual({ sport_key: 'ice_hockey' });
     expect(update?.filters).toEqual({ id: 'lg-1' });
   });
@@ -111,7 +111,7 @@ describe('refreshLeagueSportCache', () => {
   it('cache still among division sports → no write', async () => {
     const { admin, calls } = mockAdmin({
       divisions: { data: rows('golf', 'soccer') },
-      leagues: { data: { id: 'lg-1', sport_key: 'golf' } },
+      organizations: { data: { id: 'lg-1', sport_key: 'golf' } },
     });
     const { error } = await refreshLeagueSportCache(admin, 'lg-1');
     expect(error).toBeNull();

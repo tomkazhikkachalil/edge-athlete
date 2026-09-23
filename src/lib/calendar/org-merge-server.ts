@@ -159,14 +159,11 @@ export async function fetchOrgEventsForViewer(
   if (guestError) throw guestError;
   const ownGuestEventIds = new Set((ownGuestRows ?? []).map(r => r.event_id as string));
 
-  const nameQueries = await Promise.all([
-    leagueIds.length > 0
-      ? admin.from('leagues').select('id, name').in('id', leagueIds)
-      : Promise.resolve({ data: [] as { id: string; name: string }[] }),
-    clubIds.length > 0
-      ? admin.from('clubs').select('id, name').in('id', clubIds)
-      : Promise.resolve({ data: [] as { id: string; name: string }[] }),
-  ]);
+  const nameQueries = [
+    [...leagueIds, ...clubIds].length > 0
+      ? await admin.from('organizations').select('id, name').in('id', [...leagueIds, ...clubIds])
+      : { data: [] as { id: string; name: string }[] },
+  ];
   const orgNames = new Map<string, string>(
     nameQueries.flatMap(({ data }) => (data ?? []).map(r => [r.id as string, r.name as string] as const))
   );

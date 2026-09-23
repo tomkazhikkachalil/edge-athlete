@@ -31,7 +31,7 @@ interface LeagueRow {
 
 async function loadLeague(admin: Admin, id: string): Promise<LeagueRow | null> {
   const { data, error } = await admin
-    .from('leagues')
+    .from('organizations')
     .select('id, name, owner_profile_id')
     .eq('id', id)
     .maybeSingle();
@@ -130,7 +130,7 @@ export async function listParentAffiliations(
   ];
   const { data: others } = otherIds.length
     ? await admin
-        .from('leagues')
+        .from('organizations')
         .select('id, name, sport_key, city, region, country')
         .in('id', otherIds)
     : { data: [] };

@@ -218,7 +218,7 @@ export async function competitionsAggregateGET(
           .eq('status', 'active')
           .order('name')
           .limit(500),
-        admin.from('clubs').select('id, name').in('id', clubIds),
+        admin.from('organizations').select('id, name').in('id', clubIds),
       ]);
       const clubName = new Map((clubsRes.data ?? []).map(c => [c.id, c.name as string]));
       affiliatedTeams = (clubTeamsRes.data ?? []).map(t => ({

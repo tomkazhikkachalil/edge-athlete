@@ -209,15 +209,8 @@ export async function GET(request: NextRequest) {
     ];
     const orgNames = new Map<string, string>();
     if (offerLeagueIds.length > 0 || offerClubIds.length > 0) {
-      const [leagueNames, clubNames] = await Promise.all([
-        offerLeagueIds.length > 0
-          ? admin.from('leagues').select('id, name').in('id', offerLeagueIds)
-          : Promise.resolve({ data: [] as { id: string; name: string }[] }),
-        offerClubIds.length > 0
-          ? admin.from('clubs').select('id, name').in('id', offerClubIds)
-          : Promise.resolve({ data: [] as { id: string; name: string }[] }),
-      ]);
-      for (const r of [...(leagueNames.data ?? []), ...(clubNames.data ?? [])]) {
+      const { data: orgNameRows } = await admin.from('organizations').select('id, name').in('id', [...offerLeagueIds, ...offerClubIds]);
+      for (const r of (orgNameRows ?? []) as { id: string; name: string }[]) {
         orgNames.set(r.id as string, r.name as string);
       }
     }

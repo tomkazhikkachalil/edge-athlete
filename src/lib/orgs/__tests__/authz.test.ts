@@ -257,7 +257,7 @@ describe('getOrgAndRole', () => {
 
   it('found: returns the org row and the resolved role', async () => {
     const { admin } = mockAdmin({
-      clubs: { data: ORG, error: null },
+      organizations: { data: ORG, error: null },
       memberships: { data: [{ role: 'member' }], error: null },
     });
     const out = await getOrgAndRole(admin, 'club', 'org-1', 'me');
@@ -268,28 +268,28 @@ describe('getOrgAndRole', () => {
     // memberships resolves empty here — post-cleanup the cache grants
     // nothing; a real owner always holds their insertOwnerRow row.
     const { admin, queried } = mockAdmin({
-      leagues: { data: ORG, error: null },
+      organizations: { data: ORG, error: null },
     });
     const out = await getOrgAndRole(admin, 'league', 'org-1', 'owner-1');
     expect(out).toEqual({ status: 'found', org: ORG, role: null });
-    expect(queried).toEqual(['leagues', 'memberships']);
+    expect(queried).toEqual(['organizations', 'memberships']);
   });
 
   it('not_found: missing row', async () => {
-    const { admin } = mockAdmin({ leagues: { data: null, error: null } });
+    const { admin } = mockAdmin({ organizations: { data: null, error: null } });
     expect(await getOrgAndRole(admin, 'league', 'org-1', 'me')).toEqual({ status: 'not_found' });
   });
 
   it('not_found: pre-migration missing-table codes (42P01 / PGRST205)', async () => {
     for (const code of ['42P01', 'PGRST205']) {
-      const { admin } = mockAdmin({ clubs: { data: null, error: { code } } });
+      const { admin } = mockAdmin({ organizations: { data: null, error: { code } } });
       expect(await getOrgAndRole(admin, 'club', 'org-1', 'me')).toEqual({ status: 'not_found' });
     }
   });
 
   it('error: any other fetch error passes through for the route to log', async () => {
     const failure = { code: '57014' };
-    const { admin } = mockAdmin({ leagues: { data: null, error: failure } });
+    const { admin } = mockAdmin({ organizations: { data: null, error: failure } });
     expect(await getOrgAndRole(admin, 'league', 'org-1', 'me')).toEqual({
       status: 'error',
       error: failure,

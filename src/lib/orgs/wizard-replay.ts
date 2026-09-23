@@ -15,7 +15,7 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { OrgSide } from './authz';
-import { ORG_TABLE, otherKind } from './org-ref';
+import { otherKind } from './org-ref';
 import type { StructureScope } from './structure-server';
 import {
   divisionCreatePOST,
@@ -139,7 +139,6 @@ export async function replayConnections(
   const parsed = ConnectionsDraftSchema.safeParse(draft);
   if (!parsed.success) return { connections: [], stubs: [] };
   const otherSide: OrgSide = otherKind(scope.side);
-  const otherTable = ORG_TABLE[otherSide];
   const connections: ConnectionReport[] = [];
   const stubs: StubReport[] = [];
 
@@ -163,9 +162,10 @@ export async function replayConnections(
       // Re-verify by id — the org may have been renamed or deleted since
       // the request; the stored name is never trusted for the bell.
       const { data: other } = await admin
-        .from(otherTable)
+        .from('organizations')
         .select('id, name, owner_profile_id')
         .eq('id', entry.id)
+        .eq('kind', otherSide)
         .maybeSingle();
       if (!other) {
         connections.push({ name: entry.name, result: 'skipped' });
@@ -195,8 +195,12 @@ export async function replayConnections(
       // Ownerless insert — the 001 demo-club precedent; the claim invite is
       // the path to ownership. Stub LEAGUES carry the row's required sport.
       const { data: created, error } = await admin
-        .from(otherTable)
+        .from('organizations')
         .insert({
+          // D1: born in organizations with the other kind and that kind's capability defaults (142).
+          kind: otherSide,
+          operates_competitions: otherSide === 'league',
+          operates_teams: otherSide === 'club',
           name: stub.name,
           owner_profile_id: null,
           ...(otherSide === 'league' ? { sport_key: stub.sportKey ?? 'soccer' } : {}),

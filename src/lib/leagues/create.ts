@@ -51,32 +51,25 @@ export async function createLeagueWithOwner(
     sport_key: input.sportKey,
     owner_profile_id: input.ownerProfileId,
     ...input.placeColumns,
-    ...(input.capabilities
-      ? {
-          operates_competitions: input.capabilities.operatesCompetitions,
-          operates_teams: input.capabilities.operatesTeams,
-        }
-      : {}),
   };
   const approvedAt = input.approvedAt === undefined ? new Date().toISOString() : input.approvedAt;
   const listing = input.listingStatus ? { listing_status: input.listingStatus } : {};
-  let { data: league, error: insertError } = await admin
-    .from('leagues')
-    .insert({ ...base, approved_at: approvedAt, ...listing })
+  // Round 5 D1: the org row is born in `organizations` (kind = league); the
+  // mirror keeps the `leagues` twin until 235. The old table's capability
+  // DEFAULTS (142: a league operates competitions) are explicit here —
+  // organizations' own defaults are false / false.
+  const { data: league, error: insertError } = await admin
+    .from('organizations')
+    .insert({
+      kind: 'league',
+      ...base,
+      operates_competitions: input.capabilities?.operatesCompetitions ?? true,
+      operates_teams: input.capabilities?.operatesTeams ?? false,
+      approved_at: approvedAt,
+      ...listing,
+    })
     .select()
     .single();
-  if (insertError?.code === 'PGRST204' && /listing_status/.test(insertError.message ?? '')) {
-    // Pre-179 database: no listing column — approval state only (174).
-    ({ data: league, error: insertError } = await admin
-      .from('leagues')
-      .insert({ ...base, approved_at: approvedAt })
-      .select()
-      .single());
-  }
-  if (insertError?.code === 'PGRST204' && /approved_at/.test(insertError.message ?? '')) {
-    // Pre-174 database: no approval state exists — the league is simply live.
-    ({ data: league, error: insertError } = await admin.from('leagues').insert(base).select().single());
-  }
   if (insertError || !league) {
     console.error('[LEAGUES CREATE] insert error:', insertError);
     return { error: 'insert_failed' };
@@ -89,7 +82,7 @@ export async function createLeagueWithOwner(
   );
   if (memberError) {
     console.error('[LEAGUES CREATE] owner member insert error:', memberError);
-    await admin.from('leagues').delete().eq('id', league.id);
+    await admin.from('organizations').delete().eq('id', league.id);
     return { error: 'member_failed' };
   }
 

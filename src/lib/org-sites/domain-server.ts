@@ -441,11 +441,9 @@ export async function adminDomainsGET(admin: Admin): Promise<NextResponse> {
   const rows = (sites ?? []) as unknown as (DomainSiteRow & OrgKindRow)[];
   const leagueIds = rows.filter(r => orgKindOf(r) === 'league').map(r => r.org_id as string);
   const clubIds = rows.filter(r => orgKindOf(r) === 'club').map(r => r.org_id as string);
-  const [leagues, clubs] = await Promise.all([
-    leagueIds.length ? admin.from('leagues').select('id, name').in('id', leagueIds) : Promise.resolve({ data: [] }),
-    clubIds.length ? admin.from('clubs').select('id, name').in('id', clubIds) : Promise.resolve({ data: [] }),
-  ]);
-  const names = new Map([...(leagues.data ?? []), ...(clubs.data ?? [])].map(o => [o.id as string, o.name as string]));
+  const orgIds = [...leagueIds, ...clubIds];
+  const orgRows = orgIds.length ? await admin.from('organizations').select('id, name').in('id', orgIds) : { data: [] };
+  const names = new Map((orgRows.data ?? []).map(o => [o.id as string, o.name as string]));
   const platformConfigured = !!vercelEnv();
   const domains: AdminDomainRow[] = rows.map(r => {
     const status = toStatus(r);

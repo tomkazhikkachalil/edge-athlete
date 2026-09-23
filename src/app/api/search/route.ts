@@ -235,7 +235,7 @@ export async function GET(request: NextRequest) {
           if (clubDocs.length === 0) return;
           const ids = clubDocs.map(d => d.entity_id);
           const data = await listedOnly(cols =>
-            supabase.from('clubs').select(cols).in('id', ids),
+            supabase.from('organizations').select(cols).eq('kind', 'club').in('id', ids),
             'id, name, description, location, city, region, region_code, country, country_code, lat, lng, visibility'
           );
           const byDoc = new Map(clubDocs.map(d => [d.entity_id, d]));
@@ -251,7 +251,7 @@ export async function GET(request: NextRequest) {
           if (leagueDocs.length === 0) return;
           const ids = leagueDocs.map(d => d.entity_id);
           const data = await listedOnly(cols =>
-            supabase.from('leagues').select(cols).in('id', ids),
+            supabase.from('organizations').select(cols).eq('kind', 'league').in('id', ids),
             'id, name, description, sport_key, city, region, region_code, country, country_code, lat, lng, visibility'
           );
           const byDoc = new Map(leagueDocs.map(d => [d.entity_id, d]));
@@ -475,8 +475,9 @@ export async function GET(request: NextRequest) {
 
         const clubs = await listedOnly(cols =>
           supabase
-            .from('clubs')
+            .from('organizations')
             .select(cols)
+            .eq('kind', 'club')
             .or(`name.ilike.${searchPattern},description.ilike.${searchPattern},location.ilike.${searchPattern}`)  // hardening-ok: sanitizeForFilter above
             .limit(10),
           'id, name, description, location'

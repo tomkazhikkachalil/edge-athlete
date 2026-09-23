@@ -64,8 +64,9 @@ export async function GET(request: NextRequest) {
     const supabase = getSupabaseAdmin();
 
     const { data: leagues, error } = await supabase
-      .from('leagues')
+      .from('organizations')
       .select('id, name, description, sport_key, owner_profile_id, city, region, country, created_at, operates_competitions, operates_teams')
+      .eq('kind', 'league')
       .order('created_at', { ascending: false })
       .limit(100);
     if (error) {

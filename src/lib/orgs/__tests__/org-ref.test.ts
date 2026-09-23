@@ -33,7 +33,7 @@ describe('org-ref — the one spelling of how an org is named (Round 5 B)', () =
 
   it.each(ORG_KINDS)('%s: the column, the table and the route family agree', kind => {
     expect(PAIR_COLUMN[kind]).toBe(`${kind}_id`);
-    expect(ORG_TABLE[kind]).toBe(`${kind}s`);
+    expect(ORG_TABLE[kind]).toBe('organizations'); // D1: one table for both kinds
     expect(ORG_ROUTE_FAMILY[kind]).toBe(`${kind}s`);
   });
 
@@ -91,6 +91,24 @@ describe('org-ref — the one spelling of how an org is named (Round 5 B)', () =
   it('has zero imports (client components spell URL families from it)', () => {
     const src = readFileSync(join(__dirname, '..', 'org-ref.ts'), 'utf8');
     expect(src).not.toMatch(/^\s*import\b/m);
+  });
+
+  it('the org row lives in organizations (step D1) — no literal leagues / clubs table read in src', () => {
+    const root = join(__dirname, '..', '..', '..');
+    const offenders: string[] = [];
+    const walk = (dir: string) => {
+      for (const name of readdirSync(dir)) {
+        const p = join(dir, name);
+        if (statSync(p).isDirectory()) {
+          if (name === 'node_modules' || name === '__tests__') continue;
+          walk(p);
+        } else if (/\.(ts|tsx)$/.test(name) && !/\.test\.tsx?$/.test(name)) {
+          if (/from\('(leagues|clubs)'\)/.test(readFileSync(p, 'utf8'))) offenders.push(p.slice(root.length + 1));
+        }
+      }
+    };
+    walk(root);
+    expect(offenders).toEqual([]);
   });
 
   it('the pair is UNREAD outside an allowlist (step D0 — every other literal goes through org_id + the embed)', () => {

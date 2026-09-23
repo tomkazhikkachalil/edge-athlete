@@ -36,7 +36,7 @@ export async function POST(
     if (typeof body.csv !== 'string' || body.csv.length === 0 || body.csv.length > 100_000) {
       return NextResponse.json({ error: 'csv text is required (max 100KB)' }, { status: 400 });
     }
-    const { data: org } = await admin.from('leagues').select('sport_key').eq('id', id).maybeSingle();
+    const { data: org } = await admin.from('organizations').select('sport_key').eq('id', id).maybeSingle();
     return await structureImportPOST(admin, 'league', id, (org?.sport_key as string | null) ?? null, {
       seasonId: body.seasonId,
       csv: body.csv,

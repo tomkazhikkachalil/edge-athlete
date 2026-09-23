@@ -51,33 +51,24 @@ export async function createClubWithOwner(
     description: input.description,
     owner_profile_id: input.ownerProfileId,
     ...input.placeColumns,
-    ...(input.capabilities
-      ? {
-          operates_competitions: input.capabilities.operatesCompetitions,
-          operates_teams: input.capabilities.operatesTeams,
-        }
-      : {}),
   };
-  const approval = {
-    approved_at: input.approvedAt === undefined ? new Date().toISOString() : input.approvedAt,
-    ...(input.primarySport ? { primary_sport: input.primarySport } : {}),
-    ...(input.listingStatus ? { listing_status: input.listingStatus } : {}),
-  };
-  let { data: club, error: insertError } = await admin
-    .from('clubs')
-    .insert({ ...base, ...approval })
+  // Round 5 D1: the org row is born in `organizations` (kind = club, the
+  // sport in `sport_key` — the old table spelled it primary_sport); the mirror
+  // keeps the `clubs` twin until 235. The old table's capability DEFAULTS
+  // (142: a club operates teams) are explicit — organizations' are false / false.
+  const { data: club, error: insertError } = await admin
+    .from('organizations')
+    .insert({
+      kind: 'club',
+      ...base,
+      operates_competitions: input.capabilities?.operatesCompetitions ?? false,
+      operates_teams: input.capabilities?.operatesTeams ?? true,
+      approved_at: input.approvedAt === undefined ? new Date().toISOString() : input.approvedAt,
+      ...(input.primarySport ? { sport_key: input.primarySport } : {}),
+      ...(input.listingStatus ? { listing_status: input.listingStatus } : {}),
+    })
     .select()
     .single();
-  if (insertError?.code === 'PGRST204' && /listing_status/.test(insertError.message ?? '')) {
-    // Pre-179 database: no listing column — approval state only (174).
-    const { listing_status: _dropped, ...pre179 } = approval;
-    void _dropped;
-    ({ data: club, error: insertError } = await admin.from('clubs').insert({ ...base, ...pre179 }).select().single());
-  }
-  if (insertError?.code === 'PGRST204' && /approved_at|primary_sport/.test(insertError.message ?? '')) {
-    // Pre-174 database: no approval state exists — the club is simply live.
-    ({ data: club, error: insertError } = await admin.from('clubs').insert(base).select().single());
-  }
   if (insertError || !club) {
     console.error('[CLUBS CREATE] insert error:', insertError);
     return { error: 'insert_failed' };
@@ -92,7 +83,7 @@ export async function createClubWithOwner(
     console.error('[CLUBS CREATE] owner member insert error:', memberError);
     // The rollback delete also fires the 112 doc-delete trigger — search
     // stays convergent for free.
-    await admin.from('clubs').delete().eq('id', club.id);
+    await admin.from('organizations').delete().eq('id', club.id);
     return { error: 'member_failed' };
   }
 

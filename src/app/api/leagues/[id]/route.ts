@@ -43,7 +43,7 @@ export async function GET(
     const supabase = getSupabaseAdmin();
 
     const { data: league, error } = await supabase
-      .from('leagues')
+      .from('organizations')
       .select('id, name, description, sport_key, owner_profile_id, place_id, city, region, region_code, country, country_code, lat, lng, created_at, operates_competitions, operates_teams')
       .eq('id', id)
       .maybeSingle();
@@ -188,7 +188,7 @@ export async function PATCH(
     let updated: Record<string, unknown> | null = null;
     if (Object.keys(updates).length > 0) {
       const { data: row, error: updateError } = await supabase
-        .from('leagues')
+        .from('organizations')
         .update(updates)
         .eq('id', id)
         .select()
@@ -216,7 +216,7 @@ export async function PATCH(
     if (parsed.data.visibility !== undefined) revalidateTag('org-sitemap', { expire: 0 });
 
     return NextResponse.json({
-      league: updated ?? (await supabase.from('leagues').select('*').eq('id', id).maybeSingle()).data,
+      league: updated ?? (await supabase.from('organizations').select('*').eq('id', id).maybeSingle()).data,
       ...(listingChange ? { listing: listingChange } : {}),
     });
   } catch (error) {
