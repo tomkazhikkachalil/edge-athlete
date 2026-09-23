@@ -40,7 +40,7 @@ export default function Home() {
   const [showWaitlist, setShowWaitlist] = useState(false);
   const [waitlistUserType, setWaitlistUserType] = useState('');
 
-  const { signIn, user, profile, loading, initialAuthCheckComplete } = useAuth();
+  const { signIn, user, profile, loading, initialAuthCheckComplete, profileChecked } = useAuth();
   const router = useRouter();
   const errorRef = useRef<HTMLDivElement>(null);
 
@@ -92,10 +92,13 @@ export default function Home() {
       } else {
         router.push(profile.onboarded_at ? '/athlete' : '/onboarding');
       }
-    } else if (user && !profile) {
+    } else if (user && !profile && profileChecked) {
+      // Only once the profile fetch for THIS user has completed: between
+      // SIGNED_IN and the fetch resolving, `user && !profile` is merely "not
+      // yet" — bouncing then lost the ?next= return path on a slow network.
       router.push('/auth/complete-profile');
     }
-  }, [user, profile, loading, initialAuthCheckComplete, router]);
+  }, [user, profile, loading, initialAuthCheckComplete, profileChecked, router]);
 
   // Surface OAuth callback errors (?error=...) in the login error box.
   // window.location instead of useSearchParams — avoids the Suspense

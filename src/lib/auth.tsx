@@ -15,6 +15,14 @@ interface AuthContextType {
   profile: Profile | null;
   loading: boolean;
   initialAuthCheckComplete: boolean;
+  /** True once a profile fetch has COMPLETED for the current user (a row or
+   *  a confirmed absence). `user && !profile` alone means nothing until then:
+   *  onAuthStateChange sets the user and only THEN awaits the profile, and the
+   *  landing page's redirect effect runs in between — on a slow network it
+   *  bounced every login through /auth/complete-profile and lost the ?next=
+   *  return path (found on staging, Sep 23 2026; prod's nearer region usually
+   *  won the race). Gate a "no profile" decision on this, never on `profile`. */
+  profileChecked: boolean;
   // Guardian-profiles: athletes this user manages (role='guardian') and the
   // acting-as context. activeProfile === null means acting as self. The
   // relationship comes exclusively from profile_access; server routes
@@ -36,6 +44,8 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
+  // The user id whose profile fetch last COMPLETED — see profileChecked.
+  const [profileCheckedFor, setProfileCheckedFor] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [initialAuthCheckComplete, setInitialAuthCheckComplete] = useState(false);
   const [managedProfiles, setManagedProfiles] = useState<Profile[]>([]);
@@ -228,6 +238,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // in the body. Function declarations are hoisted, so there is no TDZ.
   async function fetchProfile(userId: string) {
     try {
+      await fetchProfileInner(userId);
+    } finally {
+      // Every exit — a row, a confirmed absence, an error — is a completed
+      // check for THIS user; the redirect effects gate on it.
+      setProfileCheckedFor(userId);
+    }
+  }
+
+  async function fetchProfileInner(userId: string) {
+    try {
       const { data, error } = await supabase
         .from('profiles')
         .select('*')
@@ -290,6 +310,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // Clear local state
       setUser(null);
       setProfile(null);
+      setProfileCheckedFor(null);
 
       // Force redirect to login page with full page reload to ensure clean state
       // eslint-disable-next-line @next/next/no-location-assign-relative-destination -- sign-out must reload to guarantee clean state
@@ -332,6 +353,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     profile,
     loading,
     initialAuthCheckComplete,
+    profileChecked: !!user && profileCheckedFor === user.id,
     managedProfiles,
     activeProfile,
     setActiveProfile,
