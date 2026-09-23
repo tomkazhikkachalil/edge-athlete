@@ -9,6 +9,7 @@
 import { stateFromAction, type ConsentState } from './consent';
 import { formatDisplayName } from './formatters';
 import { agePresetChanges, type HouseholdPolicy } from './household-policy';
+import { orgIdOf, type OrgKindEmbed, orgKindOf } from '@/lib/orgs/org-ref';
 
 /** Queue items older than this get the amber "waiting N days" badge, and the
  *  48h cron nudge (PR 3) re-bells guardians past the same threshold — one
@@ -315,8 +316,8 @@ export interface QueueInviteRow {
 export interface QueueRosterOfferRow {
   id: string;
   profile_id: string;
-  league_id: string | null;
-  club_id: string | null;
+  org_id: string | null;
+  org?: OrgKindEmbed;
   joined_at: string;
   orgName: string;
 }
@@ -505,14 +506,14 @@ export function buildQueueItems(
   const rosterItems: QueueItem[] = [];
   for (const row of rosterOffers) {
     const athlete = athletesById.get(row.profile_id);
-    const orgId = row.league_id ?? row.club_id;
+    const orgId = orgIdOf(row);
     if (!athlete || !orgId) continue;
     rosterItems.push({
       kind: 'roster_invite',
       id: row.id,
       athlete: toQueueAthlete(athlete),
       createdAt: row.joined_at,
-      org: { side: row.league_id ? 'league' : 'club', id: orgId, name: row.orgName },
+      org: { side: orgKindOf(row) ?? 'club', id: orgId, name: row.orgName },
     });
   }
   rosterItems.sort((a, b) =>
@@ -524,14 +525,14 @@ export function buildQueueItems(
   const photoConsentItems: QueueItem[] = [];
   for (const row of photoConsentAsks) {
     const athlete = athletesById.get(row.profile_id);
-    const orgId = row.league_id ?? row.club_id;
+    const orgId = orgIdOf(row);
     if (!athlete || !orgId) continue;
     photoConsentItems.push({
       kind: 'photo_consent',
       id: row.id,
       athlete: toQueueAthlete(athlete),
       createdAt: row.joined_at,
-      org: { side: row.league_id ? 'league' : 'club', id: orgId, name: row.orgName },
+      org: { side: orgKindOf(row) ?? 'club', id: orgId, name: row.orgName },
     });
   }
   photoConsentItems.sort((a, b) =>

@@ -24,7 +24,7 @@ import {
   type OrgIntent,
   type OrgSide,
 } from './authz';
-import { ORG_ID, ORG_TABLE, orgIdOf, pairFor } from './org-ref';
+import { ORG_ID, ORG_TABLE, orgIdOf, type OrgKindEmbed, orgKindOf, pairFor } from './org-ref';
 import { refreshLeagueSportCache } from './sports';
 import {
   isMissingTableError,
@@ -229,7 +229,7 @@ export async function seasonDELETE(
 ): Promise<NextResponse> {
   let query = admin.from('seasons').delete().eq('id', seasonId);
   if (scope) query = query.eq(ORG_ID, scope.orgId);
-  const { data: deleted, error } = await query.select('id, league_id');
+  const { data: deleted, error } = await query.select('id, org_id, org:organizations(kind)');
   if (error) {
     console.error(`${TAG} season delete error:`, error);
     return NextResponse.json({ error: 'Failed to delete season' }, { status: 500 });
@@ -239,8 +239,8 @@ export async function seasonDELETE(
   }
   // The delete cascaded this season's divisions — refresh the sport cache
   // (0.6b, league side only; warn-and-continue).
-  if (deleted[0].league_id) {
-    const { error: cacheError } = await refreshLeagueSportCache(admin, deleted[0].league_id as string);
+  if (orgKindOf(deleted[0]) === 'league') {
+    const { error: cacheError } = await refreshLeagueSportCache(admin, orgIdOf(deleted[0]) as string);
     if (cacheError) console.warn(`${TAG} sport cache refresh failed:`, cacheError.message);
   }
   return NextResponse.json({ action: 'deleted' });
@@ -255,7 +255,7 @@ export async function divisionCreatePOST(
 ): Promise<NextResponse> {
   const { data: season } = await admin
     .from('seasons')
-    .select('id, league_id, club_id')
+    .select('id, org_id, org:organizations(kind)')
     .eq('id', input.seasonId)
     .maybeSingle();
   // A foreign org's season is indistinguishable from a missing one.
@@ -267,8 +267,7 @@ export async function divisionCreatePOST(
     .from('divisions')
     .insert({
       // Org inherited from the season — the one place the rule is enforced.
-      league_id: season.league_id,
-      club_id: season.club_id,
+      org_id: season.org_id,
       season_id: input.seasonId,
       sport_key: input.sportKey,
       name: input.name,
@@ -289,8 +288,8 @@ export async function divisionCreatePOST(
     console.error(`${TAG} division insert error:`, error);
     return NextResponse.json({ error: 'Failed to create division' }, { status: 500 });
   }
-  if (season.league_id) {
-    const { error: cacheError } = await refreshLeagueSportCache(admin, season.league_id as string);
+  if (orgKindOf(season) === 'league') {
+    const { error: cacheError } = await refreshLeagueSportCache(admin, orgIdOf(season) as string);
     if (cacheError) console.warn(`${TAG} sport cache refresh failed:`, cacheError.message);
   }
   return NextResponse.json({ division });
@@ -303,7 +302,7 @@ export async function divisionDELETE(
 ): Promise<NextResponse> {
   let query = admin.from('divisions').delete().eq('id', divisionId);
   if (scope) query = query.eq(ORG_ID, scope.orgId);
-  const { data: deleted, error } = await query.select('id, league_id');
+  const { data: deleted, error } = await query.select('id, org_id, org:organizations(kind)');
   if (error) {
     console.error(`${TAG} division delete error:`, error);
     return NextResponse.json({ error: 'Failed to delete division' }, { status: 500 });
@@ -311,8 +310,8 @@ export async function divisionDELETE(
   if (!deleted || deleted.length === 0) {
     return NextResponse.json({ error: 'Division not found' }, { status: 404 });
   }
-  if (deleted[0].league_id) {
-    const { error: cacheError } = await refreshLeagueSportCache(admin, deleted[0].league_id as string);
+  if (orgKindOf(deleted[0]) === 'league') {
+    const { error: cacheError } = await refreshLeagueSportCache(admin, orgIdOf(deleted[0]) as string);
     if (cacheError) console.warn(`${TAG} sport cache refresh failed:`, cacheError.message);
   }
   return NextResponse.json({ action: 'deleted' });
@@ -330,7 +329,7 @@ export async function programCreatePOST(
 ): Promise<NextResponse> {
   const { data: season } = await admin
     .from('seasons')
-    .select('id, league_id, club_id')
+    .select('id, org_id, org:organizations(kind)')
     .eq('id', input.seasonId)
     .maybeSingle();
   if (!season || (scope && orgIdOf(season) !== scope.orgId)) {
@@ -378,12 +377,12 @@ export async function programDELETE(
   if (scope) {
     const { data: row } = await admin
       .from('programs')
-      .select('id, season:season_id (league_id, club_id)')
+      .select('id, season:season_id (org_id, org:organizations(kind))')
       .eq('id', programId)
       .maybeSingle();
     const seasonRaw = row?.season;
     const season = (Array.isArray(seasonRaw) ? seasonRaw[0] : seasonRaw) as
-      | { league_id: string | null; club_id: string | null }
+      | { org_id: string | null; org?: OrgKindEmbed }
       | null
       | undefined;
     if (!row || !season || orgIdOf(season) !== scope.orgId) {
@@ -487,8 +486,8 @@ export async function entryCreatePOST(
   scope: StructureScope | null
 ): Promise<NextResponse> {
   const [teamRes, divisionRes] = await Promise.all([
-    admin.from('teams').select('id, league_id, club_id, status').eq('id', input.teamId).maybeSingle(),
-    admin.from('divisions').select('id, league_id, club_id').eq('id', input.divisionId).maybeSingle(),
+    admin.from('teams').select('id, org_id, status').eq('id', input.teamId).maybeSingle(),
+    admin.from('divisions').select('id, org_id').eq('id', input.divisionId).maybeSingle(),
   ]);
   // Scoped: a foreign org's rows are indistinguishable from missing ones.
   const team =
@@ -501,7 +500,7 @@ export async function entryCreatePOST(
       : null;
   if (!team) return NextResponse.json({ error: 'Team not found' }, { status: 404 });
   if (!division) return NextResponse.json({ error: 'Division not found' }, { status: 404 });
-  if (team.league_id !== division.league_id || team.club_id !== division.club_id) {
+  if (orgIdOf(team) !== orgIdOf(division)) {
     return NextResponse.json(
       { error: 'The team and division belong to different organizations' },
       { status: 400 }
@@ -540,12 +539,12 @@ export async function entryDELETE(
     // any org's entries.
     const { data: row } = await admin
       .from('team_entries')
-      .select('id, division:division_id (league_id, club_id)')
+      .select('id, division:division_id (org_id, org:organizations(kind))')
       .eq('id', entryId)
       .maybeSingle();
     const division = row?.division as
-      | { league_id: string | null; club_id: string | null }
-      | { league_id: string | null; club_id: string | null }[]
+      | { org_id: string | null; org?: OrgKindEmbed }
+      | { org_id: string | null; org?: OrgKindEmbed }[]
       | null
       | undefined;
     const divisionRow = Array.isArray(division) ? division[0] : division;

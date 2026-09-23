@@ -36,6 +36,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { zonedWallClockToUtc } from '@/lib/calendar/recurrence';
 import { addDaysIso, formatDateRange } from './golf-weeks';
+import { type OrgKindEmbed } from '@/lib/orgs/org-ref';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- matches the authz.ts Admin alias; schema-agnostic helper
 type Admin = SupabaseClient<any, 'public', any>;
@@ -140,8 +141,8 @@ export async function publishContestToCalendar(
   competition: {
     id: string;
     name: string;
-    league_id: string | null;
-    club_id: string | null;
+    org_id: string | null;
+    org?: OrgKindEmbed;
     division_id: string | null;
   },
   organizerId: string,
@@ -229,8 +230,7 @@ export async function publishContestToCalendar(
       // The AUDIENCE: division when pinned, else the whole org. The
       // events_one_scope_check allows exactly one of these.
       division_id: competition.division_id,
-      league_id: competition.division_id ? null : competition.league_id,
-      club_id: competition.division_id ? null : competition.club_id,
+      org_id: competition.division_id ? null : competition.org_id,
       venue_id: contest.venue_id,
       facility_id: contest.facility_id,
     })
@@ -256,7 +256,7 @@ export async function publishContestToCalendar(
 }
 
 export interface SessionPublishInput {
-  competition: { id: string; name: string; league_id: string | null; club_id: string | null; division_id: string | null };
+  competition: { id: string; name: string; org_id: string | null; org?: OrgKindEmbed; division_id: string | null };
   session: number;
   contests: Array<{ id: string; event_id: string | null }>;
   eventLabels: string[];
@@ -309,8 +309,7 @@ export async function publishSessionToCalendar(admin: Admin, input: SessionPubli
       timezone: input.timezone,
       category: 'game',
       division_id: input.competition.division_id,
-      league_id: input.competition.division_id ? null : input.competition.league_id,
-      club_id: input.competition.division_id ? null : input.competition.club_id,
+      org_id: input.competition.division_id ? null : input.competition.org_id,
       venue_id: input.venueId ?? null,
       facility_id: null,
     })

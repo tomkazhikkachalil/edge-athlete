@@ -16,6 +16,7 @@
 // call shapes, so a stale ISR document can never out-serve the gate.
 
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { ORG_ID, type OrgKindRow, orgRefOf, pairFieldsOf } from './org-ref';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- matches the authz.ts Admin alias; schema-agnostic helper
 type Admin = SupabaseClient<any, 'public', any>;
@@ -78,7 +79,7 @@ export async function evaluatePublicContestMedia(
     const { data: comps } = compIds.length
       ? await admin
           .from('competitions')
-          .select('id, name, visibility, status, league_id, club_id')
+          .select('id, name, visibility, status, org_id, org:organizations(kind)')
           .in('id', compIds)
           .eq('visibility', 'public')
           .in('status', ['active', 'completed'])
@@ -88,8 +89,8 @@ export async function evaluatePublicContestMedia(
         c.id as string,
         {
           name: c.name as string,
-          leagueId: (c.league_id as string | null) ?? null,
-          clubId: (c.club_id as string | null) ?? null,
+          leagueId: pairFieldsOf(c as OrgKindRow).league_id,
+          clubId: pairFieldsOf(c as OrgKindRow).club_id,
         },
       ])
     );
@@ -129,17 +130,13 @@ export async function evaluatePublicContestMedia(
       allTeamIds.add(teamId);
     }
     const { data: teamRows } = allTeamIds.size
-      ? await admin.from('teams').select('id, league_id, club_id').in('id', [...allTeamIds])
+      ? await admin.from('teams').select('id, org_id, org:organizations(kind)').in('id', [...allTeamIds])
       : { data: [] };
     const teamOrg = new Map(
-      (teamRows ?? []).map(t => [
-        t.id as string,
-        t.league_id
-          ? orgKey('league', t.league_id as string)
-          : t.club_id
-            ? orgKey('club', t.club_id as string)
-            : null,
-      ])
+      (teamRows ?? []).map(t => {
+        const ref = orgRefOf(t as OrgKindRow);
+        return [t.id as string, ref ? orgKey(ref.side, ref.orgId) : null];
+      })
     );
     const orgKeysForContest = (contestId: string, comp: { leagueId: string | null; clubId: string | null }) => {
       const keys = new Set<string>();
@@ -169,35 +166,23 @@ export async function evaluatePublicContestMedia(
     const consentPairs = new Set<string>();
     if (taggedProfiles.size > 0) {
       const profileList = [...taggedProfiles];
-      const [leagueRes, clubRes] = await Promise.all([
-        leagueIds.size
-          ? admin
-              .from('memberships')
-              .select('profile_id, league_id')
-              .in('profile_id', profileList)
-              .in('league_id', [...leagueIds])
-              .eq('kind', 'roster')
-              .eq('scope_type', 'org')
-              .eq('status', 'active')
-              .eq('photo_consent', true)
-          : Promise.resolve({ data: [], error: null }),
-        clubIds.size
-          ? admin
-              .from('memberships')
-              .select('profile_id, club_id')
-              .in('profile_id', profileList)
-              .in('club_id', [...clubIds])
-              .eq('kind', 'roster')
-              .eq('scope_type', 'org')
-              .eq('status', 'active')
-              .eq('photo_consent', true)
-          : Promise.resolve({ data: [], error: null }),
-      ]);
-      for (const r of leagueRes.error ? [] : (leagueRes.data ?? [])) {
-        consentPairs.add(`${r.profile_id}|${orgKey('league', r.league_id as string)}`);
-      }
-      for (const r of clubRes.error ? [] : (clubRes.data ?? [])) {
-        consentPairs.add(`${r.profile_id}|${orgKey('club', r.club_id as string)}`);
+      // One read across both kinds (Round 5 D0): org_id names either; the
+      // embedded kind rebuilds the orgKey.
+      const orgIdsInPlay = [...leagueIds, ...clubIds];
+      const consentRes = orgIdsInPlay.length
+        ? await admin
+            .from('memberships')
+            .select('profile_id, org_id, org:organizations(kind)')
+            .in('profile_id', profileList)
+            .in(ORG_ID, orgIdsInPlay)
+            .eq('kind', 'roster')
+            .eq('scope_type', 'org')
+            .eq('status', 'active')
+            .eq('photo_consent', true)
+        : { data: [], error: null };
+      for (const r of consentRes.error ? [] : (consentRes.data ?? [])) {
+        const ref = orgRefOf(r as OrgKindRow);
+        if (ref) consentPairs.add(`${r.profile_id}|${orgKey(ref.side, ref.orgId)}`);
       }
     }
 

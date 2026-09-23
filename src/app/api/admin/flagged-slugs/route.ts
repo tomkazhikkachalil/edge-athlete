@@ -3,6 +3,7 @@ import { requireAdmin, getSupabaseAdmin } from '@/lib/auth-server';
 import { judgeSlug } from '@/lib/org-sites/slug-policy';
 import { isMissingTableError } from '@/lib/org-sites/validate';
 import { reportRouteError } from '@/lib/observability/report';
+import { orgKindOf } from '@/lib/orgs/org-ref';
 
 // ── /api/admin/flagged-slugs (phase 6 R1) ───────────────────────────────────
 // The anti-squatting review list, COMPUTED — no storage. Every org-site
@@ -17,7 +18,7 @@ export async function GET(request: NextRequest) {
     const admin = getSupabaseAdmin();
     const { data: sites, error } = await admin
       .from('org_sites')
-      .select('id, subdomain, league_id, club_id, published_at')
+      .select('id, subdomain, org_id, org:organizations(kind), published_at')
       .limit(500);
     if (error) {
       if (isMissingTableError(error.code)) return NextResponse.json({ flagged: [] });
@@ -25,8 +26,8 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Failed to load sites' }, { status: 500 });
     }
 
-    const leagueIds = (sites ?? []).map(s => s.league_id).filter(Boolean) as string[];
-    const clubIds = (sites ?? []).map(s => s.club_id).filter(Boolean) as string[];
+    const leagueIds = (sites ?? []).filter(s => orgKindOf(s) === 'league').map(s => s.org_id as string);
+    const clubIds = (sites ?? []).filter(s => orgKindOf(s) === 'club').map(s => s.org_id as string);
     const [leaguesRes, clubsRes] = await Promise.all([
       leagueIds.length
         ? admin.from('leagues').select('id, name, sport_key, city, region').in('id', leagueIds)
@@ -40,7 +41,7 @@ export async function GET(request: NextRequest) {
     );
 
     const flagged = (sites ?? []).flatMap(site => {
-      const org = orgById.get((site.league_id ?? site.club_id) as string);
+      const org = orgById.get(site.org_id as string);
       if (!org) return [];
       const judged = judgeSlug(site.subdomain as string, {
         name: org.name as string,
@@ -54,7 +55,7 @@ export async function GET(request: NextRequest) {
           siteId: site.id,
           slug: site.subdomain,
           orgName: org.name,
-          side: site.league_id ? 'league' : 'club',
+          side: orgKindOf(site) ?? 'club',
           published: !!site.published_at,
           verdict: judged.verdict,
           reason: judged.reason,

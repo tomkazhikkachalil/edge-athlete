@@ -15,6 +15,7 @@ import {
   type RosterRow,
 } from '@/lib/guardian-queue';
 import { reportRouteError } from '@/lib/observability/report';
+import { type OrgKindEmbed, orgKindOf } from '@/lib/orgs/org-ref';
 
 // ── /api/guardian/queue ──────────────────────────────────────────────────────
 // The unified guardian action queue (Family Console Wave 2): every item that
@@ -118,7 +119,7 @@ export async function GET(request: NextRequest) {
     // org-name batch below is the only follow-up query (constant count).
     const rosterOffersQ = await admin
       .from('memberships')
-      .select('id, profile_id, league_id, club_id, joined_at')
+      .select('id, profile_id, org_id, org:organizations(kind), joined_at')
       .in('profile_id', ids)
       .eq('kind', 'roster')
       .eq('status', 'pending')
@@ -132,7 +133,7 @@ export async function GET(request: NextRequest) {
     // than failing the whole queue (kept OUT of the throw loop).
     const photoConsentQ = await admin
       .from('memberships')
-      .select('id, profile_id, league_id, club_id, joined_at, photo_consent')
+      .select('id, profile_id, org_id, org:organizations(kind), joined_at, photo_consent')
       .in('profile_id', ids)
       .eq('kind', 'roster')
       .in('status', ['active', 'registered', 'evaluating', 'placed'])
@@ -188,23 +189,24 @@ export async function GET(request: NextRequest) {
     const rosterRows = (rosterOffersQ.data ?? []) as Array<{
       id: string;
       profile_id: string;
-      league_id: string | null;
-      club_id: string | null;
+      org_id: string | null;
+      org?: OrgKindEmbed;
       joined_at: string;
     }>;
     const consentRows = (photoConsentQ.error ? [] : (photoConsentQ.data ?? [])) as Array<{
       id: string;
       profile_id: string;
-      league_id: string | null;
-      club_id: string | null;
+      org_id: string | null;
+      org?: OrgKindEmbed;
       joined_at: string;
     }>;
+    const offerRows = [...rosterRows, ...consentRows];
     const offerLeagueIds = [
-      ...new Set([...rosterRows, ...consentRows].map(r => r.league_id).filter(Boolean)),
-    ] as string[];
+      ...new Set(offerRows.filter(r => orgKindOf(r) === 'league').map(r => r.org_id as string)),
+    ];
     const offerClubIds = [
-      ...new Set([...rosterRows, ...consentRows].map(r => r.club_id).filter(Boolean)),
-    ] as string[];
+      ...new Set(offerRows.filter(r => orgKindOf(r) === 'club').map(r => r.org_id as string)),
+    ];
     const orgNames = new Map<string, string>();
     if (offerLeagueIds.length > 0 || offerClubIds.length > 0) {
       const [leagueNames, clubNames] = await Promise.all([
@@ -221,11 +223,11 @@ export async function GET(request: NextRequest) {
     }
     const rosterOffers = rosterRows.map(r => ({
       ...r,
-      orgName: orgNames.get((r.league_id ?? r.club_id) as string) ?? 'An organization',
+      orgName: orgNames.get(r.org_id as string) ?? 'An organization',
     }));
     const photoConsentAsks = consentRows.map(r => ({
       ...r,
-      orgName: orgNames.get((r.league_id ?? r.club_id) as string) ?? 'An organization',
+      orgName: orgNames.get(r.org_id as string) ?? 'An organization',
     }));
 
     // Household policy (Wave 4): one constant query — age-preset prompt

@@ -100,7 +100,7 @@ export async function evaluateMemberPhotos(
     // layer to leagues; readOrgAccess is 42703-safe ⇒ public pre-176/177).
     const { data: site } = await admin
       .from('org_sites')
-      .select('id, club_id, league_id, published_at')
+      .select('id, org_id, org:organizations(kind), published_at')
       .eq('id', siteId)
       .maybeSingle();
     if (!site) return [];

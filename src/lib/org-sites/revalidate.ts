@@ -150,7 +150,7 @@ export async function revalidateOrgSiteForCompetition(
   try {
     const { data: comp } = await admin
       .from('competitions')
-      .select('league_id, club_id')
+      .select('org_id, org:organizations(kind)')
       .eq('id', competitionId)
       .maybeSingle();
     if (!comp) return;

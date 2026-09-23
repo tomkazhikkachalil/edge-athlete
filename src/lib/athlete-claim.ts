@@ -38,8 +38,7 @@ export async function createAthleteClaimInvite(
     .insert({
       token_hash: hashInviteToken(rawToken),
       profile_id: input.profileId,
-      league_id: input.context?.side === 'league' ? input.context.orgId : null,
-      club_id: input.context?.side === 'club' ? input.context.orgId : null,
+      org_id: input.context?.orgId ?? null,
       team_id: input.context?.teamId ?? null,
       invited_email: input.invitedEmail,
       created_by: input.createdBy,
@@ -70,7 +69,7 @@ export async function peekAthleteClaimInvite(
 ): Promise<AthleteClaimPeek | null> {
   const { data: invite } = await admin
     .from('athlete_claim_invites')
-    .select('id, profile_id, league_id, club_id, team_id, expires_at, consumed_at')
+    .select('id, profile_id, org_id, org:organizations(kind), team_id, expires_at, consumed_at')
     .eq('token_hash', hashInviteToken(rawToken))
     .maybeSingle();
   if (!invite || invite.consumed_at || new Date(invite.expires_at as string) <= new Date()) {

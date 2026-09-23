@@ -76,8 +76,8 @@ const CONTEST = {
 const COMPETITION = {
   id: 'c1',
   name: 'House League',
-  league_id: 'org-1',
-  club_id: null,
+  org_id: 'org-1',
+  org: { kind: 'league' },
   division_id: null,
 };
 
@@ -124,9 +124,9 @@ describe('publishContestToCalendar', () => {
     });
     await publishContestToCalendar(org.admin, CONTEST, COMPETITION, 'mgr', 'America/Toronto');
     const orgInsert = org.calls.find(c => c.table === 'events');
+    // Round 5 D0: the event names its org ONCE (org_id); 233's trigger fills the pair.
     expect(orgInsert?.payload).toMatchObject({
-      league_id: 'org-1',
-      club_id: null,
+      org_id: 'org-1',
       division_id: null,
       category: 'game',
       timezone: 'America/Toronto',
@@ -145,7 +145,7 @@ describe('publishContestToCalendar', () => {
       'UTC'
     );
     const divInsert = div.calls.find(c => c.table === 'events');
-    expect(divInsert?.payload).toMatchObject({ division_id: 'd1', league_id: null, club_id: null });
+    expect(divInsert?.payload).toMatchObject({ division_id: 'd1', org_id: null });
   });
 
   it('compensates: a failed link deletes the freshly-minted event', async () => {
@@ -232,7 +232,7 @@ describe('phase 6e S4 — a play-window round publishes as an all-day, multi-day
     const out = await publishContestToCalendar(
       admin as unknown as Admin,
       { id: 'c1', event_id: null, scheduled_at: null, venue_id: 'v1', facility_id: null, round: 'Week 3', play_from: '2026-09-15', play_to: '2026-09-21', holes: 9 },
-      { id: 'comp', name: 'Thursday Nine', league_id: 'lg', club_id: null, division_id: null },
+      { id: 'comp', name: 'Thursday Nine', org_id: 'lg', org: { kind: 'league' }, division_id: null },
       'organizer',
       'America/Toronto'
     );
@@ -249,7 +249,7 @@ describe('phase 6e S4 — a play-window round publishes as an all-day, multi-day
     const refused = await publishContestToCalendar(
       admin as unknown as Admin,
       { id: 'c2', event_id: null, scheduled_at: null, venue_id: null, facility_id: null, round: 'Week 4' },
-      { id: 'comp', name: 'Thursday Nine', league_id: 'lg', club_id: null, division_id: null },
+      { id: 'comp', name: 'Thursday Nine', org_id: 'lg', org: { kind: 'league' }, division_id: null },
       'organizer',
       'UTC'
     );

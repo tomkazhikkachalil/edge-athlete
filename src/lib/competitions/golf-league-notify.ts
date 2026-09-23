@@ -16,7 +16,7 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { OrgSide } from '@/lib/orgs/authz';
-import { ORG_TABLE } from '@/lib/orgs/org-ref';
+import { ORG_TABLE, type OrgKindEmbed, orgRefOf } from '@/lib/orgs/org-ref';
 import { notifyGuardians, type GuardianNotificationType } from '@/lib/guardian-notify';
 import { formatIsoDate } from './golf-weeks';
 
@@ -151,13 +151,14 @@ export async function notifyGolfWindowNudge(
 export async function loadGolfLeagueBellContext(
   admin: Admin,
   input: {
-    competition: { id: string; name: string | null; league_id: string | null; club_id: string | null };
+    competition: { id: string; name: string | null; org_id: string | null; org?: OrgKindEmbed };
     contest: { id: string; round: string | null };
   }
 ): Promise<GolfLeagueBellContext | null> {
-  const side: OrgSide = input.competition.league_id ? 'league' : 'club';
-  const orgId = input.competition.league_id ?? input.competition.club_id;
-  if (!orgId) return null;
+  const compRef = orgRefOf(input.competition);
+  if (!compRef) return null;
+  const side: OrgSide = compRef.side;
+  const orgId = compRef.orgId;
   const { data: org } = await admin
     .from(ORG_TABLE[side])
     .select('id, name')

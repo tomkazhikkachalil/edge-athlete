@@ -13,6 +13,7 @@
 
 import type { PostgrestError, SupabaseClient } from '@supabase/supabase-js';
 import { isMissingTableError } from '@/lib/leagues/validate';
+import { type OrgKindRow, pairFieldsOf } from './org-ref';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- matches the authz.ts Admin alias; schema-agnostic helper
 type Admin = SupabaseClient<any, 'public', any>;
@@ -92,17 +93,17 @@ export async function viewerScopeSet(
   };
   const [teamRows, divisionRows] = await Promise.all([
     teamIds.size > 0
-      ? admin.from('teams').select('id, league_id, club_id').in('id', [...teamIds])
-      : Promise.resolve({ data: [] as { id: string; league_id: string | null; club_id: string | null }[] }),
+      ? admin.from('teams').select('id, org_id, org:organizations(kind)').in('id', [...teamIds])
+      : Promise.resolve({ data: [] as ({ id: string } & OrgKindRow)[] }),
     divisionIds.size > 0
-      ? admin.from('divisions').select('id, league_id, club_id').in('id', [...divisionIds])
-      : Promise.resolve({ data: [] as { id: string; league_id: string | null; club_id: string | null }[] }),
+      ? admin.from('divisions').select('id, org_id, org:organizations(kind)').in('id', [...divisionIds])
+      : Promise.resolve({ data: [] as ({ id: string } & OrgKindRow)[] }),
   ]);
   for (const t of teamRows.data ?? []) {
-    collectOrg(t.id as string, t.league_id as string | null, t.club_id as string | null);
+    collectOrg(t.id as string, pairFieldsOf(t).league_id, pairFieldsOf(t).club_id);
   }
   for (const d of divisionRows.data ?? []) {
-    collectOrg(d.id as string, d.league_id as string | null, d.club_id as string | null);
+    collectOrg(d.id as string, pairFieldsOf(d).league_id, pairFieldsOf(d).club_id);
   }
 
   return {

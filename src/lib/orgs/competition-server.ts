@@ -30,7 +30,7 @@ import { defaultEntrantFor, FORMAT_ENTRANT_REFUSAL_COPY, formatEntrantRefusal, r
 import { NextResponse } from 'next/server';
 import type { SupabaseClient, User } from '@supabase/supabase-js';
 import { type OrgSide, capabilityAllows, getOrgAndCapabilities } from './authz';
-import { ORG_ID, orgIdOf, orgRefOf } from './org-ref';
+import { ORG_ID, orgIdOf, type OrgKindEmbed, orgKindOf, type OrgKindRow, type OrgRef, orgRefOf } from './org-ref';
 import {
   isMissingTableError,
   type CompetitionCreateInput,
@@ -213,8 +213,8 @@ export async function competitionsAggregateGET(
       const [clubTeamsRes, clubsRes] = await Promise.all([
         admin
           .from('teams')
-          .select('id, name, display_name, club_id')
-          .in('club_id', clubIds)
+          .select('id, name, display_name, org_id')
+          .in(ORG_ID, clubIds)
           .eq('status', 'active')
           .order('name')
           .limit(500),
@@ -224,7 +224,7 @@ export async function competitionsAggregateGET(
       affiliatedTeams = (clubTeamsRes.data ?? []).map(t => ({
         id: t.id as string,
         name: (t.display_name || t.name) as string,
-        club_name: clubName.get(t.club_id) ?? 'Club',
+        club_name: clubName.get(t.org_id) ?? 'Club',
       }));
     }
   }
@@ -268,7 +268,7 @@ export async function competitionCreatePOST(
 ): Promise<NextResponse> {
   const { data: season } = await admin
     .from('seasons')
-    .select('id, league_id, club_id')
+    .select('id, org_id')
     .eq('id', input.seasonId)
     .maybeSingle();
   // A foreign org's season is indistinguishable from a missing one.
@@ -296,8 +296,7 @@ export async function competitionCreatePOST(
 
   const insertRow: Record<string, unknown> = {
     // Org inherited from the season — the one place the rule is enforced.
-    league_id: season.league_id,
-    club_id: season.club_id,
+    org_id: season.org_id,
     season_id: input.seasonId,
     division_id: input.divisionId ?? null,
     sport_key: input.sportKey,
@@ -370,7 +369,7 @@ export async function competitionDELETE(
   if (scope) query = query.eq(ORG_ID, scope.orgId);
   // Org columns ride the returning select — the freshness hook needs them
   // after the row is gone.
-  const { data: deleted, error } = await query.select('id, league_id, club_id');
+  const { data: deleted, error } = await query.select('id, org_id, org:organizations(kind)');
   if (error) {
     console.error(`${TAG} delete error:`, error);
     return NextResponse.json({ error: 'Failed to delete competition' }, { status: 500 });
@@ -395,7 +394,7 @@ export async function entryAddPOST(
 ): Promise<NextResponse> {
   const { data: competition } = await admin
     .from('competitions')
-    .select('id, name, league_id, club_id, division_id, entrant_type, status, format')
+    .select('id, name, org_id, org:organizations(kind), division_id, entrant_type, status, format')
     .eq('id', input.competitionId)
     .maybeSingle();
   const comp =
@@ -418,25 +417,25 @@ export async function entryAddPOST(
     }
     const { data: team } = await admin
       .from('teams')
-      .select('id, name, display_name, league_id, club_id, status')
+      .select('id, name, display_name, org_id, org:organizations(kind), status')
       .eq('id', input.teamId)
       .maybeSingle();
     if (!team) return NextResponse.json({ error: 'Team not found' }, { status: 404 });
-    const sameOrg = team.league_id === comp.league_id && team.club_id === comp.club_id;
+    const sameOrg = orgIdOf(team) === orgIdOf(comp);
     if (!sameOrg) {
       // R4 REP: a foreign team enters IFF the owner is a LEAGUE and an
       // ACTIVE member_of/sanctioned_by edge links it to the team's CLUB
       // (league_clubs is league↔club only). Cross-org authority stays
       // competition-scoped — this reads NOTHING inside the member club
       // beyond the team row (§5's line clubs won't join without).
-      if (!comp.league_id || !team.club_id) {
+      if (orgKindOf(comp) !== 'league' || orgKindOf(team) !== 'club') {
         return NextResponse.json({ error: 'Team not found' }, { status: 404 });
       }
       const { data: edge } = await admin
         .from('league_clubs')
         .select('status, affiliation_type')
-        .eq('league_id', comp.league_id)
-        .eq('club_id', team.club_id)
+        .eq('league_id', orgIdOf(comp) as string)
+        .eq('club_id', orgIdOf(team) as string)
         .maybeSingle();
       if (
         !edge ||
@@ -448,7 +447,7 @@ export async function entryAddPOST(
           { status: 400 }
         );
       }
-      crossOrg = { clubId: team.club_id as string, teamName: (team.display_name || team.name) as string };
+      crossOrg = { clubId: orgIdOf(team) as string, teamName: (team.display_name || team.name) as string };
     }
     if (team.status === 'archived') {
       return NextResponse.json(
@@ -559,11 +558,11 @@ export async function entryAddPOST(
       .insert((input.memberProfileIds ?? []).map((profileId, i) => ({ entry_id: entry.id, profile_id: profileId, position: i + 1 })));
     if (memberError) console.error(`${TAG} entry members insert error:`, memberError);
   }
-  if (crossOrg && comp.league_id) {
+  if (crossOrg && orgKindOf(comp) === 'league') {
     const { notifyEntryPending } = await import('@/lib/competitions/notify');
     await notifyEntryPending(admin, {
       ownerSide: 'league',
-      ownerOrgId: comp.league_id,
+      ownerOrgId: orgIdOf(comp) as string,
       competitionId: comp.id,
       competitionName: comp.name as string,
       teamName: crossOrg.teamName,
@@ -587,13 +586,13 @@ export async function entryDecidePATCH(
   const { data: row } = await admin
     .from('competition_entries')
     .select(
-      'id, status, team_id, competition:competition_id (id, name, league_id, club_id)'
+      'id, status, team_id, competition:competition_id (id, name, org_id, org:organizations(kind))'
     )
     .eq('id', input.entryId)
     .maybeSingle();
   const comp = row?.competition as
-    | { id: string; name: string; league_id: string | null; club_id: string | null }
-    | { id: string; name: string; league_id: string | null; club_id: string | null }[]
+    | { id: string; name: string; org_id: string | null; org?: OrgKindEmbed }
+    | { id: string; name: string; org_id: string | null; org?: OrgKindEmbed }[]
     | null
     | undefined;
   const compRow = Array.isArray(comp) ? comp[0] : comp;
@@ -616,13 +615,13 @@ export async function entryDecidePATCH(
   if (row.team_id) {
     const { data: team } = await admin
       .from('teams')
-      .select('name, display_name, club_id')
+      .select('name, display_name, org_id, org:organizations(kind)')
       .eq('id', row.team_id)
       .maybeSingle();
-    if (team?.club_id) {
+    if (team && orgKindOf(team) === 'club') {
       const { notifyEntryDecided } = await import('@/lib/competitions/notify');
       await notifyEntryDecided(admin, {
-        clubId: team.club_id as string,
+        clubId: orgIdOf(team) as string,
         competitionId: compRow.id,
         competitionName: compRow.name,
         teamName: (team.display_name || team.name) as string,
@@ -647,12 +646,12 @@ export async function entryDELETE(
     // bare delete would let any manager withdraw any org's entries.
     const { data: row } = await admin
       .from('competition_entries')
-      .select('id, competition:competition_id (league_id, club_id)')
+      .select('id, competition:competition_id (org_id, org:organizations(kind))')
       .eq('id', entryId)
       .maybeSingle();
     const comp = row?.competition as
-      | { league_id: string | null; club_id: string | null }
-      | { league_id: string | null; club_id: string | null }[]
+      | { org_id: string | null; org?: OrgKindEmbed }
+      | { org_id: string | null; org?: OrgKindEmbed }[]
       | null
       | undefined;
     const compRow = Array.isArray(comp) ? comp[0] : comp;
@@ -679,6 +678,25 @@ export async function entryDELETE(
 
 // ── Contests (R2) ────────────────────────────────────────────────────────────
 
+/** D0: the eight per-side competition routes pin the competition to the
+ *  ROUTE's org (id AND kind) — a foreign org's competition is a 404 exactly
+ *  like a missing one. Step E folds those routes over this. */
+export async function pinCompetitionToOrg(
+  admin: Admin,
+  ref: OrgRef,
+  competitionId: string,
+  fields = 'id'
+): Promise<Record<string, unknown> | null> {
+  const { data } = await admin
+    .from('competitions')
+    .select(`${fields}, org_id, org:organizations(kind)`)
+    .eq('id', competitionId)
+    .maybeSingle();
+  const row = data as unknown as (Record<string, unknown> & OrgKindRow) | null;
+  if (!row || orgIdOf(row) !== ref.orgId || orgKindOf(row) !== ref.side) return null;
+  return row;
+}
+
 /** Load a competition with the org pin applied. A foreign org's
  *  competition is indistinguishable from a missing one. */
 async function pinCompetition(
@@ -687,8 +705,8 @@ async function pinCompetition(
   scope: CompetitionScope | null
 ): Promise<{
   id: string;
-  league_id: string | null;
-  club_id: string | null;
+  org_id: string | null;
+  org?: OrgKindEmbed;
   division_id: string | null;
   format: string;
   entrant_type: string;
@@ -697,7 +715,7 @@ async function pinCompetition(
 } | null> {
   const { data } = await admin
     .from('competitions')
-    .select('id, league_id, club_id, division_id, format, entrant_type, status, name')
+    .select('id, org_id, org:organizations(kind), division_id, format, entrant_type, status, name')
     .eq('id', competitionId)
     .maybeSingle();
   if (!data) return null;
@@ -717,7 +735,7 @@ export async function competitionDetailGET(
   // One select does both jobs (pin + payload) — the old pinCompetition
   // call re-read the same row with fewer columns.
   const COMP_FIELDS_BASE =
-    'id, league_id, club_id, season_id, division_id, sport_key, name, format, entrant_type, scoring_rule, status, visibility, created_at';
+    'id, org_id, org:organizations(kind), season_id, division_id, sport_key, name, format, entrant_type, scoring_rule, status, visibility, created_at';
   const readFull = (fields: string) => admin.from('competitions').select(fields)
     .eq('id', competitionId)
     .maybeSingle();
@@ -728,7 +746,7 @@ export async function competitionDetailGET(
   }
   const full = fullData as unknown as ({ [key: string]: unknown; format?: string; sport_key?: string; scoring_rule?: string | null } | null);
   if (!full) return NextResponse.json({ error: 'Competition not found' }, { status: 404 });
-  if (scope && orgIdOf(full as { league_id?: string | null; club_id?: string | null }) !== scope.orgId) {
+  if (scope && orgIdOf(full as OrgKindRow) !== scope.orgId) {
     return NextResponse.json({ error: 'Competition not found' }, { status: 404 });
   }
 
@@ -899,7 +917,7 @@ export async function competitionDetailGET(
 // ── Brackets (track 2 PR 3) ──────────────────────────────────────────────────
 
 async function pinBracketCompetition(admin: Admin, competitionId: string, scope: CompetitionScope | null): Promise<{ ok: true; comp: { id: string; format: string; sport_key: string; scoring_rule: string | null; status: string } } | { ok: false; response: NextResponse }> {
-  const { data: comp } = await admin.from('competitions').select('id, league_id, club_id, format, sport_key, scoring_rule, status').eq('id', competitionId).maybeSingle();
+  const { data: comp } = await admin.from('competitions').select('id, org_id, org:organizations(kind), format, sport_key, scoring_rule, status').eq('id', competitionId).maybeSingle();
   if (!comp || (scope && orgIdOf(comp) !== scope.orgId)) return { ok: false, response: NextResponse.json({ error: 'Competition not found' }, { status: 404 }) };
   if (comp.format !== 'bracket') return { ok: false, response: NextResponse.json({ error: 'This competition is not a bracket.', reason: 'not_bracket' }, { status: 400 }) };
   return { ok: true, comp: comp as { id: string; format: string; sport_key: string; scoring_rule: string | null; status: string } };
@@ -1305,7 +1323,7 @@ export async function golfSeasonGeneratePOST(
           play_to: s.playTo,
           holes: s.holes,
         },
-        { id: comp.id, name: comp.name, league_id: comp.league_id, club_id: comp.club_id, division_id: comp.division_id },
+        { id: comp.id, name: comp.name, org_id: comp.org_id, org: comp.org, division_id: comp.division_id },
         organizerId,
         input.timezone
       );
@@ -1375,7 +1393,7 @@ export async function contestPublishSeasonPOST(
     const out = await publishContestToCalendar(
       admin,
       contest,
-      { id: comp.id, name: comp.name, league_id: comp.league_id, club_id: comp.club_id, division_id: comp.division_id },
+      { id: comp.id, name: comp.name, org_id: comp.org_id, org: comp.org, division_id: comp.division_id },
       organizerId,
       timezone
     );
@@ -1383,8 +1401,8 @@ export async function contestPublishSeasonPOST(
     else published += 1;
   }
   if (published > 0) {
-    const orgId = comp.league_id ?? comp.club_id;
-    if (orgId) await revalidateOrgSiteForOrg(admin, comp.league_id ? 'league' : 'club', orgId);
+    const ref = orgRefOf(comp);
+    if (ref) await revalidateOrgSiteForOrg(admin, ref.side, ref.orgId);
   }
   return NextResponse.json({ ok: true, published, skipped });
 }
@@ -1397,12 +1415,12 @@ export async function contestPATCH(
   if (scope) {
     const { data: row } = await admin
       .from('contests')
-      .select('id, competition:competition_id (league_id, club_id)')
+      .select('id, competition:competition_id (org_id, org:organizations(kind))')
       .eq('id', input.id)
       .maybeSingle();
     const comp = row?.competition as
-      | { league_id: string | null; club_id: string | null }
-      | { league_id: string | null; club_id: string | null }[]
+      | { org_id: string | null; org?: OrgKindEmbed }
+      | { org_id: string | null; org?: OrgKindEmbed }[]
       | null
       | undefined;
     const compRow = Array.isArray(comp) ? comp[0] : comp;
@@ -1473,12 +1491,12 @@ export async function contestDELETE(
   if (scope) {
     const { data: row } = await admin
       .from('contests')
-      .select('id, competition:competition_id (league_id, club_id)')
+      .select('id, competition:competition_id (org_id, org:organizations(kind))')
       .eq('id', contestId)
       .maybeSingle();
     const comp = row?.competition as
-      | { league_id: string | null; club_id: string | null }
-      | { league_id: string | null; club_id: string | null }[]
+      | { org_id: string | null; org?: OrgKindEmbed }
+      | { org_id: string | null; org?: OrgKindEmbed }[]
       | null
       | undefined;
     const compRow = Array.isArray(comp) ? comp[0] : comp;
@@ -1521,7 +1539,7 @@ export async function contestPublishPOST(
   let rowRes = await admin
     .from('contests')
     .select(
-      'id, event_id, scheduled_at, venue_id, facility_id, round, play_from, play_to, holes, competition:competition_id (id, name, league_id, club_id, division_id)'
+      'id, event_id, scheduled_at, venue_id, facility_id, round, play_from, play_to, holes, competition:competition_id (id, name, org_id, org:organizations(kind), division_id)'
     )
     .eq('id', contestId)
     .maybeSingle();
@@ -1529,15 +1547,15 @@ export async function contestPublishPOST(
     rowRes = await admin
       .from('contests')
       .select(
-        'id, event_id, scheduled_at, venue_id, facility_id, round, competition:competition_id (id, name, league_id, club_id, division_id)'
+        'id, event_id, scheduled_at, venue_id, facility_id, round, competition:competition_id (id, name, org_id, org:organizations(kind), division_id)'
       )
       .eq('id', contestId)
       .maybeSingle();
   }
   const row = rowRes.data;
   const comp = row?.competition as
-    | { id: string; name: string; league_id: string | null; club_id: string | null; division_id: string | null }
-    | { id: string; name: string; league_id: string | null; club_id: string | null; division_id: string | null }[]
+    | { id: string; name: string; org_id: string | null; org?: OrgKindEmbed; division_id: string | null }
+    | { id: string; name: string; org_id: string | null; org?: OrgKindEmbed; division_id: string | null }[]
     | null
     | undefined;
   const compRow = Array.isArray(comp) ? comp[0] : comp;
@@ -1548,9 +1566,9 @@ export async function contestPublishPOST(
   if ('error' in published) {
     return NextResponse.json({ error: published.error }, { status: 400 });
   }
-  const pubOrgId = compRow.league_id ?? compRow.club_id;
-  if (pubOrgId) {
-    await revalidateOrgSiteForOrg(admin, compRow.league_id ? 'league' : 'club', pubOrgId);
+  const pubRef = orgRefOf(compRow);
+  if (pubRef) {
+    await revalidateOrgSiteForOrg(admin, pubRef.side, pubRef.orgId);
   }
   return NextResponse.json({ ok: true, eventId: published.eventId });
 }
@@ -1569,12 +1587,12 @@ export async function resultsUpsertPOST(
 ): Promise<NextResponse> {
   const { data: contestRow } = await admin
     .from('contests')
-    .select('id, status, sport_event_round_id, competition:competition_id (id, league_id, club_id, format)')
+    .select('id, status, sport_event_round_id, competition:competition_id (id, org_id, org:organizations(kind), format)')
     .eq('id', input.contestId)
     .maybeSingle();
   const comp = contestRow?.competition as
-    | { id: string; league_id: string | null; club_id: string | null; format: string }
-    | { id: string; league_id: string | null; club_id: string | null; format: string }[]
+    | { id: string; org_id: string | null; org?: OrgKindEmbed; format: string }
+    | { id: string; org_id: string | null; org?: OrgKindEmbed; format: string }[]
     | null
     | undefined;
   const compRow = Array.isArray(comp) ? comp[0] : comp;
@@ -1687,10 +1705,10 @@ async function athleteAffiliationTeamId(admin: Admin, orgId: string, profileId: 
 export async function entryAffiliationPATCH(admin: Admin, input: EntryAffiliationInput, scope: CompetitionScope | null): Promise<NextResponse> {
   const { data: row } = await admin
     .from('competition_entries')
-    .select('id, profile_id, team_id, competition:competition_id (id, league_id, club_id, format)')
+    .select('id, profile_id, team_id, competition:competition_id (id, org_id, org:organizations(kind), format)')
     .eq('id', input.entryId)
     .maybeSingle();
-  type CompLite = { id: string; league_id: string | null; club_id: string | null; format: string };
+  type CompLite = { id: string; org_id: string | null; org?: OrgKindEmbed; format: string };
   const comp = row?.competition as CompLite | CompLite[] | null | undefined;
   const compRow = Array.isArray(comp) ? comp[0] : comp;
   if (!row || !compRow || (scope && orgIdOf(compRow) !== scope.orgId)) {
@@ -1718,11 +1736,11 @@ export async function entryAffiliationPATCH(admin: Admin, input: EntryAffiliatio
   return NextResponse.json({ ok: true, entryId: input.entryId, affiliationTeamId: input.affiliationTeamId });
 }
 
-async function pinFixtureCompetition(admin: Admin, competitionId: string, scope: CompetitionScope | null): Promise<{ ok: true; comp: { id: string; name: string; format: string; sport_key: string; entrant_type: string; status: string; league_id: string | null; club_id: string | null } } | { ok: false; response: NextResponse }> {
-  const { data: comp } = await admin.from('competitions').select('id, name, league_id, club_id, format, sport_key, entrant_type, status').eq('id', competitionId).maybeSingle();
+async function pinFixtureCompetition(admin: Admin, competitionId: string, scope: CompetitionScope | null): Promise<{ ok: true; comp: { id: string; name: string; format: string; sport_key: string; entrant_type: string; status: string; org_id: string | null; org?: OrgKindEmbed } } | { ok: false; response: NextResponse }> {
+  const { data: comp } = await admin.from('competitions').select('id, name, org_id, org:organizations(kind), format, sport_key, entrant_type, status').eq('id', competitionId).maybeSingle();
   if (!comp || (scope && orgIdOf(comp) !== scope.orgId)) return { ok: false, response: NextResponse.json({ error: 'Competition not found' }, { status: 404 }) };
   if (comp.format !== 'fixture') return { ok: false, response: NextResponse.json({ error: POOL_SEED_REFUSAL_COPY.not_fixture, reason: 'not_fixture' }, { status: 400 }) };
-  return { ok: true, comp: comp as { id: string; name: string; format: string; sport_key: string; entrant_type: string; status: string; league_id: string | null; club_id: string | null } };
+  return { ok: true, comp: comp as { id: string; name: string; format: string; sport_key: string; entrant_type: string; status: string; org_id: string | null; org?: OrgKindEmbed } };
 }
 
 /** The existing games' ordered pairs (`home:away`) — what the round-robin must not mint again. */
@@ -1769,9 +1787,9 @@ export async function poolsSeedPOST(admin: Admin, input: PoolsSeedInput, scope: 
   const pinned = await pinFixtureCompetition(admin, input.competitionId, scope);
   if (!pinned.ok) return pinned.response;
   const source = pinned.comp;
-  const { data: targetRow } = await admin.from('competitions').select('id, name, league_id, club_id, format, sport_key, entrant_type, status').eq('id', input.targetCompetitionId).maybeSingle();
-  const target = targetRow as { id: string; name: string; league_id: string | null; club_id: string | null; format: string; sport_key: string; entrant_type: string; status: string } | null;
-  if (!target || target.league_id !== source.league_id || target.club_id !== source.club_id) return NextResponse.json({ error: 'Target competition not found' }, { status: 404 });
+  const { data: targetRow } = await admin.from('competitions').select('id, name, org_id, org:organizations(kind), format, sport_key, entrant_type, status').eq('id', input.targetCompetitionId).maybeSingle();
+  const target = targetRow as { id: string; name: string; org_id: string | null; org?: OrgKindEmbed; format: string; sport_key: string; entrant_type: string; status: string } | null;
+  if (!target || orgIdOf(target) !== orgIdOf(source)) return NextResponse.json({ error: 'Target competition not found' }, { status: 404 });
   const { data: drawn, error: drawnError } = await admin.from('contests').select('id').eq('competition_id', target.id).not('stage', 'is', null).limit(1);
   if (drawnError?.code === '42703') return NextResponse.json({ error: 'Brackets need migration 218.', reason: 'needs_migration' }, { status: 409 });
   const { data: entries } = await admin.from('competition_entries').select('id, team_id, profile_id, name, pool, status').eq('competition_id', source.id).limit(500);
@@ -1826,10 +1844,10 @@ export async function poolsSeedPOST(admin: Admin, input: PoolsSeedInput, scope: 
 export async function entryPoolPATCH(admin: Admin, input: EntryPoolInput, scope: CompetitionScope | null): Promise<NextResponse> {
   const { data: row } = await admin
     .from('competition_entries')
-    .select('id, competition:competition_id (id, league_id, club_id, format)')
+    .select('id, competition:competition_id (id, org_id, org:organizations(kind), format)')
     .eq('id', input.entryId)
     .maybeSingle();
-  type CompLite = { id: string; league_id: string | null; club_id: string | null; format: string };
+  type CompLite = { id: string; org_id: string | null; org?: OrgKindEmbed; format: string };
   const comp = row?.competition as CompLite | CompLite[] | null | undefined;
   const compRow = Array.isArray(comp) ? comp[0] : comp;
   if (!row || !compRow || (scope && orgIdOf(compRow) !== scope.orgId)) {
@@ -1846,9 +1864,9 @@ export async function entryPoolPATCH(admin: Admin, input: EntryPoolInput, scope:
   return NextResponse.json({ ok: true, entryId: input.entryId, pool: input.pool });
 }
 
-type MeetComp = { id: string; name: string; sport_key: string; status: string; league_id: string | null; club_id: string | null; division_id: string | null };
+type MeetComp = { id: string; name: string; sport_key: string; status: string; org_id: string | null; org?: OrgKindEmbed; division_id: string | null };
 async function pinMeetCompetition(admin: Admin, competitionId: string, scope: CompetitionScope | null): Promise<{ ok: true; comp: MeetComp } | { ok: false; response: NextResponse }> {
-  const { data: comp } = await admin.from('competitions').select('id, name, league_id, club_id, division_id, format, sport_key, status').eq('id', competitionId).maybeSingle();
+  const { data: comp } = await admin.from('competitions').select('id, name, org_id, org:organizations(kind), division_id, format, sport_key, status').eq('id', competitionId).maybeSingle();
   if (!comp || (scope && orgIdOf(comp) !== scope.orgId)) return { ok: false, response: NextResponse.json({ error: 'Competition not found' }, { status: 404 }) };
   if (comp.format !== 'meet') return { ok: false, response: NextResponse.json({ error: 'This competition is not a meet.', reason: 'not_meet' }, { status: 400 }) };
   return { ok: true, comp: comp as MeetComp };
@@ -1908,7 +1926,7 @@ export async function meetSessionPublishPOST(admin: Admin, input: MeetSessionPub
   const rows = (contests ?? []) as Array<{ id: string; event_id: string | null; round: string | null }>;
   if (rows.length === 0) return NextResponse.json({ error: `Session ${input.session} has no events yet.`, reason: 'no_session' }, { status: 404 });
   const published = await publishSessionToCalendar(admin, {
-    competition: { id: pinned.comp.id, name: pinned.comp.name, league_id: pinned.comp.league_id, club_id: pinned.comp.club_id, division_id: pinned.comp.division_id },
+    competition: { id: pinned.comp.id, name: pinned.comp.name, org_id: pinned.comp.org_id, org: pinned.comp.org, division_id: pinned.comp.division_id },
     session: input.session,
     contests: rows.map(r => ({ id: r.id, event_id: r.event_id })),
     eventLabels: rows.map(r => r.round ?? '').filter(Boolean),
@@ -1918,8 +1936,8 @@ export async function meetSessionPublishPOST(admin: Admin, input: MeetSessionPub
     venueId: input.venueId,
   }, organizerId);
   if ('error' in published) return NextResponse.json({ error: published.error, reason: published.reason }, { status: published.reason === 'session_split' ? 409 : 500 });
-  const orgId = pinned.comp.league_id ?? pinned.comp.club_id;
-  if (orgId) await revalidateOrgSiteForOrg(admin, pinned.comp.league_id ? 'league' : 'club', orgId);
+  const pinnedRef = orgRefOf(pinned.comp);
+  if (pinnedRef) await revalidateOrgSiteForOrg(admin, pinnedRef.side, pinnedRef.orgId);
   await revalidateOrgSiteForCompetition(admin, pinned.comp.id);
   return NextResponse.json({ ok: true, eventId: published.eventId, created: published.created, contests: rows.map(r => r.id) }, { status: published.created ? 201 : 200 });
 }
@@ -1930,10 +1948,10 @@ export async function meetSessionPublishPOST(admin: Admin, input: MeetSessionPub
 export async function meetResultsUpsertPOST(admin: Admin, input: MeetResultsUpsertInput, scope: CompetitionScope | null, enteredBy: string): Promise<NextResponse> {
   const { data: contestRow } = await admin
     .from('contests')
-    .select('id, status, round, scheduled_at, competition:competition_id (id, league_id, club_id, format, sport_key)')
+    .select('id, status, round, scheduled_at, competition:competition_id (id, org_id, org:organizations(kind), format, sport_key)')
     .eq('id', input.contestId)
     .maybeSingle();
-  type CompLite = { id: string; league_id: string | null; club_id: string | null; format: string; sport_key: string };
+  type CompLite = { id: string; org_id: string | null; org?: OrgKindEmbed; format: string; sport_key: string };
   const compRaw = contestRow?.competition as CompLite | CompLite[] | null | undefined;
   const comp = Array.isArray(compRaw) ? compRaw[0] : compRaw;
   if (!contestRow || !comp || (scope && orgIdOf(comp) !== scope.orgId)) return NextResponse.json({ error: 'Event not found' }, { status: 404 });

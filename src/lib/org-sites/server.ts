@@ -17,7 +17,7 @@ import { isListed, listingFromRow } from '@/lib/orgs/listing';
 import { NextResponse } from 'next/server';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { OrgSide } from '@/lib/orgs/authz';
-import { ORG_ID, ORG_TABLE, orgIdOf, orgKindOf, pairFor } from '@/lib/orgs/org-ref';
+import { ORG_ID, ORG_TABLE, orgIdOf, type OrgKindEmbed, orgKindOf, pairFor } from '@/lib/orgs/org-ref';
 import {
   defaultModuleOrder,
   GOLF_TAGLINE,
@@ -46,8 +46,8 @@ const TAG = '[ORG SITES]';
 
 export interface SiteRow {
   id: string;
-  league_id: string | null;
-  club_id: string | null;
+  org_id: string | null;
+  org?: OrgKindEmbed;
   subdomain: string;
   template_id: string;
   theme_token_set: Record<string, unknown>;
@@ -65,7 +65,7 @@ export interface SiteRow {
 }
 
 const SITE_FIELDS_BASE =
-  'id, league_id, club_id, subdomain, template_id, theme_token_set, nav_config, logo_path, hero_config, contact_config, published_at';
+  'id, org_id, org:organizations(kind), subdomain, template_id, theme_token_set, nav_config, logo_path, hero_config, contact_config, published_at';
 // Phase 6b C1: the render seam needs the active custom domain; pre-171
 // databases lack the columns, so every reader retries on 42703.
 const SITE_FIELDS = `${SITE_FIELDS_BASE}, custom_domain, domain_active_at`;

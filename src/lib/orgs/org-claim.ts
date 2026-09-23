@@ -60,7 +60,7 @@ export async function peekOrgClaimInvite(
 ): Promise<{ inviteId: string; org: OrgClaimOrg } | null> {
   const { data: invite } = await admin
     .from('org_claim_invites')
-    .select('id, league_id, club_id, expires_at, consumed_at')
+    .select('id, org_id, org:organizations(kind), expires_at, consumed_at')
     .eq('token_hash', hashInviteToken(rawToken))
     .maybeSingle();
   if (!invite || invite.consumed_at || new Date(invite.expires_at as string) <= new Date()) {
@@ -94,7 +94,7 @@ export async function redeemOrgClaimInvite(
     .eq('token_hash', hashInviteToken(rawToken))
     .is('consumed_at', null)
     .gt('expires_at', new Date().toISOString())
-    .select('league_id, club_id');
+    .select('org_id, org:organizations(kind)');
   const row = data?.[0];
   if (!row) return null;
   return {

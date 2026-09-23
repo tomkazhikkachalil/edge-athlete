@@ -326,7 +326,7 @@ async function findHomeOrg(
       : `golf_course_id.eq.${row.id}`;
     let venues = await admin
       .from('venues')
-      .select('league_id, club_id')
+      .select('org_id, org:organizations(kind)')
       // Both ids are UUIDs (getCatalogRow + the FK), so the filter carries
       // no free text — the guardrail's interpolation advisory doesn't apply.
       .or(filter)
@@ -334,7 +334,7 @@ async function findHomeOrg(
     if (venues.error?.code === '42703' && row.club_id) {
       venues = await admin
         .from('venues')
-        .select('league_id, club_id')
+        .select('org_id, org:organizations(kind)')
         .eq('golf_club_id', row.club_id)
         .limit(5);
     }

@@ -5,6 +5,7 @@ import { signPreviewToken } from '@/lib/org-sites/preview-token';
 import { requireOrgManager } from '@/lib/orgs/structure-server';
 import { UUID_RE } from '@/lib/golf/course-catalog';
 import { reportRouteError } from '@/lib/observability/report';
+import { ORG_ID } from '@/lib/orgs/org-ref';
 
 // ── /api/leagues/[id]/site/preview — mint a draft-preview link ─────────────
 // manage_site gates the mint (B5: the header said manage_org); the signed short-lived token then carries
@@ -29,7 +30,7 @@ export async function POST(
     const { data: site } = await admin
       .from('org_sites')
       .select('id, subdomain')
-      .eq('league_id', id)
+      .eq(ORG_ID, id)
       .maybeSingle();
     if (!site) {
       return NextResponse.json({ error: 'Site not found' }, { status: 404 });

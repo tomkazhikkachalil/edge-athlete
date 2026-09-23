@@ -37,6 +37,7 @@ import { revalidateOrgSiteForCompetition } from '@/lib/org-sites/revalidate';
 import type { CompetitionScope } from './competition-server';
 import { canOverwriteProvenance, stampProvenance, type ResultProvenance } from './provenance';
 import { readSportEventMatchLink } from '@/lib/sport-events/contest-link-server';
+import { ORG_ID, orgIdOf, type OrgKindEmbed, orgKindOf } from './org-ref';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- matches the authz.ts Admin alias; schema-agnostic helper
 type Admin = SupabaseClient<any, 'public', any>;
@@ -49,8 +50,8 @@ export interface CompRow {
   sport_key: string;
   format: string;
   status: string;
-  league_id: string | null;
-  club_id: string | null;
+  org_id: string | null;
+  org?: OrgKindEmbed;
 }
 
 export type CompetitionAccess =
@@ -71,7 +72,7 @@ export async function resolveCompetitionAccess(
   scope: CompetitionScope | null
 ): Promise<Access | null> {
   if (!scope) return { authority: 'owner' };
-  const ownOrgId = scope.side === 'league' ? comp.league_id : comp.club_id;
+  const ownOrgId = orgKindOf(comp) === scope.side ? orgIdOf(comp) : null;
   if (ownOrgId === scope.orgId) return { authority: 'owner' };
   if (scope.side !== 'club') return null;
   const { data: entries } = await admin
@@ -87,7 +88,7 @@ export async function resolveCompetitionAccess(
     .from('teams')
     .select('id')
     .in('id', teamIds)
-    .eq('club_id', scope.orgId);
+    .eq(ORG_ID, scope.orgId);
   const clubTeamIds = new Set((clubTeams ?? []).map(t => t.id as string));
   return clubTeamIds.size > 0 ? { authority: 'participant', clubTeamIds } : null;
 }
@@ -127,7 +128,7 @@ export async function statLinesAggregateGET(
 ): Promise<NextResponse> {
   const { data: comp } = await admin
     .from('competitions')
-    .select('id, name, sport_key, format, status, league_id, club_id')
+    .select('id, name, sport_key, format, status, org_id, org:organizations(kind)')
     .eq('id', competitionId)
     .maybeSingle();
   if (!comp) return NextResponse.json({ error: 'Competition not found' }, { status: 404 });
@@ -285,7 +286,7 @@ export async function statLinesUpsertPOST(
   const { data: contestRow } = await admin
     .from('contests')
     .select(
-      'id, status, scheduled_at, sport_event_round_id, competition:competition_id (id, name, sport_key, format, status, league_id, club_id)'
+      'id, status, scheduled_at, sport_event_round_id, competition:competition_id (id, name, sport_key, format, status, org_id, org:organizations(kind))'
     )
     .eq('id', input.contestId)
     .maybeSingle();
@@ -436,7 +437,7 @@ export async function statLineDELETE(
 ): Promise<NextResponse> {
   const { data: line, error: readError } = await admin
     .from('contest_stat_lines')
-    .select('id, team_id, provenance, contest:contest_id (competition:competition_id (id, name, sport_key, format, status, league_id, club_id))')
+    .select('id, team_id, provenance, contest:contest_id (competition:competition_id (id, name, sport_key, format, status, org_id, org:organizations(kind)))')
     .eq('id', lineId)
     .maybeSingle();
   if (readError && isMissingTableError(readError.code)) {
@@ -482,7 +483,7 @@ export async function externalCompetitionsGET(
   const { data: teams } = await admin
     .from('teams')
     .select('id')
-    .eq('club_id', clubId)
+    .eq(ORG_ID, clubId)
     .limit(200);
   const teamIds = (teams ?? []).map(t => t.id as string);
   if (teamIds.length === 0) return NextResponse.json({ competitions: [] });
@@ -503,12 +504,12 @@ export async function externalCompetitionsGET(
 
   const { data: comps } = await admin
     .from('competitions')
-    .select('id, name, sport_key, format, status, league_id, club_id')
+    .select('id, name, sport_key, format, status, org_id, org:organizations(kind)')
     .in('id', compIds)
     .limit(200);
-  const external = ((comps ?? []) as CompRow[]).filter(c => c.club_id !== clubId);
-  const leagueIds = [...new Set(external.map(c => c.league_id).filter((v): v is string => !!v))];
-  const clubIds = [...new Set(external.map(c => c.club_id).filter((v): v is string => !!v))];
+  const external = ((comps ?? []) as CompRow[]).filter(c => orgIdOf(c) !== clubId);
+  const leagueIds = [...new Set(external.filter(c => orgKindOf(c) === 'league').map(c => orgIdOf(c) as string))];
+  const clubIds = [...new Set(external.filter(c => orgKindOf(c) === 'club').map(c => orgIdOf(c) as string))];
   const [leagueRows, clubRows] = await Promise.all([
     leagueIds.length
       ? admin.from('leagues').select('id, name').in('id', leagueIds)
@@ -528,9 +529,9 @@ export async function externalCompetitionsGET(
         sportKey: c.sport_key,
         format: c.format,
         status: c.status,
-        owner: c.league_id
-          ? { side: 'league', id: c.league_id, name: leagueNames.get(c.league_id) ?? 'League' }
-          : { side: 'club', id: c.club_id!, name: clubNames.get(c.club_id!) ?? 'Club' },
+        owner: orgKindOf(c) === 'league'
+          ? { side: 'league', id: orgIdOf(c) as string, name: leagueNames.get(orgIdOf(c) as string) ?? 'League' }
+          : { side: 'club', id: orgIdOf(c) as string, name: clubNames.get(orgIdOf(c) as string) ?? 'Club' },
       }))
       .sort((a, b) => a.name.localeCompare(b.name)),
   });

@@ -7,6 +7,7 @@ import {
 import { computeProfileTile, type SportStatSchema, type StatLineData } from '../stat-schemas';
 import { PROVENANCE_RANK } from '../provenance-copy';
 import type { SkillCardContribution, SkillProvenance, SkillTile } from './types';
+import { type OrgKindRow, pairFieldsOf } from '@/lib/orgs/org-ref';
 
 // ── Official (org-sourced) athlete stats — phase 4 R2 ───────────────────────
 // The read side of contest_stat_lines: what an athlete's profile shows
@@ -88,7 +89,7 @@ export async function fetchOfficialStatLines(
     const { data: comps } = competitionIds.length
       ? await admin
           .from('competitions')
-          .select('id, name, sport_key, league_id, club_id, visibility')
+          .select('id, name, sport_key, org_id, org:organizations(kind), visibility')
           .in('id', competitionIds)
           .eq('visibility', 'public')
       : { data: [] };
@@ -98,8 +99,8 @@ export async function fetchOfficialStatLines(
         {
           name: c.name as string,
           sportKey: c.sport_key as string,
-          leagueId: (c.league_id as string | null) ?? null,
-          clubId: (c.club_id as string | null) ?? null,
+          leagueId: pairFieldsOf(c as OrgKindRow).league_id,
+          clubId: pairFieldsOf(c as OrgKindRow).club_id,
         },
       ])
     );
@@ -127,14 +128,14 @@ export async function fetchOfficialStatLines(
       ]),
     ];
     const { data: teamRows } = teamIds.length
-      ? await admin.from('teams').select('id, name, display_name, club_id').in('id', teamIds)
+      ? await admin.from('teams').select('id, name, display_name, org_id, org:organizations(kind)').in('id', teamIds)
       : { data: [] };
     const teamById = new Map(
       (teamRows ?? []).map(t => [
         t.id as string,
         {
           name: ((t.display_name as string | null) || (t.name as string)) ?? 'Team',
-          clubId: (t.club_id as string | null) ?? null,
+          clubId: pairFieldsOf(t as OrgKindRow).club_id,
         },
       ])
     );
