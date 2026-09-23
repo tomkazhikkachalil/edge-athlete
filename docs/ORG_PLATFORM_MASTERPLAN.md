@@ -72,6 +72,17 @@ facility            venue_id, name, type, sport_config
                     (a golf course, an ice pad, court 3, field B)
 ```
 
+> **Status (Round 5 steps A–C, Sep 22 2026, migs 231–233):** `organization` is
+> the live `organizations` table — one row per league or club, same ids as
+> the old tables, `kind` (the org's self-description and route family) plus
+> the two capability columns `operates_competitions` / `operates_teams`
+> (`org_capability` stays two columns until a third capability exists).
+> Every table that names an org carries a real `org_id`; `league_id` /
+> `club_id` are kept correct by trigger for readers not yet switched. Step D
+> (the pair dropped, `affiliation` unified from `league_clubs` /
+> `league_affiliations`, `leagues` / `clubs` as views) is parked — see the
+> DEVLOG entry of Sep 22.
+
 `org_capability` replaces a type column. Kanata Minor Hockey operates teams
 (its Blazers play in HEO) and operates competitions (it runs its own house
 league). One org, two capabilities. This is the common case in amateur

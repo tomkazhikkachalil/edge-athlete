@@ -294,6 +294,13 @@ Ranked, with the source finding. Fix deliberately; each is its own change.
   e2e suite refuses prod without a flag; the migration ledger (226) says
   what each environment is at. Vercel Preview + Development → staging (the
   dashboard step in `LAUNCH_RUNBOOK.md` §6). Load tests now have a home.
+  **Capacity (Sep 22 2026):** the staging project is the FREE tier. Vercel
+  preview builds (they pre-render the public ISR pages against it), the CI
+  smoke job and a local e2e run together drain its Disk IO budget; a smoke
+  job left retrying for two hours crashed its auth + REST services. When
+  `auth`/`rest` stay DOWN with no load, the fix is **Restart project** in
+  the Supabase dashboard (the management-API restart is not available to
+  the agent). Run e2e in batches with health waits; never three loads at once.
 - **Observability (Round 1, Sep 21 2026, #858–#861) — DONE:** every API
   route's catch-and-500 reaches Sentry through `reportRouteError`
   (`src/lib/observability/report.ts`, `area:api`); the daily cron reports

@@ -1,9 +1,9 @@
 -- ============================================================================
 -- 000_rebuild — a blank Supabase project → this schema (GENERATED, do not edit)
 -- ============================================================================
--- Generated 2026-09-22T01:47:27.533423+00:00 from server 17.4 by
+-- Generated 2026-09-23T02:24:04.988366+00:00 from server 17.4 by
 -- `npm run build:baseline` (scripts/build-rebuild-baseline.mjs) over
--- public.schema_dump() (migration 227). Ledger head at generation: 228.
+-- public.schema_dump() (migration 227). Ledger head at generation: 233.
 --
 -- WHY THIS FILE: the numbered chain does not replay on a blank database
 -- (database/MIGRATIONS.md, "To build an environment"). This is the live
@@ -36,7 +36,7 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp" WITH SCHEMA extensions;
 -- ── Sequences ─────────────────────────────────────────────────────────────────
 
 
--- ── Functions, pass 1 (107; failures silenced, pass 2 is authoritative) ───────
+-- ── Functions, pass 1 (114; failures silenced, pass 2 is authoritative) ───────
 DO $pass1$ BEGIN
 CREATE OR REPLACE FUNCTION public.auto_update_display_name()
  RETURNS trigger
@@ -729,6 +729,59 @@ BEGIN
   IF EXISTS (SELECT 1 FROM public.profiles WHERE id = affected)
      AND NOT EXISTS (SELECT 1 FROM public.profile_access WHERE profile_id = affected) THEN
     RAISE EXCEPTION 'profile % cannot be left with zero access rows', affected;
+  END IF;
+  RETURN NULL;
+END;
+$function$;
+EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
+END $pass1$;
+DO $pass1$ BEGIN
+CREATE OR REPLACE FUNCTION public.feed_following(p_viewer uuid, p_limit integer, p_cursor_ts timestamp with time zone DEFAULT NULL::timestamp with time zone, p_cursor_id uuid DEFAULT NULL::uuid, p_offset integer DEFAULT 0)
+ RETURNS SETOF uuid
+ LANGUAGE sql
+ STABLE
+ SET search_path TO 'pg_catalog', 'public'
+AS $function$
+  SELECT p.id
+    FROM public.posts p
+   WHERE (p.profile_id = p_viewer
+          OR EXISTS (SELECT 1 FROM public.follows f
+                      WHERE f.follower_id = p_viewer
+                        AND f.following_id = p.profile_id
+                        AND f.status = 'accepted'))
+     AND (p_cursor_ts IS NULL
+          OR p.created_at < p_cursor_ts
+          OR (p.created_at = p_cursor_ts AND p.id < p_cursor_id))
+   ORDER BY p.created_at DESC, p.id DESC
+   LIMIT GREATEST(1, LEAST(p_limit, 101))
+  OFFSET GREATEST(0, p_offset);
+$function$;
+EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
+END $pass1$;
+DO $pass1$ BEGIN
+CREATE OR REPLACE FUNCTION public.follows_counts_sync()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO ''
+AS $function$
+DECLARE
+  old_live boolean := (TG_OP <> 'INSERT') AND (OLD.status = 'accepted');
+  new_live boolean := (TG_OP <> 'DELETE') AND (NEW.status = 'accepted');
+BEGIN
+  -- Only an accepted edge counts. A row that stays accepted but changes
+  -- another column is a no-op; a row that changes its endpoints (never
+  -- done by the app) is handled as remove-then-add.
+  IF old_live AND new_live AND OLD.follower_id = NEW.follower_id AND OLD.following_id = NEW.following_id THEN
+    RETURN NULL;
+  END IF;
+  IF old_live THEN
+    UPDATE public.profiles SET followers_count = GREATEST(0, COALESCE(followers_count, 0) - 1) WHERE id = OLD.following_id;
+    UPDATE public.profiles SET following_count = GREATEST(0, COALESCE(following_count, 0) - 1) WHERE id = OLD.follower_id;
+  END IF;
+  IF new_live THEN
+    UPDATE public.profiles SET followers_count = COALESCE(followers_count, 0) + 1 WHERE id = NEW.following_id;
+    UPDATE public.profiles SET following_count = COALESCE(following_count, 0) + 1 WHERE id = NEW.follower_id;
   END IF;
   RETURN NULL;
 END;
@@ -2367,6 +2420,171 @@ BEGIN
     p_metadata  := jsonb_build_object('tag_id', NEW.id, 'media_id', NEW.media_id)
   );
 
+  RETURN NEW;
+END;
+$function$;
+EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
+END $pass1$;
+DO $pass1$ BEGIN
+CREATE OR REPLACE FUNCTION public.org_pair_sync()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO ''
+AS $function$
+DECLARE k text;
+BEGIN
+  -- An old writer changing the pair on an existing row: the pair wins.
+  IF TG_OP = 'UPDATE' AND NEW.org_id IS NOT DISTINCT FROM OLD.org_id
+     AND (NEW.league_id IS DISTINCT FROM OLD.league_id OR NEW.club_id IS DISTINCT FROM OLD.club_id) THEN
+    NEW.org_id := COALESCE(NEW.league_id, NEW.club_id);
+  END IF;
+  -- A row written with the pair only.
+  IF NEW.org_id IS NULL THEN
+    NEW.org_id := COALESCE(NEW.league_id, NEW.club_id);
+  END IF;
+  -- The pair follows org_id through organizations.kind.
+  IF NEW.org_id IS NULL THEN
+    NEW.league_id := NULL;
+    NEW.club_id := NULL;
+  ELSE
+    SELECT o.kind INTO k FROM public.organizations o WHERE o.id = NEW.org_id;
+    IF k = 'league' THEN
+      NEW.league_id := NEW.org_id; NEW.club_id := NULL;
+    ELSIF k = 'club' THEN
+      NEW.club_id := NEW.org_id; NEW.league_id := NULL;
+    END IF;
+    -- k NULL: the FK refuses the row after us; nothing to decide here.
+  END IF;
+  RETURN NEW;
+END;
+$function$;
+EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
+END $pass1$;
+DO $pass1$ BEGIN
+CREATE OR REPLACE FUNCTION public.organizations_mirror_club()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO ''
+AS $function$
+BEGIN
+  IF pg_trigger_depth() > 1 THEN RETURN NULL; END IF;
+  IF TG_OP = 'DELETE' THEN
+    DELETE FROM public.organizations WHERE id = OLD.id AND kind = 'club';
+    RETURN OLD;
+  END IF;
+  INSERT INTO public.organizations (id, kind, name, description, sport_key, owner_profile_id, place_id, city, region, region_code, country, country_code, lat, lng, location_source, location,
+                                    operates_competitions, operates_teams, approved_at, visibility, join_policy, listing_status, created_at, updated_at)
+  VALUES (NEW.id, 'club', NEW.name, NEW.description, NEW.primary_sport, NEW.owner_profile_id, NEW.place_id, NEW.city, NEW.region, NEW.region_code, NEW.country, NEW.country_code, NEW.lat, NEW.lng, NEW.location_source, NEW.location,
+          NEW.operates_competitions, NEW.operates_teams, NEW.approved_at, NEW.visibility, NEW.join_policy, NEW.listing_status, NEW.created_at, NEW.updated_at)
+  ON CONFLICT (id) DO UPDATE SET
+    kind = EXCLUDED.kind, name = EXCLUDED.name, description = EXCLUDED.description, sport_key = EXCLUDED.sport_key,
+    owner_profile_id = EXCLUDED.owner_profile_id, place_id = EXCLUDED.place_id, city = EXCLUDED.city, region = EXCLUDED.region,
+    region_code = EXCLUDED.region_code, country = EXCLUDED.country, country_code = EXCLUDED.country_code, lat = EXCLUDED.lat, lng = EXCLUDED.lng,
+    location_source = EXCLUDED.location_source, location = EXCLUDED.location, operates_competitions = EXCLUDED.operates_competitions, operates_teams = EXCLUDED.operates_teams,
+    approved_at = EXCLUDED.approved_at, visibility = EXCLUDED.visibility, join_policy = EXCLUDED.join_policy, listing_status = EXCLUDED.listing_status,
+    updated_at = EXCLUDED.updated_at;
+  RETURN NEW;
+END;
+$function$;
+EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
+END $pass1$;
+DO $pass1$ BEGIN
+CREATE OR REPLACE FUNCTION public.organizations_mirror_league()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO ''
+AS $function$
+BEGIN
+  IF pg_trigger_depth() > 1 THEN RETURN NULL; END IF;
+  IF TG_OP = 'DELETE' THEN
+    DELETE FROM public.organizations WHERE id = OLD.id AND kind = 'league';
+    RETURN OLD;
+  END IF;
+  INSERT INTO public.organizations (id, kind, name, description, sport_key, owner_profile_id, place_id, city, region, region_code, country, country_code, lat, lng, location_source, location,
+                                    operates_competitions, operates_teams, approved_at, visibility, join_policy, listing_status, created_at, updated_at)
+  VALUES (NEW.id, 'league', NEW.name, NEW.description, NEW.sport_key, NEW.owner_profile_id, NEW.place_id, NEW.city, NEW.region, NEW.region_code, NEW.country, NEW.country_code, NEW.lat, NEW.lng, NEW.location_source, NULL,
+          NEW.operates_competitions, NEW.operates_teams, NEW.approved_at, NEW.visibility, NEW.join_policy, NEW.listing_status, NEW.created_at, NEW.updated_at)
+  ON CONFLICT (id) DO UPDATE SET
+    kind = EXCLUDED.kind, name = EXCLUDED.name, description = EXCLUDED.description, sport_key = EXCLUDED.sport_key,
+    owner_profile_id = EXCLUDED.owner_profile_id, place_id = EXCLUDED.place_id, city = EXCLUDED.city, region = EXCLUDED.region,
+    region_code = EXCLUDED.region_code, country = EXCLUDED.country, country_code = EXCLUDED.country_code, lat = EXCLUDED.lat, lng = EXCLUDED.lng,
+    location_source = EXCLUDED.location_source, operates_competitions = EXCLUDED.operates_competitions, operates_teams = EXCLUDED.operates_teams,
+    approved_at = EXCLUDED.approved_at, visibility = EXCLUDED.visibility, join_policy = EXCLUDED.join_policy, listing_status = EXCLUDED.listing_status,
+    updated_at = EXCLUDED.updated_at;
+  RETURN NEW;
+END;
+$function$;
+EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
+END $pass1$;
+DO $pass1$ BEGIN
+CREATE OR REPLACE FUNCTION public.organizations_mirror_sources()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO ''
+AS $function$
+BEGIN
+  IF pg_trigger_depth() > 1 THEN RETURN NULL; END IF;
+  IF TG_OP = 'DELETE' THEN
+    IF OLD.kind = 'league' THEN DELETE FROM public.leagues WHERE id = OLD.id; ELSE DELETE FROM public.clubs WHERE id = OLD.id; END IF;
+    RETURN OLD;
+  END IF;
+  IF TG_OP = 'UPDATE' AND NEW.kind <> OLD.kind THEN
+    RAISE EXCEPTION 'organizations.kind is immutable (% → %)', OLD.kind, NEW.kind USING ERRCODE = 'check_violation';
+  END IF;
+  IF NEW.kind = 'league' THEN
+    IF NEW.sport_key IS NULL THEN
+      RAISE EXCEPTION 'a league needs a sport_key' USING ERRCODE = 'not_null_violation';
+    END IF;
+    INSERT INTO public.leagues (id, name, description, sport_key, owner_profile_id, place_id, city, region, region_code, country, country_code, lat, lng, location_source,
+                                operates_competitions, operates_teams, approved_at, visibility, join_policy, listing_status, created_at, updated_at)
+    VALUES (NEW.id, NEW.name, NEW.description, NEW.sport_key, NEW.owner_profile_id, NEW.place_id, NEW.city, NEW.region, NEW.region_code, NEW.country, NEW.country_code, NEW.lat, NEW.lng, NEW.location_source,
+            NEW.operates_competitions, NEW.operates_teams, NEW.approved_at, NEW.visibility, NEW.join_policy, NEW.listing_status, NEW.created_at, NEW.updated_at)
+    ON CONFLICT (id) DO UPDATE SET
+      name = EXCLUDED.name, description = EXCLUDED.description, sport_key = EXCLUDED.sport_key,
+      owner_profile_id = EXCLUDED.owner_profile_id, place_id = EXCLUDED.place_id, city = EXCLUDED.city, region = EXCLUDED.region,
+      region_code = EXCLUDED.region_code, country = EXCLUDED.country, country_code = EXCLUDED.country_code, lat = EXCLUDED.lat, lng = EXCLUDED.lng,
+      location_source = EXCLUDED.location_source, operates_competitions = EXCLUDED.operates_competitions, operates_teams = EXCLUDED.operates_teams,
+      approved_at = EXCLUDED.approved_at, visibility = EXCLUDED.visibility, join_policy = EXCLUDED.join_policy, listing_status = EXCLUDED.listing_status,
+      updated_at = EXCLUDED.updated_at;
+  ELSE
+    INSERT INTO public.clubs (id, name, description, location, primary_sport, owner_profile_id, place_id, city, region, region_code, country, country_code, lat, lng, location_source,
+                              operates_competitions, operates_teams, approved_at, visibility, join_policy, listing_status, created_at, updated_at)
+    VALUES (NEW.id, NEW.name, NEW.description, NEW.location, NEW.sport_key, NEW.owner_profile_id, NEW.place_id, NEW.city, NEW.region, NEW.region_code, NEW.country, NEW.country_code, NEW.lat, NEW.lng, NEW.location_source,
+            NEW.operates_competitions, NEW.operates_teams, NEW.approved_at, NEW.visibility, NEW.join_policy, NEW.listing_status, NEW.created_at, NEW.updated_at)
+    ON CONFLICT (id) DO UPDATE SET
+      name = EXCLUDED.name, description = EXCLUDED.description, location = EXCLUDED.location, primary_sport = EXCLUDED.primary_sport,
+      owner_profile_id = EXCLUDED.owner_profile_id, place_id = EXCLUDED.place_id, city = EXCLUDED.city, region = EXCLUDED.region,
+      region_code = EXCLUDED.region_code, country = EXCLUDED.country, country_code = EXCLUDED.country_code, lat = EXCLUDED.lat, lng = EXCLUDED.lng,
+      location_source = EXCLUDED.location_source, operates_competitions = EXCLUDED.operates_competitions, operates_teams = EXCLUDED.operates_teams,
+      approved_at = EXCLUDED.approved_at, visibility = EXCLUDED.visibility, join_policy = EXCLUDED.join_policy, listing_status = EXCLUDED.listing_status,
+      updated_at = EXCLUDED.updated_at;
+  END IF;
+  RETURN NEW;
+END;
+$function$;
+EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
+END $pass1$;
+DO $pass1$ BEGIN
+CREATE OR REPLACE FUNCTION public.organizations_search_vector_update()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public', 'extensions'
+AS $function$
+BEGIN
+  NEW.search_vector :=
+    setweight(to_tsvector('simple', public.search_normalize(NEW.name)), 'A') ||
+    setweight(to_tsvector('simple', public.search_normalize(NEW.description)), 'B') ||
+    setweight(to_tsvector('simple', public.search_normalize(
+      concat_ws(' ', NEW.city, NEW.sport_key, NEW.location))), 'C') ||
+    setweight(to_tsvector('simple', public.search_normalize(
+      concat_ws(' ', NEW.region, NEW.region_code, NEW.country, NEW.country_code))), 'D') ||
+    setweight(to_tsvector('simple', public.search_normalize(
+      public.place_context(NEW.place_id))), 'D');
   RETURN NEW;
 END;
 $function$;
@@ -3948,7 +4166,7 @@ $function$;
 EXCEPTION WHEN OTHERS THEN NULL; -- created by pass 2
 END $pass1$;
 
--- ── Tables (122) ──────────────────────────────────────────────────────────────
+-- ── Tables (123) ──────────────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS public.approved_contacts (
   id uuid DEFAULT gen_random_uuid() NOT NULL,
   child_profile_id uuid NOT NULL,
@@ -3986,7 +4204,8 @@ CREATE TABLE IF NOT EXISTS public.athlete_claim_invites (
   expires_at timestamp with time zone NOT NULL,
   consumed_at timestamp with time zone,
   consumed_by uuid,
-  created_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL
+  created_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL,
+  org_id uuid
 );
 
 CREATE TABLE IF NOT EXISTS public.athlete_equipment (
@@ -4172,7 +4391,8 @@ CREATE TABLE IF NOT EXISTS public.competitions (
   visibility text DEFAULT 'private'::text NOT NULL,
   created_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL,
   updated_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL,
-  config jsonb DEFAULT '{}'::jsonb NOT NULL
+  config jsonb DEFAULT '{}'::jsonb NOT NULL,
+  org_id uuid NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS public.connection_suggestions (
@@ -4331,7 +4551,8 @@ CREATE TABLE IF NOT EXISTS public.divisions (
   gender_stream text,
   tier text,
   capacity_estimate integer,
-  created_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL
+  created_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL,
+  org_id uuid NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS public.event_carpool_claims (
@@ -4403,7 +4624,8 @@ CREATE TABLE IF NOT EXISTS public.events (
   venue_id uuid,
   facility_id uuid,
   division_id uuid,
-  team_id uuid
+  team_id uuid,
+  org_id uuid
 );
 
 CREATE TABLE IF NOT EXISTS public.facilities (
@@ -4760,7 +4982,8 @@ CREATE TABLE IF NOT EXISTS public.memberships (
   sections text[],
   granted_by uuid,
   granted_at timestamp with time zone,
-  expires_at timestamp with time zone
+  expires_at timestamp with time zone,
+  org_id uuid NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS public.message_reactions (
@@ -4853,7 +5076,8 @@ CREATE TABLE IF NOT EXISTS public.org_claim_invites (
   expires_at timestamp with time zone NOT NULL,
   consumed_at timestamp with time zone,
   consumed_by uuid,
-  created_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL
+  created_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL,
+  org_id uuid NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS public.org_site_form_submissions (
@@ -4957,7 +5181,8 @@ CREATE TABLE IF NOT EXISTS public.org_sites (
   draft_revision_id uuid,
   published_revision_id uuid,
   seo_config jsonb DEFAULT '{}'::jsonb NOT NULL,
-  footer_config jsonb DEFAULT '{}'::jsonb NOT NULL
+  footer_config jsonb DEFAULT '{}'::jsonb NOT NULL,
+  org_id uuid NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS public.org_staff_audit (
@@ -4973,7 +5198,8 @@ CREATE TABLE IF NOT EXISTS public.org_staff_audit (
   season_id uuid,
   old_sections text[],
   new_sections text[],
-  created_at timestamp with time zone DEFAULT now() NOT NULL
+  created_at timestamp with time zone DEFAULT now() NOT NULL,
+  org_id uuid
 );
 
 CREATE TABLE IF NOT EXISTS public.org_staff_invites (
@@ -4992,7 +5218,36 @@ CREATE TABLE IF NOT EXISTS public.org_staff_invites (
   consumed_at timestamp with time zone,
   consumed_by uuid,
   revoked_at timestamp with time zone,
-  created_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL
+  created_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL,
+  org_id uuid NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS public.organizations (
+  id uuid DEFAULT gen_random_uuid() NOT NULL,
+  kind text NOT NULL,
+  name text NOT NULL,
+  description text,
+  sport_key text,
+  owner_profile_id uuid,
+  place_id uuid,
+  city text,
+  region text,
+  region_code text,
+  country text,
+  country_code text,
+  lat double precision,
+  lng double precision,
+  location_source text,
+  location text,
+  search_vector tsvector,
+  operates_competitions boolean DEFAULT false NOT NULL,
+  operates_teams boolean DEFAULT false NOT NULL,
+  approved_at timestamp with time zone DEFAULT now(),
+  visibility text DEFAULT 'public'::text NOT NULL,
+  join_policy text DEFAULT 'open'::text NOT NULL,
+  listing_status text DEFAULT 'listed'::text NOT NULL,
+  created_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL,
+  updated_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS public.pending_profiles (
@@ -5274,7 +5529,9 @@ CREATE TABLE IF NOT EXISTS public.profiles (
   scout_affiliation text,
   moderation_state text DEFAULT 'active'::text,
   moderation_until timestamp with time zone,
-  moderation_ticket_id uuid
+  moderation_ticket_id uuid,
+  followers_count integer DEFAULT 0,
+  following_count integer DEFAULT 0
 );
 
 CREATE TABLE IF NOT EXISTS public.programs (
@@ -5304,7 +5561,8 @@ CREATE TABLE IF NOT EXISTS public.registration_windows (
   closes_at timestamp with time zone,
   capacity integer,
   created_by uuid,
-  created_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL
+  created_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL,
+  org_id uuid NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS public.registrations (
@@ -5323,7 +5581,8 @@ CREATE TABLE IF NOT EXISTS public.registrations (
   withdrawn_at timestamp with time zone,
   released_at timestamp with time zone,
   released_by uuid,
-  released_reason text
+  released_reason text,
+  org_id uuid NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS public.reserved_handles (
@@ -5430,7 +5689,8 @@ CREATE TABLE IF NOT EXISTS public.seasons (
   sport_key text,
   created_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL,
   updated_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL,
-  archived_at timestamp with time zone
+  archived_at timestamp with time zone,
+  org_id uuid NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS public.sport_event_group_members (
@@ -5567,7 +5827,8 @@ CREATE TABLE IF NOT EXISTS public.sport_events (
   format_config jsonb DEFAULT '{}'::jsonb NOT NULL,
   self_entry boolean DEFAULT true NOT NULL,
   shape text DEFAULT 'round'::text NOT NULL,
-  competition_id uuid
+  competition_id uuid,
+  org_id uuid
 );
 
 CREATE TABLE IF NOT EXISTS public.sport_settings (
@@ -5603,7 +5864,8 @@ CREATE TABLE IF NOT EXISTS public.teams (
   display_name text,
   status text DEFAULT 'active'::text NOT NULL,
   created_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL,
-  updated_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL
+  updated_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL,
+  org_id uuid NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS public.ticket_events (
@@ -5691,7 +5953,8 @@ CREATE TABLE IF NOT EXISTS public.venues (
   lng double precision,
   created_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL,
   updated_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL,
-  golf_course_id uuid
+  golf_course_id uuid,
+  org_id uuid
 );
 
 CREATE TABLE IF NOT EXISTS public.waitlist (
@@ -6119,6 +6382,11 @@ DO $$ BEGIN
   END IF;
 END $$;
 DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'organizations_pkey' AND conrelid = 'public.organizations'::regclass) THEN
+    ALTER TABLE public.organizations ADD CONSTRAINT organizations_pkey PRIMARY KEY (id);
+  END IF;
+END $$;
+DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'pending_profiles_pkey' AND conrelid = 'public.pending_profiles'::regclass) THEN
     ALTER TABLE public.pending_profiles ADD CONSTRAINT pending_profiles_pkey PRIMARY KEY (id);
   END IF;
@@ -6425,7 +6693,7 @@ DO $$ BEGIN
 END $$;
 DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'competitions_org_season_name_uniq' AND conrelid = 'public.competitions'::regclass) THEN
-    ALTER TABLE public.competitions ADD CONSTRAINT competitions_org_season_name_uniq UNIQUE NULLS NOT DISTINCT (league_id, club_id, season_id, name);
+    ALTER TABLE public.competitions ADD CONSTRAINT competitions_org_season_name_uniq UNIQUE NULLS NOT DISTINCT (org_id, season_id, name);
   END IF;
 END $$;
 DO $$ BEGIN
@@ -6535,7 +6803,7 @@ DO $$ BEGIN
 END $$;
 DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'memberships_uniq' AND conrelid = 'public.memberships'::regclass) THEN
-    ALTER TABLE public.memberships ADD CONSTRAINT memberships_uniq UNIQUE NULLS NOT DISTINCT (league_id, club_id, profile_id, kind, scope_type, scope_id, season_id);
+    ALTER TABLE public.memberships ADD CONSTRAINT memberships_uniq UNIQUE NULLS NOT DISTINCT (org_id, profile_id, kind, scope_type, scope_id, season_id);
   END IF;
 END $$;
 DO $$ BEGIN
@@ -6615,12 +6883,12 @@ DO $$ BEGIN
 END $$;
 DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'reg_windows_uniq' AND conrelid = 'public.registration_windows'::regclass) THEN
-    ALTER TABLE public.registration_windows ADD CONSTRAINT reg_windows_uniq UNIQUE NULLS NOT DISTINCT (league_id, club_id, season_id, division_id, program_id);
+    ALTER TABLE public.registration_windows ADD CONSTRAINT reg_windows_uniq UNIQUE NULLS NOT DISTINCT (org_id, season_id, division_id, program_id);
   END IF;
 END $$;
 DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'registrations_uniq' AND conrelid = 'public.registrations'::regclass) THEN
-    ALTER TABLE public.registrations ADD CONSTRAINT registrations_uniq UNIQUE NULLS NOT DISTINCT (league_id, club_id, profile_id, season_id, division_id, program_id);
+    ALTER TABLE public.registrations ADD CONSTRAINT registrations_uniq UNIQUE NULLS NOT DISTINCT (org_id, profile_id, season_id, division_id, program_id);
   END IF;
 END $$;
 DO $$ BEGIN
@@ -6640,7 +6908,7 @@ DO $$ BEGIN
 END $$;
 DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'seasons_org_label_uniq' AND conrelid = 'public.seasons'::regclass) THEN
-    ALTER TABLE public.seasons ADD CONSTRAINT seasons_org_label_uniq UNIQUE NULLS NOT DISTINCT (league_id, club_id, label);
+    ALTER TABLE public.seasons ADD CONSTRAINT seasons_org_label_uniq UNIQUE (org_id, label);
   END IF;
 END $$;
 DO $$ BEGIN
@@ -6700,7 +6968,7 @@ DO $$ BEGIN
 END $$;
 DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'teams_org_name_uniq' AND conrelid = 'public.teams'::regclass) THEN
-    ALTER TABLE public.teams ADD CONSTRAINT teams_org_name_uniq UNIQUE NULLS NOT DISTINCT (league_id, club_id, name);
+    ALTER TABLE public.teams ADD CONSTRAINT teams_org_name_uniq UNIQUE (org_id, name);
   END IF;
 END $$;
 DO $$ BEGIN
@@ -7459,6 +7727,26 @@ DO $$ BEGIN
   END IF;
 END $$;
 DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'organizations_join_policy_check' AND conrelid = 'public.organizations'::regclass) THEN
+    ALTER TABLE public.organizations ADD CONSTRAINT organizations_join_policy_check CHECK ((join_policy = ANY (ARRAY['open'::text, 'approval'::text])));
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'organizations_kind_check' AND conrelid = 'public.organizations'::regclass) THEN
+    ALTER TABLE public.organizations ADD CONSTRAINT organizations_kind_check CHECK ((kind = ANY (ARRAY['league'::text, 'club'::text])));
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'organizations_listing_status_check' AND conrelid = 'public.organizations'::regclass) THEN
+    ALTER TABLE public.organizations ADD CONSTRAINT organizations_listing_status_check CHECK ((listing_status = ANY (ARRAY['unlisted'::text, 'pending'::text, 'listed'::text])));
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'organizations_visibility_check' AND conrelid = 'public.organizations'::regclass) THEN
+    ALTER TABLE public.organizations ADD CONSTRAINT organizations_visibility_check CHECK ((visibility = ANY (ARRAY['public'::text, 'private'::text])));
+  END IF;
+END $$;
+DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'pending_profiles_state_check' AND conrelid = 'public.pending_profiles'::regclass) THEN
     ALTER TABLE public.pending_profiles ADD CONSTRAINT pending_profiles_state_check CHECK ((state = ANY (ARRAY['awaiting_guardian'::text, 'consent_pending'::text, 'approved'::text, 'rejected'::text, 'expired'::text])));
   END IF;
@@ -8186,6 +8474,11 @@ DO $$ BEGIN
   END IF;
 END $$;
 DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'athlete_claim_invites_org_id_fkey' AND conrelid = 'public.athlete_claim_invites'::regclass) THEN
+    ALTER TABLE public.athlete_claim_invites ADD CONSTRAINT athlete_claim_invites_org_id_fkey FOREIGN KEY (org_id) REFERENCES organizations(id);
+  END IF;
+END $$;
+DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'athlete_claim_invites_profile_id_fkey' AND conrelid = 'public.athlete_claim_invites'::regclass) THEN
     ALTER TABLE public.athlete_claim_invites ADD CONSTRAINT athlete_claim_invites_profile_id_fkey FOREIGN KEY (profile_id) REFERENCES profiles(id) ON DELETE CASCADE;
   END IF;
@@ -8333,6 +8626,11 @@ END $$;
 DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'competitions_league_id_fkey' AND conrelid = 'public.competitions'::regclass) THEN
     ALTER TABLE public.competitions ADD CONSTRAINT competitions_league_id_fkey FOREIGN KEY (league_id) REFERENCES leagues(id) ON DELETE CASCADE;
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'competitions_org_id_fkey' AND conrelid = 'public.competitions'::regclass) THEN
+    ALTER TABLE public.competitions ADD CONSTRAINT competitions_org_id_fkey FOREIGN KEY (org_id) REFERENCES organizations(id);
   END IF;
 END $$;
 DO $$ BEGIN
@@ -8511,6 +8809,11 @@ DO $$ BEGIN
   END IF;
 END $$;
 DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'divisions_org_id_fkey' AND conrelid = 'public.divisions'::regclass) THEN
+    ALTER TABLE public.divisions ADD CONSTRAINT divisions_org_id_fkey FOREIGN KEY (org_id) REFERENCES organizations(id);
+  END IF;
+END $$;
+DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'divisions_season_id_fkey' AND conrelid = 'public.divisions'::regclass) THEN
     ALTER TABLE public.divisions ADD CONSTRAINT divisions_season_id_fkey FOREIGN KEY (season_id) REFERENCES seasons(id) ON DELETE CASCADE;
   END IF;
@@ -8573,6 +8876,11 @@ END $$;
 DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'events_league_id_fkey' AND conrelid = 'public.events'::regclass) THEN
     ALTER TABLE public.events ADD CONSTRAINT events_league_id_fkey FOREIGN KEY (league_id) REFERENCES leagues(id) ON DELETE SET NULL;
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'events_org_id_fkey' AND conrelid = 'public.events'::regclass) THEN
+    ALTER TABLE public.events ADD CONSTRAINT events_org_id_fkey FOREIGN KEY (org_id) REFERENCES organizations(id);
   END IF;
 END $$;
 DO $$ BEGIN
@@ -8846,6 +9154,11 @@ DO $$ BEGIN
   END IF;
 END $$;
 DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'memberships_org_id_fkey' AND conrelid = 'public.memberships'::regclass) THEN
+    ALTER TABLE public.memberships ADD CONSTRAINT memberships_org_id_fkey FOREIGN KEY (org_id) REFERENCES organizations(id);
+  END IF;
+END $$;
+DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'memberships_photo_consent_by_fkey' AND conrelid = 'public.memberships'::regclass) THEN
     ALTER TABLE public.memberships ADD CONSTRAINT memberships_photo_consent_by_fkey FOREIGN KEY (photo_consent_by) REFERENCES profiles(id) ON DELETE SET NULL;
   END IF;
@@ -8966,6 +9279,11 @@ DO $$ BEGIN
   END IF;
 END $$;
 DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'org_claim_invites_org_id_fkey' AND conrelid = 'public.org_claim_invites'::regclass) THEN
+    ALTER TABLE public.org_claim_invites ADD CONSTRAINT org_claim_invites_org_id_fkey FOREIGN KEY (org_id) REFERENCES organizations(id);
+  END IF;
+END $$;
+DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'org_site_form_submissions_site_id_fkey' AND conrelid = 'public.org_site_form_submissions'::regclass) THEN
     ALTER TABLE public.org_site_form_submissions ADD CONSTRAINT org_site_form_submissions_site_id_fkey FOREIGN KEY (site_id) REFERENCES org_sites(id) ON DELETE CASCADE;
   END IF;
@@ -9026,6 +9344,11 @@ DO $$ BEGIN
   END IF;
 END $$;
 DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'org_sites_org_id_fkey' AND conrelid = 'public.org_sites'::regclass) THEN
+    ALTER TABLE public.org_sites ADD CONSTRAINT org_sites_org_id_fkey FOREIGN KEY (org_id) REFERENCES organizations(id);
+  END IF;
+END $$;
+DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'org_sites_published_revision_id_fkey' AND conrelid = 'public.org_sites'::regclass) THEN
     ALTER TABLE public.org_sites ADD CONSTRAINT org_sites_published_revision_id_fkey FOREIGN KEY (published_revision_id) REFERENCES org_site_revisions(id) ON DELETE SET NULL;
   END IF;
@@ -9051,8 +9374,23 @@ DO $$ BEGIN
   END IF;
 END $$;
 DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'org_staff_invites_org_id_fkey' AND conrelid = 'public.org_staff_invites'::regclass) THEN
+    ALTER TABLE public.org_staff_invites ADD CONSTRAINT org_staff_invites_org_id_fkey FOREIGN KEY (org_id) REFERENCES organizations(id);
+  END IF;
+END $$;
+DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'org_staff_invites_season_id_fkey' AND conrelid = 'public.org_staff_invites'::regclass) THEN
     ALTER TABLE public.org_staff_invites ADD CONSTRAINT org_staff_invites_season_id_fkey FOREIGN KEY (season_id) REFERENCES seasons(id) ON DELETE CASCADE;
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'organizations_owner_profile_id_fkey' AND conrelid = 'public.organizations'::regclass) THEN
+    ALTER TABLE public.organizations ADD CONSTRAINT organizations_owner_profile_id_fkey FOREIGN KEY (owner_profile_id) REFERENCES profiles(id) ON DELETE SET NULL;
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'organizations_place_id_fkey' AND conrelid = 'public.organizations'::regclass) THEN
+    ALTER TABLE public.organizations ADD CONSTRAINT organizations_place_id_fkey FOREIGN KEY (place_id) REFERENCES places(id) ON DELETE SET NULL;
   END IF;
 END $$;
 DO $$ BEGIN
@@ -9256,6 +9594,11 @@ DO $$ BEGIN
   END IF;
 END $$;
 DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'registration_windows_org_id_fkey' AND conrelid = 'public.registration_windows'::regclass) THEN
+    ALTER TABLE public.registration_windows ADD CONSTRAINT registration_windows_org_id_fkey FOREIGN KEY (org_id) REFERENCES organizations(id);
+  END IF;
+END $$;
+DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'registration_windows_program_id_fkey' AND conrelid = 'public.registration_windows'::regclass) THEN
     ALTER TABLE public.registration_windows ADD CONSTRAINT registration_windows_program_id_fkey FOREIGN KEY (program_id) REFERENCES programs(id) ON DELETE CASCADE;
   END IF;
@@ -9278,6 +9621,11 @@ END $$;
 DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'registrations_league_id_fkey' AND conrelid = 'public.registrations'::regclass) THEN
     ALTER TABLE public.registrations ADD CONSTRAINT registrations_league_id_fkey FOREIGN KEY (league_id) REFERENCES leagues(id) ON DELETE CASCADE;
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'registrations_org_id_fkey' AND conrelid = 'public.registrations'::regclass) THEN
+    ALTER TABLE public.registrations ADD CONSTRAINT registrations_org_id_fkey FOREIGN KEY (org_id) REFERENCES organizations(id);
   END IF;
 END $$;
 DO $$ BEGIN
@@ -9353,6 +9701,11 @@ END $$;
 DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'seasons_league_id_fkey' AND conrelid = 'public.seasons'::regclass) THEN
     ALTER TABLE public.seasons ADD CONSTRAINT seasons_league_id_fkey FOREIGN KEY (league_id) REFERENCES leagues(id) ON DELETE CASCADE;
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'seasons_org_id_fkey' AND conrelid = 'public.seasons'::regclass) THEN
+    ALTER TABLE public.seasons ADD CONSTRAINT seasons_org_id_fkey FOREIGN KEY (org_id) REFERENCES organizations(id);
   END IF;
 END $$;
 DO $$ BEGIN
@@ -9476,6 +9829,11 @@ DO $$ BEGIN
   END IF;
 END $$;
 DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'sport_events_org_id_fkey' AND conrelid = 'public.sport_events'::regclass) THEN
+    ALTER TABLE public.sport_events ADD CONSTRAINT sport_events_org_id_fkey FOREIGN KEY (org_id) REFERENCES organizations(id);
+  END IF;
+END $$;
+DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'sport_settings_profile_id_fkey' AND conrelid = 'public.sport_settings'::regclass) THEN
     ALTER TABLE public.sport_settings ADD CONSTRAINT sport_settings_profile_id_fkey FOREIGN KEY (profile_id) REFERENCES profiles(id) ON DELETE CASCADE;
   END IF;
@@ -9503,6 +9861,11 @@ END $$;
 DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'teams_league_id_fkey' AND conrelid = 'public.teams'::regclass) THEN
     ALTER TABLE public.teams ADD CONSTRAINT teams_league_id_fkey FOREIGN KEY (league_id) REFERENCES leagues(id) ON DELETE CASCADE;
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'teams_org_id_fkey' AND conrelid = 'public.teams'::regclass) THEN
+    ALTER TABLE public.teams ADD CONSTRAINT teams_org_id_fkey FOREIGN KEY (org_id) REFERENCES organizations(id);
   END IF;
 END $$;
 DO $$ BEGIN
@@ -9581,6 +9944,11 @@ DO $$ BEGIN
   END IF;
 END $$;
 DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'venues_org_id_fkey' AND conrelid = 'public.venues'::regclass) THEN
+    ALTER TABLE public.venues ADD CONSTRAINT venues_org_id_fkey FOREIGN KEY (org_id) REFERENCES organizations(id);
+  END IF;
+END $$;
+DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'venues_place_id_fkey' AND conrelid = 'public.venues'::regclass) THEN
     ALTER TABLE public.venues ADD CONSTRAINT venues_place_id_fkey FOREIGN KEY (place_id) REFERENCES places(id) ON DELETE SET NULL;
   END IF;
@@ -9633,6 +10001,7 @@ END $$;
 
 -- ── Indexes ───────────────────────────────────────────────────────────────────
 CREATE INDEX IF NOT EXISTS idx_achievements_profile_date ON public.athlete_achievements USING btree (profile_id, achieved_on DESC);
+CREATE INDEX IF NOT EXISTS idx_athlete_claim_invites_org ON public.athlete_claim_invites USING btree (org_id) WHERE (org_id IS NOT NULL);
 CREATE INDEX IF NOT EXISTS idx_athlete_claim_invites_profile ON public.athlete_claim_invites USING btree (profile_id) WHERE (consumed_at IS NULL);
 CREATE INDEX IF NOT EXISTS idx_equipment_category ON public.athlete_equipment USING btree (category);
 CREATE INDEX IF NOT EXISTS idx_equipment_profile ON public.athlete_equipment USING btree (profile_id);
@@ -9672,6 +10041,7 @@ CREATE INDEX IF NOT EXISTS idx_competition_standings_rank ON public.competition_
 CREATE INDEX IF NOT EXISTS idx_competitions_club_id ON public.competitions USING btree (club_id) WHERE (club_id IS NOT NULL);
 CREATE INDEX IF NOT EXISTS idx_competitions_division ON public.competitions USING btree (division_id) WHERE (division_id IS NOT NULL);
 CREATE INDEX IF NOT EXISTS idx_competitions_league_id ON public.competitions USING btree (league_id) WHERE (league_id IS NOT NULL);
+CREATE INDEX IF NOT EXISTS idx_competitions_org ON public.competitions USING btree (org_id);
 CREATE INDEX IF NOT EXISTS idx_competitions_season ON public.competitions USING btree (season_id);
 CREATE INDEX IF NOT EXISTS idx_connection_suggestions_dismissed ON public.connection_suggestions USING btree (profile_id, dismissed) WHERE (dismissed = true);
 CREATE INDEX IF NOT EXISTS idx_connection_suggestions_profile ON public.connection_suggestions USING btree (profile_id);
@@ -9700,6 +10070,7 @@ CREATE INDEX IF NOT EXISTS idx_cp_profile_active ON public.conversation_particip
 CREATE INDEX IF NOT EXISTS idx_conversations_updated ON public.conversations USING btree (updated_at DESC);
 CREATE INDEX IF NOT EXISTS idx_divisions_club_id ON public.divisions USING btree (club_id) WHERE (club_id IS NOT NULL);
 CREATE INDEX IF NOT EXISTS idx_divisions_league_id ON public.divisions USING btree (league_id) WHERE (league_id IS NOT NULL);
+CREATE INDEX IF NOT EXISTS idx_divisions_org ON public.divisions USING btree (org_id);
 CREATE INDEX IF NOT EXISTS idx_divisions_season ON public.divisions USING btree (season_id);
 CREATE INDEX IF NOT EXISTS idx_carpool_claims_offer ON public.event_carpool_claims USING btree (offer_id);
 CREATE INDEX IF NOT EXISTS idx_carpool_offers_event ON public.event_carpool_offers USING btree (event_id);
@@ -9711,6 +10082,7 @@ CREATE INDEX IF NOT EXISTS idx_events_club_starts ON public.events USING btree (
 CREATE INDEX IF NOT EXISTS idx_events_division_starts ON public.events USING btree (division_id, starts_at) WHERE (division_id IS NOT NULL);
 CREATE INDEX IF NOT EXISTS idx_events_facility_id ON public.events USING btree (facility_id) WHERE (facility_id IS NOT NULL);
 CREATE INDEX IF NOT EXISTS idx_events_league_starts ON public.events USING btree (league_id, starts_at) WHERE (league_id IS NOT NULL);
+CREATE INDEX IF NOT EXISTS idx_events_org ON public.events USING btree (org_id) WHERE (org_id IS NOT NULL);
 CREATE INDEX IF NOT EXISTS idx_events_organizer ON public.events USING btree (organizer_id, starts_at);
 CREATE INDEX IF NOT EXISTS idx_events_routine_id ON public.events USING btree (routine_id) WHERE (routine_id IS NOT NULL);
 CREATE INDEX IF NOT EXISTS idx_events_series ON public.events USING btree (series_id, starts_at) WHERE (series_id IS NOT NULL);
@@ -9783,6 +10155,7 @@ CREATE INDEX IF NOT EXISTS leagues_listing_idx ON public.leagues USING btree (li
 CREATE INDEX IF NOT EXISTS leagues_pending_idx ON public.leagues USING btree (created_at) WHERE (approved_at IS NULL);
 CREATE INDEX IF NOT EXISTS idx_memberships_club ON public.memberships USING btree (club_id, profile_id);
 CREATE INDEX IF NOT EXISTS idx_memberships_league ON public.memberships USING btree (league_id, profile_id);
+CREATE INDEX IF NOT EXISTS idx_memberships_org ON public.memberships USING btree (org_id);
 CREATE INDEX IF NOT EXISTS idx_memberships_profile ON public.memberships USING btree (profile_id);
 CREATE INDEX IF NOT EXISTS idx_memberships_season ON public.memberships USING btree (season_id) WHERE (season_id IS NOT NULL);
 CREATE INDEX IF NOT EXISTS idx_memberships_staff_club ON public.memberships USING btree (club_id, profile_id) WHERE (kind = 'staff'::text);
@@ -9798,6 +10171,7 @@ CREATE INDEX IF NOT EXISTS idx_notifications_action_status ON public.notificatio
 CREATE INDEX IF NOT EXISTS idx_notifications_actor_id ON public.notifications USING btree (actor_id);
 CREATE INDEX IF NOT EXISTS idx_notifications_follow_id ON public.notifications USING btree (follow_id);
 CREATE INDEX IF NOT EXISTS idx_notifications_grouped ON public.notifications USING btree (grouped_notification_id) WHERE (grouped_notification_id IS NOT NULL);
+CREATE INDEX IF NOT EXISTS idx_notifications_metadata_gin ON public.notifications USING gin (metadata jsonb_path_ops);
 CREATE INDEX IF NOT EXISTS idx_notifications_post_id ON public.notifications USING btree (post_id);
 CREATE INDEX IF NOT EXISTS idx_notifications_urgent_unmailed ON public.notifications USING btree (created_at) WHERE ((emailed_at IS NULL) AND (type = ANY (ARRAY['safety_alert'::text, 'consent_result'::text])));
 CREATE INDEX IF NOT EXISTS idx_notifications_user_created ON public.notifications USING btree (user_id, created_at DESC);
@@ -9805,6 +10179,7 @@ CREATE INDEX IF NOT EXISTS idx_notifications_user_id ON public.notifications USI
 CREATE INDEX IF NOT EXISTS idx_notifications_user_unread ON public.notifications USING btree (user_id, is_read, created_at DESC) WHERE (is_read = false);
 CREATE INDEX IF NOT EXISTS idx_org_claim_invites_club ON public.org_claim_invites USING btree (club_id) WHERE (consumed_at IS NULL);
 CREATE INDEX IF NOT EXISTS idx_org_claim_invites_league ON public.org_claim_invites USING btree (league_id) WHERE (consumed_at IS NULL);
+CREATE INDEX IF NOT EXISTS idx_org_claim_invites_org ON public.org_claim_invites USING btree (org_id) WHERE (consumed_at IS NULL);
 CREATE INDEX IF NOT EXISTS idx_org_site_form_submissions_site_created ON public.org_site_form_submissions USING btree (site_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_org_site_hit_marks_day ON public.org_site_hit_marks USING btree (day);
 CREATE INDEX IF NOT EXISTS idx_org_site_modules_site ON public.org_site_modules USING btree (site_id, sort_order);
@@ -9813,14 +10188,26 @@ CREATE INDEX IF NOT EXISTS org_site_news_site_pinned_idx ON public.org_site_news
 CREATE INDEX IF NOT EXISTS idx_org_site_pages_site ON public.org_site_pages USING btree (site_id);
 CREATE INDEX IF NOT EXISTS idx_org_site_revisions_site_created ON public.org_site_revisions USING btree (site_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_org_site_stats_daily_site_day ON public.org_site_stats_daily USING btree (site_id, day DESC);
+CREATE INDEX IF NOT EXISTS idx_org_sites_org ON public.org_sites USING btree (org_id);
 CREATE UNIQUE INDEX IF NOT EXISTS org_sites_club_uniq ON public.org_sites USING btree (club_id) WHERE (club_id IS NOT NULL);
 CREATE UNIQUE INDEX IF NOT EXISTS org_sites_custom_domain_uniq ON public.org_sites USING btree (custom_domain) WHERE (custom_domain IS NOT NULL);
 CREATE UNIQUE INDEX IF NOT EXISTS org_sites_league_uniq ON public.org_sites USING btree (league_id) WHERE (league_id IS NOT NULL);
 CREATE UNIQUE INDEX IF NOT EXISTS org_sites_subdomain_lower_uniq ON public.org_sites USING btree (lower(subdomain));
 CREATE INDEX IF NOT EXISTS idx_org_staff_audit_club ON public.org_staff_audit USING btree (club_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_org_staff_audit_league ON public.org_staff_audit USING btree (league_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_org_staff_audit_org ON public.org_staff_audit USING btree (org_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_org_staff_invites_club ON public.org_staff_invites USING btree (club_id) WHERE ((consumed_at IS NULL) AND (revoked_at IS NULL));
 CREATE INDEX IF NOT EXISTS idx_org_staff_invites_league ON public.org_staff_invites USING btree (league_id) WHERE ((consumed_at IS NULL) AND (revoked_at IS NULL));
+CREATE INDEX IF NOT EXISTS idx_org_staff_invites_org ON public.org_staff_invites USING btree (org_id) WHERE ((consumed_at IS NULL) AND (revoked_at IS NULL));
+CREATE INDEX IF NOT EXISTS idx_organizations_country_region ON public.organizations USING btree (country_code, region_code);
+CREATE INDEX IF NOT EXISTS idx_organizations_kind ON public.organizations USING btree (kind);
+CREATE INDEX IF NOT EXISTS idx_organizations_lat ON public.organizations USING btree (lat);
+CREATE INDEX IF NOT EXISTS idx_organizations_name_trgm ON public.organizations USING gin (lower(name) gin_trgm_ops);
+CREATE INDEX IF NOT EXISTS idx_organizations_owner ON public.organizations USING btree (owner_profile_id);
+CREATE INDEX IF NOT EXISTS idx_organizations_place ON public.organizations USING btree (place_id);
+CREATE INDEX IF NOT EXISTS idx_organizations_search ON public.organizations USING gin (search_vector);
+CREATE INDEX IF NOT EXISTS organizations_listing_idx ON public.organizations USING btree (listing_status) WHERE (listing_status <> 'listed'::text);
+CREATE INDEX IF NOT EXISTS organizations_pending_idx ON public.organizations USING btree (created_at) WHERE (approved_at IS NULL);
 CREATE INDEX IF NOT EXISTS idx_pending_profiles_state ON public.pending_profiles USING btree (state, expires_at);
 CREATE INDEX IF NOT EXISTS idx_performances_profile_id ON public.performances USING btree (profile_id);
 CREATE INDEX IF NOT EXISTS idx_place_aliases_norm ON public.place_aliases USING btree (alias_norm text_pattern_ops);
@@ -9900,6 +10287,8 @@ CREATE INDEX IF NOT EXISTS idx_profiles_supervised ON public.profiles USING btre
 CREATE INDEX IF NOT EXISTS idx_profiles_visibility ON public.profiles USING btree (visibility);
 CREATE INDEX IF NOT EXISTS idx_programs_season ON public.programs USING btree (season_id);
 CREATE INDEX IF NOT EXISTS idx_reg_windows_season ON public.registration_windows USING btree (season_id);
+CREATE INDEX IF NOT EXISTS idx_registration_windows_org ON public.registration_windows USING btree (org_id);
+CREATE INDEX IF NOT EXISTS idx_registrations_org ON public.registrations USING btree (org_id);
 CREATE INDEX IF NOT EXISTS idx_registrations_profile ON public.registrations USING btree (profile_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_registrations_season ON public.registrations USING btree (season_id);
 CREATE INDEX IF NOT EXISTS idx_reserved_handles_lower ON public.reserved_handles USING btree (lower(handle));
@@ -9918,6 +10307,7 @@ CREATE INDEX IF NOT EXISTS idx_season_highlights_season ON public.season_highlig
 CREATE INDEX IF NOT EXISTS idx_season_highlights_sport ON public.season_highlights USING btree (profile_id, sport_key);
 CREATE INDEX IF NOT EXISTS idx_seasons_club_id ON public.seasons USING btree (club_id) WHERE (club_id IS NOT NULL);
 CREATE INDEX IF NOT EXISTS idx_seasons_league_id ON public.seasons USING btree (league_id) WHERE (league_id IS NOT NULL);
+CREATE INDEX IF NOT EXISTS idx_seasons_org ON public.seasons USING btree (org_id);
 CREATE INDEX IF NOT EXISTS idx_sport_event_group_members_group_position ON public.sport_event_group_members USING btree (group_id, "position");
 CREATE INDEX IF NOT EXISTS idx_sport_event_groups_round_sequence ON public.sport_event_groups USING btree (sport_event_round_id, sequence);
 CREATE INDEX IF NOT EXISTS idx_sport_event_matches_round ON public.sport_event_matches USING btree (sport_event_round_id);
@@ -9934,6 +10324,7 @@ CREATE INDEX IF NOT EXISTS idx_sport_events_club ON public.sport_events USING bt
 CREATE INDEX IF NOT EXISTS idx_sport_events_competition ON public.sport_events USING btree (competition_id) WHERE (competition_id IS NOT NULL);
 CREATE INDEX IF NOT EXISTS idx_sport_events_host_created ON public.sport_events USING btree (host_profile_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_sport_events_league ON public.sport_events USING btree (league_id) WHERE (league_id IS NOT NULL);
+CREATE INDEX IF NOT EXISTS idx_sport_events_org ON public.sport_events USING btree (org_id) WHERE (org_id IS NOT NULL);
 CREATE INDEX IF NOT EXISTS idx_sport_events_status_starts ON public.sport_events USING btree (status, starts_on);
 CREATE INDEX IF NOT EXISTS idx_sport_settings_composite ON public.sport_settings USING btree (profile_id, sport_key);
 CREATE INDEX IF NOT EXISTS idx_sport_settings_jsonb ON public.sport_settings USING gin (settings);
@@ -9943,6 +10334,7 @@ CREATE INDEX IF NOT EXISTS idx_sports_active ON public.sports USING btree (profi
 CREATE INDEX IF NOT EXISTS idx_team_entries_division ON public.team_entries USING btree (division_id);
 CREATE INDEX IF NOT EXISTS idx_teams_club_id ON public.teams USING btree (club_id) WHERE (club_id IS NOT NULL);
 CREATE INDEX IF NOT EXISTS idx_teams_league_id ON public.teams USING btree (league_id) WHERE (league_id IS NOT NULL);
+CREATE INDEX IF NOT EXISTS idx_teams_org ON public.teams USING btree (org_id);
 CREATE INDEX IF NOT EXISTS idx_ticket_events_ticket ON public.ticket_events USING btree (ticket_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_tickets_queue ON public.tickets USING btree (status, severity, created_at);
 CREATE INDEX IF NOT EXISTS idx_tickets_reporter ON public.tickets USING btree (reporter_profile_id, created_at DESC) WHERE (reporter_profile_id IS NOT NULL);
@@ -9957,6 +10349,7 @@ CREATE INDEX IF NOT EXISTS idx_venues_club_id ON public.venues USING btree (club
 CREATE INDEX IF NOT EXISTS idx_venues_golf_club_id ON public.venues USING btree (golf_club_id) WHERE (golf_club_id IS NOT NULL);
 CREATE INDEX IF NOT EXISTS idx_venues_golf_course_id ON public.venues USING btree (golf_course_id) WHERE (golf_course_id IS NOT NULL);
 CREATE INDEX IF NOT EXISTS idx_venues_league_id ON public.venues USING btree (league_id) WHERE (league_id IS NOT NULL);
+CREATE INDEX IF NOT EXISTS idx_venues_org ON public.venues USING btree (org_id) WHERE (org_id IS NOT NULL);
 CREATE INDEX IF NOT EXISTS idx_waitlist_created_at ON public.waitlist USING btree (created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_workout_exercises_profile ON public.workout_exercises USING btree (profile_id);
 CREATE INDEX IF NOT EXISTS idx_workout_exercises_session ON public.workout_exercises USING btree (session_id, "position");
@@ -9972,7 +10365,7 @@ CREATE INDEX IF NOT EXISTS idx_workout_sets_profile ON public.workout_sets USING
 -- ── Views ─────────────────────────────────────────────────────────────────────
 
 
--- ── Functions, pass 2 (107) ───────────────────────────────────────────────────
+-- ── Functions, pass 2 (114) ───────────────────────────────────────────────────
 CREATE OR REPLACE FUNCTION public.auto_update_display_name()
  RETURNS trigger
  LANGUAGE plpgsql
@@ -10624,6 +11017,55 @@ BEGIN
   IF EXISTS (SELECT 1 FROM public.profiles WHERE id = affected)
      AND NOT EXISTS (SELECT 1 FROM public.profile_access WHERE profile_id = affected) THEN
     RAISE EXCEPTION 'profile % cannot be left with zero access rows', affected;
+  END IF;
+  RETURN NULL;
+END;
+$function$;
+
+CREATE OR REPLACE FUNCTION public.feed_following(p_viewer uuid, p_limit integer, p_cursor_ts timestamp with time zone DEFAULT NULL::timestamp with time zone, p_cursor_id uuid DEFAULT NULL::uuid, p_offset integer DEFAULT 0)
+ RETURNS SETOF uuid
+ LANGUAGE sql
+ STABLE
+ SET search_path TO 'pg_catalog', 'public'
+AS $function$
+  SELECT p.id
+    FROM public.posts p
+   WHERE (p.profile_id = p_viewer
+          OR EXISTS (SELECT 1 FROM public.follows f
+                      WHERE f.follower_id = p_viewer
+                        AND f.following_id = p.profile_id
+                        AND f.status = 'accepted'))
+     AND (p_cursor_ts IS NULL
+          OR p.created_at < p_cursor_ts
+          OR (p.created_at = p_cursor_ts AND p.id < p_cursor_id))
+   ORDER BY p.created_at DESC, p.id DESC
+   LIMIT GREATEST(1, LEAST(p_limit, 101))
+  OFFSET GREATEST(0, p_offset);
+$function$;
+
+CREATE OR REPLACE FUNCTION public.follows_counts_sync()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO ''
+AS $function$
+DECLARE
+  old_live boolean := (TG_OP <> 'INSERT') AND (OLD.status = 'accepted');
+  new_live boolean := (TG_OP <> 'DELETE') AND (NEW.status = 'accepted');
+BEGIN
+  -- Only an accepted edge counts. A row that stays accepted but changes
+  -- another column is a no-op; a row that changes its endpoints (never
+  -- done by the app) is handled as remove-then-add.
+  IF old_live AND new_live AND OLD.follower_id = NEW.follower_id AND OLD.following_id = NEW.following_id THEN
+    RETURN NULL;
+  END IF;
+  IF old_live THEN
+    UPDATE public.profiles SET followers_count = GREATEST(0, COALESCE(followers_count, 0) - 1) WHERE id = OLD.following_id;
+    UPDATE public.profiles SET following_count = GREATEST(0, COALESCE(following_count, 0) - 1) WHERE id = OLD.follower_id;
+  END IF;
+  IF new_live THEN
+    UPDATE public.profiles SET followers_count = COALESCE(followers_count, 0) + 1 WHERE id = NEW.following_id;
+    UPDATE public.profiles SET following_count = COALESCE(following_count, 0) + 1 WHERE id = NEW.follower_id;
   END IF;
   RETURN NULL;
 END;
@@ -12178,6 +12620,161 @@ BEGIN
     p_metadata  := jsonb_build_object('tag_id', NEW.id, 'media_id', NEW.media_id)
   );
 
+  RETURN NEW;
+END;
+$function$;
+
+CREATE OR REPLACE FUNCTION public.org_pair_sync()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO ''
+AS $function$
+DECLARE k text;
+BEGIN
+  -- An old writer changing the pair on an existing row: the pair wins.
+  IF TG_OP = 'UPDATE' AND NEW.org_id IS NOT DISTINCT FROM OLD.org_id
+     AND (NEW.league_id IS DISTINCT FROM OLD.league_id OR NEW.club_id IS DISTINCT FROM OLD.club_id) THEN
+    NEW.org_id := COALESCE(NEW.league_id, NEW.club_id);
+  END IF;
+  -- A row written with the pair only.
+  IF NEW.org_id IS NULL THEN
+    NEW.org_id := COALESCE(NEW.league_id, NEW.club_id);
+  END IF;
+  -- The pair follows org_id through organizations.kind.
+  IF NEW.org_id IS NULL THEN
+    NEW.league_id := NULL;
+    NEW.club_id := NULL;
+  ELSE
+    SELECT o.kind INTO k FROM public.organizations o WHERE o.id = NEW.org_id;
+    IF k = 'league' THEN
+      NEW.league_id := NEW.org_id; NEW.club_id := NULL;
+    ELSIF k = 'club' THEN
+      NEW.club_id := NEW.org_id; NEW.league_id := NULL;
+    END IF;
+    -- k NULL: the FK refuses the row after us; nothing to decide here.
+  END IF;
+  RETURN NEW;
+END;
+$function$;
+
+CREATE OR REPLACE FUNCTION public.organizations_mirror_club()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO ''
+AS $function$
+BEGIN
+  IF pg_trigger_depth() > 1 THEN RETURN NULL; END IF;
+  IF TG_OP = 'DELETE' THEN
+    DELETE FROM public.organizations WHERE id = OLD.id AND kind = 'club';
+    RETURN OLD;
+  END IF;
+  INSERT INTO public.organizations (id, kind, name, description, sport_key, owner_profile_id, place_id, city, region, region_code, country, country_code, lat, lng, location_source, location,
+                                    operates_competitions, operates_teams, approved_at, visibility, join_policy, listing_status, created_at, updated_at)
+  VALUES (NEW.id, 'club', NEW.name, NEW.description, NEW.primary_sport, NEW.owner_profile_id, NEW.place_id, NEW.city, NEW.region, NEW.region_code, NEW.country, NEW.country_code, NEW.lat, NEW.lng, NEW.location_source, NEW.location,
+          NEW.operates_competitions, NEW.operates_teams, NEW.approved_at, NEW.visibility, NEW.join_policy, NEW.listing_status, NEW.created_at, NEW.updated_at)
+  ON CONFLICT (id) DO UPDATE SET
+    kind = EXCLUDED.kind, name = EXCLUDED.name, description = EXCLUDED.description, sport_key = EXCLUDED.sport_key,
+    owner_profile_id = EXCLUDED.owner_profile_id, place_id = EXCLUDED.place_id, city = EXCLUDED.city, region = EXCLUDED.region,
+    region_code = EXCLUDED.region_code, country = EXCLUDED.country, country_code = EXCLUDED.country_code, lat = EXCLUDED.lat, lng = EXCLUDED.lng,
+    location_source = EXCLUDED.location_source, location = EXCLUDED.location, operates_competitions = EXCLUDED.operates_competitions, operates_teams = EXCLUDED.operates_teams,
+    approved_at = EXCLUDED.approved_at, visibility = EXCLUDED.visibility, join_policy = EXCLUDED.join_policy, listing_status = EXCLUDED.listing_status,
+    updated_at = EXCLUDED.updated_at;
+  RETURN NEW;
+END;
+$function$;
+
+CREATE OR REPLACE FUNCTION public.organizations_mirror_league()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO ''
+AS $function$
+BEGIN
+  IF pg_trigger_depth() > 1 THEN RETURN NULL; END IF;
+  IF TG_OP = 'DELETE' THEN
+    DELETE FROM public.organizations WHERE id = OLD.id AND kind = 'league';
+    RETURN OLD;
+  END IF;
+  INSERT INTO public.organizations (id, kind, name, description, sport_key, owner_profile_id, place_id, city, region, region_code, country, country_code, lat, lng, location_source, location,
+                                    operates_competitions, operates_teams, approved_at, visibility, join_policy, listing_status, created_at, updated_at)
+  VALUES (NEW.id, 'league', NEW.name, NEW.description, NEW.sport_key, NEW.owner_profile_id, NEW.place_id, NEW.city, NEW.region, NEW.region_code, NEW.country, NEW.country_code, NEW.lat, NEW.lng, NEW.location_source, NULL,
+          NEW.operates_competitions, NEW.operates_teams, NEW.approved_at, NEW.visibility, NEW.join_policy, NEW.listing_status, NEW.created_at, NEW.updated_at)
+  ON CONFLICT (id) DO UPDATE SET
+    kind = EXCLUDED.kind, name = EXCLUDED.name, description = EXCLUDED.description, sport_key = EXCLUDED.sport_key,
+    owner_profile_id = EXCLUDED.owner_profile_id, place_id = EXCLUDED.place_id, city = EXCLUDED.city, region = EXCLUDED.region,
+    region_code = EXCLUDED.region_code, country = EXCLUDED.country, country_code = EXCLUDED.country_code, lat = EXCLUDED.lat, lng = EXCLUDED.lng,
+    location_source = EXCLUDED.location_source, operates_competitions = EXCLUDED.operates_competitions, operates_teams = EXCLUDED.operates_teams,
+    approved_at = EXCLUDED.approved_at, visibility = EXCLUDED.visibility, join_policy = EXCLUDED.join_policy, listing_status = EXCLUDED.listing_status,
+    updated_at = EXCLUDED.updated_at;
+  RETURN NEW;
+END;
+$function$;
+
+CREATE OR REPLACE FUNCTION public.organizations_mirror_sources()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO ''
+AS $function$
+BEGIN
+  IF pg_trigger_depth() > 1 THEN RETURN NULL; END IF;
+  IF TG_OP = 'DELETE' THEN
+    IF OLD.kind = 'league' THEN DELETE FROM public.leagues WHERE id = OLD.id; ELSE DELETE FROM public.clubs WHERE id = OLD.id; END IF;
+    RETURN OLD;
+  END IF;
+  IF TG_OP = 'UPDATE' AND NEW.kind <> OLD.kind THEN
+    RAISE EXCEPTION 'organizations.kind is immutable (% → %)', OLD.kind, NEW.kind USING ERRCODE = 'check_violation';
+  END IF;
+  IF NEW.kind = 'league' THEN
+    IF NEW.sport_key IS NULL THEN
+      RAISE EXCEPTION 'a league needs a sport_key' USING ERRCODE = 'not_null_violation';
+    END IF;
+    INSERT INTO public.leagues (id, name, description, sport_key, owner_profile_id, place_id, city, region, region_code, country, country_code, lat, lng, location_source,
+                                operates_competitions, operates_teams, approved_at, visibility, join_policy, listing_status, created_at, updated_at)
+    VALUES (NEW.id, NEW.name, NEW.description, NEW.sport_key, NEW.owner_profile_id, NEW.place_id, NEW.city, NEW.region, NEW.region_code, NEW.country, NEW.country_code, NEW.lat, NEW.lng, NEW.location_source,
+            NEW.operates_competitions, NEW.operates_teams, NEW.approved_at, NEW.visibility, NEW.join_policy, NEW.listing_status, NEW.created_at, NEW.updated_at)
+    ON CONFLICT (id) DO UPDATE SET
+      name = EXCLUDED.name, description = EXCLUDED.description, sport_key = EXCLUDED.sport_key,
+      owner_profile_id = EXCLUDED.owner_profile_id, place_id = EXCLUDED.place_id, city = EXCLUDED.city, region = EXCLUDED.region,
+      region_code = EXCLUDED.region_code, country = EXCLUDED.country, country_code = EXCLUDED.country_code, lat = EXCLUDED.lat, lng = EXCLUDED.lng,
+      location_source = EXCLUDED.location_source, operates_competitions = EXCLUDED.operates_competitions, operates_teams = EXCLUDED.operates_teams,
+      approved_at = EXCLUDED.approved_at, visibility = EXCLUDED.visibility, join_policy = EXCLUDED.join_policy, listing_status = EXCLUDED.listing_status,
+      updated_at = EXCLUDED.updated_at;
+  ELSE
+    INSERT INTO public.clubs (id, name, description, location, primary_sport, owner_profile_id, place_id, city, region, region_code, country, country_code, lat, lng, location_source,
+                              operates_competitions, operates_teams, approved_at, visibility, join_policy, listing_status, created_at, updated_at)
+    VALUES (NEW.id, NEW.name, NEW.description, NEW.location, NEW.sport_key, NEW.owner_profile_id, NEW.place_id, NEW.city, NEW.region, NEW.region_code, NEW.country, NEW.country_code, NEW.lat, NEW.lng, NEW.location_source,
+            NEW.operates_competitions, NEW.operates_teams, NEW.approved_at, NEW.visibility, NEW.join_policy, NEW.listing_status, NEW.created_at, NEW.updated_at)
+    ON CONFLICT (id) DO UPDATE SET
+      name = EXCLUDED.name, description = EXCLUDED.description, location = EXCLUDED.location, primary_sport = EXCLUDED.primary_sport,
+      owner_profile_id = EXCLUDED.owner_profile_id, place_id = EXCLUDED.place_id, city = EXCLUDED.city, region = EXCLUDED.region,
+      region_code = EXCLUDED.region_code, country = EXCLUDED.country, country_code = EXCLUDED.country_code, lat = EXCLUDED.lat, lng = EXCLUDED.lng,
+      location_source = EXCLUDED.location_source, operates_competitions = EXCLUDED.operates_competitions, operates_teams = EXCLUDED.operates_teams,
+      approved_at = EXCLUDED.approved_at, visibility = EXCLUDED.visibility, join_policy = EXCLUDED.join_policy, listing_status = EXCLUDED.listing_status,
+      updated_at = EXCLUDED.updated_at;
+  END IF;
+  RETURN NEW;
+END;
+$function$;
+
+CREATE OR REPLACE FUNCTION public.organizations_search_vector_update()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public', 'extensions'
+AS $function$
+BEGIN
+  NEW.search_vector :=
+    setweight(to_tsvector('simple', public.search_normalize(NEW.name)), 'A') ||
+    setweight(to_tsvector('simple', public.search_normalize(NEW.description)), 'B') ||
+    setweight(to_tsvector('simple', public.search_normalize(
+      concat_ws(' ', NEW.city, NEW.sport_key, NEW.location))), 'C') ||
+    setweight(to_tsvector('simple', public.search_normalize(
+      concat_ws(' ', NEW.region, NEW.region_code, NEW.country, NEW.country_code))), 'D') ||
+    setweight(to_tsvector('simple', public.search_normalize(
+      public.place_context(NEW.place_id))), 'D');
   RETURN NEW;
 END;
 $function$;
@@ -13672,6 +14269,8 @@ $function$;
 -- ── Triggers ──────────────────────────────────────────────────────────────────
 DROP TRIGGER IF EXISTS set_athlete_achievements_updated_at ON public.athlete_achievements;
 CREATE TRIGGER set_athlete_achievements_updated_at BEFORE UPDATE ON public.athlete_achievements FOR EACH ROW EXECUTE FUNCTION handle_updated_at();
+DROP TRIGGER IF EXISTS org_pair_sync ON public.athlete_claim_invites;
+CREATE TRIGGER org_pair_sync BEFORE INSERT OR UPDATE OF org_id, league_id, club_id ON public.athlete_claim_invites FOR EACH ROW EXECUTE FUNCTION org_pair_sync();
 DROP TRIGGER IF EXISTS trigger_equipment_updated_at ON public.athlete_equipment;
 CREATE TRIGGER trigger_equipment_updated_at BEFORE UPDATE ON public.athlete_equipment FOR EACH ROW EXECUTE FUNCTION update_equipment_updated_at();
 DROP TRIGGER IF EXISTS athlete_performances_updated_at ON public.athlete_performances;
@@ -13686,6 +14285,8 @@ DROP TRIGGER IF EXISTS clubs_search_vector ON public.clubs;
 CREATE TRIGGER clubs_search_vector BEFORE INSERT OR UPDATE OF name, description, location, city, region, region_code, country, country_code, place_id ON public.clubs FOR EACH ROW EXECUTE FUNCTION clubs_search_vector_update();
 DROP TRIGGER IF EXISTS handle_updated_at_clubs ON public.clubs;
 CREATE TRIGGER handle_updated_at_clubs BEFORE UPDATE ON public.clubs FOR EACH ROW EXECUTE FUNCTION handle_updated_at();
+DROP TRIGGER IF EXISTS organizations_mirror_club ON public.clubs;
+CREATE TRIGGER organizations_mirror_club AFTER INSERT OR DELETE OR UPDATE ON public.clubs FOR EACH ROW EXECUTE FUNCTION organizations_mirror_club();
 DROP TRIGGER IF EXISTS trigger_decrement_comment_likes_count ON public.comment_likes;
 CREATE TRIGGER trigger_decrement_comment_likes_count AFTER DELETE ON public.comment_likes FOR EACH ROW EXECUTE FUNCTION decrement_comment_likes_count();
 DROP TRIGGER IF EXISTS trigger_increment_comment_likes_count ON public.comment_likes;
@@ -13696,6 +14297,8 @@ DROP TRIGGER IF EXISTS competition_entries_updated_at ON public.competition_entr
 CREATE TRIGGER competition_entries_updated_at BEFORE UPDATE ON public.competition_entries FOR EACH ROW EXECUTE FUNCTION handle_updated_at();
 DROP TRIGGER IF EXISTS competitions_updated_at ON public.competitions;
 CREATE TRIGGER competitions_updated_at BEFORE UPDATE ON public.competitions FOR EACH ROW EXECUTE FUNCTION handle_updated_at();
+DROP TRIGGER IF EXISTS org_pair_sync ON public.competitions;
+CREATE TRIGGER org_pair_sync BEFORE INSERT OR UPDATE OF org_id, league_id, club_id ON public.competitions FOR EACH ROW EXECUTE FUNCTION org_pair_sync();
 DROP TRIGGER IF EXISTS trigger_connection_suggestions_updated_at ON public.connection_suggestions;
 CREATE TRIGGER trigger_connection_suggestions_updated_at BEFORE UPDATE ON public.connection_suggestions FOR EACH ROW EXECUTE FUNCTION update_connection_suggestions_updated_at();
 DROP TRIGGER IF EXISTS consent_records_immutable ON public.consent_records;
@@ -13712,12 +14315,18 @@ DROP TRIGGER IF EXISTS contests_updated_at ON public.contests;
 CREATE TRIGGER contests_updated_at BEFORE UPDATE ON public.contests FOR EACH ROW EXECUTE FUNCTION handle_updated_at();
 DROP TRIGGER IF EXISTS update_conversations_updated_at ON public.conversations;
 CREATE TRIGGER update_conversations_updated_at BEFORE UPDATE ON public.conversations FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+DROP TRIGGER IF EXISTS org_pair_sync ON public.divisions;
+CREATE TRIGGER org_pair_sync BEFORE INSERT OR UPDATE OF org_id, league_id, club_id ON public.divisions FOR EACH ROW EXECUTE FUNCTION org_pair_sync();
 DROP TRIGGER IF EXISTS handle_updated_at_carpool_offers ON public.event_carpool_offers;
 CREATE TRIGGER handle_updated_at_carpool_offers BEFORE UPDATE ON public.event_carpool_offers FOR EACH ROW EXECUTE FUNCTION handle_updated_at();
 DROP TRIGGER IF EXISTS handle_updated_at_event_series ON public.event_series;
 CREATE TRIGGER handle_updated_at_event_series BEFORE UPDATE ON public.event_series FOR EACH ROW EXECUTE FUNCTION handle_updated_at();
 DROP TRIGGER IF EXISTS handle_updated_at_events ON public.events;
 CREATE TRIGGER handle_updated_at_events BEFORE UPDATE ON public.events FOR EACH ROW EXECUTE FUNCTION handle_updated_at();
+DROP TRIGGER IF EXISTS org_pair_sync ON public.events;
+CREATE TRIGGER org_pair_sync BEFORE INSERT OR UPDATE OF org_id, league_id, club_id ON public.events FOR EACH ROW EXECUTE FUNCTION org_pair_sync();
+DROP TRIGGER IF EXISTS follows_counts_sync ON public.follows;
+CREATE TRIGGER follows_counts_sync AFTER INSERT OR DELETE OR UPDATE ON public.follows FOR EACH ROW EXECUTE FUNCTION follows_counts_sync();
 DROP TRIGGER IF EXISTS set_follows_updated_at ON public.follows;
 CREATE TRIGGER set_follows_updated_at BEFORE UPDATE ON public.follows FOR EACH ROW EXECUTE FUNCTION update_follows_updated_at();
 DROP TRIGGER IF EXISTS trigger_notify_follow_accepted ON public.follows;
@@ -13772,6 +14381,10 @@ DROP TRIGGER IF EXISTS leagues_search_vector ON public.leagues;
 CREATE TRIGGER leagues_search_vector BEFORE INSERT OR UPDATE OF name, description, sport_key, city, region, region_code, country, country_code, place_id ON public.leagues FOR EACH ROW EXECUTE FUNCTION leagues_search_vector_update();
 DROP TRIGGER IF EXISTS leagues_updated_at ON public.leagues;
 CREATE TRIGGER leagues_updated_at BEFORE UPDATE ON public.leagues FOR EACH ROW EXECUTE FUNCTION handle_updated_at();
+DROP TRIGGER IF EXISTS organizations_mirror_league ON public.leagues;
+CREATE TRIGGER organizations_mirror_league AFTER INSERT OR DELETE OR UPDATE ON public.leagues FOR EACH ROW EXECUTE FUNCTION organizations_mirror_league();
+DROP TRIGGER IF EXISTS org_pair_sync ON public.memberships;
+CREATE TRIGGER org_pair_sync BEFORE INSERT OR UPDATE OF org_id, league_id, club_id ON public.memberships FOR EACH ROW EXECUTE FUNCTION org_pair_sync();
 DROP TRIGGER IF EXISTS trg_update_conv_on_msg ON public.messages;
 CREATE TRIGGER trg_update_conv_on_msg AFTER INSERT ON public.messages FOR EACH ROW EXECUTE FUNCTION update_conversation_on_message();
 DROP TRIGGER IF EXISTS update_messages_updated_at ON public.messages;
@@ -13780,6 +14393,8 @@ DROP TRIGGER IF EXISTS update_notification_preferences_updated_at ON public.noti
 CREATE TRIGGER update_notification_preferences_updated_at BEFORE UPDATE ON public.notification_preferences FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 DROP TRIGGER IF EXISTS update_notifications_updated_at ON public.notifications;
 CREATE TRIGGER update_notifications_updated_at BEFORE UPDATE ON public.notifications FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+DROP TRIGGER IF EXISTS org_pair_sync ON public.org_claim_invites;
+CREATE TRIGGER org_pair_sync BEFORE INSERT OR UPDATE OF org_id, league_id, club_id ON public.org_claim_invites FOR EACH ROW EXECUTE FUNCTION org_pair_sync();
 DROP TRIGGER IF EXISTS org_site_modules_updated_at ON public.org_site_modules;
 CREATE TRIGGER org_site_modules_updated_at BEFORE UPDATE ON public.org_site_modules FOR EACH ROW EXECUTE FUNCTION handle_updated_at();
 DROP TRIGGER IF EXISTS org_site_news_updated_at ON public.org_site_news;
@@ -13788,10 +14403,22 @@ DROP TRIGGER IF EXISTS org_site_pages_updated_at ON public.org_site_pages;
 CREATE TRIGGER org_site_pages_updated_at BEFORE UPDATE ON public.org_site_pages FOR EACH ROW EXECUTE FUNCTION handle_updated_at();
 DROP TRIGGER IF EXISTS org_site_revisions_updated_at ON public.org_site_revisions;
 CREATE TRIGGER org_site_revisions_updated_at BEFORE UPDATE ON public.org_site_revisions FOR EACH ROW EXECUTE FUNCTION handle_updated_at();
+DROP TRIGGER IF EXISTS org_pair_sync ON public.org_sites;
+CREATE TRIGGER org_pair_sync BEFORE INSERT OR UPDATE OF org_id, league_id, club_id ON public.org_sites FOR EACH ROW EXECUTE FUNCTION org_pair_sync();
 DROP TRIGGER IF EXISTS org_sites_updated_at ON public.org_sites;
 CREATE TRIGGER org_sites_updated_at BEFORE UPDATE ON public.org_sites FOR EACH ROW EXECUTE FUNCTION handle_updated_at();
+DROP TRIGGER IF EXISTS org_pair_sync ON public.org_staff_audit;
+CREATE TRIGGER org_pair_sync BEFORE INSERT OR UPDATE OF org_id, league_id, club_id ON public.org_staff_audit FOR EACH ROW EXECUTE FUNCTION org_pair_sync();
 DROP TRIGGER IF EXISTS org_staff_audit_immutable ON public.org_staff_audit;
 CREATE TRIGGER org_staff_audit_immutable BEFORE DELETE OR UPDATE ON public.org_staff_audit FOR EACH ROW EXECUTE FUNCTION forbid_mutation();
+DROP TRIGGER IF EXISTS org_pair_sync ON public.org_staff_invites;
+CREATE TRIGGER org_pair_sync BEFORE INSERT OR UPDATE OF org_id, league_id, club_id ON public.org_staff_invites FOR EACH ROW EXECUTE FUNCTION org_pair_sync();
+DROP TRIGGER IF EXISTS organizations_mirror_sources ON public.organizations;
+CREATE TRIGGER organizations_mirror_sources AFTER INSERT OR DELETE OR UPDATE ON public.organizations FOR EACH ROW EXECUTE FUNCTION organizations_mirror_sources();
+DROP TRIGGER IF EXISTS organizations_search_vector ON public.organizations;
+CREATE TRIGGER organizations_search_vector BEFORE INSERT OR UPDATE OF name, description, sport_key, location, city, region, region_code, country, country_code, place_id ON public.organizations FOR EACH ROW EXECUTE FUNCTION organizations_search_vector_update();
+DROP TRIGGER IF EXISTS organizations_updated_at ON public.organizations;
+CREATE TRIGGER organizations_updated_at BEFORE UPDATE ON public.organizations FOR EACH ROW EXECUTE FUNCTION handle_updated_at();
 DROP TRIGGER IF EXISTS handle_updated_at_performances ON public.performances;
 CREATE TRIGGER handle_updated_at_performances BEFORE UPDATE ON public.performances FOR EACH ROW EXECUTE FUNCTION handle_updated_at();
 DROP TRIGGER IF EXISTS places_search_vector ON public.places;
@@ -13842,6 +14469,10 @@ DROP TRIGGER IF EXISTS sync_profile_privacy ON public.profiles;
 CREATE TRIGGER sync_profile_privacy AFTER INSERT OR UPDATE OF visibility ON public.profiles FOR EACH ROW EXECUTE FUNCTION sync_privacy_settings();
 DROP TRIGGER IF EXISTS trigger_auto_update_display_name ON public.profiles;
 CREATE TRIGGER trigger_auto_update_display_name BEFORE INSERT OR UPDATE OF first_name, middle_name, last_name, full_name, username ON public.profiles FOR EACH ROW EXECUTE FUNCTION auto_update_display_name();
+DROP TRIGGER IF EXISTS org_pair_sync ON public.registration_windows;
+CREATE TRIGGER org_pair_sync BEFORE INSERT OR UPDATE OF org_id, league_id, club_id ON public.registration_windows FOR EACH ROW EXECUTE FUNCTION org_pair_sync();
+DROP TRIGGER IF EXISTS org_pair_sync ON public.registrations;
+CREATE TRIGGER org_pair_sync BEFORE INSERT OR UPDATE OF org_id, league_id, club_id ON public.registrations FOR EACH ROW EXECUTE FUNCTION org_pair_sync();
 DROP TRIGGER IF EXISTS registrations_updated_at ON public.registrations;
 CREATE TRIGGER registrations_updated_at BEFORE UPDATE ON public.registrations FOR EACH ROW EXECUTE FUNCTION handle_updated_at();
 DROP TRIGGER IF EXISTS safety_settings_audit_immutable ON public.safety_settings_audit;
@@ -13852,6 +14483,8 @@ DROP TRIGGER IF EXISTS trigger_increment_post_save_count ON public.saved_posts;
 CREATE TRIGGER trigger_increment_post_save_count AFTER INSERT ON public.saved_posts FOR EACH ROW EXECUTE FUNCTION increment_post_save_count();
 DROP TRIGGER IF EXISTS handle_updated_at_season_highlights ON public.season_highlights;
 CREATE TRIGGER handle_updated_at_season_highlights BEFORE UPDATE ON public.season_highlights FOR EACH ROW EXECUTE FUNCTION handle_updated_at();
+DROP TRIGGER IF EXISTS org_pair_sync ON public.seasons;
+CREATE TRIGGER org_pair_sync BEFORE INSERT OR UPDATE OF org_id, league_id, club_id ON public.seasons FOR EACH ROW EXECUTE FUNCTION org_pair_sync();
 DROP TRIGGER IF EXISTS seasons_updated_at ON public.seasons;
 CREATE TRIGGER seasons_updated_at BEFORE UPDATE ON public.seasons FOR EACH ROW EXECUTE FUNCTION handle_updated_at();
 DROP TRIGGER IF EXISTS sport_event_groups_updated_at ON public.sport_event_groups;
@@ -13864,18 +14497,24 @@ DROP TRIGGER IF EXISTS sport_event_rounds_updated_at ON public.sport_event_round
 CREATE TRIGGER sport_event_rounds_updated_at BEFORE UPDATE ON public.sport_event_rounds FOR EACH ROW EXECUTE FUNCTION handle_updated_at();
 DROP TRIGGER IF EXISTS sport_event_stat_lines_updated_at ON public.sport_event_stat_lines;
 CREATE TRIGGER sport_event_stat_lines_updated_at BEFORE UPDATE ON public.sport_event_stat_lines FOR EACH ROW EXECUTE FUNCTION handle_updated_at();
+DROP TRIGGER IF EXISTS org_pair_sync ON public.sport_events;
+CREATE TRIGGER org_pair_sync BEFORE INSERT OR UPDATE OF org_id, league_id, club_id ON public.sport_events FOR EACH ROW EXECUTE FUNCTION org_pair_sync();
 DROP TRIGGER IF EXISTS sport_events_updated_at ON public.sport_events;
 CREATE TRIGGER sport_events_updated_at BEFORE UPDATE ON public.sport_events FOR EACH ROW EXECUTE FUNCTION handle_updated_at();
 DROP TRIGGER IF EXISTS handle_updated_at_sport_settings ON public.sport_settings;
 CREATE TRIGGER handle_updated_at_sport_settings BEFORE UPDATE ON public.sport_settings FOR EACH ROW EXECUTE FUNCTION handle_updated_at();
 DROP TRIGGER IF EXISTS handle_updated_at_sports ON public.sports;
 CREATE TRIGGER handle_updated_at_sports BEFORE UPDATE ON public.sports FOR EACH ROW EXECUTE FUNCTION handle_updated_at();
+DROP TRIGGER IF EXISTS org_pair_sync ON public.teams;
+CREATE TRIGGER org_pair_sync BEFORE INSERT OR UPDATE OF org_id, league_id, club_id ON public.teams FOR EACH ROW EXECUTE FUNCTION org_pair_sync();
 DROP TRIGGER IF EXISTS teams_updated_at ON public.teams;
 CREATE TRIGGER teams_updated_at BEFORE UPDATE ON public.teams FOR EACH ROW EXECUTE FUNCTION handle_updated_at();
 DROP TRIGGER IF EXISTS tickets_updated_at ON public.tickets;
 CREATE TRIGGER tickets_updated_at BEFORE UPDATE ON public.tickets FOR EACH ROW EXECUTE FUNCTION handle_updated_at();
 DROP TRIGGER IF EXISTS user_media_presets_updated_at ON public.user_media_presets;
 CREATE TRIGGER user_media_presets_updated_at BEFORE UPDATE ON public.user_media_presets FOR EACH ROW EXECUTE FUNCTION handle_updated_at();
+DROP TRIGGER IF EXISTS org_pair_sync ON public.venues;
+CREATE TRIGGER org_pair_sync BEFORE INSERT OR UPDATE OF org_id, league_id, club_id ON public.venues FOR EACH ROW EXECUTE FUNCTION org_pair_sync();
 DROP TRIGGER IF EXISTS venues_updated_at ON public.venues;
 CREATE TRIGGER venues_updated_at BEFORE UPDATE ON public.venues FOR EACH ROW EXECUTE FUNCTION handle_updated_at();
 DROP TRIGGER IF EXISTS set_workout_routines_updated_at ON public.workout_routines;
@@ -13953,6 +14592,7 @@ ALTER TABLE public.org_site_stats_daily ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.org_sites ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.org_staff_audit ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.org_staff_invites ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.organizations ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.pending_profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.performances ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.place_aliases ENABLE ROW LEVEL SECURITY;
@@ -15413,6 +16053,8 @@ REVOKE ALL ON TABLE public.org_staff_audit FROM anon, authenticated, service_rol
 GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public.org_staff_audit TO service_role;
 REVOKE ALL ON TABLE public.org_staff_invites FROM anon, authenticated, service_role;
 GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public.org_staff_invites TO service_role;
+REVOKE ALL ON TABLE public.organizations FROM anon, authenticated, service_role;
+GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public.organizations TO service_role;
 REVOKE ALL ON TABLE public.pending_profiles FROM anon, authenticated, service_role;
 GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public.pending_profiles TO anon;
 GRANT DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE public.pending_profiles TO authenticated;
@@ -15625,6 +16267,10 @@ REVOKE EXECUTE ON FUNCTION public.enforce_last_guardian() FROM PUBLIC, anon, aut
 GRANT EXECUTE ON FUNCTION public.enforce_last_guardian() TO service_role;
 REVOKE EXECUTE ON FUNCTION public.enforce_profile_has_access() FROM PUBLIC, anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.enforce_profile_has_access() TO service_role;
+REVOKE EXECUTE ON FUNCTION public.feed_following(p_viewer uuid, p_limit integer, p_cursor_ts timestamp with time zone, p_cursor_id uuid, p_offset integer) FROM PUBLIC, anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.feed_following(p_viewer uuid, p_limit integer, p_cursor_ts timestamp with time zone, p_cursor_id uuid, p_offset integer) TO service_role;
+REVOKE EXECUTE ON FUNCTION public.follows_counts_sync() FROM PUBLIC, anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.follows_counts_sync() TO service_role;
 REVOKE EXECUTE ON FUNCTION public.forbid_mutation() FROM PUBLIC, anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.forbid_mutation() TO service_role;
 REVOKE EXECUTE ON FUNCTION public.generate_connection_suggestions(p_user_profile_id uuid, p_suggestion_limit integer) FROM PUBLIC, anon, authenticated, service_role;
@@ -15709,6 +16355,16 @@ REVOKE EXECUTE ON FUNCTION public.notify_post_like() FROM PUBLIC, anon, authenti
 GRANT EXECUTE ON FUNCTION public.notify_post_like() TO service_role;
 REVOKE EXECUTE ON FUNCTION public.notify_profile_tagged() FROM PUBLIC, anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.notify_profile_tagged() TO service_role;
+REVOKE EXECUTE ON FUNCTION public.org_pair_sync() FROM PUBLIC, anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.org_pair_sync() TO service_role;
+REVOKE EXECUTE ON FUNCTION public.organizations_mirror_club() FROM PUBLIC, anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.organizations_mirror_club() TO service_role;
+REVOKE EXECUTE ON FUNCTION public.organizations_mirror_league() FROM PUBLIC, anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.organizations_mirror_league() TO service_role;
+REVOKE EXECUTE ON FUNCTION public.organizations_mirror_sources() FROM PUBLIC, anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.organizations_mirror_sources() TO service_role;
+REVOKE EXECUTE ON FUNCTION public.organizations_search_vector_update() FROM PUBLIC, anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.organizations_search_vector_update() TO service_role;
 REVOKE EXECUTE ON FUNCTION public.participant_group_post(p_id uuid) FROM PUBLIC, anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.participant_group_post(p_id uuid) TO anon, authenticated, service_role;
 REVOKE EXECUTE ON FUNCTION public.place_context(p_place_id uuid) FROM PUBLIC, anon, authenticated, service_role;
@@ -15883,6 +16539,10 @@ COMMENT ON COLUMN public.org_site_pages.layout IS 'Published SiteLayout of the p
 COMMENT ON COLUMN public.org_site_pages.in_nav IS 'Whether the page is listed in the site header; a hidden page stays reachable at its address.';
 COMMENT ON COLUMN public.org_sites.seo_config IS 'Published SEO config (title, description, imagePath) mirrored from the revision snapshot on publish.';
 COMMENT ON COLUMN public.org_sites.footer_config IS 'Published footer config (text, links, showSocials) mirrored from the revision snapshot on publish.';
+COMMENT ON TABLE public.organizations IS '231: ONE org table — leagues ∪ clubs by `kind`; mirrored from the two tables by trigger during the unification window (Round 5).';
+COMMENT ON COLUMN public.organizations.kind IS 'What the org calls itself and its route family (league | club; school later). Behaviour is the capability flags, never this.';
+COMMENT ON COLUMN public.organizations.sport_key IS 'leagues.sport_key or clubs.primary_sport; nullable (a multi-sport club).';
+COMMENT ON COLUMN public.organizations.location IS 'clubs'' legacy free-text location; superseded by the place block; carried so nothing is lost.';
 COMMENT ON TABLE public.platform_admins IS 'Platform admin roles (222): owner | moderator. The env allowlist stays OWNER; a moderator row admits the support queue only. Written by owners only (API-enforced).';
 COMMENT ON COLUMN public.post_comments.mentions IS 'Profile ids @mentioned in content, resolved server-side at POST from the author''s taggable set (public + accepted follows). Render-side, tokens are matched against these profiles'' CURRENT handles — a renamed handle degrades to plain text by design.';
 COMMENT ON COLUMN public.post_comments.review_note IS 'Guardian send-back note (129). Set with status=changes_requested; cleared when the author resubmits via the scoped edit action.';
@@ -15924,6 +16584,8 @@ COMMENT ON COLUMN public.profiles.scout_affiliation IS 'A scout account''s schoo
 COMMENT ON COLUMN public.profiles.moderation_state IS 'Support & Reporting (223): active | limited (read-only on the content + contact routes) | suspended (until moderation_until; login refused) | banned. A single report never sets it — repeat incidents or an admin do.';
 COMMENT ON COLUMN public.profiles.moderation_until IS 'When a suspension ends (223); an expired value reads as active and the daily cron lifts it.';
 COMMENT ON COLUMN public.profiles.moderation_ticket_id IS 'The ticket behind the current state (223).';
+COMMENT ON COLUMN public.profiles.followers_count IS '229: accepted follows where this profile is following_id. Maintained by follows_counts_sync; nullable (the row-type insert rule), read as coalesce(…, 0).';
+COMMENT ON COLUMN public.profiles.following_count IS '229: accepted follows where this profile is follower_id. Maintained by follows_counts_sync; nullable, read as coalesce(…, 0).';
 COMMENT ON TABLE public.risk_signals IS 'Heuristic metadata-only guardian signals (migration 137). Never derived from message content.';
 COMMENT ON TABLE public.saved_posts IS 'Stores bookmarked/saved posts for users';
 COMMENT ON TABLE public.schema_migrations IS '226: which numbered migration files have run in THIS database. Each file inserts its own row (from 227 on); check:schema compares the head to the chain.';
@@ -15972,6 +16634,7 @@ COMMENT ON COLUMN public.tickets.anonymized_at IS 'Retention (222): two years af
 COMMENT ON TABLE public.user_mutes IS 'Support & Reporting (223): a user-level mute — the muted person''s posts, comments and notifications leave the muter''s view. Silent. Posture A: service role only.';
 COMMENT ON COLUMN public.workout_sets.media IS 'Array of {url, type:image|video} attached to this set; max 4, API-validated.';
 COMMENT ON FUNCTION public.bump_hole_score_version() IS 'BEFORE UPDATE on golf_hole_scores (209): bumps version when strokes/putts/fairway_hit/green_in_regulation/penalties change; pins it to OLD otherwise.';
+COMMENT ON FUNCTION public.feed_following(p_viewer uuid, p_limit integer, p_cursor_ts timestamp with time zone, p_cursor_id uuid, p_offset integer) IS '230: one page of post ids for the following lens (self + accepted followees), newest first with the id tiebreak; the route applies the privacy filter. Service-role only.';
 COMMENT ON FUNCTION public.generate_connection_suggestions(p_user_profile_id uuid, p_suggestion_limit integer) IS 'Generates personalized connection suggestions based on sport, school, location, and common connections.
 Excludes: profiles already followed, pending requests, and dismissed suggestions.
 Returns: suggested_id, suggested_name, suggested_avatar, suggested_sport, suggested_school, suggested_location, similarity_score, reason';
@@ -16362,7 +17025,12 @@ INSERT INTO public.schema_migrations (number, name, applied_by) VALUES
   (225, '225_deletion_safe_fks.sql', 'rebuild-000'),
   (226, '226_schema_migrations_ledger.sql', 'rebuild-000'),
   (227, '227_schema_dump_rpc.sql', 'rebuild-000'),
-  (228, '228_schema_dump_table_grants.sql', 'rebuild-000')
+  (228, '228_schema_dump_table_grants.sql', 'rebuild-000'),
+  (229, '229_follow_counts_and_notification_metadata_index.sql', 'rebuild-000'),
+  (230, '230_feed_following_rpc.sql', 'rebuild-000'),
+  (231, '231_organizations.sql', 'rebuild-000'),
+  (232, '232_org_id_generated.sql', 'rebuild-000'),
+  (233, '233_org_id_flip.sql', 'rebuild-000')
 ON CONFLICT (number) DO NOTHING;
 
 -- ── pg_cron jobs (review, then run by hand) ───────────────────────────────────
@@ -16371,12 +17039,12 @@ ON CONFLICT (number) DO NOTHING;
 NOTIFY pgrst, 'reload schema';
 
 -- ── Result (ONE row) ─────────────────────────────────────────────────────────
--- Expected: 000 REBUILT | 122 | 107 | 172 | 228
+-- Expected: 000 REBUILT | 123 | 114 | 172 | 233
 SELECT '000 REBUILT' AS result,
-       (SELECT count(*) FROM pg_tables WHERE schemaname = 'public') AS tables_expect_122,
+       (SELECT count(*) FROM pg_tables WHERE schemaname = 'public') AS tables_expect_123,
        (SELECT count(*) FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace WHERE n.nspname = 'public' AND p.prokind IN ('f', 'p')
           AND NOT EXISTS (SELECT 1 FROM pg_depend d WHERE d.classid = 'pg_proc'::regclass AND d.objid = p.oid AND d.deptype = 'e')
-          AND p.proname <> 'rls_auto_enable') AS functions_expect_107,
+          AND p.proname <> 'rls_auto_enable') AS functions_expect_114,
        (SELECT count(*) FROM pg_policies WHERE schemaname = 'public') AS policies_expect_172,
-       (SELECT max(number) FROM public.schema_migrations) AS ledger_head_expect_228;
+       (SELECT max(number) FROM public.schema_migrations) AS ledger_head_expect_233;
 
