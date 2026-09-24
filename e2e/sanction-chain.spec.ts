@@ -14,8 +14,8 @@ test('sanction chain: handshake, grants history, 2-hop provenance upgrade', asyn
   const parentOwner = loadQaUser('user.json'); // owns league B (the governing body)
   const admin = adminClient();
 
-  const probe = await admin.from('league_affiliations').select('league_id').limit(1);
-  test.skip(!!probe.error, `league_affiliations missing — run migration 167 (${probe.error?.message})`);
+  const probe = await admin.from('affiliations').select('org_id').limit(1);
+  test.skip(!!probe.error, `affiliations missing — run migration 236 (${probe.error?.message})`);
 
   const stamp = Date.now();
   const leagueA = await createQaOrg(admin, 'league', { name: `QA Chain KMHA ${stamp}`, sport_key: 'ice_hockey', owner_profile_id: childOwner.id });
@@ -64,20 +64,19 @@ test('sanction chain: handshake, grants history, 2-hop provenance upgrade', asyn
       const { data: leagueGrant } = await admin
         .from('sanction_grants')
         .select('id, revoked_at')
-        .eq('grantor_league_id', bId)
-        .eq('grantee_kind', 'league')
-        .eq('grantee_id', aId)
+        .eq('grantor_org_id', bId)
+        .eq('grantee_org_id', aId)
         .is('revoked_at', null);
       expect(leagueGrant, 'open league grant').toHaveLength(1);
 
       // ── The 2-hop provenance payoff ──────────────────────────────────
       // Club C is sanctioned by B (the parent). A owns the competition:
       // A's ancestors {A,B} ∩ C's sanctioners {B} → 'sanctioned'.
-      await admin.from('league_clubs').insert({
-        league_id: bId,
-        club_id: cId,
+      await admin.from('affiliations').insert({
+        parent_org_id: bId,
+        org_id: cId,
         status: 'active',
-        initiated_by: 'league',
+        initiated_by: 'parent',
         affiliation_type: 'sanctioned_by',
         decided_at: new Date().toISOString(),
       });
@@ -173,9 +172,8 @@ test('sanction chain: handshake, grants history, 2-hop provenance upgrade', asyn
       const { data: closedGrant } = await admin
         .from('sanction_grants')
         .select('revoked_at')
-        .eq('grantor_league_id', bId)
-        .eq('grantee_kind', 'league')
-        .eq('grantee_id', aId)
+        .eq('grantor_org_id', bId)
+        .eq('grantee_org_id', aId)
         .order('granted_at', { ascending: false })
         .limit(1);
       expect(closedGrant?.[0]?.revoked_at, 'grant closed on dissolve').toBeTruthy();
@@ -197,6 +195,6 @@ test('sanction chain: handshake, grants history, 2-hop provenance upgrade', asyn
     await admin.from('leagues').delete().eq('id', aId);
     await admin.from('leagues').delete().eq('id', bId);
     await admin.from('clubs').delete().eq('id', cId);
-    await admin.from('sanction_grants').delete().eq('grantor_league_id', bId);
+    await admin.from('sanction_grants').delete().eq('grantor_org_id', bId);
   }
 });

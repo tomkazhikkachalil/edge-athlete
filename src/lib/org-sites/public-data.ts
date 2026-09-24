@@ -1619,7 +1619,7 @@ export async function fetchPublicStatLeaders(
 
 // ── Club golf boards (phase 6c G3) ──────────────────────────────────────────
 // "This week at the club": the club's OWN public golf leaderboards plus
-// those of the leagues actively affiliated with it (league_clubs) — the
+// those of the leagues actively affiliated with it (affiliations, 236) — the
 // leagues that play here. Reuses fetchPublicStandings (viewer-independent,
 // masked, supervised omitted), so the teaser inherits every people rule.
 // Bounded (≤5 leagues, top 5 rows per board); never throws.
@@ -1650,14 +1650,15 @@ export async function fetchPublicClubGolfBoards(
       }
     };
     take(await fetchPublicStandings(admin, 'club', clubId));
+    // The club is the CHILD of every league it plays in (its parents are leagues by construction).
     const { data: edges, error } = await admin
-      .from('league_clubs')
-      .select('league_id')
-      .eq('club_id', clubId)
+      .from('affiliations')
+      .select('parent_org_id')
+      .eq('org_id', clubId)
       .eq('status', 'active')
       .limit(5);
     if (!degraded('club golf boards', error)) {
-      for (const e of edges ?? []) take(await fetchPublicStandings(admin, 'league', e.league_id as string));
+      for (const e of edges ?? []) take(await fetchPublicStandings(admin, 'league', e.parent_org_id as string));
     }
     return boards.slice(0, 4);
   } catch (error) {

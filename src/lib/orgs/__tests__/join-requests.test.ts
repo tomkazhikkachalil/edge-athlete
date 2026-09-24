@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 // Phase 9 V2 (both sides in program 11) — the join-request bells' copy and
 // the queue's table by side.
-import { joinDecisionMessage, joinDecisionTitle, joinRequestTitle, joinRequestsTable } from '../join-requests';
+import { JOIN_REQUESTS_TABLE, joinDecisionMessage, joinDecisionTitle, joinRequestTitle } from '../join-requests';
 
 describe('join request titles', () => {
   it('asks the managers, and tells the requester the decision', () => {
@@ -19,9 +19,8 @@ describe('join request titles', () => {
   });
 });
 
-describe('joinRequestsTable', () => {
-  it('picks the side\'s queue (176 clubs, 177 leagues)', () => {
-    expect(joinRequestsTable('club')).toBe('club_join_requests');
-    expect(joinRequestsTable('league')).toBe('league_join_requests');
+describe('JOIN_REQUESTS_TABLE', () => {
+  it('is the one org-keyed queue since 236', () => {
+    expect(JOIN_REQUESTS_TABLE).toBe('org_join_requests');
   });
 });

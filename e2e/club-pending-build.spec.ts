@@ -31,10 +31,10 @@ test('live by link: provisioned pending → readable, joinable, publishable, NOT
   test.skip(!!probe.error, `clubs.listing_status missing — run migration 179 (${probe.error?.message})`);
 
   // Leftovers from earlier runs (one pending request per user).
-  const { data: stale } = await admin.from('club_requests').select('created_club_id').eq('requester_profile_id', owner.id);
-  const staleIds = (stale ?? []).map(r => r.created_club_id as string | null).filter((id): id is string => !!id);
+  const { data: stale } = await admin.from('org_requests').select('created_org_id').eq('requester_profile_id', owner.id);
+  const staleIds = (stale ?? []).map(r => r.created_org_id as string | null).filter((id): id is string => !!id);
   if (staleIds.length) await admin.from('clubs').delete().in('id', staleIds);
-  await admin.from('club_requests').delete().eq('requester_profile_id', owner.id);
+  await admin.from('org_requests').delete().eq('requester_profile_id', owner.id);
   await resetRateBucket(admin, 'club-request', owner.id);
   await resetRateBucket(admin, 'org-site', owner.id);
   await resetRateBucket(admin, 'club-join', joiner.id);
@@ -110,7 +110,7 @@ test('live by link: provisioned pending → readable, joinable, publishable, NOT
 
     // Approval through the service role (the admin route's stamp) LISTS it.
     await admin.from('clubs').update({ listing_status: 'listed', approved_at: new Date().toISOString() }).eq('id', clubId);
-    await admin.from('club_requests').update({ status: 'approved', decided_at: new Date().toISOString() }).eq('id', body.request.id);
+    await admin.from('org_requests').update({ status: 'approved', decided_at: new Date().toISOString() }).eq('id', body.request.id);
     // The org GET is uncached; the site page is ISR — the admin route purges
     // its tag, the service-role flip here cannot, so assert the GET + search
     // (uncached) and accept either state for the cached page.
@@ -128,7 +128,7 @@ test('live by link: provisioned pending → readable, joinable, publishable, NOT
     await ownerCtx.close();
     await ownerApi.dispose();
     await joinerApi.dispose();
-    await admin.from('club_requests').delete().eq('requester_profile_id', owner.id);
+    await admin.from('org_requests').delete().eq('requester_profile_id', owner.id);
     if (clubId) await admin.from('clubs').delete().eq('id', clubId);
   }
 });

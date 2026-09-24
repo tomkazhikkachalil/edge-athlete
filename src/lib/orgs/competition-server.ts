@@ -201,14 +201,16 @@ export async function competitionsAggregateGET(
   // beyond team + club names (§5's competition-scope line).
   let affiliatedTeams: { id: string; name: string; club_name: string }[] = [];
   if (scope.side === 'league') {
+    // 236: the league's CLUB children on `affiliations` (org_id = the club).
     const { data: edges } = await admin
-      .from('league_clubs')
-      .select('club_id, status, affiliation_type')
-      .eq('league_id', scope.orgId)
+      .from('affiliations')
+      .select('org_id, status, affiliation_type, child:organizations!affiliations_org_id_fkey!inner(kind)')
+      .eq('parent_org_id', scope.orgId)
       .eq('status', 'active')
+      .eq('child.kind', 'club')
       .in('affiliation_type', ['member_of', 'sanctioned_by'])
       .limit(100);
-    const clubIds = [...new Set((edges ?? []).map(e => e.club_id as string))];
+    const clubIds = [...new Set((edges ?? []).map(e => e.org_id as string))];
     if (clubIds.length) {
       const [clubTeamsRes, clubsRes] = await Promise.all([
         admin
@@ -425,17 +427,17 @@ export async function entryAddPOST(
     if (!sameOrg) {
       // R4 REP: a foreign team enters IFF the owner is a LEAGUE and an
       // ACTIVE member_of/sanctioned_by edge links it to the team's CLUB
-      // (league_clubs is league↔club only). Cross-org authority stays
+      // (an `affiliations` row with the club as child, 236). Cross-org authority stays
       // competition-scoped — this reads NOTHING inside the member club
       // beyond the team row (§5's line clubs won't join without).
       if (orgKindOf(comp) !== 'league' || orgKindOf(team) !== 'club') {
         return NextResponse.json({ error: 'Team not found' }, { status: 404 });
       }
       const { data: edge } = await admin
-        .from('league_clubs')
+        .from('affiliations')
         .select('status, affiliation_type')
-        .eq('league_id', orgIdOf(comp) as string)
-        .eq('club_id', orgIdOf(team) as string)
+        .eq('parent_org_id', orgIdOf(comp) as string)
+        .eq('org_id', orgIdOf(team) as string)
         .maybeSingle();
       if (
         !edge ||

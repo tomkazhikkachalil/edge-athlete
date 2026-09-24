@@ -349,11 +349,11 @@ test('org site modules: live data on home + subpages; masked roster; team 404s',
     await admin.from('facilities').insert({ venue_id: venue!.id, name: 'Rink 1' });
     const club = await createQaOrg(admin, 'club', { name: `QA Affiliated Club ${stamp}`, owner_profile_id: owner.id });
     clubId = club.id;
-    await admin.from('league_clubs').insert({
-      league_id: leagueId,
-      club_id: clubId,
+    await admin.from('affiliations').insert({
+      parent_org_id: leagueId,
+      org_id: clubId,
       status: 'active',
-      initiated_by: 'league',
+      initiated_by: 'parent',
       affiliation_type: 'member_of',
     });
 

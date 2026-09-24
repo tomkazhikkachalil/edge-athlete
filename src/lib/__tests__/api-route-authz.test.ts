@@ -79,6 +79,13 @@ const PUBLIC_ROUTES: Record<string, string> = {
   'leagues/[id]/parents':
     'anonymous org read surface (the league chain, phase 6 R3) — GET is public like leagues/[id]/clubs; POST/PATCH/DELETE requireAuth + owner/manager inside parents-server.ts (the 118 matrix)',
   'leagues/[id]/events': 'anonymous org read surface (public league pages)',
+  // Round 5 D3: the four request routes are SHIMS over one handler per kind —
+  // the gates live in the handler modules (requireActiveWriter + requireOrgCreator
+  // in requests-server.ts; requireAdmin in admin-requests-server.ts).
+  'leagues/requests': 'shim over orgRequestsPOST / GET (requests-server.ts: requireActiveWriter + requireOrgCreator, requireAuth inside)',
+  'clubs/requests': 'shim over orgRequestsPOST / GET (requests-server.ts: requireActiveWriter + requireOrgCreator, requireAuth inside)',
+  'admin/league-requests': 'shim over adminRequestsGET / PATCH (admin-requests-server.ts: requireAdmin inside)',
+  'admin/club-requests': 'shim over adminRequestsGET / PATCH (admin-requests-server.ts: requireAdmin inside)',
 };
 
 /**

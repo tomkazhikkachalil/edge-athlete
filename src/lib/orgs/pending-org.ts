@@ -115,10 +115,9 @@ export async function provisionPendingOrg(
       return null;
     }
 
-    const linkColumn = side === 'league' ? 'created_league_id' : 'created_club_id';
     await admin
-      .from(side === 'league' ? 'league_requests' : 'club_requests')
-      .update({ [linkColumn]: orgId })
+      .from('org_requests')
+      .update({ created_org_id: orgId })
       .eq('id', row.id)
       // R2 (179): a link-only creation files its row as 'unlisted' — link
       // it too, or a later "ask to be listed" cannot find its own row.

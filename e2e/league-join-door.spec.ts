@@ -72,7 +72,7 @@ test('league join door: site CTA → account-first → sign in returns → reque
     expect(await page.evaluate(() => document.documentElement.scrollWidth), 'door: no horizontal overflow at 375px').toBeLessThanOrEqual(375);
     await page.getByRole('button', { name: 'Request to join' }).click();
     await expect(page.locator('[data-join-state="requested"]')).toBeVisible({ timeout: 20_000 });
-    const { data: req } = await admin.from('league_join_requests').select('id').eq('league_id', leagueId).eq('profile_id', alpha.id);
+    const { data: req } = await admin.from('org_join_requests').select('id').eq('org_id', leagueId).eq('profile_id', alpha.id);
     expect(req ?? []).toHaveLength(1);
     // A reload keeps the state (the GET's viewerRequestPending).
     await page.reload();

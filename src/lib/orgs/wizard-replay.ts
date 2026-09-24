@@ -123,10 +123,10 @@ export interface StubReport {
   emailSent: boolean;
 }
 
-/** BEST-EFFORT connections: pending league_clubs edges to existing orgs
+/** BEST-EFFORT connections: pending `affiliations` edges to existing orgs
  *  (+ owner bell) and ownerless STUB orgs with claim invites. The new org
- *  is on `scope.side`; connections are always the OTHER side (league_clubs
- *  is the only org↔org edge). Never throws. */
+ *  is on `scope.side`; connections are always the OTHER side (a club is
+ *  the CHILD of a league — 236's one edge shape). Never throws. */
 export async function replayConnections(
   admin: Admin,
   scope: StructureScope,
@@ -143,11 +143,11 @@ export async function replayConnections(
   const stubs: StubReport[] = [];
 
   const insertEdge = async (otherId: string): Promise<'invited' | 'already' | 'failed'> => {
-    const { error } = await admin.from('league_clubs').insert({
-      league_id: scope.side === 'league' ? scope.orgId : otherId,
-      club_id: scope.side === 'club' ? scope.orgId : otherId,
+    const { error } = await admin.from('affiliations').insert({
+      org_id: scope.side === 'club' ? scope.orgId : otherId,
+      parent_org_id: scope.side === 'league' ? scope.orgId : otherId,
       status: 'pending',
-      initiated_by: scope.side,
+      initiated_by: scope.side === 'club' ? 'child' : 'parent',
       requested_by_profile_id: requesterProfileId,
       affiliation_type: 'partner_of',
     });

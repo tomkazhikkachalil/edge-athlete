@@ -30,12 +30,12 @@ test('rep entries: affiliated pending → approve + bells; unaffiliated 400; 375
     { org_id: leagueId, profile_id: clubOwner.id, role: 'manager' },
     { org_id: clubId, profile_id: clubOwner.id, role: 'owner' },
   ]);
-  await admin.from('league_clubs').insert({
-    league_id: leagueId,
-    club_id: clubId,
+  await admin.from('affiliations').insert({
+    parent_org_id: leagueId,
+    org_id: clubId,
     status: 'active',
     affiliation_type: 'member_of',
-    initiated_by: 'league',
+    initiated_by: 'parent',
   });
   const { data: season } = await admin
     .from('seasons')

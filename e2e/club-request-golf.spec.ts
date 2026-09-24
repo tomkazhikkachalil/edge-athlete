@@ -20,7 +20,7 @@ test('golf fast path: Golf pre-checked → home course prefills → two steps �
   const userB = loadQaUser('user-b.json');
   const admin = adminClient();
 
-  const draftProbe = await admin.from('club_requests').select('site_draft').limit(1);
+  const draftProbe = await admin.from('org_requests').select('site_draft').limit(1);
   const hasSiteDraft = !draftProbe.error;
 
   // A catalog row with contact details but NO place row (the hint branch).
@@ -52,10 +52,10 @@ test('golf fast path: Golf pre-checked → home course prefills → two steps �
   const courseId = course!.id as string;
 
   // C4: the request provisioned a pending club — delete it too (FK SET NULL would leak it).
-    const { data: provisioned } = await admin.from('club_requests').select('created_club_id').eq('requester_profile_id', userB.id);
-    const provisionedIds = (provisioned ?? []).map(r => r.created_club_id as string | null).filter((id): id is string => !!id);
+    const { data: provisioned } = await admin.from('org_requests').select('created_org_id').eq('requester_profile_id', userB.id);
+    const provisionedIds = (provisioned ?? []).map(r => r.created_org_id as string | null).filter((id): id is string => !!id);
     if (provisionedIds.length) await admin.from('clubs').delete().in('id', provisionedIds);
-    await admin.from('club_requests').delete().eq('requester_profile_id', userB.id);
+    await admin.from('org_requests').delete().eq('requester_profile_id', userB.id);
   await resetRateBucket(admin, 'club-request', userB.id);
 
   const ctx = await page.context().browser()!.newContext({
@@ -111,7 +111,7 @@ test('golf fast path: Golf pre-checked → home course prefills → two steps �
 
     // DB truth.
     const { data: rows } = await admin
-      .from('club_requests')
+      .from('org_requests')
       .select(hasSiteDraft ? 'status, operates_competitions, operates_teams, site_draft' : 'status, operates_competitions, operates_teams')
       .eq('requester_profile_id', userB.id)
       .eq('name', clubName);
@@ -136,7 +136,7 @@ test('golf fast path: Golf pre-checked → home course prefills → two steps �
       console.warn('[club-request-golf] site_draft column missing — run migration 174; the fallback insert was exercised instead');
     }
   } finally {
-    await admin.from('club_requests').delete().eq('requester_profile_id', userB.id);
+    await admin.from('org_requests').delete().eq('requester_profile_id', userB.id);
     await admin.from('golf_courses').delete().eq('id', courseId);
     await ctx.close();
   }

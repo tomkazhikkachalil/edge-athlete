@@ -1,5 +1,8 @@
 // ── League↔league affiliations — the chain's edge (phase 6 R3, mig 167) ─────
-// The 118 authorization matrix VERBATIM over `league_affiliations`
+// The 118 authorization matrix VERBATIM over the league→league rows of
+// `affiliations` (Round 5 D-ii, 236: org_id = the child league,
+// parent_org_id = the parent; the API keeps speaking league_id /
+// parent_league_id — `publicParentEdge` is the one translation)
 // (child league → parent league): either side's owner/manager initiates,
 // the opposite side accepts, DELETE is withdraw/decline/dissolve by row
 // state. One route serves it (/api/leagues/[id]/parents) — the [id] is
@@ -54,10 +57,14 @@ export async function recordSanctionGrant(
   granteeId: string
 ): Promise<void> {
   try {
+    // 236 → 237 window: the old three columns are still NOT NULL, so a
+    // grant carries BOTH spellings until 237 drops the old ones.
     const { error } = await admin.from('sanction_grants').insert({
       grantor_league_id: grantorLeagueId,
       grantee_kind: granteeKind,
       grantee_id: granteeId,
+      grantor_org_id: grantorLeagueId,
+      grantee_org_id: granteeId,
     });
     if (error && !isMissingTableError(error.code)) {
       console.error('[PARENTS] grant insert error:', error);
@@ -79,10 +86,10 @@ export async function revokeSanctionGrant(
     const { error } = await admin
       .from('sanction_grants')
       .update({ revoked_at: new Date().toISOString() })
-      .eq('grantor_league_id', grantorLeagueId)
-      .eq('grantee_kind', granteeKind)
-      .eq('grantee_id', granteeId)
+      .eq('grantor_org_id', grantorLeagueId)
+      .eq('grantee_org_id', granteeId)
       .is('revoked_at', null);
+    void granteeKind; // the kind is the org's now (236); the parameter stays for the callers
     if (error && !isMissingTableError(error.code)) {
       console.error('[PARENTS] grant revoke error:', error);
     }
@@ -92,6 +99,39 @@ export async function revokeSanctionGrant(
 }
 
 // ── The four handlers ───────────────────────────────────────────────────────
+
+const PARENT_EDGE_SELECT = 'org_id, parent_org_id, status, initiated_by, requested_by_profile_id, created_at, affiliation_type';
+/** Only league→league rows: a league's CLUB children (the affiliations
+ *  section) are filtered out through the child's kind. */
+const PARENT_EDGE_SELECT_WITH_CHILD_KIND = `${PARENT_EDGE_SELECT}, child:organizations!affiliations_org_id_fkey!inner(kind)`;
+
+interface ParentEdgeRaw {
+  org_id: string;
+  parent_org_id: string;
+  status: string;
+  initiated_by: 'child' | 'parent';
+  requested_by_profile_id: string | null;
+  created_at: string;
+  affiliation_type: string | null;
+}
+
+/** A stored edge as the API speaks it (league_id = the child). */
+function publicParentEdge(r: ParentEdgeRaw): Omit<ParentAffiliationRow, 'org'> {
+  return {
+    league_id: r.org_id,
+    parent_league_id: r.parent_org_id,
+    status: r.status,
+    initiated_by: r.initiated_by,
+    requested_by_profile_id: r.requested_by_profile_id,
+    created_at: r.created_at,
+    affiliation_type: r.affiliation_type,
+  };
+}
+
+/** The (child, parent) pair a route names, in EITHER direction. */
+function eitherDirection(a: string, b: string): string {
+  return `and(org_id.eq.${a},parent_org_id.eq.${b}),and(org_id.eq.${b},parent_org_id.eq.${a})`;
+}
 
 export interface ParentAffiliationRow {
   league_id: string;
@@ -113,18 +153,17 @@ export async function listParentAffiliations(
   leagueId: string
 ): Promise<{ rows: ParentAffiliationRow[]; missing: boolean } | null> {
   const { data: rows, error } = await admin
-    .from('league_affiliations')
-    .select(
-      'league_id, parent_league_id, status, initiated_by, requested_by_profile_id, created_at, affiliation_type'
-    )
-    .or(`league_id.eq.${leagueId},parent_league_id.eq.${leagueId}`)  // hardening-ok: route-validated UUID
+    .from('affiliations')
+    .select(PARENT_EDGE_SELECT_WITH_CHILD_KIND)
+    .or(`org_id.eq.${leagueId},parent_org_id.eq.${leagueId}`)  // hardening-ok: route-validated UUID
+    .eq('child.kind', 'league')
     .limit(200);
   if (error) {
     if (isMissingTableError(error.code)) return { rows: [], missing: true };
     console.error('[PARENTS] list error:', error);
     return null;
   }
-  const list = (rows ?? []) as Omit<ParentAffiliationRow, 'org'>[];
+  const list = ((rows ?? []) as unknown as ParentEdgeRaw[]).map(publicParentEdge);
   const otherIds = [
     ...new Set(list.map(r => (r.league_id === leagueId ? r.parent_league_id : r.league_id))),
   ];
@@ -212,9 +251,9 @@ export async function parentPOST(
 
   const childId = direction === 'up' ? leagueId : otherLeagueId;
   const parentId = direction === 'up' ? otherLeagueId : leagueId;
-  const { error } = await admin.from('league_affiliations').insert({
-    league_id: childId,
-    parent_league_id: parentId,
+  const { error } = await admin.from('affiliations').insert({
+    org_id: childId,
+    parent_org_id: parentId,
     status: 'pending',
     initiated_by: direction === 'up' ? 'child' : 'parent',
     requested_by_profile_id: user.id,
@@ -265,12 +304,10 @@ export async function parentAccept(
     return NextResponse.json({ error: 'Only owners and managers can accept' }, { status: 403 });
   }
 
-  const { data: row, error } = await admin
-    .from('league_affiliations')
-    .select('league_id, parent_league_id, status, initiated_by, requested_by_profile_id, affiliation_type')
-    .or(
-      `and(league_id.eq.${leagueId},parent_league_id.eq.${otherLeagueId}),and(league_id.eq.${otherLeagueId},parent_league_id.eq.${leagueId})`  // hardening-ok: route-validated UUIDs
-    )
+  const { data: raw, error } = await admin
+    .from('affiliations')
+    .select(PARENT_EDGE_SELECT)
+    .or(eitherDirection(leagueId, otherLeagueId))  // hardening-ok: route-validated UUIDs
     .maybeSingle();
   if (error) {
     if (isMissingTableError(error.code)) {
@@ -279,7 +316,8 @@ export async function parentAccept(
     console.error('[PARENTS] row fetch error:', error);
     return NextResponse.json({ error: 'Failed to load the affiliation' }, { status: 500 });
   }
-  if (!row) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+  if (!raw) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+  const row = publicParentEdge(raw as unknown as ParentEdgeRaw);
   if (row.status !== 'pending') {
     return NextResponse.json({ error: 'Already active' }, { status: 409 });
   }
@@ -292,14 +330,14 @@ export async function parentAccept(
   }
 
   const { data: claimed, error: claimError } = await admin
-    .from('league_affiliations')
+    .from('affiliations')
     .update({
       status: 'active',
       decided_by_profile_id: user.id,
       decided_at: new Date().toISOString(),
     })
-    .eq('league_id', row.league_id)
-    .eq('parent_league_id', row.parent_league_id)
+    .eq('org_id', row.league_id)
+    .eq('parent_org_id', row.parent_league_id)
     .eq('status', 'pending')
     .select();
   if (claimError || !claimed || claimed.length === 0) {
@@ -348,12 +386,10 @@ export async function parentDELETE(
     return NextResponse.json({ error: 'Only owners and managers can do that' }, { status: 403 });
   }
 
-  const { data: row, error } = await admin
-    .from('league_affiliations')
-    .select('league_id, parent_league_id, status, initiated_by, requested_by_profile_id, affiliation_type')
-    .or(
-      `and(league_id.eq.${leagueId},parent_league_id.eq.${otherLeagueId}),and(league_id.eq.${otherLeagueId},parent_league_id.eq.${leagueId})`  // hardening-ok: route-validated UUIDs
-    )
+  const { data: raw, error } = await admin
+    .from('affiliations')
+    .select(PARENT_EDGE_SELECT)
+    .or(eitherDirection(leagueId, otherLeagueId))  // hardening-ok: route-validated UUIDs
     .maybeSingle();
   if (error) {
     if (isMissingTableError(error.code)) {
@@ -362,13 +398,14 @@ export async function parentDELETE(
     console.error('[PARENTS] row fetch error:', error);
     return NextResponse.json({ error: 'Failed to load the affiliation' }, { status: 500 });
   }
-  if (!row) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+  if (!raw) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+  const row = publicParentEdge(raw as unknown as ParentEdgeRaw);
 
   const { error: deleteError } = await admin
-    .from('league_affiliations')
+    .from('affiliations')
     .delete()
-    .eq('league_id', row.league_id)
-    .eq('parent_league_id', row.parent_league_id);
+    .eq('org_id', row.league_id)
+    .eq('parent_org_id', row.parent_league_id);
   if (deleteError) {
     console.error('[PARENTS] delete error:', deleteError);
     return NextResponse.json({ error: 'Failed to remove the affiliation' }, { status: 500 });

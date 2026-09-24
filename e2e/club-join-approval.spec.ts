@@ -3,7 +3,7 @@ import { createQaOrg } from './helpers/org';
 import { E2E_BASE_URL, adminClient, apiAs, createQaUser, deleteQaUser, loadQaUser, mintStorageState, resetRateBucket } from './helpers/qa-user';
 
 // Phase 9 V2 — join with approval. On an approval club a join POST queues a
-// request (club_join_requests — never a pending membership): the owner is
+// request (org_join_requests — never a pending membership): the owner is
 // belled, the requester is NOT a member (no role, no count change), a
 // repeat withdraws, a manager approves (the member appears, a bell lands)
 // or declines; an open club still joins instantly. The club page shows the
@@ -25,8 +25,8 @@ test('join approval: request → bell + not a member → withdraw → request �
   const gamma = await createQaUser({ firstName: 'Gale', lastName: 'Declinetest' });
   await resetRateBucket(admin, 'club-join', alpha.id);
   await resetRateBucket(admin, 'club-join', gamma.id);
-  const probe = await admin.from('club_join_requests').select('id').limit(1);
-  test.skip(!!probe.error, `club_join_requests missing — run migration 176 (${probe.error?.message})`);
+  const probe = await admin.from('org_join_requests').select('id').limit(1);
+  test.skip(!!probe.error, `org_join_requests missing — run migration 236 (${probe.error?.message})`);
 
   const club = await createQaOrg(admin, 'club', { name: `QA Approval Club ${stamp}`, owner_profile_id: owner.id, sport_key: 'golf', join_policy: 'approval' });
   const clubId = club.id;
@@ -48,7 +48,7 @@ test('join approval: request → bell + not a member → withdraw → request �
     expect(res.status(), await readErrorBody(res)).toBe(200);
     const asked = (await res.json()) as { action: string; requestId: string };
     expect(asked.action).toBe('requested');
-    const { data: reqRow } = await admin.from('club_join_requests').select('id, profile_id').eq('club_id', clubId).eq('profile_id', alpha.id).single();
+    const { data: reqRow } = await admin.from('org_join_requests').select('id, profile_id').eq('org_id', clubId).eq('profile_id', alpha.id).single();
     expect(reqRow!.id).toBe(asked.requestId);
     // Not a member: no role, no count change, the GET says the request is pending.
     res = await alphaApi.get(`/api/clubs/${clubId}`);
@@ -135,7 +135,7 @@ test('join approval: request → bell + not a member → withdraw → request �
         .toBe('member');
       await ap.reload();
       await expect(ap.getByRole('button', { name: 'Leave club' })).toBeVisible({ timeout: 20_000 });
-      const { data: gone } = await admin.from('club_join_requests').select('id').eq('id', asked3.requestId);
+      const { data: gone } = await admin.from('org_join_requests').select('id').eq('id', asked3.requestId);
       expect(gone ?? []).toHaveLength(0);
     } finally {
       await ownerCtx.close();

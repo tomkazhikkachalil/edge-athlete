@@ -160,13 +160,15 @@ export async function revalidateOrgSiteForCompetition(
     // Phase 6c G3: a league's boards also show on its affiliated clubs'
     // pages ("this week at the club") — purge those too, bounded.
     if (side === 'league') {
+      // The league's CLUB children (236: a child league is the parents section, not a club page).
       const { data: edges } = await admin
-        .from('league_clubs')
-        .select('club_id')
-        .eq('league_id', orgId)
+        .from('affiliations')
+        .select('org_id, child:organizations!affiliations_org_id_fkey!inner(kind)')
+        .eq('parent_org_id', orgId)
         .eq('status', 'active')
+        .eq('child.kind', 'club')
         .limit(10);
-      for (const e of edges ?? []) await revalidateOrgSiteForOrg(admin, 'club', e.club_id as string);
+      for (const e of edges ?? []) await revalidateOrgSiteForOrg(admin, 'club', e.org_id as string);
     }
   } catch (error) {
     console.warn(`${TAG} competition lookup failed (write unaffected):`, error);
