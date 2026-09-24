@@ -36,7 +36,7 @@ test('two pages: side default orders, side labels, reset, and the club golf teas
     { org_id: leagueId, profile_id: alpha.id, role: 'member', kind: 'roster' },
   ]);
   // The league is affiliated with (plays at) the club.
-  await admin.from('league_clubs').insert({ league_id: leagueId, club_id: clubId, status: 'active', initiated_by: 'league' });
+  await admin.from('affiliations').insert({ parent_org_id: leagueId, org_id: clubId, status: 'active', initiated_by: 'parent' });
   // A public golf leaderboard on the league with a materialized board.
   const { data: season } = await admin.from('seasons').insert({ org_id: leagueId, label: `2026 ${stamp}` }).select().single();
   const { data: comp } = await admin
@@ -172,7 +172,7 @@ test('two pages: side default orders, side labels, reset, and the club golf teas
     await ownerApi.dispose();
     await admin.from('org_sites').delete().in('id', [sites.club?.id, sites.league?.id].filter(Boolean) as string[]);
     await admin.from('competitions').delete().eq('org_id', leagueId);
-    await admin.from('league_clubs').delete().eq('league_id', leagueId);
+    await admin.from('affiliations').delete().eq('parent_org_id', leagueId);
     await admin.from('leagues').delete().eq('id', leagueId);
     await admin.from('clubs').delete().eq('id', clubId);
   }

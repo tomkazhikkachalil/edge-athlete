@@ -23,7 +23,7 @@ export interface CreateLeagueInput {
   sportKey: string;
   ownerProfileId: string;
   /** Pre-built location columns: `placeToLeagueColumns(place)` from a picker
-   *  value, or a league_requests row's nine columns verbatim — no PlaceValue
+   *  value, or a request row's nine columns verbatim (org_requests since 236) — no PlaceValue
    *  round-trip on the approval path. */
   placeColumns: Record<string, string | number | null>;
   /** Capability flags (142) — absent ⇒ the column DEFAULTs apply (the

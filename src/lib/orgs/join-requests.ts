@@ -20,7 +20,6 @@ export function joinDecisionMessage(side: OrgSide, approved: boolean): string | 
     : 'Welcome — the club page and its leagues are open to you.';
 }
 
-/** The approval queue's table + org column, by side (176 / 177). */
-export function joinRequestsTable(side: OrgSide): 'league_join_requests' | 'club_join_requests' {
-  return side === 'league' ? 'league_join_requests' : 'club_join_requests';
-}
+/** The approval queue — ONE table for both kinds since 236 (`org_id`);
+ *  the two side tables (176 / 177) are dropped in 237. */
+export const JOIN_REQUESTS_TABLE = 'org_join_requests' as const;

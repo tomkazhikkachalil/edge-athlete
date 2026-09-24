@@ -336,10 +336,10 @@ test('@mobile org site editor on a phone: the sections list, the gallery offer (
  *  exact path the wizard takes before it lands on `?welcome=1`. Sweeps the
  *  owner's stale requests and rate buckets first. Both welcome tests use it. */
 async function provisionGolfClub(admin: ReturnType<typeof adminClient>, owner: { id: string }, ownerApi: Awaited<ReturnType<typeof apiAs>>, name: string): Promise<{ clubId: string; subdomain: string }> {
-  const { data: stale } = await admin.from('club_requests').select('created_club_id').eq('requester_profile_id', owner.id);
-  const staleIds = (stale ?? []).map(r => r.created_club_id as string | null).filter((id): id is string => !!id);
+  const { data: stale } = await admin.from('org_requests').select('created_org_id').eq('requester_profile_id', owner.id);
+  const staleIds = (stale ?? []).map(r => r.created_org_id as string | null).filter((id): id is string => !!id);
   if (staleIds.length) await admin.from('clubs').delete().in('id', staleIds);
-  await admin.from('club_requests').delete().eq('requester_profile_id', owner.id);
+  await admin.from('org_requests').delete().eq('requester_profile_id', owner.id);
   await resetRateBucket(admin, 'club-request', owner.id);
   await resetRateBucket(admin, 'org-site', owner.id);
   await resetRateBucket(admin, 'org-site-draft', owner.id);
@@ -417,7 +417,7 @@ test('@mobile a fresh golf club: the welcome card offers the golf designs, Use t
   } finally {
     await ownerApi.dispose();
     if (clubId) await admin.from('clubs').delete().eq('id', clubId);
-    await admin.from('club_requests').delete().eq('requester_profile_id', owner.id);
+    await admin.from('org_requests').delete().eq('requester_profile_id', owner.id);
   }
 });
 
@@ -488,6 +488,6 @@ test('a fresh golf club on a laptop: the welcome card two-up, Use this → Open 
   } finally {
     await ownerApi.dispose();
     if (clubId) await admin.from('clubs').delete().eq('id', clubId);
-    await admin.from('club_requests').delete().eq('requester_profile_id', owner.id);
+    await admin.from('org_requests').delete().eq('requester_profile_id', owner.id);
   }
 });

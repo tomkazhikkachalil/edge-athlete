@@ -14,7 +14,7 @@ test('league wizard: full drive → live + draft columns; duplicate 409', async 
   const userA = loadQaUser('user.json');
   const admin = adminClient();
 
-  const probe = await admin.from('league_requests').select('structure_draft').limit(1);
+  const probe = await admin.from('org_requests').select('structure_draft').limit(1);
   test.skip(!!probe.error, `wizard columns missing — run migration 149 (${probe.error?.message})`);
 
   const name = 'QA Wizard League ' + Date.now();
@@ -67,7 +67,7 @@ test('league wizard: full drive → live + draft columns; duplicate 409', async 
 
     // DB truth: all four wizard columns landed.
     const { data: rows } = await admin
-      .from('league_requests')
+      .from('org_requests')
       .select('status, operates_competitions, operates_teams, structure_draft, connections_draft, sport_key')
       .eq('requester_profile_id', userA.id)
       .eq('name', name);
@@ -96,9 +96,9 @@ test('league wizard: full drive → live + draft columns; duplicate 409', async 
     }
   } finally {
     // C4: the request provisioned a pending league — delete it too (FK SET NULL would leak it).
-    const { data: provisioned } = await admin.from('league_requests').select('created_league_id').eq('requester_profile_id', userA.id);
-    const provisionedIds = (provisioned ?? []).map(r => r.created_league_id as string | null).filter((id): id is string => !!id);
+    const { data: provisioned } = await admin.from('org_requests').select('created_org_id').eq('requester_profile_id', userA.id);
+    const provisionedIds = (provisioned ?? []).map(r => r.created_org_id as string | null).filter((id): id is string => !!id);
     if (provisionedIds.length) await admin.from('leagues').delete().in('id', provisionedIds);
-    await admin.from('league_requests').delete().eq('requester_profile_id', userA.id);
+    await admin.from('org_requests').delete().eq('requester_profile_id', userA.id);
   }
 });

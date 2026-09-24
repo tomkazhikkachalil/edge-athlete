@@ -4,8 +4,11 @@
 // does: club edges by the CLUBS in play (any league may sanction), the
 // league chain walked up from the owners + direct sanctioners in ≤3 bounded
 // batched reads, then resolveSanctionedPairs under the common-authority
-// rule. Pre-167 (no league_affiliations) the chain read fails → single-hop.
-// Never throws; any failure reads as "nothing sanctioned".
+// rule. Both edge kinds are rows of `affiliations` (236): a club's
+// sanctioner is its parent (org_id = the club), a league's is its parent
+// league (org_id = the league) — the frontier only ever holds leagues, so
+// no kind filter is needed. Never throws; any failure reads as "nothing
+// sanctioned".
 
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { resolveSanctionedPairs, type ClubSanctionEdge, type LeagueSanctionEdge } from './provenance';
@@ -22,15 +25,15 @@ export async function readSanctionedPairs(
   if (ownerLeagueIds.length === 0 || clubIds.length === 0) return new Set();
   try {
     const { data: clubEdgeRows } = await admin
-      .from('league_clubs')
-      .select('league_id, club_id')
-      .in('club_id', clubIds)
+      .from('affiliations')
+      .select('org_id, parent_org_id')
+      .in('org_id', clubIds)
       .eq('status', 'active')
       .eq('affiliation_type', 'sanctioned_by')
       .limit(1000);
     const clubEdges: ClubSanctionEdge[] = (clubEdgeRows ?? []).map(e => ({
-      leagueId: e.league_id as string,
-      clubId: e.club_id as string,
+      leagueId: e.parent_org_id as string,
+      clubId: e.org_id as string,
     }));
 
     const leagueEdges: LeagueSanctionEdge[] = [];
@@ -38,17 +41,17 @@ export async function readSanctionedPairs(
     const seen = new Set(frontier);
     for (let hop = 0; hop < 3 && frontier.length > 0; hop++) {
       const { data: parentRows, error } = await admin
-        .from('league_affiliations')
-        .select('league_id, parent_league_id')
-        .in('league_id', frontier)
+        .from('affiliations')
+        .select('org_id, parent_org_id')
+        .in('org_id', frontier)
         .eq('status', 'active')
         .eq('affiliation_type', 'sanctioned_by')
         .limit(500);
       if (error) break;
       const next: string[] = [];
       for (const e of parentRows ?? []) {
-        leagueEdges.push({ leagueId: e.league_id as string, parentLeagueId: e.parent_league_id as string });
-        const p = e.parent_league_id as string;
+        leagueEdges.push({ leagueId: e.org_id as string, parentLeagueId: e.parent_org_id as string });
+        const p = e.parent_org_id as string;
         if (!seen.has(p)) {
           seen.add(p);
           next.push(p);

@@ -3,7 +3,7 @@ import { createQaOrg } from './helpers/org';
 import { E2E_BASE_URL, adminClient, apiAs, createQaUser, deleteQaUser, loadQaUser, mintStorageState, resetRateBucket } from './helpers/qa-user';
 
 // Program 11 L1 — join with approval, the league twin of club-join-approval.
-// On an approval league a join POST queues a request (league_join_requests
+// On an approval league a join POST queues a request (org_join_requests
 // — never a pending membership): the owner is belled (league_join), the
 // requester is NOT a member (no role, no count change), a repeat withdraws,
 // a manager approves (the member appears, a league_update bell lands) or
@@ -26,8 +26,8 @@ test('league join approval: request → bell + not a member → withdraw → req
   const gamma = await createQaUser({ firstName: 'Gale', lastName: 'Declinetest' });
   await resetRateBucket(admin, 'league-join', alpha.id);
   await resetRateBucket(admin, 'league-join', gamma.id);
-  const probe = await admin.from('league_join_requests').select('id').limit(1);
-  test.skip(!!probe.error, `league_join_requests missing — run migration 177 (${probe.error?.message})`);
+  const probe = await admin.from('org_join_requests').select('id').limit(1);
+  test.skip(!!probe.error, `org_join_requests missing — run migration 236 (${probe.error?.message})`);
 
   const league = await createQaOrg(admin, 'league', { name: `QA Approval League ${stamp}`, owner_profile_id: owner.id, sport_key: 'golf', join_policy: 'approval' });
   const leagueId = league.id;
@@ -49,7 +49,7 @@ test('league join approval: request → bell + not a member → withdraw → req
     expect(res.status(), await readErrorBody(res)).toBe(200);
     const asked = (await res.json()) as { action: string; requestId: string };
     expect(asked.action).toBe('requested');
-    const { data: reqRow } = await admin.from('league_join_requests').select('id, profile_id').eq('league_id', leagueId).eq('profile_id', alpha.id).single();
+    const { data: reqRow } = await admin.from('org_join_requests').select('id, profile_id').eq('org_id', leagueId).eq('profile_id', alpha.id).single();
     expect(reqRow!.id).toBe(asked.requestId);
     // Not a member: no role, no count change, the GET says the request is pending.
     res = await alphaApi.get(`/api/leagues/${leagueId}`);
@@ -144,7 +144,7 @@ test('league join approval: request → bell + not a member → withdraw → req
         .toBe('member');
       await ap.reload();
       await expect(ap.getByRole('button', { name: 'Leave league' })).toBeVisible({ timeout: 20_000 });
-      const { data: gone } = await admin.from('league_join_requests').select('id').eq('id', asked3.requestId);
+      const { data: gone } = await admin.from('org_join_requests').select('id').eq('id', asked3.requestId);
       expect(gone ?? []).toHaveLength(0);
     } finally {
       await ownerCtx.close();

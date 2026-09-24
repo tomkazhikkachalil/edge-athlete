@@ -12,7 +12,7 @@ test('club wizard: two sport sections + sported stub league → live + draft tru
   const userB = loadQaUser('user-b.json');
   const admin = adminClient();
 
-  const probe = await admin.from('club_requests').select('structure_draft').limit(1);
+  const probe = await admin.from('org_requests').select('structure_draft').limit(1);
   test.skip(!!probe.error, `wizard columns missing — run migration 149 (${probe.error?.message})`);
 
   const name = 'QA Wizard Club ' + Date.now();
@@ -54,7 +54,7 @@ test('club wizard: two sport sections + sported stub league → live + draft tru
 
     // DB truth: two sports among divisions; the stub carries its sport.
     const { data: rows } = await admin
-      .from('club_requests')
+      .from('org_requests')
       .select('status, operates_competitions, operates_teams, structure_draft, connections_draft')
       .eq('requester_profile_id', userB.id)
       .eq('name', name);
@@ -72,10 +72,10 @@ test('club wizard: two sport sections + sported stub league → live + draft tru
     expect(conns.stubs).toEqual([{ name: 'QA Stub League', sportKey: 'ice_hockey' }]);
   } finally {
     // C4: the request provisioned a pending club — delete it too (FK SET NULL would leak it).
-    const { data: provisioned } = await admin.from('club_requests').select('created_club_id').eq('requester_profile_id', userB.id);
-    const provisionedIds = (provisioned ?? []).map(r => r.created_club_id as string | null).filter((id): id is string => !!id);
+    const { data: provisioned } = await admin.from('org_requests').select('created_org_id').eq('requester_profile_id', userB.id);
+    const provisionedIds = (provisioned ?? []).map(r => r.created_org_id as string | null).filter((id): id is string => !!id);
     if (provisionedIds.length) await admin.from('clubs').delete().in('id', provisionedIds);
-    await admin.from('club_requests').delete().eq('requester_profile_id', userB.id);
+    await admin.from('org_requests').delete().eq('requester_profile_id', userB.id);
     await ctx.close();
   }
 });

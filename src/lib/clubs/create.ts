@@ -23,7 +23,7 @@ export interface CreateClubInput {
   description: string | null;
   ownerProfileId: string;
   /** Pre-built location columns: placeToClubColumns(place), or a
-   *  club_requests row's nine columns verbatim on the approval path. */
+   *  request row's nine columns verbatim on the approval path (org_requests since 236). */
   placeColumns: Record<string, string | number | null>;
   /** Capability flags (142) — absent ⇒ the column DEFAULTs apply (the
    *  wizard's tristate: NULL request columns pass nothing through). */

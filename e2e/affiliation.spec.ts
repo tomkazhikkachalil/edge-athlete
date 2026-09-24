@@ -13,8 +13,8 @@ test('affiliation: league invites, club accepts, both pages cross-list', async (
   const userB = loadQaUser('user-b.json');
   const admin = adminClient();
 
-  const probe = await admin.from('league_clubs').select('league_id').limit(1);
-  test.skip(!!probe.error, `league_clubs missing — run migration 118 (${probe.error?.message})`);
+  const probe = await admin.from('affiliations').select('org_id').limit(1);
+  test.skip(!!probe.error, `affiliations missing — run migration 236 (${probe.error?.message})`);
 
   const stamp = Date.now();
   const clubName = `QA Aff Club ${stamp}`;
@@ -87,13 +87,13 @@ test('affiliation: league invites, club accepts, both pages cross-list', async (
 
     // Server truth both ways.
     const { data: row } = await admin
-      .from('league_clubs')
+      .from('affiliations')
       .select('status, initiated_by, affiliation_type')
-      .eq('league_id', leagueId)
-      .eq('club_id', clubId)
+      .eq('parent_org_id', leagueId)
+      .eq('org_id', clubId)
       .maybeSingle();
     expect(row?.status).toBe('active');
-    expect(row?.initiated_by).toBe('league');
+    expect(row?.initiated_by).toBe('parent'); // 236: the LEAGUE asked → the parent end
     expect(row?.affiliation_type).toBe('member_of');
 
     // Notifications: invite reached A (club owner), acceptance reached B.
@@ -124,7 +124,7 @@ test('affiliation: league invites, club accepts, both pages cross-list', async (
   } finally {
     await admin.from('notifications').delete().eq('type', 'affiliation_invite').eq('user_id', userA.id);
     await admin.from('notifications').delete().eq('type', 'affiliation_update').eq('user_id', userB.id);
-    await admin.from('league_clubs').delete().eq('league_id', leagueId);
+    await admin.from('affiliations').delete().eq('parent_org_id', leagueId);
     await admin.from('leagues').delete().eq('id', leagueId);
     await admin.from('clubs').delete().eq('id', clubId);
   }

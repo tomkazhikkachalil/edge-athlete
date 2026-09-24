@@ -27,8 +27,9 @@ export async function applyListing(
 ): Promise<NextResponse | { ok: true; status: ListingStatus }> {
   const { side, orgId, orgName, actorId, target } = input;
   const table = 'organizations';
-  const requestTable = side === 'league' ? 'league_requests' : 'club_requests';
-  const orgCol = side === 'league' ? 'created_league_id' : 'created_club_id';
+  // 236: one request table for both kinds, keyed to the org by created_org_id.
+  const requestTable = 'org_requests';
+  const orgCol = 'created_org_id';
 
   const current = await readListing(admin, side, orgId);
   const change = nextListingChange({ current: current.status, target });
@@ -53,7 +54,7 @@ export async function applyListing(
     } else if (!row) {
       ({ error: reqError } = await admin
         .from(requestTable)
-        .insert({ name: orgName, requester_profile_id: actorId, status: 'pending', [orgCol]: orgId }));
+        .insert({ kind: side, name: orgName, requester_profile_id: actorId, status: 'pending', [orgCol]: orgId, sport_key: current.primarySport ?? null }));
     }
     if (reqError?.code === '23505') {
       return NextResponse.json({ error: 'You already have a listing request waiting for review' }, { status: 409 });

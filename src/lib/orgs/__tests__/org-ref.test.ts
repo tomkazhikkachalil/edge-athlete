@@ -121,14 +121,10 @@ describe('org-ref — the one spelling of how an org is named (Round 5 B)', () =
       // class (c) — the notify metadata key, forever
       'lib/clubs/notify.ts': 8,
       'lib/leagues/notify.ts': 8,
-      // class (d) — the side-specific tables, until D-ii (236 / D3)
-      'lib/affiliations/parents-server.ts': 25,
-      'lib/affiliations/server.ts': 20,
-      'lib/orgs/sanction-reads.ts': 8,
-      'lib/orgs/wizard-replay.ts': 2,
-      'lib/orgs/competition-server.ts': 5,
-      'lib/org-sites/revalidate.ts': 3,
-      'lib/sports/server/official-stats.ts': 11,
+      // the public affiliation shapes (league_id / club_id / parent_league_id on the wire — the boundary of D-ii's `affiliations`)
+      'lib/affiliations/parents-server.ts': 17,
+      'lib/affiliations/server.ts': 12,
+      'lib/sports/server/official-stats.ts': 3,
       'components/affiliations/AffiliationSection.tsx': 12,
       'components/affiliations/ParentLeaguesSection.tsx': 3,
       'components/orgs/console/HierarchySection.tsx': 1,
@@ -142,7 +138,7 @@ describe('org-ref — the one spelling of how an org is named (Round 5 B)', () =
       'app/api/golf/courses/route.ts': 11,
       // the BOUNDARY — the public league_id / club_id fields the calendar, sport-event,
       // admin-venue and public-data readers still speak (Tom, Sep 22 2026: the contract holds)
-      'lib/org-sites/public-data.ts': 11,
+      'lib/org-sites/public-data.ts': 8,
       'lib/calendar/events.ts': 4,
       'lib/calendar/event-scope.ts': 6,
       'lib/sport-events/validate.ts': 22,

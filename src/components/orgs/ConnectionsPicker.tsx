@@ -8,7 +8,7 @@ import { formatPlace } from '@/lib/geo/regions';
 import type { ConnectionsDraftInput } from '@/lib/orgs/wizard-validate';
 
 // ── Wizard step 4: connections (AffiliationSection's typeahead recipe) ──────
-// A league connects to CLUBS and vice versa (league_clubs is the only
+// A league connects to CLUBS and vice versa (an `affiliations` edge with the club as child is the only
 // org↔org edge). Results are cleared in onChange, never in the effect
 // (the set-state-in-effect rule); short queries may omit the results key
 // entirely (`body.results?.X ?? []`). Unmatched orgs become STUB rows —

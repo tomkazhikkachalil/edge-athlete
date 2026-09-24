@@ -34,10 +34,6 @@ export type AffSide = 'league' | 'club';
 interface SideConfig {
   side: AffSide;
   otherSide: AffSide;
-  orgTable: 'leagues' | 'clubs';
-  rowKey: 'league_id' | 'club_id';
-  otherRowKey: 'league_id' | 'club_id';
-  otherOrgTable: 'leagues' | 'clubs';
   pagePath: (id: string) => string;
   otherPagePath: (id: string) => string;
 }
@@ -46,24 +42,56 @@ const SIDES: Record<AffSide, SideConfig> = {
   league: {
     side: 'league',
     otherSide: 'club',
-    orgTable: 'leagues',
-    rowKey: 'league_id',
-    otherRowKey: 'club_id',
-    otherOrgTable: 'clubs',
     pagePath: id => `/league/${id}`,
     otherPagePath: id => `/club/${id}`,
   },
   club: {
     side: 'club',
     otherSide: 'league',
-    orgTable: 'clubs',
-    rowKey: 'club_id',
-    otherRowKey: 'league_id',
-    otherOrgTable: 'leagues',
     pagePath: id => `/club/${id}`,
     otherPagePath: id => `/league/${id}`,
   },
 };
+
+// ── The edge table (Round 5 D-ii, 236): `affiliations` ──────────────────────
+// ONE row per (child org, parent org). A club in a league is (club → league):
+// org_id = the club, parent_org_id = the league; initiated_by is which END
+// asked (child | parent). The API keeps speaking league_id / club_id and
+// initiated_by 'league' | 'club' (Tom, Sep 22 2026: the contract holds) —
+// `publicEdge` is the one translation, `edgeKey` the one filter.
+
+const EDGE_SELECT = 'org_id, parent_org_id, status, initiated_by, requested_by_profile_id, created_at, affiliation_type';
+/** The child's kind through its FK — a league's edges also include child
+ *  LEAGUES (the parent chain), which this section never lists. */
+const EDGE_SELECT_WITH_CHILD_KIND = `${EDGE_SELECT}, child:organizations!affiliations_org_id_fkey!inner(kind)`;
+
+interface EdgeRow {
+  org_id: string;
+  parent_org_id: string;
+  status: string;
+  initiated_by: 'child' | 'parent';
+  requested_by_profile_id: string | null;
+  created_at: string;
+  affiliation_type: string | null;
+}
+
+/** The (club, league) pair a route names, as the edge's two columns. */
+function edgeKey(side: AffSide, orgId: string, targetId: string): { org_id: string; parent_org_id: string } {
+  return side === 'club' ? { org_id: orgId, parent_org_id: targetId } : { org_id: targetId, parent_org_id: orgId };
+}
+
+/** A stored edge as the API speaks it. */
+function publicEdge(r: EdgeRow): Omit<DecoratedAffiliationRow, 'org'> {
+  return {
+    league_id: r.parent_org_id,
+    club_id: r.org_id,
+    status: r.status,
+    initiated_by: r.initiated_by === 'child' ? 'club' : 'league',
+    requested_by_profile_id: r.requested_by_profile_id,
+    created_at: r.created_at,
+    affiliation_type: r.affiliation_type,
+  };
+}
 
 interface OrgRow {
   id: string;
@@ -74,19 +102,23 @@ interface OrgRow {
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- admin client alias
 type Admin = any;
 
+/** The org row, and ONLY when it is of the expected kind — a league
+ *  inviting a "club" that is really a league answers not-found, as the
+ *  two-table read did before 235. */
 async function loadOrg(
   admin: Admin,
-  table: 'leagues' | 'clubs',
+  kind: AffSide,
   id: string
 ): Promise<{ org: OrgRow | null; missing: boolean }> {
   const { data, error } = await admin
-    .from(table)
+    .from('organizations')
     .select('id, name, owner_profile_id')
     .eq('id', id)
+    .eq('kind', kind)
     .maybeSingle();
   if (error) {
     if (isMissingTableError(error.code)) return { org: null, missing: true };
-    console.error(`[AFFILIATIONS] ${table} fetch error:`, error);
+    console.error(`[AFFILIATIONS] ${kind} fetch error:`, error);
     return { org: null, missing: false };
   }
   return { org: (data as OrgRow) ?? null, missing: false };
@@ -132,33 +164,35 @@ export async function listAffiliations(
   orgId: string
 ): Promise<{ rows: DecoratedAffiliationRow[]; missing: boolean } | null> {
   const cfg = SIDES[side];
-  const { data: rows, error } = await admin
-    .from('league_clubs')
-    .select('league_id, club_id, status, initiated_by, requested_by_profile_id, created_at, affiliation_type')
-    .eq(cfg.rowKey, orgId);
+  // A club's edges: every row where it is the child (its parents are leagues
+  // by construction). A league's: the rows where it is the parent AND the
+  // child is a club — its child LEAGUES belong to the parents section.
+  const query = side === 'club'
+    ? admin.from('affiliations').select(EDGE_SELECT).eq('org_id', orgId)
+    : admin.from('affiliations').select(EDGE_SELECT_WITH_CHILD_KIND).eq('parent_org_id', orgId).eq('child.kind', 'club');
+  const { data: rows, error } = await query;
   if (error) {
     if (isMissingTableError(error.code)) return { rows: [], missing: true };
     console.error('[AFFILIATIONS] list error:', error);
     return null;
   }
 
-  const list = rows ?? [];
-  const otherIds = [...new Set(list.map((r: Record<string, unknown>) => r[cfg.otherRowKey] as string))];
-  const selectCols = cfg.otherOrgTable === 'leagues'
+  const list = ((rows ?? []) as unknown as EdgeRow[]).map(publicEdge);
+  const otherOf = (r: Omit<DecoratedAffiliationRow, 'org'>) => (side === 'league' ? r.club_id : r.league_id);
+  const otherIds = [...new Set(list.map(otherOf))];
+  // Leagues carry a sport_key on the card; clubs never did (the 118 shape).
+  const selectCols = cfg.otherSide === 'league'
     ? 'id, name, sport_key, city, region, country'
     : 'id, name, city, region, country';
   const { data: others } = otherIds.length
-    ? await admin.from(cfg.otherOrgTable).select(selectCols).in('id', otherIds)
+    ? await admin.from('organizations').select(selectCols).in('id', otherIds).eq('kind', cfg.otherSide)
     : { data: [] };
   // The dynamic select string defeats supabase-js's type-level parser — the
   // runtime shape is the selected columns; cast once here.
   const otherRows = (others ?? []) as unknown as AffiliatedOrg[];
   const byId = new Map(otherRows.map(o => [o.id, o]));
   return {
-    rows: list.map((r: Record<string, unknown>) => ({
-      ...(r as unknown as Omit<DecoratedAffiliationRow, 'org'>),
-      org: byId.get(r[cfg.otherRowKey] as string) ?? null,
-    })),
+    rows: list.map(r => ({ ...r, org: byId.get(otherOf(r)) ?? null })),
     missing: false,
   };
 }
@@ -172,7 +206,7 @@ export async function affiliationGET(request: NextRequest, side: AffSide, orgId:
   const { user } = await getServerAuth(request);
   const admin = getSupabaseAdmin();
 
-  const { org } = await loadOrg(admin, cfg.orgTable, orgId);
+  const { org } = await loadOrg(admin, cfg.side, orgId);
   if (!org) return NextResponse.json({ error: 'Not found' }, { status: 404 });
 
   const listed = await listAffiliations(admin, side, orgId);
@@ -219,14 +253,14 @@ export async function affiliationPOST(
   }
   const admin = getSupabaseAdmin();
 
-  const { org } = await loadOrg(admin, cfg.orgTable, orgId);
+  const { org } = await loadOrg(admin, cfg.side, orgId);
   if (!org) return NextResponse.json({ error: 'Not found' }, { status: 404 });
   const role = await getOrgRole(admin, cfg.side, orgId, user.id);
   if (!isOwnerOrManager(role)) {
     return NextResponse.json({ error: 'Only owners and managers can affiliate' }, { status: 403 });
   }
 
-  const { org: other } = await loadOrg(admin, cfg.otherOrgTable, targetId);
+  const { org: other } = await loadOrg(admin, cfg.otherSide, targetId);
   if (!other) {
     return NextResponse.json(
       { error: cfg.otherSide === 'club' ? 'Club not found' : 'League not found' },
@@ -234,11 +268,10 @@ export async function affiliationPOST(
     );
   }
 
-  const { error } = await admin.from('league_clubs').insert({
-    [cfg.rowKey]: orgId,
-    [cfg.otherRowKey]: targetId,
+  const { error } = await admin.from('affiliations').insert({
+    ...edgeKey(side, orgId, targetId),
     status: 'pending',
-    initiated_by: cfg.side,
+    initiated_by: side === 'club' ? 'child' : 'parent',
     requested_by_profile_id: user.id,
     affiliation_type: affiliationType,
   });
@@ -280,18 +313,18 @@ export async function affiliationAccept(
   }
   const admin = getSupabaseAdmin();
 
-  const { org } = await loadOrg(admin, cfg.orgTable, orgId);
+  const { org } = await loadOrg(admin, cfg.side, orgId);
   if (!org) return NextResponse.json({ error: 'Not found' }, { status: 404 });
   const role = await getOrgRole(admin, cfg.side, orgId, user.id);
   if (!isOwnerOrManager(role)) {
     return NextResponse.json({ error: 'Only owners and managers can accept' }, { status: 403 });
   }
 
-  const { data: row, error } = await admin
-    .from('league_clubs')
-    .select('league_id, club_id, status, initiated_by, requested_by_profile_id, affiliation_type')
-    .eq(cfg.rowKey, orgId)
-    .eq(cfg.otherRowKey, targetId)
+  const key = edgeKey(side, orgId, targetId);
+  const { data: raw, error } = await admin
+    .from('affiliations')
+    .select(EDGE_SELECT)
+    .match(key)
     .maybeSingle();
   if (error) {
     if (isMissingTableError(error.code)) {
@@ -300,7 +333,8 @@ export async function affiliationAccept(
     console.error('[AFFILIATIONS] row fetch error:', error);
     return NextResponse.json({ error: 'Failed to load the affiliation' }, { status: 500 });
   }
-  if (!row) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+  if (!raw) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+  const row = publicEdge(raw as unknown as EdgeRow);
   if (row.status !== 'pending') {
     return NextResponse.json({ error: 'Already active' }, { status: 409 });
   }
@@ -314,14 +348,13 @@ export async function affiliationAccept(
   // Optimistic claim (the 116 pattern): zero rows = withdrawn or decided
   // mid-flight.
   const { data: claimed, error: claimError } = await admin
-    .from('league_clubs')
+    .from('affiliations')
     .update({
       status: 'active',
       decided_by_profile_id: user.id,
       decided_at: new Date().toISOString(),
     })
-    .eq(cfg.rowKey, orgId)
-    .eq(cfg.otherRowKey, targetId)
+    .match(key)
     .eq('status', 'pending')
     .select();
   if (claimError || !claimed || claimed.length === 0) {
@@ -336,7 +369,7 @@ export async function affiliationAccept(
     await recordSanctionGrant(admin, row.league_id, 'club', row.club_id);
   }
 
-  const { org: other } = await loadOrg(admin, cfg.otherOrgTable, targetId);
+  const { org: other } = await loadOrg(admin, cfg.otherSide, targetId);
   if (other) {
     const { notifyAffiliationUpdate } = await import('./notify');
     await notifyAffiliationUpdate(admin, {
@@ -365,18 +398,18 @@ export async function affiliationDELETE(
   }
   const admin = getSupabaseAdmin();
 
-  const { org } = await loadOrg(admin, cfg.orgTable, orgId);
+  const { org } = await loadOrg(admin, cfg.side, orgId);
   if (!org) return NextResponse.json({ error: 'Not found' }, { status: 404 });
   const role = await getOrgRole(admin, cfg.side, orgId, user.id);
   if (!isOwnerOrManager(role)) {
     return NextResponse.json({ error: 'Only owners and managers can do that' }, { status: 403 });
   }
 
-  const { data: row, error } = await admin
-    .from('league_clubs')
-    .select('league_id, club_id, status, initiated_by, requested_by_profile_id, affiliation_type')
-    .eq(cfg.rowKey, orgId)
-    .eq(cfg.otherRowKey, targetId)
+  const key = edgeKey(side, orgId, targetId);
+  const { data: raw, error } = await admin
+    .from('affiliations')
+    .select(EDGE_SELECT)
+    .match(key)
     .maybeSingle();
   if (error) {
     if (isMissingTableError(error.code)) {
@@ -385,19 +418,19 @@ export async function affiliationDELETE(
     console.error('[AFFILIATIONS] row fetch error:', error);
     return NextResponse.json({ error: 'Failed to load the affiliation' }, { status: 500 });
   }
-  if (!row) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+  if (!raw) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+  const row = publicEdge(raw as unknown as EdgeRow);
 
   const { error: deleteError } = await admin
-    .from('league_clubs')
+    .from('affiliations')
     .delete()
-    .eq(cfg.rowKey, orgId)
-    .eq(cfg.otherRowKey, targetId);
+    .match(key);
   if (deleteError) {
     console.error('[AFFILIATIONS] delete error:', deleteError);
     return NextResponse.json({ error: 'Failed to remove the affiliation' }, { status: 500 });
   }
 
-  const { org: other } = await loadOrg(admin, cfg.otherOrgTable, targetId);
+  const { org: other } = await loadOrg(admin, cfg.otherSide, targetId);
   const names = other ? orgNames(cfg, org, other) : null;
   const { notifyAffiliationUpdate } = await import('./notify');
 
@@ -489,7 +522,6 @@ export async function getProfileOrganizations(
     }
   }
   for (const side of ['league', 'club'] as const) {
-    const cfg = SIDES[side];
     const { rows, error } = await profileMembershipRows(admin, side, profileId);
     if (error) {
       // Pre-140 database: an empty strip, never an error.
@@ -508,17 +540,17 @@ export async function getProfileOrganizations(
     // visibility (176/177) decides the stranger view; the select ladder
     // steps down on 42703 (179+177 → 179 → 174 → bare).
     let { data: orgs, error: orgsError } = await admin
-      .from(cfg.orgTable)
+      .from('organizations')
       .select(`${selectCols}, listing_status, approved_at, visibility`)
       .in('id', orgIds);
     if (orgsError?.code === '42703') {
-      ({ data: orgs, error: orgsError } = await admin.from(cfg.orgTable).select(`${selectCols}, listing_status, approved_at`).in('id', orgIds));
+      ({ data: orgs, error: orgsError } = await admin.from('organizations').select(`${selectCols}, listing_status, approved_at`).in('id', orgIds));
     }
     if (orgsError?.code === '42703') {
-      ({ data: orgs, error: orgsError } = await admin.from(cfg.orgTable).select(`${selectCols}, approved_at`).in('id', orgIds));
+      ({ data: orgs, error: orgsError } = await admin.from('organizations').select(`${selectCols}, approved_at`).in('id', orgIds));
     }
     if (orgsError?.code === '42703') {
-      ({ data: orgs, error: orgsError } = await admin.from(cfg.orgTable).select(selectCols).in('id', orgIds));
+      ({ data: orgs, error: orgsError } = await admin.from('organizations').select(selectCols).in('id', orgIds));
     }
     if (orgsError) {
       // Never silent again: the strip used to render nothing on a 400.

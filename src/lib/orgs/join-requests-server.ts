@@ -1,18 +1,17 @@
 // ── Join requests (phase 9 V2, both sides in program 11) — the queue's I/O ──
-// An org with join_policy 'approval' queues joins in club_join_requests
-// (mig 176) / league_join_requests (mig 177) — NOT a pending membership
-// (every membership reader is status-blind by design). Approve = the
-// existing joinOrg + delete the request; decline = delete. Every write is
-// service-role, gated by the routes (managers decide; the requester owns
-// their own request). Side-generic: the table, the org column and the bells
-// follow `side`.
+// An org with join_policy 'approval' queues joins in org_join_requests
+// (236 — one table, `org_id`; 176 / 177's side tables until then) — NOT a
+// pending membership (every membership reader is status-blind by design).
+// Approve = the existing joinOrg + delete the request; decline = delete.
+// Every write is service-role, gated by the routes (managers decide; the
+// requester owns their own request). Only the bells follow `side`.
 
 import { NextResponse } from 'next/server';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { OrgSide } from './authz';
-import { ORG_ID, PAIR_COLUMN } from './org-ref';
+import { ORG_ID } from './org-ref';
 import { joinOrg } from './members';
-import { joinRequestsTable } from './join-requests';
+import { JOIN_REQUESTS_TABLE } from './join-requests';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- the notify.ts Admin alias; schema-agnostic
 type Admin = SupabaseClient<any, 'public', any>;
@@ -40,9 +39,9 @@ export async function viewerJoinRequest(
 ): Promise<{ id: string } | null> {
   if (!profileId) return null;
   const { data, error } = await admin
-    .from(joinRequestsTable(side))
+    .from(JOIN_REQUESTS_TABLE)
     .select('id')
-    .eq(PAIR_COLUMN[side], orgId)
+    .eq(ORG_ID, orgId)
     .eq('profile_id', profileId)
     .maybeSingle();
   if (error || !data) return null;
@@ -80,8 +79,8 @@ export async function requestJoin(
   const existing = await viewerJoinRequest(admin, side, org.id, profileId);
   if (existing) return { requestId: existing.id, created: false };
   const { data, error } = await admin
-    .from(joinRequestsTable(side))
-    .insert({ [PAIR_COLUMN[side]]: org.id, profile_id: profileId })
+    .from(JOIN_REQUESTS_TABLE)
+    .insert({ org_id: org.id, profile_id: profileId })
     .select('id')
     .single();
   if (error || !data) {
@@ -102,9 +101,9 @@ export async function requestJoin(
 /** The requester withdraws. */
 export async function cancelJoinRequest(admin: Admin, side: OrgSide, orgId: string, profileId: string): Promise<boolean> {
   const { data } = await admin
-    .from(joinRequestsTable(side))
+    .from(JOIN_REQUESTS_TABLE)
     .delete()
-    .eq(PAIR_COLUMN[side], orgId)
+    .eq(ORG_ID, orgId)
     .eq('profile_id', profileId)
     .select('id');
   return (data ?? []).length > 0;
@@ -122,9 +121,9 @@ export interface JoinRequestRow {
 /** The manager's queue (a manager surface — real names). */
 export async function listJoinRequests(admin: Admin, side: OrgSide, orgId: string): Promise<NextResponse> {
   const { data, error } = await admin
-    .from(joinRequestsTable(side))
+    .from(JOIN_REQUESTS_TABLE)
     .select('id, profile_id, message, created_at')
-    .eq(PAIR_COLUMN[side], orgId)
+    .eq(ORG_ID, orgId)
     .order('created_at', { ascending: true })
     .limit(200);
   if (error) {
@@ -166,10 +165,10 @@ export async function decideJoinRequest(
   decision: 'approve' | 'decline'
 ): Promise<NextResponse> {
   const { data: claimed, error } = await admin
-    .from(joinRequestsTable(side))
+    .from(JOIN_REQUESTS_TABLE)
     .delete()
     .eq('id', requestId)
-    .eq(PAIR_COLUMN[side], org.id)
+    .eq(ORG_ID, org.id)
     .select('id, profile_id');
   if (error) {
     console.error(`${TAG} claim error:`, error);

@@ -24,10 +24,18 @@ describe('canCreateOrg', () => {
 
 describe('the org-creation routes call the gate', () => {
   // The route-authz audit proves requireAuth; this proves the SECOND gate
-  // on the two routes that mint an org owner. A refactor that drops the call
-  // re-opens the minor gap silently — hence a source assertion, the
-  // api-route-authz.test.ts idiom.
-  const routes = ['src/app/api/clubs/requests/route.ts', 'src/app/api/leagues/requests/route.ts'];
+  // on the one handler that mints an org owner (Round 5 D3: both request
+  // routes are shims over orgRequestsPOST in requests-server.ts). A refactor
+  // that drops the call re-opens the minor gap silently — hence a source
+  // assertion, the api-route-authz.test.ts idiom; the two shims are pinned
+  // to delegate there.
+  const routes = ['src/lib/orgs/requests-server.ts'];
+  for (const rel of ['src/app/api/clubs/requests/route.ts', 'src/app/api/leagues/requests/route.ts']) {
+    it(`${rel} delegates its POST to orgRequestsPOST`, () => {
+      const source = readFileSync(join(process.cwd(), rel), 'utf8');
+      expect(source).toMatch(/return await orgRequestsPOST\(request, '(league|club)'\)/);
+    });
+  }
   for (const rel of routes) {
     it(`${rel} gates on requireOrgCreator after requireAuth`, () => {
       const source = readFileSync(join(process.cwd(), rel), 'utf8');

@@ -155,16 +155,17 @@ export async function fetchOfficialStatLines(
     ];
     let sanctionedPairs = new Set<string>();
     if (leagueIds.length && clubIdsInPlay.length) {
+      // 236: both edge kinds are `affiliations` rows (org_id = the child).
       const { data: clubEdgeRows } = await admin
-        .from('league_clubs')
-        .select('league_id, club_id')
-        .in('club_id', clubIdsInPlay)
+        .from('affiliations')
+        .select('org_id, parent_org_id')
+        .in('org_id', clubIdsInPlay)
         .eq('status', 'active')
         .eq('affiliation_type', 'sanctioned_by')
         .limit(1000);
       const clubEdges = (clubEdgeRows ?? []).map(e => ({
-        leagueId: e.league_id as string,
-        clubId: e.club_id as string,
+        leagueId: e.parent_org_id as string,
+        clubId: e.org_id as string,
       }));
 
       const leagueEdges: { leagueId: string; parentLeagueId: string }[] = [];
@@ -174,20 +175,20 @@ export async function fetchOfficialStatLines(
       const seen = new Set(frontier);
       for (let hop = 0; hop < 3 && frontier.length > 0; hop++) {
         const { data: parentRows, error: parentErr } = await admin
-          .from('league_affiliations')
-          .select('league_id, parent_league_id')
-          .in('league_id', frontier)
+          .from('affiliations')
+          .select('org_id, parent_org_id')
+          .in('org_id', frontier)
           .eq('status', 'active')
           .eq('affiliation_type', 'sanctioned_by')
           .limit(500);
-        if (parentErr) break; // pre-167 → single-hop behavior
+        if (parentErr) break; // a failed hop → single-hop behavior
         const next: string[] = [];
         for (const e of parentRows ?? []) {
           leagueEdges.push({
-            leagueId: e.league_id as string,
-            parentLeagueId: e.parent_league_id as string,
+            leagueId: e.org_id as string,
+            parentLeagueId: e.parent_org_id as string,
           });
-          const p = e.parent_league_id as string;
+          const p = e.parent_org_id as string;
           if (!seen.has(p)) {
             seen.add(p);
             next.push(p);
