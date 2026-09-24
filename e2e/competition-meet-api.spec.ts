@@ -136,7 +136,7 @@ test('meet API: affiliations, events minted, marks with a DQ, the event outcome,
     expect(pub.status(), await readErrorBody(pub)).toBe(201);
     const { eventId } = (await pub.json()) as { eventId: string; created: boolean };
     const ev = await admin.from('events').select('title, starts_at, ends_at, timezone, org_id, category, status').eq('id', eventId).single();
-    expect(ev.data).toMatchObject({ title: 'Spring Meet — Session 1', timezone: 'America/Denver', league_id: leagueId, category: 'game', status: 'active' });
+    expect(ev.data).toMatchObject({ title: 'Spring Meet — Session 1', timezone: 'America/Denver', org_id: leagueId, category: 'game', status: 'active' });
     expect(Date.parse(ev.data!.starts_at as string)).toBe(Date.parse('2030-06-01T16:00:00Z'));
     expect(Date.parse(ev.data!.ends_at as string) - Date.parse(ev.data!.starts_at as string)).toBe(180 * 60_000);
     const shared = await admin.from('contests').select('id, event_id, scheduled_at').eq('competition_id', compId).eq('stage', 1);
