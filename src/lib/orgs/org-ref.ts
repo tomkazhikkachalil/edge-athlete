@@ -130,6 +130,13 @@ export const PAIR_COLUMN: Record<OrgKind, 'league_id' | 'club_id'> = {
   club: 'club_id',
 };
 
+/** The kind's word for a person, capitalised — error copy ("League not
+ *  found") and headings. The lowercase word is the kind itself. */
+export const ORG_LABEL: Record<OrgKind, 'League' | 'Club'> = {
+  league: 'League',
+  club: 'Club',
+};
+
 /** The URL family: `/api/leagues/…`, `/leagues`, `/league/[id]`. Spelled
  *  the same as the table today and deliberately a separate constant — the
  *  table goes away in step D, the URLs never do. */

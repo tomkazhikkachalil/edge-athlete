@@ -1,0 +1,55 @@
+// ── One handler for both kinds (Round 5 E-2): the body of /api/{leagues,clubs}/[id]/competitions/quickstart ──
+// The two route files are shims that pass their kind; the gates live HERE.
+// Lifted from the league file — the club twin differed from it by the word only.
+
+import { NextRequest, NextResponse } from 'next/server';
+import { type OrgKind, ORG_LABEL } from '@/lib/orgs/org-ref';
+import { requireAuth, getSupabaseAdmin } from '@/lib/auth-server';
+import { enforceRateLimit } from '@/lib/rate-limit';
+import { parseBody } from '@/lib/validation';
+import { GolfQuickstartSchema, SeasonQuickstartSchema } from '@/lib/competitions/validate';
+import { requireCompetitionManager } from '@/lib/orgs/competition-server';
+import { golfQuickstartPOST } from '@/lib/orgs/golf-quickstart-server';
+import { seasonQuickstartPOST } from '@/lib/orgs/season-quickstart-server';
+import { UUID_RE } from '@/lib/golf/course-catalog';
+import { reportRouteError } from '@/lib/observability/report';
+
+// ── /api/{leagues,clubs}/[id]/competitions/quickstart (Onboarding v2 R4) ────────────
+// "Start our season": one POST composes the implicit season, a golf
+// leaderboard (gross, first-posted, any course unless a venue is named),
+// every roster athlete's entry (the actor included), activation and the
+// weekly windows — the existing server functions, in order. Idempotent.
+// Manager-gated like every competition write; ONE request per season, so
+// the org-competitions bucket is not burned per step.
+
+export async function competitionsQuickstartRoutePOST(request: NextRequest, kind: OrgKind, params: { id: string }) {
+  try {
+    const user = await requireAuth(request);
+    const limited = await enforceRateLimit(request, 'org-competitions', { userId: user.id });
+    if (limited) return limited;
+    const { id } = params;
+    if (!UUID_RE.test(id)) {
+      return NextResponse.json({ error: `${ORG_LABEL[kind]} not found` }, { status: 404 });
+    }
+    const admin = getSupabaseAdmin();
+    const gate = await requireCompetitionManager(admin, user, kind, id);
+    if (!gate.ok) return gate.response;
+
+    // Round 4: `{ sport: '<team sport>' }` starts a team sport's season
+    // (season + league table + every team entered); no `sport` (or golf)
+    // stays the golf one-tap with its own body.
+    const raw = await request.clone().json().catch(() => null) as { sport?: unknown } | null;
+    if (raw && typeof raw.sport === 'string' && raw.sport !== 'golf') {
+      const parsedSeason = SeasonQuickstartSchema.safeParse(raw);
+      if (!parsedSeason.success) return NextResponse.json({ error: 'Invalid sport' }, { status: 400 });
+      return await seasonQuickstartPOST(admin, user.id, { side: kind, orgId: id }, parsedSeason.data.sport);
+    }
+    const parsed = await parseBody(request, GolfQuickstartSchema);
+    if (!parsed.success) return parsed.response;
+    return await golfQuickstartPOST(admin, user, { side: kind, orgId: id }, parsed.data);
+  } catch (error) {
+    if (error instanceof Response) return error;
+    reportRouteError(`[COMPETITIONS] ${kind} quickstart POST error:`, error);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+  }
+}

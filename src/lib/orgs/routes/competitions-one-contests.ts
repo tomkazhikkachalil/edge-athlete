@@ -1,0 +1,94 @@
+// ── One handler for both kinds (Round 5 E-2): the body of /api/{leagues,clubs}/[id]/competitions/[competitionId]/contests ──
+// The two route files are shims that pass their kind; the gates live HERE.
+// Lifted from the league file — the club twin differed from it by the word only.
+
+import { NextRequest, NextResponse } from 'next/server';
+import { type OrgKind } from '@/lib/orgs/org-ref';
+import { requireAuth, getSupabaseAdmin } from '@/lib/auth-server';
+import { enforceRateLimit } from '@/lib/rate-limit';
+import { parseBody } from '@/lib/validation';
+import { ContestCreateSchema, ContestPatchSchema } from '@/lib/competitions/validate';
+import {
+  contestCreatePOST,
+  contestDELETE,
+  contestPATCH,
+  requireCompetitionManager,
+} from '@/lib/orgs/competition-server';
+import { UUID_RE } from '@/lib/golf/course-catalog';
+import { reportRouteError } from '@/lib/observability/report';
+
+// ── /api/{leagues,clubs}/[id]/competitions/[competitionId]/contests (phase 2 R2) ────
+// Thin wrapper; ownership + fixture rules in orgs/competition-server.ts.
+// The body/URL competition mismatch guard runs BEFORE the lib call.
+
+export async function competitionsOneContestsRoutePOST(request: NextRequest, kind: OrgKind, params: { id: string; competitionId: string }) {
+  try {
+    const user = await requireAuth(request);
+    const limited = await enforceRateLimit(request, 'org-competitions', { userId: user.id });
+    if (limited) return limited;
+    const { id, competitionId } = params;
+    if (!UUID_RE.test(id) || !UUID_RE.test(competitionId)) {
+      return NextResponse.json({ error: 'Competition not found' }, { status: 404 });
+    }
+    const admin = getSupabaseAdmin();
+    const gate = await requireCompetitionManager(admin, user, kind, id, { competitionId });
+    if (!gate.ok) return gate.response;
+
+    const parsed = await parseBody(request, ContestCreateSchema);
+    if (!parsed.success) return parsed.response;
+    if (parsed.data.competitionId !== competitionId) {
+      return NextResponse.json({ error: 'Body competition does not match the URL' }, { status: 400 });
+    }
+    return await contestCreatePOST(admin, parsed.data, { side: kind, orgId: id });
+  } catch (error) {
+    if (error instanceof Response) return error;
+    reportRouteError(`[COMPETITIONS] ${kind} contests POST error:`, error);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+  }
+}
+
+export async function competitionsOneContestsRoutePATCH(request: NextRequest, kind: OrgKind, params: { id: string; competitionId: string }) {
+  try {
+    const user = await requireAuth(request);
+    const limited = await enforceRateLimit(request, 'org-competitions', { userId: user.id });
+    if (limited) return limited;
+    const { id, competitionId } = params;
+    if (!UUID_RE.test(id) || !UUID_RE.test(competitionId)) {
+      return NextResponse.json({ error: 'Competition not found' }, { status: 404 });
+    }
+    const admin = getSupabaseAdmin();
+    const gate = await requireCompetitionManager(admin, user, kind, id, { competitionId });
+    if (!gate.ok) return gate.response;
+
+    const parsed = await parseBody(request, ContestPatchSchema);
+    if (!parsed.success) return parsed.response;
+    return await contestPATCH(admin, parsed.data, { side: kind, orgId: id });
+  } catch (error) {
+    if (error instanceof Response) return error;
+    reportRouteError(`[COMPETITIONS] ${kind} contests PATCH error:`, error);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+  }
+}
+
+/** DELETE ?id= — scoped through the competition join. */
+export async function competitionsOneContestsRouteDELETE(request: NextRequest, kind: OrgKind, params: { id: string; competitionId: string }) {
+  try {
+    const user = await requireAuth(request);
+    const limited = await enforceRateLimit(request, 'org-competitions', { userId: user.id });
+    if (limited) return limited;
+    const { id, competitionId } = params;
+    const { searchParams } = new URL(request.url);
+    const contestId = searchParams.get('id');
+    if (!UUID_RE.test(id) || !UUID_RE.test(competitionId) || !contestId || !UUID_RE.test(contestId)) {
+      return NextResponse.json({ error: 'id is required' }, { status: 400 });
+    }
+    const admin = getSupabaseAdmin();
+    const gate = await requireCompetitionManager(admin, user, kind, id, { competitionId });
+    if (!gate.ok) return gate.response;
+    return await contestDELETE(admin, contestId, { side: kind, orgId: id });
+  } catch (error) {
+    if (error instanceof Response) return error;
+    reportRouteError(`[COMPETITIONS] ${kind} contests DELETE error:`, error);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+  }
+}

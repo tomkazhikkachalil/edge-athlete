@@ -1,45 +1,10 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { requireAuth, getSupabaseAdmin } from '@/lib/auth-server';
-import { enforceRateLimit } from '@/lib/rate-limit';
-import { signPreviewToken } from '@/lib/org-sites/preview-token';
-import { requireOrgManager } from '@/lib/orgs/structure-server';
-import { UUID_RE } from '@/lib/golf/course-catalog';
-import { reportRouteError } from '@/lib/observability/report';
-import { ORG_ID } from '@/lib/orgs/org-ref';
+import type { NextRequest } from 'next/server';
+import { sitePreviewRoutePOST } from '@/lib/orgs/routes/site-preview';
 
-// ── /api/leagues/[id]/site/preview — mint a draft-preview link ─────────────
-// manage_site gates the mint (B5: the header said manage_org); the signed short-lived token then carries
-// the authorization into the session-free public segment.
+// ── /api/leagues/[id]/site/preview — a shim (Round 5 E-2) ──
+// The body is src/lib/orgs/routes/site-preview.ts, one handler for both kinds;
+// the gates live there (the route-authz audit follows the delegation).
 
-export async function POST(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  try {
-    const user = await requireAuth(request);
-    const limited = await enforceRateLimit(request, 'org-site', { userId: user.id });
-    if (limited) return limited;
-    const { id } = await params;
-    if (!UUID_RE.test(id)) {
-      return NextResponse.json({ error: 'League not found' }, { status: 404 });
-    }
-    const admin = getSupabaseAdmin();
-    const gate = await requireOrgManager(admin, user, 'league', id, { intent: 'manage_site' });
-    if (!gate.ok) return gate.response;
-
-    const { data: site } = await admin
-      .from('org_sites')
-      .select('id, subdomain')
-      .eq(ORG_ID, id)
-      .maybeSingle();
-    if (!site) {
-      return NextResponse.json({ error: 'Site not found' }, { status: 404 });
-    }
-    const token = signPreviewToken(site.id);
-    return NextResponse.json({ url: `/org/${site.subdomain}/preview/${token}` });
-  } catch (error) {
-    if (error instanceof Response) return error;
-    reportRouteError('[ORG SITE PREVIEW] league POST error:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
-  }
+export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  return sitePreviewRoutePOST(request, 'league', await params);
 }

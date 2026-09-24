@@ -1,0 +1,65 @@
+// ── One handler for both kinds (Round 5 E-2): the body of /api/{leagues,clubs}/[id]/competitions/[competitionId]/stat-lines-import ──
+// The two route files are shims that pass their kind; the gates live HERE.
+// Lifted from the league file — the club twin differed from it by the word only.
+
+import { NextRequest, NextResponse } from 'next/server';
+import { requireAuth, getSupabaseAdmin } from '@/lib/auth-server';
+import { enforceRateLimit } from '@/lib/rate-limit';
+import { statLinesImportPOST } from '@/lib/orgs/stat-lines-import';
+import { requireCompetitionManager } from '@/lib/orgs/competition-server';
+import type { CompRow } from '@/lib/orgs/stat-lines-server';
+import { UUID_RE } from '@/lib/golf/course-catalog';
+import { reportRouteError } from '@/lib/observability/report';
+import { type OrgKind, orgIdOf, orgKindOf } from '@/lib/orgs/org-ref';
+
+// ── /api/{leagues,clubs}/[id]/competitions/[competitionId]/stat-lines-import (6c I2) ──
+// Per-athlete stat lines by CSV paste (dry-run default). Owner authority
+// only — the core re-checks; rows resolve to a game + side + roster
+// athlete and write through the same gate as the per-game panel, with
+// provenance 'imported' (visibly labeled, never display-upgraded).
+
+export async function competitionsOneStatLinesImportRoutePOST(request: NextRequest, kind: OrgKind, params: { id: string; competitionId: string }) {
+  try {
+    const user = await requireAuth(request);
+    const limited = await enforceRateLimit(request, 'org-competitions', { userId: user.id });
+    if (limited) return limited;
+    const { id, competitionId } = params;
+    if (!UUID_RE.test(id) || !UUID_RE.test(competitionId)) {
+      return NextResponse.json({ error: 'Competition not found' }, { status: 404 });
+    }
+    const admin = getSupabaseAdmin();
+    const gate = await requireCompetitionManager(admin, user, kind, id, { competitionId });
+    if (!gate.ok) return gate.response;
+    const { data: comp } = await admin
+      .from('competitions')
+      .select('id, name, sport_key, format, status, org_id, org:organizations(kind)')
+      .eq('id', competitionId)
+      .maybeSingle();
+    if (!comp || orgIdOf(comp) !== id || orgKindOf(comp) !== kind) {
+      return NextResponse.json({ error: 'Competition not found' }, { status: 404 });
+    }
+    const body = (await request.json().catch(() => ({}))) as {
+      csv?: unknown;
+      timezone?: unknown;
+      dryRun?: unknown;
+    };
+    if (typeof body.csv !== 'string' || body.csv.length === 0 || body.csv.length > 100_000) {
+      return NextResponse.json({ error: 'csv text is required (max 100KB)' }, { status: 400 });
+    }
+    return await statLinesImportPOST(
+      admin,
+      comp as CompRow,
+      { side: kind, orgId: id },
+      user.id,
+      {
+        csv: body.csv,
+        timezone: typeof body.timezone === 'string' && body.timezone.length <= 64 ? body.timezone : 'UTC',
+        dryRun: body.dryRun !== false,
+      }
+    );
+  } catch (error) {
+    if (error instanceof Response) return error;
+    reportRouteError(`[STAT-LINES-IMPORT] ${kind} POST error:`, error);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+  }
+}

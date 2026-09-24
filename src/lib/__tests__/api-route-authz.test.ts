@@ -160,6 +160,21 @@ function stripComments(raw: string): string {
 
 const routeFiles = walkRoutes(API_ROOT);
 
+/** Round 5 E-2: a league / club route may be a SHIM — every handler a
+ *  one-line delegation to `src/lib/orgs/routes/<name>.ts` with its kind.
+ *  The gate then lives in that module, so the audit follows the delegation:
+ *  the shim's source contributes the handler module's source (comments
+ *  stripped). Anything else in the shim (a body of its own) is still judged
+ *  on its own text. */
+function delegatedSource(routeSource: string): string {
+  const m = routeSource.match(/from '@\/lib\/orgs\/routes\/([\w-]+)'/);
+  if (!m) return '';
+  const delegates = /return \w+(GET|POST|PATCH|PUT|DELETE)\(request, '(league|club)'(, await params)?\);/.test(routeSource);
+  if (!delegates) return '';
+  const handler = join(process.cwd(), 'src', 'lib', 'orgs', 'routes', `${m[1]}.ts`);
+  return stripComments(readFileSync(handler, 'utf8'));
+}
+
 describe('API route authorization audit', () => {
   it('found a plausible number of routes (sanity)', () => {
     // If this walks 0 or a handful, the audit is vacuous — fail loudly.
@@ -173,7 +188,7 @@ describe('API route authorization audit', () => {
       if (key in PUBLIC_ROUTES) continue;
       if (key.startsWith('cron/')) continue; // CRON_SECRET checked below like any gate
       const source = stripComments(readFileSync(file, 'utf8'));
-      if (!GATE_RE.test(source)) {
+      if (!GATE_RE.test(source) && !GATE_RE.test(delegatedSource(source))) {
         offenders.push(key);
       }
     }
