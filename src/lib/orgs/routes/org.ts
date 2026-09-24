@@ -103,7 +103,8 @@ export async function orgRouteGET(request: NextRequest, kind: OrgKind, params: {
     const siteRow = await readSiteBrandRow(supabase, kind, id, { layout: true });
     const composition = buildAppComposition(siteRow?.layout ?? null, siteRow?.id ?? '', { isMember: !!viewerRole || (!!viewerId && viewerId === org.owner_profile_id), canManage }, { visibility: access.visibility }, siteRow?.subdomain ? orgSitePath(siteRow.subdomain) : null);
     return NextResponse.json({
-      org,
+      // The payload key is the kind's word — the pages read `data[side]` (the contract).
+      [kind]: org,
       // R1: the listing state (pending = a listing request is in the queue).
       pending: listing.status === 'pending',
       listing: listing.status,
@@ -220,7 +221,7 @@ export async function orgRoutePATCH(request: NextRequest, kind: OrgKind, params:
     if (parsed.data.visibility !== undefined) revalidateTag('org-sitemap', { expire: 0 });
 
     return NextResponse.json({
-      org: updated ?? (await supabase.from('organizations').select('*').eq('id', id).maybeSingle()).data,
+      [kind]: updated ?? (await supabase.from('organizations').select('*').eq('id', id).maybeSingle()).data,
       ...(listingChange ? { listing: listingChange } : {}),
     });
   } catch (error) {
