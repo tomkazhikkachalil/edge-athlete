@@ -32,7 +32,7 @@ import {
 } from '@/lib/registration/validate';
 import { eligibilityWarnings, type EligibilityWarning } from './eligibility';
 import { capabilityAllows, getOrgAndCapabilities, getOrgAndRole, type OrgSide } from './authz';
-import { ORG_ID, ORG_TABLE, pairFor } from './org-ref';
+import { ORG_ID, pairFor } from './org-ref';
 import { membershipEdges, type RosterEdge } from './members';
 import { canGrantPhotoConsent, setPhotoConsent } from './photo-consent';
 import { seasonArchivedMap } from './rollover-server';
@@ -744,7 +744,7 @@ async function notifyDecision(
   try {
     const [{ data: org }, { data: prof }] = await Promise.all([
       admin
-        .from(ORG_TABLE[side])
+        .from('organizations')
         .select('name')
         .eq('id', orgId)
         .maybeSingle(),

@@ -17,7 +17,7 @@ import {
 } from '@/lib/golf/course-catalog';
 import { getCourseHoleGeometry } from '@/lib/golf/hole-geometry';
 import { orgSitePath } from '@/lib/org-sites/urls';
-import { ORG_ID, ORG_TABLE, orgRefOf } from '@/lib/orgs/org-ref';
+import { ORG_ID, orgRefOf } from '@/lib/orgs/org-ref';
 import { reportRouteError } from '@/lib/observability/report';
 
 // ── GET /api/golf/courses ────────────────────────────────────────────────────
@@ -341,7 +341,7 @@ async function findHomeOrg(
     for (const v of venues.data ?? []) {
       const ref = orgRefOf(v);
       if (!ref) continue;
-      const { side, orgId } = ref;
+      const { orgId } = ref;
       const { data: site } = await admin
         .from('org_sites')
         .select('subdomain')
@@ -349,7 +349,7 @@ async function findHomeOrg(
         .not('published_at', 'is', null)
         .maybeSingle();
       if (!site?.subdomain) continue;
-      const { data: org } = await admin.from(ORG_TABLE[side]).select('name').eq('id', orgId).maybeSingle();
+      const { data: org } = await admin.from('organizations').select('name').eq('id', orgId).maybeSingle();
       if (!org?.name) continue;
       return { orgName: org.name as string, path: orgSitePath(site.subdomain as string) };
     }

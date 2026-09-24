@@ -52,7 +52,7 @@ export async function orgRefWithKind(admin: Admin, row: OrgKindRow): Promise<Org
 export const publicEventRow = publicOrgRow;
 
 export function hasEventScope(event: ScopeColumns): boolean {
-  return !!(event.org_id || event.league_id || event.club_id || event.division_id || event.team_id);
+  return !!(event.org_id || event.division_id || event.team_id);
 }
 
 /** Resolve an event's scope to its owning org. Null when the event is

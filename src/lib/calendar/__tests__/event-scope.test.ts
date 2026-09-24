@@ -25,9 +25,9 @@ function mockAdmin(results: Partial<Record<string, { data?: unknown; error?: { c
 }
 
 describe('hasEventScope', () => {
-  it('true for any of the four scope columns', () => {
+  it('true for any of the three scope columns', () => {
     expect(hasEventScope({})).toBe(false);
-    expect(hasEventScope({ league_id: 'x' })).toBe(true);
+    expect(hasEventScope({ org_id: 'x' })).toBe(true);
     expect(hasEventScope({ division_id: 'x' })).toBe(true);
     expect(hasEventScope({ team_id: 'x' })).toBe(true);
   });
@@ -36,19 +36,19 @@ describe('hasEventScope', () => {
 describe('resolveEventScope', () => {
   it('org scopes resolve without a structure read', async () => {
     const { admin, calls } = mockAdmin({});
-    expect(await resolveEventScope(admin, { league_id: 'lg-1' })).toEqual({
+    expect(await resolveEventScope(admin, { org_id: 'lg-1', org: { kind: 'league' } })).toEqual({
       scopeType: 'org',
       side: 'league',
       orgId: 'lg-1',
       scopeId: null,
     });
-    expect(await resolveEventScope(admin, { club_id: 'cl-1' })).toMatchObject({ side: 'club', orgId: 'cl-1' });
+    expect(await resolveEventScope(admin, { org_id: 'cl-1', org: { kind: 'club' } })).toMatchObject({ side: 'club', orgId: 'cl-1' });
     expect(calls).toHaveLength(0);
   });
 
   it('division scope resolves through the divisions row', async () => {
     const { admin, calls } = mockAdmin({
-      divisions: { data: { id: 'div-1', league_id: 'lg-1', club_id: null } },
+      divisions: { data: { id: 'div-1', org_id: 'lg-1', org: { kind: 'league' } } },
     });
     expect(await resolveEventScope(admin, { division_id: 'div-1' })).toEqual({
       scopeType: 'division',
@@ -60,7 +60,7 @@ describe('resolveEventScope', () => {
   });
 
   it('team scope resolves through the teams row (club side)', async () => {
-    const { admin } = mockAdmin({ teams: { data: { id: 't-1', league_id: null, club_id: 'cl-1' } } });
+    const { admin } = mockAdmin({ teams: { data: { id: 't-1', org_id: 'cl-1', org: { kind: 'club' } } } });
     expect(await resolveEventScope(admin, { team_id: 't-1' })).toEqual({
       scopeType: 'team',
       side: 'club',

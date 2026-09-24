@@ -156,7 +156,7 @@ export async function POST(request: NextRequest) {
 
     // Leftovers PR 5: the two teams' rosters become the sides (accepted + playing; one group per round with the sides sent). Best-effort — the event exists either way.
     if (sideTeams) {
-      const orgId = orgIdOf(input) as string;
+      const orgId = hostRef?.orgId as string; // sideTeams exist only for an org-hosted event
       const { teamRosterMembers } = await import('@/lib/sport-events/side-prefill-server');
       const [home, away] = await Promise.all([teamRosterMembers(admin, orgId, sideTeams[0].id), teamRosterMembers(admin, orgId, sideTeams[1].id)]);
       const { data: roundIds } = await admin.from('sport_event_rounds').select('id, starts_at').eq('sport_event_id', row.id).order('sequence', { ascending: true });

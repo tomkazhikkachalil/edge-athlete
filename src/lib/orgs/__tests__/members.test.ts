@@ -344,9 +344,9 @@ describe('write filters keep legacy-shaped paths off future roster rows', () => 
     const orgs = mockAdmin({
       memberships: {
         data: [
-          { league_id: 'l1', club_id: null },
-          { league_id: 'l1', club_id: null }, // roster twin
-          { league_id: null, club_id: 'c1' },
+          { org_id: 'l1', org: { kind: 'league' } },
+          { org_id: 'l1', org: { kind: 'league' } }, // roster twin
+          { org_id: 'c1', org: { kind: 'club' } },
         ],
         error: null,
       },
@@ -418,8 +418,8 @@ describe('write filters keep legacy-shaped paths off future roster rows', () => 
     const ok = mockAdmin({
       memberships: {
         data: [
-          { league_id: 'l1', club_id: null },
-          { league_id: null, club_id: 'c1' },
+          { org_id: 'l1', org: { kind: 'league' } },
+          { org_id: 'c1', org: { kind: 'club' } },
         ],
         error: null,
       },
@@ -433,7 +433,7 @@ describe('write filters keep legacy-shaped paths off future roster rows', () => 
 
   it('rosterOrgIds (0.10) pins kind=roster + status=active on top of the org scope', async () => {
     const ok = mockAdmin({
-      memberships: { data: [{ league_id: 'l1', club_id: null }], error: null },
+      memberships: { data: [{ org_id: 'l1', org: { kind: 'league' } }], error: null },
     });
     expect(await rosterOrgIds(ok.admin, 'me')).toEqual({ leagueIds: ['l1'], clubIds: [] });
     expect(ok.calls[0].filters).toEqual({

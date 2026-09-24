@@ -15,7 +15,7 @@ import { loadEventForViewer } from '@/lib/calendar/detail-server';
 import { hasEventScope, publicEventRow, resolveEventScope } from '@/lib/calendar/event-scope';
 import { checkSupervisedInviteGate } from '@/lib/calendar/supervised-invites';
 import { buildRoutineSnapshot, resolveEventRoutine } from '@/lib/calendar/event-routine';
-import { ORG_TABLE, type OrgKindRow, pairFieldsOf } from '@/lib/orgs/org-ref';
+import { type OrgKindRow, pairFieldsOf } from '@/lib/orgs/org-ref';
 import type { ServerRoutineRow } from '@/lib/workouts/routines';
 import { reportRouteError } from '@/lib/observability/report';
 
@@ -88,7 +88,7 @@ async function fullDetail(
   );
   if (scope) {
     const { data: org } = await admin
-      .from(ORG_TABLE[scope.side])
+      .from('organizations')
       .select('name')
       .eq('id', scope.orgId)
       .maybeSingle();
@@ -251,7 +251,7 @@ export async function PATCH(
         return NextResponse.json({ error: 'Organization not found' }, { status: 404 });
       }
       const { data: org } = await admin
-        .from(ORG_TABLE[scope.side])
+        .from('organizations')
         .select('id')
         .eq('id', scope.orgId)
         .maybeSingle();
@@ -624,7 +624,7 @@ export async function DELETE(
       // or declined their way out of this event's story. Sub-org scopes
       // broadcast to the SCOPED members only (strict audience).
       const { data: org } = await admin
-        .from(ORG_TABLE[cancelScope.side])
+        .from('organizations')
         .select('name')
         .eq('id', cancelScope.orgId)
         .maybeSingle();

@@ -24,7 +24,7 @@ import {
   type OrgIntent,
   type OrgSide,
 } from './authz';
-import { ORG_ID, ORG_TABLE, orgIdOf, type OrgKindEmbed, orgKindOf, pairFor } from './org-ref';
+import { ORG_ID, orgIdOf, type OrgKindEmbed, orgKindOf, pairFor } from './org-ref';
 import { refreshLeagueSportCache } from './sports';
 import {
   isMissingTableError,
@@ -190,7 +190,7 @@ export async function seasonCreatePOST(
   input: SeasonCreateInput
 ): Promise<NextResponse> {
   const { data: org } = await admin
-    .from(ORG_TABLE[scope.side])
+    .from('organizations')
     .select('id')
     .eq('id', scope.orgId)
     .maybeSingle();
@@ -412,7 +412,7 @@ export async function teamCreatePOST(
   input: TeamCreateInput
 ): Promise<NextResponse> {
   const { data: org } = await admin
-    .from(ORG_TABLE[scope.side])
+    .from('organizations')
     .select('id')
     .eq('id', scope.orgId)
     .maybeSingle();

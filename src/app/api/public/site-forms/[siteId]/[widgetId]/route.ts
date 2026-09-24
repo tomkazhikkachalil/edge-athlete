@@ -7,7 +7,7 @@ import { loadSnapshotByRevisionId } from '@/lib/org-sites/revisions-server';
 import { parseStoredLayout } from '@/lib/site-builder/layout-schema';
 import { orderedPages } from '@/lib/site-builder/pages';
 import { siteBasePath } from '@/lib/org-sites/urls';
-import { ORG_ID, ORG_TABLE, orgIdOf, type OrgKind, type OrgKindEmbed, orgKindOf } from '@/lib/orgs/org-ref';
+import { ORG_ID, orgIdOf, type OrgKind, type OrgKindEmbed, orgKindOf } from '@/lib/orgs/org-ref';
 import { emailService } from '@/lib/email-service';
 import { UUID_RE } from '@/lib/golf/course-catalog';
 import { reportRouteError } from '@/lib/observability/report';
@@ -120,7 +120,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const side: OrgKind = orgKindOf(site) ?? 'club';
     const orgId = orgIdOf(site) as string;
     const [{ data: org }, { data: members }] = await Promise.all([
-      admin.from(ORG_TABLE[side]).select('id, name, owner_profile_id').eq('id', orgId).maybeSingle(),
+      admin.from('organizations').select('id, name, owner_profile_id').eq('id', orgId).maybeSingle(),
       admin.from('memberships').select('profile_id, role').eq(ORG_ID, orgId).in('role', ['owner', 'manager', 'admin']),
     ]);
     const ownerId = (org as { owner_profile_id?: string | null } | null)?.owner_profile_id ?? null;

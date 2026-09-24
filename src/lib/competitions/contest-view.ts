@@ -33,7 +33,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { isMissingTableError } from '@/lib/leagues/validate';
 import { readOrgAccess, type OrgAccess } from '@/lib/orgs/access';
 import { getOrgCapabilities, hasAnyCapability, type OrgSide } from '@/lib/orgs/authz';
-import { ORG_TABLE, type OrgKindEmbed, orgKindOf, type OrgKindRow, orgRefOf } from '@/lib/orgs/org-ref';
+import { type OrgKindEmbed, orgKindOf, type OrgKindRow, orgRefOf } from '@/lib/orgs/org-ref';
 import { deriveDisplayTier, type ResultProvenance } from '@/lib/orgs/provenance';
 import { readSanctionedPairs } from '@/lib/orgs/sanction-reads';
 import { evaluatePublicContestMedia } from '@/lib/orgs/gallery-gate';
@@ -431,7 +431,7 @@ export async function fetchContestView(
 
     const [orgAccess, orgRow] = await Promise.all([
       readOrgAccess(admin, side, orgId),
-      admin.from(ORG_TABLE[side]).select('id, name').eq('id', orgId).maybeSingle(),
+      admin.from('organizations').select('id, name').eq('id', orgId).maybeSingle(),
     ]);
     if (!orgRow.data) return null;
 

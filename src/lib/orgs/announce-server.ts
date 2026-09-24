@@ -12,7 +12,7 @@ import { randomUUID } from 'node:crypto';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { revalidateTag } from 'next/cache';
 import type { OrgSide } from './authz';
-import { ORG_ID, ORG_TABLE } from './org-ref';
+import { ORG_ID } from './org-ref';
 import { memberProfileIds } from './members';
 import { chunk } from '@/lib/chunk';
 import { notifyGuardians } from '@/lib/guardian-notify';
@@ -34,7 +34,7 @@ export async function orgAnnouncePOST(
   opts: { extraMetadata?: Record<string, string> } = {}
 ): Promise<NextResponse> {
   const { data: org } = await admin
-    .from(ORG_TABLE[side])
+    .from('organizations')
     .select('id, name')
     .eq('id', orgId)
     .maybeSingle();

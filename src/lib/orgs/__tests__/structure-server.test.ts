@@ -122,7 +122,7 @@ describe('scope pinning — the security crux', () => {
   });
 
   it('seasonDELETE unscoped (admin) has no org filter', async () => {
-    const { admin, calls } = mockAdmin({ seasons: { data: [{ id: 's', league_id: null }] } });
+    const { admin, calls } = mockAdmin({ seasons: { data: [{ id: 's', org_id: null }] } });
     const res = await seasonDELETE(admin, 'season-1', null);
     expect(res.status).toBe(200);
     expect('org_id' in calls[0].filters).toBe(false);
@@ -130,7 +130,7 @@ describe('scope pinning — the security crux', () => {
 
   it('divisionCreatePOST scoped 404s a foreign-org season', async () => {
     const { admin } = mockAdmin({
-      seasons: { data: { id: 's1', league_id: 'OTHER-org', club_id: null } },
+      seasons: { data: { id: 's1', org_id: 'OTHER-org', org: { kind: 'league' } } },
     });
     const res = await divisionCreatePOST(
       admin,
@@ -152,24 +152,24 @@ describe('scope pinning — the security crux', () => {
 
   it('entryCreatePOST scoped 404s foreign rows; cross-org 400; archived 400', async () => {
     const foreign = mockAdmin({
-      teams: { data: { id: 't', league_id: 'OTHER', club_id: null, status: 'active' } },
-      divisions: { data: { id: 'd', league_id: 'org-1', club_id: null } },
+      teams: { data: { id: 't', org_id: 'OTHER', org: { kind: 'league' }, status: 'active' } },
+      divisions: { data: { id: 'd', org_id: 'org-1', org: { kind: 'league' } } },
     });
     expect(
       (await entryCreatePOST(foreign.admin, { teamId: 't', divisionId: 'd' }, SCOPE)).status
     ).toBe(404);
 
     const crossOrg = mockAdmin({
-      teams: { data: { id: 't', league_id: 'a', club_id: null, status: 'active' } },
-      divisions: { data: { id: 'd', league_id: 'b', club_id: null } },
+      teams: { data: { id: 't', org_id: 'a', org: { kind: 'league' }, status: 'active' } },
+      divisions: { data: { id: 'd', org_id: 'b', org: { kind: 'league' } } },
     });
     expect(
       (await entryCreatePOST(crossOrg.admin, { teamId: 't', divisionId: 'd' }, null)).status
     ).toBe(400);
 
     const archived = mockAdmin({
-      teams: { data: { id: 't', league_id: 'a', club_id: null, status: 'archived' } },
-      divisions: { data: { id: 'd', league_id: 'a', club_id: null } },
+      teams: { data: { id: 't', org_id: 'a', org: { kind: 'league' }, status: 'archived' } },
+      divisions: { data: { id: 'd', org_id: 'a', org: { kind: 'league' } } },
     });
     expect(
       (await entryCreatePOST(archived.admin, { teamId: 't', divisionId: 'd' }, null)).status
@@ -178,14 +178,14 @@ describe('scope pinning — the security crux', () => {
 
   it('entryDELETE scoped verifies through the DIVISION JOIN (no org column)', async () => {
     const foreign = mockAdmin({
-      team_entries: { data: { id: 'e1', division: { league_id: 'OTHER', club_id: null } } },
+      team_entries: { data: { id: 'e1', division: { org_id: 'OTHER', org: { kind: 'league' } } } },
     });
     expect((await entryDELETE(foreign.admin, 'e1', SCOPE)).status).toBe(404);
     expect(foreign.calls[0].op).toBe('select');
 
     const ok = mockAdmin({
       team_entries: [
-        { data: { id: 'e1', division: { league_id: 'org-1', club_id: null } } },
+        { data: { id: 'e1', division: { org_id: 'org-1', org: { kind: 'league' } } } },
         { data: [{ id: 'e1' }] },
       ],
     });
