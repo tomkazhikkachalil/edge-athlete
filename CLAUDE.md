@@ -1258,6 +1258,6 @@ addition below as a promise to keep it true.
 
 ---
 
-**Last Updated:** August 2026 — this file is the single source of truth for project
+**Last Updated:** September 2026 (Round 5 close) — this file is the single source of truth for project
 conventions. `AGENTS.md` is a pointer to it, deliberately; don't re-expand it into a
 second copy. Every file path named above was swept and resolves.
