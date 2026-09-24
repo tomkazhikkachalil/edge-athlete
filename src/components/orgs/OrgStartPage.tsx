@@ -97,7 +97,7 @@ export default function OrgStartPage({ kind }: { kind: OrgKind }) {
             <div className="w-16 h-16 bg-surface-sunken rounded-full flex items-center justify-center mx-auto mb-4">
               <Icon className="w-8 h-8 text-faint" />
             </div>
-            <h1 className="text-2xl font-bold text-primary mb-2">Create an account to start your {kind}</h1>
+            <h1 className="text-2xl font-bold text-primary mb-2">{`Create an account to start your ${kind}`}</h1>
             <p className="text-tertiary mb-6">
               Your {kind} is live the moment you create it; directory listing is reviewed by an Edge Athlete admin.
             </p>
@@ -128,7 +128,7 @@ export default function OrgStartPage({ kind }: { kind: OrgKind }) {
 
       <div className="max-w-2xl mx-auto px-4 sm:px-6 py-6 space-y-6">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-bold text-primary">Start a {kind}</h1>
+          <h1 className="text-2xl sm:text-3xl font-bold text-primary">{`Start a ${kind}`}</h1>
           <p className="mt-1 text-sm text-tertiary">
             Your {kind} is live the moment you create it — share the link, add members,
             post rounds. Listing in the directory is reviewed by an Edge Athlete admin.
@@ -184,7 +184,7 @@ export default function OrgStartPage({ kind }: { kind: OrgKind }) {
 
         {approved.length > 0 && (
           <div className="bg-surface rounded-xl shadow-sm border border-border p-5">
-            <h2 className="text-sm font-semibold text-secondary mb-2">Your {family} from past requests</h2>
+            <h2 className="text-sm font-semibold text-secondary mb-2">{`Your ${family} from past requests`}</h2>
             <ul className="space-y-1">
               {approved.map(r => (
                 <li key={r.id}>
