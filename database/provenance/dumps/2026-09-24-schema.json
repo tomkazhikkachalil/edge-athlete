@@ -6,8 +6,8 @@
    "rows": 234
   },
   "version": 3,
-  "generated_at": "2026-09-24T00:33:37.199632+00:00",
-  "server_version": "17.6"
+  "generated_at": "2026-09-24T02:42:38.742014+00:00",
+  "server_version": "17.4"
  },
  "types": [],
  "views": [
@@ -22305,8 +22305,8 @@
    "definition": "CREATE OR REPLACE FUNCTION public.auto_update_display_name()\n RETURNS trigger\n LANGUAGE plpgsql\n SET search_path TO ''\nAS $function$\nBEGIN\n  -- Auto-generate display name from first/last name if empty\n  IF NEW.first_name IS NOT NULL AND NEW.last_name IS NOT NULL THEN\n    IF NEW.full_name IS NULL OR NEW.full_name = '' THEN\n      NEW.full_name := NEW.first_name || ' ' || NEW.last_name;\n    END IF;\n  END IF;\n  RETURN NEW;\nEND;\n$function$\n",
    "identity_args": "",
    "acl": [
-    "postgres=X/postgres",
     "=X/postgres",
+    "postgres=X/postgres",
     "anon=X/postgres",
     "authenticated=X/postgres",
     "service_role=X/postgres"
@@ -22380,8 +22380,8 @@
    "definition": "CREATE OR REPLACE FUNCTION public.calculate_golf_participant_totals()\n RETURNS trigger\n LANGUAGE plpgsql\n SET search_path TO ''\nAS $function$\nDECLARE\n  v_golf_participant_id UUID;\n  v_total_score INTEGER;\n  v_holes_completed INTEGER;\n  v_played_par INTEGER;\n  v_to_par INTEGER;\nBEGIN\n  IF TG_OP = 'DELETE' THEN\n    v_golf_participant_id := OLD.golf_participant_id;\n  ELSE\n    v_golf_participant_id := NEW.golf_participant_id;\n  END IF;\n\n  SELECT\n    COALESCE(SUM(strokes), 0),\n    COUNT(*)\n  INTO v_total_score, v_holes_completed\n  FROM public.golf_hole_scores\n  WHERE golf_participant_id = v_golf_participant_id;\n\n  -- Real par for the PLAYED holes, from the round's hole_data; NULL when the\n  -- round has no hole_data (legacy) → fall back to the old holes*4 estimate.\n  SELECT SUM((elem->>'par')::int)\n  INTO v_played_par\n  FROM public.golf_participant_scores gps\n  JOIN public.group_post_participants gpp ON gpp.id = gps.participant_id\n  JOIN public.golf_scorecard_data gsd ON gsd.group_post_id = gpp.group_post_id\n  CROSS JOIN LATERAL jsonb_array_elements(gsd.hole_data) elem\n  WHERE gps.id = v_golf_participant_id\n    AND gsd.hole_data IS NOT NULL\n    AND (elem->>'hole')::int IN (\n      SELECT hole_number FROM public.golf_hole_scores\n      WHERE golf_participant_id = v_golf_participant_id\n    );\n\n  IF v_holes_completed > 0 THEN\n    v_to_par := v_total_score - COALESCE(v_played_par, v_holes_completed * 4);\n  ELSE\n    v_to_par := NULL;\n  END IF;\n\n  UPDATE public.golf_participant_scores\n  SET\n    total_score = v_total_score,\n    to_par = v_to_par,\n    holes_completed = v_holes_completed,\n    updated_at = NOW()\n  WHERE id = v_golf_participant_id;\n\n  UPDATE public.group_post_participants\n  SET\n    data_contributed = (v_holes_completed > 0),\n    last_contribution = CASE WHEN v_holes_completed > 0 THEN NOW() ELSE last_contribution END,\n    updated_at = NOW()\n  WHERE id = (\n    SELECT participant_id FROM public.golf_participant_scores WHERE id = v_golf_participant_id\n  );\n\n  RETURN COALESCE(NEW, OLD);\nEND;\n$function$\n",
    "identity_args": "",
    "acl": [
-    "postgres=X/postgres",
     "=X/postgres",
+    "postgres=X/postgres",
     "anon=X/postgres",
     "authenticated=X/postgres",
     "service_role=X/postgres"
@@ -22583,8 +22583,8 @@
    "definition": "CREATE OR REPLACE FUNCTION public.decrement_comment_likes_count()\n RETURNS trigger\n LANGUAGE plpgsql\n SET search_path TO ''\nAS $function$\nBEGIN\n  UPDATE public.post_comments\n  SET likes_count = GREATEST(0, likes_count - 1)\n  WHERE id = OLD.comment_id;\n  RETURN OLD;\nEND;\n$function$\n",
    "identity_args": "",
    "acl": [
-    "postgres=X/postgres",
     "=X/postgres",
+    "postgres=X/postgres",
     "anon=X/postgres",
     "authenticated=X/postgres",
     "service_role=X/postgres"
@@ -23149,8 +23149,8 @@
    "definition": "CREATE OR REPLACE FUNCTION public.haversine_km(lat1 double precision, lng1 double precision, lat2 double precision, lng2 double precision)\n RETURNS double precision\n LANGUAGE sql\n IMMUTABLE PARALLEL SAFE\nAS $function$\n  SELECT 2 * 6371 * asin(sqrt(\n    power(sin(radians(lat2 - lat1) / 2), 2) +\n    cos(radians(lat1)) * cos(radians(lat2)) * power(sin(radians(lng2 - lng1) / 2), 2)\n  ))\n$function$\n",
    "identity_args": "lat1 double precision, lng1 double precision, lat2 double precision, lng2 double precision",
    "acl": [
-    "postgres=X/postgres",
     "=X/postgres",
+    "postgres=X/postgres",
     "anon=X/postgres",
     "authenticated=X/postgres",
     "service_role=X/postgres"
@@ -23190,8 +23190,8 @@
    "definition": "CREATE OR REPLACE FUNCTION public.increment_comment_likes_count()\n RETURNS trigger\n LANGUAGE plpgsql\n SET search_path TO ''\nAS $function$\nBEGIN\n  UPDATE public.post_comments\n  SET likes_count = likes_count + 1\n  WHERE id = NEW.comment_id;\n  RETURN NEW;\nEND;\n$function$\n",
    "identity_args": "",
    "acl": [
-    "postgres=X/postgres",
     "=X/postgres",
+    "postgres=X/postgres",
     "anon=X/postgres",
     "authenticated=X/postgres",
     "service_role=X/postgres"
@@ -23232,8 +23232,8 @@
    "definition": "CREATE OR REPLACE FUNCTION public.is_conversation_participant(conv_id uuid, user_id uuid)\n RETURNS boolean\n LANGUAGE sql\n STABLE SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\n  SELECT EXISTS (\n    SELECT 1 FROM conversation_participants\n    WHERE conversation_id = conv_id\n      AND profile_id = user_id\n      AND left_at IS NULL\n      AND held_at IS NULL\n  );\n$function$\n",
    "identity_args": "conv_id uuid, user_id uuid",
    "acl": [
-    "postgres=X/postgres",
     "=X/postgres",
+    "postgres=X/postgres",
     "anon=X/postgres",
     "authenticated=X/postgres",
     "service_role=X/postgres"
@@ -23313,8 +23313,8 @@
    "definition": "CREATE OR REPLACE FUNCTION public.is_valid_handle(input_handle text)\n RETURNS boolean\n LANGUAGE plpgsql\n IMMUTABLE\n SET search_path TO ''\nAS $function$\nDECLARE\n  clean_handle TEXT;\nBEGIN\n  -- Trim and lowercase\n  clean_handle := LOWER(TRIM(input_handle));\n\n  -- Check length (3-20 characters)\n  IF LENGTH(clean_handle) < 3 OR LENGTH(clean_handle) > 20 THEN\n    RETURN FALSE;\n  END IF;\n\n  -- Check format: letters, numbers, dots, underscores only\n  -- Must start with letter or number\n  IF NOT clean_handle ~ '^[a-z0-9][a-z0-9._]*[a-z0-9]$' THEN\n    RETURN FALSE;\n  END IF;\n\n  -- No consecutive dots or underscores\n  IF clean_handle ~ '[._]{2,}' THEN\n    RETURN FALSE;\n  END IF;\n\n  RETURN TRUE;\nEND;\n$function$\n",
    "identity_args": "input_handle text",
    "acl": [
-    "postgres=X/postgres",
     "=X/postgres",
+    "postgres=X/postgres",
     "anon=X/postgres",
     "authenticated=X/postgres",
     "service_role=X/postgres"
@@ -23534,8 +23534,8 @@
    "definition": "CREATE OR REPLACE FUNCTION public.place_context(p_place_id uuid)\n RETURNS text\n LANGUAGE sql\n STABLE\n SET search_path TO 'public'\nAS $function$\n  SELECT concat_ws(' ', p.admin2, p.metro) FROM places p WHERE p.id = p_place_id\n$function$\n",
    "identity_args": "p_place_id uuid",
    "acl": [
-    "postgres=X/postgres",
     "=X/postgres",
+    "postgres=X/postgres",
     "anon=X/postgres",
     "authenticated=X/postgres",
     "service_role=X/postgres"
@@ -23555,8 +23555,8 @@
    "definition": "CREATE OR REPLACE FUNCTION public.place_fields(p_place_id uuid)\n RETURNS TABLE(city text, region text, region_code text, country text, country_code text, lat double precision, lng double precision)\n LANGUAGE sql\n STABLE\n SET search_path TO 'public'\nAS $function$\n  SELECT p.name, p.region, p.region_code, p.country, p.country_code, p.lat, p.lng\n  FROM places p WHERE p.id = p_place_id\n$function$\n",
    "identity_args": "p_place_id uuid",
    "acl": [
-    "postgres=X/postgres",
     "=X/postgres",
+    "postgres=X/postgres",
     "anon=X/postgres",
     "authenticated=X/postgres",
     "service_role=X/postgres"
@@ -23594,8 +23594,8 @@
    "definition": "CREATE OR REPLACE FUNCTION public.posts_search_vector_update()\n RETURNS trigger\n LANGUAGE plpgsql\n SET search_path TO ''\nAS $function$\nBEGIN\n  NEW.search_vector := setweight(to_tsvector('english', COALESCE(NEW.caption, '')), 'A') ||\n    setweight(to_tsvector('english', COALESCE(array_to_string(NEW.tags, ' '), '')), 'B') ||\n    setweight(to_tsvector('english', COALESCE(array_to_string(NEW.hashtags, ' '), '')), 'B');\n  RETURN NEW;\nEND; $function$\n",
    "identity_args": "",
    "acl": [
-    "postgres=X/postgres",
     "=X/postgres",
+    "postgres=X/postgres",
     "anon=X/postgres",
     "authenticated=X/postgres",
     "service_role=X/postgres"
@@ -23689,27 +23689,6 @@
    "definition": "CREATE OR REPLACE FUNCTION public.resolve_org_site_host(p_host text)\n RETURNS TABLE(slug text, active boolean)\n LANGUAGE sql\n STABLE SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\n  SELECT subdomain, domain_active_at IS NOT NULL\n  FROM org_sites\n  WHERE custom_domain = lower(p_host)\n    AND domain_verified_at IS NOT NULL\n    AND published_at IS NOT NULL\n  LIMIT 1\n$function$\n",
    "identity_args": "p_host text",
    "acl": [
-    "postgres=X/postgres",
-    "anon=X/postgres",
-    "authenticated=X/postgres",
-    "service_role=X/postgres"
-   ],
-   "owner": "postgres"
-  },
-  {
-   "kind": "f",
-   "name": "rls_auto_enable",
-   "grants": {
-    "anon": true,
-    "service_role": true,
-    "authenticated": true
-   },
-   "comment": null,
-   "language": "plpgsql",
-   "definition": "CREATE OR REPLACE FUNCTION public.rls_auto_enable()\n RETURNS event_trigger\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'pg_catalog'\nAS $function$\nDECLARE\n  cmd record;\nBEGIN\n  FOR cmd IN\n    SELECT *\n    FROM pg_event_trigger_ddl_commands()\n    WHERE command_tag IN ('CREATE TABLE', 'CREATE TABLE AS', 'SELECT INTO')\n      AND object_type IN ('table','partitioned table')\n  LOOP\n     IF cmd.schema_name IS NOT NULL AND cmd.schema_name IN ('public') AND cmd.schema_name NOT IN ('pg_catalog','information_schema') AND cmd.schema_name NOT LIKE 'pg_toast%' AND cmd.schema_name NOT LIKE 'pg_temp%' THEN\n      BEGIN\n        EXECUTE format('alter table if exists %s enable row level security', cmd.object_identity);\n        RAISE LOG 'rls_auto_enable: enabled RLS on %', cmd.object_identity;\n      EXCEPTION\n        WHEN OTHERS THEN\n          RAISE LOG 'rls_auto_enable: failed to enable RLS on %', cmd.object_identity;\n      END;\n     ELSE\n        RAISE LOG 'rls_auto_enable: skip % (either system schema or not in enforced list: %.)', cmd.object_identity, cmd.schema_name;\n     END IF;\n  END LOOP;\nEND;\n$function$\n",
-   "identity_args": "",
-   "acl": [
-    "=X/postgres",
     "postgres=X/postgres",
     "anon=X/postgres",
     "authenticated=X/postgres",
@@ -23946,8 +23925,8 @@
    "definition": "CREATE OR REPLACE FUNCTION public.search_normalize(t text)\n RETURNS text\n LANGUAGE sql\n IMMUTABLE PARALLEL SAFE\n SET search_path TO 'public', 'extensions'\nAS $function$ SELECT lower(unaccent(coalesce(t, ''))) $function$\n",
    "identity_args": "t text",
    "acl": [
-    "postgres=X/postgres",
     "=X/postgres",
+    "postgres=X/postgres",
     "anon=X/postgres",
     "authenticated=X/postgres",
     "service_role=X/postgres"
@@ -24021,8 +24000,8 @@
    "definition": "CREATE OR REPLACE FUNCTION public.search_prefix_tsquery(q text)\n RETURNS tsquery\n LANGUAGE sql\n IMMUTABLE PARALLEL SAFE\n SET search_path TO 'public', 'extensions'\nAS $function$\n  SELECT CASE\n    WHEN cardinality(toks) = 0 THEN NULL\n    ELSE to_tsquery('simple', array_to_string(ARRAY(SELECT t || ':*' FROM unnest(toks) AS t), ' & '))\n  END\n  FROM (\n    SELECT array_remove(regexp_split_to_array(public.search_normalize(q), '[^[:alnum:]]+'), '') AS toks\n  ) s\n$function$\n",
    "identity_args": "q text",
    "acl": [
-    "postgres=X/postgres",
     "=X/postgres",
+    "postgres=X/postgres",
     "anon=X/postgres",
     "authenticated=X/postgres",
     "service_role=X/postgres"
@@ -24060,8 +24039,8 @@
    "definition": "CREATE OR REPLACE FUNCTION public.search_query_tokens(q text)\n RETURNS text[]\n LANGUAGE sql\n IMMUTABLE PARALLEL SAFE\n SET search_path TO 'public', 'extensions'\nAS $function$\n  SELECT array_remove(regexp_split_to_array(public.search_normalize(q), '[^[:alnum:]]+'), '')\n$function$\n",
    "identity_args": "q text",
    "acl": [
-    "postgres=X/postgres",
     "=X/postgres",
+    "postgres=X/postgres",
     "anon=X/postgres",
     "authenticated=X/postgres",
     "service_role=X/postgres"
@@ -24081,8 +24060,8 @@
    "definition": "CREATE OR REPLACE FUNCTION public.search_token_hits(vec tsvector, q text)\n RETURNS integer\n LANGUAGE sql\n IMMUTABLE PARALLEL SAFE\n SET search_path TO 'public', 'extensions'\nAS $function$\n  SELECT count(*)::int\n  FROM unnest(public.search_query_tokens(q)) AS t\n  WHERE vec @@ to_tsquery('simple', t || ':*')\n$function$\n",
    "identity_args": "vec tsvector, q text",
    "acl": [
-    "postgres=X/postgres",
     "=X/postgres",
+    "postgres=X/postgres",
     "anon=X/postgres",
     "authenticated=X/postgres",
     "service_role=X/postgres"
@@ -24102,8 +24081,8 @@
    "definition": "CREATE OR REPLACE FUNCTION public.search_token_rank(vec tsvector, q text)\n RETURNS real\n LANGUAGE sql\n IMMUTABLE PARALLEL SAFE\n SET search_path TO 'public', 'extensions'\nAS $function$\n  SELECT COALESCE(sum(ts_rank(vec, to_tsquery('simple', t || ':*'))), 0)::real\n  FROM unnest(public.search_query_tokens(q)) AS t\n$function$\n",
    "identity_args": "vec tsvector, q text",
    "acl": [
-    "postgres=X/postgres",
     "=X/postgres",
+    "postgres=X/postgres",
     "anon=X/postgres",
     "authenticated=X/postgres",
     "service_role=X/postgres"
@@ -24123,8 +24102,8 @@
    "definition": "CREATE OR REPLACE FUNCTION public.split_full_name()\n RETURNS trigger\n LANGUAGE plpgsql\n SET search_path TO ''\nAS $function$\nBEGIN\n  -- Only process if full_name changed and is not null\n  IF NEW.full_name IS NOT NULL AND NEW.full_name != '' THEN\n    -- If first_name is empty, extract it from full_name\n    IF NEW.first_name IS NULL OR NEW.first_name = '' THEN\n      NEW.first_name := SPLIT_PART(TRIM(NEW.full_name), ' ', 1);\n    END IF;\n\n    -- If last_name is empty, extract it from full_name\n    IF NEW.last_name IS NULL OR NEW.last_name = '' THEN\n      -- Check if there are multiple words in full_name\n      IF ARRAY_LENGTH(STRING_TO_ARRAY(TRIM(NEW.full_name), ' '), 1) > 1 THEN\n        NEW.last_name := TRIM(SUBSTRING(\n          TRIM(NEW.full_name)\n          FROM POSITION(' ' IN TRIM(NEW.full_name)) + 1\n        ));\n      END IF;\n    END IF;\n  END IF;\n\n  RETURN NEW;\nEND;\n$function$\n",
    "identity_args": "",
    "acl": [
-    "postgres=X/postgres",
     "=X/postgres",
+    "postgres=X/postgres",
     "anon=X/postgres",
     "authenticated=X/postgres",
     "service_role=X/postgres"
@@ -24144,8 +24123,8 @@
    "definition": "CREATE OR REPLACE FUNCTION public.sync_privacy_settings()\n RETURNS trigger\n LANGUAGE plpgsql\n SET search_path TO ''\nAS $function$\nBEGIN\n  -- When visibility changes, update or create privacy_settings\n  INSERT INTO public.privacy_settings (profile_id, profile_visibility)\n  VALUES (NEW.id, NEW.visibility)\n  ON CONFLICT (profile_id)\n  DO UPDATE SET\n    profile_visibility = NEW.visibility,\n    updated_at = NOW();\n\n  RETURN NEW;\nEND;\n$function$\n",
    "identity_args": "",
    "acl": [
-    "postgres=X/postgres",
     "=X/postgres",
+    "postgres=X/postgres",
     "anon=X/postgres",
     "authenticated=X/postgres",
     "service_role=X/postgres"
@@ -24165,8 +24144,8 @@
    "definition": "CREATE OR REPLACE FUNCTION public.update_connection_suggestions_updated_at()\n RETURNS trigger\n LANGUAGE plpgsql\n SET search_path TO 'public'\nAS $function$\nBEGIN\n  NEW.updated_at := NOW();\n  RETURN NEW;\nEND;\n$function$\n",
    "identity_args": "",
    "acl": [
-    "postgres=X/postgres",
     "=X/postgres",
+    "postgres=X/postgres",
     "anon=X/postgres",
     "authenticated=X/postgres",
     "service_role=X/postgres"
@@ -24222,8 +24201,8 @@
    "definition": "CREATE OR REPLACE FUNCTION public.update_follows_updated_at()\n RETURNS trigger\n LANGUAGE plpgsql\n SET search_path TO ''\nAS $function$\nBEGIN\n  NEW.updated_at := NOW();\n  RETURN NEW;\nEND;\n$function$\n",
    "identity_args": "",
    "acl": [
-    "postgres=X/postgres",
     "=X/postgres",
+    "postgres=X/postgres",
     "anon=X/postgres",
     "authenticated=X/postgres",
     "service_role=X/postgres"
@@ -24243,8 +24222,8 @@
    "definition": "CREATE OR REPLACE FUNCTION public.update_group_post_timestamp()\n RETURNS trigger\n LANGUAGE plpgsql\n SET search_path TO ''\nAS $function$\nBEGIN\n  NEW.updated_at = NOW();\n  RETURN NEW;\nEND;\n$function$\n",
    "identity_args": "",
    "acl": [
-    "postgres=X/postgres",
     "=X/postgres",
+    "postgres=X/postgres",
     "anon=X/postgres",
     "authenticated=X/postgres",
     "service_role=X/postgres"
@@ -24318,8 +24297,8 @@
    "definition": "CREATE OR REPLACE FUNCTION public.update_post_tags_updated_at()\n RETURNS trigger\n LANGUAGE plpgsql\n SET search_path TO ''\nAS $function$\nBEGIN\n  -- Unconditional stamp, as migration 008 intended. Do NOT reintroduce a\n  -- column guard here: this function is attached to post_tags, and guarding on\n  -- a column that table does not have is the entire bug being fixed.\n  NEW.updated_at := timezone('utc'::text, now());\n  RETURN NEW;\nEND;\n$function$\n",
    "identity_args": "",
    "acl": [
-    "postgres=X/postgres",
     "=X/postgres",
+    "postgres=X/postgres",
     "anon=X/postgres",
     "authenticated=X/postgres",
     "service_role=X/postgres"
@@ -24339,8 +24318,8 @@
    "definition": "CREATE OR REPLACE FUNCTION public.update_updated_at_column()\n RETURNS trigger\n LANGUAGE plpgsql\n SET search_path TO ''\nAS $function$\nBEGIN\n  NEW.updated_at := NOW();\n  RETURN NEW;\nEND;\n$function$\n",
    "identity_args": "",
    "acl": [
-    "postgres=X/postgres",
     "=X/postgres",
+    "postgres=X/postgres",
     "anon=X/postgres",
     "authenticated=X/postgres",
     "service_role=X/postgres"
@@ -24892,12 +24871,12 @@
   {
    "name": "pg_cron",
    "schema": "pg_catalog",
-   "version": "1.6.4"
+   "version": "1.6"
   },
   {
    "name": "pg_net",
    "schema": "public",
-   "version": "0.20.0"
+   "version": "0.19.5"
   },
   {
    "name": "pg_stat_statements",
