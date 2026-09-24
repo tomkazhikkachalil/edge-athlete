@@ -170,11 +170,11 @@ export async function siteGET(
   });
 }
 
-/** Phase 7 C3: the org's shaping sport — leagues.sport_key, clubs.primary_sport
- *  (174). A pre-174 database (42703) or an org without one → null, which
- *  every caller treats as "the classic shape". */
+/** Phase 7 C3: the org's shaping sport — `organizations.sport_key` for both
+ *  kinds since Round 5 D1 (a club's was `primary_sport` on the old table).
+ *  An org without one → null, which every caller treats as "the classic shape". */
 export async function loadOrgSport(admin: Admin, side: OrgSide, orgId: string): Promise<string | null> {
-  const column = side === 'league' ? 'sport_key' : 'primary_sport';
+  const column = 'sport_key';
   const { data, error } = await admin
     .from(ORG_TABLE[side])
     .select(column)
@@ -702,17 +702,12 @@ async function getSiteBySlugInternal(
 
   const side: OrgSide = orgKindOf(site) ?? 'club';
   const orgId = orgIdOf(site) as string;
-  // R4 widens the org read for JSON-LD: geography both sides, sport_key
-  // leagues only (clubs have no such column — mig 108/113); C3 adds the
-  // club's primary_sport (174) with a 42703 retry for older databases.
+  // R4 widens the org read for JSON-LD: geography + sport_key — ONE shape
+  // for both kinds since D1 (the org row lives in organizations).
   const readOrg = (fields: string) =>
     admin.from(ORG_TABLE[side]).select(fields).eq('id', orgId).maybeSingle();
   const [orgRead, { data: modules }] = await Promise.all([
-    readOrg(
-      side === 'league'
-        ? 'id, name, description, city, region, country, sport_key, visibility, listing_status, approved_at'
-        : 'id, name, description, city, region, country, primary_sport, visibility, listing_status, approved_at'
-    ),
+    readOrg('id, name, description, city, region, country, sport_key, visibility, listing_status, approved_at'),
     admin
       .from('org_site_modules')
       .select('module_key, enabled, sort_order, config')
@@ -722,14 +717,9 @@ async function getSiteBySlugInternal(
   ]);
   let org = orgRead.data;
   if (orgRead.error?.code === '42703') {
-    // Pre-179 (no listing_status): the 176/177 shape; then pre-176/177 (no
-    // visibility) or pre-174 (no primary_sport): step down.
-    ({ data: org } = await readOrg(
-      side === 'league'
-        ? 'id, name, description, city, region, country, sport_key, visibility, approved_at'
-        : 'id, name, description, city, region, country, primary_sport, visibility, approved_at'
-    ));
-    if (!org) ({ data: org } = await readOrg(side === 'league' ? 'id, name, city, region, country, sport_key' : 'id, name, city, region, country, primary_sport'));
+    // A database behind 231 (no organizations columns as expected): step down.
+    ({ data: org } = await readOrg('id, name, description, city, region, country, sport_key, visibility, approved_at'));
+    if (!org) ({ data: org } = await readOrg('id, name, city, region, country, sport_key'));
     if (!org) ({ data: org } = await readOrg('id, name, city, region, country'));
   }
   if (!org) return null;
@@ -754,7 +744,6 @@ async function getSiteBySlugInternal(
     region?: string | null;
     country?: string | null;
     sport_key?: string | null;
-    primary_sport?: string | null;
     visibility?: string | null;
     description?: string | null;
     listing_status?: string | null;
@@ -769,7 +758,7 @@ async function getSiteBySlugInternal(
     orgRegion: orgRow.region ?? null,
     orgCountry: orgRow.country ?? null,
     orgSportKey: orgRow.sport_key ?? null,
-    sportKey: (side === 'league' ? orgRow.sport_key : orgRow.primary_sport) ?? null,
+    sportKey: orgRow.sport_key ?? null,
     // Phase 9 V4 (leagues in program 11 L2): decided from the org row alone.
     visibility: orgRow.visibility === 'private' ? 'private' : 'public',
     // R1: decided from the org row alone (viewer-independent, like visibility).

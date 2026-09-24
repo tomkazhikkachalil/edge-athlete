@@ -11,7 +11,7 @@
  *   READ a row's KIND        →  select ORG_KIND_EMBED        — organizations.kind, never the pair (step D0)
  *   ACCEPT / EMIT the public league_id / club_id fields → orgRefFromBody / pairFieldsFor (the boundary)
  *   WRITE a row for an org   →  { ...pairFor(ref) }         — org_id since step C (233 fills the pair)
- *   TOUCH the org row itself →  .from(ORG_TABLE[kind])      — until step D (views)
+ *   TOUCH the org row itself →  .from('organizations')     — since step D1 (ORG_TABLE resolves there; a LIST of one kind adds .eq('kind', kind))
  *   SPELL a URL family       →  ORG_ROUTE_FAMILY[kind]      — forever (URLs never change)
  *
  * `OrgKind` is what an org calls itself (its route family and vocabulary —
@@ -133,11 +133,14 @@ export const PAIR_COLUMN: Record<OrgKind, 'league_id' | 'club_id'> = {
   club: 'club_id',
 };
 
-/** The org row's own table — the mirror's SOURCE until step C, a view
- *  after step D. */
-export const ORG_TABLE: Record<OrgKind, 'leagues' | 'clubs'> = {
-  league: 'leagues',
-  club: 'clubs',
+/** The org row's own table. Since step D1 (Sep 23 2026) BOTH kinds resolve
+ *  to `organizations` — the one table since 231, the same ids as the old
+ *  two, so every `.eq('id', orgId)` read moved without a change at the
+ *  call site. A read that LISTS one kind adds `.eq('kind', kind)`. The
+ *  constant is retired in step F; `leagues` / `clubs` become views in 235. */
+export const ORG_TABLE: Record<OrgKind, 'organizations'> = {
+  league: 'organizations',
+  club: 'organizations',
 };
 
 /** The URL family: `/api/leagues/…`, `/leagues`, `/league/[id]`. Spelled

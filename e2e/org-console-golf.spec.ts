@@ -71,8 +71,8 @@ test('golf club console: Website → Venues → Leagues & events first, golf che
     await page.goto(`/app/org/club/${plainId}`);
     await expect(page.getByRole('heading', { name: 'Roster', level: 2 })).toBeVisible({ timeout: 20_000 });
     const plainOrder = await sectionOrder();
-    // Phase 9 V1: Membership sits right after Roster on a club.
-    expect(plainOrder.slice(0, 3)).toEqual(['Roster', 'Membership', 'Seasons and divisions']);
+    // Phase 9 V1: Membership sits right after Roster on a club; Org Staff round 5 (Sep 4 2026) put Hierarchy & people next.
+    expect(plainOrder.slice(0, 3)).toEqual(['Roster', 'Membership', 'Hierarchy & people']);
     await expect(page.getByRole('heading', { name: 'Competitions', level: 2 })).toBeVisible();
     await expect(checklist().getByText('Create a season with dates')).toBeVisible();
     await expect(checklist().getByText('Create your site', { exact: true })).toHaveCount(0);

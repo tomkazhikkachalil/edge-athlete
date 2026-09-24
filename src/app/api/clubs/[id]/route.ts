@@ -45,7 +45,7 @@ export async function GET(
     const supabase = getSupabaseAdmin();
 
     const { data: club, error } = await supabase
-      .from('clubs')
+      .from('organizations')
       .select('id, name, description, owner_profile_id, place_id, city, region, region_code, country, country_code, lat, lng, location, created_at, operates_teams, operates_competitions')
       .eq('id', id)
       .maybeSingle();
@@ -182,7 +182,7 @@ export async function PATCH(
     let updated: Record<string, unknown> | null = null;
     if (Object.keys(updates).length > 0) {
       const { data: row, error: updateError } = await supabase
-        .from('clubs')
+        .from('organizations')
         .update(updates)
         .eq('id', id)
         .select()
@@ -210,7 +210,7 @@ export async function PATCH(
     if (parsed.data.visibility !== undefined) revalidateTag('org-sitemap', { expire: 0 });
 
     return NextResponse.json({
-      club: updated ?? (await supabase.from('clubs').select('*').eq('id', id).maybeSingle()).data,
+      club: updated ?? (await supabase.from('organizations').select('*').eq('id', id).maybeSingle()).data,
       ...(listingChange ? { listing: listingChange } : {}),
     });
   } catch (error) {

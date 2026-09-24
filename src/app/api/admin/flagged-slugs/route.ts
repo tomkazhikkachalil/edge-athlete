@@ -28,16 +28,12 @@ export async function GET(request: NextRequest) {
 
     const leagueIds = (sites ?? []).filter(s => orgKindOf(s) === 'league').map(s => s.org_id as string);
     const clubIds = (sites ?? []).filter(s => orgKindOf(s) === 'club').map(s => s.org_id as string);
-    const [leaguesRes, clubsRes] = await Promise.all([
-      leagueIds.length
-        ? admin.from('leagues').select('id, name, sport_key, city, region').in('id', leagueIds)
-        : Promise.resolve({ data: [] }),
-      clubIds.length
-        ? admin.from('clubs').select('id, name, sport_key, city, region').in('id', clubIds)
-        : Promise.resolve({ data: [] }),
-    ]);
+    const orgIds = [...leagueIds, ...clubIds];
+    const orgsRes = orgIds.length
+      ? await admin.from('organizations').select('id, name, sport_key, city, region').in('id', orgIds)
+      : { data: [] };
     const orgById = new Map(
-      [...(leaguesRes.data ?? []), ...(clubsRes.data ?? [])].map(o => [o.id as string, o])
+      (orgsRes.data ?? []).map(o => [o.id as string, o])
     );
 
     const flagged = (sites ?? []).flatMap(site => {

@@ -91,7 +91,7 @@ export async function refreshLeagueSportCache(
   if (sportKeys.length === 0) return { error: null };
 
   const { data: league, error: leagueError } = await admin
-    .from('leagues')
+    .from('organizations')
     .select('id, sport_key')
     .eq('id', leagueId)
     .maybeSingle();
@@ -101,7 +101,7 @@ export async function refreshLeagueSportCache(
   const next = mostCommonSport(sportKeys);
   if (!next) return { error: null };
   const { error: updateError } = await admin
-    .from('leagues')
+    .from('organizations')
     .update({ sport_key: next })
     .eq('id', leagueId);
   return { error: updateError };

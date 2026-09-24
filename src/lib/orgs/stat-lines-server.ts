@@ -510,16 +510,12 @@ export async function externalCompetitionsGET(
   const external = ((comps ?? []) as CompRow[]).filter(c => orgIdOf(c) !== clubId);
   const leagueIds = [...new Set(external.filter(c => orgKindOf(c) === 'league').map(c => orgIdOf(c) as string))];
   const clubIds = [...new Set(external.filter(c => orgKindOf(c) === 'club').map(c => orgIdOf(c) as string))];
-  const [leagueRows, clubRows] = await Promise.all([
-    leagueIds.length
-      ? admin.from('leagues').select('id, name').in('id', leagueIds)
-      : Promise.resolve({ data: [] as { id: string; name: string }[] }),
-    clubIds.length
-      ? admin.from('clubs').select('id, name').in('id', clubIds)
-      : Promise.resolve({ data: [] as { id: string; name: string }[] }),
-  ]);
-  const leagueNames = new Map((leagueRows.data ?? []).map(r => [r.id as string, r.name as string]));
-  const clubNames = new Map((clubRows.data ?? []).map(r => [r.id as string, r.name as string]));
+  const ownerIds = [...leagueIds, ...clubIds];
+  const ownerRows = ownerIds.length
+    ? await admin.from('organizations').select('id, name').in('id', ownerIds)
+    : { data: [] as { id: string; name: string }[] };
+  const leagueNames = new Map((ownerRows.data ?? []).map(r => [r.id as string, r.name as string]));
+  const clubNames = leagueNames; // one table since D1 — the same map answers both kinds
 
   return NextResponse.json({
     competitions: external

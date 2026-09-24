@@ -31,7 +31,7 @@ export async function POST(
     const supabase = getSupabaseAdmin();
 
     const { data: club, error: clubError } = await supabase
-      .from('clubs')
+      .from('organizations')
       .select('id, name, owner_profile_id')
       .eq('id', id)
       .maybeSingle();

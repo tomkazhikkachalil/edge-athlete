@@ -55,7 +55,9 @@ export function isListingStatus(value: unknown): value is ListingStatus {
 export function listingFromRow(row: Record<string, unknown> | null | undefined): ListingState {
   if (!row) return LISTING_NOT_KNOWN;
   const approvedAt = typeof row.approved_at === 'string' ? row.approved_at : null;
-  const primarySport = typeof row.primary_sport === 'string' && row.primary_sport ? row.primary_sport : null;
+  // The org row's sport_key (organizations, since D1); a pre-D1 clubs row spelled it primary_sport.
+  const sportRaw = row.sport_key ?? row.primary_sport;
+  const primarySport = typeof sportRaw === 'string' && sportRaw ? sportRaw : null;
   if (isListingStatus(row.listing_status)) {
     return { known: true, status: row.listing_status, approvedAt, primarySport };
   }
@@ -76,7 +78,7 @@ export function isListed(state: Pick<ListingState, 'status'>): boolean {
  *  approved_at read (pre-174 → not known). Any other error → not known. */
 export async function readListing(admin: Admin, side: OrgSide, orgId: string): Promise<ListingState> {
   const table = ORG_TABLE[side];
-  const sportCol = side === 'league' ? '' : ', primary_sport';
+  const sportCol = ', sport_key';
   const first = await admin
     .from(table)
     .select(`id, listing_status, approved_at${sportCol}`)

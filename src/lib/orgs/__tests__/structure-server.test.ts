@@ -83,26 +83,26 @@ const SCOPE = { side: 'league' as const, orgId: 'org-1' };
 describe('requireOrgManager', () => {
   it('manager/owner pass; member and null 403; missing org 404; error 500', async () => {
     const ok = mockAdmin({
-      leagues: { data: { id: 'org-1', name: 'L', owner_profile_id: null } },
+      organizations: { data: { id: 'org-1', name: 'L', owner_profile_id: null } },
       memberships: { data: [{ role: 'manager' }] },
     });
     const passed = await requireOrgManager(ok.admin, USER, 'league', 'org-1');
     expect(passed.ok).toBe(true);
 
     const member = mockAdmin({
-      leagues: { data: { id: 'org-1', name: 'L', owner_profile_id: null } },
+      organizations: { data: { id: 'org-1', name: 'L', owner_profile_id: null } },
       memberships: { data: [{ role: 'member' }] },
     });
     const denied = await requireOrgManager(member.admin, USER, 'league', 'org-1');
     expect(denied.ok).toBe(false);
     if (!denied.ok) expect(denied.response.status).toBe(403);
 
-    const missing = mockAdmin({ clubs: { data: null } });
+    const missing = mockAdmin({ organizations: { data: null } });
     const notFound = await requireOrgManager(missing.admin, USER, 'club', 'org-1');
     expect(notFound.ok).toBe(false);
     if (!notFound.ok) expect(notFound.response.status).toBe(404);
 
-    const broken = mockAdmin({ leagues: { data: null, error: { code: '57014' } } });
+    const broken = mockAdmin({ organizations: { data: null, error: { code: '57014' } } });
     const errored = await requireOrgManager(broken.admin, USER, 'league', 'org-1');
     expect(errored.ok).toBe(false);
     if (!errored.ok) expect(errored.response.status).toBe(500);

@@ -32,7 +32,7 @@ export async function POST(
     const supabase = getSupabaseAdmin();
 
     const { data: league, error: leagueError } = await supabase
-      .from('leagues')
+      .from('organizations')
       .select('id, name, owner_profile_id')
       .eq('id', id)
       .maybeSingle();

@@ -19,7 +19,7 @@ import { publicSubpageKeys } from './private';
 import { parseGolfPointsConfig } from '@/lib/competitions/golf-points';
 import { roundRuleFor } from '@/lib/competitions/golf-league';
 import type { OrgSide } from '@/lib/orgs/authz';
-import { ORG_ID, ORG_TABLE, orgIdOf, type OrgKindRow, type OrgRef, orgRefOf } from '@/lib/orgs/org-ref';
+import { ORG_ID, orgIdOf, type OrgKindRow, type OrgRef, orgRefOf } from '@/lib/orgs/org-ref';
 import { groupAnnouncements, type AnnouncementNotificationRow } from '@/lib/orgs/announce';
 import { publicDisplayName, type MaskableProfile, publicHandle } from '@/lib/orgs/public-names';
 import { listAffiliations } from '@/lib/affiliations/server';
@@ -610,15 +610,14 @@ export async function fetchPublishedSitesForSitemap(
 
   // Phase 9 V4 (leagues in program 11 L2): private orgs — the members-only
   // subpages leave the sitemap. Pre-176/177 (42703) ⇒ nothing is private.
+  // D1: one organizations read, keyed by id (unique across kinds).
   const privateOrgs = new Set<string>();
-  const collectPrivate = async (table: 'leagues' | 'clubs', ids: string[]) => {
-    if (!ids.length) return;
-    const { data: vis } = await admin.from(table).select('id, visibility').in('id', ids);
-    for (const c of vis ?? []) if ((c as { visibility?: string }).visibility === 'private') privateOrgs.add(`${table}:${c.id as string}`);
-  };
-  await Promise.all([collectPrivate('clubs', clubIds), collectPrivate('leagues', leagueIds)]);
+  if (orgIds.length) {
+    const { data: vis } = await admin.from('organizations').select('id, visibility').in('id', orgIds);
+    for (const c of vis ?? []) if ((c as { visibility?: string }).visibility === 'private') privateOrgs.add(c.id as string);
+  }
   const visibilityOf = (r: { ref: OrgRef | null }): 'public' | 'private' =>
-    r.ref && privateOrgs.has(`${ORG_TABLE[r.ref.side]}:${r.ref.orgId}`) ? 'private' : 'public';
+    r.ref && privateOrgs.has(r.ref.orgId) ? 'private' : 'public';
 
   // P2: public players per org (bounded; the standings module gates).
   const playersByOrg = await fetchPlayerHandlesForOrgs(

@@ -101,7 +101,7 @@ export async function PATCH(request: NextRequest) {
       // it, approval stamps approved_at, and a failure never deletes it (it
       // holds the owner's work). No provisioned club → today's create path.
       const { data: adoptedRow } = row.created_club_id
-        ? await supabase.from('clubs').select('*').eq('id', row.created_club_id).maybeSingle()
+        ? await supabase.from('organizations').select('*').eq('id', row.created_club_id).maybeSingle()
         : { data: null };
       const adopted = (adoptedRow as { id: string; name: string } | null) ?? null;
       const created = adopted ? { club: adopted } : await createClubWithOwner(supabase, {
@@ -140,7 +140,7 @@ export async function PATCH(request: NextRequest) {
         const replayed = await replayStructure(supabase, { side: 'club', orgId: created.club.id }, plan);
         if (!replayed.ok) {
           reportRouteError('[ADMIN CLUB REQUESTS] structure replay failed at', replayed.step, replayed.status);
-          if (!adopted) await supabase.from('clubs').delete().eq('id', created.club.id);
+          if (!adopted) await supabase.from('organizations').delete().eq('id', created.club.id);
           return NextResponse.json(
             { error: 'Failed to build the club structure — the request is still pending; try approving again' },
             { status: 500 }
@@ -153,11 +153,11 @@ export async function PATCH(request: NextRequest) {
         // R1 (179): approval LISTS the org (and stamps the approval time; a
         // re-listing after "link only" re-stamps). Pre-179: approved_at only.
         let { error: stampError } = await supabase
-          .from('clubs')
+          .from('organizations')
           .update({ approved_at: decidedAt, listing_status: 'listed' })
           .eq('id', adopted.id);
         if (stampError?.code === 'PGRST204' && /listing_status/.test(stampError.message ?? '')) {
-          ({ error: stampError } = await supabase.from('clubs').update({ approved_at: decidedAt }).eq('id', adopted.id));
+          ({ error: stampError } = await supabase.from('organizations').update({ approved_at: decidedAt }).eq('id', adopted.id));
         }
         if (stampError) {
           reportRouteError('[ADMIN CLUB REQUESTS] approve stamp error:', stampError);
@@ -177,7 +177,7 @@ export async function PATCH(request: NextRequest) {
         .select();
       if (claimError || !claimed || claimed.length === 0) {
         if (claimError) reportRouteError('[ADMIN CLUB REQUESTS] claim error:', claimError);
-        if (!adopted) await supabase.from('clubs').delete().eq('id', created.club.id);
+        if (!adopted) await supabase.from('organizations').delete().eq('id', created.club.id);
         return NextResponse.json({ error: 'Request was decided by someone else' }, { status: 409 });
       }
 
@@ -240,7 +240,7 @@ export async function PATCH(request: NextRequest) {
     // row keeps its drafts; the owner can ask again from the console.
     if (row.created_club_id) {
       const { error: unlistError } = await supabase
-        .from('clubs')
+        .from('organizations')
         .update({ listing_status: 'unlisted' })
         .eq('id', row.created_club_id);
       if (unlistError && !(unlistError.code === 'PGRST204' && /listing_status/.test(unlistError.message ?? ''))) {
