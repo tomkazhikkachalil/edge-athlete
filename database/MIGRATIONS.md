@@ -369,6 +369,28 @@ re-runnable, `check:schema` clean, `schema_dump()` identical to prod's.
 parser reading it back); `scripts/chain-replay-scan.mjs` is the read-only
 report of why this section exists.
 
+## Views (migration 235, Sep 23 2026) — the chain's first
+
+`leagues` and `clubs` are `security_invoker` VIEWS over `organizations` since 235
+(Round 5 D). What that means for the tooling:
+
+- **Grants on a new view are NOT clean.** Supabase's default privileges hand
+  every new relation ALL to anon, authenticated AND service_role — a view needs
+  its own `REVOKE ALL … FROM PUBLIC, anon, authenticated, service_role` then the
+  GRANT it deserves (235: `SELECT, UPDATE, DELETE TO service_role`, no INSERT).
+  The owner (`postgres`) always shows every privilege in
+  `information_schema.role_table_grants`; a grant assertion counts API roles.
+- **The baseline carries the option separately:** `schema_dump()` v3 (234)
+  records `reloptions`, and `rebuild-baseline-core.mjs emitViews` appends
+  `ALTER VIEW public.x SET (security_invoker = true);` after the
+  `CREATE OR REPLACE VIEW` — re-runnable, survives a body change.
+- **The provenance parser** owns a view like a table (`CREATE OR REPLACE VIEW`)
+  and captures ONE ident per `DROP TABLE` — never a comma list.
+- **An auto-updatable view** (single table, plain columns, an alias allowed —
+  `UPDATE clubs SET primary_sport` maps to `sport_key`) runs the base table's
+  BEFORE triggers; not projecting `kind` is what keeps an UPDATE from moving a
+  row across kinds, so no CHECK OPTION.
+
 ## ⚠️ Everything else is historical — do NOT run it
 
 These directories are **reference only**. Running any script in them against a
