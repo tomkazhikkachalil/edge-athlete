@@ -57,15 +57,15 @@ export async function recordSanctionGrant(
   granteeId: string
 ): Promise<void> {
   try {
-    // 236 → 237 window: the old three columns are still NOT NULL, so a
-    // grant carries BOTH spellings until 237 drops the old ones.
+    // 237: the org columns are the columns (grantor_league_id / grantee_kind /
+    // grantee_id are gone — an insert naming them is a PGRST204 that this
+    // best-effort path would swallow, which is how the 237 probe found the
+    // dual-write still in place).
     const { error } = await admin.from('sanction_grants').insert({
-      grantor_league_id: grantorLeagueId,
-      grantee_kind: granteeKind,
-      grantee_id: granteeId,
       grantor_org_id: grantorLeagueId,
       grantee_org_id: granteeId,
     });
+    void granteeKind; // the kind is the org's now (236); the parameter stays for the callers
     if (error && !isMissingTableError(error.code)) {
       console.error('[PARENTS] grant insert error:', error);
     }
